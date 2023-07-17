@@ -1,5 +1,6 @@
 import json
 import os
+import sys
 import sqlite3
 from typing import List
 
@@ -7,6 +8,7 @@ import openai
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from tenacity import (retry, stop_after_attempt,  # for exponential backoff
                       wait_random_exponential)
@@ -245,4 +247,16 @@ async def logs():
 
     return result
 
-uvicorn.run(app, port=8000)
+
+@app.get("/")
+async def root():
+    return {"Hello! Welcome to server!"}
+
+
+# Get access to files on the server. Only for development use.
+@app.get("/files/{path:path}", response_class=FileResponse)
+async def access_contents(path: str):
+    return path
+
+if __name__ == "__main__":
+    uvicorn.run(app, host="0.0.0.0", port=int(sys.argv[1]))
