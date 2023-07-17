@@ -247,15 +247,10 @@ async def logs():
 
     return result
 
-
-@app.get("/")
-async def root():
-    return {"Hello! Welcome to server!"}
-
-
 # Get access to files on the server. Only for development use.
 @app.get("/files/{path:path}", response_class=FileResponse)
 async def access_contents(path: str):
+    os.chdir("/home/zs35/")
     return path
 
 if __name__ == "__main__":
