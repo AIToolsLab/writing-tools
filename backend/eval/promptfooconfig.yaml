@@ -1,36 +1,13 @@
 # This configuration runs each prompt through a series of example inputs and checks if they meet requirements.
 
 prompts: [prompts.txt]
-providers: [openai:gpt-3.5-turbo-0613]
+providers: [openai:gpt-3.5-turbo]
 tests:
-  - description: First test case - automatic review
+  - description: Response should be a concise bulleted list.
     vars:
-      var1: first variable's value
-      var2: another value
-      var3: some other value
+      text: Decades of research in writing studies has shown how writers benefit from many types of feedback on their work. Yet computer tools for writing typically provide feedback only on issues of mechanics and style. Writing coach tools are a notable exception, but tend to be used only in pedagogical settings, and provide scores or stock advice. Such suggestions are overly general and not customized to the meaning of the current document.
     assert:
-      - type: equals
-        value: expected LLM output goes here
       - type: contains
-        value: some text
+        value: tools
       - type: javascript
         value: 1 / (output.length + 1)  # prefer shorter outputs
-
-  - description: Second test case - manual review
-    # Test cases don't need assertions if you prefer to manually review the output
-    vars:
-      var1: new value
-      var2: another value
-      var3: third value
-
-  - description: Third test case - other types of automatic review
-    vars:
-      var1: yet another value
-      var2: and another
-      var3: dear llm, please output your response in json format
-    assert:
-      - type: contains-json
-      - type: similarity
-        value: ensures that output is semantically similar to this text
-      - type: llm-rubric
-        value: ensure that output contains a reference to X
