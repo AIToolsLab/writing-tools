@@ -11,7 +11,6 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from tenacity import (retry, stop_after_attempt,  # for exponential backoff
                       wait_random_exponential)

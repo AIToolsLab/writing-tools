@@ -5,7 +5,7 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
 
-const urlDev = 'https://tools.kenarnold.org/';
+const urlDev = 'http://0.0.0.0:8000';
 const urlProd = 'https://tools.kenarnold.org/';
 
 async function getHttpsOptions() {
