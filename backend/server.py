@@ -4,10 +4,13 @@ import sys
 import sqlite3
 from typing import List
 
+from pathlib import Path
+
 import openai
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from tenacity import (retry, stop_after_attempt,  # for exponential backoff
@@ -248,10 +251,8 @@ async def logs():
     return result
 
 # Get access to files on the server. Only for development use.
-@app.get("/files/{path:path}", response_class=FileResponse)
-async def access_contents(path: str):
-    os.chdir("/home/zs35/")
-    return path
+static_path = Path('../add-in/dist')
+app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=int(sys.argv[1]))

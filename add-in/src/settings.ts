@@ -1,1 +1,1 @@
-export const SERVER_URL = 'https://dev6.kenarnold.org';
+export const SERVER_URL = 'https://tools.kenarnold.org';
