@@ -1,9 +1,0 @@
-[
-  {"role": "system", "content": "You are a helpful and concise assistant. Task: What are 3 of the most important concepts described by this paragraph? Each concept should be described in 2 or 3 words. Response format: Markdown unordered list, each line starts with a dash"},
-  {"role": "user", "content": "{{ text }}"}
-]
----
-[
-  {"role": "system", "content": "What are 3 of the most important concepts described by this paragraph? Each concept should be described in 2 or 3 words."},
-  {"role": "user", "content": "{{ text }}"}
-]

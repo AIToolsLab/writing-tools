@@ -1,10 +1,11 @@
 # This configuration runs each prompt through a series of example inputs and checks if they meet requirements.
 
-prompts: [prompts.txt]
+prompts: [summary_phrases_prompts.txt]
 providers: [openai:gpt-3.5-turbo]
 tests:
   - description: Response should be a concise bulleted list.
     vars:
+      prompt: 
       text: Decades of research in writing studies has shown how writers benefit from many types of feedback on their work. Yet computer tools for writing typically provide feedback only on issues of mechanics and style. Writing coach tools are a notable exception, but tend to be used only in pedagogical settings, and provide scores or stock advice. Such suggestions are overly general and not customized to the meaning of the current document.
     assert:
       - type: contains
