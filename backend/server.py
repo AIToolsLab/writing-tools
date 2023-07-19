@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from nlp import (
     get_completion_reflections,
     gen_reflections_chat,
-    fix_json_chat,
+    ReflectionResponseInternal
 )
 
 # Read env file
@@ -31,9 +31,7 @@ class ReflectionRequestPayload(BaseModel):
 
 
 class ReflectionResponseItem(BaseModel):
-    text_in_HTML_format: str
-    sentence_number_in_paragraph: int
-    quality: float
+    reflection: str
 
 
 class ReflectionResponses(BaseModel):
@@ -79,52 +77,29 @@ async def get_reflections_chat(
             response_json = result[0]
             response = json.loads(response_json)
             # assume that the database stores only valid responses in the correct schema.
-            # We check this below.
-            return ReflectionResponses(**response)
+            reflections_internal = ReflectionResponseInternal(**response)
 
-    # Else, make the request and cache the response
-    response = await gen_reflections_chat(
-        writing=request.paragraph,
-        prompt=request.prompt
+        else:
+
+            # Else, make the request and cache the response
+            reflections_internal = await gen_reflections_chat(
+                writing=request.paragraph,
+                prompt=request.prompt
+            )
+
+            # Cache the response
+            # Use SQL timestamp
+            c.execute(
+                'INSERT INTO requests VALUES (datetime("now"), ?, ?, ?, ?)',
+                (request.prompt, request.paragraph, json.dumps(reflections_internal.dict()), "true"),
+            )
+
+    return ReflectionResponses(
+        reflections=[
+            ReflectionResponseItem(reflection=reflection)
+            for reflection in reflections_internal.reflections
+        ]
     )
-
-    # Attempt to parse JSON
-    try:
-        response_json = json.loads(response)
-        reflection_items = ReflectionResponses(**response_json)
-    except Exception as e1:
-        new_response = await fix_json_chat(response)
-
-        # Try to parse again
-        try:
-            response_json = json.loads(new_response)
-            reflection_items = ReflectionResponses(**response_json)
-        except Exception as e2:
-            # If it still doesn't work, log the error and fail out
-            with sqlite3.connect(db_file) as conn:
-                c = conn.cursor()
-                # Use SQL timestamp
-                c.execute(
-                    'INSERT INTO requests VALUES (datetime("now"), ?, ?, ?, ?)',
-                    (request.prompt, request.paragraph, json.dumps(dict(
-                        error=str(e2),
-                        response=response
-                    )), "false"),
-                )
-
-            raise e2
-
-    # Cache the response
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
-        # Use SQL timestamp
-        c.execute(
-            'INSERT INTO requests VALUES (datetime("now"), ?, ?, ?, ?)',
-            (request.prompt, request.paragraph, json.dumps(
-                reflection_items.dict()), "true"),
-        )
-
-    return reflection_items
 
 
 @app.post("/reflections")
