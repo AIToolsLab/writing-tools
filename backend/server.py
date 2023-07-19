@@ -1,7 +1,7 @@
 import json
 import os
 import sqlite3
-from typing import List
+from typing import List, Dict
 
 import openai
 import uvicorn
@@ -13,6 +13,7 @@ from nlp import (
     get_completion_reflections,
     gen_reflections_chat,
     fix_json_chat,
+    send_message
 )
 
 # Read env file
@@ -24,7 +25,6 @@ with open(".env", "r") as f:
 openai.organization = "org-9bUDqwqHW2Peg4u47Psf9uUo"
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-
 class ReflectionRequestPayload(BaseModel):
     paragraph: str
     prompt: str
@@ -35,6 +35,9 @@ class ReflectionResponseItem(BaseModel):
     sentence_number_in_paragraph: int
     quality: float
 
+class ChatRequestPayload(BaseModel):
+    message: str
+    messages: List[Dict[str, str]]
 
 class ReflectionResponses(BaseModel):
     reflections: List[ReflectionResponseItem]
@@ -137,6 +140,13 @@ async def reflections(payload: ReflectionRequestPayload):
         # TODO: Update completion method
         return get_completion_reflections(writing=payload.paragraph, prompt=payload.prompt)
 
+
+@app.post("/chat")
+async def chat(payload: ChatRequestPayload):
+    return await send_message(
+        message=payload.message,
+        messages=payload.messages
+    )
 
 @app.get("/logs")
 async def logs():

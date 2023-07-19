@@ -3,9 +3,9 @@ import { TextField, ChoiceGroup, DefaultButton } from '@fluentui/react';
 
 import { SERVER_URL } from '../settings';
 
-import Progress from './progress';
+import Progress from '../components/progress';
 
-export interface AppProps {
+export interface HomeProps {
     isOfficeInitialized: boolean;
 }
 
@@ -38,7 +38,7 @@ const presetPrompts = [
     },
 ];
 
-export default function App({ isOfficeInitialized }: AppProps) {
+export default function Home({ isOfficeInitialized }: HomeProps) {
     const [cards, updateCards] = React.useState<Card[]>([]);
     const [prompt, updatePrompt] = React.useState('');
     const [loading, updateLoading] = React.useState(false);

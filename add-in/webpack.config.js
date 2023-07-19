@@ -35,7 +35,7 @@ module.exports = async (env, options) => {
             clean: true,
         },
         resolve: {
-            extensions: ['.ts', '.tsx', '.html', '.js'],
+            extensions: ['.ts', '.tsx', '.html', '.js', '.css'],
         },
         module: {
             rules: [
@@ -65,6 +65,17 @@ module.exports = async (env, options) => {
                     generator: {
                         filename: 'assets/[name][ext][query]',
                     },
+                },
+                {
+                    test: /\.css$/,
+                    use: [
+                        {
+                            loader: 'style-loader',
+                        },
+                        {
+                            loader: 'css-loader',
+                        },
+                    ],
                 },
             ],
         },
