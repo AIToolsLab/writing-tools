@@ -106,25 +106,3 @@ async def gen_reflections_chat(writing, prompt) -> ReflectionResponseInternal:
         scratch=scratch,
         reflections=reflections,
     )
-
-async def fix_json_chat(invalid_json):
-    # Ask the LM to fix the JSON.
-    response = await openai.ChatCompletion.acreate(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "system",
-                "content":
-                    "The JSON should be an array of items with the following schema:\n\n"
-                        + DESIRED_SCHEMA
-            },
-            {"role": "user", "content": invalid_json},
-        ],
-        temperature=.5,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-    )
-
-    return response["choices"][0]["message"]["content"]
