@@ -163,3 +163,4 @@ cython_debug/
 
 # Javascript stuff
 node_modules/
+*.db
