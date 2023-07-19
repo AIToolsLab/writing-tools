@@ -15,14 +15,16 @@ from nlp import (
     ReflectionResponseInternal
 )
 
+openai.organization = "org-9bUDqwqHW2Peg4u47Psf9uUo"
+
 # Read env file
 with open(".env", "r") as f:
     for line in f:
         key, value = line.split("=")
-        os.environ[key] = value.strip()
-
-openai.organization = "org-9bUDqwqHW2Peg4u47Psf9uUo"
-openai.api_key = os.getenv("OPENAI_API_KEY")
+        if key == "OPENAI_API_KEY":
+            openai.api_key = value.strip()
+        elif key == "OPENAI_ORGANIZATION":
+            openai.organization = value.strip()
 
 
 class ReflectionRequestPayload(BaseModel):
