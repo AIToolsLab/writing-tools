@@ -32,8 +32,7 @@ export default function Chat() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                message: message,
-                messages: messages,
+                messages: [...messages, {role: 'user', content: message}],
             }),
         });
 
@@ -62,8 +61,7 @@ export default function Chat() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                message: messages[index].content,
-                messages: messages.slice(0, index),
+                messages: messages.slice(0, index + 1),
             }),
         });
 

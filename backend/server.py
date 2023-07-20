@@ -36,7 +36,6 @@ class ReflectionResponseItem(BaseModel):
     quality: float
 
 class ChatRequestPayload(BaseModel):
-    message: str
     messages: List[Dict[str, str]]
 
 class ReflectionResponses(BaseModel):
@@ -144,7 +143,6 @@ async def reflections(payload: ReflectionRequestPayload):
 @app.post("/chat")
 async def chat(payload: ChatRequestPayload):
     return await send_message(
-        message=payload.message,
         messages=payload.messages
     )
 
