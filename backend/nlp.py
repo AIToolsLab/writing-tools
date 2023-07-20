@@ -59,7 +59,7 @@ def get_completion_reflections(writing, prompt=DEFAULT_COMPLETION_PROMPT):
 # or
 # xxx\nFINAL ANSWER:\nyyy
 
-FINAL_ANSWER_REGEX = re.compile(r"FINAL (?:ANSWER|RESPONSE|OUTPUT)(?::)?\n", re.MULTILINE)
+FINAL_ANSWER_REGEX = re.compile(r"FINAL (?:ANSWER|RESPONSE|OUTPUT)(?::)?\s+", re.MULTILINE)
 
 class ReflectionResponseInternal(BaseModel):
     full_response: str
@@ -80,9 +80,13 @@ async def gen_reflections_chat(writing, prompt) -> ReflectionResponseInternal:
         presence_penalty=0,
     )
 
+    full_response = response["choices"][0]["message"]["content"].strip()
+    return parse_reflections_chat(full_response)
+
+
+def parse_reflections_chat(full_response: str) -> ReflectionResponseInternal:
     # Make a best effort at extracting the a list of reflections from the response
     # Fall back on returning a single item.
-    full_response = response["choices"][0]["message"]["content"].strip()
     splits = FINAL_ANSWER_REGEX.split(full_response, maxsplit=1)
     if len(splits) > 1:
         scratch = splits[0].strip()
