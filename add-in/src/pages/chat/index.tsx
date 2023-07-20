@@ -76,15 +76,15 @@ export default function Chat() {
             </div>
 
             <form className={classes.sendMessage} onSubmit={sendMessage}>
-                <label htmlFor="">
-                    <TextField
+                <label className={classes.label}>
+                    <textarea
                         disabled={isSendingMessage}
                         placeholder="Send a message"
                         value={message}
                         onChange={(e) =>
-                            updateMessage((e.target as HTMLInputElement).value)
+                            updateMessage((e.target as HTMLTextAreaElement).value)
                         }
-                        multiline={true}
+                        className={classes.messageInput}
                     />
 
                     <button type="submit">
