@@ -17,7 +17,7 @@ export interface Card {
 const presetPrompts = [
     {
         key: 'Summary: thesis',
-        text: 'What seems to be the thesis of this paragraph? Answer in one concise sentence.',
+        text: 'Step 1: Write a sentence stating what seems to be the thesis of the paragraph. Step 2: Say FINAL OUTPUT. Step 3: Make the sentence even more concise with no filler words like "the thesis is".',
     },
     {
         key: 'Summary: phrases',
