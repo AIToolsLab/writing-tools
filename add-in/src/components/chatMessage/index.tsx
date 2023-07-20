@@ -6,8 +6,13 @@ import classes from './styles.module.css';
 
 export default function ChatMessage(props: ChatMessage) {
     return (
-        <p>
-            from: {props.role} - {props.content}
-        </p>
+        <div className={classes.container}>
+            <div
+                className={`${classes.cardContainer}
+                    ${props.role === 'assistant' ? classes.aiMessage : ''}`}
+            >
+                {props.content}
+            </div>
+        </div>
     );
 }
