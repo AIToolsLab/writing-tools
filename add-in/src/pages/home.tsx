@@ -1,9 +1,10 @@
 import * as React from 'react';
-import { TextField, ChoiceGroup, DefaultButton } from '@fluentui/react';
-
-import { SERVER_URL } from '../settings';
+import { TextField, DefaultButton } from '@fluentui/react';
 
 import Progress from '../components/progress';
+import PresetPrompts from '../components/presetPrompts';
+
+import { SERVER_URL } from '../settings';
 
 export interface HomeProps {
     isOfficeInitialized: boolean;
@@ -14,34 +15,10 @@ export interface Card {
     paragraph: number;
 }
 
-const presetPrompts = [
-    {
-        key: 'Summary: phrases',
-        text: 'What are 3 of the most important concepts described by this paragraph? Each concept should be described in 2 or 3 words.',
-    },
-    {
-        key: 'Summary: sentences',
-        text: 'What are 3 of the most important concepts described by this paragraph? Each concept should be described in a sentence.',
-    },
-    {
-        key: 'Summary: questions',
-        // TODO: Improve this prompt
-        text: 'List 2 or 3 questions that the writer was attempting to answer in this paragraph.',
-    },
-    {
-        key: 'Reactions: questions',
-        text: 'As a reader, ask the writer 2 or 3 questions about definitions, logical connections, or some needed background information.',
-    },
-    {
-        key: 'Metaphors',
-        text: 'List the metaphors that the writer uses in this paragraph.',
-    },
-];
-
 export default function Home({ isOfficeInitialized }: HomeProps) {
     const [cards, updateCards] = React.useState<Card[]>([]);
-    const [prompt, updatePrompt] = React.useState('');
     const [loading, updateLoading] = React.useState(false);
+    const [prompt, updatePrompt] = React.useState('');
 
     // Change the highlight color of the selected paragraph
     async function changeParagraphHighlightColor(paragraphId, operation) {
@@ -134,16 +111,7 @@ export default function Home({ isOfficeInitialized }: HomeProps) {
 
     return (
         <div className="ms-welcome">
-            <ChoiceGroup
-                label="Preset Prompts"
-                options={presetPrompts}
-                onChange={(e) =>
-                    updatePrompt(
-                        (e.currentTarget as HTMLInputElement).labels[0]
-                            .innerText
-                    )
-                }
-            />
+            <PresetPrompts updatePrompt={updatePrompt} />
 
             <TextField
                 multiline={true}

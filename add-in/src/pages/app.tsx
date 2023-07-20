@@ -7,7 +7,7 @@ import Chat from './chat';
 export default function App({ isOfficeInitialized }: HomeProps) {
     const { page } = React.useContext(PageContext);
 
-    if(page === 'home')
+    if(page === 'reflections')
         return <Home isOfficeInitialized={ isOfficeInitialized } />;
     
     return <Chat />;

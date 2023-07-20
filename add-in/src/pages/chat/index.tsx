@@ -1,7 +1,9 @@
 import React from 'react';
-
 import { TextField } from '@fluentui/react';
+import { AiOutlineSend } from 'react-icons/ai';
+
 import ChatMessage from '../../components/chatMessage';
+import PresetPrompts from '../../components/presetPrompts';
 
 import { SERVER_URL } from '../../settings';
 
@@ -41,43 +43,54 @@ export default function Chat() {
             ...messages,
             {
                 role: 'user',
-                content: message
+                content: message,
             },
             {
                 role: 'assistant',
-                content: responseJson
-            }
+                content: responseJson,
+            },
         ]);
 
         updateSendingMessage(false);
         updateMessage('');
     }
 
+    // ! Consider appending prompt to current message
+
     return (
         <div className={classes.container}>
-            <div className={classes.messageContainer}>
-                {
-                    messages.map(
-                        (message, index) => (
-                            <ChatMessage
-                                key={ index }
-                                role={ message.role }
-                                content={ message.content }
-                            />
-                        )
-                    )
+            <PresetPrompts
+                updatePrompt={(prompt) =>
+                    updateMessage(message + '\n\n' + prompt)
                 }
+            />
+
+            <div className={classes.messageContainer}>
+                {messages.map((message, index) => (
+                    <ChatMessage
+                        key={index}
+                        role={message.role}
+                        content={message.content}
+                    />
+                ))}
             </div>
 
             <form className={classes.sendMessage} onSubmit={sendMessage}>
-                <TextField
-                    disabled={isSendingMessage}
-                    placeholder="Send a message"
-                    value={message}
-                    onChange={(e) =>
-                        updateMessage((e.target as HTMLInputElement).value)
-                    }
-                />
+                <label htmlFor="">
+                    <TextField
+                        disabled={isSendingMessage}
+                        placeholder="Send a message"
+                        value={message}
+                        onChange={(e) =>
+                            updateMessage((e.target as HTMLInputElement).value)
+                        }
+                        multiline={true}
+                    />
+
+                    <button type="submit">
+                        <AiOutlineSend />
+                    </button>
+                </label>
             </form>
         </div>
     );

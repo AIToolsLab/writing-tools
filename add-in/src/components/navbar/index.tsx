@@ -9,7 +9,7 @@ export default function Navbar() {
 
     return (
         <nav className={ classes.nav }>
-            <p onClick={ () => changePage('home') } className={ (page === 'home' ? classes.active : '') }>Home</p>
+            <p onClick={ () => changePage('reflections') } className={ (page === 'reflections' ? classes.active : '') }>Reflections</p>
             <p onClick={ () => changePage('chat') } className={ (page === 'chat' ? classes.active : '') }>Chat</p>
         </nav>
     );
