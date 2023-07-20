@@ -6,17 +6,17 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="Reflectia(dev)"/>
   <Description DefaultValue="Get the reflections you want on your writing. (Developer mode)"/>
-  <IconUrl DefaultValue="http://0.0.0.0:8000/static/assets/logo-filled.png"/>
-  <HighResolutionIconUrl DefaultValue="http://0.0.0.0:8000/static/assets/logo-filled.png"/>
+  <IconUrl DefaultValue="http://localhost:3000/static/assets/logo-filled.png"/>
+  <HighResolutionIconUrl DefaultValue="http://localhost:3000/static/assets/logo-filled.png"/>
   <SupportUrl DefaultValue="https://www.contoso.com/help"/>
   <AppDomains>
-    <AppDomain>http://0.0.0.0:8000</AppDomain>
+    <AppDomain>http://localhost:3000</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Document"/>
   </Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="http://0.0.0.0:8000/static/taskpane.html"/>
+    <SourceLocation DefaultValue="http://localhost:3000/static/taskpane.html"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -62,14 +62,14 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="http://0.0.0.0:8000/static/assets/logo-filled.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="http://0.0.0.0:8000/static/assets/logo-filled.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="http://0.0.0.0:8000/static/assets/logo-filled.png"/>
+        <bt:Image id="Icon.16x16" DefaultValue="http://localhost:3000/static/assets/logo-filled.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="http://localhost:3000/static/assets/logo-filled.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="http://localhost:3000/static/assets/logo-filled.png"/>
       </bt:Images>
       <bt:Urls>
         <bt:Url id="GetStarted.LearnMoreUrl" DefaultValue="https://go.microsoft.com/fwlink/?LinkId=276812"/>
-        <bt:Url id="Commands.Url" DefaultValue="http://0.0.0.0:8000/static/commands/commands.html"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="http://0.0.0.0:8000/static/taskpane.html"/>
+        <bt:Url id="Commands.Url" DefaultValue="http://localhost:3000/static/commands/commands.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="http://localhost:3000/static/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="GetStarted.Title" DefaultValue="Get started with your sample add-in!"/>

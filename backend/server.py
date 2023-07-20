@@ -254,4 +254,4 @@ static_path = Path('../add-in/dist')
 app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=int(sys.argv[1]))
+    uvicorn.run(app, host="localhost", port=int(sys.argv[1]))
