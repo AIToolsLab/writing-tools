@@ -55,7 +55,28 @@ export default function Chat() {
         updateMessage('');
     }
 
-    // ! Consider appending prompt to current message
+    async function regenMessage(index: number) {
+        const response = await fetch(`${SERVER_URL}/chat`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: messages[index].content,
+                messages: messages.slice(0, index),
+            }),
+        });
+
+        const responseJson = await response.json();
+
+        const newMessages = [...messages];
+        newMessages[index + 1] = {
+            role: 'assistant',
+            content: responseJson,
+        };
+
+        updateMessages(newMessages);
+    }
 
     return (
         <div className={classes.container}>
@@ -71,6 +92,8 @@ export default function Chat() {
                         key={index}
                         role={message.role}
                         content={message.content}
+                        index={index}
+                        refresh={regenMessage}
                     />
                 ))}
             </div>
