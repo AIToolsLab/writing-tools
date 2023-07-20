@@ -1,8 +1,12 @@
+import re
 import openai
 from tenacity import (
     retry, stop_after_attempt,  # for exponential backoff
     wait_random_exponential
 )
+from pydantic import BaseModel
+from typing import List
+
 
 # ! Look at prompt and guidance/jsonformer
 DEFAULT_COMPLETION_PROMPT = """
@@ -21,19 +25,6 @@ You are a writing assistant. Your purpose is to ask the writer helpful and thoug
 
 Create 5 reflections for the following piece of writing using the JSON format above.
 """
-
-DESIRED_SCHEMA = '''
-interface Response {
-    text_in_HTML_format: string;
-    sentence_number_in_paragraph: number;
-    quality: float between 0 and 1
-}
-
-interface Responses {
-    reflections: Response[];
-}
-'''
-
 
 def sanitize(text):
     return text.replace('"', '').replace("'", "")
@@ -63,20 +54,23 @@ def get_completion_reflections(writing, prompt=DEFAULT_COMPLETION_PROMPT):
     return response["choices"][0]["text"].split("```json")[2]
 
 
-async def gen_reflections_chat(writing, prompt):
-    # TODO: improve the "quality" mechanism
-    chat_prompt = """
-    You will write Responses to the following prompt. JSON schema:
+# Scratch-extractor regex
+# xxx\nFINAL ANSWER\nyyy
+# or
+# xxx\nFINAL ANSWER:\nyyy
 
-    """ + DESIRED_SCHEMA + """
-    Prompt:
+FINAL_ANSWER_REGEX = re.compile(r"FINAL (?:ANSWER|RESPONSE|OUTPUT)(?::|\.)?\s+", re.MULTILINE)
 
-    > """ + prompt
+class ReflectionResponseInternal(BaseModel):
+    full_response: str
+    scratch: str
+    reflections: List[str]
 
+async def gen_reflections_chat(writing, prompt) -> ReflectionResponseInternal:
     response = await async_chat_with_backoff(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": chat_prompt},
+            {"role": "system", "content": prompt},
             {"role": "user", "content": sanitize(writing)},
         ],
         temperature=1,
@@ -86,27 +80,33 @@ async def gen_reflections_chat(writing, prompt):
         presence_penalty=0,
     )
 
+    full_response = response["choices"][0]["message"]["content"].strip()
+    return parse_reflections_chat(full_response)
+
+
+def parse_reflections_chat(full_response: str) -> ReflectionResponseInternal:
+    # Make a best effort at extracting the a list of reflections from the response
+    # Fall back on returning a single item.
+    splits = FINAL_ANSWER_REGEX.split(full_response, maxsplit=1)
+    if len(splits) > 1:
+        scratch = splits[0].strip()
+        final_answer = splits[1].strip()
+    else:
+        scratch = ""
+        final_answer = full_response
+
+    # Try to split Markdown unordered or enumerated lists into a list of reflections
+    # input:
+    # "- x\n- y\n- z"
+    # output:
+    # ["x", "y", "z"]
+    reflections = re.split(r"^(?:-|\d+\.)\s+", final_answer, flags=re.MULTILINE)
+    reflections = [r.strip() for r in reflections if r.strip()]
+    
+
     # Extract the response
-    return response["choices"][0]["message"]["content"]
-
-async def fix_json_chat(invalid_json):
-    # Ask the LM to fix the JSON.
-    response = await openai.ChatCompletion.acreate(
-        model="gpt-3.5-turbo",
-        messages=[
-            {
-                "role": "system",
-                "content":
-                    "The JSON should be an array of items with the following schema:\n\n"
-                        + DESIRED_SCHEMA
-            },
-            {"role": "user", "content": invalid_json},
-        ],
-        temperature=.5,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
+    return ReflectionResponseInternal(
+        full_response=full_response,
+        scratch=scratch,
+        reflections=reflections,
     )
-
-    return response["choices"][0]["message"]["content"]
