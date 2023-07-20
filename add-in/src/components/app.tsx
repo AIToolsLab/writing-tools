@@ -16,16 +16,16 @@ export interface Card {
 
 const presetPrompts = [
     {
-        key: "Summary: thesis",
-        text: "What seems to be the thesis of this paragraph? Answer in one concise sentence."
+        key: 'Summary: thesis',
+        text: 'What seems to be the thesis of this paragraph? Answer in one concise sentence.',
     },
     {
         key: 'Summary: phrases',
-        text: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 2: Say FINAL OUTPUT. Step 3: Make a - list with the 3 concepts with highest relevance, in short phrases of 2 or 3 words.',
+        text: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 2: Say FINAL OUTPUT. Step 3: Make a Markdown unordered list with the 3 concepts with highest relevance, in short phrases of 2 or 3 words.',
     },
     {
         key: 'Summary: sentences',
-        text: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 2: Say FINAL OUTPUT. Step 3: Make a - list with the 3 concepts with highest relevance, as a complete sentence.',
+        text: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 2: Say FINAL OUTPUT. Step 3: Make a Markdown unordered list with the 3 concepts with highest relevance, as a complete sentence.',
     },
     {
         key: 'Summary: questions',
@@ -37,8 +37,8 @@ const presetPrompts = [
         text: 'As a reader, ask the writer 2 or 3 questions about definitions, logical connections, or some needed background information.',
     },
     {
-        key: "Advice",
-        text: "What advice would you give the writer to improve this paragraph? Respond in a bulleted list."
+        key: 'Advice',
+        text: 'What advice would you give the writer to improve this paragraph? Respond in a bulleted list.',
     },
     {
         key: 'Metaphors',
