@@ -38,6 +38,8 @@ ul {
     transition: 0.15s;
     padding: 10px;
     border-bottom: none;
+    display: flex;
+    flex-direction: row;
 }
 
 .cards-container:last-child {
@@ -48,10 +50,19 @@ ul {
     opacity: 0.8;
 }
 
+.card-content {
+    width: 90%;
+}
+
 .button-container {
     display: flex;
     justify-content: center;
     width: 100%;
+}
+
+.thumb-up-button-container {
+    display: flex;
+    flex-direction: row;
 }
 
 .ms-welcome__header {
