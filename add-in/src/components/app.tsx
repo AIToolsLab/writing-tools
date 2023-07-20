@@ -21,11 +21,11 @@ const presetPrompts = [
     },
     {
         key: 'Summary: phrases',
-        text: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 3: Say FINAL OUTPUT. Step 4: Make a - list with the 3 concepts with highest relevance, in short phrases of 2 or 3 words.',
+        text: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 2: Say FINAL OUTPUT. Step 3: Make a - list with the 3 concepts with highest relevance, in short phrases of 2 or 3 words.',
     },
     {
         key: 'Summary: sentences',
-        text: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 3: Say FINAL OUTPUT. Step 4: Make a - list with the 3 concepts with highest relevance, as a complete sentence.',
+        text: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 2: Say FINAL OUTPUT. Step 3: Make a - list with the 3 concepts with highest relevance, as a complete sentence.',
     },
     {
         key: 'Summary: questions',
