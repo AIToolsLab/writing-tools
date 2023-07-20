@@ -59,7 +59,7 @@ def get_completion_reflections(writing, prompt=DEFAULT_COMPLETION_PROMPT):
 # or
 # xxx\nFINAL ANSWER:\nyyy
 
-FINAL_ANSWER_REGEX = re.compile(r"FINAL (?:ANSWER|RESPONSE|OUTPUT)(?::)?\s+", re.MULTILINE)
+FINAL_ANSWER_REGEX = re.compile(r"FINAL (?:ANSWER|RESPONSE|OUTPUT)(?::|\.)?\s+", re.MULTILINE)
 
 class ReflectionResponseInternal(BaseModel):
     full_response: str

@@ -14,3 +14,10 @@ def test_parse_reflections_chat():
     assert actual.full_response == full_response
     assert actual.scratch == "1. Concept: x\n   Relevance: 7 \n\n2. Concept: y\n   Relevance: 8 \n\n3. Concept: z\n   Relevance: 9"
     assert actual.reflections == ["x", "y", "z"]
+
+    full_response = """abc. FINAL OUTPUT: def"""
+
+    actual = parse_reflections_chat(full_response)
+    assert actual.full_response == full_response
+    assert actual.scratch == "abc."
+    assert actual.reflections == ["def"]
