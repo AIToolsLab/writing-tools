@@ -118,7 +118,7 @@ export default function App({ isOfficeInitialized }: AppProps) {
                 for (let j = 0; j < reflections.length; j++) {
                     const reflection = reflections[j];
                     const card = {
-                        body: reflection.text_in_HTML_format,
+                        body: reflection.reflection,
                         paragraph: i,
                     };
 
