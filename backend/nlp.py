@@ -95,12 +95,12 @@ def parse_reflections_chat(full_response: str) -> ReflectionResponseInternal:
         scratch = ""
         final_answer = full_response
 
-    # Try to split a dash list into a list of reflections
+    # Try to split Markdown unordered or enumerated lists into a list of reflections
     # input:
     # "- x\n- y\n- z"
     # output:
     # ["x", "y", "z"]
-    reflections = re.split(r"^-\s+", final_answer, flags=re.MULTILINE)
+    reflections = re.split(r"^(?:-|\d+\.)\s+", final_answer, flags=re.MULTILINE)
     reflections = [r.strip() for r in reflections if r.strip()]
     
 
