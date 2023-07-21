@@ -108,13 +108,7 @@ async def get_reflections_chat(
 
 @app.post("/reflections")
 async def reflections(payload: ReflectionRequestPayload):
-    api = "chat"
-
-    if api == "chat":
-        return await get_reflections_chat(payload)
-    elif api == "completions":
-        # TODO: Update completion method
-        return get_completion_reflections(writing=payload.paragraph, prompt=payload.prompt)
+    return await get_reflections_chat(payload)
 
 
 @app.post("/chat")

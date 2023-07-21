@@ -8,24 +8,6 @@ from pydantic import BaseModel
 from typing import List
 
 
-# ! Look at prompt and guidance/jsonformer
-DEFAULT_COMPLETION_PROMPT = """
-You are a writing assistant. Your purpose is to ask the writer helpful and thought-provoking reflections to help them think of how to improve their writing. For each question, include the phrase from the paragraph that it applies to. You must writing your reflections in the following JSON format:
-
-```json
-        {
-        "reflections": [
-                {
-                    "question": "{{gen 'question'}}",
-                    "phrase": "{{gen 'phrase'}}"
-                },
-            ]
-        }
-```
-
-Create 5 reflections for the following piece of writing using the JSON format above.
-"""
-
 def sanitize(text):
     return text.replace('"', '').replace("'", "")
 
@@ -35,24 +17,6 @@ async_chat_with_backoff = (
         min=1, max=60), stop=stop_after_attempt(6))
     (openai.ChatCompletion.acreate)
 )
-
-
-def get_completion_reflections(writing, prompt=DEFAULT_COMPLETION_PROMPT):
-    completion_prompt = prompt + writing + "\n\n ```json \n"
-
-    response = openai.Completion.create(
-        model="text-davinci-003",
-        prompt=completion_prompt,
-        temperature=0.7,
-        max_tokens=256,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        echo=True,
-    )
-
-    return response["choices"][0]["text"].split("```json")[2]
-
 
 # Scratch-extractor regex
 # xxx\nFINAL ANSWER\nyyy
