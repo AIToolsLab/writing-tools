@@ -249,7 +249,7 @@ async def logs():
 
     return result
 
-# Get access to files on the server. Only for development use.
+# Get access to files on the server. Only for a production build.
 static_path = Path('../add-in/dist')
 app.mount("/static", StaticFiles(directory=static_path), name="static")
 
