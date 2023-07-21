@@ -4,8 +4,12 @@ import { AppContainer } from 'react-hot-loader';
 
 import { initializeIcons } from '@fluentui/font-icons-mdl2';
 import { ThemeProvider } from '@fluentui/react';
+import PageContextWrapper from './contexts/pageContext';
 
-import App from './components/app';
+import App from './pages/app';
+import Layout from './components/layout';
+
+import './taskpane.css';
 
 initializeIcons();
 
@@ -15,9 +19,13 @@ const render = (Component) => {
     ReactDOM.render(
         <AppContainer>
             <ThemeProvider>
-                <Component
-                    isOfficeInitialized={isOfficeInitialized}
-                />
+                <PageContextWrapper>
+                    <Layout>
+                        <Component
+                            isOfficeInitialized={isOfficeInitialized}
+                        />
+                    </Layout>
+                </PageContextWrapper>
             </ThemeProvider>
         </AppContainer>,
         document.getElementById('container')
@@ -31,8 +39,8 @@ Office.onReady(() => {
 });
 
 if ((module as any).hot) {
-    (module as any).hot.accept('./components/app', () => {
-        const NextApp = require('./components/app').default;
+    (module as any).hot.accept('./pages/app', () => {
+        const NextApp = require('./pages/app').default;
         
         render(NextApp);
     });

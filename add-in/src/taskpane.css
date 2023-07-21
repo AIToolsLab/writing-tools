@@ -41,7 +41,8 @@ ul {
 }
 
 .cards-container:last-child {
-    border-bottom: 1px solid grey;
+    /* TODO: this is displaying even when there are no components */
+    border-bottom: 1px solid grey; 
 }
 
 .card-container:hover {

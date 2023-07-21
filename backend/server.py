@@ -1,7 +1,7 @@
 import json
 import os
 import sqlite3
-from typing import List
+from typing import List, Dict
 
 import openai
 import uvicorn
@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from nlp import (
     get_completion_reflections,
     gen_reflections_chat,
+    send_message,
     ReflectionResponseInternal
 )
 
@@ -26,7 +27,6 @@ with open(".env", "r") as f:
         elif key == "OPENAI_ORGANIZATION":
             openai.organization = value.strip()
 
-
 class ReflectionRequestPayload(BaseModel):
     paragraph: str
     prompt: str
@@ -35,6 +35,8 @@ class ReflectionRequestPayload(BaseModel):
 class ReflectionResponseItem(BaseModel):
     reflection: str
 
+class ChatRequestPayload(BaseModel):
+    messages: List[Dict[str, str]]
 
 class ReflectionResponses(BaseModel):
     reflections: List[ReflectionResponseItem]
@@ -114,6 +116,12 @@ async def reflections(payload: ReflectionRequestPayload):
         # TODO: Update completion method
         return get_completion_reflections(writing=payload.paragraph, prompt=payload.prompt)
 
+
+@app.post("/chat")
+async def chat(payload: ChatRequestPayload):
+    return await send_message(
+        messages=payload.messages
+    )
 
 @app.get("/logs")
 async def logs():
