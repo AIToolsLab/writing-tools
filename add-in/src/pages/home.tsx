@@ -184,6 +184,7 @@ export default function Home({ isOfficeInitialized }: HomeProps) {
                                 onClick={() =>
                                     onThumbUpClick(card.paragraph, card.body)
                                 }
+                                title='Save as comment'
                             >
                                 <AiOutlinePushpin />
                             </button>
