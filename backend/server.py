@@ -12,18 +12,20 @@ from pydantic import BaseModel
 from nlp import (
     get_completion_reflections,
     gen_reflections_chat,
-    fix_json_chat,
-    send_message
+    send_message,
+    ReflectionResponseInternal
 )
+
+openai.organization = "org-9bUDqwqHW2Peg4u47Psf9uUo"
 
 # Read env file
 with open(".env", "r") as f:
     for line in f:
         key, value = line.split("=")
-        os.environ[key] = value.strip()
-
-openai.organization = "org-9bUDqwqHW2Peg4u47Psf9uUo"
-openai.api_key = os.getenv("OPENAI_API_KEY")
+        if key == "OPENAI_API_KEY":
+            openai.api_key = value.strip()
+        elif key == "OPENAI_ORGANIZATION":
+            openai.organization = value.strip()
 
 class ReflectionRequestPayload(BaseModel):
     paragraph: str
@@ -31,9 +33,7 @@ class ReflectionRequestPayload(BaseModel):
 
 
 class ReflectionResponseItem(BaseModel):
-    text_in_HTML_format: str
-    sentence_number_in_paragraph: int
-    quality: float
+    reflection: str
 
 class ChatRequestPayload(BaseModel):
     messages: List[Dict[str, str]]
@@ -81,52 +81,29 @@ async def get_reflections_chat(
             response_json = result[0]
             response = json.loads(response_json)
             # assume that the database stores only valid responses in the correct schema.
-            # We check this below.
-            return ReflectionResponses(**response)
+            reflections_internal = ReflectionResponseInternal(**response)
 
-    # Else, make the request and cache the response
-    response = await gen_reflections_chat(
-        writing=request.paragraph,
-        prompt=request.prompt
+        else:
+
+            # Else, make the request and cache the response
+            reflections_internal = await gen_reflections_chat(
+                writing=request.paragraph,
+                prompt=request.prompt
+            )
+
+            # Cache the response
+            # Use SQL timestamp
+            c.execute(
+                'INSERT INTO requests VALUES (datetime("now"), ?, ?, ?, ?)',
+                (request.prompt, request.paragraph, json.dumps(reflections_internal.dict()), "true"),
+            )
+
+    return ReflectionResponses(
+        reflections=[
+            ReflectionResponseItem(reflection=reflection)
+            for reflection in reflections_internal.reflections
+        ]
     )
-
-    # Attempt to parse JSON
-    try:
-        response_json = json.loads(response)
-        reflection_items = ReflectionResponses(**response_json)
-    except Exception as e1:
-        new_response = await fix_json_chat(response)
-
-        # Try to parse again
-        try:
-            response_json = json.loads(new_response)
-            reflection_items = ReflectionResponses(**response_json)
-        except Exception as e2:
-            # If it still doesn't work, log the error and fail out
-            with sqlite3.connect(db_file) as conn:
-                c = conn.cursor()
-                # Use SQL timestamp
-                c.execute(
-                    'INSERT INTO requests VALUES (datetime("now"), ?, ?, ?, ?)',
-                    (request.prompt, request.paragraph, json.dumps(dict(
-                        error=str(e2),
-                        response=response
-                    )), "false"),
-                )
-
-            raise e2
-
-    # Cache the response
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
-        # Use SQL timestamp
-        c.execute(
-            'INSERT INTO requests VALUES (datetime("now"), ?, ?, ?, ?)',
-            (request.prompt, request.paragraph, json.dumps(
-                reflection_items.dict()), "true"),
-        )
-
-    return reflection_items
 
 
 @app.post("/reflections")
@@ -155,4 +132,5 @@ async def logs():
 
     return result
 
-uvicorn.run(app, port=8000)
+if __name__ == "__main__":
+    uvicorn.run(app, port=8000)
