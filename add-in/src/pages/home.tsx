@@ -69,19 +69,23 @@ export default function Home() {
             prompt,
         };
 
-        const req = await fetch(`${SERVER_URL}/reflections`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        });
+        try {
+            const req = await fetch(`${SERVER_URL}/reflections`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
 
-        const res = await req.json();
+            if (!req.ok) throw new Error('Request failed ' + req.status);
 
-        if (res.error) alert(res); // TODO: need to verify that this works
+            const res = await req.json();
 
-        return res.reflections;
+            return res.reflections;
+        } catch (e) {
+            alert(e);
+        }
     }
 
     // Insert reflection as an anchored comment into the document
