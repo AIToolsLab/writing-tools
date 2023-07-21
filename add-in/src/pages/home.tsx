@@ -7,10 +7,6 @@ import PresetPrompts from '../components/presetPrompts';
 
 import { SERVER_URL } from '../settings';
 
-export interface HomeProps {
-    isOfficeInitialized: boolean;
-}
-
 const shouldShowThumbDownButton = false;
 
 export interface Card {
@@ -18,7 +14,7 @@ export interface Card {
     paragraph: number;
 }
 
-export default function Home({ isOfficeInitialized }: HomeProps) {
+export default function Home() {
     const [cards, updateCards] = React.useState<Card[]>([]);
     const [loading, updateLoading] = React.useState(false);
     const [prompt, updatePrompt] = React.useState('');
@@ -139,7 +135,7 @@ export default function Home({ isOfficeInitialized }: HomeProps) {
         });
     }
 
-    if (!isOfficeInitialized || loading) return <Progress message="Loading" />;
+    if (loading) return <Progress message="Loading" />;
 
     return (
         <div className="ms-welcome">
