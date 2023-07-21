@@ -9,11 +9,6 @@
 }
 
 .cardContainerHover {
-    border: 1px solid grey;
-    cursor: pointer;
-    transition: 0.15s;
-    padding: 10px;
-    border-bottom: none;
     background-color: yellow;
 }
 

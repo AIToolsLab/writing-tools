@@ -193,7 +193,7 @@ export default function Home() {
                 {cards.map((card, i) => (
                     <div
                         key={i}
-                        className={selectedIndex === card.paragraph ? classes.cardContainerHover : classes.cardContainer}
+                        className={`${classes.cardContainer} ${selectedIndex === card.paragraph ? classes.cardContainerHover : ""}`}
                         onMouseEnter={() =>
                             changeParagraphHighlightColor(
                                 card.paragraph,
