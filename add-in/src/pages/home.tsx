@@ -18,6 +18,8 @@ export default function Home() {
     const [cards, updateCards] = React.useState<Card[]>([]);
     const [loading, updateLoading] = React.useState(false);
     const [prompt, updatePrompt] = React.useState('');
+    const [dict, updateDict] = React.useState({});
+    const [highlightIdx, updateHighlightIdx] = React.useState(null);
 
     // Change the highlight color of the selected paragraph
     async function changeParagraphHighlightColor(paragraphId, operation) {
@@ -115,9 +117,13 @@ export default function Home() {
             updateLoading(false);
 
             const curCards = [];
+            const curDict = {};
 
             for (let i = 0; i < paragraphs.items.length; i++) {
                 const reflections = allReflections[i];
+
+                // Match the index with the paragraph using a dictionary
+                curDict[i] = paragraphs.items[i];
 
                 // Create a card for each reflection returned
                 for (let j = 0; j < reflections.length; j++) {
@@ -132,6 +138,17 @@ export default function Home() {
             }
 
             updateCards(curCards);
+            updateDict(curDict);
+
+            // Get the current paragraph that the cursor is in, and look up the index of the paragraph in dict
+            // Pick the first paragraph if current selection includes multiple paragraphs
+            // Assume that there are no paragraphs that have exactly the same text
+            let selectedParagraph = context.document.getSelection().paragraphs;
+            context.load(selectedParagraph);
+            await context.sync();
+
+            let selectedIndex = Object.keys(dict).find(key => dict[key].text === selectedParagraph.items[0].text) || null;
+            updateHighlightIdx(selectedIndex);
         });
     }
 
@@ -160,7 +177,7 @@ export default function Home() {
                 {cards.map((card, i) => (
                     <div
                         key={i}
-                        className="card-container"
+                        className={`card-container${highlightIdx === i ? "-hover" : ""}`}
                         onMouseEnter={() =>
                             changeParagraphHighlightColor(
                                 card.paragraph,
