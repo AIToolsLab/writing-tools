@@ -25,6 +25,7 @@ export default function Home() {
     // Watch for change events.
     React.useEffect(() => {
         // Add an event handler for when the selection changes.
+        // TODO: fire this on initial load too, otherwise there's no highlights until you first click something.
         Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, async () => {
             await Word.run(async (context) => {
                 // Get the current paragraph that the cursor is in, and look up the index of the paragraph in dict
