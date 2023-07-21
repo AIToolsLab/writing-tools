@@ -63,6 +63,35 @@ export default function Home({ isOfficeInitialized }: HomeProps) {
         return res.reflections;
     }
 
+    // Insert reflection as an anchored comment into the document
+    // Current anchored location: first word of the paragraph
+    async function onThumbUpClick(paragraphId, comment) {
+        await Word.run(async (context) => {
+            // Load the document as a ParagraphCollection
+            const paragraphs = context.document.body.paragraphs;
+            paragraphs.load();
+            await context.sync();
+
+            // Highlight or dehighlight the paragraph
+            const target = paragraphs.items[paragraphId];
+            target.getRange("Start").insertComment(comment);
+        });
+    }
+
+    // Temporary: insert "feedback collected" as comment into the document
+    async function onThumbDownClick(paragraphId) {
+        await Word.run(async (context) => {
+            // Load the document as a ParagraphCollection
+            const paragraphs = context.document.body.paragraphs;
+            paragraphs.load();
+            await context.sync();
+
+            // Highlight or dehighlight the paragraph
+            const target = paragraphs.items[paragraphId];
+            target.getRange().insertComment("feedback collected");
+        });
+    }
+
     async function getReflections() {
         await Word.run(async (context) => {
             let curPrompt = prompt;
@@ -146,7 +175,17 @@ export default function Home({ isOfficeInitialized }: HomeProps) {
                             )
                         }
                     >
-                        {card.body}
+                        <div className="card-content">
+                            {card.body}
+                        </div>
+                        <div className="thumb-up-button-container">
+                            <button onClick={() => onThumbUpClick(card.paragraph, card.body)}>
+                                Like
+                            </button>
+                            <button onClick={() => onThumbDownClick(card.paragraph)}>
+                                Dislike
+                            </button>
+                        </div>
                     </div>
                 ))}
             </div>

@@ -5,8 +5,8 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
 
-const urlDev = 'https://localhost:3000/';
-const urlProd = 'https://www.contoso.com/'; // TODO: Switch to PRODUCTION DEPLOYMENT LOCATION
+const urlDev = 'http://localhost:3000/';
+const urlProd = 'https://tools.kenarnold.org/';
 
 async function getHttpsOptions() {
     const httpsOptions = await devCerts.getHttpsServerOptions();

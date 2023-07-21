@@ -1,12 +1,16 @@
 import json
 import os
+import sys
 import sqlite3
 from typing import List, Dict
+
+from pathlib import Path
 
 import openai
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from nlp import (
@@ -125,5 +129,9 @@ async def logs():
 
     return result
 
+# Get access to files on the server. Only for a production build.
+static_path = Path('../add-in/dist')
+app.mount("/static", StaticFiles(directory=static_path), name="static")
+
 if __name__ == "__main__":
-    uvicorn.run(app, port=8000)
+    uvicorn.run(app, host="localhost", port=int(sys.argv[1] if len(sys.argv) > 1 else 8000))
