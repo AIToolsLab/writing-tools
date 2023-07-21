@@ -10,6 +10,8 @@ export interface HomeProps {
     isOfficeInitialized: boolean;
 }
 
+const shouldShowThumbDownButton = false;
+
 export interface Card {
     body: string;
     paragraph: number;
@@ -175,16 +177,24 @@ export default function Home({ isOfficeInitialized }: HomeProps) {
                             )
                         }
                     >
-                        <div className="card-content">
-                            {card.body}
-                        </div>
+                        <div className="card-content">{card.body}</div>
                         <div className="thumb-up-button-container">
-                            <button onClick={() => onThumbUpClick(card.paragraph, card.body)}>
+                            <button
+                                onClick={() =>
+                                    onThumbUpClick(card.paragraph, card.body)
+                                }
+                            >
                                 Like
                             </button>
-                            <button onClick={() => onThumbDownClick(card.paragraph)}>
-                                Dislike
-                            </button>
+                            {shouldShowThumbDownButton && (
+                                <button
+                                    onClick={() =>
+                                        onThumbDownClick(card.paragraph)
+                                    }
+                                >
+                                    Dislike
+                                </button>
+                            )}
                         </div>
                     </div>
                 ))}
