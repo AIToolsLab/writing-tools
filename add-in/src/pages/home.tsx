@@ -21,7 +21,24 @@ export default function Home() {
     const [loading, updateLoading] = React.useState(false);
     const [prompt, updatePrompt] = React.useState('');
     const [paragraphTexts, updateParagraphTexts] = React.useState([]);
-    const [highlightIdx, updateHighlightIdx] = React.useState(null);
+    const [curParagraphText, updateCurParagraphText] = React.useState('');
+    // Watch for change events.
+    React.useEffect(() => {
+        // Add an event handler for when the selection changes.
+        Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, async () => {
+            await Word.run(async (context) => {
+                // Get the current paragraph that the cursor is in, and look up the index of the paragraph in dict
+                // Pick the first paragraph if current selection includes multiple paragraphs
+                // Assume that there are no paragraphs that have exactly the same text
+                let selectedParagraphs = context.document.getSelection().paragraphs;
+                context.load(selectedParagraphs);
+                await context.sync();
+                let curParagraph = selectedParagraphs.items[0];
+                updateCurParagraphText(curParagraph.text);
+            }
+        )});
+    }, []);
+        
 
     // Change the highlight color of the selected paragraph
     async function changeParagraphHighlightColor(paragraphId, operation) {
@@ -141,25 +158,16 @@ export default function Home() {
 
             updateCards(curCards);
             updateParagraphTexts(newParagraphTexts);
-
-            // Get the current paragraph that the cursor is in, and look up the index of the paragraph in dict
-            // Pick the first paragraph if current selection includes multiple paragraphs
-            // Assume that there are no paragraphs that have exactly the same text
-            let selectedParagraphs = context.document.getSelection().paragraphs;
-            context.load(selectedParagraphs);
-            await context.sync();
-            let curParagraph = selectedParagraphs.items[0];
-            // Find the index of the paragraph text in the paragraph texts array
-            let selectedIndex = newParagraphTexts.indexOf(curParagraph.text);
-            // It's possible that the paragraph text just changed, so we might not find it in the array
-            // In that case, we just don't highlight anything.
-            if (selectedIndex !== -1) {
-                updateHighlightIdx(selectedIndex);
-            }
         });
     }
 
     if (loading) return <Progress message="Loading" />;
+
+    // The text of the current paragraph is in curParagraphText
+    // Let's find out the index of the current paragraph in the paragraph texts array
+    let selectedIndex = paragraphTexts.indexOf(curParagraphText);
+    // It's possible that the paragraph text has changed since reflections were retrieved, so we might not find it in the array
+    // In that case, we just don't highlight anything (and selectedIndex will be -1)
 
     return (
         <div className="ms-welcome">
@@ -184,7 +192,7 @@ export default function Home() {
                 {cards.map((card, i) => (
                     <div
                         key={i}
-                        className={highlightIdx === card.paragraph ? classes.cardContainerHover : classes.cardContainer}
+                        className={selectedIndex === card.paragraph ? classes.cardContainerHover : classes.cardContainer}
                         onMouseEnter={() =>
                             changeParagraphHighlightColor(
                                 card.paragraph,
