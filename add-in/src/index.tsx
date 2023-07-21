@@ -33,8 +33,9 @@ const render = (Component) => {
 };
 
 /* Render application after Office initializes */
-Office.onReady(() => {
-    isOfficeInitialized = true;
+Office.onReady((info) => {
+    if (info.host === Office.HostType.Word)
+        isOfficeInitialized = true;
     render(App);
 });
 
