@@ -10,7 +10,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from nlp import (
-    get_completion_reflections,
     gen_reflections_chat,
     send_message,
     ReflectionResponseInternal
