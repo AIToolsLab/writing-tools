@@ -5,6 +5,8 @@ import {AiOutlinePushpin} from 'react-icons/ai';
 import Progress from '../components/progress';
 import PresetPrompts from '../components/presetPrompts';
 
+import classes from './styles.module.css';
+
 import { SERVER_URL } from '../settings';
 
 const shouldShowThumbDownButton = false;
@@ -18,7 +20,7 @@ export default function Home() {
     const [cards, updateCards] = React.useState<Card[]>([]);
     const [loading, updateLoading] = React.useState(false);
     const [prompt, updatePrompt] = React.useState('');
-    const [dict, updateDict] = React.useState({});
+    const [paragraphTexts, updateParagraphTexts] = React.useState([]);
     const [highlightIdx, updateHighlightIdx] = React.useState(null);
 
     // Change the highlight color of the selected paragraph
@@ -117,13 +119,13 @@ export default function Home() {
             updateLoading(false);
 
             const curCards = [];
-            const curDict = {};
+            const newParagraphTexts = [];
 
             for (let i = 0; i < paragraphs.items.length; i++) {
                 const reflections = allReflections[i];
 
                 // Match the index with the paragraph using a dictionary
-                curDict[i] = paragraphs.items[i];
+                newParagraphTexts.push(paragraphs.items[i].text);
 
                 // Create a card for each reflection returned
                 for (let j = 0; j < reflections.length; j++) {
@@ -138,17 +140,22 @@ export default function Home() {
             }
 
             updateCards(curCards);
-            updateDict(curDict);
+            updateParagraphTexts(newParagraphTexts);
 
             // Get the current paragraph that the cursor is in, and look up the index of the paragraph in dict
             // Pick the first paragraph if current selection includes multiple paragraphs
             // Assume that there are no paragraphs that have exactly the same text
-            let selectedParagraph = context.document.getSelection().paragraphs;
-            context.load(selectedParagraph);
+            let selectedParagraphs = context.document.getSelection().paragraphs;
+            context.load(selectedParagraphs);
             await context.sync();
-
-            let selectedIndex = Object.keys(dict).find(key => dict[key].text === selectedParagraph.items[0].text) || null;
-            updateHighlightIdx(selectedIndex);
+            let curParagraph = selectedParagraphs.items[0];
+            // Find the index of the paragraph text in the paragraph texts array
+            let selectedIndex = newParagraphTexts.indexOf(curParagraph.text);
+            // It's possible that the paragraph text just changed, so we might not find it in the array
+            // In that case, we just don't highlight anything.
+            if (selectedIndex !== -1) {
+                updateHighlightIdx(selectedIndex);
+            }
         });
     }
 
@@ -177,7 +184,7 @@ export default function Home() {
                 {cards.map((card, i) => (
                     <div
                         key={i}
-                        className={`card-container${highlightIdx === i ? "-hover" : ""}`}
+                        className={highlightIdx === card.paragraph ? classes.cardContainerHover : classes.cardContainer}
                         onMouseEnter={() =>
                             changeParagraphHighlightColor(
                                 card.paragraph,

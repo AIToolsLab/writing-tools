@@ -32,28 +32,6 @@ ul {
 
 }
 
-.card-container {
-    border: 1px solid grey;
-    cursor: pointer;
-    transition: 0.15s;
-    padding: 10px;
-    border-bottom: none;
-    display: flex;
-    flex-direction: row;
-}
-
-.cards-container:last-child {
-    /* TODO: this is displaying even when there are no components */
-    border-bottom: 1px solid grey; 
-}
-
-.card-container:hover {
-    opacity: 0.8;
-}
-
-.card-content {
-    width: 90%;
-}
 
 .button-container {
     display: flex;
