@@ -1,6 +1,7 @@
 import * as React from 'react';
 import { TextField, DefaultButton } from '@fluentui/react';
 
+import {AiOutlinePushpin} from 'react-icons/ai';
 import Progress from '../components/progress';
 import PresetPrompts from '../components/presetPrompts';
 
@@ -184,7 +185,7 @@ export default function Home({ isOfficeInitialized }: HomeProps) {
                                     onThumbUpClick(card.paragraph, card.body)
                                 }
                             >
-                                Like
+                                <AiOutlinePushpin />
                             </button>
                             {shouldShowThumbDownButton && (
                                 <button
