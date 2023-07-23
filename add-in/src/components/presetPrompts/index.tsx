@@ -1,5 +1,6 @@
-import React from 'react';
-import { ChoiceGroup } from '@fluentui/react';
+import React, { useState } from 'react';
+import { DefaultButton } from '@fluentui/react/lib/Button';
+import { Stack, IStackTokens } from '@fluentui/react/lib/Stack';
 
 const presetPrompts = [
     {
@@ -33,16 +34,33 @@ const presetPrompts = [
     },
 ];
 
-export default function PresetPrompts({ updatePrompt }: { updatePrompt: (_: string) => void }) {
+type PresetPromptsProps = {
+    updatePrompt: (_: string) => void;
+};
+
+const stackTokens: IStackTokens = { childrenGap: 10 };
+
+// Render the list of preset prompts as fancy radio buttons
+export default function PresetPrompts({ updatePrompt }: PresetPromptsProps) {
+    const [selectedOption, setSelectedOption] = useState('');
+
     return (
-        <ChoiceGroup
-            label="Preset Prompts"
-            options={presetPrompts}
-            onChange={(e) =>
-                updatePrompt(
-                    (e.currentTarget as HTMLInputElement).labels[0].innerText
-                )
-            }
-        />
+        <Stack tokens={stackTokens}>
+            {presetPrompts.map((option) => (
+                <DefaultButton
+                    text={option.key}
+                    style={{
+                        backgroundColor:
+                            option.text === selectedOption
+                                ? '#f3f2f1'
+                                : 'white',
+                    }}
+                    onClick={() => {
+                        setSelectedOption(option.text);
+                        updatePrompt(option.text);
+                    }}
+                />
+            ))}
+        </Stack>
     );
 }
