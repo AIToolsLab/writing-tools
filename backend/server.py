@@ -31,7 +31,7 @@ with open(".env", "r") as f:
         elif key == "OPENAI_ORGANIZATION":
             openai.organization = value.strip()
         elif key == "DEBUG":
-            DEBUG = value.strip() == "True"
+            DEBUG = value.strip().lower() == "true"
 
 class ReflectionRequestPayload(BaseModel):
     paragraph: str
