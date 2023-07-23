@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DefaultButton } from '@fluentui/react/lib/Button';
 import { Stack, IStackTokens } from '@fluentui/react/lib/Stack';
+import { Text } from '@fluentui/react/lib/Text';
 
 const presetPrompts = [
     {
@@ -46,6 +47,7 @@ export default function PresetPrompts({ updatePrompt }: PresetPromptsProps) {
 
     return (
         <Stack tokens={stackTokens}>
+            <Text style={{ fontWeight: '600' }}>Preset Prompts</Text>
             {presetPrompts.map((option) => (
                 <DefaultButton
                     text={option.key}
