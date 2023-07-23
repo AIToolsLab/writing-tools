@@ -1,5 +1,4 @@
 import json
-import os
 import sys
 import sqlite3
 from typing import List, Dict
@@ -21,6 +20,8 @@ from nlp import (
 
 openai.organization = "org-9bUDqwqHW2Peg4u47Psf9uUo"
 
+DEBUG = True
+
 # Read env file
 with open(".env", "r") as f:
     for line in f:
@@ -29,6 +30,8 @@ with open(".env", "r") as f:
             openai.api_key = value.strip()
         elif key == "OPENAI_ORGANIZATION":
             openai.organization = value.strip()
+        elif key == "DEBUG":
+            DEBUG = value.strip().lower() == "true"
 
 class ReflectionRequestPayload(BaseModel):
     paragraph: str
@@ -129,9 +132,10 @@ async def logs():
 
     return result
 
-# Get access to files on the server. Only for a production build.
-static_path = Path('../add-in/dist')
-app.mount("/static", StaticFiles(directory=static_path), name="static")
+if not DEBUG:
+    # Get access to files on the server. Only for a production build.
+    static_path = Path('../add-in/dist')
+    app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="localhost", port=int(sys.argv[1] if len(sys.argv) > 1 else 8000))
