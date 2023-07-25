@@ -29,6 +29,10 @@ const presetPrompts = [
         key: 'Advice',
         text: 'What advice would you give the writer to improve this paragraph? Respond in a bulleted list.',
     },
+    // {
+    //     key: 'Rewrite',
+    //     text: 'Rewrite this paragraph to make it better.',
+    // },
     {
         key: 'Metaphors',
         text: 'List the metaphors that the writer uses in this paragraph.',
