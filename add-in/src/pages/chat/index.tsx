@@ -34,7 +34,7 @@ export default function Chat() {
             },
             body: JSON.stringify({
                 messages: [
-                    { role: 'system', content: systemPrompt.current?.value },
+                    // { role: 'system', content: systemPrompt.current?.value },
                     ...messages,
                     { role: 'user', content: message }
                 ],
