@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { TextField, DefaultButton } from '@fluentui/react';
 
-import {AiOutlinePushpin} from 'react-icons/ai';
+import { AiOutlinePushpin } from 'react-icons/ai';
 import Progress from '../components/progress';
 import PresetPrompts from '../components/presetPrompts';
 
@@ -20,8 +20,27 @@ export default function Home() {
     const [cards, updateCards] = React.useState<Card[]>([]);
     const [loading, updateLoading] = React.useState(false);
     const [prompt, updatePrompt] = React.useState('');
-    const [paragraphTexts, updateParagraphTexts] = React.useState([]);
+    const [paragraphTexts, updateParagraphTexts] = React.useState<string[]>([]);
     const [curParagraphText, updateCurParagraphText] = React.useState('');
+
+    // Split and load the document into an array to match the paragraphs with indexes
+    function loadParagraphTexts() {
+        Word.run((context) => {
+            const paragraphs = context.document.body.paragraphs;
+            paragraphs.load();
+
+            return context.sync().then(() => {
+                let newParagraphTexts = [];
+                for (let i = 0; i < paragraphs.items.length; i++) {
+                    newParagraphTexts.push(paragraphs.items[i].text);
+                }
+                updateParagraphTexts(newParagraphTexts);
+            })
+        })
+    }
+
+    loadParagraphTexts();
+
     // Watch for change events.
     React.useEffect(() => {
         // Add an event handler for when the selection changes.
@@ -37,9 +56,15 @@ export default function Home() {
                 let curParagraph = selectedParagraphs.items[0];
                 updateCurParagraphText(curParagraph.text);
             }
-        )});
+            )
+        });
     }, []);
-        
+
+    // The text of the current paragraph is in curParagraphText
+    // Let's find out the index of the current paragraph in the paragraph texts array
+    let selectedIndex = paragraphTexts.indexOf(curParagraphText);
+    // It's possible that the paragraph text has changed since reflections were retrieved, so we might not find it in the array
+    // In that case, we just don't highlight anything (and selectedIndex will be -1)
 
     // Change the highlight color of the selected paragraph
     async function changeParagraphHighlightColor(paragraphId, operation) {
@@ -63,6 +88,7 @@ export default function Home() {
         });
     }
 
+    // Send the paragraph and the prompt to the backend server and get the reflection
     async function getReflectionFromServer(paragraph, prompt) {
         const data = {
             paragraph,
@@ -99,7 +125,8 @@ export default function Home() {
         });
     }
 
-    // Temporary: insert "feedback collected" as comment into the document
+    // Temporary: insert "feedback collected" as an anchored comment into the document
+    // Current anchored location: last word of the paragraph
     async function onThumbDownClick(paragraphId) {
         await Word.run(async (context) => {
             // Load the document as a ParagraphCollection
@@ -109,66 +136,60 @@ export default function Home() {
 
             // Highlight or dehighlight the paragraph
             const target = paragraphs.items[paragraphId];
-            target.getRange().insertComment("feedback collected");
+            target.getRange("End").insertComment("feedback collected");
         });
     }
 
+    // Fetch reflections from server and wrap reflections into cards
     async function getReflections() {
-        await Word.run(async (context) => {
-            let curPrompt = prompt;
 
-            if (curPrompt.length === 0)
-                curPrompt =
-                    'Using only the text from the user, what are 3 of the most important concepts in this paragraph?';
+        let curPrompt = prompt;
 
-            const paragraphs = context.document.body.paragraphs;
-            paragraphs.load();
+        if (curPrompt.length === 0)
+            curPrompt =
+                'Using only the text from the user, what are 3 of the most important concepts in this paragraph?';
 
-            await context.sync();
+        let reflectionsPrevious = [];
+        let reflectionsCurrent = [];
+        let reflectionsNext = [];
 
-            updateLoading(true);
+        updateLoading(true);
 
-            const allReflections = await Promise.all(
-                paragraphs.items.map((paragraph) =>
-                    getReflectionFromServer(paragraph.text, curPrompt)
-                )
-            );
+        if (0 <= (selectedIndex - 1)) {   // If current paragraph has a valid previous paragraph
+            let preParagraph = (paragraphTexts[selectedIndex - 1]);
+            reflectionsPrevious = await getReflectionFromServer(preParagraph, curPrompt);
+        }
 
-            updateLoading(false);
+        reflectionsCurrent = await getReflectionFromServer(curParagraphText, curPrompt);
 
-            const curCards = [];
-            const newParagraphTexts = [];
+        if ((selectedIndex + 1) < paragraphTexts.length) {     // If current paragraph has a valid next paragraph
+            let nextParagraph = (paragraphTexts[selectedIndex + 1]);
+            reflectionsNext = await getReflectionFromServer(nextParagraph, curPrompt);
+        }
 
-            for (let i = 0; i < paragraphs.items.length; i++) {
-                const reflections = allReflections[i];
+        updateLoading(false);
 
-                // Match the index with the paragraph using a dictionary
-                newParagraphTexts.push(paragraphs.items[i].text);
+        const curCards = [];
 
-                // Create a card for each reflection returned
-                for (let j = 0; j < reflections.length; j++) {
-                    const reflection = reflections[j];
-                    const card = {
-                        body: reflection.reflection,
-                        paragraph: i,
-                    };
-
-                    curCards.push(card);
-                }
-            }
-
-            updateCards(curCards);
-            updateParagraphTexts(newParagraphTexts);
+        reflectionsPrevious.forEach(r => {
+            const card = { body: r.reflection, paragraph: selectedIndex - 1 };
+            curCards.push(card);
         });
+
+        reflectionsCurrent.forEach(r => {
+            const card = { body: r.reflection, paragraph: selectedIndex };
+            curCards.push(card);
+        });
+
+        reflectionsNext.forEach(r => {
+            const card = { body: r.reflection, paragraph: selectedIndex + 1 };
+            curCards.push(card);
+        });
+
+        updateCards(curCards);
     }
 
     if (loading) return <Progress message="Loading" />;
-
-    // The text of the current paragraph is in curParagraphText
-    // Let's find out the index of the current paragraph in the paragraph texts array
-    let selectedIndex = paragraphTexts.indexOf(curParagraphText);
-    // It's possible that the paragraph text has changed since reflections were retrieved, so we might not find it in the array
-    // In that case, we just don't highlight anything (and selectedIndex will be -1)
 
     return (
         <div className="ms-welcome">
