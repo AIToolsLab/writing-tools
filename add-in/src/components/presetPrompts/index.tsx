@@ -50,6 +50,7 @@ export default function PresetPrompts({ updatePrompt }: PresetPromptsProps) {
             <Text style={{ fontWeight: '600' }}>Preset Prompts</Text>
             {presetPrompts.map((option) => (
                 <DefaultButton
+                    key={option.key}
                     text={option.key}
                     style={{
                         backgroundColor:
