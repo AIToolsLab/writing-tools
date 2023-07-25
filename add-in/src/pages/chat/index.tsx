@@ -1,5 +1,4 @@
 import React from 'react';
-import { TextField } from '@fluentui/react';
 import { AiOutlineSend } from 'react-icons/ai';
 
 import ChatMessage from '../../components/chatMessage';
@@ -18,6 +17,8 @@ export default function Chat() {
     const [messages, updateMessages] = React.useState<ChatMessage[]>([]);
     const [isSendingMessage, updateSendingMessage] = React.useState(false);
 
+    const systemPrompt = React.useRef<HTMLTextAreaElement>();
+
     const [message, updateMessage] = React.useState('');
 
     async function sendMessage(e) {
@@ -32,7 +33,11 @@ export default function Chat() {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                messages: [...messages, {role: 'user', content: message}],
+                messages: [
+                    { role: 'system', content: systemPrompt.current?.value },
+                    ...messages,
+                    { role: 'user', content: message }
+                ],
             }),
         });
 
@@ -76,6 +81,18 @@ export default function Chat() {
         updateMessages(newMessages);
     }
 
+    function deleteMessage(index: number) {
+        const newMessages = [...messages].filter(
+            (_, i) => i !== index && i !== index + 1
+        );
+
+        updateMessages(newMessages);
+    }
+
+    async function convertToComment(_index: number) {
+        
+    }
+
     return (
         <div className={classes.container}>
             <PresetPrompts
@@ -83,6 +100,15 @@ export default function Chat() {
                     updateMessage(message + '\n\n' + prompt)
                 }
             />
+            
+            <label className={classes.label}>
+                <textarea
+                    disabled={isSendingMessage}
+                    placeholder="System Prompt"
+                    ref={systemPrompt}
+                    className={classes.systemPrompt}
+                />
+            </label>
 
             <div className={classes.messageContainer}>
                 {messages.map((message, index) => (
@@ -92,6 +118,8 @@ export default function Chat() {
                         content={message.content}
                         index={index}
                         refresh={regenMessage}
+                        deleteMessage={deleteMessage}
+                        convertToComment={convertToComment}
                     />
                 ))}
             </div>
@@ -103,7 +131,9 @@ export default function Chat() {
                         placeholder="Send a message"
                         value={message}
                         onChange={(e) =>
-                            updateMessage((e.target as HTMLTextAreaElement).value)
+                            updateMessage(
+                                (e.target as HTMLTextAreaElement).value
+                            )
                         }
                         className={classes.messageInput}
                     />
@@ -113,6 +143,15 @@ export default function Chat() {
                     </button>
                 </label>
             </form>
+
+            <div>
+                <button
+                    className={classes.clearChat}
+                    onClick={() => updateMessages([])}
+                >
+                    Clear chat
+                </button>
+            </div>
         </div>
     );
 }
