@@ -99,6 +99,8 @@ export default function Chat() {
                         content={message.content}
                         index={index}
                         refresh={regenMessage}
+                        deleteMessage={() => {}}
+                        convertToComment={() => {}}
                     />
                 ))}
             </div>
