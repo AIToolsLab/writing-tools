@@ -41,22 +41,34 @@ export default function Chat() {
             }),
         });
 
-        const responseJson = await response.json();
+        // Read the response as a stream
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
 
-        updateMessages([
-            ...messages,
-            {
-                role: 'user',
-                content: message,
-            },
-            {
-                role: 'assistant',
-                content: responseJson,
-            },
-        ]);
+        while (true) {
+            const {done, value} = await reader.read();
+            if (done) break;
+            const decoded = decoder.decode(value);
 
-        updateSendingMessage(false);
-        updateMessage('');
+            console.log(Date.now(), decoded)
+        }
+
+        // const responseJson = await response.json();
+
+        // updateMessages([
+        //     ...messages,
+        //     {
+        //         role: 'user',
+        //         content: message,
+        //     },
+        //     {
+        //         role: 'assistant',
+        //         content: responseJson,
+        //     },
+        // ]);
+
+        // updateSendingMessage(false);
+        // updateMessage('');
     }
 
     async function regenMessage(index: number) {
@@ -85,11 +97,11 @@ export default function Chat() {
 
     return (
         <div className={classes.container}>
-            <PresetPrompts
+            {/* <PresetPrompts
                 updatePrompt={(prompt) =>
                     updateMessage(message + '\n\n' + prompt)
                 }
-            />
+            /> */}
 
             <div className={classes.messageContainer}>
                 {messages.map((message, index) => (
