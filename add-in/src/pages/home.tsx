@@ -145,10 +145,6 @@ export default function Home() {
 
         let curPrompt = prompt;
 
-        if (curPrompt.length === 0)
-            curPrompt =
-                'Using only the text from the user, what are 3 of the most important concepts in this paragraph?';
-
         let reflectionsPrevious = [];
         let reflectionsCurrent = [];
         let reflectionsNext = [];
