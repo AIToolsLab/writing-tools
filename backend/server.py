@@ -169,7 +169,7 @@ async def log_feedback(payload: FeedbackPayload, request: Request):
         # Use SQL timestamp
         c.execute(
             'INSERT INTO feedback_logs VALUES (datetime("now"), ?, ?, ?)',
-            (payload.prompt, payload.paragraph, payload.feedback_type, payload.user_id),
+            (payload.user_id,payload.prompt, payload.paragraph, payload.feedback_type),
         )
 
     return {"message": "Feedback logged successfully"}
