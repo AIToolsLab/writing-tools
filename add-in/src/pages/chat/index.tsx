@@ -17,8 +17,6 @@ export default function Chat() {
     const [messages, updateMessages] = React.useState<ChatMessage[]>([]);
     const [isSendingMessage, updateSendingMessage] = React.useState(false);
 
-    const systemPrompt = React.useRef<HTMLTextAreaElement>();
-
     const [message, updateMessage] = React.useState('');
 
     async function sendMessage(e) {
@@ -27,6 +25,15 @@ export default function Chat() {
 
         if (!message) return;
 
+        const prevNumMessages = messages.length;
+        
+        updateMessages([
+            ...messages,
+            { role: 'user', content: message }
+        ]);
+        
+        let newMessages = [...messages, { role: 'user', content: message }];
+
         const response = await fetch(`${SERVER_URL}/chat`, {
             method: 'POST',
             headers: {
@@ -34,7 +41,6 @@ export default function Chat() {
             },
             body: JSON.stringify({
                 messages: [
-                    // { role: 'system', content: systemPrompt.current?.value },
                     ...messages,
                     { role: 'user', content: message }
                 ],
@@ -43,32 +49,38 @@ export default function Chat() {
 
         // Read the response as a stream
         const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+        const decoder = new TextDecoder('utf-8');
 
         while (true) {
             const {done, value} = await reader.read();
             if (done) break;
+            
             const decoded = decoder.decode(value);
+            const decodedMessage = decoded.replaceAll('\r', '').replaceAll('data: ', '');
+            
+            if(newMessages[newMessages.length - 1].role === 'assistant') {
+                const tempMessages = [...newMessages];
+                tempMessages[tempMessages.length - 1].content += decodedMessage;
+                
+                newMessages = tempMessages;
+                updateMessages(newMessages);
+            }
+            else {
+                const tempMessages = [
+                    ...newMessages,
+                    {
+                        role: 'assistant',
+                        content: decodedMessage
+                    }
+                ];
 
-            console.log(Date.now(), decoded)
+                newMessages = tempMessages;
+                updateMessages(tempMessages);
+            }
         }
 
-        // const responseJson = await response.json();
-
-        // updateMessages([
-        //     ...messages,
-        //     {
-        //         role: 'user',
-        //         content: message,
-        //     },
-        //     {
-        //         role: 'assistant',
-        //         content: responseJson,
-        //     },
-        // ]);
-
-        // updateSendingMessage(false);
-        // updateMessage('');
+        updateSendingMessage(false);
+        updateMessage('');
     }
 
     async function regenMessage(index: number) {
