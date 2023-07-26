@@ -140,8 +140,7 @@ async def get_reflections_chat(request: ReflectionRequestPayload) -> ReflectionR
 
 
 @app.post("/reflections")
-async def reflections(payload: ReflectionRequestPayload, request: Request):
-    user_id = payload.user_id
+async def reflections(payload: ReflectionRequestPayload):
     api = "chat"
 
     if api == "chat":
