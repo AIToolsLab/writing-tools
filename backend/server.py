@@ -31,6 +31,7 @@ with open(".env", "r") as f:
             openai.organization = value.strip()
 
 class ReflectionRequestPayload(BaseModel):
+    user_id: str
     paragraph: str
     prompt: str
 
@@ -43,6 +44,12 @@ class ChatRequestPayload(BaseModel):
 
 class ReflectionResponses(BaseModel):
     reflections: List[ReflectionResponseItem]
+
+class FeedbackLog(BaseModel):
+    user_id: str
+    prompt: str
+    paragraph: str
+    feedback_type: str  # This can be "upvote" or "reject"
 
 
 app = FastAPI()
@@ -64,7 +71,7 @@ db_file = "requests.db"
 with sqlite3.connect(db_file) as conn:
     c = conn.cursor()
     c.execute(
-        "CREATE TABLE IF NOT EXISTS requests (timestamp, prompt, paragraph, response, success)"
+        "CREATE TABLE IF NOT EXISTS requests (timestamp, user_id, prompt, paragraph, response, success)"
     )
     c.execute(
         "CREATE TABLE IF NOT EXISTS feedback_logs (timestamp,user_id, prompt, paragraph, feedback_type)"
@@ -78,7 +85,7 @@ async def get_reflections_chat(
         c = conn.cursor()
         c.execute(
             "SELECT response FROM requests WHERE prompt=? AND paragraph=? AND success='true'",
-            (request.prompt, request.paragraph),
+            (request.user_id, request.prompt, request.paragraph),
         )
         result = c.fetchone()
 
@@ -100,7 +107,7 @@ async def get_reflections_chat(
             # Use SQL timestamp
             c.execute(
                 'INSERT INTO requests VALUES (datetime("now"), ?, ?, ?, ?)',
-                (request.prompt, request.paragraph, json.dumps(reflections_internal.dict()), "true"),
+                (request.user_id,request.prompt, request.paragraph, json.dumps(reflections_internal.dict()), "true"),
             )
 
     return ReflectionResponses(
@@ -131,9 +138,20 @@ async def logs():
 
     return result
 
+@app.post("/feedback")
+async def log_feedback(payload: FeedbackLog):
+    with sqlite3.connect(db_file) as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO feedback_logs VALUES (datetime('now'), ?, ?, ?, ?)",
+            (payload.user_id, payload.prompt, payload.paragraph, payload.feedback_type),
+        )
+    return {"message": "Feedback logged successfully."}
+
 # Get access to files on the server. Only for a production build.
 static_path = Path('../add-in/dist')
 app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="localhost", port=int(sys.argv[1] if len(sys.argv) > 1 else 8000))
+
