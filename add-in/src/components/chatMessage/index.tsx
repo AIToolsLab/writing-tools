@@ -24,24 +24,28 @@ export default function ChatMessage(
             >
                 {props.content}
 
-                {props.role !== 'assistant' && (
-                    <div className={ classes.toolbar }>
-                        <FiRefreshCcw
-                            className={classes.icon}
-                            onClick={() => props.refresh(props.index)}
-                        />
+                {
+                    props.role !== 'assistant' ? (
+                        <div className={ classes.toolbar }>
+                            <FiRefreshCcw
+                                className={classes.icon}
+                                onClick={() => props.refresh(props.index)}
+                            />
+                        </div>
+                    ) : (
+                        <div className={ classes.toolbar }>
+                            <FiTrash2
+                                className={classes.icon}
+                                onClick={() => props.deleteMessage(props.index)}
+                            />
 
-                        <FiTrash2
-                            className={classes.icon}
-                            onClick={() => props.deleteMessage(props.index)}
-                        />
-
-                        <TfiCommentAlt
-                            className={classes.icon}
-                            onClick={() => props.convertToComment(props.index)}
-                        />
-                    </div>
-                )}
+                            <TfiCommentAlt
+                                className={classes.icon}
+                                onClick={() => props.convertToComment(props.index)}
+                            />
+                        </div>
+                    )
+                }
             </div>
         </div>
     );
