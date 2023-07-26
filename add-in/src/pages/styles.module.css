@@ -27,6 +27,12 @@
 
 .prompt-container {
     border: 1px solid grey;
-    max-height: 10px;
     overflow-y: scroll;
+    flex: 1 1 0;
+}
+
+.cardsContainer {
+    flex: 1 1 0;
+    overflow-y: scroll;
+    border: 1px solid black;
 }

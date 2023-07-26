@@ -23,7 +23,7 @@ export interface ReflectionsForParagraph {
 }
 
 function CardContainer({ className, cards, changeParagraphHighlightColor, onThumbUpClick, onThumbDownClick }) {
-    return <div className="cards-container">
+    return <div className={classes['cardsContainer']}>
         {(cards.length === 0) ? "loading..." : cards.map((card, i) => (
             <div
                 key={i}
@@ -91,8 +91,7 @@ export default function Home() {
     // Watch for change events.
     React.useEffect(() => {
         // Add an event handler for when the selection changes.
-        // TODO: fire this on initial load too, otherwise there's no highlights until you first click something.
-        Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, async () => {
+        async function onSelectionChanged() {
             await Word.run(async (context) => {
                 // Get the current paragraph that the cursor is in, and look up the index of the paragraph in dict
                 // Pick the first paragraph if current selection includes multiple paragraphs
@@ -105,7 +104,12 @@ export default function Home() {
             });
             // FIXME: find a better place to run this, which might be expensive.
             loadParagraphTexts();
-        });
+        }
+        onSelectionChanged();
+        Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, onSelectionChanged);
+        return () => {
+            Office.context.document.removeHandlerAsync(Office.EventType.DocumentSelectionChanged, onSelectionChanged);
+        }
 
     }, []);
 
@@ -199,7 +203,7 @@ export default function Home() {
         const reflectionsPromise = getReflectionFromServer(paragraphText, prompt);
         reflectionsPromise.then((newReflections) => {
             reflections.set(key, newReflections);
-            updateReflections(reflections);
+            updateReflections(new Map(reflections));
         });
         return [];
     }
@@ -220,19 +224,19 @@ export default function Home() {
     return (
         <div className="ms-welcome">
             {/* Preset Prompts  */}
-            <div className="prompt-container">
+            <div className={classes['prompt-container']}>
                 <PresetPrompts updatePrompt={updatePrompt} />
+                {/* Custom Prompt  */}
+                <TextField
+                    multiline={true}
+                    className="prompt-editor"
+                    label="Custom Prompt"
+                    resizable={false}
+                    onChange={(p) => updatePrompt(p.currentTarget.value)}
+                    value={prompt}
+                />
             </div>
 
-            {/* Custom Prompt  */}
-            <TextField
-                multiline={true}
-                className="prompt-editor"
-                label="Custom Prompt"
-                resizable={false}
-                onChange={(p) => updatePrompt(p.currentTarget.value)}
-                value={prompt}
-            />
 
             {/* Reflection Cards for previous Paragraph */}
             <CardContainer
