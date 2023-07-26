@@ -16,6 +16,50 @@ export interface Card {
     paragraph: number;
 }
 
+function CardContainer({ className, cards, changeParagraphHighlightColor, onThumbUpClick, onThumbDownClick }) {
+    return <div className="cards-container">
+        {cards.map((card, i) => (
+            <div
+                key={i}
+                className={className}
+                onMouseEnter={() =>
+                    changeParagraphHighlightColor(
+                        card.paragraph,
+                        'highlight'
+                    )
+                }
+                onMouseLeave={() =>
+                    changeParagraphHighlightColor(
+                        card.paragraph,
+                        'dehighlight'
+                    )
+                }
+            >
+                <div className="card-content">{card.body}</div>
+                <div className="thumb-up-button-container">
+                    <button
+                        onClick={() =>
+                            onThumbUpClick(card.paragraph, card.body)
+                        }
+                        title='Save as comment'
+                    >
+                        <AiOutlinePushpin />
+                    </button>
+                    {shouldShowThumbDownButton && (
+                        <button
+                            onClick={() =>
+                                onThumbDownClick(card.paragraph)
+                            }
+                        >
+                            Dislike
+                        </button>
+                    )}
+                </div>
+            </div>
+        ))}
+    </div>
+}
+
 export default function Home() {
     const [cards, updateCards] = React.useState<Card[]>([]);
     const [loading, updateLoading] = React.useState(false);
@@ -188,7 +232,9 @@ export default function Home() {
     return (
         <div className="ms-welcome">
             {/* Preset Prompts  */}
-            <PresetPrompts updatePrompt={updatePrompt} />
+            <div className="prompt-container">
+                <PresetPrompts updatePrompt={updatePrompt} />
+            </div>
 
             {/* Custom Prompt  */}
             <TextField
@@ -207,134 +253,32 @@ export default function Home() {
                 </DefaultButton>
             </div>
 
-            {/* Reflection Cards for Previous Paragraph */}
-            <div className="cards-container">
-                {cards.filter(function (card) { return card.paragraph == (selectedIndex - 1) }).map((card, i) => (
-                    <div
-                        key={i}
-                        className={classes.cardContainer}
-                        onMouseEnter={() =>
-                            changeParagraphHighlightColor(
-                                card.paragraph,
-                                'highlight'
-                            )
-                        }
-                        onMouseLeave={() =>
-                            changeParagraphHighlightColor(
-                                card.paragraph,
-                                'dehighlight'
-                            )
-                        }
-                    >
-                        <div className="card-content">{card.body}</div>
-                        <div className="thumb-up-button-container">
-                            <button
-                                onClick={() =>
-                                    onThumbUpClick(card.paragraph, card.body)
-                                }
-                                title='Save as comment'
-                            >
-                                <AiOutlinePushpin />
-                            </button>
-                            {shouldShowThumbDownButton && (
-                                <button
-                                    onClick={() =>
-                                        onThumbDownClick(card.paragraph)
-                                    }
-                                >
-                                    Dislike
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
+            {/* Reflection Cards for previous Paragraph */}
+            <CardContainer
+                className={classes.cardContainer}
+                cards={cards.filter(function (card) { return card.paragraph == (selectedIndex - 1) })}
+                changeParagraphHighlightColor={changeParagraphHighlightColor}
+                onThumbUpClick={onThumbUpClick}
+                onThumbDownClick={onThumbDownClick}
+            />
 
-            {/* Reflection Cards for Current Paragraph */}
-            <div className="cards-container">
-                {cards.filter(function (card) { return card.paragraph == selectedIndex }).map((card, i) => (
-                    <div
-                        key={i}
-                        className={classes.cardContainerHover}
-                        onMouseEnter={() =>
-                            changeParagraphHighlightColor(
-                                card.paragraph,
-                                'highlight'
-                            )
-                        }
-                        onMouseLeave={() =>
-                            changeParagraphHighlightColor(
-                                card.paragraph,
-                                'dehighlight'
-                            )
-                        }
-                    >
-                        <div className="card-content">{card.body}</div>
-                        <div className="thumb-up-button-container">
-                            <button
-                                onClick={() =>
-                                    onThumbUpClick(card.paragraph, card.body)
-                                }
-                                title='Save as comment'
-                            >
-                                <AiOutlinePushpin />
-                            </button>
-                            {shouldShowThumbDownButton && (
-                                <button
-                                    onClick={() =>
-                                        onThumbDownClick(card.paragraph)
-                                    }
-                                >
-                                    Dislike
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
+            {/* Reflection Cards for current Paragraph */}
+            <CardContainer
+                className={classes.cardContainerHover}
+                cards={cards.filter(function (card) { return card.paragraph == selectedIndex })}
+                changeParagraphHighlightColor={changeParagraphHighlightColor}
+                onThumbUpClick={onThumbUpClick}
+                onThumbDownClick={onThumbDownClick}
+            />
 
-            {/* Reflection Cards for Next Paragraph */}
-            <div className="cards-container">
-                {cards.filter(function (card) { return card.paragraph == (selectedIndex + 1) }).map((card, i) => (
-                    <div
-                        key={i}
-                        className={classes.cardContainer}
-                        onMouseEnter={() =>
-                            changeParagraphHighlightColor(
-                                card.paragraph,
-                                'highlight'
-                            )
-                        }
-                        onMouseLeave={() =>
-                            changeParagraphHighlightColor(
-                                card.paragraph,
-                                'dehighlight'
-                            )
-                        }
-                    >
-                        <div className="card-content">{card.body}</div>
-                        <div className="thumb-up-button-container">
-                            <button
-                                onClick={() =>
-                                    onThumbUpClick(card.paragraph, card.body)
-                                }
-                                title='Save as comment'
-                            >
-                                <AiOutlinePushpin />
-                            </button>
-                            {shouldShowThumbDownButton && (
-                                <button
-                                    onClick={() =>
-                                        onThumbDownClick(card.paragraph)
-                                    }
-                                >
-                                    Dislike
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
+            {/* Reflection Cards for next Paragraph */}
+            <CardContainer
+                className={classes.cardContainer}
+                cards={cards.filter(function (card) { return card.paragraph == (selectedIndex + 1) })}
+                changeParagraphHighlightColor={changeParagraphHighlightColor}
+                onThumbUpClick={onThumbUpClick}
+                onThumbDownClick={onThumbDownClick}
+            />
         </div>
     );
 }

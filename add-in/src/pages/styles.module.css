@@ -24,3 +24,9 @@
 .card-content {
     width: 90%;
 }
+
+.prompt-container {
+    border: 1px solid grey;
+    max-height: 10px;
+    overflow-y: scroll;
+}
