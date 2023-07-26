@@ -1,7 +1,6 @@
 import json
 import os
 import sqlite3
-from typing import List
 
 import openai
 import uvicorn
@@ -26,8 +25,10 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 class ReflectionRequestPayload(BaseModel):
+    user_id: str
     paragraph: str
     prompt: str
+    
 
 
 class ReflectionResponseItem(BaseModel):
@@ -41,9 +42,13 @@ class ReflectionResponses(BaseModel):
 
 
 class FeedbackPayload(BaseModel):
+    user_id: str
     paragraph: str
     prompt: str
     feedback_type: str  # "Upvote" or "Reject"
+    
+
+
 
 
 app = FastAPI()
@@ -65,10 +70,10 @@ db_file = "requests.db"
 with sqlite3.connect(db_file) as conn:
     c = conn.cursor()
     c.execute(
-        "CREATE TABLE IF NOT EXISTS requests (timestamp, prompt, paragraph, response, success)"
+        "CREATE TABLE IF NOT EXISTS requests (timestamp, user_id, prompt, paragraph, response, success)"
     )
     c.execute(
-        "CREATE TABLE IF NOT EXISTS feedback_logs (timestamp, prompt, paragraph, feedback_type)"
+        "CREATE TABLE IF NOT EXISTS feedback_logs (timestamp,user_id, prompt, paragraph, feedback_type)"
     )
 
 
@@ -78,7 +83,7 @@ async def get_reflections_chat(request: ReflectionRequestPayload) -> ReflectionR
         c = conn.cursor()
         c.execute(
             "SELECT response FROM requests WHERE prompt=? AND paragraph=? AND success='true'",
-            (request.prompt, request.paragraph),
+            ( request.user_id, request.prompt, request.paragraph),
         )
         result = c.fetchone()
 
@@ -113,7 +118,7 @@ async def get_reflections_chat(request: ReflectionRequestPayload) -> ReflectionR
                 # Use SQL timestamp
                 c.execute(
                     'INSERT INTO requests VALUES (datetime("now"), ?, ?, ?, ?)',
-                    (request.prompt, request.paragraph, json.dumps(dict(
+                    ( request.user_id, request.prompt, request.paragraph, json.dumps(dict(
                         error=str(e2),
                         response=response
                     )), "false"),
@@ -127,7 +132,7 @@ async def get_reflections_chat(request: ReflectionRequestPayload) -> ReflectionR
         # Use SQL timestamp
         c.execute(
             'INSERT INTO requests VALUES (datetime("now"), ?, ?, ?, ?)',
-            (request.prompt, request.paragraph, json.dumps(
+            ( request.user_id, request.prompt, request.paragraph, json.dumps(
                 reflection_items.dict()), "true"),
         )
 
@@ -135,7 +140,8 @@ async def get_reflections_chat(request: ReflectionRequestPayload) -> ReflectionR
 
 
 @app.post("/reflections")
-async def reflections(payload: ReflectionRequestPayload):
+async def reflections(payload: ReflectionRequestPayload, request: Request):
+    user_id = payload.user_id
     api = "chat"
 
     if api == "chat":
@@ -156,13 +162,14 @@ async def logs():
 
 
 @app.post("/log_feedback")
-async def log_feedback(payload: FeedbackPayload):
+async def log_feedback(payload: FeedbackPayload, request: Request):
+    user_id = payload.user_id
     with sqlite3.connect(db_file) as conn:
         c = conn.cursor()
         # Use SQL timestamp
         c.execute(
             'INSERT INTO feedback_logs VALUES (datetime("now"), ?, ?, ?)',
-            (payload.prompt, payload.paragraph, payload.feedback_type),
+            (payload.prompt, payload.paragraph, payload.feedback_type, payload.user_id),
         )
 
     return {"message": "Feedback logged successfully"}
