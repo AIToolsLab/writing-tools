@@ -161,7 +161,7 @@ async def logs():
 
 
 @app.post("/log_feedback")
-async def log_feedback(payload: FeedbackPayload, request: Request):
+async def log_feedback(payload: FeedbackPayload):
     user_id = payload.user_id
     with sqlite3.connect(db_file) as conn:
         c = conn.cursor()
