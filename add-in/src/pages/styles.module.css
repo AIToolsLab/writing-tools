@@ -1,4 +1,4 @@
-.cardContainer {
+.cardContainer, .cardContainerHover {
     border: 1px solid grey;
     cursor: pointer;
     transition: 0.15s;
@@ -12,7 +12,7 @@
     background-color: yellow;
 }
 
-.cards-container:last-child {
+.cardContainer:last-child, .cardContainerHover:last-child {
     /* TODO: this is displaying even when there are no components */
     border-bottom: 1px solid grey; 
 }

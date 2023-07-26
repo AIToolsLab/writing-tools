@@ -152,15 +152,13 @@ export default function Home() {
         updateLoading(true);
 
         if (0 <= (selectedIndex - 1)) {   // If current paragraph has a valid previous paragraph
-            let preParagraph = (paragraphTexts[selectedIndex - 1]);
-            reflectionsPrevious = await getReflectionFromServer(preParagraph, curPrompt);
+            reflectionsPrevious = await getReflectionFromServer(paragraphTexts[selectedIndex - 1], curPrompt);
         }
 
         reflectionsCurrent = await getReflectionFromServer(curParagraphText, curPrompt);
 
         if ((selectedIndex + 1) < paragraphTexts.length) {     // If current paragraph has a valid next paragraph
-            let nextParagraph = (paragraphTexts[selectedIndex + 1]);
-            reflectionsNext = await getReflectionFromServer(nextParagraph, curPrompt);
+            reflectionsNext = await getReflectionFromServer(paragraphTexts[selectedIndex + 1], curPrompt);
         }
 
         updateLoading(false);
@@ -189,8 +187,10 @@ export default function Home() {
 
     return (
         <div className="ms-welcome">
+            {/* Preset Prompts  */}
             <PresetPrompts updatePrompt={updatePrompt} />
 
+            {/* Custom Prompt  */}
             <TextField
                 multiline={true}
                 className="prompt-editor"
@@ -200,17 +200,105 @@ export default function Home() {
                 value={prompt}
             />
 
+            {/* Get Reflection Button */}
             <div className="button-container">
                 <DefaultButton onClick={getReflections}>
                     Get Reflections
                 </DefaultButton>
             </div>
 
+            {/* Reflection Cards for Previous Paragraph */}
             <div className="cards-container">
-                {cards.map((card, i) => (
+                {cards.filter(function (card) { return card.paragraph == (selectedIndex - 1) }).map((card, i) => (
                     <div
                         key={i}
-                        className={`${classes.cardContainer} ${selectedIndex === card.paragraph ? classes.cardContainerHover : ""}`}
+                        className={classes.cardContainer}
+                        onMouseEnter={() =>
+                            changeParagraphHighlightColor(
+                                card.paragraph,
+                                'highlight'
+                            )
+                        }
+                        onMouseLeave={() =>
+                            changeParagraphHighlightColor(
+                                card.paragraph,
+                                'dehighlight'
+                            )
+                        }
+                    >
+                        <div className="card-content">{card.body}</div>
+                        <div className="thumb-up-button-container">
+                            <button
+                                onClick={() =>
+                                    onThumbUpClick(card.paragraph, card.body)
+                                }
+                                title='Save as comment'
+                            >
+                                <AiOutlinePushpin />
+                            </button>
+                            {shouldShowThumbDownButton && (
+                                <button
+                                    onClick={() =>
+                                        onThumbDownClick(card.paragraph)
+                                    }
+                                >
+                                    Dislike
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Reflection Cards for Current Paragraph */}
+            <div className="cards-container">
+                {cards.filter(function (card) { return card.paragraph == selectedIndex }).map((card, i) => (
+                    <div
+                        key={i}
+                        className={classes.cardContainerHover}
+                        onMouseEnter={() =>
+                            changeParagraphHighlightColor(
+                                card.paragraph,
+                                'highlight'
+                            )
+                        }
+                        onMouseLeave={() =>
+                            changeParagraphHighlightColor(
+                                card.paragraph,
+                                'dehighlight'
+                            )
+                        }
+                    >
+                        <div className="card-content">{card.body}</div>
+                        <div className="thumb-up-button-container">
+                            <button
+                                onClick={() =>
+                                    onThumbUpClick(card.paragraph, card.body)
+                                }
+                                title='Save as comment'
+                            >
+                                <AiOutlinePushpin />
+                            </button>
+                            {shouldShowThumbDownButton && (
+                                <button
+                                    onClick={() =>
+                                        onThumbDownClick(card.paragraph)
+                                    }
+                                >
+                                    Dislike
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
+
+            {/* Reflection Cards for Next Paragraph */}
+            <div className="cards-container">
+                {cards.filter(function (card) { return card.paragraph == (selectedIndex + 1) }).map((card, i) => (
+                    <div
+                        key={i}
+                        className={classes.cardContainer}
                         onMouseEnter={() =>
                             changeParagraphHighlightColor(
                                 card.paragraph,
