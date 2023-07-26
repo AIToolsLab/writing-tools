@@ -2,7 +2,6 @@ import React from 'react';
 import { AiOutlineSend } from 'react-icons/ai';
 
 import ChatMessage from '../../components/chatMessage';
-import PresetPrompts from '../../components/presetPrompts';
 
 import { SERVER_URL } from '../../settings';
 
@@ -109,12 +108,6 @@ export default function Chat() {
 
     return (
         <div className={classes.container}>
-            {/* <PresetPrompts
-                updatePrompt={(prompt) =>
-                    updateMessage(message + '\n\n' + prompt)
-                }
-            /> */}
-
             <div className={classes.messageContainer}>
                 {messages.map((message, index) => (
                     <ChatMessage
