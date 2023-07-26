@@ -1,9 +1,8 @@
 import * as React from 'react';
-import { TextField, DefaultButton } from '@fluentui/react';
 
 import { AiOutlinePushpin } from 'react-icons/ai';
 import Progress from '../components/progress';
-import PresetPrompts from '../components/presetPrompts';
+import PromptSelector from '../components/presetPrompts';
 
 import classes from './styles.module.css';
 
@@ -69,7 +68,7 @@ function CardContainer({ className, cards, changeParagraphHighlightColor, onThum
 export default function Home() {
     const [reflections, updateReflections] = React.useState(new Map());
     const [loading, updateLoading] = React.useState(false);
-    const [prompt, updatePrompt] = React.useState('');
+    const [prompt, updatePrompt] = React.useState(PromptSelector.defaultPrompt);
     const [paragraphTexts, updateParagraphTexts] = React.useState<string[]>([]);
     const [curParagraphText, updateCurParagraphText] = React.useState('');
 
@@ -229,16 +228,7 @@ export default function Home() {
         <div className="ms-welcome">
             {/* Preset Prompts  */}
             <div className={classes['prompt-container']}>
-                <PresetPrompts updatePrompt={updatePrompt} />
-                {/* Custom Prompt  */}
-                <TextField
-                    multiline={true}
-                    className="prompt-editor"
-                    label="Custom Prompt"
-                    resizable={false}
-                    onChange={(p) => updatePrompt(p.currentTarget.value)}
-                    value={prompt}
-                />
+                <PromptSelector curPrompt={prompt} updatePrompt={updatePrompt} />
             </div>
 
 

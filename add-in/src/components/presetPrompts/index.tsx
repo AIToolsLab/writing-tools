@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { DefaultButton } from '@fluentui/react/lib/Button';
 import { Stack, IStackTokens } from '@fluentui/react/lib/Stack';
+import { TextField, DefaultButton } from '@fluentui/react';
 import { Text } from '@fluentui/react/lib/Text';
 
 const presetPrompts = [
@@ -39,17 +39,24 @@ const presetPrompts = [
     },
 ];
 
-type PresetPromptsProps = {
+type PromptSelectorProps = {
+    curPrompt: string;
     updatePrompt: (_: string) => void;
 };
 
 const stackTokens: IStackTokens = { childrenGap: 10 };
 
 // Render the list of preset prompts as fancy radio buttons
-export default function PresetPrompts({ updatePrompt }: PresetPromptsProps) {
-    const [selectedOption, setSelectedOption] = useState('');
+export default function PromptSelector({ curPrompt, updatePrompt }: PromptSelectorProps) {
+    const [internalPrompt, setInternalPrompt] = useState(presetPrompts[0].text);
+
+    const setPrompt = (newPrompt: string) => {
+        setInternalPrompt(newPrompt);
+        updatePrompt(newPrompt);
+    }
 
     return (
+        <div>
         <Stack tokens={stackTokens}>
             <Text style={{ fontWeight: '600' }}>Preset Prompts</Text>
             {presetPrompts.map((option) => (
@@ -58,16 +65,34 @@ export default function PresetPrompts({ updatePrompt }: PresetPromptsProps) {
                     text={option.key}
                     style={{
                         backgroundColor:
-                            option.text === selectedOption
+                            option.text === curPrompt
                                 ? '#f3f2f1'
                                 : 'white',
                     }}
                     onClick={() => {
-                        setSelectedOption(option.text);
-                        updatePrompt(option.text);
+                        setPrompt(option.text);
                     }}
                 />
             ))}
         </Stack>
+        {/* Custom Prompt  */}
+        <TextField
+            multiline={true}
+            className="prompt-editor"
+            label="Custom Prompt"
+            resizable={false}
+            onChange={(p) => setInternalPrompt(p.currentTarget.value)}
+            value={internalPrompt}
+        />
+        {internalPrompt !== curPrompt && (
+            <DefaultButton
+                text="Set Custom Prompt"
+                onClick={() => {
+                    updatePrompt(internalPrompt);
+                }}
+            />)}
+</div>
     );
 }
+
+PromptSelector.defaultPrompt = presetPrompts[0].text;
