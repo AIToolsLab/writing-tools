@@ -66,7 +66,9 @@ with sqlite3.connect(db_file) as conn:
     c.execute(
         "CREATE TABLE IF NOT EXISTS requests (timestamp, prompt, paragraph, response, success)"
     )
-
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS feedback_logs (timestamp,user_id, prompt, paragraph, feedback_type)"
+     )
 
 async def get_reflections_chat(
     request: ReflectionRequestPayload,
