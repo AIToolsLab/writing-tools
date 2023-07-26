@@ -14,7 +14,6 @@ from pydantic import BaseModel
 
 from nlp import (
     gen_reflections_chat,
-    send_message,
     ReflectionResponseInternal
 )
 
@@ -120,8 +119,6 @@ from sse_starlette import EventSourceResponse
 
 @app.post("/chat")
 async def chat(payload: ChatRequestPayload):
-    print(payload.messages)
-    
     response = await openai.ChatCompletion.acreate(
         model="gpt-3.5-turbo",
         messages=payload.messages,
@@ -134,13 +131,14 @@ async def chat(payload: ChatRequestPayload):
     )
 
     async def generator():
-        print("Generator start")
         async for chunk in response:
-            print("Generator yield")
-            print(chunk)
-            yield chunk['choices'][0]['delta']['content']
+            if chunk["choices"][0]["finish_reason"] == "stop":
+                break
 
-    #return response["choices"][0]["message"]["content"]
+            print(chunk)
+
+            yield chunk["choices"][0]["delta"]["content"]
+
     return EventSourceResponse(generator())
 
 @app.get("/logs")
