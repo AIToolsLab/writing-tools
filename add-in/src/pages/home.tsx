@@ -16,9 +16,15 @@ export interface Card {
     paragraph: number;
 }
 
+export interface ReflectionsForParagraph {
+    paragraphText: string;
+    prompt: string;
+    reflectionTexts: string[];
+}
+
 function CardContainer({ className, cards, changeParagraphHighlightColor, onThumbUpClick, onThumbDownClick }) {
     return <div className="cards-container">
-        {cards.map((card, i) => (
+        {(cards.length === 0) ? "loading..." : cards.map((card, i) => (
             <div
                 key={i}
                 className={className}
@@ -61,7 +67,7 @@ function CardContainer({ className, cards, changeParagraphHighlightColor, onThum
 }
 
 export default function Home() {
-    const [cards, updateCards] = React.useState<Card[]>([]);
+    const [reflections, updateReflections] = React.useState(new Map());
     const [loading, updateLoading] = React.useState(false);
     const [prompt, updatePrompt] = React.useState('');
     const [paragraphTexts, updateParagraphTexts] = React.useState<string[]>([]);
@@ -69,21 +75,18 @@ export default function Home() {
 
     // Split and load the document into an array to match the paragraphs with indexes
     function loadParagraphTexts() {
-        Word.run((context) => {
+        Word.run(async (context) => {
             const paragraphs = context.document.body.paragraphs;
             paragraphs.load();
 
-            return context.sync().then(() => {
-                let newParagraphTexts = [];
-                for (let i = 0; i < paragraphs.items.length; i++) {
-                    newParagraphTexts.push(paragraphs.items[i].text);
-                }
-                updateParagraphTexts(newParagraphTexts);
-            })
+            await context.sync();
+            let newParagraphTexts = [];
+            for (let i = 0; i < paragraphs.items.length; i++) {
+                newParagraphTexts.push(paragraphs.items[i].text);
+            }
+            updateParagraphTexts(newParagraphTexts);
         })
     }
-
-    loadParagraphTexts();
 
     // Watch for change events.
     React.useEffect(() => {
@@ -99,9 +102,11 @@ export default function Home() {
                 await context.sync();
                 let curParagraph = selectedParagraphs.items[0];
                 updateCurParagraphText(curParagraph.text);
-            }
-            )
+            });
+            // FIXME: find a better place to run this, which might be expensive.
+            loadParagraphTexts();
         });
+
     }, []);
 
     // The text of the current paragraph is in curParagraphText
@@ -184,30 +189,33 @@ export default function Home() {
         });
     }
 
-    // Fetch reflections from server and wrap reflections into cards
-    async function getReflections() {
-
-        let curPrompt = prompt;
-
-        updateLoading(true);
-
-        const curCards = [];
-        for (let i = selectedIndex - 1; i <= selectedIndex + 1; i++) {
-            // If paragraph i is valid
-            if (0 <= i && i < paragraphTexts.length) {
-                const reflections = await getReflectionFromServer(paragraphTexts[i], curPrompt)
-                reflections.forEach(r => {
-                    const card = { body: r.reflection, paragraph: i };
-                    curCards.push(card);
-                });
-            }
+    // Make sure we have reflections for the paragraphs in scope.
+    function getReflectionsSync(paragraphText: string, prompt: string) {
+        // Maintain a cache of reflections for each paragraph text and prompt.
+        const key = JSON.stringify({paragraphText, prompt});
+        if (reflections.has(key)) {
+            return reflections.get(key);
         }
-
-        updateLoading(false);
-        updateCards(curCards);
+        const reflectionsPromise = getReflectionFromServer(paragraphText, prompt);
+        reflectionsPromise.then((newReflections) => {
+            reflections.set(key, newReflections);
+            updateReflections(reflections);
+        });
+        return [];
     }
 
-    if (loading) return <Progress message="Loading" />;
+
+    const cards = [];
+    for (let i = selectedIndex - 1; i <= selectedIndex + 1; i++) {
+        // If paragraph i is valid
+        if (0 <= i && i < paragraphTexts.length) {
+            let reflectionsForThisPara = getReflectionsSync(paragraphTexts[i], prompt);
+            reflectionsForThisPara.forEach(r => {
+                const card = { body: r.reflection, paragraph: i };
+                cards.push(card);
+            });
+        }
+    }
 
     return (
         <div className="ms-welcome">
@@ -225,13 +233,6 @@ export default function Home() {
                 onChange={(p) => updatePrompt(p.currentTarget.value)}
                 value={prompt}
             />
-
-            {/* Get Reflection Button */}
-            <div className="button-container">
-                <DefaultButton onClick={getReflections}>
-                    Get Reflections
-                </DefaultButton>
-            </div>
 
             {/* Reflection Cards for previous Paragraph */}
             <CardContainer
