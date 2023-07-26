@@ -189,41 +189,21 @@ export default function Home() {
 
         let curPrompt = prompt;
 
-        let reflectionsPrevious = [];
-        let reflectionsCurrent = [];
-        let reflectionsNext = [];
-
         updateLoading(true);
 
-        if (0 <= (selectedIndex - 1)) {   // If current paragraph has a valid previous paragraph
-            reflectionsPrevious = await getReflectionFromServer(paragraphTexts[selectedIndex - 1], curPrompt);
-        }
-
-        reflectionsCurrent = await getReflectionFromServer(curParagraphText, curPrompt);
-
-        if ((selectedIndex + 1) < paragraphTexts.length) {     // If current paragraph has a valid next paragraph
-            reflectionsNext = await getReflectionFromServer(paragraphTexts[selectedIndex + 1], curPrompt);
+        const curCards = [];
+        for (let i = selectedIndex - 1; i <= selectedIndex + 1; i++) {
+            // If paragraph i is valid
+            if (0 <= i && i < paragraphTexts.length) {
+                const reflections = await getReflectionFromServer(paragraphTexts[i], curPrompt)
+                reflections.forEach(r => {
+                    const card = { body: r.reflection, paragraph: i };
+                    curCards.push(card);
+                });
+            }
         }
 
         updateLoading(false);
-
-        const curCards = [];
-
-        reflectionsPrevious.forEach(r => {
-            const card = { body: r.reflection, paragraph: selectedIndex - 1 };
-            curCards.push(card);
-        });
-
-        reflectionsCurrent.forEach(r => {
-            const card = { body: r.reflection, paragraph: selectedIndex };
-            curCards.push(card);
-        });
-
-        reflectionsNext.forEach(r => {
-            const card = { body: r.reflection, paragraph: selectedIndex + 1 };
-            curCards.push(card);
-        });
-
         updateCards(curCards);
     }
 
