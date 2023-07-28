@@ -1,5 +1,6 @@
 import React from 'react';
 import { AiOutlineSend } from 'react-icons/ai';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import ChatMessage from '../../components/chatMessage';
 
@@ -24,16 +25,15 @@ export default function Chat() {
 
         if (!message) return;
 
-        const prevNumMessages = messages.length;
-        
-        updateMessages([
+        let newMessages = [
             ...messages,
-            { role: 'user', content: message }
-        ]);
+            { role: 'user', content: message },
+            { role: 'assistant', content: '' }
+        ];
         
-        let newMessages = [...messages, { role: 'user', content: message }];
+        updateMessages(newMessages);
 
-        const response = await fetch(`${SERVER_URL}/chat`, {
+        await fetchEventSource(`${SERVER_URL}/chat`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -44,39 +44,16 @@ export default function Chat() {
                     { role: 'user', content: message }
                 ],
             }),
-        });
+            onmessage(msg) {
+                const message = msg.data;
 
-        // Read the response as a stream
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder('utf-8');
-
-        while (true) {
-            const {done, value} = await reader.read();
-            if (done) break;
-            
-            const decoded = decoder.decode(value);
-            const decodedMessage = decoded.replaceAll('\r', '').replaceAll('data: ', '');
-            
-            if(newMessages[newMessages.length - 1].role === 'assistant') {
                 const tempMessages = [...newMessages];
-                tempMessages[tempMessages.length - 1].content += decodedMessage;
+                tempMessages[tempMessages.length - 1].content += message;
                 
                 newMessages = tempMessages;
                 updateMessages(newMessages);
             }
-            else {
-                const tempMessages = [
-                    ...newMessages,
-                    {
-                        role: 'assistant',
-                        content: decodedMessage
-                    }
-                ];
-
-                newMessages = tempMessages;
-                updateMessages(tempMessages);
-            }
-        }
+        });
 
         updateSendingMessage(false);
         updateMessage('');
