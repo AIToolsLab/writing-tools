@@ -41,11 +41,6 @@ ul {
     width: 100%;
 }
 
-.thumb-up-button-container {
-    display: flex;
-    flex-direction: row;
-}
-
 .ms-welcome__header {
     padding: 20px;
     padding-bottom: 30px;

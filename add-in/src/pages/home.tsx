@@ -4,6 +4,9 @@ import { AiOutlinePushpin } from 'react-icons/ai';
 import Progress from '../components/progress';
 import PromptSelector from '../components/presetPrompts';
 
+import { TextField } from '@fluentui/react';
+
+
 import classes from './styles.module.css';
 
 import { SERVER_URL } from '../settings';
@@ -22,47 +25,50 @@ export interface ReflectionsForParagraph {
 }
 
 function CardContainer({ className, cards, changeParagraphHighlightColor, onThumbUpClick, onThumbDownClick }) {
-    return <div className={classes['cardsContainer']}>
-        {(cards.length === 0) ? "loading..." : cards.map((card, i) => (
-            <div
-                key={i}
-                className={className}
-                onMouseEnter={() =>
-                    changeParagraphHighlightColor(
-                        card.paragraph,
-                        'highlight'
-                    )
-                }
-                onMouseLeave={() =>
-                    changeParagraphHighlightColor(
-                        card.paragraph,
-                        'dehighlight'
-                    )
-                }
-            >
-                <div className="card-content">{card.body}</div>
-                <div className="thumb-up-button-container">
-                    <button
-                        onClick={() =>
-                            onThumbUpClick(card.paragraph, card.body)
-                        }
-                        title='Save as comment'
-                    >
-                        <AiOutlinePushpin />
-                    </button>
-                    {shouldShowThumbDownButton && (
+    return (
+        <div className={classes.cardsContainer}>
+            {(cards.length === 0) ? "loading..." : cards.map((card, i) => (
+                <div
+                    key={i}
+                    className={className}
+                    onMouseEnter={() =>
+                        changeParagraphHighlightColor(
+                            card.paragraph,
+                            'highlight'
+                        )
+                    }
+                    onMouseLeave={() =>
+                        changeParagraphHighlightColor(
+                            card.paragraph,
+                            'dehighlight'
+                        )
+                    }
+                >
+                    <div className="card-content">{card.body}</div>
+
+                    <div className="thumb-up-button-container">
                         <button
                             onClick={() =>
-                                onThumbDownClick(card.paragraph)
+                                onThumbUpClick(card.paragraph, card.body)
                             }
+                            title='Save as comment'
                         >
-                            Dislike
+                            <AiOutlinePushpin />
                         </button>
-                    )}
+                        {shouldShowThumbDownButton && (
+                            <button
+                                onClick={() =>
+                                    onThumbDownClick(card.paragraph)
+                                }
+                            >
+                                Dislike
+                            </button>
+                        )}
+                    </div>
                 </div>
-            </div>
-        ))}
-    </div>
+            ))}
+        </div>
+    );
 }
 
 export default function Home() {
@@ -104,12 +110,13 @@ export default function Home() {
             // FIXME: find a better place to run this, which might be expensive.
             loadParagraphTexts();
         }
+        
         onSelectionChanged();
         Office.context.document.addHandlerAsync(Office.EventType.DocumentSelectionChanged, onSelectionChanged);
+
         return () => {
             Office.context.document.removeHandlerAsync(Office.EventType.DocumentSelectionChanged, onSelectionChanged);
         }
-
     }, []);
 
     // The text of the current paragraph is in curParagraphText
