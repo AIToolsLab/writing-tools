@@ -29,6 +29,7 @@ export default function Login() {
                         );
                     }
                 }
+                disabled={ userId.length === 0 }
             >
                 Login
             </button>
