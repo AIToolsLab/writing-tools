@@ -8,10 +8,8 @@ export const PageContext = createContext({
 export default function PageContextWrapper({
     children,
 }: PropsWithChildren<any>) {
-    const [page, updatePage] = useState(
-        ['reflections', 'chat'][Math.floor(Math.random() * 2)]
-    );
-
+    const [page, updatePage] = useState('login');
+        
     return (
         <PageContext.Provider value={{ page, changePage: updatePage }}>
             {children}

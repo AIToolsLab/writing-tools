@@ -19,9 +19,11 @@ ul {
 
 .ms-welcome {
     margin: 10px;
+    height: 100vh;
     display: flex;
     gap: 20px;
     flex-direction: column;
+    justify-content: space-evenly;
 }
 
 .prompt-editor {
@@ -37,11 +39,6 @@ ul {
     display: flex;
     justify-content: center;
     width: 100%;
-}
-
-.thumb-up-button-container {
-    display: flex;
-    flex-direction: row;
 }
 
 .ms-welcome__header {
