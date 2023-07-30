@@ -40,9 +40,11 @@ export default function ChatMessage(
                     </div>
                 )
             }
-            
+
             <div
-                className={`${classes.cardContainer}`}
+                className={
+                    `${classes.cardContainer} ${ props.role === 'user' ? classes.noBorderBottom : '' }`
+                }
             >
                 <div className={ classes.pfpContainer }>
                     {

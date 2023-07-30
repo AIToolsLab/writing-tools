@@ -28,7 +28,8 @@
     align-items: center;
 }
 
-.pfpContainer {
+.noBorderBottom {
+    border-bottom: none;
 }
 
 .pfp {
