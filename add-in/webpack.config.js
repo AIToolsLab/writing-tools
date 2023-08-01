@@ -111,6 +111,11 @@ module.exports = async (env, options) => {
                 template: './src/commands/commands.html',
                 chunks: ['commands'],
             }),
+            new HtmlWebpackPlugin({
+                filename: 'index.html',
+                template: './src/index.html',
+                chunks: []
+            }),
             new webpack.ProvidePlugin({
                 Promise: ['es6-promise', 'Promise'],
             }),
@@ -128,6 +133,11 @@ module.exports = async (env, options) => {
                         : await getHttpsOptions(),
             },
             port: process.env.npm_package_config_dev_server_port || 3000,
+            proxy: {
+                '/api': {
+                    target: 'http://localhost:8000'
+                }
+            },
         },
     };
 

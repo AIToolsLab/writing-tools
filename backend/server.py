@@ -10,11 +10,11 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from nlp import (
     gen_reflections_chat,
-    send_message,
     ReflectionResponseInternal
 )
 
@@ -34,6 +34,7 @@ with open(".env", "r") as f:
             DEBUG = value.strip().lower() == "true"
 
 class ReflectionRequestPayload(BaseModel):
+    user_id: str
     paragraph: str
     prompt: str
 
@@ -46,6 +47,12 @@ class ChatRequestPayload(BaseModel):
 
 class ReflectionResponses(BaseModel):
     reflections: List[ReflectionResponseItem]
+
+class FeedbackLog(BaseModel):
+    user_id: str
+    prompt: str
+    paragraph: str
+    feedback_type: str  # This can be "upvote" or "reject"
 
 
 app = FastAPI()
@@ -62,14 +69,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-db_file = "requests.db"
+db_file = "logs.db"
 
 with sqlite3.connect(db_file) as conn:
     c = conn.cursor()
     c.execute(
-        "CREATE TABLE IF NOT EXISTS requests (timestamp, prompt, paragraph, response, success)"
+        "CREATE TABLE IF NOT EXISTS requests (timestamp, user_id, prompt, paragraph, response, success)"
     )
-
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS feedback_logs (timestamp, user_id, prompt, paragraph, feedback_type)"
+     )
 
 async def get_reflections_chat(
     request: ReflectionRequestPayload,
@@ -78,8 +87,8 @@ async def get_reflections_chat(
     with sqlite3.connect(db_file) as conn:
         c = conn.cursor()
         c.execute(
-            "SELECT response FROM requests WHERE prompt=? AND paragraph=? AND success='true'",
-            (request.prompt, request.paragraph),
+            "SELECT response FROM requests WHERE user_id=? AND prompt=? AND paragraph=? AND success='true'",
+            (request.user_id, request.prompt, request.paragraph),
         )
         result = c.fetchone()
 
@@ -100,8 +109,9 @@ async def get_reflections_chat(
             # Cache the response
             # Use SQL timestamp
             c.execute(
-                'INSERT INTO requests VALUES (datetime("now"), ?, ?, ?, ?)',
-                (request.prompt, request.paragraph, json.dumps(reflections_internal.dict()), "true"),
+                'INSERT INTO requests (timestamp, user_id, prompt, paragraph, response, success) '
+                'VALUES (datetime("now"), ?, ?, ?, ?, ?)',
+                (request.user_id, request.prompt, request.paragraph, json.dumps(reflections_internal.dict()), "true"),
             )
 
     return ReflectionResponses(
@@ -112,16 +122,35 @@ async def get_reflections_chat(
     )
 
 
-@app.post("/reflections")
+@app.post("/api/reflections")
 async def reflections(payload: ReflectionRequestPayload):
     return await get_reflections_chat(payload)
 
+from sse_starlette import EventSourceResponse
 
-@app.post("/chat")
+@app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
-    return await send_message(
-        messages=payload.messages
+    response = await openai.ChatCompletion.acreate(
+        model="gpt-3.5-turbo",
+        messages=payload.messages,
+        temperature=0.7,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=True
     )
+
+    async def generator():
+        async for chunk in response:
+            if chunk["choices"][0]["finish_reason"] == "stop":
+                break
+
+            print(chunk)
+
+            yield chunk["choices"][0]["delta"]["content"]
+
+    return EventSourceResponse(generator())
 
 @app.get("/logs")
 async def logs():
@@ -132,10 +161,31 @@ async def logs():
 
     return result
 
-if not DEBUG:
+@app.post("/feedback")
+async def log_feedback(payload: FeedbackLog):
+    with sqlite3.connect(db_file) as conn:
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO feedback_logs (timestamp, user_id, prompt, paragraph, feedback_type) "
+            "VALUES (datetime('now'), ?, ?, ?, ?)",
+            (payload.user_id, payload.prompt, payload.paragraph, payload.feedback_type),
+        )
+    return {"message": "Feedback logged successfully."}
+
+static_path = Path('../add-in/dist')
+if static_path.exists():
+    @app.get("/")
+    def index():
+        return FileResponse(static_path / 'index.html')
+
     # Get access to files on the server. Only for a production build.
-    static_path = Path('../add-in/dist')
-    app.mount("/static", StaticFiles(directory=static_path), name="static")
+    app.mount("", StaticFiles(directory=static_path), name="static")
+
+else:
+    print("Not mounting static files because the directory does not exist.")
+    print("To build the frontend, run `npm run build` in the add-in directory.")
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="localhost", port=int(sys.argv[1] if len(sys.argv) > 1 else 8000))
+
