@@ -74,7 +74,7 @@ with sqlite3.connect(db_file) as conn:
         "CREATE TABLE IF NOT EXISTS requests (timestamp, user_id, prompt, paragraph, response, success)"
     )
     c.execute(
-        "CREATE TABLE IF NOT EXISTS feedback_logs (timestamp,user_id, prompt, paragraph, feedback_type)"
+        "CREATE TABLE IF NOT EXISTS feedback_logs (timestamp, user_id, prompt, paragraph, feedback_type)"
      )
 
 async def get_reflections_chat(
@@ -84,7 +84,7 @@ async def get_reflections_chat(
     with sqlite3.connect(db_file) as conn:
         c = conn.cursor()
         c.execute(
-            "SELECT response FROM requests WHERE prompt=? AND paragraph=? AND success='true'",
+            "SELECT response FROM requests WHERE user_id=? AND prompt=? AND paragraph=? AND success='true'",
             (request.user_id, request.prompt, request.paragraph),
         )
         result = c.fetchone()
@@ -106,8 +106,9 @@ async def get_reflections_chat(
             # Cache the response
             # Use SQL timestamp
             c.execute(
-                'INSERT INTO requests VALUES (datetime("now"), ?, ?, ?, ?)',
-                (request.user_id,request.prompt, request.paragraph, json.dumps(reflections_internal.dict()), "true"),
+                'INSERT INTO requests (timestamp, user_id, prompt, paragraph, response, success) '
+                'VALUES (datetime("now"), ?, ?, ?, ?, ?)',
+                (request.user_id, request.prompt, request.paragraph, json.dumps(reflections_internal.dict()), "true"),
             )
 
     return ReflectionResponses(
