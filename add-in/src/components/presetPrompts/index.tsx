@@ -6,7 +6,7 @@ import { Text } from '@fluentui/react/lib/Text';
 const presetPrompts = [
     {
         key: 'Summary: thesis',
-        text: 'Step 1: Write a sentence stating what seems to be the thesis of the paragraph. Step 2: Say FINAL OUTPUT. Step 3: Make the sentence even more concise with no filler words like "the thesis is".',
+        text: 'Step 1: Write a sentence stating what seems to be the thesis of the paragraph. Step 2: Say FINAL OUTPUT. Step 3: Say the thesis again, but even more concisely with no filler words like "the thesis is".',
     },
     {
         key: 'Summary: phrases',
