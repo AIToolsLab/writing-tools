@@ -220,15 +220,25 @@ export default function Home() {
     }
 
 
-    const cards = [];
+    const containers = [];
     for (let i = selectedIndex - 1; i <= selectedIndex + 1; i++) {
         // If paragraph i is valid
         if (0 <= i && i < paragraphTexts.length) {
             let reflectionsForThisPara = getReflectionsSync(paragraphTexts[i], prompt);
+            const cards = []
             reflectionsForThisPara.forEach(r => {
                 const card = { body: r.reflection, paragraph: i };
                 cards.push(card);
             });
+            containers.push(
+                <CardContainer
+                  className={i === selectedIndex ? classes.cardContainerHover : classes.cardContainer}
+                    cards={cards}
+                    changeParagraphHighlightColor={changeParagraphHighlightColor}
+                    onThumbUpClick={onThumbUpClick}
+                    onThumbDownClick={onThumbDownClick}
+                />
+            );
         }
     }
 
@@ -239,33 +249,7 @@ export default function Home() {
                 <PromptSelector curPrompt={prompt} updatePrompt={updatePrompt} />
             </div>
 
-
-            {/* Reflection Cards for previous Paragraph */}
-            <CardContainer
-                className={classes.cardContainer}
-                cards={cards.filter(function (card) { return card.paragraph == (selectedIndex - 1) })}
-                changeParagraphHighlightColor={changeParagraphHighlightColor}
-                onThumbUpClick={onThumbUpClick}
-                onThumbDownClick={onThumbDownClick}
-            />
-
-            {/* Reflection Cards for current Paragraph */}
-            <CardContainer
-                className={classes.cardContainerHover}
-                cards={cards.filter(function (card) { return card.paragraph == selectedIndex })}
-                changeParagraphHighlightColor={changeParagraphHighlightColor}
-                onThumbUpClick={onThumbUpClick}
-                onThumbDownClick={onThumbDownClick}
-            />
-
-            {/* Reflection Cards for next Paragraph */}
-            <CardContainer
-                className={classes.cardContainer}
-                cards={cards.filter(function (card) { return card.paragraph == (selectedIndex + 1) })}
-                changeParagraphHighlightColor={changeParagraphHighlightColor}
-                onThumbUpClick={onThumbUpClick}
-                onThumbDownClick={onThumbDownClick}
-            />
+            {...containers}
         </div>
     );
 }
