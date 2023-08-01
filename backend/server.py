@@ -34,7 +34,7 @@ with open(".env", "r") as f:
             DEBUG = value.strip().lower() == "true"
 
 class ReflectionRequestPayload(BaseModel):
-    user_id: str
+    user_id: int
     paragraph: str
     prompt: str
 
@@ -49,7 +49,7 @@ class ReflectionResponses(BaseModel):
     reflections: List[ReflectionResponseItem]
 
 class FeedbackLog(BaseModel):
-    user_id: str
+    user_id: int
     prompt: str
     paragraph: str
     feedback_type: str  # This can be "upvote" or "reject"

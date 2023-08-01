@@ -150,6 +150,7 @@ export default function Home() {
     // Send the paragraph and the prompt to the backend server and get the reflection
     async function getReflectionFromServer(paragraph, prompt) {
         const data = {
+            user_id: -1, // TODO: get userId from somewhere
             paragraph,
             prompt,
         };
