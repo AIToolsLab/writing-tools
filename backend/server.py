@@ -69,7 +69,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-db_file = "requests.db"
+db_file = "logs.db"
 
 with sqlite3.connect(db_file) as conn:
     c = conn.cursor()
