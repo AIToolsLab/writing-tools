@@ -5,9 +5,9 @@ import { AppContainer } from 'react-hot-loader';
 import { initializeIcons } from '@fluentui/font-icons-mdl2';
 import { ThemeProvider } from '@fluentui/react';
 import PageContextWrapper from './contexts/pageContext';
+import UserContextWrapper from './contexts/userContext';
 
 import App from './pages/app';
-import Layout from './components/layout';
 
 import './taskpane.css';
 
@@ -19,13 +19,13 @@ const render = (Component) => {
     ReactDOM.render(
         <AppContainer>
             <ThemeProvider>
-                <PageContextWrapper>
-                    <Layout>
+                <UserContextWrapper>
+                    <PageContextWrapper>
                         <Component
                             isOfficeInitialized={isOfficeInitialized}
                         />
-                    </Layout>
-                </PageContextWrapper>
+                    </PageContextWrapper>
+                </UserContextWrapper>
             </ThemeProvider>
         </AppContainer>,
         document.getElementById('container')

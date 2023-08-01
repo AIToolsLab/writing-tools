@@ -1,5 +1,4 @@
 import json
-import os
 import sys
 import sqlite3
 from typing import List, Dict
@@ -11,15 +10,17 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from nlp import (
     gen_reflections_chat,
-    send_message,
     ReflectionResponseInternal
 )
 
 openai.organization = "org-9bUDqwqHW2Peg4u47Psf9uUo"
+
+DEBUG = True
 
 # Read env file
 with open(".env", "r") as f:
@@ -29,6 +30,8 @@ with open(".env", "r") as f:
             openai.api_key = value.strip()
         elif key == "OPENAI_ORGANIZATION":
             openai.organization = value.strip()
+        elif key == "DEBUG":
+            DEBUG = value.strip().lower() == "true"
 
 class ReflectionRequestPayload(BaseModel):
     user_id: str
@@ -119,16 +122,35 @@ async def get_reflections_chat(
     )
 
 
-@app.post("/reflections")
+@app.post("/api/reflections")
 async def reflections(payload: ReflectionRequestPayload):
     return await get_reflections_chat(payload)
 
+from sse_starlette import EventSourceResponse
 
-@app.post("/chat")
+@app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
-    return await send_message(
-        messages=payload.messages
+    response = await openai.ChatCompletion.acreate(
+        model="gpt-3.5-turbo",
+        messages=payload.messages,
+        temperature=0.7,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=True
     )
+
+    async def generator():
+        async for chunk in response:
+            if chunk["choices"][0]["finish_reason"] == "stop":
+                break
+
+            print(chunk)
+
+            yield chunk["choices"][0]["delta"]["content"]
+
+    return EventSourceResponse(generator())
 
 @app.get("/logs")
 async def logs():
@@ -150,9 +172,19 @@ async def log_feedback(payload: FeedbackLog):
         )
     return {"message": "Feedback logged successfully."}
 
-# Get access to files on the server. Only for a production build.
 static_path = Path('../add-in/dist')
-app.mount("/static", StaticFiles(directory=static_path), name="static")
+if static_path.exists():
+    @app.get("/")
+    def index():
+        return FileResponse(static_path / 'index.html')
+
+    # Get access to files on the server. Only for a production build.
+    app.mount("", StaticFiles(directory=static_path), name="static")
+
+else:
+    print("Not mounting static files because the directory does not exist.")
+    print("To build the frontend, run `npm run build` in the add-in directory.")
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="localhost", port=int(sys.argv[1] if len(sys.argv) > 1 else 8000))

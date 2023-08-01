@@ -27,6 +27,7 @@
     },
     "dependencies": {
         "@fluentui/react": "^8.52.3",
+        "@microsoft/fetch-event-source": "^2.0.1",
         "core-js": "^3.9.1",
         "es6-promise": "^4.2.8",
         "react": "^17.0.2",

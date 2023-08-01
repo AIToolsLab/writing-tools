@@ -1,4 +1,4 @@
-.cardContainer {
+.cardContainer, .cardContainerHover {
     border: 1px solid grey;
     cursor: pointer;
     transition: 0.15s;
@@ -12,7 +12,7 @@
     background-color: yellow;
 }
 
-.cards-container:last-child {
+.cardContainer:last-child, .cardContainerHover:last-child {
     /* TODO: this is displaying even when there are no components */
     border-bottom: 1px solid grey; 
 }
@@ -23,4 +23,16 @@
 
 .card-content {
     width: 90%;
+}
+
+.prompt-container {
+    border: 1px solid grey;
+    overflow-y: scroll;
+    flex: 1 1 0;
+}
+
+.cardsContainer {
+    flex: 1 1 0;
+    overflow-y: scroll;
+    border: 1px solid black;
 }

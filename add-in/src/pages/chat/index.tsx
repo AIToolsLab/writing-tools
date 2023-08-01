@@ -1,9 +1,8 @@
 import React from 'react';
-import { TextField } from '@fluentui/react';
 import { AiOutlineSend } from 'react-icons/ai';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import ChatMessage from '../../components/chatMessage';
-import PresetPrompts from '../../components/presetPrompts';
 
 import { SERVER_URL } from '../../settings';
 
@@ -26,42 +25,50 @@ export default function Chat() {
 
         if (!message) return;
 
-        const response = await fetch(`${SERVER_URL}/chat`, {
+        let newMessages = [
+            ...messages,
+            { role: 'user', content: message },
+            { role: 'assistant', content: '' }
+        ];
+        
+        updateMessages(newMessages);
+
+        await fetchEventSource(`${SERVER_URL}/chat`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                messages: [...messages, {role: 'user', content: message}],
+                messages: [
+                    ...messages,
+                    { role: 'user', content: message }
+                ],
             }),
+            onmessage(msg) {
+                const message = msg.data;
+
+                const tempMessages = [...newMessages];
+                tempMessages[tempMessages.length - 1].content += message;
+                
+                newMessages = tempMessages;
+                updateMessages(newMessages);
+            }
         });
-
-        const responseJson = await response.json();
-
-        updateMessages([
-            ...messages,
-            {
-                role: 'user',
-                content: message,
-            },
-            {
-                role: 'assistant',
-                content: responseJson,
-            },
-        ]);
 
         updateSendingMessage(false);
         updateMessage('');
     }
 
     async function regenMessage(index: number) {
+        // Resubmit the conversation up until the last message,
+        // so it regenerates the last assistant message.
         const response = await fetch(`${SERVER_URL}/chat`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                messages: messages.slice(0, index + 1),
+                messages: messages.slice(0, index),
             }),
         });
 
@@ -78,12 +85,6 @@ export default function Chat() {
 
     return (
         <div className={classes.container}>
-            <PresetPrompts
-                updatePrompt={(prompt) =>
-                    updateMessage(message + '\n\n' + prompt)
-                }
-            />
-
             <div className={classes.messageContainer}>
                 {messages.map((message, index) => (
                     <ChatMessage
@@ -92,6 +93,8 @@ export default function Chat() {
                         content={message.content}
                         index={index}
                         refresh={regenMessage}
+                        deleteMessage={() => {}}
+                        convertToComment={() => {}}
                     />
                 ))}
             </div>

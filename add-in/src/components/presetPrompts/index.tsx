@@ -1,5 +1,7 @@
-import React from 'react';
-import { ChoiceGroup } from '@fluentui/react';
+import React, { useState } from 'react';
+import { DefaultButton } from '@fluentui/react/lib/Button';
+import { Stack, IStackTokens } from '@fluentui/react/lib/Stack';
+import { Text } from '@fluentui/react/lib/Text';
 
 const presetPrompts = [
     {
@@ -27,22 +29,45 @@ const presetPrompts = [
         key: 'Advice',
         text: 'What advice would you give the writer to improve this paragraph? Respond in a bulleted list.',
     },
+    // {
+    //     key: 'Rewrite',
+    //     text: 'Rewrite this paragraph to make it better.',
+    // },
     {
         key: 'Metaphors',
         text: 'List the metaphors that the writer uses in this paragraph.',
     },
 ];
 
-export default function PresetPrompts({ updatePrompt }: { updatePrompt: (_: string) => void }) {
+type PresetPromptsProps = {
+    updatePrompt: (_: string) => void;
+};
+
+const stackTokens: IStackTokens = { childrenGap: 10 };
+
+// Render the list of preset prompts as fancy radio buttons
+export default function PresetPrompts({ updatePrompt }: PresetPromptsProps) {
+    const [selectedOption, setSelectedOption] = useState('');
+
     return (
-        <ChoiceGroup
-            label="Preset Prompts"
-            options={presetPrompts}
-            onChange={(e) =>
-                updatePrompt(
-                    (e.currentTarget as HTMLInputElement).labels[0].innerText
-                )
-            }
-        />
+        <Stack tokens={stackTokens}>
+            <Text style={{ fontWeight: '600' }}>Preset Prompts</Text>
+            {presetPrompts.map((option) => (
+                <DefaultButton
+                    key={option.key}
+                    text={option.key}
+                    style={{
+                        backgroundColor:
+                            option.text === selectedOption
+                                ? '#f3f2f1'
+                                : 'white',
+                    }}
+                    onClick={() => {
+                        setSelectedOption(option.text);
+                        updatePrompt(option.text);
+                    }}
+                />
+            ))}
+        </Stack>
     );
 }
