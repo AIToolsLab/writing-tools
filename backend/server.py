@@ -10,6 +10,7 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from nlp import (
@@ -154,9 +155,14 @@ static_path = Path('../add-in/dist')
 if static_path.exists():
     # Get access to files on the server. Only for a production build.
     app.mount("/static", StaticFiles(directory=static_path), name="static")
+
+    @app.get("/")
+    def index():
+        return FileResponse(static_path / 'index.html')
 else:
     print("Not mounting static files because the directory does not exist.")
     print("To build the frontend, run `npm run build` in the add-in directory.")
+
 
 if __name__ == "__main__":
     uvicorn.run(app, host="localhost", port=int(sys.argv[1] if len(sys.argv) > 1 else 8000))
