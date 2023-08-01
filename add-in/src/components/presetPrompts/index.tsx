@@ -17,7 +17,7 @@ const presetPrompts = [
         text: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 2: Output FINAL OUTPUT, then a new line, then a Markdown unordered list with the 3 concepts with highest relevance, as a complete sentence.',
     },
     {
-        key: 'Summary: questions',
+        key: 'Intent: questions',
         // TODO: Improve this prompt
         text: 'List 2 or 3 questions that the writer was attempting to answer in this paragraph.',
     },
