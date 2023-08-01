@@ -71,6 +71,10 @@ function CardContainer({ className, cards, changeParagraphHighlightColor, onThum
     );
 }
 
+function getTextForParagraphObj(paragraphObj) {
+    return paragraphObj.text.trim();
+}
+
 export default function Home() {
     const [reflections, updateReflections] = React.useState(new Map());
     const [prompt, updatePrompt] = React.useState(PromptSelector.defaultPrompt);
@@ -86,7 +90,7 @@ export default function Home() {
             await context.sync();
             let newParagraphTexts = [];
             for (let i = 0; i < paragraphs.items.length; i++) {
-                newParagraphTexts.push(paragraphs.items[i].text.trim());
+                newParagraphTexts.push(getTextForParagraphObj(paragraphs.items[i]));
             }
             updateParagraphTexts(newParagraphTexts);
         })
@@ -104,7 +108,7 @@ export default function Home() {
                 context.load(selectedParagraphs);
                 await context.sync();
                 let curParagraph = selectedParagraphs.items[0];
-                updateCurParagraphText(curParagraph.text);
+                updateCurParagraphText(getTextForParagraphObj(curParagraph));
             });
             // FIXME: find a better place to run this, which might be expensive.
             loadParagraphTexts();
