@@ -16,7 +16,7 @@ export default function Login() {
         <div className={ classes.container }>
             <TextField
                 value={ userId }
-                placeholder="User ID"
+                placeholder="Participant ID"
                 onChange={ (_e, value) => updateId(value) }
             />
 
