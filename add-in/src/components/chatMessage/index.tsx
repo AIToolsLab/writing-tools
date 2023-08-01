@@ -18,7 +18,7 @@ export default function ChatMessage(
 ) {
     return (
         <div className={classes.container}>
-            {
+            {/*
                 props.role !== 'assistant' ? (
                     <div className={ classes.toolbar }>
                         <FiRefreshCcw
@@ -38,7 +38,7 @@ export default function ChatMessage(
                             onClick={() => props.convertToComment(props.index)}
                         />
                     </div>
-                )
+                )*/
             }
 
             <div
