@@ -138,6 +138,7 @@ module.exports = async (env, options) => {
                     target: 'http://localhost:8000'
                 }
             },
+            compress: false
         },
     };
 
