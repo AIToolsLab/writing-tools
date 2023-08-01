@@ -1,5 +1,4 @@
 .cardContainer, .cardContainerHover {
-    border: 1px solid grey;
     cursor: pointer;
     transition: 0.15s;
     padding: 10px;
@@ -14,7 +13,7 @@
 
 .cardContainer:last-child, .cardContainerHover:last-child {
     /* TODO: this is displaying even when there are no components */
-    border-bottom: 1px solid grey; 
+    /* border-bottom: 1px solid grey;  */
 }
 
 .cardContainer:hover {

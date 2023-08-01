@@ -20,7 +20,7 @@ ul {
 .ms-welcome {
     margin: 10px;
     height: 100vh;
-    display: flex;
+    /* display: flex; */
     gap: 5px;
     flex-direction: column;
     justify-content: space-evenly;
@@ -32,6 +32,11 @@ ul {
 
 .cards-container {
 
+}
+
+/* nav button tight spacing */
+nav p {
+    margin: 0;
 }
 
 
