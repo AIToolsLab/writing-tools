@@ -111,13 +111,13 @@ async def get_reflections_chat(
     )
 
 
-@app.post("/reflections")
+@app.post("/api/reflections")
 async def reflections(payload: ReflectionRequestPayload):
     return await get_reflections_chat(payload)
 
 from sse_starlette import EventSourceResponse
 
-@app.post("/chat")
+@app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
     response = await openai.ChatCompletion.acreate(
         model="gpt-3.5-turbo",
