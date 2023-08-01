@@ -8,28 +8,34 @@ import classes from './styles.module.css';
 
 export default function Login() {
     const { changePage } = React.useContext(PageContext);
-    const { updateUserId } = React.useContext(UserContext);    
+    const { updateUserId } = React.useContext(UserContext);
 
     const [userId, updateId] = React.useState('');
 
+    
     return (
         <div className={ classes.container }>
-            <TextField
-                value={ userId }
+            <input type="number"
+                value={ userId } 
                 placeholder="Participant ID"
-                onChange={ (_e, value) => updateId(value) }
-            />
+                onChange={ (e) => updateId(e.target.value) }
+                />
 
             <button
                 onClick={
                     () => {
-                        updateUserId(parseInt(userId));
+                        const userIdInt = parseInt(userId);
+                        updateUserId(userIdInt);
+                        const pageOrder = 
+                            (userIdInt % 2 === 0) ?
+                            ['reflections', 'chat'] :
+                            ['chat', 'reflections'];
                         changePage(
-                            ['reflections', 'chat'][Math.floor(Math.random() * 2)]
+                            pageOrder[0]
                         );
                     }
                 }
-                disabled={ userId.length === 0 }
+                disabled={ ! (parseInt(userId) > 0) /* doesn't parse to a valid int */ }
             >
                 Login
             </button>
