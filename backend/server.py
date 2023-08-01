@@ -150,9 +150,9 @@ async def logs():
 
     return result
 
-if not DEBUG:
+static_path = Path('../add-in/dist')
+if static_path.exists():
     # Get access to files on the server. Only for a production build.
-    static_path = Path('../add-in/dist')
     app.mount("/static", StaticFiles(directory=static_path), name="static")
 
 if __name__ == "__main__":
