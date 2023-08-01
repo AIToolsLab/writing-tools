@@ -144,7 +144,8 @@ async def log_feedback(payload: FeedbackLog):
     with sqlite3.connect(db_file) as conn:
         c = conn.cursor()
         c.execute(
-            "INSERT INTO feedback_logs VALUES (datetime('now'), ?, ?, ?, ?)",
+            "INSERT INTO feedback_logs (timestamp, user_id, prompt, paragraph, feedback_type) "
+            "VALUES (datetime('now'), ?, ?, ?, ?)",
             (payload.user_id, payload.prompt, payload.paragraph, payload.feedback_type),
         )
     return {"message": "Feedback logged successfully."}
