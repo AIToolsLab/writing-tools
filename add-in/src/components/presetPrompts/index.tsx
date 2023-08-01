@@ -58,7 +58,6 @@ export default function PromptSelector({ curPrompt, updatePrompt }: PromptSelect
     return (
         <div>
         <Stack tokens={stackTokens}>
-            <Text style={{ fontWeight: '600' }}>Preset Prompts</Text>
             {presetPrompts.map((option) => (
                 <DefaultButton
                     key={option.key}
