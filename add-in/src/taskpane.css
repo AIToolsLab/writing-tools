@@ -21,7 +21,7 @@ ul {
     margin: 10px;
     height: 100vh;
     display: flex;
-    gap: 20px;
+    gap: 5px;
     flex-direction: column;
     justify-content: space-evenly;
 }
