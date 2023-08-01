@@ -137,7 +137,7 @@ module.exports = async (env, options) => {
                 '/api': {
                     target: 'http://localhost:8000'
                 }
-              },
+            },
         },
     };
 
