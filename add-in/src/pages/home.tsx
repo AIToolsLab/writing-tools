@@ -71,9 +71,12 @@ function CardContainer({ className, cards, changeParagraphHighlightColor, onThum
     );
 }
 
+function getTextForParagraphObj(paragraphObj) {
+    return paragraphObj.text.trim();
+}
+
 export default function Home() {
     const [reflections, updateReflections] = React.useState(new Map());
-    const [loading, updateLoading] = React.useState(false);
     const [prompt, updatePrompt] = React.useState(PromptSelector.defaultPrompt);
     const [paragraphTexts, updateParagraphTexts] = React.useState<string[]>([]);
     const [curParagraphText, updateCurParagraphText] = React.useState('');
@@ -87,7 +90,7 @@ export default function Home() {
             await context.sync();
             let newParagraphTexts = [];
             for (let i = 0; i < paragraphs.items.length; i++) {
-                newParagraphTexts.push(paragraphs.items[i].text);
+                newParagraphTexts.push(getTextForParagraphObj(paragraphs.items[i]));
             }
             updateParagraphTexts(newParagraphTexts);
         })
@@ -105,7 +108,7 @@ export default function Home() {
                 context.load(selectedParagraphs);
                 await context.sync();
                 let curParagraph = selectedParagraphs.items[0];
-                updateCurParagraphText(curParagraph.text);
+                updateCurParagraphText(getTextForParagraphObj(curParagraph));
             });
             // FIXME: find a better place to run this, which might be expensive.
             loadParagraphTexts();
@@ -220,26 +223,55 @@ export default function Home() {
     }
 
 
+    const containerForParagraph = (paragraphIdx: number, isCurrent: boolean) => {
+        let reflectionsForThisPara = getReflectionsSync(
+            paragraphTexts[paragraphIdx],
+            prompt
+        );
+        const cards = [];
+        reflectionsForThisPara.forEach((r) => {
+            const card = { body: r.reflection, paragraph: paragraphIdx };
+            cards.push(card);
+        });
+        return (
+            <CardContainer
+                className={
+                    isCurrent
+                        ? classes.cardContainerHover
+                        : classes.cardContainer
+                }
+                cards={cards}
+                changeParagraphHighlightColor={changeParagraphHighlightColor}
+                onThumbUpClick={onThumbUpClick}
+                onThumbDownClick={onThumbDownClick}
+            />
+        );
+    };
+            
     const containers = [];
-    for (let i = selectedIndex - 1; i <= selectedIndex + 1; i++) {
-        // If paragraph i is valid
-        if (0 <= i && i < paragraphTexts.length) {
-            let reflectionsForThisPara = getReflectionsSync(paragraphTexts[i], prompt);
-            const cards = []
-            reflectionsForThisPara.forEach(r => {
-                const card = { body: r.reflection, paragraph: i };
-                cards.push(card);
-            });
-            containers.push(
-                <CardContainer
-                  className={i === selectedIndex ? classes.cardContainerHover : classes.cardContainer}
-                    cards={cards}
-                    changeParagraphHighlightColor={changeParagraphHighlightColor}
-                    onThumbUpClick={onThumbUpClick}
-                    onThumbDownClick={onThumbDownClick}
-                />
-            );
-        }
+
+    // Add the previous, current, and next paragraphs to the page
+    // Skip blank paragraphs
+
+
+    let previousParagraphIdx = selectedIndex - 1;
+    while (previousParagraphIdx >= 0 && paragraphTexts[previousParagraphIdx] === '') {
+        previousParagraphIdx--;
+    }
+    if (previousParagraphIdx >= 0 && paragraphTexts[previousParagraphIdx] !== '') {
+        containers.push(containerForParagraph(previousParagraphIdx, false));
+    }
+
+    if (paragraphTexts[selectedIndex] !== '') {
+        containers.push(containerForParagraph(selectedIndex, true));
+    }
+
+    let nextParagraphIdx = selectedIndex + 1;
+    while (nextParagraphIdx < paragraphTexts.length && paragraphTexts[nextParagraphIdx] === '') {
+        nextParagraphIdx++;
+    }
+    if (nextParagraphIdx < paragraphTexts.length && paragraphTexts[nextParagraphIdx] !== '') {
+        containers.push(containerForParagraph(nextParagraphIdx, false));
     }
 
     return (
