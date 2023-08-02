@@ -209,7 +209,8 @@ export default function Home() {
 
     // Make sure we have reflections for the paragraphs in scope.
     // If we don't, fetch them from the server, but don't wait for the response.
-
+    // The cache stores a promise until the results have been received, at which
+    // point it stores the results.
     function getReflectionsSync(paragraphText: string, prompt: string) {
         console.assert(typeof paragraphText === 'string' && paragraphText !== '');
         // Maintain a cache of reflections for each paragraph text and prompt.
@@ -220,7 +221,13 @@ export default function Home() {
             const reflectionsPromise = getReflectionFromServer(paragraphText, prompt);
             reflectionsPromise.then((newReflections) => {
                 reflections.set(key, newReflections);
+                // Update the state to trigger a re-render.
+                // We have to create a new Map object to trigger a re-render.
                 updateReflections(new Map(reflections));
+            }).catch((e) => {
+                // Fail. Clear the cache so we can try again.
+                reflections.delete(key);
+                console.error(e);
             });
             reflections.set(key, reflectionsPromise);
             return [];
