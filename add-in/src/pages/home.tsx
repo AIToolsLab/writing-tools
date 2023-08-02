@@ -173,7 +173,7 @@ export default function Home() {
 
             return res.reflections;
         } catch (e) {
-            alert(e);
+            console.error(e);
         }
     }
 
