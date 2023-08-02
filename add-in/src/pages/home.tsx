@@ -208,18 +208,29 @@ export default function Home() {
     }
 
     // Make sure we have reflections for the paragraphs in scope.
+    // If we don't, fetch them from the server, but don't wait for the response.
+
     function getReflectionsSync(paragraphText: string, prompt: string) {
+        console.assert(typeof paragraphText === 'string' && paragraphText !== '');
         // Maintain a cache of reflections for each paragraph text and prompt.
         const key = JSON.stringify({paragraphText, prompt});
-        if (reflections.has(key)) {
-            return reflections.get(key);
+        const cachedVal = reflections.get(key);
+        if (typeof cachedVal === 'undefined') {
+            // We haven't requested reflections for this paragraph yet.
+            const reflectionsPromise = getReflectionFromServer(paragraphText, prompt);
+            reflectionsPromise.then((newReflections) => {
+                reflections.set(key, newReflections);
+                updateReflections(new Map(reflections));
+            });
+            reflections.set(key, reflectionsPromise);
+            return [];
+        } else if (cachedVal instanceof Promise) {
+            // We're still waiting for the server to respond.
+            // Return an empty array for now.
+            return [];
+        } else {
+            return cachedVal;
         }
-        const reflectionsPromise = getReflectionFromServer(paragraphText, prompt);
-        reflectionsPromise.then((newReflections) => {
-            reflections.set(key, newReflections);
-            updateReflections(new Map(reflections));
-        });
-        return [];
     }
 
 
