@@ -173,7 +173,7 @@ export default function Home() {
 
             return res.reflections;
         } catch (e) {
-            alert(e);
+            console.error(e);
         }
     }
 
@@ -208,18 +208,36 @@ export default function Home() {
     }
 
     // Make sure we have reflections for the paragraphs in scope.
+    // If we don't, fetch them from the server, but don't wait for the response.
+    // The cache stores a promise until the results have been received, at which
+    // point it stores the results.
     function getReflectionsSync(paragraphText: string, prompt: string) {
+        console.assert(typeof paragraphText === 'string' && paragraphText !== '');
         // Maintain a cache of reflections for each paragraph text and prompt.
         const key = JSON.stringify({paragraphText, prompt});
-        if (reflections.has(key)) {
-            return reflections.get(key);
+        const cachedVal = reflections.get(key);
+        if (typeof cachedVal === 'undefined') {
+            // We haven't requested reflections for this paragraph yet.
+            const reflectionsPromise = getReflectionFromServer(paragraphText, prompt);
+            reflectionsPromise.then((newReflections) => {
+                reflections.set(key, newReflections);
+                // Update the state to trigger a re-render.
+                // We have to create a new Map object to trigger a re-render.
+                updateReflections(new Map(reflections));
+            }).catch((e) => {
+                // Fail. Clear the cache so we can try again.
+                reflections.delete(key);
+                console.error(e);
+            });
+            reflections.set(key, reflectionsPromise);
+            return [];
+        } else if (cachedVal instanceof Promise) {
+            // We're still waiting for the server to respond.
+            // Return an empty array for now.
+            return [];
+        } else {
+            return cachedVal;
         }
-        const reflectionsPromise = getReflectionFromServer(paragraphText, prompt);
-        reflectionsPromise.then((newReflections) => {
-            reflections.set(key, newReflections);
-            updateReflections(new Map(reflections));
-        });
-        return [];
     }
 
 
@@ -250,28 +268,29 @@ export default function Home() {
             
     const containers = [];
 
-    // Add the previous, current, and next paragraphs to the page
-    // Skip blank paragraphs
+    // If we have a selected paragraph, add the previous, current, and next paragraphs to the page    
+    if (selectedIndex !== -1) {
+        // Add the previous, current, and next paragraphs to the page
+        // Skip blank paragraphs
+        let previousParagraphIdx = selectedIndex - 1;
+        while (previousParagraphIdx >= 0 && paragraphTexts[previousParagraphIdx] === '') {
+            previousParagraphIdx--;
+        }
+        if (previousParagraphIdx >= 0 && paragraphTexts[previousParagraphIdx] !== '') {
+            containers.push(containerForParagraph(previousParagraphIdx, false));
+        }
 
+        if (paragraphTexts[selectedIndex] !== '') {
+            containers.push(containerForParagraph(selectedIndex, true));
+        }
 
-    let previousParagraphIdx = selectedIndex - 1;
-    while (previousParagraphIdx >= 0 && paragraphTexts[previousParagraphIdx] === '') {
-        previousParagraphIdx--;
-    }
-    if (previousParagraphIdx >= 0 && paragraphTexts[previousParagraphIdx] !== '') {
-        containers.push(containerForParagraph(previousParagraphIdx, false));
-    }
-
-    if (paragraphTexts[selectedIndex] !== '') {
-        containers.push(containerForParagraph(selectedIndex, true));
-    }
-
-    let nextParagraphIdx = selectedIndex + 1;
-    while (nextParagraphIdx < paragraphTexts.length && paragraphTexts[nextParagraphIdx] === '') {
-        nextParagraphIdx++;
-    }
-    if (nextParagraphIdx < paragraphTexts.length && paragraphTexts[nextParagraphIdx] !== '') {
-        containers.push(containerForParagraph(nextParagraphIdx, false));
+        let nextParagraphIdx = selectedIndex + 1;
+        while (nextParagraphIdx < paragraphTexts.length && paragraphTexts[nextParagraphIdx] === '') {
+            nextParagraphIdx++;
+        }
+        if (nextParagraphIdx < paragraphTexts.length && paragraphTexts[nextParagraphIdx] !== '') {
+            containers.push(containerForParagraph(nextParagraphIdx, false));
+        }
     }
 
     return (
