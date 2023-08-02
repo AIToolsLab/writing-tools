@@ -44,7 +44,7 @@ type PromptSelectorProps = {
     updatePrompt: (_: string) => void;
 };
 
-const stackTokens: IStackTokens = { childrenGap: 10 };
+const stackTokens: IStackTokens = { childrenGap: 5 };
 
 // Render the list of preset prompts as fancy radio buttons
 export default function PromptSelector({ curPrompt, updatePrompt }: PromptSelectorProps) {
