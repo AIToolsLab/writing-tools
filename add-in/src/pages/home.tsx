@@ -261,28 +261,29 @@ export default function Home() {
             
     const containers = [];
 
-    // Add the previous, current, and next paragraphs to the page
-    // Skip blank paragraphs
+    // If we have a selected paragraph, add the previous, current, and next paragraphs to the page    
+    if (selectedIndex !== -1) {
+        // Add the previous, current, and next paragraphs to the page
+        // Skip blank paragraphs
+        let previousParagraphIdx = selectedIndex - 1;
+        while (previousParagraphIdx >= 0 && paragraphTexts[previousParagraphIdx] === '') {
+            previousParagraphIdx--;
+        }
+        if (previousParagraphIdx >= 0 && paragraphTexts[previousParagraphIdx] !== '') {
+            containers.push(containerForParagraph(previousParagraphIdx, false));
+        }
 
+        if (paragraphTexts[selectedIndex] !== '') {
+            containers.push(containerForParagraph(selectedIndex, true));
+        }
 
-    let previousParagraphIdx = selectedIndex - 1;
-    while (previousParagraphIdx >= 0 && paragraphTexts[previousParagraphIdx] === '') {
-        previousParagraphIdx--;
-    }
-    if (previousParagraphIdx >= 0 && paragraphTexts[previousParagraphIdx] !== '') {
-        containers.push(containerForParagraph(previousParagraphIdx, false));
-    }
-
-    if (paragraphTexts[selectedIndex] !== '') {
-        containers.push(containerForParagraph(selectedIndex, true));
-    }
-
-    let nextParagraphIdx = selectedIndex + 1;
-    while (nextParagraphIdx < paragraphTexts.length && paragraphTexts[nextParagraphIdx] === '') {
-        nextParagraphIdx++;
-    }
-    if (nextParagraphIdx < paragraphTexts.length && paragraphTexts[nextParagraphIdx] !== '') {
-        containers.push(containerForParagraph(nextParagraphIdx, false));
+        let nextParagraphIdx = selectedIndex + 1;
+        while (nextParagraphIdx < paragraphTexts.length && paragraphTexts[nextParagraphIdx] === '') {
+            nextParagraphIdx++;
+        }
+        if (nextParagraphIdx < paragraphTexts.length && paragraphTexts[nextParagraphIdx] !== '') {
+            containers.push(containerForParagraph(nextParagraphIdx, false));
+        }
     }
 
     return (
