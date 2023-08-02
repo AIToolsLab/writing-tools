@@ -116,6 +116,13 @@ export default function Chat() {
                     </button>
                 </label>
             </form>
+
+            <button
+                onClick={ () => updateMessages([]) }
+                className={ classes.clearChat }
+            >
+                Clear Chat
+            </button>
         </div>
     );
 }
