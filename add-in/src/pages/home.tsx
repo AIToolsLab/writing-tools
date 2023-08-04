@@ -71,8 +71,10 @@ function CardContainer({ className, cards, changeParagraphHighlightColor, onThum
     );
 }
 
-function getTextForParagraphObj(paragraphObj) {
-    return paragraphObj.text.trim();
+function getTextForParagraphObj(paragraphObj): string {
+    // Comments seem to be represented as a special character in the text (\u0005)
+    // Remove that character so that adding a comment doesn't change the text
+    return paragraphObj.text.trim().replace('\u0005', '');
 }
 
 export default function Home() {
