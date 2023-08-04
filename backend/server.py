@@ -149,8 +149,8 @@ async def chat(payload: ChatRequestPayload):
         async for chunk in response:
             if chunk["choices"][0]["finish_reason"] == "stop":
                 break
-
-            yield chunk["choices"][0]["delta"]["content"]
+            delta = chunk["choices"][0]["delta"]
+            yield json.dumps(delta)
 
     return EventSourceResponse(generator())
 

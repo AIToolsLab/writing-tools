@@ -41,10 +41,12 @@ export default function Chat() {
 				messages: [...chatMessages, { role: 'user', content: message }]
 			}),
 			onmessage(msg) {
-				const message = msg.data;
+				const messageJSON = msg.data;
+				const newContent = JSON.parse(messageJSON).content;
+
 
 				const tempMessages = [...newMessages];
-				tempMessages[tempMessages.length - 1].content += message;
+				tempMessages[tempMessages.length - 1].content += newContent;
 
 				newMessages = tempMessages;
 				updateChatMessages(newMessages);
