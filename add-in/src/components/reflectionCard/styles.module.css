@@ -1,7 +1,17 @@
-#reflectionCard {
-    margin-bottom: 10px;
-    border: 1px solid #aaa;
+.card,
+.toggleCardHighlight {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    justify-content: space-between;
     border-radius: 5px;
+    border: 1px solid #aaa;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.toggleCardHighlight {
+    background-color: yellow;
 }
 
 .spinner {
