@@ -91,9 +91,10 @@ function ReflectionCard(props: ReflectionCardProps) {
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
         >
-            <div>{cardData.body}</div>
+            <div className={classes.text}>{cardData.body}</div>
             <div>
                 <button
+                    className={classes.pinButton}
                     onClick={() =>
                         handlePinAction(cardData.paragraphIndex, cardData.body)
                     }
