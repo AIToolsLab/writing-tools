@@ -5,7 +5,6 @@ import classes from './styles.module.css';
 export interface CardData {
     paragraphIndex: number;
     body: string;
-    id: string;
 }
 
 interface ReflectionCardProps {

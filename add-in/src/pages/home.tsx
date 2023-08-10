@@ -184,10 +184,9 @@ export default function Home() {
             paragraphTexts[paragraphIndex],
             prompt
         );
-        const cards: CardData[] = reflectionsForThisPara.map((r, i) => ({
+        const cards: CardData[] = reflectionsForThisPara.map((r) => ({
             paragraphIndex: paragraphIndex,
             body: r.reflection,
-            id: `${paragraphIndex}-${i}`,
         }));
         return (
             <ReflectionCards
