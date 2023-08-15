@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { Spinner } from '@fluentui/react/lib/Spinner';
-import { CardData } from '../../interfaces';
 import classes from './styles.module.css';
 
 interface ReflectionCardProps {

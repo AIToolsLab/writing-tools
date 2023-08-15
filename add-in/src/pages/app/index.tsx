@@ -1,7 +1,7 @@
 import React from 'react';
 import { PageContext } from '../../contexts/pageContext';
 
-import Layout from '../../components/Layout';
+import Layout from '../../components/layout';
 
 import Home from '../home';
 import Chat from '../chat';
