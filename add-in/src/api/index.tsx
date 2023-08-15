@@ -1,5 +1,3 @@
-import { ReflectionResponseItem, ReflectionResponses } from '../interfaces';
-
 export const SERVER_URL = '/api';
 
 /**

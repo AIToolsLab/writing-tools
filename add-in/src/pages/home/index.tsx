@@ -3,7 +3,6 @@ import * as React from 'react';
 import PromptSelector from '../../components/PresetPrompts';
 import { ReflectionCards } from '../../components/ReflectionCard';
 
-import { CardData, ReflectionResponseItem } from '../../interfaces';
 import { getParagraphText } from '../../utilities';
 import { getReflectionFromServer } from '../../api';
 

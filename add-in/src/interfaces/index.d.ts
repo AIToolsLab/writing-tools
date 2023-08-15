@@ -1,12 +1,12 @@
-export interface ReflectionResponseItem {
+interface ReflectionResponseItem {
     reflection: string;
 }
 
-export interface ReflectionResponses {
+interface ReflectionResponses {
     reflections: ReflectionResponseItem[];
 }
 
-export interface CardData {
+interface CardData {
     paragraphIndex: number;
     body: string;
 }
