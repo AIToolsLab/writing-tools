@@ -1,8 +1,7 @@
 import * as React from 'react';
 
-import PromptSelector from '../../components/presetPrompts';
 import { ReflectionCards } from '../../components/reflectionCard';
-
+import { defaultPrompt, PromptButtonSelector } from '../../components/promptButtonSelector';
 import { getParagraphText } from '../../utilities';
 import { getReflectionFromServer } from '../../api';
 
@@ -17,7 +16,7 @@ export default function Home() {
             ReflectionResponseItem[] | Promise<ReflectionResponseItem[]>
         >
     >(new Map());
-    const [prompt, updatePrompt] = React.useState(PromptSelector.defaultPrompt);
+    const [prompt, updatePrompt] = React.useState(defaultPrompt);
 
     /**
      * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
@@ -192,13 +191,10 @@ export default function Home() {
 
     return (
         <div className="ms-welcome">
-            {/* Preset Prompts  */}
-            <div className={classes['prompt-container']}>
-                <PromptSelector
-                    curPrompt={prompt}
-                    updatePrompt={updatePrompt}
-                />
-            </div>
+            <PromptButtonSelector 
+                currentPrompt={prompt}
+                updatePrompt={updatePrompt}
+            />
 
             {...reflectionCardsContainer}
         </div>
