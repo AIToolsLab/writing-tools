@@ -1,11 +1,11 @@
 import React from 'react';
-import { PageContext } from '../contexts/pageContext';
+import { PageContext } from '../../contexts/pageContext';
 
-import Layout from '../components/layout';
+import Layout from '../../components/layout';
 
-import Home from './home';
-import Chat from './chat';
-import Login from './login';
+import Home from '../home';
+import Chat from '../chat';
+import Login from '../login';
 
 export interface HomeProps {
     isOfficeInitialized: boolean;
