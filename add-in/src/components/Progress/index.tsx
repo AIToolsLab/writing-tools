@@ -8,7 +8,7 @@ export interface ProgressProps {
 export default function Progress({ message }: ProgressProps) {
     return (
         <section className="ms-welcome__progress ms-u-fadeIn500">
-            <Spinner size={SpinnerSize.large} label={message} />
+            <Spinner size={ SpinnerSize.large } label={ message } />
         </section>
     );
 }

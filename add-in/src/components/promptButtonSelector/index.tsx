@@ -68,25 +68,25 @@ export function PromptButtonSelector(
     }
 
     return (
-        <div className={classes.promptButtonSelector}>
-            <div className={classes.buttonContainer}>
-                {promptList.map(
+        <div className={ classes.promptButtonSelector }>
+            <div className={ classes.buttonContainer }>
+                { promptList.map(
                     (option: { keyword: string; prompt: string }) => (
                         <DefaultButton
-                            key={option.keyword}
+                            key={ option.keyword }
                             className={
                                 currentButton === option.keyword
                                     ? classes.currentButton
                                     : classes.button
                             }
-                            text={option.keyword}
-                            onClick={() => {
+                            text={ option.keyword }
+                            onClick={ () => {
                                 setPrompt(option.prompt);
                                 setCurrentButton(option.keyword);
-                            }}
+                            } }
                         />
                     )
-                )}
+                ) }
                 <DefaultButton
                     text="Custom"
                     className={
@@ -94,26 +94,26 @@ export function PromptButtonSelector(
                             ? classes.currentButton
                             : classes.button
                     }
-                    onClick={() => {
+                    onClick={ () => {
                         setPrompt(customPrompt);
                         setCurrentButton('Custom');
-                    }}
+                    } }
                 />
             </div>
-            <div className={classes.textareaContainer}>
+            <div className={ classes.textareaContainer }>
                 <TextareaAutosize
-                    className={classes.textarea}
-                    value={internalPrompt}
-                    onChange={(e) => {
+                    className={ classes.textarea }
+                    value={ internalPrompt }
+                    onChange={ (e) => {
                         setInternalPrompt(e.target.value);
                         setCurrentButton('Custom');
-                    }}
+                    } }
                 />
-                {currentButton === 'Custom' && (
-                    <div className={classes.operationButtonContainer}>
-                        <div className={classes.saveButton}>
+                { currentButton === 'Custom' && (
+                    <div className={ classes.operationButtonContainer }>
+                        <div className={ classes.saveButton }>
                             <button
-                                onClick={() => {
+                                onClick={ () => {
                                     if (
                                         internalPrompt.trim().length !== 0 &&
                                         internalPrompt.trim() !== currentPrompt
@@ -121,23 +121,23 @@ export function PromptButtonSelector(
                                         setCustomPrompt(internalPrompt);
                                         updatePrompt(internalPrompt);
                                     }
-                                }}
+                                } }
                             >
                                 Save
                             </button>
                         </div>
-                        <div className={classes.clearButton}>
+                        <div className={ classes.clearButton }>
                             <button
-                                onClick={() => {
+                                onClick={ () => {
                                     setInternalPrompt('');
                                     setCustomPrompt('');
-                                }}
+                                } }
                             >
                                 Clear
                             </button>
                         </div>
                     </div>
-                )}
+                ) }
             </div>
         </div>
     );

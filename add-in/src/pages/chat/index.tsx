@@ -84,31 +84,31 @@ export default function Chat() {
     }
 
     return (
-        <div className={classes.container}>
-            <div className={classes.messageContainer}>
-                {messages.map((message, index) => (
+        <div className={ classes.container }>
+            <div className={ classes.messageContainer }>
+                { messages.map((message, index) => (
                     <ChatMessage
-                        key={index}
-                        role={message.role}
-                        content={message.content}
-                        index={index}
-                        refresh={regenMessage}
-                        deleteMessage={() => {}}
-                        convertToComment={() => {}}
+                        key={ index }
+                        role={ message.role }
+                        content={ message.content }
+                        index={ index }
+                        refresh={ regenMessage }
+                        deleteMessage={ () => {} }
+                        convertToComment={ () => {} }
                     />
-                ))}
+                )) }
             </div>
 
-            <form className={classes.sendMessage} onSubmit={sendMessage}>
-                <label className={classes.label}>
+            <form className={ classes.sendMessage } onSubmit={ sendMessage }>
+                <label className={ classes.label }>
                     <textarea
-                        disabled={isSendingMessage}
+                        disabled={ isSendingMessage }
                         placeholder="Send a message"
-                        value={message}
-                        onChange={(e) =>
+                        value={ message }
+                        onChange={ (e) =>
                             updateMessage((e.target as HTMLTextAreaElement).value)
                         }
-                        className={classes.messageInput}
+                        className={ classes.messageInput }
                     />
 
                     <button type="submit">

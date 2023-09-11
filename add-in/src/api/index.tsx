@@ -32,7 +32,8 @@ export async function getReflectionFromServer(
 
         const responseData: ReflectionResponses = await response.json();
         return responseData.reflections;
-    } catch (error) {
+    }
+ catch (error) {
         console.error(error);
         return [];
     }

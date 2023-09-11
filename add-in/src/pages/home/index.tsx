@@ -103,9 +103,11 @@ export default function Home() {
 
             reflections.set(cacheKey, reflectionsPromise);
             return [];
-        } else if (cachedValue instanceof Promise) {
+        }
+ else if (cachedValue instanceof Promise) {
             return [];
-        } else {
+        }
+ else {
             return cachedValue;
         }
     }
@@ -133,8 +135,8 @@ export default function Home() {
 
         return (
             <ReflectionCards
-                cardDataList={cardDataList}
-                toggleCardHighlight={isCurrent}
+                cardDataList={ cardDataList }
+                toggleCardHighlight={ isCurrent }
             />
         );
     }
@@ -192,8 +194,8 @@ export default function Home() {
     return (
         <div className="ms-welcome">
             <PromptButtonSelector 
-                currentPrompt={prompt}
-                updatePrompt={updatePrompt}
+                currentPrompt={ prompt }
+                updatePrompt={ updatePrompt }
             />
 
             {...reflectionCardsContainer}

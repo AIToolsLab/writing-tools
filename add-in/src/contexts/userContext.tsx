@@ -16,8 +16,8 @@ export default function UserContextWrapper({ children }: PropsWithChildren<any>)
     const [userId, updateUserId] = useState(-1);
 
     return (
-        <UserContext.Provider value={{ userId, updateUserId }}>
-            {children}
+        <UserContext.Provider value={ { userId, updateUserId } }>
+            { children }
         </UserContext.Provider>
     );
 }

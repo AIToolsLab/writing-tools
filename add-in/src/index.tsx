@@ -1,4 +1,3 @@
-import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import { AppContainer } from 'react-hot-loader';
 
@@ -22,7 +21,7 @@ const render = (Component) => {
                 <UserContextWrapper>
                     <PageContextWrapper>
                         <Component
-                            isOfficeInitialized={isOfficeInitialized}
+                            isOfficeInitialized={ isOfficeInitialized }
                         />
                     </PageContextWrapper>
                 </UserContextWrapper>

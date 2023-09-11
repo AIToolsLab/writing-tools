@@ -81,15 +81,15 @@ function ReflectionCard(props: ReflectionCardProps) {
 
     return (
         <div
-            className={className}
-            onMouseEnter={handleMouseEnter}
-            onMouseLeave={handleMouseLeave}
+            className={ className }
+            onMouseEnter={ handleMouseEnter }
+            onMouseLeave={ handleMouseLeave }
         >
-            <div className={classes.text}>{cardData.body}</div>
+            <div className={ classes.text }>{ cardData.body }</div>
             <div>
                 <button
-                    className={classes.pinButton}
-                    onClick={() =>
+                    className={ classes.pinButton }
+                    onClick={ () =>
                         handlePinAction(cardData.paragraphIndex, cardData.body)
                     }
                 >
@@ -105,15 +105,15 @@ export function ReflectionCards(props: ReflectionCardsProps) {
 
     return (
         <div>
-            {cardDataList.length === 0 ? (
-                <div className={classes.spinner}>
+            { cardDataList.length === 0 ? (
+                <div className={ classes.spinner }>
                     <Spinner label="Loading..." labelPosition="right" />
                 </div>
             ) : (
                 cardDataList.map((cardData: CardData, index: number) => (
                     <ReflectionCard
-                        key={index}
-                        cardData={cardData}
+                        key={ index }
+                        cardData={ cardData }
                         className={
                             toggleCardHighlight
                                 ? classes.toggleCardHighlight
@@ -121,7 +121,7 @@ export function ReflectionCards(props: ReflectionCardsProps) {
                         }
                     />
                 ))
-            )}
+            ) }
         </div>
     );
 }

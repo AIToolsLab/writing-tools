@@ -17,8 +17,8 @@ export default function ChatMessage(
     props: ChatMessage & ChatMessageProps
 ) {
     return (
-        <div className={classes.container}>
-            {/*
+        <div className={ classes.container }>
+            { /*
                 props.role !== 'assistant' ? (
                     <div className={ classes.toolbar }>
                         <FiRefreshCcw
@@ -59,7 +59,7 @@ export default function ChatMessage(
                     }
                 </div>
 
-                {props.content}
+                { props.content }
             </div>
         </div>
     );

@@ -15,22 +15,25 @@
         "build": "webpack --mode production",
         "build:dev": "webpack --mode development",
         "dev-server": "webpack serve --mode development",
-        "lint": "eslint \"**/*.{ts,tsx}\"",
-        "lint:fix": "eslint --fix --ext .ts,.tsx .",
         "start": "office-addin-debugging start manifest.xml",
         "start:desktop": "office-addin-debugging start manifest.xml desktop",
         "start:web": "office-addin-debugging start manifest.xml web",
         "stop": "office-addin-debugging stop manifest.xml",
         "validate": "office-addin-manifest validate manifest.xml",
-        "watch": "webpack --mode development --watch"
+        "watch": "webpack --mode development --watch",
+        "lint": "eslint \"**/*.{ts,tsx}\"",
+        "lint:fix": "eslint --fix --ext .ts,.tsx .",
+        "prepare": "cd .. && husky install add-in/.husky"
     },
     "dependencies": {
         "@fluentui/react": "^8.52.3",
         "@microsoft/fetch-event-source": "^2.0.1",
+        "@types/react-hot-loader": "^4.1.1",
         "core-js": "^3.9.1",
         "es6-promise": "^4.2.8",
         "react": "^17.0.2",
         "react-dom": "^17.0.2",
+        "react-hot-loader": "^4.13.1",
         "react-icons": "^4.10.1",
         "react-textarea-autosize": "^8.5.2",
         "regenerator-runtime": "^0.13.7"
@@ -54,8 +57,10 @@
         "file-loader": "^6.2.0",
         "html-loader": "^4.1.0",
         "html-webpack-plugin": "^5.5.0",
+        "husky": "^8.0.0",
         "less": "^3.9.0",
         "less-loader": "^10.0.1",
+        "lint-staged": "^14.0.1",
         "office-addin-cli": "^1.5.5",
         "office-addin-debugging": "^5.0.5",
         "office-addin-dev-certs": "^1.11.3",
@@ -72,5 +77,10 @@
     },
     "browserslist": [
         "ie 11"
-    ]
+    ],
+    "lint-staged": {
+        "**/*.{js,ts,tsx}": [
+            "yarn run lint"
+        ]
+    }
 }

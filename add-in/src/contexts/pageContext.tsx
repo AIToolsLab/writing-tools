@@ -11,8 +11,8 @@ export default function PageContextWrapper({
     const [page, updatePage] = useState('login');
         
     return (
-        <PageContext.Provider value={{ page, changePage: updatePage }}>
-            {children}
+        <PageContext.Provider value={ { page, changePage: updatePage } }>
+            { children }
         </PageContext.Provider>
     );
 }
