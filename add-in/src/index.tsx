@@ -14,34 +14,31 @@ initializeIcons();
 
 let isOfficeInitialized = false;
 
-const render = (Component) => {
-    ReactDOM.render(
-        <AppContainer>
-            <ThemeProvider>
-                <UserContextWrapper>
-                    <PageContextWrapper>
-                        <Component
-                            isOfficeInitialized={ isOfficeInitialized }
-                        />
-                    </PageContextWrapper>
-                </UserContextWrapper>
-            </ThemeProvider>
-        </AppContainer>,
-        document.getElementById('container')
-    );
+// TODO: Fix typing issue
+const render = (Component: any) => {
+	ReactDOM.render(
+		<AppContainer>
+			<ThemeProvider>
+				<UserContextWrapper>
+					<PageContextWrapper>
+						<Component isOfficeInitialized={ isOfficeInitialized } />
+					</PageContextWrapper>
+				</UserContextWrapper>
+			</ThemeProvider>
+		</AppContainer>,
+		document.getElementById('container')
+	);
 };
 
 /* Render application after Office initializes */
-Office.onReady((info) => {
-    if (info.host === Office.HostType.Word)
-        isOfficeInitialized = true;
-    render(App);
+Office.onReady(info => {
+	if (info.host === Office.HostType.Word) isOfficeInitialized = true;
+	render(App);
 });
 
-if ((module as any).hot) {
-    (module as any).hot.accept('./pages/app', () => {
-        const NextApp = require('./pages/app').default;
-        
-        render(NextApp);
-    });
-}
+if ((module as any).hot)
+	(module as any).hot.accept('./pages/app', () => {
+		const NextApp = require('./pages/app').default;
+
+		render(NextApp);
+	});

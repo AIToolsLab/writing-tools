@@ -1,12 +1,11 @@
-import React from 'react';
 import Navbar from '../navbar';
 
 export default function Layout({ children }: React.PropsWithChildren<any>) {
-    return (
-        <>
-            <Navbar />
-            
-            { children }
-        </>
-    );
+	return (
+		<>
+			<Navbar />
+
+			{ children }
+		</>
+	);
 }

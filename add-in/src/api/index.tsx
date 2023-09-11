@@ -8,33 +8,32 @@ export const SERVER_URL = '/api';
  * @returns {Promise<ReflectionResponseItem[]>} - A promise that resolves to an array of reflection response items.
  */
 export async function getReflectionFromServer(
-    paragraph: string,
-    prompt: string
+	paragraph: string,
+	prompt: string
 ): Promise<ReflectionResponseItem[]> {
-    try {
-        const data = {
-            user_id: -1, // TODO: Get user_id from somewhere
-            paragraph,
-            prompt,
-        };
+	try {
+		const data = {
+			// eslint-disable-next-line camelcase
+			user_id: -1, // TODO: Get user_id from somewhere
+			paragraph,
+			prompt
+		};
 
-        const response: Response = await fetch(`${SERVER_URL}/reflections`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-        });
+		const response: Response = await fetch(`${SERVER_URL}/reflections`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify(data)
+		});
 
-        if (!response.ok) {
-            throw new Error('Request failed ' + response.status);
-        }
+		if (!response.ok) throw new Error('Request failed ' + response.status);
 
-        const responseData: ReflectionResponses = await response.json();
-        return responseData.reflections;
-    }
+		const responseData: ReflectionResponses = await response.json();
+
+		return responseData.reflections;
+	}
  catch (error) {
-        console.error(error);
-        return [];
-    }
+		return [];
+	}
 }
