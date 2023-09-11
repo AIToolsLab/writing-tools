@@ -92,9 +92,10 @@ export default function Home() {
 		const cacheKey: string = JSON.stringify({ paragraphText, prompt });
 
 		// TODO: Fix typing error
-		const cachedValue:
-			| ReflectionResponseItem[]
-			| Promise<ReflectionResponseItem[]> = reflections.get(cacheKey);
+		const cachedValue: any
+			// | ReflectionResponseItem[]
+			// | Promise<ReflectionResponseItem[]> 
+		= reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
