@@ -3,9 +3,9 @@ import { useState } from 'react';
 import { AiOutlineSend } from 'react-icons/ai';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
-import ChatMessage from '../../components/chatMessage';
+import ChatMessage from '@/components/chatMessage';
 
-import { SERVER_URL } from '../../api';
+import { SERVER_URL } from '@/api';
 
 import classes from './styles.module.css';
 

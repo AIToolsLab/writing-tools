@@ -1,6 +1,6 @@
 import { useContext } from 'react';
 
-import { PageContext } from '../../contexts/pageContext';
+import { PageContext } from '@/contexts/pageContext';
 
 import classes from './styles.module.css';
 

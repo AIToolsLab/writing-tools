@@ -1,7 +1,7 @@
 import { useContext, useState } from 'react';
 
-import { UserContext } from '../../contexts/userContext';
-import { PageContext } from '../../contexts/pageContext';
+import { UserContext } from '@/contexts/userContext';
+import { PageContext } from '@/contexts/pageContext';
 
 import classes from './styles.module.css';
 

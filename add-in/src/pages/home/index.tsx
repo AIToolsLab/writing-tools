@@ -1,13 +1,13 @@
 import { useState, useEffect } from 'react';
 
-import { ReflectionCards } from '../../components/reflectionCard';
+import { ReflectionCards } from '@/components/reflectionCard';
 import {
 	defaultPrompt,
 	PromptButtonSelector
-} from '../../components/promptButtonSelector';
+} from '@/components/promptButtonSelector';
 
-import { getParagraphText } from '../../utilities';
-import { getReflectionFromServer } from '../../api';
+import { getParagraphText } from '@/utilities';
+import { getReflectionFromServer } from '@/api';
 
 export default function Home() {
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);

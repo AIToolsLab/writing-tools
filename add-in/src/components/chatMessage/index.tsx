@@ -1,4 +1,4 @@
-import { ChatMessage } from '../../pages/chat';
+import { ChatMessage } from '@/pages/chat';
 
 import classes from './styles.module.css';
 
