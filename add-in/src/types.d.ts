@@ -1,14 +1,14 @@
 declare module '*.css';
 
 interface ReflectionResponseItem {
-    reflection: string;
+	reflection: string;
 }
 
 interface ReflectionResponses {
-    reflections: ReflectionResponseItem[];
+	reflections: ReflectionResponseItem[];
 }
 
 interface CardData {
-    paragraphIndex: number;
-    body: string;
+	paragraphIndex: number;
+	body: string;
 }

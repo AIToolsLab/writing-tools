@@ -6,5 +6,5 @@
  * @returns {string} - The converted paragraph text as a usable string.
  */
 export function getParagraphText(paragraphTextObject: Word.Paragraph): string {
-    return paragraphTextObject.text.trim().replace('\u0005', '');
+	return paragraphTextObject.text.trim().replace('\u0005', '');
 }

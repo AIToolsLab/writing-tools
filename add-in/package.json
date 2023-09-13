@@ -3,7 +3,7 @@
     "version": "0.0.1",
     "repository": {
         "type": "git",
-        "url": "https://github.com/OfficeDev/Office-Addin-TaskPane-JS.git"
+        "url": "https://github.com/AIToolsLab/writing-tools"
     },
     "license": "MIT",
     "config": {
@@ -15,15 +15,15 @@
         "build": "webpack --mode production",
         "build:dev": "webpack --mode development",
         "dev-server": "webpack serve --mode development",
-        "lint": "office-addin-lint check",
-        "lint:fix": "office-addin-lint fix",
-        "prettier": "office-addin-lint prettier",
         "start": "office-addin-debugging start manifest.xml",
         "start:desktop": "office-addin-debugging start manifest.xml desktop",
         "start:web": "office-addin-debugging start manifest.xml web",
         "stop": "office-addin-debugging stop manifest.xml",
         "validate": "office-addin-manifest validate manifest.xml",
-        "watch": "webpack --mode development --watch"
+        "watch": "webpack --mode development --watch",
+        "lint": "eslint \"**/*.{ts,tsx}\"",
+        "lint:fix": "eslint --fix --ext .ts,.tsx .",
+        "prepare": "cd .. && husky install add-in/.husky"
     },
     "dependencies": {
         "@fluentui/react": "^8.52.3",
@@ -43,27 +43,26 @@
         "@types/office-runtime": "^1.0.23",
         "@types/react": "^17.0.39",
         "@types/react-dom": "^17.0.11",
-        "@types/react-hot-loader": "^4.1.1",
-        "@types/react-icons": "^3.0.0",
         "@types/webpack": "^4.4.34",
-        "@types/webpack-dev-server": "^4.1.0",
+        "@typescript-eslint/eslint-plugin": "^6.5.0",
+        "@typescript-eslint/parser": "^6.5.0",
         "acorn": "^8.5.0",
         "babel-loader": "^8.2.2",
         "copy-webpack-plugin": "^9.0.1",
         "css-loader": "^6.8.1",
-        "eslint-plugin-office-addins": "^2.1.5",
+        "eslint": "^8.48.0",
         "eslint-plugin-react": "^7.28.0",
         "file-loader": "^6.2.0",
         "html-loader": "^4.1.0",
         "html-webpack-plugin": "^5.5.0",
+        "husky": "^8.0.0",
         "less": "^3.9.0",
         "less-loader": "^10.0.1",
+        "lint-staged": "^14.0.1",
         "office-addin-cli": "^1.5.5",
         "office-addin-debugging": "^5.0.5",
         "office-addin-dev-certs": "^1.11.3",
-        "office-addin-lint": "^2.2.5",
         "office-addin-manifest": "^1.12.3",
-        "office-addin-prettier-config": "^1.2.0",
         "os-browserify": "^0.3.0",
         "process": "^0.11.10",
         "source-map-loader": "^3.0.0",
@@ -76,5 +75,10 @@
     },
     "browserslist": [
         "ie 11"
-    ]
+    ],
+    "lint-staged": {
+        "**/*.{js,ts,tsx}": [
+            "yarn run lint"
+        ]
+    }
 }

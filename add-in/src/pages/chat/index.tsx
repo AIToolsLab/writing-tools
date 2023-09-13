@@ -1,128 +1,131 @@
-import React from 'react';
+import { useState } from 'react';
+
 import { AiOutlineSend } from 'react-icons/ai';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
-import ChatMessage from '../../components/chatMessage';
+import ChatMessage from '@/components/chatMessage';
 
-import { SERVER_URL } from '../../api';
+import { SERVER_URL } from '@/api';
 
 import classes from './styles.module.css';
 
 export type ChatMessage = {
-    role: string;
-    content: string;
+	role: string;
+	content: string;
 };
 
 export default function Chat() {
-    const [messages, updateMessages] = React.useState<ChatMessage[]>([]);
-    const [isSendingMessage, updateSendingMessage] = React.useState(false);
+	const [messages, updateMessages] = useState<ChatMessage[]>([]);
+	const [isSendingMessage, updateSendingMessage] = useState(false);
 
-    const [message, updateMessage] = React.useState('');
+	const [message, updateMessage] = useState('');
 
-    async function sendMessage(e) {
-        updateSendingMessage(true);
-        e.preventDefault();
+	async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
+		updateSendingMessage(true);
+		e.preventDefault();
 
-        if (!message) return;
+		if (!message) return;
 
-        let newMessages = [
-            ...messages,
-            { role: 'user', content: message },
-            { role: 'assistant', content: '' }
-        ];
-        
-        updateMessages(newMessages);
+		let newMessages = [
+			...messages,
+			{ role: 'user', content: message },
+			{ role: 'assistant', content: '' }
+		];
 
-        await fetchEventSource(`${SERVER_URL}/chat`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                messages: [
-                    ...messages,
-                    { role: 'user', content: message }
-                ],
-            }),
-            onmessage(msg) {
-                const message = msg.data;
+		updateMessages(newMessages);
 
-                const tempMessages = [...newMessages];
-                tempMessages[tempMessages.length - 1].content += message;
-                
-                newMessages = tempMessages;
-                updateMessages(newMessages);
-            }
-        });
+		await fetchEventSource(`${SERVER_URL}/chat`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				messages: [...messages, { role: 'user', content: message }]
+			}),
+			onmessage(msg) {
+				const message = msg.data;
 
-        updateSendingMessage(false);
-        updateMessage('');
-    }
+				const tempMessages = [...newMessages];
+				tempMessages[tempMessages.length - 1].content += message;
 
-    async function regenMessage(index: number) {
-        // Resubmit the conversation up until the last message,
-        // so it regenerates the last assistant message.
-        const response = await fetch(`${SERVER_URL}/chat`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                messages: messages.slice(0, index),
-            }),
-        });
+				newMessages = tempMessages;
+				updateMessages(newMessages);
+			}
+		});
 
-        const responseJson = await response.json();
+		updateSendingMessage(false);
+		updateMessage('');
+	}
 
-        const newMessages = [...messages];
-        newMessages[index + 1] = {
-            role: 'assistant',
-            content: responseJson,
-        };
+	async function regenMessage(index: number) {
+		// Resubmit the conversation up until the last message,
+		// so it regenerates the last assistant message.
+		const response = await fetch(`${SERVER_URL}/chat`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				messages: messages.slice(0, index)
+			})
+		});
 
-        updateMessages(newMessages);
-    }
+		const responseJson = await response.json();
 
-    return (
-        <div className={classes.container}>
-            <div className={classes.messageContainer}>
-                {messages.map((message, index) => (
-                    <ChatMessage
-                        key={index}
-                        role={message.role}
-                        content={message.content}
-                        index={index}
-                        refresh={regenMessage}
-                        deleteMessage={() => {}}
-                        convertToComment={() => {}}
-                    />
-                ))}
-            </div>
+		const newMessages = [...messages];
+		newMessages[index + 1] = {
+			role: 'assistant',
+			content: responseJson
+		};
 
-            <form className={classes.sendMessage} onSubmit={sendMessage}>
-                <label className={classes.label}>
-                    <textarea
-                        disabled={isSendingMessage}
-                        placeholder="Send a message"
-                        value={message}
-                        onChange={(e) =>
-                            updateMessage((e.target as HTMLTextAreaElement).value)
-                        }
-                        className={classes.messageInput}
-                    />
+		updateMessages(newMessages);
+	}
 
-                    <button type="submit">
-                        <AiOutlineSend />
-                    </button>
-                </label>
-            </form>
+	return (
+		<div className={ classes.container }>
+			<div className={ classes.messageContainer }>
+				{ messages.map((message, index) => (
+					<ChatMessage
+						key={ index }
+						role={ message.role }
+						content={ message.content }
+						index={ index }
+						refresh={ regenMessage }
+						deleteMessage={ () => {} }
+						convertToComment={ () => {} }
+					/>
+				)) }
+			</div>
 
-            <button
-                onClick={ () => updateMessages([]) }
-                className={ classes.clearChat }
-            >
-                Clear Chat
-            </button>
-        </div>
-    );
+			<form
+				className={ classes.sendMessage }
+				onSubmit={ sendMessage }
+			>
+				<label className={ classes.label }>
+					<textarea
+						disabled={ isSendingMessage }
+						placeholder="Send a message"
+						value={ message }
+						onChange={ e =>
+							updateMessage(
+								(e.target as HTMLTextAreaElement).value
+							)
+						}
+						className={ classes.messageInput }
+					/>
+
+					<button type="submit">
+						<AiOutlineSend />
+					</button>
+				</label>
+			</form>
+
+			<button
+				onClick={ () => updateMessages([]) }
+				className={ classes.clearChat }
+			>
+				Clear Chat
+			</button>
+		</div>
+	);
 }

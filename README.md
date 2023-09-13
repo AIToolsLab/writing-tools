@@ -9,8 +9,10 @@
 # Running the add-in
 
 -   `cd add-in`
--   `npm i`
--   `npm run dev-server`
+-   `yarn`
+-   `yarn run dev-server`
+
+Run `yarn lint --fix` to auto-fix (almost) all lint errors.
 
 # Running the server
 

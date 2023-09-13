@@ -1,18 +1,18 @@
-import React, { PropsWithChildren, createContext, useState } from 'react';
+import { PropsWithChildren, createContext, useState } from 'react';
 
 export const PageContext = createContext({
-    page: '',
-    changePage: (_page: string) => {},
+	page: '',
+	changePage: (_page: string) => {}
 });
 
 export default function PageContextWrapper({
-    children,
+	children
 }: PropsWithChildren<any>) {
-    const [page, updatePage] = useState('login');
-        
-    return (
-        <PageContext.Provider value={{ page, changePage: updatePage }}>
-            {children}
-        </PageContext.Provider>
-    );
+	const [page, updatePage] = useState('login');
+
+	return (
+		<PageContext.Provider value={ { page, changePage: updatePage } }>
+			{ children }
+		</PageContext.Provider>
+	);
 }
