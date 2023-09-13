@@ -1,5 +1,4 @@
 import * as ReactDOM from 'react-dom';
-import { AppContainer } from 'react-hot-loader';
 
 import { initializeIcons } from '@fluentui/font-icons-mdl2';
 import { ThemeProvider } from '@fluentui/react';
@@ -17,15 +16,13 @@ let isOfficeInitialized = false;
 // TODO: Fix typing issue
 const render = (Component: any) => {
 	ReactDOM.render(
-		<AppContainer>
-			<ThemeProvider>
-				<UserContextWrapper>
-					<PageContextWrapper>
-						<Component isOfficeInitialized={ isOfficeInitialized } />
-					</PageContextWrapper>
-				</UserContextWrapper>
-			</ThemeProvider>
-		</AppContainer>,
+		<ThemeProvider>
+			<UserContextWrapper>
+				<PageContextWrapper>
+					<Component isOfficeInitialized={ isOfficeInitialized } />
+				</PageContextWrapper>
+			</UserContextWrapper>
+		</ThemeProvider>,
 		document.getElementById('container')
 	);
 };
