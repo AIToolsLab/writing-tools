@@ -21,8 +21,8 @@
         "stop": "office-addin-debugging stop manifest.xml",
         "validate": "office-addin-manifest validate manifest.xml",
         "watch": "webpack --mode development --watch",
-        "lint": "eslint \"**/*.{ts,tsx}\"",
-        "lint:fix": "eslint --fix --ext .ts,.tsx .",
+        "lint": "eslint \"**/*.{js,ts,tsx}\"",
+        "lint:fix": "eslint --fix --ext .js,.ts,.tsx .",
         "prepare": "cd .. && husky install add-in/.husky"
     },
     "dependencies": {
