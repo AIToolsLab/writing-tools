@@ -25,12 +25,25 @@ async_chat_with_backoff = (
 
 FINAL_ANSWER_REGEX = re.compile(r"FINAL (?:ANSWER|RESPONSE|OUTPUT)(?::|\.)?\s+", re.MULTILINE)
 
+output_format = """\
+# Output format
+
+- concise
+- short phrases, not complete sentences
+- not conversational
+- Markdown dash (not number) format for lists.
+
+# Task
+
+"""
+
 class ReflectionResponseInternal(BaseModel):
     full_response: str
     scratch: str
     reflections: List[str]
 
 async def gen_reflections_chat(writing, prompt) -> ReflectionResponseInternal:
+    prompt_with_output_format = output_format + prompt
     response = await async_chat_with_backoff(
         model="gpt-3.5-turbo",
         messages=[
