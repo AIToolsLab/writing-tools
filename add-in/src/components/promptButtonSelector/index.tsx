@@ -8,15 +8,11 @@ import classes from './styles.module.css';
 const promptList = [
 	{
 		keyword: 'Thesis Statement',
-		prompt: 'Step 1: Write a sentence stating what seems to be the thesis of the paragraph. Step 2: Say FINAL OUTPUT. Step 3: Say the thesis again, but even more concisely with no filler words like "the thesis is".'
+		prompt: 'What is the thesis of the following paragraph? Answer concisely without saying "the thesis is".'
 	},
 	{
 		keyword: 'Important Concepts',
-		prompt: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 2: Output FINAL OUTPUT, then a new line, then a Markdown unordered list with the 3 concepts with highest relevance, in short phrases of 2 or 3 words.'
-	},
-	{
-		keyword: 'Important Concepts as Sentences',
-		prompt: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 2: Output FINAL OUTPUT, then a new line, then a Markdown unordered list with the 3 concepts with highest relevance, as a complete sentence.'
+		prompt: 'List up to 10 important concepts in this paragraph as phrases of up to 3 words.'
 	},
 	{
 		keyword: 'Questions the Writer Was Attempting to Answer',
@@ -24,16 +20,12 @@ const promptList = [
 	},
 	{
 		keyword: 'Questions a Reader Might Have',
-		prompt: 'As a reader, ask the writer 2 or 3 questions about definitions, logical connections, or some needed background information.'
+		prompt: 'As a reader, ask the writer 2 or 3 questions.'
 	},
 	{
-		keyword: 'Advice',
-		prompt: 'What advice would you give the writer to improve this paragraph? Respond in a bulleted list.'
+		keyword: 'Counterpoints',
+		prompt: "List counterpoints to this paragraph's arguments."
 	},
-	{
-		keyword: 'Metaphors',
-		prompt: 'List the metaphors that the writer uses in this paragraph.'
-	}
 ];
 
 interface PromptButtonSelectorProps {
