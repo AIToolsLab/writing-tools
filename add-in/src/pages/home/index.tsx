@@ -9,6 +9,8 @@ import {
 import { getParagraphText } from '@/utilities';
 import { getReflectionFromServer } from '@/api';
 
+const includeSurroundingParagraphs = false;
+
 export default function Home() {
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [curParagraphText, updateCurParagraphText] = useState('');
@@ -172,11 +174,13 @@ export default function Home() {
 	// Display the reflection cards that are relevant to the currently selected
 	// paragraph, as well as its previous and next paragraphs
 	if (selectedIndex !== -1) {
-		// Check if there is a previous paragraph available
-		for (let i = selectedIndex - 1; i >= 0; i--) {
-			if (paragraphTexts[i] !== '') {
-				reflectionCardsContainer.push(createReflectionCards(i, false));
-				break;
+		if (includeSurroundingParagraphs) {
+			// Check if there is a previous paragraph available
+			for (let i = selectedIndex - 1; i >= 0; i--) {
+				if (paragraphTexts[i] !== '') {
+					reflectionCardsContainer.push(createReflectionCards(i, false));
+					break;
+				}
 			}
 		}
 
@@ -186,11 +190,13 @@ export default function Home() {
 				createReflectionCards(selectedIndex, true)
 			);
 
-		// Check if there is a next paragraph available
-		for (let i = selectedIndex + 1; i < paragraphTexts.length; i++) {
-			if (paragraphTexts[i] !== '') {
-				reflectionCardsContainer.push(createReflectionCards(i, false));
-				break;
+		if (includeSurroundingParagraphs) {
+			// Check if there is a next paragraph available
+			for (let i = selectedIndex + 1; i < paragraphTexts.length; i++) {
+				if (paragraphTexts[i] !== '') {
+					reflectionCardsContainer.push(createReflectionCards(i, false));
+					break;
+				}
 			}
 		}
 	}
