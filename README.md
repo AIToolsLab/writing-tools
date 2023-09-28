@@ -6,6 +6,8 @@
 -   Drag add-in/manifest.xml into the upload bar
 -   Click upload
 
+If you can't find the Add-ins tab, look instead on the File menu for "Get Add-ins" or something like that, then click Manage Add-ins.
+
 # Running the add-in
 
 -   `cd add-in`
