@@ -1,5 +1,3 @@
-import { ChatMessage } from '@/pages/chat';
-
 import classes from './styles.module.css';
 
 type ChatMessageProps = {

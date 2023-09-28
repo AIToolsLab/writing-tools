@@ -1,21 +1,20 @@
-import { useState } from 'react';
+import { useState, useContext } from 'react';
 
 import { AiOutlineSend } from 'react-icons/ai';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import ChatMessage from '@/components/chatMessage';
 
+import { ChatContext } from '@/contexts/chatContext';
+
 import { SERVER_URL } from '@/api';
 
 import classes from './styles.module.css';
 
-export type ChatMessage = {
-	role: string;
-	content: string;
-};
-
 export default function Chat() {
-	const [messages, updateMessages] = useState<ChatMessage[]>([]);
+	const { chatMessages, updateChatMessages } = useContext(ChatContext);
+
+	const [messages, updateMessages] = useState<ChatMessage[]>(chatMessages);
 	const [isSendingMessage, updateSendingMessage] = useState(false);
 
 	const [message, updateMessage] = useState('');
@@ -54,7 +53,9 @@ export default function Chat() {
 		});
 
 		updateSendingMessage(false);
+
 		updateMessage('');
+		updateChatMessages(newMessages);
 	}
 
 	async function regenMessage(index: number) {
