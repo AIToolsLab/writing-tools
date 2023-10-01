@@ -14,7 +14,6 @@ import classes from './styles.module.css';
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 
-	const [messages, updateMessages] = useState<ChatMessage[]>(chatMessages);
 	const [isSendingMessage, updateSendingMessage] = useState(false);
 
 	const [message, updateMessage] = useState('');
@@ -26,12 +25,12 @@ export default function Chat() {
 		if (!message) return;
 
 		let newMessages = [
-			...messages,
+			...chatMessages,
 			{ role: 'user', content: message },
 			{ role: 'assistant', content: '' }
 		];
 
-		updateMessages(newMessages);
+		updateChatMessages(newMessages);
 
 		await fetchEventSource(`${SERVER_URL}/chat`, {
 			method: 'POST',
@@ -39,7 +38,7 @@ export default function Chat() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				messages: [...messages, { role: 'user', content: message }]
+				messages: [...chatMessages, { role: 'user', content: message }]
 			}),
 			onmessage(msg) {
 				const message = msg.data;
@@ -48,14 +47,13 @@ export default function Chat() {
 				tempMessages[tempMessages.length - 1].content += message;
 
 				newMessages = tempMessages;
-				updateMessages(newMessages);
+				updateChatMessages(newMessages);
 			}
 		});
 
 		updateSendingMessage(false);
 
 		updateMessage('');
-		updateChatMessages(newMessages);
 	}
 
 	async function regenMessage(index: number) {
@@ -67,25 +65,25 @@ export default function Chat() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				messages: messages.slice(0, index)
+				messages: chatMessages.slice(0, index)
 			})
 		});
 
 		const responseJson = await response.json();
 
-		const newMessages = [...messages];
+		const newMessages = [...chatMessages];
 		newMessages[index + 1] = {
 			role: 'assistant',
 			content: responseJson
 		};
 
-		updateMessages(newMessages);
+		updateChatMessages(newMessages);
 	}
 
 	return (
 		<div className={ classes.container }>
 			<div className={ classes.messageContainer }>
-				{ messages.map((message, index) => (
+				{ chatMessages.map((message, index) => (
 					<ChatMessage
 						key={ index }
 						role={ message.role }
@@ -122,7 +120,7 @@ export default function Chat() {
 			</form>
 
 			<button
-				onClick={ () => updateMessages([]) }
+				onClick={ () => updateChatMessages([]) }
 				className={ classes.clearChat }
 			>
 				Clear Chat
