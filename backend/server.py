@@ -20,7 +20,8 @@ from nlp import (
 
 openai.organization = "org-9bUDqwqHW2Peg4u47Psf9uUo"
 
-DEBUG = True
+DEBUG = False
+PORT = 8000
 
 # Read env file
 with open(".env", "r") as f:
@@ -32,6 +33,8 @@ with open(".env", "r") as f:
             openai.organization = value.strip()
         elif key == "DEBUG":
             DEBUG = value.strip().lower() == "true"
+        elif key == "PORT":
+            PORT = int(value.strip())
 
 class ReflectionRequestPayload(BaseModel):
     user_id: int
@@ -187,5 +190,4 @@ else:
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="localhost", port=int(sys.argv[1] if len(sys.argv) > 1 else 8000))
-
+    uvicorn.run(app, host="localhost", port=PORT)
