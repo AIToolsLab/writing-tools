@@ -5,35 +5,62 @@ import { DefaultButton } from '@fluentui/react/lib/Button';
 
 import classes from './styles.module.css';
 
+// const promptList = [
+// 	{
+// 		keyword: 'Thesis Statement',
+// 		prompt: 'What is the thesis of the following paragraph? Answer concisely without saying "the thesis is".'
+// 	},
+// 	{
+// 		keyword: 'Important Concepts',
+// 		prompt: 'List up to 10 important concepts in this paragraph as phrases of up to 3 words.'
+// 	},
+// 	{
+// 		keyword: 'Questions the Writer Was Attempting to Answer',
+// 		prompt: 'List 2 or 3 questions that the writer was attempting to answer in this paragraph.'
+// 	},
+// 	{
+// 		keyword: 'Questions a Reader Might Have',
+// 		prompt: 'As a reader, ask the writer 2 or 3 questions.'
+// 	},
+// 	{
+// 		keyword: 'Counterpoints',
+// 		prompt: "List counterpoints to this paragraph's arguments."
+// 	},
+// ];
+
 const promptList = [
 	{
-		keyword: 'Thesis Statement',
-		prompt: 'Step 1: Write a sentence stating what seems to be the thesis of the paragraph. Step 2: Say FINAL OUTPUT. Step 3: Say the thesis again, but even more concisely with no filler words like "the thesis is".'
+		keyword: 'Main Point',
+		prompt: 'What is the main point of this paragraph?',
 	},
 	{
 		keyword: 'Important Concepts',
-		prompt: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 2: Output FINAL OUTPUT, then a new line, then a Markdown unordered list with the 3 concepts with highest relevance, in short phrases of 2 or 3 words.'
+		prompt: 'What are the important concepts in this paragraph? List three of them in dashes -',
 	},
 	{
-		keyword: 'Important Concepts as Sentences',
-		prompt: 'Step 1: List 10 important concepts in this paragraph, in the format 1. Concept: [concept as a complete sentence] Relevance: [relevance score, 10 best]. Step 2: Output FINAL OUTPUT, then a new line, then a Markdown unordered list with the 3 concepts with highest relevance, as a complete sentence.'
+		keyword: 'Claims and Arguments',
+		prompt: 'What are the claims or arguments presented in this paragraph? List three of them in dashes -',
 	},
 	{
-		keyword: 'Questions the Writer Was Attempting to Answer',
-		prompt: 'List 2 or 3 questions that the writer was attempting to answer in this paragraph.'
+		keyword: 'Counterarguments',
+		prompt: 'What are some potential counterarguments to the claims presented in this paragraph? Make tentative statements, list three of them in dashes -',
 	},
 	{
-		keyword: 'Questions a Reader Might Have',
-		prompt: 'As a reader, ask the writer 2 or 3 questions about definitions, logical connections, or some needed background information.'
+		keyword: 'Further Evidence',
+		prompt: 'What further evidence or examples would you like to see to support the claims presented in this paragraph? List three of them in dashes -',
 	},
 	{
-		keyword: 'Advice',
-		prompt: 'What advice would you give the writer to improve this paragraph? Respond in a bulleted list.'
+		keyword: 'Outside the Box',
+		prompt: 'What outside the box questions do you have about this paragraph? List three of them in dashes -',
 	},
 	{
-		keyword: 'Metaphors',
-		prompt: 'List the metaphors that the writer uses in this paragraph.'
-	}
+		keyword: 'Questions as a Writer',
+		prompt: 'What questions do you have about this paragraph as a writer? List three of them in dashes -',
+	},
+	{
+		keyword: 'Questions as a Reader',
+		prompt: 'What questions do you have about this paragraph as a reader? List three of them in dashes -',
+	},
 ];
 
 interface PromptButtonSelectorProps {
