@@ -149,8 +149,6 @@ async def chat(payload: ChatRequestPayload):
             if chunk["choices"][0]["finish_reason"] == "stop":
                 break
 
-            print(chunk)
-
             yield chunk["choices"][0]["delta"]["content"]
 
     return EventSourceResponse(generator())

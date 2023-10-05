@@ -14,9 +14,8 @@ export default function Login() {
 	return (
 		<div className={ classes.container }>
 			<input
-				type="number"
 				value={ userId }
-				placeholder="Participant ID"
+				placeholder="Username"
 				onChange={ e => updateId(e.target.value) }
 			/>
 
@@ -31,9 +30,6 @@ export default function Login() {
 							: ['chat', 'reflections'];
 					changePage(pageOrder[0]);
 				} }
-				disabled={
-					!(parseInt(userId) > 0) /* doesn't parse to a valid int */
-				}
 			>
 				Login
 			</button>

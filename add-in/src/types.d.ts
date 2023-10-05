@@ -12,3 +12,8 @@ interface CardData {
 	paragraphIndex: number;
 	body: string;
 }
+
+interface ChatMessage {
+	role: string;
+	content: string;
+}

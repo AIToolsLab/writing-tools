@@ -4,6 +4,7 @@ import { initializeIcons } from '@fluentui/font-icons-mdl2';
 import { ThemeProvider } from '@fluentui/react';
 import PageContextWrapper from './contexts/pageContext';
 import UserContextWrapper from './contexts/userContext';
+import ChatContextWrapper from './contexts/chatContext';
 
 import App from './pages/app';
 
@@ -17,11 +18,13 @@ let isOfficeInitialized = false;
 const render = (Component: any) => {
 	ReactDOM.render(
 		<ThemeProvider>
-			<UserContextWrapper>
-				<PageContextWrapper>
-					<Component isOfficeInitialized={ isOfficeInitialized } />
-				</PageContextWrapper>
-			</UserContextWrapper>
+			<ChatContextWrapper>
+				<UserContextWrapper>
+					<PageContextWrapper>
+						<Component isOfficeInitialized={ isOfficeInitialized } />
+					</PageContextWrapper>
+				</UserContextWrapper>
+			</ChatContextWrapper>
 		</ThemeProvider>,
 		document.getElementById('container')
 	);
