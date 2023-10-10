@@ -1,42 +1,36 @@
+import os
 import json
 import sqlite3
 
-from typing import List, Dict
-
-from pathlib import Path
-
 import openai
 import uvicorn
+
+from typing import List, Dict
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+
+from pydantic import BaseModel, Optional
+from dotenv import load_dotenv
 
 from nlp import (
     gen_reflections_chat,
     ReflectionResponseInternal
 )
 
-openai.organization = "org-9bUDqwqHW2Peg4u47Psf9uUo"
+# Load ENV vars
+load_dotenv()
 
-DEBUG = False
-PORT = 8000
+openai.organization = os.getenv('OPENAI_ORGANIZATION') or 'org-9bUDqwqHW2Peg4u47Psf9uUo'
+openai.api_key = os.getenv('OPENAI_API_KEY')
 
-# Read env file
-with open(".env", "r") as f:
-    for line in f:
-        key, value = line.split("=")
-        if key == "OPENAI_API_KEY":
-            openai.api_key = value.strip()
-        elif key == "OPENAI_ORGANIZATION":
-            openai.organization = value.strip()
-        elif key == "DEBUG":
-            DEBUG = value.strip().lower() == "true"
-        elif key == "PORT":
-            PORT = int(value.strip())
+DEBUG = os.getenv('DEBUG') or False
+PORT = os.getenv('PORT') or 8000
 
+# Declare Types
 class ReflectionRequestPayload(BaseModel):
     user_id: int
     paragraph: str
