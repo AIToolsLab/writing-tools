@@ -1,12 +1,13 @@
 import json
-import sys
 import sqlite3
+
 from typing import List, Dict
 
 from pathlib import Path
 
 import openai
 import uvicorn
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
