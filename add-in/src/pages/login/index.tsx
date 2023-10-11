@@ -7,7 +7,7 @@ import classes from './styles.module.css';
 
 export default function Login() {
 	const { changePage } = useContext(PageContext);
-	const { updateUserId } = useContext(UserContext);
+	const { updateUsername } = useContext(UserContext);
 
 	const [userId, updateId] = useState('');
 
@@ -21,14 +21,9 @@ export default function Login() {
 
 			<button
 				onClick={ () => {
-					const userIdInt = parseInt(userId);
-					updateUserId(userIdInt);
-                    
-					const pageOrder =
-						userIdInt % 2 === 0
-							? ['reflections', 'chat']
-							: ['chat', 'reflections'];
-					changePage(pageOrder[0]);
+					updateUsername(userId);
+
+					changePage('chat'); // Need to add randomness back to page switching
 				} }
 			>
 				Login

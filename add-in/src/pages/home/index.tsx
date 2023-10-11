@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
 
 import { ReflectionCards } from '@/components/reflectionCard';
 import {
@@ -6,12 +6,16 @@ import {
 	PromptButtonSelector
 } from '@/components/promptButtonSelector';
 
+import { UserContext } from '@/contexts/userContext';
+
 import { getParagraphText } from '@/utilities';
 import { getReflectionFromServer } from '@/api';
 
 const includeSurroundingParagraphs = false;
 
 export default function Home() {
+	const { username } = useContext(UserContext);
+
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [curParagraphText, updateCurParagraphText] = useState('');
 
@@ -101,7 +105,7 @@ export default function Home() {
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflectionFromServer(paragraphText, prompt);
+				getReflectionFromServer(username, paragraphText, prompt);
 
 			reflectionsPromise
 				.then(newReflections => {

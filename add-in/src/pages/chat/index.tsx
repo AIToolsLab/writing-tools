@@ -6,6 +6,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import ChatMessage from '@/components/chatMessage';
 
 import { ChatContext } from '@/contexts/chatContext';
+import { UserContext } from '@/contexts/userContext';
 
 import { SERVER_URL } from '@/api';
 
@@ -13,6 +14,7 @@ import classes from './styles.module.css';
 
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
+	const { username } = useContext(UserContext);
 
 	const [isSendingMessage, updateSendingMessage] = useState(false);
 
@@ -38,7 +40,8 @@ export default function Chat() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				messages: [...chatMessages, { role: 'user', content: message }]
+				messages: [...chatMessages, { role: 'user', content: message }],
+				username: username
 			}),
 			onmessage(msg) {
 				const message = msg.data;
