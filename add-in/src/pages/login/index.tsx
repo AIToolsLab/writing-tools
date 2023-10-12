@@ -9,27 +9,36 @@ export default function Login() {
 	const { changePage } = useContext(PageContext);
 	const { updateUserId } = useContext(UserContext);
 
-	const [userId, updateId] = useState('');
+	const [username, setUsername] = useState('');
+	const [password, setPassword] = useState('');
 
 	return (
 		<div className={ classes.container }>
 			<input
-				value={ userId }
+				type="text"
+				value={ username }
 				placeholder="Username"
-				onChange={ e => updateId(e.target.value) }
+				onChange={ e => setUsername(e.target.value) }
+			/>
+
+			<input
+				type="password"
+				value={ password }
+				placeholder="Password"
+				onChange={ e => setPassword(e.target.value) }
 			/>
 
 			<button
 				onClick={ () => {
-					const userIdInt = parseInt(userId);
-					updateUserId(userIdInt);
-                    
-					const pageOrder =
-						userIdInt % 2 === 0
-							? ['reflections', 'chat']
-							: ['chat', 'reflections'];
-					changePage(pageOrder[0]);
+					if (username === 'example' && password === 'password') {
+						updateUserId(username);
+						changePage('home');
+					} 
+					else {
+						alert('Invalid username or password');
+					}
 				} }
+				disabled={ !username || !password }
 			>
 				Login
 			</button>

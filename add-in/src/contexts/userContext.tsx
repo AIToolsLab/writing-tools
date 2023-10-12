@@ -1,21 +1,29 @@
-import { type PropsWithChildren, createContext, useState } from 'react';
+import { createContext, useState } from 'react';
 
-export const UserContext = createContext<{
-	userId: number;
-	updateUserId: (userId: number) => void;
-}>({
-	userId: -1,
-	updateUserId: (_userId: number) => {}
+interface UserContextType {
+  userId: string;
+  updateUserId: (userId: string) => void;
+}
+
+export const UserContext = createContext<UserContextType>({
+  userId: '',
+  updateUserId: () => {},
 });
 
 export default function UserContextWrapper({
-	children
-}: PropsWithChildren<any>) {
-	const [userId, updateUserId] = useState(-1);
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  const [userId, setUserId] = useState('');
 
-	return (
-		<UserContext.Provider value={ { userId, updateUserId } }>
-			{ children }
-		</UserContext.Provider>
-	);
+  const updateUserId = (newUserId: string) => {
+    setUserId(newUserId);
+  };
+
+  return (
+    <UserContext.Provider value={ { userId, updateUserId } }>
+      { children }
+    </UserContext.Provider>
+  );
 }
