@@ -1,20 +1,20 @@
 import { type PropsWithChildren, createContext, useState } from 'react';
 
 export const UserContext = createContext<{
-	userId: number;
-	updateUserId: (userId: number) => void;
+	username: string;
+	updateUsername: (username: string) => void;
 }>({
-	userId: -1,
-	updateUserId: (_userId: number) => {}
+	username: '',
+	updateUsername: (_username: string) => {}
 });
 
 export default function UserContextWrapper({
 	children
 }: PropsWithChildren<any>) {
-	const [userId, updateUserId] = useState(-1);
+	const [username, updateUsername] = useState('');
 
 	return (
-		<UserContext.Provider value={ { userId, updateUserId } }>
+		<UserContext.Provider value={ { username, updateUsername } }>
 			{ children }
 		</UserContext.Provider>
 	);

@@ -8,13 +8,13 @@ export const SERVER_URL = '/api';
  * @returns {Promise<ReflectionResponseItem[]>} - A promise that resolves to an array of reflection response items.
  */
 export async function getReflectionFromServer(
+	username: string,
 	paragraph: string,
 	prompt: string
 ): Promise<ReflectionResponseItem[]> {
 	try {
 		const data = {
-			// eslint-disable-next-line camelcase
-			user_id: -1, // TODO: Get user_id from somewhere
+			username: username,
 			paragraph,
 			prompt
 		};
