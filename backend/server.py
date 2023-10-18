@@ -147,11 +147,7 @@ async def chat(payload: ChatRequestPayload):
 
     async def generator():
         async for chunk in response:
-            if chunk["choices"][0]["finish_reason"] == "stop":
-                break
-            # Return the delta in Markdown format so that newlines don't get swallowed.
-            delta = chunk["choices"][0]["delta"]
-            yield json.dumps(delta)
+            yield json.dumps(chunk)
 
     return EventSourceResponse(generator())
 
