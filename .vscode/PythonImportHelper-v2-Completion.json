@@ -1,0 +1,405 @@
+[
+    {
+        "label": "re",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "re",
+        "description": "re",
+        "detail": "re",
+        "documentation": {}
+    },
+    {
+        "label": "openai",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "openai",
+        "description": "openai",
+        "detail": "openai",
+        "documentation": {}
+    },
+    {
+        "label": "retry",
+        "importPath": "tenacity",
+        "description": "tenacity",
+        "isExtraImport": true,
+        "detail": "tenacity",
+        "documentation": {}
+    },
+    {
+        "label": "stop_after_attempt",
+        "importPath": "tenacity",
+        "description": "tenacity",
+        "isExtraImport": true,
+        "detail": "tenacity",
+        "documentation": {}
+    },
+    {
+        "label": "# for exponential backoff\n    wait_random_exponential",
+        "importPath": "tenacity",
+        "description": "tenacity",
+        "isExtraImport": true,
+        "detail": "tenacity",
+        "documentation": {}
+    },
+    {
+        "label": "BaseModel",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "BaseModel",
+        "importPath": "pydantic",
+        "description": "pydantic",
+        "isExtraImport": true,
+        "detail": "pydantic",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "List",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Dict",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "Optional",
+        "importPath": "typing",
+        "description": "typing",
+        "isExtraImport": true,
+        "detail": "typing",
+        "documentation": {}
+    },
+    {
+        "label": "os",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "os",
+        "description": "os",
+        "detail": "os",
+        "documentation": {}
+    },
+    {
+        "label": "json",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "json",
+        "description": "json",
+        "detail": "json",
+        "documentation": {}
+    },
+    {
+        "label": "sqlite3",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "sqlite3",
+        "description": "sqlite3",
+        "detail": "sqlite3",
+        "documentation": {}
+    },
+    {
+        "label": "uvicorn",
+        "kind": 6,
+        "isExtraImport": true,
+        "importPath": "uvicorn",
+        "description": "uvicorn",
+        "detail": "uvicorn",
+        "documentation": {}
+    },
+    {
+        "label": "Path",
+        "importPath": "pathlib",
+        "description": "pathlib",
+        "isExtraImport": true,
+        "detail": "pathlib",
+        "documentation": {}
+    },
+    {
+        "label": "FastAPI",
+        "importPath": "fastapi",
+        "description": "fastapi",
+        "isExtraImport": true,
+        "detail": "fastapi",
+        "documentation": {}
+    },
+    {
+        "label": "CORSMiddleware",
+        "importPath": "fastapi.middleware.cors",
+        "description": "fastapi.middleware.cors",
+        "isExtraImport": true,
+        "detail": "fastapi.middleware.cors",
+        "documentation": {}
+    },
+    {
+        "label": "StaticFiles",
+        "importPath": "fastapi.staticfiles",
+        "description": "fastapi.staticfiles",
+        "isExtraImport": true,
+        "detail": "fastapi.staticfiles",
+        "documentation": {}
+    },
+    {
+        "label": "FileResponse",
+        "importPath": "fastapi.responses",
+        "description": "fastapi.responses",
+        "isExtraImport": true,
+        "detail": "fastapi.responses",
+        "documentation": {}
+    },
+    {
+        "label": "EventSourceResponse",
+        "importPath": "sse_starlette",
+        "description": "sse_starlette",
+        "isExtraImport": true,
+        "detail": "sse_starlette",
+        "documentation": {}
+    },
+    {
+        "label": "load_dotenv",
+        "importPath": "dotenv",
+        "description": "dotenv",
+        "isExtraImport": true,
+        "detail": "dotenv",
+        "documentation": {}
+    },
+    {
+        "label": "gen_reflections_chat",
+        "importPath": "nlp",
+        "description": "nlp",
+        "isExtraImport": true,
+        "detail": "nlp",
+        "documentation": {}
+    },
+    {
+        "label": "ReflectionResponseInternal",
+        "importPath": "nlp",
+        "description": "nlp",
+        "isExtraImport": true,
+        "detail": "nlp",
+        "documentation": {}
+    },
+    {
+        "label": "parse_reflections_chat",
+        "importPath": "nlp",
+        "description": "nlp",
+        "isExtraImport": true,
+        "detail": "nlp",
+        "documentation": {}
+    },
+    {
+        "label": "ReflectionResponseInternal",
+        "importPath": "nlp",
+        "description": "nlp",
+        "isExtraImport": true,
+        "detail": "nlp",
+        "documentation": {}
+    },
+    {
+        "label": "ReflectionResponseInternal",
+        "kind": 6,
+        "importPath": "backend.nlp",
+        "description": "backend.nlp",
+        "peekOfCode": "class ReflectionResponseInternal(BaseModel):\n    full_response: str\n    scratch: str\n    reflections: List[str]\nasync def gen_reflections_chat(writing, prompt) -> ReflectionResponseInternal:\n    prompt_with_output_format = output_format + prompt\n    response = await async_chat_with_backoff(\n        model=\"gpt-3.5-turbo\",\n        messages=[\n            {\"role\": \"system\", \"content\": prompt},",
+        "detail": "backend.nlp",
+        "documentation": {}
+    },
+    {
+        "label": "sanitize",
+        "kind": 2,
+        "importPath": "backend.nlp",
+        "description": "backend.nlp",
+        "peekOfCode": "def sanitize(text):\n    return text.replace('\"', '').replace(\"'\", \"\")\nasync_chat_with_backoff = (\n    retry(wait=wait_random_exponential(\n        min=1, max=60), stop=stop_after_attempt(6))\n    (openai.ChatCompletion.acreate)\n)\n# Scratch-extractor regex\n# xxx\\nFINAL ANSWER\\nyyy\n# or",
+        "detail": "backend.nlp",
+        "documentation": {}
+    },
+    {
+        "label": "parse_reflections_chat",
+        "kind": 2,
+        "importPath": "backend.nlp",
+        "description": "backend.nlp",
+        "peekOfCode": "def parse_reflections_chat(full_response: str) -> ReflectionResponseInternal:\n    # Make a best effort at extracting the a list of reflections from the response\n    # Fall back on returning a single item.\n    splits = FINAL_ANSWER_REGEX.split(full_response, maxsplit=1)\n    if len(splits) > 1:\n        scratch = splits[0].strip()\n        final_answer = splits[1].strip()\n    else:\n        scratch = \"\"\n        final_answer = full_response",
+        "detail": "backend.nlp",
+        "documentation": {}
+    },
+    {
+        "label": "async_chat_with_backoff",
+        "kind": 5,
+        "importPath": "backend.nlp",
+        "description": "backend.nlp",
+        "peekOfCode": "async_chat_with_backoff = (\n    retry(wait=wait_random_exponential(\n        min=1, max=60), stop=stop_after_attempt(6))\n    (openai.ChatCompletion.acreate)\n)\n# Scratch-extractor regex\n# xxx\\nFINAL ANSWER\\nyyy\n# or\n# xxx\\nFINAL ANSWER:\\nyyy\nFINAL_ANSWER_REGEX = re.compile(r\"FINAL (?:ANSWER|RESPONSE|OUTPUT)(?::|\\.)?\\s+\", re.MULTILINE)",
+        "detail": "backend.nlp",
+        "documentation": {}
+    },
+    {
+        "label": "FINAL_ANSWER_REGEX",
+        "kind": 5,
+        "importPath": "backend.nlp",
+        "description": "backend.nlp",
+        "peekOfCode": "FINAL_ANSWER_REGEX = re.compile(r\"FINAL (?:ANSWER|RESPONSE|OUTPUT)(?::|\\.)?\\s+\", re.MULTILINE)\noutput_format = \"\"\"\\\n# Output format\n- concise\n- short phrases, not complete sentences\n- not conversational\n- Markdown dash (not number) format for lists.\n# Task\n\"\"\"\nclass ReflectionResponseInternal(BaseModel):",
+        "detail": "backend.nlp",
+        "documentation": {}
+    },
+    {
+        "label": "output_format",
+        "kind": 5,
+        "importPath": "backend.nlp",
+        "description": "backend.nlp",
+        "peekOfCode": "output_format = \"\"\"\\\n# Output format\n- concise\n- short phrases, not complete sentences\n- not conversational\n- Markdown dash (not number) format for lists.\n# Task\n\"\"\"\nclass ReflectionResponseInternal(BaseModel):\n    full_response: str",
+        "detail": "backend.nlp",
+        "documentation": {}
+    },
+    {
+        "label": "ReflectionRequestPayload",
+        "kind": 6,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "class ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str\nclass ReflectionResponses(BaseModel):\n    reflections: List[ReflectionResponseItem]\nclass ChatRequestPayload(BaseModel):\n    messages: List[Dict[str, str]]",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "ReflectionResponseItem",
+        "kind": 6,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "class ReflectionResponseItem(BaseModel):\n    reflection: str\nclass ReflectionResponses(BaseModel):\n    reflections: List[ReflectionResponseItem]\nclass ChatRequestPayload(BaseModel):\n    messages: List[Dict[str, str]]\n    username: str\nclass Log(BaseModel):\n    username: str\n    interaction: str # \"chat\", \"reflection\", \"click\", \"page_change\"",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "ReflectionResponses",
+        "kind": 6,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "class ReflectionResponses(BaseModel):\n    reflections: List[ReflectionResponseItem]\nclass ChatRequestPayload(BaseModel):\n    messages: List[Dict[str, str]]\n    username: str\nclass Log(BaseModel):\n    username: str\n    interaction: str # \"chat\", \"reflection\", \"click\", \"page_change\"\n    prompt: Optional[str] = None\n    ui_id: Optional[str] = None",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "ChatRequestPayload",
+        "kind": 6,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "class ChatRequestPayload(BaseModel):\n    messages: List[Dict[str, str]]\n    username: str\nclass Log(BaseModel):\n    username: str\n    interaction: str # \"chat\", \"reflection\", \"click\", \"page_change\"\n    prompt: Optional[str] = None\n    ui_id: Optional[str] = None\napp = FastAPI()\norigins = [",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "Log",
+        "kind": 6,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "class Log(BaseModel):\n    username: str\n    interaction: str # \"chat\", \"reflection\", \"click\", \"page_change\"\n    prompt: Optional[str] = None\n    ui_id: Optional[str] = None\napp = FastAPI()\norigins = [\n    \"*\",\n]\napp.add_middleware(",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "make_log",
+        "kind": 2,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "def make_log(payload: Log):\n    with sqlite3.connect(db_file) as conn:\n        c = conn.cursor()\n        c.execute(\n            \"INSERT INTO logs (timestamp, username, interaction, prompt, ui_id) \"\n            \"VALUES (datetime('now'), ?, ?, ?, ?)\",\n            (payload.username, payload.interaction, payload.prompt, payload.ui_id),\n        )\nasync def get_reflections(\n    request: ReflectionRequestPayload,",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "openai.organization",
+        "kind": 5,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "openai.organization = os.getenv(\"OPENAI_ORGANIZATION\") or \"org-9bUDqwqHW2Peg4u47Psf9uUo\"\nopenai.api_key = os.getenv(\"OPENAI_API_KEY\")\nDEBUG = os.getenv(\"DEBUG\") or False\nPORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str\n    prompt: str\nclass ReflectionResponseItem(BaseModel):",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "openai.api_key",
+        "kind": 5,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "openai.api_key = os.getenv(\"OPENAI_API_KEY\")\nDEBUG = os.getenv(\"DEBUG\") or False\nPORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "DEBUG",
+        "kind": 5,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "DEBUG = os.getenv(\"DEBUG\") or False\nPORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str\nclass ReflectionResponses(BaseModel):",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "PORT",
+        "kind": 5,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "PORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str\nclass ReflectionResponses(BaseModel):\n    reflections: List[ReflectionResponseItem]",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "app",
+        "kind": 5,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "app = FastAPI()\norigins = [\n    \"*\",\n]\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=origins,\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "origins",
+        "kind": 5,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "origins = [\n    \"*\",\n]\napp.add_middleware(\n    CORSMiddleware,\n    allow_origins=origins,\n    allow_credentials=True,\n    allow_methods=[\"*\"],\n    allow_headers=[\"*\"],\n)",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "db_file",
+        "kind": 5,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "db_file = 'backend.db'\nwith sqlite3.connect(db_file) as conn:\n    c = conn.cursor()\n    c.execute(\n        \"CREATE TABLE IF NOT EXISTS requests (timestamp, username, prompt, paragraph, response, success)\"\n    )\n    c.execute(\n        \"CREATE TABLE IF NOT EXISTS logs (timestamp, username, interaction, prompt, ui_id)\"\n    )\ndef make_log(payload: Log):",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "static_path",
+        "kind": 5,
+        "importPath": "backend.server",
+        "description": "backend.server",
+        "peekOfCode": "static_path = Path('../add-in/dist')\nif static_path.exists():\n    @app.get(\"/\")\n    def index():\n        return FileResponse(static_path / 'index.html')\n    # Get access to files on the server. Only for a production build.\n    app.mount(\"\", StaticFiles(directory=static_path), name=\"static\")\nelse:\n    print(\"Not mounting static files because the directory does not exist.\")\n    print(\"To build the frontend, run `npm run build` in the add-in directory.\")",
+        "detail": "backend.server",
+        "documentation": {}
+    },
+    {
+        "label": "test_parse_reflections_chat",
+        "kind": 2,
+        "importPath": "backend.test_nlp",
+        "description": "backend.test_nlp",
+        "peekOfCode": "def test_parse_reflections_chat():\n    full_response = \"\"\"1. Concept: x\\n   Relevance: 7 \\n\\n2. Concept: y\\n   Relevance: 8 \\n\\n3. Concept: z\\n   Relevance: 9 \\n\\nFINAL OUTPUT: - x \\n- y\\n- z\"\"\"\n    actual = parse_reflections_chat(full_response)\n    assert actual.full_response == full_response\n    assert actual.scratch == \"1. Concept: x\\n   Relevance: 7 \\n\\n2. Concept: y\\n   Relevance: 8 \\n\\n3. Concept: z\\n   Relevance: 9\"\n    assert actual.reflections == [\"x\", \"y\", \"z\"]\n    full_response = \"\"\"1. Concept: x\\n   Relevance: 7 \\n\\n2. Concept: y\\n   Relevance: 8 \\n\\n3. Concept: z\\n   Relevance: 9 \\n\\nFINAL OUTPUT: \\n1. x \\n2. y\\n3. z\"\"\"\n    actual = parse_reflections_chat(full_response)\n    assert actual.full_response == full_response\n    assert actual.scratch == \"1. Concept: x\\n   Relevance: 7 \\n\\n2. Concept: y\\n   Relevance: 8 \\n\\n3. Concept: z\\n   Relevance: 9\"",
+        "detail": "backend.test_nlp",
+        "documentation": {}
+    }
+]
