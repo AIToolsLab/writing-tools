@@ -123,7 +123,7 @@ export default function Editor(props: { focused: null | Card; focusedIndex: numb
                                 }
 
                                 updateSummariesTimeout = setTimeout(async () => {
-                                    const responses = await Promise.all(
+/*                                     const responses = await Promise.all(
                                         paragraphs.map((paragraph) => 
                                             fetch(
                                                 `${ SERVER_URL }/summarize`,
@@ -160,7 +160,7 @@ export default function Editor(props: { focused: null | Card; focusedIndex: numb
                                                 }
                                             )
                                         )
-                                    );
+                                    );*/
                                 }, 1000);
                             });
                         } }
