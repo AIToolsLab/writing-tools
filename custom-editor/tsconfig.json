@@ -1,0 +1,38 @@
+{
+    "compilerOptions": {
+      "target": "ES2018",
+      "lib": [
+        "DOM.Iterable",
+        "DOM",
+        "ESNext",
+        "ESNext.Array",
+        "ES2019.Array"
+      ],
+      "allowJs": true,
+      "noEmit": true,
+      "resolveJsonModule": true,
+      "isolatedModules": true,
+      "jsx": "preserve",
+      "incremental": true,
+      "module": "ES2020",
+      "rootDir": "./",
+      "moduleResolution": "node",
+      "paths": {
+        "*": [
+          "./src/*.d.ts"
+        ],
+        "@/*": [
+          "./src/*"
+        ]
+      },
+      "esModuleInterop": true,
+      "forceConsistentCasingInFileNames": true,
+      "strict": true,
+      "noImplicitAny": true,
+      "alwaysStrict": true,
+      "skipLibCheck": true
+    },
+    "include": ["**/*.ts", "**/*.tsx"],
+    "exclude": ["node_modules"]
+  }
+  

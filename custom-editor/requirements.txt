@@ -1,0 +1,7 @@
+spacy
+fastapi
+uvicorn
+openai
+pandas
+python-dotenv
+joblib
