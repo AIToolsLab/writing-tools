@@ -91,6 +91,10 @@ module.exports = async (env, options) => {
 						to: 'assets/[name][ext][query]'
 					},
 					{
+						from: 'src/landing-page/*',
+						to: '[name][ext]'
+					},
+					{
 						from: 'manifest*.xml',
 						to: '[name]' + '[ext]',
 						transform(content) {
@@ -113,11 +117,6 @@ module.exports = async (env, options) => {
 				filename: 'commands.html',
 				template: './src/commands/commands.html',
 				chunks: ['commands']
-			}),
-			new HtmlWebpackPlugin({
-				filename: 'index.html',
-				template: './src/index.html',
-				chunks: []
 			}),
 			new webpack.ProvidePlugin({
 				Promise: ['es6-promise', 'Promise']
