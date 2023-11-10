@@ -30,6 +30,10 @@ module.exports = async (env, options) => {
 				'./src/index.tsx',
 				'./src/taskpane.html'
 			],
+			popup: [
+				'./src/popup.tsx',
+				'./src/popup.html'
+			],
 			commands: './src/commands/commands.ts'
 		},
 		output: {
@@ -108,6 +112,11 @@ module.exports = async (env, options) => {
 				filename: 'taskpane.html',
 				template: './src/taskpane.html',
 				chunks: ['taskpane', 'vendor', 'polyfills']
+			}),
+			new HtmlWebpackPlugin({
+				filename: 'popup.html',
+				template: './src/popup.html',
+				chunks: ['popup', 'vendor', 'polyfills']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'commands.html',
