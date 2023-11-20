@@ -13,12 +13,11 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from fastapi.security import OAuth2PasswordBearer
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
 from sse_starlette import EventSourceResponse
 from starlette.status import HTTP_403_FORBIDDEN
 from urllib.request import urlopen
-import os
 
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -40,7 +39,9 @@ PORT = os.getenv("PORT") or 8000
 AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
 AUTH0_API_AUDIENCE = os.getenv("AUTH0_API_AUDIENCE")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+# Auth0 Bearer Token comes over HTTP Authorization header
+
+token_auth_scheme = HTTPBearer()
 
 # Declare Types
 class ReflectionRequestPayload(BaseModel):
@@ -100,10 +101,13 @@ def make_log(payload: Log):
             (payload.username, payload.interaction, payload.prompt, payload.ui_id),
         )
 
-def verify_token(token: str = Depends(oauth2_scheme)):
+
+# from https://auth0.com/docs/quickstart/backend/python/01-authorization#validate-access-tokens
+def verify_token(token: HTTPAuthorizationCredentials = Depends(token_auth_scheme)):
     jsonurl = urlopen(f"https://{AUTH0_DOMAIN}/.well-known/jwks.json")
     jwks = json.loads(jsonurl.read())
-    unverified_header = jwt.get_unverified_header(token)
+    print(token.credentials)
+    unverified_header = jwt.get_unverified_header(token.credentials)
     rsa_key = {}
     for key in jwks["keys"]:
         if key["kid"] == unverified_header["kid"]:
@@ -117,7 +121,7 @@ def verify_token(token: str = Depends(oauth2_scheme)):
     if rsa_key:
         try:
             payload = jwt.decode(
-                token,
+                token.credentials,
                 rsa_key,
                 algorithms=["RS256"],
                 audience=AUTH0_API_AUDIENCE,

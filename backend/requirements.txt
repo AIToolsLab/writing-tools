@@ -5,7 +5,9 @@ uvicorn
 openai
 tenacity
 sse-starlette
-flask>=2.0.3
 python-dotenv>=0.19.2
 authlib>=1.0
 requests>=2.27.1
+# from https://auth0.com/docs/quickstart/backend/python/01-authorization#validate-access-tokens
+# plus https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/
+python-jose[cryptography]

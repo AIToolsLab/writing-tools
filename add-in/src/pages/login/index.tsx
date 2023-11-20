@@ -38,7 +38,7 @@ export default function Login() {
 			console.log('Userinfo:', userinfo);
 
 			// Make a test authenticated request to the server
-			let testResponse = await fetch('/api/test', {
+			let testResponse = await fetch('/api/private', {
 				headers: {
 					Authorization: `Bearer ${token}`
 				}
