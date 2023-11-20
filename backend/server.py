@@ -5,15 +5,20 @@ import sqlite3
 import openai
 import uvicorn
 
+from jose import jwt
 from typing import List, Dict, Optional
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+from fastapi.security import OAuth2PasswordBearer
 
 from sse_starlette import EventSourceResponse
+from starlette.status import HTTP_403_FORBIDDEN
+from urllib.request import urlopen
+import os
 
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -29,8 +34,13 @@ load_dotenv()
 openai.organization = os.getenv("OPENAI_ORGANIZATION") or "org-9bUDqwqHW2Peg4u47Psf9uUo"
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-DEBUG = os.getenv("DEBUG") or False
+DEBUG = os.environ.get('DEBUG', "False").lower() == "true"
 PORT = os.getenv("PORT") or 8000
+
+AUTH0_DOMAIN = os.getenv("AUTH0_DOMAIN")
+AUTH0_API_AUDIENCE = os.getenv("AUTH0_API_AUDIENCE")
+
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 # Declare Types
 class ReflectionRequestPayload(BaseModel):
@@ -89,6 +99,47 @@ def make_log(payload: Log):
             "VALUES (datetime('now'), ?, ?, ?, ?)",
             (payload.username, payload.interaction, payload.prompt, payload.ui_id),
         )
+
+def verify_token(token: str = Depends(oauth2_scheme)):
+    jsonurl = urlopen(f"https://{AUTH0_DOMAIN}/.well-known/jwks.json")
+    jwks = json.loads(jsonurl.read())
+    unverified_header = jwt.get_unverified_header(token)
+    rsa_key = {}
+    for key in jwks["keys"]:
+        if key["kid"] == unverified_header["kid"]:
+            rsa_key = {
+                "kty": key["kty"],
+                "kid": key["kid"],
+                "use": key["use"],
+                "n": key["n"],
+                "e": key["e"]
+            }
+    if rsa_key:
+        try:
+            payload = jwt.decode(
+                token,
+                rsa_key,
+                algorithms=["RS256"],
+                audience=AUTH0_API_AUDIENCE,
+                issuer=f"https://{AUTH0_DOMAIN}/"
+            )
+            return payload
+
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(
+                status_code=HTTP_403_FORBIDDEN, detail="Token expired"
+            )
+        except jwt.JWTClaimsError:
+            raise HTTPException(
+                status_code=HTTP_403_FORBIDDEN, detail="Incorrect claims, please check the audience and issuer"
+            )
+        except Exception:
+            raise HTTPException(
+                status_code=HTTP_403_FORBIDDEN, detail="Unable to parse authentication token."
+            )
+    raise HTTPException(
+        status_code=HTTP_403_FORBIDDEN, detail="Unable to find appropriate key."
+    )
 
 async def get_reflections(
     request: ReflectionRequestPayload,
@@ -184,6 +235,12 @@ async def logs():
         result = c.fetchall()
 
     return result
+
+@app.get("/api/private")
+def private(payload: dict = Depends(verify_token)):
+    """A valid access token is required to access this route"""
+    return payload
+
 
 # Show all server logs
 @app.get("/logs")
