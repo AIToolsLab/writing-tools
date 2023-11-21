@@ -35,7 +35,7 @@ PORT = os.getenv("PORT") or 8000
 # Declare Types
 class ReflectionRequestPayload(BaseModel):
     username: str
-    paragraph: str
+    paragraph: str # TODO: update name
     prompt: str
 
 class ReflectionResponseItem(BaseModel):
