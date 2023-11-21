@@ -14,7 +14,7 @@ export default function App() {
         <div className={ classes.container }>
             <div className={ classes.essayContainer }>
                 <Editor
-                    comment={ focusedComment > 0 ? comments[focusedComment] : null }
+                    comment={ focusedComment >= 0 ? comments[focusedComment] : null }
                     commentIndex = { focusedComment }
                     updateComments={ updateComments }
                 />
