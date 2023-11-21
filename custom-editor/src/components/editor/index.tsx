@@ -121,7 +121,7 @@ export default function Editor(props: EditorProps) {
                     {
                         namespace: 'essay',
                         theme: {
-                            paragraph: classes.paragraph, // !
+                            paragraph: classes.paragraph,
                         },
                         onError(_error, _editor) {},
                     }
