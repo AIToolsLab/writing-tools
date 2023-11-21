@@ -33,39 +33,37 @@ function CommentPlugin(props: CommentPluginProps) {
     const [editor] = useLexicalComposerContext(); // Get the editor instance
 
     editor.update(() => {
-        if(props.previousComment != props.commentIndex)
-            // Remove all highlighting from the editor
-            (function clearStyles() {
-                const selection = $createRangeSelection(); // Create a selection of text nodes
-                
-                // A map of all of the nodes in the editor
-                const nodeMap = editor.getEditorState()._nodeMap;
+        // Remove all highlighting from the editor
+        (function clearStyles() {
+            const selection = $createRangeSelection(); // Create a selection of text nodes
+            
+            // A map of all of the nodes in the editor
+            const nodeMap = editor.getEditorState()._nodeMap;
 
-                const textNodeKeys: string[] = []; // List of keys of all text nodes
+            const textNodeKeys: string[] = []; // List of keys of all text nodes
 
-                // Get all text nodes
-                nodeMap.forEach(
-                    (node, _) => {
-                        // If the node isn't a text node, then skip it
-                        if(node.getType() !== 'text') return;
-                        
-                        textNodeKeys.push(node.getKey());
-                    }
-                );
+            // Get all text nodes
+            nodeMap.forEach(
+                (node, _) => {
+                    // If the node isn't a text node, then skip it
+                    if(node.getType() !== 'text') return;
+                    
+                    textNodeKeys.push(node.getKey());
+                }
+            );
 
-                // If the editor is empty
-                if(textNodeKeys.length === 0) return;
+            // If the editor is empty
+            if(textNodeKeys.length === 0) return;
 
-                // Adjust the selection to be the first and last text nodes (selecting the entire editor)
-                selection.focus.key = '0' //textNodeKeys[0];
-                selection.anchor.key = textNodeKeys[textNodeKeys.length - 1];
+            // Adjust the selection to be the first and last text nodes (selecting the entire editor)
+            selection.focus.key = textNodeKeys[0];
+            selection.anchor.key = (Number(textNodeKeys[textNodeKeys.length - 1]) + 1).toString();
 
-                // Remove all background styles from the selection
-                $patchStyleText(selection, { 'background-color': 'none !important' });
-            })();
+            // Remove all background styles from the selection
+            $patchStyleText(selection, { 'background-color': 'none !important' });
+        })();
 
         if(!props.comment || props.commentIndex < 0) return;
-
         // Create a selection for the paragraph that the comment is for
         const selection = $createRangeSelection();
         const nodeMap = editor.getEditorState()._nodeMap;
