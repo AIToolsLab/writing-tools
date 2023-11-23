@@ -1,7 +1,7 @@
 declare module '*.css';
 declare module '*.svg';
 
-declare interface Card {
+declare interface Comment {
     title: string;
-    summary: string;
+    content: string;
 }
