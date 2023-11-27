@@ -1,3 +1,5 @@
+import { Remark } from 'react-remark';
+
 import classes from './styles.module.css';
 
 type ChatMessageProps = {
@@ -48,8 +50,8 @@ export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
 					) }
 				</div>
 
-				{ props.content }
-			</div>
-		</div>
-	);
+                <div><Remark>{ props.content }</Remark></div>
+            </div>
+        </div>
+    );
 }

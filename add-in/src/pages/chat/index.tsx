@@ -44,12 +44,13 @@ export default function Chat() {
 				username: username
 			}),
 			onmessage(msg) {
-				const message = msg.data;
-
-				const tempMessages = [...newMessages];
-				tempMessages[tempMessages.length - 1].content += message;
-
-				newMessages = tempMessages;
+				const message = JSON.parse(msg.data);
+				const choice = message.choices[0];
+				if (choice.finish_reason === 'stop') return;
+				const newContent = choice.delta.content;
+				// need to make a new "newMessages" object to force React to update :(
+				newMessages = newMessages.slice();
+				newMessages[newMessages.length - 1].content += newContent;
 				updateChatMessages(newMessages);
 			}
 		});
