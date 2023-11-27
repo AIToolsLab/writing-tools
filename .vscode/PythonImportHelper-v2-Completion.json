@@ -272,7 +272,7 @@
         "kind": 6,
         "importPath": "backend.server",
         "description": "backend.server",
-        "peekOfCode": "class ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str\nclass ReflectionResponses(BaseModel):\n    reflections: List[ReflectionResponseItem]\nclass ChatRequestPayload(BaseModel):\n    messages: List[Dict[str, str]]",
+        "peekOfCode": "class ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str # TODO: update name\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str\nclass ReflectionResponses(BaseModel):\n    reflections: List[ReflectionResponseItem]\nclass ChatRequestPayload(BaseModel):\n    messages: List[Dict[str, str]]",
         "detail": "backend.server",
         "documentation": {}
     },
@@ -326,7 +326,7 @@
         "kind": 5,
         "importPath": "backend.server",
         "description": "backend.server",
-        "peekOfCode": "openai.organization = os.getenv(\"OPENAI_ORGANIZATION\") or \"org-9bUDqwqHW2Peg4u47Psf9uUo\"\nopenai.api_key = os.getenv(\"OPENAI_API_KEY\")\nDEBUG = os.getenv(\"DEBUG\") or False\nPORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str\n    prompt: str\nclass ReflectionResponseItem(BaseModel):",
+        "peekOfCode": "openai.organization = os.getenv(\"OPENAI_ORGANIZATION\") or \"org-9bUDqwqHW2Peg4u47Psf9uUo\"\nopenai.api_key = os.getenv(\"OPENAI_API_KEY\")\nDEBUG = os.getenv(\"DEBUG\") or False\nPORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str # TODO: update name\n    prompt: str\nclass ReflectionResponseItem(BaseModel):",
         "detail": "backend.server",
         "documentation": {}
     },
@@ -335,7 +335,7 @@
         "kind": 5,
         "importPath": "backend.server",
         "description": "backend.server",
-        "peekOfCode": "openai.api_key = os.getenv(\"OPENAI_API_KEY\")\nDEBUG = os.getenv(\"DEBUG\") or False\nPORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str",
+        "peekOfCode": "openai.api_key = os.getenv(\"OPENAI_API_KEY\")\nDEBUG = os.getenv(\"DEBUG\") or False\nPORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str # TODO: update name\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str",
         "detail": "backend.server",
         "documentation": {}
     },
@@ -344,7 +344,7 @@
         "kind": 5,
         "importPath": "backend.server",
         "description": "backend.server",
-        "peekOfCode": "DEBUG = os.getenv(\"DEBUG\") or False\nPORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str\nclass ReflectionResponses(BaseModel):",
+        "peekOfCode": "DEBUG = os.getenv(\"DEBUG\") or False\nPORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str # TODO: update name\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str\nclass ReflectionResponses(BaseModel):",
         "detail": "backend.server",
         "documentation": {}
     },
@@ -353,7 +353,7 @@
         "kind": 5,
         "importPath": "backend.server",
         "description": "backend.server",
-        "peekOfCode": "PORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str\nclass ReflectionResponses(BaseModel):\n    reflections: List[ReflectionResponseItem]",
+        "peekOfCode": "PORT = os.getenv(\"PORT\") or 8000\n# Declare Types\nclass ReflectionRequestPayload(BaseModel):\n    username: str\n    paragraph: str # TODO: update name\n    prompt: str\nclass ReflectionResponseItem(BaseModel):\n    reflection: str\nclass ReflectionResponses(BaseModel):\n    reflections: List[ReflectionResponseItem]",
         "detail": "backend.server",
         "documentation": {}
     },
