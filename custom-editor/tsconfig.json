@@ -1,0 +1,37 @@
+{
+	"compilerOptions": {
+		"module": "CommonJS",
+		"target": "ES5",
+		"lib": ["ES7", "DOM", "ES2021"],
+		"moduleResolution": "node",
+		"outDir": "dist",
+		"jsx": "react-jsx",
+		"paths": {
+			"*": ["./src/*.d.ts"],
+			"@/*": ["./src/*"]
+		},
+		"allowJs": true,
+		"noEmit": false,
+		"resolveJsonModule": true,
+		"isolatedModules": false,
+		"downlevelIteration": true,
+		"incremental": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"strict": true,
+		"noImplicitAny": true,
+		"alwaysStrict": true,
+		"skipLibCheck": true,
+		"typeRoots": ["node_modules/@types"],
+		"pretty": true,
+		"sourceMap": true,
+		"removeComments": false
+	},
+	"include": ["**/*.ts", "**/*.tsx"],
+	"exclude": ["node_modules"],
+	"compileOnSave": false,
+	"buildOnSave": false,
+	"ts-node": {
+		"files": true
+	}
+}
