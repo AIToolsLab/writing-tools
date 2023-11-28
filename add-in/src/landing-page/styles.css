@@ -13,6 +13,7 @@
 body {
     font-family: Arial, sans-serif;
     background-color: var(--light-gray);
+    font-
 }
 
 header {
@@ -43,6 +44,15 @@ body .page-footer {
 .header-content {
     display: flex;
     justify-content: center;
+}
+
+.header {
+    font-size: 3em;
+    font-weight: bold;
+}
+
+.flow-text {
+    font-size: 1.2em;
 }
 
 .header-image {
@@ -84,17 +94,25 @@ body .page-footer {
 }
 
 .image-crop {
-    height: 500px;
-    overflow: hidden;
+    height: 300px;
+    border-radius: 16px;
 }
 
 .image-crop img {
-    width: 100%;
+    height: 100%;
+    width: auto;
 }
 
-#features {
-    padding: 20px 0;
+.custom-card {
+    box-shadow: none !important;
 }
+
+.custom-card .card-image img {
+    border-radius: 16px !important;
+}
+
+.feature:first-child {
+    margin-top: 50px;
 
 #features .card {
     margin-bottom: 30px;
@@ -108,7 +126,6 @@ body .page-footer {
     background-color: var(--white);
     padding: 50px 0;
 }
-
 #forms h2 {
     text-align: center;
     margin-bottom: 30px;
