@@ -10,7 +10,7 @@
   <HighResolutionIconUrl DefaultValue="https://tools.kenarnold.org/assets/logo.jpeg"/>
   <SupportUrl DefaultValue="https://tools.kenarnold.org"/>
   <AppDomains>
-    <AppDomain>"https://tools.kenarnold.org"</AppDomain>
+    <AppDomain>https://tools.kenarnold.org</AppDomain>
   </AppDomains>
   <Hosts>
     <Host Name="Document"/>
