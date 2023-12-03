@@ -211,7 +211,7 @@ export default function Editor(props: EditorProps) {
 
                     <HistoryPlugin />
 
-                    {/* Custom plugin to handle comments */}
+                    { /* Custom plugin to handle comments */ }
                     <CommentPlugin
                         previousComment={ previousComment }
                         updatePreviousComment={ updatePreviousComment }

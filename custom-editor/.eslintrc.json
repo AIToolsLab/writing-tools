@@ -112,5 +112,10 @@
 				"unnamedComponents": "arrow-function"
 			}
 		]
-	}
+	},
+	"settings": {
+        "react": {
+            "version": "detect"
+        }
+    }
 }
