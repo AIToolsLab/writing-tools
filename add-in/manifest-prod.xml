@@ -5,7 +5,7 @@
   <ProviderName>DraftMirror</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="DraftMirror"/>
-  <Description DefaultValue="DraftMirror"/>
+  <Description DefaultValue="Get the reflections you want on your writing."/>
   <IconUrl DefaultValue="https://tools.kenarnold.org/assets/logo.jpeg"/>
   <HighResolutionIconUrl DefaultValue="https://tools.kenarnold.org/assets/logo.jpeg"/>
   <SupportUrl DefaultValue="https://tools.kenarnold.org"/>
@@ -78,7 +78,7 @@
       </bt:ShortStrings>
       <bt:LongStrings>
         <bt:String id="GetStarted.Description" DefaultValue="DraftMirror add-in loaded succesfully. Go to the HOME tab and click the 'Show Taskpane' button to get started."/>
-        <Bt:String id="TaskpaneButton.Tooltip" DefaultValue="Click to Show a Taskpane"/>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Click to Show a Taskpane"/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>
