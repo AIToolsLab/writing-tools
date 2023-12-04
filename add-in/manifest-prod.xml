@@ -2,10 +2,10 @@
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0" xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="TaskPaneApp">
   <Id>46d2493d-60db-4522-b2aa-e6f2c08d2508</Id>
   <Version>1.0.0.0</Version>
-  <ProviderName>Contoso</ProviderName>
+  <ProviderName>DraftMirror</ProviderName>
   <DefaultLocale>en-US</DefaultLocale>
-  <DisplayName DefaultValue="AI Writing Tools"/>
-  <Description DefaultValue="AI Writing Tools"/>
+  <DisplayName DefaultValue="DraftMirror"/>
+  <Description DefaultValue="DraftMirror"/>
   <IconUrl DefaultValue="https://tools.kenarnold.org/assets/logo.jpeg"/>
   <HighResolutionIconUrl DefaultValue="https://tools.kenarnold.org/assets/logo.jpeg"/>
   <SupportUrl DefaultValue="https://tools.kenarnold.org"/>
@@ -72,13 +72,13 @@
         <bt:Url id="Taskpane.Url" DefaultValue="https://tools.kenarnold.org/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
-        <bt:String id="GetStarted.Title" DefaultValue="Get started with the AI Writing Tools add-in!"/>
+        <bt:String id="GetStarted.Title" DefaultValue="Get started with the DraftMirror add-in!"/>
         <bt:String id="CommandsGroup.Label" DefaultValue="Commands Group"/>
         <bt:String id="TaskpaneButton.Label" DefaultValue="Show Taskpane"/>
       </bt:ShortStrings>
       <bt:LongStrings>
-        <bt:String id="GetStarted.Description" DefaultValue="AI Writing Tools add-in loaded succesfully. Go to the HOME tab and click the 'Show Taskpane' button to get started."/>
-        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Click to Show a Taskpane"/>
+        <bt:String id="GetStarted.Description" DefaultValue="DraftMirror add-in loaded succesfully. Go to the HOME tab and click the 'Show Taskpane' button to get started."/>
+        <Bt:String id="TaskpaneButton.Tooltip" DefaultValue="Click to Show a Taskpane"/>
       </bt:LongStrings>
     </Resources>
   </VersionOverrides>

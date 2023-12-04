@@ -72,7 +72,7 @@ db_file = 'backend.db'
 
 with sqlite3.connect(db_file) as conn:
     c = conn.cursor()
-    
+
     c.execute(
         "CREATE TABLE IF NOT EXISTS requests (timestamp, username, prompt, paragraph, response, success)"
     )
@@ -96,7 +96,7 @@ async def get_reflections(
     # Check if this request has been made before
     with sqlite3.connect(db_file) as conn:
         c = conn.cursor()
-        
+
         c.execute(
             "SELECT response FROM requests WHERE username=? AND prompt=? AND paragraph=? AND success='true'",
             (request.username, request.prompt, request.paragraph),
@@ -153,7 +153,7 @@ async def chat(payload: ChatRequestPayload):
         presence_penalty=0,
         stream=True
     )
-    
+
     make_log(
         Log(username=payload.username, interaction="chat", prompt=payload.messages[-1]['content'], ui_id=None)
     )
@@ -180,7 +180,7 @@ async def logs():
     with sqlite3.connect(db_file) as conn:
         c = conn.cursor()
         c.execute("SELECT * FROM requests")
-        
+
         result = c.fetchall()
 
     return result
@@ -191,7 +191,7 @@ async def logs():
     with sqlite3.connect(db_file) as conn:
         c = conn.cursor()
         c.execute("SELECT * FROM logs")
-        
+
         result = c.fetchall()
 
     return result
