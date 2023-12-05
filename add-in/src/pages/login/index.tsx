@@ -23,7 +23,7 @@ export default function Login() {
 				onClick={ () => {
 					updateUsername(userId);
 
-					changePage('chat'); // Need to add randomness back to page switching
+					changePage('home'); // Need to add randomness back to page switching
 				} }
 			>
 				Login
