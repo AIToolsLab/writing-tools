@@ -30,7 +30,7 @@ openai.organization = os.getenv("OPENAI_ORGANIZATION") or "org-9bUDqwqHW2Peg4u47
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 DEBUG = os.getenv("DEBUG") or False
-PORT = os.getenv("PORT") or 8000
+PORT = int(os.getenv("PORT") or "8000")
 
 # Declare Types
 class ReflectionRequestPayload(BaseModel):
