@@ -26,7 +26,7 @@ function Posts() {
 
   if (!posts) {
     return <div>Loading...</div>;
-  }
+  } 
 
   return (
     <ul>
