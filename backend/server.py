@@ -29,6 +29,9 @@ load_dotenv()
 openai.organization = os.getenv("OPENAI_ORGANIZATION") or "org-9bUDqwqHW2Peg4u47Psf9uUo"
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+if openai.api_key is None:
+    raise Exception("OPENAI_API_KEY is not set. Please set it in a .env file.")
+
 DEBUG = os.getenv("DEBUG") or False
 PORT = int(os.getenv("PORT") or "8000")
 
