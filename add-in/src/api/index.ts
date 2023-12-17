@@ -19,7 +19,9 @@ export async function getReflectionFromServer(
 			prompt
 		};
 
-		const cachedResponse = localStorage.getItem(prompt + ' ' + paragraph);
+		const key = JSON.stringify({ prompt, paragraph });
+
+		const cachedResponse = localStorage.getItem(key);
 
 		if (cachedResponse) return JSON.parse(cachedResponse);
 
@@ -36,7 +38,7 @@ export async function getReflectionFromServer(
 		const responseData: ReflectionResponses = await response.json();
 
 		localStorage.setItem(
-			prompt + ' ' + paragraph,
+			key,
 			JSON.stringify(responseData.reflections)
 		);
 
