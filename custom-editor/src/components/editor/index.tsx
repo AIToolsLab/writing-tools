@@ -1,9 +1,13 @@
-import { useState } from 'react';
+import { ReactNode, useState } from 'react';
 
 // #region Lexical Imports
 import {
     $getRoot,
-    $createRangeSelection
+    $createRangeSelection,
+    DecoratorNode,
+    NodeKey,
+    LexicalNode,
+    $applyNodeReplacement
 } from 'lexical';
 
 import { $patchStyleText } from '@lexical/selection';
@@ -106,6 +110,102 @@ type EditorProps = {
     updateComments: (_: Comment[]) => void;
 }
 
+export class IdeaNode extends DecoratorNode<ReactNode> {
+    // __id: string;
+  
+    static getType(): string {
+      return 'idea';
+    }
+  
+    static clone(node: IdeaNode): IdeaNode {
+      return new IdeaNode(node.__id, node.__key);
+    }
+  
+    constructor(id?: string, key?: NodeKey) {
+      super(key);
+    //   this.__id = id;
+    }
+  
+    static importJSON(serializedNode: any): IdeaNode {
+        const node = $createIdeaNode();
+        return node;
+    }
+
+    exportJSON() {
+        return {
+            type: 'idea',
+            version: 1,
+        };
+    }
+
+    createDOM(): HTMLElement {
+        console.log('IdeaNode.createDOM');
+      return document.createElement('span');
+    }
+  
+    updateDOM(): false {
+      return false;
+    }
+  
+    decorate(): ReactNode {
+        console.log('IdeaNode.decorate');
+      return <span style={{color: "grey"}}>because...</span>;
+    }
+  }
+  
+  export function $createIdeaNode(): IdeaNode {
+    // TODO: https://github.com/facebook/lexical/blob/main/packages/lexical-playground/src/nodes/EquationNode.tsx#L57 has $applyNodeReplacement but I don't know why
+    return new IdeaNode();
+  }
+  
+  export function $isIdeaNode(
+    node: LexicalNode | null | undefined,
+  ): node is IdeaNode {
+    return node instanceof IdeaNode;
+  }
+
+let initialEditorState = {
+      "root": {
+          "type": "root",
+          "direction": "ltr",
+          "format": "",
+          "indent": 0,
+          "version": 1,
+          "children": [
+            {
+                "type": "paragraph",
+                "direction": "ltr",
+                "format": "",
+                "indent": 0,
+                "version": 1,
+                "children": [
+                  {
+                    "type": "text",
+                    "text": "Hi",
+                    "detail": 0,
+                    "format": 0,
+                    "mode": "normal",
+                    "style": "",
+                    "version": 1
+                  },
+                  {
+                    "type": "idea",
+                  }
+                ],
+            },
+            {
+                "type": "paragraph",
+                "children": [
+                    {
+                        "type": "idea",
+                    }
+                ],
+            }
+          ],
+      }
+    };
+  
+
 export default function Editor(props: EditorProps) {
     // Store previous text state to compare with current state
     const [textState, updateTextState] = useState(''); 
@@ -120,7 +220,9 @@ export default function Editor(props: EditorProps) {
                         theme: {
                             paragraph: classes.paragraph,
                         },
+                        nodes: [IdeaNode],
                         onError(_error, _editor) {},
+                        editorState: JSON.stringify(initialEditorState)
                     }
                 }
             >
@@ -149,21 +251,11 @@ export default function Editor(props: EditorProps) {
                                     
                                     // Update text state to current state
                                     updateTextState(fullText);
-
                                 });
                             }
                         }
                     />
 
-                    <HistoryPlugin />
-
-                    {/* Custom plugin to handle comments */}
-                    <CommentPlugin
-                        previousComment={ previousComment }
-                        updatePreviousComment={ updatePreviousComment }
-                        comment={ props.comment }
-                        commentIndex={ props.commentIndex }
-                    />
                 </div>
             </LexicalComposer>
         </>
