@@ -107,9 +107,6 @@ type EditorProps = {
 }
 
 export default function Editor(props: EditorProps) {
-    // Timeout to ensure that there aren't too many requests sent to the server
-    let updateCommentsTimeout: NodeJS.Timeout | null = null;
-
     // Store previous text state to compare with current state
     const [textState, updateTextState] = useState(''); 
     const [previousComment, updatePreviousComment] = useState(-1);
@@ -153,57 +150,6 @@ export default function Editor(props: EditorProps) {
                                     // Update text state to current state
                                     updateTextState(fullText);
 
-                                    // If the user made a change to the text before the timeout finished, then clear it
-                                    if (updateCommentsTimeout) {
-                                        clearTimeout(updateCommentsTimeout); 
-                                        updateCommentsTimeout = null;
-                                    }
-
-                                    updateCommentsTimeout = setTimeout(async () => {
-                                        const responses = await Promise.all(
-                                            paragraphs.map(
-                                                paragraph => 
-                                                    fetch(
-                                                        `${ SERVER_URL }/api/reflections`,
-                                                        {
-                                                            method: 'POST',
-                                                            headers: {
-                                                                'Content-Type': 'application/json',
-                                                            },
-                                                            body: JSON.stringify(
-                                                                {
-                                                                    username: '', // TODO: need to update this to an actual username
-                                                                    paragraph: paragraph,
-                                                                    prompt: 'Summarize the paragraph in a short sentence.'
-                                                                }
-                                                            )
-                                                        }
-                                                    )
-                                            )
-                                        );
-                                        
-                                        const comments: string[] = [];
-
-                                        for(const res of responses) {
-                                            const json = await res.json();
-
-                                            comments.push(
-                                                json.reflections[0].reflection
-                                            );
-                                        }
-
-                                        // TODO: Fix typing issue
-                                        props.updateComments(
-                                            comments.map(
-                                                (comment, index) => (
-                                                    {
-                                                        title: `Summary for paragraph ${ index + 1 }`,
-                                                        content: comment
-                                                    }
-                                                )
-                                            ) as Comment[]
-                                        );
-                                    }, 1000);
                                 });
                             }
                         }
