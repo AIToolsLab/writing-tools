@@ -10,9 +10,12 @@ export const SERVER_URL = '/api';
 export async function getReflectionFromServer(
 	username: string,
 	paragraph: string,
-	prompt: string
+	prompt: string,
+	getAccessTokenSilently: () => Promise<string>
 ): Promise<ReflectionResponseItem[]> {
 	try {
+		const token = await getAccessTokenSilently();
+
 		const data = {
 			username: username,
 			paragraph,
@@ -22,7 +25,8 @@ export async function getReflectionFromServer(
 		const response: Response = await fetch(`${SERVER_URL}/reflections`, {
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/json'
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${token}`
 			},
 			body: JSON.stringify(data)
 		});
