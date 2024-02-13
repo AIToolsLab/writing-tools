@@ -30,6 +30,25 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import LexicalErrorBoundary from '@lexical/react/LexicalErrorBoundary';
 // #endregion
 
+
+import {TreeView} from '@lexical/react/LexicalTreeView';
+
+function TreeViewPlugin(): JSX.Element {
+  const [editor] = useLexicalComposerContext();
+  return (
+    <TreeView
+      viewClassName="tree-view-output"
+      treeTypeButtonClassName="debug-treetype-button"
+      timeTravelPanelClassName="debug-timetravel-panel"
+      timeTravelButtonClassName="debug-timetravel-button"
+      timeTravelPanelSliderClassName="debug-timetravel-panel-slider"
+      timeTravelPanelButtonClassName="debug-timetravel-panel-button"
+      editor={editor}
+    />
+  );
+}
+
+
 import { SERVER_URL } from '../../settings';
 
 import classes from './styles.module.css';
@@ -315,21 +334,15 @@ const initialEditorState = {
           'version': 1,
           'children': [
             {
-                'type': 'paragraph',
-                'direction': 'ltr',
-                'format': '',
-                'indent': 0,
-                'version': 1,
-                'children': [
-                  {
-                    'type': 'text',
-                    'text': 'Hi',
-                    'detail': 0,
-                    'format': 0,
-                    'mode': 'normal',
-                    'style': '',
-                    'version': 1
-                  },
+                "type": "paragraph",
+                "direction": "ltr",
+                "format": "",
+                "indent": 0,
+                "version": 1,
+                "children": [
+                  {"type": "text", "text": "Hi"},
+                  {"type": "text", "text": " there"},
+                  {"type": "text", "text": "!"},
                   {
                     'type': 'idea',
                   }
@@ -400,6 +413,8 @@ export default function Editor(props: EditorProps) {
                         placeholder={ <div className={ classes.placeholder } /> }
                         ErrorBoundary={ LexicalErrorBoundary }
                     />
+
+                    <TreeViewPlugin />
 
                     <OnChangePlugin // On change handler
                         onChange={
