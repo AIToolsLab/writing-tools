@@ -166,3 +166,5 @@ cython_debug/
 # Javascript stuff
 node_modules/
 *.db
+
+add-in/.yarn/install-state.gz
