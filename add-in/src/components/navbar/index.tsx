@@ -13,14 +13,14 @@ export default function Navbar() {
 				onClick={ () => changePage('reflections') }
 				className={ page === 'reflections' ? classes.active : '' }
 			>
-				Reflections
+				Textfocals
 			</p>
             
 			<p
 				onClick={ () => changePage('chat') }
 				className={ page === 'chat' ? classes.active : '' }
 			>
-				Chat
+				Chatbot
 			</p>
 		</nav>
 	);
