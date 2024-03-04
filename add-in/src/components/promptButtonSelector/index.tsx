@@ -66,7 +66,7 @@ import classes from './styles.module.css';
 const promptList = [
     {
         keyword: 'Thesis Statement',
-        prompt: 'What is the thesis of the following paragraph? Answer concisely without saying "the thesis is".',
+        prompt: 'What is the thesis of the following paragraph? Answer concisely.',
     },
     {
         keyword: 'Important Concepts',
