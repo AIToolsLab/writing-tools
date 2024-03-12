@@ -1,21 +1,21 @@
-import { ReactNode, createContext, useState } from 'react';
+import { ReactNode, createContext, useEffect, useState } from 'react';
 
 // #region Lexical Imports
 import {
-    $getRoot,
-    $getSelection,
-    $createTextNode,
-    $isRangeSelection,
-    $createRangeSelection,
-    DecoratorNode,
-    ElementNode,
-    TextNode,
-    NodeKey,
-    LexicalNode,
-    $applyNodeReplacement,
-    LexicalEditor,
-    SerializedElementNode,
-    SerializedLexicalNode
+  $getRoot,
+  $getSelection,
+  $createTextNode,
+  $isRangeSelection,
+  $createRangeSelection,
+  DecoratorNode,
+  ElementNode,
+  TextNode,
+  NodeKey,
+  LexicalNode,
+  $applyNodeReplacement,
+  LexicalEditor,
+  SerializedElementNode,
+  SerializedLexicalNode,
 } from 'lexical';
 
 import { $patchStyleText } from '@lexical/selection';
@@ -30,8 +30,7 @@ import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext
 import LexicalErrorBoundary from '@lexical/react/LexicalErrorBoundary';
 // #endregion
 
-
-import {TreeView} from '@lexical/react/LexicalTreeView';
+import { TreeView } from '@lexical/react/LexicalTreeView';
 
 function TreeViewPlugin(): JSX.Element {
   const [editor] = useLexicalComposerContext();
@@ -43,249 +42,247 @@ function TreeViewPlugin(): JSX.Element {
       timeTravelButtonClassName="debug-timetravel-button"
       timeTravelPanelSliderClassName="debug-timetravel-panel-slider"
       timeTravelPanelButtonClassName="debug-timetravel-panel-button"
-      editor={editor}
+      editor={ editor }
     />
   );
 }
-
 
 import { SERVER_URL } from '../../settings';
 
 import classes from './styles.module.css';
 
-export const SelectedQuestionContext = createContext<{ selectedQuestion: string | null; setSelectedQuestion: (_: string | null) => void; }>({
+export const SelectedQuestionContext = createContext<{
+  selectedQuestion: string | null;
+  setSelectedQuestion: (_: string | null) => void;
+}>({
   selectedQuestion: null,
   setSelectedQuestion: () => {},
 });
 
 type CommentPluginProps = {
-    comment: null | Comment;
-    commentIndex: number;
-    previousComment: number;
-    updatePreviousComment: (_: number) => void;
+  comment: null | Comment;
+  commentIndex: number;
+  previousComment: number;
+  updatePreviousComment: (_: number) => void;
 };
 
 function CommentPlugin(props: CommentPluginProps) {
-    const [editor] = useLexicalComposerContext(); // Get the editor instance
+  const [editor] = useLexicalComposerContext(); // Get the editor instance
 
-    editor.update(() => {
-        // Remove all highlighting from the editor
-        (function clearStyles() {
-            const selection = $createRangeSelection(); // Create a selection of text nodes
-            
-            // A map of all of the nodes in the editor
-            const nodeMap = editor.getEditorState()._nodeMap;
+  editor.update(() => {
+    // Remove all highlighting from the editor
+    (function clearStyles() {
+      const selection = $createRangeSelection(); // Create a selection of text nodes
 
-            const textNodeKeys: string[] = []; // List of keys of all text nodes
+      // A map of all of the nodes in the editor
+      const nodeMap = editor.getEditorState()._nodeMap;
 
-            // Get all text nodes
-            nodeMap.forEach(
-                (node, _) => {
-                    // If the node isn't a text node, then skip it
-                    if(node.getType() !== 'text') return;
-                    
-                    textNodeKeys.push(node.getKey());
-                }
-            );
+      const textNodeKeys: string[] = []; // List of keys of all text nodes
 
-            // If the editor is empty
-            if(textNodeKeys.length === 0) return;
+      // Get all text nodes
+      nodeMap.forEach((node, _) => {
+        // If the node isn't a text node, then skip it
+        if (node.getType() !== 'text') return;
 
-            // Adjust the selection to be the first and last text nodes (selecting the entire editor)
-            selection.focus.key = textNodeKeys[0];
-            selection.anchor.key = (Number(textNodeKeys[textNodeKeys.length - 1]) + 1).toString();
+        textNodeKeys.push(node.getKey());
+      });
 
-            // Remove all background styles from the selection
-            $patchStyleText(selection, { 'background-color': 'none !important' });
-        })();
+      // If the editor is empty
+      if (textNodeKeys.length === 0) return;
 
-        if(!props.comment || props.commentIndex < 0) return;
-        // Create a selection for the paragraph that the comment is for
-        const selection = $createRangeSelection();
-        const nodeMap = editor.getEditorState()._nodeMap;
+      // Adjust the selection to be the first and last text nodes (selecting the entire editor)
+      selection.focus.key = textNodeKeys[0];
+      selection.anchor.key = (
+        Number(textNodeKeys[textNodeKeys.length - 1]) + 1
+      ).toString();
 
-        // The key of the first node in the paragraph
-        let paragraphKey = '';
-        
-        // Paragraph index in the editor
-        let count = 0;
+      // Remove all background styles from the selection
+      $patchStyleText(selection, { 'background-color': 'none !important' });
+    })();
 
-        nodeMap.forEach(
-            (k, _) => {
-                const node = k;
+    if (!props.comment || props.commentIndex < 0) return;
+    // Create a selection for the paragraph that the comment is for
+    const selection = $createRangeSelection();
+    const nodeMap = editor.getEditorState()._nodeMap;
 
-                if(node.getType() !== 'text') return;
-                
-                // If the current paragraph is the one that the comment is for
-                if(count === props.commentIndex)
-                    paragraphKey = node.getKey();
-                
-                count++;
-            }
-        );
+    // The key of the first node in the paragraph
+    let paragraphKey = '';
 
-        // Create selection for the paragraph
-        selection.anchor.key = paragraphKey;
-        selection.focus.key = (Number(paragraphKey) + 1).toString();
+    // Paragraph index in the editor
+    let count = 0;
 
-        $patchStyleText(selection, { 'background-color': 'rgba(255, 255, 146, 0.637)' });
+    nodeMap.forEach((k, _) => {
+      const node = k;
+
+      if (node.getType() !== 'text') return;
+
+      // If the current paragraph is the one that the comment is for
+      if (count === props.commentIndex) paragraphKey = node.getKey();
+
+      count++;
     });
 
-    props.updatePreviousComment(props.commentIndex);
+    // Create selection for the paragraph
+    selection.anchor.key = paragraphKey;
+    selection.focus.key = (Number(paragraphKey) + 1).toString();
 
-    return <></>;
+    $patchStyleText(selection, {
+      'background-color': 'rgba(255, 255, 146, 0.637)',
+    });
+  });
+
+  props.updatePreviousComment(props.commentIndex);
+
+  return <></>;
 }
 
 type EditorProps = {
-    comment: null | Comment;
-    commentIndex: number;
-    updateComments: (_: Comment[]) => void;
-}
+  comment: null | Comment;
+  commentIndex: number;
+  updateComments: (_: Comment[]) => void;
+};
 
 export class IdeaNode extends DecoratorNode<ReactNode> {
-    static contextType = SelectedQuestionContext;
-    // __id: string;
-  
-    static getType(): string {
-      return 'idea';
-    }
-  
-    static clone(node: IdeaNode): IdeaNode {
-      return new IdeaNode(node.__key);
-    }
-  
-    constructor(id?: string, key?: NodeKey) {
-      super(key);
+  static contextType = SelectedQuestionContext;
+  // __id: string;
+
+  static getType(): string {
+    return 'idea';
+  }
+
+  static clone(node: IdeaNode): IdeaNode {
+    return new IdeaNode(node.__key);
+  }
+
+  constructor(id?: string, key?: NodeKey) {
+    super(key);
     //   this.__id = id;
-    }
-  
-    static importJSON(serializedNode: any): IdeaNode {
-        const node = $createIdeaNode();
-        return node;
-    }
+  }
 
-    exportJSON() {
-        return {
-            type: 'idea',
-            version: 1,
-        };
-    }
+  static importJSON(serializedNode: any): IdeaNode {
+    const node = $createIdeaNode();
+    return node;
+  }
 
-    createDOM(): HTMLElement {
-        console.log('IdeaNode.createDOM');
-      return document.createElement('span');
-    }
-  
-    updateDOM(): false {
-      return false;
-    }
-  
-    decorate(): ReactNode {
-      const handleClick = () => {
-        const { setSelectedQuestion } = this.context;
-        if (setSelectedQuestion) {
-          setSelectedQuestion('Will this work?');
-        }
-      };
+  exportJSON() {
+    return {
+      type: 'idea',
+      version: 1,
+    };
+  }
 
-      return (
-        <span 
-          style={ { color: 'grey', cursor: 'pointer' } }
-          onClick={ handleClick }
-        >
-          because...
-        </span>
-      );
-    }
+  createDOM(): HTMLElement {
+    console.log('IdeaNode.createDOM');
+    return document.createElement('span');
+  }
+
+  updateDOM(): false {
+    return false;
+  }
+
+  decorate(): ReactNode {
+    const handleClick = () => {
+      const { setSelectedQuestion } = this.context;
+      if (setSelectedQuestion) {
+        setSelectedQuestion('Will this work?');
+      }
+    };
+
+    return (
+      <span style={ { color: 'grey', cursor: 'pointer' } } onClick={ handleClick }>
+        because...
+      </span>
+    );
+  }
 }
 
-  IdeaNode.contextType = SelectedQuestionContext;
+IdeaNode.contextType = SelectedQuestionContext;
 
-  export function $createIdeaNode(): IdeaNode {
-    // TODO: https://github.com/facebook/lexical/blob/main/packages/lexical-playground/src/nodes/EquationNode.tsx#L57 has $applyNodeReplacement but I don't know why
-    return new IdeaNode();
-  }
-  
-  export function $isIdeaNode(
-    node: LexicalNode | null | undefined,
-  ): node is IdeaNode {
-    return node instanceof IdeaNode;
-  }
+export function $createIdeaNode(): IdeaNode {
+  // TODO: https://github.com/facebook/lexical/blob/main/packages/lexical-playground/src/nodes/EquationNode.tsx#L57 has $applyNodeReplacement but I don't know why
+  return new IdeaNode();
+}
 
-  export class HighlightElementNode extends ElementNode {
-  
-    static getType() {
-      return 'highlightElement';
-    }
-  
-    static clone(node: HighlightElementNode) {
-      return new HighlightElementNode(node.__key);
-    }
-  
-    constructor(key?: NodeKey) {
-      super(key);
-    }
+export function $isIdeaNode(
+  node: LexicalNode | null | undefined
+): node is IdeaNode {
+  return node instanceof IdeaNode;
+}
 
-    static importJSON(serializedNode: any): HighlightElementNode {
-      const node = new HighlightElementNode();
-      return node;
-    }
-  
-    exportJSON(): SerializedElementNode<SerializedLexicalNode> {
-      return {
-        type: 'highlightElement',
-        version: 1,
-        children: this.children.map((child: { exportJSON: () => any; }) => child.exportJSON()),
-        direction: this.direction,
-        format: this.format,
-        indent: this.indent,
-      };
-    }
-  
-    createDOM() {
-      const element = document.createElement('span');
-      element.style.backgroundColor = 'yellow'; // Highlight color
-      return element;
-  }
-  
-    updateDOM() {
-      return false;
-    }
+export class HighlightElementNode extends ElementNode {
+  static getType() {
+    return 'highlightElement';
   }
 
-  export function HighlightPlugin() {
-    const [editor] = useLexicalComposerContext();
-  
-    const insertHighlight = () => {
-      editor.update(() => {
-        const selection = $getSelection();
-        if ($isRangeSelection(selection) && !selection.isCollapsed()) {
-          // Extract the selected text from the document
-          const selectedText = selection.getTextContent();
-          
-          // Clear the selected text
-          selection.removeText();
-    
-          // Create a new HighlightElementNode and TextNode
-          const highlightNode = new HighlightElementNode();
-          const textNode = $createTextNode(selectedText);
-          
-          // Append the textNode to the highlightNode
-          highlightNode.append(textNode);
-    
-          // Insert the highlightNode at the selection
-          selection.insertNodes([highlightNode]);
-        }
-      });
+  static clone(node: HighlightElementNode) {
+    return new HighlightElementNode(node.__key);
+  }
+
+  constructor(key?: NodeKey) {
+    super(key);
+  }
+
+  static importJSON(serializedNode: any): HighlightElementNode {
+    const node = new HighlightElementNode();
+    return node;
+  }
+
+  exportJSON(): SerializedElementNode<SerializedLexicalNode> {
+    return {
+      type: 'highlightElement',
+      version: 1,
+      children: this.children.map((child: { exportJSON: () => any }) =>
+        child.exportJSON()
+      ),
+      direction: this.direction,
+      format: this.format,
+      indent: this.indent,
     };
-    
+  }
 
-    // Return a UI element, like a button, to trigger the highlight functionality
-    return (
-        <button onClick={ insertHighlight } className={ classes.highlightButton }>
-            Highlight Text
-        </button>
-    );
+  createDOM() {
+    const element = document.createElement('span');
+    element.style.backgroundColor = 'yellow'; // Highlight color
+    return element;
+  }
+
+  updateDOM() {
+    return false;
+  }
+}
+
+export function HighlightPlugin() {
+  const [editor] = useLexicalComposerContext();
+
+  const insertHighlight = () => {
+    editor.update(() => {
+      const selection = $getSelection();
+      if ($isRangeSelection(selection) && !selection.isCollapsed()) {
+        // Extract the selected text from the document
+        const selectedText = selection.getTextContent();
+
+        // Clear the selected text
+        selection.removeText();
+
+        // Create a new HighlightElementNode and TextNode
+        const highlightNode = new HighlightElementNode();
+        const textNode = $createTextNode(selectedText);
+
+        // Append the textNode to the highlightNode
+        highlightNode.append(textNode);
+
+        // Insert the highlightNode at the selection
+        selection.insertNodes([highlightNode]);
+      }
+    });
+  };
+
+  // Return a UI element, like a button, to trigger the highlight functionality
+  return (
+    <button onClick={ insertHighlight } className={ classes.highlightButton }>
+      Highlight Text
+    </button>
+  );
 }
 
 function highlightWordsWithE(editor: LexicalEditor) {
@@ -295,7 +292,7 @@ function highlightWordsWithE(editor: LexicalEditor) {
     const textNodes = root.getDescendants(TextNode);
     console.log('Total text nodes:', textNodes.length); // Log total number of text nodes
 
-    textNodes.forEach((node: { getTextContent: () => any; }) => {
+    textNodes.forEach((node: { getTextContent: () => any }) => {
       if (node instanceof TextNode) {
         const textContent = node.getTextContent();
         console.log('Text Node Content:', textContent); // Log each text node's content
@@ -307,8 +304,6 @@ function highlightWordsWithE(editor: LexicalEditor) {
     });
   });
 }
-
-
 
 function HighlightEPlugin() {
   const [editor] = useLexicalComposerContext();
@@ -325,131 +320,192 @@ function HighlightEPlugin() {
   );
 }
 
-const initialEditorState = {
-      'root': {
-          'type': 'root',
-          'direction': 'ltr',
-          'format': '',
-          'indent': 0,
-          'version': 1,
-          'children': [
-            {
-                "type": "paragraph",
-                "direction": "ltr",
-                "format": "",
-                "indent": 0,
-                "version": 1,
-                "children": [
-                  {"type": "text", "text": "Hi"},
-                  {"type": "text", "text": " there"},
-                  {"type": "text", "text": "!"},
-                  {
-                    'type': 'idea',
-                  }
-                ],
-            },
-            {
-                'type': 'paragraph',
-                'children': [
-                    {
-                        'type': 'idea',
-                    }
-                ],
-            },
-            {
-                'type': 'paragraph',
-                'direction': 'ltr',
-                'format': '',
-                'indent': 0,
-                'version': 1,
-                'children': [
-                    {
-                        'type': 'highlight',
-                        'children': [
-                            {
-                                'type': 'text',
-                                'text': 'HIGHLIGHTED TEXT WOO HOO!',
-                                'detail': 0,
-                                'format': 0,
-                                'mode': 'normal',
-                                'style': '',
-                                'version': 1
-                            }
-                        ]
-                    }
-                ],
-            },
-          ],
-      }
-    };
+export class InsertButtonNode extends DecoratorNode<ReactNode> {
+  static getType(): string {
+    return 'insertButton';
+  }
+
+  static clone(node: InsertButtonNode): InsertButtonNode {
+    return new InsertButtonNode(node.__key);
+  }
+
+  createDOM(): HTMLElement {
+    const button = document.createElement('button');
+    button.textContent = 'Insert here';
+    button.onclick = () => this.insertText('Hi');
+    return button;
+  }
+
+  decorate(): ReactNode {
+    // This node doesn't have any children, so it doesn't need to decorate anything
+    return null;
+  }
+
+  insertText(text: string) {
+    const textNode = $createTextNode(text);
+    this.insertAfter(textNode);
+  }
+}
+
+export function $createInsertButtonNode(): InsertButtonNode {
+  return new InsertButtonNode();
+}
+
+function InsertButtonPlugin() {
+  const [editor] = useLexicalComposerContext();
+
+  useEffect(() => {
+    editor.update(() => {
+      const root = $getRoot();
+      const textNodes = root.getDescendants(TextNode);
   
+      textNodes.forEach((node: InsertButtonNode | TextNode) => {
+        if (node instanceof TextNode) {
+          let textContent = node.getTextContent();
+          let currentNode: TextNode | InsertButtonNode = node;
+  
+          while (textContent.includes('.')) {
+            // Split the current node at the position of the period
+            // Add type annotations to the before and after variables
+            const [before, after]: [TextNode, TextNode] = currentNode.split(textContent.indexOf('.') + 1);
+  
+            // Create and insert the button node
+            const buttonNode = $createInsertButtonNode();
+            before.insertAfter(buttonNode);
+  
+            // Continue with the part after the period
+            currentNode = after;
+            textContent = currentNode.getTextContent();
+          }
+        }
+      });
+    });
+  }, [editor]);
+
+  return null;
+}
+
+const initialEditorState = {
+  root: {
+    type: 'root',
+    direction: 'ltr',
+    format: '',
+    indent: 0,
+    version: 1,
+    children: [
+      {
+        type: 'paragraph',
+        direction: 'ltr',
+        format: '',
+        indent: 0,
+        version: 1,
+        children: [
+          { type: 'text', text: 'Hi' },
+          { type: 'text', text: ' there' },
+          { type: 'text', text: '!' },
+          {
+            type: 'idea',
+          },
+        ],
+      },
+      {
+        type: 'paragraph',
+        children: [
+          {
+            type: 'idea',
+          },
+        ],
+      },
+      {
+        type: 'paragraph',
+        direction: 'ltr',
+        format: '',
+        indent: 0,
+        version: 1,
+        children: [
+          {
+            type: 'highlight',
+            children: [
+              {
+                type: 'text',
+                text: 'HIGHLIGHTED TEXT WOO HOO!',
+                detail: 0,
+                format: 0,
+                mode: 'normal',
+                style: '',
+                version: 1,
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  },
+};
 
 export default function Editor(props: EditorProps) {
-    // Store previous text state to compare with current state
-    const [textState, updateTextState] = useState(''); 
-    const [previousComment, updatePreviousComment] = useState(-1);
-    const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
+  // Store previous text state to compare with current state
+  const [textState, updateTextState] = useState('');
+  const [previousComment, updatePreviousComment] = useState(-1);
+  const [selectedQuestion, setSelectedQuestion] = useState<string | null>(null);
 
-    return (
-      <SelectedQuestionContext.Provider value={ { selectedQuestion, setSelectedQuestion } }>
-            <LexicalComposer // Main editor component
-                initialConfig={
-                    {
-                        namespace: 'essay',
-                        theme: {
-                            paragraph: classes.paragraph,
-                        },
-                        nodes: [IdeaNode, HighlightElementNode],
-                        onError(_error, _editor) {},
-                        editorState: JSON.stringify(initialEditorState)
-                    }
-                }
-            >
-                <div className={ classes.editorContainer }>
-                    <PlainTextPlugin // Create plain text editor
-                        contentEditable={
-                            <ContentEditable className={ classes.editor } />
-                        }
-                        placeholder={ <div className={ classes.placeholder } /> }
-                        ErrorBoundary={ LexicalErrorBoundary }
-                    />
+  return (
+    <SelectedQuestionContext.Provider
+      value={ { selectedQuestion, setSelectedQuestion } }
+    >
+      <LexicalComposer // Main editor component
+        initialConfig={ {
+          namespace: 'essay',
+          theme: {
+            paragraph: classes.paragraph,
+          },
+          nodes: [IdeaNode, HighlightElementNode, InsertButtonNode],
+          onError(_error, _editor) {},
+          editorState: JSON.stringify(initialEditorState),
+        } }
+      >
+        <div className={ classes.editorContainer }>
+          <PlainTextPlugin // Create plain text editor
+            contentEditable={ <ContentEditable className={ classes.editor } /> }
+            placeholder={ <div className={ classes.placeholder } /> }
+            ErrorBoundary={ LexicalErrorBoundary }
+          />
 
-                    <TreeViewPlugin />
+          <TreeViewPlugin />
 
-                    <OnChangePlugin // On change handler
-                        onChange={
-                            (editorState) => {
-                                editorState.read(() => {
-                                    const root = $getRoot(); // Get root node of the editor (parent to all text nodes)
+          <OnChangePlugin // On change handler
+            onChange={ (editorState) => {
+              editorState.read(() => {
+                const root = $getRoot(); // Get root node of the editor (parent to all text nodes)
 
-                                    const fullText = root.getTextContent(); 
-                                    const paragraphs = root
-                                        .getAllTextNodes()
-                                        .map(node => node.getTextContent());
+                const fullText = root.getTextContent();
+                const paragraphs = root
+                  .getAllTextNodes()
+                  .map((node) => node.getTextContent());
 
-                                    // If there isn't a change in the text
-                                    if (fullText === textState) return;
-                                    
-                                    // Update text state to current state
-                                    updateTextState(fullText);
-                                });
-                            }
-                        }
-                    />
-                    <HighlightEPlugin />
-                    <HighlightPlugin />
-                </div>
-                <div className="sidebar">
-                  { selectedQuestion ? (
-                    <div>
-                      <h2>Question</h2>
-                      <p>{ selectedQuestion }</p>
-                    </div>
-                  ) : (
-                    <p>Select a node to view the question.</p>
-                  ) }
-                </div>
-            </LexicalComposer>
-            </SelectedQuestionContext.Provider>
-    );
+                // If there isn't a change in the text
+                if (fullText === textState) return;
+
+                // Update text state to current state
+                updateTextState(fullText);
+              });
+            } }
+          />
+          <HighlightEPlugin />
+          <HighlightPlugin />
+          <InsertButtonPlugin />
+        </div>
+        <div className="sidebar">
+          { selectedQuestion ? (
+            <div>
+              <h2>Question</h2>
+              <p>{ selectedQuestion }</p>
+            </div>
+          ) : (
+            <p>Select a node to view the question.</p>
+          ) }
+        </div>
+      </LexicalComposer>
+    </SelectedQuestionContext.Provider>
+  );
 }
