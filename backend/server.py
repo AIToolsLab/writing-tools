@@ -196,6 +196,55 @@ async def logs():
 
     return result
 
+gemma = {
+    'model': None,
+    'tokenizer': None
+}
+
+
+@app.get("/api/highlights")
+def get_highlights(doc: str):
+    import torch
+    # load Gemma
+    if gemma['model'] is None:
+        from transformers import AutoTokenizer, AutoModelForCausalLM
+        # Load the model
+        gemma['tokenizer'] = tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b")
+        gemma['model'] = model = AutoModelForCausalLM.from_pretrained("google/gemma-2b", device_map='auto')
+    
+    model = gemma['model']
+    tokenizer = gemma['tokenizer']
+
+    #prompt = "\n\nHere is that same sentence but rewritten more clearly:\n\n"
+    prompt = '\n\nHere is that same sentence but rewritten to be more concise:\n\n'
+
+    doc_ids = tokenizer(doc, return_tensors='pt')['input_ids'][0]
+    prompt_ids = tokenizer(prompt, return_tensors='pt')['input_ids'][0, 1:]
+
+    joined_ids = torch.cat([doc_ids, prompt_ids, doc_ids[1:]])
+    # Call the model
+    with torch.no_grad():
+        logits = model(joined_ids[None].to(model.device)).logits[0].cpu()
+    
+    highlights = []
+    length_so_far = 0
+    for idx in range(len(doc_ids)+len(prompt_ids), len(joined_ids)):
+        probs = logits[idx - 1].softmax(dim=-1)
+        token_id = joined_ids[idx]
+        token = tokenizer.decode(token_id)
+        token_loss = -probs[token_id].log().item()
+        most_likely_token_id = probs.argmax()
+        print(idx, token, token_loss, tokenizer.decode(most_likely_token_id))
+        if token_loss > 1:
+            highlights.append(dict(
+                start=length_so_far,
+                end=length_so_far + len(token),
+                token=token
+            ))
+        length_so_far += len(token)
+    return highlights
+
+
 static_path = Path('../add-in/dist')
 if static_path.exists():
     @app.get("/")
