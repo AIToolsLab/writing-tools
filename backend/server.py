@@ -209,8 +209,8 @@ def get_highlights(doc: str):
     if gemma['model'] is None:
         from transformers import AutoTokenizer, AutoModelForCausalLM
         # Load the model
-        gemma['tokenizer'] = tokenizer = AutoTokenizer.from_pretrained("google/gemma-2b")
-        gemma['model'] = model = AutoModelForCausalLM.from_pretrained("google/gemma-2b", device_map='auto')
+        gemma['tokenizer'] = tokenizer = AutoTokenizer.from_pretrained("google/gemma-7b")
+        gemma['model'] = model = AutoModelForCausalLM.from_pretrained("google/gemma-7b", device_map='auto', torch_dtype=torch.bfloat16)
     
     model = gemma['model']
     tokenizer = gemma['tokenizer']
