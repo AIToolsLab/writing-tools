@@ -90,7 +90,7 @@ function ReflectionCard(props: ReflectionCardProps) {
 			onMouseLeave={ handleMouseLeave }
 		>
 			<div className={ classes.text }>{ cardData.body }</div>
-            
+
 			<div>
 				<button
 					className={ classes.pinButton }

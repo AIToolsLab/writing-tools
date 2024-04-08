@@ -8,7 +8,7 @@ import {
 
 import { UserContext } from '@/contexts/userContext';
 
-import { getParagraphText } from '@/utilities';
+import { getParagraphText } from '@/utilities/WordParagraphUtils';
 import { getReflectionFromServer } from '@/api';
 
 const includeSurroundingParagraphs = false;
@@ -98,10 +98,10 @@ export default function Home() {
 		const cacheKey: string = JSON.stringify({ paragraphText, prompt });
 
 		// TODO: Fix typing error
-		const cachedValue: any
+		const cachedValue: any =
 			// | ReflectionResponseItem[]
-			// | Promise<ReflectionResponseItem[]> 
-		= reflections.get(cacheKey);
+			// | Promise<ReflectionResponseItem[]>
+			reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
@@ -118,8 +118,7 @@ export default function Home() {
 
 			reflections.set(cacheKey, reflectionsPromise);
 			return [];
-		}
- else if (cachedValue instanceof Promise) return [];
+		} else if (cachedValue instanceof Promise) return [];
 		else return cachedValue;
 	}
 
@@ -146,8 +145,8 @@ export default function Home() {
 
 		return (
 			<ReflectionCards
-				cardDataList={ cardDataList }
-				toggleCardHighlight={ isCurrent }
+				cardDataList={cardDataList}
+				toggleCardHighlight={isCurrent}
 			/>
 		);
 	}
@@ -182,7 +181,9 @@ export default function Home() {
 			// Check if there is a previous paragraph available
 			for (let i = selectedIndex - 1; i >= 0; i--) {
 				if (paragraphTexts[i] !== '') {
-					reflectionCardsContainer.push(createReflectionCards(i, false));
+					reflectionCardsContainer.push(
+						createReflectionCards(i, false)
+					);
 					break;
 				}
 			}
@@ -198,7 +199,9 @@ export default function Home() {
 			// Check if there is a next paragraph available
 			for (let i = selectedIndex + 1; i < paragraphTexts.length; i++) {
 				if (paragraphTexts[i] !== '') {
-					reflectionCardsContainer.push(createReflectionCards(i, false));
+					reflectionCardsContainer.push(
+						createReflectionCards(i, false)
+					);
 					break;
 				}
 			}
@@ -208,8 +211,8 @@ export default function Home() {
 	return (
 		<div className="ms-welcome">
 			<PromptButtonSelector
-				currentPrompt={ prompt }
-				updatePrompt={ updatePrompt }
+				currentPrompt={prompt}
+				updatePrompt={updatePrompt}
 			/>
 
 			{...reflectionCardsContainer}

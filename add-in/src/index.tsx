@@ -2,11 +2,11 @@ import * as ReactDOM from 'react-dom';
 
 import { initializeIcons } from '@fluentui/font-icons-mdl2';
 import { ThemeProvider } from '@fluentui/react';
-import PageContextWrapper from './contexts/pageContext';
-import UserContextWrapper from './contexts/userContext';
-import ChatContextWrapper from './contexts/chatContext';
+import PageContextWrapper from './contexts/PageContext';
+import UserContextWrapper from './contexts/UserContext';
+import ChatContextWrapper from './contexts/ChatContext';
 
-import App from './pages/app';
+import App from './pages/App';
 
 import './taskpane.css';
 
@@ -21,7 +21,7 @@ const render = (Component: any) => {
 			<ChatContextWrapper>
 				<UserContextWrapper>
 					<PageContextWrapper>
-						<Component isOfficeInitialized={ isOfficeInitialized } />
+						<Component isOfficeInitialized={isOfficeInitialized} />
 					</PageContextWrapper>
 				</UserContextWrapper>
 			</ChatContextWrapper>

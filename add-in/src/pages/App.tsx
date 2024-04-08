@@ -1,12 +1,12 @@
 import { useContext } from 'react';
 
-import { PageContext } from '@/contexts/pageContext';
+import { PageContext } from '@/contexts/PageContext';
 
-import Layout from '@/components/layout';
+import Layout from '@/components/layout/Layout';
 
-import Home from '../home';
-import Chat from '../chat';
-import Login from '../login';
+import Home from './home/HomePage';
+import Chat from './chat/ChatPage';
+import Login from './login/LoginPage';
 
 export interface HomeProps {
 	isOfficeInitialized: boolean;
@@ -24,5 +24,5 @@ export default function App({ isOfficeInitialized }: HomeProps) {
 
 	if (page === 'login') return <Login />;
 
-	return <Layout>{ page === 'reflections' ? <Home /> : <Chat /> }</Layout>;
+	return <Layout>{  page === 'reflections' ? <Home /> : <Chat /> }</Layout>;
 }
