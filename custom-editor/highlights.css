@@ -1,0 +1,14 @@
+.doc {
+  border: 1px solid black;
+  font-size: 20pt;
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+.doc canvas {
+  position: absolute;
+  top: 0; left: 0;
+  z-index: -1;
+  border: 1px solid black
+  
+}
