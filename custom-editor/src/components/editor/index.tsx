@@ -286,30 +286,49 @@ export function HighlightPlugin() {
 }
 
 function highlightWordsWithE(editor: LexicalEditor) {
-  console.log('highlightWordsWithE called'); // Log when function is called
   editor.update(() => {
     const root = $getRoot();
     const textNodes = root.getDescendants(TextNode);
-    console.log('Total text nodes:', textNodes.length); // Log total number of text nodes
 
-    textNodes.forEach((node: { getTextContent: () => any }) => {
+    textNodes.forEach((node: { getTextContent: () => any; splitText: (arg0: number, arg1: number) => [any, any, any]; replace: (arg0: any, arg1: HighlightElementNode) => void; }) => {
       if (node instanceof TextNode) {
         const textContent = node.getTextContent();
-        console.log('Text Node Content:', textContent); // Log each text node's content
-        if (textContent.includes('e')) {
-          console.log('Found \'e\' in:', textContent); // Log nodes with 'e'
-          // Highlighting logic goes here
-        }
+        const words = textContent.split(/\s+/);
+        let offset = 0;
+
+        words.forEach((word: string | string[]) => {
+          if (word.includes('e')) {
+            // Get the start and end points for the word
+            const start = offset;
+            const end = offset + word.length;
+
+            // Split the text node at the start and end of the word
+            const [, wordNode, afterNode] = node.splitText(start, end);
+
+            // Create and insert the highlight node
+            const highlightNode = new HighlightElementNode();
+            highlightNode.append(wordNode.clone());
+            node.replace(wordNode, highlightNode);
+
+            // Adjust the reference node for the next iteration
+            node = afterNode;
+            offset = 0; // Reset offset since we are now at the start of the new node
+          }
+ else {
+            offset += word.length + 1; // +1 for the space
+          }
+        });
       }
     });
   });
 }
 
+
+
 function HighlightEPlugin() {
   const [editor] = useLexicalComposerContext();
 
   const handleHighlightClick = () => {
-    console.log('Highlight button clicked'); // Add this for testing
     highlightWordsWithE(editor);
   };
 
