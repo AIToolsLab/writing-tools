@@ -1,225 +1,204 @@
-import { useState } from 'react';
+import { useState } from "react";
 
 // #region Lexical Imports
-import {
-    $getRoot,
-    $createRangeSelection
-} from 'lexical';
+import { $getRoot, $createRangeSelection } from "lexical";
 
-import { $patchStyleText } from '@lexical/selection';
+import { $patchStyleText } from "@lexical/selection";
 
-import { LexicalComposer } from '@lexical/react/LexicalComposer';
-import { PlainTextPlugin } from '@lexical/react/LexicalPlainTextPlugin';
-import { ContentEditable } from '@lexical/react/LexicalContentEditable';
-import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
-import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
-import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
+import { LexicalComposer } from "@lexical/react/LexicalComposer";
+import { PlainTextPlugin } from "@lexical/react/LexicalPlainTextPlugin";
+import { ContentEditable } from "@lexical/react/LexicalContentEditable";
+import { HistoryPlugin } from "@lexical/react/LexicalHistoryPlugin";
+import { OnChangePlugin } from "@lexical/react/LexicalOnChangePlugin";
+import { useLexicalComposerContext } from "@lexical/react/LexicalComposerContext";
 
-import LexicalErrorBoundary from '@lexical/react/LexicalErrorBoundary';
+import LexicalErrorBoundary from "@lexical/react/LexicalErrorBoundary";
 // #endregion
 
-import { SERVER_URL } from '../../settings';
+import { SERVER_URL } from "../../settings";
 
-import classes from './styles.module.css';
+import classes from "./styles.module.css";
 
 type CommentPluginProps = {
-    comment: null | Comment;
-    commentIndex: number;
-    previousComment: number;
-    updatePreviousComment: (_: number) => void;
+  comment: null | Comment;
+  commentIndex: number;
+  previousComment: number;
+  updatePreviousComment: (_: number) => void;
 };
 
 function CommentPlugin(props: CommentPluginProps) {
-    const [editor] = useLexicalComposerContext(); // Get the editor instance
+  const [editor] = useLexicalComposerContext(); // Get the editor instance
 
-    editor.update(() => {
-        // Remove all highlighting from the editor
-        (function clearStyles() {
-            const selection = $createRangeSelection(); // Create a selection of text nodes
-            
-            // A map of all of the nodes in the editor
-            const nodeMap = editor.getEditorState()._nodeMap;
+  editor.update(() => {
+    // Remove all highlighting from the editor
+    (function clearStyles() {
+      const selection = $createRangeSelection(); // Create a selection of text nodes
 
-            const textNodeKeys: string[] = []; // List of keys of all text nodes
+      // A map of all of the nodes in the editor
+      const nodeMap = editor.getEditorState()._nodeMap;
 
-            // Get all text nodes
-            nodeMap.forEach(
-                (node, _) => {
-                    // If the node isn't a text node, then skip it
-                    if(node.getType() !== 'text') return;
-                    
-                    textNodeKeys.push(node.getKey());
-                }
-            );
+      const textNodeKeys: string[] = []; // List of keys of all text nodes
 
-            // If the editor is empty
-            if(textNodeKeys.length === 0) return;
+      // Get all text nodes
+      nodeMap.forEach((node, _) => {
+        // If the node isn't a text node, then skip it
+        if (node.getType() !== "text") return;
 
-            // Adjust the selection to be the first and last text nodes (selecting the entire editor)
-            selection.focus.key = textNodeKeys[0];
-            selection.anchor.key = (Number(textNodeKeys[textNodeKeys.length - 1]) + 1).toString();
+        textNodeKeys.push(node.getKey());
+      });
 
-            // Remove all background styles from the selection
-            $patchStyleText(selection, { 'background-color': 'none !important' });
-        })();
+      // If the editor is empty
+      if (textNodeKeys.length === 0) return;
 
-        if(!props.comment || props.commentIndex < 0) return;
-        // Create a selection for the paragraph that the comment is for
-        const selection = $createRangeSelection();
-        const nodeMap = editor.getEditorState()._nodeMap;
+      // Adjust the selection to be the first and last text nodes (selecting the entire editor)
+      selection.focus.key = textNodeKeys[0];
+      selection.anchor.key = (
+        Number(textNodeKeys[textNodeKeys.length - 1]) + 1
+      ).toString();
 
-        // The key of the first node in the paragraph
-        let paragraphKey = '';
-        
-        // Paragraph index in the editor
-        let count = 0;
+      // Remove all background styles from the selection
+      $patchStyleText(selection, { "background-color": "none !important" });
+    })();
 
-        nodeMap.forEach(
-            (k, _) => {
-                const node = k;
+    if (!props.comment || props.commentIndex < 0) return;
+    // Create a selection for the paragraph that the comment is for
+    const selection = $createRangeSelection();
+    const nodeMap = editor.getEditorState()._nodeMap;
 
-                if(node.getType() !== 'text') return;
-                
-                // If the current paragraph is the one that the comment is for
-                if(count === props.commentIndex)
-                    paragraphKey = node.getKey();
-                
-                count++;
-            }
-        );
+    // The key of the first node in the paragraph
+    let paragraphKey = "";
 
-        // Create selection for the paragraph
-        selection.anchor.key = paragraphKey;
-        selection.focus.key = (Number(paragraphKey) + 1).toString();
+    // Paragraph index in the editor
+    let count = 0;
 
-        $patchStyleText(selection, { 'background-color': 'rgba(255, 255, 146, 0.637)' });
+    nodeMap.forEach((k, _) => {
+      const node = k;
+
+      if (node.getType() !== "text") return;
+
+      // If the current paragraph is the one that the comment is for
+      if (count === props.commentIndex) paragraphKey = node.getKey();
+
+      count++;
     });
 
-    props.updatePreviousComment(props.commentIndex);
+    // Create selection for the paragraph
+    selection.anchor.key = paragraphKey;
+    selection.focus.key = (Number(paragraphKey) + 1).toString();
 
-    return <></>;
+    $patchStyleText(selection, {
+      "background-color": "rgba(255, 255, 146, 0.637)",
+    });
+  });
+
+  props.updatePreviousComment(props.commentIndex);
+
+  return <></>;
 }
 
 type EditorProps = {
-    comment: null | Comment;
-    commentIndex: number;
-    updateComments: (_: Comment[]) => void;
-}
+  comment: null | Comment;
+  commentIndex: number;
+  updateComments: (_: Comment[]) => void;
+};
 
 export default function Editor(props: EditorProps) {
-    // Timeout to ensure that there aren't too many requests sent to the server
-    let updateCommentsTimeout: NodeJS.Timeout | null = null;
+  // Timeout to ensure that there aren't too many requests sent to the server
+  let updateCommentsTimeout: NodeJS.Timeout | null = null;
 
-    // Store previous text state to compare with current state
-    const [textState, updateTextState] = useState(''); 
-    const [previousComment, updatePreviousComment] = useState(-1);
+  // Store previous text state to compare with current state
+  const [textState, updateTextState] = useState("");
+  const [previousComment, updatePreviousComment] = useState(-1);
 
-    return (
-        <>
-            <LexicalComposer // Main editor component
-                initialConfig={
-                    {
-                        namespace: 'essay',
-                        theme: {
-                            paragraph: classes.paragraph,
-                        },
-                        onError(_error, _editor) {},
-                    }
+  return (
+    <>
+      <LexicalComposer // Main editor component
+        initialConfig={{
+          namespace: "essay",
+          theme: {
+            paragraph: classes.paragraph,
+          },
+          onError(_error, _editor) {},
+        }}
+      >
+        <div className={classes.editorContainer}>
+          <PlainTextPlugin // Create plain text editor
+            contentEditable={<ContentEditable className={classes.editor} />}
+            placeholder={<div className={classes.placeholder} />}
+            ErrorBoundary={LexicalErrorBoundary}
+          />
+
+          <OnChangePlugin // On change handler
+            onChange={(editorState) => {
+              editorState.read(() => {
+                const root = $getRoot(); // Get root node of the editor (parent to all text nodes)
+
+                const fullText = root.getTextContent();
+                const paragraphs = root
+                  .getAllTextNodes()
+                  .map((node) => node.getTextContent());
+
+                // If there isn't a change in the text
+                if (fullText === textState) return;
+
+                // Update text state to current state
+                updateTextState(fullText);
+
+                // If the user made a change to the text before the timeout finished, then clear it
+                if (updateCommentsTimeout) {
+                  clearTimeout(updateCommentsTimeout);
+                  updateCommentsTimeout = null;
                 }
-            >
-                <div className={ classes.editorContainer }>
-                    <PlainTextPlugin // Create plain text editor
-                        contentEditable={
-                            <ContentEditable className={ classes.editor } />
-                        }
-                        placeholder={ <div className={ classes.placeholder } /> }
-                        ErrorBoundary={ LexicalErrorBoundary }
-                    />
 
-                    <OnChangePlugin // On change handler
-                        onChange={
-                            (editorState) => {
-                                editorState.read(() => {
-                                    const root = $getRoot(); // Get root node of the editor (parent to all text nodes)
+                updateCommentsTimeout = setTimeout(async () => {
+                  const responses = await Promise.all(
+                    paragraphs.map((paragraph) =>
+                      fetch(`${SERVER_URL}/api/reflections`, {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                          username: "", // TODO: need to update this to an actual username
+                          paragraph: paragraph,
+                          prompt:
+                            "Summarize the paragraph in a short sentence.",
+                        }),
+                      }),
+                    ),
+                  );
 
-                                    const fullText = root.getTextContent(); 
-                                    const paragraphs = root
-                                        .getAllTextNodes()
-                                        .map(node => node.getTextContent());
+                  const comments: string[] = [];
 
-                                    // If there isn't a change in the text
-                                    if (fullText === textState) return;
-                                    
-                                    // Update text state to current state
-                                    updateTextState(fullText);
+                  for (const res of responses) {
+                    const json = await res.json();
 
-                                    // If the user made a change to the text before the timeout finished, then clear it
-                                    if (updateCommentsTimeout) {
-                                        clearTimeout(updateCommentsTimeout); 
-                                        updateCommentsTimeout = null;
-                                    }
+                    comments.push(json.reflections[0].reflection);
+                  }
 
-                                    updateCommentsTimeout = setTimeout(async () => {
-                                        const responses = await Promise.all(
-                                            paragraphs.map(
-                                                paragraph => 
-                                                    fetch(
-                                                        `${ SERVER_URL }/api/reflections`,
-                                                        {
-                                                            method: 'POST',
-                                                            headers: {
-                                                                'Content-Type': 'application/json',
-                                                            },
-                                                            body: JSON.stringify(
-                                                                {
-                                                                    username: '', // TODO: need to update this to an actual username
-                                                                    paragraph: paragraph,
-                                                                    prompt: 'Summarize the paragraph in a short sentence.'
-                                                                }
-                                                            )
-                                                        }
-                                                    )
-                                            )
-                                        );
-                                        
-                                        const comments: string[] = [];
+                  // TODO: Fix typing issue
+                  props.updateComments(
+                    comments.map((comment, index) => ({
+                      title: `Summary for paragraph ${index + 1}`,
+                      content: comment,
+                    })) as Comment[],
+                  );
+                }, 1000);
+              });
+            }}
+          />
 
-                                        for(const res of responses) {
-                                            const json = await res.json();
+          <HistoryPlugin />
 
-                                            comments.push(
-                                                json.reflections[0].reflection
-                                            );
-                                        }
-
-                                        // TODO: Fix typing issue
-                                        props.updateComments(
-                                            comments.map(
-                                                (comment, index) => (
-                                                    {
-                                                        title: `Summary for paragraph ${ index + 1 }`,
-                                                        content: comment
-                                                    }
-                                                )
-                                            ) as Comment[]
-                                        );
-                                    }, 1000);
-                                });
-                            }
-                        }
-                    />
-
-                    <HistoryPlugin />
-
-                    {/* Custom plugin to handle comments */}
-                    <CommentPlugin
-                        previousComment={ previousComment }
-                        updatePreviousComment={ updatePreviousComment }
-                        comment={ props.comment }
-                        commentIndex={ props.commentIndex }
-                    />
-                </div>
-            </LexicalComposer>
-        </>
-    );
+          {/* Custom plugin to handle comments */}
+          <CommentPlugin
+            previousComment={previousComment}
+            updatePreviousComment={updatePreviousComment}
+            comment={props.comment}
+            commentIndex={props.commentIndex}
+          />
+        </div>
+      </LexicalComposer>
+    </>
+  );
 }

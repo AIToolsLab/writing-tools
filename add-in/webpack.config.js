@@ -26,10 +26,7 @@ module.exports = async (env, options) => {
 		entry: {
 			polyfill: ['core-js/stable', 'regenerator-runtime/runtime'],
 			vendor: ['react', 'react-dom', 'core-js', '@fluentui/react'],
-			taskpane: [
-				'./src/index.tsx',
-				'./src/taskpane.html'
-			],
+			taskpane: ['./src/index.tsx', './src/taskpane.html'],
 			commands: './src/commands/commands.ts'
 		},
 		output: {
@@ -39,7 +36,7 @@ module.exports = async (env, options) => {
 			alias: {
 				'@': path.resolve(__dirname, 'src')
 			},
-			extensions: ['.ts', '.tsx', '.html', '.js', '.css']
+			extensions: ['.ts', '.tsx', '.html', '.js', '.css', '.json', '.jsx']
 		},
 		module: {
 			rules: [
@@ -91,16 +88,15 @@ module.exports = async (env, options) => {
 						to: 'assets/[name][ext][query]'
 					},
 					{
-						from: 'src/landing-page/*',
+						from: '../landing-page/*',
 						to: '[name][ext]'
 					},
 					{
 						from: 'manifest*.xml',
 						to: '[name]' + '[ext]',
 						transform(content) {
-							if (dev)
-								return content;
-                            else
+							if (dev) return content;
+							else
 								return content
 									.toString()
 									.replace(new RegExp(urlDev, 'g'), urlProd);

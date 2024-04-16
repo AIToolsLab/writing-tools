@@ -37,8 +37,8 @@ Office.onReady(info => {
 });
 
 if ((module as any).hot)
-	(module as any).hot.accept('./pages/app', () => {
-		const NextApp = require('./pages/app').default;
+	(module as any).hot.accept('./pages/App', () => {
+		const NextApp = require('./pages/App').default;
 
 		render(NextApp);
 	});
