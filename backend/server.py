@@ -196,6 +196,76 @@ async def logs():
 
     return result
 
+gemma = {
+    'model': None,
+    'tokenizer': None
+}
+
+
+@app.get("/api/highlights")
+def get_highlights(doc: str, prompt: Optional[str] = None):
+    ''' Example of using this in JavaScript:
+    
+    let url = new URL('http://localhost:8000/api/highlights')
+    url.searchParams.append('doc', 'This is a test document. It is a test document because it is a test document.')
+    url.searchParams.append('prompt', 'Rewrite this document to be more concise.')
+    let response = await fetch(url)
+    '''
+
+    import torch
+    # load Gemma
+    if gemma['model'] is None:
+        from transformers import AutoTokenizer, AutoModelForCausalLM
+        # Load the model
+        model_name = 'google/gemma-1.1-7b-it'
+        gemma['tokenizer'] = tokenizer = AutoTokenizer.from_pretrained(model_name)
+        gemma['model'] = model = AutoModelForCausalLM.from_pretrained(model_name, device_map='auto', torch_dtype=torch.bfloat16)
+    
+    model = gemma['model']
+    tokenizer = gemma['tokenizer']
+
+    if prompt is None:
+        #prompt = "\n\nHere is that same sentence but rewritten more clearly:\n\n"
+        #prompt = '\n\nHere is that same sentence but rewritten to be more concise:\n\n'
+        prompt = "Rewrite this document to be more concise."
+
+    messages = [
+        {
+            "role": "user",
+            "content": f"{prompt}\n\n{doc}",
+        },
+    ]
+    tokenized_chat = tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors="pt")[0]
+    assert len(tokenized_chat.shape) == 1
+
+    doc_ids = tokenizer(doc, return_tensors='pt')['input_ids'][0]
+    #prompt_ids = tokenizer(prompt, return_tensors='pt')['input_ids'][0, 1:]
+
+    joined_ids = torch.cat([tokenized_chat, doc_ids[1:]])
+    # Call the model
+    with torch.no_grad():
+        logits = model(joined_ids[None].to(model.device)).logits[0].cpu()
+    
+    highlights = []
+    length_so_far = 0
+    for idx in range(len(tokenized_chat), len(joined_ids)):
+        probs = logits[idx - 1].softmax(dim=-1)
+        token_id = joined_ids[idx]
+        token = tokenizer.decode(token_id)
+        token_loss = -probs[token_id].log().item()
+        most_likely_token_id = probs.argmax()
+        print(idx, token, token_loss, tokenizer.decode(most_likely_token_id))
+        highlights.append(dict(
+            start=length_so_far,
+            end=length_so_far + len(token),
+            token=token,
+            token_loss=token_loss,
+            most_likely_token=tokenizer.decode(most_likely_token_id)
+        ))
+        length_so_far += len(token)
+    return {'highlights': highlights}
+
+
 static_path = Path('../add-in/dist')
 if static_path.exists():
     @app.get("/")
