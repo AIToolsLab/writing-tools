@@ -203,12 +203,13 @@ gemma = {
 
 
 @app.get("/api/highlights")
-def get_highlights(doc: str, prompt: Optional[str] = None):
+def get_highlights(doc: str, prompt: Optional[str] = None, updated_doc: Optional[str] = ''):
     ''' Example of using this in JavaScript:
     
     let url = new URL('http://localhost:8000/api/highlights')
     url.searchParams.append('doc', 'This is a test document. It is a test document because it is a test document.')
     url.searchParams.append('prompt', 'Rewrite this document to be more concise.')
+    url.searchParams.append('updated_doc', 'This is a test document.')
     let response = await fetch(url)
     '''
 
@@ -225,8 +226,6 @@ def get_highlights(doc: str, prompt: Optional[str] = None):
     tokenizer = gemma['tokenizer']
 
     if prompt is None:
-        #prompt = "\n\nHere is that same sentence but rewritten more clearly:\n\n"
-        #prompt = '\n\nHere is that same sentence but rewritten to be more concise:\n\n'
         prompt = "Rewrite this document to be more concise."
 
     messages = [
@@ -238,10 +237,11 @@ def get_highlights(doc: str, prompt: Optional[str] = None):
     tokenized_chat = tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors="pt")[0]
     assert len(tokenized_chat.shape) == 1
 
-    doc_ids = tokenizer(doc, return_tensors='pt')['input_ids'][0]
-    #prompt_ids = tokenizer(prompt, return_tensors='pt')['input_ids'][0, 1:]
+    if len(updated_doc.strip()) == 0:
+        updated_doc = doc
+    updated_doc_ids = tokenizer(updated_doc, return_tensors='pt')['input_ids'][0]
 
-    joined_ids = torch.cat([tokenized_chat, doc_ids[1:]])
+    joined_ids = torch.cat([tokenized_chat, updated_doc_ids[1:]])
     # Call the model
     with torch.no_grad():
         logits = model(joined_ids[None].to(model.device)).logits[0].cpu()
@@ -254,7 +254,7 @@ def get_highlights(doc: str, prompt: Optional[str] = None):
         token = tokenizer.decode(token_id)
         token_loss = -probs[token_id].log().item()
         most_likely_token_id = probs.argmax()
-        print(idx, token, token_loss, tokenizer.decode(most_likely_token_id))
+        #print(idx, token, token_loss, tokenizer.decode(most_likely_token_id))
         highlights.append(dict(
             start=length_so_far,
             end=length_so_far + len(token),
