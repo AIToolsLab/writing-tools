@@ -12,12 +12,6 @@ def sanitize(text):
     return text.replace('"', '').replace("'", "")
 
 
-async_chat_with_backoff = (
-    retry(wait=wait_random_exponential(
-        min=1, max=60), stop=stop_after_attempt(6))
-    (openai.ChatCompletion.acreate)
-)
-
 # Scratch-extractor regex
 # xxx\nFINAL ANSWER\nyyy
 # or
@@ -44,7 +38,7 @@ class ReflectionResponseInternal(BaseModel):
 
 async def gen_reflections_chat(writing, prompt) -> ReflectionResponseInternal:
     prompt_with_output_format = output_format + prompt
-    response = await async_chat_with_backoff(
+    response = await openai.ChatCompletion.acreate(
         model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": prompt},
