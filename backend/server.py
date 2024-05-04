@@ -26,6 +26,33 @@ from nlp import (
 # Load ENV vars
 load_dotenv()
 
+
+# Lifespan events for LLMs
+from contextlib import asynccontextmanager
+ml_models = {}
+
+@asynccontextmanager
+async def models_lifespan(app: FastAPI):
+    import torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+
+    #quantization_config = BitsAndBytesConfig(load_in_4bit=True)
+    # Load Gemma
+
+    model_name = 'google/gemma-1.1-7b-it'
+    #torch.cuda.set_per_process_memory_fraction(0.5)
+
+    ml_models["gemma"] = gemma = {
+        'tokenizer': AutoTokenizer.from_pretrained(model_name),
+        'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")#quantization_config=quantization_config)
+    }
+
+    yield
+
+    # Release resources on exit
+    ml_models.clear()
+
+
 openai.organization = os.getenv("OPENAI_ORGANIZATION") or "org-9bUDqwqHW2Peg4u47Psf9uUo"
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
@@ -57,7 +84,7 @@ class Log(BaseModel):
     prompt: Optional[str] = None
     ui_id: Optional[str] = None
 
-app = FastAPI()
+app = FastAPI(lifespan=models_lifespan)
 
 origins = [
     "*",
@@ -196,11 +223,6 @@ async def logs():
 
     return result
 
-gemma = {
-    'model': None,
-    'tokenizer': None
-}
-
 
 @app.get("/api/highlights")
 def get_highlights(doc: str, prompt: Optional[str] = None, updated_doc: Optional[str] = ''):
@@ -212,16 +234,9 @@ def get_highlights(doc: str, prompt: Optional[str] = None, updated_doc: Optional
     url.searchParams.append('updated_doc', 'This is a test document.')
     let response = await fetch(url)
     '''
-
     import torch
-    # load Gemma
-    if gemma['model'] is None:
-        from transformers import AutoTokenizer, AutoModelForCausalLM
-        # Load the model
-        model_name = 'google/gemma-1.1-7b-it'
-        gemma['tokenizer'] = tokenizer = AutoTokenizer.from_pretrained(model_name)
-        gemma['model'] = model = AutoModelForCausalLM.from_pretrained(model_name, device_map='auto', torch_dtype=torch.bfloat16)
-    
+
+    gemma = ml_models['gemma']
     model = gemma['model']
     tokenizer = gemma['tokenizer']
 
