@@ -237,7 +237,7 @@ def get_highlights(doc: str, prompt: Optional[str] = None, updated_doc: Optional
     tokenized_chat = tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors="pt")[0]
     assert len(tokenized_chat.shape) == 1
 
-    if len(updated_doc.strip()) == 0:
+    if updated_doc is None or len(updated_doc.strip()) == 0:
         updated_doc = doc
     updated_doc_ids = tokenizer(updated_doc, return_tensors='pt')['input_ids'][0]
 
