@@ -44,8 +44,9 @@ async def models_lifespan(app: FastAPI):
 
     ml_models["gemma"] = gemma = {
         'tokenizer': AutoTokenizer.from_pretrained(model_name),
-        'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto")#quantization_config=quantization_config)
+        'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto", torch_dtype=torch.bfloat16)#quantization_config=quantization_config)
     }
+    print(gemma['model'].hf_device_map)
 
     yield
 
