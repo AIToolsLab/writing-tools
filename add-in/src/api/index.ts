@@ -19,6 +19,12 @@ export async function getReflectionFromServer(
 			prompt
 		};
 
+		const key = JSON.stringify({ prompt, paragraph });
+
+		const cachedResponse = localStorage.getItem(key);
+
+		if (cachedResponse) return JSON.parse(cachedResponse);
+
 		const response: Response = await fetch(`${SERVER_URL}/reflections`, {
 			method: 'POST',
 			headers: {
@@ -30,6 +36,11 @@ export async function getReflectionFromServer(
 		if (!response.ok) throw new Error('Request failed ' + response.status);
 
 		const responseData: ReflectionResponses = await response.json();
+
+		localStorage.setItem(
+			key,
+			JSON.stringify(responseData.reflections)
+		);
 
 		return responseData.reflections;
 	}

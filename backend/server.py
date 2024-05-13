@@ -77,9 +77,6 @@ with sqlite3.connect(db_file) as conn:
     c = conn.cursor()
 
     c.execute(
-        "CREATE TABLE IF NOT EXISTS requests (timestamp, username, prompt, paragraph, response, success)"
-    )
-    c.execute(
         "CREATE TABLE IF NOT EXISTS logs (timestamp, username, interaction, prompt, ui_id)"
     )
 
@@ -96,37 +93,10 @@ def make_log(payload: Log):
 async def get_reflections(
     request: ReflectionRequestPayload,
 ) -> ReflectionResponses:
-    # Check if this request has been made before
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
-
-        c.execute(
-            "SELECT response FROM requests WHERE username=? AND prompt=? AND paragraph=? AND success='true'",
-            (request.username, request.prompt, request.paragraph),
-        )
-
-        result = c.fetchone()
-
-        if result:
-            response_json = result[0]
-            response = json.loads(response_json)
-
-            # assume that the database stores only valid responses in the correct schema.
-            reflections_internal = ReflectionResponseInternal(**response)
-        else:
-            # Else, make the request and cache the response
-            reflections_internal = await gen_reflections_chat(
-                writing=request.paragraph,
-                prompt=request.prompt,
-            )
-
-            # Cache the response
-            # Use SQL timestamp
-            c.execute(
-                "INSERT INTO requests (timestamp, username, prompt, paragraph, response, success) "
-                "VALUES (datetime('now'), ?, ?, ?, ?, ?)",
-                (request.username, request.prompt, request.paragraph, json.dumps(reflections_internal.dict()), "true"),
-            )
+    reflections_internal = await gen_reflections_chat(
+        writing=request.paragraph,
+        prompt=request.prompt,
+    )
 
     return ReflectionResponses(
         reflections=[
@@ -173,17 +143,6 @@ async def log_feedback(payload: Log):
     make_log(payload)
 
     return {"message": "Feedback logged successfully."}
-
-# Show all requests made to the server
-@app.get("/requests")
-async def logs():
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM requests")
-
-        result = c.fetchall()
-
-    return result
 
 # Show all server logs
 @app.get("/logs")
