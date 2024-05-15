@@ -18,10 +18,7 @@ from sse_starlette import EventSourceResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from nlp import (
-    gen_reflections_chat,
-    ReflectionResponseInternal
-)
+from nlp import gen_reflections_chat, ReflectionResponseInternal
 
 # Load ENV vars
 load_dotenv()
@@ -35,27 +32,33 @@ if openai.api_key is None:
 DEBUG = os.getenv("DEBUG") or False
 PORT = int(os.getenv("PORT") or "8000")
 
+
 # Declare Types
 class ReflectionRequestPayload(BaseModel):
     username: str
-    paragraph: str # TODO: update name
+    paragraph: str  # TODO: update name
     prompt: str
+
 
 class ReflectionResponseItem(BaseModel):
     reflection: str
 
+
 class ReflectionResponses(BaseModel):
     reflections: List[ReflectionResponseItem]
+
 
 class ChatRequestPayload(BaseModel):
     messages: List[Dict[str, str]]
     username: str
 
+
 class Log(BaseModel):
     username: str
-    interaction: str # "chat", "reflection", "click", "page_change"
+    interaction: str  # "chat", "reflection", "click", "page_change"
     prompt: Optional[str] = None
     ui_id: Optional[str] = None
+
 
 app = FastAPI()
 
@@ -71,7 +74,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-db_file = 'backend.db'
+db_file = "backend.db"
 
 with sqlite3.connect(db_file) as conn:
     c = conn.cursor()
@@ -79,6 +82,7 @@ with sqlite3.connect(db_file) as conn:
     c.execute(
         "CREATE TABLE IF NOT EXISTS logs (timestamp, username, interaction, prompt, ui_id)"
     )
+
 
 def make_log(payload: Log):
     with sqlite3.connect(db_file) as conn:
@@ -89,6 +93,7 @@ def make_log(payload: Log):
             "VALUES (datetime('now'), ?, ?, ?, ?)",
             (payload.username, payload.interaction, payload.prompt, payload.ui_id),
         )
+
 
 async def get_reflections(
     request: ReflectionRequestPayload,
@@ -109,10 +114,16 @@ async def get_reflections(
 @app.post("/api/reflections")
 async def reflections(payload: ReflectionRequestPayload):
     make_log(
-        Log(username=payload.username, interaction="reflection", prompt=payload.prompt, ui_id=None)
+        Log(
+            username=payload.username,
+            interaction="reflection",
+            prompt=payload.prompt,
+            ui_id=None,
+        )
     )
 
     return await get_reflections(payload)
+
 
 @app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
@@ -124,11 +135,16 @@ async def chat(payload: ChatRequestPayload):
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
-        stream=True
+        stream=True,
     )
 
     make_log(
-        Log(username=payload.username, interaction="chat", prompt=payload.messages[-1]['content'], ui_id=None)
+        Log(
+            username=payload.username,
+            interaction="chat",
+            prompt=payload.messages[-1]["content"],
+            ui_id=None,
+        )
     )
 
     # Stream response
@@ -138,11 +154,13 @@ async def chat(payload: ChatRequestPayload):
 
     return EventSourceResponse(generator())
 
+
 @app.post("/log")
 async def log_feedback(payload: Log):
     make_log(payload)
 
     return {"message": "Feedback logged successfully."}
+
 
 # Show all server logs
 @app.get("/logs")
@@ -155,11 +173,13 @@ async def logs():
 
     return result
 
-static_path = Path('../add-in/dist')
+
+static_path = Path("../add-in/dist")
 if static_path.exists():
+
     @app.get("/")
     def index():
-        return FileResponse(static_path / 'index.html')
+        return FileResponse(static_path / "index.html")
 
     # Get access to files on the server. Only for a production build.
     app.mount("", StaticFiles(directory=static_path), name="static")
