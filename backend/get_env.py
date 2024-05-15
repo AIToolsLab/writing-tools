@@ -1,10 +1,11 @@
-# This script is intended to be run once to create a .env file with the necessary environment variables.
-#
-# To run this script successfully, you must have permission to read from the specified Azure Key Vault
-# and be signed in to Azure CLI (https://learn.microsoft.com/en-us/cli/azure/).
-#
-# Usage: python get_env.py
+"""
+This script is intended to be run once to create a .env file with the necessary environment variables.
 
+To run this script successfully, you must have permission to read from the specified Azure Key Vault
+and be signed in to Azure CLI (https://learn.microsoft.com/en-us/cli/azure/).
+
+Usage: python get_env.py
+"""
 
 from azure.keyvault.secrets import SecretClient
 from azure.identity import DefaultAzureCredential
