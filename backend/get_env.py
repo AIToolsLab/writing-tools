@@ -7,6 +7,7 @@ and be signed in to Azure CLI (https://learn.microsoft.com/en-us/cli/azure/).
 Usage: python get_env.py
 """
 
+import socket
 from azure.keyvault.secrets import SecretClient
 from azure.identity import DefaultAzureCredential
 
@@ -14,8 +15,8 @@ VAULT_NAME = "arnoldlab"
 OPENAI_API_SECRET_NAME = "OpenAI-project"
 DATABASE_URI_SECRET_NAME = "TestTextfocalsDBURI"
 
-# Default values for other environment variables
-DEBUG_STATUS = "False"
+# Set DEBUG_STATUS to "False" if running on production machine, "True" otherwise
+DEBUG_STATUS = "False" if socket.getfqdn() == "ds1.cs.calvin.edu" else "True"
 PORT = "19570"
 
 
