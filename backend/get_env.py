@@ -10,7 +10,6 @@ Usage: python get_env.py
 from azure.keyvault.secrets import SecretClient
 from azure.identity import DefaultAzureCredential
 
-
 VAULT_NAME = "arnoldlab"
 OPENAI_API_SECRET_NAME = "OpenAI-project"
 DATABASE_URI_SECRET_NAME = "TestTextfocalsDBURI"
@@ -20,26 +19,27 @@ DEBUG_STATUS = "False"
 PORT = "19570"
 
 
-def get_secret_from_keyvault(vault_name: str, secret_name: str) -> str:
-    """Retrieve a secret from Azure Key Vault."""
+def get_keyvault(vault_name: str) -> SecretClient:
+    """Retrieve the client for accessing the specified Azure Key Vault."""
     key_vault_url = f"https://{vault_name}.vault.azure.net"
     credential = DefaultAzureCredential()
-    client = SecretClient(vault_url=key_vault_url, credential=credential)
 
-    return client.get_secret(secret_name).value
+    return SecretClient(vault_url=key_vault_url, credential=credential)
 
 
 def create_env():
     """Create a .env file with the necessary environment variables."""
+    vault = get_keyvault(VAULT_NAME)
+
+    config = {
+        "OPENAI_API_KEY": vault.get_secret(OPENAI_API_SECRET_NAME).value,
+        "DATABASE_URI": vault.get_secret(DATABASE_URI_SECRET_NAME).value,
+        "DEBUG": DEBUG_STATUS,
+        "PORT": PORT,
+    }
+
     with open(".env", "w") as f:
-        f.write(
-            f"OPENAI_API_KEY={get_secret_from_keyvault(VAULT_NAME, OPENAI_API_SECRET_NAME)}\n"
-        )
-        f.write(
-            f"DATABASE_URI={get_secret_from_keyvault(VAULT_NAME, DATABASE_URI_SECRET_NAME)}\n"
-        )
-        f.write(f"DEBUG={DEBUG_STATUS}\n")
-        f.write(f"PORT={PORT}\n")
+        f.write("\n".join([f"{key}={value}" for key, value in config.items()]))
 
 
 if __name__ == "__main__":
