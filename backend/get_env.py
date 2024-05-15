@@ -17,7 +17,7 @@ DATABASE_URI_SECRET_NAME = "TestTextfocalsDBURI"
 
 # Default values for other environment variables
 DEBUG_STATUS = "False"
-PORT = "8000"
+PORT = "19570"
 
 
 def get_secret_from_keyvault(vault_name: str, secret_name: str) -> str:
