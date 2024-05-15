@@ -10,9 +10,9 @@ from azure.keyvault.secrets import SecretClient
 from azure.identity import DefaultAzureCredential
 
 
-# Azure Key Vault and Secret Name for OpenAI API Key
 VAULT_NAME = "arnoldlab"
-SECRET_NAME = "OpenAI-project"
+OPENAI_API_SECRET_NAME = "OpenAI-project"
+DATABASE_URI_SECRET_NAME = "TestTextfocalsDBURI"
 
 # Default values for other environment variables
 DEBUG_STATUS = "False"
@@ -31,7 +31,12 @@ def get_secret_from_keyvault(vault_name: str, secret_name: str) -> str:
 def create_env():
     """Create a .env file with the necessary environment variables."""
     with open(".env", "w") as f:
-        f.write(f"OPENAI_API_KEY={get_secret_from_keyvault(VAULT_NAME, SECRET_NAME)}\n")
+        f.write(
+            f"OPENAI_API_KEY={get_secret_from_keyvault(VAULT_NAME, OPENAI_API_SECRET_NAME)}\n"
+        )
+        f.write(
+            f"DATABASE_URL={get_secret_from_keyvault(VAULT_NAME, DATABASE_URI_SECRET_NAME)}\n"
+        )
         f.write(f"DEBUG={DEBUG_STATUS}\n")
         f.write(f"PORT={PORT}\n")
 
