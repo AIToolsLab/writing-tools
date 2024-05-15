@@ -35,7 +35,7 @@ def create_env():
             f"OPENAI_API_KEY={get_secret_from_keyvault(VAULT_NAME, OPENAI_API_SECRET_NAME)}\n"
         )
         f.write(
-            f"DATABASE_URL={get_secret_from_keyvault(VAULT_NAME, DATABASE_URI_SECRET_NAME)}\n"
+            f"DATABASE_URI={get_secret_from_keyvault(VAULT_NAME, DATABASE_URI_SECRET_NAME)}\n"
         )
         f.write(f"DEBUG={DEBUG_STATUS}\n")
         f.write(f"PORT={PORT}\n")
