@@ -11,8 +11,6 @@ import { UserContext } from '@/contexts/userContext';
 import { getParagraphText } from '@/utilities';
 import { getReflectionFromServer } from '@/api';
 
-const includeSurroundingParagraphs = false;
-
 export default function Focals() {
 	const { username } = useContext(UserContext);
 
@@ -178,31 +176,11 @@ export default function Focals() {
 	// Display the reflection cards that are relevant to the currently selected
 	// paragraph, as well as its previous and next paragraphs
 	if (selectedIndex !== -1) {
-		if (includeSurroundingParagraphs) {
-			// Check if there is a previous paragraph available
-			for (let i = selectedIndex - 1; i >= 0; i--) {
-				if (paragraphTexts[i] !== '') {
-					reflectionCardsContainer.push(createReflectionCards(i, false));
-					break;
-				}
-			}
-		}
-
 		// Check if the current paragraph is available
 		if (paragraphTexts[selectedIndex] !== '')
 			reflectionCardsContainer.push(
 				createReflectionCards(selectedIndex, true)
 			);
-
-		if (includeSurroundingParagraphs) {
-			// Check if there is a next paragraph available
-			for (let i = selectedIndex + 1; i < paragraphTexts.length; i++) {
-				if (paragraphTexts[i] !== '') {
-					reflectionCardsContainer.push(createReflectionCards(i, false));
-					break;
-				}
-			}
-		}
 	}
 
 	return (
