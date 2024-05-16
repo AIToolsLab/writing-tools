@@ -15,6 +15,12 @@ export default function Navbar() {
 			>
 				Reflections
 			</p>
+			<p
+				onClick={ () => changePage('focals') }
+				className={ page === 'focals' ? classes.active : '' }
+			>
+				Focals
+			</p>
             
 			<p
 				onClick={ () => changePage('chat') }
