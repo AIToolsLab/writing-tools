@@ -1,4 +1,4 @@
-from nlp import parse_reflections_chat, ReflectionResponseInternal
+from nlp import parse_reflections_chat
 
 def test_parse_reflections_chat():
     full_response = """1. Concept: x\n   Relevance: 7 \n\n2. Concept: y\n   Relevance: 8 \n\n3. Concept: z\n   Relevance: 9 \n\nFINAL OUTPUT: - x \n- y\n- z"""

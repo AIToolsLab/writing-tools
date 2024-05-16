@@ -19,8 +19,7 @@ from pydantic import BaseModel
 from dotenv import load_dotenv
 
 from nlp import (
-    gen_reflections_chat,
-    ReflectionResponseInternal
+    gen_reflections_chat
 )
 
 # Load ENV vars
