@@ -9,7 +9,7 @@ import classes from './styles.module.css';
 export default function Login() {
 	const { changePage } = useContext(PageContext);
 	const { updateUsername } = useContext(UserContext);
-	const [width, height] = useWindowSize()
+	const [width, _height] = useWindowSize();
 
 	const [userId, updateId] = useState('');
 
@@ -31,7 +31,7 @@ export default function Login() {
 				Login
 			</button>
 			<div className={ classes.widthalert }>
-				{ width<400 && "For best experience please expand the sidebar by dragging the splitter." }
+				{ width<400 && 'For best experience please expand the sidebar by dragging the splitter.' }
 			</div>
 		</div>
 	);
