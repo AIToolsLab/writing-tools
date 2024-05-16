@@ -20,3 +20,8 @@
 	color: white;
 	background: black;
 }
+
+.widthalert {
+	max-width: 75%;
+	text-align: center;
+}
