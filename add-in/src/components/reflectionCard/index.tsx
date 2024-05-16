@@ -49,45 +49,12 @@ async function handleThumbsDownAction(paragraphIndex: number): Promise<void> {
 	});
 }
 
-async function toggleParagraphHighlight(
-	paragraphIndex: number,
-	needsHighlight: boolean
-): Promise<void> {
-	await Word.run(async (context: Word.RequestContext): Promise<void> => {
-		// Retrieve and load all the paragraphs from the Word document
-		const paragraphs: Word.ParagraphCollection =
-			context.document.body.paragraphs;
-
-		paragraphs.load();
-		await context.sync();
-
-		// Retrieve and load the paragraph to highlight
-		const target: Word.Paragraph = paragraphs.items[paragraphIndex];
-		target.load('font');
-
-		await context.sync();
-
-		// Highlight the paragraph if it needs highlight
-		target.font.highlightColor = needsHighlight ? '#FFFF00' : '#FFFFFF';
-	});
-}
-
 function ReflectionCard(props: ReflectionCardProps) {
 	const { cardData, className } = props;
-
-	const handleMouseEnter = () => {
-		toggleParagraphHighlight(cardData.paragraphIndex, true);
-	};
-
-	const handleMouseLeave = () => {
-		toggleParagraphHighlight(cardData.paragraphIndex, false);
-	};
 
 	return (
 		<div
 			className={ className }
-			onMouseEnter={ handleMouseEnter }
-			onMouseLeave={ handleMouseLeave }
 		>
 			<div className={ classes.text }>{ cardData.body }</div>
             
