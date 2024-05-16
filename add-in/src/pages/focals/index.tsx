@@ -125,12 +125,10 @@ export default function Focals() {
 	 * Creates reflection cards for a given paragraph and returns them as JSX element.
 	 *
 	 * @param {number} paragraphIndex - The index of the paragraph to create reflection cards for.
-	 * @param {boolean} isCurrent - Indicates whether the reflection card is currently highlighted.
 	 * @returns {React.JSX.Element} - The created reflection cards as a JSX element.
 	 */
 	function createReflectionCards(
 		paragraphIndex: number,
-		isCurrent: boolean
 	): JSX.Element {
 		const reflectionsForThisParagraph: ReflectionResponseItem[] =
 			getReflectionsSync(paragraphTexts[paragraphIndex], prompt);
@@ -145,7 +143,7 @@ export default function Focals() {
 		return (
 			<ReflectionCards
 				cardDataList={ cardDataList }
-				toggleCardHighlight={ isCurrent }
+				toggleCardHighlight={ false }
 			/>
 		);
 	}
@@ -179,7 +177,7 @@ export default function Focals() {
 		// Check if the current paragraph is available
 		if (paragraphTexts[selectedIndex] !== '')
 			reflectionCardsContainer.push(
-				createReflectionCards(selectedIndex, true)
+				createReflectionCards(selectedIndex)
 			);
 	}
 
