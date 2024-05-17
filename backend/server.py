@@ -1,6 +1,6 @@
 import os
 import json
-import sqlite3
+import psycopg
 
 import openai
 import uvicorn
@@ -25,6 +25,8 @@ load_dotenv()
 
 openai.organization = os.getenv("OPENAI_ORGANIZATION") or "org-9bUDqwqHW2Peg4u47Psf9uUo"
 openai.api_key = os.getenv("OPENAI_API_KEY")
+
+database_uri = os.getenv("DATABASE_URI")
 
 if openai.api_key is None:
     raise Exception("OPENAI_API_KEY is not set. Please set it in a .env file.")
@@ -74,25 +76,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-db_file = "backend.db"
-
-with sqlite3.connect(db_file) as conn:
-    c = conn.cursor()
-
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS logs (timestamp, username, interaction, prompt, ui_id)"
-    )
+with psycopg.connect(database_uri) as conn:
+    with conn.cursor() as c:
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS logs (timestamp timestamp, username text, interaction text, prompt text, ui_id text)"
+        )
 
 
 def make_log(payload: Log):
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
-
-        c.execute(
-            "INSERT INTO logs (timestamp, username, interaction, prompt, ui_id) "
-            "VALUES (datetime('now'), ?, ?, ?, ?)",
-            (payload.username, payload.interaction, payload.prompt, payload.ui_id),
-        )
+    with psycopg.connect(database_uri) as conn:
+        with conn.cursor() as c:
+            c.execute(
+                "INSERT INTO logs (timestamp, username, interaction, prompt, ui_id) "
+                "VALUES (NOW(), %s, %s, %s, %s)",
+                (payload.username, payload.interaction, payload.prompt, payload.ui_id),
+            )
 
 
 async def get_reflections(
@@ -165,11 +163,10 @@ async def log_feedback(payload: Log):
 # Show all server logs
 @app.get("/logs")
 async def logs():
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM logs")
-
-        result = c.fetchall()
+    with psycopg.connect(database_uri) as conn:
+        with conn.cursor() as c:
+            c.execute("SELECT * FROM logs")
+            result = c.fetchall()
 
     return result
 
