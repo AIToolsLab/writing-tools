@@ -1,0 +1,46 @@
+.situationBoxWrapper {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    margin-bottom: 20px;
+    align-items: center;
+}
+
+.situationBoxWrapperContent {
+    display: flex;
+    flex-direction: row;
+    width: 100%;
+    margin-bottom: 20px;
+    align-items: center;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.situationBoxWrapper:hover {
+    background-color: #f5f5f5;
+}
+
+.situationBoxWrapperContent:hover {
+    background-color: #f5f5f5;
+}
+
+textarea {
+    background-color: transparent;
+    border: none;
+    width: 100%;
+    font-size: 0.9rem;
+    padding: 8px;
+    resize: none;
+    box-sizing: border-box;
+    align-content: center;
+}
+
+.searchBoxClear {
+    color: #76ABAE;
+    font-size: 1.4rem;
+    cursor: pointer;
+    margin-right: 12px;
+}
+
+.searchBoxClear:hover {
+    color: #31363F;
+}

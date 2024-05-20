@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { AiOutlineFileSearch, AiFillCloseCircle } from "react-icons/ai";
 import { FcNext } from "react-icons/fc";
 
@@ -33,6 +34,7 @@ export function SearchBox(
     props: SearchBoxProps
 ): JSX.Element {
     const { currentPrompt, updatePrompt } = props;
+    const [ searchboxPrompt, updateSearchboxPrompt ] = useState('');
 
     // Filter the prompt list based on the current prompt
     const filteredPromptList = promptList.filter((prompt) =>
@@ -41,12 +43,16 @@ export function SearchBox(
 
     // TO DO: handle empty prompt (maybe ask user to select a prompt from the list or hide the reflectionCard?)
 
+    // TO DO: Only update the prompt on user interaction (e.g. pressing enter / selecting the prompt from the list / clicking the search icon)
+
     // TO DO: Implement autocomplete / get prompt suggestions?
 
     return (
         <div className={classes.searchBoxWrapper}>
             <div className={classes.searchBox}>
-                <AiOutlineFileSearch className={classes.searchBoxIcon} />
+                <AiOutlineFileSearch
+                    className={classes.searchBoxIcon}
+                />
                 <textarea
                     defaultValue=""
                     value={currentPrompt}

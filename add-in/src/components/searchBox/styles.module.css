@@ -9,8 +9,8 @@
     align-items: center;
     box-shadow: 0px, 10px, 24px rgba(0, 0, 0, 0.3);
     padding: 0px 15px;
-    margin-top: 10px;
-    margin-bottom: 10px;
+    margin-top: 8px;
+    margin-bottom: 8px;
 }
 
 textarea {
@@ -27,6 +27,10 @@ textarea {
 .searchBoxIcon {
     color: #76ABAE;
     font-size: 1.2rem;
+}
+
+.searchBoxIcon:hover {
+    color: #31363F;
 }
 
 .searchBoxClear {
@@ -46,7 +50,7 @@ textarea:focus {
 .searchBoxDropdown {
     background-color: #ffffff;
     overflow: hidden;
-    padding-bottom: 16px;
+    padding-bottom: 8px;
 }
 
 .searchBoxDropdownItem {
