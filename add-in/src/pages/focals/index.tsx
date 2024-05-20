@@ -5,6 +5,8 @@ import {
 	defaultPrompt,
 	PromptButtonSelector
 } from '@/components/promptButtonSelector';
+import { SearchBox } from '@/components/searchBox';
+import { RhetoricalSituation } from '@/components/rhetoricalSituation';
 
 import { UserContext } from '@/contexts/userContext';
 
@@ -24,7 +26,8 @@ export default function Focals() {
 		>
 	>(new Map());
 
-	const [prompt, updatePrompt] = useState(defaultPrompt);
+	const [prompt, updatePrompt] = useState('');
+	const [prefix, updatePrefix] = useState('');
 
 	/**
 	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
@@ -183,11 +186,14 @@ export default function Focals() {
 
 	return (
 		<div className="ms-welcome">
-			<PromptButtonSelector
+			<RhetoricalSituation
+				currentPrefix={ prefix }
+				updatePrefix={ updatePrefix }
+			/>
+			<SearchBox
 				currentPrompt={ prompt }
 				updatePrompt={ updatePrompt }
 			/>
-
 			{...reflectionCardsContainer}
 		</div>
 	);
