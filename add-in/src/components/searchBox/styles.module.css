@@ -7,7 +7,7 @@
     display: flex;
     border-radius: 28px;
     align-items: center;
-    box-shadow: 0px, 0px, 8px #ddd;
+    box-shadow: 0px, 10px, 24px rgba(0, 0, 0, 0.3);
     padding: 0px 15px;
     margin-top: 10px;
     margin-bottom: 10px;
@@ -31,7 +31,7 @@ textarea {
 
 .searchBoxClear {
     color: #76ABAE;
-    font-size: 1.2rem;
+    font-size: 1.4rem;
     cursor: pointer;
 }
 
@@ -50,9 +50,21 @@ textarea:focus {
 }
 
 .searchBoxDropdownItem {
+    display: flex;
     padding: 8px;
     border-bottom: 1px solid #f5f5f5;
     background-color: #ffffff;
+    align-items: center;
+}
+
+.searchBoxDropdownIconWrapper {
+    display: flex;
+    align-items: center;
+}
+
+.searchBoxDropdownIcon {
+    font-size: 0.65rem;
+    margin-right: 4px;
 }
 
 .searchBoxDropdownItem:last-child {

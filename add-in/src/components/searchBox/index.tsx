@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { AiOutlineSearch, AiFillCloseCircle } from "react-icons/ai";
+import { AiOutlineFileSearch, AiFillCloseCircle } from "react-icons/ai";
+import { FcNext } from "react-icons/fc";
+
 
 import classes from './styles.module.css';
 
@@ -26,7 +27,7 @@ interface SearchBoxProps {
 	updatePrompt: (prompt: string) => void;
 }
 
-export const defaultPrompt = promptList[0];
+// export const defaultPrompt = promptList[0];
 
 export function SearchBox(
     props: SearchBoxProps
@@ -40,19 +41,29 @@ export function SearchBox(
 
     // TO DO: handle empty prompt (maybe ask user to select a prompt from the list or hide the reflectionCard?)
 
+    // TO DO: Implement autocomplete / get prompt suggestions?
+
     return (
         <div className={classes.searchBoxWrapper}>
             <div className={classes.searchBox}>
-                <AiOutlineSearch className={classes.searchBoxIcon} />
+                <AiOutlineFileSearch className={classes.searchBoxIcon} />
                 <textarea
                     defaultValue=""
                     value={currentPrompt}
-                    placeholder="Search for a prompt..."
-                    onChange={(event) => updatePrompt(event.target.value)}
+                    placeholder="Search for a prompt or select one from the list below..."
+                    onChange={(event) => {
+                        if (event.target.value.trim() === '')
+                            updatePrompt('');
+                        else 
+                            updatePrompt(event.target.value);
+                    }}
                     className={classes.searchBoxInput}
                     ref={ref => ref && handleAutoResize(ref)}
                 />
                 <AiFillCloseCircle
+                    style={{
+                        display: currentPrompt === '' ? 'none' : 'flex'
+                    }}
                     className={classes.searchBoxClear}
                     onClick={() => updatePrompt('')}
                 />
@@ -65,6 +76,9 @@ export function SearchBox(
                             key={index}
                             onClick={() => updatePrompt(prompt)}
                         >
+                            <div className={classes.searchBoxDropdownIconWrapper}>
+                                <FcNext className={classes.searchBoxDropdownIcon} />
+                            </div>
                             {prompt}
                         </li>
                     ))}
