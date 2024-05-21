@@ -143,7 +143,7 @@ export default function Focals() {
 		return (
 			<ReflectionCards
 				cardDataList={ cardDataList }
-				toggleCardHighlight={ false }
+				isHighlighted={ false }
 			/>
 		);
 	}

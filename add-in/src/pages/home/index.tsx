@@ -147,7 +147,7 @@ export default function Home() {
 		return (
 			<ReflectionCards
 				cardDataList={ cardDataList }
-				toggleCardHighlight={ isCurrent }
+				isHighlighted={ isCurrent }
 			/>
 		);
 	}

@@ -8,7 +8,7 @@ interface ReflectionCardProps {
 
 interface ReflectionCardsProps {
 	cardDataList: CardData[];
-	toggleCardHighlight: boolean;
+	isHighlighted: boolean;
 }
 
 const handlePinAction = handleThumbsUpAction;
@@ -73,7 +73,7 @@ function ReflectionCard(props: ReflectionCardProps) {
 }
 
 export function ReflectionCards(props: ReflectionCardsProps) {
-	const { cardDataList, toggleCardHighlight } = props;
+	const { cardDataList, isHighlighted } = props;
 
 	return (
 		<div>
@@ -90,8 +90,8 @@ export function ReflectionCards(props: ReflectionCardsProps) {
 						key={ index }
 						cardData={ cardData }
 						className={
-							toggleCardHighlight
-								? classes.toggleCardHighlight
+							isHighlighted
+								? classes.isHighlighted
 								: classes.card
 						}
 					/>
