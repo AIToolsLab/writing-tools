@@ -107,7 +107,7 @@ export default function Focals() {
 
 			suggestionsPromise
 				.then(newPrompts => {
-						suggestedPrompts.push(...newPrompts.map(prompt => prompt.reflection + ' Answer concisely with three bullet points: -'));
+						suggestedPrompts.unshift(...newPrompts.map(prompt => prompt.reflection + ' Answer concisely with three bullet points: -'));
 						updateSuggestedPrompts(suggestedPrompts);
 				})
 				.catch(error => {
