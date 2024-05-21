@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { ChangeEvent, useState } from 'react';
 
 import TextareaAutosize from 'react-textarea-autosize';
 import { DefaultButton } from '@fluentui/react/lib/Button';
@@ -134,8 +134,8 @@ export function PromptButtonSelector(
 				<TextareaAutosize
 					className={ classes.textarea }
 					value={ displayedPrompt }
-					onChange={ e => {
-						setDisplayedPrompt(e.target.value);
+					onChange={ (e: ChangeEvent) => {
+						setDisplayedPrompt((e.target as HTMLInputElement).value);
 						setCurrentButton('Custom');
 					} }
 				/>
