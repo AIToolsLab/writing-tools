@@ -13,17 +13,17 @@ export async function getReflection(
 	prompt: string
 ): Promise<ReflectionResponseItem[]> {
 	try {
-		const data = {
-			username: username,
-			paragraph,
-			prompt
-		};
-
 		const key = JSON.stringify({ prompt, paragraph });
 
 		const cachedResponse = localStorage.getItem(key);
 
 		if (cachedResponse) return JSON.parse(cachedResponse);
+
+        const data = {
+			username: username,
+			paragraph,
+			prompt
+		};
 
 		const response: Response = await fetch(`${SERVER_URL}/reflections`, {
 			method: 'POST',
