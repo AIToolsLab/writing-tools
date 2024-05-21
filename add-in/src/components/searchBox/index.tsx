@@ -63,7 +63,6 @@ export function SearchBox(
                         else 
                             updatePrompt(event.target.value);
                     }}
-                    className={classes.searchBoxInput}
                     ref={ref => ref && handleAutoResize(ref)}
                 />
                 <AiFillCloseCircle
