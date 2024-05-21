@@ -56,7 +56,7 @@ export function SearchBox(
                 <textarea
                     defaultValue=""
                     value={currentPrompt}
-                    placeholder="Search for a prompt or select one from the list below..."
+                    placeholder="Enter a prompt or select one below"
                     onChange={(event) => {
                         if (event.target.value.trim() === '')
                             updatePrompt('');
