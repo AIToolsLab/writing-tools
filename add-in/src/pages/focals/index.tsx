@@ -100,13 +100,16 @@ export default function Focals() {
 			typeof paragraphText === 'string' && paragraphText !== '',
 			'paragraphText must be a non-empty string'
 		);
+
+		// META-PROMPT TO GENERATE SUGGESTED PROMPTS GOES HERE
 		const suggestionPrompt = 'Write 3 concise prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer. Separate each prompt by a bullet point. List in dashes -'
 
 		const suggestionsPromise: Promise<ReflectionResponseItem[]> =
 			getReflectionFromServer(username, paragraphText, suggestionPrompt);
 
 			suggestionsPromise
-				.then(newPrompts => {
+			.then(newPrompts => {
+						// Prepend the suggestions to the list of hard-coded suggestions
 						suggestedPrompts.unshift(...newPrompts.map(prompt => prompt.reflection + ' Answer concisely with three bullet points: -'));
 						updateSuggestedPrompts(suggestedPrompts);
 				})
