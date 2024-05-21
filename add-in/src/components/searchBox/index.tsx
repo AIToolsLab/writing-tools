@@ -1,7 +1,5 @@
-import { useState } from "react";
-import { AiOutlineFileSearch, AiFillCloseCircle } from "react-icons/ai";
-import { FcNext } from "react-icons/fc";
-
+import { AiOutlineFileSearch, AiFillCloseCircle } from 'react-icons/ai';
+import { FcNext } from 'react-icons/fc';
 
 import classes from './styles.module.css';
 
@@ -11,21 +9,10 @@ function handleAutoResize(textarea: HTMLTextAreaElement): void {
     textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
-// TO DO: Modify/Revise the prompts
-const promptList = [
-    'What is the main point of this paragraph?',
-    'What are the important concepts in this paragraph? List three of them in dashes -',
-    'What are the claims or arguments presented in this paragraph? List three of them in dashes -',
-    'What are some potential counterarguments to the claims presented in this paragraph? Make tentative statements, list three of them in dashes -',
-    'What further evidence or examples would you like to see to support the claims presented in this paragraph? List three of them in dashes -',
-    'What outside the box questions do you have about this paragraph? List three of them in dashes -',
-    'What questions do you have about this paragraph as a writer? List three of them in dashes -',
-    'What questions do you have about this paragraph as a reader? List three of them in dashes -',
-];
-
 interface SearchBoxProps {
 	currentPrompt: string;
 	updatePrompt: (prompt: string) => void;
+    suggestedPrompts: string[];
 }
 
 // export const defaultPrompt = promptList[0];
@@ -33,11 +20,10 @@ interface SearchBoxProps {
 export function SearchBox(
     props: SearchBoxProps
 ): JSX.Element {
-    const { currentPrompt, updatePrompt } = props;
-    const [ searchboxPrompt, updateSearchboxPrompt ] = useState('');
+    const { currentPrompt, updatePrompt, suggestedPrompts } = props;
 
     // Filter the prompt list based on the current prompt
-    const filteredPromptList = promptList.filter((prompt) =>
+    const filteredPromptList = suggestedPrompts.filter((prompt) =>
         prompt.toLowerCase().includes(currentPrompt.toLowerCase())
     );
 
@@ -48,45 +34,45 @@ export function SearchBox(
     // TO DO: Implement autocomplete / get prompt suggestions?
 
     return (
-        <div className={classes.searchBoxWrapper}>
-            <div className={classes.searchBox}>
+        <div className={ classes.searchBoxWrapper }>
+            <div className={ classes.searchBox }>
                 <AiOutlineFileSearch
-                    className={classes.searchBoxIcon}
+                    className={ classes.searchBoxIcon }
                 />
                 <textarea
                     defaultValue=""
-                    value={currentPrompt}
+                    value={ currentPrompt }
                     placeholder="Enter a prompt or select one below"
-                    onChange={(event) => {
+                    onChange={ (event) => {
                         if (event.target.value.trim() === '')
                             updatePrompt('');
                         else 
                             updatePrompt(event.target.value);
-                    }}
-                    ref={ref => ref && handleAutoResize(ref)}
+                    } }
+                    ref={ ref => ref && handleAutoResize(ref) }
                 />
                 <AiFillCloseCircle
-                    style={{
+                    style={ {
                         display: currentPrompt === '' ? 'none' : 'flex'
-                    }}
-                    className={classes.searchBoxClear}
-                    onClick={() => updatePrompt('')}
+                    } }
+                    className={ classes.searchBoxClear }
+                    onClick={ () => updatePrompt('') }
                 />
             </div>
-            <div className={classes.searchBoxDropdown}>
+            <div className={ classes.searchBoxDropdown }>
                 <ul>
-                    {filteredPromptList.map((prompt, index) => (
+                    { filteredPromptList.map((prompt, index) => (
                         <li
-                            className={classes.searchBoxDropdownItem}
-                            key={index}
-                            onClick={() => updatePrompt(prompt)}
+                            className={ classes.searchBoxDropdownItem }
+                            key={ index }
+                            onClick={ () => updatePrompt(prompt) }
                         >
-                            <div className={classes.searchBoxDropdownIconWrapper}>
-                                <FcNext className={classes.searchBoxDropdownIcon} />
+                            <div className={ classes.searchBoxDropdownIconWrapper }>
+                                <FcNext className={ classes.searchBoxDropdownIcon } />
                             </div>
-                            {prompt}
+                            { prompt }
                         </li>
-                    ))}
+                    )) }
                 </ul>
             </div>
         </div>

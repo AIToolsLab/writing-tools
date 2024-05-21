@@ -28,6 +28,16 @@ export default function Focals() {
 
 	const [prompt, updatePrompt] = useState('');
 	const [prefix, updatePrefix] = useState('');
+	const [suggestedPrompts, updateSuggestedPrompts] = useState<string[]>([
+		'What is the main point of this paragraph?',
+		'What are the important concepts in this paragraph? List three of them in dashes -',
+		'What are the claims or arguments presented in this paragraph? List three of them in dashes -',
+		'What are some potential counterarguments to the claims presented in this paragraph? Make tentative statements, list three of them in dashes -',
+		'What further evidence or examples would you like to see to support the claims presented in this paragraph? List three of them in dashes -',
+		'What outside the box questions do you have about this paragraph? List three of them in dashes -',
+		'What questions do you have about this paragraph as a writer? List three of them in dashes -',
+		'What questions do you have about this paragraph as a reader? List three of them in dashes -',
+]);
 
 	/**
 	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
@@ -75,6 +85,36 @@ export default function Focals() {
 		// Potentially expensive
 		loadParagraphTexts();
 	}
+
+	/**
+	 * Retrieves suggestions for prompts to ask about a piece of academic writing.
+	 * Temporarily using getReflectionFromServer until the backend is sorted out.
+	 * @param paragraphText - The text of the paragraph to generate prompts for.
+	 * @returns void
+	 */
+	function getSuggestions(
+		paragraphText: string,
+	): void {
+		// eslint-disable-next-line no-console
+		console.assert(
+			typeof paragraphText === 'string' && paragraphText !== '',
+			'paragraphText must be a non-empty string'
+		);
+		const suggestionPrompt = 'Write 3 concise prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer. Separate each prompt by a bullet point. List in dashes -'
+
+		const suggestionsPromise: Promise<ReflectionResponseItem[]> =
+			getReflectionFromServer(username, paragraphText, suggestionPrompt);
+
+			suggestionsPromise
+				.then(newPrompts => {
+						suggestedPrompts.push(...newPrompts.map(prompt => prompt.reflection + ' Answer concisely with three bullet points: -'));
+						updateSuggestedPrompts(suggestedPrompts);
+				})
+				.catch(error => {
+					// eslint-disable-next-line no-console
+					console.log(error);
+				});
+		}
 
 	/**
 	 * Retrieves the reflections associated with a given paragraph text and prompt synchronously.
@@ -161,6 +201,9 @@ export default function Focals() {
 			handleSelectionChange
 		);
 
+		// Get suggested prompts for the current paragraph
+		getSuggestions(curParagraphText);
+
 		// Cleanup
 		return () => {
 			Office.context.document.removeHandlerAsync(
@@ -193,6 +236,7 @@ export default function Focals() {
 			<SearchBox
 				currentPrompt={ prompt }
 				updatePrompt={ updatePrompt }
+				suggestedPrompts={ suggestedPrompts }
 			/>
 			{...reflectionCardsContainer}
 		</div>
