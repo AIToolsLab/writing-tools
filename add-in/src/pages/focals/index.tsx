@@ -9,7 +9,7 @@ import {
 import { UserContext } from '@/contexts/userContext';
 
 import { getParagraphText } from '@/utilities';
-import { getReflectionFromServer } from '@/api';
+import { getReflection } from '@/api';
 
 export default function Focals() {
 	const { username } = useContext(UserContext);
@@ -103,7 +103,7 @@ export default function Focals() {
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflectionFromServer(username, paragraphText, prompt);
+            getReflection(username, paragraphText, prompt);
 
 			reflectionsPromise
 				.then(newReflections => {

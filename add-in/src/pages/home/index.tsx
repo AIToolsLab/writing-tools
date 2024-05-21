@@ -9,7 +9,7 @@ import {
 import { UserContext } from '@/contexts/userContext';
 
 import { getParagraphText } from '@/utilities';
-import { getReflectionFromServer } from '@/api';
+import { getReflection } from '@/api';
 
 const includeSurroundingParagraphs = false;
 
@@ -105,7 +105,7 @@ export default function Home() {
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflectionFromServer(username, paragraphText, prompt);
+            getReflection(username, paragraphText, prompt);
 
 			reflectionsPromise
 				.then(newReflections => {
