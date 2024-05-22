@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { AiOutlineFileSearch, AiFillCloseCircle } from 'react-icons/ai';
 import { FcNext } from 'react-icons/fc';
 
@@ -10,7 +11,6 @@ function handleAutoResize(textarea: HTMLTextAreaElement): void {
 }
 
 interface SearchBoxProps {
-	currentPrompt: string;
 	updatePrompt: (prompt: string) => void;
     suggestedPrompts: string[];
 }
@@ -20,11 +20,13 @@ interface SearchBoxProps {
 export function SearchBox(
     props: SearchBoxProps
 ): JSX.Element {
-    const { currentPrompt, updatePrompt, suggestedPrompts } = props;
+    const { updatePrompt, suggestedPrompts } = props;
+
+    const [searchBoxText, updateSearchBoxText] = useState('');
 
     // Filter the prompt list based on the current prompt
     const filteredPromptList = suggestedPrompts.filter((prompt) =>
-        prompt.toLowerCase().includes(currentPrompt.toLowerCase())
+        prompt.toLowerCase().includes(searchBoxText.toLowerCase())
     );
 
     // TO DO: handle empty prompt (maybe ask user to select a prompt from the list or hide the reflectionCard?)
@@ -38,25 +40,26 @@ export function SearchBox(
             <div className={ classes.searchBox }>
                 <AiOutlineFileSearch
                     className={ classes.searchBoxIcon }
+                    onClick={ () => { updatePrompt(searchBoxText) } }
                 />
                 <textarea
                     defaultValue=""
-                    value={ currentPrompt }
+                    value={ searchBoxText }
                     placeholder="Enter a prompt or select one below"
                     onChange={ (event) => {
                         if (event.target.value.trim() === '')
-                            updatePrompt('');
+                            updateSearchBoxText('');
                         else 
-                            updatePrompt(event.target.value);
+                            updateSearchBoxText(event.target.value);
                     } }
                     ref={ ref => ref && handleAutoResize(ref) }
                 />
                 <AiFillCloseCircle
                     style={ {
-                        display: currentPrompt === '' ? 'none' : 'flex'
+                        display: searchBoxText === '' ? 'none' : 'flex'
                     } }
                     className={ classes.searchBoxClear }
-                    onClick={ () => updatePrompt('') }
+                    onClick={ () => updateSearchBoxText('') }
                 />
             </div>
             <div className={ classes.searchBoxDropdown }>

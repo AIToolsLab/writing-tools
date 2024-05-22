@@ -234,7 +234,6 @@ export default function Focals() {
 				updatePrefix={ updatePrefix }
 			/>
 			<SearchBox
-				currentPrompt={ prompt }
 				updatePrompt={ updatePrompt }
 				suggestedPrompts={ suggestedPrompts }
 			/>
