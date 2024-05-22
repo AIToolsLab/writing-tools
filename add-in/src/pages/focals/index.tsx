@@ -1,10 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 
 import { ReflectionCards } from '@/components/reflectionCard';
-import {
-	defaultPrompt,
-	PromptButtonSelector
-} from '@/components/promptButtonSelector';
 import { SearchBox } from '@/components/searchBox';
 import { RhetoricalSituation } from '@/components/rhetoricalSituation';
 
@@ -102,7 +98,7 @@ export default function Focals() {
 		);
 
 		// META-PROMPT TO GENERATE SUGGESTED PROMPTS GOES HERE
-		const suggestionPrompt = 'Write 3 concise prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer. Separate each prompt by a bullet point. List in dashes -'
+		const suggestionPrompt = 'Write 3 concise prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer. Separate each prompt by a bullet point. List in dashes -';
 
 		const suggestionsPromise: Promise<LLMResponseItem[]> =
 			getServerLLMResponse(username, paragraphText, suggestionPrompt);

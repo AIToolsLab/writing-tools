@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AiFillCloseCircle } from "react-icons/ai";
+import { AiFillCloseCircle } from 'react-icons/ai';
 import { Toggle } from '@fluentui/react/lib/Toggle';
 
 import classes from './styles.module.css';
@@ -26,49 +26,49 @@ export function RhetoricalSituation(
 
     // TO DO: Only update the prompt on user interaction (e.g. pressing enter / clicking the send icon )
     return (
-        <div className={classes.rhetoricalSituation}>
+        <div className={ classes.rhetoricalSituation }>
             <Toggle
-                className={classes.toggle}
+                className={ classes.toggle }
                 label="More Options"
                 inlineLabel
-                onChange={(event, checked) => {
-                    if (checked) {
+                onChange={ (event, checked) => {
+                    if (checked)
                         updateShowSituationBox(true);
-                    } else {
+                    else
                         updateShowSituationBox(false);
-                    }
-                }}
-                checked={showSituationBox}
+                } }
+                checked={ showSituationBox }
             />
-            {   showSituationBox &&
-                <div 
-                    className={
-                        currentPrefix === '' ?
-                            classes.situationBoxWrapper :
-                            classes.situationBoxWrapperContent
-                    }
-                >
-                    <textarea
-                        defaultValue=""
-                        value={currentPrefix}
-                        placeholder="Enter Rhetorical Situation..."
-                        onChange={(event) => {
-                            if (event.target.value.trim() === '')
-                                updatePrefix('');
-                            else 
-                                updatePrefix(event.target.value);
-                        }}
-                        // className={classes.rhetoricalSituationInput}
-                        ref={ref => ref && handleAutoResize(ref)}
-                    />
-                    <AiFillCloseCircle
-                        style={{
-                            display: currentPrefix === '' ? 'none' : 'flex'
-                        }}
-                        className={classes.searchBoxClear}
-                        onClick={() => updatePrefix('')}
-                    />
-                </div>
+            {   
+                showSituationBox && (
+                    <div 
+                        className={
+                            currentPrefix === '' ?
+                                classes.situationBoxWrapper :
+                                classes.situationBoxWrapperContent
+                        }
+                    >
+                        <textarea
+                            defaultValue=""
+                            value={ currentPrefix }
+                            placeholder="Enter Rhetorical Situation..."
+                            onChange={ (event) => {
+                                if (event.target.value.trim() === '')
+                                    updatePrefix('');
+                                else 
+                                    updatePrefix(event.target.value);
+                            } }
+                            ref={ ref => ref && handleAutoResize(ref) }
+                        />
+                        <AiFillCloseCircle
+                            style={ {
+                                display: currentPrefix === '' ? 'none' : 'flex'
+                            } }
+                            className={ classes.searchBoxClear }
+                            onClick={ () => updatePrefix('') }
+                        />
+                    </div>
+                )
             }
         </div>
     );
