@@ -282,6 +282,43 @@ def get_highlights(doc: str, prompt: Optional[str] = None, updated_doc: Optional
     return {'highlights': highlights}
 
 
+@app.get('/api/next_token')
+def get_next_token_predictions(original_doc: str,
+                               prompt: str,
+                               doc_in_progress: str,
+                               k: Optional[int] = 5):
+    import torch
+
+    model = ml_models['gemma']['model']
+    tokenizer = ml_models['gemma']['tokenizer']
+
+    messages = [
+        {
+            "role": "user",
+            "content": f"{prompt}\n\n{original_doc}",
+        },
+    ]
+    tokenized_chat = tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors="pt")[0]
+
+    doc_in_progress_ids = tokenizer(doc_in_progress, return_tensors='pt')['input_ids'][0]
+
+    # strip the first token, the "beginning of document" token
+    doc_in_progress_ids = doc_in_progress_ids[1:]
+
+    joined_ids = torch.cat([tokenized_chat, doc_in_progress_ids])
+
+    # Call the model
+    with torch.no_grad():
+        logits = model(joined_ids[None].to(model.device)).logits[0].cpu()
+
+    probs = logits[-1].softmax(dim=-1)
+    most_likely_token_ids = probs.topk(k).indices
+
+    return {
+        'next_tokens': [tokenizer.decode(token_id) for token_id in most_likely_token_ids]
+    }
+
+
 static_path = Path('../add-in/dist')
 if static_path.exists():
     @app.get("/")
