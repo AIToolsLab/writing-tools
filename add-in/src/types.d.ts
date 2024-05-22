@@ -1,11 +1,11 @@
 declare module '*.css';
 
-interface ReflectionResponseItem {
+interface LLMResponseItem {
 	reflection: string;
 }
 
-interface ReflectionResponses {
-	reflections: ReflectionResponseItem[];
+interface LLMResponses {
+	generatedTexts: LLMResponseItem[];
 }
 
 interface CardData {

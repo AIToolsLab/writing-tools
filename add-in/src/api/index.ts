@@ -1,17 +1,17 @@
 export const SERVER_URL = '/api';
 
 /**
- * Fetches reflections from the server for a given paragraph and prompt.
+ * Fetches response generations from the server's LLM for a given paragraph and prompt.
  *
- * @param {string} paragraph - The paragraph for which reflections are requested.
- * @param {string} prompt - The prompt used for reflection.
- * @returns {Promise<ReflectionResponseItem[]>} - A promise that resolves to an array of reflection response items.
+ * @param {string} paragraph - The paragraph for which LLM responses are requested.
+ * @param {string} prompt - The prompt used for the LLM response.
+ * @returns {Promise<LLMResponseItem[]>} - A promise that resolves to an array of LLM response items.
  */
-export async function getReflectionFromServer(
+export async function getServerLLMResponse(
 	username: string,
 	paragraph: string,
 	prompt: string
-): Promise<ReflectionResponseItem[]> {
+): Promise<LLMResponseItem[]> {
 	try {
 		const data = {
 			username: username,
@@ -35,14 +35,14 @@ export async function getReflectionFromServer(
 
 		if (!response.ok) throw new Error('Request failed ' + response.status);
 
-		const responseData: ReflectionResponses = await response.json();
+		const responseData: LLMResponses = await response.json();
 
 		localStorage.setItem(
 			key,
-			JSON.stringify(responseData.reflections)
+			JSON.stringify(responseData.generatedTexts)
 		);
 
-		return responseData.reflections;
+		return responseData.generatedTexts;
 	}
  catch (error) {
 		return [];

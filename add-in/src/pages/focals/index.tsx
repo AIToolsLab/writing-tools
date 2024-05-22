@@ -11,7 +11,7 @@ import { RhetoricalSituation } from '@/components/rhetoricalSituation';
 import { UserContext } from '@/contexts/userContext';
 
 import { getParagraphText } from '@/utilities';
-import { getReflectionFromServer } from '@/api';
+import { getServerLLMResponse } from '@/api';
 
 export default function Focals() {
 	const { username } = useContext(UserContext);
@@ -22,7 +22,7 @@ export default function Focals() {
 	const [reflections, updateReflections] = useState<
 		Map<
 			string,
-			ReflectionResponseItem[] | Promise<ReflectionResponseItem[]>
+			LLMResponseItem[] | Promise<LLMResponseItem[]>
 		>
 	>(new Map());
 
@@ -104,8 +104,8 @@ export default function Focals() {
 		// META-PROMPT TO GENERATE SUGGESTED PROMPTS GOES HERE
 		const suggestionPrompt = 'Write 3 concise prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer. Separate each prompt by a bullet point. List in dashes -'
 
-		const suggestionsPromise: Promise<ReflectionResponseItem[]> =
-			getReflectionFromServer(username, paragraphText, suggestionPrompt);
+		const suggestionsPromise: Promise<LLMResponseItem[]> =
+			getServerLLMResponse(username, paragraphText, suggestionPrompt);
 
 			suggestionsPromise
 			.then(newPrompts => {
@@ -127,12 +127,12 @@ export default function Focals() {
 	 *
 	 * @param {string} paragraphText - The text of the paragraph to retrieve reflections for.
 	 * @param {string} prompt - The prompt used for reflection.
-	 * @returns {ReflectionResponseItem[]} - The reflections associated with the paragraph text and prompt.
+	 * @returns {LLMResponseItem[]} - The reflections associated with the paragraph text and prompt.
 	 */
 	function getReflectionsSync(
 		paragraphText: string,
 		prompt: string
-	): ReflectionResponseItem[] {
+	): LLMResponseItem[] {
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof paragraphText === 'string' && paragraphText !== '',
@@ -148,8 +148,8 @@ export default function Focals() {
 		= reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
-			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflectionFromServer(username, paragraphText, prompt);
+			const reflectionsPromise: Promise<LLMResponseItem[]> =
+				getServerLLMResponse(username, paragraphText, prompt);
 
 			reflectionsPromise
 				.then(newReflections => {
@@ -176,7 +176,7 @@ export default function Focals() {
 	function createReflectionCards(
 		paragraphIndex: number,
 	): JSX.Element {
-		const reflectionsForThisParagraph: ReflectionResponseItem[] =
+		const reflectionsForThisParagraph: LLMResponseItem[] =
 			getReflectionsSync(paragraphTexts[paragraphIndex], prompt);
 
 		const cardDataList: CardData[] = reflectionsForThisParagraph.map(
