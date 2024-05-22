@@ -38,9 +38,9 @@ export function SearchBox(
             <div className={ classes.searchBox }>
                 <AiOutlineFileSearch
                     className={ classes.searchBoxIcon }
-                    onClick={ () => 
-                        { updatePrompt(searchBoxText); }
-                    }
+                    onClick={ () => {
+                        updatePrompt(searchBoxText);
+                    } }
                 />
                 <textarea
                     defaultValue=""
