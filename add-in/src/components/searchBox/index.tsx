@@ -29,8 +29,6 @@ export function SearchBox(
         prompt.toLowerCase().includes(searchBoxText.toLowerCase())
     );
 
-    // TO DO: handle empty prompt (maybe ask user to select a prompt from the list or hide the reflectionCard?)
-
     // TO DO: Implement autocomplete / get prompt suggestions?
 
     return (
