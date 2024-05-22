@@ -68,7 +68,10 @@ export function SearchBox(
                         <li
                             className={ classes.searchBoxDropdownItem }
                             key={ index }
-                            onClick={ () => updatePrompt(prompt) }
+                            onClick={ () => {
+                                updatePrompt(prompt);
+                                updateSearchBoxText(prompt);
+                            } }
                         >
                             <div className={ classes.searchBoxDropdownIconWrapper }>
                                 <FcNext className={ classes.searchBoxDropdownIcon } />
