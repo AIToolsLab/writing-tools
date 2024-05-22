@@ -26,13 +26,13 @@ export default function Focals() {
 	const [prefix, updatePrefix] = useState('');
 	const [suggestedPrompts, updateSuggestedPrompts] = useState<string[]>([
 		'What is the main point of this paragraph?',
-		'What are the important concepts in this paragraph? List three of them in dashes -',
-		'What are the claims or arguments presented in this paragraph? List three of them in dashes -',
-		'What are some potential counterarguments to the claims presented in this paragraph? Make tentative statements, list three of them in dashes -',
-		'What further evidence or examples would you like to see to support the claims presented in this paragraph? List three of them in dashes -',
-		'What outside the box questions do you have about this paragraph? List three of them in dashes -',
-		'What questions do you have about this paragraph as a writer? List three of them in dashes -',
-		'What questions do you have about this paragraph as a reader? List three of them in dashes -',
+		'What are the important concepts in this paragraph?',
+		'What are the claims or arguments presented in this paragraph?',
+		'What are some potential counterarguments to the claims presented in this paragraph? Make tentative statements.',
+		'What further evidence or examples would you like to see to support the claims presented in this paragraph?',
+		'What outside the box questions do you have about this paragraph?',
+		'What questions do you have about this paragraph as a writer?',
+		'What questions do you have about this paragraph as a reader?',
 ]);
 
 	/**
@@ -98,7 +98,7 @@ export default function Focals() {
 		);
  
 		// META-PROMPT TO GENERATE SUGGESTED PROMPTS GOES HERE
-		const suggestionPrompt = 'Write 3 concise prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer. Separate each prompt by a bullet point. List in dashes -';
+		const suggestionPrompt = 'Write 3 concise and brief prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer. Separate each prompt by a bullet point. List in dashes -';
 
 		const suggestionsPromise: Promise<LLMResponseItem[]> =
 			getServerLLMResponse(username, paragraphText, suggestionPrompt);
@@ -107,7 +107,7 @@ export default function Focals() {
 				.then(newPrompts => {
 						updateSuggestedPrompts(prevPrompts => {
 								// Prepend the suggestions to the list of hard-coded suggestions
-								return [...newPrompts.map(prompt => prompt.reflection + ' Answer concisely with three bullet points: -'), ...prevPrompts];
+								return [...newPrompts.map(prompt => prompt.reflection ), ...prevPrompts];
 						});
 				})
 				.catch(error => {
@@ -145,8 +145,9 @@ export default function Focals() {
 		= reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
+			const addtlDirections = ' Answer concisely with three bullet points: -';
 			const reflectionsPromise: Promise<LLMResponseItem[]> =
-				getServerLLMResponse(username, paragraphText, prompt);
+				getServerLLMResponse(username, paragraphText, prompt + addtlDirections);
 
 			reflectionsPromise
 				.then(newReflections => {
