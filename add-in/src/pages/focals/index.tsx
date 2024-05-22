@@ -108,14 +108,15 @@ export default function Focals() {
 			getServerLLMResponse(username, paragraphText, suggestionPrompt);
 
 			suggestionsPromise
-			.then(newPrompts => {
-						// Prepend the suggestions to the list of hard-coded suggestions
-						suggestedPrompts.unshift(...newPrompts.map(prompt => prompt.reflection + ' Answer concisely with three bullet points: -'));
-						updateSuggestedPrompts(suggestedPrompts);
+				.then(newPrompts => {
+						updateSuggestedPrompts(prevPrompts => {
+								// Prepend the suggestions to the list of hard-coded suggestions
+								return [...newPrompts.map(prompt => prompt.reflection + ' Answer concisely with three bullet points: -'), ...prevPrompts];
+						});
 				})
 				.catch(error => {
-					// eslint-disable-next-line no-console
-					console.log(error);
+						// eslint-disable-next-line no-console
+						console.log(error);
 				});
 		}
 
