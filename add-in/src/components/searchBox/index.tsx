@@ -15,8 +15,6 @@ interface SearchBoxProps {
     suggestedPrompts: string[];
 }
 
-// export const defaultPrompt = promptList[0];
-
 export function SearchBox(
     props: SearchBoxProps
 ): JSX.Element {
