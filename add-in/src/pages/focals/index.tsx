@@ -24,7 +24,7 @@ export default function Focals() {
 
 	const [prompt, updatePrompt] = useState('');
 	const [prefix, updatePrefix] = useState('');
-	const [suggestedPrompts, updateSuggestedPrompts] = useState<string[]>([
+	const defaultPrompts = [
 		'What is the main point of this paragraph?',
 		'What are the important concepts in this paragraph?',
 		'What are the claims or arguments presented in this paragraph?',
@@ -33,7 +33,8 @@ export default function Focals() {
 		'What outside the box questions do you have about this paragraph?',
 		'What questions do you have about this paragraph as a writer?',
 		'What questions do you have about this paragraph as a reader?',
-]);
+	];
+	const [suggestedPrompts, updateSuggestedPrompts] = useState<string[]>(defaultPrompts);
 
 	/**
 	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
@@ -105,10 +106,10 @@ export default function Focals() {
 
 			suggestionsPromise
 				.then(newPrompts => {
-						updateSuggestedPrompts(prevPrompts => {
+						updateSuggestedPrompts(
 								// Prepend the suggestions to the list of hard-coded suggestions
-								return [...newPrompts.map(prompt => prompt.reflection ), ...prevPrompts];
-						});
+							[...newPrompts.map(prompt => prompt.reflection ), ...defaultPrompts]
+						);
 				})
 				.catch(error => {
 						// eslint-disable-next-line no-console
