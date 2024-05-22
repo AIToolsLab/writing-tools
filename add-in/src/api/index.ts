@@ -39,10 +39,10 @@ export async function getServerLLMResponse(
 
 		localStorage.setItem(
 			key,
-			JSON.stringify(responseData.generatedTexts)
+			JSON.stringify(responseData.reflections)
 		);
 
-		return responseData.generatedTexts;
+		return responseData.reflections;
 	}
  catch (error) {
 		return [];

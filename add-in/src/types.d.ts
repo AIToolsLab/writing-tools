@@ -5,7 +5,7 @@ interface LLMResponseItem {
 }
 
 interface LLMResponses {
-	generatedTexts: LLMResponseItem[];
+	reflections: LLMResponseItem[];
 }
 
 interface CardData {
