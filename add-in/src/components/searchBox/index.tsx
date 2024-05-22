@@ -31,8 +31,6 @@ export function SearchBox(
 
     // TO DO: handle empty prompt (maybe ask user to select a prompt from the list or hide the reflectionCard?)
 
-    // TO DO: Only update the prompt on user interaction (e.g. pressing enter / selecting the prompt from the list / clicking the search icon)
-
     // TO DO: Implement autocomplete / get prompt suggestions?
 
     return (
@@ -53,6 +51,12 @@ export function SearchBox(
                             updateSearchBoxText(event.target.value);
                     } }
                     ref={ ref => ref && handleAutoResize(ref) }
+                    onKeyDown={ (event) => {
+                        if (event.key === 'Enter' && !event.shiftKey) {
+                            event.preventDefault();
+                            updatePrompt(searchBoxText);
+                        }
+                    } }
                 />
                 <AiFillCloseCircle
                     style={ {
