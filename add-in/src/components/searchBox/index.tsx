@@ -47,8 +47,10 @@ export function SearchBox(
                     value={ searchBoxText }
                     placeholder="Enter a prompt or select one below"
                     onChange={ (event) => {
-                        if (event.target.value.trim() === '')
+                        if (event.target.value.trim() === '') {
                             updateSearchBoxText('');
+                            updatePrompt('');
+                        }
                         else 
                             updateSearchBoxText(event.target.value);
                     } }
@@ -65,7 +67,10 @@ export function SearchBox(
                         display: searchBoxText === '' ? 'none' : 'flex'
                     } }
                     className={ classes.searchBoxClear }
-                    onClick={ () => updateSearchBoxText('') }
+                    onClick={ () => {
+                        updateSearchBoxText('');
+                        updatePrompt('');
+                    } }
                 />
             </div>
             <div className={ classes.searchBoxDropdown }>

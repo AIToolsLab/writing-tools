@@ -221,7 +221,7 @@ export default function Focals() {
 
 	// Display the reflection cards that are relevant to the currently selected
 	// paragraph, as well as its previous and next paragraphs
-	if (selectedIndex !== -1) {
+	if (selectedIndex !== -1 && prompt !== '') {
 		// Check if the current paragraph is available
 		if (paragraphTexts[selectedIndex] !== '')
 			reflectionCardsContainer.push(
