@@ -306,16 +306,47 @@ def get_next_token_predictions(original_doc: str,
     doc_in_progress_ids = doc_in_progress_ids[1:]
 
     joined_ids = torch.cat([tokenized_chat, doc_in_progress_ids])
+    hypotheses = joined_ids[None].to(model.device)
 
-    # Call the model
+    # For each of the k next tokens, generate most-likely next tokens and append back on until we
+    # reach a token with a space
+
     with torch.no_grad():
-        logits = model(joined_ids[None].to(model.device)).logits[0].cpu()
+        model_outs = model(hypotheses, output_hidden_states=True)
 
-    probs = logits[-1].softmax(dim=-1)
-    most_likely_token_ids = probs.topk(k).indices
+    next_token_logits = model_outs.logits[0, -1]
+    branch_tokens = next_token_logits.topk(k).indices
+
+    # Now call the model again, passing the kv cache, so we can continue generating.
+    # Each of the k next tokens will be considered as one sequence in a "batch".
+    next_tokens_as_batch = branch_tokens.unsqueeze(1)
+    assert next_tokens_as_batch.shape == (k, 1)
+
+    # We need to duplicate the kv cache for each of the k next tokens
+    kv_cache = [
+        (key.repeat_interleave(k, dim=0), value.repeat_interleave(k, dim=0))
+        for key, value in model_outs.past_key_values
+    ]
+
+    with torch.no_grad():
+        model_outs = model(next_tokens_as_batch, past_key_values=kv_cache, output_hidden_states=True)
+    
+    # Grab the single most likely token from each of the k sequences
+    next_token_logits = model_outs.logits[:, -1]
+    assert next_token_logits.shape == (k, tokenizer.vocab_size)
+    most_likely_token_ids = next_token_logits.argmax(dim=-1)
+
+    # Stick them at the end of the branch tokens.
+    print(most_likely_token_ids.shape)
+    assert most_likely_token_ids.shape == (k,)
+    lookahead_sequences = torch.cat([
+        branch_tokens.unsqueeze(1),
+        most_likely_token_ids.unsqueeze(1)
+    ], dim=1)
+    assert lookahead_sequences.shape == (k, 2)
 
     return {
-        'next_tokens': [tokenizer.decode(token_id) for token_id in most_likely_token_ids]
+        'next_tokens': tokenizer.batch_decode(lookahead_sequences)
     }
 
 
