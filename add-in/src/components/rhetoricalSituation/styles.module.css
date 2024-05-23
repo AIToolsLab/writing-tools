@@ -5,6 +5,12 @@
     color: #31363F;
 }
 
+.savedButton {
+    font-size: 0.9rem;
+    text-shadow: 0 0 0.5px #31363F;
+    margin-left: 4px;
+}
+
 .situationBoxWrapper {
     display: flex;
     flex-direction: row;

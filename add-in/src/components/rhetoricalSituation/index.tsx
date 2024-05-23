@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { AiFillCloseCircle } from 'react-icons/ai';
-import { FcTodoList } from 'react-icons/fc';
+import { FcTodoList, FcCheckmark } from 'react-icons/fc';
 import { Toggle } from '@fluentui/react/lib/Toggle';
 
 import classes from './styles.module.css';
@@ -25,8 +25,8 @@ export function RhetoricalSituation(
     
     const [showSituationBox, updateShowSituationBox] = useState(false);
     const [searchBoxText, updateSearchBoxText] = useState('');
+    const [rhetCtxtSaved, updateRhetCtxtSaved] = useState(false);
 
-    // TO DO: Only update the prompt on user interaction (e.g. pressing enter / clicking the send icon )
     return (
         <div className={ classes.rhetoricalSituation }>
             <Toggle
@@ -46,6 +46,16 @@ export function RhetoricalSituation(
                     <>
                         <div className={ classes.situationBoxLabel }>
                                 Rhetorical Situation:
+                                <FcCheckmark
+                                    style={ {
+                                        display: rhetCtxtSaved ? 'inline' : 'none'
+                                    } }
+                                    className={ classes.savedButton }
+                                    onClick={ () => {
+                                        updateRhetCtxt('');
+                                        updateRhetCtxtSaved(false);
+                                    } }
+                                />
                         </div>
                         <div 
                             className={
@@ -61,6 +71,7 @@ export function RhetoricalSituation(
                                 className={ classes.situationBoxIcon }
                                 onClick={ () => {
                                     updateRhetCtxt(searchBoxText);
+                                    updateRhetCtxtSaved(true);
                                 } }
                             />
                             <textarea
@@ -68,6 +79,8 @@ export function RhetoricalSituation(
                                 value={ searchBoxText }
                                 placeholder="Enter Rhetorical Situation..."
                                 onChange={ (event) => {
+                                    if (rhetCtxtSaved)
+                                        updateRhetCtxtSaved(false);
                                     if (event.target.value.trim() === '') {
                                         updateSearchBoxText('');
                                         updateRhetCtxt('');
@@ -80,6 +93,7 @@ export function RhetoricalSituation(
                                     if (event.key === 'Enter' && !event.shiftKey) {
                                         event.preventDefault();
                                         updateRhetCtxt(searchBoxText);
+                                        updateRhetCtxtSaved(true);
                                     }
                                 } }
                             />
@@ -91,6 +105,7 @@ export function RhetoricalSituation(
                                 onClick={ () => {
                                     updateSearchBoxText('');
                                     updateRhetCtxt('');
+                                    updateRhetCtxtSaved(false);
                                 } }
                             />
                         </div>
