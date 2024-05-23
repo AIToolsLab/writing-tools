@@ -20,7 +20,6 @@ export function SearchBox(
 ): JSX.Element {
     const { updatePrompt, suggestedPrompts } = props;
 
-    const [searchActive, updateSearchActive] = useState(false);
     const [searchBoxText, updateSearchBoxText] = useState('');
 
     // Filter the prompt list based on the current prompt
@@ -58,12 +57,6 @@ export function SearchBox(
                             updatePrompt(searchBoxText);
                         }
                     } }
-                    onFocus={ () => updateSearchActive(true) }
-                    onBlur={ () => {
-                        setTimeout(() => {
-                            updateSearchActive(false);
-                        }, 100);
-                    } }
                 />
                 <AiFillCloseCircle
                     style={ {
@@ -76,28 +69,25 @@ export function SearchBox(
                     } }
                 />
             </div>
-            {   searchActive && (
-                    <div className={ classes.searchBoxDropdown }>
-                        <ul>
-                            { filteredPromptList.map((prompt, index) => (
-                                <li
-                                    className={ classes.searchBoxDropdownItem }
-                                    key={ index }
-                                    onClick={ () => {
-                                        updatePrompt(prompt);
-                                        updateSearchBoxText(prompt);
-                                    } }
-                                >
-                                    <div className={ classes.searchBoxDropdownIconWrapper }>
-                                        <FcNext className={ classes.searchBoxDropdownIcon } />
-                                    </div>
-                                    { prompt }
-                                </li>
-                            )) }
-                        </ul>
-                    </div>
-                )
-            }
+            <div className={ classes.searchBoxDropdown }>
+                <ul>
+                    { filteredPromptList.map((prompt, index) => (
+                        <li
+                            className={ classes.searchBoxDropdownItem }
+                            key={ index }
+                            onClick={ () => {
+                                updatePrompt(prompt);
+                                updateSearchBoxText(prompt);
+                            } }
+                        >
+                            <div className={ classes.searchBoxDropdownIconWrapper }>
+                                <FcNext className={ classes.searchBoxDropdownIcon } />
+                            </div>
+                            { prompt }
+                        </li>
+                    )) }
+                </ul>
+            </div>
         </div>
     );
 }
