@@ -98,8 +98,9 @@ export default function Focals() {
 			'paragraphText must be a non-empty string'
 		);
  
+		const rhetCtxtDirections = `Given the following rhetorical situation:\n${rhetCtxt}\n`;
 		// META-PROMPT TO GENERATE SUGGESTED PROMPTS GOES HERE
-		const suggestionPrompt = 'Write 3 concise and brief prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer. Separate each prompt by a bullet point. List in dashes -';
+		const suggestionPrompt = rhetCtxtDirections + 'Write 3 concise and brief prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer. Separate each prompt by a bullet point. List in dashes -';
 
 		const suggestionsPromise: Promise<LLMResponseItem[]> =
 			getServerLLMResponse(username, paragraphText, suggestionPrompt);
