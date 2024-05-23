@@ -23,7 +23,7 @@ export default function Focals() {
 	>(new Map());
 
 	const [prompt, updatePrompt] = useState('');
-	const [prefix, updatePrefix] = useState('');
+	const [rhetCtxt, updateRhetCtxt] = useState('');
 	const defaultPrompts = [
 		'What is the main point of this paragraph?',
 		'What are the important concepts in this paragraph?',
@@ -232,8 +232,8 @@ export default function Focals() {
 	return (
 		<div className="ms-welcome">
 			<RhetoricalSituation
-				currentPrefix={ prefix }
-				updatePrefix={ updatePrefix }
+				curRhetCtxt={ rhetCtxt }
+				updateRhetCtxt={ updateRhetCtxt }
 			/>
 			<SearchBox
 				updatePrompt={ updatePrompt }

@@ -11,16 +11,16 @@ function handleAutoResize(textarea: HTMLTextAreaElement): void {
 }
 
 interface RhetoricalSituationProps {
-    currentPrefix: string;
-	updatePrefix: (prefix: string) => void;
+    curRhetCtxt: string;
+	updateRhetCtxt: (rhetCtxt: string) => void;
 }
 
-export const defaultPrefix = '';
+export const defaultRhetCtxt = '';
 
 export function RhetoricalSituation(
     props: RhetoricalSituationProps
 ): JSX.Element {
-    const { currentPrefix, updatePrefix } = props;
+    const { curRhetCtxt, updateRhetCtxt } = props;
     
     const [showSituationBox, updateShowSituationBox] = useState(false);
 
@@ -43,29 +43,29 @@ export function RhetoricalSituation(
                 showSituationBox && (
                     <div 
                         className={
-                            currentPrefix === '' ?
+                            curRhetCtxt === '' ?
                                 classes.situationBoxWrapper :
                                 classes.situationBoxWrapperContent
                         }
                     >
                         <textarea
                             defaultValue=""
-                            value={ currentPrefix }
+                            value={ curRhetCtxt }
                             placeholder="Enter Rhetorical Situation..."
                             onChange={ (event) => {
                                 if (event.target.value.trim() === '')
-                                    updatePrefix('');
+                                    updateRhetCtxt('');
                                 else 
-                                    updatePrefix(event.target.value);
+                                    updateRhetCtxt(event.target.value);
                             } }
                             ref={ ref => ref && handleAutoResize(ref) }
                         />
                         <AiFillCloseCircle
                             style={ {
-                                display: currentPrefix === '' ? 'none' : 'flex'
+                                display: curRhetCtxt === '' ? 'none' : 'flex'
                             } }
                             className={ classes.searchBoxClear }
-                            onClick={ () => updatePrefix('') }
+                            onClick={ () => updateRhetCtxt('') }
                         />
                     </div>
                 )
