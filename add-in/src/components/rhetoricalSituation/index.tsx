@@ -93,7 +93,8 @@ export function RhetoricalSituation(
                                     if (event.key === 'Enter' && !event.shiftKey) {
                                         event.preventDefault();
                                         updateRhetCtxt(searchBoxText);
-                                        updateRhetCtxtSaved(true);
+                                        if (searchBoxText !== '')
+                                            updateRhetCtxtSaved(true);
                                     }
                                 } }
                             />
