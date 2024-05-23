@@ -337,7 +337,6 @@ def get_next_token_predictions(original_doc: str,
     most_likely_token_ids = next_token_logits.argmax(dim=-1)
 
     # Stick them at the end of the branch tokens.
-    print(most_likely_token_ids.shape)
     assert most_likely_token_ids.shape == (k,)
     lookahead_sequences = torch.cat([
         branch_tokens.unsqueeze(1),
