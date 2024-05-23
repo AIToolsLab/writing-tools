@@ -5,10 +5,18 @@
     color: #31363F;
 }
 
-.savedButton {
-    font-size: 0.9rem;
+.savedButtonGreen {
+    font-size: 1.6rem;
     text-shadow: 0 0 0.5px #31363F;
-    margin-left: 4px;
+    margin-right: 12px;
+    color: #799351;
+}
+
+.savedButtonGray {
+    font-size: 1.6rem;
+    text-shadow: 0 0 0.5px #31363F;
+    margin-right: 12px;
+    color: #BBBBBB;
 }
 
 .situationBoxWrapper {
@@ -50,13 +58,6 @@ textarea {
 .situationBoxIcon {
     font-size: 1.2rem;
     margin-left: 12px;
-}
-
-.searchBoxClear {
-    color: #76ABAE;
-    font-size: 1.4rem;
-    cursor: pointer;
-    margin-right: 12px;
 }
 
 .searchBoxClear:hover {

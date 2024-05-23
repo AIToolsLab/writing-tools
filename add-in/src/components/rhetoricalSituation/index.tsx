@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import { AiFillCloseCircle } from 'react-icons/ai';
-import { FcTodoList, FcCheckmark } from 'react-icons/fc';
+import { BsCheck2Circle } from "react-icons/bs";
 import { Toggle } from '@fluentui/react/lib/Toggle';
 
 import classes from './styles.module.css';
@@ -46,16 +45,6 @@ export function RhetoricalSituation(
                     <>
                         <div className={ classes.situationBoxLabel }>
                                 Rhetorical Situation:
-                                <FcCheckmark
-                                    style={ {
-                                        display: rhetCtxtSaved ? 'inline' : 'none'
-                                    } }
-                                    className={ classes.savedButton }
-                                    onClick={ () => {
-                                        updateRhetCtxt('');
-                                        updateRhetCtxtSaved(false);
-                                    } }
-                                />
                         </div>
                         <div 
                             className={
@@ -64,16 +53,6 @@ export function RhetoricalSituation(
                                     classes.situationBoxWrapperContent
                             }
                         >
-                            <FcTodoList
-                                style={ {
-                                    display: searchBoxText === '' ? 'none' : 'flex'
-                                } }
-                                className={ classes.situationBoxIcon }
-                                onClick={ () => {
-                                    updateRhetCtxt(searchBoxText);
-                                    updateRhetCtxtSaved(true);
-                                } }
-                            />
                             <textarea
                                 defaultValue=""
                                 value={ searchBoxText }
@@ -92,21 +71,20 @@ export function RhetoricalSituation(
                                 onKeyDown={ (event) => {
                                     if (event.key === 'Enter' && !event.shiftKey) {
                                         event.preventDefault();
-                                        updateRhetCtxt(searchBoxText);
-                                        if (searchBoxText !== '')
+                                        if (searchBoxText !== '') {
+                                            updateRhetCtxt(searchBoxText);
                                             updateRhetCtxtSaved(true);
+                                        }
                                     }
                                 } }
                             />
-                            <AiFillCloseCircle
-                                style={ {
-                                    display: searchBoxText === '' ? 'none' : 'flex'
-                                } }
-                                className={ classes.searchBoxClear }
+                            <BsCheck2Circle
+                                className={ rhetCtxtSaved ? classes.savedButtonGreen : classes.savedButtonGray }
                                 onClick={ () => {
-                                    updateSearchBoxText('');
-                                    updateRhetCtxt('');
-                                    updateRhetCtxtSaved(false);
+                                    if (searchBoxText !== '') {
+                                        updateRhetCtxt(searchBoxText);
+                                        updateRhetCtxtSaved(true);
+                                    }
                                 } }
                             />
                         </div>
