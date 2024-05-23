@@ -41,33 +41,38 @@ export function RhetoricalSituation(
             />
             {   
                 showSituationBox && (
-                    <div 
-                        className={
-                            curRhetCtxt === '' ?
-                                classes.situationBoxWrapper :
-                                classes.situationBoxWrapperContent
-                        }
-                    >
-                        <textarea
-                            defaultValue=""
-                            value={ curRhetCtxt }
-                            placeholder="Enter Rhetorical Situation..."
-                            onChange={ (event) => {
-                                if (event.target.value.trim() === '')
-                                    updateRhetCtxt('');
-                                else 
-                                    updateRhetCtxt(event.target.value);
-                            } }
-                            ref={ ref => ref && handleAutoResize(ref) }
-                        />
-                        <AiFillCloseCircle
-                            style={ {
-                                display: curRhetCtxt === '' ? 'none' : 'flex'
-                            } }
-                            className={ classes.searchBoxClear }
-                            onClick={ () => updateRhetCtxt('') }
-                        />
-                    </div>
+                    <>
+                        <div className={ classes.situationBoxLabel }>
+                                Rhetorical Situation:
+                        </div>
+                        <div 
+                            className={
+                                curRhetCtxt === '' ?
+                                    classes.situationBoxWrapper :
+                                    classes.situationBoxWrapperContent
+                            }
+                        >
+                            <textarea
+                                defaultValue=""
+                                value={ curRhetCtxt }
+                                placeholder="Enter Rhetorical Situation..."
+                                onChange={ (event) => {
+                                    if (event.target.value.trim() === '')
+                                        updateRhetCtxt('');
+                                    else 
+                                        updateRhetCtxt(event.target.value);
+                                } }
+                                ref={ ref => ref && handleAutoResize(ref) }
+                            />
+                            <AiFillCloseCircle
+                                style={ {
+                                    display: curRhetCtxt === '' ? 'none' : 'flex'
+                                } }
+                                className={ classes.searchBoxClear }
+                                onClick={ () => updateRhetCtxt('') }
+                            />
+                        </div>
+                    </>
                 )
             }
         </div>
