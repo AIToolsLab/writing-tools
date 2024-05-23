@@ -59,7 +59,11 @@ export function SearchBox(
                         }
                     } }
                     onFocus={ () => updateSearchActive(true) }
-                    onBlur={ () => updateSearchActive(false) }
+                    onBlur={ () => {
+                        setTimeout(() => {
+                            updateSearchActive(false);
+                        }, 100);
+                    } }
                 />
                 <AiFillCloseCircle
                     style={ {
