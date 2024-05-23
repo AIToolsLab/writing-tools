@@ -41,6 +41,11 @@ textarea {
     align-content: center;
 }
 
+.situationBoxIcon {
+    font-size: 1.2rem;
+    margin-left: 12px;
+}
+
 .searchBoxClear {
     color: #76ABAE;
     font-size: 1.4rem;

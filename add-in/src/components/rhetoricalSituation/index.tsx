@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { AiFillCloseCircle } from 'react-icons/ai';
+import { FcTodoList } from "react-icons/fc";
 import { Toggle } from '@fluentui/react/lib/Toggle';
 
 import classes from './styles.module.css';
@@ -23,6 +24,7 @@ export function RhetoricalSituation(
     const { curRhetCtxt, updateRhetCtxt } = props;
     
     const [showSituationBox, updateShowSituationBox] = useState(false);
+    const [searchBoxText, updateSearchBoxText] = useState('');
 
     // TO DO: Only update the prompt on user interaction (e.g. pressing enter / clicking the send icon )
     return (
@@ -52,24 +54,44 @@ export function RhetoricalSituation(
                                     classes.situationBoxWrapperContent
                             }
                         >
+                            <FcTodoList
+                                style={ {
+                                    display: searchBoxText === '' ? 'none' : 'flex'
+                                } }
+                                className={ classes.situationBoxIcon }
+                                onClick={ () => {
+                                    updateRhetCtxt(searchBoxText);
+                                } }
+                            />
                             <textarea
                                 defaultValue=""
-                                value={ curRhetCtxt }
+                                value={ searchBoxText }
                                 placeholder="Enter Rhetorical Situation..."
                                 onChange={ (event) => {
-                                    if (event.target.value.trim() === '')
+                                    if (event.target.value.trim() === '') {
+                                        updateSearchBoxText('');
                                         updateRhetCtxt('');
+                                    }
                                     else 
-                                        updateRhetCtxt(event.target.value);
+                                        updateSearchBoxText(event.target.value);
                                 } }
                                 ref={ ref => ref && handleAutoResize(ref) }
+                                onKeyDown={ (event) => {
+                                    if (event.key === 'Enter' && !event.shiftKey) {
+                                        event.preventDefault();
+                                        updateRhetCtxt(searchBoxText);
+                                    }
+                                } }
                             />
                             <AiFillCloseCircle
                                 style={ {
-                                    display: curRhetCtxt === '' ? 'none' : 'flex'
+                                    display: searchBoxText === '' ? 'none' : 'flex'
                                 } }
                                 className={ classes.searchBoxClear }
-                                onClick={ () => updateRhetCtxt('') }
+                                onClick={ () => {
+                                    updateSearchBoxText('');
+                                    updateRhetCtxt('');
+                                } }
                             />
                         </div>
                     </>
