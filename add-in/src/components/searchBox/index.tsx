@@ -76,26 +76,27 @@ export function SearchBox(
                     } }
                 />
             </div>
-            { searchActive &&
-                <div className={ classes.searchBoxDropdown }>
-                    <ul>
-                        { filteredPromptList.map((prompt, index) => (
-                            <li
-                                className={ classes.searchBoxDropdownItem }
-                                key={ index }
-                                onClick={ () => {
-                                    updatePrompt(prompt);
-                                    updateSearchBoxText(prompt);
-                                } }
-                            >
-                                <div className={ classes.searchBoxDropdownIconWrapper }>
-                                    <FcNext className={ classes.searchBoxDropdownIcon } />
-                                </div>
-                                { prompt }
-                            </li>
-                        )) }
-                    </ul>
-                </div>
+            {   searchActive && (
+                    <div className={ classes.searchBoxDropdown }>
+                        <ul>
+                            { filteredPromptList.map((prompt, index) => (
+                                <li
+                                    className={ classes.searchBoxDropdownItem }
+                                    key={ index }
+                                    onClick={ () => {
+                                        updatePrompt(prompt);
+                                        updateSearchBoxText(prompt);
+                                    } }
+                                >
+                                    <div className={ classes.searchBoxDropdownIconWrapper }>
+                                        <FcNext className={ classes.searchBoxDropdownIcon } />
+                                    </div>
+                                    { prompt }
+                                </li>
+                            )) }
+                        </ul>
+                    </div>
+                )
             }
         </div>
     );
