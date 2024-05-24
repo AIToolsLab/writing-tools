@@ -43,7 +43,7 @@ export function SearchBox(
                 <textarea
                     defaultValue=""
                     value={ searchBoxText }
-                    placeholder="Enter a prompt or select one below"
+                    placeholder="Explain..."
                     onChange={ (event) => {
                         updateSearchBoxTextSent(false);
                         if (event.target.value.trim() === '') {
