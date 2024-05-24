@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BsCheck2Circle } from "react-icons/bs";
+import { BsCheck2Circle } from 'react-icons/bs';
 import { Toggle } from '@fluentui/react/lib/Toggle';
 
 import classes from './styles.module.css';
