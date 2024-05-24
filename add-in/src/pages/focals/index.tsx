@@ -35,6 +35,7 @@ export default function Focals() {
 		'What questions do you have about this paragraph as a reader?',
 	];
 	const [suggestedPrompts, updateSuggestedPrompts] = useState<string[]>(defaultPrompts);
+	const rhetCtxtDirections = `given the following rhetorical situation:\n${rhetCtxt}\n`;
 
 	/**
 	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
@@ -98,9 +99,8 @@ export default function Focals() {
 			'paragraphText must be a non-empty string'
 		);
  
-		const rhetCtxtDirections = `Given the following rhetorical situation:\n${rhetCtxt}\n`;
 		// META-PROMPT TO GENERATE SUGGESTED PROMPTS GOES HERE
-		const suggestionPrompt = rhetCtxtDirections + 'Write 3 concise and brief prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer. Separate each prompt by a bullet point. List in dashes -';
+		const suggestionPrompt = `Write 3 concise and brief prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer, ${rhetCtxtDirections} Separate each prompt by a bullet point. List in dashes -`;
 
 		const suggestionsPromise: Promise<LLMResponseItem[]> =
 			getServerLLMResponse(username, paragraphText, suggestionPrompt);
@@ -138,6 +138,9 @@ export default function Focals() {
 			'paragraphText must be a non-empty string'
 		);
 
+		const addtlDirections = ` ${rhetCtxtDirections} Answer concisely with three bullet points: -`;
+		prompt = prompt + addtlDirections;
+
 		const cacheKey: string = JSON.stringify({ paragraphText, prompt });
 
 		// TODO: Fix typing error
@@ -147,9 +150,8 @@ export default function Focals() {
 		= reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
-			const addtlDirections = ' Answer concisely with three bullet points: -';
 			const reflectionsPromise: Promise<LLMResponseItem[]> =
-				getServerLLMResponse(username, paragraphText, prompt + addtlDirections);
+				getServerLLMResponse(username, paragraphText, prompt);
 
 			reflectionsPromise
 				.then(newReflections => {
