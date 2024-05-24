@@ -15,8 +15,6 @@ interface RhetoricalSituationProps {
 	updateRhetCtxt: (rhetCtxt: string) => void;
 }
 
-export const defaultRhetCtxt = '';
-
 export function RhetoricalSituation(
     props: RhetoricalSituationProps
 ): JSX.Element {
@@ -32,7 +30,7 @@ export function RhetoricalSituation(
                 className={ classes.toggle }
                 label="More Options"
                 inlineLabel
-                onChange={ (event, checked) => {
+                onChange={ (_event, checked) => {
                     if (checked)
                         updateShowSituationBox(true);
                     else
