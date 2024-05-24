@@ -36,8 +36,10 @@ export function SearchBox(
                 <AiOutlineFileSearch
                     className={ classes.searchBoxIcon }
                     onClick={ () => {
-                        updatePrompt(searchBoxText);
-                        updateSearchBoxTextSent(true);
+                        if (searchBoxText !== '') {
+                            updatePrompt(searchBoxText);
+                            updateSearchBoxTextSent(true);
+                        }
                     } }
                 />
                 <textarea
@@ -55,7 +57,7 @@ export function SearchBox(
                     } }
                     ref={ ref => ref && handleAutoResize(ref) }
                     onKeyDown={ (event) => {
-                        if (event.key === 'Enter' && !event.shiftKey) {
+                        if (event.key === 'Enter' && !event.shiftKey && searchBoxText !== '') {
                             event.preventDefault();
                             updatePrompt(searchBoxText);
                             updateSearchBoxTextSent(true);
