@@ -27,6 +27,7 @@ textarea {
 .searchBoxIcon {
     color: #76ABAE;
     font-size: 1.2rem;
+    transition: 0.15s;
 }
 
 .searchBoxIcon:hover {
@@ -37,6 +38,7 @@ textarea {
     color: #76ABAE;
     font-size: 1.4rem;
     cursor: pointer;
+    transition: 0.15s;
 }
 
 .searchBoxClear:hover {
@@ -59,6 +61,15 @@ textarea:focus {
     border-bottom: 1px solid #f5f5f5;
     background-color: #ffffff;
     align-items: center;
+    transition: 0.15s;
+}
+
+.searchBoxDropdownItem:last-child {
+    border-bottom: none;
+}
+
+.searchBoxDropdownItem:hover {
+    background-color: #f5f5f5;
 }
 
 .searchBoxDropdownIconWrapper {
@@ -70,12 +81,3 @@ textarea:focus {
     font-size: 0.65rem;
     margin-right: 4px;
 }
-
-.searchBoxDropdownItem:last-child {
-    border-bottom: none;
-}
-
-.searchBoxDropdownItem:hover {
-    background-color: #f5f5f5;
-}
-
