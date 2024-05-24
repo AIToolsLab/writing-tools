@@ -21,6 +21,7 @@ export function SearchBox(
     const { updatePrompt, suggestedPrompts } = props;
 
     const [searchBoxText, updateSearchBoxText] = useState('');
+    const [searchBoxTextSent, updateSearchBoxTextSent] = useState(false);
 
     // Filter the prompt list based on the current prompt
     const filteredPromptList = suggestedPrompts.filter((prompt) =>
@@ -36,6 +37,7 @@ export function SearchBox(
                     className={ classes.searchBoxIcon }
                     onClick={ () => {
                         updatePrompt(searchBoxText);
+                        updateSearchBoxTextSent(true);
                     } }
                 />
                 <textarea
@@ -43,6 +45,7 @@ export function SearchBox(
                     value={ searchBoxText }
                     placeholder="Enter a prompt or select one below"
                     onChange={ (event) => {
+                        updateSearchBoxTextSent(false);
                         if (event.target.value.trim() === '') {
                             updateSearchBoxText('');
                             updatePrompt('');
@@ -55,6 +58,7 @@ export function SearchBox(
                         if (event.key === 'Enter' && !event.shiftKey) {
                             event.preventDefault();
                             updatePrompt(searchBoxText);
+                            updateSearchBoxTextSent(true);
                         }
                     } }
                 />
@@ -66,26 +70,30 @@ export function SearchBox(
                     onClick={ () => {
                         updateSearchBoxText('');
                         updatePrompt('');
+                        updateSearchBoxTextSent(false);
                     } }
                 />
             </div>
             <div className={ classes.searchBoxDropdown }>
                 <ul>
-                    { filteredPromptList.map((prompt, index) => (
-                        <li
-                            className={ classes.searchBoxDropdownItem }
-                            key={ index }
-                            onClick={ () => {
-                                updatePrompt(prompt);
-                                updateSearchBoxText(prompt);
-                            } }
-                        >
-                            <div className={ classes.searchBoxDropdownIconWrapper }>
-                                <FcNext className={ classes.searchBoxDropdownIcon } />
-                            </div>
-                            { prompt }
-                        </li>
-                    )) }
+                    {   !searchBoxTextSent &&
+                            filteredPromptList.map((prompt, index) => (
+                                <li
+                                    className={ classes.searchBoxDropdownItem }
+                                    key={ index }
+                                    onClick={ () => {
+                                        updatePrompt(prompt);
+                                        updateSearchBoxText(prompt);
+                                        updateSearchBoxTextSent(true);
+                                    } }
+                                >
+                                    <div className={ classes.searchBoxDropdownIconWrapper }>
+                                        <FcNext className={ classes.searchBoxDropdownIcon } />
+                                    </div>
+                                    { prompt }
+                                </li>
+                            ))
+                    }
                 </ul>
             </div>
         </div>
