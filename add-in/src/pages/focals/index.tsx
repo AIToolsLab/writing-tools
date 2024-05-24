@@ -220,11 +220,11 @@ export default function Focals() {
 		// Handle initial selection change
 		handleSelectionChange();
 
-		// Handle subsequent selection changes
-		Office.context.document.addHandlerAsync(
-			Office.EventType.DocumentSelectionChanged,
-			handleSelectionChange
-		);
+		// // Handle subsequent selection changes
+		// Office.context.document.addHandlerAsync(
+		// 	Office.EventType.DocumentSelectionChanged,
+		// 	handleSelectionChange
+		// );
 
 		// Get suggested prompts for the current paragraph
 		getSuggestions(curParagraphText);
