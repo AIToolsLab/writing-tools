@@ -76,7 +76,13 @@ textarea:focus {
     align-items: center;
 }
 
-.searchBoxDropdownIcon {
+.dropdownBulletIcon {
     font-size: 0.65rem;
     margin-right: 4px;
+}
+
+.dropdownHistoryIcon {
+    font-size: 1.0rem;
+    color: #CCCCCC;
+    margin-right: 8px;
 }
