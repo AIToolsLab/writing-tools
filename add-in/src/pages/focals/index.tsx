@@ -196,37 +196,15 @@ export default function Focals() {
 		);
 	}
 
-	// useEffect(() => {
-	// 	// Handle initial selection change
-	// 	handleSelectionChange();
-
-	// 	// Handle subsequent selection changes
-	// 	Office.context.document.addHandlerAsync(
-	// 		Office.EventType.DocumentSelectionChanged,
-	// 		handleSelectionChange
-	// 	);
-
-	// 	// Get suggested prompts for the current paragraph
-	// 	getSuggestions(curParagraphText);
-
-	// 	// Cleanup
-	// 	return () => {
-	// 		Office.context.document.removeHandlerAsync(
-	// 			Office.EventType.DocumentSelectionChanged,
-	// 			handleSelectionChange
-	// 		);
-	// 	};
-	// }, [curParagraphText]);
-
-	function handleFocalsClick() {
+	useEffect(() => {
 		// Handle initial selection change
 		handleSelectionChange();
 
-		// // Handle subsequent selection changes
-		// Office.context.document.addHandlerAsync(
-		// 	Office.EventType.DocumentSelectionChanged,
-		// 	handleSelectionChange
-		// );
+		// Handle subsequent selection changes
+		Office.context.document.addHandlerAsync(
+			Office.EventType.DocumentSelectionChanged,
+			handleSelectionChange
+		);
 
 		// Get suggested prompts for the current paragraph
 		getSuggestions(curParagraphText);
@@ -238,7 +216,7 @@ export default function Focals() {
 				handleSelectionChange
 			);
 		};
-	}
+	}, [curParagraphText]);
 
 	// Index of the currently selected paragraph
 	const selectedIndex = paragraphTexts.indexOf(curParagraphText);
@@ -257,9 +235,6 @@ export default function Focals() {
 	return (
 		<div
 			className="ms-welcome"
-			onClick={ () => {
-				handleFocalsClick();
-			} }
 		>
 			<RhetoricalSituation
 				curRhetCtxt={ rhetCtxt }
