@@ -22,6 +22,7 @@ export function SearchBox(
 
     const [searchBoxText, updateSearchBoxText] = useState('');
     const [searchBoxTextSent, updateSearchBoxTextSent] = useState(false);
+    const [dropdownVisible, updateDropdownVisible] = useState(false);
 
     // Filter the prompt list based on the current prompt
     const filteredPromptList = suggestedPrompts.filter((prompt) =>
@@ -63,6 +64,14 @@ export function SearchBox(
                             updateSearchBoxTextSent(true);
                         }
                     } }
+                    onFocus={ () => {
+                        updateDropdownVisible(true);
+                    } }
+                    onBlur={ () => {
+                        setTimeout(() => {
+                            updateDropdownVisible(false);
+                        }, 100);
+                    } }
                 />
                 <AiFillCloseCircle
                     style={ {
@@ -76,10 +85,13 @@ export function SearchBox(
                     } }
                 />
             </div>
-            <div className={ classes.searchBoxDropdown }>
-                <ul>
-                    {   !searchBoxTextSent &&
-                            filteredPromptList.map((prompt, index) => (
+
+            {    (!searchBoxTextSent && dropdownVisible) && (
+                <>
+                    <hr/>
+                    <ul>
+                        { filteredPromptList.map((prompt: string, index: number) => {
+                            return (
                                 <li
                                     className={ classes.searchBoxDropdownItem }
                                     key={ index }
@@ -94,10 +106,11 @@ export function SearchBox(
                                     </div>
                                     { prompt }
                                 </li>
-                            ))
-                    }
-                </ul>
-            </div>
+                            );
+                        }) }
+                    </ul>
+                </>
+              ) }
         </div>
     );
 }
