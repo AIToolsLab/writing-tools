@@ -3,39 +3,34 @@ import { AiOutlineFileSearch, AiOutlineClose, AiFillCloseCircle, AiOutlineHistor
 import { FcNext } from 'react-icons/fc';
 
 import classes from './styles.module.css';
+import { handleAutoResize } from '@/utilities';
 
-// Handle auto resizing of the textarea
-function handleAutoResize(textarea: HTMLTextAreaElement): void {
-    textarea.style.height = '100%';
-    textarea.style.height = `${textarea.scrollHeight}px`;
-}
 
-// Handle deletion of a suggestion
-function handleSuggestionDelete(prompt: string): void {
+// Delete a completion suggestion
+function deleteSuggestion(prompt: string): void {
     // TO DO: Implement deletion of a suggestion
 }
 
 interface SearchBoxProps {
-	updatePrompt: (prompt: string) => void;
-    suggestedPrompts: string[];
+	updateSubmittedPrompt: (prompt: string) => void;
+    promptSuggestions: string[];
 }
 
 export function SearchBox(
     props: SearchBoxProps
 ): JSX.Element {
-    const { updatePrompt, suggestedPrompts } = props;
+    const { updateSubmittedPrompt: updateSubmittedPrompt, promptSuggestions: promptSuggestions } = props;
 
-    const [prevPrompts, _updatePrevPrompts] = useState<string[]>([]);
+    const [prevPrompts, _updatePrevPrompts] = useState<string[]>([]); // Search history
     const [searchBoxText, updateSearchBoxText] = useState('');
     const [searchBoxTextSent, updateSearchBoxTextSent] = useState(false);
     const [dropdownVisible, updateDropdownVisible] = useState(false);
-    const [isDropdownInteracting, setIsDropdownInteracting] = useState(false);
+    const [isDropdownClicked, setIsDropdownClicked] = useState(false);
 
-    // Filter the prompt list based on the current prompt
-    const filteredNewPromptList = suggestedPrompts.filter((prompt) =>
+    // Filter the prompt lists based on the current prompt
+    const filteredNewPromptList = promptSuggestions.filter((prompt) =>
         prompt.toLowerCase().includes(searchBoxText.toLowerCase())
     );
-
     const filteredHistoryList = prevPrompts.filter((prompt) =>
         prompt.toLowerCase().includes(searchBoxText.toLowerCase())
     );
@@ -47,7 +42,7 @@ export function SearchBox(
                     className={ classes.searchBoxIcon }
                     onClick={ () => {
                         if (searchBoxText !== '') {
-                            updatePrompt(searchBoxText);
+                            updateSubmittedPrompt(searchBoxText);
                             updateSearchBoxTextSent(true);
                         }
                     } }
@@ -60,17 +55,19 @@ export function SearchBox(
                         updateSearchBoxTextSent(false);
                         if (event.target.value.trim() === '') {
                             updateSearchBoxText('');
-                            updatePrompt('');
+                            updateSubmittedPrompt('');
                         }
                         else 
                             updateSearchBoxText(event.target.value);
                     } }
+                    // Adaptively resize textarea to fit text content
                     ref={ ref => ref && handleAutoResize(ref) }
                     onKeyDown={ (event) => {
                         if (event.key === 'Enter' && !event.shiftKey && searchBoxText !== '') {
-                            event.preventDefault();
-                            updatePrompt(searchBoxText);
+                            event.preventDefault(); // Prevent newline (submit instead)
+                            updateSubmittedPrompt(searchBoxText);
                             updateSearchBoxTextSent(true);
+                            // Prepend submitted prompt to search history storing up to 25 prompts
                             prevPrompts.unshift(searchBoxText);
                             if (prevPrompts.length > 25) {
                                 prevPrompts.pop();
@@ -81,7 +78,7 @@ export function SearchBox(
                         updateDropdownVisible(true);
                     } }
                     onBlur={ () => {
-                        if (!isDropdownInteracting) {
+                        if (!isDropdownClicked) { // Don't hide dropdown if holding click on dropdown
                             setTimeout(() => {
                                 updateDropdownVisible(false);
                             }, 100);
@@ -95,30 +92,32 @@ export function SearchBox(
                     className={ classes.searchBoxClear }
                     onClick={ () => {
                         updateSearchBoxText('');
-                        updatePrompt('');
+                        updateSubmittedPrompt('');
                         updateSearchBoxTextSent(false);
                     } }
                 />
             </div>
-
+            { /* The dropdown of prompt recommendations */ }
             {    (!searchBoxTextSent && dropdownVisible) && (
                 <div
                     onMouseDown={ () => {
-                        setIsDropdownInteracting(true);
+                        setIsDropdownClicked(true);
                     } }
                     onMouseUp={ () => {
-                        setIsDropdownInteracting(false);
+                        setIsDropdownClicked(false);
                     } }
                 >
                     <hr/>
+                    { /* Matching past searches */ }
                     <ul>
+                        { /* Only show 3 past searches */ }
                         { filteredHistoryList.slice(0, 3).map((prompt: string, index: number) => {
                             return (
                                 <li
                                     className={ classes.searchBoxDropdownItem }
                                     key={ index }
                                     onClick={ () => {
-                                        updatePrompt(prompt);
+                                        updateSubmittedPrompt(prompt);
                                         updateSearchBoxText(prompt);
                                         updateSearchBoxTextSent(true);
                                     } }
@@ -130,7 +129,7 @@ export function SearchBox(
                                     <div
                                         className={ classes.searchBoxDropdownDeleteIconWrapper }
                                         onClick={ () => {
-                                            handleSuggestionDelete(prompt);
+                                            deleteSuggestion(prompt);
                                         } }
                                     >
                                         <AiOutlineClose className={ classes.dropdownDeleteIcon } />
@@ -139,6 +138,7 @@ export function SearchBox(
                             );
                         }) }
                     </ul>
+                    { /* "New" prompt suggestions */ }
                     <ul>
                         { filteredNewPromptList.map((prompt: string, index: number) => {
                             return (
@@ -146,7 +146,7 @@ export function SearchBox(
                                     className={ classes.searchBoxDropdownItem }
                                     key={ index }
                                     onClick={ () => {
-                                        updatePrompt(prompt);
+                                        updateSubmittedPrompt(prompt);
                                         updateSearchBoxText(prompt);
                                         updateSearchBoxTextSent(true);
                                     } }

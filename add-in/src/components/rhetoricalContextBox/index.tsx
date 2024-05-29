@@ -3,50 +3,48 @@ import { BsCheck2Circle } from 'react-icons/bs';
 import { Toggle } from '@fluentui/react/lib/Toggle';
 
 import classes from './styles.module.css';
+import { handleAutoResize } from '@/utilities';
 
 
-function handleAutoResize(textarea: HTMLTextAreaElement): void {
-    textarea.style.height = '100%';
-    textarea.style.height = `${textarea.scrollHeight}px`;
-}
-
-interface RhetoricalSituationProps {
+interface RhetoricalContextBoxProps {
     curRhetCtxt: string;
 	updateRhetCtxt: (rhetCtxt: string) => void;
 }
 
-export function RhetoricalSituation(
-    props: RhetoricalSituationProps
+export function RhetoricalContextBox(
+    props: RhetoricalContextBoxProps
 ): JSX.Element {
     const { curRhetCtxt, updateRhetCtxt } = props;
     
-    const [showSituationBox, updateShowSituationBox] = useState(false);
-    const [searchBoxText, updateSearchBoxText] = useState('');
+    const [rhetCtxtBoxVisible, updateRhetCtxtBoxVisible] = useState(false);
     const [rhetCtxtSaved, updateRhetCtxtSaved] = useState(false);
+    const [searchBoxText, updateSearchBoxText] = useState('');
 
     return (
         <div className={ classes.rhetoricalSituation }>
+            { /* Toggle to show/hide rhetorical context box */ }
             <Toggle
                 className={ classes.toggle }
                 label="More Options"
                 inlineLabel
                 onChange={ (_event, checked) => {
                     if (checked)
-                        updateShowSituationBox(true);
+                        updateRhetCtxtBoxVisible(true);
                     else
-                        updateShowSituationBox(false);
+                        updateRhetCtxtBoxVisible(false);
                 } }
-                checked={ showSituationBox }
+                checked={ rhetCtxtBoxVisible }
             />
             {   
-                showSituationBox && (
+                rhetCtxtBoxVisible && (
                     <>
                         <div className={ classes.situationBoxLabel }>
                                 Rhetorical Situation:
                         </div>
+                        { /* Show underline when text field is non-empty (for visibility) */ }
                         <div 
                             className={
-                                curRhetCtxt === '' ?
+                                searchBoxText === '' ?
                                     classes.situationBoxWrapper :
                                     classes.situationBoxWrapperContent
                             }
@@ -65,10 +63,11 @@ export function RhetoricalSituation(
                                     else 
                                         updateSearchBoxText(event.target.value);
                                 } }
+                                // Adaptively resize textarea to fit text content
                                 ref={ ref => ref && handleAutoResize(ref) }
                                 onKeyDown={ (event) => {
                                     if (event.key === 'Enter' && !event.shiftKey) {
-                                        event.preventDefault();
+                                        event.preventDefault(); // Prevent newline (submit instead)
                                         if (searchBoxText !== '') {
                                             updateRhetCtxt(searchBoxText);
                                             updateRhetCtxtSaved(true);
@@ -76,6 +75,7 @@ export function RhetoricalSituation(
                                     }
                                 } }
                             />
+                            { /* Save button; color-coded to indicate save status */ }
                             <BsCheck2Circle
                                 className={ rhetCtxtSaved ? classes.savedButtonGreen : classes.savedButtonGray }
                                 onClick={ () => {
