@@ -29,6 +29,7 @@ export function SearchBox(
     const [searchBoxText, updateSearchBoxText] = useState('');
     const [searchBoxTextSent, updateSearchBoxTextSent] = useState(false);
     const [dropdownVisible, updateDropdownVisible] = useState(false);
+    const [isDropdownInteracting, setIsDropdownInteracting] = useState(false);
 
     // Filter the prompt list based on the current prompt
     const filteredNewPromptList = suggestedPrompts.filter((prompt) =>
@@ -80,9 +81,11 @@ export function SearchBox(
                         updateDropdownVisible(true);
                     } }
                     onBlur={ () => {
-                        setTimeout(() => {
-                            updateDropdownVisible(false);
-                        }, 100);
+                        if (!isDropdownInteracting) {
+                            setTimeout(() => {
+                                updateDropdownVisible(false);
+                            }, 100);
+                        }
                     } }
                 />
                 <AiFillCloseCircle
@@ -99,7 +102,14 @@ export function SearchBox(
             </div>
 
             {    (!searchBoxTextSent && dropdownVisible) && (
-                <>
+                <div
+                    onMouseDown={ () => {
+                        setIsDropdownInteracting(true);
+                    } }
+                    onMouseUp={ () => {
+                        setIsDropdownInteracting(false);
+                    } }
+                >
                     <hr/>
                     <ul>
                         { filteredHistoryList.slice(0, 3).map((prompt: string, index: number) => {
@@ -157,7 +167,7 @@ export function SearchBox(
                             );
                         }) }
                     </ul>
-                </>
+                </div>
               ) }
         </div>
     );
