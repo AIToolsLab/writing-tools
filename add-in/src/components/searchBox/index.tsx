@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { AiOutlineFileSearch, AiFillCloseCircle, AiOutlineHistory } from 'react-icons/ai';
+import { AiOutlineFileSearch, AiOutlineClose, AiFillCloseCircle, AiOutlineHistory } from 'react-icons/ai';
 import { FcNext } from 'react-icons/fc';
 
 import classes from './styles.module.css';
@@ -8,6 +8,11 @@ import classes from './styles.module.css';
 function handleAutoResize(textarea: HTMLTextAreaElement): void {
     textarea.style.height = '100%';
     textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+// Handle deletion of a suggestion
+function handleSuggestionDelete(prompt: string): void {
+    // TO DO: Implement deletion of a suggestion
 }
 
 interface SearchBoxProps {
@@ -30,12 +35,9 @@ export function SearchBox(
         prompt.toLowerCase().includes(searchBoxText.toLowerCase())
     );
 
-    // Filter the prompt list based on the current prompt
     const filteredHistoryList = prevPrompts.filter((prompt) =>
         prompt.toLowerCase().includes(searchBoxText.toLowerCase())
     );
-
-    // TO DO: Implement autocomplete / get prompt suggestions?
 
     return (
         <div className={ classes.searchBoxWrapper }>
@@ -114,7 +116,15 @@ export function SearchBox(
                                     <div className={ classes.searchBoxDropdownIconWrapper }>
                                         <AiOutlineHistory className={ classes.dropdownHistoryIcon } />
                                     </div>
-                                    { prompt }
+                                    <div className={ classes.generationText }>{ prompt }</div>
+                                    <div
+                                        className={ classes.searchBoxDropdownDeleteIconWrapper }
+                                        onClick={ () => {
+                                            handleSuggestionDelete(prompt);
+                                        } }
+                                    >
+                                        <AiOutlineClose className={ classes.dropdownDeleteIcon } />
+                                    </div>
                                 </li>
                             );
                         }) }
@@ -134,7 +144,15 @@ export function SearchBox(
                                     <div className={ classes.searchBoxDropdownIconWrapper }>
                                         <FcNext className={ classes.dropdownBulletIcon } />
                                     </div>
-                                    { prompt }
+                                    <div className={ classes.generationText }>{ prompt }</div>
+                                    {/* <div
+                                        className={ classes.searchBoxDropdownDeleteIconWrapper }
+                                        onClick={ () => {
+                                            handleSuggestionDelete(prompt);
+                                        } }
+                                    >
+                                        <AiOutlineClose className={ classes.dropdownDeleteIcon } />
+                                    </div> */}
                                 </li>
                             );
                         }) }

@@ -22,6 +22,10 @@ textarea {
     align-content: center;
 }
 
+textarea:focus {
+    outline: none;
+}
+
 hr {
     width: 95%;
     border: none;
@@ -48,10 +52,6 @@ hr {
 
 .searchBoxClear:hover {
     color: #31363F;
-}
-
-textarea:focus {
-    outline: none;
 }
 
 .searchBoxDropdownItem {
@@ -83,6 +83,32 @@ textarea:focus {
 
 .dropdownHistoryIcon {
     font-size: 1.0rem;
-    color: #CCCCCC;
+    color: #bbbbbb;
     margin-right: 8px;
+}
+
+.searchBoxDropdownDeleteIconWrapper {
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+    border-radius: 16px;
+    padding: 2px;
+    margin-left: auto;
+    margin-right: 4px;
+    transition: 0.15s;
+}
+
+.searchBoxDropdownDeleteIconWrapper:hover {
+    background-color: #eeeeee;
+    cursor: pointer;
+}
+
+.dropdownDeleteIcon {
+    font-size: 1.0rem;
+    color: #888888;
+}
+
+.generationText {
+    margin-left: 4px;
+    margin-right: 32px;
 }
