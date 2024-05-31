@@ -9,3 +9,63 @@
     display: flex;
     gap: 8px;
 }
+
+input[type="radio"] {
+    display: none;
+}
+  
+input[type="radio"]:checked + label h4 {
+    color: #6643e2;
+    transition: 0.15s;
+}
+
+input[type="radio"]:hover + label h4 {
+    color: #aaaaaa;
+    transition: 0.15s;
+}
+
+.audienceButtonContainer {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    border-radius: 16px;
+    box-shadow: 1px 1px 10px 1px rgba(0, 0, 0, 0.1);
+    margin-top: 8px;
+    margin-bottom: 8px;
+    margin-left: 80px;
+    margin-right: 80px;
+}
+
+label {
+    cursor: pointer;
+    text-align: center;
+}
+
+h4 {
+    font-size: medium;
+}
+
+h2 {
+    font-size: large;
+    margin-left: 8px;
+}
+
+.optionsContainer {
+    display: flex;
+    flex-direction: row;
+    gap: 8px;
+    justify-content: center;
+}
+
+.optionsButton {
+    border-radius: 24px;
+    background-color: #ffffff;
+    font-size: medium;
+    padding: 8px 16px;
+    border: 1px solid #f0f0f0;
+    transition: 0.15s;
+}
+
+.optionsButton:hover {
+    background-color: #f0f0f0;
+}

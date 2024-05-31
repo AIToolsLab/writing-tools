@@ -187,26 +187,83 @@ export default function Focals() {
 
 	return (
 		<div className={ classes.container }>
-            <div>
-                <h2>Audience</h2>
-                <div className={ classes.audienceSelector }>
-                    <Button
-                        text="General"
-                    />
-                    <DefaultButton
-                        text="Knowledgeable"
-                    />
-                    <Button
-                        text="Expert"
-                    />
-                </div>
-            </div>
+			<div>
+					<h2>Audience</h2>
+					{/* <div className={ classes.audienceSelector }>
+							<Button
+									text="General"
+							/>
+							<DefaultButton
+									text="Knowledgeable"
+							/>
+							<Button
+									text="Expert"
+							/>
+					</div> */}
+					<div
+        		className={ classes.audienceButtonContainer }
+					>
+						<input
+							type='radio'
+							name='AudienceSwitch'
+							id='General'
+							value='General'
+						/>
+						<label
+							className={classes.buttonItem}
+							htmlFor='General'
+						>
+							<h4>General</h4>
+						</label>
 
-            <div>
-                <h2></h2>
-                
-                <p></p>
-            </div>
+						<input
+							type='radio'
+							name='AudienceSwitch'
+							id='Knowledgeable'
+							value='Knowledgeable'
+						/>
+						<label
+							className={classes.buttonItem}
+							htmlFor='Knowledgeable'
+						>
+							<h4>Knowledgeable</h4>
+						</label>
+
+						<input
+							type='radio'
+							name='AudienceSwitch'
+							id='Expert'
+							value='Expert'
+						/>
+						<label
+							className={classes.buttonItem}
+							htmlFor='Expert'
+						>
+							<h4>Expert</h4>
+						</label>
+					</div>
+					<h2>Options</h2>
+					<div
+						className={ classes.optionsContainer }
+					>
+						<button
+							className={ classes.optionsButton }
+						>
+							Ask me Questions
+						</button>
+						<button
+							className={ classes.optionsButton }
+						>
+							Rewrite for me
+						</button>
+					</div>
+			</div>
+
+			<div>
+					<h2></h2>
+					
+					<p></p>
+			</div>
 
 			{...reflectionCardsContainer}
 		</div>
