@@ -21,6 +21,7 @@ export default function Focals() {
 
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [curParagraphText, updateCurParagraphText] = useState('');
+	const [curAudience, updateCurAudience] = useState('General');
 	const [questions, updateQuestions] = useState<string[]>([]);
 	const [rewrite, updateRewrite] = useState('');
 
@@ -98,7 +99,7 @@ export default function Focals() {
 		);
  
 		// const questionPrompt = `What are three questions about this paragraph? List in dashes -`;
-		const questionPrompt = `You are a writing assistant who asks 3 dialogic questions on a provided paragraph. These questions should inspire writers to refine their personal ideas and voice in that paragraph and/or identify points for expansion. List questions in dashes -`;
+		const questionPrompt = `You are a writing assistant who asks 3 dialogic questions on a provided paragraph for an audience at the ${curAudience} level. These questions should inspire writers to refine their personal ideas and voice in that paragraph and/or identify points for expansion. List questions in dashes -`;
 
 		const questionPromise: Promise<ReflectionResponseItem[]> =
 			getReflectionFromServer(username, paragraphText, questionPrompt);
@@ -122,7 +123,7 @@ export default function Focals() {
 				'paragraphText must be a non-empty string'
 			);
 		
-			const rewritePrompt = `Rewrite this paragraph for the audience.`;
+			const rewritePrompt = `Rewrite this paragraph for an audience at the ${curAudience} level.`;
 
 			const questionPromise: Promise<ReflectionResponseItem[]> =
 				getReflectionFromServer(username, paragraphText, rewritePrompt);
@@ -269,6 +270,7 @@ export default function Focals() {
 						name="AudienceSwitch"
 						id="General"
 						value="General"
+						onClick={ () => updateCurAudience('General') }
 					/>
 					<label
 						className={ classes.buttonItem }
@@ -282,6 +284,7 @@ export default function Focals() {
 						name="AudienceSwitch"
 						id="Knowledgeable"
 						value="Knowledgeable"
+						onClick={ () => updateCurAudience('Knowledgeable') }
 					/>
 					<label
 						className={ classes.buttonItem }
@@ -295,6 +298,7 @@ export default function Focals() {
 						name="AudienceSwitch"
 						id="Expert"
 						value="Expert"
+						onClick={ () => updateCurAudience('Expert') }
 					/>
 					<label
 						className={ classes.buttonItem }
