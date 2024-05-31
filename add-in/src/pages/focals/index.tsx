@@ -1,4 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
+import { FcNext } from 'react-icons/fc';
 
 import { ReflectionCards } from '@/components/reflectionCard';
 import {
@@ -20,6 +21,8 @@ export default function Focals() {
 
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [curParagraphText, updateCurParagraphText] = useState('');
+	const [questions, updateQuestions] = useState<string[]>([]);
+	const [rewrite, updateRewrite] = useState('');
 
 	const [reflections, updateReflections] = useState<
 		Map<
@@ -76,6 +79,64 @@ export default function Focals() {
 		// Potentially expensive
 		loadParagraphTexts();
 	}
+
+	/**
+	 * Retrieves questions for a given paragraph text.
+	 * This function sends a request to the server to generate questions for the given paragraph text.
+	 * The generated questions are then used to update the questions state.
+	 *
+	 * @param {string}
+	 * @returns {void}
+	 */
+	function getQuestions(
+		paragraphText: string,
+	): void {
+		// eslint-disable-next-line no-console
+		console.assert(
+			typeof paragraphText === 'string' && paragraphText !== '',
+			'paragraphText must be a non-empty string'
+		);
+ 
+		// const questionPrompt = `What are three questions about this paragraph? List in dashes -`;
+		const questionPrompt = `You are a writing assistant who asks 3 dialogic questions on a provided paragraph. These questions should inspire writers to refine their personal ideas and voice in that paragraph and/or identify points for expansion. List questions in dashes -`;
+
+		const questionPromise: Promise<ReflectionResponseItem[]> =
+			getReflectionFromServer(username, paragraphText, questionPrompt);
+
+			questionPromise
+				.then(newQuestion => {
+					updateQuestions(newQuestion.map(item => item.reflection));
+				})
+				.catch(error => {
+						// eslint-disable-next-line no-console
+						console.log(error);
+				});
+		}
+
+		function getRewrite(
+			paragraphText: string,
+		): void {
+			// eslint-disable-next-line no-console
+			console.assert(
+				typeof paragraphText === 'string' && paragraphText !== '',
+				'paragraphText must be a non-empty string'
+			);
+		
+			const rewritePrompt = `Rewrite this paragraph for the audience.`;
+
+			const questionPromise: Promise<ReflectionResponseItem[]> =
+				getReflectionFromServer(username, paragraphText, rewritePrompt);
+
+				questionPromise
+					.then(newRewrite => {
+						updateRewrite(newRewrite[0].reflection);
+					})
+					.catch(error => {
+							// eslint-disable-next-line no-console
+							console.log(error);
+					});
+			}
+
 
 	/**
 	 * Retrieves the reflections associated with a given paragraph text and prompt synchronously.
@@ -249,7 +310,7 @@ export default function Focals() {
 					<textarea
 							className={ classes.contextTextArea }
 							defaultValue={ paragraphTexts[selectedIndex] }
-							value={ '"' +  paragraphTexts[selectedIndex]}
+							value={ paragraphTexts[selectedIndex] !== '' ? '"' +  paragraphTexts[selectedIndex] : 'Please select a paragraph.' }
 					/>
 			</div>
 
@@ -260,18 +321,48 @@ export default function Focals() {
 				>
 					<button
 						className={ classes.optionsButton }
+						onClick={ () => {
+							if (paragraphTexts[selectedIndex] !== '') {
+								updateRewrite('');
+								getQuestions(paragraphTexts[selectedIndex]);
+							}
+						} }
 					>
 						Ask me Questions
 					</button>
 					<button
 						className={ classes.optionsButton }
+						onClick={ () => {
+							if (paragraphTexts[selectedIndex] !== '') {
+								updateQuestions([]);
+								getRewrite(paragraphTexts[selectedIndex]);
+							}
+						} }
 					>
 						Rewrite for me
 					</button>
 				</div>
 			</div>
-
-			{...reflectionCardsContainer}
+			
+			<div>
+				<h2>Reflections</h2>
+				<div
+					className={ classes.reflectionContainer }
+				>
+					{ questions && questions.map((question, index) => (
+						<div
+							key={ index }
+							className={ classes.reflectionItem }
+						>
+							<div className={ classes.questionsIconWrapper }>
+									<FcNext className={ classes.questionsIcon } />
+							</div>
+							{ question }
+						</div>
+					))}
+					{ rewrite && <div className={classes.rewriteText}>{ rewrite }</div> }
+				</div>
+			</div>
 		</div>
 	);
 }
