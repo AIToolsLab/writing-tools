@@ -250,7 +250,7 @@ export default function Focals() {
 		<div className={ classes.container }>
 			<div>
 				<h2>Audience</h2>
-				{/* <div className={ classes.audienceSelector }>
+				{ /* <div className={ classes.audienceSelector }>
 						<Button
 								text="General"
 						/>
@@ -260,58 +260,57 @@ export default function Focals() {
 						<Button
 								text="Expert"
 						/>
-				</div> */}
+				</div> */ }
 				<div
 					className={ classes.audienceButtonContainer }
 				>
 					<input
-						type='radio'
-						name='AudienceSwitch'
-						id='General'
-						value='General'
+						type="radio"
+						name="AudienceSwitch"
+						id="General"
+						value="General"
 					/>
 					<label
-						className={classes.buttonItem}
-						htmlFor='General'
+						className={ classes.buttonItem }
+						htmlFor="General"
 					>
 						General
 					</label>
 
 					<input
-						type='radio'
-						name='AudienceSwitch'
-						id='Knowledgeable'
-						value='Knowledgeable'
+						type="radio"
+						name="AudienceSwitch"
+						id="Knowledgeable"
+						value="Knowledgeable"
 					/>
 					<label
-						className={classes.buttonItem}
-						htmlFor='Knowledgeable'
+						className={ classes.buttonItem }
+						htmlFor="Knowledgeable"
 					>
 						Knowledgeable
 					</label>
 
 					<input
-						type='radio'
-						name='AudienceSwitch'
-						id='Expert'
-						value='Expert'
+						type="radio"
+						name="AudienceSwitch"
+						id="Expert"
+						value="Expert"
 					/>
 					<label
-						className={classes.buttonItem}
-						htmlFor='Expert'
+						className={ classes.buttonItem }
+						htmlFor="Expert"
 					>
 						Expert
 					</label>
 				</div>
 			</div>
 
-			<div>
-					<h2>Context</h2>
-					<textarea
-							className={ classes.contextTextArea }
-							defaultValue={ paragraphTexts[selectedIndex] }
-							value={ paragraphTexts[selectedIndex] !== '' ? '"' +  paragraphTexts[selectedIndex] : 'Please select a paragraph.' }
-					/>
+			<div className={ classes.contextContainer }>
+                <h2>Context</h2>
+
+                <p className={ classes.contextTextArea }>
+                    { paragraphTexts[selectedIndex] !== '' ? curParagraphText : 'Please select a paragraph.' }
+                </p>
 			</div>
 
 			<div>
@@ -359,8 +358,8 @@ export default function Focals() {
 							</div>
 							{ question }
 						</div>
-					))}
-					{ rewrite && <div className={classes.rewriteText}>{ rewrite }</div> }
+					)) }
+					{ rewrite && <div className={ classes.rewriteText }>{ rewrite }</div> }
 				</div>
 			</div>
 		</div>
