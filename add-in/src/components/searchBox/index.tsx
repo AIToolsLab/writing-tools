@@ -15,7 +15,7 @@ export function SearchBox(
 ): JSX.Element {
     const { updateSubmittedPrompt: updateSubmittedPrompt, promptSuggestions: promptSuggestions } = props;
 
-    const [prevPrompts, _updatePrevPrompts] = useState<string[]>([]); // Search history
+    const [prevPrompts, updatePrevPrompts] = useState<string[]>([]); // Search history
     const [searchBoxText, updateSearchBoxText] = useState('');
     const [searchBoxTextSent, updateSearchBoxTextSent] = useState(false);
     const [dropdownVisible, updateDropdownVisible] = useState(false);
@@ -31,7 +31,10 @@ export function SearchBox(
 
     // Delete a completion suggestion from history
     function deleteHistorySuggestion(historyIndex: number): void {
+        const newHistory = [...prevPrompts];
+        newHistory.splice(historyIndex, 1);
         
+        updatePrevPrompts(newHistory);
     }
 
     return (
