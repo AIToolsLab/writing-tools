@@ -5,12 +5,6 @@ import { FcNext } from 'react-icons/fc';
 import classes from './styles.module.css';
 import { handleAutoResize } from '@/utilities';
 
-
-// Delete a completion suggestion
-function deleteSuggestion(prompt: string): void {
-    // TO DO: Implement deletion of a suggestion
-}
-
 interface SearchBoxProps {
 	updateSubmittedPrompt: (prompt: string) => void;
     promptSuggestions: string[];
@@ -34,6 +28,11 @@ export function SearchBox(
     const filteredHistoryList = prevPrompts.filter((prompt) =>
         prompt.toLowerCase().includes(searchBoxText.toLowerCase())
     );
+
+    // Delete a completion suggestion from history
+    function deleteHistorySuggestion(historyIndex: number): void {
+        
+    }
 
     return (
         <div className={ classes.searchBoxWrapper }>
@@ -114,28 +113,32 @@ export function SearchBox(
                         { /* Only show 3 past searches */ }
                         { filteredHistoryList.slice(0, 3).map((prompt: string, index: number) => {
                             return (
-                                <li
-                                    className={ classes.searchBoxDropdownItem }
-                                    key={ index }
-                                    onClick={ () => {
-                                        updateSubmittedPrompt(prompt);
-                                        updateSearchBoxText(prompt);
-                                        updateSearchBoxTextSent(true);
-                                    } }
-                                >
-                                    <div className={ classes.searchBoxDropdownIconWrapper }>
-                                        <AiOutlineHistory className={ classes.dropdownHistoryIcon } />
-                                    </div>
-                                    <div className={ classes.generationText }>{ prompt }</div>
+                                <div className={ classes.historySuggestionContainer }>
+                                    <li
+                                        className={ classes.searchBoxDropdownItem }
+                                        key={ index }
+                                        onClick={ () => {
+                                            updateSubmittedPrompt(prompt);
+                                            updateSearchBoxText(prompt);
+                                            updateSearchBoxTextSent(true);
+                                        } }
+                                    >
+                                        <div className={ classes.searchBoxDropdownIconWrapper }>
+                                            <AiOutlineHistory className={ classes.dropdownHistoryIcon } />
+                                        </div>
+                                        <div className={ classes.generationText }>{ prompt }</div>
+                                        
+                                    </li>
+
                                     <div
                                         className={ classes.searchBoxDropdownDeleteIconWrapper }
                                         onClick={ () => {
-                                            deleteSuggestion(prompt);
+                                            deleteHistorySuggestion(index);
                                         } }
                                     >
                                         <AiOutlineClose className={ classes.dropdownDeleteIcon } />
                                     </div>
-                                </li>
+                                </div>
                             );
                         }) }
                         

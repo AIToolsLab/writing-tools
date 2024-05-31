@@ -91,6 +91,12 @@ hr {
     margin-right: 8px;
 }
 
+.historySuggestionContainer {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+}
+
 .searchBoxDropdownDeleteIconWrapper {
     display: flex;
     align-items: center;
