@@ -109,7 +109,7 @@ export function SearchBox(
                 >
                     <hr/>
                     { /* Matching past searches */ }
-                    <ul>
+                    <>
                         { /* Only show 3 past searches */ }
                         { filteredHistoryList.slice(0, 3).map((prompt: string, index: number) => {
                             return (
@@ -137,9 +137,9 @@ export function SearchBox(
                                 </li>
                             );
                         }) }
-                    </ul>
-                    { /* "New" prompt suggestions */ }
-                    <ul>
+                        
+                        { /* "New" prompt suggestions */ }
+                        
                         { filteredNewPromptList.map((prompt: string, index: number) => {
                             return (
                                 <li
