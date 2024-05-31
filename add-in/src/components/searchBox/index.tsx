@@ -109,7 +109,8 @@ export function SearchBox(
                 >
                     <hr/>
                     { /* Matching past searches */ }
-                    <>
+                    
+                    <ul>
                         { /* Only show 3 past searches */ }
                         { filteredHistoryList.slice(0, 3).map((prompt: string, index: number) => {
                             return (
@@ -155,14 +156,14 @@ export function SearchBox(
                                         <FcNext className={ classes.dropdownBulletIcon } />
                                     </div>
                                     <div className={ classes.generationText }>{ prompt }</div>
-                                    {/* <div
+                                    { /* <div
                                         className={ classes.searchBoxDropdownDeleteIconWrapper }
                                         onClick={ () => {
                                             handleSuggestionDelete(prompt);
                                         } }
                                     >
                                         <AiOutlineClose className={ classes.dropdownDeleteIcon } />
-                                    </div> */}
+                                    </div> */ }
                                 </li>
                             );
                         }) }
