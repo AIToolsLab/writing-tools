@@ -14,12 +14,12 @@ input[type="radio"] {
     display: none;
 }
   
-input[type="radio"]:checked + label h4 {
+input[type="radio"]:checked + label {
     color: #6643e2;
     transition: 0.15s;
 }
 
-input[type="radio"]:hover + label h4 {
+input[type="radio"]:hover + label {
     color: #aaaaaa;
     transition: 0.15s;
 }
@@ -30,6 +30,7 @@ input[type="radio"]:hover + label h4 {
     justify-content: space-around;
     border-radius: 16px;
     box-shadow: 1px 1px 10px 1px rgba(0, 0, 0, 0.1);
+    padding: 8px;
     margin-top: 8px;
     margin-bottom: 8px;
     margin-left: 80px;
@@ -39,15 +40,13 @@ input[type="radio"]:hover + label h4 {
 label {
     cursor: pointer;
     text-align: center;
-}
-
-h4 {
     font-size: medium;
+    font-weight: 600;
 }
 
 h2 {
     font-size: large;
-    margin-left: 8px;
+    margin-left: 8px
 }
 
 .optionsContainer {
@@ -68,4 +67,15 @@ h2 {
 
 .optionsButton:hover {
     background-color: #f0f0f0;
+}
+
+textarea {
+    background-color: transparent;
+    border: none;
+    width: 100%;
+    font-size: 0.8rem;
+    resize: none;
+    box-sizing: border-box;
+    overflow: hidden;
+    color: #666666;
 }
