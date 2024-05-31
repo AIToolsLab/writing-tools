@@ -1,0 +1,11 @@
+.container {
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.audienceSelector {
+    display: flex;
+    gap: 8px;
+}

@@ -6,10 +6,14 @@ import {
 	PromptButtonSelector
 } from '@/components/promptButtonSelector';
 
+import { Button, DefaultButton } from '@fluentui/react/lib/Button';
+
 import { UserContext } from '@/contexts/userContext';
 
 import { getParagraphText } from '@/utilities';
 import { getReflectionFromServer } from '@/api';
+
+import classes from './styles.module.css';
 
 export default function Focals() {
 	const { username } = useContext(UserContext);
@@ -182,11 +186,27 @@ export default function Focals() {
 	}
 
 	return (
-		<div className="ms-welcome">
-			<PromptButtonSelector
-				currentPrompt={ prompt }
-				updatePrompt={ updatePrompt }
-			/>
+		<div className={ classes.container }>
+            <div>
+                <h2>Audience</h2>
+                <div className={ classes.audienceSelector }>
+                    <Button
+                        text="General"
+                    />
+                    <DefaultButton
+                        text="Knowledgeable"
+                    />
+                    <Button
+                        text="Expert"
+                    />
+                </div>
+            </div>
+
+            <div>
+                <h2></h2>
+                
+                <p></p>
+            </div>
 
 			{...reflectionCardsContainer}
 		</div>
