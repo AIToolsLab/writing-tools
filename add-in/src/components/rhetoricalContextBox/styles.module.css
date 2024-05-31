@@ -26,6 +26,7 @@
     margin-bottom: 20px;
     align-items: center;
     transition: 0.15s;
+    border: 1px solid #f5f5f5;
 }
 
 .situationBoxWrapperContent {
