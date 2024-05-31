@@ -363,7 +363,10 @@ export default function Focals() {
 							{ question }
 						</div>
 					)) }
+
 					{ rewrite && <div className={ classes.rewriteText }>{ rewrite }</div> }
+
+                    { !rewrite && !questions.length && <div className={ classes.reflectionItem }>Select one of the options to continue...</div> }
 				</div>
 			</div>
 		</div>
