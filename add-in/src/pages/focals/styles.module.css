@@ -63,6 +63,7 @@ h2 {
     padding: 8px 16px;
     border: 1px solid #f0f0f0;
     transition: 0.15s;
+    cursor: pointer;
 }
 
 .optionsButton:hover {
