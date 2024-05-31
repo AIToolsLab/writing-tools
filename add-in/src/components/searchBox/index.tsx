@@ -109,7 +109,7 @@ export function SearchBox(
                 >
                     <hr/>
                     { /* Matching past searches */ }
-                    
+
                     <ul>
                         { /* Only show 3 past searches */ }
                         { filteredHistoryList.slice(0, 3).map((prompt: string, index: number) => {
@@ -150,6 +150,12 @@ export function SearchBox(
                                         updateSubmittedPrompt(prompt);
                                         updateSearchBoxText(prompt);
                                         updateSearchBoxTextSent(true);
+
+                                        // Prepend submitted prompt to search history storing up to 25 prompts
+                                        prevPrompts.unshift(prompt);
+                                        if (prevPrompts.length > 25) {
+                                            prevPrompts.pop();
+                                        }
                                     } }
                                 >
                                     <div className={ classes.searchBoxDropdownIconWrapper }>
