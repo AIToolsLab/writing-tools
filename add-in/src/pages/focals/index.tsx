@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import { FcNext } from 'react-icons/fc';
+import { AiOutlineSync } from "react-icons/ai";
 
 import { ReflectionCards } from '@/components/reflectionCard';
 import {
@@ -20,10 +21,12 @@ export default function Focals() {
 	const { username } = useContext(UserContext);
 
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
-	const [curParagraphText, updateCurParagraphText] = useState('');
-	const [curAudience, updateCurAudience] = useState('General');
+	const [cursorParaText, updateCursorParaText] = useState('');
+	const [sidebarParaText, updateSidebarParaText] = useState('');
+	const [audience, updateAudience] = useState('General');
 	const [questions, updateQuestions] = useState<string[]>([]);
 	const [rewrite, updateRewrite] = useState('');
+	const [generationMode, updateGenerationMode] = useState('');
 
 	const [reflections, updateReflections] = useState<
 		Map<
@@ -74,7 +77,7 @@ export default function Focals() {
 			await context.sync();
 
 			const curParagraph: Word.Paragraph = selectedParagraphs.items[0];
-			updateCurParagraphText(getParagraphText(curParagraph));
+			updateCursorParaText(getParagraphText(curParagraph));
 		});
 
 		// Potentially expensive
@@ -99,7 +102,7 @@ export default function Focals() {
 		);
  
 		// const questionPrompt = `What are three questions about this paragraph? List in dashes -`;
-		const questionPrompt = `You are a writing assistant who asks 3 dialogic questions on a provided paragraph for an audience at the ${curAudience} level. These questions should inspire writers to refine their personal ideas and voice in that paragraph and/or identify points for expansion. List questions in dashes -`;
+		const questionPrompt = `You are a writing assistant who asks 3 dialogic questions on a provided paragraph for an audience at the ${audience} level. These questions should inspire writers to refine their personal ideas and voice in that paragraph and/or identify points for expansion. List questions in dashes -`;
 
 		const questionPromise: Promise<ReflectionResponseItem[]> =
 			getReflectionFromServer(username, paragraphText, questionPrompt);
@@ -123,7 +126,7 @@ export default function Focals() {
 				'paragraphText must be a non-empty string'
 			);
 		
-			const rewritePrompt = `Rewrite this paragraph for an audience at the ${curAudience} level.`;
+			const rewritePrompt = `Rewrite this paragraph for an audience at the ${audience} level.`;
 
 			const questionPromise: Promise<ReflectionResponseItem[]> =
 				getReflectionFromServer(username, paragraphText, rewritePrompt);
@@ -234,7 +237,7 @@ export default function Focals() {
 	}, []);
 
 	// Index of the currently selected paragraph
-	const selectedIndex = paragraphTexts.indexOf(curParagraphText);
+	const selectedIndex = paragraphTexts.indexOf(cursorParaText);
 	const reflectionCardsContainer: React.JSX.Element[] = [];
 
 	// Display the reflection cards that are relevant to the currently selected
@@ -270,7 +273,7 @@ export default function Focals() {
 						name="AudienceSwitch"
 						id="General"
 						value="General"
-						onClick={ () => updateCurAudience('General') }
+						onClick={ () => updateAudience('General') }
 					/>
 					<label
 						className={ classes.buttonItem }
@@ -284,7 +287,7 @@ export default function Focals() {
 						name="AudienceSwitch"
 						id="Knowledgeable"
 						value="Knowledgeable"
-						onClick={ () => updateCurAudience('Knowledgeable') }
+						onClick={ () => updateAudience('Knowledgeable') }
 					/>
 					<label
 						className={ classes.buttonItem }
@@ -298,7 +301,7 @@ export default function Focals() {
 						name="AudienceSwitch"
 						id="Expert"
 						value="Expert"
-						onClick={ () => updateCurAudience('Expert') }
+						onClick={ () => updateAudience('Expert') }
 					/>
 					<label
 						className={ classes.buttonItem }
@@ -309,12 +312,25 @@ export default function Focals() {
 				</div>
 			</div>
 
-			<div className={ classes.contextContainer }>
-                <h2>Context</h2>
-
-                <p className={ classes.contextTextArea }>
-                    { paragraphTexts[selectedIndex] !== '' ? curParagraphText : 'Please select a paragraph.' }
-                </p>
+			<div>
+					<div className={classes.ctxTitleHeader}>
+						<h2>Context</h2>
+						<AiOutlineSync
+							className={ sidebarParaText.trim() !== cursorParaText.trim() && cursorParaText.trim() !== '' ? classes.syncIcon : classes.syncIconInvisible }
+							onClick={ () => {
+								if (cursorParaText !== '') {
+									updateSidebarParaText(cursorParaText);
+									getQuestions(cursorParaText);
+									getRewrite(cursorParaText);
+								}
+							} }
+						/>
+					</div>
+					<textarea
+							className={ classes.contextTextArea }
+							defaultValue={ sidebarParaText }
+							value={ sidebarParaText !== '' ? '"' +  sidebarParaText : 'Please select a paragraph.' }
+					/>
 			</div>
 
 			<div>
@@ -325,9 +341,10 @@ export default function Focals() {
 					<button
 						className={ classes.optionsButton }
 						onClick={ () => {
-							if (paragraphTexts[selectedIndex] !== '') {
+							if (sidebarParaText !== '') {
 								updateRewrite('');
-								getQuestions(paragraphTexts[selectedIndex]);
+								updateGenerationMode('Questions');
+								getQuestions(sidebarParaText);
 							}
 						} }
 					>
@@ -336,9 +353,10 @@ export default function Focals() {
 					<button
 						className={ classes.optionsButton }
 						onClick={ () => {
-							if (paragraphTexts[selectedIndex] !== '') {
+							if (sidebarParaText !== '') {
 								updateQuestions([]);
-								getRewrite(paragraphTexts[selectedIndex]);
+								updateGenerationMode('Rewrite');
+								getRewrite(sidebarParaText);
 							}
 						} }
 					>
@@ -352,7 +370,7 @@ export default function Focals() {
 				<div
 					className={ classes.reflectionContainer }
 				>
-					{ questions && questions.map((question, index) => (
+					{ generationMode === 'Questions' && questions.map((question, index) => (
 						<div
 							key={ index }
 							className={ classes.reflectionItem }
@@ -364,9 +382,9 @@ export default function Focals() {
 						</div>
 					)) }
 
-					{ rewrite && <div className={ classes.rewriteText }>{ rewrite }</div> }
+					{ generationMode === 'Rewrite' && <div className={ classes.rewriteText }>{ rewrite }</div> }
 
-                    { !rewrite && !questions.length && <div className={ classes.reflectionItem }>Select one of the options to continue...</div> }
+          { !rewrite && !questions.length && <div className={ classes.reflectionItem }>Select one of the options to continue...</div> }
 				</div>
 			</div>
 		</div>

@@ -49,6 +49,26 @@ h2 {
     margin-left: 8px
 }
 
+.ctxTitleHeader {
+    display: inline-flex;
+    align-items: center;
+}
+
+.syncIconInvisible {
+    display: none;
+}
+
+.syncIcon {
+    font-size: 1.2rem;
+    margin-left: 8px;
+    color: #888888;
+    transition: 0.15s;
+}
+
+.syncIcon:hover {
+    color: #666666;
+}
+
 .optionsContainer {
     display: flex;
     flex-direction: row;
