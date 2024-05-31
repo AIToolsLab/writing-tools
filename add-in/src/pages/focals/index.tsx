@@ -1,15 +1,13 @@
 import { useState, useEffect, useContext } from 'react';
 
 import { ReflectionCards } from '@/components/reflectionCard';
-import {
-	defaultPrompt,
-	PromptButtonSelector
-} from '@/components/promptButtonSelector';
+import { SearchBox } from '@/components/searchBox';
+import { RhetoricalContextBox } from '@/components/rhetoricalContextBox';
 
 import { UserContext } from '@/contexts/userContext';
 
 import { getParagraphText } from '@/utilities';
-import { getReflectionFromServer } from '@/api';
+import { getServerLLMResponse } from '@/api';
 
 export default function Focals() {
 	const { username } = useContext(UserContext);
@@ -20,11 +18,26 @@ export default function Focals() {
 	const [reflections, updateReflections] = useState<
 		Map<
 			string,
-			ReflectionResponseItem[] | Promise<ReflectionResponseItem[]>
+			LLMResponseItem[] | Promise<LLMResponseItem[]>
 		>
 	>(new Map());
 
-	const [prompt, updatePrompt] = useState(defaultPrompt);
+	const defaultPrompts = [
+		'What is the main point of this paragraph?',
+		'What are the important concepts in this paragraph?',
+		'What are the claims or arguments presented in this paragraph?',
+		'What are some potential counterarguments to the claims presented in this paragraph? Make tentative statements.',
+		'What further evidence or examples would you like to see to support the claims presented in this paragraph?',
+		'What outside the box questions do you have about this paragraph?',
+		'What questions do you have about this paragraph as a writer?',
+		'What questions do you have about this paragraph as a reader?',
+	];
+
+	const [submittedPrompt, updateSubmittedPrompt] = useState('');
+	const [rhetCtxt, updateRhetCtxt] = useState('');
+	const [suggestedPrompts, updateSuggestedPrompts] = useState<string[]>(defaultPrompts);
+
+	const rhetCtxtDirections = `, given the following rhetorical situation:\n${rhetCtxt}\n`;
 
 	/**
 	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
@@ -74,6 +87,41 @@ export default function Focals() {
 	}
 
 	/**
+	 * Retrieves suggestions for prompts to ask about a piece of academic writing
+	 * and prepends them to the list of hard-coded suggestions.
+	 * Temporarily using getServerLLMResponse until the backend is sorted out.
+	 * @param paragraphText - The text of the paragraph to generate prompts for.
+	 * @returns void
+	 */
+	function getSuggestions(
+		paragraphText: string,
+	): void {
+		// eslint-disable-next-line no-console
+		console.assert(
+			typeof paragraphText === 'string' && paragraphText !== '',
+			'paragraphText must be a non-empty string'
+		);
+ 
+		// META-PROMPT TO GENERATE SUGGESTED PROMPTS GOES HERE (TO REVISE AND/OR REPLACE)
+		const suggestionPrompt = `Write 3 concise and brief prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer${rhetCtxt ? rhetCtxtDirections : '\n'}Separate each prompt by a bullet point. List in dashes -`;
+
+		const suggestionsPromise: Promise<LLMResponseItem[]> =
+			getServerLLMResponse(username, paragraphText, suggestionPrompt);
+
+			suggestionsPromise
+				.then(newPrompts => {
+						updateSuggestedPrompts(
+								// Prepend the suggestions to the list of hard-coded suggestions
+							[...newPrompts.map(prompt => prompt.reflection ), ...defaultPrompts]
+						);
+				})
+				.catch(error => {
+						// eslint-disable-next-line no-console
+						console.log(error);
+				});
+		}
+
+	/**
 	 * Retrieves the reflections associated with a given paragraph text and prompt synchronously.
 	 * If the reflections exist in the cache, they are returned immediately. Otherwise, an API
 	 * request is made to fetch the reflections from the server, and any subsequent calls to this
@@ -81,17 +129,21 @@ export default function Focals() {
 	 *
 	 * @param {string} paragraphText - The text of the paragraph to retrieve reflections for.
 	 * @param {string} prompt - The prompt used for reflection.
-	 * @returns {ReflectionResponseItem[]} - The reflections associated with the paragraph text and prompt.
+	 * @returns {LLMResponseItem[]} - The reflections associated with the paragraph text and prompt.
 	 */
 	function getReflectionsSync(
 		paragraphText: string,
 		prompt: string
-	): ReflectionResponseItem[] {
+	): LLMResponseItem[] {
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof paragraphText === 'string' && paragraphText !== '',
 			'paragraphText must be a non-empty string'
 		);
+
+		// ADDITIONAL CONTEXTUAL DIRECTIONS TO APPEND TO PROMPT GO HERE
+		const addtlDirections = ` ${rhetCtxt ? rhetCtxtDirections : '\n'}Answer concisely with three bullet points: -`;
+		prompt += addtlDirections;
 
 		const cacheKey: string = JSON.stringify({ paragraphText, prompt });
 
@@ -102,8 +154,8 @@ export default function Focals() {
 		= reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
-			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflectionFromServer(username, paragraphText, prompt);
+			const reflectionsPromise: Promise<LLMResponseItem[]> =
+				getServerLLMResponse(username, paragraphText, prompt);
 
 			reflectionsPromise
 				.then(newReflections => {
@@ -130,8 +182,8 @@ export default function Focals() {
 	function createReflectionCards(
 		paragraphIndex: number,
 	): JSX.Element {
-		const reflectionsForThisParagraph: ReflectionResponseItem[] =
-			getReflectionsSync(paragraphTexts[paragraphIndex], prompt);
+		const reflectionsForThisParagraph: LLMResponseItem[] =
+			getReflectionsSync(paragraphTexts[paragraphIndex], submittedPrompt);
 
 		const cardDataList: CardData[] = reflectionsForThisParagraph.map(
 			reflectionResponseItem => ({
@@ -158,6 +210,9 @@ export default function Focals() {
 			handleSelectionChange
 		);
 
+		// Get suggested prompts for the current paragraph
+		getSuggestions(curParagraphText);
+
 		// Cleanup
 		return () => {
 			Office.context.document.removeHandlerAsync(
@@ -165,7 +220,7 @@ export default function Focals() {
 				handleSelectionChange
 			);
 		};
-	}, []);
+	}, [curParagraphText]);
 
 	// Index of the currently selected paragraph
 	const selectedIndex = paragraphTexts.indexOf(curParagraphText);
@@ -173,7 +228,7 @@ export default function Focals() {
 
 	// Display the reflection cards that are relevant to the currently selected
 	// paragraph, as well as its previous and next paragraphs
-	if (selectedIndex !== -1) {
+	if (selectedIndex !== -1 && submittedPrompt !== '') {
 		// Check if the current paragraph is available
 		if (paragraphTexts[selectedIndex] !== '')
 			reflectionCardsContainer.push(
@@ -182,12 +237,17 @@ export default function Focals() {
 	}
 
 	return (
-		<div className="ms-welcome">
-			<PromptButtonSelector
-				currentPrompt={ prompt }
-				updatePrompt={ updatePrompt }
+		<div
+			className="ms-welcome"
+		>
+			<RhetoricalContextBox
+				curRhetCtxt={ rhetCtxt }
+				updateRhetCtxt={ updateRhetCtxt }
 			/>
-
+			<SearchBox
+				updateSubmittedPrompt={ updateSubmittedPrompt }
+				promptSuggestions={ suggestedPrompts }
+			/>
 			{...reflectionCardsContainer}
 		</div>
 	);

@@ -9,7 +9,7 @@ import {
 import { UserContext } from '@/contexts/userContext';
 
 import { getParagraphText } from '@/utilities';
-import { getReflectionFromServer } from '@/api';
+import { getServerLLMResponse } from '@/api';
 
 const includeSurroundingParagraphs = false;
 
@@ -22,7 +22,7 @@ export default function Home() {
 	const [reflections, updateReflections] = useState<
 		Map<
 			string,
-			ReflectionResponseItem[] | Promise<ReflectionResponseItem[]>
+			LLMResponseItem[] | Promise<LLMResponseItem[]>
 		>
 	>(new Map());
 
@@ -83,12 +83,12 @@ export default function Home() {
 	 *
 	 * @param {string} paragraphText - The text of the paragraph to retrieve reflections for.
 	 * @param {string} prompt - The prompt used for reflection.
-	 * @returns {ReflectionResponseItem[]} - The reflections associated with the paragraph text and prompt.
+	 * @returns {LLMResponseItem[]} - The reflections associated with the paragraph text and prompt.
 	 */
 	function getReflectionsSync(
 		paragraphText: string,
 		prompt: string
-	): ReflectionResponseItem[] {
+	): LLMResponseItem[] {
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof paragraphText === 'string' && paragraphText !== '',
@@ -104,8 +104,8 @@ export default function Home() {
 		= reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
-			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflectionFromServer(username, paragraphText, prompt);
+			const reflectionsPromise: Promise<LLMResponseItem[]> =
+				getServerLLMResponse(username, paragraphText, prompt);
 
 			reflectionsPromise
 				.then(newReflections => {
@@ -134,7 +134,7 @@ export default function Home() {
 		paragraphIndex: number,
 		isCurrent: boolean
 	): JSX.Element {
-		const reflectionsForThisParagraph: ReflectionResponseItem[] =
+		const reflectionsForThisParagraph: LLMResponseItem[] =
 			getReflectionsSync(paragraphTexts[paragraphIndex], prompt);
 
 		const cardDataList: CardData[] = reflectionsForThisParagraph.map(
