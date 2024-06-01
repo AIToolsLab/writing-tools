@@ -80,7 +80,7 @@ export default function Focals() {
 	 * @param {string}
 	 * @returns {void}
 	 */
-	function getQuestions(paragraphText: string): void {
+	async function getQuestions(paragraphText: string) {
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof paragraphText === 'string' && paragraphText !== '',
@@ -90,17 +90,8 @@ export default function Focals() {
 		// const questionPrompt = `What are three questions about this paragraph? List in dashes -`;
 		const questionPrompt = `You are a writing assistant who asks 3 dialogic questions on a provided paragraph for an audience at the ${audience} level. These questions should inspire writers to refine their personal ideas and voice in that paragraph and/or identify points for expansion. List questions in dashes -`;
 
-		const questionPromise: Promise<ReflectionResponseItem[]> =
-			getReflectionFromServer(username, paragraphText, questionPrompt);
-
-		questionPromise
-			.then(newQuestion => {
-				updateQuestions(newQuestion.map(item => item.reflection));
-			})
-			.catch(error => {
-				// eslint-disable-next-line no-console
-				console.log(error);
-			});
+		const questions: ReflectionResponseItem[] = await getReflectionFromServer(username, paragraphText, questionPrompt);
+        updateQuestions(questions.map(item => item.reflection));
 	}
 
 	/**
@@ -111,7 +102,7 @@ export default function Focals() {
 	 * @param {string}
 	 * @returns {void}
 	 */
-	function getRewrite(paragraphText: string): void {
+	async function getRewrite(paragraphText: string) {
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof paragraphText === 'string' && paragraphText !== '',
@@ -120,17 +111,8 @@ export default function Focals() {
 
 		const rewritePrompt = `Rewrite this paragraph for an audience at the ${audience} level.`;
 
-		const questionPromise: Promise<ReflectionResponseItem[]> =
-			getReflectionFromServer(username, paragraphText, rewritePrompt);
-
-		questionPromise
-			.then(newRewrite => {
-				updateRewrite(newRewrite[0].reflection);
-			})
-			.catch(error => {
-				// eslint-disable-next-line no-console
-				console.log(error);
-			});
+		const rewrite: ReflectionResponseItem[] = await getReflectionFromServer(username, paragraphText, rewritePrompt);
+        updateRewrite(rewrite[0].reflection);
 	}
 
 	useEffect(() => {
