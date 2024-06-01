@@ -1,14 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import { FcNext } from 'react-icons/fc';
-import { AiOutlineSync } from "react-icons/ai";
-
-import { ReflectionCards } from '@/components/reflectionCard';
-import {
-	defaultPrompt,
-	PromptButtonSelector
-} from '@/components/promptButtonSelector';
-
-import { Button, DefaultButton } from '@fluentui/react/lib/Button';
+import { AiOutlineSync } from 'react-icons/ai';
 
 import { UserContext } from '@/contexts/userContext';
 
@@ -20,22 +12,13 @@ import classes from './styles.module.css';
 export default function Focals() {
 	const { username } = useContext(UserContext);
 
-	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
+	const [_paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [cursorParaText, updateCursorParaText] = useState('');
 	const [sidebarParaText, updateSidebarParaText] = useState('');
 	const [audience, updateAudience] = useState('General');
 	const [questions, updateQuestions] = useState<string[]>([]);
 	const [rewrite, updateRewrite] = useState('');
 	const [generationMode, updateGenerationMode] = useState('');
-
-	const [reflections, updateReflections] = useState<
-		Map<
-			string,
-			ReflectionResponseItem[] | Promise<ReflectionResponseItem[]>
-		>
-	>(new Map());
-
-	const [prompt, updatePrompt] = useState(defaultPrompt);
 
 	/**
 	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
@@ -117,6 +100,14 @@ export default function Focals() {
 				});
 		}
 
+		/**
+		 * Retrieves a rewrite for a given paragraph text.
+		 * This function sends a request to the server to generate a rewrite for the given paragraph text.
+		 * The generated rewrite is then used to update the rewrite state.
+		 * 
+		 * @param {string}
+		 * @returns {void}
+		 */
 		function getRewrite(
 			paragraphText: string,
 		): void {
@@ -141,82 +132,6 @@ export default function Focals() {
 					});
 			}
 
-
-	/**
-	 * Retrieves the reflections associated with a given paragraph text and prompt synchronously.
-	 * If the reflections exist in the cache, they are returned immediately. Otherwise, an API
-	 * request is made to fetch the reflections from the server, and any subsequent calls to this
-	 * function with the same paragraph text and prompt will await the completion of the API request.
-	 *
-	 * @param {string} paragraphText - The text of the paragraph to retrieve reflections for.
-	 * @param {string} prompt - The prompt used for reflection.
-	 * @returns {ReflectionResponseItem[]} - The reflections associated with the paragraph text and prompt.
-	 */
-	function getReflectionsSync(
-		paragraphText: string,
-		prompt: string
-	): ReflectionResponseItem[] {
-		// eslint-disable-next-line no-console
-		console.assert(
-			typeof paragraphText === 'string' && paragraphText !== '',
-			'paragraphText must be a non-empty string'
-		);
-
-		const cacheKey: string = JSON.stringify({ paragraphText, prompt });
-
-		// TODO: Fix typing error
-		const cachedValue: any
-			// | ReflectionResponseItem[]
-			// | Promise<ReflectionResponseItem[]> 
-		= reflections.get(cacheKey);
-
-		if (typeof cachedValue === 'undefined') {
-			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflectionFromServer(username, paragraphText, prompt);
-
-			reflectionsPromise
-				.then(newReflections => {
-					reflections.set(cacheKey, newReflections);
-					updateReflections(new Map(reflections));
-				})
-				.catch(_error => {
-					reflections.delete(cacheKey);
-				});
-
-			reflections.set(cacheKey, reflectionsPromise);
-			return [];
-		}
- else if (cachedValue instanceof Promise) return [];
-		else return cachedValue;
-	}
-
-	/**
-	 * Creates reflection cards for a given paragraph and returns them as JSX element.
-	 *
-	 * @param {number} paragraphIndex - The index of the paragraph to create reflection cards for.
-	 * @returns {React.JSX.Element} - The created reflection cards as a JSX element.
-	 */
-	function createReflectionCards(
-		paragraphIndex: number,
-	): JSX.Element {
-		const reflectionsForThisParagraph: ReflectionResponseItem[] =
-			getReflectionsSync(paragraphTexts[paragraphIndex], prompt);
-
-		const cardDataList: CardData[] = reflectionsForThisParagraph.map(
-			reflectionResponseItem => ({
-				paragraphIndex,
-				body: reflectionResponseItem.reflection
-			})
-		);
-
-		return (
-			<ReflectionCards
-				cardDataList={ cardDataList }
-				toggleCardHighlight={ false }
-			/>
-		);
-	}
-
 	useEffect(() => {
 		// Handle initial selection change
 		handleSelectionChange();
@@ -236,35 +151,10 @@ export default function Focals() {
 		};
 	}, []);
 
-	// Index of the currently selected paragraph
-	const selectedIndex = paragraphTexts.indexOf(cursorParaText);
-	const reflectionCardsContainer: React.JSX.Element[] = [];
-
-	// Display the reflection cards that are relevant to the currently selected
-	// paragraph, as well as its previous and next paragraphs
-	if (selectedIndex !== -1) {
-		// Check if the current paragraph is available
-		if (paragraphTexts[selectedIndex] !== '')
-			reflectionCardsContainer.push(
-				createReflectionCards(selectedIndex)
-			);
-	}
-
 	return (
 		<div className={ classes.container }>
 			<div>
 				<h2>Audience</h2>
-				{ /* <div className={ classes.audienceSelector }>
-						<Button
-								text="General"
-						/>
-						<DefaultButton
-								text="Knowledgeable"
-						/>
-						<Button
-								text="Expert"
-						/>
-				</div> */ }
 				<div
 					className={ classes.audienceButtonContainer }
 				>
@@ -313,7 +203,7 @@ export default function Focals() {
 			</div>
 
 			<div>
-					<div className={classes.ctxTitleHeader}>
+					<div className={ classes.ctxTitleHeader }>
 						<h2>Context</h2>
 						<AiOutlineSync
 							className={ sidebarParaText.trim() !== cursorParaText.trim() && cursorParaText.trim() !== '' ? classes.syncIcon : classes.syncIconInvisible }
