@@ -249,8 +249,6 @@ export default function Focals() {
 			</div>
 
 			<div>
-				<h2>Reflections</h2>
-
 				<div className={ classes.reflectionContainer }>
 					{ generationMode === 'Questions' &&
 						questions.map((question, index) => (
@@ -284,7 +282,7 @@ export default function Focals() {
 					) }
 
 					{ !rewrite && !questions.length && (
-						<div className={ classes.reflectionItem }>
+						<div>
 							Select one of the options to continue...
 						</div>
 					) }
