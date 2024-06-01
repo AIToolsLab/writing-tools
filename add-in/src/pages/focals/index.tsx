@@ -204,7 +204,7 @@ export default function Focals() {
 				</div>
 			</div>
 
-			<div>
+			<div className={ classes.contextContainer }>
 					<div className={ classes.ctxTitleHeader }>
 						<h2>Context</h2>
 						<AiOutlineSync
@@ -218,11 +218,9 @@ export default function Focals() {
 							} }
 						/>
 					</div>
-					<textarea
-							className={ classes.contextTextArea }
-							defaultValue={ sidebarParaText }
-							value={ sidebarParaText !== '' ? sidebarParaText : 'Please select a paragraph.' }
-					/>
+					<p className={ classes.contextTextArea }>
+                        { sidebarParaText !== '' ? sidebarParaText : 'Please select a paragraph.' }
+                    </p>
 			</div>
 
 			<div>
