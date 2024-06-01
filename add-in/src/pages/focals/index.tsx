@@ -221,7 +221,7 @@ export default function Focals() {
 					<textarea
 							className={ classes.contextTextArea }
 							defaultValue={ sidebarParaText }
-							value={ sidebarParaText !== '' ? '"' +  sidebarParaText : 'Please select a paragraph.' }
+							value={ sidebarParaText !== '' ? sidebarParaText : 'Please select a paragraph.' }
 					/>
 			</div>
 
