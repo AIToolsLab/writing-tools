@@ -159,6 +159,7 @@ export default function Focals() {
 					className={ classes.audienceButtonContainer }
 				>
 					<input
+						defaultChecked
 						type="radio"
 						name="AudienceSwitch"
 						id="General"
