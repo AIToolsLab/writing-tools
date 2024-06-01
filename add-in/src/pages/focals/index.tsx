@@ -273,20 +273,7 @@ export default function Focals() {
 							<div className={ classes.copyWrapper }>
 								<AiOutlineCopy
 									className={ classes.copyIcon }
-									onClick={ () => {
-										navigator.clipboard.writeText(rewrite);
-										setTimeout(
-											() =>
-												updateCopiedAlertText(
-													'Copied to clipboard!'
-												),
-											100
-										);
-										setTimeout(
-											() => updateCopiedAlertText(''),
-											2000
-										);
-									} }
+									onClick={ () => {} }
 								/>
                                 
 								<div className={ classes.copiedAlert }>
