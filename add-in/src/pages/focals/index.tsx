@@ -202,8 +202,6 @@ export default function Focals() {
 						onClick={ () => {
 							if (cursorParaText !== '') {
 								updateSidebarParaText(cursorParaText);
-								getQuestions(cursorParaText);
-								getRewrite(cursorParaText);
 							}
 						} }
 					/>
