@@ -1,4 +1,5 @@
 import { useState, useEffect, useContext } from 'react';
+
 import { FcNext } from 'react-icons/fc';
 import { AiOutlineSync, AiOutlineCopy } from 'react-icons/ai';
 
@@ -14,11 +15,14 @@ export default function Focals() {
 
 	const [_paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [cursorParaText, updateCursorParaText] = useState('');
-	const [sidebarParaText, updateSidebarParaText] = useState('');
-	const [audience, updateAudience] = useState('General');
+	
+    const [sidebarParaText, updateSidebarParaText] = useState('');
+	
+    const [audience, updateAudience] = useState('General');
 	const [questions, updateQuestions] = useState<string[]>([]);
 	const [rewrite, updateRewrite] = useState('');
-	const [generationMode, updateGenerationMode] = useState('');
+	
+    const [generationMode, updateGenerationMode] = useState('');
 	const [copiedAlertText, updateCopiedAlertText] = useState('');
 
 	/**
@@ -76,62 +80,58 @@ export default function Focals() {
 	 * @param {string}
 	 * @returns {void}
 	 */
-	function getQuestions(
-		paragraphText: string,
-	): void {
+	function getQuestions(paragraphText: string): void {
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof paragraphText === 'string' && paragraphText !== '',
 			'paragraphText must be a non-empty string'
 		);
- 
+
 		// const questionPrompt = `What are three questions about this paragraph? List in dashes -`;
 		const questionPrompt = `You are a writing assistant who asks 3 dialogic questions on a provided paragraph for an audience at the ${audience} level. These questions should inspire writers to refine their personal ideas and voice in that paragraph and/or identify points for expansion. List questions in dashes -`;
 
 		const questionPromise: Promise<ReflectionResponseItem[]> =
 			getReflectionFromServer(username, paragraphText, questionPrompt);
 
-			questionPromise
-				.then(newQuestion => {
-					updateQuestions(newQuestion.map(item => item.reflection));
-				})
-				.catch(error => {
-						// eslint-disable-next-line no-console
-						console.log(error);
-				});
-		}
+		questionPromise
+			.then(newQuestion => {
+				updateQuestions(newQuestion.map(item => item.reflection));
+			})
+			.catch(error => {
+				// eslint-disable-next-line no-console
+				console.log(error);
+			});
+	}
 
-		/**
-		 * Retrieves a rewrite for a given paragraph text.
-		 * This function sends a request to the server to generate a rewrite for the given paragraph text.
-		 * The generated rewrite is then used to update the rewrite state.
-		 * 
-		 * @param {string}
-		 * @returns {void}
-		 */
-		function getRewrite(
-			paragraphText: string,
-		): void {
-			// eslint-disable-next-line no-console
-			console.assert(
-				typeof paragraphText === 'string' && paragraphText !== '',
-				'paragraphText must be a non-empty string'
-			);
-		
-			const rewritePrompt = `Rewrite this paragraph for an audience at the ${audience} level.`;
+	/**
+	 * Retrieves a rewrite for a given paragraph text.
+	 * This function sends a request to the server to generate a rewrite for the given paragraph text.
+	 * The generated rewrite is then used to update the rewrite state.
+	 *
+	 * @param {string}
+	 * @returns {void}
+	 */
+	function getRewrite(paragraphText: string): void {
+		// eslint-disable-next-line no-console
+		console.assert(
+			typeof paragraphText === 'string' && paragraphText !== '',
+			'paragraphText must be a non-empty string'
+		);
 
-			const questionPromise: Promise<ReflectionResponseItem[]> =
-				getReflectionFromServer(username, paragraphText, rewritePrompt);
+		const rewritePrompt = `Rewrite this paragraph for an audience at the ${audience} level.`;
 
-				questionPromise
-					.then(newRewrite => {
-						updateRewrite(newRewrite[0].reflection);
-					})
-					.catch(error => {
-							// eslint-disable-next-line no-console
-							console.log(error);
-					});
-			}
+		const questionPromise: Promise<ReflectionResponseItem[]> =
+			getReflectionFromServer(username, paragraphText, rewritePrompt);
+
+		questionPromise
+			.then(newRewrite => {
+				updateRewrite(newRewrite[0].reflection);
+			})
+			.catch(error => {
+				// eslint-disable-next-line no-console
+				console.log(error);
+			});
+	}
 
 	useEffect(() => {
 		// Handle initial selection change
@@ -156,9 +156,8 @@ export default function Focals() {
 		<div className={ classes.container }>
 			<div>
 				<h2>Audience</h2>
-				<div
-					className={ classes.audienceButtonContainer }
-				>
+
+				<div className={ classes.audienceButtonContainer }>
 					<input
 						defaultChecked
 						type="radio"
@@ -167,6 +166,7 @@ export default function Focals() {
 						value="General"
 						onClick={ () => updateAudience('General') }
 					/>
+
 					<label
 						className={ classes.buttonItem }
 						htmlFor="General"
@@ -181,6 +181,7 @@ export default function Focals() {
 						value="Knowledgeable"
 						onClick={ () => updateAudience('Knowledgeable') }
 					/>
+
 					<label
 						className={ classes.buttonItem }
 						htmlFor="Knowledgeable"
@@ -195,6 +196,7 @@ export default function Focals() {
 						value="Expert"
 						onClick={ () => updateAudience('Expert') }
 					/>
+
 					<label
 						className={ classes.buttonItem }
 						htmlFor="Expert"
@@ -205,29 +207,37 @@ export default function Focals() {
 			</div>
 
 			<div className={ classes.contextContainer }>
-					<div className={ classes.ctxTitleHeader }>
-						<h2>Context</h2>
-						<AiOutlineSync
-							className={ sidebarParaText.trim() !== cursorParaText.trim() && cursorParaText.trim() !== '' ? classes.syncIcon : classes.syncIconInvisible }
-							onClick={ () => {
-								if (cursorParaText !== '') {
-									updateSidebarParaText(cursorParaText);
-									getQuestions(cursorParaText);
-									getRewrite(cursorParaText);
-								}
-							} }
-						/>
-					</div>
-					<p className={ classes.contextTextArea }>
-                        { sidebarParaText !== '' ? sidebarParaText : 'Please select a paragraph.' }
-                    </p>
+				<div className={ classes.ctxTitleHeader }>
+					<h2>Context</h2>
+
+					<AiOutlineSync
+						className={
+							sidebarParaText.trim() !== cursorParaText.trim() &&
+							cursorParaText.trim() !== ''
+								? classes.syncIcon
+								: classes.syncIconInvisible
+						}
+						onClick={ () => {
+							if (cursorParaText !== '') {
+								updateSidebarParaText(cursorParaText);
+								getQuestions(cursorParaText);
+								getRewrite(cursorParaText);
+							}
+						} }
+					/>
+				</div>
+
+				<p className={ classes.contextTextArea }>
+					{ sidebarParaText !== ''
+						? sidebarParaText
+						: 'Please select a paragraph.' }
+				</p>
 			</div>
 
 			<div>
 				<h2>Options</h2>
-				<div
-					className={ classes.optionsContainer }
-				>
+
+				<div className={ classes.optionsContainer }>
 					<button
 						className={ classes.optionsButton }
 						onClick={ () => {
@@ -240,6 +250,7 @@ export default function Focals() {
 					>
 						Ask me Questions
 					</button>
+
 					<button
 						className={ classes.optionsButton }
 						onClick={ () => {
@@ -254,36 +265,48 @@ export default function Focals() {
 					</button>
 				</div>
 			</div>
-			
+
 			<div>
 				<h2>Reflections</h2>
-				<div
-					className={ classes.reflectionContainer }
-				>
-					{ generationMode === 'Questions' && questions.map((question, index) => (
-						<div
-							key={ index }
-							className={ classes.reflectionItem }
-						>
-							<div className={ classes.questionsIconWrapper }>
-									<FcNext className={ classes.questionsIcon } />
-							</div>
-							{ question }
-						</div>
-					)) }
 
-					{ generationMode === 'Rewrite' &&  (
+				<div className={ classes.reflectionContainer }>
+					{ generationMode === 'Questions' &&
+						questions.map((question, index) => (
+							<div
+								key={ index }
+								className={ classes.reflectionItem }
+							>
+								<div className={ classes.questionsIconWrapper }>
+									<FcNext className={ classes.questionsIcon } />
+								</div>
+
+								{ question }
+							</div>
+						)) }
+
+					{ generationMode === 'Rewrite' && (
 						<>
-							<div className={ classes.rewriteText }>{ rewrite }</div> 
+							<div className={ classes.rewriteText }>{ rewrite }</div>
+
 							<div className={ classes.copyWrapper }>
 								<AiOutlineCopy
 									className={ classes.copyIcon }
 									onClick={ () => {
 										navigator.clipboard.writeText(rewrite);
-										setTimeout(() => updateCopiedAlertText('Copied to clipboard!'), 100);
-										setTimeout(() => updateCopiedAlertText(''), 2000);
+										setTimeout(
+											() =>
+												updateCopiedAlertText(
+													'Copied to clipboard!'
+												),
+											100
+										);
+										setTimeout(
+											() => updateCopiedAlertText(''),
+											2000
+										);
 									} }
 								/>
+                                
 								<div className={ classes.copiedAlert }>
 									{ copiedAlertText }
 								</div>
@@ -291,7 +314,11 @@ export default function Focals() {
 						</>
 					) }
 
-          { !rewrite && !questions.length && <div className={ classes.reflectionItem }>Select one of the options to continue...</div> }
+					{ !rewrite && !questions.length && (
+						<div className={ classes.reflectionItem }>
+							Select one of the options to continue...
+						</div>
+					) }
 				</div>
 			</div>
 		</div>
