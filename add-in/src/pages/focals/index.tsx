@@ -1,6 +1,6 @@
 import { useState, useEffect, useContext } from 'react';
 import { FcNext } from 'react-icons/fc';
-import { AiOutlineSync } from 'react-icons/ai';
+import { AiOutlineSync, AiOutlineCopy } from 'react-icons/ai';
 
 import { UserContext } from '@/contexts/userContext';
 
@@ -19,6 +19,7 @@ export default function Focals() {
 	const [questions, updateQuestions] = useState<string[]>([]);
 	const [rewrite, updateRewrite] = useState('');
 	const [generationMode, updateGenerationMode] = useState('');
+	const [copiedAlertText, updateCopiedAlertText] = useState('');
 
 	/**
 	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
@@ -273,7 +274,24 @@ export default function Focals() {
 						</div>
 					)) }
 
-					{ generationMode === 'Rewrite' && <div className={ classes.rewriteText }>{ rewrite }</div> }
+					{ generationMode === 'Rewrite' &&  (
+						<>
+							<div className={ classes.rewriteText }>{ rewrite }</div> 
+							<div className={ classes.copyWrapper }>
+								<AiOutlineCopy
+									className={ classes.copyIcon }
+									onClick={ () => {
+										navigator.clipboard.writeText(rewrite);
+										setTimeout(() => updateCopiedAlertText('Copied to clipboard!'), 100);
+										setTimeout(() => updateCopiedAlertText(''), 2000);
+									} }
+								/>
+								<div className={ classes.copiedAlert }>
+									{ copiedAlertText }
+								</div>
+							</div>
+						</>
+					) }
 
           { !rewrite && !questions.length && <div className={ classes.reflectionItem }>Select one of the options to continue...</div> }
 				</div>

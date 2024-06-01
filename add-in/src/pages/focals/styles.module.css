@@ -143,3 +143,26 @@ textarea {
     height: 50px;
     overflow-y: scroll;
 }
+
+.copyWrapper {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.copyIcon {
+    margin-top: 10px;
+    font-size: 1rem;
+    color: #888888;
+    transition: 0.15s;
+}
+
+.copyIcon:hover {
+    color: #416D19;
+}
+
+.copiedAlert {
+    font-size: 0.8rem;
+    color: #416D19;
+    margin-top: 10px;
+}
