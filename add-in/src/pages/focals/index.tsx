@@ -200,9 +200,8 @@ export default function Focals() {
 								: classes.syncIconInvisible
 						}
 						onClick={ () => {
-							if (cursorParaText !== '') {
+							if (cursorParaText !== '')
 								updateSidebarParaText(cursorParaText);
-							}
 						} }
 					/>
 				</div>
