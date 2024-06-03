@@ -1,0 +1,159 @@
+.container {
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+}
+
+.audienceSelector {
+	display: flex;
+	gap: 8px;
+}
+
+input[type='radio'] {
+	display: none;
+}
+
+input[type='radio']:checked + label {
+	color: #6643e2;
+	transition: 0.15s;
+}
+
+input[type='radio']:hover + label {
+	color: #aaaaaa;
+	transition: 0.15s;
+}
+
+.audienceButtonContainer {
+	display: flex;
+	align-items: center;
+	justify-content: space-around;
+	border-radius: 16px;
+	box-shadow: 1px 1px 10px 1px rgba(0, 0, 0, 0.1);
+	padding: 8px;
+	margin-top: 8px;
+	margin-bottom: 8px;
+	margin-left: 80px;
+	margin-right: 80px;
+}
+
+label {
+	cursor: pointer;
+	text-align: center;
+	font-size: medium;
+	font-weight: 600;
+}
+
+h2 {
+	font-size: large;
+	margin-left: 8px;
+}
+
+.ctxTitleHeader {
+	display: inline-flex;
+	align-items: center;
+}
+
+.syncIconInvisible {
+	display: none;
+}
+
+.syncIcon {
+	font-size: 1.2rem;
+	margin-left: 8px;
+	color: #888888;
+	transition: 0.15s;
+}
+
+.syncIcon:hover {
+	color: #666666;
+}
+
+.optionsContainer {
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+	justify-content: center;
+}
+
+.optionsButton {
+	border-radius: 24px;
+	background-color: #ffffff;
+	font-size: medium;
+	padding: 8px 16px;
+	border: 1px solid #f0f0f0;
+	transition: 0.15s;
+	cursor: pointer;
+}
+
+.optionsButton:hover {
+	background-color: #f0f0f0;
+}
+
+textarea {
+	background-color: transparent;
+	border: none;
+	width: 100%;
+	font-size: 0.8rem;
+	resize: none;
+	box-sizing: border-box;
+	overflow: hidden;
+	color: #666666;
+}
+
+.reflectionItem {
+	display: flex;
+	padding: 8px;
+	border-bottom: 1px solid #f5f5f5;
+	align-items: center;
+	cursor: pointer;
+	transition: 0.15s;
+}
+
+.reflectionItem:last-child {
+	border-bottom: none;
+}
+
+.reflectionItem:hover {
+	background-color: #eeeeee;
+}
+
+.questionsIconWrapper {
+	display: flex;
+	align-items: center;
+}
+
+.questionsIcon {
+	font-size: 0.65rem;
+	margin-right: 4px;
+}
+
+.rewriteText {
+	font-size: 0.9rem;
+	color: #222222;
+	margin-left: 8px;
+	margin-right: 8px;
+}
+
+.copyWrapper {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.copyIcon {
+	margin-top: 10px;
+	font-size: 1rem;
+	color: #888888;
+	transition: 0.15s;
+}
+
+.copyIcon:hover {
+	color: #416d19;
+}
+
+.copiedAlert {
+	font-size: 0.8rem;
+	color: #416d19;
+	margin-top: 10px;
+}
