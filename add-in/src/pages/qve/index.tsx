@@ -1,84 +1,48 @@
 import { useState, useEffect, useContext } from 'react';
 
 import { FcNext } from 'react-icons/fc';
-import { AiOutlineSync, AiOutlineCopy } from 'react-icons/ai';
 
 import { UserContext } from '@/contexts/userContext';
 
-import { getParagraphText } from '@/utilities';
 import { getReflectionFromServer } from '@/api';
 
 import classes from './styles.module.css';
 
 export default function QvE() {
+  const QUESTION_PROMPT = `You are a helpful writing assistant. Write three possible next questions that the writer might answer. List in dashes-`;
+
+  const EXAMPLE_PROMPT = `You are a helpful writing assistant. Write three possible next sentences that the writer might use. List in dashes-`;
+
 	const { username } = useContext(UserContext);
+	const [docText, updateDocText] = useState('');
 
-	const [_paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
-	const [cursorParaText, updateCursorParaText] = useState('');
-	
-    const [sidebarParaText, updateSidebarParaText] = useState('');
-	
-    const [audience, updateAudience] = useState('General');
 	const [questions, updateQuestions] = useState<string[]>([]);
-	const [rewrite, updateRewrite] = useState('');
+	const [examples, updateExamples] = useState<string[]>([]);
 	
-    const [generationMode, updateGenerationMode] = useState('');
-	const [copiedAlertText, updateCopiedAlertText] = useState('');
+  const [generationMode, updateGenerationMode] = useState('');
 
 	/**
-	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
-	 * This function retrieves and loads all paragraphs from the Word document and extracts their text content.
-	 * The extracted paragraph texts are then used to update and refresh the paragraphTexts state.
-	 *
-	 * @returns {Promise<void>} - A promise that resolves once the paragraph texts are loaded and updated.
-	 */
-	function loadParagraphTexts(): Promise<void> {
-		// TODO: We are not expecting frequent document changes yet. Consider caching.
-		return Word.run(async (context: Word.RequestContext) => {
-			const paragraphs: Word.ParagraphCollection =
-				context.document.body.paragraphs;
-
-			paragraphs.load();
-			await context.sync();
-
-			const newParagraphTexts: string[] = paragraphs.items.map(item =>
-				getParagraphText(item)
-			);
-
-			updateParagraphTexts(newParagraphTexts);
-		});
-	}
-
-	/**
-	 * Handles the change in selection within the Word document.
-	 * Retrieves the selected paragraphs and updates the current paragraph text accordingly.
-	 * Also updates the paragraph texts, potentially triggering an expensive operation.
-	 *
+	 * Retrieves the text content of the Word document and updates the docText state.
+   * 
 	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
 	 */
-	async function handleSelectionChange(): Promise<void> {
+	async function getDocText(): Promise<void> {
 		await Word.run(async (context: Word.RequestContext) => {
-			const selectedParagraphs: Word.ParagraphCollection =
-				context.document.getSelection().paragraphs;
+			const body: Word.Body = context.document.body;
 
-			context.load(selectedParagraphs);
+			context.load(body, 'text');
 			await context.sync();
 
-			const curParagraph: Word.Paragraph = selectedParagraphs.items[0];
-			updateCursorParaText(getParagraphText(curParagraph));
+			updateDocText(body.text.trim());
 		});
-
-		// Potentially expensive
-		loadParagraphTexts();
 	}
 
 	/**
-	 * Retrieves questions for a given paragraph text.
-	 * This function sends a request to the server to generate questions for the given paragraph text.
+	 * Retrieves questions for the document text.
+	 * This function sends a request to the server to generate questions for the given document text.
 	 * The generated questions are then used to update the questions state.
 	 *
 	 * @param {string}
-	 * @returns {void}
 	 */
 	async function getQuestions(paragraphText: string) {
 		// eslint-disable-next-line no-console
@@ -87,49 +51,43 @@ export default function QvE() {
 			'paragraphText must be a non-empty string'
 		);
 
-		// const questionPrompt = `What are three questions about this paragraph? List in dashes -`;
-		const questionPrompt = `You are a writing assistant who asks 3 dialogic questions on a provided paragraph for an audience at the ${audience} level. These questions should inspire writers to refine their personal ideas and voice in that paragraph and/or identify points for expansion. List questions in dashes -`;
-
-		const questions: ReflectionResponseItem[] = await getReflectionFromServer(username, paragraphText, questionPrompt);
+		const questions: ReflectionResponseItem[] = await getReflectionFromServer(username, paragraphText, QUESTION_PROMPT);
         updateQuestions(questions.map(item => item.reflection));
 	}
 
 	/**
-	 * Retrieves a rewrite for a given paragraph text.
-	 * This function sends a request to the server to generate a rewrite for the given paragraph text.
-	 * The generated rewrite is then used to update the rewrite state.
+	 * Retrieves example next sentences for the document text.
+	 * This function sends a request to the server to generate next sentences for the given text.
+	 * The generated examples are then used to update the examples state.
 	 *
 	 * @param {string}
-	 * @returns {void}
 	 */
-	async function getRewrite(paragraphText: string) {
+	async function getExamples(paragraphText: string) {
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof paragraphText === 'string' && paragraphText !== '',
 			'paragraphText must be a non-empty string'
 		);
 
-		const rewritePrompt = `Rewrite this paragraph for an audience at the ${audience} level.`;
-
-		const rewrite: ReflectionResponseItem[] = await getReflectionFromServer(username, paragraphText, rewritePrompt);
-        updateRewrite(rewrite[0].reflection);
+		const examples: ReflectionResponseItem[] = await getReflectionFromServer(username, paragraphText, EXAMPLE_PROMPT);
+        updateExamples(examples.map(item => item.reflection));
 	}
 
 	useEffect(() => {
 		// Handle initial selection change
-		handleSelectionChange();
+		getDocText();
 
 		// Handle subsequent selection changes
 		Office.context.document.addHandlerAsync(
 			Office.EventType.DocumentSelectionChanged,
-			handleSelectionChange
+			getDocText
 		);
 
 		// Cleanup
 		return () => {
 			Office.context.document.removeHandlerAsync(
 				Office.EventType.DocumentSelectionChanged,
-				handleSelectionChange
+				getDocText
 			);
 		};
 	}, []);
@@ -137,85 +95,31 @@ export default function QvE() {
 	return (
 		<div className={ classes.container }>
 			<div>
-				<h2>Audience</h2>
-
-				<div className={ classes.audienceButtonContainer }>
-					<input
-						defaultChecked
-						type="radio"
-						name="AudienceSwitch"
-						id="General"
-						value="General"
-						onClick={ () => updateAudience('General') }
-					/>
-
-					<label
-						className={ classes.buttonItem }
-						htmlFor="General"
-					>
-						General
-					</label>
-
-					<input
-						type="radio"
-						name="AudienceSwitch"
-						id="Knowledgeable"
-						value="Knowledgeable"
-						onClick={ () => updateAudience('Knowledgeable') }
-					/>
-
-					<label
-						className={ classes.buttonItem }
-						htmlFor="Knowledgeable"
-					>
-						Knowledgeable
-					</label>
-
-					<input
-						type="radio"
-						name="AudienceSwitch"
-						id="Expert"
-						value="Expert"
-						onClick={ () => updateAudience('Expert') }
-					/>
-
-					<label
-						className={ classes.buttonItem }
-						htmlFor="Expert"
-					>
-						Expert
-					</label>
-				</div>
-			</div>
-
-			<div>
-				<h2>Options</h2>
-
 				<div className={ classes.optionsContainer }>
 					<button
 						className={ classes.optionsButton }
 						onClick={ () => {
-							if (sidebarParaText !== '') {
-								updateRewrite('');
+							if (docText !== '') {
+								updateExamples([]);
 								updateGenerationMode('Questions');
-								getQuestions(sidebarParaText);
+								getQuestions(docText);
 							}
 						} }
 					>
-						Questions
+						Get New Questions
 					</button>
 
 					<button
 						className={ classes.optionsButton }
 						onClick={ () => {
-							if (sidebarParaText !== '') {
+							if (docText !== '') {
 								updateQuestions([]);
-								updateGenerationMode('Rewrite');
-								getRewrite(sidebarParaText);
+								updateGenerationMode('Examples');
+								getExamples(docText);
 							}
 						} }
 					>
-						Examples
+						Get New Examples
 					</button>
 				</div>
 			</div>
@@ -228,32 +132,29 @@ export default function QvE() {
 								key={ index }
 								className={ classes.reflectionItem }
 							>
-								<div className={ classes.questionsIconWrapper }>
-									<FcNext className={ classes.questionsIcon } />
+								<div className={ classes.itemIconWrapper }>
+									<FcNext className={ classes.itemIcon } />
 								</div>
 
 								{ question }
 							</div>
 						)) }
 
-					{ generationMode === 'Rewrite' && (
-						<>
-							<div className={ classes.rewriteText }>{ rewrite }</div>
-
-							<div className={ classes.copyWrapper }>
-								<AiOutlineCopy
-									className={ classes.copyIcon }
-									onClick={ () => {} }
-								/>
-                                
-								<div className={ classes.copiedAlert }>
-									{ copiedAlertText }
+          { generationMode === 'Examples' &&
+						examples.map((example, index) => (
+							<div
+								key={ index }
+								className={ classes.reflectionItem }
+							>
+								<div className={ classes.itemIconWrapper }>
+									<FcNext className={ classes.itemIcon } />
 								</div>
-							</div>
-						</>
-					) }
 
-					{ !rewrite && !questions.length && (
+								{ example }
+							</div>
+						)) }
+
+					{ !examples && !questions.length && (
 						<div>
 							Select one of the options to continue...
 						</div>
