@@ -2,6 +2,8 @@ import { useState, useEffect, useContext } from 'react';
 
 import { FcNext } from 'react-icons/fc';
 
+import { Toggle } from '@fluentui/react/lib/Toggle';
+
 import { UserContext } from '@/contexts/userContext';
 
 import { getLLMResponse } from '@/api';
@@ -12,14 +14,23 @@ export default function QvE() {
   const QUESTION_PROMPT = `You are a helpful writing assistant. Write three possible next questions that the writer might answer. List in dashes-`;
 
   const EXAMPLE_PROMPT = `You are a helpful writing assistant. Write three possible next sentences that the writer might use. List in dashes-`;
+	const POSITIONAL_EXAMPLE_PROMPT = `You are a helpful writing assistant. Given a paper, come up with three possible next sentences that could follow the specified sentence. List in dashes-`;
+
+	// TO DO: find better sentence delimiters
+	const SENTENCE_DELIMITERS = ['. ', '? ', '! '];
 
 	const { username } = useContext(UserContext);
 	const [docText, updateDocText] = useState('');
+	const [cursorSentence, updateCursorSentence] = useState('');
 
 	const [questions, updateQuestions] = useState<string[]>([]);
 	const [examples, updateExamples] = useState<string[]>([]);
 	
   const [generationMode, updateGenerationMode] = useState('');
+	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
+
+	// Hidden for now
+	const IS_SWITCH_VISIBLE = false;
 
 	/**
 	 * Retrieves the text content of the Word document and updates the docText state.
@@ -34,6 +45,23 @@ export default function QvE() {
 			await context.sync();
 
 			updateDocText(body.text.trim());
+		});
+	}
+
+	/**
+	 * Retrieves the text content of the current cursor position and updates the cursorSentence state.
+	 * 
+	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
+	 */
+	async function getCursorSentence(): Promise<void> {
+		await Word.run(async (context: Word.RequestContext) => {
+			const sentences = context.document
+					.getSelection()
+					.getTextRanges(SENTENCE_DELIMITERS, true);
+				sentences.load('text');
+				await context.sync();
+
+			updateCursorSentence(sentences.items[0].text);
 		});
 	}
 
@@ -69,18 +97,26 @@ export default function QvE() {
 			'contextText must be a non-empty string'
 		);
 
-		const examples: ReflectionResponseItem[] = await getLLMResponse(username, contextText, EXAMPLE_PROMPT);
+		const sysPrompt = positionalSensitivity ? POSITIONAL_EXAMPLE_PROMPT : EXAMPLE_PROMPT;
+		const refText = positionalSensitivity ? contextText + '\n' + cursorSentence : contextText;
+
+		const examples: ReflectionResponseItem[] = await getLLMResponse(username, refText, sysPrompt);
         updateExamples(examples.map(item => item.reflection));
 	}
 
 	useEffect(() => {
 		// Handle initial selection change
 		getDocText();
+		getCursorSentence();
 
 		// Handle subsequent selection changes
 		Office.context.document.addHandlerAsync(
 			Office.EventType.DocumentSelectionChanged,
 			getDocText
+		);
+		Office.context.document.addHandlerAsync(
+			Office.EventType.DocumentSelectionChanged,
+			getCursorSentence
 		);
 
 		// Cleanup
@@ -89,11 +125,31 @@ export default function QvE() {
 				Office.EventType.DocumentSelectionChanged,
 				getDocText
 			);
+			Office.context.document.removeHandlerAsync(
+				Office.EventType.DocumentSelectionChanged,
+				getCursorSentence
+			);
 		};
 	}, []);
 
 	return (
 		<div className={ classes.container }>
+			{ IS_SWITCH_VISIBLE && (
+				<Toggle
+					className={ classes.toggle }
+					label="Positional Sensitivity"
+					inlineLabel
+					onChange={ (_event, checked) => {
+							if (checked)
+									setPositionalSensitivity(true);
+							else
+									setPositionalSensitivity(false);
+					} }
+					checked={ positionalSensitivity }
+				/>
+				)
+			}
+
 			<div>
 				<div className={ classes.optionsContainer }>
 					<button
@@ -123,7 +179,7 @@ export default function QvE() {
 					</button>
 				</div>
 			</div>
-
+			{ /* <div>{ cursorSentence ? cursorSentence : 'Nothing selected' }</div> */ }
 			<div>
 				<div className={ classes.reflectionContainer }>
 					{ generationMode === 'Questions' &&
