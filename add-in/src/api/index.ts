@@ -7,7 +7,7 @@ export const SERVER_URL = '/api';
  * @param {string} prompt - The prompt used for reflection.
  * @returns {Promise<ReflectionResponseItem[]>} - A promise that resolves to an array of reflection response items.
  */
-export async function getReflectionFromServer(
+export async function getLLMResponse(
 	username: string,
 	paragraph: string,
 	prompt: string

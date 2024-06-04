@@ -4,7 +4,7 @@ import { FcNext } from 'react-icons/fc';
 
 import { UserContext } from '@/contexts/userContext';
 
-import { getReflectionFromServer } from '@/api';
+import { getLLMResponse } from '@/api';
 
 import classes from './styles.module.css';
 
@@ -44,14 +44,14 @@ export default function QvE() {
 	 *
 	 * @param {string}
 	 */
-	async function getQuestions(paragraphText: string) {
+	async function getQuestions(contextText: string) {
 		// eslint-disable-next-line no-console
 		console.assert(
-			typeof paragraphText === 'string' && paragraphText !== '',
-			'paragraphText must be a non-empty string'
+			typeof contextText === 'string' && contextText !== '',
+			'contextText must be a non-empty string'
 		);
 
-		const questions: ReflectionResponseItem[] = await getReflectionFromServer(username, paragraphText, QUESTION_PROMPT);
+		const questions: ReflectionResponseItem[] = await getLLMResponse(username, contextText, QUESTION_PROMPT);
         updateQuestions(questions.map(item => item.reflection));
 	}
 
@@ -62,14 +62,14 @@ export default function QvE() {
 	 *
 	 * @param {string}
 	 */
-	async function getExamples(paragraphText: string) {
+	async function getExamples(contextText: string) {
 		// eslint-disable-next-line no-console
 		console.assert(
-			typeof paragraphText === 'string' && paragraphText !== '',
-			'paragraphText must be a non-empty string'
+			typeof contextText === 'string' && contextText !== '',
+			'contextText must be a non-empty string'
 		);
 
-		const examples: ReflectionResponseItem[] = await getReflectionFromServer(username, paragraphText, EXAMPLE_PROMPT);
+		const examples: ReflectionResponseItem[] = await getLLMResponse(username, contextText, EXAMPLE_PROMPT);
         updateExamples(examples.map(item => item.reflection));
 	}
 
