@@ -19,7 +19,7 @@ export async function getReflection(
 
 		if (cachedResponse) return JSON.parse(cachedResponse);
 
-        const data = {
+		const data = {
 			username: username,
 			paragraph,
 			prompt
@@ -37,10 +37,7 @@ export async function getReflection(
 
 		const responseData: ReflectionResponses = await response.json();
 
-		localStorage.setItem(
-			key,
-			JSON.stringify(responseData.reflections)
-		);
+		localStorage.setItem(key, JSON.stringify(responseData.reflections));
 
 		return responseData.reflections;
 	}

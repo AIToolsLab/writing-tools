@@ -96,14 +96,14 @@ export default function Focals() {
 		const cacheKey: string = JSON.stringify({ paragraphText, prompt });
 
 		// TODO: Fix typing error
-		const cachedValue: any
+		const cachedValue: any =
 			// | ReflectionResponseItem[]
-			// | Promise<ReflectionResponseItem[]> 
-		= reflections.get(cacheKey);
+			// | Promise<ReflectionResponseItem[]>
+			reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-            getReflection(username, paragraphText, prompt);
+				getReflection(username, paragraphText, prompt);
 
 			reflectionsPromise
 				.then(newReflections => {
@@ -127,9 +127,7 @@ export default function Focals() {
 	 * @param {number} paragraphIndex - The index of the paragraph to create reflection cards for.
 	 * @returns {React.JSX.Element} - The created reflection cards as a JSX element.
 	 */
-	function createReflectionCards(
-		paragraphIndex: number,
-	): JSX.Element {
+	function createReflectionCards(paragraphIndex: number): JSX.Element {
 		const reflectionsForThisParagraph: ReflectionResponseItem[] =
 			getReflectionsSync(paragraphTexts[paragraphIndex], prompt);
 
@@ -176,9 +174,7 @@ export default function Focals() {
 	if (selectedIndex !== -1) {
 		// Check if the current paragraph is available
 		if (paragraphTexts[selectedIndex] !== '')
-			reflectionCardsContainer.push(
-				createReflectionCards(selectedIndex)
-			);
+			reflectionCardsContainer.push(createReflectionCards(selectedIndex));
 	}
 
 	return (
