@@ -229,8 +229,8 @@ export default function QvE() {
 							</div>
 						))) }
 
-					{ !examples && !questions.length && (
-						<div>
+					{ !examples.length && !questions.length && (
+						<div className={ classes.initText }>
 							Select one of the options to continue...
 						</div>
 					) }

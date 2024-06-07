@@ -53,3 +53,11 @@
 	font-size: 0.65rem;
 	margin-right: 4px;
 }
+
+.initText {
+	font-size: 0.9rem;
+	color: #666666;
+	align-items: center;
+	display: flex;
+	flex-direction: column;
+}
