@@ -184,7 +184,7 @@ export default function QvE() {
 			<div>
 				<div className={ classes.reflectionContainer }>
 					{ generationMode === 'Questions' && questions.length === 0 ? (
-						<div className={ classes.spinner }>
+						<div>
 							<Spinner
 								label="Loading..."
 								labelPosition="right"
@@ -206,7 +206,7 @@ export default function QvE() {
 					))) }
 
 					{ generationMode === 'Examples' && examples.length === 0 ? (
-						<div className={ classes.spinner }>
+						<div>
 							<Spinner
 								label="Loading..."
 								labelPosition="right"
