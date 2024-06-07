@@ -23,6 +23,9 @@ export default function QvE() {
 	const { username } = useContext(UserContext);
 	const [docText, updateDocText] = useState('');
 	const [cursorSentence, updateCursorSentence] = useState('');
+	
+	const [questionButtonActive, updateQuestionButtonActive] = useState(false);
+	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
 
 	const [questions, updateQuestions] = useState<string[]>([]);
 	const [examples, updateExamples] = useState<string[]>([]);
@@ -154,11 +157,13 @@ export default function QvE() {
 			<div>
 				<div className={ classes.optionsContainer }>
 					<button
-						className={ classes.optionsButton }
+						className={ questionButtonActive ? classes.optionsButtonActive : classes.optionsButton }
 						onClick={ () => {
 							if (docText !== '') {
 								updateQuestions([]);
 								updateExamples([]);
+								updateQuestionButtonActive(true);
+								updateExampleButtonActive(false);
 								updateGenerationMode('Questions');
 								getQuestions(docText);
 							}
@@ -168,11 +173,13 @@ export default function QvE() {
 					</button>
 
 					<button
-						className={ classes.optionsButton }
+						className={ exampleButtonActive ? classes.optionsButtonActive : classes.optionsButton }
 						onClick={ () => {
 							if (docText !== '') {
 								updateExamples([]);
 								updateQuestions([]);
+								updateExampleButtonActive(true);
+								updateQuestionButtonActive(false);
 								updateGenerationMode('Examples');
 								getExamples(docText);
 							}
