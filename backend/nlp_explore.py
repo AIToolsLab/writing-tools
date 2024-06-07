@@ -108,10 +108,10 @@ def update():
     </table>
     """)
 
-transformation_prompt = ui.input(label='Transformation Prompt', value='For this sentence, guess what question the interviewer asked that resulted in that answer.', on_change=lambda event: update())
+transformation_prompt = ui.input(label='Transformation Prompt', value='For this sentence, guess what question the interviewer asked that resulted in that answer.')
 
-document = ui.textarea(label='Text', placeholder='start typing', value=default_text,
-            on_change=lambda event: update())
+document = ui.textarea(label='Text', placeholder='start typing', value=default_text)
+update_button = ui.button('Update', on_click=update)
 result = ui.html()
 
 update()
