@@ -1,3 +1,6 @@
+# setup instructions:
+# pip install nicegui spacy openai joblib python-dotenv
+
 from nicegui import ui
 import spacy
 from openai import OpenAI
