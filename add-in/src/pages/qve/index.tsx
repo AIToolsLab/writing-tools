@@ -157,6 +157,7 @@ export default function QvE() {
 						className={ classes.optionsButton }
 						onClick={ () => {
 							if (docText !== '') {
+								updateQuestions([]);
 								updateExamples([]);
 								updateGenerationMode('Questions');
 								getQuestions(docText);
@@ -170,6 +171,7 @@ export default function QvE() {
 						className={ classes.optionsButton }
 						onClick={ () => {
 							if (docText !== '') {
+								updateExamples([]);
 								updateQuestions([]);
 								updateGenerationMode('Examples');
 								getExamples(docText);
