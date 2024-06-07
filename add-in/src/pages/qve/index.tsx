@@ -23,7 +23,7 @@ export default function QvE() {
 	const { username } = useContext(UserContext);
 	const [docText, updateDocText] = useState('');
 	const [cursorSentence, updateCursorSentence] = useState('');
-	
+
 	const [questionButtonActive, updateQuestionButtonActive] = useState(false);
 	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
 
@@ -236,7 +236,7 @@ export default function QvE() {
 							</div>
 						))) }
 
-					{ !examples.length && !questions.length && (
+					{ !examples.length && !questions.length && generationMode === 'None' && (
 						<div className={ classes.initText }>
 							Select one of the options to continue...
 						</div>
