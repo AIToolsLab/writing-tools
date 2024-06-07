@@ -3,6 +3,7 @@ import { useState, useEffect, useContext } from 'react';
 import { FcNext } from 'react-icons/fc';
 
 import { Toggle } from '@fluentui/react/lib/Toggle';
+import { Spinner } from '@fluentui/react/lib/Spinner';
 
 import { UserContext } from '@/contexts/userContext';
 
@@ -26,7 +27,7 @@ export default function QvE() {
 	const [questions, updateQuestions] = useState<string[]>([]);
 	const [examples, updateExamples] = useState<string[]>([]);
 	
-  const [generationMode, updateGenerationMode] = useState('');
+  const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
 
 	// Hidden for now
@@ -182,7 +183,15 @@ export default function QvE() {
 			{ /* <div>{ cursorSentence ? cursorSentence : 'Nothing selected' }</div> */ }
 			<div>
 				<div className={ classes.reflectionContainer }>
-					{ generationMode === 'Questions' &&
+					{ generationMode === 'Questions' && questions.length === 0 ? (
+						<div className={ classes.spinner }>
+							<Spinner
+								label="Loading..."
+								labelPosition="right"
+							/>
+						</div>
+					) : (
+						generationMode === 'Questions' &&
 						questions.map((question, index) => (
 							<div
 								key={ index }
@@ -194,9 +203,17 @@ export default function QvE() {
 
 								{ question }
 							</div>
-						)) }
+					))) }
 
-          { generationMode === 'Examples' &&
+					{ generationMode === 'Examples' && examples.length === 0 ? (
+						<div className={ classes.spinner }>
+							<Spinner
+								label="Loading..."
+								labelPosition="right"
+							/>
+						</div>
+					) : (
+						generationMode === 'Examples' &&
 						examples.map((example, index) => (
 							<div
 								key={ index }
@@ -208,7 +225,7 @@ export default function QvE() {
 
 								{ example }
 							</div>
-						)) }
+						))) }
 
 					{ !examples && !questions.length && (
 						<div>
