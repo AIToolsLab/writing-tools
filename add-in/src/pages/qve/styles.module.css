@@ -37,6 +37,11 @@
 	background-color: #f0f0f0;
 }
 
+.optionsButtonActive:hover {
+	background-color: #f0f0f0;
+	border: 1px solid #f0f0f0;
+}
+
 .reflectionItem {
 	display: flex;
 	padding: 8px;
