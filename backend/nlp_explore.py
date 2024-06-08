@@ -12,7 +12,7 @@ load_dotenv()
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-
+# TODO: maybe switch to https://github.com/leshchenko1979/perscache so we can have async cache
 import joblib
 
 memory = joblib.Memory('cache')
