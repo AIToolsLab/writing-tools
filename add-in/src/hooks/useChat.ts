@@ -3,14 +3,14 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 export function useChat({ SERVER_URL, chatMessages, updateChatMessages, username}: 
 	{ SERVER_URL: string, chatMessages: any, updateChatMessages: any, username: string}
 ) {
-	async function append(message: string) {
+	async function append(message: string, messages: any[] = chatMessages) {
 
 		if (!message) return;
 
 		let newMessages = [
-			...chatMessages,
+			...messages,
 			{ role: 'user', content: message },
-			{ role: 'assistant', content: '' }
+			{ role: 'assistant', content: '', done: false }
 		];
 
 		updateChatMessages(newMessages);
@@ -21,20 +21,25 @@ export function useChat({ SERVER_URL, chatMessages, updateChatMessages, username
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				messages: [...chatMessages, { role: 'user', content: message }],
+				messages: newMessages.slice(0, -1),
 				username: username
 			}),
 			onmessage(msg) {
 				const message = JSON.parse(msg.data);
 				const choice = message.choices[0];
-				if (choice.finish_reason === 'stop') return;
-				const newContent = choice.delta.content;
-				// need to make a new "newMessages" object to force React to update :(
-				newMessages = newMessages.slice();
-				newMessages[newMessages.length - 1].content += newContent;
+                // need to make a new "newMessages" object to force React to update :(
+                newMessages = newMessages.slice();
+
+				if (choice.finish_reason === 'stop') {
+                    newMessages[newMessages.length - 1].done = true;
+                } else {
+    				const newContent = choice.delta.content;
+				    newMessages[newMessages.length - 1].content += newContent;
+                }
 				updateChatMessages(newMessages);
 			}
 		});
+
 	}
 
 	async function regenMessage(index: number) {

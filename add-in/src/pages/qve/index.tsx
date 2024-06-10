@@ -1,13 +1,21 @@
 import { useState, useEffect, useContext } from 'react';
 
 import { FcNext } from 'react-icons/fc';
+import { Remark } from 'react-remark';
 
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Spinner } from '@fluentui/react/lib/Spinner';
 
 import { UserContext } from '@/contexts/userContext';
 
+import { useChat } from '@/hooks/useChat';
 import { getLLMResponse } from '@/api';
+
+import { SERVER_URL } from '@/api';
+
+function sanitize(text: string): string {
+	return text.replace('"', '').replace("'", '');
+}
 
 import classes from './styles.module.css';
 
@@ -27,8 +35,25 @@ export default function QvE() {
 	const [questionButtonActive, updateQuestionButtonActive] = useState(false);
 	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
 
-	const [questions, updateQuestions] = useState<string[]>([]);
-	const [examples, updateExamples] = useState<string[]>([]);
+	// Separate state for the messages because the useChat hook doesn't manage its own chat state
+	const [questionsChatMessages, updateQuestionsChatMessages] = useState<{ role: string; content: string; done?: boolean}[]>([]);
+	const [examplesChatMessages, updateExamplesChatMessages] = useState<{ role: string; content: string; done?: boolean }[]>([]);
+
+	const questionsRespense = questionsChatMessages[questionsChatMessages.length - 1];
+
+	const questionsChat = useChat({
+		SERVER_URL,
+		chatMessages: questionsChatMessages,
+		updateChatMessages: updateQuestionsChatMessages,
+		username
+	});
+
+	const exampleChat = useChat({
+		SERVER_URL,
+		chatMessages: examplesChatMessages,
+		updateChatMessages: updateExamplesChatMessages,
+		username
+	});
 	
   const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
@@ -83,8 +108,12 @@ export default function QvE() {
 			'contextText must be a non-empty string'
 		);
 
-		const questions: ReflectionResponseItem[] = await getLLMResponse(username, contextText, QUESTION_PROMPT);
-        updateQuestions(questions.map(item => item.reflection));
+		// construct the pseudo-conversation to retrieve questions
+		let messages = [
+			{"role": "system", "content": QUESTION_PROMPT},
+		]
+
+		questionsChat.append(sanitize(contextText), messages);
 	}
 
 	/**
@@ -105,9 +134,13 @@ export default function QvE() {
 		const refText = positionalSensitivity ? contextText + '\n' + cursorSentence : contextText;
 
 		const examples: ReflectionResponseItem[] = await getLLMResponse(username, refText, sysPrompt);
-        updateExamples(examples.map(item => item.reflection));
+		// TODO
+        //updateExamples(examples.map(item => item.reflection));
 	}
 
+	// useEffect to ensure that event handlers are set up only once
+	// and cleaned up when the component is unmounted.
+	// Note that dependences are empty, so this effect only runs once.
 	useEffect(() => {
 		// Handle initial selection change
 		getDocText();
@@ -158,15 +191,17 @@ export default function QvE() {
 				<div className={ classes.optionsContainer }>
 					<button
 						className={ questionButtonActive ? classes.optionsButtonActive : classes.optionsButton }
+						disabled={
+							docText === '' ||
+							(questionsChatMessages.length > 0 &&
+								!questionsChatMessages[questionsChatMessages.length - 1].done)
+						}
 						onClick={ () => {
-							if (docText !== '') {
-								updateQuestions([]);
-								updateExamples([]);
-								updateQuestionButtonActive(true);
-								updateExampleButtonActive(false);
-								updateGenerationMode('Questions');
-								getQuestions(docText);
-							}
+							if (docText === '') { return ;}
+							updateQuestionButtonActive(true);
+							updateExampleButtonActive(false);
+							updateGenerationMode('Questions');
+							getQuestions(docText);
 						} }
 					>
 						Get New Questions
@@ -174,15 +209,18 @@ export default function QvE() {
 
 					<button
 						className={ exampleButtonActive ? classes.optionsButtonActive : classes.optionsButton }
+						disabled={
+							docText === '' ||
+							(examplesChatMessages.length > 0 &&
+								!examplesChatMessages[examplesChatMessages.length - 1].done)
+						}
 						onClick={ () => {
-							if (docText !== '') {
-								updateExamples([]);
-								updateQuestions([]);
-								updateExampleButtonActive(true);
-								updateQuestionButtonActive(false);
-								updateGenerationMode('Examples');
-								getExamples(docText);
-							}
+							if (docText === '') { return ;}
+							updateExamplesChatMessages([]);
+							updateExampleButtonActive(true);
+							updateQuestionButtonActive(false);
+							updateGenerationMode('Examples');
+							getExamples(docText);
 						} }
 					>
 						Get New Examples
@@ -192,7 +230,7 @@ export default function QvE() {
 			{ /* <div>{ cursorSentence ? cursorSentence : 'Nothing selected' }</div> */ }
 			<div>
 				<div className={ classes.reflectionContainer }>
-					{ generationMode === 'Questions' && questions.length === 0 ? (
+					{ generationMode === 'Questions' && questionsChatMessages.length === 0 ? (
 						<div>
 							<Spinner
 								label="Loading..."
@@ -201,45 +239,8 @@ export default function QvE() {
 						</div>
 					) : (
 						generationMode === 'Questions' &&
-						questions.map((question, index) => (
-							<div
-								key={ index }
-								className={ classes.reflectionItem }
-							>
-								<div className={ classes.itemIconWrapper }>
-									<FcNext className={ classes.itemIcon } />
-								</div>
-
-								{ question }
-							</div>
-					))) }
-
-					{ generationMode === 'Examples' && examples.length === 0 ? (
-						<div>
-							<Spinner
-								label="Loading..."
-								labelPosition="right"
-							/>
-						</div>
-					) : (
-						generationMode === 'Examples' &&
-						examples.map((example, index) => (
-							<div
-								key={ index }
-								className={ classes.reflectionItem }
-							>
-								<div className={ classes.itemIconWrapper }>
-									<FcNext className={ classes.itemIcon } />
-								</div>
-
-								{ example }
-							</div>
-						))) }
-
-					{ !examples.length && !questions.length && generationMode === 'None' && (
-						<div className={ classes.initText }>
-							Select one of the options to continue...
-						</div>
+						questionsRespense &&
+						<Remark>{questionsRespense.content}</Remark>
 					) }
 				</div>
 			</div>
