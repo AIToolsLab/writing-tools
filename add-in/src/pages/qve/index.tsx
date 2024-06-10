@@ -9,7 +9,7 @@ import { Spinner } from '@fluentui/react/lib/Spinner';
 import { UserContext } from '@/contexts/userContext';
 
 import { useChat } from '@/hooks/useChat';
-import { getLLMResponse } from '@/api';
+import { useCompletion } from '@/hooks/useCompletions';
 
 import { SERVER_URL } from '@/api';
 
@@ -35,23 +35,16 @@ export default function QvE() {
 	const [questionButtonActive, updateQuestionButtonActive] = useState(false);
 	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
 
+    const { complete, completion, isLoading } = useCompletion({ SERVER_URL });
+
 	// Separate state for the messages because the useChat hook doesn't manage its own chat state
 	const [questionsChatMessages, updateQuestionsChatMessages] = useState<{ role: string; content: string; done?: boolean}[]>([]);
-	const [examplesChatMessages, updateExamplesChatMessages] = useState<{ role: string; content: string; done?: boolean }[]>([]);
-
 	const questionsRespense = questionsChatMessages[questionsChatMessages.length - 1];
 
 	const questionsChat = useChat({
 		SERVER_URL,
 		chatMessages: questionsChatMessages,
 		updateChatMessages: updateQuestionsChatMessages,
-		username
-	});
-
-	const exampleChat = useChat({
-		SERVER_URL,
-		chatMessages: examplesChatMessages,
-		updateChatMessages: updateExamplesChatMessages,
 		username
 	});
 	
@@ -130,12 +123,7 @@ export default function QvE() {
 			'contextText must be a non-empty string'
 		);
 
-		const sysPrompt = positionalSensitivity ? POSITIONAL_EXAMPLE_PROMPT : EXAMPLE_PROMPT;
-		const refText = positionalSensitivity ? contextText + '\n' + cursorSentence : contextText;
-
-		const examples: ReflectionResponseItem[] = await getLLMResponse(username, refText, sysPrompt);
-		// TODO
-        //updateExamples(examples.map(item => item.reflection));
+		complete(sanitize(contextText));
 	}
 
 	// useEffect to ensure that event handlers are set up only once
@@ -168,6 +156,27 @@ export default function QvE() {
 			);
 		};
 	}, []);
+
+	let results = null
+	if (generationMode === 'Questions') {
+		if (questionsChatMessages.length > 0) {
+			results = <Remark>{questionsRespense.content}</Remark>;
+		}
+	} else {
+		// completion
+		if (completion.length > 0) {
+			results = <Remark>{completion}</Remark>;
+		}
+	}
+
+	if (results === null) {
+		results = <div>
+				<Spinner
+					label="Loading..."
+					labelPosition="right"
+				/>
+			</div>;
+	}
 
 	return (
 		<div className={ classes.container }>
@@ -211,12 +220,10 @@ export default function QvE() {
 						className={ exampleButtonActive ? classes.optionsButtonActive : classes.optionsButton }
 						disabled={
 							docText === '' ||
-							(examplesChatMessages.length > 0 &&
-								!examplesChatMessages[examplesChatMessages.length - 1].done)
+							(isLoading)
 						}
 						onClick={ () => {
 							if (docText === '') { return ;}
-							updateExamplesChatMessages([]);
 							updateExampleButtonActive(true);
 							updateQuestionButtonActive(false);
 							updateGenerationMode('Examples');
@@ -230,18 +237,7 @@ export default function QvE() {
 			{ /* <div>{ cursorSentence ? cursorSentence : 'Nothing selected' }</div> */ }
 			<div>
 				<div className={ classes.reflectionContainer }>
-					{ generationMode === 'Questions' && questionsChatMessages.length === 0 ? (
-						<div>
-							<Spinner
-								label="Loading..."
-								labelPosition="right"
-							/>
-						</div>
-					) : (
-						generationMode === 'Questions' &&
-						questionsRespense &&
-						<Remark>{questionsRespense.content}</Remark>
-					) }
+					{results}
 				</div>
 			</div>
 		</div>
