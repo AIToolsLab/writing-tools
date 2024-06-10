@@ -159,7 +159,7 @@ export default function QvE() {
 		};
 	}, []);
 
-	let results = null
+	let results = null;
 	if (generationMode === 'Questions') {
 		if (questionsChatMessages.length > 0) {
 			results = <Remark>{questionsRespense.content}</Remark>;
@@ -171,13 +171,15 @@ export default function QvE() {
 		}
 	}
 
-	if (results === null) {
-		results = <div>
+	if (isLoading && !results) {
+		results = (
+			<div>
 				<Spinner
 					label="Loading..."
 					labelPosition="right"
 				/>
-			</div>;
+			</div>
+		);
 	}
 
 	return (
