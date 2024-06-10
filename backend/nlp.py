@@ -1,22 +1,14 @@
 import re
 import openai
-from tenacity import (
-    retry, stop_after_attempt,  # for exponential backoff
-    wait_random_exponential
-)
 from pydantic import BaseModel
 from typing import List
 
+client = None
 
 def sanitize(text):
     return text.replace('"', '').replace("'", "")
 
 
-async_chat_with_backoff = (
-    retry(wait=wait_random_exponential(
-        min=1, max=60), stop=stop_after_attempt(6))
-    (openai.ChatCompletion.acreate)
-)
 
 # Scratch-extractor regex
 # xxx\nFINAL ANSWER\nyyy
@@ -44,7 +36,7 @@ class ReflectionResponseInternal(BaseModel):
 
 async def gen_reflections_chat(writing, prompt) -> ReflectionResponseInternal:
     prompt_with_output_format = output_format + prompt
-    response = await async_chat_with_backoff(
+    response = await client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
             {"role": "system", "content": prompt},

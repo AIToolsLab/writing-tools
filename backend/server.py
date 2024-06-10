@@ -2,7 +2,7 @@ import os
 import json
 import sqlite3
 
-import openai
+from openai import AsyncOpenAI
 import uvicorn
 
 from typing import List, Dict, Optional
@@ -18,19 +18,22 @@ from sse_starlette import EventSourceResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from nlp import (
-    gen_reflections_chat,
-    ReflectionResponseInternal
-)
+import nlp
 
 # Load ENV vars
 load_dotenv()
 
-openai.organization = os.getenv("OPENAI_ORGANIZATION") or "org-9bUDqwqHW2Peg4u47Psf9uUo"
-openai.api_key = os.getenv("OPENAI_API_KEY")
 
-if openai.api_key is None:
+# create OpenAI client
+openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+if openai_api_key == "":
     raise Exception("OPENAI_API_KEY is not set. Please set it in a .env file.")
+openai_client = AsyncOpenAI(
+    api_key=openai_api_key,
+)
+
+nlp.client = openai_client
+
 
 DEBUG = os.getenv("DEBUG") or False
 PORT = int(os.getenv("PORT") or "8000")
@@ -93,7 +96,7 @@ def make_log(payload: Log):
 async def get_reflections(
     request: ReflectionRequestPayload,
 ) -> ReflectionResponses:
-    reflections_internal = await gen_reflections_chat(
+    reflections_internal = await nlp.gen_reflections_chat(
         writing=request.paragraph,
         prompt=request.prompt,
     )
@@ -116,7 +119,7 @@ async def reflections(payload: ReflectionRequestPayload):
 
 @app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
-    response = await openai.ChatCompletion.acreate(
+    response = await openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=payload.messages,
         temperature=0.7,
@@ -133,8 +136,9 @@ async def chat(payload: ChatRequestPayload):
 
     # Stream response
     async def generator():
+        # chunk is a ChatCompletionChunk
         async for chunk in response:
-            yield json.dumps(chunk)
+            yield chunk.model_dump_json()
 
     return EventSourceResponse(generator())
 
