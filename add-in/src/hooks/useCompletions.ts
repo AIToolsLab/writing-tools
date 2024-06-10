@@ -40,6 +40,7 @@ export function useCompletion({ SERVER_URL }:
             }
 		});
 
+        return completion;
 	}
 
 	return { complete, completion, setCompletion, isLoading };

@@ -20,10 +20,9 @@ function sanitize(text: string): string {
 import classes from './styles.module.css';
 
 export default function QvE() {
-  const QUESTION_PROMPT = `You are a helpful writing assistant. Write three possible next questions that the writer might answer. List in dashes-`;
+  const QUESTION_PROMPT = `Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.`;
 
-  const EXAMPLE_PROMPT = `You are a helpful writing assistant. Write three possible next sentences that the writer might use. List in dashes-`;
-	const POSITIONAL_EXAMPLE_PROMPT = `You are a helpful writing assistant. Given a paper, come up with three possible next sentences that could follow the specified sentence. List in dashes-`;
+  const POSITIONAL_EXAMPLE_PROMPT = `You are a helpful writing assistant. Given a paper, come up with three possible next sentences that could follow the specified sentence. List in dashes-`;
 
 	// TO DO: find better sentence delimiters
 	const SENTENCE_DELIMITERS = ['. ', '? ', '! '];
@@ -101,12 +100,15 @@ export default function QvE() {
 			'contextText must be a non-empty string'
 		);
 
-		// construct the pseudo-conversation to retrieve questions
+		const example = await complete(sanitize(contextText));
+		console.log("Example: ", example);
+
+		// construct the pseudo-conversation to turn it into a question
 		let messages = [
 			{"role": "system", "content": QUESTION_PROMPT},
 		]
 
-		questionsChat.append(sanitize(contextText), messages);
+		questionsChat.append(example, messages);
 	}
 
 	/**
