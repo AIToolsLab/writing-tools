@@ -37,7 +37,12 @@ export function useChat({ SERVER_URL, chatMessages, updateChatMessages, username
 				    newMessages[newMessages.length - 1].content += newContent;
                 }
 				updateChatMessages(newMessages);
-			}
+			},
+            onerror(err) {
+                console.error(err);
+                // rethrow to avoid infinite retry.
+                throw err;
+            }
 		});
 
 	}
