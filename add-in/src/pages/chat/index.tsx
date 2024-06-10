@@ -1,6 +1,7 @@
 import { useState, useContext } from 'react';
 
 import { AiOutlineSend } from 'react-icons/ai';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import ChatMessage from '@/components/chatMessage';
 
@@ -18,6 +19,46 @@ export default function Chat() {
 	const [isSendingMessage, updateSendingMessage] = useState(false);
 
 	const [message, updateMessage] = useState('');
+
+	async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
+		updateSendingMessage(true);
+		e.preventDefault();
+
+		if (!message) return;
+
+		let newMessages = [
+			...chatMessages,
+			{ role: 'user', content: message },
+			{ role: 'assistant', content: '' }
+		];
+
+		updateChatMessages(newMessages);
+
+		await fetchEventSource(`${SERVER_URL}/chat`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				messages: [...chatMessages, { role: 'user', content: message }],
+				username: username
+			}),
+			onmessage(msg) {
+				const message = JSON.parse(msg.data);
+				const choice = message.choices[0];
+				if (choice.finish_reason === 'stop') return;
+				const newContent = choice.delta.content;
+				// need to make a new "newMessages" object to force React to update :(
+				newMessages = newMessages.slice();
+				newMessages[newMessages.length - 1].content += newContent;
+				updateChatMessages(newMessages);
+			}
+		});
+
+		updateSendingMessage(false);
+
+		updateMessage('');
+	}
 
 	async function regenMessage(index: number) {
 		// Resubmit the conversation up until the last message,
