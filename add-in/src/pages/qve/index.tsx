@@ -167,7 +167,7 @@ export default function QvE() {
 	} else {
 		// completion
 		if (completion.length > 0) {
-			results = <Remark>{completion}</Remark>;
+			results = <Remark>{ completion + '.' }</Remark>;
 		}
 	}
 
