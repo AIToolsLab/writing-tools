@@ -211,6 +211,7 @@ export default function QvE() {
 						}
 						onClick={ () => {
 							if (docText === '') { return ;}
+							updateQuestionsChatMessages([]);
 							updateQuestionButtonActive(true);
 							updateExampleButtonActive(false);
 							updateGenerationMode('Questions');
