@@ -8,7 +8,6 @@ export function useCompletion({ SERVER_URL }:
     const [isLoading, setIsLoading] = useState(false);
 
 	async function complete(prompt: any) {
-
         setCompletion('');
         completion = '';
         setIsLoading(true);
@@ -25,21 +24,22 @@ export function useCompletion({ SERVER_URL }:
 				const message = JSON.parse(msg.data);
 				const choice = message.choices[0];
 
-                console.log(message);
-				if (choice.finish_reason === 'stop') {
-                    setIsLoading(false);
-                } else {
-    				const newContent = choice.text;
-                    setCompletion(completion = completion + newContent);
-                }
+				// eslint-disable-next-line no-console
+				console.log(message);
+				if (choice.finish_reason === 'stop')
+					setIsLoading(false);
+ 				else {
+					const newContent = choice.text;
+					setCompletion(completion = completion + newContent);
+				}
 			},
-            onerror(err) {
-                console.error(err);
-                // rethrow to avoid infinite retry.
-                throw err;
-            }
+			onerror(err) {
+				// eslint-disable-next-line no-console
+				console.error(err);
+				// rethrow to avoid infinite retry.
+				throw err;
+			}
 		});
-
         return completion;
 	}
 

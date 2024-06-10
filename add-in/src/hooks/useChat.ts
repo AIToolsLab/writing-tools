@@ -1,6 +1,6 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
-export function useChat({ SERVER_URL, chatMessages, updateChatMessages, username}: 
+export function useChat({ SERVER_URL, chatMessages, updateChatMessages, username }: 
 	{ SERVER_URL: string, chatMessages: any, updateChatMessages: any, username: string}
 ) {
 	async function append(message: string, messages: any[] = chatMessages) {
@@ -27,22 +27,22 @@ export function useChat({ SERVER_URL, chatMessages, updateChatMessages, username
 			onmessage(msg) {
 				const message = JSON.parse(msg.data);
 				const choice = message.choices[0];
-                // need to make a new "newMessages" object to force React to update :(
-                newMessages = newMessages.slice();
+				// need to make a new "newMessages" object to force React to update :(
+				newMessages = newMessages.slice();
 
-				if (choice.finish_reason === 'stop') {
-                    newMessages[newMessages.length - 1].done = true;
-                } else {
-    				const newContent = choice.delta.content;
-				    newMessages[newMessages.length - 1].content += newContent;
-                }
+				if (choice.finish_reason === 'stop')
+					newMessages[newMessages.length - 1].done = true;
+ 				else {
+					const newContent = choice.delta.content;
+					newMessages[newMessages.length - 1].content += newContent;
+				}
 				updateChatMessages(newMessages);
 			},
-            onerror(err) {
-                console.error(err);
-                // rethrow to avoid infinite retry.
-                throw err;
-            }
+			onerror(err) {
+					console.error(err);
+					// rethrow to avoid infinite retry.
+					throw err;
+			}
 		});
 
 	}
