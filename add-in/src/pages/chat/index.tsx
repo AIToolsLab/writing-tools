@@ -21,10 +21,11 @@ export default function Chat() {
 	const [message, updateMessage] = useState('');
 
 	async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
-		updateSendingMessage(true);
 		e.preventDefault();
 
 		if (!message) return;
+
+		updateSendingMessage(true);
 
 		let newMessages = [
 			...chatMessages,

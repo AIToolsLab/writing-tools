@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { ChangeEvent, useState } from 'react';
 
 import TextareaAutosize from 'react-textarea-autosize';
 import { DefaultButton } from '@fluentui/react/lib/Button';
@@ -84,12 +84,12 @@ export function PromptButtonSelector(
 ): JSX.Element {
 	const { currentPrompt, updatePrompt } = props;
 
-	const [internalPrompt, setInternalPrompt] = useState(defaultPrompt);
+	const [displayedPrompt, setDisplayedPrompt] = useState(defaultPrompt);
 	const [customPrompt, setCustomPrompt] = useState('');
 	const [currentButton, setCurrentButton] = useState(defaultKeyword);
 
 	function setPrompt(newPrompt: string): void {
-		setInternalPrompt(newPrompt);
+		setDisplayedPrompt(newPrompt);
 		if (newPrompt.length !== 0) {
 			updatePrompt(newPrompt);
 		}
@@ -133,9 +133,9 @@ export function PromptButtonSelector(
 			<div className={ classes.textareaContainer }>
 				<TextareaAutosize
 					className={ classes.textarea }
-					value={ internalPrompt }
-					onChange={ e => {
-						setInternalPrompt(e.target.value);
+					value={ displayedPrompt }
+					onChange={ (e: ChangeEvent) => {
+						setDisplayedPrompt((e.target as HTMLInputElement).value);
 						setCurrentButton('Custom');
 					} }
 				/>
@@ -146,11 +146,11 @@ export function PromptButtonSelector(
 							<button
 								onClick={ () => {
 									if (
-										internalPrompt.trim().length !== 0 &&
-										internalPrompt.trim() !== currentPrompt
+										displayedPrompt.trim().length !== 0 &&
+										displayedPrompt.trim() !== currentPrompt
 									) {
-										setCustomPrompt(internalPrompt);
-										updatePrompt(internalPrompt);
+										setCustomPrompt(displayedPrompt);
+										updatePrompt(displayedPrompt);
 									}
 								} }
 							>
@@ -161,7 +161,7 @@ export function PromptButtonSelector(
 						<div className={ classes.clearButton }>
 							<button
 								onClick={ () => {
-									setInternalPrompt('');
+									setDisplayedPrompt('');
 									setCustomPrompt('');
 								} }
 							>

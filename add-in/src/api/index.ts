@@ -7,23 +7,23 @@ export const SERVER_URL = '/api';
  * @param {string} prompt - The prompt used for reflection.
  * @returns {Promise<ReflectionResponseItem[]>} - A promise that resolves to an array of reflection response items.
  */
-export async function getReflectionFromServer(
+export async function getReflection(
 	username: string,
 	paragraph: string,
 	prompt: string
 ): Promise<ReflectionResponseItem[]> {
 	try {
-		const data = {
-			username: username,
-			paragraph,
-			prompt
-		};
-
 		const key = JSON.stringify({ prompt, paragraph });
 
 		const cachedResponse = localStorage.getItem(key);
 
 		if (cachedResponse) return JSON.parse(cachedResponse);
+
+		const data = {
+			username: username,
+			paragraph,
+			prompt
+		};
 
 		const response: Response = await fetch(`${SERVER_URL}/reflections`, {
 			method: 'POST',
@@ -37,10 +37,7 @@ export async function getReflectionFromServer(
 
 		const responseData: ReflectionResponses = await response.json();
 
-		localStorage.setItem(
-			key,
-			JSON.stringify(responseData.reflections)
-		);
+		localStorage.setItem(key, JSON.stringify(responseData.reflections));
 
 		return responseData.reflections;
 	}
