@@ -54,6 +54,9 @@ class ChatRequestPayload(BaseModel):
     messages: List[Dict[str, str]]
     username: str
 
+class CompletionRequestPayload(BaseModel):
+    prompt: str
+
 class Log(BaseModel):
     username: str
     interaction: str # "chat", "reflection", "click", "page_change"
@@ -141,6 +144,28 @@ async def chat(payload: ChatRequestPayload):
             yield chunk.model_dump_json()
 
     return EventSourceResponse(generator())
+
+@app.post("/api/completion")
+async def completion(payload: CompletionRequestPayload):
+    response = await openai_client.completions.create(
+        model="gpt-3.5-turbo-instruct",
+        prompt=payload.prompt,
+        temperature=0.7,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=True,
+        stop=[".", "!", "?"]
+    )
+
+    # Stream response
+    async def generator():
+        async for chunk in response:
+            yield chunk.model_dump_json()
+
+    return EventSourceResponse(generator())
+
 
 @app.post("/log")
 async def log_feedback(payload: Log):
