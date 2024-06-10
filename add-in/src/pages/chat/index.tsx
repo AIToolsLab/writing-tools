@@ -12,17 +12,10 @@ import { SERVER_URL } from '@/api';
 
 import classes from './styles.module.css';
 
-export default function Chat() {
-	const { chatMessages, updateChatMessages } = useContext(ChatContext);
-	const { username } = useContext(UserContext);
-
-	const [isSendingMessage, updateSendingMessage] = useState(false);
-
-	const [message, updateMessage] = useState('');
-
-	async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
-		updateSendingMessage(true);
-		e.preventDefault();
+function useChat({ SERVER_URL, chatMessages, updateChatMessages, username}: 
+	{ SERVER_URL: string, chatMessages: any, updateChatMessages: any, username: string}
+) {
+	async function append(message: string) {
 
 		if (!message) return;
 
@@ -54,10 +47,6 @@ export default function Chat() {
 				updateChatMessages(newMessages);
 			}
 		});
-
-		updateSendingMessage(false);
-
-		updateMessage('');
 	}
 
 	async function regenMessage(index: number) {
@@ -82,6 +71,33 @@ export default function Chat() {
 		};
 
 		updateChatMessages(newMessages);
+	}
+
+	return { append, regenMessage };
+}
+
+export default function Chat() {
+	const { chatMessages, updateChatMessages } = useContext(ChatContext);
+	
+	const { username } = useContext(UserContext);
+	
+	const { append, regenMessage } = useChat({
+		SERVER_URL,
+		chatMessages, updateChatMessages,
+		username
+	});
+
+	const [isSendingMessage, updateSendingMessage] = useState(false);
+
+	const [message, updateMessage] = useState('');
+
+	async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
+		updateSendingMessage(true);
+		e.preventDefault();
+		// streaming updates happen inplicitly because ''append' calls 'updateChatMessages'
+		await append(message);
+		updateSendingMessage(false);
+		updateMessage('');
 	}
 
 	return (
