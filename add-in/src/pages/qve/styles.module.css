@@ -10,7 +10,7 @@
 	flex-direction: row;
 	gap: 8px;
 	justify-content: center;
-	margin-top: 8px;
+	margin-top: 20px;
 }
 
 .optionsButton {
@@ -40,4 +40,9 @@
 .optionsButtonActive:hover {
 	background-color: #f0f0f0;
 	border: 1px solid #f0f0f0;
+}
+
+.resultText {
+	margin-right: 16px;
+	margin-left: 16px;
 }
