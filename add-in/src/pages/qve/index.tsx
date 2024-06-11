@@ -114,8 +114,6 @@ export default function QvE() {
 				}
 
 				questions += choice.delta.content;
-				// eslint-disable-next-line no-console
-				console.log(choice.delta.content);
 				updateQuestions(questions + choice.delta.content.slice(0, -1));
 			},
 			onerror(err) {
