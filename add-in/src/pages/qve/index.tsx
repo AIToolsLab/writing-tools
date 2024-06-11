@@ -108,10 +108,15 @@ export default function QvE() {
 				const message = JSON.parse(msg.data);
 				const choice = message.choices[0];
 
-				if (choice.finish_reason === 'stop') setIsLoading(false);
+				if (choice.finish_reason === 'stop') {
+					setIsLoading(false);
+					return;
+				}
 
 				questions += choice.delta.content;
-				updateQuestions(questions + choice.delta.content);
+				// eslint-disable-next-line no-console
+				console.log(choice.delta.content);
+				updateQuestions(questions + choice.delta.content.slice(0, -1));
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
