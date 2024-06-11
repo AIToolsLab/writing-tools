@@ -2,10 +2,11 @@
 
 const path = require('path');
 
+const webpack = require('webpack');
 const devCerts = require('office-addin-dev-certs');
+
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const webpack = require('webpack');
 
 const urlDev = 'http://localhost:3000/';
 const urlProd = 'https://tools.kenarnold.org/';
@@ -26,10 +27,7 @@ module.exports = async (env, options) => {
 		entry: {
 			polyfill: ['core-js/stable', 'regenerator-runtime/runtime'],
 			vendor: ['react', 'react-dom', 'core-js', '@fluentui/react'],
-			taskpane: [
-				'./src/index.tsx',
-				'./src/taskpane.html'
-			],
+			taskpane: ['./src/index.tsx', './src/taskpane.html'],
 			commands: './src/commands/commands.ts'
 		},
 		output: {
@@ -91,16 +89,15 @@ module.exports = async (env, options) => {
 						to: 'assets/[name][ext][query]'
 					},
 					{
-						from: 'src/landing-page/*',
+						from: 'src/landingPage/*',
 						to: '[name][ext]'
 					},
 					{
 						from: 'manifest*.xml',
 						to: '[name]' + '[ext]',
 						transform(content) {
-							if (dev)
-								return content;
-                            else
+							if (dev) return content;
+							else
 								return content
 									.toString()
 									.replace(new RegExp(urlDev, 'g'), urlProd);

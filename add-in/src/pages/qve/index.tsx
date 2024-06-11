@@ -7,8 +7,7 @@ import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Spinner } from '@fluentui/react/lib/Spinner';
 
 // import { UserContext } from '@/contexts/userContext';
-
-import { useCompletion } from '@/hooks/useCompletions';
+// import { useCompletion } from '@/hooks/useCompletions';
 
 import { SERVER_URL } from '@/api';
 
@@ -19,8 +18,6 @@ function sanitize(text: string): string {
 import classes from './styles.module.css';
 
 export default function QvE() {
-	// const POSITIONAL_EXAMPLE_PROMPT = `You are a helpful writing assistant. Given a paper, come up with three possible next sentences that could follow the specified sentence. List in dashes-`;
-
 	// TO DO: find better sentence delimiters
 	const SENTENCE_DELIMITERS = ['. ', '? ', '! '];
 
@@ -31,10 +28,15 @@ export default function QvE() {
 	const [questionButtonActive, updateQuestionButtonActive] = useState(false);
 	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
 
-	const { complete, completion, isLoading } = useCompletion({ SERVER_URL });
+	// const { complete, completion, isLoading } = useCompletion({ SERVER_URL });
+
+	const [isLoading, setIsLoading] = useState(false);
+
+	// eslint-disable-next-line prefer-const
+	let [questions, updateQuestions] = useState('');
     
     // eslint-disable-next-line prefer-const
-	let [questions, updateQuestions] = useState('');
+	let [completion, setCompletion] = useState('');
 
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
@@ -54,7 +56,7 @@ export default function QvE() {
 			context.load(body, 'text');
 			await context.sync();
 
-			updateDocText(body.text.trim());
+			updateDocText(body.text);
 		});
 	}
 
@@ -83,8 +85,8 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getQuestions(contextText: string) {
-        questions = '';
-        updateQuestions('');
+		questions = '';
+		updateQuestions('');
 
 		// eslint-disable-next-line no-console
 		console.assert(
@@ -92,30 +94,30 @@ export default function QvE() {
 			'contextText must be a non-empty string'
 		);
 
-        await fetchEventSource(`${SERVER_URL}/questions`, {
+		setIsLoading(true);
+
+		await fetchEventSource(`${SERVER_URL}/questions`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				prompt: sanitize(contextText),
+				prompt: sanitize(contextText)
 			}),
 			onmessage(msg) {
 				const message = JSON.parse(msg.data);
 				const choice = message.choices[0];
-                
-                if (choice.finish_reason === 'stop')
-                    return;
 
-                questions += choice.delta.content;
+				if (choice.finish_reason === 'stop') setIsLoading(false);
 
-                updateQuestions(questions + choice.delta.content);
+				questions += choice.delta.content;
+				updateQuestions(questions + choice.delta.content);
 			},
 			onerror(err) {
-                // eslint-disable-next-line no-console
+				// eslint-disable-next-line no-console
 				console.error(err);
-				
-                // rethrow to avoid infinite retry.
+
+				// rethrow to avoid infinite retry.
 				throw err;
 			}
 		});
@@ -129,18 +131,53 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getExamples(contextText: string) {
+		completion = '';
+		setCompletion('');
+
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof contextText === 'string' && contextText !== '',
 			'contextText must be a non-empty string'
 		);
 
-		complete(sanitize(contextText));
+		// complete(sanitize(contextText));
+
+		setIsLoading(true);
+
+		await fetchEventSource(`${SERVER_URL}/completion`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				prompt: sanitize(contextText)
+			}),
+			onmessage(msg) {
+				const message = JSON.parse(msg.data);
+				const choice = message.choices[0];
+
+				if (choice.finish_reason === 'stop') setIsLoading(false);
+				else {
+					const newContent = choice.text;
+					completion += newContent;
+					setCompletion(completion);
+				}
+			},
+			onerror(err) {
+				// eslint-disable-next-line no-console
+				console.error(err);
+
+				// rethrow to avoid infinite retry.
+				throw err;
+			}
+		});
 	}
 
-	// useEffect to ensure that event handlers are set up only once
-	// and cleaned up when the component is unmounted.
-	// Note that dependences are empty, so this effect only runs once.
+	/**
+	 * useEffect to ensure that event handlers are set up only once
+	 * and cleaned up when the component is unmounted.
+	 * Note that dependences are empty, so this effect only runs once.
+	 */
 	useEffect(() => {
 		// Handle initial selection change
 		getDocText();
@@ -171,10 +208,9 @@ export default function QvE() {
 
 	let results = null;
 	if (generationMode === 'Questions') {
-		if (questions.length > 0)
-			results = <Remark>{ questions }</Remark>;
+		if (questions.length > 0) results = <Remark>{ questions }</Remark>;
 	}
-    else {
+ else {
 		// completion
 		if (completion.length > 0)
 			results = <Remark>{ completion + '.' }</Remark>;
@@ -213,9 +249,7 @@ export default function QvE() {
 								? classes.optionsButtonActive
 								: classes.optionsButton
 						}
-						disabled={
-							docText === ''
-						}
+						disabled={ docText === '' }
 						onClick={ () => {
 							if (docText === '') return;
 							// updateQuestionsChatMessages([]);

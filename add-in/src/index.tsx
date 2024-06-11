@@ -2,7 +2,7 @@ import * as ReactDOM from 'react-dom';
 
 import { initializeIcons } from '@fluentui/font-icons-mdl2';
 import { ThemeProvider } from '@fluentui/react';
-import PageContextWrapper from './contexts/pageContext';
+
 import UserContextWrapper from './contexts/userContext';
 import ChatContextWrapper from './contexts/chatContext';
 
@@ -14,15 +14,12 @@ initializeIcons();
 
 let isOfficeInitialized = false;
 
-// TODO: Fix typing issue
 const render = (Component: any) => {
 	ReactDOM.render(
 		<ThemeProvider>
 			<ChatContextWrapper>
 				<UserContextWrapper>
-					<PageContextWrapper>
-						<Component isOfficeInitialized={ isOfficeInitialized } />
-					</PageContextWrapper>
+					<Component isOfficeInitialized={ isOfficeInitialized } />
 				</UserContextWrapper>
 			</ChatContextWrapper>
 		</ThemeProvider>,
@@ -30,7 +27,7 @@ const render = (Component: any) => {
 	);
 };
 
-/* Render application after Office initializes */
+// Render application after Office initializes
 Office.onReady(info => {
 	if (info.host === Office.HostType.Word) isOfficeInitialized = true;
 	render(App);

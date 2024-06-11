@@ -43,14 +43,14 @@ export function useChat({
 					const newContent = choice.delta.content;
 					newMessages[newMessages.length - 1].content += newContent;
 				}
-                
+
 				updateChatMessages(newMessages);
 			},
 			onerror(err) {
-                // eslint-disable-next-line no-console
+				// eslint-disable-next-line no-console
 				console.error(err);
-				
-                // rethrow to avoid infinite retry.
+
+				// rethrow to avoid infinite retry.
 				throw err;
 			}
 		});
