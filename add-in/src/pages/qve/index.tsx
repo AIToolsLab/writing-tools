@@ -6,9 +6,6 @@ import { Remark } from 'react-remark';
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Spinner } from '@fluentui/react/lib/Spinner';
 
-// import { UserContext } from '@/contexts/userContext';
-// import { useCompletion } from '@/hooks/useCompletions';
-
 import { SERVER_URL } from '@/api';
 
 function sanitize(text: string): string {
@@ -28,14 +25,12 @@ export default function QvE() {
 	const [questionButtonActive, updateQuestionButtonActive] = useState(false);
 	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
 
-	// const { complete, completion, isLoading } = useCompletion({ SERVER_URL });
-
 	const [isLoading, setIsLoading] = useState(false);
 
 	// eslint-disable-next-line prefer-const
 	let [questions, updateQuestions] = useState('');
     
-    // eslint-disable-next-line prefer-const
+	// eslint-disable-next-line prefer-const
 	let [completion, setCompletion] = useState('');
 
 	const [generationMode, updateGenerationMode] = useState('None');
@@ -255,7 +250,6 @@ export default function QvE() {
 						disabled={ docText === '' || isLoading }
 						onClick={ () => {
 							if (docText === '') return;
-							// updateQuestionsChatMessages([]);
 							updateQuestionButtonActive(true);
 							updateExampleButtonActive(false);
 							updateGenerationMode('Questions');
@@ -274,7 +268,6 @@ export default function QvE() {
 						disabled={ docText === '' || isLoading }
 						onClick={ () => {
 							if (docText === '') return;
-
 							updateExampleButtonActive(true);
 							updateQuestionButtonActive(false);
 							updateGenerationMode('Examples');
