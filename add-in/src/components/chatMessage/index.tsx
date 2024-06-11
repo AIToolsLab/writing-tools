@@ -50,8 +50,10 @@ export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
 					) }
 				</div>
 
-                <div><Remark>{ props.content }</Remark></div>
-            </div>
-        </div>
-    );
+				<div>
+					<Remark>{ props.content }</Remark>
+				</div>
+			</div>
+		</div>
+	);
 }

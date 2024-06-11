@@ -29,7 +29,7 @@ export default function Navbar() {
 			>
 				Focals
 			</p>
-            
+
 			<p
 				onClick={ () => changePage('chat') }
 				className={ page === 'chat' ? classes.active : '' }

@@ -37,14 +37,11 @@ export async function getLLMResponse(
 
 		const responseData: ReflectionResponses = await response.json();
 
-		localStorage.setItem(
-			key,
-			JSON.stringify(responseData.reflections)
-		);
+		localStorage.setItem(key, JSON.stringify(responseData.reflections));
 
 		return responseData.reflections;
 	}
- catch (error) {
+    catch (error) {
 		return [];
 	}
 }
