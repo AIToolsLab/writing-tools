@@ -105,7 +105,7 @@ export default function QvE() {
 
 		const example = await complete(sanitize(contextText));
 		// eslint-disable-next-line no-console
-		console.log('Example: ', example);
+		// console.log('Example: ', example);
 
 		// construct the pseudo-conversation to turn it into a question
 		const messages = [{ role: 'system', content: QUESTION_PROMPT }];
@@ -163,18 +163,16 @@ export default function QvE() {
 
 	let results = null;
 	if (generationMode === 'Questions') {
-		if (questionsChatMessages.length > 0) {
+		if (questionsChatMessages.length > 0)
 			results = <Remark>{ questionsRespense.content }</Remark>;
-		}
 	}
- else {
+    else {
 		// completion
-		if (completion.length > 0) {
+		if (completion.length > 0)
 			results = <Remark>{ completion + '.' }</Remark>;
-		}
 	}
 
-	if (isLoading && !results) {
+	if (isLoading && !results)
 		results = (
 			<div>
 				<Spinner
@@ -183,7 +181,6 @@ export default function QvE() {
 				/>
 			</div>
 		);
-	}
 
 	return (
 		<div className={ classes.container }>
@@ -236,6 +233,7 @@ export default function QvE() {
 						disabled={ docText === '' || isLoading }
 						onClick={ () => {
 							if (docText === '') return;
+
 							updateExampleButtonActive(true);
 							updateQuestionButtonActive(false);
 							updateGenerationMode('Examples');
