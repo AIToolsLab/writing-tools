@@ -189,7 +189,6 @@ async def question(payload: CompletionRequestPayload):
         model="gpt-3.5-turbo",
         messages=[
             { 'role': 'user', 'content': full_prompt },
-			{ 'role': 'assistant', 'content': '', 'done': False }
         ],
         temperature=0.7,
         max_tokens=1024,
