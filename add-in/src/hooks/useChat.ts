@@ -1,10 +1,17 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
-export function useChat({ SERVER_URL, chatMessages, updateChatMessages, username }: 
-	{ SERVER_URL: string, chatMessages: any, updateChatMessages: any, username: string}
-) {
+export function useChat({
+	SERVER_URL,
+	chatMessages,
+	updateChatMessages,
+	username
+}: {
+	SERVER_URL: string;
+	chatMessages: any;
+	updateChatMessages: any;
+	username: string;
+}) {
 	async function append(message: string, messages: any[] = chatMessages) {
-
 		if (!message) return;
 
 		let newMessages = [
@@ -32,19 +39,21 @@ export function useChat({ SERVER_URL, chatMessages, updateChatMessages, username
 
 				if (choice.finish_reason === 'stop')
 					newMessages[newMessages.length - 1].done = true;
- 				else {
+				else {
 					const newContent = choice.delta.content;
 					newMessages[newMessages.length - 1].content += newContent;
 				}
+                
 				updateChatMessages(newMessages);
 			},
 			onerror(err) {
-					console.error(err);
-					// rethrow to avoid infinite retry.
-					throw err;
+                // eslint-disable-next-line no-console
+				console.error(err);
+				
+                // rethrow to avoid infinite retry.
+				throw err;
 			}
 		});
-
 	}
 
 	async function regenMessage(index: number) {

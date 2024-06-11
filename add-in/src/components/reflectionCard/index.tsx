@@ -53,11 +53,9 @@ function ReflectionCard(props: ReflectionCardProps) {
 	const { cardData, className } = props;
 
 	return (
-		<div
-			className={ className }
-		>
+		<div className={ className }>
 			<div className={ classes.text }>{ cardData.body }</div>
-            
+
 			<div>
 				<button
 					className={ classes.pinButton }

@@ -10,7 +10,7 @@
 	flex-direction: row;
 	gap: 8px;
 	justify-content: center;
-  margin-top: 8px;
+	margin-top: 8px;
 }
 
 .optionsButton {
@@ -24,10 +24,10 @@
 }
 
 .optionsButtonActive {
-	background-color: #D2E0FB;
+	background-color: #d2e0fb;
 	font-size: medium;
 	padding: 8px 16px;
-	border: 1px solid #D2E0FB;
+	border: 1px solid #d2e0fb;
 	transition: 0.15s;
 	cursor: pointer;
 	border-radius: 24px;

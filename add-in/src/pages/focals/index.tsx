@@ -15,15 +15,15 @@ export default function Focals() {
 
 	const [_paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [cursorParaText, updateCursorParaText] = useState('');
-	
-    const [sidebarParaText, updateSidebarParaText] = useState('');
-	
-    const [audience, updateAudience] = useState('General');
+
+	const [sidebarParaText, updateSidebarParaText] = useState('');
+
+	const [audience, updateAudience] = useState('General');
 	const [questions, updateQuestions] = useState<string[]>([]);
 	const [rewrite, updateRewrite] = useState('');
-	
-    const [generationMode, updateGenerationMode] = useState('');
-	const [copiedAlertText, updateCopiedAlertText] = useState('');
+
+	const [generationMode, updateGenerationMode] = useState('');
+	const [copiedAlertText, _updateCopiedAlertText] = useState('');
 
 	/**
 	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
@@ -90,8 +90,12 @@ export default function Focals() {
 		// const questionPrompt = `What are three questions about this paragraph? List in dashes -`;
 		const questionPrompt = `You are a writing assistant who asks 3 dialogic questions on a provided paragraph for an audience at the ${audience} level. These questions should inspire writers to refine their personal ideas and voice in that paragraph and/or identify points for expansion. List questions in dashes -`;
 
-		const questions: ReflectionResponseItem[] = await getLLMResponse(username, paragraphText, questionPrompt);
-        updateQuestions(questions.map(item => item.reflection));
+		const questions: ReflectionResponseItem[] = await getLLMResponse(
+			username,
+			paragraphText,
+			questionPrompt
+		);
+		updateQuestions(questions.map(item => item.reflection));
 	}
 
 	/**
@@ -111,8 +115,12 @@ export default function Focals() {
 
 		const rewritePrompt = `Rewrite this paragraph for an audience at the ${audience} level.`;
 
-		const rewrite: ReflectionResponseItem[] = await getLLMResponse(username, paragraphText, rewritePrompt);
-        updateRewrite(rewrite[0].reflection);
+		const rewrite: ReflectionResponseItem[] = await getLLMResponse(
+			username,
+			paragraphText,
+			rewritePrompt
+		);
+		updateRewrite(rewrite[0].reflection);
 	}
 
 	useEffect(() => {
@@ -270,7 +278,7 @@ export default function Focals() {
 									className={ classes.copyIcon }
 									onClick={ () => {} }
 								/>
-                                
+
 								<div className={ classes.copiedAlert }>
 									{ copiedAlertText }
 								</div>
@@ -279,9 +287,7 @@ export default function Focals() {
 					) }
 
 					{ !rewrite && !questions.length && (
-						<div>
-							Select one of the options to continue...
-						</div>
+						<div>Select one of the options to continue...</div>
 					) }
 				</div>
 			</div>

@@ -31,7 +31,8 @@ export default function Login() {
 				Login
 			</button>
 			<div className={ classes.widthalert }>
-				{ width<400 && 'For best experience please expand the sidebar by dragging the splitter.' }
+				{ width < 400 &&
+					'For best experience please expand the sidebar by dragging the splitter.' }
 			</div>
 		</div>
 	);

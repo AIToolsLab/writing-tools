@@ -13,15 +13,15 @@ import { useChat } from '@/hooks/useChat';
 
 import classes from './styles.module.css';
 
-
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
-	
+
 	const { username } = useContext(UserContext);
-	
+
 	const { append, regenMessage } = useChat({
 		SERVER_URL,
-		chatMessages, updateChatMessages,
+		chatMessages,
+		updateChatMessages,
 		username
 	});
 

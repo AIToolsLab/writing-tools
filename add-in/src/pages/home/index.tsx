@@ -98,10 +98,10 @@ export default function Home() {
 		const cacheKey: string = JSON.stringify({ paragraphText, prompt });
 
 		// TODO: Fix typing error
-		const cachedValue: any
+		const cachedValue: any =
 			// | ReflectionResponseItem[]
-			// | Promise<ReflectionResponseItem[]> 
-		= reflections.get(cacheKey);
+			// | Promise<ReflectionResponseItem[]>
+			reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
@@ -182,7 +182,9 @@ export default function Home() {
 			// Check if there is a previous paragraph available
 			for (let i = selectedIndex - 1; i >= 0; i--) {
 				if (paragraphTexts[i] !== '') {
-					reflectionCardsContainer.push(createReflectionCards(i, false));
+					reflectionCardsContainer.push(
+						createReflectionCards(i, false)
+					);
 					break;
 				}
 			}
@@ -198,7 +200,9 @@ export default function Home() {
 			// Check if there is a next paragraph available
 			for (let i = selectedIndex + 1; i < paragraphTexts.length; i++) {
 				if (paragraphTexts[i] !== '') {
-					reflectionCardsContainer.push(createReflectionCards(i, false));
+					reflectionCardsContainer.push(
+						createReflectionCards(i, false)
+					);
 					break;
 				}
 			}

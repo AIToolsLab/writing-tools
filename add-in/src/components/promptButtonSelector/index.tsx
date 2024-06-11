@@ -31,36 +31,36 @@ import classes from './styles.module.css';
 const promptList = [
 	{
 		keyword: 'Main Point',
-		prompt: 'What is the main point of this paragraph?',
+		prompt: 'What is the main point of this paragraph?'
 	},
 	{
 		keyword: 'Important Concepts',
-		prompt: 'What are the important concepts in this paragraph? List three of them in dashes -',
+		prompt: 'What are the important concepts in this paragraph? List three of them in dashes -'
 	},
 	{
 		keyword: 'Claims and Arguments',
-		prompt: 'What are the claims or arguments presented in this paragraph? List three of them in dashes -',
+		prompt: 'What are the claims or arguments presented in this paragraph? List three of them in dashes -'
 	},
 	{
 		keyword: 'Counterarguments',
-		prompt: 'What are some potential counterarguments to the claims presented in this paragraph? Make tentative statements, list three of them in dashes -',
+		prompt: 'What are some potential counterarguments to the claims presented in this paragraph? Make tentative statements, list three of them in dashes -'
 	},
 	{
 		keyword: 'Further Evidence',
-		prompt: 'What further evidence or examples would you like to see to support the claims presented in this paragraph? List three of them in dashes -',
+		prompt: 'What further evidence or examples would you like to see to support the claims presented in this paragraph? List three of them in dashes -'
 	},
 	{
 		keyword: 'Outside the Box',
-		prompt: 'What outside the box questions do you have about this paragraph? List three of them in dashes -',
+		prompt: 'What outside the box questions do you have about this paragraph? List three of them in dashes -'
 	},
 	{
 		keyword: 'Questions as a Writer',
-		prompt: 'What questions do you have about this paragraph as a writer? List three of them in dashes -',
+		prompt: 'What questions do you have about this paragraph as a writer? List three of them in dashes -'
 	},
 	{
 		keyword: 'Questions as a Reader',
-		prompt: 'What questions do you have about this paragraph as a reader? List three of them in dashes -',
-	},
+		prompt: 'What questions do you have about this paragraph as a reader? List three of them in dashes -'
+	}
 ];
 
 interface PromptButtonSelectorProps {

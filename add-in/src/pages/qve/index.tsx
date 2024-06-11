@@ -20,25 +20,28 @@ function sanitize(text: string): string {
 import classes from './styles.module.css';
 
 export default function QvE() {
-  const QUESTION_PROMPT = `Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.`;
+	const QUESTION_PROMPT = `Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.`;
 
-  // const POSITIONAL_EXAMPLE_PROMPT = `You are a helpful writing assistant. Given a paper, come up with three possible next sentences that could follow the specified sentence. List in dashes-`;
+	// const POSITIONAL_EXAMPLE_PROMPT = `You are a helpful writing assistant. Given a paper, come up with three possible next sentences that could follow the specified sentence. List in dashes-`;
 
 	// TO DO: find better sentence delimiters
 	const SENTENCE_DELIMITERS = ['. ', '? ', '! '];
 
 	const { username } = useContext(UserContext);
 	const [docText, updateDocText] = useState('');
-	const [cursorSentence, updateCursorSentence] = useState('');
+	const [_cursorSentence, updateCursorSentence] = useState('');
 
 	const [questionButtonActive, updateQuestionButtonActive] = useState(false);
 	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
 
-    const { complete, completion, isLoading } = useCompletion({ SERVER_URL });
+	const { complete, completion, isLoading } = useCompletion({ SERVER_URL });
 
 	// Separate state for the messages because the useChat hook doesn't manage its own chat state
-	const [questionsChatMessages, updateQuestionsChatMessages] = useState<{ role: string; content: string; done?: boolean}[]>([]);
-	const questionsRespense = questionsChatMessages[questionsChatMessages.length - 1];
+	const [questionsChatMessages, updateQuestionsChatMessages] = useState<
+		{ role: string; content: string; done?: boolean }[]
+	>([]);
+	const questionsRespense =
+		questionsChatMessages[questionsChatMessages.length - 1];
 
 	const questionsChat = useChat({
 		SERVER_URL,
@@ -46,8 +49,8 @@ export default function QvE() {
 		updateChatMessages: updateQuestionsChatMessages,
 		username
 	});
-	
-  const [generationMode, updateGenerationMode] = useState('None');
+
+	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
 
 	// Hidden for now
@@ -55,7 +58,7 @@ export default function QvE() {
 
 	/**
 	 * Retrieves the text content of the Word document and updates the docText state.
-   * 
+	 *
 	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
 	 */
 	async function getDocText(): Promise<void> {
@@ -71,16 +74,16 @@ export default function QvE() {
 
 	/**
 	 * Retrieves the text content of the current cursor position and updates the cursorSentence state.
-	 * 
+	 *
 	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
 	 */
 	async function getCursorSentence(): Promise<void> {
 		await Word.run(async (context: Word.RequestContext) => {
 			const sentences = context.document
-					.getSelection()
-					.getTextRanges(SENTENCE_DELIMITERS, true);
-				sentences.load('text');
-				await context.sync();
+				.getSelection()
+				.getTextRanges(SENTENCE_DELIMITERS, true);
+			sentences.load('text');
+			await context.sync();
 
 			updateCursorSentence(sentences.items[0].text);
 		});
@@ -105,9 +108,7 @@ export default function QvE() {
 		console.log('Example: ', example);
 
 		// construct the pseudo-conversation to turn it into a question
-		const messages = [
-			{ 'role': 'system', 'content': QUESTION_PROMPT },
-		];
+		const messages = [{ role: 'system', content: QUESTION_PROMPT }];
 
 		questionsChat.append(example, messages);
 	}
@@ -192,28 +193,30 @@ export default function QvE() {
 					label="Positional Sensitivity"
 					inlineLabel
 					onChange={ (_event, checked) => {
-							if (checked)
-									setPositionalSensitivity(true);
-							else
-									setPositionalSensitivity(false);
+						if (checked) setPositionalSensitivity(true);
+						else setPositionalSensitivity(false);
 					} }
 					checked={ positionalSensitivity }
 				/>
-				)
-			}
+			) }
 
 			<div>
 				<div className={ classes.optionsContainer }>
 					<button
-						className={ questionButtonActive ? classes.optionsButtonActive : classes.optionsButton }
+						className={
+							questionButtonActive
+								? classes.optionsButtonActive
+								: classes.optionsButton
+						}
 						disabled={
 							docText === '' ||
 							(questionsChatMessages.length > 0 &&
-								!questionsChatMessages[questionsChatMessages.length - 1].done)
+								!questionsChatMessages[
+									questionsChatMessages.length - 1
+								].done)
 						}
 						onClick={ () => {
-							if (docText === '')
-								return; 
+							if (docText === '') return;
 							updateQuestionsChatMessages([]);
 							updateQuestionButtonActive(true);
 							updateExampleButtonActive(false);
@@ -225,14 +228,14 @@ export default function QvE() {
 					</button>
 
 					<button
-						className={ exampleButtonActive ? classes.optionsButtonActive : classes.optionsButton }
-						disabled={
-							docText === '' ||
-							(isLoading)
+						className={
+							exampleButtonActive
+								? classes.optionsButtonActive
+								: classes.optionsButton
 						}
+						disabled={ docText === '' || isLoading }
 						onClick={ () => {
-							if (docText === '')
- 								return;
+							if (docText === '') return;
 							updateExampleButtonActive(true);
 							updateQuestionButtonActive(false);
 							updateGenerationMode('Examples');
@@ -245,9 +248,7 @@ export default function QvE() {
 			</div>
 			{ /* <div>{ cursorSentence ? cursorSentence : 'Nothing selected' }</div> */ }
 			<div>
-				<div className={ classes.reflectionContainer }>
-					{ results }
-				</div>
+				<div className={ classes.reflectionContainer }>{ results }</div>
 			</div>
 		</div>
 	);

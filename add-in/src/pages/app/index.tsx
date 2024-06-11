@@ -26,5 +26,17 @@ export default function App({ isOfficeInitialized }: HomeProps) {
 
 	if (page === 'login') return <Login />;
 
-	return <Layout>{ page === 'reflections' ? <Home /> : page === 'qve' ? <QvE /> : page === 'focals' ? <Focals /> : <Chat /> }</Layout>;
+	return (
+		<Layout>
+			{ page === 'reflections' ? (
+				<Home />
+			) : page === 'qve' ? (
+				<QvE />
+			) : page === 'focals' ? (
+				<Focals />
+			) : (
+				<Chat />
+			) }
+		</Layout>
+	);
 }
