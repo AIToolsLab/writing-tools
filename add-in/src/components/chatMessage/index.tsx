@@ -12,28 +12,6 @@ type ChatMessageProps = {
 export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
 	return (
 		<div className={ classes.container }>
-			{ /*
-                props.role !== 'assistant' ? (
-                    <div className={ classes.toolbar }>
-                        <FiRefreshCcw
-                            className={classes.icon}
-                            onClick={() => props.refresh(props.index)}
-                        />
-                    </div>
-                ) : (
-                    <div className={ classes.toolbar }>
-                        <FiTrash2
-                            className={classes.icon}
-                            onClick={() => props.deleteMessage(props.index)}
-                        />
-
-                        <TfiCommentAlt
-                            className={classes.icon}
-                            onClick={() => props.convertToComment(props.index)}
-                        />
-                    </div>
-                )*/ }
-
 			<div
 				className={ `${classes.cardContainer} ${
 					props.role === 'user' ? classes.noBorderBottom : ''

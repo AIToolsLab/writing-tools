@@ -13,7 +13,6 @@
 body {
     font-family: Arial, sans-serif;
     background-color: var(--light-gray);
-    font-
 }
 
 header {
@@ -113,6 +112,7 @@ body .page-footer {
 
 .feature:first-child {
     margin-top: 50px;
+}
 
 #features .card {
     margin-bottom: 30px;

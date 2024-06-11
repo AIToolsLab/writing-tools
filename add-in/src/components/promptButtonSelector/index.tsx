@@ -5,28 +5,30 @@ import { DefaultButton } from '@fluentui/react/lib/Button';
 
 import classes from './styles.module.css';
 
-// const promptList = [
-// 	{
-// 		keyword: 'Thesis Statement',
-// 		prompt: 'What is the thesis of the following paragraph? Answer concisely without saying "the thesis is".'
-// 	},
-// 	{
-// 		keyword: 'Important Concepts',
-// 		prompt: 'List up to 10 important concepts in this paragraph as phrases of up to 3 words.'
-// 	},
-// 	{
-// 		keyword: 'Questions the Writer Was Attempting to Answer',
-// 		prompt: 'List 2 or 3 questions that the writer was attempting to answer in this paragraph.'
-// 	},
-// 	{
-// 		keyword: 'Questions a Reader Might Have',
-// 		prompt: 'As a reader, ask the writer 2 or 3 questions.'
-// 	},
-// 	{
-// 		keyword: 'Counterpoints',
-// 		prompt: "List counterpoints to this paragraph's arguments."
-// 	},
-// ];
+/*
+const promptList = [
+	{
+		keyword: 'Thesis Statement',
+		prompt: 'What is the thesis of the following paragraph? Answer concisely without saying "the thesis is".'
+	},
+	{
+		keyword: 'Important Concepts',
+		prompt: 'List up to 10 important concepts in this paragraph as phrases of up to 3 words.'
+	},
+	{
+		keyword: 'Questions the Writer Was Attempting to Answer',
+		prompt: 'List 2 or 3 questions that the writer was attempting to answer in this paragraph.'
+	},
+	{
+		keyword: 'Questions a Reader Might Have',
+		prompt: 'As a reader, ask the writer 2 or 3 questions.'
+	},
+	{
+		keyword: 'Counterpoints',
+		prompt: "List counterpoints to this paragraph's arguments."
+	},
+];
+*/
 
 const promptList = [
 	{
