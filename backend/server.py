@@ -166,6 +166,46 @@ async def completion(payload: CompletionRequestPayload):
 
     return EventSourceResponse(generator())
 
+@app.post("/api/questions")
+async def question(payload: CompletionRequestPayload):
+    RHETORICAL_SITUATION = ''
+    QUESTION_PROMPT = 'Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.'
+
+    example = (await openai_client.completions.create(
+        model="gpt-3.5-turbo-instruct",
+        prompt=payload.prompt,
+        temperature=0.7,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=False,
+        stop=[".", "!", "?"]
+    )).choices[0].text
+
+    full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{example}'
+
+    questions = await openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            { 'role': 'user', 'content': full_prompt },
+			{ 'role': 'assistant', 'content': '', 'done': False }
+        ],
+        temperature=0.7,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=True
+    )
+
+    # Stream response
+    async def generator():
+        # chunk is a ChatCompletionChunk
+        async for chunk in questions:
+            yield chunk.model_dump_json()
+
+    return EventSourceResponse(generator())
 
 @app.post("/log")
 async def log_feedback(payload: Log):

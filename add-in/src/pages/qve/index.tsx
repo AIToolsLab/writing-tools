@@ -1,14 +1,13 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 
-// import { FcNext } from 'react-icons/fc';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { Remark } from 'react-remark';
 
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Spinner } from '@fluentui/react/lib/Spinner';
 
-import { UserContext } from '@/contexts/userContext';
+// import { UserContext } from '@/contexts/userContext';
 
-import { useChat } from '@/hooks/useChat';
 import { useCompletion } from '@/hooks/useCompletions';
 
 import { SERVER_URL } from '@/api';
@@ -20,14 +19,12 @@ function sanitize(text: string): string {
 import classes from './styles.module.css';
 
 export default function QvE() {
-	const QUESTION_PROMPT = `Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.`;
-
 	// const POSITIONAL_EXAMPLE_PROMPT = `You are a helpful writing assistant. Given a paper, come up with three possible next sentences that could follow the specified sentence. List in dashes-`;
 
 	// TO DO: find better sentence delimiters
 	const SENTENCE_DELIMITERS = ['. ', '? ', '! '];
 
-	const { username } = useContext(UserContext);
+	// const { username } = useContext(UserContext);
 	const [docText, updateDocText] = useState('');
 	const [_cursorSentence, updateCursorSentence] = useState('');
 
@@ -35,20 +32,9 @@ export default function QvE() {
 	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
 
 	const { complete, completion, isLoading } = useCompletion({ SERVER_URL });
-
-	// Separate state for the messages because the useChat hook doesn't manage its own chat state
-	const [questionsChatMessages, updateQuestionsChatMessages] = useState<
-		{ role: string; content: string; done?: boolean }[]
-	>([]);
-	const questionsRespense =
-		questionsChatMessages[questionsChatMessages.length - 1];
-
-	const questionsChat = useChat({
-		SERVER_URL,
-		chatMessages: questionsChatMessages,
-		updateChatMessages: updateQuestionsChatMessages,
-		username
-	});
+    
+    // eslint-disable-next-line prefer-const
+	let [questions, updateQuestions] = useState('');
 
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
@@ -97,20 +83,42 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getQuestions(contextText: string) {
+        questions = '';
+        updateQuestions('');
+
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof contextText === 'string' && contextText !== '',
 			'contextText must be a non-empty string'
 		);
 
-		const example = await complete(sanitize(contextText));
-		// eslint-disable-next-line no-console
-		// console.log('Example: ', example);
+        await fetchEventSource(`${SERVER_URL}/questions`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				prompt: sanitize(contextText),
+			}),
+			onmessage(msg) {
+				const message = JSON.parse(msg.data);
+				const choice = message.choices[0];
+                
+                if (choice.finish_reason === 'stop')
+                    return;
 
-		// construct the pseudo-conversation to turn it into a question
-		const messages = [{ role: 'system', content: QUESTION_PROMPT }];
+                questions += choice.delta.content;
 
-		questionsChat.append(example, messages);
+                updateQuestions(questions + choice.delta.content);
+			},
+			onerror(err) {
+                // eslint-disable-next-line no-console
+				console.error(err);
+				
+                // rethrow to avoid infinite retry.
+				throw err;
+			}
+		});
 	}
 
 	/**
@@ -163,8 +171,8 @@ export default function QvE() {
 
 	let results = null;
 	if (generationMode === 'Questions') {
-		if (questionsChatMessages.length > 0)
-			results = <Remark>{ questionsRespense.content }</Remark>;
+		if (questions.length > 0)
+			results = <Remark>{ questions }</Remark>;
 	}
     else {
 		// completion
@@ -206,15 +214,11 @@ export default function QvE() {
 								: classes.optionsButton
 						}
 						disabled={
-							docText === '' ||
-							(questionsChatMessages.length > 0 &&
-								!questionsChatMessages[
-									questionsChatMessages.length - 1
-								].done)
+							docText === ''
 						}
 						onClick={ () => {
 							if (docText === '') return;
-							updateQuestionsChatMessages([]);
+							// updateQuestionsChatMessages([]);
 							updateQuestionButtonActive(true);
 							updateExampleButtonActive(false);
 							updateGenerationMode('Questions');
