@@ -252,7 +252,7 @@ export default function QvE() {
 								? classes.optionsButtonActive
 								: classes.optionsButton
 						}
-						disabled={ docText === '' }
+						disabled={ docText === '' || isLoading }
 						onClick={ () => {
 							if (docText === '') return;
 							// updateQuestionsChatMessages([]);
