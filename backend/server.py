@@ -1,5 +1,4 @@
 import os
-import json
 import sqlite3
 
 from openai import AsyncOpenAI
@@ -18,38 +17,25 @@ from sse_starlette import EventSourceResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-import nlp
-
 # Load ENV vars
 load_dotenv()
 
 
 # create OpenAI client
 openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+
 if openai_api_key == "":
     raise Exception("OPENAI_API_KEY is not set. Please set it in a .env file.")
+
 openai_client = AsyncOpenAI(
     api_key=openai_api_key,
 )
-
-nlp.client = openai_client
 
 
 DEBUG = os.getenv("DEBUG") or False
 PORT = int(os.getenv("PORT") or "8000")
 
 # Declare Types
-class ReflectionRequestPayload(BaseModel):
-    username: str
-    paragraph: str # TODO: update name
-    prompt: str
-
-class ReflectionResponseItem(BaseModel):
-    reflection: str
-
-class ReflectionResponses(BaseModel):
-    reflections: List[ReflectionResponseItem]
-
 class ChatRequestPayload(BaseModel):
     messages: List[Dict[str, str]]
     username: str
@@ -59,7 +45,7 @@ class CompletionRequestPayload(BaseModel):
 
 class Log(BaseModel):
     username: str
-    interaction: str # "chat", "reflection", "click", "page_change"
+    interaction: str # "example", "question", "click"
     prompt: Optional[str] = None
     ui_id: Optional[str] = None
 
@@ -95,30 +81,6 @@ def make_log(payload: Log):
             "VALUES (datetime('now'), ?, ?, ?, ?)",
             (payload.username, payload.interaction, payload.prompt, payload.ui_id),
         )
-
-async def get_reflections(
-    request: ReflectionRequestPayload,
-) -> ReflectionResponses:
-    reflections_internal = await nlp.gen_reflections_chat(
-        writing=request.paragraph,
-        prompt=request.prompt,
-    )
-
-    return ReflectionResponses(
-        reflections=[
-            ReflectionResponseItem(reflection=reflection)
-            for reflection in reflections_internal.reflections
-        ]
-    )
-
-
-@app.post("/api/reflections")
-async def reflections(payload: ReflectionRequestPayload):
-    make_log(
-        Log(username=payload.username, interaction="reflection", prompt=payload.prompt, ui_id=None)
-    )
-
-    return await get_reflections(payload)
 
 @app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
