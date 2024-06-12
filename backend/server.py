@@ -109,30 +109,10 @@ async def chat(payload: ChatRequestPayload):
 
 @app.post("/api/completion")
 async def completion(payload: CompletionRequestPayload):
-
-    # Explicitly convert type to prevent strange Markdown formatting in generation
-    final_prefix = str(payload.prompt)
-
-    # If the prefix is not a complete sentence, complete it first.
-    if final_prefix.strip()[-1] not in ['.', '!', '?']:
-        sentence_completion = (await openai_client.completions.create(
-            model="gpt-3.5-turbo-instruct",
-            prompt=final_prefix,
-            temperature=1,
-            max_tokens=1024,
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0,
-            stream=False,
-            stop=[".", "!", "?"]
-        )).choices[0].text
-
-        final_prefix += sentence_completion + '.'
-    
     # Generate a completion based on the now-complete last sentence.
     response = await openai_client.completions.create(
         model="gpt-3.5-turbo-instruct",
-        prompt=final_prefix,
+        prompt=payload.prompt,
         temperature=1,
         max_tokens=1024,
         top_p=1,
