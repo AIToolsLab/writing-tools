@@ -153,7 +153,7 @@ async def completion(payload: CompletionRequestPayload):
 async def question(payload: CompletionRequestPayload):
     RHETORICAL_SITUATION = ''
     # QUESTION_PROMPT = 'Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.'
-    QUESTION_PROMPT = 'Given a selection of a text delimited by <start> and <end>, generate a question for which the selection is a possible answer.'
+    QUESTION_PROMPT = 'Ask a thought-provoking question in the third person about the idea expressed by the given sentence.'
 
     final_prefix = str(payload.prompt)
 
@@ -189,8 +189,8 @@ async def question(payload: CompletionRequestPayload):
     # XAI: Log the example used in chain-of-thought question gen
     print(example)
 
-    # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{example}'
-    full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
+    full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{example}'
+    # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
 
     questions = await openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
