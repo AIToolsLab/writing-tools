@@ -152,11 +152,10 @@ async def completion(payload: CompletionRequestPayload):
 @app.post("/api/questions")
 async def question(payload: CompletionRequestPayload):
     RHETORICAL_SITUATION = ''
-    QUESTION_PROMPT = 'Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.'
+    # QUESTION_PROMPT = 'Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.'
+    QUESTION_PROMPT = 'Given a selection of a text delimited by <start> and <end>, generate a question for which the selection is a possible answer.'
 
-    # For some reason, casting to string here *causes* the Markdown issue that
-    # casting to string *fixes* in the completion function
-    final_prefix = payload.prompt
+    final_prefix = str(payload.prompt)
 
     # If the prefix is not a complete sentence, complete it first.
     if final_prefix.strip()[-1] not in ['.', '!', '?']:
@@ -187,9 +186,11 @@ async def question(payload: CompletionRequestPayload):
         stop=[".", "!", "?"]
     )).choices[0].text
 
-    full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{example}'
-
+    # XAI: Log the example used in chain-of-thought question gen
     print(example)
+
+    # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{example}'
+    full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
 
     questions = await openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
