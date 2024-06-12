@@ -118,7 +118,7 @@ async def completion(payload: CompletionRequestPayload):
         sentence_completion = (await openai_client.completions.create(
             model="gpt-3.5-turbo-instruct",
             prompt=final_prefix,
-            temperature=0.7,
+            temperature=1,
             max_tokens=1024,
             top_p=1,
             frequency_penalty=0,
@@ -133,7 +133,7 @@ async def completion(payload: CompletionRequestPayload):
     response = await openai_client.completions.create(
         model="gpt-3.5-turbo-instruct",
         prompt=final_prefix,
-        temperature=0.7,
+        temperature=1,
         max_tokens=1024,
         top_p=1,
         frequency_penalty=0,
@@ -162,7 +162,7 @@ async def question(payload: CompletionRequestPayload):
         sentence_completion = (await openai_client.completions.create(
             model="gpt-3.5-turbo-instruct",
             prompt=final_prefix,
-            temperature=0.7,
+            temperature=1,
             max_tokens=1024,
             top_p=1,
             frequency_penalty=0,
@@ -177,7 +177,7 @@ async def question(payload: CompletionRequestPayload):
     example = (await openai_client.completions.create(
         model="gpt-3.5-turbo-instruct",
         prompt=final_prefix,
-        temperature=0.7,
+        temperature=1,
         max_tokens=1024,
         top_p=1,
         frequency_penalty=0,
