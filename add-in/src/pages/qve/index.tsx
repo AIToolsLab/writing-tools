@@ -211,7 +211,7 @@ export default function QvE() {
  else {
 		// completion
 		if (completion.length > 0)
-			results = <div className={ classes.resultText }><Remark>{ completion + '.' }</Remark></div>;
+			results = <div className={ classes.resultText }><div>{ completion + '.' }</div></div>;
 	}
 
 	if (isLoading && !results)
