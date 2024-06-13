@@ -1,10 +1,9 @@
 import { useState, useEffect } from 'react';
 
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { Remark } from 'react-remark';
 
 import { Toggle } from '@fluentui/react/lib/Toggle';
-import { Spinner } from '@fluentui/react/lib/Spinner';
+import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 
 import { SERVER_URL } from '@/api';
 
@@ -218,10 +217,7 @@ export default function QvE() {
 	if (isLoading && !results)
 		results = (
 			<div>
-				<Spinner
-					label="Loading..."
-					labelPosition="right"
-				/>
+				<Spinner size={SpinnerSize.large} />
 			</div>
 		);
 

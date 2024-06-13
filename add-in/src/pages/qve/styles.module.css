@@ -14,18 +14,20 @@
 }
 
 .optionsButton {
-	border-radius: 24px;
 	background-color: #ffffff;
-	font-size: medium;
+	font-size: 1.0rem;
+	font-weight: 500;
 	padding: 8px 16px;
 	border: 1px solid #f0f0f0;
 	transition: 0.15s;
 	cursor: pointer;
+	border-radius: 24px;
 }
 
 .optionsButtonActive {
 	background-color: #d2e0fb;
-	font-size: medium;
+	font-size: 1.0rem;
+	font-weight: 500;
 	padding: 8px 16px;
 	border: 1px solid #d2e0fb;
 	transition: 0.15s;
@@ -35,17 +37,22 @@
 
 .optionsButton:hover {
 	background-color: #f0f0f0;
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .2);
 }
 
 .optionsButtonActive:hover {
 	background-color: #f0f0f0;
 	border: 1px solid #f0f0f0;
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .2);
 }
 
 .resultTextWrapper {
-	margin-top: 20px;
-	margin-right: 16px;
-	margin-left: 16px;
+	margin-top: 16px;
+	margin-right: 8px;
+	margin-left: 8px;
+	padding: 16px;
+	background-color: #F8F8F8;
+	border-radius: 16px;
 }
 
 .resultText {
