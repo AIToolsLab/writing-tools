@@ -4,6 +4,8 @@ import sqlite3
 from openai import AsyncOpenAI
 import uvicorn
 
+import spacy
+
 from typing import List, Dict, Optional
 from pathlib import Path
 
@@ -30,6 +32,10 @@ if openai_api_key == "":
 openai_client = AsyncOpenAI(
     api_key=openai_api_key,
 )
+
+
+# Load spaCy model for sentence splitting
+nlp = spacy.load("en_core_web_sm")
 
 
 DEBUG = os.getenv("DEBUG") or False
@@ -133,30 +139,11 @@ async def completion(payload: CompletionRequestPayload):
 async def question(payload: CompletionRequestPayload):
     RHETORICAL_SITUATION = ''
     # QUESTION_PROMPT = 'Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.'
-    QUESTION_PROMPT = 'Ask a thought-provoking question in the third person about the idea expressed by the given sentence.'
+    QUESTION_PROMPT = 'Ask a thought-provoking but concise question in the third person about the idea expressed by the given sentence.'
 
-    final_prefix = str(payload.prompt)
-
-    # If the prefix is not a complete sentence, complete it first.
-    if final_prefix.strip()[-1] not in ['.', '!', '?']:
-        sentence_completion = (await openai_client.completions.create(
-            model="gpt-3.5-turbo-instruct",
-            prompt=final_prefix,
-            temperature=1,
-            max_tokens=1024,
-            top_p=1,
-            frequency_penalty=0,
-            presence_penalty=0,
-            stream=False,
-            stop=[".", "!", "?"]
-        )).choices[0].text
-
-        final_prefix += sentence_completion + '.'
-
-    # Generate an example based on the now-complete last sentence.    
-    example = (await openai_client.completions.create(
+    completion = (await openai_client.completions.create(
         model="gpt-3.5-turbo-instruct",
-        prompt=final_prefix,
+        prompt=str(payload.prompt),
         temperature=1,
         max_tokens=1024,
         top_p=1,
@@ -166,11 +153,19 @@ async def question(payload: CompletionRequestPayload):
         stop=[".", "!", "?"]
     )).choices[0].text
 
-    # XAI: Log the example used in chain-of-thought question gen
-    print(example)
+    # Get the last sentence in the last paragraph of the document
+    final_paragraph = str(payload.prompt).split('\n')[-1]
+    final_sentence = list(nlp(final_paragraph).sents)[-1].text
 
-    full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{example}'
+    # If the last sentence was incomplete (i.e. the completion is part of it), combine.
+    if final_sentence.strip()[-1] not in ['.', '!', '?']:
+        completion = final_sentence + completion + '.'
+
+    full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completion}'
     # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
+
+    # XAI: Log the completion used in chain-of-thought question gen
+    print(completion)
 
     questions = await openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
