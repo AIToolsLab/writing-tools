@@ -206,12 +206,13 @@ export default function QvE() {
 
 	let results = null;
 	if (generationMode === 'Questions') {
-		if (questions.length > 0) results = <div  className={ classes.resultText }><Remark>{ questions }</Remark></div>;
+		if (questions.length > 0)
+			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ questions }</div></div>;
 	}
- else {
+ 	else {
 		// completion
 		if (completion.length > 0)
-			results = <div className={ classes.resultText }><div>{ completion + '.' }</div></div>;
+			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ completion + '.' }</div></div>;
 	}
 
 	if (isLoading && !results)

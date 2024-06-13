@@ -42,7 +42,12 @@
 	border: 1px solid #f0f0f0;
 }
 
-.resultText {
+.resultTextWrapper {
+	margin-top: 20px;
 	margin-right: 16px;
 	margin-left: 16px;
+}
+
+.resultText {
+	font-size: 1.0rem;
 }
