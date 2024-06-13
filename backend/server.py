@@ -1,4 +1,5 @@
 import os
+import json
 import sqlite3
 
 from openai import AsyncOpenAI
@@ -54,7 +55,8 @@ class Log(BaseModel):
     username: str
     interaction: str # "example", "question", "click"
     prompt: Optional[str] = None
-    ui_id: Optional[str] = None
+    result: Optional[str] = None
+    example: Optional[str] = None
 
 app = FastAPI()
 
@@ -76,7 +78,7 @@ with sqlite3.connect(db_file) as conn:
     c = conn.cursor()
 
     c.execute(
-        "CREATE TABLE IF NOT EXISTS logs (timestamp, username, interaction, prompt, ui_id)"
+        "CREATE TABLE IF NOT EXISTS logs (timestamp, username, interaction, prompt, result, example)"
     )
 
 def make_log(payload: Log):
@@ -84,9 +86,9 @@ def make_log(payload: Log):
         c = conn.cursor()
 
         c.execute(
-            "INSERT INTO logs (timestamp, username, interaction, prompt, ui_id) "
-            "VALUES (datetime('now'), ?, ?, ?, ?)",
-            (payload.username, payload.interaction, payload.prompt, payload.ui_id),
+            "INSERT INTO logs (timestamp, username, interaction, prompt, result, example) "
+            "VALUES (datetime('now'), ?, ?, ?, ?, ?)",
+            (payload.username, payload.interaction, payload.prompt, payload.result, payload.example),
         )
 
 @app.post("/api/chat")
@@ -165,9 +167,6 @@ async def question(payload: CompletionRequestPayload):
     full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completion}'
     # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
 
-    # XAI: Log the completion used in chain-of-thought question gen
-    print(completion)
-
     questions = await openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
@@ -181,11 +180,25 @@ async def question(payload: CompletionRequestPayload):
         stream=True
     )
 
+
     # Stream response
     async def generator():
+        full_question = ''
+        
         # chunk is a ChatCompletionChunk
-        async for chunk in questions:
-            yield chunk.model_dump_json()
+        async for chunk in questions:    
+            dumped = chunk.model_dump_json()
+            new_chunk = json.loads(dumped)['choices'][0]['delta']['content'] 
+
+            if new_chunk:
+                full_question += new_chunk
+            elif len(full_question):
+                make_log(
+                    Log(username="test", interaction="question", prompt=str(payload.prompt), result=full_question, example=completion)
+                )
+
+            yield dumped
+
 
     return EventSourceResponse(generator())
 
