@@ -46,6 +46,19 @@
 	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .2);
 }
 
+.initTextWrapper {
+	margin-top: 16px;
+	margin-right: 16px;
+	margin-left: 16px;
+	padding: 16px;
+}
+
+.initText {
+	font-size: 0.9rem;
+	color: #888888;
+	text-align: center;
+}
+
 .resultTextWrapper {
 	margin-top: 16px;
 	margin-right: 8px;

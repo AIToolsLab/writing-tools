@@ -204,7 +204,9 @@ export default function QvE() {
 	}, []);
 
 	let results = null;
-	if (generationMode === 'Questions') {
+	if (generationMode === 'None')
+		results = <div className={ classes.initTextWrapper }><div className={ classes.initText }>Click button to generate question or example...</div></div>;
+	else if (generationMode === 'Questions') {
 		if (questions.length > 0)
 			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ questions }</div></div>;
 	}
