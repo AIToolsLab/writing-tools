@@ -46,6 +46,12 @@
 	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .2);
 }
 
+.spinnerWrapper {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
 .initTextWrapper {
 	margin-top: 16px;
 	margin-right: 16px;
