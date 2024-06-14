@@ -4,14 +4,16 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
+import { FcDocument, FcQuestions, FcFile } from "react-icons/fc";
 
 import { SERVER_URL } from '@/api';
+
+import classes from './styles.module.css';
 
 function sanitize(text: string): string {
 	return text.replace('"', '').replace('\'', '');
 }
 
-import classes from './styles.module.css';
 
 export default function QvE() {
 	// TO DO: find better sentence delimiters
@@ -257,6 +259,12 @@ export default function QvE() {
 					>
 						Get New Questions
 					</button>
+
+					<div className={ classes.modeIconWrapper } >
+						{
+							generationMode === 'Questions' ? <FcQuestions /> : generationMode === 'None' ? <FcFile className={ classes.initIcon } /> : <FcDocument />
+						}
+					</div>
 
 					<button
 						className={
