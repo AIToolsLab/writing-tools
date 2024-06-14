@@ -257,7 +257,7 @@ export default function QvE() {
 							getQuestions(docText);
 						} }
 					>
-						Get New Questions
+						Get New Question
 					</button>
 
 					<div className={ classes.modeIconWrapper } >
@@ -281,7 +281,7 @@ export default function QvE() {
 							getExamples(docText);
 						} }
 					>
-						Get New Examples
+						Get New Example
 					</button>
 				</div>
 			</div>
