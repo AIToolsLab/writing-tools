@@ -260,11 +260,11 @@ export default function QvE() {
 						Get New Question
 					</button>
 
-					<div className={ classes.modeIconWrapper } >
+					{/* <div className={ classes.modeIconWrapper } >
 						{
 							generationMode === 'Questions' ? <FcQuestions /> : generationMode === 'None' ? <FcFile className={ classes.initIcon } /> : <FcDocument />
 						}
-					</div>
+					</div> */}
 
 					<button
 						className={
