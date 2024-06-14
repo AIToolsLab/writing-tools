@@ -16,7 +16,7 @@
 .optionsButton {
 	background-color: #ffffff;
 	font-size: 1.0rem;
-	font-weight: 500;
+	font-weight: 600;
 	padding: 8px 16px;
 	border: 1px solid #f0f0f0;
 	transition: 0.15s;
@@ -27,7 +27,7 @@
 .optionsButtonActive {
 	background-color: #d2e0fb;
 	font-size: 1.0rem;
-	font-weight: 500;
+	font-weight: 600;
 	padding: 8px 16px;
 	border: 1px solid #d2e0fb;
 	transition: 0.15s;

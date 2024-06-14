@@ -217,7 +217,7 @@ export default function QvE() {
 	if (isLoading && !results)
 		results = (
 			<div>
-				<Spinner size={SpinnerSize.large} />
+				<Spinner size={ SpinnerSize.large } />
 			</div>
 		);
 
