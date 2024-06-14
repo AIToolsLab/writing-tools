@@ -17,6 +17,9 @@ export default function Login() {
 				value={ userId }
 				placeholder="Username"
 				onChange={ e => updateId(e.target.value) }
+				onKeyDown={ e => {
+					if (e.key === 'Enter') updateUsername(userId);
+				} }
 			/>
 
 			<button
