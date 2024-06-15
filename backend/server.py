@@ -183,21 +183,9 @@ async def question(payload: CompletionRequestPayload):
 
     # Stream response
     async def generator():
-        full_question = ''
-        
         # chunk is a ChatCompletionChunk
-        async for chunk in questions:    
-            dumped = chunk.model_dump_json()
-            new_chunk = json.loads(dumped)['choices'][0]['delta']['content'] 
-
-            if new_chunk:
-                full_question += new_chunk
-            elif len(full_question):
-                make_log(
-                    Log(username="test", interaction="question", prompt=str(payload.prompt), result=full_question, example=completion)
-                )
-
-            yield dumped
+        async for chunk in questions:
+            yield chunk.model_dump_json()
 
 
     return EventSourceResponse(generator())
