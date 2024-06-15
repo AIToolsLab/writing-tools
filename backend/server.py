@@ -139,10 +139,8 @@ async def completion(payload: CompletionRequestPayload):
     return EventSourceResponse(generator())
 
 @app.post("/api/chat-completion")
-async def question(payload: CompletionRequestPayload):
-    RHETORICAL_SITUATION = ''
-    # QUESTION_PROMPT = 'Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.'
-    QUESTION_PROMPT = 'Ask a thought-provoking but concise question in the third person about the idea expressed by the given sentence.'
+async def chat_completion(payload: CompletionRequestPayload):
+    PROMPT = 'Ask a thought-provoking but concise question in the third person about the idea expressed by the given sentence.'
 
     completion = (await openai_client.completions.create(
         model="gpt-3.5-turbo-instruct",
@@ -164,10 +162,9 @@ async def question(payload: CompletionRequestPayload):
     if final_sentence.strip()[-1] not in ['.', '!', '?']:
         completion = final_sentence + completion + '.'
 
-    full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completion}'
-    # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
+    full_prompt = f'{PROMPT}\n\n{payload.prompt}'
 
-    questions = await openai_client.chat.completions.create(
+    chat_completion = await openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
             { 'role': 'user', 'content': full_prompt },
@@ -184,7 +181,7 @@ async def question(payload: CompletionRequestPayload):
     # Stream response
     async def generator():
         # chunk is a ChatCompletionChunk
-        async for chunk in questions:
+        async for chunk in chat_completion:
             yield chunk.model_dump_json()
 
 
