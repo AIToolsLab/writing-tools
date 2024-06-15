@@ -140,43 +140,34 @@ async def completion(payload: CompletionRequestPayload):
 
 @app.post("/api/chat-completion")
 async def chat_completion(payload: CompletionRequestPayload):
-    PROMPT = 'Ask a thought-provoking but concise question in the third person about the idea expressed by the given sentence.'
-
-    completion = (await openai_client.completions.create(
-        model="gpt-3.5-turbo-instruct",
-        prompt=str(payload.prompt),
+    # Assign prompt based on whether the document ends with a space for a new paragraph
+    if(payload.prompt[-1] == '\r'):
+        system_chat_prompt = 'You are a completion bot. For the given text, write 1 topic sentence that the writer would likely use to start a new paragraph.'
+    else:
+        system_chat_prompt = 'You are a completion bot. For the given text, write an at most 1-sentence continuation that the writer would likely use.'
+    chat_completion = (await openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "system",
+                "content": [
+                    {
+                    "type": "text",
+                    "text": system_chat_prompt
+                    }
+                ]
+            },
+            { 'role': 'user',
+              'content': payload.prompt
+            },
+        ],
         temperature=1,
         max_tokens=1024,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
-        stream=False,
-        stop=[".", "!", "?"]
-    )).choices[0].text
-
-    # Get the last sentence in the last paragraph of the document
-    final_paragraph = str(payload.prompt).split('\n')[-1]
-    final_sentence = list(nlp(final_paragraph).sents)[-1].text
-
-    # If the last sentence was incomplete (i.e. the completion is part of it), combine.
-    if final_sentence.strip()[-1] not in ['.', '!', '?']:
-        completion = final_sentence + completion + '.'
-
-    full_prompt = f'{PROMPT}\n\n{payload.prompt}'
-
-    chat_completion = await openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            { 'role': 'user', 'content': full_prompt },
-        ],
-        temperature=0.7,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        stream=True
-    )
-
+        stream=True,
+    ))
 
     # Stream response
     async def generator():
