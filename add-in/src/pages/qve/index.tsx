@@ -4,7 +4,6 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
-import { FcDocument, FcQuestions, FcFile } from "react-icons/fc";
 
 import { SERVER_URL } from '@/api';
 
@@ -23,16 +22,16 @@ export default function QvE() {
 	const [docText, updateDocText] = useState('');
 	const [_cursorSentence, updateCursorSentence] = useState('');
 
-	const [questionButtonActive, updateQuestionButtonActive] = useState(false);
-	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
+	const [chatCompletionActive, updateChatCompletionButtonActive] = useState(false);
+	const [plainCompletionButtonActive, updatePlainCompletionButtonActive] = useState(false);
 
 	const [isLoading, setIsLoading] = useState(false);
 
 	// eslint-disable-next-line prefer-const
-	let [questions, updateQuestions] = useState('');
+	let [chatCompletion, updateChatCompletion] = useState('');
     
 	// eslint-disable-next-line prefer-const
-	let [completion, setCompletion] = useState('');
+	let [plainCompletion, setPlainCompletion] = useState('');
 
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
@@ -74,15 +73,15 @@ export default function QvE() {
 	}
 
 	/**
-	 * Retrieves questions for the document text.
-	 * This function sends a request to the server to generate questions for the given document text.
-	 * The generated questions are then used to update the questions state.
+	 * Retrieves chat completions for the document text.
+	 * This function sends a request to the server to generate chat completions for the given document text.
+	 * The generated chat completions are then used to update the chat completions state.
 	 *
 	 * @param {string}
 	 */
-	async function getQuestions(contextText: string) {
-		questions = '';
-		updateQuestions('');
+	async function getChatCompletions(contextText: string) {
+		chatCompletion = '';
+		updateChatCompletion('');
 
 		// eslint-disable-next-line no-console
 		console.assert(
@@ -92,7 +91,7 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		await fetchEventSource(`${SERVER_URL}/questions`, {
+		await fetchEventSource(`${SERVER_URL}/chat-completion`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -109,8 +108,8 @@ export default function QvE() {
 					return;
 				}
 
-				questions += choice.delta.content;
-				updateQuestions(questions + choice.delta.content.slice(0, -1));
+				chatCompletion += choice.delta.content;
+				updateChatCompletion(chatCompletion + choice.delta.content.slice(0, -1));
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
@@ -123,15 +122,15 @@ export default function QvE() {
 	}
 
 	/**
-	 * Retrieves example next sentences for the document text.
-	 * This function sends a request to the server to generate next sentences for the given text.
-	 * The generated examples are then used to update the examples state.
+	 * Retrieves plain completions for the document text.
+	 * This function sends a request to the server to generate plain completions for the given text.
+	 * The generated plain completions are then used to update the plainCompletion state.
 	 *
 	 * @param {string}
 	 */
-	async function getExamples(contextText: string) {
-		completion = '';
-		setCompletion('');
+	async function getPlainCompletions(contextText: string) {
+		plainCompletion = '';
+		setPlainCompletion('');
 
 		// eslint-disable-next-line no-console
 		console.assert(
@@ -143,7 +142,7 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		await fetchEventSource(`${SERVER_URL}/completion`, {
+		await fetchEventSource(`${SERVER_URL}/plain-completion`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -158,8 +157,8 @@ export default function QvE() {
 				if (choice.finish_reason === 'stop') setIsLoading(false);
 				else {
 					const newContent = choice.text;
-					completion += newContent;
-					setCompletion(completion);
+					plainCompletion += newContent;
+					setPlainCompletion(plainCompletion);
 				}
 			},
 			onerror(err) {
@@ -207,15 +206,15 @@ export default function QvE() {
 
 	let results = null;
 	if (generationMode === 'None')
-		results = <div className={ classes.initTextWrapper }><div className={ classes.initText }>Click button to generate question or example...</div></div>;
-	else if (generationMode === 'Questions') {
-		if (questions.length > 0)
-			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ questions }</div></div>;
+		results = <div className={ classes.initTextWrapper }><div className={ classes.initText }>Click button to generate plain completion...</div></div>;
+	else if (generationMode === 'Chat Completions') {
+		if (chatCompletion.length > 0)
+			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ chatCompletion }</div></div>;
 	}
  	else {
 		// completion
-		if (completion.length > 0)
-			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ completion + '.' }</div></div>;
+		if (plainCompletion.length > 0)
+			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ plainCompletion + '.' }</div></div>;
 	}
 
 	if (isLoading && !results)
@@ -244,44 +243,38 @@ export default function QvE() {
 				<div className={ classes.optionsContainer }>
 					<button
 						className={
-							questionButtonActive
+							chatCompletionActive
 								? classes.optionsButtonActive
 								: classes.optionsButton
 						}
 						disabled={ docText === '' || isLoading }
 						onClick={ () => {
 							if (docText === '') return;
-							updateQuestionButtonActive(true);
-							updateExampleButtonActive(false);
-							updateGenerationMode('Questions');
-							getQuestions(docText);
+							updateChatCompletionButtonActive(true);
+							updatePlainCompletionButtonActive(false);
+							updateGenerationMode('Chat Completions');
+							getChatCompletions(docText);
 						} }
 					>
-						Get New Question
+						Get Chat Completion
 					</button>
-
-					{/* <div className={ classes.modeIconWrapper } >
-						{
-							generationMode === 'Questions' ? <FcQuestions /> : generationMode === 'None' ? <FcFile className={ classes.initIcon } /> : <FcDocument />
-						}
-					</div> */}
 
 					<button
 						className={
-							exampleButtonActive
+							plainCompletionButtonActive
 								? classes.optionsButtonActive
 								: classes.optionsButton
 						}
 						disabled={ docText === '' || isLoading }
 						onClick={ () => {
 							if (docText === '') return;
-							updateExampleButtonActive(true);
-							updateQuestionButtonActive(false);
-							updateGenerationMode('Examples');
-							getExamples(docText);
+							updatePlainCompletionButtonActive(true);
+							updateChatCompletionButtonActive(false);
+							updateGenerationMode('Plain Completions');
+							getPlainCompletions(docText);
 						} }
 					>
-						Get New Example
+						Get Plain Completion
 					</button>
 				</div>
 			</div>

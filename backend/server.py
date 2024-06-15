@@ -116,7 +116,7 @@ async def chat(payload: ChatRequestPayload):
 
     return EventSourceResponse(generator())
 
-@app.post("/api/completion")
+@app.post("/api/plain-completion")
 async def completion(payload: CompletionRequestPayload):
     # Generate a completion based on the now-complete last sentence.
     response = await openai_client.completions.create(
@@ -138,7 +138,7 @@ async def completion(payload: CompletionRequestPayload):
 
     return EventSourceResponse(generator())
 
-@app.post("/api/questions")
+@app.post("/api/chat-completion")
 async def question(payload: CompletionRequestPayload):
     RHETORICAL_SITUATION = ''
     # QUESTION_PROMPT = 'Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.'
