@@ -37,13 +37,13 @@
 
 .optionsButton:hover {
 	background-color: #f0f0f0;
-	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .2);
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .1);
 }
 
 .optionsButtonActive:hover {
 	background-color: #f0f0f0;
 	border: 1px solid #f0f0f0;
-	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .2);
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .1);
 }
 
 .spinnerWrapper {
@@ -57,12 +57,14 @@
 	margin-right: 16px;
 	margin-left: 16px;
 	padding: 16px;
+	transition: 0.15s;
 }
 
 .initText {
 	font-size: 0.9rem;
 	color: #888888;
 	text-align: center;
+	transition: 0.15s;
 }
 
 .resultTextWrapper {
@@ -72,10 +74,16 @@
 	padding: 16px;
 	background-color: #F8F8F8;
 	border-radius: 16px;
+	transition: 0.15s;
+}
+
+.resultTextWrapper:hover {
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .1);
 }
 
 .resultText {
 	font-size: 1.0rem;
+	transition: 0.15s;
 }
 
 .modeIconWrapper {
@@ -89,4 +97,35 @@
 
 .initIcon {
 	opacity: 0.25;
+}
+
+.copiedStateWrapper {
+	display: flex;
+	justify-content: right;
+	align-items: center;
+	margin: 12px;
+	margin-right: 8px;
+	animation: fade 2s ease-in-out;
+}
+
+@keyframes fade {
+	0% {
+		opacity: 0;
+	}
+	10% {
+		opacity: 0.75;
+	}
+	50% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+.copiedStateText {
+	color: #059212;
+	font-weight: 100;
+	padding-right: 4px;
+	transition: 0.15s;
 }

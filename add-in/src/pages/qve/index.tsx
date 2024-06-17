@@ -4,7 +4,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
-import { FcDocument, FcQuestions, FcFile } from "react-icons/fc";
+import { FcDocument, FcQuestions, FcFile, FcCheckmark } from "react-icons/fc";
 
 import { SERVER_URL } from '@/api';
 
@@ -27,6 +27,8 @@ export default function QvE() {
 	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
 
 	const [isLoading, setIsLoading] = useState(false);
+
+	const [copied, setCopied] = useState(false);
 
 	// eslint-disable-next-line prefer-const
 	let [questions, updateQuestions] = useState('');
@@ -287,7 +289,27 @@ export default function QvE() {
 			</div>
 			{ /* <div>{ cursorSentence ? cursorSentence : 'Nothing selected' }</div> */ }
 			<div>
-				<div className={ classes.reflectionContainer }>{ results }</div>
+				<div
+					className={ classes.reflectionContainer }
+					onClick={ () => {
+						// Copy the text to the clipboard
+						// This will only work (for Chrome) for secure contexts (https)
+						// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
+						navigator.clipboard.writeText(generationMode === 'Questions' ?  questions : generationMode === 'Examples' ? completion : '');
+						setCopied(true);
+						setTimeout(() => setCopied(false), 2000);
+					} }
+				>
+					{ results }
+				</div>
+				<div>
+					{ copied &&
+						<div className={ classes.copiedStateWrapper }>
+							<div className={ classes.copiedStateText }>Copied!</div>
+							<FcCheckmark />
+						</div>
+					}
+				</div>
 			</div>
 		</div>
 	);
