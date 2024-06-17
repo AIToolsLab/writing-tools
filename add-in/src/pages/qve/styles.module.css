@@ -67,26 +67,6 @@
 	transition: 0.15s;
 }
 
-.resultTextWrapper {
-	margin-top: 16px;
-	margin-right: 8px;
-	margin-left: 8px;
-	padding: 16px;
-	background-color: #F8F8F8;
-	border-radius: 16px;
-	transition: 0.15s;
-}
-
-.resultTextWrapper:hover {
-	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .1);
-}
-
-.resultText {
-	font-size: 1.0rem;
-	transition: 0.15s;
-	animation: fadeIn 0.3s ease-in-out;
-}
-
 .modeIconWrapper {
 	display: flex;
 	flex-direction: row;
@@ -100,13 +80,84 @@
 	opacity: 0.25;
 }
 
+.reflectionContainerTEMP {
+	display: flex;
+	flex-direction: row;
+	margin: 8px;
+	margin-right: 8px;
+	background-color: #F8F8F8;
+	border-radius: 16px;
+	transition: 0.15s;
+}
+
+.resultTextWrapper {
+	margin-top: 16px;
+	margin-right: 8px;
+	margin-left: 8px;
+	padding: 16px;
+	background-color: #F8F8F8;
+	border-radius: 16px;
+	transition: 0.15s;
+}
+
+.resultText {
+	font-size: 1.0rem;
+	transition: 0.15s;
+	animation: fadeIn 0.3s ease-in-out;
+}
+
+.copyWrapper {
+	display: flex;
+	flex-direction: row;
+	margin: 8px;
+	margin-right: 8px;
+}
+
+.copyIconWrapperTEMP {
+	background-color: #eeeeee;
+	border-radius: 8px;
+	padding: 4px;
+	display: flex;
+	margin-top: auto;
+	margin-bottom: 4px;
+	margin-right: 4px;
+	align-items: center;
+	justify-content: right;
+}
+
+.copyIconWrapper {
+	background-color: #eeeeee;
+	border-radius: 12px;
+	padding: 4px;
+	display: flex;
+	justify-content: right;
+	margin-left: auto;
+	align-items: center;
+}
+
+.copyIcon {
+	font-size: 0.9rem;
+	color: #555555;
+	transition: 0.15s;
+}
+
+.copyIcon:hover {
+	color: #aaaaaa;
+}
+
 .copiedStateWrapper {
 	display: flex;
 	justify-content: right;
 	align-items: center;
-	margin: 12px;
-	margin-right: 8px;
 	animation: fade 2s ease-in-out;
+	/* margin-left: auto; */
+}
+
+.copiedStateText {
+	color: #059212;
+	font-weight: 100;
+	padding-right: 4px;
+	transition: 0.15s;
 }
 
 @keyframes fade {
@@ -131,11 +182,4 @@
 	100% {
 		opacity: 1;
 	}
-}
-
-.copiedStateText {
-	color: #059212;
-	font-weight: 100;
-	padding-right: 4px;
-	transition: 0.15s;
 }
