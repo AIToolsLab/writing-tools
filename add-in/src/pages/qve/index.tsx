@@ -295,7 +295,7 @@ export default function QvE() {
 						// Copy the text to the clipboard
 						// This will only work (for Chrome) for secure contexts (https)
 						// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
-						navigator.clipboard.writeText(generationMode === 'Questions' ?  questions : generationMode === 'Examples' ? completion : '');
+						navigator.clipboard.writeText(generationMode === 'Questions' ?  questions.trim() : generationMode === 'Examples' ? completion.trim() : '');
 						setCopied(true);
 						setTimeout(() => setCopied(false), 2000);
 					} }
