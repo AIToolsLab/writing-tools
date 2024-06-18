@@ -1,5 +1,6 @@
 import os
 import json
+import random
 import sqlite3
 
 from openai import AsyncOpenAI
@@ -140,11 +141,14 @@ async def completion(payload: CompletionRequestPayload):
 
 @app.post("/api/chat-completion")
 async def chat_completion(payload: CompletionRequestPayload):
+    # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
+    word_limit = str(random.randint(15, 30))
+
     # Assign prompt based on whether the document ends with a space for a new paragraph
     if(payload.prompt[-1] == '\r'):
-        system_chat_prompt = 'You are a completion bot. For the given text, write 1 topic sentence that the writer would likely use to start a new paragraph.'
+        system_chat_prompt = f'You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words.'
     else:
-        system_chat_prompt = 'You are a completion bot. For the given text, write an at most 1-sentence continuation that the writer would likely use.'
+        system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
     chat_completion = (await openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
