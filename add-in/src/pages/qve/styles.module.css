@@ -125,6 +125,26 @@
 	justify-content: right;
 }
 
+.closeIconWrapper {
+	background-color: #eeeeee;
+	border-radius: 12px;
+	padding: 4px;
+	display: flex;
+	justify-content: right;
+	align-items: center;
+}
+
+.closeIcon {
+	font-size: 0.85rem;
+	color: #555555;
+	transition: 0.5s;
+}
+
+.closeIcon:hover {
+	color: #aaaaaa;
+	transform: rotate(180deg);
+}
+
 .copyIconWrapper {
 	background-color: #eeeeee;
 	border-radius: 12px;
@@ -138,11 +158,12 @@
 .copyIcon {
 	font-size: 0.9rem;
 	color: #555555;
-	transition: 0.15s;
+	transition: 0.5s;;
 }
 
 .copyIcon:hover {
 	color: #aaaaaa;
+	transform: rotateY(180deg);
 }
 
 .copiedStateWrapper {
@@ -150,7 +171,7 @@
 	justify-content: right;
 	align-items: center;
 	animation: fade 2s ease-in-out;
-	/* margin-left: auto; */
+	margin-left: auto;
 }
 
 .copiedStateText {

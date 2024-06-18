@@ -5,7 +5,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcDocument, FcQuestions, FcFile, FcCheckmark } from "react-icons/fc";
-import { AiOutlineCopy } from "react-icons/ai";
+import { AiOutlineCopy, AiOutlineClose } from "react-icons/ai";
 
 import { SERVER_URL } from '@/api';
 
@@ -296,6 +296,21 @@ export default function QvE() {
 					{ results }
 				</div>
 				<div className={ classes.copyWrapper }>
+					{ generationMode !== 'None' && !isLoading && (
+						<div
+							className={ classes.closeIconWrapper }
+							onClick={ () => {
+								updateGenerationMode('None');
+								updateQuestions('');
+								setCompletion('');
+								updateQuestionButtonActive(false);
+								updateExampleButtonActive(false);
+								results = null;
+							} }
+						>
+							<AiOutlineClose className={ classes.closeIcon } />
+						</div>
+					)}
 					{ copied &&
 						<div className={ classes.copiedStateWrapper }>
 							<div className={ classes.copiedStateText }>Copied!</div>
