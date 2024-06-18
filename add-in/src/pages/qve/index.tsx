@@ -295,43 +295,45 @@ export default function QvE() {
 				>
 					{ results }
 				</div>
-				<div className={ classes.copyWrapper }>
-					{ generationMode !== 'None' && !isLoading && (
-						<div
-							className={ classes.closeIconWrapper }
-							onClick={ () => {
-								updateGenerationMode('None');
-								updateQuestions('');
-								setCompletion('');
-								updateQuestionButtonActive(false);
-								updateExampleButtonActive(false);
-								results = null;
-							} }
-						>
-							<AiOutlineClose className={ classes.closeIcon } />
-						</div>
-					)}
+				<div className={ classes.utilsContainer }>
 					{ copied &&
 						<div className={ classes.copiedStateWrapper }>
 							<div className={ classes.copiedStateText }>Copied!</div>
 							<FcCheckmark />
 						</div>
 					}
-					{ ((questions || completion) && !isLoading) && 
-						<div
-							className={ classes.copyIconWrapper }
-							onClick={ () => {
-								// Copy the text to the clipboard
-								// This will only work (for Chrome) for secure contexts (https)
-								// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
-								navigator.clipboard.writeText(generationMode === 'Questions' ?  questions.trim() : generationMode === 'Examples' ? completion.trim() : '');
-								setCopied(true);
-								setTimeout(() => setCopied(false), 2000);
-							} }
-						>
-							<AiOutlineCopy className={ classes.copyIcon } />
-						</div>
-					}
+					{ generationMode !== 'None' && !isLoading && (
+						<div className={ classes.buttonsWrapper }>
+							<div
+								className={ classes.closeIconWrapper }
+								onClick={ () => {
+									updateGenerationMode('None');
+									updateQuestions('');
+									setCompletion('');
+									updateQuestionButtonActive(false);
+									updateExampleButtonActive(false);
+									results = null;
+								} }
+							>
+								<AiOutlineClose className={ classes.closeIcon } />
+							</div>
+							{ ((questions || completion) && !isLoading) && 
+								<div
+									className={ classes.copyIconWrapper }
+									onClick={ () => {
+										// Copy the text to the clipboard
+										// This will only work (for Chrome) for secure contexts (https)
+										// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
+										navigator.clipboard.writeText(generationMode === 'Questions' ?  questions.trim() : generationMode === 'Examples' ? completion.trim() : '');
+										setCopied(true);
+										setTimeout(() => setCopied(false), 2000);
+									} }
+								>
+									<AiOutlineCopy className={ classes.copyIcon } />
+								</div>
+							}
+							</div>
+						)}
 				</div>
 			</div>
 		</div>

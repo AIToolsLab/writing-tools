@@ -80,16 +80,6 @@
 	opacity: 0.25;
 }
 
-.reflectionContainerTEMP {
-	display: flex;
-	flex-direction: row;
-	margin: 8px;
-	margin-right: 8px;
-	background-color: #F8F8F8;
-	border-radius: 16px;
-	transition: 0.15s;
-}
-
 .resultTextWrapper {
 	margin-top: 16px;
 	margin-right: 8px;
@@ -106,37 +96,50 @@
 	animation: fadeIn 0.3s ease-in-out;
 }
 
-.copyWrapper {
+.utilsContainer {
 	display: flex;
 	flex-direction: row;
 	margin: 8px;
 	margin-right: 8px;
+	justify-content: center;
+	align-self: center;
+	align-items: center;
+	transition: 0.3s;
 }
 
-.copyIconWrapperTEMP {
-	background-color: #eeeeee;
-	border-radius: 8px;
-	padding: 4px;
-	display: flex;
-	margin-top: auto;
-	margin-bottom: 4px;
-	margin-right: 4px;
+.buttonsWrapper {
+	background-color: #ededed;
+	display: inline-flex;
+	flex-direction: row;
+	justify-content: center;
+	align-self: center;
 	align-items: center;
-	justify-content: right;
+	margin-left: auto;
+	border-radius: 16px;
+	padding: 4px;
+	transition: 0.3s;
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .05);
 }
 
 .closeIconWrapper {
 	background-color: #eeeeee;
 	border-radius: 12px;
 	padding: 4px;
+	margin-right: 4px;
 	display: flex;
 	justify-content: right;
 	align-items: center;
+	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, .1);
+	transition: 0.3s;
+}
+
+.closeIconWrapper:hover {
+	background-color: #efefef;
 }
 
 .closeIcon {
 	font-size: 0.8rem;
-	color: #aaaaaa;
+	color: #888888;
 	transition: 0.5s;
 }
 
@@ -151,13 +154,19 @@
 	padding: 4px;
 	display: flex;
 	justify-content: right;
-	margin-left: auto;
+	margin-left: 4px;
 	align-items: center;
+	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, .1);
+	transition: 0.3s;
+}
+
+.copyIconWrapper:hover {
+	background-color: #efefef;
 }
 
 .copyIcon {
 	font-size: 0.9rem;
-	color: #aaaaaa;
+	color: #888888;
 	transition: 0.5s;;
 }
 
@@ -168,10 +177,10 @@
 
 .copiedStateWrapper {
 	display: flex;
-	justify-content: right;
+	justify-content: center;
 	align-items: center;
 	animation: fade 2s ease-in-out;
-	margin-left: auto;
+	margin-right: auto;
 }
 
 .copiedStateText {
