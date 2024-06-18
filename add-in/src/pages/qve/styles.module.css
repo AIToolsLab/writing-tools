@@ -135,13 +135,13 @@
 }
 
 .closeIcon {
-	font-size: 0.85rem;
-	color: #555555;
+	font-size: 0.8rem;
+	color: #aaaaaa;
 	transition: 0.5s;
 }
 
 .closeIcon:hover {
-	color: #aaaaaa;
+	color: #555555;
 	transform: rotate(180deg);
 }
 
@@ -157,12 +157,12 @@
 
 .copyIcon {
 	font-size: 0.9rem;
-	color: #555555;
+	color: #aaaaaa;
 	transition: 0.5s;;
 }
 
 .copyIcon:hover {
-	color: #aaaaaa;
+	color: #555555;
 	transform: rotateY(180deg);
 }
 
