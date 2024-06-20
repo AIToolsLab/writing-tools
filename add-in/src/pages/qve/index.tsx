@@ -42,6 +42,7 @@ export default function QvE() {
 
 	// Hidden for now
 	const IS_SWITCH_VISIBLE = false;
+	const IS_EXPERIMENTAL = false;
 
 	/**
 	 * Retrieves the text content of the Word document and updates the docText state.
@@ -286,6 +287,34 @@ export default function QvE() {
 					>
 						Get New Example
 					</button>
+
+					{
+						IS_EXPERIMENTAL && (
+							<>
+								<button
+									className={
+										exampleButtonActive
+											? classes.optionsButtonActive
+											: classes.optionsButton
+									}
+									disabled={ docText === '' || isLoading }
+								>
+									Get New Keywords
+								</button>
+
+								<button
+									className={
+										exampleButtonActive
+											? classes.optionsButtonActive
+											: classes.optionsButton
+									}
+									disabled={ docText === '' || isLoading }
+								>
+									Get New Structure
+								</button>
+							</>
+					) }
+					
 				</div>
 			</div>
 			{ /* <div>{ cursorSentence ? cursorSentence : 'Nothing selected' }</div> */ }
