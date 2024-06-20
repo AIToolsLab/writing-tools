@@ -91,6 +91,14 @@ def make_log(payload: Log):
             (payload.username, payload.interaction, payload.prompt, payload.result, payload.example),
         )
 
+def is_full_sentence(sentence):
+    sentence += " AND"
+
+    # Concatenating " AND" to the text will result in 2 segments if the text is a complete sentence.
+    num_segments = len(list(nlp(sentence).sents))
+
+    return num_segments > 1
+
 @app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
     response = await openai_client.chat.completions.create(
@@ -160,8 +168,8 @@ async def question(payload: CompletionRequestPayload):
     final_paragraph = str(payload.prompt).split('\n')[-1]
     final_sentence = list(nlp(final_paragraph).sents)[-1].text
 
-    # If the last sentence was incomplete (i.e. the completion is part of it), combine.
-    if final_sentence.strip()[-1] not in ['.', '!', '?']:
+    # If the last sentence of the document was incomplete (i.e. the completion is part of it), combine.
+    if not is_full_sentence(final_sentence):
         completion = final_sentence + completion + '.'
 
     full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completion}'
