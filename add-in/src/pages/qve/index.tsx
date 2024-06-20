@@ -4,8 +4,8 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
-import { FcDocument, FcQuestions, FcFile, FcCheckmark } from "react-icons/fc";
-import { AiOutlineCopy, AiOutlineClose } from "react-icons/ai";
+import { FcCheckmark } from 'react-icons/fc';
+import { AiOutlineCopy, AiOutlineClose } from 'react-icons/ai';
 
 import { SERVER_URL } from '@/api';
 
@@ -263,11 +263,11 @@ export default function QvE() {
 						Get New Question
 					</button>
 
-					{/* <div className={ classes.modeIconWrapper } >
+					{ /* <div className={ classes.modeIconWrapper } >
 						{
 							generationMode === 'Questions' ? <FcQuestions /> : generationMode === 'None' ? <FcFile className={ classes.initIcon } /> : <FcDocument />
 						}
-					</div> */}
+					</div> */ }
 
 					<button
 						className={
@@ -296,12 +296,12 @@ export default function QvE() {
 					{ results }
 				</div>
 				<div className={ classes.utilsContainer }>
-					{ copied &&
+					{ copied && (
 						<div className={ classes.copiedStateWrapper }>
 							<div className={ classes.copiedStateText }>Copied!</div>
 							<FcCheckmark />
 						</div>
-					}
+					) }
 					{ generationMode !== 'None' && !isLoading && (
 						<div className={ classes.buttonsWrapper }>
 							<div
@@ -317,7 +317,7 @@ export default function QvE() {
 							>
 								<AiOutlineClose className={ classes.closeIcon } />
 							</div>
-							{ ((questions || completion) && !isLoading) && 
+							{ ((questions || completion) && !isLoading) && (
 								<div
 									className={ classes.copyIconWrapper }
 									onClick={ () => {
@@ -331,9 +331,9 @@ export default function QvE() {
 								>
 									<AiOutlineCopy className={ classes.copyIcon } />
 								</div>
-							}
+							) }
 							</div>
-						)}
+						) }
 				</div>
 			</div>
 		</div>
