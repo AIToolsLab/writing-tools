@@ -2,11 +2,11 @@ import { useState, useEffect } from 'react';
 
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
-import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
-import { Tooltip } from '@fluentui/react-components';
 import { FcCheckmark } from 'react-icons/fc';
-import { AiOutlineCopy, AiOutlineClose } from 'react-icons/ai';
+import { Toggle } from '@fluentui/react/lib/Toggle';
+import { Tooltip, makeStyles } from '@fluentui/react-components';
+import { AiOutlineCopy, AiOutlineClose, AiOutlineQuestion, AiOutlineAlignLeft, AiOutlineHighlight, AiOutlineBank } from 'react-icons/ai';
 
 
 import { SERVER_URL } from '@/api';
@@ -17,6 +17,15 @@ function sanitize(text: string): string {
 	return text.replace('"', '').replace('\'', '');
 }
 
+// Styles for tooltip
+const useStyles = makeStyles({
+	tooltip: {
+		borderRadius: '4px',
+		boxShadow: '-1px 3px 5px 0 rgba(120, 60, 20, .3)',
+		backgroundColor: '#effeff',
+		transform: 'rotate(180)',
+	},
+});
 
 export default function QvE() {
 	// TO DO: find better sentence delimiters
@@ -49,6 +58,8 @@ export default function QvE() {
 
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
+
+	const styles = useStyles();
 
 	// Hidden for now
 	const IS_SWITCH_VISIBLE = false;
@@ -406,7 +417,11 @@ export default function QvE() {
 					{
 						IS_EXPERIMENTAL && (
 							<>
-								<Tooltip content="Get New Question" relationship="label">
+								<Tooltip
+									withArrow
+									content={ { children: 'Get New Question', className: styles.tooltip } }
+									relationship="label"
+								>
 									<button
 										className={
 											questionButtonActive
@@ -424,11 +439,15 @@ export default function QvE() {
 											getQuestions(docText);
 										} }
 									>
-										Q
+										<AiOutlineQuestion />
 									</button>
 								</Tooltip>
 
-								<Tooltip content="Get New Example" relationship="label">
+								<Tooltip
+									withArrow
+									content={ { children: 'Get New Example', className: styles.tooltip } }
+									relationship="label"
+								>
 									<button
 										className={
 											exampleButtonActive
@@ -446,11 +465,15 @@ export default function QvE() {
 											getExamples(docText);
 										} }
 									>
-										E
+										<AiOutlineAlignLeft />
 									</button>
 								</Tooltip>
 
-								<Tooltip content="Get New Keywords" relationship="label">
+								<Tooltip
+									withArrow
+									content={ { children: 'Get New Keywords', className: styles.tooltip } }
+									relationship="label"
+								>
 									<button
 										className={
 											keywordButtonActive
@@ -468,11 +491,15 @@ export default function QvE() {
 											getKeywords(docText);
 										} }
 									>
-										K
+										<AiOutlineHighlight />
 									</button>
 								</Tooltip>
 
-								<Tooltip content="Get New Structure" relationship="label">
+								<Tooltip
+									withArrow
+									content={ { children: 'Get New Structure', className: styles.tooltip } }
+									relationship="label"
+								>
 									<button
 										className={
 											structureButtonActive
@@ -490,7 +517,7 @@ export default function QvE() {
 											getStructure(docText);
 										} }
 									>
-										S
+										<AiOutlineBank />
 									</button>
 								</Tooltip>
 							</>

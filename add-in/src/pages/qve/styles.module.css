@@ -17,7 +17,7 @@
 	background-color: #ffffff;
 	font-size: 1.0rem;
 	font-weight: 600;
-	padding: 8px 16px;
+	padding: 12px 16px;
 	border: 1px solid #f0f0f0;
 	transition: 0.15s;
 	cursor: pointer;
@@ -28,7 +28,7 @@
 	background-color: #d2e0fb;
 	font-size: 1.0rem;
 	font-weight: 600;
-	padding: 8px 16px;
+	padding: 12px 16px;
 	border: 1px solid #d2e0fb;
 	transition: 0.15s;
 	cursor: pointer;
@@ -38,12 +38,16 @@
 .optionsButton:hover {
 	background-color: #f0f0f0;
 	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .1);
+	transform: rotate(25deg);
+	transition: 1s;
 }
 
 .optionsButtonActive:hover {
 	background-color: #f0f0f0;
 	border: 1px solid #f0f0f0;
 	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .1);
+	transform: rotate(20deg);
+	transition: 1s;
 }
 
 .spinnerWrapper {
@@ -151,7 +155,7 @@
 }
 
 .copyIconWrapper {
-    cursor: pointer;
+	cursor: pointer;
 	background-color: #eeeeee;
 	border-radius: 12px;
 	padding: 4px;
