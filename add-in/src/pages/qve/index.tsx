@@ -344,7 +344,7 @@ export default function QvE() {
  	else {
 		// completion
 		if (completion.length > 0)
-			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ completion + '.' }</div></div>;
+			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ completion }</div></div>;
 	}
 
 	if (isLoading && !results)
@@ -380,26 +380,6 @@ export default function QvE() {
 						<>
 							<button
 								className={
-									questionButtonActive
-										? classes.optionsButtonActive
-										: classes.optionsButton
-								}
-								disabled={ docText === '' || isLoading }
-								onClick={ () => {
-									if (docText === '') return;
-									updateQuestionButtonActive(true);
-									updateExampleButtonActive(false);
-									updateStructureButtonActive(false);
-									updateKeywordButtonActive(false);
-									updateGenerationMode('Questions');
-									getQuestions(docText);
-								} }
-							>
-								Get New Question
-							</button>
-
-							<button
-								className={
 									exampleButtonActive
 										? classes.optionsButtonActive
 										: classes.optionsButton
@@ -417,37 +397,31 @@ export default function QvE() {
 							>
 								Get New Example
 							</button>
+							
+							<button
+								className={
+									questionButtonActive
+										? classes.optionsButtonActive
+										: classes.optionsButton
+								}
+								disabled={ docText === '' || isLoading }
+								onClick={ () => {
+									if (docText === '') return;
+									updateQuestionButtonActive(true);
+									updateExampleButtonActive(false);
+									updateStructureButtonActive(false);
+									updateKeywordButtonActive(false);
+									updateGenerationMode('Questions');
+									getQuestions(docText);
+								} }
+							>
+								Get New Question
+							</button>
 						</>
 					) }
 					{
 						IS_EXPERIMENTAL && (
 							<>
-								<Tooltip
-									withArrow
-									content={ { children: 'Get New Question', className: styles.tooltip } }
-									relationship="label"
-								>
-									<button
-										className={
-											questionButtonActive
-												? classes.optionsButtonActive
-												: classes.optionsButton
-										}	
-										disabled={ docText === '' || isLoading }
-										onClick={ () => {
-											if (docText === '') return;
-											updateQuestionButtonActive(true);
-											updateExampleButtonActive(false);
-											updateStructureButtonActive(false);
-											updateKeywordButtonActive(false);
-											updateGenerationMode('Questions');
-											getQuestions(docText);
-										} }
-									>
-										<AiOutlineQuestion />
-									</button>
-								</Tooltip>
-
 								<Tooltip
 									withArrow
 									content={ { children: 'Get New Example', className: styles.tooltip } }
@@ -471,6 +445,32 @@ export default function QvE() {
 										} }
 									>
 										<AiOutlineAlignLeft />
+									</button>
+								</Tooltip>
+
+								<Tooltip
+									withArrow
+									content={ { children: 'Get New Question', className: styles.tooltip } }
+									relationship="label"
+								>
+									<button
+										className={
+											questionButtonActive
+												? classes.optionsButtonActive
+												: classes.optionsButton
+										}	
+										disabled={ docText === '' || isLoading }
+										onClick={ () => {
+											if (docText === '') return;
+											updateQuestionButtonActive(true);
+											updateExampleButtonActive(false);
+											updateStructureButtonActive(false);
+											updateKeywordButtonActive(false);
+											updateGenerationMode('Questions');
+											getQuestions(docText);
+										} }
+									>
+										<AiOutlineQuestion />
 									</button>
 								</Tooltip>
 
