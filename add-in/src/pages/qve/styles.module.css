@@ -48,6 +48,7 @@
 
 .spinnerWrapper {
 	display: flex;
+    z-index: 999;
 	justify-content: center;
 	align-items: center;
 }
@@ -122,6 +123,7 @@
 }
 
 .closeIconWrapper {
+    cursor: pointer;
 	background-color: #eeeeee;
 	border-radius: 12px;
 	padding: 4px;
@@ -149,6 +151,7 @@
 }
 
 .copyIconWrapper {
+    cursor: pointer;
 	background-color: #eeeeee;
 	border-radius: 12px;
 	padding: 4px;
