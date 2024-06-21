@@ -522,4 +522,4 @@ else:
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="localhost", port=PORT, reload=True)
+    uvicorn.run('server:app', host="localhost", port=PORT, reload=True)
