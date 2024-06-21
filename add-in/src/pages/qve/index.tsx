@@ -122,7 +122,7 @@ export default function QvE() {
 				}
 
 				questions += choice.delta.content;
-				updateQuestions(questions + choice.delta.content.slice(0, -1));
+				updateQuestions(questions);
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
@@ -150,8 +150,6 @@ export default function QvE() {
 			typeof contextText === 'string' && contextText !== '',
 			'contextText must be a non-empty string'
 		);
-
-		// complete(sanitize(contextText));
 
 		setIsLoading(true);
 
@@ -219,7 +217,7 @@ export default function QvE() {
 					return;
 				}
 				keywords += choice.delta.content;
-				setKeywords(keywords + choice.delta.content.slice(0, -1));
+				setKeywords(keywords);
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
@@ -266,7 +264,7 @@ export default function QvE() {
 					return;
 				}
 				structure += choice.delta.content;
-				setStructure(structure + choice.delta.content.slice(0, -1));
+				setStructure(structure);
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
