@@ -276,7 +276,7 @@ async def keywords(payload: CompletionRequestPayload):
                 full_keywords += new_chunk
             elif len(full_keywords):
                 make_log(
-                    Log(username="test", interaction="question", prompt=str(
+                    Log(username="test", interaction="keywords", prompt=str(
                         payload.prompt), result=full_keywords, example=completion)
                 )
 
@@ -287,7 +287,8 @@ async def keywords(payload: CompletionRequestPayload):
 
 @app.post("/api/structure")
 async def structure(payload: CompletionRequestPayload):
-    STRUCTURE_PROMPT = 'Replace informative content words with "blah" but with the same morphological endings ("s", "ing", "ize", etc.)'
+    # STRUCTURE_PROMPT = 'Replace informative content words with "blah" but with the same morphological endings ("s", "ing", "ize", etc.)'
+    STRUCTURE_PROMPT = 'Surround all informative words with curly braces, like {this}.'
     completion = (await openai_client.completions.create(
         model="gpt-3.5-turbo-instruct",
         prompt=str(payload.prompt),
@@ -336,7 +337,7 @@ async def structure(payload: CompletionRequestPayload):
                 full_structure += new_chunk
             elif len(full_structure):
                 make_log(
-                    Log(username="test", interaction="question", prompt=str(
+                    Log(username="test", interaction="structure", prompt=str(
                         payload.prompt), result=full_structure, example=completion)
                 )
 
