@@ -422,11 +422,11 @@ export default function QvE() {
 					{
 						IS_EXPERIMENTAL && (
 							<>
-								<Tooltip
+								{ /* <Tooltip
 									withArrow
 									content={ { children: 'Get New Example', className: styles.tooltip } }
 									relationship="label"
-								>
+								> */ }
 									<button
 										className={
 											exampleButtonActive
@@ -446,13 +446,13 @@ export default function QvE() {
 									>
 										<AiOutlineAlignLeft />
 									</button>
-								</Tooltip>
+								{ /* </Tooltip> */ }
 
-								<Tooltip
+								{ /* <Tooltip
 									withArrow
 									content={ { children: 'Get New Question', className: styles.tooltip } }
 									relationship="label"
-								>
+								> */ }
 									<button
 										className={
 											questionButtonActive
@@ -472,13 +472,13 @@ export default function QvE() {
 									>
 										<AiOutlineQuestion />
 									</button>
-								</Tooltip>
+								{ /* </Tooltip> */ }
 
-								<Tooltip
+								{ /* <Tooltip
 									withArrow
 									content={ { children: 'Get New Keywords', className: styles.tooltip } }
 									relationship="label"
-								>
+								> */ }
 									<button
 										className={
 											keywordButtonActive
@@ -498,13 +498,13 @@ export default function QvE() {
 									>
 										<AiOutlineHighlight />
 									</button>
-								</Tooltip>
+								{ /* </Tooltip> */ }
 
-								<Tooltip
+								{ /* <Tooltip
 									withArrow
 									content={ { children: 'Get New Structure', className: styles.tooltip } }
 									relationship="label"
-								>
+								> */  }
 									<button
 										className={
 											structureButtonActive
@@ -524,7 +524,7 @@ export default function QvE() {
 									>
 										<AiOutlineBank />
 									</button>
-								</Tooltip>
+								{ /* </Tooltip> */ }
 							</>
 					) }
 					
