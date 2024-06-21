@@ -163,9 +163,9 @@ async def completion(payload: CompletionRequestPayload):
 async def chat_completion(payload: CompletionRequestPayload):
     # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
     word_limit = str(random.randint(15, 30))
- 
+
     # Assign prompt based on whether the document ends with a space for a new paragraph
-    if(payload.prompt[-1] == '\r'):
+    if (payload.prompt[-1] == '\r'):
         system_chat_prompt = f'You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words.'
     else:
         system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
@@ -176,14 +176,14 @@ async def chat_completion(payload: CompletionRequestPayload):
                 "role": "system",
                 "content": [
                     {
-                    "type": "text",
-                    "text": system_chat_prompt
+                        "type": "text",
+                        "text": system_chat_prompt
                     }
                 ]
             },
-            { 'role': 'user',
-              'content': payload.prompt
-            },
+            {'role': 'user',
+             'content': payload.prompt
+             },
         ],
         temperature=1,
         max_tokens=1024,
@@ -192,13 +192,13 @@ async def chat_completion(payload: CompletionRequestPayload):
         presence_penalty=0,
         stream=True,
     ))
- 
+
     # Stream response
     async def generator():
         # chunk is a ChatCompletionChunk
         async for chunk in chat_completion:
             yield chunk.model_dump_json()
- 
+
     return EventSourceResponse(generator())
 
 
@@ -208,17 +208,50 @@ async def question(payload: CompletionRequestPayload):
     # QUESTION_PROMPT = 'Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.'
     QUESTION_PROMPT = 'Ask a thought-provoking but concise question in the third person about the idea expressed by the given sentence.'
 
-    completion = (await openai_client.completions.create(
-        model="gpt-3.5-turbo-instruct",
-        prompt=str(payload.prompt),
+    # completion = (await openai_client.completions.create(
+    #     model="gpt-3.5-turbo-instruct",
+    #     prompt=str(payload.prompt),
+    #     temperature=1,
+    #     max_tokens=1024,
+    #     top_p=1,
+    #     frequency_penalty=0,
+    #     presence_penalty=0,
+    #     stream=False,
+    #     stop=[".", "!", "?"]
+    # )).choices[0].text
+
+    # Using chat completion
+    # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
+    word_limit = str(random.randint(15, 30))
+
+    # Assign prompt based on whether the document ends with a space for a new paragraph
+    if (payload.prompt[-1] == '\r'):
+        system_chat_prompt = f'You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words.'
+    else:
+        system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
+    completion = (await openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": system_chat_prompt
+                    }
+                ]
+            },
+            {'role': 'user',
+             'content': payload.prompt
+             },
+        ],
         temperature=1,
         max_tokens=1024,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
         stream=False,
-        stop=[".", "!", "?"]
-    )).choices[0].text
+    )).choices[0].message.content
 
     # Get the last sentence in the last paragraph of the document
     final_paragraph = str(payload.prompt).split('\n')[-1]
@@ -272,17 +305,50 @@ async def keywords(payload: CompletionRequestPayload):
     # TO DO: Use better prompt or use spaCy to extract keywords
     KEYWORDS_PROMPT = 'List 3 keywords that are most relevant to the given text.'
 
-    completion = (await openai_client.completions.create(
-        model="gpt-3.5-turbo-instruct",
-        prompt=str(payload.prompt),
+    # completion = (await openai_client.completions.create(
+    #     model="gpt-3.5-turbo-instruct",
+    #     prompt=str(payload.prompt),
+    #     temperature=1,
+    #     max_tokens=1024,
+    #     top_p=1,
+    #     frequency_penalty=0,
+    #     presence_penalty=0,
+    #     stream=False,
+    #     stop=[".", "!", "?"]
+    # )).choices[0].text
+
+    # Using chat completion
+    # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
+    word_limit = str(random.randint(15, 30))
+
+    # Assign prompt based on whether the document ends with a space for a new paragraph
+    if (payload.prompt[-1] == '\r'):
+        system_chat_prompt = f'You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words.'
+    else:
+        system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
+    completion = (await openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": system_chat_prompt
+                    }
+                ]
+            },
+            {'role': 'user',
+             'content': payload.prompt
+             },
+        ],
         temperature=1,
         max_tokens=1024,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
         stream=False,
-        stop=[".", "!", "?"]
-    )).choices[0].text
+    )).choices[0].message.content
 
     # Get the last sentence in the last paragraph of the document
     final_paragraph = str(payload.prompt).split('\n')[-1]
@@ -333,17 +399,51 @@ async def keywords(payload: CompletionRequestPayload):
 async def structure(payload: CompletionRequestPayload):
     # STRUCTURE_PROMPT = 'Replace informative content words with "blah" but with the same morphological endings ("s", "ing", "ize", etc.)'
     STRUCTURE_PROMPT = 'Surround all informative words with curly braces, like {this}.'
-    completion = (await openai_client.completions.create(
-        model="gpt-3.5-turbo-instruct",
-        prompt=str(payload.prompt),
+
+    # completion = (await openai_client.completions.create(
+    #     model="gpt-3.5-turbo-instruct",
+    #     prompt=str(payload.prompt),
+    #     temperature=1,
+    #     max_tokens=1024,
+    #     top_p=1,
+    #     frequency_penalty=0,
+    #     presence_penalty=0,
+    #     stream=False,
+    #     stop=[".", "!", "?"]
+    # )).choices[0].text
+
+    # Using chat completion
+    # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
+    word_limit = str(random.randint(15, 30))
+
+    # Assign prompt based on whether the document ends with a space for a new paragraph
+    if (payload.prompt[-1] == '\r'):
+        system_chat_prompt = f'You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words.'
+    else:
+        system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
+    completion = (await openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": system_chat_prompt
+                    }
+                ]
+            },
+            {'role': 'user',
+             'content': payload.prompt
+             },
+        ],
         temperature=1,
         max_tokens=1024,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
         stream=False,
-        stop=[".", "!", "?"]
-    )).choices[0].text
+    )).choices[0].message.content
 
     # Get the last sentence in the last paragraph of the document
     final_paragraph = str(payload.prompt).split('\n')[-1]
