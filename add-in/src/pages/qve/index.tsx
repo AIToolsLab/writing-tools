@@ -39,6 +39,12 @@ export default function QvE() {
 	// eslint-disable-next-line prefer-const
 	let [completion, setCompletion] = useState('');
 
+	// eslint-disable-next-line prefer-const
+	let [keywords, setKeywords] = useState('');
+
+	// eslint-disable-next-line prefer-const
+	let [structure, setStructure] = useState('');
+
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
 
@@ -186,6 +192,8 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getKeywords(contextText: string) {
+		keywords = '';
+		setKeywords('');
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof contextText === 'string' && contextText !== '',
@@ -210,6 +218,8 @@ export default function QvE() {
 					setIsLoading(false);
 					return;
 				}
+				keywords += choice.delta.content;
+				setKeywords(keywords + choice.delta.content.slice(0, -1));
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
@@ -229,6 +239,8 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getStructure(contextText: string) {
+		structure = '';
+		setStructure('');
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof contextText === 'string' && contextText !== '',
@@ -241,7 +253,7 @@ export default function QvE() {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
-			},
+			},	
 			body: JSON.stringify({
 				prompt: sanitize(contextText)
 			}),
@@ -253,6 +265,8 @@ export default function QvE() {
 					setIsLoading(false);
 					return;
 				}
+				structure += choice.delta.content;
+				setStructure(structure + choice.delta.content.slice(0, -1));
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
@@ -303,6 +317,16 @@ export default function QvE() {
 	else if (generationMode === 'Questions') {
 		if (questions.length > 0)
 			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ questions }</div></div>;
+	}
+	else if (generationMode === 'Structure') {
+		// structure
+		if (structure.length > 0)
+			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ structure }</div></div>;
+	}
+	else if (generationMode === 'Keywords') {
+		// keywords
+		if (keywords.length > 0)
+			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ keywords }</div></div>;
 	}
  	else {
 		// completion
@@ -449,6 +473,10 @@ export default function QvE() {
 									updateGenerationMode('None');
 									updateQuestions('');
 									setCompletion('');
+									setKeywords('');
+									setStructure('');
+									updateKeywordButtonActive(false);
+									updateStructureButtonActive(false);
 									updateQuestionButtonActive(false);
 									updateExampleButtonActive(false);
 									results = null;
@@ -456,7 +484,7 @@ export default function QvE() {
 							>
 								<AiOutlineClose className={ classes.closeIcon } />
 							</div>
-							{ ((questions || completion) && !isLoading) && (
+							{ ((questions || completion || keywords || structure) && !isLoading) && (
 								<div
 									className={ classes.copyIconWrapper }
 									onClick={ () => {
