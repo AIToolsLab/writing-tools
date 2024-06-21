@@ -5,3 +5,5 @@ python-dotenv
 sse-starlette
 uvicorn
 spacy
+# fastapi recent enough to include the CLI
+fastapi>=0.111
