@@ -4,8 +4,10 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
+import { Tooltip } from '@fluentui/react-components';
 import { FcCheckmark } from 'react-icons/fc';
 import { AiOutlineCopy, AiOutlineClose } from 'react-icons/ai';
+
 
 import { SERVER_URL } from '@/api';
 
@@ -50,7 +52,7 @@ export default function QvE() {
 
 	// Hidden for now
 	const IS_SWITCH_VISIBLE = false;
-	const IS_EXPERIMENTAL = false;
+	const IS_EXPERIMENTAL = true;
 
 	/**
 	 * Retrieves the text content of the Word document and updates the docText state.
@@ -358,94 +360,139 @@ export default function QvE() {
 
 			<div>
 				<div className={ classes.optionsContainer }>
-					<button
-						className={
-							questionButtonActive
-								? classes.optionsButtonActive
-								: classes.optionsButton
-						}
-						disabled={ docText === '' || isLoading }
-						onClick={ () => {
-							if (docText === '') return;
-							updateQuestionButtonActive(true);
-							updateExampleButtonActive(false);
-							updateStructureButtonActive(false);
-							updateKeywordButtonActive(false);
-							updateGenerationMode('Questions');
-							getQuestions(docText);
-						} }
-					>
-						Get New Question
-					</button>
+					{ !IS_EXPERIMENTAL && (
+						<>
+							<button
+								className={
+									questionButtonActive
+										? classes.optionsButtonActive
+										: classes.optionsButton
+								}
+								disabled={ docText === '' || isLoading }
+								onClick={ () => {
+									if (docText === '') return;
+									updateQuestionButtonActive(true);
+									updateExampleButtonActive(false);
+									updateStructureButtonActive(false);
+									updateKeywordButtonActive(false);
+									updateGenerationMode('Questions');
+									getQuestions(docText);
+								} }
+							>
+								Get New Question
+							</button>
 
-					{ /* <div className={ classes.modeIconWrapper } >
-						{
-							generationMode === 'Questions' ? <FcQuestions /> : generationMode === 'None' ? <FcFile className={ classes.initIcon } /> : <FcDocument />
-						}
-					</div> */ }
-
-					<button
-						className={
-							exampleButtonActive
-								? classes.optionsButtonActive
-								: classes.optionsButton
-						}
-						disabled={ docText === '' || isLoading }
-						onClick={ () => {
-							if (docText === '') return;
-							updateExampleButtonActive(true);
-							updateQuestionButtonActive(false);
-							updateStructureButtonActive(false);
-							updateKeywordButtonActive(false);
-							updateGenerationMode('Examples');
-							getExamples(docText);
-						} }
-					>
-						Get New Example
-					</button>
-
+							<button
+								className={
+									exampleButtonActive
+										? classes.optionsButtonActive
+										: classes.optionsButton
+								}
+								disabled={ docText === '' || isLoading }
+								onClick={ () => {
+									if (docText === '') return;
+									updateExampleButtonActive(true);
+									updateQuestionButtonActive(false);
+									updateStructureButtonActive(false);
+									updateKeywordButtonActive(false);
+									updateGenerationMode('Examples');
+									getExamples(docText);
+								} }
+							>
+								Get New Example
+							</button>
+						</>
+					) }
 					{
 						IS_EXPERIMENTAL && (
 							<>
-								<button
-									className={
-										keywordButtonActive
-											? classes.optionsButtonActive
-											: classes.optionsButton
-									}
-									disabled={ docText === '' || isLoading }
-									onClick={ () => {
-										if (docText === '') return;
-										updateKeywordButtonActive(true);
-										updateExampleButtonActive(false);
-										updateQuestionButtonActive(false);
-										updateStructureButtonActive(false);
-										updateGenerationMode('Keywords');
-										getKeywords(docText);
-									} }
-								>
-									Get New Keywords
-								</button>
+								<Tooltip content="Get New Question" relationship="label">
+									<button
+										className={
+											questionButtonActive
+												? classes.optionsButtonActive
+												: classes.optionsButton
+										}	
+										disabled={ docText === '' || isLoading }
+										onClick={ () => {
+											if (docText === '') return;
+											updateQuestionButtonActive(true);
+											updateExampleButtonActive(false);
+											updateStructureButtonActive(false);
+											updateKeywordButtonActive(false);
+											updateGenerationMode('Questions');
+											getQuestions(docText);
+										} }
+									>
+										Q
+									</button>
+								</Tooltip>
 
-								<button
-									className={
-										structureButtonActive
-											? classes.optionsButtonActive
-											: classes.optionsButton
-									}
-									disabled={ docText === '' || isLoading }
-									onClick={ () => {
-										if (docText === '') return;
-										updateStructureButtonActive(true);
-										updateKeywordButtonActive(false);
-										updateExampleButtonActive(false);
-										updateQuestionButtonActive(false);
-										updateGenerationMode('Structure');
-										getStructure(docText);
-									} }
-								>
-									Get New Structure
-								</button>
+								<Tooltip content="Get New Example" relationship="label">
+									<button
+										className={
+											exampleButtonActive
+												? classes.optionsButtonActive
+												: classes.optionsButton
+										}
+										disabled={ docText === '' || isLoading }
+										onClick={ () => {
+											if (docText === '') return;
+											updateExampleButtonActive(true);
+											updateQuestionButtonActive(false);
+											updateStructureButtonActive(false);
+											updateKeywordButtonActive(false);
+											updateGenerationMode('Examples');
+											getExamples(docText);
+										} }
+									>
+										E
+									</button>
+								</Tooltip>
+
+								<Tooltip content="Get New Keywords" relationship="label">
+									<button
+										className={
+											keywordButtonActive
+												? classes.optionsButtonActive
+												: classes.optionsButton
+										}
+										disabled={ docText === '' || isLoading }
+										onClick={ () => {
+											if (docText === '') return;
+											updateKeywordButtonActive(true);
+											updateExampleButtonActive(false);
+											updateQuestionButtonActive(false);
+											updateStructureButtonActive(false);
+											updateGenerationMode('Keywords');
+											getKeywords(docText);
+										} }
+									>
+										K
+									</button>
+								</Tooltip>
+
+								<Tooltip content="Get New Structure" relationship="label">
+									<button
+										className={
+											structureButtonActive
+												? classes.optionsButtonActive
+												: classes.optionsButton
+										}
+										disabled={ docText === '' || isLoading }
+										onClick={ () => {
+											if (docText === '') return;
+											updateStructureButtonActive(true);
+											updateKeywordButtonActive(false);
+											updateExampleButtonActive(false);
+											updateQuestionButtonActive(false);
+											updateGenerationMode('Structure');
+											getStructure(docText);
+										} }
+									>
+										S
+									</button>
+								</Tooltip>
 							</>
 					) }
 					
