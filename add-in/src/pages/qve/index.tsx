@@ -26,6 +26,8 @@ export default function QvE() {
 
 	const [questionButtonActive, updateQuestionButtonActive] = useState(false);
 	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
+	const [keywordButtonActive, updateKeywordButtonActive] = useState(false);
+	const [structureButtonActive, updateStructureButtonActive] = useState(false);
 
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -177,6 +179,92 @@ export default function QvE() {
 	}
 
 	/**
+	 * Retrieves keywords for the document text.
+	 * This function sends a request to the server to generate keywords for the given document text.
+	 * The generated keywords are then used to update the keywords state.
+	 *
+	 * @param {string}
+	 */
+	async function getKeywords(contextText: string) {
+		// eslint-disable-next-line no-console
+		console.assert(
+			typeof contextText === 'string' && contextText !== '',
+			'contextText must be a non-empty string'
+		);
+
+		setIsLoading(true);
+
+		await fetchEventSource(`${SERVER_URL}/keywords`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				prompt: sanitize(contextText)
+			}),
+			onmessage(msg) {
+				const message = JSON.parse(msg.data);
+				const choice = message.choices[0];
+
+				if (choice.finish_reason === 'stop') {
+					setIsLoading(false);
+					return;
+				}
+			},
+			onerror(err) {
+				// eslint-disable-next-line no-console
+				console.error(err);
+
+				// rethrow to avoid infinite retry.
+				throw err;
+			}
+		});
+	}
+
+	/**
+	 * Retrieves structure for the document text.
+	 * This function sends a request to the server to generate structure for the given document text.
+	 * The generated structure is then used to update the structure state.
+	 *
+	 * @param {string}
+	 */
+	async function getStructure(contextText: string) {
+		// eslint-disable-next-line no-console
+		console.assert(
+			typeof contextText === 'string' && contextText !== '',
+			'contextText must be a non-empty string'
+		);
+
+		setIsLoading(true);
+
+		await fetchEventSource(`${SERVER_URL}/structure`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				prompt: sanitize(contextText)
+			}),
+			onmessage(msg) {
+				const message = JSON.parse(msg.data);
+				const choice = message.choices[0];
+
+				if (choice.finish_reason === 'stop') {
+					setIsLoading(false);
+					return;
+				}
+			},
+			onerror(err) {
+				// eslint-disable-next-line no-console
+				console.error(err);
+
+				// rethrow to avoid infinite retry.
+				throw err;
+			}
+		});
+	}
+
+	/**
 	 * useEffect to ensure that event handlers are set up only once
 	 * and cleaned up when the component is unmounted.
 	 * Note that dependences are empty, so this effect only runs once.
@@ -257,6 +345,8 @@ export default function QvE() {
 							if (docText === '') return;
 							updateQuestionButtonActive(true);
 							updateExampleButtonActive(false);
+							updateStructureButtonActive(false);
+							updateKeywordButtonActive(false);
 							updateGenerationMode('Questions');
 							getQuestions(docText);
 						} }
@@ -281,6 +371,8 @@ export default function QvE() {
 							if (docText === '') return;
 							updateExampleButtonActive(true);
 							updateQuestionButtonActive(false);
+							updateStructureButtonActive(false);
+							updateKeywordButtonActive(false);
 							updateGenerationMode('Examples');
 							getExamples(docText);
 						} }
@@ -293,22 +385,40 @@ export default function QvE() {
 							<>
 								<button
 									className={
-										exampleButtonActive
+										keywordButtonActive
 											? classes.optionsButtonActive
 											: classes.optionsButton
 									}
 									disabled={ docText === '' || isLoading }
+									onClick={ () => {
+										if (docText === '') return;
+										updateKeywordButtonActive(true);
+										updateExampleButtonActive(false);
+										updateQuestionButtonActive(false);
+										updateStructureButtonActive(false);
+										updateGenerationMode('Keywords');
+										getKeywords(docText);
+									} }
 								>
 									Get New Keywords
 								</button>
 
 								<button
 									className={
-										exampleButtonActive
+										structureButtonActive
 											? classes.optionsButtonActive
 											: classes.optionsButton
 									}
 									disabled={ docText === '' || isLoading }
+									onClick={ () => {
+										if (docText === '') return;
+										updateStructureButtonActive(true);
+										updateKeywordButtonActive(false);
+										updateExampleButtonActive(false);
+										updateQuestionButtonActive(false);
+										updateGenerationMode('Structure');
+										getStructure(docText);
+									} }
 								>
 									Get New Structure
 								</button>
