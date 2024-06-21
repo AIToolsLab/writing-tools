@@ -44,19 +44,24 @@ DEBUG = os.getenv("DEBUG") or False
 PORT = int(os.getenv("PORT") or "8000")
 
 # Declare Types
+
+
 class ChatRequestPayload(BaseModel):
     messages: List[Dict[str, str]]
     username: str
 
+
 class CompletionRequestPayload(BaseModel):
     prompt: str
 
+
 class Log(BaseModel):
     username: str
-    interaction: str # "example", "question", "click"
+    interaction: str  # "example", "question", "click"
     prompt: Optional[str] = None
     result: Optional[str] = None
     example: Optional[str] = None
+
 
 app = FastAPI()
 
@@ -81,6 +86,7 @@ with sqlite3.connect(db_file) as conn:
         "CREATE TABLE IF NOT EXISTS logs (timestamp, username, interaction, prompt, result, example)"
     )
 
+
 def make_log(payload: Log):
     with sqlite3.connect(db_file) as conn:
         c = conn.cursor()
@@ -88,8 +94,10 @@ def make_log(payload: Log):
         c.execute(
             "INSERT INTO logs (timestamp, username, interaction, prompt, result, example) "
             "VALUES (datetime('now'), ?, ?, ?, ?, ?)",
-            (payload.username, payload.interaction, payload.prompt, payload.result, payload.example),
+            (payload.username, payload.interaction,
+             payload.prompt, payload.result, payload.example),
         )
+
 
 def is_full_sentence(sentence):
     sentence += " AND"
@@ -98,6 +106,7 @@ def is_full_sentence(sentence):
     num_segments = len(list(nlp(sentence).sents))
 
     return num_segments > 1
+
 
 @app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
@@ -113,7 +122,8 @@ async def chat(payload: ChatRequestPayload):
     )
 
     make_log(
-        Log(username=payload.username, interaction="chat", prompt=payload.messages[-1]['content'], ui_id=None)
+        Log(username=payload.username, interaction="chat",
+            prompt=payload.messages[-1]['content'], ui_id=None)
     )
 
     # Stream response
@@ -123,6 +133,7 @@ async def chat(payload: ChatRequestPayload):
             yield chunk.model_dump_json()
 
     return EventSourceResponse(generator())
+
 
 @app.post("/api/completion")
 async def completion(payload: CompletionRequestPayload):
@@ -145,6 +156,7 @@ async def completion(payload: CompletionRequestPayload):
             yield chunk.model_dump_json()
 
     return EventSourceResponse(generator())
+
 
 @app.post("/api/questions")
 async def question(payload: CompletionRequestPayload):
@@ -178,7 +190,7 @@ async def question(payload: CompletionRequestPayload):
     questions = await openai_client.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            { 'role': 'user', 'content': full_prompt },
+            {'role': 'user', 'content': full_prompt},
         ],
         temperature=0.7,
         max_tokens=1024,
@@ -188,27 +200,149 @@ async def question(payload: CompletionRequestPayload):
         stream=True
     )
 
-
     # Stream response
+
     async def generator():
         full_question = ''
-        
+
         # chunk is a ChatCompletionChunk
-        async for chunk in questions:    
+        async for chunk in questions:
             dumped = chunk.model_dump_json()
-            new_chunk = json.loads(dumped)['choices'][0]['delta']['content'] 
+            new_chunk = json.loads(dumped)['choices'][0]['delta']['content']
 
             if new_chunk:
                 full_question += new_chunk
             elif len(full_question):
                 make_log(
-                    Log(username="test", interaction="question", prompt=str(payload.prompt), result=full_question, example=completion)
+                    Log(username="test", interaction="question", prompt=str(
+                        payload.prompt), result=full_question, example=completion)
                 )
 
             yield dumped
 
+    return EventSourceResponse(generator())
+
+
+@app.post("/api/keywords")
+async def keywords(payload: CompletionRequestPayload):
+    # TO DO: Use better prompt or use spaCy to extract keywords
+    KEYWORDS_PROMPT = 'List 3 keywords that are most relevant to the given text.'
+
+    completion = (await openai_client.completions.create(
+        model="gpt-3.5-turbo-instruct",
+        prompt=str(payload.prompt),
+        temperature=1,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=False,
+        stop=[".", "!", "?"]
+    )).choices[0].text
+
+    # Get the last sentence in the last paragraph of the document
+    final_paragraph = str(payload.prompt).split('\n')[-1]
+    final_sentence = list(nlp(final_paragraph).sents)[-1].text
+
+    # If the last sentence of the document was incomplete (i.e. the completion is part of it), combine.
+    if not is_full_sentence(final_sentence):
+        completion = final_sentence + completion + '.'
+
+    full_prompt = f'{KEYWORDS_PROMPT}\n\n{completion}'
+
+    keywords = await openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {'role': 'user', 'content': full_prompt},
+        ],
+        temperature=0.7,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=True
+    )
+
+    # Stream response
+    async def generator():
+        full_keywords = ''
+
+        # chunk is a ChatCompletionChunk
+        async for chunk in keywords:
+            dumped = chunk.model_dump_json()
+            new_chunk = json.loads(dumped)['choices'][0]['delta']['content']
+
+            if new_chunk:
+                full_keywords += new_chunk
+            elif len(full_keywords):
+                make_log(
+                    Log(username="test", interaction="question", prompt=str(
+                        payload.prompt), result=full_keywords, example=completion)
+                )
+
+            yield dumped
 
     return EventSourceResponse(generator())
+
+
+@app.post("/api/structure")
+async def structure(payload: CompletionRequestPayload):
+    STRUCTURE_PROMPT = 'Replace informative content words with "blah" but with the same morphological endings ("s", "ing", "ize", etc.)'
+    completion = (await openai_client.completions.create(
+        model="gpt-3.5-turbo-instruct",
+        prompt=str(payload.prompt),
+        temperature=1,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=False,
+        stop=[".", "!", "?"]
+    )).choices[0].text
+
+    # Get the last sentence in the last paragraph of the document
+    final_paragraph = str(payload.prompt).split('\n')[-1]
+    final_sentence = list(nlp(final_paragraph).sents)[-1].text
+
+    # If the last sentence of the document was incomplete (i.e. the completion is part of it), combine.
+    if not is_full_sentence(final_sentence):
+        completion = final_sentence + completion + '.'
+
+    full_prompt = f'{STRUCTURE_PROMPT}\n\n{completion}'
+
+    structure = await openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {'role': 'user', 'content': full_prompt},
+        ],
+        temperature=0.7,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=True
+    )
+
+    # Stream response
+    async def generator():
+        full_structure = ''
+
+        # chunk is a ChatCompletionChunk
+        async for chunk in structure:
+            dumped = chunk.model_dump_json()
+            new_chunk = json.loads(dumped)['choices'][0]['delta']['content']
+
+            if new_chunk:
+                full_structure += new_chunk
+            elif len(full_structure):
+                make_log(
+                    Log(username="test", interaction="question", prompt=str(
+                        payload.prompt), result=full_structure, example=completion)
+                )
+
+            yield dumped
+    return EventSourceResponse(generator())
+
 
 @app.post("/log")
 async def log_feedback(payload: Log):
@@ -217,6 +351,8 @@ async def log_feedback(payload: Log):
     return {"message": "Feedback logged successfully."}
 
 # Show all server logs
+
+
 @app.get("/logs")
 async def logs():
     with sqlite3.connect(db_file) as conn:
