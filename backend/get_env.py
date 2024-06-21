@@ -17,7 +17,8 @@ DATABASE_URI_SECRET_NAME = "TestTextfocalsDBURI"
 
 # Set DEBUG_STATUS to "False" if running on production machine, "True" otherwise
 DEBUG_STATUS = "False" if socket.getfqdn() == "ds1.cs.calvin.edu" else "True"
-PORT = "19570"
+# Prod runs on 19570, dev runs on 3000
+PORT = "19570" if DEBUG_STATUS == "False" else "3000"
 
 
 def get_keyvault(vault_name: str) -> SecretClient:
