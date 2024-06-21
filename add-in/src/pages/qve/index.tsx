@@ -122,7 +122,7 @@ export default function QvE() {
 				}
 
 				questions += choice.delta.content;
-				updateQuestions(questions + choice.delta.content.slice(0, -1));
+				updateQuestions(questions);
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
@@ -151,11 +151,9 @@ export default function QvE() {
 			'contextText must be a non-empty string'
 		);
 
-		// complete(sanitize(contextText));
-
 		setIsLoading(true);
 
-		await fetchEventSource(`${SERVER_URL}/completion`, {
+		await fetchEventSource(`${SERVER_URL}/chat-completion`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -167,12 +165,13 @@ export default function QvE() {
 				const message = JSON.parse(msg.data);
 				const choice = message.choices[0];
 
-				if (choice.finish_reason === 'stop') setIsLoading(false);
-				else {
-					const newContent = choice.text;
-					completion += newContent;
-					setCompletion(completion);
+				if (choice.finish_reason === 'stop') {
+					setIsLoading(false);
+					return;
 				}
+
+				completion += choice.delta.content;
+				setCompletion(completion + choice.delta.content.slice(0, -1));
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
@@ -219,7 +218,7 @@ export default function QvE() {
 					return;
 				}
 				keywords += choice.delta.content;
-				setKeywords(keywords + choice.delta.content.slice(0, -1));
+				setKeywords(keywords);
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
@@ -266,7 +265,7 @@ export default function QvE() {
 					return;
 				}
 				structure += choice.delta.content;
-				setStructure(structure + choice.delta.content.slice(0, -1));
+				setStructure(structure);
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
