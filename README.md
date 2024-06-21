@@ -21,4 +21,4 @@ Run `yarn lint --fix` to auto-fix (almost) all lint errors.
 -   `cd backend`
 -   `pip install -r requirements.txt`
 -   Create a `.env` file and add `OPENAI_API_KEY=YOUR_KEY`(If you don't have an API key, visit [https://platform.openai.com/account/api-keys])
--   `python server.py`
+-   `fastapi dev server.py`

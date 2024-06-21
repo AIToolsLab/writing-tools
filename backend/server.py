@@ -522,4 +522,4 @@ else:
 
 
 if __name__ == "__main__":
-    uvicorn.run('server:app', host="localhost", port=PORT, reload=True)
+    print("Use `fastapi dev server.py` to run the server.")
