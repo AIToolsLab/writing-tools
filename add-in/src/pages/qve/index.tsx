@@ -368,6 +368,11 @@ export default function QvE() {
 					checked={ positionalSensitivity }
 				/>
 			) }
+			<div className={ classes.noteTextWrapper }>
+				<div className={ classes.noteText }>
+					Please note that AI could generate unhelpful suggestions
+				</div>
+			</div>
 
 			<div>
 				<div className={ classes.optionsContainer }>

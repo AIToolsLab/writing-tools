@@ -2,7 +2,7 @@
 	padding: 8px;
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
+	gap: 8px;
 }
 
 .optionsContainer {
@@ -10,7 +10,8 @@
 	flex-direction: row;
 	gap: 8px;
 	justify-content: center;
-	margin-top: 20px;
+	margin-top: 4px;
+	margin-bottom: 16px;
 }
 
 .optionsButton {
@@ -52,7 +53,7 @@
 
 .spinnerWrapper {
 	display: flex;
-    z-index: 999;
+	z-index: 999;
 	justify-content: center;
 	align-items: center;
 }
@@ -86,7 +87,7 @@
 }
 
 .resultTextWrapper {
-	margin-top: 16px;
+	margin-top: 4px;
 	margin-right: 8px;
 	margin-left: 8px;
 	padding: 16px;
@@ -219,4 +220,19 @@
 	100% {
 		opacity: 1;
 	}
+}
+
+.noteTextWrapper {
+	margin-right: 8px;
+	margin-left: 8px;
+	padding: 16px;
+	transition: 0.15s;
+}
+
+.noteText {
+	font-size: 0.75rem;
+	color: #bbbbbb;
+	text-align: center;
+	transition: 0.15s;
+	font-weight: 900;
 }
