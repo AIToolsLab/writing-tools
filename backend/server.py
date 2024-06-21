@@ -1,5 +1,6 @@
 import os
 import json
+import random
 import sqlite3
 
 from openai import AsyncOpenAI
@@ -155,6 +156,49 @@ async def completion(payload: CompletionRequestPayload):
         async for chunk in response:
             yield chunk.model_dump_json()
 
+    return EventSourceResponse(generator())
+
+
+@app.post("/api/chat-completion")
+async def chat_completion(payload: CompletionRequestPayload):
+    # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
+    word_limit = str(random.randint(15, 30))
+ 
+    # Assign prompt based on whether the document ends with a space for a new paragraph
+    if(payload.prompt[-1] == '\r'):
+        system_chat_prompt = f'You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words.'
+    else:
+        system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
+    chat_completion = (await openai_client.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {
+                "role": "system",
+                "content": [
+                    {
+                    "type": "text",
+                    "text": system_chat_prompt
+                    }
+                ]
+            },
+            { 'role': 'user',
+              'content': payload.prompt
+            },
+        ],
+        temperature=1,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=True,
+    ))
+ 
+    # Stream response
+    async def generator():
+        # chunk is a ChatCompletionChunk
+        async for chunk in chat_completion:
+            yield chunk.model_dump_json()
+ 
     return EventSourceResponse(generator())
 
 

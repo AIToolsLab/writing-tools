@@ -153,7 +153,7 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		await fetchEventSource(`${SERVER_URL}/completion`, {
+		await fetchEventSource(`${SERVER_URL}/chat-completion`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -165,12 +165,13 @@ export default function QvE() {
 				const message = JSON.parse(msg.data);
 				const choice = message.choices[0];
 
-				if (choice.finish_reason === 'stop') setIsLoading(false);
-				else {
-					const newContent = choice.text;
-					completion += newContent;
-					setCompletion(completion);
+				if (choice.finish_reason === 'stop') {
+					setIsLoading(false);
+					return;
 				}
+
+				completion += choice.delta.content;
+				setCompletion(completion + choice.delta.content.slice(0, -1));
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
