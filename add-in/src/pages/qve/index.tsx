@@ -401,7 +401,7 @@ export default function QvE() {
 			) }
 			<div className={ classes.noteTextWrapper }>
 				<div className={ classes.noteText }>
-					Please note that not all AI generations can be helpful
+					Please note that not all AI generations are equally helpful
 				</div>
 			</div>
 
