@@ -214,33 +214,44 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		await fetchEventSource(`${SERVER_URL}/keywords`, {
+		fetch(`${SERVER_URL}/keywords`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
 				prompt: sanitize(contextText)
-			}),
-			onmessage(msg) {
-				const message = JSON.parse(msg.data);
-				const choice = message.choices[0];
-
-				if (choice.finish_reason === 'stop') {
-					setIsLoading(false);
-					return;
-				}
-				keywords += choice.delta.content;
-				setKeywords(keywords);
-			},
-			onerror(err) {
-				// eslint-disable-next-line no-console
-				console.error(err);
-
-				// rethrow to avoid infinite retry.
-				throw err;
-			}
+			})
+		})
+		.then(response => response.text())
+		.then(data => {
+			setKeywords(JSON.parse(data));
+			setIsLoading(false);
+		})
+		.catch(err => {
+			// eslint-disable-next-line no-console
+			console.error('Error:', err);
+			throw err;
 		});
+		// 	onmessage(msg) {
+		// 		const message = JSON.parse(msg.data);
+		// 		const choice = message.choices[0];
+
+		// 		if (choice.finish_reason === 'stop') {
+		// 			setIsLoading(false);
+		// 			return;
+		// 		}
+		// 		keywords += choice.delta.content;
+		// 		setKeywords(keywords);
+		// 	},
+		// 	onerror(err) {
+		// 		// eslint-disable-next-line no-console
+		// 		console.error(err);
+
+		// 		// rethrow to avoid infinite retry.
+		// 		throw err;
+		// 	}
+		// });
 	}
 
 	/**
@@ -261,33 +272,53 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		await fetchEventSource(`${SERVER_URL}/structure`, {
+		fetch(`${SERVER_URL}/structure`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
-			},	
+			},
 			body: JSON.stringify({
 				prompt: sanitize(contextText)
-			}),
-			onmessage(msg) {
-				const message = JSON.parse(msg.data);
-				const choice = message.choices[0];
-
-				if (choice.finish_reason === 'stop') {
-					setIsLoading(false);
-					return;
-				}
-				structure += choice.delta.content;
-				setStructure(structure);
-			},
-			onerror(err) {
-				// eslint-disable-next-line no-console
-				console.error(err);
-
-				// rethrow to avoid infinite retry.
-				throw err;
-			}
+			})
+		})
+		.then(response => response.text())
+		.then(data => {
+			setStructure(JSON.parse(data));
+			setIsLoading(false);
+		})
+		.catch(err => {
+			// eslint-disable-next-line no-console
+			console.error('Error:', err);
+			throw err;
 		});
+
+		// await fetchEventSource(`${SERVER_URL}/structure`, {
+		// 	method: 'POST',
+		// 	headers: {
+		// 		'Content-Type': 'application/json'
+		// 	},	
+		// 	body: JSON.stringify({
+		// 		prompt: sanitize(contextText)
+		// 	}),
+			// onmessage(msg) {
+				// const message = JSON.parse(msg.data);
+				// const choice = message.choices[0];
+
+				// if (choice.finish_reason === 'stop') {
+				// 	setIsLoading(false);
+				// 	return;
+				// }
+				// structure += choice.delta.content;
+				// setStructure(structure);
+		// 	},
+		// 	onerror(err) {
+		// 		// eslint-disable-next-line no-console
+		// 		console.error(err);
+
+		// 		// rethrow to avoid infinite retry.
+		// 		throw err;
+		// 	}
+		// });
 	}
 
 	/**

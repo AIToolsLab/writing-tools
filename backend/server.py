@@ -6,6 +6,7 @@ import sqlite3
 from openai import AsyncOpenAI
 import uvicorn
 
+from nltk import PorterStemmer
 import spacy
 
 from typing import List, Dict, Optional
@@ -107,6 +108,12 @@ def is_full_sentence(sentence):
     num_segments = len(list(nlp(sentence).sents))
 
     return num_segments > 1
+
+
+def hide_lemma(word):
+    word = word.lower()
+    stem = PorterStemmer().stem(word)
+    return '·' * len(stem) + word[len(stem):]
 
 
 @app.post("/api/chat")
@@ -302,9 +309,6 @@ async def question(payload: CompletionRequestPayload):
 
 @app.post("/api/keywords")
 async def keywords(payload: CompletionRequestPayload):
-    # TO DO: Use better prompt or use spaCy to extract keywords
-    KEYWORDS_PROMPT = 'List 3 keywords that are most relevant to the given text.'
-
     # completion = (await openai_client.completions.create(
     #     model="gpt-3.5-turbo-instruct",
     #     prompt=str(payload.prompt),
@@ -350,55 +354,61 @@ async def keywords(payload: CompletionRequestPayload):
         stream=False,
     )).choices[0].message.content
 
-    # Get the last sentence in the last paragraph of the document
-    final_paragraph = str(payload.prompt).split('\n')[-1]
-    final_sentence = list(nlp(final_paragraph).sents)[-1].text
+    KEYWORD_POS = ['NOUN', 'PROPN', 'VERB', 'ADJ', 'ADV', 'INTJ']
+    # Process the text with spaCy
+    doc = nlp(completion)
+  
+    # Extract the words with desired POS tags
+    keywords = [token.text.lower() for token in doc if token.pos_ in KEYWORD_POS]
 
-    # If the last sentence of the document was incomplete (i.e. the completion is part of it), combine.
-    if not is_full_sentence(final_sentence):
-        completion = final_sentence + completion + '.'
+    random.shuffle(keywords)
 
-    full_prompt = f'{KEYWORDS_PROMPT}\n\n{completion}'
+    keyword_string = ', '.join(keywords)
+    print(keyword_string)
+    
+    return keyword_string
 
-    keywords = await openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {'role': 'user', 'content': full_prompt},
-        ],
-        temperature=0.7,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        stream=True
-    )
+    # full_prompt = f'{KEYWORDS_PROMPT}\n\n{completion}'
 
-    # Stream response
-    async def generator():
-        full_keywords = ''
+    # keywords = await openai_client.chat.completions.create(
+    #     model="gpt-3.5-turbo",
+    #     messages=[
+    #         {'role': 'user', 'content': full_prompt},
+    #     ],
+    #     temperature=0.7,
+    #     max_tokens=1024,
+    #     top_p=1,
+    #     frequency_penalty=0,
+    #     presence_penalty=0,
+    #     stream=True
+    # )
 
-        # chunk is a ChatCompletionChunk
-        async for chunk in keywords:
-            dumped = chunk.model_dump_json()
-            new_chunk = json.loads(dumped)['choices'][0]['delta']['content']
+    # # Stream response
+    # async def generator():
+    #     full_keywords = ''
 
-            if new_chunk:
-                full_keywords += new_chunk
-            elif len(full_keywords):
-                make_log(
-                    Log(username="test", interaction="keywords", prompt=str(
-                        payload.prompt), result=full_keywords, example=completion)
-                )
+    #     # chunk is a ChatCompletionChunk
+    #     async for chunk in keywords:
+    #         dumped = chunk.model_dump_json()
+    #         new_chunk = json.loads(dumped)['choices'][0]['delta']['content']
 
-            yield dumped
+    #         if new_chunk:
+    #             full_keywords += new_chunk
+    #         elif len(full_keywords):
+    #             make_log(
+    #                 Log(username="test", interaction="keywords", prompt=str(
+    #                     payload.prompt), result=full_keywords, example=completion)
+    #             )
 
-    return EventSourceResponse(generator())
+    #         yield dumped
+
+    # return EventSourceResponse(generator())
 
 
 @app.post("/api/structure")
 async def structure(payload: CompletionRequestPayload):
     # STRUCTURE_PROMPT = 'Replace informative content words with "blah" but with the same morphological endings ("s", "ing", "ize", etc.)'
-    STRUCTURE_PROMPT = 'Surround all informative words with curly braces, like {this}.'
+    # STRUCTURE_PROMPT = 'Surround all informative words with curly braces, like {this}.'
 
     # completion = (await openai_client.completions.create(
     #     model="gpt-3.5-turbo-instruct",
@@ -445,48 +455,60 @@ async def structure(payload: CompletionRequestPayload):
         stream=False,
     )).choices[0].message.content
 
-    # Get the last sentence in the last paragraph of the document
-    final_paragraph = str(payload.prompt).split('\n')[-1]
-    final_sentence = list(nlp(final_paragraph).sents)[-1].text
+    KEYWORD_POS = ['NOUN', 'PROPN', 'ADJ', 'VERB']
+    # Load the English language model
+    nlp = spacy.load("en_core_web_sm")
 
-    # If the last sentence of the document was incomplete (i.e. the completion is part of it), combine.
-    if not is_full_sentence(final_sentence):
-        completion = final_sentence + completion + '.'
+    # Process the text with spaCy
+    processedText = nlp(completion)
 
-    full_prompt = f'{STRUCTURE_PROMPT}\n\n{completion}'
+    # Remove words with desired POS tags
+    filtered_text = ' '.join([token.text if not token.pos_ in KEYWORD_POS or token.tag_ == 'VBZ' else hide_lemma(token.text) for token in processedText])
 
-    structure = await openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
-        messages=[
-            {'role': 'user', 'content': full_prompt},
-        ],
-        temperature=0.7,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        stream=True
-    )
+    return filtered_text
 
-    # Stream response
-    async def generator():
-        full_structure = ''
+    # # Get the last sentence in the last paragraph of the document
+    # final_paragraph = str(payload.prompt).split('\n')[-1]
+    # final_sentence = list(nlp(final_paragraph).sents)[-1].text
 
-        # chunk is a ChatCompletionChunk
-        async for chunk in structure:
-            dumped = chunk.model_dump_json()
-            new_chunk = json.loads(dumped)['choices'][0]['delta']['content']
+    # # If the last sentence of the document was incomplete (i.e. the completion is part of it), combine.
+    # if not is_full_sentence(final_sentence):
+    #     completion = final_sentence + completion + '.'
 
-            if new_chunk:
-                full_structure += new_chunk
-            elif len(full_structure):
-                make_log(
-                    Log(username="test", interaction="structure", prompt=str(
-                        payload.prompt), result=full_structure, example=completion)
-                )
+    # full_prompt = f'{STRUCTURE_PROMPT}\n\n{completion}'
 
-            yield dumped
-    return EventSourceResponse(generator())
+    # structure = await openai_client.chat.completions.create(
+    #     model="gpt-3.5-turbo",
+    #     messages=[
+    #         {'role': 'user', 'content': full_prompt},
+    #     ],
+    #     temperature=0.7,
+    #     max_tokens=1024,
+    #     top_p=1,
+    #     frequency_penalty=0,
+    #     presence_penalty=0,
+    #     stream=True
+    # )
+
+    # # Stream response
+    # async def generator():
+    #     full_structure = ''
+
+    #     # chunk is a ChatCompletionChunk
+    #     async for chunk in structure:
+    #         dumped = chunk.model_dump_json()
+    #         new_chunk = json.loads(dumped)['choices'][0]['delta']['content']
+
+    #         if new_chunk:
+    #             full_structure += new_chunk
+    #         elif len(full_structure):
+    #             make_log(
+    #                 Log(username="test", interaction="structure", prompt=str(
+    #                     payload.prompt), result=full_structure, example=completion)
+    #             )
+
+    #         yield dumped
+    # return EventSourceResponse(generator())
 
 
 @app.post("/log")
