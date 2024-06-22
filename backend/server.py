@@ -364,7 +364,6 @@ async def keywords(payload: CompletionRequestPayload):
     random.shuffle(keywords)
 
     keyword_string = ', '.join(keywords)
-    print(keyword_string)
     
     return keyword_string
 
