@@ -43,16 +43,7 @@ export default function QvE() {
 	const [isStructureTooltipVisible, setStructureTooltipVisible] = useState(false);
 
 	// eslint-disable-next-line prefer-const
-	let [questions, updateQuestions] = useState('');
-    
-	// eslint-disable-next-line prefer-const
-	let [completion, setCompletion] = useState('');
-
-	// eslint-disable-next-line prefer-const
-	let [keywords, setKeywords] = useState('');
-
-	// eslint-disable-next-line prefer-const
-	let [structure, setStructure] = useState('');
+	let [generation, updateGeneration] = useState('');
 
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
@@ -102,8 +93,8 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getQuestions(contextText: string) {
-		questions = '';
-		updateQuestions('');
+		generation = '';
+		updateGeneration('');
 
 		// eslint-disable-next-line no-console
 		console.assert(
@@ -130,8 +121,8 @@ export default function QvE() {
 					return;
 				}
 
-				questions += choice.delta.content;
-				updateQuestions(questions);
+				generation += choice.delta.content;
+				updateGeneration(generation);
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
@@ -151,8 +142,8 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getExamples(contextText: string) {
-		completion = '';
-		setCompletion('');
+		generation = '';
+		updateGeneration('');
 
 		// eslint-disable-next-line no-console
 		console.assert(
@@ -179,8 +170,8 @@ export default function QvE() {
 					return;
 				}
 
-				completion += choice.delta.content;
-				setCompletion(completion + choice.delta.content.slice(0, -1));
+				generation += choice.delta.content;
+				updateGeneration(generation + choice.delta.content.slice(0, -1));
 			},
 			onerror(err) {
 				// eslint-disable-next-line no-console
@@ -200,8 +191,9 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getKeywords(contextText: string) {
-		keywords = '';
-		setKeywords('');
+		generation = '';
+		updateGeneration('');
+
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof contextText === 'string' && contextText !== '',
@@ -221,7 +213,7 @@ export default function QvE() {
 		})
 		.then(response => response.text())
 		.then(data => {
-			setKeywords(JSON.parse(data));
+			updateGeneration(JSON.parse(data));
 			setIsLoading(false);
 		})
 		.catch(err => {
@@ -258,8 +250,9 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getStructure(contextText: string) {
-		structure = '';
-		setStructure('');
+		generation = '';
+		updateGeneration('');
+
 		// eslint-disable-next-line no-console
 		console.assert(
 			typeof contextText === 'string' && contextText !== '',
@@ -279,7 +272,7 @@ export default function QvE() {
 		})
 		.then(response => response.text())
 		.then(data => {
-			setStructure(JSON.parse(data));
+			updateGeneration(JSON.parse(data));
 			setIsLoading(false);
 		})
 		.catch(err => {
@@ -352,26 +345,19 @@ export default function QvE() {
 
 	let results = null;
     
-	if (generationMode === 'None')
+	if (generationMode === 'None' || generation.length === 0)
 		results = <div className={ classes.initTextWrapper }><div className={ classes.initText }>Click button to generate question or example...</div></div>;
 	else if (generationMode === 'Questions') {
-		if (questions.length > 0)
-			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ questions }</div></div>;
+        results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ generation }</div></div>;
 	}
 	else if (generationMode === 'Structure') {
-		// structure
-		if (structure.length > 0)
-			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ structure }</div></div>;
+        results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ generation }</div></div>;
 	}
 	else if (generationMode === 'Keywords') {
-		// keywords
-		if (keywords.length > 0)
-			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ keywords }</div></div>;
+        results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ generation }</div></div>;
 	}
  	else {
-		// completion
-		if (completion.length > 0)
-			results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ completion }</div></div>;
+        results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ generation }</div></div>;
 	}
 
 	if (isLoading && !results)
@@ -557,17 +543,14 @@ export default function QvE() {
 								className={ classes.utilIconWrapper }
 								onClick={ () => {
 									updateGenerationMode('None');
-									updateQuestions('');
-									setCompletion('');
-									setKeywords('');
-									setStructure('');
+									updateGeneration('');
                                     
 									results = null;
 								} }
 							>
 								<AiOutlineClose className={ classes.closeIcon } />
 							</div>
-							{ ((questions || completion || keywords || structure) && !isLoading) && (
+							{ (generation && !isLoading) && (
 								<>
 									<div
 										className={ classes.utilIconWrapper }
@@ -575,7 +558,7 @@ export default function QvE() {
 											// Copy the text to the clipboard
 											// This will only work (for Chrome) for secure contexts (https)
 											// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
-											navigator.clipboard.writeText(generationMode === 'Questions' ?  questions.trim() : generationMode === 'Examples' ? completion.trim() : '');
+											navigator.clipboard.writeText(generation.trim());
 											setCopied(true);
 											setTimeout(() => setCopied(false), 2000);
 										} }
