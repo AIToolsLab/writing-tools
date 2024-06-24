@@ -110,7 +110,7 @@ def is_full_sentence(sentence):
     return num_segments > 1
 
 
-def hide_lemma(word):
+def hide_stem(word):
     word = word.lower()
     stem = PorterStemmer().stem(word)
     return '·' * len(stem) + word[len(stem):]
@@ -469,7 +469,7 @@ async def structure(payload: CompletionRequestPayload):
     # Remove words with desired POS tags
     filtered_text = ' '.join([
         token.text if non_keyword(token)
-        else hide_lemma(token.text) 
+        else hide_stem(token.text) 
         for token in processedText
     ])
 
