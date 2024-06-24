@@ -13,7 +13,7 @@ import {
     AiOutlineHighlight,
     AiOutlineBank,
     AiOutlineStar,
-    AiOutlineSave
+    AiOutlineSave,
 } from 'react-icons/ai';
 
 import { SERVER_URL } from '@/api';
@@ -36,6 +36,9 @@ export default function QvE() {
 	const [copied, setCopied] = useState(false);
 	const [saved, setSaved] = useState(false);
 
+	// State for saved page
+	const [isSavedPage, setIsSavedPage] = useState(false);
+
 	// Tooltip visibility
 	const [isExampleTooltipVisible, setExampleTooltipVisible] = useState(false);
 	const [isQuestionTooltipVisible, setQuestionTooltipVisible] = useState(false);
@@ -48,9 +51,24 @@ export default function QvE() {
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
 
+	// List of saved generations
+	// eslint-disable-next-line prefer-const
+	let [savedGenerations, updateSavedGenerations] = useState<string[]>([]);
+
 	// Hidden for now
 	const IS_SWITCH_VISIBLE = false;
 	const IS_EXPERIMENTAL = true;
+
+	/**
+	 * Deletes a history item from the saved generations.
+	 *
+	 * @param {number}
+	 * @returns {void}
+	 */
+	function deleteHistoryItem(index: number): void {
+		const newGenerations = savedGenerations.filter((_gen, i) => i !== index);
+		updateSavedGenerations(newGenerations);
+	}
 
 	/**
 	 * Retrieves the text content of the Word document and updates the docText state.
@@ -463,7 +481,7 @@ export default function QvE() {
 
 			{ /* <div>{ cursorSentence ? cursorSentence : 'Nothing selected' }</div> */ }
 			
-            <div>
+			<div>
 				<div
 					className={ classes.reflectionContainer }
 				>
@@ -478,7 +496,9 @@ export default function QvE() {
 					) }
 					{ saved && (
 						<div className={ classes.utilStateWrapper }>
-							<div className={ classes.savedStateText }>Saved!</div>
+							<div className={ classes.savedStateText }>
+								Saved
+							</div>
 							<AiOutlineSave className={ classes.savedStateIcon } />
 						</div>
 					) }
@@ -488,8 +508,7 @@ export default function QvE() {
 								className={ classes.utilIconWrapper }
 								onClick={ () => {
 									updateGenerationMode('None');
-									updateGeneration('');
-                                    
+									updateGeneration('');      
 									results = null;
 								} }
 							>
@@ -514,8 +533,12 @@ export default function QvE() {
 									<div
 										className={ classes.utilIconWrapper }
 										onClick={ () => {
-											setSaved(true);
-											setTimeout(() => setSaved(false), 2000);
+											// Save the generation
+											if (!savedGenerations.includes(generation.trim())) {
+												setSaved(true);
+												setTimeout(() => setSaved(false), 2000);
+												updateSavedGenerations([generation.trim(), ...savedGenerations]);
+											}
 										} }
 									>
 										<AiOutlineStar className={ saved ? classes.saved : classes.saveIcon } />
@@ -524,6 +547,41 @@ export default function QvE() {
 							) }
 							</div>
 						) }
+				</div>
+				<div className={ classes.historyContainer }>
+					<div className={ classes.historyButtonWrapper }>
+						<button
+							className={ isSavedPage ? classes.historyButtonActive : classes.historyButton }
+							disabled={ docText === '' || isLoading }
+							onClick={ () => {
+								// Toggle between the current page and the saved page
+								setIsSavedPage(!isSavedPage);
+							} }
+						>
+							History
+						</button>
+					</div>
+					<div className={ classes.historyItemContainer }>
+						{ (isSavedPage && savedGenerations.length === 0) && (
+							<div className={ classes.historyEmptyWrapper }>
+								<div className={ classes.historyText }>No saved generations...</div>
+							</div>
+						) }
+						{ isSavedPage && savedGenerations.map((gen, index) => (
+							<>
+								<div key={ index } className={ classes.historyItem }>
+									<div className={ classes.historyText }>{ gen }</div>
+									<div className={ classes.historyCloseButtonWrapper }
+										onClick={ () => {
+											deleteHistoryItem(index);
+										}	}
+									>
+										<AiOutlineClose className={ classes.historyCloseButton } />
+									</div>
+								</div>
+							</>	
+						)) }
+					</div>
 				</div>
 			</div>
 		</div>

@@ -274,9 +274,93 @@
 	text-align: center;
 }
 
-/* .tooltip {
-    border-radius: 4px;
-    box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, .3);
-    background-color: rgb(234, 234, 255) !important;
-    transform: rotate(180);
-} */
+.historyContainer {
+	justify-content: center;
+	align-items: center;
+}
+
+.historyButtonWrapper {
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+	align-items: center;
+	margin-top: 16px;
+}
+
+.historyButton,
+.historyButtonActive {
+	background-color: #ffffff;
+	font-size: 0.8rem;
+	font-weight: 600;
+	padding: 8px 12px;
+	border: 1px solid #f0f0f0;
+	transition: 0.15s;
+	cursor: pointer;
+	border-radius: 24px;
+}
+
+.historyButtonActive {
+	background-color: #d2e0fb;
+	border: 1px solid #d2e0fb;
+}
+
+.historyItemContainer {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	margin-top: 8px;
+	transition: 0.15s;
+}
+
+.historyItem {
+	display: flex;
+	padding: 4px;
+	padding: 16px;
+	background-color: #F8F8F8;
+	border-radius: 16px;
+	transition: 0.15s;
+	margin: 8px;
+}
+
+.historyCloseButtonWrapper {
+	align-items: center;
+	align-content: center;
+	justify-content: center;
+	margin-left: auto;
+	margin-bottom: auto;
+	border-radius: 12px;
+	transition: 0.15s;
+}
+
+.historyCloseButtonWrapper:hover {
+	background-color: #dedede;
+	border-radius: 12px;
+}
+
+.historyCloseButton {
+	border-radius: 12px;
+	padding: 4px;
+	display: flex;
+	color: #666666;
+	justify-content: right;
+	align-items: center;
+	transition: 0.5s;
+}
+
+.historyCloseButton:hover {
+	color: #333333;
+	transform: rotate(90deg);
+}
+
+.historyEmptyWrapper {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	margin-top: 16px;
+	color: #888888;
+	font-size: 0.8rem;
+	font-weight: 300;
+	transition: 0.15s
+}
