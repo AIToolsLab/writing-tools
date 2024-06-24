@@ -467,7 +467,7 @@ export default function QvE() {
 								>
 									<AiOutlineAlignLeft />
 								</button>
-								{ isExampleTooltipVisible && <div className={ classes.tooltip }>Get New Example</div> }
+								{ isExampleTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_e].join(' ') }>Get New Example</div> }
 
 								<button
 									className={
@@ -490,7 +490,7 @@ export default function QvE() {
 								>
 									<AiOutlineQuestion />
 								</button>
-								{ isQuestionTooltipVisible && <div className={ classes.tooltip }>Get New Question</div> }
+								{ isQuestionTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_q].join(' ') }>Get New Question</div> }
 
 								<button
 									className={
@@ -513,7 +513,7 @@ export default function QvE() {
 								>
 									<AiOutlineHighlight />
 								</button>
-								{ isKeywordsTooltipVisible && <div className={ classes.tooltip }>Get New Keywords</div> }
+								{ isKeywordsTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_k].join(' ') }>Get New Keywords</div> }
 
 								<button
 									className={
@@ -536,7 +536,7 @@ export default function QvE() {
 								>
 									<AiOutlineBank />
 								</button>
-								{ isStructureTooltipVisible && <div className={ classes.tooltip }>Get New Structure</div> }
+								{ isStructureTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_s].join(' ') }>Get New Structure</div> }
 							</>
 					) }
 					
