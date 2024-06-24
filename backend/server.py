@@ -39,7 +39,12 @@ openai_client = AsyncOpenAI(
 
 # Load spaCy model for sentence splitting
 # python -m spacy download en_core_web_sm
-nlp = spacy.load("en_core_web_sm")
+try:
+    nlp = spacy.load("en_core_web_sm")
+except:
+    print("Need to download spaCy model. Run:")
+    print("python -m spacy download en_core_web_sm")
+    exit()
 
 
 DEBUG = os.getenv("DEBUG") or False
