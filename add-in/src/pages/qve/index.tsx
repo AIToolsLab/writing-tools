@@ -5,7 +5,6 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
 import { Toggle } from '@fluentui/react/lib/Toggle';
-import { Tooltip, makeStyles } from '@fluentui/react-components';
 import { AiOutlineCopy, AiOutlineClose, AiOutlineQuestion, AiOutlineAlignLeft, AiOutlineHighlight, AiOutlineBank } from 'react-icons/ai';
 
 import { SERVER_URL } from '@/api';
@@ -15,16 +14,6 @@ import classes from './styles.module.css';
 function sanitize(text: string): string {
 	return text.replace('"', '').replace('\'', '');
 }
-
-// Styles for tooltip
-const useStyles = makeStyles({
-	tooltip: {
-		borderRadius: '4px',
-		boxShadow: '-1px 3px 5px 0 rgba(120, 60, 20, .3)',
-		backgroundColor: '#effeff',
-		transform: 'rotate(180)',
-	},
-});
 
 export default function QvE() {
 	// TO DO: find better sentence delimiters
@@ -43,6 +32,12 @@ export default function QvE() {
 
 	const [copied, setCopied] = useState(false);
 
+	// Tooltip visibility
+	const [isExampleTooltipVisible, setExampleTooltipVisible] = useState(false);
+	const [isQuestionTooltipVisible, setQuestionTooltipVisible] = useState(false);
+	const [isKeywordsTooltipVisible, setKeywordsTooltipVisible] = useState(false);
+	const [isStructureTooltipVisible, setStructureTooltipVisible] = useState(false);
+
 	// eslint-disable-next-line prefer-const
 	let [questions, updateQuestions] = useState('');
     
@@ -57,8 +52,6 @@ export default function QvE() {
 
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
-
-	const styles = useStyles();
 
 	// Hidden for now
 	const IS_SWITCH_VISIBLE = false;
@@ -453,109 +446,97 @@ export default function QvE() {
 					{
 						IS_EXPERIMENTAL && (
 							<>
-								<Tooltip
-									withArrow
-									content={ { children: 'Get New Example', className: classes.tooltip } }
-									relationship="label"
+								<button
+									className={
+										exampleButtonActive
+											? classes.optionsButtonActive
+											: classes.optionsButton
+									}
+									disabled={ docText === '' || isLoading }
+									onClick={ () => {
+										if (docText === '') return;
+										updateExampleButtonActive(true);
+										updateQuestionButtonActive(false);
+										updateStructureButtonActive(false);
+										updateKeywordButtonActive(false);
+										updateGenerationMode('Examples');
+										getExamples(docText);
+									} }
+									onMouseEnter={ () => setExampleTooltipVisible(true) }
+									onMouseLeave={ () => setExampleTooltipVisible(false) }
 								>
-									<button
-										className={
-											exampleButtonActive
-												? classes.optionsButtonActive
-												: classes.optionsButton
-										}
-										disabled={ docText === '' || isLoading }
-										onClick={ () => {
-											if (docText === '') return;
-											updateExampleButtonActive(true);
-											updateQuestionButtonActive(false);
-											updateStructureButtonActive(false);
-											updateKeywordButtonActive(false);
-											updateGenerationMode('Examples');
-											getExamples(docText);
-										} }
-									>
-										<AiOutlineAlignLeft />
-									</button>
-								</Tooltip>
+									<AiOutlineAlignLeft />
+								</button>
+								{ isExampleTooltipVisible && <div className={ classes.tooltip }>Get New Example</div> }
 
-								<Tooltip
-									withArrow
-									content={ { children: 'Get New Question', className: classes.tooltip } }
-									relationship="label"
+								<button
+									className={
+										questionButtonActive
+											? classes.optionsButtonActive
+											: classes.optionsButton
+									}	
+									disabled={ docText === '' || isLoading }
+									onClick={ () => {
+										if (docText === '') return;
+										updateQuestionButtonActive(true);
+										updateExampleButtonActive(false);
+										updateStructureButtonActive(false);
+										updateKeywordButtonActive(false);
+										updateGenerationMode('Questions');
+										getQuestions(docText);
+									} }
+									onMouseEnter={ () => setQuestionTooltipVisible(true) }
+									onMouseLeave={ () => setQuestionTooltipVisible(false) }
 								>
-									<button
-										className={
-											questionButtonActive
-												? classes.optionsButtonActive
-												: classes.optionsButton
-										}	
-										disabled={ docText === '' || isLoading }
-										onClick={ () => {
-											if (docText === '') return;
-											updateQuestionButtonActive(true);
-											updateExampleButtonActive(false);
-											updateStructureButtonActive(false);
-											updateKeywordButtonActive(false);
-											updateGenerationMode('Questions');
-											getQuestions(docText);
-										} }
-									>
-										<AiOutlineQuestion />
-									</button>
-								</Tooltip>
+									<AiOutlineQuestion />
+								</button>
+								{ isQuestionTooltipVisible && <div className={ classes.tooltip }>Get New Question</div> }
 
-								<Tooltip
-									withArrow
-									content={ { children: 'Get New Keywords', className: classes.tooltip } }
-									relationship="label"
+								<button
+									className={
+										keywordButtonActive
+											? classes.optionsButtonActive
+											: classes.optionsButton
+									}
+									disabled={ docText === '' || isLoading }
+									onClick={ () => {
+										if (docText === '') return;
+										updateKeywordButtonActive(true);
+										updateExampleButtonActive(false);
+										updateQuestionButtonActive(false);
+										updateStructureButtonActive(false);
+										updateGenerationMode('Keywords');
+										getKeywords(docText);
+									} }
+									onMouseEnter={ () => setKeywordsTooltipVisible(true) }
+									onMouseLeave={ () => setKeywordsTooltipVisible(false) }
 								>
-									<button
-										className={
-											keywordButtonActive
-												? classes.optionsButtonActive
-												: classes.optionsButton
-										}
-										disabled={ docText === '' || isLoading }
-										onClick={ () => {
-											if (docText === '') return;
-											updateKeywordButtonActive(true);
-											updateExampleButtonActive(false);
-											updateQuestionButtonActive(false);
-											updateStructureButtonActive(false);
-											updateGenerationMode('Keywords');
-											getKeywords(docText);
-										} }
-									>
-										<AiOutlineHighlight />
-									</button>
-								</Tooltip>
+									<AiOutlineHighlight />
+								</button>
+								{ isKeywordsTooltipVisible && <div className={ classes.tooltip }>Get New Keywords</div> }
 
-								<Tooltip
-									withArrow
-									content={ { children: 'Get New Structure', className: classes.tooltip } }
-									relationship="label"
+								<button
+									className={
+										structureButtonActive
+											? classes.optionsButtonActive
+											: classes.optionsButton
+									}
+									disabled={ docText === '' || isLoading }
+									onClick={ () => {
+										if (docText === '') return;
+										updateStructureButtonActive(true);
+										updateKeywordButtonActive(false);
+										updateExampleButtonActive(false);
+										updateQuestionButtonActive(false);
+										updateGenerationMode('Structure');
+										getStructure(docText);
+									} }
+									onMouseEnter={ () => setStructureTooltipVisible(true) }
+									onMouseLeave={ () => setStructureTooltipVisible(false) }
 								>
-									<button
-										className={
-											structureButtonActive
-												? classes.optionsButtonActive
-												: classes.optionsButton
-										}
-										disabled={ docText === '' || isLoading }
-										onClick={ () => {
-											if (docText === '') return;
-											updateStructureButtonActive(true);
-											updateKeywordButtonActive(false);
-											updateExampleButtonActive(false);
-											updateQuestionButtonActive(false);
-											updateGenerationMode('Structure');
-											getStructure(docText);
-										} }
-									>
-										<AiOutlineBank />
-									</button>
-								</Tooltip>
+									<AiOutlineBank />
+								</button>
+								{ isStructureTooltipVisible && <div className={ classes.tooltip }>Get New Structure</div> }
 							</>
 					) }
 					
