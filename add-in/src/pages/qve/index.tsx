@@ -5,7 +5,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
 import { Toggle } from '@fluentui/react/lib/Toggle';
-import { AiOutlineCopy, AiOutlineClose, AiOutlineQuestion, AiOutlineAlignLeft, AiOutlineHighlight, AiOutlineBank } from 'react-icons/ai';
+import { AiOutlineCopy, AiOutlineClose, AiOutlineQuestion, AiOutlineAlignLeft, AiOutlineHighlight, AiOutlineBank, AiOutlineStar } from 'react-icons/ai';
 
 import { SERVER_URL } from '@/api';
 
@@ -561,7 +561,7 @@ export default function QvE() {
 					{ generationMode !== 'None' && !isLoading && (
 						<div className={ classes.buttonsWrapper }>
 							<div
-								className={ classes.closeIconWrapper }
+								className={ classes.utilIconWrapper }
 								onClick={ () => {
 									updateGenerationMode('None');
 									updateQuestions('');
@@ -578,19 +578,24 @@ export default function QvE() {
 								<AiOutlineClose className={ classes.closeIcon } />
 							</div>
 							{ ((questions || completion || keywords || structure) && !isLoading) && (
-								<div
-									className={ classes.copyIconWrapper }
-									onClick={ () => {
-										// Copy the text to the clipboard
-										// This will only work (for Chrome) for secure contexts (https)
-										// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
-										navigator.clipboard.writeText(generationMode === 'Questions' ?  questions.trim() : generationMode === 'Examples' ? completion.trim() : '');
-										setCopied(true);
-										setTimeout(() => setCopied(false), 2000);
-									} }
-								>
-									<AiOutlineCopy className={ classes.copyIcon } />
-								</div>
+								<>
+									<div
+										className={ classes.utilIconWrapper }
+										onClick={ () => {
+											// Copy the text to the clipboard
+											// This will only work (for Chrome) for secure contexts (https)
+											// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
+											navigator.clipboard.writeText(generationMode === 'Questions' ?  questions.trim() : generationMode === 'Examples' ? completion.trim() : '');
+											setCopied(true);
+											setTimeout(() => setCopied(false), 2000);
+										} }
+									>
+										<AiOutlineCopy className={ classes.copyIcon } />
+									</div>
+									<div className={ classes.utilIconWrapper }>
+										<AiOutlineStar className={ classes.saveIcon } />
+									</div>
+								</>
 							) }
 							</div>
 						) }

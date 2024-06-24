@@ -158,8 +158,8 @@
 	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .05);
 }
 
-.closeIconWrapper {
-    cursor: pointer;
+.utilIconWrapper {
+	cursor: pointer;
 	background-color: #eeeeee;
 	border-radius: 12px;
 	padding: 4px;
@@ -171,7 +171,7 @@
 	transition: 0.3s;
 }
 
-.closeIconWrapper:hover {
+.utilIconWrapper:hover {
 	background-color: #efefef;
 }
 
@@ -184,23 +184,6 @@
 .closeIcon:hover {
 	color: #555555;
 	transform: rotate(180deg);
-}
-
-.copyIconWrapper {
-	cursor: pointer;
-	background-color: #eeeeee;
-	border-radius: 12px;
-	padding: 4px;
-	display: flex;
-	justify-content: right;
-	margin-left: 4px;
-	align-items: center;
-	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, .1);
-	transition: 0.3s;
-}
-
-.copyIconWrapper:hover {
-	background-color: #efefef;
 }
 
 .copyIcon {
@@ -227,6 +210,17 @@
 	font-weight: 100;
 	padding-right: 4px;
 	transition: 0.15s;
+}
+
+.saveIcon {
+	font-size: 0.9rem;
+	color: #888888;
+	transition: 0.5s;
+}
+
+.saveIcon:hover {
+	color: #555555;
+	transform: rotate(90deg);
 }
 
 @keyframes fade {
