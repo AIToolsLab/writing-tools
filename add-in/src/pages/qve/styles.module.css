@@ -36,19 +36,26 @@
 	border-radius: 24px;
 }
 
-.optionsButton:hover {
+.optionsButton:disabled {
+    cursor: auto;
+}
+
+.optionsButtonActive:disabled {
+    cursor: auto;
+}
+
+.optionsButton:hover:enabled {
 	background-color: #f0f0f0;
 	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .1);
 	transform: rotate(25deg);
-	transition: 1s;
+	transition: 0.3s;
 }
 
-.optionsButtonActive:hover {
+.optionsButtonActive:hover:enabled {
 	background-color: #f0f0f0;
 	border: 1px solid #f0f0f0;
 	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .1);
 	transform: rotate(20deg);
-	transition: 1s;
 }
 
 .spinnerWrapper {
@@ -226,13 +233,17 @@
 	margin-right: 8px;
 	margin-left: 8px;
 	padding: 16px;
-	transition: 0.15s;
 }
 
 .noteText {
 	font-size: 0.75rem;
 	color: #bbbbbb;
 	text-align: center;
-	transition: 0.15s;
-	font-weight: 900;
+}
+
+.tooltip {
+    border-radius: 4px;
+    box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, .3);
+    background-color: rgb(234, 234, 255) !important;
+    transform: rotate(180);
 }

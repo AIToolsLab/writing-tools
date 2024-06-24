@@ -18,11 +18,12 @@ export default function Login() {
 				placeholder="Username"
 				onChange={ e => updateId(e.target.value) }
 				onKeyDown={ e => {
-					if (e.key === 'Enter') updateUsername(userId);
+					if (e.key === 'Enter' && userId.length > 0) updateUsername(userId);
 				} }
 			/>
 
 			<button
+                disabled={ userId.length === 0 }
 				onClick={ () => updateUsername(userId) }
 			>
 				Login

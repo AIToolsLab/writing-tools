@@ -8,7 +8,6 @@ import { Toggle } from '@fluentui/react/lib/Toggle';
 import { Tooltip, makeStyles } from '@fluentui/react-components';
 import { AiOutlineCopy, AiOutlineClose, AiOutlineQuestion, AiOutlineAlignLeft, AiOutlineHighlight, AiOutlineBank } from 'react-icons/ai';
 
-
 import { SERVER_URL } from '@/api';
 
 import classes from './styles.module.css';
@@ -399,9 +398,10 @@ export default function QvE() {
 					checked={ positionalSensitivity }
 				/>
 			) }
+
 			<div className={ classes.noteTextWrapper }>
 				<div className={ classes.noteText }>
-					Please note that not every AI generation may be equally helpful
+					Please note that AI generations may not be equally helpful
 				</div>
 			</div>
 
@@ -453,11 +453,11 @@ export default function QvE() {
 					{
 						IS_EXPERIMENTAL && (
 							<>
-								{ /* <Tooltip
+								<Tooltip
 									withArrow
-									content={ { children: 'Get New Example', className: styles.tooltip } }
+									content={ { children: 'Get New Example', className: classes.tooltip } }
 									relationship="label"
-								> */ }
+								>
 									<button
 										className={
 											exampleButtonActive
@@ -477,13 +477,13 @@ export default function QvE() {
 									>
 										<AiOutlineAlignLeft />
 									</button>
-								{ /* </Tooltip> */ }
+								</Tooltip>
 
-								{ /* <Tooltip
+								<Tooltip
 									withArrow
-									content={ { children: 'Get New Question', className: styles.tooltip } }
+									content={ { children: 'Get New Question', className: classes.tooltip } }
 									relationship="label"
-								> */ }
+								>
 									<button
 										className={
 											questionButtonActive
@@ -503,13 +503,13 @@ export default function QvE() {
 									>
 										<AiOutlineQuestion />
 									</button>
-								{ /* </Tooltip> */ }
+								</Tooltip>
 
-								{ /* <Tooltip
+								<Tooltip
 									withArrow
-									content={ { children: 'Get New Keywords', className: styles.tooltip } }
+									content={ { children: 'Get New Keywords', className: classes.tooltip } }
 									relationship="label"
-								> */ }
+								>
 									<button
 										className={
 											keywordButtonActive
@@ -529,13 +529,13 @@ export default function QvE() {
 									>
 										<AiOutlineHighlight />
 									</button>
-								{ /* </Tooltip> */ }
+								</Tooltip>
 
-								{ /* <Tooltip
+								<Tooltip
 									withArrow
-									content={ { children: 'Get New Structure', className: styles.tooltip } }
+									content={ { children: 'Get New Structure', className: classes.tooltip } }
 									relationship="label"
-								> */  }
+								>
 									<button
 										className={
 											structureButtonActive
@@ -555,14 +555,16 @@ export default function QvE() {
 									>
 										<AiOutlineBank />
 									</button>
-								{ /* </Tooltip> */ }
+								</Tooltip>
 							</>
 					) }
 					
 				</div>
 			</div>
+
 			{ /* <div>{ cursorSentence ? cursorSentence : 'Nothing selected' }</div> */ }
-			<div>
+			
+            <div>
 				<div
 					className={ classes.reflectionContainer }
 				>

@@ -7,6 +7,22 @@
 	margin-top: 100px;
 }
 
+.container input {
+    padding: 10px;
+    border: 1px solid lightgray;
+    cursor: pointer;
+    transition: 0.15s;
+}
+
+.container input:hover {
+    border: 1px solid black;
+}
+
+.container input:focus {
+    cursor: text;
+    outline: none;
+}
+
 .container button {
 	padding: 10px 20px;
 	transition: 0.15s;
@@ -16,7 +32,13 @@
 	color: black;
 }
 
-.container button:hover {
+.container button:disabled {
+    border-color: lightgray;
+    color: lightgray;
+    cursor: not-allowed;
+}
+
+.container button:hover:enabled {
 	color: white;
 	background: black;
 }
