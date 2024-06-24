@@ -323,6 +323,11 @@
 	margin: 8px;
 }
 
+.historyItem li {
+    display: flex;
+    list-style-type: circle;
+}
+
 .historyCloseButtonWrapper {
 	align-items: center;
 	align-content: center;
@@ -363,4 +368,13 @@
 	font-size: 0.8rem;
 	font-weight: 300;
 	transition: 0.15s
+}
+
+.historyDoc {
+    cursor: pointer;
+    transition: 0.15s;
+}
+
+.historyDoc:hover {
+    color: #059212;
 }

@@ -37,7 +37,7 @@ export default function QvE() {
 	const [saved, setSaved] = useState(false);
 
 	// State for saved page
-	const [isSavedPage, setIsSavedPage] = useState(false);
+	const [historyOpen, setHistoryOpen] = useState(false);
 
 	// Tooltip visibility
 	const [isExampleTooltipVisible, setExampleTooltipVisible] = useState(false);
@@ -51,24 +51,64 @@ export default function QvE() {
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
 
-	// List of saved generations
-	// eslint-disable-next-line prefer-const
-	let [savedGenerations, updateSavedGenerations] = useState<string[]>([]);
-
 	// Hidden for now
 	const IS_SWITCH_VISIBLE = false;
 	const IS_EXPERIMENTAL = true;
 
-	/**
-	 * Deletes a history item from the saved generations.
-	 *
-	 * @param {number}
-	 * @returns {void}
-	 */
-	function deleteHistoryItem(index: number): void {
-		const newGenerations = savedGenerations.filter((_gen, i) => i !== index);
-		updateSavedGenerations(newGenerations);
-	}
+    function getHistory(): HistoryItem[] {
+        return JSON.parse(localStorage.getItem('history') || '[]');
+    }
+
+    function saveToHistory(generation: string, generationType: string, document: string) {
+        const history = getHistory();
+
+        if (!history.filter(item => item.document === document).length)
+            history.push(
+                {
+                    document: document,
+                    generations: []
+                }
+            );
+        else
+            if(
+                history.filter(
+                    item => item.document === document
+                )[0].generations.filter(
+                    generationItem => generationItem.generation === generation
+                ).length > 0
+            ) return;
+
+        history.filter(item => item.document === document)[0].generations.push(
+            {
+                generation: generation,
+                type: generationType,
+                dateSaved: new Date()
+            }
+        );
+
+        localStorage.setItem('history', JSON.stringify(history));
+    }
+
+    function deleteHistoryItem(dateSaved: Date) {
+        const history = getHistory();
+
+
+        const newHistory = history.map(
+            historyItem => (
+                {
+                    document: historyItem.document,
+                    generations: historyItem.generations.filter(
+                        generationItem => {
+                            return generationItem.dateSaved !== dateSaved;
+                        }
+                    )   
+                }
+            )
+        );
+
+        localStorage.setItem('history', JSON.stringify(newHistory));
+        setHistoryOpen(false);
+    }
 
 	/**
 	 * Retrieves the text content of the Word document and updates the docText state.
@@ -475,7 +515,6 @@ export default function QvE() {
 								{ isStructureTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_s].join(' ') }>Get New Structure</div> }
 							</>
 					) }
-					
 				</div>
 			</div>
 
@@ -494,6 +533,7 @@ export default function QvE() {
 							<FcCheckmark />
 						</div>
 					) }
+
 					{ saved && (
 						<div className={ classes.utilStateWrapper }>
 							<div className={ classes.savedStateText }>
@@ -502,6 +542,7 @@ export default function QvE() {
 							<AiOutlineSave className={ classes.savedStateIcon } />
 						</div>
 					) }
+
 					{ generationMode !== 'None' && !isLoading && (
 						<div className={ classes.buttonsWrapper }>
 							<div
@@ -514,6 +555,7 @@ export default function QvE() {
 							>
 								<AiOutlineClose className={ classes.closeIcon } />
 							</div>
+
 							{ (generation && !isLoading) && (
 								<>
 									<div
@@ -534,11 +576,10 @@ export default function QvE() {
 										className={ classes.utilIconWrapper }
 										onClick={ () => {
 											// Save the generation
-											if (!savedGenerations.includes(generation.trim())) {
-												setSaved(true);
-												setTimeout(() => setSaved(false), 2000);
-												updateSavedGenerations([generation.trim(), ...savedGenerations]);
-											}
+                                            saveToHistory(generation, generationMode, docText);
+
+                                            setSaved(true);
+                                            setTimeout(() => setSaved(false), 2000);
 										} }
 									>
 										<AiOutlineStar className={ saved ? classes.saved : classes.saveIcon } />
@@ -548,39 +589,75 @@ export default function QvE() {
 							</div>
 						) }
 				</div>
+
 				<div className={ classes.historyContainer }>
 					<div className={ classes.historyButtonWrapper }>
 						<button
-							className={ isSavedPage ? classes.historyButtonActive : classes.historyButton }
+							className={ historyOpen ? classes.historyButtonActive : classes.historyButton }
 							disabled={ docText === '' || isLoading }
 							onClick={ () => {
 								// Toggle between the current page and the saved page
-								setIsSavedPage(!isSavedPage);
+								setHistoryOpen(!historyOpen);
 							} }
 						>
 							History
 						</button>
 					</div>
+                    
 					<div className={ classes.historyItemContainer }>
-						{ (isSavedPage && savedGenerations.length === 0) && (
-							<div className={ classes.historyEmptyWrapper }>
-								<div className={ classes.historyText }>No saved generations...</div>
-							</div>
-						) }
-						{ isSavedPage && savedGenerations.map((gen, index) => (
-							<>
-								<div key={ index } className={ classes.historyItem }>
-									<div className={ classes.historyText }>{ gen }</div>
-									<div className={ classes.historyCloseButtonWrapper }
-										onClick={ () => {
-											deleteHistoryItem(index);
-										}	}
-									>
-										<AiOutlineClose className={ classes.historyCloseButton } />
-									</div>
-								</div>
-							</>	
-						)) }
+						{
+                            (
+                                historyOpen &&
+                                (
+                                    getHistory().length === 0 || getHistory().filter(historyItem => historyItem.generations.length > 0).length === 0
+                                )
+                            ) &&
+                            (
+                                <div className={ classes.historyEmptyWrapper }>
+                                    <div className={ classes.historyText }>No saved generations...</div>
+                                </div>
+						    )
+                        }
+          
+						{
+                            historyOpen &&
+                            (
+                                getHistory().length > 0 && getHistory().filter(historyItem => historyItem.generations.length > 0).length > 0
+                            )
+                            && getHistory().map((historyItem, index) => (
+                                <div key={ index } className={ classes.historyItem }>
+                                    <div className={ classes.historyText }>
+                                        <p
+                                            className={ classes.historyDoc }
+                                            onClick={
+                                                () => {
+                                                    // Show the whole document text
+                                                }
+                                            }
+                                        >
+                                            { historyItem.document.substring(0, 100) }...
+                                        </p>
+                                        
+                                        <ul>
+                                            {
+                                                historyItem.generations.map((generationItem, index) => (
+                                                    <li key={ index }>
+                                                        <p>{ generationItem.generation }</p>
+
+                                                        <div
+                                                            className={ classes.historyCloseButtonWrapper }
+                                                            onClick={ () => deleteHistoryItem(generationItem.dateSaved) }
+                                                        >
+                                                            <AiOutlineClose className={ classes.historyCloseButton } />
+                                                        </div>
+                                                    </li>   
+                                                ))
+                                            }
+                                        </ul>
+                                    </div>
+                                </div>
+						    ))
+                        }
 					</div>
 				</div>
 			</div>
