@@ -5,7 +5,16 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
 import { Toggle } from '@fluentui/react/lib/Toggle';
-import { AiOutlineCopy, AiOutlineClose, AiOutlineQuestion, AiOutlineAlignLeft, AiOutlineHighlight, AiOutlineBank, AiOutlineStar, AiOutlineSave } from 'react-icons/ai';
+import {
+    AiOutlineCopy,
+    AiOutlineClose,
+    AiOutlineQuestion,
+    AiOutlineAlignLeft,
+    AiOutlineHighlight,
+    AiOutlineBank,
+    AiOutlineStar,
+    AiOutlineSave
+} from 'react-icons/ai';
 
 import { SERVER_URL } from '@/api';
 
@@ -19,7 +28,6 @@ export default function QvE() {
 	// TO DO: find better sentence delimiters
 	const SENTENCE_DELIMITERS = ['. ', '? ', '! '];
 
-	// const { username } = useContext(UserContext);
 	const [docText, updateDocText] = useState('');
 	const [_cursorSentence, updateCursorSentence] = useState('');
 
