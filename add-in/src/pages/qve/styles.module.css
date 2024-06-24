@@ -197,7 +197,18 @@
 	transform: rotateY(180deg);
 }
 
-.copiedStateWrapper {
+.saveIcon {
+	font-size: 0.9rem;
+	color: #888888;
+	transition: 0.5s;
+}
+
+.saveIcon:hover {
+	color: #555555;
+	transform: rotate(90deg);
+}
+
+.utilStateWrapper {
 	display: flex;
 	justify-content: center;
 	align-items: center;
@@ -212,15 +223,15 @@
 	transition: 0.15s;
 }
 
-.saveIcon {
-	font-size: 0.9rem;
-	color: #888888;
-	transition: 0.5s;
+.savedStateText {
+	color: #8885e3;
+	font-weight: 100;
+	padding-right: 4px;
+	transition: 0.15s;
 }
 
-.saveIcon:hover {
-	color: #555555;
-	transform: rotate(90deg);
+.savedStateIcon {
+	color: #8885e3;
 }
 
 @keyframes fade {

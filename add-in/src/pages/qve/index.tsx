@@ -5,7 +5,7 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
 import { Toggle } from '@fluentui/react/lib/Toggle';
-import { AiOutlineCopy, AiOutlineClose, AiOutlineQuestion, AiOutlineAlignLeft, AiOutlineHighlight, AiOutlineBank, AiOutlineStar } from 'react-icons/ai';
+import { AiOutlineCopy, AiOutlineClose, AiOutlineQuestion, AiOutlineAlignLeft, AiOutlineHighlight, AiOutlineBank, AiOutlineStar, AiOutlineSave } from 'react-icons/ai';
 
 import { SERVER_URL } from '@/api';
 
@@ -31,6 +31,7 @@ export default function QvE() {
 	const [isLoading, setIsLoading] = useState(false);
 
 	const [copied, setCopied] = useState(false);
+	const [saved, setSaved] = useState(false);
 
 	// Tooltip visibility
 	const [isExampleTooltipVisible, setExampleTooltipVisible] = useState(false);
@@ -553,9 +554,15 @@ export default function QvE() {
 				</div>
 				<div className={ classes.utilsContainer }>
 					{ copied && (
-						<div className={ classes.copiedStateWrapper }>
+						<div className={ classes.utilStateWrapper }>
 							<div className={ classes.copiedStateText }>Copied!</div>
 							<FcCheckmark />
+						</div>
+					) }
+					{ saved && (
+						<div className={ classes.utilStateWrapper }>
+							<div className={ classes.savedStateText }>Saved!</div>
+							<AiOutlineSave className={ classes.savedStateIcon } />
 						</div>
 					) }
 					{ generationMode !== 'None' && !isLoading && (
@@ -592,7 +599,13 @@ export default function QvE() {
 									>
 										<AiOutlineCopy className={ classes.copyIcon } />
 									</div>
-									<div className={ classes.utilIconWrapper }>
+									<div
+										className={ classes.utilIconWrapper }
+										onClick={ () => {
+											setSaved(true);
+											setTimeout(() => setSaved(false), 2000);
+										} }
+									>
 										<AiOutlineStar className={ classes.saveIcon } />
 									</div>
 								</>
