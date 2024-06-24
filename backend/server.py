@@ -6,7 +6,7 @@ import sqlite3
 from openai import AsyncOpenAI
 import uvicorn
 
-from nltk import PorterStemmer
+from nltk import LancasterStemmer, PorterStemmer, SnowballStemmer
 import spacy
 
 from typing import List, Dict, Optional
@@ -117,8 +117,8 @@ def is_full_sentence(sentence):
 
 def hide_stem(word):
     word = word.lower()
-    stem = PorterStemmer().stem(word)
-    return '·' * len(stem) + word[len(stem):]
+    stem = SnowballStemmer("english").stem(word)
+    return '.' * len(stem) + word[len(stem):]
 
 
 @app.post("/api/chat")
