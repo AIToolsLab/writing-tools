@@ -289,19 +289,21 @@ export default function QvE() {
 	let results = null;
     
 	if (generationMode === 'None' || generation.length === 0)
-		results = <div className={ classes.initTextWrapper }><div className={ classes.initText }>Click button to generate question or example...</div></div>;
-	else if (generationMode === 'Questions') {
-        results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ generation }</div></div>;
-	}
-	else if (generationMode === 'Structure') {
-        results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ generation }</div></div>;
-	}
-	else if (generationMode === 'Keywords') {
-        results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ generation }</div></div>;
-	}
- 	else {
-        results = <div className={ classes.resultTextWrapper }><div className={ classes.resultText }>{ generation }</div></div>;
-	}
+		results = (
+            <div className={ classes.initTextWrapper }>
+                <div className={ classes.initText }>
+                    Click button to generate question or example...
+                </div>
+            </div>
+        );
+ 	else
+        results = (
+            <div className={ classes.resultTextWrapper }>
+                <div className={ classes.resultText }>
+                    { generation }
+                </div>
+            </div>
+        );
 
 	if (isLoading && !results)
 		results = (
