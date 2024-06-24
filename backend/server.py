@@ -110,7 +110,7 @@ def is_full_sentence(sentence):
     return num_segments > 1
 
 
-def hide_lemma(word):
+def hide_stem(word):
     word = word.lower()
     stem = PorterStemmer().stem(word)
     return '·' * len(stem) + word[len(stem):]
@@ -454,15 +454,24 @@ async def structure(payload: CompletionRequestPayload):
         stream=False,
     )).choices[0].message.content
 
-    KEYWORD_POS = ['NOUN', 'PROPN', 'ADJ', 'VERB']
     # Load the English language model
-    nlp = spacy.load("en_core_web_sm")
+    # nlp = spacy.load("en_core_web_sm")
+
+    def non_keyword(token):
+        keyword_pos = token.pos_ in ['NOUN', 'PROPN', 'ADJ', 'VERB']
+        vbz = token.tag_ == 'VBZ'
+        ly_word = token.text[-2:] == 'ly'
+        return not (keyword_pos or ly_word) or vbz
 
     # Process the text with spaCy
     processedText = nlp(completion)
 
     # Remove words with desired POS tags
-    filtered_text = ' '.join([token.text if not token.pos_ in KEYWORD_POS or token.tag_ == 'VBZ' else hide_lemma(token.text) for token in processedText])
+    filtered_text = ' '.join([
+        token.text if non_keyword(token)
+        else hide_stem(token.text) 
+        for token in processedText
+    ])
 
     return filtered_text
 
