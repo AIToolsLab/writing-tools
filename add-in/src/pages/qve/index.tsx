@@ -212,7 +212,7 @@ export default function QvE() {
 			})
 		});
 
-        const result = await response.text();
+        const result = await response.json();
 
         updateGeneration(result);
         setIsLoading(false);
@@ -247,7 +247,7 @@ export default function QvE() {
 			})
 		});
 
-        const result = await response.text();
+        const result = await response.json();
 
         updateGeneration(result);
         setIsLoading(false);
