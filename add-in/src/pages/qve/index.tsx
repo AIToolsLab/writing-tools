@@ -202,7 +202,7 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		fetch(`${SERVER_URL}/keywords`, {
+		const response = await fetch(`${SERVER_URL}/keywords`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -210,36 +210,12 @@ export default function QvE() {
 			body: JSON.stringify({
 				prompt: sanitize(contextText)
 			})
-		})
-		.then(response => response.text())
-		.then(data => {
-			updateGeneration(JSON.parse(data));
-			setIsLoading(false);
-		})
-		.catch(err => {
-			// eslint-disable-next-line no-console
-			console.error('Error:', err);
-			throw err;
 		});
-		// 	onmessage(msg) {
-		// 		const message = JSON.parse(msg.data);
-		// 		const choice = message.choices[0];
 
-		// 		if (choice.finish_reason === 'stop') {
-		// 			setIsLoading(false);
-		// 			return;
-		// 		}
-		// 		keywords += choice.delta.content;
-		// 		setKeywords(keywords);
-		// 	},
-		// 	onerror(err) {
-		// 		// eslint-disable-next-line no-console
-		// 		console.error(err);
+        const result = await response.text();
 
-		// 		// rethrow to avoid infinite retry.
-		// 		throw err;
-		// 	}
-		// });
+        updateGeneration(result);
+        setIsLoading(false);
 	}
 
 	/**
@@ -261,7 +237,7 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		fetch(`${SERVER_URL}/structure`, {
+		const response = await fetch(`${SERVER_URL}/structure`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
@@ -269,45 +245,12 @@ export default function QvE() {
 			body: JSON.stringify({
 				prompt: sanitize(contextText)
 			})
-		})
-		.then(response => response.text())
-		.then(data => {
-			updateGeneration(JSON.parse(data));
-			setIsLoading(false);
-		})
-		.catch(err => {
-			// eslint-disable-next-line no-console
-			console.error('Error:', err);
-			throw err;
 		});
 
-		// await fetchEventSource(`${SERVER_URL}/structure`, {
-		// 	method: 'POST',
-		// 	headers: {
-		// 		'Content-Type': 'application/json'
-		// 	},	
-		// 	body: JSON.stringify({
-		// 		prompt: sanitize(contextText)
-		// 	}),
-			// onmessage(msg) {
-				// const message = JSON.parse(msg.data);
-				// const choice = message.choices[0];
+        const result = await response.text();
 
-				// if (choice.finish_reason === 'stop') {
-				// 	setIsLoading(false);
-				// 	return;
-				// }
-				// structure += choice.delta.content;
-				// setStructure(structure);
-		// 	},
-		// 	onerror(err) {
-		// 		// eslint-disable-next-line no-console
-		// 		console.error(err);
-
-		// 		// rethrow to avoid infinite retry.
-		// 		throw err;
-		// 	}
-		// });
+        updateGeneration(result);
+        setIsLoading(false);
 	}
 
 	/**
