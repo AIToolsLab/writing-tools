@@ -23,11 +23,6 @@ export default function QvE() {
 	const [docText, updateDocText] = useState('');
 	const [_cursorSentence, updateCursorSentence] = useState('');
 
-	const [questionButtonActive, updateQuestionButtonActive] = useState(false);
-	const [exampleButtonActive, updateExampleButtonActive] = useState(false);
-	const [keywordButtonActive, updateKeywordButtonActive] = useState(false);
-	const [structureButtonActive, updateStructureButtonActive] = useState(false);
-
 	const [isLoading, setIsLoading] = useState(false);
 
 	const [copied, setCopied] = useState(false);
@@ -405,17 +400,14 @@ export default function QvE() {
 						<>
 							<button
 								className={
-									exampleButtonActive
+									generationMode === 'Examples'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
 								disabled={ docText === '' || isLoading }
 								onClick={ () => {
 									if (docText === '') return;
-									updateExampleButtonActive(true);
-									updateQuestionButtonActive(false);
-									updateStructureButtonActive(false);
-									updateKeywordButtonActive(false);
+                                    
 									updateGenerationMode('Examples');
 									getExamples(docText);
 								} }
@@ -425,17 +417,14 @@ export default function QvE() {
 							
 							<button
 								className={
-									questionButtonActive
+									generationMode === 'Questions'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
 								disabled={ docText === '' || isLoading }
 								onClick={ () => {
 									if (docText === '') return;
-									updateQuestionButtonActive(true);
-									updateExampleButtonActive(false);
-									updateStructureButtonActive(false);
-									updateKeywordButtonActive(false);
+                                    
 									updateGenerationMode('Questions');
 									getQuestions(docText);
 								} }
@@ -444,22 +433,20 @@ export default function QvE() {
 							</button>
 						</>
 					) }
+
 					{
 						IS_EXPERIMENTAL && (
 							<>
 								<button
 									className={
-										exampleButtonActive
+										generationMode === 'Examples'
 											? classes.optionsButtonActive
 											: classes.optionsButton
 									}
 									disabled={ docText === '' || isLoading }
 									onClick={ () => {
 										if (docText === '') return;
-										updateExampleButtonActive(true);
-										updateQuestionButtonActive(false);
-										updateStructureButtonActive(false);
-										updateKeywordButtonActive(false);
+                                        
 										updateGenerationMode('Examples');
 										getExamples(docText);
 									} }
@@ -472,17 +459,14 @@ export default function QvE() {
 
 								<button
 									className={
-										questionButtonActive
+										generationMode === 'Questions'
 											? classes.optionsButtonActive
 											: classes.optionsButton
 									}	
 									disabled={ docText === '' || isLoading }
 									onClick={ () => {
 										if (docText === '') return;
-										updateQuestionButtonActive(true);
-										updateExampleButtonActive(false);
-										updateStructureButtonActive(false);
-										updateKeywordButtonActive(false);
+                                        
 										updateGenerationMode('Questions');
 										getQuestions(docText);
 									} }
@@ -495,17 +479,14 @@ export default function QvE() {
 
 								<button
 									className={
-										keywordButtonActive
+										generationMode === 'Keywords'
 											? classes.optionsButtonActive
 											: classes.optionsButton
 									}
 									disabled={ docText === '' || isLoading }
 									onClick={ () => {
 										if (docText === '') return;
-										updateKeywordButtonActive(true);
-										updateExampleButtonActive(false);
-										updateQuestionButtonActive(false);
-										updateStructureButtonActive(false);
+                                        
 										updateGenerationMode('Keywords');
 										getKeywords(docText);
 									} }
@@ -518,17 +499,14 @@ export default function QvE() {
 
 								<button
 									className={
-										structureButtonActive
+										generationMode === 'Structure'
 											? classes.optionsButtonActive
 											: classes.optionsButton
 									}
 									disabled={ docText === '' || isLoading }
 									onClick={ () => {
 										if (docText === '') return;
-										updateStructureButtonActive(true);
-										updateKeywordButtonActive(false);
-										updateExampleButtonActive(false);
-										updateQuestionButtonActive(false);
+
 										updateGenerationMode('Structure');
 										getStructure(docText);
 									} }
@@ -575,10 +553,7 @@ export default function QvE() {
 									setCompletion('');
 									setKeywords('');
 									setStructure('');
-									updateKeywordButtonActive(false);
-									updateStructureButtonActive(false);
-									updateQuestionButtonActive(false);
-									updateExampleButtonActive(false);
+                                    
 									results = null;
 								} }
 							>
