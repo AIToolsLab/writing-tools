@@ -305,7 +305,7 @@ export default function QvE() {
             </div>
         );
 
-	if (isLoading && !results)
+	if (isLoading && !generation)
 		results = (
 			<div className={ classes.spinnerWrapper }>
 				<Spinner size={ SpinnerSize.large } />
