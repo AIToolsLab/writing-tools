@@ -208,6 +208,10 @@
 	transform: rotate(90deg);
 }
 
+.saved {
+    color: gold;
+} 
+
 .utilStateWrapper {
 	display: flex;
 	justify-content: center;

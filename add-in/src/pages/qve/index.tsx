@@ -599,6 +599,7 @@ export default function QvE() {
 									>
 										<AiOutlineCopy className={ classes.copyIcon } />
 									</div>
+
 									<div
 										className={ classes.utilIconWrapper }
 										onClick={ () => {
@@ -606,7 +607,7 @@ export default function QvE() {
 											setTimeout(() => setSaved(false), 2000);
 										} }
 									>
-										<AiOutlineStar className={ classes.saveIcon } />
+										<AiOutlineStar className={ saved ? classes.saved : classes.saveIcon } />
 									</div>
 								</>
 							) }
