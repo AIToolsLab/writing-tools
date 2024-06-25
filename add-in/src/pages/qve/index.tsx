@@ -226,7 +226,8 @@ export default function QvE() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				prompt: sanitize(contextText)
+				prompt: sanitize(contextText),
+                username: username
 			}),
 			onmessage(msg) {
 				const message = JSON.parse(msg.data);
