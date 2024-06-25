@@ -276,7 +276,8 @@ export default function QvE() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				prompt: sanitize(contextText)
+				prompt: sanitize(contextText),
+                username: username
 			})
 		});
 
@@ -311,7 +312,8 @@ export default function QvE() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				prompt: sanitize(contextText)
+				prompt: sanitize(contextText),
+                username: username
 			})
 		});
 
