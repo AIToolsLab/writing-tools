@@ -289,9 +289,9 @@ async def question(payload: CompletionRequestPayload):
     print(completioned_sentence)
 
     completion_length = len(completion.split())
-    max_length = max(int(completion_length*0.7), 7)
+    max_length = max(int(completion_length*0.8), 7)
 
-    QUESTION_PROMPT = f'With the current sentence in mind:\n\n{penult_sentence}\n\nWrite an open-ended question answered by the next given sentence\'s ideas. Use no more than {max_length} words.'
+    QUESTION_PROMPT = f'With the current sentence in mind:\n\n{penult_sentence}\n\nWrite a question that would inspire the ideas expressed in the next given sentence. Use no more than {max_length} words.'
 
     full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completioned_sentence}'
     # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
