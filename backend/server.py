@@ -7,6 +7,7 @@ from openai import AsyncOpenAI
 import uvicorn
 
 from nltk import LancasterStemmer, PorterStemmer, SnowballStemmer
+from nltk.tokenize import SyllableTokenizer
 import spacy
 
 from typing import List, Dict, Optional
@@ -115,11 +116,22 @@ def is_full_sentence(sentence):
 
     return num_segments > 1
 
+def last_syllable(word):
+    syllable_tokenizer = SyllableTokenizer()
+    syllables = syllable_tokenizer.tokenize(word)
+    return syllables[-1]
 
-def hide_stem(word):
+
+def obscure(token):
+    word = token.text
     word = word.lower()
-    stem = SnowballStemmer("english").stem(word)
-    return '.' * len(stem) + word[len(stem):]
+    stem = LancasterStemmer().stem(word)
+    suffix = word[len(stem):]
+    remainder = last_syllable(suffix)
+    if len(remainder) > 1:
+        return '·' * random.randint(4, 7) + remainder
+    else:
+        return '·' * random.randint(4, 7)
 
 
 @app.post("/api/chat")
@@ -491,6 +503,8 @@ async def structure(payload: CompletionRequestPayload):
         stream=False,
     )).choices[0].message.content
 
+    print(completion)
+
     # Load the English language model
     # nlp = spacy.load("en_core_web_sm")
 
@@ -506,7 +520,7 @@ async def structure(payload: CompletionRequestPayload):
     # Remove words with desired POS tags
     filtered_text = ' '.join([
         token.text if non_keyword(token)
-        else hide_stem(token.text) 
+        else obscure(token) 
         for token in processedText
     ])
 
