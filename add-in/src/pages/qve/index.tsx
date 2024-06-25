@@ -1,4 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useContext } from 'react';
+
+import { UserContext } from '@/contexts/userContext';
 
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
@@ -25,6 +27,8 @@ function sanitize(text: string): string {
 }
 
 export default function QvE() {
+    const { username } = useContext(UserContext);
+
 	// TO DO: find better sentence delimiters
 	const SENTENCE_DELIMITERS = ['. ', '? ', '! '];
 
@@ -168,7 +172,8 @@ export default function QvE() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				prompt: sanitize(contextText)
+				prompt: sanitize(contextText),
+                username: username
 			}),
 			onmessage(msg) {
 				const message = JSON.parse(msg.data);
@@ -452,6 +457,7 @@ export default function QvE() {
 								>
 									<AiOutlineAlignLeft />
 								</button>
+
 								{ isExampleTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_e].join(' ') }>Get New Example</div> }
 
 								<button
