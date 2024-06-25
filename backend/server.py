@@ -234,7 +234,6 @@ async def chat_completion(payload: CompletionRequestPayload):
 async def question(payload: CompletionRequestPayload):
     RHETORICAL_SITUATION = ''
     # QUESTION_PROMPT = 'Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.'
-    QUESTION_PROMPT = 'Ask a thought-provoking but concise question in the third person about the idea expressed by the given sentence.'
 
     # completion = (await openai_client.completions.create(
     #     model="gpt-3.5-turbo-instruct",
@@ -288,6 +287,13 @@ async def question(payload: CompletionRequestPayload):
     # If the last sentence of the document was incomplete (i.e. the completion is part of it), combine.
     if not is_full_sentence(final_sentence):
         completion = final_sentence + completion + '.'
+
+    print(completion)
+
+    completion_length = len(completion.split())
+    max_length = max(int(completion_length*0.7), 7)
+
+    QUESTION_PROMPT = f'Write an open-ended question answered by the given sentence\'s ideas. Use no more than {max_length} words.'
 
     full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completion}'
     # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
