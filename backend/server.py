@@ -60,6 +60,7 @@ class ChatRequestPayload(BaseModel):
 
 class CompletionRequestPayload(BaseModel):
     prompt: str
+    username: str
 
 
 class Log(BaseModel):
@@ -303,9 +304,40 @@ async def question(payload: CompletionRequestPayload):
                 full_question += new_chunk
             elif len(full_question):
                 make_log(
-                    Log(username="test", interaction="question", prompt=str(
+                    Log(username=payload.username, interaction="question", prompt=str(
                         payload.prompt), result=full_question, example=completion)
                 )
+
+                try:
+                    open(f'./logs/{payload.username}.json', 'r+')
+                except:
+                    with open(f'./logs/{payload.username}.json', 'a+') as f:
+                        f.write(json.dumps({
+                            'username': payload.username,
+                            'interactions': []
+                        }))
+                
+                with open(f'./logs/{payload.username}.json', 'r+') as f:
+                    cur_log = json.loads(f.read())
+
+                    new_log = {
+                        'interaction': 'question',
+                        'prompt': str(payload.prompt),
+                        'result': full_question,
+                        'example': completion
+                    }
+
+                    exists = False
+
+                    for log in cur_log['interactions']:
+                        if log['interaction'] == 'question' and log['prompt'] == str(payload.prompt) and log['result'] == full_question:
+                            exists = True
+
+                    if not exists:
+                        cur_log['interactions'].append(new_log)
+
+                with open(f'./logs/{payload.username}.json', 'w') as f:
+                    f.write(json.dumps(cur_log))
 
             yield dumped
 
