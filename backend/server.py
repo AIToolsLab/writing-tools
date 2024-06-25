@@ -301,7 +301,7 @@ async def question(payload: CompletionRequestPayload):
         messages=[
             {'role': 'user', 'content': full_prompt},
         ],
-        temperature=0.7,
+        temperature=1,
         max_tokens=1024,
         top_p=1,
         frequency_penalty=0,
