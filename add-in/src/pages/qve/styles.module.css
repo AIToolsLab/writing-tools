@@ -142,6 +142,42 @@
 	align-self: center;
 	align-items: center;
 	transition: 0.3s;
+	position: relative;
+}
+
+.utilsContainer:hover .utilTooltip {
+	opacity: 1;
+	visibility: visible;
+}
+
+.utilTooltip {
+	position: absolute;
+	top: 120%;
+	background-color: rgba(237, 237, 237, 0.9) !important;
+	color: rgba(66, 66, 66, 0.9);
+	padding: 4px 8px;
+	border-radius: 2px 0px 2px 2px;
+	font-size: 0.8rem;
+	font-weight: 300;
+	white-space: nowrap;
+	z-index: 1000;
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+	pointer-events: none;
+	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, .1);
+}
+
+.utilTooltip_close {
+	right: 10%;
+}
+
+.utilTooltip_copy {
+	right: 5%;
+}
+
+.utilTooltip_save {
+	right: 0%;
 }
 
 .buttonsWrapper {

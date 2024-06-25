@@ -49,6 +49,10 @@ export default function QvE() {
 	const [isKeywordsTooltipVisible, setKeywordsTooltipVisible] = useState(false);
 	const [isStructureTooltipVisible, setStructureTooltipVisible] = useState(false);
 
+	const [isHistoryTooltipVisible, setHistoryTooltipVisible] = useState(false);
+	const [isCloseTooltipVisible, setCloseTooltipVisible] = useState(false);
+	const [isCopyTooltipVisible, setCopyTooltipVisible] = useState(false);
+
 	// eslint-disable-next-line prefer-const
 	let [generation, updateGeneration] = useState('');
 
@@ -558,9 +562,12 @@ export default function QvE() {
 									updateGeneration('');      
 									results = null;
 								} }
+								onMouseEnter={ () => setCloseTooltipVisible(true) }
+								onMouseLeave={ () => setCloseTooltipVisible(false) }
 							>
 								<AiOutlineClose className={ classes.closeIcon } />
 							</div>
+							{ isCloseTooltipVisible && <div className={ [classes.utilTooltip, classes.utilTooltip_close].join(' ') }>Close</div> }
 
 							{ (generation && !isLoading) && (
 								<>
@@ -574,22 +581,28 @@ export default function QvE() {
 											setCopied(true);
 											setTimeout(() => setCopied(false), 2000);
 										} }
+										onMouseEnter={ () => setCopyTooltipVisible(true) }
+										onMouseLeave={ () => setCopyTooltipVisible(false) }
 									>
 										<AiOutlineCopy className={ classes.copyIcon } />
 									</div>
+									{ isCopyTooltipVisible && <div className={ [classes.utilTooltip, classes.utilTooltip_copy].join(' ') }>Copy</div> }
 
 									<div
 										className={ classes.utilIconWrapper }
 										onClick={ () => {
 											// Save the generation
-                                            saveToHistory(generation, generationMode, docText);
+											saveToHistory(generation, generationMode, docText);
 
-                                            setSaved(true);
-                                            setTimeout(() => setSaved(false), 2000);
+											setSaved(true);
+											setTimeout(() => setSaved(false), 2000);
 										} }
+										onMouseEnter={ () => setHistoryTooltipVisible(true) }
+										onMouseLeave={ () => setHistoryTooltipVisible(false) }
 									>
 										<AiOutlineStar className={ saved ? classes.saved : classes.saveIcon } />
 									</div>
+									{ isHistoryTooltipVisible && <div className={ [classes.utilTooltip, classes.utilTooltip_save].join(' ') }>Save</div> }
 								</>
 							) }
 							</div>
