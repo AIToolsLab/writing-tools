@@ -282,7 +282,7 @@ async def question(payload: CompletionRequestPayload):
 
     # Get the last sentence in the last paragraph of the document
     final_paragraph = str(payload.prompt).split('\n')[-1]
-    final_sentence = list(nlp(final_paragraph).sents)[-1].text
+    final_sentence = list(nlp(final_paragraph).sents)[-1].text.strip()
 
     # If the last sentence of the document was incomplete (i.e. the completion is part of it), combine.
     if not is_full_sentence(final_sentence):
