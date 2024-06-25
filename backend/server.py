@@ -280,22 +280,20 @@ async def question(payload: CompletionRequestPayload):
         stream=False,
     )).choices[0].message.content
 
-    # Get the last sentence in the last paragraph of the document
-    final_paragraph = str(payload.prompt).split('\n')[-1]
-    final_sentence = list(nlp(final_paragraph).sents)[-1].text.strip()
+    # Get the completioned sentence and the sentence right before
+    completioned_paragraph = (str(payload.prompt.strip()) + ' ' + completion).split('\n')[-1]
+    final_sentences = list(nlp(completioned_paragraph).sents)[-2:]
+    penult_sentence = final_sentences[-2].text
+    completioned_sentence = final_sentences[-1].text
 
-    # If the last sentence of the document was incomplete (i.e. the completion is part of it), combine.
-    if not is_full_sentence(final_sentence):
-        completion = final_sentence + completion + '.'
-
-    print(completion)
+    print(completioned_sentence)
 
     completion_length = len(completion.split())
     max_length = max(int(completion_length*0.7), 7)
 
-    QUESTION_PROMPT = f'Write an open-ended question answered by the given sentence\'s ideas. Use no more than {max_length} words.'
+    QUESTION_PROMPT = f'With the current sentence in mind:\n\n{penult_sentence}\n\nWrite an open-ended question answered by the next given sentence\'s ideas. Use no more than {max_length} words.'
 
-    full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completion}'
+    full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completioned_sentence}'
     # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
 
     questions = await openai_client.chat.completions.create(
