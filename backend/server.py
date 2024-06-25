@@ -26,6 +26,8 @@ from dotenv import load_dotenv
 # Load ENV vars
 load_dotenv()
 
+MODEL_NAME = "gpt-4o"
+
 
 # create OpenAI client
 openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
@@ -116,6 +118,7 @@ def is_full_sentence(sentence):
 
     return num_segments > 1
 
+
 def last_syllable(word):
     syllable_tokenizer = SyllableTokenizer()
     syllables = syllable_tokenizer.tokenize(word)
@@ -137,7 +140,7 @@ def obscure(token):
 @app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
     response = await openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=MODEL_NAME,
         messages=payload.messages,
         temperature=0.7,
         max_tokens=1024,
@@ -195,7 +198,7 @@ async def chat_completion(payload: CompletionRequestPayload):
     else:
         system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
     chat_completion = (await openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=MODEL_NAME,
         messages=[
             {
                 "role": "system",
@@ -255,7 +258,7 @@ async def question(payload: CompletionRequestPayload):
     else:
         system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
     completion = (await openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=MODEL_NAME,
         messages=[
             {
                 "role": "system",
@@ -290,7 +293,7 @@ async def question(payload: CompletionRequestPayload):
     # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
 
     questions = await openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=MODEL_NAME,
         messages=[
             {'role': 'user', 'content': full_prompt},
         ],
@@ -328,7 +331,7 @@ async def question(payload: CompletionRequestPayload):
                             'username': payload.username,
                             'interactions': []
                         }))
-                
+
                 with open(f'./logs/{payload.username}.json', 'r+') as f:
                     cur_log = json.loads(f.read())
 
@@ -380,7 +383,7 @@ async def keywords(payload: CompletionRequestPayload):
     else:
         system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
     completion = (await openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=MODEL_NAME,
         messages=[
             {
                 "role": "system",
@@ -406,20 +409,21 @@ async def keywords(payload: CompletionRequestPayload):
     KEYWORD_POS = ['NOUN', 'PROPN', 'VERB', 'ADJ', 'ADV', 'INTJ']
     # Process the text with spaCy
     doc = nlp(completion)
-  
+
     # Extract the words with desired POS tags
-    keywords = [token.text.lower() for token in doc if token.pos_ in KEYWORD_POS]
+    keywords = [token.text.lower()
+                for token in doc if token.pos_ in KEYWORD_POS]
 
     random.shuffle(keywords)
 
     keyword_string = ', '.join(keywords)
-    
+
     return keyword_string
 
     # full_prompt = f'{KEYWORDS_PROMPT}\n\n{completion}'
 
     # keywords = await openai_client.chat.completions.create(
-    #     model="gpt-3.5-turbo",
+    #     model=MODEL_NAME,
     #     messages=[
     #         {'role': 'user', 'content': full_prompt},
     #     ],
@@ -480,7 +484,7 @@ async def structure(payload: CompletionRequestPayload):
     else:
         system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
     completion = (await openai_client.chat.completions.create(
-        model="gpt-3.5-turbo",
+        model=MODEL_NAME,
         messages=[
             {
                 "role": "system",
@@ -520,7 +524,7 @@ async def structure(payload: CompletionRequestPayload):
     # Remove words with desired POS tags
     filtered_text = ' '.join([
         token.text if non_keyword(token)
-        else obscure(token) 
+        else obscure(token)
         for token in processedText
     ])
 
@@ -537,7 +541,7 @@ async def structure(payload: CompletionRequestPayload):
     # full_prompt = f'{STRUCTURE_PROMPT}\n\n{completion}'
 
     # structure = await openai_client.chat.completions.create(
-    #     model="gpt-3.5-turbo",
+    #     model=MODEL_NAME,
     #     messages=[
     #         {'role': 'user', 'content': full_prompt},
     #     ],
