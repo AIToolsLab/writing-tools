@@ -341,6 +341,14 @@
 	border: 1px solid #d2e0fb;
 }
 
+.historyButton:hover,
+.historyButtonActive:hover {
+	background-color: #f0f0f0;
+	border: 1px solid #f0f0f0;
+	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, .1);
+	transition: 0.15s;
+}
+
 .historyItemContainer {
 	display: flex;
 	flex-direction: column;
