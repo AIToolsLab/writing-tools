@@ -176,6 +176,9 @@ def obscure(token):
             return 'ˍ' * (len(word) - 3) + "ing"
         else:
             return word
+        
+    if token.pos_ == "ADV" and word.endswith("ly"):
+        return 'ˍ' * (len(word) - 2) + "ly"
     
     return '·' * len(word)
 
