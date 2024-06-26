@@ -367,7 +367,7 @@ export default function QvE() {
 									getExamples(docText);
 								} }
 							>
-								Get New Example
+								Get New Completion
 							</button>
 							
 							<button
@@ -411,7 +411,7 @@ export default function QvE() {
 									<AiOutlineAlignLeft />
 								</button>
 
-								{ isExampleTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_e].join(' ') }>Get New Example</div> }
+								{ isExampleTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_e].join(' ') }>Get New Completion</div> }
 
 								<button
 									className={
