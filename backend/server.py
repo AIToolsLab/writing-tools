@@ -6,7 +6,7 @@ import sqlite3
 from openai import AsyncOpenAI
 import uvicorn
 
-from nltk import LancasterStemmer, PorterStemmer, SnowballStemmer
+from nltk import LancasterStemmer
 from nltk.tokenize import SyllableTokenizer
 import spacy
 
@@ -18,8 +18,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from sse_starlette import EventSourceResponse
-
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
@@ -27,9 +25,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 MODEL_NAME = "gpt-4o"
+DEBUG = os.getenv("DEBUG") or False
+PORT = int(os.getenv("PORT") or 8000)
 
-
-# create OpenAI client
+# Create OpenAI client
 openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
 
 if openai_api_key == "":
@@ -41,44 +40,41 @@ openai_client = AsyncOpenAI(
 
 
 # Load spaCy model for sentence splitting
-# python -m spacy download en_core_web_sm
 try:
     nlp = spacy.load("en_core_web_sm")
 except:
     print("Need to download spaCy model. Run:")
     print("python -m spacy download en_core_web_sm")
+    
     exit()
 
+# Initialize Database
+db_file = "backend.db"
 
-DEBUG = os.getenv("DEBUG") or False
-PORT = int(os.getenv("PORT") or "8000")
+with sqlite3.connect(db_file) as conn:
+    c = conn.cursor()
+
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS logs (timestamp, username, interaction, prompt, result, example)"
+    )
 
 # Declare Types
-
-
-class ChatRequestPayload(BaseModel):
-    messages: List[Dict[str, str]]
+class GenerationRequestPayload(BaseModel):
     username: str
-
-
-class CompletionRequestPayload(BaseModel):
-    prompt: str
-    username: str
-
+    gtype: str
+    prompt: Optional[str] or Optional[List[Dict[str, str]]]
 
 class Log(BaseModel):
     username: str
-    interaction: str  # "example", "question", "click"
+    interaction: str
     prompt: Optional[str] = None
     result: Optional[str] = None
     example: Optional[str] = None
 
-
+# Initliaze Server
 app = FastAPI()
 
-origins = [
-    "*",
-]
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -88,16 +84,43 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-db_file = 'backend.db'
+# Routes
 
-with sqlite3.connect(db_file) as conn:
-    c = conn.cursor()
+@app.post("/api/generation")
+async def generation(payload: GenerationRequestPayload):
+    if payload.gtype == "chat":
+        return await chat(payload.username, payload.prompt, 0.7)
+    elif payload.gtype == "completion":
+        return await completion(payload.username, payload.prompt)
+    elif payload.gtype == "chat_completion":
+        return await chat_completion(payload.username, payload.prompt)
+    elif payload.gtype == "question":
+        return await question(payload.username, payload.prompt)
+    elif payload.gtype == "keywords":
+        return await keywords(payload.username, payload.prompt)
+    elif payload.gtype == "structure":
+        return await structure(payload.username, payload.prompt)
+    else:
+        return {"error": "Invalid generation type."}
 
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS logs (timestamp, username, interaction, prompt, result, example)"
-    )
+@app.post("/log")
+async def log_feedback(payload: Log):
+    make_log(payload)
 
+    return {"message": "Feedback logged successfully."}
 
+# Show all server logs
+@app.get("/logs")
+async def logs():
+    with sqlite3.connect(db_file) as conn:
+        c = conn.cursor()
+        c.execute("SELECT * FROM logs")
+
+        result = c.fetchall()
+
+    return result
+
+# Helper functions
 def make_log(payload: Log):
     with sqlite3.connect(db_file) as conn:
         c = conn.cursor()
@@ -109,7 +132,6 @@ def make_log(payload: Log):
              payload.prompt, payload.result, payload.example),
         )
 
-
 def is_full_sentence(sentence):
     sentence += " AND"
 
@@ -118,87 +140,88 @@ def is_full_sentence(sentence):
 
     return num_segments > 1
 
-
 def last_syllable(word):
     syllable_tokenizer = SyllableTokenizer()
     syllables = syllable_tokenizer.tokenize(word)
-    return syllables[-1]
 
+    return syllables[-1]
 
 def obscure(token):
     word = token.text
     word = word.lower()
+
     stem = LancasterStemmer().stem(word)
     suffix = word[len(stem):]
+
     remainder = last_syllable(suffix)
+
     if len(remainder) > 1:
-        return '·' * random.randint(4, 7) + remainder
+        return "·" * random.randint(4, 7) + remainder
     else:
-        return '·' * random.randint(4, 7)
+        return "·" * random.randint(4, 7)
 
-
-@app.post("/api/chat")
-async def chat(payload: ChatRequestPayload):
+async def chat(username: str, messages: List[Dict[str, str]], temperature: float):
     response = await openai_client.chat.completions.create(
         model=MODEL_NAME,
-        messages=payload.messages,
-        temperature=0.7,
+        messages=messages,
+        temperature=temperature,
         max_tokens=1024,
         top_p=1,
         frequency_penalty=0,
-        presence_penalty=0,
-        stream=True
+        presence_penalty=0
     )
+
+    result = response.choices[0].message.content
 
     make_log(
-        Log(username=payload.username, interaction="chat",
-            prompt=payload.messages[-1]['content'], ui_id=None)
+        Log(
+            username=username,
+            interaction="chat",
+            prompt=messages[-1]["content"],
+            result=result
+        )
     )
 
-    # Stream response
-    async def generator():
-        # chunk is a ChatCompletionChunk
-        async for chunk in response:
-            yield chunk.model_dump_json()
+    return result
 
-    return EventSourceResponse(generator())
-
-
-@app.post("/api/completion")
-async def completion(payload: CompletionRequestPayload):
+async def completion(username: str, prompt: str):
     # Generate a completion based on the now-complete last sentence.
     response = await openai_client.completions.create(
         model="gpt-3.5-turbo-instruct",
-        prompt=payload.prompt,
+        prompt=prompt,
         temperature=1,
         max_tokens=1024,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
-        stream=True,
         stop=[".", "!", "?"]
     )
 
-    # Stream response
-    async def generator():
-        async for chunk in response:
-            yield chunk.model_dump_json()
+    result = response.choices[0].message.content
 
-    return EventSourceResponse(generator())
+    make_log(
+        Log(
+            username=username,
+            interaction="completion",
+            prompt=prompt,
+            result=result
+        )
+    )
 
+    return result
 
-@app.post("/api/chat-completion")
-async def chat_completion(payload: CompletionRequestPayload):
-    # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
+async def chat_completion(username: str, prompt: str):
+    # 15 is about the length of an average sentence. GPT"s most verbose sentences tend to be about ~30 words maximum.
     word_limit = str(random.randint(15, 30))
 
     # Assign prompt based on whether the document ends with a space for a new paragraph
-    if (payload.prompt[-1] == '\r'):
-        system_chat_prompt = f'You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words.'
+    if (prompt[-1] == "\r"):
+        system_chat_prompt = f"You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words."
     else:
-        system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
-    chat_completion = (await openai_client.chat.completions.create(
-        model=MODEL_NAME,
+        system_chat_prompt = f"You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words."
+    
+    result = await chat(
+        username=username,
         messages=[
             {
                 "role": "system",
@@ -209,323 +232,129 @@ async def chat_completion(payload: CompletionRequestPayload):
                     }
                 ]
             },
-            {'role': 'user',
-             'content': payload.prompt
-             },
-        ],
-        temperature=1,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        stream=True,
-    ))
-
-    # Stream response
-    async def generator():
-        # chunk is a ChatCompletionChunk
-        async for chunk in chat_completion:
-            yield chunk.model_dump_json()
-
-    return EventSourceResponse(generator())
-
-
-@app.post("/api/questions")
-async def question(payload: CompletionRequestPayload):
-    RHETORICAL_SITUATION = ''
-    # QUESTION_PROMPT = 'Ask 3 specific questions based on this sentence. These questions should be able to be re-used as inspiration for writing tasks on the same topic, without having the original text on-hand, and should not imply the existence of the source text. The questions should be no longer than 20 words.'
-
-    # completion = (await openai_client.completions.create(
-    #     model="gpt-3.5-turbo-instruct",
-    #     prompt=str(payload.prompt),
-    #     temperature=1,
-    #     max_tokens=1024,
-    #     top_p=1,
-    #     frequency_penalty=0,
-    #     presence_penalty=0,
-    #     stream=False,
-    #     stop=[".", "!", "?"]
-    # )).choices[0].text
-
-    # Using chat completion
-    # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
-    word_limit = str(random.randint(15, 30))
-
-    # Assign prompt based on whether the document ends with a space for a new paragraph
-    if (payload.prompt[-1] == '\r'):
-        system_chat_prompt = f'You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words.'
-    else:
-        system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
-    completion = (await openai_client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
             {
-                "role": "system",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": system_chat_prompt
-                    }
-                ]
+                "role": "user",
+                "content": prompt
             },
-            {'role': 'user',
-             'content': payload.prompt
-             },
         ],
-        temperature=1,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        stream=False,
-    )).choices[0].message.content
+        temperature=1
+    )
+
+    make_log(
+        Log(
+            username=username,
+            interaction="chat_completion",
+            prompt=prompt,
+            result=result
+        )
+    )
+
+    return result
+
+async def question(username: str, prompt: str):
+    example = await chat_completion(username, prompt)
 
     # Get the completioned sentence and the sentence right before
-    completioned_paragraph = (str(payload.prompt.strip()) + ' ' + completion).split('\n')[-1]
+    completioned_paragraph = (str(prompt.strip()) + " " + example).split("\n")[-1]
+
     final_sentences = list(nlp(completioned_paragraph).sents)
     completioned_sentence = final_sentences[-1].text
 
-    print(completioned_sentence)
+    completion_length = len(example.split())
+    max_length = max(int(completion_length * 0.8), 7)
 
-    completion_length = len(completion.split())
-    max_length = max(int(completion_length*0.8), 7)
+    RHETORICAL_SITUATION = ""
+    QUESTION_PROMPT = f"With the current document in mind:\n\n{prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence. Use no more than {max_length} words."
 
-    QUESTION_PROMPT = f'With the current document in mind:\n\n{payload.prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence. Use no more than {max_length} words.'
+    full_prompt = f"{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completioned_sentence}"
 
-    full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completioned_sentence}'
-    # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
-
-    questions = await openai_client.chat.completions.create(
-        model=MODEL_NAME,
+    questions = await chat(
+        username=username,
         messages=[
-            {'role': 'user', 'content': full_prompt},
+            {"role": "user", "content": full_prompt},
         ],
         temperature=1,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        stream=True
     )
 
-    # Stream response
+    make_log(
+        Log(
+            username=username,
+            interaction="question",
+            prompt=str(prompt),
+            result=questions,
+            example=completioned_sentence
+        )
+    )
 
-    async def generator():
-        full_question = ''
+    try:
+        open(f"./logs/{username}.json", "r+")
+    except:
+        with open(f"./logs/{username}.json", "a+") as f:
+            f.write(json.dumps({
+                "username": username,
+                "interactions": []
+            }))
 
-        # chunk is a ChatCompletionChunk
-        async for chunk in questions:
-            dumped = chunk.model_dump_json()
-            new_chunk = json.loads(dumped)['choices'][0]['delta']['content']
+    with open(f"./logs/{username}.json", "r+") as f:
+        cur_log = json.loads(f.read())
 
-            if new_chunk:
-                full_question += new_chunk
-            elif len(full_question):
-                make_log(
-                    Log(username=payload.username, interaction="question", prompt=str(
-                        payload.prompt), result=full_question, example=completion)
-                )
+        new_log = {
+            "interaction": "question",
+            "prompt": str(prompt),
+            "result": questions,
+            "example": completioned_sentence
+        }
 
-                try:
-                    open(f'./logs/{payload.username}.json', 'r+')
-                except:
-                    with open(f'./logs/{payload.username}.json', 'a+') as f:
-                        f.write(json.dumps({
-                            'username': payload.username,
-                            'interactions': []
-                        }))
+        exists = False
 
-                with open(f'./logs/{payload.username}.json', 'r+') as f:
-                    cur_log = json.loads(f.read())
+        for log in cur_log["interactions"]:
+            if log["interaction"] == "question" and log["prompt"] == str(prompt) and log["result"] == questions:
+                exists = True
 
-                    new_log = {
-                        'interaction': 'question',
-                        'prompt': str(payload.prompt),
-                        'result': full_question,
-                        'example': completion
-                    }
+        if not exists:
+            cur_log["interactions"].append(new_log)
 
-                    exists = False
+    with open(f"./logs/{username}.json", "w") as f:
+        f.write(json.dumps(cur_log))
 
-                    for log in cur_log['interactions']:
-                        if log['interaction'] == 'question' and log['prompt'] == str(payload.prompt) and log['result'] == full_question:
-                            exists = True
+    return questions
 
-                    if not exists:
-                        cur_log['interactions'].append(new_log)
+async def keywords(username: str, prompt: str):
+    completion = await chat_completion(username, prompt)
 
-                with open(f'./logs/{payload.username}.json', 'w') as f:
-                    f.write(json.dumps(cur_log))
+    KEYWORD_POS = ["NOUN", "PROPN", "VERB", "ADJ", "ADV", "INTJ"]
 
-            yield dumped
-
-    return EventSourceResponse(generator())
-
-
-@app.post("/api/keywords")
-async def keywords(payload: CompletionRequestPayload):
-    # completion = (await openai_client.completions.create(
-    #     model="gpt-3.5-turbo-instruct",
-    #     prompt=str(payload.prompt),
-    #     temperature=1,
-    #     max_tokens=1024,
-    #     top_p=1,
-    #     frequency_penalty=0,
-    #     presence_penalty=0,
-    #     stream=False,
-    #     stop=[".", "!", "?"]
-    # )).choices[0].text
-
-    # Using chat completion
-    # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
-    word_limit = str(random.randint(15, 30))
-
-    # Assign prompt based on whether the document ends with a space for a new paragraph
-    if (payload.prompt[-1] == '\r'):
-        system_chat_prompt = f'You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words.'
-    else:
-        system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
-    completion = (await openai_client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
-            {
-                "role": "system",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": system_chat_prompt
-                    }
-                ]
-            },
-            {'role': 'user',
-             'content': payload.prompt
-             },
-        ],
-        temperature=1,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        stream=False,
-    )).choices[0].message.content
-
-    KEYWORD_POS = ['NOUN', 'PROPN', 'VERB', 'ADJ', 'ADV', 'INTJ']
     # Process the text with spaCy
     doc = nlp(completion)
 
     # Extract the words with desired POS tags
-    keywords = [token.text.lower()
-                for token in doc if token.pos_ in KEYWORD_POS]
+    keywords = [
+        token.text.lower() for token in doc if token.pos_ in KEYWORD_POS
+    ]
 
     random.shuffle(keywords)
 
-    keyword_string = ', '.join(keywords)
+    keyword_string = ", ".join(keywords)
 
     return keyword_string
 
-    # full_prompt = f'{KEYWORDS_PROMPT}\n\n{completion}'
-
-    # keywords = await openai_client.chat.completions.create(
-    #     model=MODEL_NAME,
-    #     messages=[
-    #         {'role': 'user', 'content': full_prompt},
-    #     ],
-    #     temperature=0.7,
-    #     max_tokens=1024,
-    #     top_p=1,
-    #     frequency_penalty=0,
-    #     presence_penalty=0,
-    #     stream=True
-    # )
-
-    # # Stream response
-    # async def generator():
-    #     full_keywords = ''
-
-    #     # chunk is a ChatCompletionChunk
-    #     async for chunk in keywords:
-    #         dumped = chunk.model_dump_json()
-    #         new_chunk = json.loads(dumped)['choices'][0]['delta']['content']
-
-    #         if new_chunk:
-    #             full_keywords += new_chunk
-    #         elif len(full_keywords):
-    #             make_log(
-    #                 Log(username="test", interaction="keywords", prompt=str(
-    #                     payload.prompt), result=full_keywords, example=completion)
-    #             )
-
-    #         yield dumped
-
-    # return EventSourceResponse(generator())
-
-
-@app.post("/api/structure")
-async def structure(payload: CompletionRequestPayload):
-    # STRUCTURE_PROMPT = 'Replace informative content words with "blah" but with the same morphological endings ("s", "ing", "ize", etc.)'
-    # STRUCTURE_PROMPT = 'Surround all informative words with curly braces, like {this}.'
-
-    # completion = (await openai_client.completions.create(
-    #     model="gpt-3.5-turbo-instruct",
-    #     prompt=str(payload.prompt),
-    #     temperature=1,
-    #     max_tokens=1024,
-    #     top_p=1,
-    #     frequency_penalty=0,
-    #     presence_penalty=0,
-    #     stream=False,
-    #     stop=[".", "!", "?"]
-    # )).choices[0].text
-
-    # Using chat completion
-    # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
-    word_limit = str(random.randint(15, 30))
-
-    # Assign prompt based on whether the document ends with a space for a new paragraph
-    if (payload.prompt[-1] == '\r'):
-        system_chat_prompt = f'You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words.'
-    else:
-        system_chat_prompt = f'You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words.'
-    completion = (await openai_client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=[
-            {
-                "role": "system",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": system_chat_prompt
-                    }
-                ]
-            },
-            {'role': 'user',
-             'content': payload.prompt
-             },
-        ],
-        temperature=1,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        stream=False,
-    )).choices[0].message.content
-
-    print(completion)
+async def structure(username: str, prompt: str):
+    completion = await chat_completion(username, prompt)
 
     # Load the English language model
     # nlp = spacy.load("en_core_web_sm")
 
     def non_keyword(token):
-        keyword_pos = token.pos_ in ['NOUN', 'PROPN', 'ADJ', 'VERB']
-        vbz = token.tag_ == 'VBZ'
-        ly_word = token.text[-2:] == 'ly'
+        keyword_pos = token.pos_ in ["NOUN", "PROPN", "ADJ", "VERB"]
+        vbz = token.tag_ == "VBZ"
+        ly_word = token.text[-2:] == "ly"
         return not (keyword_pos or ly_word) or vbz
 
     # Process the text with spaCy
     processedText = nlp(completion)
 
     # Remove words with desired POS tags
-    filtered_text = ' '.join([
+    filtered_text = " ".join([
         token.text if non_keyword(token)
         else obscure(token)
         for token in processedText
@@ -533,74 +362,11 @@ async def structure(payload: CompletionRequestPayload):
 
     return filtered_text
 
-    # # Get the last sentence in the last paragraph of the document
-    # final_paragraph = str(payload.prompt).split('\n')[-1]
-    # final_sentence = list(nlp(final_paragraph).sents)[-1].text
-
-    # # If the last sentence of the document was incomplete (i.e. the completion is part of it), combine.
-    # if not is_full_sentence(final_sentence):
-    #     completion = final_sentence + completion + '.'
-
-    # full_prompt = f'{STRUCTURE_PROMPT}\n\n{completion}'
-
-    # structure = await openai_client.chat.completions.create(
-    #     model=MODEL_NAME,
-    #     messages=[
-    #         {'role': 'user', 'content': full_prompt},
-    #     ],
-    #     temperature=0.7,
-    #     max_tokens=1024,
-    #     top_p=1,
-    #     frequency_penalty=0,
-    #     presence_penalty=0,
-    #     stream=True
-    # )
-
-    # # Stream response
-    # async def generator():
-    #     full_structure = ''
-
-    #     # chunk is a ChatCompletionChunk
-    #     async for chunk in structure:
-    #         dumped = chunk.model_dump_json()
-    #         new_chunk = json.loads(dumped)['choices'][0]['delta']['content']
-
-    #         if new_chunk:
-    #             full_structure += new_chunk
-    #         elif len(full_structure):
-    #             make_log(
-    #                 Log(username="test", interaction="structure", prompt=str(
-    #                     payload.prompt), result=full_structure, example=completion)
-    #             )
-
-    #         yield dumped
-    # return EventSourceResponse(generator())
-
-
-@app.post("/log")
-async def log_feedback(payload: Log):
-    make_log(payload)
-
-    return {"message": "Feedback logged successfully."}
-
-# Show all server logs
-
-
-@app.get("/logs")
-async def logs():
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM logs")
-
-        result = c.fetchall()
-
-    return result
-
-static_path = Path('../add-in/dist')
+static_path = Path("../add-in/dist")
 if static_path.exists():
     @app.get("/")
     def index():
-        return FileResponse(static_path / 'index.html')
+        return FileResponse(static_path / "index.html")
 
     # Get access to files on the server. Only for a production build.
     app.mount("", StaticFiles(directory=static_path), name="static")
@@ -610,4 +376,4 @@ else:
 
 
 if __name__ == "__main__":
-    uvicorn.run('server:app', host="localhost", port=PORT, reload=False)
+    uvicorn.run("server:app", host="localhost", port=PORT, reload=False)

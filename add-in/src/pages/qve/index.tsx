@@ -159,7 +159,6 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getQuestions(contextText: string) {
-		generation = '';
 		updateGeneration('');
 
 		// eslint-disable-next-line no-console
@@ -170,35 +169,22 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		await fetchEventSource(`${SERVER_URL}/questions`, {
+		const response = await fetch(`${SERVER_URL}/generation`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				prompt: sanitize(contextText),
-                username: username
+                username: username,
+                gtype: 'question',
+				prompt: sanitize(contextText)
 			}),
-			onmessage(msg) {
-				const message = JSON.parse(msg.data);
-				const choice = message.choices[0];
-
-				if (choice.finish_reason === 'stop') {
-					setIsLoading(false);
-					return;
-				}
-
-				generation += choice.delta.content;
-				updateGeneration(generation);
-			},
-			onerror(err) {
-				// eslint-disable-next-line no-console
-				console.error(err);
-
-				// rethrow to avoid infinite retry.
-				throw err;
-			}
 		});
+
+        const question = await response.json();
+
+        updateGeneration(question);
+        setIsLoading(false);
 	}
 
 	/**
@@ -209,7 +195,6 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getExamples(contextText: string) {
-		generation = '';
 		updateGeneration('');
 
 		// eslint-disable-next-line no-console
@@ -220,35 +205,22 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		await fetchEventSource(`${SERVER_URL}/chat-completion`, {
+		const response = await fetch(`${SERVER_URL}/generation`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				prompt: sanitize(contextText),
-                username: username
+                username: username,
+                gtype: 'chat_completion',
+				prompt: sanitize(contextText)
 			}),
-			onmessage(msg) {
-				const message = JSON.parse(msg.data);
-				const choice = message.choices[0];
-
-				if (choice.finish_reason === 'stop') {
-					setIsLoading(false);
-					return;
-				}
-
-				generation += choice.delta.content;
-				updateGeneration(generation + choice.delta.content.slice(0, -1));
-			},
-			onerror(err) {
-				// eslint-disable-next-line no-console
-				console.error(err);
-
-				// rethrow to avoid infinite retry.
-				throw err;
-			}
 		});
+
+        const example = await response.json();
+
+        updateGeneration(example);
+        setIsLoading(false);
 	}
 
 	/**
@@ -259,7 +231,6 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getKeywords(contextText: string) {
-		generation = '';
 		updateGeneration('');
 
 		// eslint-disable-next-line no-console
@@ -270,20 +241,21 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		const response = await fetch(`${SERVER_URL}/keywords`, {
+		const response = await fetch(`${SERVER_URL}/generation`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				prompt: sanitize(contextText),
-                username: username
-			})
+                username: username,
+                gtype: 'keywords',
+				prompt: sanitize(contextText)
+			}),
 		});
 
-        const result = await response.json();
+        const keywords = await response.json();
 
-        updateGeneration(result);
+        updateGeneration(keywords);
         setIsLoading(false);
 	}
 
@@ -295,7 +267,6 @@ export default function QvE() {
 	 * @param {string}
 	 */
 	async function getStructure(contextText: string) {
-		generation = '';
 		updateGeneration('');
 
 		// eslint-disable-next-line no-console
@@ -306,20 +277,21 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		const response = await fetch(`${SERVER_URL}/structure`, {
+		const response = await fetch(`${SERVER_URL}/generation`, {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				prompt: sanitize(contextText),
-                username: username
+                username: username,
+                gtype: 'structure',
+				prompt: sanitize(contextText)
 			})
 		});
 
-        const result = await response.json();
+        const structure = await response.json();
 
-        updateGeneration(result);
+        updateGeneration(structure);
         setIsLoading(false);
 	}
 
