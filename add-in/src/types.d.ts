@@ -5,11 +5,9 @@ interface ChatMessage {
 	content: string;
 }
 
-interface HistoryItem {
+interface SavedItem {
     document: string;
-    generations: {
-        generation: string
-        type: string;
-        dateSaved: Date;
-    }[];
+    generation: string
+    type: string;
+    dateSaved: Date;
 }

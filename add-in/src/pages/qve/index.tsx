@@ -2,8 +2,6 @@ import { useState, useEffect, useContext } from 'react';
 
 import { UserContext } from '@/contexts/userContext';
 
-import { fetchEventSource } from '@microsoft/fetch-event-source';
-
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
 import { Toggle } from '@fluentui/react/lib/Toggle';
@@ -41,7 +39,8 @@ export default function QvE() {
 	const [saved, setSaved] = useState(false);
 
 	// State for saved page
-	const [historyOpen, setHistoryOpen] = useState(false);
+	const [isSavedOpen, setSavedOpen] = useState(false);
+    const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 
 	// Tooltip visibility
 	const [isExampleTooltipVisible, setExampleTooltipVisible] = useState(false);
@@ -49,12 +48,12 @@ export default function QvE() {
 	const [isKeywordsTooltipVisible, setKeywordsTooltipVisible] = useState(false);
 	const [isStructureTooltipVisible, setStructureTooltipVisible] = useState(false);
 
-	const [isHistoryTooltipVisible, setHistoryTooltipVisible] = useState(false);
+	const [isSaveTooltipVisible, setSaveTooltipVisible] = useState(false);
 	const [isCloseTooltipVisible, setCloseTooltipVisible] = useState(false);
 	const [isCopyTooltipVisible, setCopyTooltipVisible] = useState(false);
 
 	// eslint-disable-next-line prefer-const
-	let [generation, updateGeneration] = useState('');
+	const [generation, updateGeneration] = useState('');
 
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
@@ -63,59 +62,34 @@ export default function QvE() {
 	const IS_SWITCH_VISIBLE = false;
 	const IS_EXPERIMENTAL = true;
 
-    function getHistory(): HistoryItem[] {
-        return JSON.parse(localStorage.getItem('history') || '[]');
-    }
+    function save(generation: string, generationType: string, document: string) {
+        const newSaved = [...savedItems];
 
-    function saveToHistory(generation: string, generationType: string, document: string) {
-        const history = getHistory();
+        if(
+            newSaved.filter(
+                item => item.generation === generation && item.document === document
+            ).length > 0
+        )
+            return;
 
-        if (!history.filter(item => item.document === document).length)
-            history.push(
-                {
-                    document: document,
-                    generations: []
-                }
-            );
-        else
-            if(
-                history.filter(
-                    item => item.document === document
-                )[0].generations.filter(
-                    generationItem => generationItem.generation === generation
-                ).length > 0
-            ) return;
-
-        history.filter(item => item.document === document)[0].generations.push(
+        newSaved.push(
             {
+                document: document,
                 generation: generation,
                 type: generationType,
                 dateSaved: new Date()
             }
         );
 
-        localStorage.setItem('history', JSON.stringify(history));
+        updateSavedItems(newSaved);
     }
 
-    function deleteHistoryItem(dateSaved: Date) {
-        const history = getHistory();
-
-
-        const newHistory = history.map(
-            historyItem => (
-                {
-                    document: historyItem.document,
-                    generations: historyItem.generations.filter(
-                        generationItem => {
-                            return generationItem.dateSaved !== dateSaved;
-                        }
-                    )   
-                }
-            )
+    function deleteSavedItem(dateSaved: Date) {
+        const newSaved = [...savedItems].filter(
+            savedItem => savedItem.dateSaved !== dateSaved
         );
 
-        localStorage.setItem('history', JSON.stringify(newHistory));
-        setHistoryOpen(false);
+        updateSavedItems(newSaved);
     }
 
 	/**
@@ -477,6 +451,7 @@ export default function QvE() {
 								>
 									<AiOutlineHighlight />
 								</button>
+
 								{ isKeywordsTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_k].join(' ') }>Get New Keywords</div> }
 
 								<button
@@ -497,13 +472,12 @@ export default function QvE() {
 								>
 									<AiOutlineBank />
 								</button>
+
 								{ isStructureTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_s].join(' ') }>Get New Structure</div> }
 							</>
 					) }
 				</div>
 			</div>
-
-			{ /* <div>{ cursorSentence ? cursorSentence : 'Nothing selected' }</div> */ }
 			
 			<div>
 				<div
@@ -511,10 +485,12 @@ export default function QvE() {
 				>
 					{ results }
 				</div>
+
 				<div className={ classes.utilsContainer }>
 					{ copied && (
 						<div className={ classes.utilStateWrapper }>
 							<div className={ classes.copiedStateText }>Copied!</div>
+
 							<FcCheckmark />
 						</div>
 					) }
@@ -524,6 +500,7 @@ export default function QvE() {
 							<div className={ classes.savedStateText }>
 								Saved
 							</div>
+
 							<AiOutlineSave className={ classes.savedStateIcon } />
 						</div>
 					) }
@@ -542,6 +519,7 @@ export default function QvE() {
 							>
 								<AiOutlineClose className={ classes.closeIcon } />
 							</div>
+
 							{ isCloseTooltipVisible && <div className={ [classes.utilTooltip, classes.utilTooltip_close].join(' ') }>Close</div> }
 
 							{ (generation && !isLoading) && (
@@ -567,17 +545,17 @@ export default function QvE() {
 										className={ classes.utilIconWrapper }
 										onClick={ () => {
 											// Save the generation
-											saveToHistory(generation, generationMode, docText);
+											save(generation, generationMode, docText);
 
 											setSaved(true);
 											setTimeout(() => setSaved(false), 2000);
 										} }
-										onMouseEnter={ () => setHistoryTooltipVisible(true) }
-										onMouseLeave={ () => setHistoryTooltipVisible(false) }
+										onMouseEnter={ () => setSaveTooltipVisible(true) }
+										onMouseLeave={ () => setSaveTooltipVisible(false) }
 									>
 										<AiOutlineStar className={ saved ? classes.saved : classes.saveIcon } />
 									</div>
-									{ isHistoryTooltipVisible && <div className={ [classes.utilTooltip, classes.utilTooltip_save].join(' ') }>Save</div> }
+									{ isSaveTooltipVisible && <div className={ [classes.utilTooltip, classes.utilTooltip_save].join(' ') }>Save</div> }
 								</>
 							) }
 							</div>
@@ -587,11 +565,11 @@ export default function QvE() {
 				<div className={ classes.historyContainer }>
 					<div className={ classes.historyButtonWrapper }>
 						<button
-							className={ historyOpen ? classes.historyButtonActive : classes.historyButton }
+							className={ isSavedOpen ? classes.historyButtonActive : classes.historyButton }
 							disabled={ docText === '' || isLoading }
 							onClick={ () => {
 								// Toggle between the current page and the saved page
-								setHistoryOpen(!historyOpen);
+								setSavedOpen(!isSavedOpen);
 							} }
 						>
 							Saved
@@ -600,57 +578,40 @@ export default function QvE() {
                     
 					<div className={ classes.historyItemContainer }>
 						{
-                            (
-                                historyOpen &&
-                                (
-                                    getHistory().length === 0 || getHistory().filter(historyItem => historyItem.generations.length > 0).length === 0
-                                )
-                            ) &&
+                            (isSavedOpen && savedItems.length === 0) ?
                             (
                                 <div className={ classes.historyEmptyWrapper }>
                                     <div className={ classes.historyText }>No saved generations...</div>
                                 </div>
 						    )
-                        }
-          
-						{
-                            historyOpen &&
+                            :
                             (
-                                getHistory().length > 0 && getHistory().filter(historyItem => historyItem.generations.length > 0).length > 0
-                            )
-                            && getHistory().map((historyItem, index) => (
-                                <div key={ index } className={ classes.historyItem }>
-                                    <div className={ classes.historyText }>
-                                        <p
-                                            className={ classes.historyDoc }
-                                            onClick={
-                                                () => {
-                                                    // Show the whole document text
+                                savedItems.map((savedItem, index) => (
+                                    <div key={ index } className={ classes.historyItem }>
+                                        <div className={ classes.historyText }>
+                                            <p
+                                                className={ classes.historyDoc }
+                                                onClick={
+                                                    () => {
+                                                        // Show the whole document text
+                                                    }
                                                 }
-                                            }
-                                        >
-                                            { historyItem.document.substring(0, 100) }...
-                                        </p>
-                                        
-                                        <ul>
-                                            {
-                                                historyItem.generations.map((generationItem, index) => (
-                                                    <li key={ index }>
-                                                        <p>{ generationItem.generation }</p>
-
-                                                        <div
-                                                            className={ classes.historyCloseButtonWrapper }
-                                                            onClick={ () => deleteHistoryItem(generationItem.dateSaved) }
-                                                        >
-                                                            <AiOutlineClose className={ classes.historyCloseButton } />
-                                                        </div>
-                                                    </li>   
-                                                ))
-                                            }
-                                        </ul>
+                                            >
+                                                { savedItem.document.substring(0, 100) }...
+                                            </p>
+                                            
+                                            <p>{ savedItem.generation }</p>
+    
+                                            <div
+                                                className={ classes.historyCloseButtonWrapper }
+                                                onClick={ () => deleteSavedItem(savedItem.dateSaved) }
+                                            >
+                                                <AiOutlineClose className={ classes.historyCloseButton } />
+                                            </div>
+                                        </div>
                                     </div>
-                                </div>
-						    ))
+                                ))
+                            )
                         }
 					</div>
 				</div>
