@@ -93,7 +93,7 @@ module.exports = async (env, options) => {
 						to: '[name][ext]'
 					},
 					{
-						from: 'manifest*.xml',
+						from: 'manifest.xml',
 						to: '[name]' + '[ext]',
 						transform(content) {
 							if (dev) return content;
