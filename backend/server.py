@@ -131,6 +131,33 @@ def make_log(payload: Log):
             (payload.username, payload.interaction,
              payload.prompt, payload.result, payload.example),
         )
+    
+    try:
+        open(f"./logs/{payload.username}.json", "r+")
+    except:
+        with open(f"./logs/{payload.username}.json", "a+") as f:
+            f.write(json.dumps({
+                "username": payload.username,
+                "interactions": []
+            }))
+
+    with open(f"./logs/{payload.username}.json", "r+") as f:
+        cur_log = json.loads(f.read())
+
+        new_log = payload.dict()
+        del new_log['username']
+
+        exists = False
+
+        for log in cur_log["interactions"]:
+            if log["interaction"] == "question" and log["prompt"] == str(payload.prompt) and log["result"] == payload.result:
+                exists = True
+
+        if not exists:
+            cur_log["interactions"].append(new_log)
+
+    with open(f"./logs/{payload.username}.json", "w") as f:
+        f.write(json.dumps(cur_log))
 
 def is_full_sentence(sentence):
     sentence += " AND"
@@ -286,37 +313,6 @@ async def question(username: str, prompt: str):
         )
     )
 
-    try:
-        open(f"./logs/{username}.json", "r+")
-    except:
-        with open(f"./logs/{username}.json", "a+") as f:
-            f.write(json.dumps({
-                "username": username,
-                "interactions": []
-            }))
-
-    with open(f"./logs/{username}.json", "r+") as f:
-        cur_log = json.loads(f.read())
-
-        new_log = {
-            "interaction": "question",
-            "prompt": str(prompt),
-            "result": questions,
-            "example": completioned_sentence
-        }
-
-        exists = False
-
-        for log in cur_log["interactions"]:
-            if log["interaction"] == "question" and log["prompt"] == str(prompt) and log["result"] == questions:
-                exists = True
-
-        if not exists:
-            cur_log["interactions"].append(new_log)
-
-    with open(f"./logs/{username}.json", "w") as f:
-        f.write(json.dumps(cur_log))
-
     return questions
 
 async def keywords(username: str, prompt: str):
@@ -335,6 +331,15 @@ async def keywords(username: str, prompt: str):
     random.shuffle(keywords)
 
     keyword_string = ", ".join(keywords)
+
+    make_log(
+        Log(
+            username=username,
+            interaction="keywords",
+            prompt=prompt,
+            result=keyword_string
+        )
+    )
 
     return keyword_string
 
@@ -359,6 +364,15 @@ async def structure(username: str, prompt: str):
         else obscure(token)
         for token in processedText
     ])
+
+    make_log(
+        Log(
+            username=username,
+            interaction="structure",
+            prompt=prompt,
+            result=filtered_text
+        )
+    )
 
     return filtered_text
 
