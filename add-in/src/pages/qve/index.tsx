@@ -505,7 +505,7 @@ export default function QvE() {
 						</div>
 					) }
 
-					{ generationMode !== 'None' && !isLoading && (
+					{ (generationMode !== 'None' && !isLoading && generation) && (
 						<div className={ classes.buttonsWrapper }>
 							<div
 								className={ classes.utilIconWrapper }
@@ -521,45 +521,40 @@ export default function QvE() {
 							</div>
 
 							{ isCloseTooltipVisible && <div className={ [classes.utilTooltip, classes.utilTooltip_close].join(' ') }>Close</div> }
-
-							{ (generation && !isLoading) && (
-								<>
-									<div
-										className={ classes.utilIconWrapper }
-										onClick={ () => {
-											// Copy the text to the clipboard
-											// This will only work (for Chrome) for secure contexts (https)
-											// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
-											navigator.clipboard.writeText(generation.trim());
-											setCopied(true);
-											setTimeout(() => setCopied(false), 2000);
-										} }
-										onMouseEnter={ () => setCopyTooltipVisible(true) }
-										onMouseLeave={ () => setCopyTooltipVisible(false) }
-									>
-										<AiOutlineCopy className={ classes.copyIcon } />
-									</div>
-									{ isCopyTooltipVisible && <div className={ [classes.utilTooltip, classes.utilTooltip_copy].join(' ') }>Copy</div> }
-
-									<div
-										className={ classes.utilIconWrapper }
-										onClick={ () => {
-											// Save the generation
-											save(generation, generationMode, docText);
-
-											setSaved(true);
-											setTimeout(() => setSaved(false), 2000);
-										} }
-										onMouseEnter={ () => setSaveTooltipVisible(true) }
-										onMouseLeave={ () => setSaveTooltipVisible(false) }
-									>
-										<AiOutlineStar className={ saved ? classes.saved : classes.saveIcon } />
-									</div>
-									{ isSaveTooltipVisible && <div className={ [classes.utilTooltip, classes.utilTooltip_save].join(' ') }>Save</div> }
-								</>
-							) }
+							<div
+								className={ classes.utilIconWrapper }
+								onClick={ () => {
+									// Copy the text to the clipboard
+									// This will only work (for Chrome) for secure contexts (https)
+									// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
+									navigator.clipboard.writeText(generation.trim());
+									setCopied(true);
+									setTimeout(() => setCopied(false), 2000);
+								} }
+								onMouseEnter={ () => setCopyTooltipVisible(true) }
+								onMouseLeave={ () => setCopyTooltipVisible(false) }
+							>
+								<AiOutlineCopy className={ classes.copyIcon } />
 							</div>
-						) }
+							{ isCopyTooltipVisible && <div className={ [classes.utilTooltip, classes.utilTooltip_copy].join(' ') }>Copy</div> }
+
+							<div
+								className={ classes.utilIconWrapper }
+								onClick={ () => {
+									// Save the generation
+									save(generation, generationMode, docText);
+
+									setSaved(true);
+									setTimeout(() => setSaved(false), 2000);
+								} }
+								onMouseEnter={ () => setSaveTooltipVisible(true) }
+								onMouseLeave={ () => setSaveTooltipVisible(false) }
+							>
+								<AiOutlineStar className={ saved ? classes.saved : classes.saveIcon } />
+							</div>
+							{ isSaveTooltipVisible && <div className={ [classes.utilTooltip, classes.utilTooltip_save].join(' ') }>Save</div> }
+						</div>
+					) }
 				</div>
 
 				<div className={ classes.historyContainer }>
