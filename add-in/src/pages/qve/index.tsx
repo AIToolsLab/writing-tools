@@ -578,41 +578,41 @@ export default function QvE() {
                     
 					<div className={ classes.historyItemContainer }>
 						{
-                            (isSavedOpen && savedItems.length === 0) ?
-                            (
-                                <div className={ classes.historyEmptyWrapper }>
-                                    <div className={ classes.historyText }>No saved generations...</div>
-                                </div>
-						    )
-                            :
-                            (
-                                savedItems.map((savedItem, index) => (
-                                    <div key={ index } className={ classes.historyItem }>
-                                        <div className={ classes.historyText }>
-                                            <p
-                                                className={ classes.historyDoc }
-                                                onClick={
-                                                    () => {
-                                                        // Show the whole document text
-                                                    }
-                                                }
-                                            >
-                                                { savedItem.document.substring(0, 100) }...
-                                            </p>
-                                            
-                                            <p>{ savedItem.generation }</p>
-    
-                                            <div
-                                                className={ classes.historyCloseButtonWrapper }
-                                                onClick={ () => deleteSavedItem(savedItem.dateSaved) }
-                                            >
-                                                <AiOutlineClose className={ classes.historyCloseButton } />
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))
-                            )
-                        }
+							(isSavedOpen && savedItems.length === 0) ?
+								(
+									<div className={ classes.historyEmptyWrapper }>
+										<div className={ classes.historyText }>No saved generations...</div>
+									</div>
+								)
+								:
+								(isSavedOpen && savedItems.length !== 0) && (
+									savedItems.map((savedItem, index) => (
+										<div key={ index } className={ classes.historyItem }>
+											<div className={ classes.historyText }>
+												<p
+													className={ classes.historyDoc }
+													onClick={
+														() => {
+															// Show the whole document text
+														}
+													}
+												>
+													{ savedItem.document.substring(0, 100) }...
+												</p>
+												
+												<p>{ savedItem.generation }</p>
+
+												<div
+													className={ classes.historyCloseButtonWrapper }
+													onClick={ () => deleteSavedItem(savedItem.dateSaved) }
+											>
+													<AiOutlineClose className={ classes.historyCloseButton } />
+												</div>
+											</div>
+										</div>
+									))
+								)
+							}
 					</div>
 				</div>
 			</div>
