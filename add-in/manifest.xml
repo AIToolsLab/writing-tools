@@ -5,7 +5,7 @@
     xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
     xsi:type="TaskPaneApp">
     <Id>46d2493d-60db-4522-b2aa-e6f2c08d2508</Id>
-    <Version>1.0.0.0</Version>
+    <Version>1.0.0.1</Version>
     <ProviderName>Textfocals</ProviderName>
     <DefaultLocale>en-US</DefaultLocale>
     <DisplayName DefaultValue="Textfocals" />
