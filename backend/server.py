@@ -282,8 +282,7 @@ async def question(payload: CompletionRequestPayload):
 
     # Get the completioned sentence and the sentence right before
     completioned_paragraph = (str(payload.prompt.strip()) + ' ' + completion).split('\n')[-1]
-    final_sentences = list(nlp(completioned_paragraph).sents)[-2:]
-    penult_sentence = final_sentences[-2].text
+    final_sentences = list(nlp(completioned_paragraph).sents)
     completioned_sentence = final_sentences[-1].text
 
     print(completioned_sentence)
@@ -291,7 +290,7 @@ async def question(payload: CompletionRequestPayload):
     completion_length = len(completion.split())
     max_length = max(int(completion_length*0.8), 7)
 
-    QUESTION_PROMPT = f'With the current sentence in mind:\n\n{penult_sentence}\n\nWrite a question that would inspire the ideas expressed in the next given sentence. Use no more than {max_length} words.'
+    QUESTION_PROMPT = f'With the current document in mind:\n\n{payload.prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence. Use no more than {max_length} words.'
 
     full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completioned_sentence}'
     # full_prompt = f'{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n{payload.prompt}\n<start>\n{example}\n<end>'
