@@ -611,11 +611,11 @@ export default function QvE() {
 													<AiOutlineClose className={ classes.historyCloseButton } />
 												</div>
 												<div className={ classes.genTypeIconWrapper }>
-													{ generationMode === 'Examples'
-														? <AiOutlineAlignLeft className={ classes.savedTypeIcon }/> : generationMode === 'Questions'
-														? <AiOutlineQuestion className={ classes.savedTypeIcon }/> : generationMode === 'Keywords'
-														? <AiOutlineHighlight className={ classes.savedTypeIcon }/> : generationMode === 'Structure'
-														? <AiOutlineBank className={ classes.savedTypeIcon }/> : null
+													{ savedItem.type === 'Examples' ? <AiOutlineAlignLeft className={ classes.savedTypeIcon }/>
+														: savedItem.type === 'Questions' ? <AiOutlineQuestion className={ classes.savedTypeIcon }/>
+														: savedItem.type === 'Keywords' ? <AiOutlineHighlight className={ classes.savedTypeIcon }/>
+														: savedItem.type === 'Structure' ? <AiOutlineBank className={ classes.savedTypeIcon }/>
+														: null
 													}
 												</div>
 											</div>
