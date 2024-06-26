@@ -6,8 +6,6 @@ import sqlite3
 from openai import AsyncOpenAI
 import uvicorn
 
-from nltk import LancasterStemmer
-from nltk.tokenize import SyllableTokenizer
 import spacy
 
 from typing import List, Dict, Optional
@@ -167,25 +165,19 @@ def is_full_sentence(sentence):
 
     return num_segments > 1
 
-def last_syllable(word):
-    syllable_tokenizer = SyllableTokenizer()
-    syllables = syllable_tokenizer.tokenize(word)
-
-    return syllables[-1]
-
 def obscure(token):
     word = token.text
     word = word.lower()
 
-    stem = LancasterStemmer().stem(word)
-    suffix = word[len(stem):]
-
-    remainder = last_syllable(suffix)
-
-    if len(remainder) > 1:
-        return "·" * random.randint(4, 7) + remainder
-    else:
-        return "·" * random.randint(4, 7)
+    if token.pos_ == "VERB":
+        if (token.tag_ == "VBD" or token.tag_ == "VBN") and word.endswith("ed"):
+            return 'ˍ' * (len(word) - 2) + "ed"
+        elif token.tag_ == "VBG":
+            return 'ˍ' * (len(word) - 3) + "ing"
+        else:
+            return word
+    
+    return '·' * len(word)
 
 async def chat(username: str, messages: List[Dict[str, str]], temperature: float):
     response = await openai_client.chat.completions.create(
