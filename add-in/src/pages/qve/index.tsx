@@ -597,7 +597,7 @@ export default function QvE() {
 														}
 													}
 												>
-													{ savedItem.document.substring(0, 100) }...
+													{ savedItem.document.substring(0, 50) }<br />...<br />{ savedItem.document.substring(savedItem.document.length-50) }
 												</p>
 												
 												<p>{ savedItem.generation }</p>
