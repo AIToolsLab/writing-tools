@@ -8,7 +8,7 @@ import uvicorn
 from typing import List, Dict, Optional
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -26,6 +26,8 @@ from nlp import (
 # Load ENV vars
 load_dotenv()
 
+ENABLE_GEMMA = os.getenv("ENABLE_GEMMA", "false").lower() == "true"
+
 
 # Lifespan events for LLMs
 from contextlib import asynccontextmanager
@@ -34,19 +36,17 @@ ml_models = {}
 @asynccontextmanager
 async def models_lifespan(app: FastAPI):
     import torch
-    from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
-
-    #quantization_config = BitsAndBytesConfig(load_in_4bit=True)
-    # Load Gemma
+    from transformers import AutoTokenizer, AutoModelForCausalLM
 
     model_name = 'google/gemma-1.1-7b-it'
-    #torch.cuda.set_per_process_memory_fraction(0.5)
 
-    ml_models["gemma"] = gemma = {
-        'tokenizer': AutoTokenizer.from_pretrained(model_name),
-        'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto", torch_dtype=torch.bfloat16)#quantization_config=quantization_config)
-    }
-    print(gemma['model'].hf_device_map)
+    if ENABLE_GEMMA:
+        ml_models["gemma"] = gemma = {
+            'tokenizer': AutoTokenizer.from_pretrained(model_name),
+            'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto", torch_dtype=torch.bfloat16)#quantization_config=quantization_config)
+        }
+        print("Loaded Gemma with device map:")
+        print(gemma['model'].hf_device_map)
 
     yield
 
@@ -235,6 +235,9 @@ def get_highlights(doc: str, prompt: Optional[str] = None, updated_doc: Optional
     url.searchParams.append('updated_doc', 'This is a test document.')
     let response = await fetch(url)
     '''
+    if not ENABLE_GEMMA:
+        raise HTTPException(status_code=404, detail="This service is not enabled.")
+
     import torch
 
     gemma = ml_models['gemma']
@@ -287,6 +290,9 @@ def get_next_token_predictions(original_doc: str,
                                prompt: str,
                                doc_in_progress: str,
                                k: Optional[int] = 5):
+    if not ENABLE_GEMMA:
+        raise HTTPException(status_code=404, detail="This service is not enabled.")
+
     import torch
 
     model = ml_models['gemma']['model']
