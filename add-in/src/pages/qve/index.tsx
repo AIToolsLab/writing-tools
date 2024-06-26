@@ -308,7 +308,7 @@ export default function QvE() {
 		results = (
             <div className={ classes.initTextWrapper }>
                 <div className={ classes.initText }>
-                    Click button to generate question or example...
+                    Click button to generate a suggestion..
                 </div>
             </div>
         );
