@@ -10,8 +10,8 @@
     <DefaultLocale>en-US</DefaultLocale>
     <DisplayName DefaultValue="Textfocals" />
     <Description DefaultValue="Get the reflections you want on your writing." />
-    <IconUrl DefaultValue="https://textfocals.com/assets/logo.jpeg" />
-    <HighResolutionIconUrl DefaultValue="https://textfocals.com/assets/logo.jpeg" />
+    <IconUrl DefaultValue="https://textfocals.com/assets/logo.png" />
+    <HighResolutionIconUrl DefaultValue="https://textfocals.com/assets/logo.png" />
     <SupportUrl DefaultValue="https://textfocals.com" />
     <AppDomains>
         <AppDomain>https://textfocals.com</AppDomain>
@@ -68,11 +68,11 @@
         <Resources>
             <bt:Images>
                 <bt:Image id="Icon.16x16"
-                    DefaultValue="https://textfocals.com/assets/logo.jpeg" />
+                    DefaultValue="https://textfocals.com/assets/logo.png" />
                 <bt:Image id="Icon.32x32"
-                    DefaultValue="https://textfocals.com/assets/logo.jpeg" />
+                    DefaultValue="https://textfocals.com/assets/logo.png" />
                 <bt:Image id="Icon.80x80"
-                    DefaultValue="https://textfocals.com/assets/logo.jpeg" />
+                    DefaultValue="https://textfocals.com/assets/logo.png" />
             </bt:Images>
             <bt:Urls>
                 <bt:Url id="GetStarted.LearnMoreUrl"
