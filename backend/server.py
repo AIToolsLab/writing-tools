@@ -352,7 +352,7 @@ async def structure(username: str, prompt: str):
     def non_keyword(token):
         keyword_pos = token.pos_ in ["NOUN", "PROPN", "ADJ", "VERB"]
         vbz = token.tag_ == "VBZ"
-        ly_word = token.text[-2:] == "ly"
+        ly_word = token.text[-2:] == "ly" and token.pos_ == "ADV"
         return not (keyword_pos or ly_word) or vbz
 
     # Process the text with spaCy
