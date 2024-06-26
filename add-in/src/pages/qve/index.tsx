@@ -602,12 +602,12 @@ export default function QvE() {
 												
 												<p>{ savedItem.generation }</p>
 
-												<div
-													className={ classes.historyCloseButtonWrapper }
-													onClick={ () => deleteSavedItem(savedItem.dateSaved) }
+											</div>
+											<div
+												className={ classes.historyCloseButtonWrapper }
+												onClick={ () => deleteSavedItem(savedItem.dateSaved) }
 											>
-													<AiOutlineClose className={ classes.historyCloseButton } />
-												</div>
+												<AiOutlineClose className={ classes.historyCloseButton } />
 											</div>
 										</div>
 									))

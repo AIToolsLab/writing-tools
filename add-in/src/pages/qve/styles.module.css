@@ -416,10 +416,16 @@
 }
 
 .historyDoc {
-    cursor: pointer;
-    transition: 0.15s;
+	cursor: pointer;
+	transition: 0.15s;
+	color: #888888;
+	margin-bottom: 4px;
 }
 
 .historyDoc:hover {
-    color: #059212;
+	color: #059212;
+}
+
+p {
+	margin: 0;
 }
