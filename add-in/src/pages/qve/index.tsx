@@ -603,11 +603,21 @@ export default function QvE() {
 												<p>{ savedItem.generation }</p>
 
 											</div>
-											<div
-												className={ classes.historyCloseButtonWrapper }
-												onClick={ () => deleteSavedItem(savedItem.dateSaved) }
-											>
-												<AiOutlineClose className={ classes.historyCloseButton } />
+											<div className={ classes.savedIconsContainer }>
+												<div
+													className={ classes.historyCloseButtonWrapper }
+													onClick={ () => deleteSavedItem(savedItem.dateSaved) }
+												>
+													<AiOutlineClose className={ classes.historyCloseButton } />
+												</div>
+												<div className={ classes.genTypeIconWrapper }>
+													{ generationMode === 'Examples'
+														? <AiOutlineAlignLeft className={ classes.savedTypeIcon }/> : generationMode === 'Questions'
+														? <AiOutlineQuestion className={ classes.savedTypeIcon }/> : generationMode === 'Keywords'
+														? <AiOutlineHighlight className={ classes.savedTypeIcon }/> : generationMode === 'Structure'
+														? <AiOutlineBank className={ classes.savedTypeIcon }/> : null
+													}
+												</div>
 											</div>
 										</div>
 									))

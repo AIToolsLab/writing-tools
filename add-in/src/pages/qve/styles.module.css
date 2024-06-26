@@ -373,12 +373,29 @@
     list-style-type: circle;
 }
 
+.savedIconsContainer {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+}
+
 .historyCloseButtonWrapper {
 	align-items: center;
 	align-content: center;
 	justify-content: center;
 	margin-left: auto;
 	margin-bottom: auto;
+	border-radius: 12px;
+	transition: 0.15s;
+}
+
+.genTypeIconWrapper {
+	align-items: center;
+	align-content: center;
+	justify-content: center;
+	margin-left: auto;
+	margin-top: auto;
 	border-radius: 12px;
 	transition: 0.15s;
 }
@@ -393,6 +410,16 @@
 	padding: 4px;
 	display: flex;
 	color: #666666;
+	justify-content: right;
+	align-items: center;
+	transition: 0.5s;
+}
+
+.savedTypeIcon {
+	border-radius: 12px;
+	padding: 4px;
+	display: flex;
+	color: #888888;
 	justify-content: right;
 	align-items: center;
 	transition: 0.5s;
