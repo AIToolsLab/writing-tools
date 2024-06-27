@@ -408,10 +408,11 @@ export default function QvE() {
 									onMouseEnter={ () => setExampleTooltipVisible(true) }
 									onMouseLeave={ () => setExampleTooltipVisible(false) }
 								>
-									<AiOutlineAlignLeft />
+                                    A
+									{ /* <AiOutlineAlignLeft /> */ }
 								</button>
 
-								{ isExampleTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_e].join(' ') }>Get New Completion</div> }
+								{ /* { isExampleTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_e].join(' ') }>Get New Completion</div> } */ }
 
 								<button
 									className={
@@ -429,9 +430,11 @@ export default function QvE() {
 									onMouseEnter={ () => setQuestionTooltipVisible(true) }
 									onMouseLeave={ () => setQuestionTooltipVisible(false) }
 								>
-									<AiOutlineQuestion />
+                                    B
+									{ /* <AiOutlineQuestion /> */ }
 								</button>
-								{ isQuestionTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_q].join(' ') }>Get New Question</div> }
+								
+                                { /* { isQuestionTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_q].join(' ') }>Get New Question</div> } */ }
 
 								<button
 									className={
@@ -449,10 +452,11 @@ export default function QvE() {
 									onMouseEnter={ () => setKeywordsTooltipVisible(true) }
 									onMouseLeave={ () => setKeywordsTooltipVisible(false) }
 								>
-									<AiOutlineHighlight />
+                                    C
+									{ /* <AiOutlineHighlight /> */ }
 								</button>
 
-								{ isKeywordsTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_k].join(' ') }>Get New Keywords</div> }
+								{ /* { isKeywordsTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_k].join(' ') }>Get New Keywords</div> } */ }
 
 								<button
 									className={
@@ -470,10 +474,11 @@ export default function QvE() {
 									onMouseEnter={ () => setStructureTooltipVisible(true) }
 									onMouseLeave={ () => setStructureTooltipVisible(false) }
 								>
-									<AiOutlineBank />
+                                    D
+									{ /* <AiOutlineBank /> */ }
 								</button>
 
-								{ isStructureTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_s].join(' ') }>Get New Structure</div> }
+								{ /* { isStructureTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_s].join(' ') }>Get New Structure</div> } */ }
 							</>
 					) }
 				</div>
@@ -606,10 +611,11 @@ export default function QvE() {
 													<AiOutlineClose className={ classes.historyCloseButton } />
 												</div>
 												<div className={ classes.genTypeIconWrapper }>
-													{ savedItem.type === 'Examples' ? <AiOutlineAlignLeft className={ classes.savedTypeIcon }/>
-														: savedItem.type === 'Questions' ? <AiOutlineQuestion className={ classes.savedTypeIcon }/>
-														: savedItem.type === 'Keywords' ? <AiOutlineHighlight className={ classes.savedTypeIcon }/>
-														: savedItem.type === 'Structure' ? <AiOutlineBank className={ classes.savedTypeIcon }/>
+													{
+                                                    savedItem.type === 'Examples' ? 'A'
+														: savedItem.type === 'Questions' ? 'B'
+														: savedItem.type === 'Keywords' ? 'C'
+														: savedItem.type === 'Structure' ? 'D'
 														: null
 													}
 												</div>
