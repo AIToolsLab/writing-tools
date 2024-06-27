@@ -10,17 +10,17 @@
     <DefaultLocale>en-US</DefaultLocale>
     <DisplayName DefaultValue="Textfocals" />
     <Description DefaultValue="Get the reflections you want on your writing." />
-    <IconUrl DefaultValue="http://localhost:3000/assets/logo.png" />
-    <HighResolutionIconUrl DefaultValue="http://localhost:3000/assets/logo.png" />
-    <SupportUrl DefaultValue="http://localhost:3000" />
+    <IconUrl DefaultValue="https://localhost:3000/assets/logo.png" />
+    <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/logo.png" />
+    <SupportUrl DefaultValue="https://localhost:3000" />
     <AppDomains>
-        <AppDomain>http://localhost:3000</AppDomain>
+        <AppDomain>https://localhost:3000</AppDomain>
     </AppDomains>
     <Hosts>
         <Host Name="Document" />
     </Hosts>
     <DefaultSettings>
-        <SourceLocation DefaultValue="http://localhost:3000/taskpane.html" />
+        <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
     </DefaultSettings>
     <Permissions>ReadWriteDocument</Permissions>
     <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
@@ -68,18 +68,18 @@
         <Resources>
             <bt:Images>
                 <bt:Image id="Icon.16x16"
-                    DefaultValue="http://localhost:3000/assets/logo.png" />
+                    DefaultValue="https://localhost:3000/assets/logo.png" />
                 <bt:Image id="Icon.32x32"
-                    DefaultValue="http://localhost:3000/assets/logo.png" />
+                    DefaultValue="https://localhost:3000/assets/logo.png" />
                 <bt:Image id="Icon.80x80"
-                    DefaultValue="http://localhost:3000/assets/logo.png" />
+                    DefaultValue="https://localhost:3000/assets/logo.png" />
             </bt:Images>
             <bt:Urls>
                 <bt:Url id="GetStarted.LearnMoreUrl"
                     DefaultValue="https://go.microsoft.com/fwlink/?LinkId=276812" />
                 <bt:Url id="Commands.Url"
-                    DefaultValue="http://localhost:3000/commands/commands.html" />
-                <bt:Url id="Taskpane.Url" DefaultValue="http://localhost:3000/taskpane.html" />
+                    DefaultValue="https://localhost:3000/commands/commands.html" />
+                <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html" />
             </bt:Urls>
             <bt:ShortStrings>
                 <bt:String id="GetStarted.Title"

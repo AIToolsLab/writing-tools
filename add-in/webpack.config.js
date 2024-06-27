@@ -8,7 +8,7 @@ const devCerts = require('office-addin-dev-certs');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
-const urlDev = 'http://localhost:3000';
+const urlDev = 'https://localhost:3000';
 const urlProd = 'https://textfocals.com';
 
 async function getHttpsOptions() {
