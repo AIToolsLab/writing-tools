@@ -349,12 +349,29 @@ async def structure(username: str, prompt: str):
         vbz = token.tag_ == "VBZ"
         ly_word = token.text[-2:] == "ly" and token.pos_ == "ADV"
         return not (keyword_pos or ly_word) or vbz
+    
+    def untokenize(tokens):
+        untokenized_text = ""
+        for token in tokens:
+    
+            leading_apostrophe = token.startswith("'") or token.startswith("’") or token.startswith("‘")
+            trailing_apostrophe = token.endswith("'") or token.endswith("’") or token.endswith("‘")
+            hyphen = token == "-"
+
+            if (leading_apostrophe and not trailing_apostrophe):
+                untokenized_text += token
+            elif hyphen:
+                untokenized_text += " "
+            else:
+                untokenized_text += " " + token
+
+        return untokenized_text.strip()
 
     # Process the text with spaCy
     processedText = nlp(completion)
 
     # Remove words with desired POS tags
-    filtered_text = " ".join([
+    filtered_text = untokenize([
         token.text if non_keyword(token)
         else obscure(token)
         for token in processedText
