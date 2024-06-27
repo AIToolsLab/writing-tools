@@ -40,7 +40,7 @@ export default function QvE() {
 
 	// State for saved page
 	const [isSavedOpen, setSavedOpen] = useState(false);
-    const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
+  const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 
 	// Tooltip visibility
 	const [isExampleTooltipVisible, setExampleTooltipVisible] = useState(false);
@@ -61,6 +61,7 @@ export default function QvE() {
 	// Hidden for now
 	const IS_SWITCH_VISIBLE = false;
 	const IS_EXPERIMENTAL = true;
+	const IS_OBSCURED = true;
 
     function save(generation: string, generationType: string, document: string) {
         const newSaved = [...savedItems];
@@ -408,11 +409,10 @@ export default function QvE() {
 									onMouseEnter={ () => setExampleTooltipVisible(true) }
 									onMouseLeave={ () => setExampleTooltipVisible(false) }
 								>
-                                    A
-									{ /* <AiOutlineAlignLeft /> */ }
+									{ IS_OBSCURED ? 'A' : <AiOutlineAlignLeft /> }
 								</button>
 
-								{ /* { isExampleTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_e].join(' ') }>Get New Completion</div> } */ }
+								{ (isExampleTooltipVisible && !IS_OBSCURED) && <div className={ [classes.tooltip, classes.tooltip_e].join(' ') }>Get New Completion</div> }
 
 								<button
 									className={
@@ -430,11 +430,10 @@ export default function QvE() {
 									onMouseEnter={ () => setQuestionTooltipVisible(true) }
 									onMouseLeave={ () => setQuestionTooltipVisible(false) }
 								>
-                                    B
-									{ /* <AiOutlineQuestion /> */ }
+									{ IS_OBSCURED ? 'B' : <AiOutlineQuestion /> }
 								</button>
 								
-                                { /* { isQuestionTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_q].join(' ') }>Get New Question</div> } */ }
+                { (isQuestionTooltipVisible && !IS_OBSCURED) && <div className={ [classes.tooltip, classes.tooltip_q].join(' ') }>Get New Question</div> }
 
 								<button
 									className={
@@ -452,11 +451,10 @@ export default function QvE() {
 									onMouseEnter={ () => setKeywordsTooltipVisible(true) }
 									onMouseLeave={ () => setKeywordsTooltipVisible(false) }
 								>
-                                    C
-									{ /* <AiOutlineHighlight /> */ }
+									{ IS_OBSCURED ? 'C' : <AiOutlineHighlight /> }
 								</button>
 
-								{ /* { isKeywordsTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_k].join(' ') }>Get New Keywords</div> } */ }
+								{ (isKeywordsTooltipVisible && !IS_OBSCURED) && <div className={ [classes.tooltip, classes.tooltip_k].join(' ') }>Get New Keywords</div> }
 
 								<button
 									className={
@@ -474,11 +472,10 @@ export default function QvE() {
 									onMouseEnter={ () => setStructureTooltipVisible(true) }
 									onMouseLeave={ () => setStructureTooltipVisible(false) }
 								>
-                                    D
-									{ /* <AiOutlineBank /> */ }
+									{ IS_OBSCURED ? 'D' : <AiOutlineBank /> }
 								</button>
 
-								{ /* { isStructureTooltipVisible && <div className={ [classes.tooltip, classes.tooltip_s].join(' ') }>Get New Structure</div> } */ }
+								{ (isStructureTooltipVisible && !IS_OBSCURED) && <div className={ [classes.tooltip, classes.tooltip_s].join(' ') }>Get New Structure</div> }
 							</>
 					) }
 				</div>
@@ -612,10 +609,10 @@ export default function QvE() {
 												</div>
 												<div className={ classes.genTypeIconWrapper }>
 													{
-                                                    savedItem.type === 'Examples' ? 'A'
-														: savedItem.type === 'Questions' ? 'B'
-														: savedItem.type === 'Keywords' ? 'C'
-														: savedItem.type === 'Structure' ? 'D'
+                            savedItem.type === 'Examples' ? (IS_OBSCURED ? 'A' : <AiOutlineAlignLeft className={ classes.savedTypeIcon }/>)
+														: savedItem.type === 'Questions' ? (IS_OBSCURED ? 'B' : <AiOutlineQuestion className={ classes.savedTypeIcon }/>)
+														: savedItem.type === 'Keywords' ? (IS_OBSCURED ? 'C' : <AiOutlineHighlight className={ classes.savedTypeIcon }/>)
+														: savedItem.type === 'Structure' ? (IS_OBSCURED ? 'D' : <AiOutlineBank className={ classes.savedTypeIcon }/>)
 														: null
 													}
 												</div>
