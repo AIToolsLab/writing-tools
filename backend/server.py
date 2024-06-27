@@ -353,12 +353,13 @@ async def structure(username: str, prompt: str):
     def untokenize(tokens):
         untokenized_text = ""
         for token in tokens:
-    
+            
+            apostrophe = (token == token == "'" or token == "’" or token == "‘")
             leading_apostrophe = token.startswith("'") or token.startswith("’") or token.startswith("‘")
             trailing_apostrophe = token.endswith("'") or token.endswith("’") or token.endswith("‘")
             hyphen = token == "-"
 
-            if (leading_apostrophe and not trailing_apostrophe):
+            if (apostrophe or (leading_apostrophe and not trailing_apostrophe)):
                 untokenized_text += token
             elif hyphen:
                 untokenized_text += " "
