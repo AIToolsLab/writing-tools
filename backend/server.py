@@ -342,15 +342,12 @@ async def structure(username: str, prompt: str):
         filtered_text = ""
         for token in tokens:
             if not is_keyword(token):
-                has_apostrophe = "'" in token.text or "’" in token.text or "‘" in token.text
-                if (token.pos_ == "PART" or token.pos_ == "AUX") and has_apostrophe:
-                    filtered_text += token.text
-                elif token.tag_ == "HYPHEN":
+                if token.tag_ == "HYPHEN":
                     filtered_text += " "
                 else:
-                    filtered_text += " " + token.text
+                    filtered_text += token.text_with_ws
             else:
-                filtered_text += " " + obscure(token)
+                filtered_text += obscure(token) + " "
 
         return filtered_text.strip()
 
