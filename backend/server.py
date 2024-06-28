@@ -111,15 +111,23 @@ async def log_feedback(payload: Log):
     return {"message": "Feedback logged successfully."}
 
 # Show all server logs
-@app.get("/logs")
+@app.get("/api/logs")
 async def logs():
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM logs")
+    particpants = list(LOG_PATH.glob("*.jsonl"))
+    return {
+        "logs": [
+            {
+                "username": participant.stem,
+                "logs": [json.loads(line) for line in open(participant)]
+            }
+            for participant in particpants
+        ]
+    }
 
-        result = c.fetchall()
+def get_participant_log_filename(username):
+    assert '/' not in username, 'Invalid username.'
+    return LOG_PATH / f"{username}.jsonl"
 
-    return result
 
 # Helper functions
 def make_log(payload: Log):
