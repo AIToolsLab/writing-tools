@@ -39,10 +39,11 @@ openai_client = AsyncOpenAI(
 
 # Load spaCy model for sentence splitting
 try:
-    nlp = spacy.load("en_core_web_sm")
+    nlp = spacy.load("en_core_web_trf")
 except:
     print("Need to download spaCy model. Run:")
-    print("python -m spacy download en_core_web_sm")
+    print("pip install spacy-transformers")
+    print("python -m spacy download en_core_web_trf")
     
     exit()
 
@@ -329,9 +330,6 @@ async def keywords(username: str, prompt: str):
 
 async def structure(username: str, prompt: str):
     completion = await chat_completion(username, prompt)
-
-    # Load the English language model
-    # nlp = spacy.load("en_core_web_sm")
 
     def is_keyword(token):
         keyword_pos = token.pos_ in ["NOUN", "PRON", "PROPN", "ADJ"]
