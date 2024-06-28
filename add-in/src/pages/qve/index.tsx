@@ -306,7 +306,7 @@ export default function QvE() {
 	let results = null;
     
 	if (generationMode === 'None' || generation.length === 0)
-		if (!docText)
+		if (!docText.trim())
 			results = (
 				<div className={ classes.initTextWrapper }>
 					<div className={ classes.initText }>
