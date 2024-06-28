@@ -360,8 +360,6 @@ async def structure(username: str, prompt: str):
     # Remove words with desired POS tags and convert to str
     filtered_text = filter(processed_text)
 
-    print(completion)
-
     make_log(
         Log(
             username=username,
