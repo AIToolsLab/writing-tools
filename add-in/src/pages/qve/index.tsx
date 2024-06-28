@@ -306,13 +306,22 @@ export default function QvE() {
 	let results = null;
     
 	if (generationMode === 'None' || generation.length === 0)
-		results = (
-            <div className={ classes.initTextWrapper }>
-                <div className={ classes.initText }>
-                    Click button to generate a suggestion..
-                </div>
-            </div>
-        );
+		if (!docText)
+			results = (
+				<div className={ classes.initTextWrapper }>
+					<div className={ classes.initText }>
+						Write something in the document to get started!
+					</div>
+				</div>
+			);
+		else
+			results = (
+				<div className={ classes.initTextWrapper }>
+					<div className={ classes.initText }>
+						Click button to generate a suggestion..
+					</div>
+				</div>
+			);
  	else
         results = (
             <div className={ classes.resultTextWrapper }>
