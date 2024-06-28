@@ -337,33 +337,29 @@ async def structure(username: str, prompt: str):
         ly_word = token.text[-2:] == "ly" and token.pos_ == "ADV"
         return (keyword_pos or past_participle or ly_word)
     
-    def untokenize(tokens):
-        untokenized_text = ""
+    def filter(tokens):
+        filtered_text = ""
         for token in tokens:
-            
-            apostrophe = (token == token == "'" or token == "’" or token == "‘")
-            leading_apostrophe = token.startswith("'") or token.startswith("’") or token.startswith("‘")
-            trailing_apostrophe = token.endswith("'") or token.endswith("’") or token.endswith("‘")
-            hyphen = token == "-"
-
-            if (apostrophe or (leading_apostrophe and not trailing_apostrophe)):
-                untokenized_text += token
-            elif hyphen:
-                untokenized_text += " "
+            if not is_keyword(token):
+                has_apostrophe = "'" in token.text or "’" in token.text or "‘" in token.text
+                if (token.pos_ == "PART" or token.pos_ == "AUX") and has_apostrophe:
+                    filtered_text += token.text
+                elif token.tag_ == "HYPHEN":
+                    filtered_text += " "
+                else:
+                    filtered_text += " " + token.text
             else:
-                untokenized_text += " " + token
+                filtered_text += " " + obscure(token)
 
-        return untokenized_text.strip()
+        return filtered_text.strip()
 
     # Process the text with spaCy
-    processedText = nlp(completion)
+    processed_text = nlp(completion)
 
-    # Remove words with desired POS tags
-    filtered_text = untokenize([
-        token.text if not is_keyword(token)
-        else obscure(token)
-        for token in processedText
-    ])
+    # Remove words with desired POS tags and convert to str
+    filtered_text = filter(processed_text)
+
+    print(completion)
 
     make_log(
         Log(
