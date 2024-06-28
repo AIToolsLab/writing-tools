@@ -335,7 +335,8 @@ async def structure(username: str, prompt: str):
         keyword_pos = token.pos_ in ["NOUN", "PRON", "PROPN", "ADJ"]
         past_participle = token.tag_ == "VBN"
         ly_word = token.text[-2:] == "ly" and token.pos_ == "ADV"
-        return (keyword_pos or past_participle or ly_word)
+        determiner = token.tag_ == "WDT"
+        return not determiner and (keyword_pos or past_participle or ly_word)
     
     def filter(tokens):
         filtered_text = ""
