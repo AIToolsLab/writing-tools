@@ -22,6 +22,8 @@ from dotenv import load_dotenv
 # Load ENV vars
 load_dotenv()
 
+LOG_PATH = Path("./logs").absolute()
+
 MODEL_NAME = "gpt-4o"
 DEBUG = os.getenv("DEBUG") or False
 PORT = int(os.getenv("PORT") or 8000)
