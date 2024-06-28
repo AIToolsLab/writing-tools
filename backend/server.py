@@ -168,17 +168,6 @@ def is_full_sentence(sentence):
 def obscure(token):
     word = token.text
     word = word.lower()
-
-    if token.pos_ == "VERB":
-        if (token.tag_ == "VBD" or token.tag_ == "VBN") and word.endswith("ed"):
-            return 'ˍ' * (len(word) - 2) + "ed"
-        elif token.tag_ == "VBG":
-            return 'ˍ' * (len(word) - 3) + "ing"
-        else:
-            return word
-        
-    if token.pos_ == "ADV" and word.endswith("ly"):
-        return 'ˍ' * (len(word) - 2) + "ly"
     
     return '·' * len(word)
 
@@ -344,11 +333,11 @@ async def structure(username: str, prompt: str):
     # Load the English language model
     # nlp = spacy.load("en_core_web_sm")
 
-    def non_keyword(token):
-        keyword_pos = token.pos_ in ["NOUN", "PROPN", "ADJ", "VERB"]
-        vbz = token.tag_ == "VBZ"
+    def is_keyword(token):
+        keyword_pos = token.pos_ in ["NOUN", "PRON", "PROPN", "ADJ"]
+        past_participle = token.tag_ == "VBN"
         ly_word = token.text[-2:] == "ly" and token.pos_ == "ADV"
-        return not (keyword_pos or ly_word) or vbz
+        return (keyword_pos or past_participle or ly_word)
     
     def untokenize(tokens):
         untokenized_text = ""
@@ -373,7 +362,7 @@ async def structure(username: str, prompt: str):
 
     # Remove words with desired POS tags
     filtered_text = untokenize([
-        token.text if non_keyword(token)
+        token.text if not is_keyword(token)
         else obscure(token)
         for token in processedText
     ])
