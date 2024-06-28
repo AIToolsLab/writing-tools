@@ -131,32 +131,9 @@ def make_log(payload: Log):
              payload.prompt, payload.result, payload.example),
         )
     
-    try:
-        open(f"./logs/{payload.username}.json", "r+")
-    except:
-        with open(f"./logs/{payload.username}.json", "a+") as f:
-            f.write(json.dumps({
-                "username": payload.username,
-                "interactions": []
-            }))
+    with open(get_participant_log_filename(payload.username), "a+") as f:
+        f.write(json.dumps(payload.model_dump()) + "\n")
 
-    with open(f"./logs/{payload.username}.json", "r+") as f:
-        cur_log = json.loads(f.read())
-
-        new_log = payload.dict()
-        del new_log['username']
-
-        exists = False
-
-        for log in cur_log["interactions"]:
-            if log["interaction"] == "question" and log["prompt"] == str(payload.prompt) and log["result"] == payload.result:
-                exists = True
-
-        if not exists:
-            cur_log["interactions"].append(new_log)
-
-    with open(f"./logs/{payload.username}.json", "w") as f:
-        f.write(json.dumps(cur_log))
 
 def is_full_sentence(sentence):
     sentence += " AND"
