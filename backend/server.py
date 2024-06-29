@@ -155,9 +155,7 @@ def is_full_sentence(sentence):
 
 def obscure(token):
     word = token.text
-    word = word.lower()
-    
-    return '·' * len(word)
+    return '·' * len(word) + token.whitespace_
 
 async def chat(username: str, messages: List[Dict[str, str]], temperature: float):
     response = await openai_client.chat.completions.create(
@@ -336,12 +334,12 @@ async def structure(username: str, prompt: str):
         filtered_text = tokens[0].text_with_ws
         for token in tokens[1:]:
             if not is_keyword(token):
-                if token.tag_ == "HYPHEN":
+                if token.tag_ == "HYPH":
                     filtered_text += " "
                 else:
                     filtered_text += token.text_with_ws
             else:
-                filtered_text += obscure(token) + " "
+                filtered_text += obscure(token)
 
         return filtered_text.strip()
 
