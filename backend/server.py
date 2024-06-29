@@ -358,7 +358,7 @@ async def structure(username: str, prompt: str):
         )
     )
 
-    return filtered_text.replace("· ·", "··").replace("· ·", "··")
+    return filtered_text.replace("· ·", "···").replace("· ·", "···")
 
 static_path = Path("../add-in/dist")
 if static_path.exists():
