@@ -319,15 +319,22 @@ async def structure(username: str, prompt: str):
     completion = await chat_completion(username, prompt)
 
     def is_keyword(token):
-        keyword_pos = token.pos_ in ["NOUN", "PRON", "PROPN", "ADJ"]
-        past_participle = token.tag_ == "VBN"
-        ly_word = token.text[-2:] == "ly" and token.pos_ == "ADV"
-        determiner = token.tag_ == "WDT"
-        return not determiner and (keyword_pos or past_participle or ly_word)
+        # keyword_pos = token.pos_ in ["NOUN", "PRON", "PROPN", "ADJ", "VERB"]
+        # past_participle = token.tag_ == "VBN"
+        # ly_word = token.text[-2:] == "ly" and token.pos_ == "ADV"
+        # determiner = token.tag_ == "WDT" or token.tag_ == "IN"
+        # return not determiner and (keyword_pos or past_participle or ly_word)
+
+        plainword_tag = token.tag_ in ["IN", "CC", "EX", "WDT"]
+        simple_adverb = token.tag_ in ["RB", "RBR", "RBS", "RB", "WRB"] and token.text[-2:] != "ly"
+        aux = token.pos_ == "AUX"
+        punct = token.pos_ == "PUNCT"
+
+        return not (plainword_tag or punct or aux or simple_adverb)
     
     def filter(tokens):
-        filtered_text = ""
-        for token in tokens:
+        filtered_text = tokens[0].text_with_ws
+        for token in tokens[1:]:
             if not is_keyword(token):
                 if token.tag_ == "HYPHEN":
                     filtered_text += " "
