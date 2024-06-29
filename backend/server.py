@@ -333,7 +333,7 @@ async def structure(username: str, prompt: str):
     def filter(tokens):
         filtered_text = tokens[0].text_with_ws
         for token in tokens[1:]:
-            if not is_keyword(token):
+            if not is_keyword(token) or token.head == tokens[0]:
                 if token.tag_ == "HYPH":
                     filtered_text += " "
                 else:
