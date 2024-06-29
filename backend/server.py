@@ -295,7 +295,7 @@ async def keywords(username: str, prompt: str):
 
     # Extract the words with desired POS tags
     keywords = [
-        token.text.lower() for token in doc if token.pos_ in KEYWORD_POS
+        token.lower_ for token in doc if token.pos_ in KEYWORD_POS
     ]
 
     random.shuffle(keywords)
@@ -326,7 +326,7 @@ async def structure(username: str, prompt: str):
         plainword_tag = token.tag_ in ["IN", "CC", "EX", "WDT"]
         simple_adverb = token.tag_ in ["RB", "RBR", "RBS", "RB", "WRB"] and token.text[-2:] != "ly"
         aux = token.pos_ == "AUX"
-        punct = token.pos_ == "PUNCT"
+        punct = token.is_punct
 
         return not (plainword_tag or punct or aux or simple_adverb)
     
