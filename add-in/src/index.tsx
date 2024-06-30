@@ -16,9 +16,9 @@ let isOfficeInitialized = false;
 const render = (Component: any) => {
 	ReactDOM.render(
 		<ThemeProvider>
-            <UserContextWrapper>
-                <Component isOfficeInitialized={ isOfficeInitialized } />
-            </UserContextWrapper>
+			<UserContextWrapper>
+				<Component isOfficeInitialized={ isOfficeInitialized } />
+			</UserContextWrapper>
 		</ThemeProvider>,
 		document.getElementById('container')
 	);

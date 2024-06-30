@@ -23,7 +23,7 @@
 .optionsButton,
 .optionsButtonActive {
 	background-color: #ffffff;
-	font-size: 1.0rem;
+	font-size: 1rem;
 	font-weight: 600;
 	padding: 12px 16px;
 	border: 1px solid #f0f0f0;
@@ -38,16 +38,16 @@
 }
 
 .optionsButton:disabled {
-    cursor: auto;
+	cursor: auto;
 }
 
 .optionsButtonActive:disabled {
-    cursor: auto;
+	cursor: auto;
 }
 
 .optionsButton:hover:enabled {
 	background-color: #f0f0f0;
-	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .1);
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, 0.1);
 	transform: rotate(25deg);
 	transition: 0.3s;
 }
@@ -55,7 +55,7 @@
 .optionsButtonActive:hover:enabled {
 	background-color: #f0f0f0;
 	border: 1px solid #f0f0f0;
-	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .1);
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, 0.1);
 	transform: rotate(20deg);
 }
 
@@ -76,7 +76,7 @@
 	visibility: hidden;
 	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
 	pointer-events: none;
-	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, .1);
+	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
 }
 
 .tooltip_e {
@@ -122,13 +122,13 @@
 	margin-right: 8px;
 	margin-left: 8px;
 	padding: 16px;
-	background-color: #F8F8F8;
+	background-color: #f8f8f8;
 	border-radius: 16px;
 	transition: 0.15s;
 }
 
 .resultText {
-	font-size: 1.0rem;
+	font-size: 1rem;
 	transition: 0.15s;
 	animation: fadeIn 0.3s ease-in-out;
 }
@@ -165,7 +165,7 @@
 	visibility: hidden;
 	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
 	pointer-events: none;
-	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, .1);
+	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
 }
 
 .utilTooltip_close {
@@ -191,7 +191,7 @@
 	border-radius: 16px;
 	padding: 4px;
 	transition: 0.3s;
-	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, .05);
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, 0.05);
 }
 
 .utilIconWrapper {
@@ -204,7 +204,7 @@
 	display: flex;
 	justify-content: right;
 	align-items: center;
-	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, .1);
+	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, 0.1);
 	transition: 0.3s;
 }
 
@@ -226,7 +226,7 @@
 .copyIcon {
 	font-size: 0.9rem;
 	color: #888888;
-	transition: 0.5s;;
+	transition: 0.5s;
 }
 
 .copyIcon:hover {
@@ -246,8 +246,8 @@
 }
 
 .saved {
-    color: gold;
-} 
+	color: gold;
+}
 
 .utilStateWrapper {
 	display: flex;
@@ -345,7 +345,7 @@
 .historyButtonActive:hover {
 	background-color: #f0f0f0;
 	border: 1px solid #f0f0f0;
-	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, .1);
+	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, 0.1);
 	transition: 0.15s;
 }
 
@@ -362,15 +362,15 @@
 	display: flex;
 	padding: 4px;
 	padding: 16px;
-	background-color: #F8F8F8;
+	background-color: #f8f8f8;
 	border-radius: 16px;
 	transition: 0.15s;
 	margin: 8px;
 }
 
 .historyItem li {
-    display: flex;
-    list-style-type: circle;
+	display: flex;
+	list-style-type: circle;
 }
 
 .savedIconsContainer {
@@ -439,7 +439,7 @@
 	color: #888888;
 	font-size: 0.8rem;
 	font-weight: 300;
-	transition: 0.15s
+	transition: 0.15s;
 }
 
 .historyDoc {

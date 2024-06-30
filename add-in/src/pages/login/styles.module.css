@@ -8,19 +8,19 @@
 }
 
 .container input {
-    padding: 10px;
-    border: 1px solid lightgray;
-    cursor: pointer;
-    transition: 0.15s;
+	padding: 10px;
+	border: 1px solid lightgray;
+	cursor: pointer;
+	transition: 0.15s;
 }
 
 .container input:hover {
-    border: 1px solid black;
+	border: 1px solid black;
 }
 
 .container input:focus {
-    cursor: text;
-    outline: none;
+	cursor: text;
+	outline: none;
 }
 
 .container button {
@@ -33,9 +33,9 @@
 }
 
 .container button:disabled {
-    border-color: lightgray;
-    color: lightgray;
-    cursor: not-allowed;
+	border-color: lightgray;
+	color: lightgray;
+	cursor: not-allowed;
 }
 
 .container button:hover:enabled {

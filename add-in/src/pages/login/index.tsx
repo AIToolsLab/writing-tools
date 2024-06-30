@@ -18,21 +18,21 @@ export default function Login() {
 				placeholder="Username"
 				onChange={ e => updateId(e.target.value) }
 				onKeyDown={ e => {
-					if (e.key === 'Enter' && userId.length > 0) updateUsername(userId);
+					if (e.key === 'Enter' && userId.length > 0)
+						updateUsername(userId);
 				} }
 			/>
 
 			<button
-                disabled={ userId.length === 0 }
+				disabled={ userId.length === 0 }
 				onClick={ () => updateUsername(userId) }
 			>
 				Login
 			</button>
 
 			<div className={ classes.widthAlert }>
-				{
-                    width < 400 && 'For best experience please expand the sidebar by dragging the splitter.'
-                }
+				{ width < 400 &&
+					'For best experience please expand the sidebar by dragging the splitter.' }
 			</div>
 		</div>
 	);

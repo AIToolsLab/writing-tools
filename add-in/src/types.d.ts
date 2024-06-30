@@ -6,8 +6,8 @@ interface ChatMessage {
 }
 
 interface SavedItem {
-    document: string;
-    generation: string
-    type: string;
-    dateSaved: Date;
+	document: string;
+	generation: string;
+	type: string;
+	dateSaved: Date;
 }
