@@ -63,7 +63,6 @@ body .page-footer {
 	margin: 10px;
 }
 
-/* https://stackoverflow.com/questions/44530809/how-to-vertically-center-an-img-in-the-logo-in-this-navigation-bar */
 .brand-logo > span,
 .brand-logo > img {
 	vertical-align: middle;
@@ -80,58 +79,7 @@ body .page-footer {
 	background-color: var(--maroon);
 }
 
-/* For maroon buttons */
 .waves-effect.waves-light.btn-large.maroon {
 	background-color: var(--maroon);
-	color: var(
-		--white
-	); /* You might want to change the text color to ensure it's readable */
-}
-
-/* For gold buttons */
-.waves-effect.waves-light.btn-large.gold {
-	background-color: var(--gold);
-	color: var(
-		--black
-	); /* You might want to change the text color to ensure it's readable */
-}
-
-.image-crop {
-	height: 300px;
-	border-radius: 16px;
-}
-
-.image-crop img {
-	height: 100%;
-	width: auto;
-}
-
-.custom-card {
-	box-shadow: none !important;
-}
-
-.custom-card .card-image img {
-	border-radius: 16px !important;
-}
-
-.feature:first-child {
-	margin-top: 50px;
-}
-
-#features .card {
-	margin-bottom: 30px;
-}
-
-#features .card .card-content {
-	padding: 30px;
-}
-
-#forms {
-	background-color: var(--white);
-	padding: 50px 0;
-}
-
-#forms h2 {
-	text-align: center;
-	margin-bottom: 30px;
+	color: var(--white);
 }
