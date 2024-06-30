@@ -24,6 +24,22 @@ function sanitize(text: string): string {
 	return text.replace('"', '').replace('\'', '');
 }
 
+async function getGeneration(username: string, type: string, context: string) {
+    const response = await fetch(`${SERVER_URL}/generation`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            username: username,
+            gtype: type,
+            prompt: sanitize(context)
+        })
+    });
+
+    return await response.json();
+}
+
 export default function QvE() {
 	const { username } = useContext(UserContext);
 
@@ -150,21 +166,7 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		const response = await fetch(`${SERVER_URL}/generation`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				username: username,
-				gtype: 'question',
-				prompt: sanitize(contextText)
-			})
-		});
-
-		const question = await response.json();
-
-		updateGeneration(question);
+		updateGeneration(await getGeneration(username, 'question', contextText));
 		setIsLoading(false);
 	}
 
@@ -186,21 +188,7 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		const response = await fetch(`${SERVER_URL}/generation`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				username: username,
-				gtype: 'chat_completion',
-				prompt: sanitize(contextText)
-			})
-		});
-
-		const example = await response.json();
-
-		updateGeneration(example);
+		updateGeneration(await getGeneration(username, 'chat_completion', contextText));
 		setIsLoading(false);
 	}
 
@@ -222,21 +210,7 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		const response = await fetch(`${SERVER_URL}/generation`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				username: username,
-				gtype: 'keywords',
-				prompt: sanitize(contextText)
-			})
-		});
-
-		const keywords = await response.json();
-
-		updateGeneration(keywords);
+		updateGeneration(await getGeneration(username, 'keywords', contextText));
 		setIsLoading(false);
 	}
 
@@ -258,21 +232,7 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		const response = await fetch(`${SERVER_URL}/generation`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json'
-			},
-			body: JSON.stringify({
-				username: username,
-				gtype: 'structure',
-				prompt: sanitize(contextText)
-			})
-		});
-
-		const structure = await response.json();
-
-		updateGeneration(structure);
+		updateGeneration(await getGeneration(username, 'structure', contextText));
 		setIsLoading(false);
 	}
 
