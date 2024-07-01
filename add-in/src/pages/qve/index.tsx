@@ -640,13 +640,18 @@ export default function QvE() {
 							onMouseLeave={ () => setSavedPageTooltipVisible(false) }
 						>
 							<div className={ classes.savedPageIconIndicatorContainer }>
-								{ isSavedOpen ? <AiOutlineUp className={ classes.savedPageIconIndicator }/> : <AiOutlineDown className={ classes.savedPageIconIndicator }/> }
+								{ isSavedOpen ? <AiOutlineUp className={ classes.savedPageIconIndicator }/>
+								: <AiOutlineDown className={ classes.savedPageIconIndicator }/> 
+								}
 							</div> Saved <div className={ classes.savedPageIconIndicatorContainer }>
-								{ isSavedOpen ? <AiOutlineUp className={ classes.savedPageIconIndicator }/> : <AiOutlineDown className={ classes.savedPageIconIndicator }/> }
+								{ isSavedOpen ? <AiOutlineUp className={ classes.savedPageIconIndicator }/>
+								: <AiOutlineDown className={ classes.savedPageIconIndicator }/>
+								}
 							</div>
 						</button>
 						{ isSavedPageTooltipVisible && (
-							!isSavedOpen ? <div className={ classes.savedPageTooltip }>Expand Saved Page</div> : <div className={ classes.savedPageTooltip }>Collapse Saved Page</div>
+							!isSavedOpen ? <div className={ classes.savedPageTooltip }>Expand Saved Item</div>
+							: <div className={ classes.savedPageTooltip }>Collapse Saved Item</div>
 						) }
 					</div>
 
