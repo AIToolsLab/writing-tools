@@ -322,6 +322,30 @@
 	justify-content: center;
 	align-items: center;
 	margin-top: 16px;
+	position: relative;
+}
+
+.historyButtonWrapper:hover .savedPageTooltip {
+	opacity: 1;
+	visibility: visible;
+}
+
+.savedPageTooltip {
+	position: absolute;
+	top: -85%;
+	background-color: rgba(237, 237, 237, 0.7) !important;
+	color: rgba(90, 90, 90, 0.7);
+	padding: 4px 8px;
+	border-radius: 2px 0px 2px 2px;
+	font-size: 0.8rem;
+	font-weight: 300;
+	white-space: nowrap;
+	z-index: 1000;
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+	pointer-events: none;
+	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
 }
 
 .historyButton,

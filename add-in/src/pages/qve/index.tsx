@@ -72,6 +72,7 @@ export default function QvE() {
 	const [isSaveTooltipVisible, setSaveTooltipVisible] = useState(false);
 	const [isCloseTooltipVisible, setCloseTooltipVisible] = useState(false);
 	const [isCopyTooltipVisible, setCopyTooltipVisible] = useState(false);
+	const [isSavedPageTooltipVisible, setSavedPageTooltipVisible] = useState(false);
 
 	// eslint-disable-next-line prefer-const
 	const [generation, updateGeneration] = useState('');
@@ -635,6 +636,8 @@ export default function QvE() {
 								// Toggle between the current page and the saved page
 								setSavedOpen(!isSavedOpen);
 							} }
+							onMouseEnter={ () => setSavedPageTooltipVisible(true) }
+							onMouseLeave={ () => setSavedPageTooltipVisible(false) }
 						>
 							<div className={ classes.savedPageIconIndicatorContainer }>
 								{ isSavedOpen ? <AiOutlineUp className={ classes.savedPageIconIndicator }/> : <AiOutlineDown className={ classes.savedPageIconIndicator }/> }
@@ -642,6 +645,9 @@ export default function QvE() {
 								{ isSavedOpen ? <AiOutlineUp className={ classes.savedPageIconIndicator }/> : <AiOutlineDown className={ classes.savedPageIconIndicator }/> }
 							</div>
 						</button>
+						{ isSavedPageTooltipVisible && (
+							!isSavedOpen ? <div className={ classes.savedPageTooltip }>Expand Saved Page</div> : <div className={ classes.savedPageTooltip }>Collapse Saved Page</div>
+						) }
 					</div>
 
 					<div className={ classes.historyItemContainer }>
