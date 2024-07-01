@@ -247,6 +247,12 @@
 
 .saved {
 	color: gold;
+	font-size: 0.9rem;
+	transition: 0.5s;
+}
+
+.saved:hover {
+	transform: rotate(90deg);
 }
 
 .utilStateWrapper {
