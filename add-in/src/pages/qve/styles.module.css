@@ -334,6 +334,7 @@
 	transition: 0.15s;
 	cursor: pointer;
 	border-radius: 24px;
+	display: flex;
 }
 
 .historyButtonActive {
@@ -356,6 +357,18 @@
 	align-items: center;
 	margin-top: 8px;
 	transition: 0.15s;
+}
+
+.savedPageIconIndicatorContainer {
+	justify-content: center;
+	align-items: center;
+	transition: 0.15s;
+	padding-top: 2px;
+}
+
+.savedPageIconIndicator {
+	color: #bbbbbb;
+	font-size: 0.7rem;
 }
 
 .historyItem {

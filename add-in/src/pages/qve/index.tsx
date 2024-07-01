@@ -13,7 +13,9 @@ import {
 	AiOutlineHighlight,
 	AiOutlineBank,
 	AiOutlineStar,
-	AiOutlineSave
+	AiOutlineSave,
+	AiOutlineUp,
+	AiOutlineDown
 } from 'react-icons/ai';
 
 import { SERVER_URL } from '@/api';
@@ -634,7 +636,11 @@ export default function QvE() {
 								setSavedOpen(!isSavedOpen);
 							} }
 						>
-							Saved
+							<div className={ classes.savedPageIconIndicatorContainer }>
+								{ isSavedOpen ? <AiOutlineUp className={ classes.savedPageIconIndicator }/> : <AiOutlineDown className={ classes.savedPageIconIndicator }/> }
+							</div> Saved <div className={ classes.savedPageIconIndicatorContainer }>
+								{ isSavedOpen ? <AiOutlineUp className={ classes.savedPageIconIndicator }/> : <AiOutlineDown className={ classes.savedPageIconIndicator }/> }
+							</div>
 						</button>
 					</div>
 
