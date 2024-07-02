@@ -284,7 +284,7 @@ export default function QvE() {
 						<>
 							<button
 								className={
-									generationMode === 'example'
+									generationMode === 'Completion'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -292,7 +292,7 @@ export default function QvE() {
 								onClick={ () => {
 									if (docText === '') return;
 
-									updateGenerationMode('example');
+									updateGenerationMode('Completion');
 									getGeneration(username, 'Completion_Backend', docText);
 								} }
 							>
@@ -301,7 +301,7 @@ export default function QvE() {
 
 							<button
 								className={
-									generationMode === 'question'
+									generationMode === 'Question'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -309,7 +309,7 @@ export default function QvE() {
 								onClick={ () => {
 									if (docText === '') return;
 
-									updateGenerationMode('question');
+									updateGenerationMode('Question');
 									getGeneration(username, 'Question_Backend', docText);
 								} }
 							>
@@ -322,7 +322,7 @@ export default function QvE() {
 						<>
 							<button
 								className={
-									generationMode === 'example'
+									generationMode === 'Completion'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -336,7 +336,7 @@ export default function QvE() {
 									});
 									if (docText === '') return;
 
-									updateGenerationMode('example');
+									updateGenerationMode('Completion');
 									getGeneration(username, 'Completion_Backend', docText);
 								} }
 								onMouseEnter={ () =>
@@ -362,7 +362,7 @@ export default function QvE() {
 
 							<button
 								className={
-									generationMode === 'question'
+									generationMode === 'Question'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -376,7 +376,7 @@ export default function QvE() {
 									});
 									if (docText === '') return;
 
-									updateGenerationMode('question');
+									updateGenerationMode('Question');
 									getGeneration(username, 'Question_Backend', docText);
 								} }
 								onMouseEnter={ () =>
@@ -402,7 +402,7 @@ export default function QvE() {
 
 							<button
 								className={
-									generationMode === 'keywords'
+									generationMode === 'Keywords'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -416,7 +416,7 @@ export default function QvE() {
 									});
 									if (docText === '') return;
 
-									updateGenerationMode('keywords');
+									updateGenerationMode('Keywords');
 									getGeneration(username, 'Keywords_Backend', docText);
 								} }
 								onMouseEnter={ () =>
@@ -442,7 +442,7 @@ export default function QvE() {
 
 							<button
 								className={
-									generationMode === 'structure'
+									generationMode === 'Structure'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -456,7 +456,7 @@ export default function QvE() {
 									});
 									if (docText === '') return;
 
-									updateGenerationMode('structure');
+									updateGenerationMode('Structure');
 									getGeneration(username, 'Structure_Backend', docText);
 								} }
 								onMouseEnter={ () =>
@@ -702,7 +702,7 @@ export default function QvE() {
 												classes.genTypeIconWrapper
 											}
 										>
-											{ savedItem.type === 'example' ? (
+											{ savedItem.type === 'Completion' ? (
 												IS_OBSCURED ? (
 													'A'
 												) : (
@@ -713,7 +713,7 @@ export default function QvE() {
 													/>
 												)
 											) : savedItem.type ===
-											  'question' ? (
+											  'Question' ? (
 												IS_OBSCURED ? (
 													'B'
 												) : (
@@ -724,7 +724,7 @@ export default function QvE() {
 													/>
 												)
 											) : savedItem.type ===
-											  'keywords' ? (
+											  'Keywords' ? (
 												IS_OBSCURED ? (
 													'C'
 												) : (
@@ -735,7 +735,7 @@ export default function QvE() {
 													/>
 												)
 											) : savedItem.type ===
-											  'structure' ? (
+											  'Structure' ? (
 												IS_OBSCURED ? (
 													'D'
 												) : (
