@@ -111,7 +111,8 @@ async def question(prompt: str):
     example = (await chat_completion(prompt))["result"]
 
     # Get the completioned sentence and the sentence right before
-    completioned_paragraph = (str(prompt.strip()) + " " + example).split("\n")[-1]
+    completioned_paragraph = (str(prompt.strip()) +
+                              " " + example).split("\n")[-1]
 
     final_sentences = list(nlp(completioned_paragraph).sents)
     completioned_sentence = final_sentences[-1].text
@@ -119,7 +120,7 @@ async def question(prompt: str):
     completion_length = len(example.split())
     max_length = max(int(completion_length * 0.8), 7)
 
-    RHETORICAL_SITUATION = ""
+    RHETORICAL_SITUATION = "The user is writing a 200-word essay."
     QUESTION_PROMPT = f"With the current document in mind:\n\n{prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence. Use no more than {max_length} words."
 
     full_prompt = (
@@ -172,7 +173,8 @@ async def structure(prompt: str):
 
         plainword_tag = token.tag_ in ["IN", "CC", "EX", "WDT", "DT"]
         simple_adverb = (
-            token.tag_ in ["RB", "RBR", "RBS", "RB", "WRB"] and token.text[-2:] != "ly"
+            token.tag_ in ["RB", "RBR", "RBS", "RB",
+                           "WRB"] and token.text[-2:] != "ly"
         )
         aux = token.pos_ == "AUX"
         punct = token.is_punct
