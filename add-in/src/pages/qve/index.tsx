@@ -642,8 +642,8 @@ export default function QvE() {
 							</div>
 						</button>
 						{ isSavedPageTooltipVisible && (
-							!isSavedOpen ? <div className={ classes.savedPageTooltip }>Expand Saved Item</div>
-							: <div className={ classes.savedPageTooltip }>Collapse Saved Item</div>
+							!isSavedOpen ? <div className={ classes.savedPageTooltip }>Show Saved Items</div>
+							: <div className={ classes.savedPageTooltip }>Hide Saved Items</div>
 						) }
 					</div>
 
