@@ -81,7 +81,7 @@ async def completion(prompt: str):
 
 
 async def chat_completion(prompt: str):
-    # 15 is about the length of an average sentence. GPT"s most verbose sentences tend to be about ~30 words maximum.
+    # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
     word_limit = str(random.randint(15, 30))
 
     # Assign prompt based on whether the document ends with a space for a new paragraph
