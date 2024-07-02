@@ -391,14 +391,14 @@ export default function QvE() {
 								{ IS_OBSCURED ? 'A' : <AiOutlineAlignLeft /> }
 							</button>
 
-							{ isExampleTooltipVisible && !IS_OBSCURED && (
+							{ isExampleTooltipVisible && (
 								<div
 									className={ [
 										classes.tooltip,
 										classes.tooltip_e
 									].join(' ') }
 								>
-									Get New Completion
+									{ !IS_OBSCURED ? 'Get New Completion' : 'Get new suggestion' }
 								</div>
 							) }
 
@@ -425,14 +425,14 @@ export default function QvE() {
 								{ IS_OBSCURED ? 'B' : <AiOutlineQuestion /> }
 							</button>
 
-							{ isQuestionTooltipVisible && !IS_OBSCURED && (
+							{ isQuestionTooltipVisible && (
 								<div
 									className={ [
 										classes.tooltip,
 										classes.tooltip_q
 									].join(' ') }
 								>
-									Get New Question
+									{ !IS_OBSCURED ? 'Get New Question' : 'Get new suggestion' }
 								</div>
 							) }
 
@@ -459,14 +459,14 @@ export default function QvE() {
 								{ IS_OBSCURED ? 'C' : <AiOutlineHighlight /> }
 							</button>
 
-							{ isKeywordsTooltipVisible && !IS_OBSCURED && (
+							{ isKeywordsTooltipVisible && (
 								<div
 									className={ [
 										classes.tooltip,
 										classes.tooltip_k
 									].join(' ') }
 								>
-									Get New Keywords
+									{ !IS_OBSCURED ? 'Get New Keywords' : 'Get new suggestion' }
 								</div>
 							) }
 
@@ -493,14 +493,14 @@ export default function QvE() {
 								{ IS_OBSCURED ? 'D' : <AiOutlineBank /> }
 							</button>
 
-							{ isStructureTooltipVisible && !IS_OBSCURED && (
+							{ isStructureTooltipVisible && (
 								<div
 									className={ [
 										classes.tooltip,
 										classes.tooltip_s
 									].join(' ') }
 								>
-									Get New Structure
+									{ !IS_OBSCURED ? 'Get New Structure' : 'Get new suggestion' }
 								</div>
 							) }
 						</>
