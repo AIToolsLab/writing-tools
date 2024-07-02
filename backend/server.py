@@ -62,13 +62,13 @@ app.add_middleware(
 # Routes
 @app.post("/api/generation")
 async def generation(payload: GenerationRequestPayload):
-    if payload.gtype == "example":
+    if payload.gtype == "Completion_Backend":
         result = await nlp.chat_completion(payload.prompt)
-    elif payload.gtype == "question":
+    elif payload.gtype == "Question_Backend":
         result = await nlp.question(payload.prompt)
-    elif payload.gtype == "keywords":
+    elif payload.gtype == "Keywords_Backend":
         result = await nlp.keywords(payload.prompt)
-    elif payload.gtype == "structure":
+    elif payload.gtype == "Structure_Backend":
         result = await nlp.structure(payload.prompt)
     else:
         return {"error": "Invalid generation type."}

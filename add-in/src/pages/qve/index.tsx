@@ -267,7 +267,7 @@ export default function QvE() {
 									if (docText === '') return;
 
 									updateGenerationMode('example');
-									getGeneration(username, 'example', docText)
+									getGeneration(username, 'Completion_Backend', docText);
 								} }
 							>
 								Get New Completion
@@ -284,7 +284,7 @@ export default function QvE() {
 									if (docText === '') return;
 
 									updateGenerationMode('question');
-									getGeneration(username, 'question', docText)
+									getGeneration(username, 'Question_Backend', docText);
 								} }
 							>
 								Get New Question
@@ -304,14 +304,14 @@ export default function QvE() {
 								onClick={ () => {
 									log({
 										username: username,
-										interaction: 'Completion',
+										interaction: 'Completion_Frontend',
 										prompt: docText,
 										result: generation
 									});
 									if (docText === '') return;
 
 									updateGenerationMode('example');
-									getGeneration(username, 'example', docText)
+									getGeneration(username, 'Completion_Backend', docText);
 								} }
 								onMouseEnter={ () =>
 									setExampleTooltipVisible(true)
@@ -344,14 +344,14 @@ export default function QvE() {
 								onClick={ () => {
 									log({
 										username: username,
-										interaction: 'question',
+										interaction: 'Question_Frontend',
 										prompt: docText,
 										result: generation
 									});
 									if (docText === '') return;
 
 									updateGenerationMode('question');
-									getGeneration(username, 'question', docText);
+									getGeneration(username, 'Question_Backend', docText);
 								} }
 								onMouseEnter={ () =>
 									setQuestionTooltipVisible(true)
@@ -384,14 +384,14 @@ export default function QvE() {
 								onClick={ () => {
 									log({
 										username: username,
-										interaction: 'keywords',
+										interaction: 'Keywords_Frontend',
 										prompt: docText,
 										result: generation
 									});
 									if (docText === '') return;
 
 									updateGenerationMode('keywords');
-									getGeneration(username, 'keywords', docText);
+									getGeneration(username, 'Keywords_Backend', docText);
 								} }
 								onMouseEnter={ () =>
 									setKeywordsTooltipVisible(true)
@@ -424,14 +424,14 @@ export default function QvE() {
 								onClick={ () => {
 									log({
 										username: username,
-										interaction: 'structure',
+										interaction: 'Structure_Frontend',
 										prompt: docText,
 										result: generation
 									});
 									if (docText === '') return;
 
 									updateGenerationMode('structure');
-									getGeneration(username, 'structure', docText)
+									getGeneration(username, 'Structure_Backend', docText);
 								} }
 								onMouseEnter={ () =>
 									setStructureTooltipVisible(true)
@@ -524,7 +524,7 @@ export default function QvE() {
 									// log
 									log({
 										username: username,
-										interaction: 'Copy',
+										interaction: 'Copy_Button',
 										prompt: docText,
 										result: generation
 									});
@@ -559,7 +559,7 @@ export default function QvE() {
 									// log
 									log({
 										username: username,
-										interaction: 'Save',
+										interaction: 'Save_Button',
 										prompt: docText,
 										result: generation
 									});
