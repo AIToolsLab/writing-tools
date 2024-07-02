@@ -85,7 +85,7 @@ export default function QvE() {
 		)
 			return;
 
-		newSaved.push({
+		newSaved.unshift({
 			document: document,
 			generation: generation,
 			type: generationType,
