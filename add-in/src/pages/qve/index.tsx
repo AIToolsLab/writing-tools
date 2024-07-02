@@ -619,11 +619,7 @@ export default function QvE() {
 				<div className={ classes.historyContainer }>
 					<div className={ classes.historyButtonWrapper }>
 						<button
-							className={
-								isSavedOpen
-									? classes.historyButtonActive
-									: classes.historyButton
-							}
+							className={ classes.historyButton }
 							disabled={ docText === '' || isLoading }
 							onClick={ () => {
 								// Toggle between the current page and the saved page
@@ -633,10 +629,13 @@ export default function QvE() {
 							onMouseLeave={ () => setSavedPageTooltipVisible(false) }
 						>
 							<div className={ classes.savedPageIconIndicatorContainer }>
-								{ isSavedOpen ? <AiOutlineUp className={ classes.savedPageIconIndicator }/>
-								: <AiOutlineDown className={ classes.savedPageIconIndicator }/> 
-								}
-							</div> Saved <div className={ classes.savedPageIconIndicatorContainer }>
+								<AiOutlineStar
+									className={
+										isSavedOpen
+										? classes.savedPageIconActive
+										: classes.savedPageIcon
+									}
+								/>
 								{ isSavedOpen ? <AiOutlineUp className={ classes.savedPageIconIndicator }/>
 								: <AiOutlineDown className={ classes.savedPageIconIndicator }/>
 								}

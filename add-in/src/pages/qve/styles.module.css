@@ -354,8 +354,7 @@
 	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
 }
 
-.historyButton,
-.historyButtonActive {
+.historyButton {
 	background-color: #ffffff;
 	font-size: 0.8rem;
 	font-weight: 600;
@@ -367,13 +366,7 @@
 	display: flex;
 }
 
-.historyButtonActive {
-	background-color: #d2e0fb;
-	border: 1px solid #d2e0fb;
-}
-
-.historyButton:hover,
-.historyButtonActive:hover {
+.historyButton:hover {
 	background-color: #f0f0f0;
 	border: 1px solid #f0f0f0;
 	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, 0.1);
@@ -390,15 +383,30 @@
 }
 
 .savedPageIconIndicatorContainer {
-	justify-content: center;
+	justify-items: center;
 	align-items: center;
 	transition: 0.15s;
-	padding-top: 2px;
 }
 
 .savedPageIconIndicator {
 	color: #bbbbbb;
 	font-size: 0.7rem;
+	justify-items: center;
+	padding-bottom: 3px;
+}
+
+.savedPageIcon {
+	color: #bbbbbb;
+	font-size: 1.2rem;
+	padding-top: 1px;
+	transition: 0.15s;
+}
+
+.savedPageIconActive {
+	color: gold;
+	font-size: 1.2rem;
+	padding-top: 1px;
+	transition: 0.15s;
 }
 
 .historyItem {
