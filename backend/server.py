@@ -1,15 +1,18 @@
 import os
 import json
 
-import uvicorn
-
 from typing import List, Dict, Optional
 from pathlib import Path
+
+import uvicorn
+import asyncio
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
+
+from sse_starlette.sse import EventSourceResponse
 
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -90,17 +93,39 @@ async def log_feedback(payload: Log):
 # Show all server logs
 @app.get("/api/logs")
 async def logs():
-    particpants = list(LOG_PATH.glob("*.jsonl"))
+    async def log_generator():
+        log_files = {participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
+        log_positions = {username: 0 for username in log_files}
 
-    return {
-        "logs": [
-            {
-                "username": participant.stem,
-                "logs": [json.loads(line) for line in open(participant)],
-            }
-            for participant in particpants
-        ]
-    }
+        while True:
+            updates = []
+            all_logs = [log.stem for log in list(LOG_PATH.glob("*.jsonl"))]
+
+            for username in all_logs:
+                if username not in list(log_positions.keys()):
+                    log_files = {participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
+                    log_positions[username] = 0
+
+                    break
+
+            for username, log_file in log_files.items():
+                with open(log_file, "r") as file:
+                    file.seek(log_positions[username])
+                    new_lines = file.readlines()
+                
+                    if new_lines:
+                        updates.append({
+                            "username": username,
+                            "logs": [json.loads(line) for line in new_lines],
+                        })
+                        log_positions[username] = file.tell()
+
+            if updates:
+                yield updates
+
+            await asyncio.sleep(1)  # Adjust the sleep time as needed
+    
+    return EventSourceResponse(log_generator())
 
 
 def get_participant_log_filename(username):

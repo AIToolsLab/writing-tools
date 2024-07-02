@@ -5,3 +5,5 @@ python-dotenv
 uvicorn
 spacy
 nltk
+sse_starlette
+asyncio
