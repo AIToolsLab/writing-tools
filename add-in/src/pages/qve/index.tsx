@@ -165,15 +165,12 @@ export default function QvE() {
 		catch (err: any) {
 			setIsLoading(false);
 			let errMsg = '';
-			if (err.name === 'AbortError') {
-				updateGeneration(`${err.name}: Timeout. Please try again.`);
+			if (err.name === 'AbortError')
 				errMsg = `${err.name}: Timeout. Please try again.`;
-			}
-			else {
-				updateGeneration(`Error: Please try again.`);
+			else
 				errMsg = `${err.name}: ${err.message}`;
-			}
-			
+
+			updateGeneration(errMsg);
 			log({
 				username: username,
 				interaction: type,
