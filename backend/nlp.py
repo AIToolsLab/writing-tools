@@ -170,7 +170,7 @@ async def structure(prompt: str):
         # determiner = token.tag_ == "WDT" or token.tag_ == "IN"
         # return not determiner and (keyword_pos or past_participle or ly_word)
 
-        plainword_tag = token.tag_ in ["IN", "CC", "EX", "WDT"]
+        plainword_tag = token.tag_ in ["IN", "CC", "EX", "WDT", "DT"]
         simple_adverb = (
             token.tag_ in ["RB", "RBR", "RBS", "RB", "WRB"] and token.text[-2:] != "ly"
         )
