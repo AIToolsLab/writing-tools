@@ -191,7 +191,7 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		updateGeneration(await getGeneration(username, 'chat_completion', contextText));
+		updateGeneration(await getGeneration(username, 'example', contextText));
 		setIsLoading(false);
 	}
 
@@ -332,7 +332,7 @@ export default function QvE() {
 						<>
 							<button
 								className={
-									generationMode === 'Examples'
+									generationMode === 'example'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -340,7 +340,7 @@ export default function QvE() {
 								onClick={ () => {
 									if (docText === '') return;
 
-									updateGenerationMode('Examples');
+									updateGenerationMode('example');
 									getExamples(docText);
 								} }
 							>
@@ -349,7 +349,7 @@ export default function QvE() {
 
 							<button
 								className={
-									generationMode === 'Questions'
+									generationMode === 'question'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -357,7 +357,7 @@ export default function QvE() {
 								onClick={ () => {
 									if (docText === '') return;
 
-									updateGenerationMode('Questions');
+									updateGenerationMode('question');
 									getQuestions(docText);
 								} }
 							>
@@ -370,7 +370,7 @@ export default function QvE() {
 						<>
 							<button
 								className={
-									generationMode === 'Examples'
+									generationMode === 'example'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -384,7 +384,7 @@ export default function QvE() {
 									});
 									if (docText === '') return;
 
-									updateGenerationMode('Examples');
+									updateGenerationMode('example');
 									getExamples(docText);
 								} }
 								onMouseEnter={ () =>
@@ -410,7 +410,7 @@ export default function QvE() {
 
 							<button
 								className={
-									generationMode === 'Questions'
+									generationMode === 'question'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -418,13 +418,13 @@ export default function QvE() {
 								onClick={ () => {
 									log({
 										username: username,
-										interaction: 'Questions',
+										interaction: 'question',
 										prompt: docText,
 										result: generation
 									});
 									if (docText === '') return;
 
-									updateGenerationMode('Questions');
+									updateGenerationMode('question');
 									getQuestions(docText);
 								} }
 								onMouseEnter={ () =>
@@ -450,7 +450,7 @@ export default function QvE() {
 
 							<button
 								className={
-									generationMode === 'Keywords'
+									generationMode === 'keywords'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -458,13 +458,13 @@ export default function QvE() {
 								onClick={ () => {
 									log({
 										username: username,
-										interaction: 'Keywords',
+										interaction: 'keywords',
 										prompt: docText,
 										result: generation
 									});
 									if (docText === '') return;
 
-									updateGenerationMode('Keywords');
+									updateGenerationMode('keywords');
 									getKeywords(docText);
 								} }
 								onMouseEnter={ () =>
@@ -490,7 +490,7 @@ export default function QvE() {
 
 							<button
 								className={
-									generationMode === 'Structure'
+									generationMode === 'structure'
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
@@ -498,13 +498,13 @@ export default function QvE() {
 								onClick={ () => {
 									log({
 										username: username,
-										interaction: 'Structure',
+										interaction: 'structure',
 										prompt: docText,
 										result: generation
 									});
 									if (docText === '') return;
 
-									updateGenerationMode('Structure');
+									updateGenerationMode('structure');
 									getStructure(docText);
 								} }
 								onMouseEnter={ () =>
@@ -749,7 +749,7 @@ export default function QvE() {
 												classes.genTypeIconWrapper
 											}
 										>
-											{ savedItem.type === 'Examples' ? (
+											{ savedItem.type === 'example' ? (
 												IS_OBSCURED ? (
 													'A'
 												) : (
@@ -760,7 +760,7 @@ export default function QvE() {
 													/>
 												)
 											) : savedItem.type ===
-											  'Questions' ? (
+											  'question' ? (
 												IS_OBSCURED ? (
 													'B'
 												) : (
@@ -771,7 +771,7 @@ export default function QvE() {
 													/>
 												)
 											) : savedItem.type ===
-											  'Keywords' ? (
+											  'keywords' ? (
 												IS_OBSCURED ? (
 													'C'
 												) : (
@@ -782,7 +782,7 @@ export default function QvE() {
 													/>
 												)
 											) : savedItem.type ===
-											  'Structure' ? (
+											  'structure' ? (
 												IS_OBSCURED ? (
 													'D'
 												) : (

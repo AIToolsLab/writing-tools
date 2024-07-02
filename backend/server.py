@@ -62,7 +62,7 @@ app.add_middleware(
 # Routes
 @app.post("/api/generation")
 async def generation(payload: GenerationRequestPayload):
-    if payload.gtype == "chat_completion":
+    if payload.gtype == "example":
         result = await nlp.chat_completion(payload.prompt)
     elif payload.gtype == "question":
         result = await nlp.question(payload.prompt)
