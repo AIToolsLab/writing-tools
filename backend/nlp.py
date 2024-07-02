@@ -83,12 +83,13 @@ async def completion(prompt: str):
 async def chat_completion(prompt: str):
     # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
     word_limit = str(random.randint(15, 30))
+    RHETORICAL_SITUATION = "You are a completion bot for a 200-word essay"
 
     # Assign prompt based on whether the document ends with a space for a new paragraph
     if prompt[-1] == "\r":
-        system_chat_prompt = f"You are a completion bot. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words."
+        system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words."
     else:
-        system_chat_prompt = f"You are a completion bot. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words."
+        system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words."
 
     result = await chat(
         messages=[
@@ -120,11 +121,10 @@ async def question(prompt: str):
     completion_length = len(example.split())
     max_length = max(int(completion_length * 0.8), 7)
 
-    RHETORICAL_SITUATION = "The user is writing a 200-word essay."
     QUESTION_PROMPT = f"With the current document in mind:\n\n{prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence. Use no more than {max_length} words."
 
     full_prompt = (
-        f"{RHETORICAL_SITUATION}\n{QUESTION_PROMPT}\n\n{completioned_sentence}"
+        f"{QUESTION_PROMPT}\n\n{completioned_sentence}"
     )
 
     questions = await chat(
