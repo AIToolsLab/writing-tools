@@ -80,7 +80,7 @@ async def generation(payload: GenerationRequestPayload):
             prompt=payload.prompt,
             result=result["result"],
             completion=result["completion"],
-            timestamp=int(datetime.now().strftime("%s%f")) / 1000,
+            timestamp=str(int(datetime.now().strftime("%s%f")) // 1000),
         )
     )
 

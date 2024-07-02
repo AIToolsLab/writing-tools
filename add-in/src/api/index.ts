@@ -11,7 +11,7 @@ export function log(payload: LogPayload) {
   const payloadWithTimestamp = {
     ...payload,
     // timestamp: new Date().toISOString(),
-    timestamp: new Date().getTime(),
+    timestamp: new Date().getTime().toString(),
   };
   fetch(`${SERVER_URL}/log`, {
     method: 'POST',
