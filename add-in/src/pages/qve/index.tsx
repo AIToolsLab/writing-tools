@@ -26,21 +26,6 @@ function sanitize(text: string): string {
 	return text.replace('"', '').replace('\'', '');
 }
 
-async function getGeneration(username: string, type: string, context: string) {
-    const response = await fetch(`${SERVER_URL}/generation`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            username: username,
-            gtype: type,
-            prompt: sanitize(context)
-        })
-    });
-
-    return await response.json();
-}
 
 export default function QvE() {
 	const { username } = useContext(UserContext);
@@ -151,14 +136,7 @@ export default function QvE() {
 		});
 	}
 
-	/**
-	 * Retrieves questions for the document text.
-	 * This function sends a request to the server to generate questions for the given document text.
-	 * The generated questions are then used to update the questions state.
-	 *
-	 * @param {string}
-	 */
-	async function getQuestions(contextText: string) {
+	async function getGeneration(username: string, type: string, contextText: string) {
 		updateGeneration('');
 
 		// eslint-disable-next-line no-console
@@ -169,75 +147,23 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-		updateGeneration(await getGeneration(username, 'question', contextText));
-		setIsLoading(false);
-	}
+    const response = await fetch(`${SERVER_URL}/generation`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            username: username,
+            gtype: type,
+            prompt: sanitize(contextText)
+        })
+    });
 
-	/**
-	 * Retrieves example next sentences for the document text.
-	 * This function sends a request to the server to generate next sentences for the given text.
-	 * The generated examples are then used to update the examples state.
-	 *
-	 * @param {string}
-	 */
-	async function getExamples(contextText: string) {
-		updateGeneration('');
+		updateGeneration(await response.json());
 
-		// eslint-disable-next-line no-console
-		console.assert(
-			typeof contextText === 'string' && contextText !== '',
-			'contextText must be a non-empty string'
-		);
+    setIsLoading(false);
+}
 
-		setIsLoading(true);
-
-		updateGeneration(await getGeneration(username, 'example', contextText));
-		setIsLoading(false);
-	}
-
-	/**
-	 * Retrieves keywords for the document text.
-	 * This function sends a request to the server to generate keywords for the given document text.
-	 * The generated keywords are then used to update the keywords state.
-	 *
-	 * @param {string}
-	 */
-	async function getKeywords(contextText: string) {
-		updateGeneration('');
-
-		// eslint-disable-next-line no-console
-		console.assert(
-			typeof contextText === 'string' && contextText !== '',
-			'contextText must be a non-empty string'
-		);
-
-		setIsLoading(true);
-
-		updateGeneration(await getGeneration(username, 'keywords', contextText));
-		setIsLoading(false);
-	}
-
-	/**
-	 * Retrieves structure for the document text.
-	 * This function sends a request to the server to generate structure for the given document text.
-	 * The generated structure is then used to update the structure state.
-	 *
-	 * @param {string}
-	 */
-	async function getStructure(contextText: string) {
-		updateGeneration('');
-
-		// eslint-disable-next-line no-console
-		console.assert(
-			typeof contextText === 'string' && contextText !== '',
-			'contextText must be a non-empty string'
-		);
-
-		setIsLoading(true);
-
-		updateGeneration(await getGeneration(username, 'structure', contextText));
-		setIsLoading(false);
-	}
 
 	/**
 	 * useEffect to ensure that event handlers are set up only once
@@ -341,7 +267,7 @@ export default function QvE() {
 									if (docText === '') return;
 
 									updateGenerationMode('example');
-									getExamples(docText);
+									getGeneration(username, 'example', docText)
 								} }
 							>
 								Get New Completion
@@ -358,7 +284,7 @@ export default function QvE() {
 									if (docText === '') return;
 
 									updateGenerationMode('question');
-									getQuestions(docText);
+									getGeneration(username, 'question', docText)
 								} }
 							>
 								Get New Question
@@ -385,7 +311,7 @@ export default function QvE() {
 									if (docText === '') return;
 
 									updateGenerationMode('example');
-									getExamples(docText);
+									getGeneration(username, 'example', docText)
 								} }
 								onMouseEnter={ () =>
 									setExampleTooltipVisible(true)
@@ -425,7 +351,7 @@ export default function QvE() {
 									if (docText === '') return;
 
 									updateGenerationMode('question');
-									getQuestions(docText);
+									getGeneration(username, 'question', docText);
 								} }
 								onMouseEnter={ () =>
 									setQuestionTooltipVisible(true)
@@ -465,7 +391,7 @@ export default function QvE() {
 									if (docText === '') return;
 
 									updateGenerationMode('keywords');
-									getKeywords(docText);
+									getGeneration(username, 'keywords', docText);
 								} }
 								onMouseEnter={ () =>
 									setKeywordsTooltipVisible(true)
@@ -505,7 +431,7 @@ export default function QvE() {
 									if (docText === '') return;
 
 									updateGenerationMode('structure');
-									getStructure(docText);
+									getGeneration(username, 'structure', docText)
 								} }
 								onMouseEnter={ () =>
 									setStructureTooltipVisible(true)
