@@ -10,7 +10,8 @@ export interface LogPayload {
 export function log(payload: LogPayload) {
   const payloadWithTimestamp = {
     ...payload,
-    timestamp: new Date().toISOString(),
+    // timestamp: new Date().toISOString(),
+    timestamp: new Date().getTime(),
   };
   fetch(`${SERVER_URL}/log`, {
     method: 'POST',

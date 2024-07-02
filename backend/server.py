@@ -3,6 +3,7 @@ import json
 
 from typing import List, Dict, Optional
 from pathlib import Path
+from datetime import datetime
 
 import uvicorn
 import asyncio
@@ -79,6 +80,7 @@ async def generation(payload: GenerationRequestPayload):
             prompt=payload.prompt,
             result=result["result"],
             completion=result["completion"],
+            timestamp=int(datetime.now().strftime("%s%f")) / 1000,
         )
     )
 
