@@ -147,19 +147,29 @@ export default function QvE() {
 
 		setIsLoading(true);
 
-    const response = await fetch(`${SERVER_URL}/generation`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-            username: username,
-            gtype: type,
-            prompt: sanitize(contextText)
-        })
-    });
-
-		updateGeneration(await response.json());
+		try {
+			const response = await fetch(`${SERVER_URL}/generation`, {
+					method: 'POST',
+					headers: {
+							'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+							username: username,
+							gtype: type,
+							prompt: sanitize(contextText)
+					}),
+					signal: AbortSignal.timeout(5000)
+			});
+			updateGeneration(await response.json());
+		}
+		catch (err: any) {
+			setIsLoading(false);
+			if (err.name === 'AbortError')
+				updateGeneration(`${err.name}: Timeout. Please try again.`);
+			else
+				updateGeneration(`Error: Please try again.`);
+			return;
+		}
 
     setIsLoading(false);
 }
