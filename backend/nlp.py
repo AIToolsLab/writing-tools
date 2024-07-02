@@ -23,11 +23,13 @@ openai_client = AsyncOpenAI(
 
 # Load spaCy model for sentence splitting
 try:
-    nlp = spacy.load("en_core_web_trf")
+    nlp = spacy.load("en_core_web_sm")
+    # nlp = spacy.load("en_core_web_trf")
 except:
     print("Need to download spaCy model. Run:")
-    print("pip install spacy-transformers")
-    print("python -m spacy download en_core_web_trf")
+    print("python -m spacy download en_core_web_sm")
+    # print("pip install spacy-transformers")
+    # print("python -m spacy download en_core_web_trf")
 
     exit()
 
@@ -111,20 +113,19 @@ async def chat_completion(prompt: str):
 async def question(prompt: str):
     example = (await chat_completion(prompt))["result"]
 
-    # Get the completioned sentence and the sentence right before
-    completioned_paragraph = (str(prompt.strip()) +
-                              " " + example).split("\n")[-1]
+    final_paragraph = str(prompt).split('\n')[-1]
+    final_sentence = list(nlp(final_paragraph).sents)[-1].text
 
-    final_sentences = list(nlp(completioned_paragraph).sents)
-    completioned_sentence = final_sentences[-1].text
-
+    if is_full_sentence(final_sentence):
+        question_prompt = f"With the current document in mind:\n\n{prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence."
+    else:
+        question_prompt = f"With the current document in mind:\n\n{prompt}\n\nReword the following completion as a who/what/when/where/why/how question."
     completion_length = len(example.split())
     max_length = max(int(completion_length * 0.8), 7)
-
-    QUESTION_PROMPT = f"With the current document in mind:\n\n{prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence. Use no more than {max_length} words."
+    question_prompt += f" Use no more than {max_length} words."
 
     full_prompt = (
-        f"{QUESTION_PROMPT}\n\n{completioned_sentence}"
+        f"{question_prompt}\n\n{example}"
     )
 
     questions = await chat(
@@ -136,7 +137,7 @@ async def question(prompt: str):
 
     return {
         "result": questions,
-        "completion": completioned_sentence
+        "completion": example
     }
 
 
