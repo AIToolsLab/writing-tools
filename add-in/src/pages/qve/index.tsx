@@ -102,7 +102,7 @@ export default function QvE() {
 
 		log({
 			username: username,
-			interaction: 'Delete_Saved_Item',
+			interaction: 'Delete: ' + savedItems.filter(savedItem => savedItem.dateSaved === dateSaved)[0].type,
 			prompt: savedItems.filter(savedItem => savedItem.dateSaved === dateSaved)[0].document,
 			result: savedItems.filter(savedItem => savedItem.dateSaved === dateSaved)[0].generation,
 		});
