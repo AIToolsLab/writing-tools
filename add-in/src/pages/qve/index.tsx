@@ -532,8 +532,9 @@ export default function QvE() {
 								className={ classes.utilIconWrapper }
 								onClick={ () => {
 									// Copy the text to the clipboard
-									// This will only work (for Chrome) for secure contexts (https)
+									// This will only work for Safari and Firefox (will not work for Chrome)
 									// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
+									// https://github.com/OfficeDev/office-js/issues/1991
 									navigator.clipboard.writeText(
 										generation.trim()
 									);
