@@ -83,7 +83,8 @@ async def generation(payload: GenerationRequestPayload):
 
     return result['result']
 
-@app.post("/log")
+
+@app.post("/api/log")
 async def log_feedback(payload: Log):
     make_log(payload)
 
@@ -94,7 +95,8 @@ async def log_feedback(payload: Log):
 @app.get("/api/logs")
 async def logs():
     async def log_generator():
-        log_files = {participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
+        log_files = {
+            participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
         log_positions = {username: 0 for username in log_files}
 
         while True:
@@ -103,7 +105,8 @@ async def logs():
 
             for username in all_logs:
                 if username not in list(log_positions.keys()):
-                    log_files = {participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
+                    log_files = {
+                        participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
                     log_positions[username] = 0
 
                     break
@@ -112,7 +115,7 @@ async def logs():
                 with open(log_file, "r") as file:
                     file.seek(log_positions[username])
                     new_lines = file.readlines()
-                
+
                     if new_lines:
                         updates.append({
                             "username": username,
@@ -124,7 +127,7 @@ async def logs():
                 yield updates
 
             await asyncio.sleep(1)  # Adjust the sleep time as needed
-    
+
     return EventSourceResponse(log_generator())
 
 

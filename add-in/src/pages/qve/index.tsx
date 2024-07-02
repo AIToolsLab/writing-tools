@@ -18,7 +18,7 @@ import {
 	AiOutlineDown
 } from 'react-icons/ai';
 
-import { SERVER_URL } from '@/api';
+import { SERVER_URL, log } from '@/api';
 
 import classes from './styles.module.css';
 
@@ -444,6 +444,12 @@ export default function QvE() {
 								}
 								disabled={ docText === '' || isLoading }
 								onClick={ () => {
+									// log({
+									// 	username: username,
+									// 	interaction: 'Keywords',
+									// 	type: 'Keywords',
+									// 	document: docText
+									// });
 									if (docText === '') return;
 
 									updateGenerationMode('Keywords');
@@ -570,6 +576,14 @@ export default function QvE() {
 									);
 									setCopied(true);
 									setTimeout(() => setCopied(false), 2000);
+
+									// log
+									log({
+										username: username,
+										interaction: 'Copy',
+										result: generation,
+										document: docText
+									});
 								} }
 								onMouseEnter={ () => setCopyTooltipVisible(true) }
 								onMouseLeave={ () =>
@@ -597,6 +611,14 @@ export default function QvE() {
 
 									setSaved(true);
 									setTimeout(() => setSaved(false), 2000);
+
+									// log
+									log({
+										username: username,
+										interaction: 'Save',
+										result: generation,
+										document: docText
+									});
 								} }
 								onMouseEnter={ () => setSaveTooltipVisible(true) }
 								onMouseLeave={ () =>
