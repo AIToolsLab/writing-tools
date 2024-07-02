@@ -376,6 +376,12 @@ export default function QvE() {
 								}
 								disabled={ docText === '' || isLoading }
 								onClick={ () => {
+									log({
+										username: username,
+										interaction: 'Completion',
+										prompt: docText,
+										result: generation
+									});
 									if (docText === '') return;
 
 									updateGenerationMode('Examples');
@@ -410,6 +416,12 @@ export default function QvE() {
 								}
 								disabled={ docText === '' || isLoading }
 								onClick={ () => {
+									log({
+										username: username,
+										interaction: 'Questions',
+										prompt: docText,
+										result: generation
+									});
 									if (docText === '') return;
 
 									updateGenerationMode('Questions');
@@ -444,12 +456,12 @@ export default function QvE() {
 								}
 								disabled={ docText === '' || isLoading }
 								onClick={ () => {
-									// log({
-									// 	username: username,
-									// 	interaction: 'Keywords',
-									// 	type: 'Keywords',
-									// 	document: docText
-									// });
+									log({
+										username: username,
+										interaction: 'Keywords',
+										prompt: docText,
+										result: generation
+									});
 									if (docText === '') return;
 
 									updateGenerationMode('Keywords');
@@ -484,6 +496,12 @@ export default function QvE() {
 								}
 								disabled={ docText === '' || isLoading }
 								onClick={ () => {
+									log({
+										username: username,
+										interaction: 'Structure',
+										prompt: docText,
+										result: generation
+									});
 									if (docText === '') return;
 
 									updateGenerationMode('Structure');
@@ -581,8 +599,8 @@ export default function QvE() {
 									log({
 										username: username,
 										interaction: 'Copy',
-										result: generation,
-										document: docText
+										prompt: docText,
+										result: generation
 									});
 								} }
 								onMouseEnter={ () => setCopyTooltipVisible(true) }
@@ -616,8 +634,8 @@ export default function QvE() {
 									log({
 										username: username,
 										interaction: 'Save',
-										result: generation,
-										document: docText
+										prompt: docText,
+										result: generation
 									});
 								} }
 								onMouseEnter={ () => setSaveTooltipVisible(true) }

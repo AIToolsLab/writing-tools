@@ -41,6 +41,7 @@ class Log(BaseModel):
     prompt: Optional[str] = None
     result: Optional[str] = None
     completion: Optional[str] = None
+    timestamp: Optional[str] = None
 
 
 # Initliaze Server
