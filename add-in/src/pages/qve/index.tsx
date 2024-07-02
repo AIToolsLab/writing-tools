@@ -100,6 +100,13 @@ export default function QvE() {
 			savedItem => savedItem.dateSaved !== dateSaved
 		);
 
+		log({
+			username: username,
+			interaction: 'Delete_Saved_Item',
+			prompt: savedItems.filter(savedItem => savedItem.dateSaved === dateSaved)[0].document,
+			result: savedItems.filter(savedItem => savedItem.dateSaved === dateSaved)[0].generation,
+		});
+
 		updateSavedItems(newSaved);
 	}
 
