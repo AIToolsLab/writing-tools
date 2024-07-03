@@ -356,7 +356,7 @@ export default function QvE() {
 										classes.tooltip_e
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Completion' : 'Get new suggestion' }
+									{ !IS_OBSCURED ? 'Get New Completion' : 'Get New Generation' }
 								</div>
 							) }
 
@@ -396,7 +396,7 @@ export default function QvE() {
 										classes.tooltip_q
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Question' : 'Get new suggestion' }
+									{ !IS_OBSCURED ? 'Get New Question' : 'Get New Generation' }
 								</div>
 							) }
 
@@ -436,7 +436,7 @@ export default function QvE() {
 										classes.tooltip_k
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Keywords' : 'Get new suggestion' }
+									{ !IS_OBSCURED ? 'Get New Keywords' : 'Get New Generation' }
 								</div>
 							) }
 
@@ -476,7 +476,7 @@ export default function QvE() {
 										classes.tooltip_s
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Structure' : 'Get new suggestion' }
+									{ !IS_OBSCURED ? 'Get New Structure' : 'Get New Generation' }
 								</div>
 							) }
 						</>
