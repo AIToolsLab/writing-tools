@@ -1,3 +1,4 @@
+fastapi
 openai
 azure-identity
 azure-keyvault-secrets
