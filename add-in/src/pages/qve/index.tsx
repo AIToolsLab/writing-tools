@@ -158,7 +158,7 @@ export default function QvE() {
 							gtype: type,
 							prompt: sanitize(contextText)
 					}),
-					signal: AbortSignal.timeout(5000)
+					signal: AbortSignal.timeout(7000)
 			});
 			updateErrorMsg('');
 			updateGeneration(await response.json());
