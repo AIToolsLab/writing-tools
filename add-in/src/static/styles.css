@@ -72,11 +72,23 @@ body .page-footer {
 .brand-logo {
 	font-size: 1.5em;
 	font-weight: bold;
-	margin-left: 10px;
 }
 
 .nav-wrapper {
+    padding: 0 20px;
+    width: 100%;
+    display: flex;
+    flex-direction: column;
 	background-color: var(--maroon);
+}
+
+.log-link {
+    transition: 0.15s;
+    align-self: flex-end;
+}
+
+.log-link:hover {
+    color: var(--gold);
 }
 
 .waves-effect.waves-light.btn-large.maroon {

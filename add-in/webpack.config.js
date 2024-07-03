@@ -89,7 +89,7 @@ module.exports = async (env, options) => {
 						to: 'assets/[name][ext][query]'
 					},
 					{
-						from: 'src/landingPage/*',
+						from: 'src/static/*',
 						to: '[name][ext]'
 					},
 					{
