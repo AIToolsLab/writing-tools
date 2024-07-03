@@ -274,7 +274,7 @@ export default function QvE() {
 
 			<div className={ classes.noteTextWrapper }>
 				<div className={ classes.noteText }>
-					Please note that AI generations may not be equally helpful
+					Please note that the quality of AI-generated text may vary
 				</div>
 			</div>
 
