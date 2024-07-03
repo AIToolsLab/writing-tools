@@ -46,18 +46,7 @@ export default function QvE() {
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 
 	// Tooltip visibility
-	const [isExampleTooltipVisible, setExampleTooltipVisible] = useState(false);
-	const [isQuestionTooltipVisible, setQuestionTooltipVisible] =
-		useState(false);
-	const [isKeywordsTooltipVisible, setKeywordsTooltipVisible] =
-		useState(false);
-	const [isStructureTooltipVisible, setStructureTooltipVisible] =
-		useState(false);
-
-	const [isSaveTooltipVisible, setSaveTooltipVisible] = useState(false);
-	const [isCloseTooltipVisible, setCloseTooltipVisible] = useState(false);
-	const [isCopyTooltipVisible, setCopyTooltipVisible] = useState(false);
-	const [isSavedPageTooltipVisible, setSavedPageTooltipVisible] = useState(false);
+	const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
 
 	// eslint-disable-next-line prefer-const
 	const [generation, updateGeneration] = useState('');
@@ -352,16 +341,16 @@ export default function QvE() {
 									getGeneration(username, 'Completion_Backend', docText);
 								} }
 								onMouseEnter={ () =>
-									setExampleTooltipVisible(true)
+									setTooltipVisible('Completion')
 								}
 								onMouseLeave={ () =>
-									setExampleTooltipVisible(false)
+									setTooltipVisible(null)
 								}
 							>
 								{ IS_OBSCURED ? 'A' : <AiOutlineAlignLeft /> }
 							</button>
 
-							{ isExampleTooltipVisible && (
+							{ tooltipVisible === 'Completion' && (
 								<div
 									className={ [
 										classes.tooltip,
@@ -392,16 +381,16 @@ export default function QvE() {
 									getGeneration(username, 'Question_Backend', docText);
 								} }
 								onMouseEnter={ () =>
-									setQuestionTooltipVisible(true)
+									setTooltipVisible('Question')
 								}
 								onMouseLeave={ () =>
-									setQuestionTooltipVisible(false)
+									setTooltipVisible(null)
 								}
 							>
 								{ IS_OBSCURED ? 'B' : <AiOutlineQuestion /> }
 							</button>
 
-							{ isQuestionTooltipVisible && (
+							{ tooltipVisible === 'Question' && (
 								<div
 									className={ [
 										classes.tooltip,
@@ -432,16 +421,16 @@ export default function QvE() {
 									getGeneration(username, 'Keywords_Backend', docText);
 								} }
 								onMouseEnter={ () =>
-									setKeywordsTooltipVisible(true)
+									setTooltipVisible('Keywords')
 								}
 								onMouseLeave={ () =>
-									setKeywordsTooltipVisible(false)
+									setTooltipVisible(null)
 								}
 							>
 								{ IS_OBSCURED ? 'C' : <AiOutlineHighlight /> }
 							</button>
 
-							{ isKeywordsTooltipVisible && (
+							{ tooltipVisible === 'Keywords' && (
 								<div
 									className={ [
 										classes.tooltip,
@@ -472,16 +461,16 @@ export default function QvE() {
 									getGeneration(username, 'Structure_Backend', docText);
 								} }
 								onMouseEnter={ () =>
-									setStructureTooltipVisible(true)
+									setTooltipVisible('Structure')
 								}
 								onMouseLeave={ () =>
-									setStructureTooltipVisible(false)
+									setTooltipVisible(null)
 								}
 							>
 								{ IS_OBSCURED ? 'D' : <AiOutlineBank /> }
 							</button>
 
-							{ isStructureTooltipVisible && (
+							{ tooltipVisible === 'Structure' && (
 								<div
 									className={ [
 										classes.tooltip,
@@ -528,16 +517,16 @@ export default function QvE() {
 									results = null;
 								} }
 								onMouseEnter={ () =>
-									setCloseTooltipVisible(true)
+									setTooltipVisible('Close')
 								}
 								onMouseLeave={ () =>
-									setCloseTooltipVisible(false)
+									setTooltipVisible(null)
 								}
 							>
 								<AiOutlineClose className={ classes.closeIcon } />
 							</div>
 
-							{ isCloseTooltipVisible && (
+							{ tooltipVisible === 'Close' && (
 								<div
 									className={ [
 										classes.utilTooltip,
@@ -568,14 +557,16 @@ export default function QvE() {
 										result: generation
 									});
 								} }
-								onMouseEnter={ () => setCopyTooltipVisible(true) }
+								onMouseEnter={ () =>
+									setTooltipVisible('Copy')
+								}
 								onMouseLeave={ () =>
-									setCopyTooltipVisible(false)
+									setTooltipVisible(null)
 								}
 							>
 								<AiOutlineCopy className={ classes.copyIcon } />
 							</div>
-							{ isCopyTooltipVisible && (
+							{ tooltipVisible === 'Copy' && (
 								<div
 									className={ [
 										classes.utilTooltip,
@@ -603,9 +594,11 @@ export default function QvE() {
 										result: generation
 									});
 								} }
-								onMouseEnter={ () => setSaveTooltipVisible(true) }
+								onMouseEnter={ () =>
+									setTooltipVisible('Save')
+								}
 								onMouseLeave={ () =>
-									setSaveTooltipVisible(false)
+									setTooltipVisible(null)
 								}
 							>
 								<AiOutlineStar
@@ -614,7 +607,7 @@ export default function QvE() {
 									}
 								/>
 							</div>
-							{ isSaveTooltipVisible && (
+							{ tooltipVisible === 'Save' && (
 								<div
 									className={ [
 										classes.utilTooltip,
@@ -637,8 +630,12 @@ export default function QvE() {
 								// Toggle between the current page and the saved page
 								setSavedOpen(!isSavedOpen);
 							} }
-							onMouseEnter={ () => setSavedPageTooltipVisible(true) }
-							onMouseLeave={ () => setSavedPageTooltipVisible(false) }
+							onMouseEnter={ () =>
+								setTooltipVisible('Saved')
+							}
+							onMouseLeave={ () =>
+								setTooltipVisible(null)
+							}
 						>
 							<div className={ classes.savedPageIconIndicatorContainer }>
 								<AiOutlineStar
@@ -653,7 +650,7 @@ export default function QvE() {
 								}
 							</div>
 						</button>
-						{ isSavedPageTooltipVisible && (
+						{ tooltipVisible === 'Saved' && (
 							!isSavedOpen ? <div className={ classes.savedPageTooltip }>Show Saved Items</div>
 							: <div className={ classes.savedPageTooltip }>Hide Saved Items</div>
 						) }
