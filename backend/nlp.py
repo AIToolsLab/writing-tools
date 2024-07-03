@@ -171,6 +171,9 @@ async def keywords(prompt: str):
 async def structure(prompt: str):
     completion = (await chat_completion(prompt))["result"]
 
+    prior_sentence = get_final_sentence(prompt)
+    new_sentence = is_full_sentence(prior_sentence)
+
     def is_keyword(token):
         # keyword_pos = token.pos_ in ["NOUN", "PRON", "PROPN", "ADJ", "VERB"]
         # past_participle = token.tag_ == "VBN"
@@ -190,7 +193,8 @@ async def structure(prompt: str):
     def filter(tokens):
         filtered_text = tokens[0].text_with_ws
         for token in tokens[1:]:
-            if not is_keyword(token) or token.head == tokens[0]:
+            # If token is not a keyword or is a dependency of a new sentence's opener:
+            if not is_keyword(token) or (token.head == tokens[0] and new_sentence):
                 if token.tag_ == "HYPH":
                     filtered_text += " "
                 else:
