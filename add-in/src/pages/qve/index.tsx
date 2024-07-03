@@ -631,7 +631,7 @@ export default function QvE() {
 							<div className={ classes.savedPageIconIndicatorContainer }>
 								<AiOutlineStar
 									className={
-										isSavedOpen
+										isSavedOpen || saved
 										? classes.savedPageIconActive
 										: classes.savedPageIcon
 									}
