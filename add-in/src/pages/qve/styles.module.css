@@ -110,6 +110,19 @@
 	transition: 0.15s;
 }
 
+.errorTextWrapper {
+	margin-right: 16px;
+	margin-left: 16px;
+	padding: 16px;
+	transition: 0.15s;
+}
+
+.errorText {
+	font-size: 1rem;
+	color: #ff0000;
+	text-align: center;
+}
+
 .initText {
 	font-size: 0.9rem;
 	color: #888888;

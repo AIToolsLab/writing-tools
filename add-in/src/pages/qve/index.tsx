@@ -62,6 +62,9 @@ export default function QvE() {
 	// eslint-disable-next-line prefer-const
 	const [generation, updateGeneration] = useState('');
 
+	// Update Error Message
+	const [errorMsg, updateErrorMsg] = useState('');
+
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
 
@@ -145,6 +148,7 @@ export default function QvE() {
 
 	async function getGeneration(username: string, type: string, contextText: string) {
 		updateGeneration('');
+		updateErrorMsg('');
 
 		// eslint-disable-next-line no-console
 		console.assert(
@@ -167,6 +171,7 @@ export default function QvE() {
 					}),
 					signal: AbortSignal.timeout(5000)
 			});
+			updateErrorMsg('');
 			updateGeneration(await response.json());
 		}
 		catch (err: any) {
@@ -175,9 +180,10 @@ export default function QvE() {
 			if (err.name === 'AbortError')
 				errMsg = `${err.name}: Timeout. Please try again.`;
 			else
-				errMsg = `${err.name}: ${err.message}`;
+				errMsg = `${err.name}: ${err.message}. Please try again.`;
 
-			updateGeneration(errMsg);
+			updateErrorMsg(errMsg);
+			updateGeneration('');
 			log({
 				username: username,
 				interaction: type,
@@ -226,7 +232,13 @@ export default function QvE() {
 
 	let results = null;
 
-	if (generationMode === 'None' || generation.length === 0)
+	if (errorMsg !== '')
+		results = (
+			<div className={ classes.errorTextWrapper }>
+				<div className={ classes.errorText }>{ errorMsg }</div>
+			</div>
+		);
+	else if (generationMode === 'None' || generation.length === 0)
 		if (!docText.trim())
 			results = (
 				<div className={ classes.initTextWrapper }>
@@ -506,7 +518,7 @@ export default function QvE() {
 						</div>
 					) }
 
-					{ generationMode !== 'None' && !isLoading && generation && (
+					{ generationMode !== 'None' && !isLoading && generation && errorMsg !== '' && (
 						<div className={ classes.buttonsWrapper }>
 							<div
 								className={ classes.utilIconWrapper }
