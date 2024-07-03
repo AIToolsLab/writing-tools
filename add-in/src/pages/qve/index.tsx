@@ -160,6 +160,9 @@ export default function QvE() {
 					}),
 					signal: AbortSignal.timeout(7000)
 			});
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
 			updateErrorMsg('');
 			updateGeneration(await response.json());
 		}
