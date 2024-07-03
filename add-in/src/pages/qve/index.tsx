@@ -518,7 +518,7 @@ export default function QvE() {
 						</div>
 					) }
 
-					{ generationMode !== 'None' && !isLoading && generation && errorMsg !== '' && (
+					{ generationMode !== 'None' && !isLoading && generation && errorMsg === '' && (
 						<div className={ classes.buttonsWrapper }>
 							<div
 								className={ classes.utilIconWrapper }
