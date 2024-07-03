@@ -15,7 +15,7 @@ from fastapi.responses import FileResponse
 
 from sse_starlette.sse import EventSourceResponse
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from dotenv import load_dotenv
 
 import nlp
@@ -37,12 +37,15 @@ class GenerationRequestPayload(BaseModel):
 
 
 class Log(BaseModel):
+    model_config = ConfigDict(extra='allow')
+    timestamp: float
+    ok: bool = True
     username: str
     interaction: str
     prompt: Optional[str] = None
     result: Optional[str] = None
     completion: Optional[str] = None
-    timestamp: Optional[float] = None
+
 
 
 # Initliaze Server
