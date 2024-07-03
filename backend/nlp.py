@@ -34,6 +34,13 @@ except:
     exit()
 
 
+def get_final_sentence(text):
+    final_paragraph = text.split('\n')[-1]
+    final_sentence = list(nlp(final_paragraph).sents)[-1].text
+    
+    return final_sentence
+
+
 def is_full_sentence(sentence):
     sentence += " AND"
 
@@ -113,8 +120,7 @@ async def chat_completion(prompt: str):
 async def question(prompt: str):
     example = (await chat_completion(prompt))["result"]
 
-    final_paragraph = str(prompt).split('\n')[-1]
-    final_sentence = list(nlp(final_paragraph).sents)[-1].text
+    final_sentence = get_final_sentence(prompt)
 
     if is_full_sentence(final_sentence):
         question_prompt = f"With the current document in mind:\n\n{prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence."
