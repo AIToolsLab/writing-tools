@@ -21,6 +21,7 @@
 .container input:focus {
 	cursor: text;
 	outline: none;
+    border: 1px solid black;
 }
 
 .container button {

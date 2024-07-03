@@ -28,7 +28,8 @@ module.exports = async (env, options) => {
 			polyfill: ['core-js/stable', 'regenerator-runtime/runtime'],
 			vendor: ['react', 'react-dom', 'core-js', '@fluentui/react'],
 			taskpane: ['./src/index.tsx', './src/taskpane.html'],
-			commands: './src/commands/commands.ts'
+			logs: ['./src/logs/index.tsx', './src/logs/logs.html'],
+            commands: './src/commands/commands.ts'
 		},
 		output: {
 			clean: true
@@ -109,6 +110,11 @@ module.exports = async (env, options) => {
 				filename: 'taskpane.html',
 				template: './src/taskpane.html',
 				chunks: ['taskpane', 'vendor', 'polyfills']
+			}),
+            new HtmlWebpackPlugin({
+				filename: 'logs.html',
+				template: './src/logs/logs.html',
+				chunks: ['logs', 'vendor', 'polyfills']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'commands.html',

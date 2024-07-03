@@ -1,0 +1,16 @@
+.container input {
+	padding: 10px;
+	border: 1px solid lightgray;
+	cursor: pointer;
+	transition: 0.15s;
+}
+
+.container input:hover {
+	border: 1px solid black;
+}
+
+.container input:focus {
+	cursor: text;
+	outline: none;
+    border: 1px solid black;
+}

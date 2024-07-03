@@ -130,7 +130,7 @@ async def logs():
                         log_positions[username] = file.tell()
 
             if updates:
-                yield updates
+                yield json.dumps(updates)
 
             await asyncio.sleep(1)  # Adjust the sleep time as needed
 
