@@ -138,12 +138,14 @@
 	background-color: #f8f8f8;
 	border-radius: 16px;
 	transition: 0.15s;
+	display: flex;
 }
 
 .resultText {
 	font-size: 1rem;
 	transition: 0.15s;
 	animation: fadeIn 0.3s ease-in-out;
+	flex-direction: column;
 }
 
 .utilsContainer {

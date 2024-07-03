@@ -246,8 +246,63 @@ export default function QvE() {
 			);
 	else
 		results = (
+			// <div className={ classes.resultTextWrapper }>
+			// 	<div className={ classes.resultText }>{ generation }</div>
+			// </div>
 			<div className={ classes.resultTextWrapper }>
 				<div className={ classes.resultText }>{ generation }</div>
+				<div className={ classes.savedIconsContainer }>
+					<div
+						className={
+							classes.genTypeIconWrapper
+						}
+					>
+						{ generationMode === 'Completion' ? (
+							IS_OBSCURED ? (
+								'A'
+							) : (
+								<AiOutlineAlignLeft
+									className={
+										classes.savedTypeIcon
+									}
+								/>
+							)
+						) : generationMode ===
+							'Question' ? (
+							IS_OBSCURED ? (
+								'B'
+							) : (
+								<AiOutlineQuestion
+									className={
+										classes.savedTypeIcon
+									}
+								/>
+							)
+						) : generationMode ===
+							'Keywords' ? (
+							IS_OBSCURED ? (
+								'C'
+							) : (
+								<AiOutlineHighlight
+									className={
+										classes.savedTypeIcon
+									}
+								/>
+							)
+						) : generationMode ===
+							'Structure' ? (
+							IS_OBSCURED ? (
+								'D'
+							) : (
+								<AiOutlineBank
+									className={
+										classes.savedTypeIcon
+									}
+								/>
+							)
+						) : null }
+					</div>
+				</div>
 			</div>
 		);
 
@@ -322,11 +377,7 @@ export default function QvE() {
 					{ IS_EXPERIMENTAL && (
 						<>
 							<button
-								className={
-									generationMode === 'Completion'
-										? classes.optionsButtonActive
-										: classes.optionsButton
-								}
+								className={ classes.optionsButton }
 								disabled={ docText === '' || isLoading }
 								onClick={ () => {
 									log({
@@ -362,11 +413,7 @@ export default function QvE() {
 							) }
 
 							<button
-								className={
-									generationMode === 'Question'
-										? classes.optionsButtonActive
-										: classes.optionsButton
-								}
+								className={ classes.optionsButton }
 								disabled={ docText === '' || isLoading }
 								onClick={ () => {
 									log({
@@ -402,11 +449,7 @@ export default function QvE() {
 							) }
 
 							<button
-								className={
-									generationMode === 'Keywords'
-										? classes.optionsButtonActive
-										: classes.optionsButton
-								}
+								className={ classes.optionsButton }
 								disabled={ docText === '' || isLoading }
 								onClick={ () => {
 									log({
@@ -442,11 +485,7 @@ export default function QvE() {
 							) }
 
 							<button
-								className={
-									generationMode === 'Structure'
-										? classes.optionsButtonActive
-										: classes.optionsButton
-								}
+								className={ classes.optionsButton }
 								disabled={ docText === '' || isLoading }
 								onClick={ () => {
 									log({
