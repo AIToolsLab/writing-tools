@@ -28,6 +28,8 @@ LOG_PATH = Path("./logs").absolute()
 DEBUG = os.getenv("DEBUG") or False
 PORT = int(os.getenv("PORT") or 8000)
 
+# FIXME: Use auth0 instead
+LOG_SECRET = os.getenv("LOG_SECRET")
 
 # Declare Types
 class GenerationRequestPayload(BaseModel):
@@ -99,8 +101,12 @@ async def log_feedback(payload: Log):
 
 # Show all server logs
 @app.get("/api/logs")
-async def logs():
+async def logs(secret: str):
     async def log_generator():
+        if secret != LOG_SECRET:
+            yield json.dumps({"error": "Invalid secret."})
+            return
+        
         log_files = {
             participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
         log_positions = {username: 0 for username in log_files}
