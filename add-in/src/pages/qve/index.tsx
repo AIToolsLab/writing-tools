@@ -251,7 +251,7 @@ export default function QvE() {
 			// </div>
 			<div className={ classes.resultTextWrapper }>
 				<div className={ classes.resultText }>{ generation }</div>
-				<div className={ classes.savedIconsContainer }>
+				<div className={ classes.genIconsContainer }>
 					<div
 						className={
 							classes.genTypeIconWrapper
