@@ -36,6 +36,7 @@ export default function QvE() {
 	const [docText, updateDocText] = useState('');
 	const [_cursorSentence, updateCursorSentence] = useState('');
 	const [_cursorPos, updateCursorPos] = useState(0);
+	const [cursorAtEnd, updateCursorAtEnd] = useState(true);
 
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -120,21 +121,25 @@ export default function QvE() {
 	}
 
 	/**
-	 * Retrieves the cursor position in the document and updates the cursorPos state.
+	 * Calculates the curent cursor position and updates the cursorPos and cursorAtEnd states.
 	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
 	 */
-	async function getCursorPos(): Promise<void> {
+	async function getCursorPosInfo(): Promise<void> {
 		await Word.run(async (context: Word.RequestContext) => {
 			const firstParagraph = context.document.body.paragraphs.getFirst();
 			const selection = context.document.getSelection();
 			const rangeToCursor = selection.expandTo(firstParagraph.getRange('Start'));
 
 			context.load(rangeToCursor, 'text');
+			context.load(context.document.body, 'text');
 			
 			await context.sync();
-			const charsToCursor = rangeToCursor.text.toString().length;
 
+			const charsToCursor = rangeToCursor.text.toString().length;
 			updateCursorPos(charsToCursor);
+
+			const docLength = context.document.body.text.toString().length;
+			updateCursorAtEnd(charsToCursor >= docLength);
 		});
 	}
 
@@ -218,7 +223,7 @@ export default function QvE() {
 		// Handle initial selection change
 		getDocText();
 		getCursorSentence();
-		getCursorPos();
+		getCursorPosInfo();
 
 		// Handle subsequent selection changes
 		Office.context.document.addHandlerAsync(
@@ -231,7 +236,7 @@ export default function QvE() {
 		);
 		Office.context.document.addHandlerAsync(
 			Office.EventType.DocumentSelectionChanged,
-			getCursorPos
+			getCursorPosInfo
 		);
 
 		// Cleanup
@@ -246,7 +251,7 @@ export default function QvE() {
 			);
 			Office.context.document.removeHandlerAsync(
 				Office.EventType.DocumentSelectionChanged,
-				getCursorPos
+				getCursorPosInfo
 			);
 		};
 	}, []);
