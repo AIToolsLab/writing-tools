@@ -127,10 +127,9 @@ export default function QvE() {
 	async function getCursorPosInfo(): Promise<void> {
 		await Word.run(async (context: Word.RequestContext) => {
 			const body: Word.Body = context.document.body;
-			const firstParagraph = body.paragraphs.getFirst();
 
 			const cursorSelection = context.document.getSelection();
-			const rangeToCursor = cursorSelection.expandTo(firstParagraph.getRange('Start'));
+			const rangeToCursor = cursorSelection.expandTo(body.getRange('Start'));
 
 			context.load(rangeToCursor, 'text');
 			context.load(body, 'text');
