@@ -120,22 +120,19 @@ export default function QvE() {
 	}
 
 	/**
-	 * Retrieves the cursor position in the * document and updates the cursorPos state.
+	 * Retrieves the cursor position in the document and updates the cursorPos state.
 	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
 	 */
 	async function getCursorPos(): Promise<void> {
 		await Word.run(async (context: Word.RequestContext) => {
 			const firstParagraph = context.document.body.paragraphs.getFirst();
-
 			const selection = context.document.getSelection();
-
 			const rangeToCursor = selection.expandTo(firstParagraph.getRange('Start'));
 
 			context.load(rangeToCursor, 'text');
 			rangeToCursor.load('text');
 			
 			await context.sync();
-
 			const charsToCursor = rangeToCursor.text.toString().length;
 
 			updateCursorPos(charsToCursor);
