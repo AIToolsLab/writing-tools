@@ -35,6 +35,7 @@ export default function QvE() {
 
 	const [docText, updateDocText] = useState('');
 	const [_cursorSentence, updateCursorSentence] = useState('');
+	const [_cursorPos, updateCursorPos] = useState(0);
 
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -119,6 +120,29 @@ export default function QvE() {
 	}
 
 	/**
+	 * Retrieves the cursor position in the * document and updates the cursorPos state.
+	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
+	 */
+	async function getCursorPos(): Promise<void> {
+		await Word.run(async (context: Word.RequestContext) => {
+			const firstParagraph = context.document.body.paragraphs.getFirst();
+
+			const selection = context.document.getSelection();
+
+			const rangeToCursor = selection.expandTo(firstParagraph.getRange('Start'));
+
+			context.load(rangeToCursor, 'text');
+			rangeToCursor.load('text');
+			
+			await context.sync();
+
+			const charsToCursor = rangeToCursor.text.toString().length;
+
+			updateCursorPos(charsToCursor);
+		});
+	}
+
+	/**
 	 * Retrieves the text content of the current cursor position and updates the cursorSentence state.
 	 *
 	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
@@ -198,6 +222,7 @@ export default function QvE() {
 		// Handle initial selection change
 		getDocText();
 		getCursorSentence();
+		getCursorPos();
 
 		// Handle subsequent selection changes
 		Office.context.document.addHandlerAsync(
@@ -207,6 +232,10 @@ export default function QvE() {
 		Office.context.document.addHandlerAsync(
 			Office.EventType.DocumentSelectionChanged,
 			getCursorSentence
+		);
+		Office.context.document.addHandlerAsync(
+			Office.EventType.DocumentSelectionChanged,
+			getCursorPos
 		);
 
 		// Cleanup
@@ -218,6 +247,10 @@ export default function QvE() {
 			Office.context.document.removeHandlerAsync(
 				Office.EventType.DocumentSelectionChanged,
 				getCursorSentence
+			);
+			Office.context.document.removeHandlerAsync(
+				Office.EventType.DocumentSelectionChanged,
+				getCursorPos
 			);
 		};
 	}, []);
