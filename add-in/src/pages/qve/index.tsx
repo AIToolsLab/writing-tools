@@ -130,7 +130,6 @@ export default function QvE() {
 			const rangeToCursor = selection.expandTo(firstParagraph.getRange('Start'));
 
 			context.load(rangeToCursor, 'text');
-			rangeToCursor.load('text');
 			
 			await context.sync();
 			const charsToCursor = rangeToCursor.text.toString().length;
