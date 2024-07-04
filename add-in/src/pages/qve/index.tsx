@@ -383,7 +383,7 @@ export default function QvE() {
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
-								disabled={ docText === '' || isLoading }
+								disabled={ docText === '' || isLoading || !cursorAtEnd }
 								onClick={ () => {
 									if (docText === '') return;
 
@@ -400,7 +400,7 @@ export default function QvE() {
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
-								disabled={ docText === '' || isLoading }
+								disabled={ docText === '' || isLoading || !cursorAtEnd }
 								onClick={ () => {
 									if (docText === '') return;
 
@@ -417,7 +417,7 @@ export default function QvE() {
 						<>
 							<button
 								className={ classes.optionsButton }
-								disabled={ docText === '' || isLoading }
+								disabled={ docText === '' || isLoading || !cursorAtEnd }
 								onClick={ () => {
 									log({
 										username: username,
@@ -453,7 +453,7 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ docText === '' || isLoading }
+								disabled={ docText === '' || isLoading || !cursorAtEnd }
 								onClick={ () => {
 									log({
 										username: username,
@@ -489,7 +489,7 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ docText === '' || isLoading }
+								disabled={ docText === '' || isLoading || !cursorAtEnd }
 								onClick={ () => {
 									log({
 										username: username,
@@ -525,7 +525,7 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ docText === '' || isLoading }
+								disabled={ docText === '' || isLoading || !cursorAtEnd }
 								onClick={ () => {
 									log({
 										username: username,
