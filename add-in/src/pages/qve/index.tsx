@@ -664,7 +664,7 @@ export default function QvE() {
 									Copy
 								</div>
 							) }
-							{ copyWarningTooltipVisible && (
+							{ copyWarningTooltipVisible && tooltipVisible === 'Copy' && (
 								<div
 									className={ [
 										classes.utilTooltip,
