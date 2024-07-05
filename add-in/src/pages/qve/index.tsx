@@ -375,7 +375,7 @@ export default function QvE() {
 								classes.tooltip_posSen
 							].join(' ') }
 						>
-							If you turn on this option, the suggestions will be<br/>based on the text before the cursor
+							Base suggestions only on text up<br/>to the word touching the cursor
 						</div>
 					) }
 				</div>
