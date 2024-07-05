@@ -604,9 +604,10 @@ export default function QvE() {
 								onMouseEnter={ () =>
 									setTooltipVisible('Close')
 								}
-								onMouseLeave={ () =>
-									setTooltipVisible(null)
-								}
+								onMouseLeave={ () => {
+									setTooltipVisible(null);
+									setCopyWarningTooltipVisible(false);
+								}	}
 							>
 								<AiOutlineClose className={ classes.closeIcon } />
 							</div>
