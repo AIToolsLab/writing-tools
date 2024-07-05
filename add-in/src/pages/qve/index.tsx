@@ -33,7 +33,7 @@ export default function QvE() {
 	// TO DO: find better sentence delimiters
 	const SENTENCE_DELIMITERS = ['. ', '? ', '! '];
 
-	const [docText, updateDocText] = useState('');
+	const [docContext, updateDocContext] = useState('');
 	const [_cursorSentence, updateCursorSentence] = useState('');
 	const [_cursorPos, updateCursorPos] = useState(0);
 	const [cursorAtEnd, updateCursorAtEnd] = useState(true);
@@ -117,14 +117,28 @@ export default function QvE() {
 	 *
 	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
 	 */
-	async function getDocText(): Promise<void> {
+	async function getDocContext(): Promise<void> {
 		await Word.run(async (context: Word.RequestContext) => {
 			const body: Word.Body = context.document.body;
+			let contextText = '';
 
-			context.load(body, 'text');
-			await context.sync();
+			if (positionalSensitivity) {
+				const cursorSelection = context.document
+					.getSelection()
+					.getTextRanges([' '], false)
+					.getFirst();
+				const textRange = cursorSelection.expandTo(body.getRange('Start'));
 
-			updateDocText(body.text);
+				context.load(textRange, 'text');
+				await context.sync();
+				contextText = textRange.text;
+			}
+			else {
+				context.load(body, 'text');
+				await context.sync();
+				contextText = body.text;
+			}
+			updateDocContext(contextText);
 		});
 	}
 
@@ -149,23 +163,6 @@ export default function QvE() {
 
 			const docLength = body.text.toString().length;
 			updateCursorAtEnd(charsToCursor >= docLength);
-		});
-	}
-
-	/**
-	 * Retrieves the text content of the current cursor position and updates the cursorSentence state.
-	 *
-	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
-	 */
-	async function getCursorSentence(): Promise<void> {
-		await Word.run(async (context: Word.RequestContext) => {
-			const sentences = context.document
-				.getSelection()
-				.getTextRanges(SENTENCE_DELIMITERS, true);
-			sentences.load('text');
-			await context.sync();
-
-			updateCursorSentence(sentences.items[0].text);
 		});
 	}
 
@@ -230,18 +227,13 @@ export default function QvE() {
 	 */
 	useEffect(() => {
 		// Handle initial selection change
-		getDocText();
-		getCursorSentence();
+		getDocContext();
 		getCursorPosInfo();
 
 		// Handle subsequent selection changes
 		Office.context.document.addHandlerAsync(
 			Office.EventType.DocumentSelectionChanged,
-			getDocText
-		);
-		Office.context.document.addHandlerAsync(
-			Office.EventType.DocumentSelectionChanged,
-			getCursorSentence
+			getDocContext
 		);
 		Office.context.document.addHandlerAsync(
 			Office.EventType.DocumentSelectionChanged,
@@ -252,18 +244,14 @@ export default function QvE() {
 		return () => {
 			Office.context.document.removeHandlerAsync(
 				Office.EventType.DocumentSelectionChanged,
-				getDocText
-			);
-			Office.context.document.removeHandlerAsync(
-				Office.EventType.DocumentSelectionChanged,
-				getCursorSentence
+				getDocContext
 			);
 			Office.context.document.removeHandlerAsync(
 				Office.EventType.DocumentSelectionChanged,
 				getCursorPosInfo
 			);
 		};
-	}, []);
+	}, [positionalSensitivity]);
 
 	let results = null;
 
@@ -274,7 +262,7 @@ export default function QvE() {
 			</div>
 		);
 	else if (generationMode === 'None' || generation.length === 0)
-		if (!docText.trim())
+		if (!docContext.trim())
 			results = (
 				<div className={ classes.initTextWrapper }>
 					<div className={ classes.initText }>
@@ -394,12 +382,12 @@ export default function QvE() {
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
-								disabled={ docText === '' || isLoading || !cursorAtEnd }
+								disabled={ (docContext === '' || isLoading || !cursorAtEnd) && !positionalSensitivity }
 								onClick={ () => {
-									if (docText === '') return;
+									if (docContext === '') return;
 
 									updateGenerationMode('Completion');
-									getGeneration(username, 'Completion_Backend', docText);
+									getGeneration(username, 'Completion_Backend', docContext);
 								} }
 							>
 								Get New Completion
@@ -411,12 +399,12 @@ export default function QvE() {
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
-								disabled={ docText === '' || isLoading || !cursorAtEnd }
+								disabled={ docContext === '' || isLoading || !cursorAtEnd }
 								onClick={ () => {
-									if (docText === '') return;
+									if (docContext === '') return;
 
 									updateGenerationMode('Question');
-									getGeneration(username, 'Question_Backend', docText);
+									getGeneration(username, 'Question_Backend', docContext);
 								} }
 							>
 								Get New Question
@@ -428,18 +416,18 @@ export default function QvE() {
 						<>
 							<button
 								className={ classes.optionsButton }
-								disabled={ docText === '' || isLoading || !cursorAtEnd }
+								disabled={ (docContext === '' || isLoading || !cursorAtEnd) && !positionalSensitivity }
 								onClick={ () => {
 									log({
 										username: username,
 										interaction: 'Completion_Frontend',
-										prompt: docText,
+										prompt: docContext,
 										result: generation
 									});
-									if (docText === '') return;
+									if (docContext === '') return;
 
 									updateGenerationMode('Completion');
-									getGeneration(username, 'Completion_Backend', docText);
+									getGeneration(username, 'Completion_Backend', docContext);
 								} }
 								onMouseEnter={ () =>
 									setTooltipVisible('Completion')
@@ -464,18 +452,18 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ docText === '' || isLoading || !cursorAtEnd }
+								disabled={ (docContext === '' || isLoading || !cursorAtEnd) && !positionalSensitivity }
 								onClick={ () => {
 									log({
 										username: username,
 										interaction: 'Question_Frontend',
-										prompt: docText,
+										prompt: docContext,
 										result: generation
 									});
-									if (docText === '') return;
+									if (docContext === '') return;
 
 									updateGenerationMode('Question');
-									getGeneration(username, 'Question_Backend', docText);
+									getGeneration(username, 'Question_Backend', docContext);
 								} }
 								onMouseEnter={ () =>
 									setTooltipVisible('Question')
@@ -500,18 +488,18 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ docText === '' || isLoading || !cursorAtEnd }
+								disabled={ (docContext === '' || isLoading || !cursorAtEnd) && !positionalSensitivity }
 								onClick={ () => {
 									log({
 										username: username,
 										interaction: 'Keywords_Frontend',
-										prompt: docText,
+										prompt: docContext,
 										result: generation
 									});
-									if (docText === '') return;
+									if (docContext === '') return;
 
 									updateGenerationMode('Keywords');
-									getGeneration(username, 'Keywords_Backend', docText);
+									getGeneration(username, 'Keywords_Backend', docContext);
 								} }
 								onMouseEnter={ () =>
 									setTooltipVisible('Keywords')
@@ -536,18 +524,18 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ docText === '' || isLoading || !cursorAtEnd }
+								disabled={ (docContext === '' || isLoading || !cursorAtEnd) && !positionalSensitivity }
 								onClick={ () => {
 									log({
 										username: username,
 										interaction: 'Structure_Frontend',
-										prompt: docText,
+										prompt: docContext,
 										result: generation
 									});
-									if (docText === '') return;
+									if (docContext === '') return;
 
 									updateGenerationMode('Structure');
-									getGeneration(username, 'Structure_Backend', docText);
+									getGeneration(username, 'Structure_Backend', docContext);
 								} }
 								onMouseEnter={ () =>
 									setTooltipVisible('Structure')
@@ -572,7 +560,7 @@ export default function QvE() {
 						</>
 					) }
 				</div>
-				{ tooltipVisible === 'Disabled' && !cursorAtEnd && (
+				{ tooltipVisible === 'Disabled' && !cursorAtEnd && !positionalSensitivity && (
 					<div
 						className={ [
 							classes.disabledTooltip,
@@ -653,7 +641,7 @@ export default function QvE() {
 									log({
 										username: username,
 										interaction: 'Copy: ' + generationMode,
-										prompt: docText,
+										prompt: docContext,
 										result: generation
 									});
 								} }
@@ -694,7 +682,7 @@ export default function QvE() {
 								className={ classes.utilIconWrapper }
 								onClick={ () => {
 									// Save the generation
-									save(generation, generationMode, docText);
+									save(generation, generationMode, docContext);
 
 									setSaved(true);
 									setTimeout(() => setSaved(false), 2000);
@@ -731,7 +719,7 @@ export default function QvE() {
 					<div className={ classes.historyButtonWrapper }>
 						<button
 							className={ classes.historyButton }
-							disabled={ docText === '' || isLoading }
+							disabled={ docContext === '' || isLoading }
 							onClick={ () => {
 								// Toggle between the current page and the saved page
 								setSavedOpen(!isSavedOpen);
