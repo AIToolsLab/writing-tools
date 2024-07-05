@@ -49,6 +49,7 @@ export default function QvE() {
 
 	// Tooltip visibility
 	const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
+	const [copyWarningTooltipVisible, setCopyWarningTooltipVisible] = useState<boolean>(false);
 
 	// eslint-disable-next-line prefer-const
 	const [generation, updateGeneration] = useState('');
@@ -641,12 +642,15 @@ export default function QvE() {
 										result: generation
 									});
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('Copy')
-								}
-								onMouseLeave={ () =>
-									setTooltipVisible(null)
-								}
+								onMouseEnter={ () => {
+									setTooltipVisible('Copy');
+									// If entered more than a second, show the warning tooltip
+									setTimeout(() => setCopyWarningTooltipVisible(true), 1000);
+								} }
+								onMouseLeave={ () => {
+									setTooltipVisible(null);
+									setCopyWarningTooltipVisible(false);
+								}	}
 							>
 								<AiOutlineCopy className={ classes.copyIcon } />
 							</div>
@@ -658,6 +662,16 @@ export default function QvE() {
 									].join(' ') }
 								>
 									Copy
+								</div>
+							) }
+							{ copyWarningTooltipVisible && (
+								<div
+									className={ [
+										classes.utilTooltip,
+										classes.utilTooltip_warning
+									].join(' ') }
+								>
+									Please note that<br/>copying may not work<br/>for <strong>Chrome</strong>
 								</div>
 							) }
 

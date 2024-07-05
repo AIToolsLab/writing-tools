@@ -191,6 +191,14 @@
 	right: 5%;
 }
 
+.utilTooltip_warning {
+	right: 0%;
+	top: 220%;
+	font-size: 0.7rem;
+	color: rgba(66, 66, 66, 0.7);
+	background-color: rgba(237, 237, 237, 0.5) !important;
+}
+
 .utilTooltip_save {
 	right: 0%;
 }
