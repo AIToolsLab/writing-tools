@@ -687,9 +687,10 @@ export default function QvE() {
 								onMouseEnter={ () =>
 									setTooltipVisible('Save')
 								}
-								onMouseLeave={ () =>
-									setTooltipVisible(null)
-								}
+								onMouseLeave={ () => {
+									setTooltipVisible(null);
+									setCopyWarningTooltipVisible(false);
+								}	}
 							>
 								<AiOutlineStar
 									className={
@@ -723,9 +724,10 @@ export default function QvE() {
 							onMouseEnter={ () =>
 								setTooltipVisible('Saved')
 							}
-							onMouseLeave={ () =>
-								setTooltipVisible(null)
-							}
+							onMouseLeave={ () => {
+								setTooltipVisible(null);
+								setCopyWarningTooltipVisible(false);
+							}	}
 						>
 							<div className={ classes.savedPageIconIndicatorContainer }>
 								<AiOutlineStar
