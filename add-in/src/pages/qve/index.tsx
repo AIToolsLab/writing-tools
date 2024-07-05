@@ -381,7 +381,11 @@ export default function QvE() {
 			</div>
 
 			<div>
-				<div className={ classes.optionsContainer }>
+				<div 
+					className={ classes.optionsContainer }
+					onMouseEnter={ () => setTooltipVisible('Disabled') }
+					onMouseLeave={ () => setTooltipVisible(null) }
+				>
 					{ !IS_EXPERIMENTAL && (
 						<>
 							<button
@@ -568,6 +572,16 @@ export default function QvE() {
 						</>
 					) }
 				</div>
+				{ tooltipVisible === 'Disabled' && !cursorAtEnd && (
+					<div
+						className={ [
+							classes.disabledTooltip,
+							classes.tooltip_disabled
+						].join(' ') }
+					>
+						Note that suggestions can<br/>only be generated at the<br/>end of the document
+					</div>
+				) }
 			</div>
 
 			<div>
