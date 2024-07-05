@@ -671,7 +671,7 @@ export default function QvE() {
 										classes.utilTooltip_warning
 									].join(' ') }
 								>
-									Please note that<br/>copying may not work<br/>for <strong>Chrome</strong>
+									Please note that<br/>copy-to-clipboard<br/>button may not work<br/>for <strong>Chrome</strong>
 								</div>
 							) }
 
