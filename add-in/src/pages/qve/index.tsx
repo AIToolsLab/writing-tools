@@ -30,11 +30,7 @@ function sanitize(text: string): string {
 export default function QvE() {
 	const { username } = useContext(UserContext);
 
-	// TO DO: find better sentence delimiters
-	const SENTENCE_DELIMITERS = ['. ', '? ', '! '];
-
 	const [docContext, updateDocContext] = useState('');
-	const [_cursorSentence, updateCursorSentence] = useState('');
 	const [_cursorPos, updateCursorPos] = useState(0);
 	const [cursorAtEnd, updateCursorAtEnd] = useState(true);
 
