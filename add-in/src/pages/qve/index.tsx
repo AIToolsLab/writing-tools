@@ -370,6 +370,7 @@ export default function QvE() {
 							checked={ positionalSensitivity }
 						/>
 					</div>
+
 					{ tooltipVisible === 'PosSen' && (
 						<div
 							className={ [
@@ -380,7 +381,9 @@ export default function QvE() {
 							Base suggestions only on text up<br/>to the word touching the cursor
 						</div>
 					) }
+
 					<div className={ classes.contextText }>
+                        <h4>Context:</h4>
 						...{ docContext.substring(docContext.length-100) }
 					</div>
 				</div>
