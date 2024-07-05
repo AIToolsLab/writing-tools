@@ -389,13 +389,6 @@ export default function QvE() {
 				</div>
 			) }
 
-
-			<div className={ classes.noteTextWrapper }>
-				<div className={ classes.noteText }>
-					Please note that the quality of AI-generated text may vary
-				</div>
-			</div>
-
 			<div>
 				<div 
 					className={ classes.optionsContainer }
@@ -588,7 +581,13 @@ export default function QvE() {
 						</>
 					) }
 				</div>
-			</div>
+			
+                <div className={ classes.noteTextWrapper }>
+                    <div className={ classes.noteText }>
+                        Please note that the quality of AI-generated text may vary
+                    </div>
+			    </div>
+            </div>
 
 			<div>
 				<div className={ classes.reflectionContainer }>{ results }</div>
