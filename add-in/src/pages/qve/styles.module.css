@@ -20,9 +20,10 @@
 
 .contextText {
 	font-size: 0.8rem;
-	color: #bbbbbb;
-	padding-left: 8px;
-	padding-right: 8px;
+	color: #aaaaaa;
+	padding: 8px;
+	margin: 8px;
+	background-color: #fbfbfb;
 }
 
 h4 {
