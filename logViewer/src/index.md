@@ -11,7 +11,8 @@ toc: false
   const selector = Inputs.text({
     label: "Username",
     datalist: availableUsernames,
-    value: selectedUsername
+    value: selectedUsername,
+    submit: true
   });
   selector.querySelector('input').setAttribute("name", "username")
   // when the selector changes, update the selected usernames
