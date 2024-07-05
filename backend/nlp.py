@@ -150,17 +150,25 @@ async def question(prompt: str):
 async def keywords(prompt: str):
     completion = (await chat_completion(prompt))["result"]
 
-    KEYWORD_POS = ["NOUN", "PROPN", "VERB", "ADJ", "ADV", "INTJ"]
+    keyword_string = ""
+    keyword_dict = dict(NOUN=[], PROPN=[], VERB=[], ADJ=[], ADV=[], INTJ=[])
+    pos_labels = dict(NOUN="Nouns", PROPN="Proper Nouns", VERB="Verbs", ADJ="Adjectives", ADV="Adverbs", INTJ="Interjections")
 
     # Process the text with spaCy
     doc = nlp(completion)
 
-    # Extract the words with desired POS tags
-    keywords = [token.lower_ for token in doc if token.pos_ in KEYWORD_POS]
+    # Extract and store the words by desired POS tags in keyword_dict
+    for token in doc:
+        pos = token.pos_
+        if pos in keyword_dict and token.lower_ not in keyword_dict[pos]:
+            keyword_dict[pos].append(token.lower_)
 
-    random.shuffle(keywords)
-
-    keyword_string = ", ".join(keywords)
+    # Construct a string of keywords formatted by POS
+    for pos in keyword_dict:
+        pos_keywords = keyword_dict[pos]
+        if pos_keywords != []:
+            random.shuffle(pos_keywords)
+            keyword_string += f"**{pos_labels[pos]}**: {", ".join(pos_keywords)}\n\n"
 
     return {
         "result": keyword_string,
