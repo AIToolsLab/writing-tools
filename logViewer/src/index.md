@@ -139,7 +139,13 @@ const entries = Generators.queue(notify => {
       return x;
     });
     console.log(newLogs.length, "new entries")
-    logs = [...logs, ...newLogs];
+    // Filter for any newLogs that are not already in logs.
+    // 1. The EventSource auto-reconnects when the server reloads (and drops its old connections). So when the connection is re-established, we get a bunch of old logs again.
+    // 2. We need to compare stringified timestamps because Date objects don't compare ===.
+    logs = logs.concat(newLogs.filter(x => !logs.some(y =>
+      ""+x.timestamp === ""+y.timestamp && x.interaction === y.interaction && x.username === y.username
+    )));
+
     notify(logs);
   };
   return () => source.close();
