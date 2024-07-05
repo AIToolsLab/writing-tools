@@ -29,7 +29,7 @@ DEBUG = os.getenv("DEBUG") or False
 PORT = int(os.getenv("PORT") or 8000)
 
 # FIXME: Use auth0 instead
-LOG_SECRET = os.getenv("LOG_SECRET")
+LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
 
 # Declare Types
 class GenerationRequestPayload(BaseModel):
@@ -103,6 +103,7 @@ async def log_feedback(payload: Log):
 @app.get("/api/logs")
 async def logs(secret: str):
     async def log_generator():
+        assert LOG_SECRET != "", "Logging secret not set."
         if secret != LOG_SECRET:
             yield json.dumps({"error": "Invalid secret."})
             return
