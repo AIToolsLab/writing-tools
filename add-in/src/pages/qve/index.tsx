@@ -267,13 +267,22 @@ export default function QvE() {
 				</div>
 			);
 		else
-			results = (
-				<div className={ classes.initTextWrapper }>
-					<div className={ classes.initText }>
-						Click a button to generate a suggestion.
+			if (!cursorAtEnd)
+				results = (
+					<div className={ classes.initTextWrapper }>
+						<div className={ classes.initText }>
+							Move the cursor to the end of the document to get started!
+						</div>
 					</div>
-				</div>
-			);
+				);
+			else
+				results = (
+					<div className={ classes.initTextWrapper }>
+						<div className={ classes.initText }>
+							Click a button to generate a suggestion.
+						</div>
+					</div>
+				);
 	else
 		results = (
 			// <div className={ classes.resultTextWrapper }>
