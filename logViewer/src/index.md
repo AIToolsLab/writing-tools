@@ -24,8 +24,56 @@ toc: false
 }
 ```
 
+
+```jsx
+function Collapsible({text, maxWidth = 200}) {
+  return <details class="collapsible" style={{maxWidth: `${maxWidth}px`}}>
+    <summary>{text}</summary>
+    {text}
+  </details>;
+}
+```
+
+```jsx
+function EntriesTable({entries}) {
+  // WARNING: Date objects make this silently fail!
+  // so we convert to string
+  return <table>
+    <thead>
+      <th>Timestamp</th>
+      <th>Interaction</th>
+      <th>Prompt</th>
+      <th>Result</th>
+      <th>Completion</th>
+    </thead>
+    <tbody>
+    {entries.map(entry => <tr>
+      <td>{""+entry.timestamp}</td>
+      <td>{entry.interaction}</td>
+      <td><Collapsible text={entry.prompt} /></td>
+      <td><Collapsible text={entry.result} /></td>
+      <td><Collapsible text={entry.completion} /></td>
+    </tr>)}
+    </tbody>
+  </table>;
+}
+```
+
+
+```jsx
+display(<EntriesTable entries={desiredEntries} />)
+```
+
 ```js
-Inputs.table(desiredEntries.slice().reverse())
+Inputs.table(desiredEntries.map(x => {
+  return {
+    timestamp: x.timestamp,
+    interaction: x.interaction,
+    prompt: x.prompt,
+    result: x.result,
+    completion: x.completion,
+  }
+}).reverse())
 ```
 
 ```js
@@ -121,6 +169,17 @@ localStorage.setItem("logSecret", logSecret);
   .hero h1 {
     font-size: 90px;
   }
+}
+
+details.collapsible {
+  max-width: 200px;
+}
+
+details.collapsible summary {
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  overflow: hidden;
+  direction: rtl;
 }
 
 </style>
