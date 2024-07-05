@@ -11,6 +11,20 @@
 	visibility: visible;
 }
 
+.toggle {
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+	align-items: center;
+}
+
+.contextText {
+	font-size: 0.8rem;
+	color: #bbbbbb;
+	padding-left: 8px;
+	padding-right: 8px;
+}
+
 .optionsContainer {
 	display: flex;
 	flex-direction: row;

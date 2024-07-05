@@ -32,7 +32,7 @@ export default function QvE() {
 
 	const [docContext, updateDocContext] = useState('');
 	const [_cursorPos, updateCursorPos] = useState(0);
-	const [cursorAtEnd, updateCursorAtEnd] = useState(true);
+	const [_cursorAtEnd, updateCursorAtEnd] = useState(true);
 	const [genCtxText, updateGenCtxText] = useState('');
 
 	const [isLoading, setIsLoading] = useState(false);
@@ -269,13 +269,13 @@ export default function QvE() {
 				</div>
 			);
 		else
-            results = (
-                <div className={ classes.initTextWrapper }>
-                    <div className={ classes.initText }>
-                        Click a button to generate a suggestion.
-                    </div>
-                </div>
-            );
+			results = (
+				<div className={ classes.initTextWrapper }>
+					<div className={ classes.initText }>
+						Click a button to generate a suggestion.
+					</div>
+				</div>
+			);
 	else
 		results = (
 			// <div className={ classes.resultTextWrapper }>
@@ -354,20 +354,22 @@ export default function QvE() {
 	return (
 		<div className={ classes.container }>
 			{ IS_SWITCH_VISIBLE && (
-				<div
-					onMouseEnter={ () => setTooltipVisible('PosSen') }
-					onMouseLeave={ () => setTooltipVisible(null) }
-				>
-					<Toggle
-						className={ classes.toggle }
-						label="Positional Sensitivity"
-						inlineLabel
-						onChange={ (_event, checked) => {
-							if (checked) setPositionalSensitivity(true);
-							else setPositionalSensitivity(false);
-						} }
-						checked={ positionalSensitivity }
-					/>
+				<div>
+					<div
+						onMouseEnter={ () => setTooltipVisible('PosSen') }
+						onMouseLeave={ () => setTooltipVisible(null) }
+					>
+						<Toggle
+							className={ classes.toggle }
+							label="Positional Sensitivity"
+							inlineLabel
+							onChange={ (_event, checked) => {
+								if (checked) setPositionalSensitivity(true);
+								else setPositionalSensitivity(false);
+							} }
+							checked={ positionalSensitivity }
+						/>
+					</div>
 					{ tooltipVisible === 'PosSen' && (
 						<div
 							className={ [
@@ -378,6 +380,9 @@ export default function QvE() {
 							Base suggestions only on text up<br/>to the word touching the cursor
 						</div>
 					) }
+					<div className={ classes.contextText }>
+						...{ docContext.substring(docContext.length-100) }
+					</div>
 				</div>
 			) }
 
