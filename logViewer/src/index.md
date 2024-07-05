@@ -47,7 +47,7 @@ function EntriesTable({entries}) {
       <th>Completion</th>
     </thead>
     <tbody>
-    {entries.map(entry => <tr>
+    {entries.toReversed().map(entry => <tr>
       <td>{""+entry.timestamp}</td>
       <td>{entry.interaction}</td>
       <td><Collapsible text={entry.prompt} /></td>
