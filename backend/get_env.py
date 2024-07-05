@@ -38,6 +38,7 @@ def create_env():
         "DATABASE_URI": vault.get_secret(DATABASE_URI_SECRET_NAME).value,
         "DEBUG": DEBUG_STATUS,
         "PORT": PORT,
+        "LOG_SECRET": vault.get_secret("LoggingSecret").value,
     }
 
     with open(".env", "w") as f:
