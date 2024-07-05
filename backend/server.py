@@ -109,25 +109,16 @@ async def logs(secret: str):
             yield json.dumps({"error": "Invalid secret."})
             return
         
-        log_files = {
-            participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
-        log_positions = {username: 0 for username in log_files}
+        log_positions = {}
 
         while True:
             updates = []
-            all_logs = [log.stem for log in list(LOG_PATH.glob("*.jsonl"))]
-
-            for username in all_logs:
-                if username not in list(log_positions.keys()):
-                    log_files = {
-                        participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
-                    log_positions[username] = 0
-
-                    break
+            log_files = {
+                participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
 
             for username, log_file in log_files.items():
                 with open(log_file, "r") as file:
-                    file.seek(log_positions[username])
+                    file.seek(log_positions.get(username, 0))
                     new_lines = file.readlines()
 
                     if new_lines:
