@@ -269,7 +269,7 @@ export default function QvE() {
 				</div>
 			);
 		else
-			if (!cursorAtEnd)
+			if (!cursorAtEnd && !positionalSensitivity)
 				results = (
 					<div className={ classes.initTextWrapper }>
 						<div className={ classes.initText }>
