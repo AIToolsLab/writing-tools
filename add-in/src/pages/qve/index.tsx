@@ -85,7 +85,7 @@ export default function QvE() {
 
 		log({
 			username: username,
-			interaction: 'Save: ' + generationType,
+			interaction: 'Save',
 			prompt: document,
 			result: generation
 		});
@@ -100,7 +100,7 @@ export default function QvE() {
 
 		log({
 			username: username,
-			interaction: 'Delete: ' + savedItems.filter(savedItem => savedItem.dateSaved === dateSaved)[0].type,
+			interaction: 'Delete',
 			prompt: savedItems.filter(savedItem => savedItem.dateSaved === dateSaved)[0].document,
 			result: savedItems.filter(savedItem => savedItem.dateSaved === dateSaved)[0].generation,
 		});
@@ -645,7 +645,7 @@ export default function QvE() {
 									// log
 									log({
 										username: username,
-										interaction: 'Copy: ' + generationMode,
+										interaction: 'Copy',
 										prompt: docContext,
 										result: generation
 									});
