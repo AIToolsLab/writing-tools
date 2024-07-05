@@ -107,6 +107,16 @@ Last entry: ${desiredEntries.length > 0 ? desiredEntries[desiredEntries.length -
 
 
 ```js
+Plot.plot({
+  marginLeft: 150,
+  marks: [
+    Plot.barX(desiredEntries, {y: "interaction", x: 1, inset: .5}),
+    Plot.ruleY([0])
+  ]
+})
+```
+
+```js
 const desiredEntries = entries.filter(x => selectedUsername === x.username);
 ```
 
