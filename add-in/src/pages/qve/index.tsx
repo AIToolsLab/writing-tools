@@ -269,22 +269,13 @@ export default function QvE() {
 				</div>
 			);
 		else
-			if (!cursorAtEnd && !positionalSensitivity)
-				results = (
-					<div className={ classes.initTextWrapper }>
-						<div className={ classes.initText }>
-							Move the cursor to the end of the document to get started!
-						</div>
-					</div>
-				);
-			else
-				results = (
-					<div className={ classes.initTextWrapper }>
-						<div className={ classes.initText }>
-							Click a button to generate a suggestion.
-						</div>
-					</div>
-				);
+            results = (
+                <div className={ classes.initTextWrapper }>
+                    <div className={ classes.initText }>
+                        Click a button to generate a suggestion.
+                    </div>
+                </div>
+            );
 	else
 		results = (
 			// <div className={ classes.resultTextWrapper }>
@@ -411,7 +402,7 @@ export default function QvE() {
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
-								disabled={ (docContext === '' || isLoading || !cursorAtEnd) && !positionalSensitivity }
+								disabled={ (docContext === '' || isLoading) && !positionalSensitivity }
 								onClick={ () => {
 									if (docContext === '') return;
 
@@ -428,7 +419,7 @@ export default function QvE() {
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
-								disabled={ docContext === '' || isLoading || !cursorAtEnd }
+								disabled={ docContext === '' || isLoading }
 								onClick={ () => {
 									if (docContext === '') return;
 
@@ -445,7 +436,7 @@ export default function QvE() {
 						<>
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext === '' || isLoading || !cursorAtEnd) && !positionalSensitivity }
+								disabled={ (docContext === '' || isLoading) && !positionalSensitivity }
 								onClick={ () => {
 									log({
 										username: username,
@@ -481,7 +472,7 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext === '' || isLoading || !cursorAtEnd) && !positionalSensitivity }
+								disabled={ (docContext === '' || isLoading) && !positionalSensitivity }
 								onClick={ () => {
 									log({
 										username: username,
@@ -517,7 +508,7 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext === '' || isLoading || !cursorAtEnd) && !positionalSensitivity }
+								disabled={ (docContext === '' || isLoading) && !positionalSensitivity }
 								onClick={ () => {
 									log({
 										username: username,
@@ -553,7 +544,7 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext === '' || isLoading || !cursorAtEnd) && !positionalSensitivity }
+								disabled={ (docContext === '' || isLoading) && !positionalSensitivity }
 								onClick={ () => {
 									log({
 										username: username,
@@ -589,16 +580,6 @@ export default function QvE() {
 						</>
 					) }
 				</div>
-				{ tooltipVisible === 'Disabled' && !cursorAtEnd && !positionalSensitivity && (
-					<div
-						className={ [
-							classes.disabledTooltip,
-							classes.tooltip_disabled
-						].join(' ') }
-					>
-						Note that suggestions can<br/>only be generated at the<br/>end of the document
-					</div>
-				) }
 			</div>
 
 			<div>
