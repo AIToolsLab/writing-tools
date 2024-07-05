@@ -30,6 +30,7 @@ PORT = int(os.getenv("PORT") or 8000)
 
 # FIXME: Use auth0 instead
 LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
+print(f"Log secret: {LOG_SECRET!r}")
 
 # Declare Types
 class GenerationRequestPayload(BaseModel):
