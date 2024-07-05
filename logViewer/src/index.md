@@ -35,9 +35,36 @@ function Collapsible({text, maxWidth = 200}) {
 ```
 
 ```jsx
+function secondsToHMS(seconds) {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor(seconds % 3600 / 60);
+  const s = Math.floor(seconds % 60);
+  // Two digits for minutes and seconds
+  const pad = (x) => x.toString().padStart(2, "0");
+  
+  return `${h}h${pad(m)}m${pad(s)}`;
+}
+```
+
+```jsx
 function EntriesTable({entries}) {
   // WARNING: Date objects make this silently fail!
   // so we convert to string
+
+  // Add a "seconds since last" column and a "seconds since start" column
+  let lastTimestamp = null;
+  const annotatedEntries = entries.map(entry => {
+    const newEntry = {...entry};
+    if (lastTimestamp) {
+      newEntry.secondsSinceLast = (entry.timestamp - lastTimestamp) / 1000;
+      newEntry.secondsSinceStart = (entry.timestamp - entries[0].timestamp) / 1000;
+    }
+    lastTimestamp = entry.timestamp;
+    return newEntry;
+  });
+
+  annotatedEntries.reverse();
+
   return <table>
     <thead>
       <th>Timestamp</th>
@@ -47,8 +74,8 @@ function EntriesTable({entries}) {
       <th>Completion</th>
     </thead>
     <tbody>
-    {entries.toReversed().map(entry => <tr>
-      <td>{""+entry.timestamp}</td>
+    {annotatedEntries.map(entry => <tr>
+      <td>{secondsToHMS(entry.secondsSinceStart)}</td>
       <td>{entry.interaction}</td>
       <td><Collapsible text={entry.prompt} /></td>
       <td><Collapsible text={entry.result} /></td>
@@ -64,17 +91,6 @@ function EntriesTable({entries}) {
 display(<EntriesTable entries={desiredEntries} />)
 ```
 
-```js
-Inputs.table(desiredEntries.map(x => {
-  return {
-    timestamp: x.timestamp,
-    interaction: x.interaction,
-    prompt: x.prompt,
-    result: x.result,
-    completion: x.completion,
-  }
-}).reverse())
-```
 
 ```js
 const availableUsernames = Array.from(new Set(entries.map(x => x.username))).sort();
@@ -112,6 +128,7 @@ const entries = Generators.queue(notify => {
       x.isBackend = x.interaction.endsWith("_Backend")
       return x;
     });
+    console.log(newLogs.length, "new entries")
     logs = [...logs, ...newLogs];
     notify(logs);
   };
