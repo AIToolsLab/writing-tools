@@ -172,7 +172,7 @@ localStorage.setItem("logSecret", logSecret);
 }
 
 details.collapsible {
-  max-width: 200px;
+  white-space: pre-wrap;
 }
 
 details.collapsible summary {
