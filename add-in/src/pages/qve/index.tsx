@@ -86,6 +86,13 @@ export default function QvE() {
 			dateSaved: new Date()
 		});
 
+		log({
+			username: username,
+			interaction: 'Save: ' + generationType,
+			prompt: document,
+			result: generation
+		});
+
 		updateSavedItems(newSaved);
 	}
 
@@ -629,7 +636,7 @@ export default function QvE() {
 									// log
 									log({
 										username: username,
-										interaction: 'Copy_Button',
+										interaction: 'Copy: ' + generationMode,
 										prompt: docText,
 										result: generation
 									});
@@ -662,14 +669,6 @@ export default function QvE() {
 
 									setSaved(true);
 									setTimeout(() => setSaved(false), 2000);
-
-									// log
-									log({
-										username: username,
-										interaction: 'Save_Button',
-										prompt: docText,
-										result: generation
-									});
 								} }
 								onMouseEnter={ () =>
 									setTooltipVisible('Save')
