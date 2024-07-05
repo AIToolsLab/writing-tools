@@ -43,7 +43,7 @@ def create_env():
 
     with open(".env", "w") as f:
         for key, value in config.items():
-            f.write(f"{key}={value}\n")
+            f.write(f'{key}="{value}"\n')
 
 
 if __name__ == "__main__":
