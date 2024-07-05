@@ -168,7 +168,7 @@ async def keywords(prompt: str):
         pos_keywords = keyword_dict[pos]
         if pos_keywords != []:
             random.shuffle(pos_keywords)
-            keyword_string += f"**{pos_labels[pos]}**: {', '.join(pos_keywords)}\n\n"
+            keyword_string += f"**{pos_labels[pos]}**: {', '.join(pos_keywords)}\n"
 
     return {
         "result": keyword_string,
