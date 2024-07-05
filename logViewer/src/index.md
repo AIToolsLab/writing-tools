@@ -3,11 +3,23 @@ toc: false
 ---
 
 <div class="hero">
-  <h1>LogViewer</h1>
+  <h1>Log Viewer</h1>
 </div>
 
 ```js
-Inputs.table(desiredEntries)
+{
+  const selector = Inputs.checkbox(availableUsernames, {label: "Usernames", value: selectedUsernames});
+  // when the selector changes, update the selected usernames
+  selector.addEventListener("input", () => {
+    console.log(selector.value);
+    setSelectedUsernames(selector.value);
+  });
+  view(selector);
+}
+```
+
+```js
+Inputs.table(desiredEntries.slice().reverse())
 ```
 
 ```js
@@ -15,8 +27,14 @@ const availableUsernames = Array.from(new Set(entries.map(x => x.username))).sor
 ```
 
 ```js
-const selectedUsernames = view(Inputs.checkbox(availableUsernames, {label: "Usernames", value: []}));
+const selectedUsernames = Mutable([]);
+const setSelectedUsernames = (value) => selectedUsernames.value = value;
 ```
+
+${desiredEntries.length} entries selected of ${entries.length} total entries.
+
+Last entry: ${desiredEntries.length > 0 ? desiredEntries[desiredEntries.length - 1].timestamp : "No entries"}
+
 
 ```js
 const desiredEntries = entries.filter(x => selectedUsernames.includes(x.username));
