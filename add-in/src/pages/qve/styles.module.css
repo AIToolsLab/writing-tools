@@ -519,6 +519,20 @@
 	margin-top: auto;
 	border-radius: 12px;
 	transition: 0.15s;
+	background-color: #ffffff;
+}
+
+.genTypeIconWrapper_obscured {
+	align-items: center;
+	align-content: center;
+	justify-content: center;
+	margin-left: auto;
+	margin-top: auto;
+	border-radius: 12px;
+	transition: 0.15s;
+	background-color: #ffffff;
+	padding-left: 6px;
+	padding-right: 6px;
 }
 
 .historyCloseButtonWrapper:hover {

@@ -301,7 +301,7 @@ export default function QvE() {
 				<div className={ classes.genIconsContainer }>
 					<div
 						className={
-							classes.genTypeIconWrapper
+							!IS_OBSCURED ? classes.genTypeIconWrapper : classes.genTypeIconWrapper_obscured
 						}
 					>
 						{ generationMode === 'Completion' ? (
@@ -831,7 +831,7 @@ export default function QvE() {
 										</div>
 										<div
 											className={
-												classes.genTypeIconWrapper
+												!IS_OBSCURED ? classes.genTypeIconWrapper : classes.genTypeIconWrapper_obscured
 											}
 										>
 											{ savedItem.type === 'Completion' ? (
