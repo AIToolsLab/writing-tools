@@ -2,6 +2,7 @@ import { useState, useEffect, useContext } from 'react';
 
 import { UserContext } from '@/contexts/userContext';
 
+import { Remark } from 'react-remark';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
 import { Toggle } from '@fluentui/react/lib/Toggle';
@@ -287,7 +288,9 @@ export default function QvE() {
 						...
 						{ genCtxText.substring(genCtxText.length - 100) }
 					</div>
-					<div className={ classes.resultText }>{ generation }</div>
+					<div className={ classes.resultText }>
+  					<Remark>{ generation }</Remark>
+					</div>
 				</div>
 				<div className={ classes.genIconsContainer }>
 					<div
@@ -802,7 +805,7 @@ export default function QvE() {
 											) }
 										</p>
 
-										<p>{ savedItem.generation }</p>
+										<Remark>{ savedItem.generation }</Remark>
 									</div>
 									<div
 										className={ classes.savedIconsContainer }
