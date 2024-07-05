@@ -177,6 +177,12 @@
 	flex-direction: column;
 }
 
+.genCtxText {
+	font-size: 0.8rem;
+	color: #888888;
+	padding-bottom: 4px;
+}
+
 .utilsContainer {
 	display: flex;
 	flex-direction: row;

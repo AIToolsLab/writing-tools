@@ -33,6 +33,7 @@ export default function QvE() {
 	const [docContext, updateDocContext] = useState('');
 	const [_cursorPos, updateCursorPos] = useState(0);
 	const [cursorAtEnd, updateCursorAtEnd] = useState(true);
+	const [genCtxText, updateGenCtxText] = useState('');
 
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -57,7 +58,7 @@ export default function QvE() {
 	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
 
 	// Hidden for now
-	const IS_SWITCH_VISIBLE = false;
+	const IS_SWITCH_VISIBLE = true;
 	const IS_EXPERIMENTAL = true;
 	const IS_OBSCURED = true;
 
@@ -192,6 +193,7 @@ export default function QvE() {
 			}
 			updateErrorMsg('');
 			updateGeneration(await response.json());
+			updateGenCtxText(contextText);
 		}
 		catch (err: any) {
 			setIsLoading(false);
@@ -289,7 +291,13 @@ export default function QvE() {
 			// 	<div className={ classes.resultText }>{ generation }</div>
 			// </div>
 			<div className={ classes.resultTextWrapper }>
-				<div className={ classes.resultText }>{ generation }</div>
+				<div>
+					<div className={ classes.genCtxText }>
+						...
+						{ genCtxText.substring(genCtxText.length - 100) }
+					</div>
+					<div className={ classes.resultText }>{ generation }</div>
+				</div>
 				<div className={ classes.genIconsContainer }>
 					<div
 						className={
