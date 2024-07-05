@@ -8,11 +8,16 @@ toc: false
 
 ```js
 {
-  const selector = Inputs.checkbox(availableUsernames, {label: "Usernames", value: selectedUsernames});
+  const selector = Inputs.text({
+    label: "Username",
+    datalist: availableUsernames,
+    value: selectedUsername
+  });
+  selector.querySelector('input').setAttribute("name", "username")
   // when the selector changes, update the selected usernames
   selector.addEventListener("input", () => {
     console.log(selector.value);
-    setSelectedUsernames(selector.value);
+    setSelectedUsername(selector.value);
   });
   view(selector);
 }
@@ -27,8 +32,8 @@ const availableUsernames = Array.from(new Set(entries.map(x => x.username))).sor
 ```
 
 ```js
-const selectedUsernames = Mutable([]);
-const setSelectedUsernames = (value) => selectedUsernames.value = value;
+const selectedUsername = Mutable('');
+const setSelectedUsername = (value) => selectedUsername.value = value;
 ```
 
 ${desiredEntries.length} entries selected of ${entries.length} total entries.
@@ -37,7 +42,7 @@ Last entry: ${desiredEntries.length > 0 ? desiredEntries[desiredEntries.length -
 
 
 ```js
-const desiredEntries = entries.filter(x => selectedUsernames.includes(x.username));
+const desiredEntries = entries.filter(x => selectedUsername === x.username);
 ```
 
 
