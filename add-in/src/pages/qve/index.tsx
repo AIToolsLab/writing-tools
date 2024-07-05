@@ -366,6 +366,12 @@ export default function QvE() {
 							onChange={ (_event, checked) => {
 								if (checked) setPositionalSensitivity(true);
 								else setPositionalSensitivity(false);
+								log({
+									username: username,
+									interaction: 'Positional Sensitivity',
+									prompt: docContext,
+									result: checked ? 'On' : 'Off'
+								});
 							} }
 							checked={ positionalSensitivity }
 						/>
