@@ -124,6 +124,10 @@
 	left: 50%;
 }
 
+.tooltip_posSen {
+	top: 35px;
+}
+
 .spinnerWrapper {
 	display: flex;
 	z-index: 999;

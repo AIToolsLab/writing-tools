@@ -363,17 +363,33 @@ export default function QvE() {
 	return (
 		<div className={ classes.container }>
 			{ IS_SWITCH_VISIBLE && (
-				<Toggle
-					className={ classes.toggle }
-					label="Positional Sensitivity"
-					inlineLabel
-					onChange={ (_event, checked) => {
-						if (checked) setPositionalSensitivity(true);
-						else setPositionalSensitivity(false);
-					} }
-					checked={ positionalSensitivity }
-				/>
+				<div
+					onMouseEnter={ () => setTooltipVisible('PosSen') }
+					onMouseLeave={ () => setTooltipVisible(null) }
+				>
+					<Toggle
+						className={ classes.toggle }
+						label="Positional Sensitivity"
+						inlineLabel
+						onChange={ (_event, checked) => {
+							if (checked) setPositionalSensitivity(true);
+							else setPositionalSensitivity(false);
+						} }
+						checked={ positionalSensitivity }
+					/>
+					{ tooltipVisible === 'PosSen' && (
+						<div
+							className={ [
+								classes.disabledTooltip,
+								classes.tooltip_posSen
+							].join(' ') }
+						>
+							If you turn on this option, the suggestions will be<br/>based on the text before the cursor
+						</div>
+					) }
+				</div>
 			) }
+
 
 			<div className={ classes.noteTextWrapper }>
 				<div className={ classes.noteText }>
