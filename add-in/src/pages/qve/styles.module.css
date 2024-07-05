@@ -25,12 +25,17 @@
 	padding-right: 8px;
 }
 
+h4 {
+	font-size: 0.8rem;
+	margin: 4px;
+}
+
 .optionsContainer {
 	display: flex;
 	flex-direction: row;
 	gap: 8px;
 	justify-content: center;
-	margin-top: 4px;
+	margin-top: 8px;
 	margin-bottom: 8px;
 	position: relative;
 }
