@@ -15,9 +15,9 @@ toc: false
     submit: true
   });
   selector.querySelector('input').setAttribute("name", "username")
-  // when the selector changes, update the selected usernames
+
+  // when the selector changes, update the selected username
   selector.addEventListener("input", () => {
-    console.log(selector.value);
     setSelectedUsername(selector.value);
   });
   view(selector);
