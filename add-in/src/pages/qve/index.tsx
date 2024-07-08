@@ -285,7 +285,7 @@ export default function QvE() {
 			<div className={ classes.resultTextWrapper }>
 				<div>
 					<div className={ classes.genCtxText }>
-						...
+						{ genCtxText.length > 100 ? '...' : '' }
 						{ genCtxText.substring(genCtxText.length - 100) }
 					</div>
 					<div className={ classes.resultText }>
@@ -396,7 +396,8 @@ export default function QvE() {
 
 			<div className={ classes.contextText }>
 				<h4>Generating ideas to follow up on:</h4>
-				...{ docContext.substring(docContext.length-100) }
+				{ docContext.length > 100 ? '...' : '' }
+				{ docContext.substring(docContext.length-100) }
 			</div>
 
 			<div>
@@ -588,12 +589,12 @@ export default function QvE() {
 					) }
 				</div>
 			
-                <div className={ classes.noteTextWrapper }>
-                    <div className={ classes.noteText }>
-                        Please note that the quality of AI-generated text may vary
-                    </div>
-			    </div>
-            </div>
+				<div className={ classes.noteTextWrapper }>
+					<div className={ classes.noteText }>
+						Please note that the quality of AI-generated text may vary
+					</div>
+				</div>
+			</div>
 
 			<div>
 				<div className={ classes.reflectionContainer }>{ results }</div>
