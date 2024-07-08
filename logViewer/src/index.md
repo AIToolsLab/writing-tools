@@ -58,9 +58,8 @@ function EntriesTable({ entries }) {
     const newEntry = { ...entry };
     if (lastTimestamp) {
       newEntry.secondsSinceLast = (entry.timestamp - lastTimestamp) / 1000;
-      newEntry.secondsSinceStart =
-        (entry.timestamp - entries[0].timestamp) / 1000;
     }
+    newEntry.secondsSinceStart = (entry.timestamp - entries[0].timestamp) / 1000;
     lastTimestamp = entry.timestamp;
     return newEntry;
   });
