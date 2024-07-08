@@ -161,7 +161,10 @@ async def keywords(prompt: str):
     for token in doc:
         pos = token.pos_
         if pos in keyword_dict and token.lower_ not in keyword_dict[pos]:
-            keyword_dict[pos].append(token.lower_)
+            if pos == "PROPN":
+                keyword_dict[pos].append(token.text)
+            else:
+                keyword_dict[pos].append(token.lemma_)
 
     # Construct a string of keywords formatted by POS
     for pos in keyword_dict:
