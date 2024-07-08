@@ -56,10 +56,10 @@ export default function QvE() {
 	const [errorMsg, updateErrorMsg] = useState('');
 
 	const [generationMode, updateGenerationMode] = useState('None');
-	const [positionalSensitivity, setPositionalSensitivity] = useState(false);
+	const [positionalSensitivity, setPositionalSensitivity] = useState(true);
 
 	// Hidden for now
-	const IS_SWITCH_VISIBLE = true;
+	const IS_SWITCH_VISIBLE = false;
 	const IS_EXPERIMENTAL = true;
 	const IS_OBSCURED = true;
 
@@ -391,12 +391,13 @@ export default function QvE() {
 						</div>
 					) }
 
-					<div className={ classes.contextText }>
-						<h4>Generating ideas to follow up on:</h4>
-						...{ docContext.substring(docContext.length-100) }
-					</div>
 				</div>
 			) }
+
+			<div className={ classes.contextText }>
+				<h4>Generating ideas to follow up on:</h4>
+				...{ docContext.substring(docContext.length-100) }
+			</div>
 
 			<div>
 				<div 
