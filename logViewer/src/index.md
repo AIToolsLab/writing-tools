@@ -37,13 +37,12 @@ function Collapsible({ text, maxWidth = 200 }) {
 
 ```jsx
 function secondsToHMS(seconds) {
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
+  const m = Math.floor(seconds / 60);
   const s = Math.floor(seconds % 60);
   // Two digits for minutes and seconds
   const pad = (x) => x.toString().padStart(2, "0");
 
-  return `${h}h${pad(m)}m${pad(s)}`;
+  return `${pad(m)}m${pad(s)}`;
 }
 ```
 
