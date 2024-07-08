@@ -12,9 +12,9 @@ toc: false
     label: "Username",
     datalist: availableUsernames,
     value: selectedUsername,
-    submit: true
+    submit: true,
   });
-  selector.querySelector('input').setAttribute("name", "username")
+  selector.querySelector("input").setAttribute("name", "username");
 
   // when the selector changes, update the selected username
   selector.addEventListener("input", () => {
@@ -24,144 +24,188 @@ toc: false
 }
 ```
 
-
 ```jsx
-function Collapsible({text, maxWidth = 200}) {
-  return <details class="collapsible" style={{maxWidth: `${maxWidth}px`}}>
-    <summary>{text}</summary>
-    {text}
-  </details>;
+function Collapsible({ text, maxWidth = 200 }) {
+  return (
+    <details class="collapsible" style={{ maxWidth: `${maxWidth}px` }}>
+      <summary>{text}</summary>
+      {text}
+    </details>
+  );
 }
 ```
 
 ```jsx
 function secondsToHMS(seconds) {
   const h = Math.floor(seconds / 3600);
-  const m = Math.floor(seconds % 3600 / 60);
+  const m = Math.floor((seconds % 3600) / 60);
   const s = Math.floor(seconds % 60);
   // Two digits for minutes and seconds
   const pad = (x) => x.toString().padStart(2, "0");
-  
+
   return `${h}h${pad(m)}m${pad(s)}`;
 }
 ```
 
 ```jsx
-function EntriesTable({entries}) {
+function EntriesTable({ entries }) {
   // WARNING: Date objects make this silently fail!
   // so we convert to string
 
   // Add a "seconds since last" column and a "seconds since start" column
   let lastTimestamp = null;
-  const annotatedEntries = entries.map(entry => {
-    const newEntry = {...entry};
+  const annotatedEntries = entries.map((entry) => {
+    const newEntry = { ...entry };
     if (lastTimestamp) {
       newEntry.secondsSinceLast = (entry.timestamp - lastTimestamp) / 1000;
-      newEntry.secondsSinceStart = (entry.timestamp - entries[0].timestamp) / 1000;
+      newEntry.secondsSinceStart =
+        (entry.timestamp - entries[0].timestamp) / 1000;
     }
     lastTimestamp = entry.timestamp;
     return newEntry;
   });
 
+  function getInteractionColor(interaction) {
+    if (interaction.includes("Backend")) {
+      return "#BBE9FF";
+    } else if (interaction.includes("Frontend")) {
+      return "#FFEADD";
+    } else if (interaction.includes("Sensitivity")) {
+      return "#FFFED3";
+    } else {
+      return "#FFFFFF";
+    }
+  }
+
   annotatedEntries.reverse();
 
-  return <table>
-    <thead>
-      <th>Timestamp</th>
-      <th>Interaction</th>
-      <th>Prompt</th>
-      <th>Result</th>
-      <th>Completion</th>
-    </thead>
-    <tbody>
-    {annotatedEntries.map(entry => <tr>
-      <td>{secondsToHMS(entry.secondsSinceStart)}</td>
-      <td>{entry.interaction}</td>
-      <td><Collapsible text={entry.prompt} /></td>
-      <td><Collapsible text={entry.result} /></td>
-      <td><Collapsible text={entry.completion} /></td>
-    </tr>)}
-    </tbody>
-  </table>;
+  return (
+    <table>
+      <thead>
+        <th>Timestamp</th>
+        <th>Interaction</th>
+        <th>Prompt</th>
+        <th>Result</th>
+        <th>Completion</th>
+      </thead>
+      <tbody>
+        {annotatedEntries.map((entry) => (
+          <tr>
+            <td>{secondsToHMS(entry.secondsSinceStart)}</td>
+            <td
+              style={{
+                backgroundColor: getInteractionColor(entry.interaction),
+              }}
+            >
+              {entry.interaction}
+            </td>
+            <td>
+              <Collapsible text={entry.prompt} />
+            </td>
+            <td>
+              <Collapsible text={entry.result} />
+            </td>
+            <td>
+              <Collapsible text={entry.completion} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }
 ```
 
-
 ```jsx
-display(<EntriesTable entries={desiredEntries} />)
-```
-
-
-```js
-const availableUsernames = Array.from(new Set(entries.map(x => x.username))).sort();
+display(<EntriesTable entries={desiredEntries} />);
 ```
 
 ```js
-const selectedUsername = Mutable('');
-const setSelectedUsername = (value) => selectedUsername.value = value;
+const availableUsernames = Array.from(
+  new Set(entries.map((x) => x.username))
+).sort();
+```
+
+```js
+const selectedUsername = Mutable("");
+const setSelectedUsername = (value) => (selectedUsername.value = value);
 ```
 
 ${desiredEntries.length} entries selected of ${entries.length} total entries.
 
 Last entry: ${desiredEntries.length > 0 ? desiredEntries[desiredEntries.length - 1].timestamp : "No entries"}
 
-
 ```js
 Plot.plot({
   marginLeft: 150,
   marks: [
-    Plot.barX(desiredEntries, {y: "interaction", x: 1, inset: .5}),
-    Plot.ruleY([0])
-  ]
-})
+    Plot.barX(desiredEntries, { y: "interaction", x: 1, inset: 0.5 }),
+    Plot.ruleY([0]),
+  ],
+});
 ```
 
 ```js
-const desiredEntries = entries.filter(x => selectedUsername === x.username);
+const desiredEntries = entries.filter((x) => selectedUsername === x.username);
 ```
 
-
 ```js
-const entries = Generators.queue(notify => {
+const entries = Generators.queue((notify) => {
   let logs = [];
-  const source = new EventSource(`https://textfocals.com/api/logs?secret=${logSecret}`);
-  source.onerror = e => {
-  //  notify({"error": e});
+  const source = new EventSource(
+    `https://textfocals.com/api/logs?secret=${logSecret}`
+  );
+  source.onerror = (e) => {
+    //  notify({"error": e});
   };
-  source.onmessage = event => {
+  source.onmessage = (event) => {
     const parsedUpdate = JSON.parse(event.data);
     if (parsedUpdate.error) {
-      notify({"error": parsedUpdate.error});
+      notify({ error: parsedUpdate.error });
     }
-    const newLogs = parsedUpdate.map((log) => log.logs).flat().map(x => {
-      x.timestamp = new Date(x.timestamp * 1000);
-      x.isBackend = x.interaction.endsWith("_Backend")
-      return x;
-    });
-    console.log(newLogs.length, "new entries")
+    const newLogs = parsedUpdate
+      .map((log) => log.logs)
+      .flat()
+      .map((x) => {
+        x.timestamp = new Date(x.timestamp * 1000);
+        x.isBackend = x.interaction.endsWith("_Backend");
+        return x;
+      });
+    console.log(newLogs.length, "new entries");
     // Filter for any newLogs that are not already in logs.
     // 1. The EventSource auto-reconnects when the server reloads (and drops its old connections). So when the connection is re-established, we get a bunch of old logs again.
     // 2. We need to compare stringified timestamps because Date objects don't compare ===.
-    logs = logs.concat(newLogs.filter(x => !logs.some(y =>
-      ""+x.timestamp === ""+y.timestamp && x.interaction === y.interaction && x.username === y.username
-    )));
+    logs = logs.concat(
+      newLogs.filter(
+        (x) =>
+          !logs.some(
+            (y) =>
+              "" + x.timestamp === "" + y.timestamp &&
+              x.interaction === y.interaction &&
+              x.username === y.username
+          )
+      )
+    );
 
     notify(logs);
   };
   return () => source.close();
-})
+});
 ```
 
 ```js
-const logSecret = view(Inputs.text({label: "Log Secret", value: localStorage.getItem("logSecret") || ""}));
+const logSecret = view(
+  Inputs.text({
+    label: "Log Secret",
+    value: localStorage.getItem("logSecret") || "",
+  })
+);
 ```
 
 ```js
 // Reactivity will just do the right thing here.
 localStorage.setItem("logSecret", logSecret);
 ```
-
-
 
 <style>
 
@@ -213,6 +257,16 @@ details.collapsible summary {
   white-space: nowrap;
   overflow: hidden;
   direction: rtl;
+  color: #aaaaaa;
+}
+
+td {
+  padding: 0.5em;
+}
+
+table {
+  max-width: 100%;
+  border-color: #dddddd;
 }
 
 </style>
