@@ -414,7 +414,7 @@ export default function QvE() {
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
-								disabled={ (docContext === '' || isLoading) && !positionalSensitivity }
+								disabled={ (docContext.trim() === '' || isLoading) }
 								onClick={ () => {
 									if (docContext === '') return;
 
@@ -431,7 +431,7 @@ export default function QvE() {
 										? classes.optionsButtonActive
 										: classes.optionsButton
 								}
-								disabled={ docContext === '' || isLoading }
+								disabled={ docContext.trim() === '' || isLoading }
 								onClick={ () => {
 									if (docContext === '') return;
 
@@ -448,7 +448,7 @@ export default function QvE() {
 						<>
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext === '' || isLoading) && !positionalSensitivity }
+								disabled={ (docContext.trim() === '' || isLoading) }
 								onClick={ () => {
 									log({
 										username: username,
@@ -483,7 +483,7 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext === '' || isLoading) && !positionalSensitivity }
+								disabled={ (docContext.trim() === '' || isLoading) }
 								onClick={ () => {
 									log({
 										username: username,
@@ -518,7 +518,7 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext === '' || isLoading) && !positionalSensitivity }
+								disabled={ (docContext.trim() === '' || isLoading) }
 								onClick={ () => {
 									log({
 										username: username,
@@ -553,7 +553,7 @@ export default function QvE() {
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext === '' || isLoading) && !positionalSensitivity }
+								disabled={ (docContext.trim() === '' || isLoading) }
 								onClick={ () => {
 									log({
 										username: username,
@@ -743,7 +743,7 @@ export default function QvE() {
 					<div className={ classes.historyButtonWrapper }>
 						<button
 							className={ classes.historyButton }
-							disabled={ docContext === '' || isLoading }
+							disabled={ docContext.trim() === '' || isLoading }
 							onClick={ () => {
 								// Toggle between the current page and the saved page
 								setSavedOpen(!isSavedOpen);
