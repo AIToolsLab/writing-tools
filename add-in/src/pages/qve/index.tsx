@@ -451,8 +451,7 @@ export default function QvE() {
 									log({
 										username: username,
 										interaction: 'Completion_Frontend',
-										prompt: docContext,
-										result: generation
+										prompt: docContext
 									});
 									if (docContext === '') return;
 
@@ -487,8 +486,7 @@ export default function QvE() {
 									log({
 										username: username,
 										interaction: 'Question_Frontend',
-										prompt: docContext,
-										result: generation
+										prompt: docContext
 									});
 									if (docContext === '') return;
 
@@ -523,8 +521,7 @@ export default function QvE() {
 									log({
 										username: username,
 										interaction: 'Keywords_Frontend',
-										prompt: docContext,
-										result: generation
+										prompt: docContext
 									});
 									if (docContext === '') return;
 
@@ -559,8 +556,7 @@ export default function QvE() {
 									log({
 										username: username,
 										interaction: 'Structure_Frontend',
-										prompt: docContext,
-										result: generation
+										prompt: docContext
 									});
 									if (docContext === '') return;
 
