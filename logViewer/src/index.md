@@ -27,7 +27,7 @@ toc: false
 ```jsx
 function Collapsible({ text, maxWidth = 200 }) {
   return (
-    <details class="collapsible" style={{ maxWidth: `${maxWidth}px` }}>
+    <details class="collapsible" style={{ maxWidth: `${maxWidth}px` }} title={text}>
       <summary>{text}</summary>
       {text}
     </details>
