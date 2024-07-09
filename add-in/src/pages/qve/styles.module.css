@@ -149,6 +149,12 @@ h4 {
 	top: 35px;
 }
 
+.tooltip_genCtxText {
+	top: 18%;
+	background-color: rgba(247, 247, 247, 0.7) !important;
+	color: rgba(66, 66, 66, 0.7);
+}
+
 .spinnerWrapper {
 	display: flex;
 	z-index: 999;

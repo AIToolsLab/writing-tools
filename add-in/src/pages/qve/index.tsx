@@ -291,10 +291,24 @@ export default function QvE() {
 			// </div>
 			<div className={ classes.resultTextWrapper }>
 				<div>
-					<div className={ classes.genCtxText }>
+					<div 
+						className={ classes.genCtxText }
+						onMouseEnter={ () => setTooltipVisible('GenCtx') }
+						onMouseLeave={ () => setTooltipVisible(null) }
+					>
 						{ genCtxText.length > 100 ? '...' : '' }
 						{ genCtxText.substring(genCtxText.length - 100) }
 					</div>
+					{ false && tooltipVisible === 'GenCtx' && (
+					<div
+						className={ [
+							classes.disabledTooltip,
+							classes.tooltip_genCtxText
+						].join(' ') }
+					>
+						{ 'Generated based on this document text' }
+					</div>
+				) }
 					<div className={ classes.resultText }>
   					<Remark>{ generation }</Remark>
 					</div>
