@@ -68,6 +68,7 @@ app.add_middleware(
 # Routes
 @app.post("/api/generation")
 async def generation(payload: GenerationRequestPayload):
+    start_time = datetime.now()
     if payload.gtype == "Completion_Backend":
         result = await nlp.chat_completion(payload.prompt)
     elif payload.gtype == "Question_Backend":
@@ -78,6 +79,7 @@ async def generation(payload: GenerationRequestPayload):
         result = await nlp.structure(payload.prompt)
     else:
         return {"error": "Invalid generation type."}
+    end_time = datetime.now()
 
     make_log(
         Log(
@@ -86,7 +88,8 @@ async def generation(payload: GenerationRequestPayload):
             prompt=payload.prompt,
             result=result["result"],
             completion=result["completion"],
-            timestamp=datetime.now().timestamp()
+            timestamp=end_time.timestamp(),
+            delay=(end_time - start_time).total_seconds()
         )
     )
 
