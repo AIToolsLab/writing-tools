@@ -124,6 +124,15 @@ display(<EntriesTable entries={desiredEntries} />);
 ```
 
 ```js
+const includePlayground = view(
+  Inputs.toggle({
+    label: "Include Playground",
+    value: false,
+  })
+)
+```
+
+```js
 const availableUsernames = Array.from(
   new Set(entries.map((x) => x.username))
 ).sort();
@@ -139,17 +148,40 @@ ${desiredEntries.length} entries selected of ${entries.length} total entries.
 Last entry: ${desiredEntries.length > 0 ? desiredEntries[desiredEntries.length - 1].timestamp : "No entries"}
 
 ```js
+// Count number of each type of generationType
+const generationTypeCounts = Object.entries(
+  desiredEntries.reduce((acc, x) => {
+    if (x.isBackend) {
+      acc[x.generationType] = (acc[x.generationType] || 0) + 1;
+    }
+    return acc;
+  }, {})
+).sort((a, b) => b[1] - a[1]).map(([k, v]) => ({ generationType: k, count: v }));
+```
+
+```js
+Plot.plot({
+  marginLeft: 150,
+  marks: [
+    Plot.barX(generationTypeCounts, { y: "generationType", x: "count", inset: 0.5 }),
+    Plot.text(generationTypeCounts, { text: "count", x: "count", y: "generationType", dx: 3, color: "black", textAnchor: "start" }),
+    Plot.ruleY([0]),
+  ],
+})
+```
+
+```js
 Plot.plot({
   marginLeft: 150,
   marks: [
     Plot.barX(desiredEntries, { y: "interaction", x: 1, inset: 0.5 }),
     Plot.ruleY([0]),
   ],
-});
+})
 ```
 
 ```js
-const desiredEntries = entries.filter((x) => selectedUsername === x.username);
+const desiredEntries = entries.filter((x) => selectedUsername === x.username && (includePlayground || !x.isPlayground));
 ```
 
 ```js
@@ -172,6 +204,10 @@ const entries = Generators.queue((notify) => {
       .map((x) => {
         x.timestamp = new Date(x.timestamp * 1000);
         x.isBackend = x.interaction.endsWith("_Backend");
+        if (x.isBackend) {
+          x.generationType = x.interaction.replace("_Backend", "");
+        }
+        x.isPlayground = (x.prompt.trim().startsWith('From the Wikipedia page on Calvin University'));
         return x;
       });
     console.log(newLogs.length, "new entries");
