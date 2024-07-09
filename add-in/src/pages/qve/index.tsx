@@ -121,15 +121,22 @@ export default function QvE() {
 			let contextText = '';
 
 			if (positionalSensitivity) {
-				const cursorSelection = context.document
+				// wordSelection will only be word touching cursor if none highlighted
+				const wordSelection = context.document
 					.getSelection()
-					.getTextRanges([' '], false)
-					.getFirst();
-				const textRange = cursorSelection.expandTo(body.getRange('Start'));
+					.getTextRanges([' '], false);
 
-				context.load(textRange, 'text');
+				context.load(wordSelection, 'items');
 				await context.sync();
-				contextText = textRange.text;
+
+				// Get range from beginning of doc up to the last word in wordSelection
+				const lastCursorWord = wordSelection
+					.items[wordSelection.items.length - 1];
+				const contextRange = lastCursorWord.expandTo(body.getRange('Start'));
+
+				context.load(contextRange, 'text');
+				await context.sync();
+				contextText = contextRange.text;
 			}
 			else {
 				context.load(body, 'text');
