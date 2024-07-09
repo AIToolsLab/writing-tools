@@ -321,7 +321,7 @@ export default function QvE() {
 					>
 						{ generationMode === 'Completion' ? (
 							IS_OBSCURED ? (
-								'A'
+								'a'
 							) : (
 								<AiOutlineAlignLeft
 									className={
@@ -332,7 +332,7 @@ export default function QvE() {
 						) : generationMode ===
 							'Question' ? (
 							IS_OBSCURED ? (
-								'B'
+								'b'
 							) : (
 								<AiOutlineQuestion
 									className={
@@ -343,7 +343,7 @@ export default function QvE() {
 						) : generationMode ===
 							'Keywords' ? (
 							IS_OBSCURED ? (
-								'C'
+								'c'
 							) : (
 								<AiOutlineHighlight
 									className={
@@ -354,7 +354,7 @@ export default function QvE() {
 						) : generationMode ===
 							'Structure' ? (
 							IS_OBSCURED ? (
-								'D'
+								'd'
 							) : (
 								<AiOutlineBank
 									className={
@@ -488,7 +488,7 @@ export default function QvE() {
 									setTooltipVisible(null)
 								}
 							>
-								{ IS_OBSCURED ? 'A' : <AiOutlineAlignLeft /> }
+								{ IS_OBSCURED ? 'a' : <AiOutlineAlignLeft /> }
 							</button>
 
 							{ tooltipVisible === 'Completion' && (
@@ -523,7 +523,7 @@ export default function QvE() {
 									setTooltipVisible(null)
 								}
 							>
-								{ IS_OBSCURED ? 'B' : <AiOutlineQuestion /> }
+								{ IS_OBSCURED ? 'b' : <AiOutlineQuestion /> }
 							</button>
 
 							{ tooltipVisible === 'Question' && (
@@ -558,7 +558,7 @@ export default function QvE() {
 									setTooltipVisible(null)
 								}
 							>
-								{ IS_OBSCURED ? 'C' : <AiOutlineHighlight /> }
+								{ IS_OBSCURED ? 'c' : <AiOutlineHighlight /> }
 							</button>
 
 							{ tooltipVisible === 'Keywords' && (
@@ -593,7 +593,7 @@ export default function QvE() {
 									setTooltipVisible(null)
 								}
 							>
-								{ IS_OBSCURED ? 'D' : <AiOutlineBank /> }
+								{ IS_OBSCURED ? 'd' : <AiOutlineBank /> }
 							</button>
 
 							{ tooltipVisible === 'Structure' && (
@@ -852,7 +852,7 @@ export default function QvE() {
 										>
 											{ savedItem.type === 'Completion' ? (
 												IS_OBSCURED ? (
-													'A'
+													'a'
 												) : (
 													<AiOutlineAlignLeft
 														className={
@@ -863,7 +863,7 @@ export default function QvE() {
 											) : savedItem.type ===
 											  'Question' ? (
 												IS_OBSCURED ? (
-													'B'
+													'b'
 												) : (
 													<AiOutlineQuestion
 														className={
@@ -874,7 +874,7 @@ export default function QvE() {
 											) : savedItem.type ===
 											  'Keywords' ? (
 												IS_OBSCURED ? (
-													'C'
+													'c'
 												) : (
 													<AiOutlineHighlight
 														className={
@@ -885,7 +885,7 @@ export default function QvE() {
 											) : savedItem.type ===
 											  'Structure' ? (
 												IS_OBSCURED ? (
-													'D'
+													'd'
 												) : (
 													<AiOutlineBank
 														className={
