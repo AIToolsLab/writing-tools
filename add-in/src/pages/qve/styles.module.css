@@ -23,12 +23,13 @@
 	color: #aaaaaa;
 	padding: 8px;
 	margin: 8px;
-	background-color: #fbfbfb;
+	box-shadow: -1px 6px 10px 0 rgba(147, 123, 109, 0.1);
 }
 
 h4 {
 	font-size: 0.8rem;
-	margin: 4px;
+	margin-top: 2px;
+	margin-bottom: 4px;
 }
 
 .optionsContainer {
@@ -204,8 +205,13 @@ h4 {
 
 .genCtxText {
 	font-size: 0.8rem;
-	color: #888888;
+	color: #aaaaaa;
 	padding-bottom: 4px;
+	cursor: pointer;
+}
+
+.genCtxText:hover {
+	color: #9c9ae1;
 }
 
 .utilsContainer {
@@ -606,10 +612,11 @@ h4 {
 	transition: 0.15s;
 	color: #aaaaaa;
 	margin-bottom: 4px;
+	font-size: 0.8rem;
 }
 
 .historyDoc:hover {
-	color: #059212;
+	color: #9c9ae1;
 }
 
 p {
