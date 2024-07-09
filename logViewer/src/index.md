@@ -27,7 +27,11 @@ toc: false
 ```jsx
 function Collapsible({ text, maxWidth = 200 }) {
   return (
-    <details class="collapsible" style={{ maxWidth: `${maxWidth}px` }} title={text}>
+    <details
+      class="collapsible"
+      style={{ maxWidth: `${maxWidth}px` }}
+      alt={text}
+    >
       <summary>{text}</summary>
       {text}
     </details>
@@ -58,7 +62,8 @@ function EntriesTable({ entries }) {
     if (lastTimestamp) {
       newEntry.secondsSinceLast = (entry.timestamp - lastTimestamp) / 1000;
     }
-    newEntry.secondsSinceStart = (entry.timestamp - entries[0].timestamp) / 1000;
+    newEntry.secondsSinceStart =
+      (entry.timestamp - entries[0].timestamp) / 1000;
     lastTimestamp = entry.timestamp;
     return newEntry;
   });
@@ -265,6 +270,24 @@ td {
 table {
   max-width: 100%;
   border-color: #dddddd;
+}
+
+details {
+  cursor: pointer;
+  position: relative;
+}
+
+details[alt]:hover::after {
+  content: attr(alt);
+  position: absolute;
+  background: rgba(247, 247, 247, 1);
+  font-weight: 300;
+  color: #333333;
+  padding: 0.5em;
+  border-radius: 0.5em;
+  z-index: 1000;
+  left: 30%;
+  width: 35em;
 }
 
 </style>
