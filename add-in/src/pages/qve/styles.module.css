@@ -579,9 +579,8 @@ h4 {
 }
 
 .genTypeIconWrapper_obscured {
-	align-items: center;
 	align-content: center;
-	justify-content: center;
+	text-align: center;
 	margin-left: auto;
 	margin-top: auto;
 	border-radius: 12px;
@@ -613,6 +612,7 @@ h4 {
 	color: #888888;
 	justify-content: right;
 	align-items: center;
+	text-align: center;
 	transition: 0.5s;
 }
 
