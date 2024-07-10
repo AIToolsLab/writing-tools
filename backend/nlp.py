@@ -95,7 +95,8 @@ async def chat_completion(prompt: str):
     RHETORICAL_SITUATION = "You are a completion bot for a 200-word essay"
 
     # Assign prompt based on whether the document ends with a space for a new paragraph
-    if prompt[-1] == "\r":
+    ends_with_space = prompt[-1] == " "
+    if ends_with_space:
         system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words."
     else:
         system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words."
@@ -118,6 +119,8 @@ async def chat_completion(prompt: str):
         "prompt": prompt,
         "temperature": temperature,
         "word_limit": word_limit,
+        "ends_with_space": ends_with_space,
+        "system_chat_prompt": system_chat_prompt,
     }
 
 
