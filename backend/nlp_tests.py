@@ -13,14 +13,14 @@ def __():
 
 @app.cell
 def __(mo):
-    doc_text_area = mo.ui.text_area()
+    doc_text_area = mo.ui.text_area().form()
     doc_text_area
     return doc_text_area,
 
 
 @app.cell
 def __(doc_text_area):
-    doc = doc_text_area.value
+    doc = doc_text_area.value or ""
     doc
     return doc,
 
