@@ -34,10 +34,9 @@ h4 {
 
 .optionsContainer {
 	display: flex;
-	flex-direction: row;
-	gap: 8px;
+	flex-direction: column;
 	justify-content: center;
-	margin-top: 8px;
+	margin-top: 4px;
 	margin-bottom: 8px;
 	position: relative;
 }
@@ -47,16 +46,29 @@ h4 {
 	visibility: visible;
 }
 
+.optionsButtonWrapperTwo {
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+	align-items: center;
+	margin: 0px;
+}
+
 .optionsButton,
 .optionsButtonActive {
 	background-color: #ffffff;
 	font-size: 1rem;
 	font-weight: 600;
-	padding: 12px 16px;
+	/* padding: 8px 14px; */
+	width: 42px;
+	height: 42px;
+	justify-content: center;
+	align-items: center;
 	border: 1px solid #f0f0f0;
 	transition: 0.15s;
 	cursor: pointer;
 	border-radius: 24px;
+	margin: 4px;
 }
 
 .optionsButtonActive {
@@ -95,7 +107,7 @@ h4 {
 	color: rgba(66, 66, 66, 0.9);
 	padding: 8px 12px;
 	border-radius: 2px;
-	font-size: 0.9rem;
+	font-size: 0.8rem;
 	font-weight: 200;
 	white-space: nowrap;
 	z-index: 1000;
@@ -126,19 +138,27 @@ h4 {
 }
 
 .tooltip_e {
-	left: 30%;
+	/* left: 30%; */
+	left: 18%;
+	top: 8%;
 }
 
 .tooltip_q {
-	left: 43%;
+	/* left: 43%; */
+	left: 82%;
+	top: 8%;
 }
 
 .tooltip_k {
-	left: 56%;
+	/* left: 56%; */
+	left: 18%;
+	top: 58%;
 }
 
 .tooltip_s {
-	left: 70%;
+	/* left: 70%; */
+	left: 82%;
+	top: 58%;
 }
 
 .tooltip_disabled {
