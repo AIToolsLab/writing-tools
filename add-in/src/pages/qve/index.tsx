@@ -669,7 +669,7 @@ export default function QvE() {
 									Close
 								</div>
 							) }
-							<div
+							{ /* <div
 								className={ classes.utilIconWrapper }
 								onClick={ () => {
 									// Copy the text to the clipboard
@@ -711,7 +711,7 @@ export default function QvE() {
 								>
 									Copy
 								</div>
-							) }
+							) } */ }
 							{ copyWarningTooltipVisible && tooltipVisible === 'Copy' && (
 								<div
 									className={ [
