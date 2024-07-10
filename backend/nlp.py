@@ -1,10 +1,11 @@
 import os
 import random
-from typing import List, Dict
+from typing import Iterable, List, Dict
 
 from dotenv import load_dotenv
 import spacy
 
+from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai import AsyncOpenAI
 
 MODEL_NAME = "gpt-4o"
@@ -55,7 +56,7 @@ def obscure(token):
     return "·" * len(word) + token.whitespace_
 
 
-async def chat(messages: List[Dict[str, str]], temperature: float):
+async def chat(messages: Iterable[ChatCompletionMessageParam], temperature: float):
     response = await openai_client.chat.completions.create(
         model=MODEL_NAME,
         messages=messages,
@@ -84,7 +85,7 @@ async def completion(prompt: str):
         stop=[".", "!", "?"],
     )
 
-    result = response.choices[0].message.content
+    result = response.choices[0].text
 
     return result
 
@@ -106,7 +107,7 @@ async def chat_completion(prompt: str):
         messages=[
             {
                 "role": "system",
-                "content": [{"type": "text", "text": system_chat_prompt}],
+                "content": system_chat_prompt,
             },
             {"role": "user", "content": prompt},
         ],
