@@ -69,6 +69,11 @@ app.add_middleware(
 # Routes
 @app.post("/api/generation")
 async def generation(payload: GenerationRequestPayload):
+    '''
+    To test this endpoint from curl:
+
+    $ curl -X POST -H "Content-Type: application/json" -d '{"username": "test", "gtype": "Completion_Backend", "prompt": "This is a test prompt."}' http://localhost:8000/api/generation
+    '''
     start_time = datetime.now()
     if payload.gtype == "Completion_Backend":
         result = await nlp.chat_completion(payload.prompt)
@@ -93,6 +98,7 @@ async def generation(payload: GenerationRequestPayload):
         )
     )
 
+    # FIXME: Return a structured object.
     return result['result']
 
 
