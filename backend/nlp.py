@@ -244,3 +244,29 @@ async def structure(prompt: str):
         "result": filtered_text.replace("· ·", "···").replace("· ·", "···"),
         "completion": completion
     }
+    
+# Rhetorical Move
+async def rmove(prompt: str):
+    final_sentence = get_final_sentence(prompt)
+
+    temperature = 1.0
+
+    move_prompt = f"You are a writing assistant. Name a rhetorical category the next sentence in the given document might fulfill. Answer in the following format: <Category>: <Recommendation>. Use no more than 10 words."
+
+    full_prompt = (
+        f"{move_prompt}\n\n{prompt}"
+    )
+
+    rhetorical_move = await chat(
+        messages=[
+            {"role": "user", "content": full_prompt},
+        ],
+        temperature=temperature,
+    )
+
+    return {
+        "result": rhetorical_move,
+        "prompt": prompt,
+        "temperature": temperature,
+        "is_full_sentence": is_full_sentence(final_sentence),
+    }

@@ -352,7 +352,7 @@ export default function QvE() {
 								/>
 							)
 						) : generationMode ===
-							'Structure' ? (
+							'RMove' ? (
 							IS_OBSCURED ? (
 								'd'
 							) : (
@@ -578,16 +578,16 @@ export default function QvE() {
 								onClick={ () => {
 									log({
 										username: username,
-										interaction: 'Structure_Frontend',
+										interaction: 'RMove_Frontend',
 										prompt: docContext
 									});
 									if (docContext === '') return;
 
-									updateGenerationMode('Structure');
-									getGeneration(username, 'Structure_Backend', docContext);
+									updateGenerationMode('RMove');
+									getGeneration(username, 'RMove_Backend', docContext);
 								} }
 								onMouseEnter={ () =>
-									setTooltipVisible('Structure')
+									setTooltipVisible('RMove')
 								}
 								onMouseLeave={ () =>
 									setTooltipVisible(null)
@@ -596,14 +596,14 @@ export default function QvE() {
 								{ IS_OBSCURED ? 'd' : <AiOutlineBank /> }
 							</button>
 
-							{ tooltipVisible === 'Structure' && (
+							{ tooltipVisible === 'RMove' && (
 								<div
 									className={ [
 										classes.tooltip,
 										classes.tooltip_s
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Structure' : 'Get New Generation' }
+									{ !IS_OBSCURED ? 'Get New Rhetorical Move' : 'Get New Generation' }
 								</div>
 							) }
 						</>
@@ -883,7 +883,7 @@ export default function QvE() {
 													/>
 												)
 											) : savedItem.type ===
-											  'Structure' ? (
+											  'RMove' ? (
 												IS_OBSCURED ? (
 													'd'
 												) : (

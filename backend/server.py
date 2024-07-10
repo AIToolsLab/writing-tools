@@ -83,6 +83,8 @@ async def generation(payload: GenerationRequestPayload):
         result = await nlp.keywords(payload.prompt)
     elif payload.gtype == "Structure_Backend":
         result = await nlp.structure(payload.prompt)
+    elif payload.gtype == "RMove_Backend":
+        result = await nlp.rmove(payload.prompt)
     else:
         return {"error": "Invalid generation type."}
     end_time = datetime.now()
