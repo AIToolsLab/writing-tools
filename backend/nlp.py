@@ -37,7 +37,7 @@ except:
 def get_final_sentence(text):
     final_paragraph = text.split('\n')[-1]
     final_sentence = list(nlp(final_paragraph).sents)[-1].text
-    
+
     return final_sentence
 
 
@@ -100,6 +100,7 @@ async def chat_completion(prompt: str):
     else:
         system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words."
 
+    temperature = 1.0
     result = await chat(
         messages=[
             {
@@ -108,19 +109,25 @@ async def chat_completion(prompt: str):
             },
             {"role": "user", "content": prompt},
         ],
-        temperature=1,
+        temperature=temperature,
     )
 
     return {
         "result": result,
-        "completion": None
+        "completion": None,
+        "prompt": prompt,
+        "temperature": temperature,
+        "word_limit": word_limit,
     }
 
 
 async def question(prompt: str):
-    example = (await chat_completion(prompt))["result"]
+    example_completion_data = (await chat_completion(prompt))
+    example = example_completion_data["result"]
 
     final_sentence = get_final_sentence(prompt)
+
+    temperature = 1.0
 
     if is_full_sentence(final_sentence):
         question_prompt = f"With the current document in mind:\n\n{prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence."
@@ -138,12 +145,17 @@ async def question(prompt: str):
         messages=[
             {"role": "user", "content": full_prompt},
         ],
-        temperature=1,
+        temperature=temperature,
     )
 
     return {
         "result": questions,
-        "completion": example
+        "completion": example,
+        "prompt": prompt,
+        "temperature": temperature,
+        "example_completion_data": example_completion_data,
+        "is_full_sentence": is_full_sentence(final_sentence),
+        "max_length": max_length,
     }
 
 
@@ -152,7 +164,8 @@ async def keywords(prompt: str):
 
     keyword_string = ""
     keyword_dict = dict(NOUN=[], PROPN=[], VERB=[], ADJ=[], ADV=[], INTJ=[])
-    pos_labels = dict(NOUN="Nouns", PROPN="Proper Nouns", VERB="Verbs", ADJ="Adjectives", ADV="Adverbs", INTJ="Interjections")
+    pos_labels = dict(NOUN="Nouns", PROPN="Proper Nouns", VERB="Verbs",
+                      ADJ="Adjectives", ADV="Adverbs", INTJ="Interjections")
 
     # Process the text with spaCy
     doc = nlp(completion)
@@ -175,7 +188,7 @@ async def keywords(prompt: str):
 
     return {
         "result": keyword_string,
-        "completion": completion
+        "completion": completion,
     }
 
 
@@ -192,9 +205,11 @@ async def structure(prompt: str):
         # determiner = token.tag_ == "WDT" or token.tag_ == "IN"
         # return not determiner and (keyword_pos or past_participle or ly_word)
 
-        plainword_tag = token.tag_ in ["CC", "CD", "DT", "EX", "IN", "LS", "MD", "PDT", "PRP", "PRP$", "RP", "TO", "WDT", "WP", "WP$", "WRB"]
+        plainword_tag = token.tag_ in ["CC", "CD", "DT", "EX", "IN", "LS",
+                                       "MD", "PDT", "PRP", "PRP$", "RP", "TO", "WDT", "WP", "WP$", "WRB"]
         simple_adverb = (
-            token.tag_ in ["RB", "RBR", "RBS", "WRB"] and token.text[-2:] != "ly"
+            token.tag_ in ["RB", "RBR", "RBS",
+                           "WRB"] and token.text[-2:] != "ly"
         )
         aux = token.pos_ == "AUX"
         punct = token.is_punct

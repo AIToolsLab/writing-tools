@@ -33,6 +33,8 @@ LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
 print(f"Log secret: {LOG_SECRET!r}")
 
 # Declare Types
+
+
 class GenerationRequestPayload(BaseModel):
     username: str
     gtype: str
@@ -48,7 +50,6 @@ class Log(BaseModel):
     prompt: Optional[str] = None
     result: Optional[str] = None
     completion: Optional[str] = None
-
 
 
 # Initliaze Server
@@ -85,11 +86,10 @@ async def generation(payload: GenerationRequestPayload):
         Log(
             username=payload.username,
             interaction=payload.gtype,
-            prompt=payload.prompt,
-            result=result["result"],
-            completion=result["completion"],
+            # prompt=payload.prompt,
             timestamp=end_time.timestamp(),
-            delay=(end_time - start_time).total_seconds()
+            delay=(end_time - start_time).total_seconds(),
+            **result
         )
     )
 
@@ -111,7 +111,7 @@ async def logs(secret: str):
         if secret != LOG_SECRET:
             yield json.dumps({"error": "Invalid secret."})
             return
-        
+
         log_positions = {}
 
         while True:
