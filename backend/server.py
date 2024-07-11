@@ -1,6 +1,6 @@
 import os
 import json
-import sqlite3
+import psycopg
 
 import openai
 import uvicorn
@@ -18,10 +18,7 @@ from sse_starlette import EventSourceResponse
 from pydantic import BaseModel
 from dotenv import load_dotenv
 
-from nlp import (
-    gen_reflections_chat,
-    ReflectionResponseInternal
-)
+from nlp import gen_reflections_chat, ReflectionResponseInternal
 
 # Load ENV vars
 load_dotenv()
@@ -29,33 +26,41 @@ load_dotenv()
 openai.organization = os.getenv("OPENAI_ORGANIZATION") or "org-9bUDqwqHW2Peg4u47Psf9uUo"
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+database_uri = os.getenv("DATABASE_URI")
+
 if openai.api_key is None:
     raise Exception("OPENAI_API_KEY is not set. Please set it in a .env file.")
 
 DEBUG = os.getenv("DEBUG") or False
 PORT = int(os.getenv("PORT") or "8000")
 
+
 # Declare Types
 class ReflectionRequestPayload(BaseModel):
     username: str
-    paragraph: str # TODO: update name
+    paragraph: str  # TODO: update name
     prompt: str
+
 
 class ReflectionResponseItem(BaseModel):
     reflection: str
 
+
 class ReflectionResponses(BaseModel):
     reflections: List[ReflectionResponseItem]
+
 
 class ChatRequestPayload(BaseModel):
     messages: List[Dict[str, str]]
     username: str
 
+
 class Log(BaseModel):
     username: str
-    interaction: str # "chat", "reflection", "click", "page_change"
+    interaction: str  # "chat", "reflection", "click", "page_change"
     prompt: Optional[str] = None
     ui_id: Optional[str] = None
+
 
 app = FastAPI()
 
@@ -71,24 +76,22 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-db_file = 'backend.db'
+with psycopg.connect(database_uri) as conn:
+    with conn.cursor() as c:
+        c.execute(
+            "CREATE TABLE IF NOT EXISTS logs (timestamp timestamp, username text, interaction text, prompt text, ui_id text)"
+        )
 
-with sqlite3.connect(db_file) as conn:
-    c = conn.cursor()
-
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS logs (timestamp, username, interaction, prompt, ui_id)"
-    )
 
 def make_log(payload: Log):
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
+    with psycopg.connect(database_uri) as conn:
+        with conn.cursor() as c:
+            c.execute(
+                "INSERT INTO logs (timestamp, username, interaction, prompt, ui_id) "
+                "VALUES (NOW(), %s, %s, %s, %s)",
+                (payload.username, payload.interaction, payload.prompt, payload.ui_id),
+            )
 
-        c.execute(
-            "INSERT INTO logs (timestamp, username, interaction, prompt, ui_id) "
-            "VALUES (datetime('now'), ?, ?, ?, ?)",
-            (payload.username, payload.interaction, payload.prompt, payload.ui_id),
-        )
 
 async def get_reflections(
     request: ReflectionRequestPayload,
@@ -109,10 +112,16 @@ async def get_reflections(
 @app.post("/api/reflections")
 async def reflections(payload: ReflectionRequestPayload):
     make_log(
-        Log(username=payload.username, interaction="reflection", prompt=payload.prompt, ui_id=None)
+        Log(
+            username=payload.username,
+            interaction="reflection",
+            prompt=payload.prompt,
+            ui_id=None,
+        )
     )
 
     return await get_reflections(payload)
+
 
 @app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
@@ -124,11 +133,16 @@ async def chat(payload: ChatRequestPayload):
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
-        stream=True
+        stream=True,
     )
 
     make_log(
-        Log(username=payload.username, interaction="chat", prompt=payload.messages[-1]['content'], ui_id=None)
+        Log(
+            username=payload.username,
+            interaction="chat",
+            prompt=payload.messages[-1]["content"],
+            ui_id=None,
+        )
     )
 
     # Stream response
@@ -138,28 +152,31 @@ async def chat(payload: ChatRequestPayload):
 
     return EventSourceResponse(generator())
 
+
 @app.post("/log")
 async def log_feedback(payload: Log):
     make_log(payload)
 
     return {"message": "Feedback logged successfully."}
 
+
 # Show all server logs
 @app.get("/logs")
 async def logs():
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM logs")
-
-        result = c.fetchall()
+    with psycopg.connect(database_uri) as conn:
+        with conn.cursor() as c:
+            c.execute("SELECT * FROM logs")
+            result = c.fetchall()
 
     return result
 
-static_path = Path('../add-in/dist')
+
+static_path = Path("../add-in/dist")
 if static_path.exists():
+
     @app.get("/")
     def index():
-        return FileResponse(static_path / 'index.html')
+        return FileResponse(static_path / "index.html")
 
     # Get access to files on the server. Only for a production build.
     app.mount("", StaticFiles(directory=static_path), name="static")
