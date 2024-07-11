@@ -251,7 +251,7 @@ async def rmove(prompt: str):
 
     temperature = 1.0
 
-    move_prompt = f"You are a writing assistant. Name a rhetorical category the next sentence in the given document might fulfill. Answer in the following format: <Category>: <Recommendation>. Use no more than 10 words."
+    move_prompt = f"You are a writing assistant. Name a rhetorical category the next sentence in the given document should fulfill. Answer in the following format: <Category>: <Instruction>. Use no more than 10 words."
 
     full_prompt = (
         f"{move_prompt}\n\n{prompt}"
