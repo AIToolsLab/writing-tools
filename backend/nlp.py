@@ -98,19 +98,18 @@ class GenerationResult(BaseModel):
     extra_data: Dict[str, Any]
 
 
-async def chat_completion(prompt: str) -> GenerationResult:
+async def chat_completion(prompt: str, temperature=1.0) -> GenerationResult:
     # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
     word_limit = str(random.randint(15, 30))
     RHETORICAL_SITUATION = "You are a completion bot for a 200-word essay"
 
-    # Assign prompt based on whether the document ends with a space for a new paragraph
-    ends_with_space = prompt.endswith(" ")
-    if ends_with_space:
+    # Assign prompt based on whether the document ends with a newline for a new paragraph
+    ends_with_newline = prompt.endswith("\r") or prompt.endswith("\n")
+    if ends_with_newline:
         system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words."
     else:
         system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words."
 
-    temperature = 1.0
     result = await chat(
         messages=[
             {
@@ -125,13 +124,12 @@ async def chat_completion(prompt: str) -> GenerationResult:
     return GenerationResult(
         result=result,
         extra_data={
-        "result": result,
-        "completion": None,
-        "temperature": temperature,
-        "word_limit": word_limit,
-        "ends_with_space": ends_with_space,
-        "system_chat_prompt": system_chat_prompt,
-    })
+            "completion": result,
+            "temperature": temperature,
+            "word_limit": word_limit,
+            "ends_with_newline": ends_with_newline,
+            "system_chat_prompt": system_chat_prompt,
+        })
 
 
 async def question(prompt: str) -> GenerationResult:
