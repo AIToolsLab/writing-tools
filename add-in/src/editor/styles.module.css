@@ -16,11 +16,8 @@
 }
 
 .sidebar {
-	/* Add your styles for the sidebar here */
-	width: 300px;
-	background-color: #f0f0f0;
+	width: 400px;
 	padding: 20px;
 	overflow-y: auto;
 	box-shadow: -2px 0 5px rgba(0,0,0,0.1);
-
 }
