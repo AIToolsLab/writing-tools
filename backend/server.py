@@ -38,7 +38,7 @@ print(f"Log secret: {LOG_SECRET!r}")
 class GenerationRequestPayload(BaseModel):
     username: str
     gtype: str
-    prompt: Optional[str] or Optional[List[Dict[str, str]]]
+    prompt: str
 
 
 class Log(BaseModel):
