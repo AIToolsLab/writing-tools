@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, createContext } from 'react';
 
 import { UserContext } from '@/contexts/userContext';
 
@@ -28,8 +28,10 @@ function sanitize(text: string): string {
 }
 
 
-export default function QvE() {
+
+export default function QvE({editorAPI}: {editorAPI: EditorAPI}) {
 	const { username } = useContext(UserContext);
+	const { addSelectionChangeHandler, removeSelectionChangeHandler, getDocContext, getCursorPosInfo } = editorAPI;
 
 	const [docContext, updateDocContext] = useState('');
 	const [_cursorPos, updateCursorPos] = useState(0);
@@ -109,66 +111,20 @@ export default function QvE() {
 		updateSavedItems(newSaved);
 	}
 
-	/**
-	 * Retrieves the text content of the Word document and updates the docText state.
-	 *
-	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
-	 */
-	async function getDocContext(): Promise<void> {
-		await Word.run(async (context: Word.RequestContext) => {
-			const body: Word.Body = context.document.body;
-			let contextText = '';
 
-			if (positionalSensitivity) {
-				// wordSelection will only be word touching cursor if none highlighted
-				const wordSelection = context.document
-					.getSelection()
-					.getTextRanges([' '], false);
-
-				context.load(wordSelection, 'items');
-				await context.sync();
-
-				// Get range from beginning of doc up to the last word in wordSelection
-				const lastCursorWord = wordSelection
-					.items[wordSelection.items.length - 1];
-				const contextRange = lastCursorWord.expandTo(body.getRange('Start'));
-
-				context.load(contextRange, 'text');
-				await context.sync();
-				contextText = contextRange.text;
-			}
-			else {
-				context.load(body, 'text');
-				await context.sync();
-				contextText = body.text;
-			}
-			updateDocContext(contextText);
-		});
+	async function getAndUpdateDocContext() {
+		const docText = await getDocContext(positionalSensitivity);
+		console.log("docText: ", docText);
+		updateDocContext(docText);
 	}
 
-	/**
-	 * Calculates the curent cursor position and updates the cursorPos and cursorAtEnd states.
-	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
-	 */
-	async function getCursorPosInfo(): Promise<void> {
-		await Word.run(async (context: Word.RequestContext) => {
-			const body: Word.Body = context.document.body;
 
-			const cursorSelection = context.document.getSelection();
-			const rangeToCursor = cursorSelection.expandTo(body.getRange('Start'));
-
-			context.load(rangeToCursor, 'text');
-			context.load(body, 'text');
-			
-			await context.sync();
-
-			const charsToCursor = rangeToCursor.text.toString().length;
-			updateCursorPos(charsToCursor);
-
-			const docLength = body.text.toString().length;
-			updateCursorAtEnd(charsToCursor >= docLength);
-		});
+	async function getAndUpdateCursorPosInfo() {
+		const {charsToCursor, docLength} = await getCursorPosInfo();
+		updateCursorPos(charsToCursor);
+		updateCursorAtEnd(charsToCursor >= docLength);
 	}
+
 
 	async function getGeneration(username: string, type: string, contextText: string) {
 		updateGeneration('');
@@ -232,29 +188,17 @@ export default function QvE() {
 	 */
 	useEffect(() => {
 		// Handle initial selection change
-		getDocContext();
-		getCursorPosInfo();
+		getAndUpdateDocContext();
+		getAndUpdateCursorPosInfo();
 
 		// Handle subsequent selection changes
-		Office.context.document.addHandlerAsync(
-			Office.EventType.DocumentSelectionChanged,
-			getDocContext
-		);
-		Office.context.document.addHandlerAsync(
-			Office.EventType.DocumentSelectionChanged,
-			getCursorPosInfo
-		);
+		addSelectionChangeHandler(getAndUpdateDocContext);
+		addSelectionChangeHandler(getAndUpdateCursorPosInfo);
 
 		// Cleanup
 		return () => {
-			Office.context.document.removeHandlerAsync(
-				Office.EventType.DocumentSelectionChanged,
-				getDocContext
-			);
-			Office.context.document.removeHandlerAsync(
-				Office.EventType.DocumentSelectionChanged,
-				getCursorPosInfo
-			);
+			removeSelectionChangeHandler(getAndUpdateDocContext);
+			removeSelectionChangeHandler(getAndUpdateCursorPosInfo);
 		};
 	}, [positionalSensitivity]);
 
