@@ -1,3 +1,4 @@
+from collections import defaultdict
 import os
 import random
 from typing import Iterable, List, Dict
@@ -166,8 +167,7 @@ async def question(prompt: str):
 async def keywords(prompt: str):
     completion = (await chat_completion(prompt))["result"]
 
-    keyword_string = ""
-    keyword_dict = dict(NOUN=[], PROPN=[], VERB=[], ADJ=[], ADV=[], INTJ=[])
+    keyword_dict = defaultdict(set)
     pos_labels = dict(NOUN="Nouns", PROPN="Proper Nouns", VERB="Verbs",
                       ADJ="Adjectives", ADV="Adverbs", INTJ="Interjections")
 
@@ -177,15 +177,15 @@ async def keywords(prompt: str):
     # Extract and store the words by desired POS tags in keyword_dict
     for token in doc:
         pos = token.pos_
-        if pos in keyword_dict and token.lower_ not in keyword_dict[pos]:
-            if pos == "PROPN":
-                keyword_dict[pos].append(token.text)
-            else:
-                keyword_dict[pos].append(token.lemma_)
+        if pos not in pos_labels:
+            continue
+        text = token.text if pos == "PROPN" else token.lemma_
+        keyword_dict[pos].add(text)
 
     # Construct a string of keywords formatted by POS
+    keyword_string = ""
     for pos in keyword_dict:
-        pos_keywords = keyword_dict[pos]
+        pos_keywords = list(keyword_dict[pos])
         if pos_keywords != []:
             random.shuffle(pos_keywords)
             keyword_string += f"**{pos_labels[pos]}**: {', '.join(pos_keywords)}\n"
