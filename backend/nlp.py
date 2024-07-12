@@ -57,7 +57,7 @@ def obscure(token):
     return "·" * len(word) + token.whitespace_
 
 
-async def chat(messages: Iterable[ChatCompletionMessageParam], temperature: float):
+async def chat(messages: Iterable[ChatCompletionMessageParam], temperature: float) -> str:
     response = await openai_client.chat.completions.create(
         model=MODEL_NAME,
         messages=messages,
@@ -70,7 +70,8 @@ async def chat(messages: Iterable[ChatCompletionMessageParam], temperature: floa
 
     result = response.choices[0].message.content
 
-    return result
+    # FIXME: figure out why result might ever be None
+    return result or ""
 
 
 async def completion(prompt: str):
