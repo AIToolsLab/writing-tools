@@ -93,17 +93,19 @@ async def generation(payload: GenerationRequestPayload):
         return {"error": "Invalid generation type."}
     end_time = datetime.now()
 
-    make_log(
-        GenerationLog(
+    log_entry = GenerationLog(
             timestamp=end_time.timestamp(),
             username=payload.username,
             interaction=payload.gtype,
             prompt=payload.prompt,
             result=result.result,
             delay=(end_time - start_time).total_seconds(),
-            **result.extra_data
-        )
     )
+    # add on extra data
+    for key, value in result.extra_data.items():
+        if not hasattr(log_entry, key):
+            setattr(log_entry, key, value)
+    make_log(log_entry)
 
     # FIXME: Return a structured object.
     return result.result
