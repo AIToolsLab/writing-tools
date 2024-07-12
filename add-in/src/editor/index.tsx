@@ -3,6 +3,7 @@ import * as ReactDOM from 'react-dom';
 
 import classes from './styles.module.css';
 import QvE from '@/pages/qve';
+import LexicalEditor from './LexicalEditor';
 
 type EditorProps = {
 	onInput: () => void;
@@ -56,21 +57,17 @@ function App() {
 		}
 	};
 
-	const docUpdated = () => {
-		if (editorRef.current) {
-			const content = (editorRef.current as HTMLElement).innerHTML;
-			console.log(content);
-			docRef.current = content;
-			handleSelectionChange();
-		}
+	const docUpdated = (content: string) => {
+        console.log(content);
+        docRef.current = content;
+        handleSelectionChange();
 	};
 
 	return (
 		<div className={classes.container}>
 			<div className={classes.editorContainer}>
-				<Editor
-					ref={editorRef}
-					onInput={docUpdated}
+				<LexicalEditor
+					updateTextBeforeCursor={docUpdated}
 				/>
 			</div>
 			<div className={classes.sidebar}>
