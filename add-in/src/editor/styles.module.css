@@ -1,0 +1,26 @@
+.container {
+	display: flex;
+	height: 100%;
+}
+
+.editorContainer {
+	flex-grow: 1;
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+}
+
+.editor {
+	flex-grow: 1;
+	padding: 20px;
+}
+
+.sidebar {
+	/* Add your styles for the sidebar here */
+	width: 300px;
+	background-color: #f0f0f0;
+	padding: 20px;
+	overflow-y: auto;
+	box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+
+}

@@ -35,7 +35,7 @@
 		"react-remark": "^2.1.0"
 	},
 	"devDependencies": {
-        "@babel/core": "^7.13.10",
+		"@babel/core": "^7.13.10",
 		"@babel/preset-typescript": "^7.13.0",
 		"@types/office-js": "^1.0.256",
 		"@types/office-runtime": "^1.0.23",
@@ -44,8 +44,8 @@
 		"@types/webpack": "^4.4.34",
 		"@typescript-eslint/eslint-plugin": "^6.5.0",
 		"@typescript-eslint/parser": "^6.5.0",
-        "es6-promise": "^4.2.8",
-        "regenerator-runtime": "^0.13.7",
+		"es6-promise": "^4.2.8",
+		"regenerator-runtime": "^0.13.7",
 		"acorn": "^8.5.0",
 		"babel-loader": "^8.2.2",
 		"copy-webpack-plugin": "^9.0.1",
@@ -81,5 +81,6 @@
 		"**/*.{js,ts,tsx}": [
 			"yarn run lint"
 		]
-	}
+	},
+	"packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
 }
