@@ -207,7 +207,7 @@ const entries = Generators.queue((notify) => {
         if (x.isBackend) {
           x.generationType = x.interaction.replace("_Backend", "");
         }
-        x.isPlayground = (x.prompt.trim().startsWith('From the Wikipedia page on Calvin University'));
+        x.isPlayground = ((x.prompt || "").trim().startsWith('From the Wikipedia page on Calvin University'));
         return x;
       });
     console.log(newLogs.length, "new entries");
