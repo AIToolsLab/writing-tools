@@ -1,9 +1,10 @@
 from collections import defaultdict
 import os
 import random
-from typing import Iterable, List, Dict
+from typing import Any, Iterable, List, Dict
 
 from dotenv import load_dotenv
+from pydantic import BaseModel
 import spacy
 
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
@@ -92,7 +93,12 @@ async def completion(prompt: str):
     return result
 
 
-async def chat_completion(prompt: str):
+class GenerationResult(BaseModel):
+    result: str
+    extra_data: Dict[str, Any]
+
+
+async def chat_completion(prompt: str) -> GenerationResult:
     # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
     word_limit = str(random.randint(15, 30))
     RHETORICAL_SITUATION = "You are a completion bot for a 200-word essay"
@@ -116,20 +122,21 @@ async def chat_completion(prompt: str):
         temperature=temperature,
     )
 
-    return {
+    return GenerationResult(
+        result=result,
+        extra_data={
         "result": result,
         "completion": None,
-        "prompt": prompt,
         "temperature": temperature,
         "word_limit": word_limit,
         "ends_with_space": ends_with_space,
         "system_chat_prompt": system_chat_prompt,
-    }
+    })
 
 
-async def question(prompt: str):
+async def question(prompt: str) -> GenerationResult:
     example_completion_data = (await chat_completion(prompt))
-    example = example_completion_data["result"]
+    example = example_completion_data.result
 
     final_sentence = get_final_sentence(prompt)
 
@@ -154,19 +161,19 @@ async def question(prompt: str):
         temperature=temperature,
     )
 
-    return {
-        "result": questions,
-        "completion": example,
-        "prompt": prompt,
-        "temperature": temperature,
-        "example_completion_data": example_completion_data,
-        "is_full_sentence": is_full_sentence(final_sentence),
-        "max_length": max_length,
-    }
+    return GenerationResult(
+        result=questions,
+        extra_data={
+            "completion": example,
+            "temperature": temperature,
+            "example_completion_data": example_completion_data,
+            "is_full_sentence": is_full_sentence(final_sentence),
+            "max_length": max_length,
+        })
 
 
-async def keywords(prompt: str):
-    completion = (await chat_completion(prompt))["result"]
+async def keywords(prompt: str) -> GenerationResult:
+    completion = (await chat_completion(prompt)).result
 
     keyword_dict = defaultdict(set)
     pos_labels = dict(NOUN="Nouns", PROPN="Proper Nouns", VERB="Verbs",
@@ -191,14 +198,16 @@ async def keywords(prompt: str):
             random.shuffle(pos_keywords)
             keyword_string += f"**{pos_labels[pos]}**: {', '.join(pos_keywords)}\n"
 
-    return {
-        "result": keyword_string,
-        "completion": completion,
-    }
+    return GenerationResult(
+        result=keyword_string,
+        extra_data={
+            "completion": completion,
+        }
+    )
 
 
-async def structure(prompt: str):
-    completion = (await chat_completion(prompt))["result"]
+async def structure(prompt: str) -> GenerationResult:
+    completion = (await chat_completion(prompt)).result
 
     prior_sentence = get_final_sentence(prompt)
     new_sentence = is_full_sentence(prior_sentence)
@@ -241,14 +250,15 @@ async def structure(prompt: str):
     # Remove words with desired POS tags and convert to str
     filtered_text = filter(processed_text)
 
-    return {
-        "result": filtered_text.replace("· ·", "···").replace("· ·", "···"),
-        "completion": completion
-    }
-    
+    return GenerationResult(
+        result=filtered_text.replace("· ·", "···").replace("· ·", "···"),
+        extra_data={"completion": completion}
+    )
+
+
 # Rhetorical Move
-async def rmove(prompt: str):
-    final_sentence = get_final_sentence(prompt)
+async def rmove(prompt: str) -> GenerationResult:
+    #final_sentence = get_final_sentence(prompt)
 
     temperature = 1.0
 
@@ -265,9 +275,11 @@ async def rmove(prompt: str):
         temperature=temperature,
     )
 
-    return {
-        "result": rhetorical_move,
-        "prompt": prompt,
-        "temperature": temperature,
-        "is_full_sentence": is_full_sentence(final_sentence),
-    }
+    return GenerationResult(
+        result=rhetorical_move,
+        extra_data={
+            "temperature": temperature,
+            #"is_full_sentence": is_full_sentence(final_sentence),
+            "move_prompt": move_prompt,
+        }
+    )

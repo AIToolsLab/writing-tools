@@ -47,9 +47,13 @@ class Log(BaseModel):
     ok: bool = True
     username: str
     interaction: str
-    prompt: Optional[str] = None
-    result: Optional[str] = None
+
+
+class GenerationLog(Log):
+    prompt: str
+    result: str
     completion: Optional[str] = None
+    delay: float
 
 
 # Initliaze Server
@@ -90,18 +94,19 @@ async def generation(payload: GenerationRequestPayload):
     end_time = datetime.now()
 
     make_log(
-        Log(
+        GenerationLog(
+            timestamp=end_time.timestamp(),
             username=payload.username,
             interaction=payload.gtype,
-            # prompt=payload.prompt,
-            timestamp=end_time.timestamp(),
+            prompt=payload.prompt,
+            result=result.result,
             delay=(end_time - start_time).total_seconds(),
-            **result
+            **result.extra_data
         )
     )
 
     # FIXME: Return a structured object.
-    return result['result']
+    return result.result
 
 
 @app.post("/api/log")
