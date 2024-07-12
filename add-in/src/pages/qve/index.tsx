@@ -114,7 +114,6 @@ export default function QvE({editorAPI}: {editorAPI: EditorAPI}) {
 
 	async function getAndUpdateDocContext() {
 		const docText = await getDocContext(positionalSensitivity);
-		console.log("docText: ", docText);
 		updateDocContext(docText);
 	}
 
