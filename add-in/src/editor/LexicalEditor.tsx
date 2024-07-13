@@ -58,8 +58,8 @@ function LexicalEditor({
     return (
         <LexicalComposer initialConfig={initialConfig}>
             <RichTextPlugin
-                contentEditable={<ContentEditable />}
-                placeholder={<div>Enter some text...</div>}
+                contentEditable={<ContentEditable placeholder={'Enter some text...'} />}
+                placeholder={null}
                 ErrorBoundary={LexicalErrorBoundary}
             />
             <HistoryPlugin />
