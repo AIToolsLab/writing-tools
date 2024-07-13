@@ -1,14 +1,13 @@
-import React from 'react';
 import {AutoFocusPlugin} from '@lexical/react/LexicalAutoFocusPlugin';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
-import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { $getSelection, $isRangeSelection } from 'lexical';
+import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
+import { $getRoot, $getSelection, $isRangeSelection } from 'lexical';
 
-function getTextBeforeCursor(editor: any) {
+function $getTextBeforeCursor() {
 	const selection = $getSelection();
 
 	if (!$isRangeSelection(selection)) {
@@ -46,50 +45,37 @@ function getTextBeforeCursor(editor: any) {
 	return textBeforeCursor;
 }
 
-function TextBeforeCursorPlugin({
-	updateTextBeforeCursor
-}: {
-	updateTextBeforeCursor: (text: string) => void;
-}) {
-	const [editor] = useLexicalComposerContext();
-
-	React.useEffect(() => {
-		return editor.registerUpdateListener(({ editorState }) => {
-			editorState.read(() => {
-				const textBeforeCursor = getTextBeforeCursor(editor);
-				console.log('Text before cursor:', textBeforeCursor);
-				updateTextBeforeCursor(textBeforeCursor);
-			});
-		});
-	}, [editor]);
-
-	return null;
-}
-
 function LexicalEditor({
-	updateTextBeforeCursor
+    updateTextBeforeCursor
 }: {
-	updateTextBeforeCursor: (text: string) => void;
+    updateTextBeforeCursor: (text: string) => void;
 }) {
-	const initialConfig = {
-		namespace: 'MyEditor',
-		onError: (error: any) => console.error(error)
-	};
+    const initialConfig = {
+        namespace: 'MyEditor',
+        onError: (error: any) => console.error(error)
+    };
 
-	return (
-		<LexicalComposer initialConfig={initialConfig}>
-			<RichTextPlugin
-				contentEditable={<ContentEditable />}
-				placeholder={<div>Enter some text...</div>}
-				ErrorBoundary={LexicalErrorBoundary}
-			/>
-			<HistoryPlugin />
-			<TextBeforeCursorPlugin
-				updateTextBeforeCursor={updateTextBeforeCursor}
-			/>
+    return (
+        <LexicalComposer initialConfig={initialConfig}>
+            <RichTextPlugin
+                contentEditable={<ContentEditable />}
+                placeholder={<div>Enter some text...</div>}
+                ErrorBoundary={LexicalErrorBoundary}
+            />
+            <HistoryPlugin />
+            <OnChangePlugin
+                onChange={(editorState) => {
+                    editorState.read(() => {
+                        const textBeforeCursor = $getTextBeforeCursor();
+                        console.log('Text before cursor:', textBeforeCursor);
+                        console.log("Full document:", $getRoot().getTextContent());
+                        updateTextBeforeCursor(textBeforeCursor);
+                    });
+                }}
+            />
             <AutoFocusPlugin />
-		</LexicalComposer>
-	);
+        </LexicalComposer>
+    );
 }
 
 export default LexicalEditor;
