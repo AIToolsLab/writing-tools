@@ -39,6 +39,8 @@ except:
 
 def get_final_sentence(text):
     final_paragraph = text.split('\n')[-1]
+    if not final_paragraph:
+        return ""
     final_sentence = list(nlp(final_paragraph).sents)[-1].text
 
     return final_sentence
