@@ -12,6 +12,8 @@ import datetime
 
 st.title("WebVTT to text converter")
 
+meta = []
+
 vtt_file = st.file_uploader("Upload VTT file", type=["vtt"])
 if vtt_file is None:
     st.stop()
@@ -19,10 +21,12 @@ if vtt_file is None:
 filename = st.text_input("Filename", value=vtt_file.name.rsplit(".", 1)[0])
 
 merge_consecutive_spans = st.checkbox("Merge consecutive spans", value=True)
+meta.append(f"Merge consecutive spans: {merge_consecutive_spans}")
 
 log_file = st.file_uploader("Upload log file", type=["jsonl"])
 log_entries = []
 if log_file is not None:
+    meta.append(f"Log file: {log_file.name}")
     log_entries_raw = []
     for line in log_file:
         log_entry = json.loads(line)
@@ -37,7 +41,7 @@ if log_file is not None:
     # shift timestamps
     for entry in log_entries_raw:
         timestamp = (entry['timestamp'] - starting_datetime).total_seconds()
-        interaction_friendly = "UI: " + entry['interaction']
+        interaction_friendly = "UI " + entry['interaction']
         interaction_friendly = interaction_friendly.replace("_Frontend", " request")
         interaction_friendly = interaction_friendly.replace("_Backend", " response")
         log_entries.append(dict(
@@ -45,6 +49,8 @@ if log_file is not None:
             speaker=interaction_friendly,
             text=(entry['result'] or '').replace("\n", "; ")
         ))
+
+    meta.append(f"log times shifted by {starting_datetime}")
 
     # For " request" entries that are immediately followed by " response" entries, merge them
     merged_log_entries = []
@@ -96,9 +102,10 @@ for entry in entries:
     speaker = entry['speaker']
     text = entry['text']
     timestamp = entry['timestamp']
-    timestamp_mins = int(timestamp // 60)
+    timestamp_hours = int(timestamp // 3600)
+    timestamp_mins = int((timestamp % 3600) // 60)
     timestamp_secs = int(timestamp % 60)
-    timestamp_str = f"{timestamp_mins:02}m{timestamp_secs:02}"
+    timestamp_str = f"{timestamp_hours:02}:{timestamp_mins:02}:{timestamp_secs:02}"
     if merge_consecutive_spans:
         if speaker == previous_speaker:
             output_lines[-1] += " " + text
@@ -107,7 +114,8 @@ for entry in entries:
     output_lines.append(f"{speaker}:{timestamp_str} {text}")
 
 output_text = "\n\n".join(output_lines)
-output_text = f"# log times shifted by {starting_datetime}\n\n" + output_text
+if meta:
+    output_text = '\n'.join('# ' + l for l in meta) + "\n\n" + output_text
 out_filename = f"{filename}.txt"
 st.download_button(f"Download {out_filename}", output_text, out_filename, "text/plain")
 st.code(output_text)
