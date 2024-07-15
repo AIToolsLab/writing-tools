@@ -5,7 +5,7 @@ import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
-import { $getRoot, $getSelection, $isRangeSelection } from 'lexical';
+import { $getRoot, $getSelection, $isRangeSelection, LexicalNode } from 'lexical';
 
 function $getTextBeforeCursor() {
 	const selection = $getSelection();
@@ -21,8 +21,8 @@ function $getTextBeforeCursor() {
 	let textBeforeCursor = '';
 
 	// Get text from previous siblings and their descendants
-	let currentNode: any = anchorNode;
-	let prevNode;
+	let currentNode: LexicalNode = anchorNode;
+	let prevNode: LexicalNode | null;
 	while ((prevNode = currentNode.getPreviousSibling())) {
 		currentNode = prevNode;
 		textBeforeCursor = currentNode.getTextContent() + textBeforeCursor;
