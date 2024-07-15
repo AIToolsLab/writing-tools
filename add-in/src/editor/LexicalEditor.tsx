@@ -30,10 +30,13 @@ function $getTextBeforeCursor() {
 	let prevNode: LexicalNode | null;
 	while ((prevNode = currentNode.getPreviousSibling())) {
 		currentNode = prevNode;
+		if (currentNode.getType() === 'paragraph') {
+			textBeforeCursor = '\n\n' + textBeforeCursor;
+		} else if (currentNode.getType() === 'linebreak') {
+			textBeforeCursor = '\n' + textBeforeCursor;
+		}
 		textBeforeCursor =
-			(currentNode.getType() === 'linebreak'
-				? '\n'
-				: currentNode.getTextContent()) + textBeforeCursor;
+			currentNode.getTextContent() + textBeforeCursor;
 	}
 	
 	// Traverse up the tree and get text from previous siblings
@@ -91,6 +94,7 @@ function LexicalEditor({
 				}}
 			/>
 			<AutoFocusPlugin />
+			
 		</LexicalComposer>
 	);
 }
