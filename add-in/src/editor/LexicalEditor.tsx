@@ -30,16 +30,23 @@ function $getTextBeforeCursor() {
 	let prevNode: LexicalNode | null;
 	while ((prevNode = currentNode.getPreviousSibling())) {
 		currentNode = prevNode;
-		textBeforeCursor = currentNode.getTextContent() + textBeforeCursor;
+		textBeforeCursor =
+			(currentNode.getType() === 'linebreak'
+				? '\n'
+				: currentNode.getTextContent()) + textBeforeCursor;
 	}
-
+	
 	// Traverse up the tree and get text from previous siblings
 	let parent = anchorNode.getParent();
 	while (parent) {
-		let sibling = parent.getPreviousSibling();
-		while (sibling) {
+		let sibling: LexicalNode = parent;
+		let nextSibling: LexicalNode | null;
+		while (nextSibling = sibling.getPreviousSibling()) {
+			if (sibling.getType() === 'paragraph') {
+				textBeforeCursor = '\n\n' + textBeforeCursor;
+			}
+			sibling = nextSibling;
 			textBeforeCursor = sibling.getTextContent() + textBeforeCursor;
-			sibling = sibling.getPreviousSibling();
 		}
 		parent = parent.getParent();
 	}
