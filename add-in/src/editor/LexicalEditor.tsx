@@ -21,9 +21,18 @@ function $getTextBeforeCursor() {
 
 	const anchor = selection.anchor;
 	const anchorNode = anchor.getNode();
-	const anchorOffset = anchor.offset;
+	let anchorOffset = anchor.offset;
 
-	let textBeforeCursor = '';
+	let currentNodeText = anchorNode.getTextContent();
+	// If anchorOffset is mid-word, extend it to the end of the word.
+	// Use a regular expression to find an end-of-word boundary.
+	if (anchorOffset < currentNodeText.length) {
+		const wordEnd = /(\W|$)/.exec(currentNodeText.slice(anchorOffset));
+		if (wordEnd) {
+			anchorOffset += wordEnd.index;
+		}
+	}
+	let textBeforeCursor = currentNodeText.slice(0, anchorOffset);
 
 	// Get text from previous siblings and their descendants
 	let currentNode: LexicalNode = anchorNode;
@@ -54,8 +63,6 @@ function $getTextBeforeCursor() {
 		parent = parent.getParent();
 	}
 
-	// Add text from the current node up to the cursor
-	textBeforeCursor += anchorNode.getTextContent().slice(0, anchorOffset);
 
 	return textBeforeCursor;
 }
