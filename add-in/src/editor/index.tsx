@@ -15,10 +15,10 @@ const Editor = React.forwardRef(function Editor(
 ) {
 	return (
 		<div
-			className={classes.editor}
-			ref={ref}
-			contentEditable={true}
-			onInput={onInput}
+			className={ classes.editor }
+			ref={ ref }
+			contentEditable={ true }
+			onInput={ onInput }
 		/>
 	);
 });
@@ -51,7 +51,8 @@ function App() {
 			const index = selectionChangeHandlers.current.indexOf(handler);
 			if (index !== -1) {
 				selectionChangeHandlers.current.splice(index, 1);
-			} else {
+			}
+			else {
 				console.warn('Handler not found');
 			}
 		}
@@ -64,14 +65,14 @@ function App() {
 	};
 
 	return (
-		<div className={classes.container}>
-			<div className={classes.editorContainer}>
+		<div className={ classes.container }>
+			<div className={ classes.editorContainer }>
 				<LexicalEditor
-					updateTextBeforeCursor={docUpdated}
+					updateTextBeforeCursor={ docUpdated }
 				/>
 			</div>
-			<div className={classes.sidebar}>
-				<QvE editorAPI={editorAPI} />
+			<div className={ classes.sidebar }>
+				<QvE editorAPI={ editorAPI } />
 			</div>
 		</div>
 	);
