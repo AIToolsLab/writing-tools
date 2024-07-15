@@ -95,11 +95,17 @@ for caption in webvtt.from_buffer(vtt_file):
 entries = sorted(caption_entries + log_entries, key=lambda x: x['timestamp'])
 st.write(pd.DataFrame(entries))
 
+# ask for replacement names for each speaker
+replacement_speaker_names = {
+    name: st.text_input(f"Speaker name: {name}", value=name)
+    for name in set(entry['speaker'] for entry in entries)
+}
+
 output_lines = []
 
 previous_speaker = None
 for entry in entries:
-    speaker = entry['speaker']
+    speaker = replacement_speaker_names[entry['speaker']]
     text = entry['text']
     timestamp = entry['timestamp']
     timestamp_hours = int(timestamp // 3600)
