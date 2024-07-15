@@ -7,7 +7,7 @@
 import json
 import streamlit as st
 import webvtt
-import re
+import pandas as pd
 import datetime
 
 st.title("WebVTT to text converter")
@@ -29,8 +29,6 @@ if log_file is not None:
         log_entry['timestamp'] = datetime.datetime.fromtimestamp(log_entry['timestamp'])
         log_entries_raw.append(log_entry)
 
-    st.write(log_entries_raw[:1])
-
     starting_date = st.date_input("Starting date", value=log_entries_raw[0]['timestamp'].date())
     starting_time_str = st.text_input("Starting time", value=log_entries_raw[0]['timestamp'].time().strftime("%H:%M:%S"))
     starting_datetime = datetime.datetime.combine(starting_date, datetime.datetime.strptime(starting_time_str, "%H:%M:%S").time())
@@ -39,16 +37,40 @@ if log_file is not None:
     # shift timestamps
     for entry in log_entries_raw:
         timestamp = (entry['timestamp'] - starting_datetime).total_seconds()
-        interaction_friendly = entry['interaction']
+        interaction_friendly = "UI: " + entry['interaction']
         interaction_friendly = interaction_friendly.replace("_Frontend", " request")
         interaction_friendly = interaction_friendly.replace("_Backend", " response")
         log_entries.append(dict(
             timestamp=timestamp,
             speaker=interaction_friendly,
-            text=entry['result'] or ''
+            text=(entry['result'] or '').replace("\n", "; ")
         ))
 
-    st.write(log_entries[:5])
+    # For " request" entries that are immediately followed by " response" entries, merge them
+    merged_log_entries = []
+    i = 0
+    while i < len(log_entries):
+        entry = log_entries[i]
+        # last entry
+        if i == len(log_entries) - 1:
+            merged_log_entries.append(entry)
+            break
+
+        cur_entry = log_entries[i]
+        next_entry = log_entries[i + 1]
+        if cur_entry['speaker'].endswith(" request") and next_entry['speaker'].endswith(" response"):
+            delay = next_entry['timestamp'] - cur_entry['timestamp']
+            merged_log_entries.append(dict(
+                timestamp=entry['timestamp'],
+                speaker=entry['speaker'].replace(" request", ""),
+                text=f"{next_entry['text']} (delay={delay:.1f}s)"
+            ))
+            i += 1
+        else:
+            merged_log_entries.append(entry)
+        i += 1
+    log_entries = merged_log_entries
+    st.write(pd.DataFrame(log_entries))
 
 caption_entries = []
 for caption in webvtt.from_buffer(vtt_file):
@@ -65,6 +87,7 @@ for caption in webvtt.from_buffer(vtt_file):
 
 # merge and sort
 entries = sorted(caption_entries + log_entries, key=lambda x: x['timestamp'])
+st.write(pd.DataFrame(entries))
 
 output_lines = []
 
