@@ -3,7 +3,7 @@ export const wordEditorAPI: EditorAPI = {
 		Office.context.document.addHandlerAsync(
 			Office.EventType.DocumentSelectionChanged,
 			handler
-		)
+		);
 	},
 	removeSelectionChangeHandler: (handler: () => void) => {
 		Office.context.document.removeHandlerAsync(
@@ -47,14 +47,15 @@ export const wordEditorAPI: EditorAPI = {
 					}
 					resolve(contextText);
 				});
-			} catch (error) {
+			}
+            catch (error) {
 				reject(error);
 			}
-		})
+		});
 	},
 	
 	getCursorPosInfo() {
-		return new Promise<{charsToCursor: number, docLength: number}>(async (resolve, reject) => {
+		return new Promise<{charsToCursor: number, docLength: number}>(async (resolve, _reject) => {
 			await Word.run(async (context: Word.RequestContext) => {
 				const body: Word.Body = context.document.body;
 
@@ -69,7 +70,7 @@ export const wordEditorAPI: EditorAPI = {
 				const charsToCursor = rangeToCursor.text.toString().length;
 				
 				const docLength = body.text.toString().length;
-				resolve({charsToCursor, docLength});
+				resolve({ charsToCursor, docLength });
 			});
 		});
 	}

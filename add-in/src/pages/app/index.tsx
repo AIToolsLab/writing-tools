@@ -22,5 +22,5 @@ export default function App({ isOfficeInitialized }: HomeProps) {
 
 	if (username.length === 0) return <Login />;
 
-	return <QvE editorAPI={wordEditorAPI}/>;
+	return <QvE editorAPI={ wordEditorAPI }/>;
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, createContext } from 'react';
+import { useState, useEffect, useContext } from 'react';
 
 import { UserContext } from '@/contexts/userContext';
 
@@ -7,7 +7,6 @@ import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import {
-	AiOutlineCopy,
 	AiOutlineClose,
 	AiOutlineQuestion,
 	AiOutlineAlignLeft,
@@ -27,9 +26,7 @@ function sanitize(text: string): string {
 	return text.replace('"', '').replace('\'', '');
 }
 
-
-
-export default function QvE({editorAPI}: {editorAPI: EditorAPI}) {
+export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 	const { username } = useContext(UserContext);
 	const { addSelectionChangeHandler, removeSelectionChangeHandler, getDocContext, getCursorPosInfo } = editorAPI;
 
@@ -40,7 +37,7 @@ export default function QvE({editorAPI}: {editorAPI: EditorAPI}) {
 
 	const [isLoading, setIsLoading] = useState(false);
 
-	const [copied, setCopied] = useState(false);
+	const [copied, _setCopied] = useState(false);
 	const [saved, setSaved] = useState(false);
 
 	// State for saved page
@@ -119,7 +116,7 @@ export default function QvE({editorAPI}: {editorAPI: EditorAPI}) {
 
 
 	async function getAndUpdateCursorPosInfo() {
-		const {charsToCursor, docLength} = await getCursorPosInfo();
+		const { charsToCursor, docLength } = await getCursorPosInfo();
 		updateCursorPos(charsToCursor);
 		updateCursorAtEnd(charsToCursor >= docLength);
 	}

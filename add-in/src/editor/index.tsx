@@ -3,28 +3,10 @@ import * as ReactDOM from 'react-dom';
 
 import classes from './styles.module.css';
 import QvE from '@/pages/qve';
-import LexicalEditor from './LexicalEditor';
-
-type EditorProps = {
-	onInput: () => void;
-};
-
-const Editor = React.forwardRef(function Editor(
-	{ onInput }: EditorProps,
-	ref: React.Ref<HTMLDivElement>
-) {
-	return (
-		<div
-			className={ classes.editor }
-			ref={ ref }
-			contentEditable={ true }
-			onInput={ onInput }
-		/>
-	);
-});
+import LexicalEditor from './editor';
 
 function App() {
-	const editorRef = React.useRef(null);
+	// const editorRef = React.useRef(null);
 
     // needs to be a ref so that we can use docRef.current in the editorAPI
     const docRef = React.useRef('');
@@ -37,11 +19,12 @@ function App() {
 	};
 
 	const editorAPI: EditorAPI = {
-		getDocContext: async (positionalSensitivity: boolean) => {
+		getDocContext: async (_positionalSensitivity: boolean) => {
 			return docRef.current;
 		},
 		getCursorPosInfo: async () => {
             const doc = docRef.current;
+
 			return { charsToCursor: doc.length, docLength: doc.length };
 		},
 		addSelectionChangeHandler: (handler: () => void) => {
@@ -49,28 +32,28 @@ function App() {
 		},
 		removeSelectionChangeHandler: (handler: () => void) => {
 			const index = selectionChangeHandlers.current.indexOf(handler);
-			if (index !== -1) {
+			
+            if (index !== -1)
 				selectionChangeHandlers.current.splice(index, 1);
-			}
-			else {
+			else
+                // eslint-disable-next-line no-console
 				console.warn('Handler not found');
-			}
 		}
 	};
 
 	const docUpdated = (content: string) => {
-        console.log(content);
         docRef.current = content;
         handleSelectionChange();
 	};
 
 	return (
 		<div className={ classes.container }>
-			<div className={ classes.editorContainer }>
-				<LexicalEditor
-					updateTextBeforeCursor={ docUpdated }
-				/>
-			</div>
+            <div>
+                <LexicalEditor
+                    updateTextBeforeCursor={ docUpdated }
+                />
+            </div>
+
 			<div className={ classes.sidebar }>
 				<QvE editorAPI={ editorAPI } />
 			</div>
