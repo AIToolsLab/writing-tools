@@ -1,3 +1,4 @@
+import argparse
 import os
 import json
 
@@ -16,6 +17,12 @@ ml_models = {}
 
 ENABLE_GEMMA = True
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--gpu", action="store_true", help="Enable GPU usage")
+args = parser.parse_args()
+
+USE_GPU = args.gpu
+
 @asynccontextmanager
 async def models_lifespan(app: FastAPI):
     import torch
@@ -26,7 +33,7 @@ async def models_lifespan(app: FastAPI):
     if ENABLE_GEMMA:
         ml_models["gemma"] = gemma = {
             'tokenizer': AutoTokenizer.from_pretrained(model_name),
-            'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto", torch_dtype=torch.bfloat16)#quantization_config=quantization_config)
+            'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto" if USE_GPU else "cpu", torch_dtype=torch.bfloat16)#quantization_config=quantization_config)
         }
         print("Loaded Gemma with device map:")
         print(gemma['model'].hf_device_map)
