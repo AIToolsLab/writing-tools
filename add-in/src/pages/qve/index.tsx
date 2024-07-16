@@ -415,7 +415,7 @@ export default function QvE() {
 			) }
 
 			<div className={ classes.contextText }>
-				<h4>Generating ideas to follow up on:</h4>
+				<h4>Suggestions will be generated using:</h4>
 				{ docContext.length > 100 ? '...' : '' }
 				{ docContext.substring(docContext.length-100) }
 			</div>
