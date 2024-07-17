@@ -375,7 +375,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 			) }
 
 			<div className={ classes.contextText }>
-				<h4>Generating ideas to follow up on:</h4>
+				<h4>Suggestions will be generated using:</h4>
 				{ docContext.length > 100 ? '...' : '' }
 				{ docContext.substring(docContext.length-100) }
 			</div>
@@ -419,7 +419,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 										classes.tooltip_e
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Completion' : 'Get New Text' }
+									{ !IS_OBSCURED ? 'Get New Completion' : 'Get New Suggestion' }
 								</div>
 							) }
 
@@ -454,7 +454,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 										classes.tooltip_q
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Question' : 'Get New Text' }
+									{ !IS_OBSCURED ? 'Get New Question' : 'Get New Suggestion' }
 								</div>
 							) }
 						</div>
@@ -491,7 +491,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 										classes.tooltip_k
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Keywords' : 'Get New Text' }
+									{ !IS_OBSCURED ? 'Get New Keywords' : 'Get New Suggestion' }
 								</div>
 							) }
 
@@ -526,7 +526,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 										classes.tooltip_s
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Rhetorical Move' : 'Get New Text' }
+									{ !IS_OBSCURED ? 'Get New Rhetorical Move' : 'Get New Suggestion' }
 								</div>
 							) }
 						</div>

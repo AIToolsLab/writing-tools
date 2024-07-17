@@ -39,6 +39,8 @@ except:
 
 def get_final_sentence(text):
     final_paragraph = text.split('\n')[-1]
+    if not final_paragraph:
+        return ""
     final_sentence = list(nlp(final_paragraph).sents)[-1].text
 
     return final_sentence
@@ -106,7 +108,7 @@ async def chat_completion(prompt: str, temperature=1.0) -> GenerationResult:
     RHETORICAL_SITUATION = "You are a completion bot for a 200-word essay"
 
     # Assign prompt based on whether the document ends with a newline for a new paragraph
-    ends_with_newline = prompt.endswith("\r") or prompt.endswith("\n")
+    ends_with_newline = prompt.endswith("\r\r") or prompt.endswith("\n")
     if ends_with_newline:
         system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words."
     else:
@@ -143,7 +145,10 @@ async def question(prompt: str) -> GenerationResult:
 
     temperature = 1.0
 
-    if is_full_sentence(final_sentence):
+    if (final_sentence.endswith("\r\r")
+        or final_sentence.endswith("\n")
+        or is_full_sentence(final_sentence)
+    ):
         question_prompt = f"With the current document in mind:\n\n{prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence."
     else:
         question_prompt = f"With the current document in mind:\n\n{prompt}\n\nReword the following completion as a who/what/when/where/why/how question."
@@ -214,7 +219,10 @@ async def structure(prompt: str) -> GenerationResult:
     completion = (await chat_completion(prompt)).result
 
     prior_sentence = get_final_sentence(prompt)
-    new_sentence = is_full_sentence(prior_sentence)
+    new_sentence = (prior_sentence.endswith("\r\r")
+        or prior_sentence.endswith("\n")
+        or is_full_sentence(prior_sentence)
+    )
 
     def is_keyword(token):
         # keyword_pos = token.pos_ in ["NOUN", "PRON", "PROPN", "ADJ", "VERB"]
