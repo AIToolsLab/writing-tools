@@ -3,6 +3,7 @@ import { useState, useEffect, useContext } from 'react';
 import { UserContext } from '@/contexts/userContext';
 
 import { Remark } from 'react-remark';
+import ReactWordcloud from 'react-wordcloud';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
 import { Toggle } from '@fluentui/react/lib/Toggle';
@@ -26,12 +27,24 @@ function sanitize(text: string): string {
 	return text.replace('"', '').replace('\'', '');
 }
 
-/** Python type:
-class GenerationResult(BaseModel):
-    generation_type: str
-    result: str
-    extra_data: Dict[str, Any]
- */
+const USE_WORDCLOUD = false;
+
+function GenerationResult({ generation }: { generation: GenerationResult }) {
+	if (USE_WORDCLOUD && generation.generation_type === "Keywords") {
+		// Show all keywords as a word cloud
+		const keywords = generation.extra_data.words_by_pos;
+		// Collect all of the words
+		const words: string[] = [];
+		for (const pos in keywords) {
+			words.push(...keywords[pos]);
+		}
+		return <ReactWordcloud words={ words.map(word => ({ text: word, value: 1 })) } 
+		options={{
+			rotations: 0
+		}} />;
+	}
+	return <Remark>{ generation.result }</Remark>;
+};
 
 
 export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
@@ -256,7 +269,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 					</div>
 				) }
 					<div className={ classes.resultText }>
-  					<Remark>{ generation.result }</Remark>
+						<GenerationResult generation={ generation } />
 					</div>
 				</div>
 				<div className={ classes.genIconsContainer }>
@@ -734,7 +747,9 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 											) }
 										</p>
 
-										<Remark>{ savedItem.generation.result }</Remark>
+										<GenerationResult
+											generation={ savedItem.generation }
+										/>
 									</div>
 									<div
 										className={ classes.savedIconsContainer }
