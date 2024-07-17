@@ -26,6 +26,14 @@ function sanitize(text: string): string {
 	return text.replace('"', '').replace('\'', '');
 }
 
+/** Python type:
+class GenerationResult(BaseModel):
+    generation_type: str
+    result: str
+    extra_data: Dict[str, Any]
+ */
+
+
 export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 	const { username } = useContext(UserContext);
 	const { addSelectionChangeHandler, removeSelectionChangeHandler, getDocContext, getCursorPosInfo } = editorAPI;
@@ -49,7 +57,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 	const [copyWarningTooltipVisible, setCopyWarningTooltipVisible] = useState<boolean>(false);
 
 	// eslint-disable-next-line prefer-const
-	const [generation, updateGeneration] = useState('');
+	const [generation, updateGeneration] = useState<GenerationResult | null>(null);
 
 	// Update Error Message
 	const [errorMsg, updateErrorMsg] = useState('');
@@ -62,12 +70,12 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 	const IS_OBSCURED = true;
 
 	function save(
-		generation: string,
-		generationType: string,
+		generation: GenerationResult,
 		document: string
 	) {
 		const newSaved = [...savedItems];
 
+		// Don't re-save things that are already saved
 		if (
 			newSaved.filter(
 				item =>
@@ -79,7 +87,6 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 		newSaved.unshift({
 			document: document,
 			generation: generation,
-			type: generationType,
 			dateSaved: new Date()
 		});
 
@@ -123,7 +130,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 
 
 	async function getGeneration(username: string, type: string, contextText: string) {
-		updateGeneration('');
+		updateGeneration(null);
 		updateErrorMsg('');
 
 		// eslint-disable-next-line no-console
@@ -151,7 +158,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
 			updateErrorMsg('');
-			updateGeneration(await response.json());
+			updateGeneration(await response.json() as GenerationResult);
 			updateGenCtxText(contextText);
 		}
 		catch (err: any) {
@@ -163,7 +170,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 				errMsg = `${err.name}: ${err.message}. Please try again.`;
 
 			updateErrorMsg(errMsg);
-			updateGeneration('');
+			updateGeneration(null);
 			log({
 				username: username,
 				interaction: type,
@@ -206,7 +213,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 				<div className={ classes.errorText }>{ errorMsg }</div>
 			</div>
 		);
-	else if (generationMode === 'None' || generation.length === 0)
+	else if (generationMode === 'None' || generation === null)
 		if (!docContext.trim())
 			results = (
 				<div className={ classes.initTextWrapper }>
@@ -249,7 +256,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 					</div>
 				) }
 					<div className={ classes.resultText }>
-  					<Remark>{ generation }</Remark>
+  					<Remark>{ generation.result }</Remark>
 					</div>
 				</div>
 				<div className={ classes.genIconsContainer }>
@@ -548,7 +555,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 								className={ classes.utilIconWrapper }
 								onClick={ () => {
 									updateGenerationMode('None');
-									updateGeneration('');
+									updateGeneration(null);
 									results = null;
 								} }
 								onMouseEnter={ () =>
@@ -630,7 +637,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 								className={ classes.utilIconWrapper }
 								onClick={ () => {
 									// Save the generation
-									save(generation, generationMode, docContext);
+									save(generation, docContext);
 
 									setSaved(true);
 									setTimeout(() => setSaved(false), 2000);
@@ -727,7 +734,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 											) }
 										</p>
 
-										<Remark>{ savedItem.generation }</Remark>
+										<Remark>{ savedItem.generation.result }</Remark>
 									</div>
 									<div
 										className={ classes.savedIconsContainer }
@@ -753,7 +760,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 												!IS_OBSCURED ? classes.genTypeIconWrapper : classes.genTypeIconWrapper_obscured
 											}
 										>
-											{ savedItem.type === 'Completion' ? (
+											{ savedItem.generation.generation_type === 'Completion' ? (
 												IS_OBSCURED ? (
 													'a'
 												) : (
@@ -763,7 +770,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 														}
 													/>
 												)
-											) : savedItem.type ===
+											) : savedItem.generation.generation_type ===
 											  'Question' ? (
 												IS_OBSCURED ? (
 													'b'
@@ -774,7 +781,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 														}
 													/>
 												)
-											) : savedItem.type ===
+											) : savedItem.generation.generation_type ===
 											  'Keywords' ? (
 												IS_OBSCURED ? (
 													'c'
@@ -785,7 +792,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 														}
 													/>
 												)
-											) : savedItem.type ===
+											) : savedItem.generation.generation_type ===
 											  'RMove' ? (
 												IS_OBSCURED ? (
 													'd'

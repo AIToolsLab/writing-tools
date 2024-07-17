@@ -72,7 +72,7 @@ app.add_middleware(
 
 # Routes
 @app.post("/api/generation")
-async def generation(payload: GenerationRequestPayload):
+async def generation(payload: GenerationRequestPayload) -> nlp.GenerationResult:
     '''
     To test this endpoint from curl:
 
@@ -90,7 +90,7 @@ async def generation(payload: GenerationRequestPayload):
     elif payload.gtype == "RMove_Backend":
         result = await nlp.rmove(payload.prompt)
     else:
-        return {"error": "Invalid generation type."}
+        raise ValueError(f"Invalid generation type: {payload.gtype}")
     end_time = datetime.now()
 
     log_entry = GenerationLog(
@@ -107,8 +107,7 @@ async def generation(payload: GenerationRequestPayload):
             setattr(log_entry, key, value)
     make_log(log_entry)
 
-    # FIXME: Return a structured object.
-    return result.result
+    return result
 
 
 @app.post("/api/log")
