@@ -1,12 +1,19 @@
 .container {
 	display: flex;
-    justify-content: space-between;
+	justify-content: space-between;
+	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+}
+
+.editor {
+	width: 70%;
+	padding: 30px;
 }
 
 .sidebar {
-    height: 100vh;
-    overflow-y: scroll;
-    width: 30%;
+	height: 100vh;
+	overflow-y: scroll;
+	width: 30%;
 	padding: 20px;
 	box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
 }

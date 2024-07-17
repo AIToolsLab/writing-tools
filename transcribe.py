@@ -1,40 +1,11 @@
 #!/usr/bin/env python3
 
-'''
-POST {endpoint}/speechtotext/v3.2-preview.2/transcriptions
-
-{
-  "contentUrls": [
-    "https://contoso.com/mystoragelocation"
-  ],
-  "properties": {
-    "diarizationEnabled": true,
-    "wordLevelTimestampsEnabled": false,
-    "displayFormWordLevelTimestampsEnabled": false,
-    "channels": [
-      0,
-      1
-    ],
-    "punctuationMode": "DictatedAndAutomatic",
-    "profanityFilterMode": "Masked",
-    "diarization": {
-      "speakers": {
-        "minCount": 3,
-        "maxCount": 5
-      }
-    }
-  },
-  "locale": "en-US",
-  "displayName": "Transcription using diarization for audio that is known to contain speech from 3-5 speakers"
-}
-
-'''
-
 import time
 import requests
 import json
 from dotenv import load_dotenv
 import os
+import argparse
 
 load_dotenv()
 
@@ -47,6 +18,20 @@ assert subscription_key, "Please set AZURE_SPEECH_KEY in .env"
 assert region, "Please set AZURE_REGION in .env"
 assert SAS_TOKEN, "Please set SAS_TOKEN in .env. Get it from Azure Storage Account > select the container > Settings > Shared access token"
 
+parser = argparse.ArgumentParser(description="Transcribe audio file")
+parser.add_argument("url", type=str, help="URL of the audio file to transcribe")
+args = parser.parse_args()
+
+url = args.url
+filename_from_url = url.rsplit("/", 1)[-1]
+output_filename = f"{filename_from_url}.json"
+
+print("Starting request to transcribe", url)
+print(f"Will save the result to {output_filename}")
+
+url_with_key = f"{url}?{SAS_TOKEN}"
+
+
 endpoint = f"https://{region}.api.cognitive.microsoft.com"
 
 headers = {
@@ -56,7 +41,7 @@ headers = {
 
 data = {
     "contentUrls": [
-        f"https://textfocalsstudy1.blob.core.windows.net/textfocals-summer24/session0709-1.wav?{SAS_TOKEN}",
+        url_with_key,
     ],
     "properties": {
         "diarizationEnabled": True,
@@ -116,7 +101,7 @@ for file in files["values"]:
     if file['kind'] != "Transcription":
         continue
     content_response = requests.get(file["links"]["contentUrl"], headers=headers)
-    with open("transcription.json", "w") as f:
+    with open(output_filename, "w") as f:
         f.write(content_response.text)
     break
 
