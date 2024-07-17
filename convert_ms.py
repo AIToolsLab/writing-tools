@@ -1,0 +1,123 @@
+# Microsoft Speech Transcription converter
+
+import json
+import streamlit as st
+import pandas as pd
+import datetime
+
+st.title("MS Transcription to text converter")
+
+meta = []
+
+transcription_json = st.file_uploader("Upload MS transcription JSON", type=["json"])
+if transcription_json is None:
+    st.stop()
+
+filename = st.text_input("Filename", value=transcription_json.name.rsplit(".", 1)[0])
+
+merge_consecutive_spans = st.checkbox("Merge consecutive spans", value=True)
+meta.append(f"Merge consecutive spans: {merge_consecutive_spans}")
+
+log_file = st.file_uploader("Upload log file", type=["jsonl"])
+log_entries = []
+if log_file is not None:
+    meta.append(f"Log file: {log_file.name}")
+    log_entries_raw = []
+    for line in log_file:
+        log_entry = json.loads(line)
+        log_entry['timestamp'] = datetime.datetime.fromtimestamp(log_entry['timestamp'])
+        log_entries_raw.append(log_entry)
+
+    starting_date = st.date_input("Starting date", value=log_entries_raw[0]['timestamp'].date())
+    starting_time_str = st.text_input("Starting time", value=log_entries_raw[0]['timestamp'].time().strftime("%H:%M:%S"))
+    starting_datetime = datetime.datetime.combine(starting_date, datetime.datetime.strptime(starting_time_str, "%H:%M:%S").time())
+    st.write(starting_datetime)
+
+    # shift timestamps
+    for entry in log_entries_raw:
+        timestamp = (entry['timestamp'] - starting_datetime).total_seconds()
+        interaction_friendly = "UI " + entry['interaction']
+        interaction_friendly = interaction_friendly.replace("_Frontend", " request")
+        interaction_friendly = interaction_friendly.replace("_Backend", " response")
+        log_entries.append(dict(
+            timestamp=timestamp,
+            speaker=interaction_friendly,
+            text=(entry['result'] or '').replace("\n", "; ")
+        ))
+
+    meta.append(f"log times shifted by {starting_datetime}")
+
+    # For " request" entries that are immediately followed by " response" entries, merge them
+    merged_log_entries = []
+    i = 0
+    while i < len(log_entries):
+        entry = log_entries[i]
+        # last entry
+        if i == len(log_entries) - 1:
+            merged_log_entries.append(entry)
+            break
+
+        cur_entry = log_entries[i]
+        next_entry = log_entries[i + 1]
+        if cur_entry['speaker'].endswith(" request") and next_entry['speaker'].endswith(" response"):
+            delay = next_entry['timestamp'] - cur_entry['timestamp']
+            merged_log_entries.append(dict(
+                timestamp=entry['timestamp'],
+                speaker=entry['speaker'].replace(" request", ""),
+                text=f"{next_entry['text']} (delay={delay:.1f}s)"
+            ))
+            i += 1
+        else:
+            merged_log_entries.append(entry)
+        i += 1
+    log_entries = merged_log_entries
+    st.write(pd.DataFrame(log_entries))
+
+caption_entries = []
+transcription = json.load(transcription_json)
+
+for segment in transcription['recognizedPhrases']:
+    speaker = f"Speaker {segment['speaker']}"
+    text = segment['nBest'][0]['display']
+    timestamp = segment['offsetInTicks'] / 1e7
+
+    caption_entries.append(dict(
+        timestamp=timestamp,
+        speaker=speaker,
+        text=text
+    ))
+
+# merge and sort
+entries = sorted(caption_entries + log_entries, key=lambda x: x['timestamp'])
+st.write(pd.DataFrame(entries))
+
+# ask for replacement names for each speaker
+replacement_speaker_names = {
+    name: st.text_input(f"Speaker name: {name}", value=name)
+    for name in sorted(set(entry['speaker'] for entry in entries))
+}
+
+output_lines = []
+
+previous_speaker = None
+for entry in entries:
+    speaker = replacement_speaker_names[entry['speaker']]
+    text = entry['text']
+    timestamp = entry['timestamp']
+    timestamp_hours = int(timestamp // 3600)
+    timestamp_mins = int((timestamp % 3600) // 60)
+    timestamp_secs = int(timestamp % 60)
+    timestamp_str = f"{timestamp_hours:02}:{timestamp_mins:02}:{timestamp_secs:02}"
+    if merge_consecutive_spans:
+        if speaker == previous_speaker:
+            output_lines[-1] += " " + text
+            continue
+        previous_speaker = speaker
+    output_lines.append(f"{speaker}:{timestamp_str} {text}")
+
+output_text = "\n\n".join(output_lines)
+if meta:
+    output_text = '\n'.join('# ' + l for l in meta) + "\n\n" + output_text
+out_filename = f"{filename}.txt"
+st.download_button(f"Download {out_filename}", output_text, out_filename, "text/plain")
+st.code(output_text)
