@@ -1,6 +1,6 @@
 .editorContainer {
     margin: 20px;
-    height: 85vh;
+    height: 80vh;
     background: #fff;
     width: 816px;
     color: #000;
@@ -22,7 +22,7 @@
     outline: 0;
     caret-color: #444;
     overflow-y: scroll;
-    max-height: 85vh;
+    max-height: 80vh;
 }
 .placeholder {
     color: #6b6b6b;
