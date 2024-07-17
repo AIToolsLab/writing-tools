@@ -48,7 +48,7 @@ function App() {
 
 	return (
 		<div className={ classes.container }>
-            <div>
+            <div className={ classes.editor }>
                 <LexicalEditor
                     updateTextBeforeCursor={ docUpdated }
                 />
