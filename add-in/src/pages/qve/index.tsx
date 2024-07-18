@@ -206,7 +206,7 @@ export default function QvE() {
 			setIsLoading(false);
 			let errMsg = '';
 			if (err.name === 'AbortError')
-				errMsg = `${err.name}: Timeout. Please try again.`;
+				errMsg = `Oops, the system went too slow. Please try again.`;
 			else
 				errMsg = `${err.name}: ${err.message}. Please try again.`;
 
