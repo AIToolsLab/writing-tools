@@ -24,6 +24,7 @@ import { SERVER_URL, log } from '@/api';
 import classes from './styles.module.css';
 
 function sanitize(text: string): string {
+	// TODO: why do we do this at all?
 	return text.replace('"', '').replace('\'', '');
 }
 
@@ -222,8 +223,8 @@ export default function QvE() {
 			return;
 		}
 
-    setIsLoading(false);
-}
+		setIsLoading(false);
+	}
 
 
 	/**
