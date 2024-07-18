@@ -214,6 +214,7 @@ export default function QvE() {
 			updateGeneration('');
 			log({
 				username: username,
+				ok: false,
 				interaction: type,
 				prompt: sanitize(contextText),
 				result: errMsg
