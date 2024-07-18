@@ -7,7 +7,6 @@ import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
 import { Toggle } from '@fluentui/react/lib/Toggle';
 import {
-	AiOutlineCopy,
 	AiOutlineClose,
 	AiOutlineQuestion,
 	AiOutlineAlignLeft,
@@ -23,12 +22,6 @@ import { SERVER_URL, log } from '@/api';
 
 import classes from './styles.module.css';
 
-function sanitize(text: string): string {
-	// TODO: why do we do this at all?
-	return text.replace('"', '').replace('\'', '');
-}
-
-
 export default function QvE() {
 	const { username } = useContext(UserContext);
 
@@ -39,7 +32,7 @@ export default function QvE() {
 
 	const [isLoading, setIsLoading] = useState(false);
 
-	const [copied, setCopied] = useState(false);
+	const [copied, _setCopied] = useState(false);
 	const [saved, setSaved] = useState(false);
 
 	// State for saved page
@@ -192,7 +185,7 @@ export default function QvE() {
 					body: JSON.stringify({
 							username: username,
 							gtype: type,
-							prompt: sanitize(contextText)
+							prompt: contextText
 					}),
 					signal: AbortSignal.timeout(7000)
 			});
@@ -217,7 +210,7 @@ export default function QvE() {
 				username: username,
 				ok: false,
 				interaction: type,
-				prompt: sanitize(contextText),
+				prompt: contextText,
 				result: errMsg
 			});
 			return;
