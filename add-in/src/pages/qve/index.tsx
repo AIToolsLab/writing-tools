@@ -55,6 +55,7 @@ export default function QvE() {
 	// Hidden for now
 	const IS_SWITCH_VISIBLE = false;
 	const IS_OBSCURED = true;
+	const showButtonTooltips = false;
 
 	function save(
 		generation: string,
@@ -437,8 +438,10 @@ export default function QvE() {
 									updateGenerationMode('Completion');
 									getGeneration(username, 'Completion_Backend', docContext);
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('Completion')
+								onMouseEnter={ () => {
+										if (showButtonTooltips)
+											setTooltipVisible('Completion')
+									}
 								}
 								onMouseLeave={ () =>
 									setTooltipVisible(null)
@@ -472,8 +475,10 @@ export default function QvE() {
 									updateGenerationMode('Question');
 									getGeneration(username, 'Question_Backend', docContext);
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('Question')
+								onMouseEnter={ () => {
+										if (showButtonTooltips)
+											setTooltipVisible('Question')
+									}
 								}
 								onMouseLeave={ () =>
 									setTooltipVisible(null)
@@ -509,8 +514,10 @@ export default function QvE() {
 									updateGenerationMode('Keywords');
 									getGeneration(username, 'Keywords_Backend', docContext);
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('Keywords')
+								onMouseEnter={ () => {
+										if (showButtonTooltips)
+											setTooltipVisible('Keywords')
+									}
 								}
 								onMouseLeave={ () =>
 									setTooltipVisible(null)
@@ -544,8 +551,10 @@ export default function QvE() {
 									updateGenerationMode('RMove');
 									getGeneration(username, 'RMove_Backend', docContext);
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('RMove')
+								onMouseEnter={ () => {
+										if (showButtonTooltips) 
+											setTooltipVisible('RMove')
+									}
 								}
 								onMouseLeave={ () =>
 									setTooltipVisible(null)
