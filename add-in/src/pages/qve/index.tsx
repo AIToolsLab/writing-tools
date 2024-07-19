@@ -275,7 +275,7 @@ export default function QvE() {
 			results = (
 				<div className={ classes.initTextWrapper }>
 					<div className={ classes.initText }>
-						Click a button to generate a suggestion.
+						Click a button to generate AI text.
 					</div>
 				</div>
 			);
@@ -403,7 +403,7 @@ export default function QvE() {
 								classes.tooltip_posSen
 							].join(' ') }
 						>
-							Base suggestions only on text up<br/>to the word touching the cursor
+							Base AI text only on text up<br/>to the word touching the cursor
 						</div>
 					) }
 
@@ -411,7 +411,7 @@ export default function QvE() {
 			) }
 
 			<div className={ classes.contextText }>
-				<h4>Suggestions will be generated using:</h4>
+				<h4>AI text will be generated using:</h4>
 				{ docContext.length > 100 ? '...' : '' }
 				{ docContext.substring(docContext.length-100) }
 			</div>
@@ -457,7 +457,7 @@ export default function QvE() {
 										classes.tooltip_e
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Completion' : 'Get New Suggestion' }
+									{ !IS_OBSCURED ? 'Get New Completion' : 'Get New AI Text' }
 								</div>
 							) }
 
@@ -494,7 +494,7 @@ export default function QvE() {
 										classes.tooltip_q
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Question' : 'Get New Suggestion' }
+									{ !IS_OBSCURED ? 'Get New Question' : 'Get New AI Text' }
 								</div>
 							) }
 						</div>
@@ -533,7 +533,7 @@ export default function QvE() {
 										classes.tooltip_k
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Keywords' : 'Get New Suggestion' }
+									{ !IS_OBSCURED ? 'Get New Keywords' : 'Get New AI Text' }
 								</div>
 							) }
 
@@ -570,7 +570,7 @@ export default function QvE() {
 										classes.tooltip_s
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Rhetorical Move' : 'Get New Suggestion' }
+									{ !IS_OBSCURED ? 'Get New Rhetorical Move' : 'Get New AI Text' }
 								</div>
 							) }
 						</div>
