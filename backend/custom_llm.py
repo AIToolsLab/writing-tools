@@ -187,7 +187,7 @@ def get_next_token_predictions(original_doc: str,
     assert lookahead_sequences.shape == (k, 2)
 
     return {
-        'next_tokens': tokenizer.batch_decode(lookahead_sequences)
+        'next_tokens': tokenizer.batch_decode(lookahead_sequences, skip_special_tokens=True),
     }
 
 
