@@ -14,11 +14,11 @@ st.title("WebVTT to text converter")
 
 meta = []
 
-vtt_file = st.file_uploader("Upload VTT file", type=["vtt"])
-if vtt_file is None:
+transcription_file = st.file_uploader("Upload transcription")
+if transcription_file is None:
     st.stop()
 
-filename = st.text_input("Filename", value=vtt_file.name.rsplit(".", 1)[0])
+filename = st.text_input("Filename", value=transcription_file.name.rsplit(".", 1)[0])
 
 merge_consecutive_spans = st.checkbox("Merge consecutive spans", value=True)
 meta.append(f"Merge consecutive spans: {merge_consecutive_spans}")
@@ -38,7 +38,8 @@ if log_file is not None:
     starting_datetime = datetime.datetime.combine(starting_date, datetime.datetime.strptime(starting_time_str, "%H:%M:%S").time())
     st.write(starting_datetime)
 
-    # shift timestamps
+    # shift timestamps and track changes to document ("prompt") text
+    last_prompt_text = ''
     for entry in log_entries_raw:
         timestamp = (entry['timestamp'] - starting_datetime).total_seconds()
         interaction_friendly = "UI " + entry['interaction']
@@ -49,6 +50,32 @@ if log_file is not None:
             speaker=interaction_friendly,
             text=(entry['result'] or '').replace("\n", "; ")
         ))
+
+        if 'prompt' not in entry:
+            continue
+
+        cur_prompt_text = entry['prompt']
+        if cur_prompt_text is not None and cur_prompt_text != last_prompt_text:
+            # compute the diff at the word level
+            import difflib
+            diff = difflib.ndiff(last_prompt_text.split(), cur_prompt_text.split())
+
+            # join the diff into a single string, summarizing all the additions then all the deletions.
+            additions = ' '.join([word[2:] for word in diff if word.startswith('+ ')])
+            deletions = ' '.join([word[2:] for word in diff if word.startswith('- ')])
+            textual_diff = ''
+            if additions:
+                textual_diff += f"Added: {additions}"
+            if deletions:
+                textual_diff += f"\nDeleted: {deletions}"
+            if textual_diff:
+                log_entries.append(dict(
+                    timestamp=timestamp,
+                    speaker="Document",
+                    text=textual_diff
+                ))
+
+            last_prompt_text = cur_prompt_text
 
     meta.append(f"log times shifted by {starting_datetime}")
 
@@ -79,7 +106,7 @@ if log_file is not None:
     st.write(pd.DataFrame(log_entries))
 
 caption_entries = []
-for caption in webvtt.from_buffer(vtt_file):
+for caption in webvtt.from_buffer(transcription_file):
     speaker = caption.voice
     text = caption.text.strip().replace("\n", " ").replace("&amp;", "&")
     timestamp = caption.start_in_seconds
@@ -98,7 +125,7 @@ st.write(pd.DataFrame(entries))
 # ask for replacement names for each speaker
 replacement_speaker_names = {
     name: st.text_input(f"Speaker name: {name}", value=name)
-    for name in set(entry['speaker'] for entry in entries)
+    for name in sorted(set(entry['speaker'] for entry in entries))
 }
 
 output_lines = []

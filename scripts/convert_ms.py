@@ -1,4 +1,4 @@
-# Microsoft Speech Transcription converter
+# Transcript joiner
 
 import json
 import streamlit as st
@@ -9,11 +9,11 @@ st.title("MS Transcription to text converter")
 
 meta = []
 
-transcription_json = st.file_uploader("Upload MS transcription JSON", type=["json"])
-if transcription_json is None:
+transcription_file = st.file_uploader("Upload transcription")
+if transcription_file is None:
     st.stop()
 
-filename = st.text_input("Filename", value=transcription_json.name.rsplit(".", 1)[0])
+filename = st.text_input("Filename", value=transcription_file.name.rsplit(".", 1)[0])
 
 merge_consecutive_spans = st.checkbox("Merge consecutive spans", value=True)
 meta.append(f"Merge consecutive spans: {merge_consecutive_spans}")
@@ -101,7 +101,7 @@ if log_file is not None:
     st.write(pd.DataFrame(log_entries))
 
 caption_entries = []
-transcription = json.load(transcription_json)
+transcription = json.load(transcription_file)
 
 for segment in transcription['recognizedPhrases']:
     speaker = f"Speaker {segment['speaker']}"
