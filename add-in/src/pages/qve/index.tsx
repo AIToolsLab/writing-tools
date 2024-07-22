@@ -767,7 +767,7 @@ export default function QvE() {
 						{ isSavedOpen && savedItems.length === 0 ? (
 							<div className={ classes.historyEmptyWrapper }>
 								<div className={ classes.historyText }>
-									No saved generations...
+									No saved texts...
 								</div>
 							</div>
 						) : (
