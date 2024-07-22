@@ -48,19 +48,20 @@ def load_from_text(transcription_file):
     # Participant:00:00:09  Test 456 good.
     caption_entries = []
     for line in transcription_file:
+        line = line.decode("utf-8")
         if line.startswith("#") and len(caption_entries) == 0:
             continue
         line = line.strip()
         if not line:
             continue
-        preamble, text = line.split("  ", 1)
+        preamble, text = line.split(" ", 1)
         speaker, timestamp = preamble.split(":", 1)
-        timestamp_hours, timestamp_mins, timestamp_secs = map(int, timestamp.split(":"))
+        timestamp_hours, timestamp_mins, timestamp_secs = map(int, timestamp.strip().split(":"))
         timestamp = timestamp_hours * 3600 + timestamp_mins * 60 + timestamp_secs
         caption_entries.append(dict(
             timestamp=timestamp,
             speaker=speaker,
-            text=text
+            text=text.strip()
         ))
     return caption_entries
 
