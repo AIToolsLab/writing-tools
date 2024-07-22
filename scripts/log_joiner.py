@@ -5,13 +5,73 @@ import streamlit as st
 import pandas as pd
 import datetime
 
-st.title("MS Transcription to text converter")
+st.title("Transcript and Log Joiner")
+
+
+def load_from_ms_json(transcription_file):
+    caption_entries = []
+    transcription = json.load(transcription_file)
+
+    for segment in transcription['recognizedPhrases']:
+        speaker = f"Speaker {segment['speaker']}"
+        text = segment['nBest'][0]['display']
+        timestamp = segment['offsetInTicks'] / 1e7
+
+        caption_entries.append(dict(
+            timestamp=timestamp,
+            speaker=speaker,
+            text=text
+        ))
+    return caption_entries
+
+def load_from_vtt(transcription_file):
+    import webvtt
+
+    caption_entries = []
+    for caption in webvtt.from_buffer(transcription_file):
+        speaker = caption.voice
+        text = caption.text.strip().replace("\n", " ").replace("&amp;", "&")
+        timestamp = caption.start_in_seconds
+
+        caption_entries.append(dict(
+            timestamp=timestamp,
+            speaker=speaker,
+            text=text
+        ))
+    return caption_entries
+
+
+
+def load_from_text(transcription_file):
+    # format: 
+    # Experimenter:00:00:06  Test 123 good. 
+    # Participant:00:00:09  Test 456 good.
+    caption_entries = []
+    for line in transcription_file:
+        if line.startswith("#") and len(caption_entries) == 0:
+            continue
+        line = line.strip()
+        if not line:
+            continue
+        preamble, text = line.split("  ", 1)
+        speaker, timestamp = preamble.split(":", 1)
+        timestamp_hours, timestamp_mins, timestamp_secs = map(int, timestamp.split(":"))
+        timestamp = timestamp_hours * 3600 + timestamp_mins * 60 + timestamp_secs
+        caption_entries.append(dict(
+            timestamp=timestamp,
+            speaker=speaker,
+            text=text
+        ))
+    return caption_entries
+
 
 meta = []
 
 transcription_file = st.file_uploader("Upload transcription")
 if transcription_file is None:
     st.stop()
+
+transcript_format = st.radio("Transcript format", ["MS JSON", "VTT", "text"])
 
 filename = st.text_input("Filename", value=transcription_file.name.rsplit(".", 1)[0])
 
@@ -100,19 +160,15 @@ if log_file is not None:
     log_entries = merged_log_entries
     st.write(pd.DataFrame(log_entries))
 
-caption_entries = []
-transcription = json.load(transcription_file)
-
-for segment in transcription['recognizedPhrases']:
-    speaker = f"Speaker {segment['speaker']}"
-    text = segment['nBest'][0]['display']
-    timestamp = segment['offsetInTicks'] / 1e7
-
-    caption_entries.append(dict(
-        timestamp=timestamp,
-        speaker=speaker,
-        text=text
-    ))
+if transcript_format == "MS JSON":
+    caption_entries = load_from_ms_json(transcription_file)
+elif transcript_format == "VTT":
+    caption_entries = load_from_vtt(transcription_file)
+elif transcript_format == "text":
+    caption_entries = load_from_text(transcription_file)
+else:
+    st.write("Unsupported transcript format")
+    st.stop()
 
 # merge and sort
 entries = sorted(caption_entries + log_entries, key=lambda x: x['timestamp'])
