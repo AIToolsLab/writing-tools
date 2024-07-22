@@ -17,4 +17,4 @@ first_timestamps.sort()
 
 for timestamp, file_path in first_timestamps:
     timestamp_in_local_time = timestamp.astimezone(tz=None)
-    print(f"{file_path}: {timestamp_in_local_time.strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"{file_path.name.removesuffix('.jsonl')} {timestamp_in_local_time.strftime('%Y-%m-%d %H:%M:%S')}")
