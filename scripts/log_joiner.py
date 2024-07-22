@@ -159,7 +159,8 @@ if log_file is not None:
             merged_log_entries.append(entry)
         i += 1
     log_entries = merged_log_entries
-    st.write(pd.DataFrame(log_entries))
+    with st.expander("Log entries"):
+        st.write(pd.DataFrame(log_entries))
 
 if transcript_format == "MS JSON":
     caption_entries = load_from_ms_json(transcription_file)
@@ -173,13 +174,15 @@ else:
 
 # merge and sort
 entries = sorted(caption_entries + log_entries, key=lambda x: x['timestamp'])
-st.write(pd.DataFrame(entries))
+with st.expander("Merged entries"):
+    st.write(pd.DataFrame(entries))
 
 # ask for replacement names for each speaker
-replacement_speaker_names = {
-    name: st.text_input(f"Speaker name: {name}", value=name)
-    for name in sorted(set(entry['speaker'] for entry in entries))
-}
+with st.expander("Speaker names"):
+    replacement_speaker_names = {
+        name: st.text_input(f"Speaker name: {name}", value=name)
+        for name in sorted(set(entry['speaker'] for entry in entries))
+    }
 
 output_lines = []
 
