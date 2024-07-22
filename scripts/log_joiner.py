@@ -98,40 +98,40 @@ if log_file is not None:
     last_prompt_text = ''
     for entry in log_entries_raw:
         timestamp = (entry['timestamp'] - starting_datetime).total_seconds()
+
+        if 'prompt' in entry:
+            cur_prompt_text = entry['prompt']
+            if cur_prompt_text is not None and cur_prompt_text != last_prompt_text:
+                # compute the diff at the word level
+                import difflib
+                diff = difflib.ndiff(last_prompt_text.split(), cur_prompt_text.split())
+
+                # join the diff into a single string, summarizing all the additions then all the deletions.
+                additions = ' '.join([word[2:] for word in diff if word.startswith('+ ')])
+                deletions = ' '.join([word[2:] for word in diff if word.startswith('- ')])
+                textual_diff = ''
+                if additions:
+                    textual_diff += f"Added: {additions}"
+                if deletions:
+                    textual_diff += f"\nDeleted: {deletions}"
+                if textual_diff:
+                    log_entries.append(dict(
+                        timestamp=timestamp,
+                        speaker="Document",
+                        text=textual_diff
+                    ))
+
+                last_prompt_text = cur_prompt_text
+
         interaction_friendly = "UI " + entry['interaction']
         interaction_friendly = interaction_friendly.replace("_Frontend", " request")
         interaction_friendly = interaction_friendly.replace("_Backend", " response")
         log_entries.append(dict(
             timestamp=timestamp,
             speaker=interaction_friendly,
-            text=(entry['result'] or '').replace("\n", "; ")
+            text=(entry.get('result') or '').replace("\n", "; ")
         ))
 
-        if 'prompt' not in entry:
-            continue
-
-        cur_prompt_text = entry['prompt']
-        if cur_prompt_text is not None and cur_prompt_text != last_prompt_text:
-            # compute the diff at the word level
-            import difflib
-            diff = difflib.ndiff(last_prompt_text.split(), cur_prompt_text.split())
-
-            # join the diff into a single string, summarizing all the additions then all the deletions.
-            additions = ' '.join([word[2:] for word in diff if word.startswith('+ ')])
-            deletions = ' '.join([word[2:] for word in diff if word.startswith('- ')])
-            textual_diff = ''
-            if additions:
-                textual_diff += f"Added: {additions}"
-            if deletions:
-                textual_diff += f"\nDeleted: {deletions}"
-            if textual_diff:
-                log_entries.append(dict(
-                    timestamp=timestamp,
-                    speaker="Document",
-                    text=textual_diff
-                ))
-
-            last_prompt_text = cur_prompt_text
 
     meta.append(f"log times shifted by {starting_datetime}")
 
