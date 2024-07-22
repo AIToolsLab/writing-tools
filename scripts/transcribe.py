@@ -2,6 +2,7 @@
 
 import time
 import requests
+import urllib.parse
 import json
 from dotenv import load_dotenv
 import os
@@ -12,24 +13,23 @@ load_dotenv()
 subscription_key = os.getenv("AZURE_SPEECH_KEY") or ""
 region = os.getenv("AZURE_REGION") or ""
 
-SAS_TOKEN = os.getenv("SAS_TOKEN") or ""
-
 assert subscription_key, "Please set AZURE_SPEECH_KEY in .env"
 assert region, "Please set AZURE_REGION in .env"
-assert SAS_TOKEN, "Please set SAS_TOKEN in .env. Get it from Azure Storage Account > select the container > Settings > Shared access token"
 
 parser = argparse.ArgumentParser(description="Transcribe audio file")
-parser.add_argument("url", type=str, help="URL of the audio file to transcribe")
+parser.add_argument("--url", type=str, help="URL of the audio file to transcribe")
+parser.add_argument("--sas-token", type=str, default=os.getenv("SAS_TOKEN"))
 args = parser.parse_args()
 
 url = args.url
 filename_from_url = url.rsplit("/", 1)[-1]
-output_filename = f"{filename_from_url}.json"
+filename_url_decoded = urllib.parse.unquote(filename_from_url)
+output_filename = f"{filename_url_decoded}.json"
 
 print("Starting request to transcribe", url)
 print(f"Will save the result to {output_filename}")
 
-url_with_key = f"{url}?{SAS_TOKEN}"
+url_with_key = f"{url}?{args.sas_token}"
 
 
 endpoint = f"https://{region}.api.cognitive.microsoft.com"
