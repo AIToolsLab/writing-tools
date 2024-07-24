@@ -1,6 +1,8 @@
 import argparse
 import os
 import json
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
 import uvicorn
 
@@ -15,8 +17,6 @@ from pydantic import BaseModel
 from contextlib import asynccontextmanager
 ml_models = {}
 
-ENABLE_GEMMA = True
-
 parser = argparse.ArgumentParser()
 parser.add_argument("--gpu", action="store_true", help="Enable GPU usage")
 args = parser.parse_args()
@@ -25,18 +25,15 @@ USE_GPU = args.gpu
 
 @asynccontextmanager
 async def models_lifespan(app: FastAPI):
-    import torch
-    from transformers import AutoTokenizer, AutoModelForCausalLM
 
     model_name = 'google/gemma-1.1-7b-it'
 
-    if ENABLE_GEMMA:
-        ml_models["gemma"] = gemma = {
-            'tokenizer': AutoTokenizer.from_pretrained(model_name),
-            'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto" if USE_GPU else "cpu", torch_dtype=torch.bfloat16)#quantization_config=quantization_config)
-        }
-        print("Loaded Gemma with device map:")
-        print(gemma['model'].hf_device_map)
+    ml_models["llm"] = llm = {
+        'tokenizer': AutoTokenizer.from_pretrained(model_name),
+        'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto" if USE_GPU else "cpu", torch_dtype=torch.bfloat16)#quantization_config=quantization_config)
+    }
+    print("Loaded llm with device map:")
+    print(llm['model'].hf_device_map)
 
     yield
 
@@ -71,14 +68,12 @@ def get_highlights(doc: str, prompt: Optional[str] = None, updated_doc: Optional
     url.searchParams.append('updated_doc', 'This is a test document.')
     let response = await fetch(url)
     '''
-    if not ENABLE_GEMMA:
-        raise HTTPException(status_code=404, detail="This service is not enabled.")
 
     import torch
 
-    gemma = ml_models['gemma']
-    model = gemma['model']
-    tokenizer = gemma['tokenizer']
+    llm = ml_models['llm']
+    model = llm['model']
+    tokenizer = llm['tokenizer']
 
     if prompt is None:
         prompt = "Rewrite this document to be more concise."
@@ -126,13 +121,10 @@ def get_next_token_predictions(original_doc: str,
                                prompt: str,
                                doc_in_progress: str,
                                k: Optional[int] = 5):
-    if not ENABLE_GEMMA:
-        raise HTTPException(status_code=404, detail="This service is not enabled.")
 
-    import torch
 
-    model = ml_models['gemma']['model']
-    tokenizer = ml_models['gemma']['tokenizer']
+    model = ml_models['llm']['model']
+    tokenizer = ml_models['llm']['tokenizer']
 
     messages = [
         {
