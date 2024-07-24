@@ -175,7 +175,8 @@ def get_next_token_predictions(original_doc: str,
     
     # Grab the single most likely token from each of the k sequences
     next_token_logits = model_outs.logits[:, -1]
-    assert next_token_logits.shape == (k, tokenizer.vocab_size)
+    vocab_size = len(tokenizer)
+    assert next_token_logits.shape == (k, vocab_size), f"{next_token_logits.shape=}, {k=}, {vocab_size=}"
     most_likely_token_ids = next_token_logits.argmax(dim=-1)
 
     # Stick them at the end of the branch tokens.
