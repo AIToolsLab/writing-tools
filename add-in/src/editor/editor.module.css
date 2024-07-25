@@ -22,7 +22,7 @@
     outline: 0;
     caret-color: #444;
     overflow-y: scroll;
-    max-height: 80vh;
+    height: 80vh;
 }
 .placeholder {
     color: #6b6b6b;
