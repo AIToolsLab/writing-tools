@@ -89,8 +89,21 @@ if log_file is not None:
         log_entry['timestamp'] = datetime.datetime.fromtimestamp(log_entry['timestamp'])
         log_entries_raw.append(log_entry)
 
-    offset_of_first_response = st.number_input("In the video, the first response is visible at (seconds)", value=0)
-    starting_datetime = log_entries_raw[0]['timestamp'] - datetime.timedelta(seconds=offset_of_first_response)
+    if st.radio("Specify starting time", ["relative", "absolute"], horizontal=True) == "relative":
+        offset_of_first_response = st.number_input("In the video, the first response is visible at (seconds)", value=0)
+        starting_datetime = log_entries_raw[0]['timestamp'] - datetime.timedelta(seconds=offset_of_first_response)
+    else:
+        starting_date = st.date_input("Starting date", value=log_entries_raw[0]['timestamp'].date())
+        if starting_date is None:
+            st.write("Please provide a starting date")
+            st.stop()
+        assert isinstance(starting_date, datetime.date), f"Expected datetime.date, got {type(starting_date)}"
+        starting_time_str = st.text_input("Starting time", value=log_entries_raw[0]['timestamp'].time().strftime("%H:%M:%S"))
+        if starting_time_str is None:
+            st.write("Please provide a starting time")
+            st.stop()
+        starting_datetime = datetime.datetime.combine(starting_date, datetime.datetime.strptime(starting_time_str, "%H:%M:%S").time())
+
     st.write(f"So the transcript started at {starting_datetime}")
 
     # shift timestamps and track changes to document ("prompt") text
@@ -179,7 +192,7 @@ with st.expander("Merged entries"):
 # ask for replacement names for each speaker
 with st.expander("Speaker names"):
     replacement_speaker_names = {
-        name: st.text_input(f"Speaker name: {name}", value=name)
+        name: st.text_input(f"Speaker name: {name}", value=name) if not name.startswith("UI ") else name
         for name in sorted(set(entry['speaker'] for entry in entries))
     }
 
