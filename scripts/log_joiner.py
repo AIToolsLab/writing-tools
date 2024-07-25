@@ -89,10 +89,9 @@ if log_file is not None:
         log_entry['timestamp'] = datetime.datetime.fromtimestamp(log_entry['timestamp'])
         log_entries_raw.append(log_entry)
 
-    starting_date = st.date_input("Starting date", value=log_entries_raw[0]['timestamp'].date())
-    starting_time_str = st.text_input("Starting time", value=log_entries_raw[0]['timestamp'].time().strftime("%H:%M:%S"))
-    starting_datetime = datetime.datetime.combine(starting_date, datetime.datetime.strptime(starting_time_str, "%H:%M:%S").time())
-    st.write(starting_datetime)
+    offset_of_first_response = st.number_input("In the video, the first response is visible at (seconds)", value=0)
+    starting_datetime = log_entries_raw[0]['timestamp'] - datetime.timedelta(seconds=offset_of_first_response)
+    st.write(f"So the transcript started at {starting_datetime}")
 
     # shift timestamps and track changes to document ("prompt") text
     last_prompt_text = ''
