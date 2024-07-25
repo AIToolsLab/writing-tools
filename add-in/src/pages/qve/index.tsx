@@ -30,7 +30,7 @@ function sanitize(text: string): string {
 const USE_WORDCLOUD = false;
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
-	if (USE_WORDCLOUD && generation.generation_type === "Keywords") {
+	if (USE_WORDCLOUD && generation.generation_type === 'Keywords') {
 		// Show all keywords as a word cloud
 		const keywords = generation.extra_data.words_by_pos;
 		// Collect all of the words
@@ -38,13 +38,15 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 		for (const pos in keywords) {
 			words.push(...keywords[pos]);
 		}
-		return <ReactWordcloud words={ words.map(word => ({ text: word, value: 1 })) } 
-		options={{
+		return (
+<ReactWordcloud words={ words.map(word => ({ text: word, value: 1 })) } 
+		options={ {
 			rotations: 0
-		}} />;
+		} } />
+);
 	}
 	return <Remark>{ generation.result }</Remark>;
-};
+}
 
 
 export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
