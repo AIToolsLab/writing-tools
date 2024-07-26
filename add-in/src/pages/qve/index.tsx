@@ -139,6 +139,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 
 	async function getAndUpdateCursorPosInfo() {
 		const { charsToCursor, docLength } = await getCursorPosInfo();
+
 		updateCursorPos(charsToCursor);
 		updateCursorAtEnd(charsToCursor >= docLength);
 	}
@@ -172,29 +173,30 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 				}),
 				signal: AbortSignal.timeout(7000)
 			});
-			if (!response.ok) {
+
+			if (!response.ok)
 				throw new Error(`HTTP error! status: ${response.status}`);
-			}
+			
 			updateErrorMsg('');
 			updateGeneration((await response.json()) as GenerationResult);
 			updateGenCtxText(contextText);
 		}
- catch (err: any) {
-			setIsLoading(false);
+        catch (err: any) {
 			let errMsg = '';
-			if (err.name === 'AbortError')
+			
+            if (err.name === 'AbortError')
 				errMsg = `${err.name}: Timeout. Please try again.`;
 			else errMsg = `${err.name}: ${err.message}. Please try again.`;
 
 			updateErrorMsg(errMsg);
 			updateGeneration(null);
+
 			log({
 				username: username,
 				interaction: type,
 				prompt: contextText,
 				result: errMsg
 			});
-			return;
 		}
 
 		setIsLoading(false);
@@ -220,6 +222,28 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 			removeSelectionChangeHandler(getAndUpdateCursorPosInfo);
 		};
 	}, []);
+
+    function createGenIcon() {
+        return (
+            <>
+                { generationMode === 'Completion' ? (
+                    <AiOutlineAlignLeft
+                        className={ classes.savedTypeIcon }
+                    />
+                ) : generationMode === 'Question' ? (
+                    <AiOutlineQuestion
+                        className={ classes.savedTypeIcon }
+                    />
+                ) : generationMode === 'Keywords' ? (
+                    <AiOutlineHighlight
+                        className={ classes.savedTypeIcon }
+                    />
+                ) : generationMode === 'RMove' ? (
+                    <AiOutlineBank className={ classes.savedTypeIcon } />
+                ) : null }
+            </>
+        );
+    }
 
 	let results = null;
 
@@ -248,9 +272,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 			);
 	else
 		results = (
-			// <div className={ classes.resultTextWrapper }>
-			// 	<div className={ classes.resultText }>{ generation }</div>
-			// </div>
 			<div className={ classes.resultTextWrapper }>
 				<div>
 					<div
@@ -261,6 +282,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 						{ genCtxText.length > 100 ? '...' : '' }
 						{ genCtxText.substring(genCtxText.length - 100) }
 					</div>
+
 					{ false && tooltipVisible === 'GenCtx' && (
 						<div
 							className={ [
@@ -271,27 +293,15 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 							{ 'Generated based on this document text' }
 						</div>
 					) }
+
 					<div className={ classes.resultText }>
 						<GenerationResult generation={ generation } />
 					</div>
 				</div>
+
 				<div className={ classes.genIconsContainer }>
 					<div className={ classes.genTypeIconWrapper }>
-						{ generationMode === 'Completion' ? (
-							<AiOutlineAlignLeft
-								className={ classes.savedTypeIcon }
-							/>
-						) : generationMode === 'Question' ? (
-							<AiOutlineQuestion
-								className={ classes.savedTypeIcon }
-							/>
-						) : generationMode === 'Keywords' ? (
-							<AiOutlineHighlight
-								className={ classes.savedTypeIcon }
-							/>
-						) : generationMode === 'RMove' ? (
-							<AiOutlineBank className={ classes.savedTypeIcon } />
-						) : null }
+						{ createGenIcon() }
 					</div>
 				</div>
 			</div>
@@ -332,6 +342,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 										interaction: 'Completion_Frontend',
 										prompt: docContext
 									});
+
 									if (docContext === '') return;
 
 									updateGenerationMode('Completion');
@@ -369,6 +380,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 										interaction: 'Question_Frontend',
 										prompt: docContext
 									});
+
 									if (docContext === '') return;
 
 									updateGenerationMode('Question');
@@ -408,6 +420,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 										interaction: 'Keywords_Frontend',
 										prompt: docContext
 									});
+
 									if (docContext === '') return;
 
 									updateGenerationMode('Keywords');
@@ -445,6 +458,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 										interaction: 'RMove_Frontend',
 										prompt: docContext
 									});
+
 									if (docContext === '') return;
 
 									updateGenerationMode('RMove');
@@ -486,16 +500,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 				<div className={ classes.reflectionContainer }>{ results }</div>
 
 				<div className={ classes.utilsContainer }>
-					{ copied && (
-						<div className={ classes.utilStateWrapper }>
-							<div className={ classes.copiedStateText }>
-								Copied!
-							</div>
-
-							<FcCheckmark />
-						</div>
-					) }
-
 					{ saved && (
 						<div className={ classes.utilStateWrapper }>
 							<div className={ classes.savedStateText }>Saved</div>
@@ -563,6 +567,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 										}
 									/>
 								</div>
+
 								{ tooltipVisible === 'Save' && (
 									<div
 										className={ [
@@ -663,6 +668,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 											generation={ savedItem.generation }
 										/>
 									</div>
+
 									<div
 										className={ classes.savedIconsContainer }
 									>
@@ -682,6 +688,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 												}
 											/>
 										</div>
+                                        
 										<div
 											className={
 												classes.genTypeIconWrapper
