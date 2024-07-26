@@ -8,7 +8,7 @@ import {
 } from 'lexical';
 
 import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
-import { LexicalComposer } from '@lexical/react/LexicalComposer';
+import { InitialEditorStateType, LexicalComposer } from '@lexical/react/LexicalComposer';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
@@ -89,9 +89,9 @@ function prepopulatedRichText(initialText: string) {
   }
 
 function LexicalEditor(
-    { updateTextBeforeCursor, initialText }: {
+    { updateTextBeforeCursor, initialState }: {
 	    updateTextBeforeCursor: (text: string) => void;
-        initialText: string;
+        initialState: InitialEditorStateType;
     }
 ) {
 	return (
@@ -103,7 +103,7 @@ function LexicalEditor(
 						paragraph: classes.paragraph
 					},
 					onError(_error, _editor) {},
-                    editorState: () => prepopulatedRichText(initialText)
+                    editorState: initialState
 				} }
 			>
 				<div className={ classes.editorContainer }>
@@ -133,6 +133,8 @@ function LexicalEditor(
 								);
 
 								updateTextBeforeCursor(textBeforeCursor);
+
+                                localStorage.setItem('doc', JSON.stringify(editorState));
 							});
 						} }
 					/>

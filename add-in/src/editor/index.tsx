@@ -41,7 +41,6 @@ function App() {
 
 	const docUpdated = (content: string) => {
         docRef.current = content;
-        localStorage.setItem('doc', content);
 
         handleSelectionChange();
 	};
@@ -50,7 +49,7 @@ function App() {
 		<div className={ classes.container }>
             <div className={ classes.editor }>
                 <LexicalEditor
-                    initialText={ localStorage.getItem('doc') || '' }
+                    initialState={ localStorage.getItem('doc') || '' }
                     updateTextBeforeCursor={ docUpdated }
                 />
             </div>
