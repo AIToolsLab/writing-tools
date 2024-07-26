@@ -6,7 +6,6 @@ import { Remark } from 'react-remark';
 import ReactWordcloud from 'react-wordcloud';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
-import { Toggle } from '@fluentui/react/lib/Toggle';
 import {
 	AiOutlineClose,
 	AiOutlineQuestion,
@@ -23,10 +22,6 @@ import { SERVER_URL, log } from '@/api';
 
 import classes from './styles.module.css';
 
-function sanitize(text: string): string {
-	return text.replace('"', '').replace('\'', '');
-}
-
 const USE_WORDCLOUD = false;
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
@@ -35,23 +30,33 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 		const keywords = generation.extra_data.words_by_pos;
 		// Collect all of the words
 		const words: string[] = [];
+
 		for (const pos in keywords) {
 			words.push(...keywords[pos]);
 		}
+
 		return (
-<ReactWordcloud words={ words.map(word => ({ text: word, value: 1 })) } 
-		options={ {
-			rotations: 0
-		} } />
-);
+			<ReactWordcloud
+				words={ words.map(word => ({ text: word, value: 1 })) }
+				options={ {
+					rotations: 0
+				} }
+			/>
+		);
 	}
+
 	return <Remark>{ generation.result }</Remark>;
 }
 
-
-export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
+export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	const { username } = useContext(UserContext);
-	const { addSelectionChangeHandler, removeSelectionChangeHandler, getDocContext, getCursorPosInfo } = editorAPI;
+
+	const {
+		addSelectionChangeHandler,
+		removeSelectionChangeHandler,
+		getDocContext,
+		getCursorPosInfo
+	} = editorAPI;
 
 	const [docContext, updateDocContext] = useState('');
 	const [_cursorPos, updateCursorPos] = useState(0);
@@ -69,25 +74,18 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 
 	// Tooltip visibility
 	const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
-	const [copyWarningTooltipVisible, setCopyWarningTooltipVisible] = useState<boolean>(false);
 
 	// eslint-disable-next-line prefer-const
-	const [generation, updateGeneration] = useState<GenerationResult | null>(null);
+	const [generation, updateGeneration] = useState<GenerationResult | null>(
+		null
+	);
 
 	// Update Error Message
 	const [errorMsg, updateErrorMsg] = useState('');
 
 	const [generationMode, updateGenerationMode] = useState('None');
-	const [positionalSensitivity, setPositionalSensitivity] = useState(true);
 
-	// Hidden for now
-	const IS_SWITCH_VISIBLE = false;
-	const IS_OBSCURED = true;
-
-	function save(
-		generation: GenerationResult,
-		document: string
-	) {
+	function save(generation: GenerationResult, document: string) {
 		const newSaved = [...savedItems];
 
 		// Don't re-save things that are already saved
@@ -123,19 +121,21 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 		log({
 			username: username,
 			interaction: 'Delete',
-			prompt: savedItems.filter(savedItem => savedItem.dateSaved === dateSaved)[0].document,
-			result: savedItems.filter(savedItem => savedItem.dateSaved === dateSaved)[0].generation,
+			prompt: savedItems.filter(
+				savedItem => savedItem.dateSaved === dateSaved
+			)[0].document,
+			result: savedItems.filter(
+				savedItem => savedItem.dateSaved === dateSaved
+			)[0].generation
 		});
 
 		updateSavedItems(newSaved);
 	}
 
-
 	async function getAndUpdateDocContext() {
-		const docText = await getDocContext(positionalSensitivity);
+		const docText = await getDocContext(true);
 		updateDocContext(docText);
 	}
-
 
 	async function getAndUpdateCursorPosInfo() {
 		const { charsToCursor, docLength } = await getCursorPosInfo();
@@ -143,8 +143,11 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 		updateCursorAtEnd(charsToCursor >= docLength);
 	}
 
-
-	async function getGeneration(username: string, type: string, contextText: string) {
+	async function getGeneration(
+		username: string,
+		type: string,
+		contextText: string
+	) {
 		updateGeneration(null);
 		updateErrorMsg('');
 
@@ -158,46 +161,44 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 
 		try {
 			const response = await fetch(`${SERVER_URL}/generation`, {
-					method: 'POST',
-					headers: {
-							'Content-Type': 'application/json'
-					},
-					body: JSON.stringify({
-							username: username,
-							gtype: type,
-							prompt: sanitize(contextText)
-					}),
-					signal: AbortSignal.timeout(7000)
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json'
+				},
+				body: JSON.stringify({
+					username: username,
+					gtype: type,
+					prompt: contextText
+				}),
+				signal: AbortSignal.timeout(7000)
 			});
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
 			updateErrorMsg('');
-			updateGeneration(await response.json() as GenerationResult);
+			updateGeneration((await response.json()) as GenerationResult);
 			updateGenCtxText(contextText);
 		}
-		catch (err: any) {
+ catch (err: any) {
 			setIsLoading(false);
 			let errMsg = '';
 			if (err.name === 'AbortError')
 				errMsg = `${err.name}: Timeout. Please try again.`;
-			else
-				errMsg = `${err.name}: ${err.message}. Please try again.`;
+			else errMsg = `${err.name}: ${err.message}. Please try again.`;
 
 			updateErrorMsg(errMsg);
 			updateGeneration(null);
 			log({
 				username: username,
 				interaction: type,
-				prompt: sanitize(contextText),
+				prompt: contextText,
 				result: errMsg
 			});
 			return;
 		}
 
-    setIsLoading(false);
-}
-
+		setIsLoading(false);
+	}
 
 	/**
 	 * useEffect to ensure that event handlers are set up only once
@@ -218,7 +219,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 			removeSelectionChangeHandler(getAndUpdateDocContext);
 			removeSelectionChangeHandler(getAndUpdateCursorPosInfo);
 		};
-	}, [positionalSensitivity]);
+	}, []);
 
 	let results = null;
 
@@ -252,7 +253,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 			// </div>
 			<div className={ classes.resultTextWrapper }>
 				<div>
-					<div 
+					<div
 						className={ classes.genCtxText }
 						onMouseEnter={ () => setTooltipVisible('GenCtx') }
 						onMouseLeave={ () => setTooltipVisible(null) }
@@ -261,68 +262,35 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 						{ genCtxText.substring(genCtxText.length - 100) }
 					</div>
 					{ false && tooltipVisible === 'GenCtx' && (
-					<div
-						className={ [
-							classes.disabledTooltip,
-							classes.tooltip_genCtxText
-						].join(' ') }
-					>
-						{ 'Generated based on this document text' }
-					</div>
-				) }
+						<div
+							className={ [
+								classes.disabledTooltip,
+								classes.tooltip_genCtxText
+							].join(' ') }
+						>
+							{ 'Generated based on this document text' }
+						</div>
+					) }
 					<div className={ classes.resultText }>
 						<GenerationResult generation={ generation } />
 					</div>
 				</div>
 				<div className={ classes.genIconsContainer }>
-					<div
-						className={
-							!IS_OBSCURED ? classes.genTypeIconWrapper : classes.genTypeIconWrapper_obscured
-						}
-					>
+					<div className={ classes.genTypeIconWrapper }>
 						{ generationMode === 'Completion' ? (
-							IS_OBSCURED ? (
-								'a'
-							) : (
-								<AiOutlineAlignLeft
-									className={
-										classes.savedTypeIcon
-									}
-								/>
-							)
-						) : generationMode ===
-							'Question' ? (
-							IS_OBSCURED ? (
-								'b'
-							) : (
-								<AiOutlineQuestion
-									className={
-										classes.savedTypeIcon
-									}
-								/>
-							)
-						) : generationMode ===
-							'Keywords' ? (
-							IS_OBSCURED ? (
-								'c'
-							) : (
-								<AiOutlineHighlight
-									className={
-										classes.savedTypeIcon
-									}
-								/>
-							)
-						) : generationMode ===
-							'RMove' ? (
-							IS_OBSCURED ? (
-								'd'
-							) : (
-								<AiOutlineBank
-									className={
-										classes.savedTypeIcon
-									}
-								/>
-							)
+							<AiOutlineAlignLeft
+								className={ classes.savedTypeIcon }
+							/>
+						) : generationMode === 'Question' ? (
+							<AiOutlineQuestion
+								className={ classes.savedTypeIcon }
+							/>
+						) : generationMode === 'Keywords' ? (
+							<AiOutlineHighlight
+								className={ classes.savedTypeIcon }
+							/>
+						) : generationMode === 'RMove' ? (
+							<AiOutlineBank className={ classes.savedTypeIcon } />
 						) : null }
 					</div>
 				</div>
@@ -338,55 +306,17 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 
 	return (
 		<div className={ classes.container }>
-			{ IS_SWITCH_VISIBLE && (
-				<div>
-					<div
-						onMouseEnter={ () => setTooltipVisible('PosSen') }
-						onMouseLeave={ () => setTooltipVisible(null) }
-					>
-						<Toggle
-							className={ classes.toggle }
-							label="Positional Sensitivity"
-							inlineLabel
-							onChange={ (_event, checked) => {
-								if (checked) setPositionalSensitivity(true);
-								else setPositionalSensitivity(false);
-								log({
-									username: username,
-									interaction: 'Positional Sensitivity',
-									prompt: docContext,
-									result: checked ? 'On' : 'Off'
-								});
-							} }
-							checked={ positionalSensitivity }
-						/>
-					</div>
-
-					{ tooltipVisible === 'PosSen' && (
-						<div
-							className={ [
-								classes.disabledTooltip,
-								classes.tooltip_posSen
-							].join(' ') }
-						>
-							Base suggestions only on text up<br/>to the word touching the cursor
-						</div>
-					) }
-
-				</div>
-			) }
-
 			<div className={ classes.contextText }>
 				<h4>Suggestions will be generated using:</h4>
-                
-                <p>
-				    { docContext.length > 100 ? '...' : '' }
-				    { docContext.substring(docContext.length - 100) }
-                </p>
+
+				<p>
+					{ docContext.length > 100 ? '...' : '' }
+					{ docContext.substring(docContext.length - 100) }
+				</p>
 			</div>
 
 			<div>
-				<div 
+				<div
 					className={ classes.optionsContainer }
 					onMouseEnter={ () => setTooltipVisible('Disabled') }
 					onMouseLeave={ () => setTooltipVisible(null) }
@@ -395,7 +325,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 						<div className={ classes.optionsButtonWrapperTwo }>
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext.trim() === '' || isLoading) }
+								disabled={ docContext.trim() === '' || isLoading }
 								onClick={ () => {
 									log({
 										username: username,
@@ -405,16 +335,18 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 									if (docContext === '') return;
 
 									updateGenerationMode('Completion');
-									getGeneration(username, 'Completion_Backend', docContext);
+									getGeneration(
+										username,
+										'Completion_Backend',
+										docContext
+									);
 								} }
 								onMouseEnter={ () =>
 									setTooltipVisible('Completion')
 								}
-								onMouseLeave={ () =>
-									setTooltipVisible(null)
-								}
+								onMouseLeave={ () => setTooltipVisible(null) }
 							>
-								{ IS_OBSCURED ? 'a' : <AiOutlineAlignLeft /> }
+								<AiOutlineAlignLeft />
 							</button>
 
 							{ tooltipVisible === 'Completion' && (
@@ -424,13 +356,13 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 										classes.tooltip_e
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Completion' : 'Get New Suggestion' }
+									Get New Completion
 								</div>
 							) }
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext.trim() === '' || isLoading) }
+								disabled={ docContext.trim() === '' || isLoading }
 								onClick={ () => {
 									log({
 										username: username,
@@ -440,16 +372,18 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 									if (docContext === '') return;
 
 									updateGenerationMode('Question');
-									getGeneration(username, 'Question_Backend', docContext);
+									getGeneration(
+										username,
+										'Question_Backend',
+										docContext
+									);
 								} }
 								onMouseEnter={ () =>
 									setTooltipVisible('Question')
 								}
-								onMouseLeave={ () =>
-									setTooltipVisible(null)
-								}
+								onMouseLeave={ () => setTooltipVisible(null) }
 							>
-								{ IS_OBSCURED ? 'b' : <AiOutlineQuestion /> }
+								<AiOutlineQuestion />
 							</button>
 
 							{ tooltipVisible === 'Question' && (
@@ -459,7 +393,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 										classes.tooltip_q
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Question' : 'Get New Suggestion' }
+									Get New Question
 								</div>
 							) }
 						</div>
@@ -467,7 +401,7 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 						<div className={ classes.optionsButtonWrapperTwo }>
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext.trim() === '' || isLoading) }
+								disabled={ docContext.trim() === '' || isLoading }
 								onClick={ () => {
 									log({
 										username: username,
@@ -477,16 +411,18 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 									if (docContext === '') return;
 
 									updateGenerationMode('Keywords');
-									getGeneration(username, 'Keywords_Backend', docContext);
+									getGeneration(
+										username,
+										'Keywords_Backend',
+										docContext
+									);
 								} }
 								onMouseEnter={ () =>
 									setTooltipVisible('Keywords')
 								}
-								onMouseLeave={ () =>
-									setTooltipVisible(null)
-								}
+								onMouseLeave={ () => setTooltipVisible(null) }
 							>
-								{ IS_OBSCURED ? 'c' : <AiOutlineHighlight /> }
+								<AiOutlineHighlight />
 							</button>
 
 							{ tooltipVisible === 'Keywords' && (
@@ -496,13 +432,13 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 										classes.tooltip_k
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Keywords' : 'Get New Suggestion' }
+									Get New Keywords
 								</div>
 							) }
 
 							<button
 								className={ classes.optionsButton }
-								disabled={ (docContext.trim() === '' || isLoading) }
+								disabled={ docContext.trim() === '' || isLoading }
 								onClick={ () => {
 									log({
 										username: username,
@@ -512,16 +448,16 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 									if (docContext === '') return;
 
 									updateGenerationMode('RMove');
-									getGeneration(username, 'RMove_Backend', docContext);
+									getGeneration(
+										username,
+										'RMove_Backend',
+										docContext
+									);
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('RMove')
-								}
-								onMouseLeave={ () =>
-									setTooltipVisible(null)
-								}
+								onMouseEnter={ () => setTooltipVisible('RMove') }
+								onMouseLeave={ () => setTooltipVisible(null) }
 							>
-								{ IS_OBSCURED ? 'd' : <AiOutlineBank /> }
+								<AiOutlineBank />
 							</button>
 
 							{ tooltipVisible === 'RMove' && (
@@ -531,16 +467,17 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 										classes.tooltip_s
 									].join(' ') }
 								>
-									{ !IS_OBSCURED ? 'Get New Rhetorical Move' : 'Get New Suggestion' }
+									Get New Rhetorical Move
 								</div>
 							) }
 						</div>
 					</>
 				</div>
-			
+
 				<div className={ classes.noteTextWrapper }>
 					<div className={ classes.noteText }>
-						Please note that the quality of AI-generated text may vary
+						Please note that the quality of AI-generated text may
+						vary
 					</div>
 				</div>
 			</div>
@@ -567,125 +504,77 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 						</div>
 					) }
 
-					{ generationMode !== 'None' && !isLoading && generation && errorMsg === '' && (
-						<div className={ classes.buttonsWrapper }>
-							<div
-								className={ classes.utilIconWrapper }
-								onClick={ () => {
-									updateGenerationMode('None');
-									updateGeneration(null);
-									results = null;
-								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('Close')
-								}
-								onMouseLeave={ () => {
-									setTooltipVisible(null);
-									setCopyWarningTooltipVisible(false);
-								}	}
-							>
-								<AiOutlineClose className={ classes.closeIcon } />
-							</div>
-
-							{ tooltipVisible === 'Close' && (
+					{ generationMode !== 'None' &&
+						!isLoading &&
+						generation &&
+						errorMsg === '' && (
+							<div className={ classes.buttonsWrapper }>
 								<div
-									className={ [
-										classes.utilTooltip,
-										classes.utilTooltip_close
-									].join(' ') }
-								>
-									Close
-								</div>
-							) }
-							{ /* <div
-								className={ classes.utilIconWrapper }
-								onClick={ () => {
-									// Copy the text to the clipboard
-									// This will only work for Safari and Firefox (will not work for Chrome)
-									// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
-									// https://github.com/OfficeDev/office-js/issues/1991
-									navigator.clipboard.writeText(
-										generation.trim()
-									);
-									setCopied(true);
-									setTimeout(() => setCopied(false), 2000);
-
-									// log
-									log({
-										username: username,
-										interaction: 'Copy',
-										prompt: docContext,
-										result: generation
-									});
-								} }
-								onMouseEnter={ () => {
-									setTooltipVisible('Copy');
-									// If entered more than a second, show the warning tooltip
-									setTimeout(() => setCopyWarningTooltipVisible(true), 1000);
-								} }
-								onMouseLeave={ () => {
-									setTooltipVisible(null);
-									setCopyWarningTooltipVisible(false);
-								}	}
-							>
-								<AiOutlineCopy className={ classes.copyIcon } />
-							</div>
-							{ tooltipVisible === 'Copy' && (
-								<div
-									className={ [
-										classes.utilTooltip,
-										classes.utilTooltip_copy
-									].join(' ') }
-								>
-									Copy
-								</div>
-							) } */ }
-							{ copyWarningTooltipVisible && tooltipVisible === 'Copy' && (
-								<div
-									className={ [
-										classes.utilTooltip,
-										classes.utilTooltip_warning
-									].join(' ') }
-								>
-									Please note that<br/>copy-to-clipboard<br/>button may not work<br/>for <strong>Chrome</strong>
-								</div>
-							) }
-
-							<div
-								className={ classes.utilIconWrapper }
-								onClick={ () => {
-									// Save the generation
-									save(generation, docContext);
-
-									setSaved(true);
-									setTimeout(() => setSaved(false), 2000);
-								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('Save')
-								}
-								onMouseLeave={ () => {
-									setTooltipVisible(null);
-									setCopyWarningTooltipVisible(false);
-								}	}
-							>
-								<AiOutlineStar
-									className={
-										saved ? classes.saved : classes.saveIcon
+									className={ classes.utilIconWrapper }
+									onClick={ () => {
+										updateGenerationMode('None');
+										updateGeneration(null);
+										results = null;
+									} }
+									onMouseEnter={ () =>
+										setTooltipVisible('Close')
 									}
-								/>
-							</div>
-							{ tooltipVisible === 'Save' && (
-								<div
-									className={ [
-										classes.utilTooltip,
-										classes.utilTooltip_save
-									].join(' ') }
+									onMouseLeave={ () => {
+										setTooltipVisible(null);
+									} }
 								>
-									Save
+									<AiOutlineClose
+										className={ classes.closeIcon }
+									/>
 								</div>
-							) }
-						</div>
-					) }
+
+								{ tooltipVisible === 'Close' && (
+									<div
+										className={ [
+											classes.utilTooltip,
+											classes.utilTooltip_close
+										].join(' ') }
+									>
+										Close
+									</div>
+								) }
+
+								<div
+									className={ classes.utilIconWrapper }
+									onClick={ () => {
+										// Save the generation
+										save(generation, docContext);
+
+										setSaved(true);
+										setTimeout(() => setSaved(false), 2000);
+									} }
+									onMouseEnter={ () =>
+										setTooltipVisible('Save')
+									}
+									onMouseLeave={ () => {
+										setTooltipVisible(null);
+									} }
+								>
+									<AiOutlineStar
+										className={
+											saved
+												? classes.saved
+												: classes.saveIcon
+										}
+									/>
+								</div>
+								{ tooltipVisible === 'Save' && (
+									<div
+										className={ [
+											classes.utilTooltip,
+											classes.utilTooltip_save
+										].join(' ') }
+									>
+										Save
+									</div>
+								) }
+							</div>
+						) }
 				</div>
 
 				<div className={ classes.historyContainer }>
@@ -697,31 +586,49 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 								// Toggle between the current page and the saved page
 								setSavedOpen(!isSavedOpen);
 							} }
-							onMouseEnter={ () =>
-								setTooltipVisible('Saved')
-							}
+							onMouseEnter={ () => setTooltipVisible('Saved') }
 							onMouseLeave={ () => {
 								setTooltipVisible(null);
-								setCopyWarningTooltipVisible(false);
-							}	}
+							} }
 						>
-							<div className={ classes.savedPageIconIndicatorContainer }>
+							<div
+								className={
+									classes.savedPageIconIndicatorContainer
+								}
+							>
 								<AiOutlineStar
 									className={
 										isSavedOpen || saved
-										? classes.savedPageIconActive
-										: classes.savedPageIcon
+											? classes.savedPageIconActive
+											: classes.savedPageIcon
 									}
 								/>
-								{ isSavedOpen ? <AiOutlineUp className={ classes.savedPageIconIndicator }/>
-								: <AiOutlineDown className={ classes.savedPageIconIndicator }/>
-								}
+								{ isSavedOpen ? (
+									<AiOutlineUp
+										className={
+											classes.savedPageIconIndicator
+										}
+									/>
+								) : (
+									<AiOutlineDown
+										className={
+											classes.savedPageIconIndicator
+										}
+									/>
+								) }
 							</div>
 						</button>
-						{ tooltipVisible === 'Saved' && (
-							!isSavedOpen ? <div className={ classes.savedPageTooltip }>Show Saved Items</div>
-							: <div className={ classes.savedPageTooltip }>Hide Saved Items</div>
-						) }
+
+						{ tooltipVisible === 'Saved' &&
+							(!isSavedOpen ? (
+								<div className={ classes.savedPageTooltip }>
+									Show Saved Items
+								</div>
+							) : (
+								<div className={ classes.savedPageTooltip }>
+									Hide Saved Items
+								</div>
+							)) }
 					</div>
 
 					<div className={ classes.historyItemContainer }>
@@ -777,52 +684,41 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 										</div>
 										<div
 											className={
-												!IS_OBSCURED ? classes.genTypeIconWrapper : classes.genTypeIconWrapper_obscured
+												classes.genTypeIconWrapper
 											}
 										>
-											{ savedItem.generation.generation_type === 'Completion' ? (
-												IS_OBSCURED ? (
-													'a'
-												) : (
-													<AiOutlineAlignLeft
-														className={
-															classes.savedTypeIcon
-														}
-													/>
-												)
-											) : savedItem.generation.generation_type ===
+											{ savedItem.generation
+												.generation_type ===
+											'Completion' ? (
+												<AiOutlineAlignLeft
+													className={
+														classes.savedTypeIcon
+													}
+												/>
+											) : savedItem.generation
+													.generation_type ===
 											  'Question' ? (
-												IS_OBSCURED ? (
-													'b'
-												) : (
-													<AiOutlineQuestion
-														className={
-															classes.savedTypeIcon
-														}
-													/>
-												)
-											) : savedItem.generation.generation_type ===
+												<AiOutlineQuestion
+													className={
+														classes.savedTypeIcon
+													}
+												/>
+											) : savedItem.generation
+													.generation_type ===
 											  'Keywords' ? (
-												IS_OBSCURED ? (
-													'c'
-												) : (
-													<AiOutlineHighlight
-														className={
-															classes.savedTypeIcon
-														}
-													/>
-												)
-											) : savedItem.generation.generation_type ===
+												<AiOutlineHighlight
+													className={
+														classes.savedTypeIcon
+													}
+												/>
+											) : savedItem.generation
+													.generation_type ===
 											  'RMove' ? (
-												IS_OBSCURED ? (
-													'd'
-												) : (
-													<AiOutlineBank
-														className={
-															classes.savedTypeIcon
-														}
-													/>
-												)
+												<AiOutlineBank
+													className={
+														classes.savedTypeIcon
+													}
+												/>
 											) : null }
 										</div>
 									</div>

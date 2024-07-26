@@ -7,8 +7,8 @@ import LexicalEditor from './editor';
 import classes from './styles.module.css';
 
 function App() {
-    // Needs to be a ref so that we can use docRef.current in the editorAPI
-    const docRef = useRef('');
+	// Needs to be a ref so that we can use docRef.current in the editorAPI
+	const docRef = useRef('');
 
 	// Since this is a list, a useState would have worked as well
 	const selectionChangeHandlers = useRef<(() => void)[]>([]);
@@ -22,7 +22,7 @@ function App() {
 			return docRef.current;
 		},
 		getCursorPosInfo: async () => {
-            const doc = docRef.current;
+			const doc = docRef.current;
 
 			return { charsToCursor: doc.length, docLength: doc.length };
 		},
@@ -31,29 +31,27 @@ function App() {
 		},
 		removeSelectionChangeHandler: (handler: () => void) => {
 			const index = selectionChangeHandlers.current.indexOf(handler);
-			
-            if (index !== -1)
-				selectionChangeHandlers.current.splice(index, 1);
-			else
-                // eslint-disable-next-line no-console
-				console.warn('Handler not found');
+
+			if (index !== -1) selectionChangeHandlers.current.splice(index, 1);
+			// eslint-disable-next-line no-console
+			else console.warn('Handler not found');
 		}
 	};
 
 	const docUpdated = (content: string) => {
-        docRef.current = content;
+		docRef.current = content;
 
-        handleSelectionChange();
+		handleSelectionChange();
 	};
 
 	return (
 		<div className={ classes.container }>
-            <div className={ classes.editor }>
-                <LexicalEditor
-                    initialState={ localStorage.getItem('doc') || '' }
-                    updateTextBeforeCursor={ docUpdated }
-                />
-            </div>
+			<div className={ classes.editor }>
+				<LexicalEditor
+					initialState={ localStorage.getItem('doc') || '' }
+					updateTextBeforeCursor={ docUpdated }
+				/>
+			</div>
 
 			<div className={ classes.sidebar }>
 				<QvE editorAPI={ editorAPI } />

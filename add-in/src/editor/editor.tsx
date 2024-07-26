@@ -6,7 +6,10 @@ import {
 } from 'lexical';
 
 import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
-import { InitialEditorStateType, LexicalComposer } from '@lexical/react/LexicalComposer';
+import {
+	InitialEditorStateType,
+	LexicalComposer
+} from '@lexical/react/LexicalComposer';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
@@ -25,14 +28,13 @@ function $getTextBeforeCursor() {
 	let anchorOffset = anchor.offset;
 
 	const currentNodeText = anchorNode.getTextContent();
-	
-    // If anchorOffset is mid-word, extend it to the end of the word.
+
+	// If anchorOffset is mid-word, extend it to the end of the word.
 	// Use a regular expression to find an end-of-word boundary.
 	if (anchorOffset < currentNodeText.length) {
 		const wordEnd = /(\W|$)/.exec(currentNodeText.slice(anchorOffset));
-		
-        if (wordEnd)
-			anchorOffset += wordEnd.index;
+
+		if (wordEnd) anchorOffset += wordEnd.index;
 	}
 
 	let textBeforeCursor = currentNodeText.slice(0, anchorOffset);
@@ -40,12 +42,12 @@ function $getTextBeforeCursor() {
 	// Get text from previous siblings and their descendants
 	let currentNode: LexicalNode = anchorNode;
 	let prevNode: LexicalNode | null;
-	
-    while ((prevNode = currentNode.getPreviousSibling())) {
+
+	while ((prevNode = currentNode.getPreviousSibling())) {
 		currentNode = prevNode;
 		if (currentNode.getType() === 'paragraph')
 			textBeforeCursor = '\n\n' + textBeforeCursor;
-        else if (currentNode.getType() === 'linebreak')
+		else if (currentNode.getType() === 'linebreak')
 			textBeforeCursor = '\n' + textBeforeCursor;
 
 		textBeforeCursor = currentNode.getTextContent() + textBeforeCursor;
@@ -61,7 +63,7 @@ function $getTextBeforeCursor() {
 		while ((nextSibling = sibling.getPreviousSibling())) {
 			if (sibling.getType() === 'paragraph')
 				textBeforeCursor = '\n\n' + textBeforeCursor;
-			
+
 			sibling = nextSibling;
 			textBeforeCursor = sibling.getTextContent() + textBeforeCursor;
 		}
@@ -72,12 +74,13 @@ function $getTextBeforeCursor() {
 	return textBeforeCursor;
 }
 
-function LexicalEditor(
-    { updateTextBeforeCursor, initialState }: {
-	    updateTextBeforeCursor: (text: string) => void;
-        initialState: InitialEditorStateType;
-    }
-) {
+function LexicalEditor({
+	updateTextBeforeCursor,
+	initialState
+}: {
+	updateTextBeforeCursor: (text: string) => void;
+	initialState: InitialEditorStateType;
+}) {
 	return (
 		<>
 			<LexicalComposer // Main editor component
@@ -87,7 +90,7 @@ function LexicalEditor(
 						paragraph: classes.paragraph
 					},
 					onError(_error, _editor) {},
-                    editorState: initialState
+					editorState: initialState
 				} }
 			>
 				<div className={ classes.editorContainer }>
@@ -103,22 +106,25 @@ function LexicalEditor(
 						onChange={ editorState => {
 							editorState.read(() => {
 								const textBeforeCursor = $getTextBeforeCursor();
-								
-                                // eslint-disable-next-line no-console
-                                console.log(
+
+								// eslint-disable-next-line no-console
+								console.log(
 									'Text before cursor:',
 									textBeforeCursor
 								);
-								
-                                // eslint-disable-next-line no-console
-                                console.log(
+
+								// eslint-disable-next-line no-console
+								console.log(
 									'Full document:',
 									$getRoot().getTextContent()
 								);
 
 								updateTextBeforeCursor(textBeforeCursor);
 
-                                localStorage.setItem('doc', JSON.stringify(editorState));
+								localStorage.setItem(
+									'doc',
+									JSON.stringify(editorState)
+								);
 							});
 						} }
 					/>
