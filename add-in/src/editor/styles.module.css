@@ -5,15 +5,13 @@
 }
 
 .editor {
-	width: 70%;
-	padding: 30px;
+	width: 50%;
 }
 
 .sidebar {
-	height: 100vh;
+    margin: 20px;
 	overflow-y: scroll;
 	width: 30%;
-	padding: 20px;
 	box-shadow: -2px 0 5px rgba(0,0,0,0.1);
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
 }

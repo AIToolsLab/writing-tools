@@ -1,15 +1,16 @@
 import { useRef } from 'react';
 import ReactDOM from 'react-dom';
 
-import classes from './styles.module.css';
 import QvE from '@/pages/qve';
 import LexicalEditor from './editor';
 
+import classes from './styles.module.css';
+
 function App() {
-    // needs to be a ref so that we can use docRef.current in the editorAPI
+    // Needs to be a ref so that we can use docRef.current in the editorAPI
     const docRef = useRef('');
 
-	// since this is a list, a useState would have worked as well
+	// Since this is a list, a useState would have worked as well
 	const selectionChangeHandlers = useRef<(() => void)[]>([]);
 
 	const handleSelectionChange = () => {

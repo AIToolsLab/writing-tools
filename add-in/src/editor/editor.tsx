@@ -2,8 +2,6 @@ import {
 	$getRoot,
 	$getSelection,
 	$isRangeSelection,
-    $createParagraphNode,
-    $createTextNode,
 	LexicalNode
 } from 'lexical';
 
@@ -73,20 +71,6 @@ function $getTextBeforeCursor() {
 
 	return textBeforeCursor;
 }
-
-function prepopulatedRichText(initialText: string) {
-    const root = $getRoot();
-
-    if (root.getFirstChild() === null) {
-      const paragraph = $createParagraphNode();
-
-      paragraph.append(
-        $createTextNode(initialText),
-      );
-
-      root.append(paragraph);
-    }
-  }
 
 function LexicalEditor(
     { updateTextBeforeCursor, initialState }: {
