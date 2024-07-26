@@ -9,6 +9,7 @@
 }
 
 .sidebar {
+    max-height: 92vh;
     margin: 20px;
 	overflow-y: scroll;
 	width: 30%;

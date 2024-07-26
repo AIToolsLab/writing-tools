@@ -378,8 +378,11 @@ export default function QvE({ editorAPI }: {editorAPI: EditorAPI}) {
 
 			<div className={ classes.contextText }>
 				<h4>Suggestions will be generated using:</h4>
-				{ docContext.length > 100 ? '...' : '' }
-				{ docContext.substring(docContext.length-100) }
+                
+                <p>
+				    { docContext.length > 100 ? '...' : '' }
+				    { docContext.substring(docContext.length - 100) }
+                </p>
 			</div>
 
 			<div>
