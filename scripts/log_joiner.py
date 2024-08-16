@@ -93,6 +93,10 @@ if log_file is not None:
         st.write("No log entries found")
         st.stop()
 
+    skip_log_entries = st.number_input("Skip first N log entries", value=0)
+    log_entries_raw = log_entries_raw[skip_log_entries:]
+    meta.append(f"Skipped first {skip_log_entries} log entries")
+
     timestamp_of_first_response = next((entry['timestamp'] for entry in log_entries_raw if entry['interaction'].endswith("Backend")), None)
     if timestamp_of_first_response is None:
         st.write("Warning: no backend interaction found in the log file")
@@ -120,6 +124,9 @@ if log_file is not None:
     last_prompt_text = ''
     for entry in log_entries_raw:
         timestamp = (entry['timestamp'] - starting_datetime).total_seconds()
+        if timestamp < 0:
+            st.warning(f"Skipping entry with timestamp {timestamp}")
+            continue
 
         if 'prompt' in entry:
             cur_prompt_text = entry['prompt']
@@ -226,7 +233,7 @@ for entry in entries:
 
 output_text = "\n\n".join(output_lines)
 if meta:
-    output_text = '\n'.join('# ' + l for l in meta) + "\n\n" + output_text
+    output_text = '# ' + '; '.join(l for l in meta) + "\n\n" + output_text
 out_filename = f"{filename}.txt"
 st.download_button(f"Download {out_filename}", output_text, out_filename, "text/plain")
 st.code(output_text)
