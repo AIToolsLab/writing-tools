@@ -89,16 +89,26 @@ if log_file is not None:
         log_entry['timestamp'] = datetime.datetime.fromtimestamp(log_entry['timestamp'])
         log_entries_raw.append(log_entry)
 
+    if len(log_entries_raw) == 0:
+        st.write("No log entries found")
+        st.stop()
+
+    timestamp_of_first_response = next((entry['timestamp'] for entry in log_entries_raw if entry['interaction'].endswith("Backend")), None)
+    if timestamp_of_first_response is None:
+        st.write("Warning: no backend interaction found in the log file")
+        timestamp_of_first_response = log_entries_raw[0]['timestamp']
+    assert isinstance(timestamp_of_first_response, datetime.datetime), f"Expected datetime.datetime, got {type(timestamp_of_first_response)}"
+
     if st.radio("Specify starting time", ["relative", "absolute"], horizontal=True) == "relative":
         offset_of_first_response = st.number_input("In the video, the first response is visible at (seconds)", value=0)
-        starting_datetime = log_entries_raw[0]['timestamp'] - datetime.timedelta(seconds=offset_of_first_response)
+        starting_datetime = timestamp_of_first_response - datetime.timedelta(seconds=offset_of_first_response)
     else:
-        starting_date = st.date_input("Starting date", value=log_entries_raw[0]['timestamp'].date())
+        starting_date = st.date_input("Starting date", value=timestamp_of_first_response.date())
         if starting_date is None:
             st.write("Please provide a starting date")
             st.stop()
         assert isinstance(starting_date, datetime.date), f"Expected datetime.date, got {type(starting_date)}"
-        starting_time_str = st.text_input("Starting time", value=log_entries_raw[0]['timestamp'].time().strftime("%H:%M:%S"))
+        starting_time_str = st.text_input("Starting time", value=timestamp_of_first_response.time().strftime("%H:%M:%S"))
         if starting_time_str is None:
             st.write("Please provide a starting time")
             st.stop()
@@ -145,7 +155,7 @@ if log_file is not None:
         ))
 
 
-    meta.append(f"log times shifted by {starting_datetime}")
+    meta.append(f"log times shifted by {starting_datetime}, or {(timestamp_of_first_response - starting_datetime).total_seconds()} seconds")
 
     # For " request" entries that are immediately followed by " response" entries, merge them
     merged_log_entries = []
