@@ -48,7 +48,7 @@ function App() {
 		<div className={ classes.container }>
 			<div className={ classes.editor }>
 				<LexicalEditor
-					initialState={ localStorage.getItem('doc') || '' }
+					initialState={ localStorage.getItem('doc') || null }
 					updateTextBeforeCursor={ docUpdated }
 				/>
 			</div>

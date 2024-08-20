@@ -79,7 +79,7 @@ function LexicalEditor({
 	initialState
 }: {
 	updateTextBeforeCursor: (text: string) => void;
-	initialState: InitialEditorStateType;
+	initialState: InitialEditorStateType | null;
 }) {
 	return (
 		<>
