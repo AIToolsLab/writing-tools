@@ -162,16 +162,16 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 
 		try {
 			const response = await fetch(`${SERVER_URL}/generation`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
-				body: JSON.stringify({
-					username: username,
-					gtype: type,
-					prompt: contextText
-				}),
-				signal: AbortSignal.timeout(7000)
+					method: 'POST',
+					headers: {
+							'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({
+							username: username,
+							gtype: type,
+							prompt: contextText
+					}),
+					signal: AbortSignal.timeout(7000)
 			});
 
 			if (!response.ok)
@@ -183,16 +183,18 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 		}
         catch (err: any) {
 			let errMsg = '';
-			
-            if (err.name === 'AbortError')
-				errMsg = `${err.name}: Timeout. Please try again.`;
-			else errMsg = `${err.name}: ${err.message}. Please try again.`;
+
+			if (err.name === 'AbortError')
+				errMsg = `Oops, the system went too slow. Please try again.`;
+			else
+				errMsg = `${err.name}: ${err.message}. Please try again.`;
 
 			updateErrorMsg(errMsg);
 			updateGeneration(null);
 
 			log({
 				username: username,
+				ok: false,
 				interaction: type,
 				prompt: contextText,
 				result: errMsg
@@ -266,7 +268,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 			results = (
 				<div className={ classes.initTextWrapper }>
 					<div className={ classes.initText }>
-						Click a button to generate a suggestion.
+						Click a button to generate AI text.
 					</div>
 				</div>
 			);
@@ -317,12 +319,10 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	return (
 		<div className={ classes.container }>
 			<div className={ classes.contextText }>
-				<h4>Suggestions will be generated using:</h4>
+				<h4>AI text will be generated using:</h4>
+				{ docContext.length > 100 ? '...' : '' }
+				{ docContext.substring(docContext.length-100) }
 
-				<p>
-					{ docContext.length > 100 ? '...' : '' }
-					{ docContext.substring(docContext.length - 100) }
-				</p>
 			</div>
 
 			<div>
@@ -352,8 +352,10 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 										docContext
 									);
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('Completion')
+								onMouseEnter={ () => {
+										if (showButtonTooltips)
+											setTooltipVisible('Completion')
+									}
 								}
 								onMouseLeave={ () => setTooltipVisible(null) }
 							>
@@ -390,8 +392,10 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 										docContext
 									);
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('Question')
+								onMouseEnter={ () => {
+										if (showButtonTooltips)
+											setTooltipVisible('Question')
+									}
 								}
 								onMouseLeave={ () => setTooltipVisible(null) }
 							>
@@ -430,8 +434,10 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 										docContext
 									);
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('Keywords')
+								onMouseEnter={ () => {
+										if (showButtonTooltips)
+											setTooltipVisible('Keywords')
+									}
 								}
 								onMouseLeave={ () => setTooltipVisible(null) }
 							>
@@ -640,7 +646,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 						{ isSavedOpen && savedItems.length === 0 ? (
 							<div className={ classes.historyEmptyWrapper }>
 								<div className={ classes.historyText }>
-									No saved generations...
+									No saved texts...
 								</div>
 							</div>
 						) : (
