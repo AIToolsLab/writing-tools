@@ -1,7 +1,7 @@
 from collections import defaultdict
 import os
 import random
-from typing import Any, Iterable, List, Dict
+from typing import Any, Iterable, List, Dict, Literal
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -93,6 +93,8 @@ async def completion(prompt: str):
 
 
 class GenerationResult(BaseModel):
+    # Completion, Question, Keywords, Structure, RMove
+    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove"]
     result: str
     extra_data: Dict[str, Any]
 
@@ -121,6 +123,7 @@ async def chat_completion(prompt: str, temperature=1.0) -> GenerationResult:
     )
 
     return GenerationResult(
+        generation_type="Completion",
         result=result,
         extra_data={
             "completion": result,
@@ -162,6 +165,7 @@ async def question(prompt: str) -> GenerationResult:
     )
 
     return GenerationResult(
+        generation_type="Question",
         result=questions,
         extra_data={
             "completion": example,
@@ -199,9 +203,11 @@ async def keywords(prompt: str) -> GenerationResult:
             keyword_string += f"**{pos_labels[pos]}**: {', '.join(pos_keywords)}\n"
 
     return GenerationResult(
+        generation_type="Keywords",
         result=keyword_string,
         extra_data={
             "completion": completion,
+            "words_by_pos": {pos: list(words) for pos, words in keyword_dict.items()},
         }
     )
 
@@ -254,6 +260,7 @@ async def structure(prompt: str) -> GenerationResult:
     filtered_text = filter(processed_text)
 
     return GenerationResult(
+        generation_type="Structure",
         result=filtered_text.replace("· ·", "···").replace("· ·", "···"),
         extra_data={"completion": completion}
     )
@@ -279,6 +286,7 @@ async def rmove(prompt: str) -> GenerationResult:
     )
 
     return GenerationResult(
+        generation_type="RMove",
         result=rhetorical_move,
         extra_data={
             "temperature": temperature,

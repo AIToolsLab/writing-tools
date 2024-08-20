@@ -1,0 +1,7 @@
+Repeat the given paragraph exactly, word-for-word, but place footnotes in places where a reader might have questions, curiosities, or confusions.
+
+Use this syntax for footnotes: 
+
+Some text [^The content of the footnote.]
+
+The content of the footnote should be a question addressed to the writer.

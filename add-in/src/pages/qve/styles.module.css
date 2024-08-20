@@ -25,6 +25,11 @@
 	box-shadow: -1px 6px 10px 0 rgba(147, 123, 109, 0.1);
 }
 
+.contextText p {
+    word-break: break-all;
+    white-space: normal;
+}
+
 h4 {
 	font-size: 0.8rem;
 	margin-top: 2px;
