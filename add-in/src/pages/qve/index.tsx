@@ -23,10 +23,6 @@ import { SERVER_URL, log } from '@/api';
 
 import classes from './styles.module.css';
 
-function sanitize(text: string): string {
-	return text.replace('"', '').replace('\'', '');
-}
-
 const USE_WORDCLOUD = false;
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
@@ -176,7 +172,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 				body: JSON.stringify({
 					username: username,
 					gtype: type,
-					prompt: sanitize(contextText)
+					prompt: contextText
 				}),
 				signal: AbortSignal.timeout(7000)
 			});
@@ -199,7 +195,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 			log({
 				username: username,
 				interaction: type,
-				prompt: sanitize(contextText),
+				prompt: contextText,
 				result: errMsg
 			});
 			return;
