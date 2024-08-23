@@ -614,66 +614,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 										Close
 									</div>
 								) }
-								{ /* <div
-								className={ classes.utilIconWrapper }
-								onClick={ () => {
-									// Copy the text to the clipboard
-									// This will only work for Safari and Firefox (will not work for Chrome)
-									// https://developer.mozilla.org/en-US/docs/Web/API/Clipboard/writeText
-									// https://github.com/OfficeDev/office-js/issues/1991
-									navigator.clipboard.writeText(
-										generation.trim()
-									);
-									setCopied(true);
-									setTimeout(() => setCopied(false), 2000);
-
-									// log
-									log({
-										username: username,
-										interaction: 'Copy',
-										prompt: docContext,
-										result: generation
-									});
-								} }
-								onMouseEnter={ () => {
-									setTooltipVisible('Copy');
-									// If entered more than a second, show the warning tooltip
-									setTimeout(() => setCopyWarningTooltipVisible(true), 1000);
-								} }
-								onMouseLeave={ () => {
-									setTooltipVisible(null);
-									setCopyWarningTooltipVisible(false);
-								}	}
-							>
-								<AiOutlineCopy className={ classes.copyIcon } />
-							</div>
-							{ tooltipVisible === 'Copy' && (
-								<div
-									className={ [
-										classes.utilTooltip,
-										classes.utilTooltip_copy
-									].join(' ') }
-								>
-									Copy
-								</div>
-							) } */ }
-								{ copyWarningTooltipVisible &&
-									tooltipVisible === 'Copy' && (
-										<div
-											className={ [
-												classes.utilTooltip,
-												classes.utilTooltip_warning
-											].join(' ') }
-										>
-											Please note that
-											<br />
-											copy-to-clipboard
-											<br />
-											button may not work
-											<br />
-											for <strong>Chrome</strong>
-										</div>
-									) }
 
 								<div
 									className={ classes.utilIconWrapper }
