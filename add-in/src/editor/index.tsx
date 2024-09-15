@@ -52,7 +52,7 @@ function App() {
 					updateTextBeforeCursor={ docUpdated }
 				/>
 			</div>
-
+			<div>last revision: {  localStorage.getItem('doc-date')|| ''  }</div>
 			<div className={ classes.sidebar }>
 				<QvE editorAPI={ editorAPI } />
 			</div>

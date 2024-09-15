@@ -695,6 +695,9 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 									/>
 								) }
 							</div>
+
+
+						{  /* star button that display saved history */  }
 						</button>
 						{ tooltipVisible === 'Saved' &&
 							(!isSavedOpen ? (
@@ -743,6 +746,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 									<div
 										className={ classes.savedIconsContainer }
 									>
+										{  /* history close buuton */  }
 										<div
 											className={
 												classes.historyCloseButtonWrapper
