@@ -85,8 +85,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(true);
 
-	// Hidden for now
-	const IS_SWITCH_VISIBLE = false;
 	const IS_OBSCURED = true;
 
 	function save(generation: GenerationResult, document: string) {
@@ -334,45 +332,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 
 	return (
 		<div className={ classes.container }>
-			{ IS_SWITCH_VISIBLE && (
-				<div>
-					<div
-						onMouseEnter={ () => setTooltipVisible('PosSen') }
-						onMouseLeave={ () => setTooltipVisible(null) }
-					>
-						<Toggle
-							className={ classes.toggle }
-							label="Positional Sensitivity"
-							inlineLabel
-							onChange={ (_event, checked) => {
-								if (checked) setPositionalSensitivity(true);
-								else setPositionalSensitivity(false);
-								log({
-									username: username,
-									interaction: 'Positional Sensitivity',
-									prompt: docContext,
-									result: checked ? 'On' : 'Off'
-								});
-							} }
-							checked={ positionalSensitivity }
-						/>
-					</div>
-
-					{ tooltipVisible === 'PosSen' && (
-						<div
-							className={ [
-								classes.disabledTooltip,
-								classes.tooltip_posSen
-							].join(' ') }
-						>
-							Base suggestions only on text up
-							<br />
-							to the word touching the cursor
-						</div>
-					) }
-				</div>
-			) }
-
+			
 			<div className={ classes.contextText }>
 				<h4>Suggestions will be generated using:</h4>
 
