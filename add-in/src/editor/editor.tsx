@@ -125,6 +125,11 @@ function LexicalEditor({
 									'doc',
 									JSON.stringify(editorState)
 								);
+								const currentDate = new Date().toISOString();
+								localStorage.setItem(
+									'doc-date',
+									currentDate
+								);
 							});
 						} }
 					/>

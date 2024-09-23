@@ -595,6 +595,7 @@ h4 {
 }
 
 .historyCloseButtonWrapper:hover {
+	cursor: pointer;
 	background-color: #dedede;
 	border-radius: 12px;
 }
