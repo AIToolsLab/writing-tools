@@ -332,7 +332,8 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 
 	return (
 		<div className={ classes.container }>
-			
+
+			{ /* Document Context Text Container */ }
 			<div className={ classes.contextText }>
 				<h4>Suggestions will be generated using:</h4>
 
@@ -343,6 +344,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 			</div>
 
 			<div>
+				{ /* Generation Option Buttons */ }
 				<div
 					className={ classes.optionsContainer }
 					onMouseEnter={ () => setTooltipVisible('Disabled') }
@@ -518,8 +520,10 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 			</div>
 
 			<div>
+				{ /* Result of the generation */ }
 				<div className={ classes.reflectionContainer }>{ results }</div>
 
+				{ /* Close and Save button container */ }
 				<div className={ classes.utilsContainer }>
 					{ copied && (
 						<div className={ classes.utilStateWrapper }>
@@ -614,6 +618,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 						) }
 				</div>
 
+				{ /* Saved generations */ }
 				<div className={ classes.historyContainer }>
 					<div className={ classes.historyButtonWrapper }>
 						<button
