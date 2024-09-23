@@ -1,0 +1,22 @@
+[project]
+name = "writing-tools"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "azure-identity>=1.18.0",
+    "azure-keyvault-secrets>=4.8.0",
+    "en-core-web-sm",
+    "fastapi>=0.115.0",
+    "numpy<2.0",
+    "openai>=1.47.0",
+    "python-dotenv>=1.0.1",
+    "spacy>=3.7.6",
+    "sse-starlette>=2.1.3",
+    "tenacity>=9.0.0",
+    "uvicorn>=0.30.6",
+]
+
+[tool.uv.sources]
+en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1-py3-none-any.whl" }
