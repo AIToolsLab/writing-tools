@@ -23,6 +23,27 @@ import { SERVER_URL, log } from '@/api';
 
 import classes from './styles.module.css';
 
+const visibleNameForMode = {
+	'Completion': 'Suggestions',
+	'Question': 'Questions',
+	'Keywords': 'Keywords',
+	'RMove': 'Rhetorical Move'
+};
+
+const obscuredAlphabetForMode = {
+	'Completion': 'A',
+	'Question': 'B',
+	'Keywords': 'C',
+	'RMove': 'D'
+};
+
+const visibleIconForMode = {
+	'Completion': <AiOutlineAlignLeft />,
+	'Question': <AiOutlineQuestion />,
+	'Keywords': <AiOutlineHighlight />,
+	'RMove': <AiOutlineBank />
+};
+
 const USE_WORDCLOUD = false;
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
@@ -62,6 +83,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 
 	const [isLoading, setIsLoading] = useState(false);
 
+	// TODO: Consider using a "hook" for the toast temporarym msg
 	const [copied, _setCopied] = useState(false);
 	const [saved, setSaved] = useState(false);
 
@@ -85,7 +107,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	const [generationMode, updateGenerationMode] = useState('None');
 	const [positionalSensitivity, setPositionalSensitivity] = useState(true);
 
-	const IS_OBSCURED = true;
+	const IS_OBSCURED = false;
 
 	function save(generation: GenerationResult, document: string) {
 		const newSaved = [...savedItems];
@@ -336,7 +358,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 			{ /* Document Context Text Container */ }
 			<div className={ classes.contextText }>
 				<h4>Suggestions will be generated using:</h4>
-
 				<p>
 					{ docContext.length > 100 ? '...' : '' }
 					{ docContext.substring(docContext.length - 100) }
@@ -345,40 +366,41 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 
 			<div>
 				{ /* Generation Option Buttons */ }
-				<div
+				<div	
 					className={ classes.optionsContainer }
 					onMouseEnter={ () => setTooltipVisible('Disabled') }
 					onMouseLeave={ () => setTooltipVisible(null) }
 				>
-					<>
-						<div className={ classes.optionsButtonWrapperTwo }>
-							<button
+					{ ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => {
+						return (
+							<>
+							<button key={ mode }
 								className={ classes.optionsButton }
 								disabled={ docContext.trim() === '' || isLoading }
 								onClick={ () => {
 									log({
 										username: username,
-										interaction: 'Completion_Frontend',
+										interaction: `${mode}_Frontend`,
 										prompt: docContext
 									});
 									if (docContext === '') return;
 
-									updateGenerationMode('Completion');
+									updateGenerationMode(mode);
 									getGeneration(
 										username,
-										'Completion_Backend',
+										`${mode}_Backend`,
 										docContext
 									);
 								} }
 								onMouseEnter={ () =>
-									setTooltipVisible('Completion')
+									setTooltipVisible(mode)
 								}
 								onMouseLeave={ () => setTooltipVisible(null) }
 							>
-								{ IS_OBSCURED ? 'a' : <AiOutlineAlignLeft /> }
+								{ IS_OBSCURED ? obscuredAlphabetForMode[mode as keyof typeof obscuredAlphabetForMode] : visibleIconForMode[mode as keyof typeof visibleIconForMode] }
 							</button>
-
-							{ tooltipVisible === 'Completion' && (
+						
+							{ tooltipVisible === mode && (
 								<div
 									className={ [
 										classes.tooltip,
@@ -387,129 +409,13 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 								>
 									{ !IS_OBSCURED
 										? 'Get New Completion'
-										: 'Get New Suggestion' }
+										: `Get New ${ visibleNameForMode[mode as keyof typeof visibleNameForMode] }` }
 								</div>
 							) }
-
-							<button
-								className={ classes.optionsButton }
-								disabled={ docContext.trim() === '' || isLoading }
-								onClick={ () => {
-									log({
-										username: username,
-										interaction: 'Question_Frontend',
-										prompt: docContext
-									});
-									if (docContext === '') return;
-
-									updateGenerationMode('Question');
-									getGeneration(
-										username,
-										'Question_Backend',
-										docContext
-									);
-								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('Question')
-								}
-								onMouseLeave={ () => setTooltipVisible(null) }
-							>
-								{ IS_OBSCURED ? 'b' : <AiOutlineQuestion /> }
-							</button>
-
-							{ tooltipVisible === 'Question' && (
-								<div
-									className={ [
-										classes.tooltip,
-										classes.tooltip_q
-									].join(' ') }
-								>
-									{ !IS_OBSCURED
-										? 'Get New Question'
-										: 'Get New Suggestion' }
-								</div>
-							) }
-						</div>
-
-						<div className={ classes.optionsButtonWrapperTwo }>
-							<button
-								className={ classes.optionsButton }
-								disabled={ docContext.trim() === '' || isLoading }
-								onClick={ () => {
-									log({
-										username: username,
-										interaction: 'Keywords_Frontend',
-										prompt: docContext
-									});
-									if (docContext === '') return;
-
-									updateGenerationMode('Keywords');
-									getGeneration(
-										username,
-										'Keywords_Backend',
-										docContext
-									);
-								} }
-								onMouseEnter={ () =>
-									setTooltipVisible('Keywords')
-								}
-								onMouseLeave={ () => setTooltipVisible(null) }
-							>
-								{ IS_OBSCURED ? 'c' : <AiOutlineHighlight /> }
-							</button>
-
-							{ tooltipVisible === 'Keywords' && (
-								<div
-									className={ [
-										classes.tooltip,
-										classes.tooltip_k
-									].join(' ') }
-								>
-									{ !IS_OBSCURED
-										? 'Get New Keywords'
-										: 'Get New Suggestion' }
-								</div>
-							) }
-
-							<button
-								className={ classes.optionsButton }
-								disabled={ docContext.trim() === '' || isLoading }
-								onClick={ () => {
-									log({
-										username: username,
-										interaction: 'RMove_Frontend',
-										prompt: docContext
-									});
-									if (docContext === '') return;
-
-									updateGenerationMode('RMove');
-									getGeneration(
-										username,
-										'RMove_Backend',
-										docContext
-									);
-								} }
-								onMouseEnter={ () => setTooltipVisible('RMove') }
-								onMouseLeave={ () => setTooltipVisible(null) }
-							>
-								{ IS_OBSCURED ? 'd' : <AiOutlineBank /> }
-							</button>
-
-							{ tooltipVisible === 'RMove' && (
-								<div
-									className={ [
-										classes.tooltip,
-										classes.tooltip_s
-									].join(' ') }
-								>
-									{ !IS_OBSCURED
-										? 'Get New Rhetorical Move'
-										: 'Get New Suggestion' }
-								</div>
-							) }
-						</div>
-					</>
-				</div>
+							</>
+						);
+					}) }	
+					</div>
 
 				<div className={ classes.noteTextWrapper }>
 					<div className={ classes.noteText }>
