@@ -401,13 +401,8 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 							</button>
 						
 							{ tooltipVisible === mode && (
-								<div
-									className={ [
-										classes.tooltip,
-										classes.tooltip_e
-									].join(' ') }
-								>
-									{ !IS_OBSCURED
+								<div className={ classes.tooltip }>
+									{ IS_OBSCURED
 										? 'Get New Completion'
 										: `Get New ${ visibleNameForMode[mode as keyof typeof visibleNameForMode] }` }
 								</div>

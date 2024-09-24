@@ -40,22 +40,14 @@ h4 {
 	display: flex;
 	flex-direction: row;
 	justify-content: center;
-	margin-top: 4px;
-	margin-bottom: 8px;
+	margin-top: 1rem;
+	margin-bottom: 1rem;
 	position: relative;
 }
 
 .optionsContainer:hover .tooltip {
 	opacity: 1;
 	visibility: visible;
-}
-
-.optionsButtonWrapperTwo {
-	display: flex;
-	flex-direction: row;
-	justify-content: center;
-	align-items: center;
-	margin: 0px;
 }
 
 .optionsButton,
@@ -104,7 +96,7 @@ h4 {
 
 .tooltip {
 	position: absolute;
-	top: -50px;
+	top: 120%;
 	left: 50%;
 	transform: translateX(-50%);
 	background-color: rgba(247, 247, 247, 0.9) !important;
@@ -141,36 +133,8 @@ h4 {
 	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
 }
 
-.tooltip_e {
-	/* left: 30%; */
-	left: 18%;
-	top: 8%;
-}
-
-.tooltip_q {
-	/* left: 43%; */
-	left: 82%;
-	top: 8%;
-}
-
-.tooltip_k {
-	/* left: 56%; */
-	left: 18%;
-	top: 58%;
-}
-
-.tooltip_s {
-	/* left: 70%; */
-	left: 82%;
-	top: 58%;
-}
-
 .tooltip_disabled {
 	left: 50%;
-}
-
-.tooltip_posSen {
-	top: 35px;
 }
 
 .tooltip_genCtxText {
