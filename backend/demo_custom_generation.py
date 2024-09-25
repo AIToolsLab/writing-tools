@@ -1,6 +1,6 @@
 import marimo
 
-__generated_with = "0.7.0"
+__generated_with = "0.7.9"
 app = marimo.App(width="medium")
 
 
@@ -17,9 +17,23 @@ def __():
 
 @app.cell
 def __():
+    return
+
+
+@app.cell
+def __():
     import torch
-    from transformers import AutoTokenizer, AutoModelForCausalLM, DynamicCache
-    return AutoModelForCausalLM, AutoTokenizer, DynamicCache, torch
+    from transformers import AutoTokenizer, AutoModelForCausalLM, DynamicCache, QuantoConfig
+
+    quantization_config = QuantoConfig(weights="int8")
+    return (
+        AutoModelForCausalLM,
+        AutoTokenizer,
+        DynamicCache,
+        QuantoConfig,
+        quantization_config,
+        torch,
+    )
 
 
 @app.cell
@@ -36,9 +50,9 @@ def __(AutoTokenizer, model_name):
 
 
 @app.cell
-def __(AutoModelForCausalLM, model_name):
+def __(AutoModelForCausalLM, model_name, quantization_config):
     # load on CPU
-    model = AutoModelForCausalLM.from_pretrained(model_name)
+    model = AutoModelForCausalLM.from_pretrained(model_name, device_map="auto", quantization_config=quantization_config)
     return model,
 
 
@@ -55,15 +69,77 @@ def __():
 
 
 @app.cell
-def __():
+def __(mo):
+    mo.md("Step 1")
     return
 
 
 @app.cell
 def __(model):
-    generation_config, model_kwargs = model._prepare_generation_config(None)
-    generation_config, model_kwargs
-    return generation_config, model_kwargs
+    self = model
+    return self,
+
+
+@app.cell
+def __(model):
+    generation_config, model_kwargs_1 = model._prepare_generation_config(None)
+    generation_config, model_kwargs_1
+    return generation_config, model_kwargs_1
+
+
+@app.cell
+def __(mo):
+    mo.md("Step 2 not needed. Step 3: Define model inputs")
+    return
+
+
+@app.cell
+def __(generation_config, inputs, model_kwargs_1, self):
+    inputs_tensor, model_input_name, model_kwargs_2 = self._prepare_model_inputs(
+                inputs, generation_config.bos_token_id, model_kwargs_1
+    )
+    batch_size = inputs_tensor.shape[0]
+
+    device = inputs_tensor.device
+    kwargs_has_attention_mask = False
+    self._prepare_special_tokens(generation_config, kwargs_has_attention_mask, device=device)
+
+    # We'll always use left-padding, so skip that check.
+    return (
+        batch_size,
+        device,
+        inputs_tensor,
+        kwargs_has_attention_mask,
+        model_input_name,
+        model_kwargs_2,
+    )
+
+
+@app.cell
+def __(model_kwargs_2):
+    model_kwargs_2
+    return
+
+
+@app.cell
+def __(generation_config, model_kwargs_2):
+    model_kwargs_2['use_cache'] = generation_config.use_cache
+    return
+
+
+@app.cell
+def __(generation_config, inputs_tensor, self):
+    # The attention mask is trivial...
+    self._prepare_attention_mask_for_generation(
+                    inputs_tensor, generation_config.pad_token_id, generation_config.eos_token_id
+                )
+    return
+
+
+@app.cell
+def __(generation_config):
+    generation_config.cache_implementation
+    return
 
 
 @app.cell
@@ -78,7 +154,7 @@ def __(generation_config, model, model_kwargs):
 
 
 @app.cell
-def __(doc_in_progress, model, prompt, tokenizer, torch):
+def __(doc_in_progress, prompt, tokenizer, torch):
     messages = [
         {
             "role": "user",
@@ -92,23 +168,22 @@ def __(doc_in_progress, model, prompt, tokenizer, torch):
     # strip the first token, the "beginning of document" token
     doc_in_progress_ids = doc_in_progress_ids[1:]
 
-    joined_ids = torch.cat([tokenized_chat, doc_in_progress_ids])
-    hypotheses = joined_ids[None].to(model.device)
+    inputs = torch.cat([tokenized_chat, doc_in_progress_ids])
+    return doc_in_progress_ids, inputs, messages, tokenized_chat
 
-    # For each of the k next tokens, generate most-likely next tokens and append back on until we
-    # reach a token with a space
 
-    with torch.no_grad():
-        #model_outs = model(hypotheses, use_cache=True, past_key_values=past_key_values)
-        generate_outs = model.generate(hypotheses.repeat_interleave(1, dim=0), max_new_tokens=1, use_cache=True, return_dict_in_generate=True, output_logits=True)
-    return (
-        doc_in_progress_ids,
-        generate_outs,
-        hypotheses,
-        joined_ids,
-        messages,
-        tokenized_chat,
-    )
+@app.cell
+def __(inputs, model, torch):
+    if True:
+        hypotheses = inputs[None].to(model.device)
+        
+        # For each of the k next tokens, generate most-likely next tokens and append back on until we
+        # reach a token with a space
+        
+        with torch.no_grad():
+            #model_outs = model(hypotheses, use_cache=True, past_key_values=past_key_values)
+            generate_outs = model.generate(hypotheses.repeat_interleave(1, dim=0), max_new_tokens=1, use_cache=True, return_dict_in_generate=True, output_logits=True)
+    return generate_outs, hypotheses
 
 
 @app.cell
@@ -120,6 +195,7 @@ def __(generate_outs):
 @app.cell
 def __(generate_outs):
     cache = generate_outs.past_key_values
+    type(cache)
     return cache,
 
 
