@@ -2,21 +2,21 @@ export const SERVER_URL = '/api';
 
 // Define a type for payload. Includes at least: eventType and username
 export interface LogPayload {
-  username: string;
-  interaction: string;
-  [key: string]: any;
+	username: string;
+	interaction: string;
+	[key: string]: any;
 }
 
 export function log(payload: LogPayload) {
-  const payloadWithTimestamp = {
-    ...payload,
-    timestamp: +(new Date()) / 1000,
-  };
-  fetch(`${SERVER_URL}/log`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(payloadWithTimestamp),
-  });
+	const payloadWithTimestamp = {
+		...payload,
+		timestamp: +new Date() / 1000
+	};
+	fetch(`${SERVER_URL}/log`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify(payloadWithTimestamp)
+	});
 }
