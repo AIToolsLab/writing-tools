@@ -1,0 +1,51 @@
+.promptButtonSelector {
+	border-radius: 5px;
+	border: 1px solid #aaa;
+	padding: 10px;
+	margin-bottom: 10px;
+}
+
+.buttonContainer {
+	display: flex;
+	flex-direction: row;
+	flex-wrap: wrap;
+	gap: 5px;
+
+	margin-bottom: 10px;
+}
+
+.button,
+.currentButton {
+	font-size: 12px;
+	padding: 3px;
+}
+
+.currentButton {
+	background-color: rgb(243, 242, 241);
+}
+
+.textareaContainer {
+	display: flex;
+	align-items: center;
+	gap: 5px;
+}
+
+.textarea {
+	width: 100%;
+	font-size: 14px;
+	resize: vertical;
+	border-radius: 5px;
+	border: 1px solid #aaa;
+	padding: 5px;
+}
+
+.operationButtonContainer {
+	display: flex;
+	flex-direction: column;
+	gap: 5px;
+	/* align-items: center;
+    justify-content: center; */
+}
+
+.saveButton {
+}
