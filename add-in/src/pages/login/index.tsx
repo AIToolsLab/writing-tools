@@ -2,12 +2,10 @@ import { useContext, useState } from 'react';
 import { useWindowSize } from '@react-hook/window-size/throttled';
 
 import { UserContext } from '@/contexts/userContext';
-import { PageContext } from '@/contexts/pageContext';
 
 import classes from './styles.module.css';
 
 export default function Login() {
-	const { changePage } = useContext(PageContext);
 	const { updateUsername } = useContext(UserContext);
 	const [width, _height] = useWindowSize();
 
@@ -19,19 +17,22 @@ export default function Login() {
 				value={ userId }
 				placeholder="Username"
 				onChange={ e => updateId(e.target.value) }
+				onKeyDown={ e => {
+					if (e.key === 'Enter' && userId.length > 0)
+						updateUsername(userId);
+				} }
 			/>
 
 			<button
-				onClick={ () => {
-					updateUsername(userId);
-
-					changePage('home'); // Need to add randomness back to page switching
-				} }
+				disabled={ userId.length === 0 }
+				onClick={ () => updateUsername(userId) }
 			>
 				Login
 			</button>
-			<div className={ classes.widthalert }>
-				{ width<400 && 'For best experience please expand the sidebar by dragging the splitter.' }
+
+			<div className={ classes.widthAlert }>
+				{ width < 400 &&
+					'For best experience please expand the sidebar by dragging the splitter.' }
 			</div>
 		</div>
 	);
