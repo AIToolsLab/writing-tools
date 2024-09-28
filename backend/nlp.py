@@ -74,7 +74,7 @@ async def chat(messages: Iterable[ChatCompletionMessageParam], temperature: floa
     return result or ""
 
 def chat_stream(messages: Iterable[ChatCompletionMessageParam], temperature: float):
-    return openai_client.chat.completions.acreate(
+    return openai_client.chat.completions.create(
         model=MODEL_NAME,
         messages=messages,
         temperature=temperature,
@@ -105,8 +105,7 @@ async def completion(prompt: str):
 
 
 class GenerationResult(BaseModel):
-    # Completion, Question, Keywords, Structure, RMove
-    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove"]
+    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove", "Reflection"]
     result: str
     extra_data: Dict[str, Any]
 

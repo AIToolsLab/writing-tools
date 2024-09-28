@@ -130,9 +130,10 @@ async def generation(payload: GenerationRequestPayload) -> nlp.GenerationResult:
 
 @app.post("/api/reflections")
 async def reflections(payload: ReflectionRequestPayload):
-    make_log(
-        Log(username=payload.username, interaction="reflection", prompt=payload.prompt, ui_id=None)
-    )
+    # TODO: Merge this in and fix logging.
+    #make_log(
+    #    Log(username=payload.username, interaction="reflection", prompt=payload.prompt, ui_id=None)
+    #)
 
     return await nlp.reflection(prompt=payload.prompt, paragraph=payload.paragraph)
 
@@ -143,9 +144,10 @@ async def chat(payload: ChatRequestPayload):
         temperature=0.7,
     )
 
-    make_log(
-        Log(username=payload.username, interaction="chat", prompt=payload.messages[-1]['content'], ui_id=None)
-    )
+    # TODO: Fix logging
+    #make_log(
+    #    Log(username=payload.username, interaction="chat", prompt=payload.messages[-1]['content'], ui_id=None)
+    #)
 
     # Stream response
     async def generator():
