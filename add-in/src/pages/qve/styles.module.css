@@ -1,0 +1,619 @@
+.container {
+	padding: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	position: relative;
+}
+
+.container:hover .disabledTooltip {
+	opacity: 1;
+	visibility: visible;
+}
+
+.toggle {
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+	align-items: center;
+}
+
+.contextText {
+	font-size: 0.8rem;
+	padding: 8px;
+	margin: 8px;
+	box-shadow: -1px 6px 10px 0 rgba(147, 123, 109, 0.1);
+}
+
+.contextText p {
+    word-break: break-all;
+    white-space: normal;
+}
+
+h4 {
+	font-size: 0.8rem;
+	margin-top: 2px;
+	margin-bottom: 4px;
+}
+
+.optionsContainer {
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+	margin-top: 1rem;
+	margin-bottom: 1rem;
+	position: relative;
+}
+
+.optionsContainer:hover .tooltip {
+	opacity: 1;
+	visibility: visible;
+}
+
+.optionsButton,
+.optionsButtonActive {
+	background-color: #ffffff;
+	font-size: 1rem;
+	font-weight: 600;
+	/* padding: 8px 14px; */
+	width: 42px;
+	height: 42px;
+	justify-content: center;
+	align-items: center;
+	border: 1px solid #f0f0f0;
+	transition: 0.15s;
+	cursor: pointer;
+	border-radius: 24px;
+	margin: 4px;
+}
+
+.optionsButtonActive {
+	background-color: #d2e0fb;
+	border: 1px solid #d2e0fb;
+}
+
+.optionsButton:disabled {
+	cursor: auto;
+}
+
+.optionsButtonActive:disabled {
+	cursor: auto;
+}
+
+.optionsButton:hover:enabled {
+	background-color: #f0f0f0;
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, 0.1);
+	transform: rotate(25deg);
+	transition: 0.3s;
+}
+
+.optionsButtonActive:hover:enabled {
+	background-color: #f0f0f0;
+	border: 1px solid #f0f0f0;
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, 0.1);
+	transform: rotate(20deg);
+}
+
+.tooltip {
+	position: absolute;
+	top: 120%;
+	left: 50%;
+	transform: translateX(-50%);
+	background-color: rgba(247, 247, 247, 0.9) !important;
+	color: rgba(66, 66, 66, 0.9);
+	padding: 8px 12px;
+	border-radius: 2px;
+	font-size: 0.8rem;
+	font-weight: 200;
+	white-space: nowrap;
+	z-index: 1000;
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+	pointer-events: none;
+	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
+}
+
+.disabledTooltip {
+	position: absolute;
+	left: 50%;
+	transform: translateX(-50%);
+	background-color: rgba(247, 247, 247, 0.9) !important;
+	color: rgba(66, 66, 66, 0.9);
+	padding: 8px 12px;
+	border-radius: 2px;
+	font-size: 0.8rem;
+	font-weight: 200;
+	white-space: nowrap;
+	z-index: 1000;
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+	pointer-events: none;
+	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
+}
+
+.tooltip_disabled {
+	left: 50%;
+}
+
+.tooltip_genCtxText {
+	top: 18%;
+	background-color: rgba(247, 247, 247, 0.7) !important;
+	color: rgba(66, 66, 66, 0.7);
+}
+
+.spinnerWrapper {
+	display: flex;
+	z-index: 999;
+	justify-content: center;
+	align-items: center;
+}
+
+.initTextWrapper {
+	margin-top: 16px;
+	margin-right: 16px;
+	margin-left: 16px;
+	padding: 16px;
+	transition: 0.15s;
+}
+
+.errorTextWrapper {
+	margin-right: 16px;
+	margin-left: 16px;
+	padding: 16px;
+	transition: 0.15s;
+}
+
+.errorText {
+	font-size: 1rem;
+	color: #ff0000;
+	text-align: center;
+}
+
+.initText {
+	font-size: 0.9rem;
+	color: #888888;
+	text-align: center;
+	transition: 0.15s;
+}
+
+.resultTextWrapper {
+	margin-top: 4px;
+	margin-right: 8px;
+	margin-left: 8px;
+	padding: 16px;
+	border: 1px solid #c8c8c8;
+	border-radius: 16px;
+	transition: 0.15s;
+	display: flex;
+}
+
+.resultText {
+	font-size: 1rem;
+	white-space: pre-wrap;
+	transition: 0.15s;
+	animation: fadeIn 0.3s ease-in-out;
+	flex-direction: column;
+}
+
+.genCtxText {
+	font-size: 0.8rem;
+	color: #aaaaaa;
+	padding-bottom: 4px;
+	cursor: pointer;
+}
+
+.genCtxText:hover {
+	color: #000000;
+}
+
+.utilsContainer {
+	display: flex;
+	flex-direction: row;
+	margin: 8px;
+	margin-right: 8px;
+	justify-content: center;
+	align-self: center;
+	align-items: center;
+	transition: 0.3s;
+	position: relative;
+}
+
+.utilsContainer:hover .utilTooltip {
+	opacity: 1;
+	visibility: visible;
+}
+
+.utilTooltip {
+	position: absolute;
+	top: 120%;
+	background-color: rgba(237, 237, 237, 0.9) !important;
+	color: rgba(66, 66, 66, 0.9);
+	padding: 4px 8px;
+	border-radius: 2px 0px 2px 2px;
+	font-size: 0.8rem;
+	font-weight: 300;
+	white-space: nowrap;
+	z-index: 1000;
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+	pointer-events: none;
+	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
+}
+
+.utilTooltip_close {
+	right: 10%;
+}
+
+.utilTooltip_copy {
+	right: 5%;
+}
+
+.utilTooltip_warning {
+	right: 0%;
+	top: 220%;
+	font-size: 0.7rem;
+	color: rgba(66, 66, 66, 0.7);
+	background-color: rgba(237, 237, 237, 0.5) !important;
+}
+
+.utilTooltip_save {
+	right: 0%;
+}
+
+.buttonsWrapper {
+	background-color: #ededed;
+	display: inline-flex;
+	flex-direction: row;
+	justify-content: center;
+	align-self: center;
+	align-items: center;
+	margin-left: auto;
+	border-radius: 16px;
+	padding: 4px;
+	transition: 0.3s;
+	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, 0.05);
+}
+
+.utilIconWrapper {
+	cursor: pointer;
+	background-color: #eeeeee;
+	border-radius: 12px;
+	padding: 4px;
+	margin-left: 2px;
+	margin-right: 2px;
+	display: flex;
+	justify-content: right;
+	align-items: center;
+	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, 0.1);
+	transition: 0.3s;
+}
+
+.utilIconWrapper:hover {
+	background-color: #efefef;
+}
+
+.closeIcon {
+	font-size: 0.8rem;
+	color: #888888;
+	transition: 0.5s;
+}
+
+.closeIcon:hover {
+	color: #555555;
+	transform: rotate(180deg);
+}
+
+.copyIcon {
+	font-size: 0.9rem;
+	color: #888888;
+	transition: 0.5s;
+}
+
+.copyIcon:hover {
+	color: #555555;
+	transform: rotateY(180deg);
+}
+
+.saveIcon {
+	font-size: 0.9rem;
+	color: #888888;
+	transition: 0.5s;
+}
+
+.saveIcon:hover {
+	color: #555555;
+	transform: rotate(90deg);
+}
+
+.saved {
+	color: gold;
+	font-size: 0.9rem;
+	transition: 0.5s;
+}
+
+.saved:hover {
+	transform: rotate(90deg);
+}
+
+.utilStateWrapper {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	animation: fade 2s ease-in-out;
+	margin-right: auto;
+}
+
+.copiedStateText {
+	color: #059212;
+	font-weight: 100;
+	padding-right: 4px;
+	transition: 0.15s;
+}
+
+.savedStateText {
+	color: #8885e3;
+	font-weight: 100;
+	padding-right: 4px;
+	transition: 0.15s;
+}
+
+.savedStateIcon {
+	color: #8885e3;
+}
+
+.genIconsContainer {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	margin-left: auto;
+}
+
+@keyframes fade {
+	0% {
+		opacity: 0;
+	}
+	10% {
+		opacity: 0.75;
+	}
+	50% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+
+@keyframes fadeIn {
+	0% {
+		opacity: 0;
+	}
+	100% {
+		opacity: 1;
+	}
+}
+
+.noteTextWrapper {
+	margin-right: 8px;
+	margin-left: 8px;
+}
+
+.noteText {
+	font-size: 0.75rem;
+	color: #c5c5c5;
+	text-align: center;
+}
+
+.historyContainer {
+	justify-content: center;
+	align-items: center;
+}
+
+.historyButtonWrapper {
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+	align-items: center;
+	margin-top: 16px;
+	position: relative;
+}
+
+.historyButtonWrapper:hover .savedPageTooltip {
+	opacity: 1;
+	visibility: visible;
+}
+
+.savedPageTooltip {
+	position: absolute;
+	top: -85%;
+	background-color: rgba(237, 237, 237, 0.7) !important;
+	color: rgba(90, 90, 90, 0.7);
+	padding: 4px 8px;
+	border-radius: 2px 0px 2px 2px;
+	font-size: 0.8rem;
+	font-weight: 300;
+	white-space: nowrap;
+	z-index: 1000;
+	opacity: 0;
+	visibility: hidden;
+	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+	pointer-events: none;
+	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
+}
+
+.historyButton {
+	background-color: #ffffff;
+	font-size: 0.8rem;
+	font-weight: 600;
+	padding: 8px 12px;
+	border: 1px solid #f0f0f0;
+	transition: 0.15s;
+	cursor: pointer;
+	border-radius: 24px;
+	display: flex;
+}
+
+.historyButton:hover {
+	background-color: #f0f0f0;
+	border: 1px solid #f0f0f0;
+	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, 0.1);
+	transition: 0.15s;
+}
+
+.historyItemContainer {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	margin-top: 8px;
+	transition: 0.15s;
+}
+
+.savedPageIconIndicatorContainer {
+	justify-items: center;
+	align-items: center;
+	transition: 0.15s;
+}
+
+.savedPageIconIndicator {
+	color: #bbbbbb;
+	font-size: 0.7rem;
+	justify-items: center;
+	padding-bottom: 3px;
+}
+
+.savedPageIcon {
+	color: #bbbbbb;
+	font-size: 1.2rem;
+	padding-top: 1px;
+	transition: 0.15s;
+}
+
+.savedPageIconActive {
+	color: gold;
+	font-size: 1.2rem;
+	padding-top: 1px;
+	transition: 0.15s;
+}
+
+.historyItem {
+	display: flex;
+	padding: 4px;
+	padding: 16px;
+	background-color: #f8f8f8;
+	border-radius: 16px;
+	transition: 0.15s;
+	margin: 8px;
+}
+
+.historyItem li {
+	display: flex;
+	list-style-type: circle;
+}
+
+.historyText {
+	white-space: pre-wrap;
+}
+
+.savedIconsContainer {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+}
+
+.historyCloseButtonWrapper {
+	align-items: center;
+	align-content: center;
+	justify-content: center;
+	margin-left: auto;
+	margin-bottom: auto;
+	border-radius: 12px;
+	transition: 0.15s;
+}
+
+.genTypeIconWrapper {
+	align-items: center;
+	align-content: center;
+	justify-content: center;
+	margin-left: auto;
+	margin-top: auto;
+	border-radius: 12px;
+	transition: 0.15s;
+	background-color: #ffffff;
+}
+
+.genTypeIconWrapper_obscured {
+	align-content: center;
+	text-align: center;
+	margin-left: auto;
+	margin-top: auto;
+	border-radius: 12px;
+	transition: 0.15s;
+	background-color: #ffffff;
+	padding-left: 6px;
+	padding-right: 6px;
+}
+
+.historyCloseButtonWrapper:hover {
+	cursor: pointer;
+	background-color: #dedede;
+	border-radius: 12px;
+}
+
+.historyCloseButton {
+	border-radius: 12px;
+	padding: 4px;
+	display: flex;
+	color: #666666;
+	justify-content: right;
+	align-items: center;
+	transition: 0.5s;
+}
+
+.savedTypeIcon {
+	border-radius: 12px;
+	padding: 4px;
+	display: flex;
+	color: #888888;
+	justify-content: right;
+	align-items: center;
+	text-align: center;
+	transition: 0.5s;
+}
+
+.historyCloseButton:hover {
+	color: #333333;
+	transform: rotate(90deg);
+}
+
+.historyEmptyWrapper {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	margin-top: 16px;
+	color: #888888;
+	font-size: 0.8rem;
+	font-weight: 300;
+	transition: 0.15s;
+}
+
+.historyDoc {
+	cursor: pointer;
+	transition: 0.15s;
+	color: #aaaaaa;
+	margin-bottom: 4px;
+	font-size: 0.8rem;
+}
+
+.historyDoc:hover {
+	color: #9c9ae1;
+}
+
+p {
+	margin: 0;
+}
