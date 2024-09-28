@@ -1,0 +1,21 @@
+# This configuration runs each prompt through a series of example inputs and checks if they meet requirements.
+
+prompts: [questions.txt]
+providers: [openai:gpt-3.5-turbo]
+tests:
+    - description: Response should be a concise bulleted list.
+      vars:
+          prompt:
+          text: Decades of research in writing studies has shown how writers benefit from many types of feedback on their work. Yet computer tools for writing typically provide feedback only on issues of mechanics and style. Writing coach tools are a notable exception, but tend to be used only in pedagogical settings, and provide scores or stock advice. Such suggestions are overly general and not customized to the meaning of the current document.
+      assert:
+          - type: contains
+            value: tools
+          - type: javascript
+            value: 1 / (output.length + 1) # prefer shorter outputs
+    - description: Response should be a concise bulleted list.
+      vars:
+          prompt:
+          text: Within the Whispering Woods, a curious young girl named Lila lived with her grandmother, Althea. Althea was a wise and gentle woman who knew the forest's secrets and had a special bond with the woodland creatures. She taught Lila about the delicate balance between humans and nature, instilling in her a deep love and respect for all living things.
+      assert:
+          - type: contains
+            value: forest
