@@ -2,13 +2,14 @@
 
 const path = require('path');
 
+const webpack = require('webpack');
 const devCerts = require('office-addin-dev-certs');
+
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
-const webpack = require('webpack');
 
-const urlDev = 'http://localhost:3000/';
-const urlProd = 'https://tools.kenarnold.org/';
+const urlDev = 'https://localhost:3000';
+const urlProd = 'https://textfocals.com';
 
 async function getHttpsOptions() {
 	const httpsOptions = await devCerts.getHttpsServerOptions();
@@ -26,11 +27,10 @@ module.exports = async (env, options) => {
 		entry: {
 			polyfill: ['core-js/stable', 'regenerator-runtime/runtime'],
 			vendor: ['react', 'react-dom', 'core-js', '@fluentui/react'],
-			taskpane: [
-				'./src/index.tsx',
-				'./src/taskpane.html'
-			],
-			commands: './src/commands/commands.ts'
+			taskpane: ['./src/index.tsx', './src/taskpane.html'],
+			logs: ['./src/logs/index.tsx', './src/logs/logs.html'],
+			editor: ['./src/editor/index.tsx', './src/editor/editor.html'],
+            commands: './src/commands/commands.ts'
 		},
 		output: {
 			clean: true
@@ -91,16 +91,15 @@ module.exports = async (env, options) => {
 						to: 'assets/[name][ext][query]'
 					},
 					{
-						from: 'src/landing-page/*',
+						from: 'src/static/*',
 						to: '[name][ext]'
 					},
 					{
-						from: 'manifest*.xml',
+						from: 'manifest.xml',
 						to: '[name]' + '[ext]',
 						transform(content) {
-							if (dev)
-								return content;
-                            else
+							if (dev) return content;
+							else
 								return content
 									.toString()
 									.replace(new RegExp(urlDev, 'g'), urlProd);
@@ -112,6 +111,11 @@ module.exports = async (env, options) => {
 				filename: 'taskpane.html',
 				template: './src/taskpane.html',
 				chunks: ['taskpane', 'vendor', 'polyfills']
+			}),
+            new HtmlWebpackPlugin({
+				filename: 'editor.html',
+				template: './src/editor/editor.html',
+				chunks: ['editor', 'vendor']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'commands.html',
