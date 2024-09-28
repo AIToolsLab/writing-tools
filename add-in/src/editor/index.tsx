@@ -1,10 +1,26 @@
 import { useRef } from 'react';
 import ReactDOM from 'react-dom';
 
-import QvE from '@/pages/qve';
+//import QvE from '@/pages/qve';
+import * as SidebarInner from "@/pages/app";
+
 import LexicalEditor from './editor';
 
+import PageContextWrapper from '../contexts/pageContext';
+import UserContextWrapper from '../contexts/userContext';
+import ChatContextWrapper from '../contexts/chatContext';
+
 import classes from './styles.module.css';
+
+function Sidebar({editorAPI}: { editorAPI: EditorAPI }) {
+	return <ChatContextWrapper>
+<UserContextWrapper>
+	<PageContextWrapper>
+	<SidebarInner.default editorAPI={editorAPI}/>
+	</PageContextWrapper>
+	</UserContextWrapper>
+	</ChatContextWrapper>;;
+}
 
 function App() {
 	// Needs to be a ref so that we can use docRef.current in the editorAPI
@@ -55,7 +71,7 @@ function App() {
 
 			<div>last revision: {  localStorage.getItem('doc-date')|| ''  }</div>
 			<div className={ classes.sidebar }>
-				<QvE editorAPI={ editorAPI } />
+				<Sidebar editorAPI={ editorAPI } />
 			</div>
 		</div>
 	);

@@ -16,12 +16,19 @@ let isOfficeInitialized = false;
 
 // TODO: Fix typing issue
 const render = (Component: any) => {
+	if (!isOfficeInitialized) {
+		Component = () => (
+			<section className="ms-welcome__progress ms-u-fadeIn500">
+				<p>Please sideload your add-in to see app body.</p>
+			</section>
+		);
+	}
 	ReactDOM.render(
 		<ThemeProvider>
 			<ChatContextWrapper>
 				<UserContextWrapper>
 					<PageContextWrapper>
-						<Component isOfficeInitialized={ isOfficeInitialized } />
+						<Component />
 					</PageContextWrapper>
 				</UserContextWrapper>
 			</ChatContextWrapper>

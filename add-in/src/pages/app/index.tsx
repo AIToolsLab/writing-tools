@@ -14,28 +14,23 @@ import QvE from '../qve';
 import { wordEditorAPI } from '@/api/wordEditorAPI';
 
 export interface HomeProps {
-	isOfficeInitialized: boolean;
+	editorAPI: EditorAPI | null;
 }
 
-export default function App({ isOfficeInitialized }: HomeProps) {
-	if (!isOfficeInitialized)
-		return (
-			<section className="ms-welcome__progress ms-u-fadeIn500">
-				<p>Please sideload your addin to see app body.</p>
-			</section>
-		);
-
+export default function App({  editorAPI }: HomeProps) {
 	const { username } = useContext(UserContext);
 
 	if (username.length === 0) return <Login />;
 
 	const { page } = useContext(PageContext);
 
+	let trueEditorAPI = (editorAPI === null) ? wordEditorAPI : editorAPI;
+
 	function getComponent(pageName: string) {
 		if (pageName === 'reflections') return <Home />;
 		if (pageName === 'focals') return <Focals />;
 		if (pageName === 'chat') return <Chat />;
-		if (pageName === 'qve') return <QvE editorAPI={ wordEditorAPI } />;
+		if (pageName === 'qve') return <QvE editorAPI={ trueEditorAPI } />;
 		console.error('Invalid page name', pageName);
 	}
 
