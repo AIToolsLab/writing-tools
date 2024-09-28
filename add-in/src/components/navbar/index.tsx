@@ -7,7 +7,8 @@ import classes from './styles.module.css';
 const pageNames = [
 	{ name: 'reflections', title: 'Reflections' },
 	{ name: 'focals', title: 'Focals' },
-	{ name: 'chat', title: 'Chat' }
+	{ name: 'chat', title: 'Chat' },
+	{ name: "qve", title: "QvE" },
 ];
 
 export default function Navbar() {
