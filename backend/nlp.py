@@ -1,89 +1,328 @@
-import re
-import openai
-from tenacity import (
-    retry, stop_after_attempt,  # for exponential backoff
-    wait_random_exponential
-)
+from collections import defaultdict
+import os
+import random
+from typing import Any, Iterable, List, Dict, Literal
+
+from dotenv import load_dotenv
 from pydantic import BaseModel
-from typing import List
+import spacy
 
+from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
+from openai import AsyncOpenAI
 
-def sanitize(text):
-    return text.replace('"', '').replace("'", "")
+MODEL_NAME = "gpt-4o"
 
+# Create OpenAI client
+load_dotenv()
 
-async_chat_with_backoff = (
-    retry(wait=wait_random_exponential(
-        min=1, max=60), stop=stop_after_attempt(6))
-    (openai.ChatCompletion.acreate)
+openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+
+if openai_api_key == "":
+    raise Exception("OPENAI_API_KEY is not set. Please set it in a .env file.")
+
+openai_client = AsyncOpenAI(
+    api_key=openai_api_key,
 )
 
-# Scratch-extractor regex
-# xxx\nFINAL ANSWER\nyyy
-# or
-# xxx\nFINAL ANSWER:\nyyy
+# Load spaCy model for sentence splitting
+try:
+    nlp = spacy.load("en_core_web_sm")
+    # nlp = spacy.load("en_core_web_trf")
+except:
+    print("Need to download spaCy model. Run:")
+    print("python -m spacy download en_core_web_sm")
+    # print("pip install spacy-transformers")
+    # print("python -m spacy download en_core_web_trf")
 
-FINAL_ANSWER_REGEX = re.compile(r"FINAL (?:ANSWER|RESPONSE|OUTPUT)(?::|\.)?\s+", re.MULTILINE)
+    exit()
 
-output_format = """\
-# Output format
 
-- concise
-- short phrases, not complete sentences
-- not conversational
-- Markdown dash (not number) format for lists.
+def get_final_sentence(text):
+    final_sentence = list(nlp(text).sents)[-1].text
 
-# Task
+    return final_sentence
 
-"""
 
-class ReflectionResponseInternal(BaseModel):
-    full_response: str
-    scratch: str
-    reflections: List[str]
+def is_full_sentence(sentence):
+    sentence += " AND"
 
-async def gen_reflections_chat(writing, prompt) -> ReflectionResponseInternal:
-    prompt_with_output_format = output_format + prompt
-    response = await async_chat_with_backoff(
-        model="gpt-3.5-turbo",
-        messages=[
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": sanitize(writing)},
-        ],
-        temperature=1,
+    # Concatenating " AND" to the text will result in 2 segments if the text is a complete sentence.
+    num_segments = len(list(nlp(sentence).sents))
+
+    return num_segments > 1
+
+
+def obscure(token):
+    word = token.text
+    return "·" * len(word) + token.whitespace_
+
+
+async def chat(messages: Iterable[ChatCompletionMessageParam], temperature: float) -> str:
+    response = await openai_client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=messages,
+        temperature=temperature,
         max_tokens=1024,
         top_p=1,
         frequency_penalty=0,
         presence_penalty=0,
     )
 
-    full_response = response["choices"][0]["message"]["content"].strip()
-    return parse_reflections_chat(full_response)
+    result = response.choices[0].message.content
+
+    # FIXME: figure out why result might ever be None
+    return result or ""
+
+def chat_stream(messages: Iterable[ChatCompletionMessageParam], temperature: float):
+    return openai_client.chat.completions.acreate(
+        model=MODEL_NAME,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=True,
+    )
 
 
-def parse_reflections_chat(full_response: str) -> ReflectionResponseInternal:
-    # Make a best effort at extracting the a list of reflections from the response
-    # Fall back on returning a single item.
-    splits = FINAL_ANSWER_REGEX.split(full_response, maxsplit=1)
-    if len(splits) > 1:
-        scratch = splits[0].strip()
-        final_answer = splits[1].strip()
+async def completion(prompt: str):
+    # Generate a completion based on the now-complete last sentence.
+    response = await openai_client.completions.create(
+        model="gpt-3.5-turbo-instruct",
+        prompt=prompt,
+        temperature=1,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stop=[".", "!", "?"],
+    )
+
+    result = response.choices[0].text
+
+    return result
+
+
+class GenerationResult(BaseModel):
+    # Completion, Question, Keywords, Structure, RMove
+    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove"]
+    result: str
+    extra_data: Dict[str, Any]
+
+
+async def chat_completion(prompt: str, temperature=1.0) -> GenerationResult:
+    # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
+    word_limit = str(random.randint(15, 30))
+    RHETORICAL_SITUATION = "You are a completion bot for a 200-word essay"
+
+    # Assign prompt based on whether the document ends with a newline for a new paragraph
+    ends_with_newline = prompt.endswith("\r\r") or prompt.endswith("\n")
+    if ends_with_newline:
+        system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words."
     else:
-        scratch = ""
-        final_answer = full_response
+        system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words."
 
-    # Try to split Markdown unordered or enumerated lists into a list of reflections
-    # input:
-    # "- x\n- y\n- z"
-    # output:
-    # ["x", "y", "z"]
-    reflections = re.split(r"^(?:-|\d+\.)\s+", final_answer, flags=re.MULTILINE)
-    reflections = [r.strip() for r in reflections if r.strip()]
-    
+    result = await chat(
+        messages=[
+            {
+                "role": "system",
+                "content": system_chat_prompt,
+            },
+            {"role": "user", "content": prompt},
+        ],
+        temperature=temperature,
+    )
 
-    # Extract the response
-    return ReflectionResponseInternal(
-        full_response=full_response,
-        scratch=scratch,
-        reflections=reflections,
+    return GenerationResult(
+        generation_type="Completion",
+        result=result,
+        extra_data={
+            "completion": result,
+            "temperature": temperature,
+            "word_limit": word_limit,
+            "ends_with_newline": ends_with_newline,
+            "system_chat_prompt": system_chat_prompt,
+        })
+
+
+async def question(prompt: str) -> GenerationResult:
+    example_completion_data = (await chat_completion(prompt))
+    example = example_completion_data.result
+
+    final_sentence = get_final_sentence(prompt)
+
+    temperature = 1.0
+
+    if (final_sentence.endswith("\r\r")
+        or final_sentence.endswith("\n")
+        or is_full_sentence(final_sentence)
+    ):
+        question_prompt = f"With the current document in mind:\n\n{prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence."
+    else:
+        question_prompt = f"With the current document in mind:\n\n{prompt}\n\nReword the following completion as a who/what/when/where/why/how question."
+    completion_length = len(example.split())
+    max_length = max(int(completion_length * 0.8), 7)
+    question_prompt += f" Use no more than {max_length} words."
+
+    full_prompt = (
+        f"{question_prompt}\n\n{example}"
+    )
+
+    questions = await chat(
+        messages=[
+            {"role": "user", "content": full_prompt},
+        ],
+        temperature=temperature,
+    )
+
+    return GenerationResult(
+        generation_type="Question",
+        result=questions,
+        extra_data={
+            "completion": example,
+            "temperature": temperature,
+            "example_completion_data": example_completion_data,
+            "is_full_sentence": is_full_sentence(final_sentence),
+            "max_length": max_length,
+        })
+
+
+async def reflection(prompt: str, paragraph: str) -> GenerationResult:
+    temperature = 1.0
+
+    questions = await chat(
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": paragraph},
+        ],
+        temperature=temperature,
+    )
+
+    return GenerationResult(
+        generation_type="Reflection",
+        result=questions,
+        extra_data={
+            "prompt": prompt,
+            "temperature": temperature,
+        })
+
+
+async def keywords(prompt: str) -> GenerationResult:
+    completion = (await chat_completion(prompt)).result
+
+    keyword_dict = defaultdict(set)
+    pos_labels = dict(NOUN="Nouns", PROPN="Proper Nouns", VERB="Verbs",
+                      ADJ="Adjectives", ADV="Adverbs", INTJ="Interjections")
+
+    # Process the text with spaCy
+    doc = nlp(completion)
+
+    # Extract and store the words by desired POS tags in keyword_dict
+    for token in doc:
+        pos = token.pos_
+        if pos not in pos_labels:
+            continue
+        text = token.text if pos == "PROPN" else token.lemma_
+        keyword_dict[pos].add(text)
+
+    # Construct a string of keywords formatted by POS
+    keyword_string = ""
+    for pos in keyword_dict:
+        pos_keywords = list(keyword_dict[pos])
+        if pos_keywords != []:
+            random.shuffle(pos_keywords)
+            keyword_string += f"**{pos_labels[pos]}**: {', '.join(pos_keywords)}\n"
+
+    return GenerationResult(
+        generation_type="Keywords",
+        result=keyword_string,
+        extra_data={
+            "completion": completion,
+            "words_by_pos": {pos: list(words) for pos, words in keyword_dict.items()},
+        }
+    )
+
+
+async def structure(prompt: str) -> GenerationResult:
+    completion = (await chat_completion(prompt)).result
+
+    prior_sentence = get_final_sentence(prompt)
+    new_sentence = (prior_sentence.endswith("\r\r")
+        or prior_sentence.endswith("\n")
+        or is_full_sentence(prior_sentence)
+    )
+
+    def is_keyword(token):
+        # keyword_pos = token.pos_ in ["NOUN", "PRON", "PROPN", "ADJ", "VERB"]
+        # past_participle = token.tag_ == "VBN"
+        # ly_word = token.text[-2:] == "ly" and token.pos_ == "ADV"
+        # determiner = token.tag_ == "WDT" or token.tag_ == "IN"
+        # return not determiner and (keyword_pos or past_participle or ly_word)
+
+        plainword_tag = token.tag_ in ["CC", "CD", "DT", "EX", "IN", "LS",
+                                       "MD", "PDT", "PRP", "PRP$", "RP", "TO", "WDT", "WP", "WP$", "WRB"]
+        simple_adverb = (
+            token.tag_ in ["RB", "RBR", "RBS",
+                           "WRB"] and token.text[-2:] != "ly"
+        )
+        aux = token.pos_ == "AUX"
+        punct = token.is_punct
+
+        return not (plainword_tag or punct or aux or simple_adverb)
+
+    def filter(tokens):
+        filtered_text = tokens[0].text_with_ws
+        for token in tokens[1:]:
+            # If token is not a keyword or is a dependency of a new sentence's opener:
+            if not is_keyword(token) or (token.head == tokens[0] and new_sentence):
+                if token.tag_ == "HYPH":
+                    filtered_text += " "
+                else:
+                    filtered_text += token.text_with_ws
+            else:
+                filtered_text += obscure(token)
+
+        return filtered_text.strip()
+
+    # Process the text with spaCy
+    processed_text = nlp(completion)
+
+    # Remove words with desired POS tags and convert to str
+    filtered_text = filter(processed_text)
+
+    return GenerationResult(
+        generation_type="Structure",
+        result=filtered_text.replace("· ·", "···").replace("· ·", "···"),
+        extra_data={"completion": completion}
+    )
+
+
+# Rhetorical Move
+async def rmove(prompt: str) -> GenerationResult:
+    #final_sentence = get_final_sentence(prompt)
+
+    temperature = 1.0
+
+    move_prompt = f"You are a writing assistant. Name a rhetorical category the next sentence in the given document should fulfill. Answer in the following format: <Category>: <Instruction>. Use no more than 10 words."
+
+    full_prompt = (
+        f"{move_prompt}\n\n{prompt}"
+    )
+
+    rhetorical_move = await chat(
+        messages=[
+            {"role": "user", "content": full_prompt},
+        ],
+        temperature=temperature,
+    )
+
+    return GenerationResult(
+        generation_type="RMove",
+        result=rhetorical_move,
+        extra_data={
+            "temperature": temperature,
+            #"is_full_sentence": is_full_sentence(final_sentence),
+            "move_prompt": move_prompt,
+        }
     )

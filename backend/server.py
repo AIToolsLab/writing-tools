@@ -1,41 +1,47 @@
 import os
 import json
-import sqlite3
-
-import openai
-import uvicorn
 
 from typing import List, Dict, Optional
 from pathlib import Path
+from datetime import datetime
+
+import uvicorn
+import asyncio
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from sse_starlette import EventSourceResponse
+from sse_starlette.sse import EventSourceResponse
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from dotenv import load_dotenv
 
-from nlp import (
-    gen_reflections_chat,
-    ReflectionResponseInternal
-)
+import nlp
 
 # Load ENV vars
 load_dotenv()
 
-openai.organization = os.getenv("OPENAI_ORGANIZATION") or "org-9bUDqwqHW2Peg4u47Psf9uUo"
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-if openai.api_key is None:
-    raise Exception("OPENAI_API_KEY is not set. Please set it in a .env file.")
+LOG_PATH = Path("./logs").absolute()
 
 DEBUG = os.getenv("DEBUG") or False
-PORT = int(os.getenv("PORT") or "8000")
+PORT = int(os.getenv("PORT") or 8000)
+
+# FIXME: Use auth0 instead
+LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
+print(f"Log secret: {LOG_SECRET!r}")
 
 # Declare Types
+
+
+class GenerationRequestPayload(BaseModel):
+    username: str
+    gtype: str
+    prompt: str
+
+
+
 class ReflectionRequestPayload(BaseModel):
     username: str
     paragraph: str # TODO: update name
@@ -51,17 +57,26 @@ class ChatRequestPayload(BaseModel):
     messages: List[Dict[str, str]]
     username: str
 
-class Log(BaseModel):
-    username: str
-    interaction: str # "chat", "reflection", "click", "page_change"
-    prompt: Optional[str] = None
-    ui_id: Optional[str] = None
 
+class Log(BaseModel):
+    model_config = ConfigDict(extra='allow')
+    timestamp: float
+    ok: bool = True
+    username: str
+    interaction: str
+
+
+class GenerationLog(Log):
+    prompt: str
+    result: str
+    completion: Optional[str] = None
+    delay: float
+
+
+# Initialize Server
 app = FastAPI()
 
-origins = [
-    "*",
-]
+origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -71,39 +86,46 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-db_file = 'backend.db'
 
-with sqlite3.connect(db_file) as conn:
-    c = conn.cursor()
+# Routes
+@app.post("/api/generation")
+async def generation(payload: GenerationRequestPayload) -> nlp.GenerationResult:
+    '''
+    To test this endpoint from curl:
 
-    c.execute(
-        "CREATE TABLE IF NOT EXISTS logs (timestamp, username, interaction, prompt, ui_id)"
+    $ curl -X POST -H "Content-Type: application/json" -d '{"username": "test", "gtype": "Completion_Backend", "prompt": "This is a test prompt."}' http://localhost:8000/api/generation
+    '''
+    start_time = datetime.now()
+    if payload.gtype == "Completion_Backend":
+        result = await nlp.chat_completion(payload.prompt)
+    elif payload.gtype == "Question_Backend":
+        result = await nlp.question(payload.prompt)
+    elif payload.gtype == "Keywords_Backend":
+        result = await nlp.keywords(payload.prompt)
+    elif payload.gtype == "Structure_Backend":
+        result = await nlp.structure(payload.prompt)
+    elif payload.gtype == "RMove_Backend":
+        result = await nlp.rmove(payload.prompt)
+    else:
+        raise ValueError(f"Invalid generation type: {payload.gtype}")
+    end_time = datetime.now()
+
+    log_entry = GenerationLog(
+            timestamp=end_time.timestamp(),
+            username=payload.username,
+            interaction=payload.gtype,
+            prompt=payload.prompt,
+            result=result.result,
+            delay=(end_time - start_time).total_seconds(),
     )
+    # add on extra data
+    for key, value in result.extra_data.items():
+        if not hasattr(log_entry, key):
+            setattr(log_entry, key, value)
+    make_log(log_entry)
 
-def make_log(payload: Log):
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
+    return result
 
-        c.execute(
-            "INSERT INTO logs (timestamp, username, interaction, prompt, ui_id) "
-            "VALUES (datetime('now'), ?, ?, ?, ?)",
-            (payload.username, payload.interaction, payload.prompt, payload.ui_id),
-        )
-
-async def get_reflections(
-    request: ReflectionRequestPayload,
-) -> ReflectionResponses:
-    reflections_internal = await gen_reflections_chat(
-        writing=request.paragraph,
-        prompt=request.prompt,
-    )
-
-    return ReflectionResponses(
-        reflections=[
-            ReflectionResponseItem(reflection=reflection)
-            for reflection in reflections_internal.reflections
-        ]
-    )
 
 
 @app.post("/api/reflections")
@@ -112,19 +134,13 @@ async def reflections(payload: ReflectionRequestPayload):
         Log(username=payload.username, interaction="reflection", prompt=payload.prompt, ui_id=None)
     )
 
-    return await get_reflections(payload)
+    return await nlp.reflection(prompt=payload.prompt, paragraph=payload.paragraph)
 
 @app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
-    response = await openai.ChatCompletion.acreate(
-        model="gpt-3.5-turbo",
+    response = await nlp.chat_stream(
         messages=payload.messages,
         temperature=0.7,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        stream=True
     )
 
     make_log(
@@ -138,28 +154,67 @@ async def chat(payload: ChatRequestPayload):
 
     return EventSourceResponse(generator())
 
-@app.post("/log")
+
+@app.post("/api/log")
 async def log_feedback(payload: Log):
     make_log(payload)
 
     return {"message": "Feedback logged successfully."}
 
+
 # Show all server logs
-@app.get("/logs")
-async def logs():
-    with sqlite3.connect(db_file) as conn:
-        c = conn.cursor()
-        c.execute("SELECT * FROM logs")
+@app.get("/api/logs")
+async def logs(secret: str):
+    async def log_generator():
+        assert LOG_SECRET != "", "Logging secret not set."
+        if secret != LOG_SECRET:
+            yield json.dumps({"error": "Invalid secret."})
+            return
 
-        result = c.fetchall()
+        log_positions = {}
 
-    return result
+        while True:
+            updates = []
+            log_files = {
+                participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
 
-static_path = Path('../add-in/dist')
+            for username, log_file in log_files.items():
+                with open(log_file, "r") as file:
+                    file.seek(log_positions.get(username, 0))
+                    new_lines = file.readlines()
+
+                    if new_lines:
+                        updates.append({
+                            "username": username,
+                            "logs": [json.loads(line) for line in new_lines],
+                        })
+                        log_positions[username] = file.tell()
+
+            if updates:
+                yield json.dumps(updates)
+
+            await asyncio.sleep(1)  # Adjust the sleep time as needed
+
+    return EventSourceResponse(log_generator())
+
+
+def get_participant_log_filename(username):
+    assert "/" not in username, "Invalid username."
+    return LOG_PATH / f"{username}.jsonl"
+
+
+# Helper functions
+def make_log(payload: Log):
+    with open(get_participant_log_filename(payload.username), "a+") as f:
+        f.write(json.dumps(payload.model_dump()) + "\n")
+
+
+static_path = Path("../add-in/dist")
 if static_path.exists():
+
     @app.get("/")
     def index():
-        return FileResponse(static_path / 'index.html')
+        return FileResponse(static_path / "index.html")
 
     # Get access to files on the server. Only for a production build.
     app.mount("", StaticFiles(directory=static_path), name="static")
@@ -169,4 +224,4 @@ else:
 
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="localhost", port=PORT)
+    uvicorn.run("server:app", host="localhost", port=PORT, reload=False)
