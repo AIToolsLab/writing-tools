@@ -21,5 +21,7 @@ When necessary, implement interface methods for communicating with the back-end.
 
 1. Clone this repository.
 2. Create and activate a new conda environment.
-3. Run `pip install -r requirements.txt`.
-4. Run `uvicorn server:app --host localhost --port 5000 --reload` (or whatever port number you want)
+3. Run `pip install -r requirements.txt`
+4. Run `az login` to authenticate with Azure.
+5. Run `python get_env.py` to create the `.env` file.
+6. Run `uvicorn server:app --host localhost --port 8000 --reload`
