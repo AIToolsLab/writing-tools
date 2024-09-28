@@ -17,7 +17,8 @@ DATABASE_URI_SECRET_NAME = "TestTextfocalsDBURI"
 
 # Set DEBUG_STATUS to "False" if running on production machine, "True" otherwise
 DEBUG_STATUS = "False" if socket.getfqdn() == "ds1.cs.calvin.edu" else "True"
-PORT = "19570"
+# Prod runs on 19570, dev runs on 8000
+PORT = "19571" if DEBUG_STATUS == "False" else "8000"
 
 
 def get_keyvault(vault_name: str) -> SecretClient:
@@ -37,10 +38,12 @@ def create_env():
         "DATABASE_URI": vault.get_secret(DATABASE_URI_SECRET_NAME).value,
         "DEBUG": DEBUG_STATUS,
         "PORT": PORT,
+        "LOG_SECRET": vault.get_secret("LoggingSecret").value,
     }
 
     with open(".env", "w") as f:
-        f.write("\n".join([f"{key}={value}" for key, value in config.items()]))
+        for key, value in config.items():
+            f.write(f'{key}="{value}"\n')
 
 
 if __name__ == "__main__":
