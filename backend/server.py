@@ -41,6 +41,23 @@ class GenerationRequestPayload(BaseModel):
     prompt: str
 
 
+
+class ReflectionRequestPayload(BaseModel):
+    username: str
+    paragraph: str # TODO: update name
+    prompt: str
+
+class ReflectionResponseItem(BaseModel):
+    reflection: str
+
+class ReflectionResponses(BaseModel):
+    reflections: List[ReflectionResponseItem]
+
+class ChatRequestPayload(BaseModel):
+    messages: List[Dict[str, str]]
+    username: str
+
+
 class Log(BaseModel):
     model_config = ConfigDict(extra='allow')
     timestamp: float
@@ -56,7 +73,7 @@ class GenerationLog(Log):
     delay: float
 
 
-# Initliaze Server
+# Initialize Server
 app = FastAPI()
 
 origins = ["*"]
@@ -108,6 +125,36 @@ async def generation(payload: GenerationRequestPayload) -> nlp.GenerationResult:
     make_log(log_entry)
 
     return result
+
+
+
+@app.post("/api/reflections")
+async def reflections(payload: ReflectionRequestPayload):
+    # TODO: Merge this in and fix logging.
+    #make_log(
+    #    Log(username=payload.username, interaction="reflection", prompt=payload.prompt, ui_id=None)
+    #)
+
+    return await nlp.reflection(prompt=payload.prompt, paragraph=payload.paragraph)
+
+@app.post("/api/chat")
+async def chat(payload: ChatRequestPayload):
+    response = await nlp.chat_stream(
+        messages=payload.messages,
+        temperature=0.7,
+    )
+
+    # TODO: Fix logging
+    #make_log(
+    #    Log(username=payload.username, interaction="chat", prompt=payload.messages[-1]['content'], ui_id=None)
+    #)
+
+    # Stream response
+    async def generator():
+        async for chunk in response:
+            yield json.dumps(chunk)
+
+    return EventSourceResponse(generator())
 
 
 @app.post("/api/log")

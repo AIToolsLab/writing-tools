@@ -73,6 +73,18 @@ async def chat(messages: Iterable[ChatCompletionMessageParam], temperature: floa
     # FIXME: figure out why result might ever be None
     return result or ""
 
+def chat_stream(messages: Iterable[ChatCompletionMessageParam], temperature: float):
+    return openai_client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=1024,
+        top_p=1,
+        frequency_penalty=0,
+        presence_penalty=0,
+        stream=True,
+    )
+
 
 async def completion(prompt: str):
     # Generate a completion based on the now-complete last sentence.
@@ -93,8 +105,7 @@ async def completion(prompt: str):
 
 
 class GenerationResult(BaseModel):
-    # Completion, Question, Keywords, Structure, RMove
-    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove"]
+    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove", "Reflection"]
     result: str
     extra_data: Dict[str, Any]
 
@@ -173,6 +184,26 @@ async def question(prompt: str) -> GenerationResult:
             "example_completion_data": example_completion_data,
             "is_full_sentence": is_full_sentence(final_sentence),
             "max_length": max_length,
+        })
+
+
+async def reflection(prompt: str, paragraph: str) -> GenerationResult:
+    temperature = 1.0
+
+    questions = await chat(
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": paragraph},
+        ],
+        temperature=temperature,
+    )
+
+    return GenerationResult(
+        generation_type="Reflection",
+        result=questions,
+        extra_data={
+            "prompt": prompt,
+            "temperature": temperature,
         })
 
 
