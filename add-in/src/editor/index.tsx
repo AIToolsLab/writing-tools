@@ -13,13 +13,15 @@ import ChatContextWrapper from '../contexts/chatContext';
 import classes from './styles.module.css';
 
 function Sidebar({editorAPI}: { editorAPI: EditorAPI }) {
-	return <ChatContextWrapper>
-<UserContextWrapper>
-	<PageContextWrapper>
-	<SidebarInner.default editorAPI={editorAPI}/>
-	</PageContextWrapper>
-	</UserContextWrapper>
-	</ChatContextWrapper>;;
+	return (
+		<ChatContextWrapper>
+			<UserContextWrapper>
+				<PageContextWrapper>
+					<SidebarInner.default editorAPI={editorAPI}/>
+				</PageContextWrapper>
+			</UserContextWrapper>
+		</ChatContextWrapper>
+	);
 }
 
 function App() {
