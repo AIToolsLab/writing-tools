@@ -37,6 +37,7 @@ export async function getReflection(
 		const key = JSON.stringify({ prompt, paragraph });
 
 		const cachedResponse = localStorage.getItem(key);
+		// ASSUMES that cachedResponse is valid JSON
 
 		if (cachedResponse) return JSON.parse(cachedResponse);
 
@@ -56,12 +57,23 @@ export async function getReflection(
 
 		if (!response.ok) throw new Error('Request failed ' + response.status);
 
-		const responseData: ReflectionResponses = await response.json();
+		const responseData: GenerationResult = await response.json();
+		// console.log('responseData', responseData);
 
-		localStorage.setItem(key, JSON.stringify(responseData.reflections));
+		// HACK: fake a list of ReflectionResponseItem objects
+		const relfectionResponses = [
+			{
+				reflection: responseData.result
+			}
+		];
 
-		return responseData.reflections;
+		localStorage.setItem(key, JSON.stringify(relfectionResponses));
+
+		return relfectionResponses;
 	} catch (error) {
+		// TODO: Log errors better
+		// console.error(error);
+		// debugger;
 		return [];
 	}
 }

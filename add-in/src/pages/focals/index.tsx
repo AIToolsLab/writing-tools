@@ -26,6 +26,13 @@ export default function Focals() {
 
 	const [prompt, updatePrompt] = useState(defaultPrompt);
 
+	// console.log({
+	// 	paragraphTexts,
+	// 	curParagraphText,
+	// 	reflections,
+	// 	prompt
+	// });
+
 	/**
 	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
 	 * This function retrieves and loads all paragraphs from the Word document and extracts their text content.
