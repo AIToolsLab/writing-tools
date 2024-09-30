@@ -41,17 +41,19 @@ class GenerationRequestPayload(BaseModel):
     prompt: str
 
 
-
 class ReflectionRequestPayload(BaseModel):
     username: str
-    paragraph: str # TODO: update name
+    paragraph: str  # TODO: update name
     prompt: str
+
 
 class ReflectionResponseItem(BaseModel):
     reflection: str
 
+
 class ReflectionResponses(BaseModel):
     reflections: List[ReflectionResponseItem]
+
 
 class ChatRequestPayload(BaseModel):
     messages: List[Dict[str, str]]
@@ -111,12 +113,12 @@ async def generation(payload: GenerationRequestPayload) -> nlp.GenerationResult:
     end_time = datetime.now()
 
     log_entry = GenerationLog(
-            timestamp=end_time.timestamp(),
-            username=payload.username,
-            interaction=payload.gtype,
-            prompt=payload.prompt,
-            result=result.result,
-            delay=(end_time - start_time).total_seconds(),
+        timestamp=end_time.timestamp(),
+        username=payload.username,
+        interaction=payload.gtype,
+        prompt=payload.prompt,
+        result=result.result,
+        delay=(end_time - start_time).total_seconds(),
     )
     # add on extra data
     for key, value in result.extra_data.items():
@@ -127,15 +129,15 @@ async def generation(payload: GenerationRequestPayload) -> nlp.GenerationResult:
     return result
 
 
-
 @app.post("/api/reflections")
 async def reflections(payload: ReflectionRequestPayload):
     # TODO: Merge this in and fix logging.
-    #make_log(
+    # make_log(
     #    Log(username=payload.username, interaction="reflection", prompt=payload.prompt, ui_id=None)
-    #)
+    # )
 
     return await nlp.reflection(prompt=payload.prompt, paragraph=payload.paragraph)
+
 
 @app.post("/api/chat")
 async def chat(payload: ChatRequestPayload):
@@ -145,14 +147,15 @@ async def chat(payload: ChatRequestPayload):
     )
 
     # TODO: Fix logging
-    #make_log(
+    # make_log(
     #    Log(username=payload.username, interaction="chat", prompt=payload.messages[-1]['content'], ui_id=None)
-    #)
+    # )
 
     # Stream response
     async def generator():
         async for chunk in response:
-            yield json.dumps(chunk)
+            # chunk is a ChatCompletionChunk object
+            yield chunk.model_dump_json()
 
     return EventSourceResponse(generator())
 
