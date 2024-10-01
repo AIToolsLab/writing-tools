@@ -2,7 +2,7 @@ import { useRef } from 'react';
 import ReactDOM from 'react-dom';
 
 //import QvE from '@/pages/qve';
-import * as SidebarInner from "@/pages/app";
+import * as SidebarInner from '@/pages/app';
 
 import LexicalEditor from './editor';
 
@@ -12,12 +12,12 @@ import ChatContextWrapper from '../contexts/chatContext';
 
 import classes from './styles.module.css';
 
-function Sidebar({editorAPI}: { editorAPI: EditorAPI }) {
+function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 	return (
 		<ChatContextWrapper>
 			<UserContextWrapper>
 				<PageContextWrapper>
-					<SidebarInner.default editorAPI={editorAPI}/>
+					<SidebarInner.default editorAPI={ editorAPI }/>
 				</PageContextWrapper>
 			</UserContextWrapper>
 		</ChatContextWrapper>

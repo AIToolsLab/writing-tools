@@ -70,7 +70,8 @@ export async function getReflection(
 		localStorage.setItem(key, JSON.stringify(relfectionResponses));
 
 		return relfectionResponses;
-	} catch (error) {
+	}
+ catch (error) {
 		// TODO: Log errors better
 		// console.error(error);
 		// debugger;
