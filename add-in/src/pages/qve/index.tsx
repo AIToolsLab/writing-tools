@@ -105,7 +105,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	const [errorMsg, updateErrorMsg] = useState('');
 
 	const [generationMode, updateGenerationMode] = useState('None');
-	const [positionalSensitivity, setPositionalSensitivity] = useState(true);
 
 	const IS_OBSCURED = false;
 
@@ -157,7 +156,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	}
 
 	async function getAndUpdateDocContext() {
-		const docText = await getDocContext(positionalSensitivity);
+		const docText = await getDocContext(true);
 		updateDocContext(docText);
 	}
 
@@ -243,7 +242,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 			removeSelectionChangeHandler(getAndUpdateDocContext);
 			removeSelectionChangeHandler(getAndUpdateCursorPosInfo);
 		};
-	}, [positionalSensitivity]);
+	}, []);
 
 	let results = null;
 
