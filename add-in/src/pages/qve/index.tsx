@@ -19,9 +19,13 @@ import {
 	AiOutlineDown
 } from 'react-icons/ai';
 
+
+
+
 import { SERVER_URL, log } from '@/api';
 
 import classes from './styles.module.css';
+import SavedGenerations from './savedGenerations';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
@@ -520,7 +524,22 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 				</div>
 
 				{ /* Saved generations */ }
-				<div className={ classes.historyContainer }>
+				<SavedGenerations 
+					docContext= { docContext }
+					isSavedOpen= { isSavedOpen }
+					setSavedOpen= { setSavedOpen }
+					saved={ saved }
+					isLoading={ isLoading }
+					tooltipVisible={ tooltipVisible }
+					setTooltipVisible={ setTooltipVisible }
+					setCopyWarningTooltipVisible={ setCopyWarningTooltipVisible }
+					savedItems={ savedItems }
+					IS_OBSCURED={ IS_OBSCURED }
+					deleteSavedItem={ deleteSavedItem }
+					USE_WORDCLOUD={ USE_WORDCLOUD }
+				/>
+
+				{  /* <div className={ classes.historyContainer }>
 					<div className={ classes.historyButtonWrapper }>
 						<button
 							className={ classes.historyButton }
@@ -687,7 +706,8 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 							))
 						) }
 					</div>
-				</div>
+				</div> */  }
+
 			</div>
 		</div>
 	);

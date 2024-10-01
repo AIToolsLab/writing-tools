@@ -25,7 +25,7 @@ export default function App({  editorAPI }: HomeProps) {
 	const { page } = useContext(PageContext);
 
 	// eslint-disable-next-line eqeqeq
-	let trueEditorAPI = (editorAPI == null) ? wordEditorAPI : editorAPI;
+	const trueEditorAPI = (editorAPI == null) ? wordEditorAPI : editorAPI;
 
 	function getComponent(pageName: string) {
 		if (pageName === 'reflections') return <Home />;
