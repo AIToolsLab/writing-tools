@@ -34,6 +34,8 @@ export default function App({  editorAPI }: HomeProps) {
 		if (pageName === 'searchbar') return <SearchBar />;
 		if (pageName === 'chat') return <Chat />;
 		if (pageName === 'qve') return <QvE editorAPI={ trueEditorAPI } />;
+		
+		// eslint-disable-next-line no-console
 		console.error('Invalid page name', pageName);
 	}
 
