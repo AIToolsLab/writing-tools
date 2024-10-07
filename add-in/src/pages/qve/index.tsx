@@ -19,7 +19,7 @@ import {
 	AiOutlineDown
 } from 'react-icons/ai';
 
-
+import { iconFunc } from './iconFunc';
 
 
 import { SERVER_URL, log } from '@/api';
@@ -92,7 +92,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	const [saved, setSaved] = useState(false);
 
 	// State for saved page
-	const [isSavedOpen, setSavedOpen] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 
 	// Tooltip visibility
@@ -311,39 +310,8 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 								: classes.genTypeIconWrapper_obscured
 						}
 					>
-						{ generationMode === 'Completion' ? (
-							IS_OBSCURED ? (
-								'a'
-							) : (
-								<AiOutlineAlignLeft
-									className={ classes.savedTypeIcon }
-								/>
-							)
-						) : generationMode === 'Question' ? (
-							IS_OBSCURED ? (
-								'b'
-							) : (
-								<AiOutlineQuestion
-									className={ classes.savedTypeIcon }
-								/>
-							)
-						) : generationMode === 'Keywords' ? (
-							IS_OBSCURED ? (
-								'c'
-							) : (
-								<AiOutlineHighlight
-									className={ classes.savedTypeIcon }
-								/>
-							)
-						) : generationMode === 'RMove' ? (
-							IS_OBSCURED ? (
-								'd'
-							) : (
-								<AiOutlineBank
-									className={ classes.savedTypeIcon }
-								/>
-							)
-						) : null }
+						{ iconFunc(generationMode) }
+							
 					</div>
 				</div>
 			</div>
@@ -526,17 +494,10 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 				{ /* Saved generations */ }
 				<SavedGenerations 
 					docContext= { docContext }
-					isSavedOpen= { isSavedOpen }
-					setSavedOpen= { setSavedOpen }
 					saved={ saved }
 					isLoading={ isLoading }
-					tooltipVisible={ tooltipVisible }
-					setTooltipVisible={ setTooltipVisible }
-					setCopyWarningTooltipVisible={ setCopyWarningTooltipVisible }
 					savedItems={ savedItems }
-					IS_OBSCURED={ IS_OBSCURED }
 					deleteSavedItem={ deleteSavedItem }
-					USE_WORDCLOUD={ USE_WORDCLOUD }
 				/>
 
 				{  /* <div className={ classes.historyContainer }>

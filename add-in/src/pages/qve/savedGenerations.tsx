@@ -3,54 +3,33 @@ import { AiOutlineStar,
     AiOutlineUp, 
     AiOutlineDown, 
     AiOutlineClose, 
-    AiOutlineQuestion, 
-    AiOutlineHighlight, 
-    AiOutlineAlignLeft,
-    AiOutlineBank
 } from 'react-icons/ai';
 
 import ReactWordcloud from 'react-wordcloud';
 import { Remark } from 'react-remark';
+import { iconFunc } from './iconFunc';
+import { useState } from 'react';
 
 
 
+export default function SavedGenerations({ 
+    docContext,  
+    saved, 
+    isLoading,
+    savedItems, 
+    deleteSavedItem,
+}: { 
+    docContext: string, 
+    saved: boolean, 
+    isLoading: boolean 
+    savedItems: SavedItem[],
+    deleteSavedItem: (dateSaved: Date) => void,
+}) {
+    const [isSavedOpen, setSavedOpen] = useState(false);
 
-
-export default function SavedGenerations( 
-    { 
-        docContext, 
-        isSavedOpen, 
-        setSavedOpen, 
-        saved, 
-        isLoading, 
-        tooltipVisible, 
-        setTooltipVisible, 
-        setCopyWarningTooltipVisible, 
-        savedItems, 
-        IS_OBSCURED,
-        deleteSavedItem,
-        USE_WORDCLOUD
-    }: 
-    { 
-        docContext: string, 
-        isSavedOpen: boolean, 
-        setSavedOpen: (isSavedOpen: boolean) => void, 
-        saved: boolean, 
-        isLoading: boolean 
-        tooltipVisible: string | null,
-        setTooltipVisible: (tooltipVisible: string | null) => void,
-        setCopyWarningTooltipVisible: (copyWarningTooltipVisible: boolean) => void,
-        savedItems: SavedItem[],
-        IS_OBSCURED: boolean,
-        deleteSavedItem: (dateSaved: Date) => void,
-        USE_WORDCLOUD: boolean,
-    }  
-    ) {
-
-
-        // TODO: need to refactor this 
+    // TODO: need to refactor this 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
-	if (USE_WORDCLOUD && generation.generation_type === 'Keywords') {
+	if (generation.generation_type === 'Keywords') {
 		// Show all keywords as a word cloud
 		const keywords = generation.extra_data.words_by_pos;
 		// Collect all of the words
@@ -71,7 +50,6 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 }
 
 
-
     return (
         <div className={ classes.historyContainer }>
             <div className={ classes.historyButtonWrapper }>
@@ -82,11 +60,6 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
                         // Toggle between the current page and the saved page
                         setSavedOpen(!isSavedOpen);
                     } }
-                    onMouseEnter={ () => setTooltipVisible('Saved') }
-                    onMouseLeave={ () => {
-                        setTooltipVisible(null);
-                        setCopyWarningTooltipVisible(false);
-                    } }
                 >
                     <div
                         className={
@@ -96,42 +69,38 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
                         <AiOutlineStar
                             className={
                                 isSavedOpen || saved
-                                    ? classes.savedPageIconActive
+                                    ? classes.savedPageIconActive   
                                     : classes.savedPageIcon
                             }
                         />
                         { isSavedOpen ? (
-                            <AiOutlineUp
-                                className={
-                                    classes.savedPageIconIndicator
-                                }
-                            />
+                            <AiOutlineUp className={ classes.savedPageIconIndicator } />
                         ) : (
-                            <AiOutlineDown
-                                className={
-                                    classes.savedPageIconIndicator
-                                }
-                            />
+                            <AiOutlineDown className={ classes.savedPageIconIndicator } />
                         ) }
                     </div>
+                    { isSavedOpen && (
+                    <div className={ classes.savedPageTooltip }>
+                        Show Saved Items
+                    </div>
+                    ) }
+                    { !isSavedOpen && (
+                    <div className={ classes.savedPageTooltip }>
+                        Hide Saved Items
+                    </div>
+                    ) }
                 </button>
-                { tooltipVisible === 'Saved' &&
-                    (!isSavedOpen ? (
-                        <div className={ classes.savedPageTooltip }>
-                            Show Saved Items
-                        </div>
-                    ) : (
-                        <div className={ classes.savedPageTooltip }>
-                            Hide Saved Items
-                        </div>
-                    )) }
+
             </div>
 
             <div className={ classes.historyItemContainer }>
+
+                { /* can we use || ? */ }
+
                 { isSavedOpen && savedItems.length === 0 ? (
                     <div className={ classes.historyEmptyWrapper }>
                         <div className={ classes.historyText }>
-                            No saved generations...
+                            No saved generations... 
                         </div>
                     </div>
                 ) : (
@@ -143,21 +112,15 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
                             className={ classes.historyItem }
                         >
                             <div className={ classes.historyText }>
-                                <p
-                                    className={ classes.historyDoc }
-                                    onClick={ () => {
-                                        // Show the whole document text
-                                    } }
-                                >
+                                <p className={ classes.historyDoc }  
+                                onClick={ () => { 
+                                    // Show the whole document text
+                                } }     >
                                     ...
-                                    { savedItem.document.substring(
-                                        savedItem.document.length - 100
-                                    ) }
+                                    { savedItem.document.substring(savedItem.document.length - 100    ) }
                                 </p>
 
-                                <GenerationResult
-                                    generation={ savedItem.generation }
-                                />
+                                <GenerationResult generation={ savedItem.generation } />
                             </div>
                             <div
                                 className={ classes.savedIconsContainer }
@@ -180,60 +143,10 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
                                 </div>
                                 <div
                                     className={
-                                        !IS_OBSCURED
-                                            ? classes.genTypeIconWrapper
-                                            : classes.genTypeIconWrapper_obscured
+                                        classes.genTypeIconWrapper
                                     }
                                 >
-                                    { savedItem.generation
-                                        .generation_type ===
-                                        'Completion' ? (
-                                        IS_OBSCURED ? (
-                                            'a'
-                                        ) : (
-                                            <AiOutlineAlignLeft
-                                                className={
-                                                    classes.savedTypeIcon
-                                                }
-                                            />
-                                        )
-                                    ) : savedItem.generation
-                                        .generation_type ===
-                                        'Question' ? (
-                                        IS_OBSCURED ? (
-                                            'b'
-                                        ) : (
-                                            <AiOutlineQuestion
-                                                className={
-                                                    classes.savedTypeIcon
-                                                }
-                                            />
-                                        )
-                                    ) : savedItem.generation
-                                        .generation_type ===
-                                        'Keywords' ? (
-                                        IS_OBSCURED ? (
-                                            'c'
-                                        ) : (
-                                            <AiOutlineHighlight
-                                                className={
-                                                    classes.savedTypeIcon
-                                                }
-                                            />
-                                        )
-                                    ) : savedItem.generation
-                                        .generation_type ===
-                                        'RMove' ? (
-                                        IS_OBSCURED ? (
-                                            'd'
-                                        ) : (
-                                            <AiOutlineBank
-                                                className={
-                                                    classes.savedTypeIcon
-                                                }
-                                            />
-                                        )
-                                    ) : null }
+                                    { iconFunc(savedItem.generation.generation_type) }
                                 </div>
                             </div>
                         </div>
