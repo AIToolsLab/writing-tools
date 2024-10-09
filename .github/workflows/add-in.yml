@@ -22,7 +22,7 @@ jobs:
             - name: Set up Node.js
               uses: actions/setup-node@v3
 
-            - run: npm i
+            - run: yarn
               working-directory: ./add-in
-            - run: npm run lint
+            - run: yarn lint
               working-directory: ./add-in
