@@ -28,10 +28,7 @@ export function RhetoricalContextBox(
                 label="More Options"
                 inlineLabel
                 onChange={ (_event, checked) => {
-                    if (checked)
-                        updateRhetCtxtBoxVisible(true);
-                    else
-                        updateRhetCtxtBoxVisible(false);
+                    updateRhetCtxtBoxVisible(!!checked);
                 } }
                 checked={ rhetCtxtBoxVisible }
             />
