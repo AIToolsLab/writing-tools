@@ -9,6 +9,7 @@ dependencies = [
     "azure-keyvault-secrets>=4.8.0",
     "en-core-web-sm",
     "fastapi>=0.115.0",
+    "gunicorn>=23.0.0",
     "openai>=1.47.0",
     "python-dotenv>=1.0.1",
     "spacy>=3.8",
