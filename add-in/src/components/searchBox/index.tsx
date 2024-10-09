@@ -16,10 +16,10 @@ export function SearchBox(
     const { updateSubmittedPrompt: updateSubmittedPrompt, promptSuggestions: promptSuggestions } = props;
 
     const [prevPrompts, updatePrevPrompts] = useState<string[]>([]); // Search history
-    const [searchBoxText, updateSearchBoxText] = useState('');
-    const [searchBoxTextSent, updateSearchBoxTextSent] = useState(false);
-    const [dropdownVisible, updateDropdownVisible] = useState(false);
-    const [isDropdownClicked, setIsDropdownClicked] = useState(false);
+    const [searchBoxText, updateSearchBoxText] = useState('');      // Current search text
+    const [searchBoxTextSent, updateSearchBoxTextSent] = useState(false); // Whether search text has been submitted
+    const [dropdownVisible, updateDropdownVisible] = useState(false); // Whether searchbar dropdown is visible
+    const [isDropdownClicked, setIsDropdownClicked] = useState(false); // Whether searchbar dropdown is clicked
 
     // Filter the prompt lists based on the current prompt
     const filteredNewPromptList = promptSuggestions.filter((prompt) =>
@@ -70,6 +70,7 @@ export function SearchBox(
                             updateSubmittedPrompt(searchBoxText);
                             updateSearchBoxTextSent(true);
                             // Prepend submitted prompt to search history storing up to 25 prompts
+                            // TODO: Find better number for max history length
                             prevPrompts.unshift(searchBoxText);
                             if (prevPrompts.length > 25) {
                                 prevPrompts.pop();
@@ -80,6 +81,8 @@ export function SearchBox(
                         updateDropdownVisible(true);
                     } }
                     onBlur={ () => {
+                        // To solve the issue of the dropdown disappearing when clicking on a suggestion
+                        // Solution: delay hiding the dropdown by 100ms
                         if (!isDropdownClicked) { // Don't hide dropdown if holding click on dropdown
                             setTimeout(() => {
                                 updateDropdownVisible(false);
@@ -116,6 +119,7 @@ export function SearchBox(
                         { /* Only show 3 past searches */ }
                         { filteredHistoryList.slice(0, 3).map((prompt: string, index: number) => {
                             return (
+                                // TODO: make it a valid DOM structure (ul should have li as children)
                                 <div className={ classes.historySuggestionContainer }>
                                     <li
                                         className={ classes.searchBoxDropdownItem }
