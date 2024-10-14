@@ -270,6 +270,8 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 						{ genCtxText.length > 100 ? '...' : '' }
 						{ genCtxText.substring(genCtxText.length - 100) }
 					</div>
+					
+					{ /* Question: do we need this? */ }
 					{ false && tooltipVisible === 'GenCtx' && (
 						<div
 							className={ [
@@ -380,6 +382,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 
 				{ /* Close and Save button container */ }
 				<div className={ classes.utilsContainer }>
+					{ /* Question: do we need this? */ }
 					{ copied && (
 						<div className={ classes.utilStateWrapper }>
 							<div className={ classes.copiedStateText }>
@@ -481,176 +484,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 					savedItems={ savedItems }
 					deleteSavedItem={ deleteSavedItem }
 				/>
-
-				{  /* <div className={ classes.historyContainer }>
-					<div className={ classes.historyButtonWrapper }>
-						<button
-							className={ classes.historyButton }
-							disabled={ docContext.trim() === '' || isLoading }
-							onClick={ () => {
-								// Toggle between the current page and the saved page
-								setSavedOpen(!isSavedOpen);
-							} }
-							onMouseEnter={ () => setTooltipVisible('Saved') }
-							onMouseLeave={ () => {
-								setTooltipVisible(null);
-								setCopyWarningTooltipVisible(false);
-							} }
-						>
-							<div
-								className={
-									classes.savedPageIconIndicatorContainer
-								}
-							>
-								<AiOutlineStar
-									className={
-										isSavedOpen || saved
-											? classes.savedPageIconActive
-											: classes.savedPageIcon
-									}
-								/>
-								{ isSavedOpen ? (
-									<AiOutlineUp
-										className={
-											classes.savedPageIconIndicator
-										}
-									/>
-								) : (
-									<AiOutlineDown
-										className={
-											classes.savedPageIconIndicator
-										}
-									/>
-								) }
-							</div>
-						</button>
-						{ tooltipVisible === 'Saved' &&
-							(!isSavedOpen ? (
-								<div className={ classes.savedPageTooltip }>
-									Show Saved Items
-								</div>
-							) : (
-								<div className={ classes.savedPageTooltip }>
-									Hide Saved Items
-								</div>
-							)) }
-					</div>
-
-					<div className={ classes.historyItemContainer }>
-						{ isSavedOpen && savedItems.length === 0 ? (
-							<div className={ classes.historyEmptyWrapper }>
-								<div className={ classes.historyText }>
-									No saved generations...
-								</div>
-							</div>
-						) : (
-							isSavedOpen &&
-							savedItems.length !== 0 &&
-							savedItems.map((savedItem, index) => (
-								<div
-									key={ index }
-									className={ classes.historyItem }
-								>
-									<div className={ classes.historyText }>
-										<p
-											className={ classes.historyDoc }
-											onClick={ () => {
-												// Show the whole document text
-											} }
-										>
-											...
-											{ savedItem.document.substring(
-												savedItem.document.length - 100
-											) }
-										</p>
-
-										<GenerationResult
-											generation={ savedItem.generation }
-										/>
-									</div>
-									<div
-										className={ classes.savedIconsContainer }
-									>
-										<div
-											className={
-												classes.historyCloseButtonWrapper
-											}
-											onClick={ () =>
-												deleteSavedItem(
-													savedItem.dateSaved
-												)
-											}
-										>
-											<AiOutlineClose
-												className={
-													classes.historyCloseButton
-												}
-											/>
-										</div>
-										<div
-											className={
-												!IS_OBSCURED
-													? classes.genTypeIconWrapper
-													: classes.genTypeIconWrapper_obscured
-											}
-										>
-											{ savedItem.generation
-												.generation_type ===
-											'Completion' ? (
-												IS_OBSCURED ? (
-													'a'
-												) : (
-													<AiOutlineAlignLeft
-														className={
-															classes.savedTypeIcon
-														}
-													/>
-												)
-											) : savedItem.generation
-													.generation_type ===
-											  'Question' ? (
-												IS_OBSCURED ? (
-													'b'
-												) : (
-													<AiOutlineQuestion
-														className={
-															classes.savedTypeIcon
-														}
-													/>
-												)
-											) : savedItem.generation
-													.generation_type ===
-											  'Keywords' ? (
-												IS_OBSCURED ? (
-													'c'
-												) : (
-													<AiOutlineHighlight
-														className={
-															classes.savedTypeIcon
-														}
-													/>
-												)
-											) : savedItem.generation
-													.generation_type ===
-											  'RMove' ? (
-												IS_OBSCURED ? (
-													'd'
-												) : (
-													<AiOutlineBank
-														className={
-															classes.savedTypeIcon
-														}
-													/>
-												)
-											) : null }
-										</div>
-									</div>
-								</div>
-							))
-						) }
-					</div>
-				</div> */  }
-
 			</div>
 		</div>
 	);
