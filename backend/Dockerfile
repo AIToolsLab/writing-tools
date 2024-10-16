@@ -1,11 +1,20 @@
-FROM python:3.9
+FROM python:3.11
 
 WORKDIR /app
 
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-RUN python -m spacy download en_core_web_sm
+# Install uv
+RUN pip install uv
 
-COPY . .
+# Copy pyproject.toml
+COPY pyproject.toml .
+
+# Install dependencies using uv with --system flag
+RUN uv pip install --system .
+
+# Install en_core_web_sm model
+RUN uv pip install --system https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl
+
+# Copy backend files
+COPY backend .
 
 CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5000"]
