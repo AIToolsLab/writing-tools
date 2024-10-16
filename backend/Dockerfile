@@ -5,14 +5,20 @@ WORKDIR /app
 # Install uv
 RUN pip install uv
 
-# Copy pyproject.toml
-COPY pyproject.toml .
+# Copy pyproject.toml and uv.lock from the parent directory
+COPY ../pyproject.toml ../uv.lock ./
 
-# Install dependencies using uv with --system flag
+# Install dependencies using uv with --frozen flag
 RUN uv sync --frozen
 
+# activate the .venv environment
+RUN uv venv .venv
+ENV PATH="/app/.venv/bin:$PATH"
 
 # Copy backend files
-COPY backend .
+COPY . .
 
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5000"]
+WORKDIR /app/backend
+
+# run the server
+CMD ["uv", "run", "gunicorn", "server:app", "-c", "gunicorn_conf.py"]
