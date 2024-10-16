@@ -11,8 +11,8 @@ services:
 
   backend:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: backend/Dockerfile
     ports:
       - "5000:5000"
     environment:
@@ -25,7 +25,3 @@ networks:
   default:
     driver: bridge
 
-
-
-# build command
-## docker-compose up --build
