@@ -18,7 +18,6 @@ services:
     environment:
       - PORT=5000
       - DEBUG=False
-      - LOG_SECRET=backend/.env
 
 networks:
   default:
