@@ -1,7 +1,7 @@
 bind = "127.0.0.1:19571"
 worker_class = "uvicorn.workers.UvicornWorker"
 wsgi_app = "server:app"
-# Need single worker because each worker would load an LLM
+# We haven't tested with multiple workers (and probably not necessary anyway).
 workers = 1
 errorlog = "error.log"
 accesslog = "access.log"
