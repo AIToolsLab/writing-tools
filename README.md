@@ -31,3 +31,22 @@ After cloning this repo:
         - `./update` to reload the server when you make changes (sends a `HUP` signal to the server)
 
 Run `./test_generation` in the `backend` folder to make a test request. However, it runs against the prod server; change the URL to run against a local server.
+
+
+
+
+# Running the docker container (docker required)
+
+build and run the backend & frontend (add-in)
+-   `docker-compose up --build`
+
+update the backend only
+-   `docker-compose build backend`
+
+update the frontend only
+-   `docker-compose build frontend`
+
+
+
+add-in: http://localhost:80
+backend: http://localhost:5000/docs
