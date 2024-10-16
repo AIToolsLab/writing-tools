@@ -421,7 +421,7 @@ h4 {
 	position: relative;
 }
 
-.historyButtonWrapper {
+.historyButtonWrapper:hover .savedPageTooltip {
 	opacity: 1;
 	visibility: visible;
 }
@@ -429,8 +429,6 @@ h4 {
 .savedPageTooltip {
 	position: absolute;
 	top: -85%;
-	left: 50%;
-	transform: translateX(-50%);
 	background-color: rgba(237, 237, 237, 0.7) !important;
 	color: rgba(90, 90, 90, 0.7);
 	padding: 4px 8px;
@@ -446,11 +444,6 @@ h4 {
 	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
 }
 
-.historyButton:hover .savedPageTooltip  {
-	opacity: 1;
-	visibility: visible;
-}
-
 .historyButton {
 	background-color: #ffffff;
 	font-size: 0.8rem;
@@ -461,7 +454,6 @@ h4 {
 	cursor: pointer;
 	border-radius: 24px;
 	display: flex;
-	position: relative;
 }
 
 .historyButton:hover {

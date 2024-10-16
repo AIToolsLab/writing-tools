@@ -3,6 +3,7 @@ import { useState, useEffect, useContext } from 'react';
 import { UserContext } from '@/contexts/userContext';
 
 import { Remark } from 'react-remark';
+import ReactWordcloud from 'react-wordcloud';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
 import { Toggle } from '@fluentui/react/lib/Toggle';
@@ -18,13 +19,9 @@ import {
 	AiOutlineDown
 } from 'react-icons/ai';
 
-import { iconFunc } from './iconFunc';
-
-
 import { SERVER_URL, log } from '@/api';
 
 import classes from './styles.module.css';
-import SavedGenerations from './savedGenerations';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
@@ -47,9 +44,26 @@ const visibleIconForMode = {
 	'RMove': <AiOutlineBank />
 };
 
+const USE_WORDCLOUD = false;
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
-
+	if (USE_WORDCLOUD && generation.generation_type === 'Keywords') {
+		// Show all keywords as a word cloud
+		const keywords = generation.extra_data.words_by_pos;
+		// Collect all of the words
+		const words: string[] = [];
+		for (const pos in keywords) {
+			words.push(...keywords[pos]);
+		}
+		return (
+			<ReactWordcloud
+				words={ words.map(word => ({ text: word, value: 1 })) }
+				options={ {
+					rotations: 0
+				} }
+			/>
+		);
+	}
 	return <Remark>{ generation.result }</Remark>;
 }
 
@@ -74,6 +88,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	const [saved, setSaved] = useState(false);
 
 	// State for saved page
+	const [isSavedOpen, setSavedOpen] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 
 	// Tooltip visibility
@@ -269,8 +284,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 						{ genCtxText.length > 100 ? '...' : '' }
 						{ genCtxText.substring(genCtxText.length - 100) }
 					</div>
-					
-					{ /* Question: do we need this? */ }
 					{ false && tooltipVisible === 'GenCtx' && (
 						<div
 							className={ [
@@ -293,8 +306,39 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 								: classes.genTypeIconWrapper_obscured
 						}
 					>
-						{ iconFunc(generationMode) }
-							
+						{ generationMode === 'Completion' ? (
+							IS_OBSCURED ? (
+								'a'
+							) : (
+								<AiOutlineAlignLeft
+									className={ classes.savedTypeIcon }
+								/>
+							)
+						) : generationMode === 'Question' ? (
+							IS_OBSCURED ? (
+								'b'
+							) : (
+								<AiOutlineQuestion
+									className={ classes.savedTypeIcon }
+								/>
+							)
+						) : generationMode === 'Keywords' ? (
+							IS_OBSCURED ? (
+								'c'
+							) : (
+								<AiOutlineHighlight
+									className={ classes.savedTypeIcon }
+								/>
+							)
+						) : generationMode === 'RMove' ? (
+							IS_OBSCURED ? (
+								'd'
+							) : (
+								<AiOutlineBank
+									className={ classes.savedTypeIcon }
+								/>
+							)
+						) : null }
 					</div>
 				</div>
 			</div>
@@ -381,7 +425,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 
 				{ /* Close and Save button container */ }
 				<div className={ classes.utilsContainer }>
-					{ /* Question: do we need this? */ }
 					{ copied && (
 						<div className={ classes.utilStateWrapper }>
 							<div className={ classes.copiedStateText }>
@@ -476,13 +519,174 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 				</div>
 
 				{ /* Saved generations */ }
-				<SavedGenerations 
-					docContext= { docContext }
-					saved={ saved }
-					isLoading={ isLoading }
-					savedItems={ savedItems }
-					deleteSavedItem={ deleteSavedItem }
-				/>
+				<div className={ classes.historyContainer }>
+					<div className={ classes.historyButtonWrapper }>
+						<button
+							className={ classes.historyButton }
+							disabled={ docContext.trim() === '' || isLoading }
+							onClick={ () => {
+								// Toggle between the current page and the saved page
+								setSavedOpen(!isSavedOpen);
+							} }
+							onMouseEnter={ () => setTooltipVisible('Saved') }
+							onMouseLeave={ () => {
+								setTooltipVisible(null);
+								setCopyWarningTooltipVisible(false);
+							} }
+						>
+							<div
+								className={
+									classes.savedPageIconIndicatorContainer
+								}
+							>
+								<AiOutlineStar
+									className={
+										isSavedOpen || saved
+											? classes.savedPageIconActive
+											: classes.savedPageIcon
+									}
+								/>
+								{ isSavedOpen ? (
+									<AiOutlineUp
+										className={
+											classes.savedPageIconIndicator
+										}
+									/>
+								) : (
+									<AiOutlineDown
+										className={
+											classes.savedPageIconIndicator
+										}
+									/>
+								) }
+							</div>
+						</button>
+						{ tooltipVisible === 'Saved' &&
+							(!isSavedOpen ? (
+								<div className={ classes.savedPageTooltip }>
+									Show Saved Items
+								</div>
+							) : (
+								<div className={ classes.savedPageTooltip }>
+									Hide Saved Items
+								</div>
+							)) }
+					</div>
+
+					<div className={ classes.historyItemContainer }>
+						{ isSavedOpen && savedItems.length === 0 ? (
+							<div className={ classes.historyEmptyWrapper }>
+								<div className={ classes.historyText }>
+									No saved generations...
+								</div>
+							</div>
+						) : (
+							isSavedOpen &&
+							savedItems.length !== 0 &&
+							savedItems.map((savedItem, index) => (
+								<div
+									key={ index }
+									className={ classes.historyItem }
+								>
+									<div className={ classes.historyText }>
+										<p
+											className={ classes.historyDoc }
+											onClick={ () => {
+												// Show the whole document text
+											} }
+										>
+											...
+											{ savedItem.document.substring(
+												savedItem.document.length - 100
+											) }
+										</p>
+
+										<GenerationResult
+											generation={ savedItem.generation }
+										/>
+									</div>
+									<div
+										className={ classes.savedIconsContainer }
+									>
+										<div
+											className={
+												classes.historyCloseButtonWrapper
+											}
+											onClick={ () =>
+												deleteSavedItem(
+													savedItem.dateSaved
+												)
+											}
+										>
+											<AiOutlineClose
+												className={
+													classes.historyCloseButton
+												}
+											/>
+										</div>
+										<div
+											className={
+												!IS_OBSCURED
+													? classes.genTypeIconWrapper
+													: classes.genTypeIconWrapper_obscured
+											}
+										>
+											{ savedItem.generation
+												.generation_type ===
+											'Completion' ? (
+												IS_OBSCURED ? (
+													'a'
+												) : (
+													<AiOutlineAlignLeft
+														className={
+															classes.savedTypeIcon
+														}
+													/>
+												)
+											) : savedItem.generation
+													.generation_type ===
+											  'Question' ? (
+												IS_OBSCURED ? (
+													'b'
+												) : (
+													<AiOutlineQuestion
+														className={
+															classes.savedTypeIcon
+														}
+													/>
+												)
+											) : savedItem.generation
+													.generation_type ===
+											  'Keywords' ? (
+												IS_OBSCURED ? (
+													'c'
+												) : (
+													<AiOutlineHighlight
+														className={
+															classes.savedTypeIcon
+														}
+													/>
+												)
+											) : savedItem.generation
+													.generation_type ===
+											  'RMove' ? (
+												IS_OBSCURED ? (
+													'd'
+												) : (
+													<AiOutlineBank
+														className={
+															classes.savedTypeIcon
+														}
+													/>
+												)
+											) : null }
+										</div>
+									</div>
+								</div>
+							))
+						) }
+					</div>
+				</div>
 			</div>
 		</div>
 	);
