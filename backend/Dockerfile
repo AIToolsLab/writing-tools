@@ -21,4 +21,5 @@ COPY . .
 WORKDIR /app/backend
 
 # run the server
-CMD ["uv", "run", "gunicorn", "server:app", "-c", "gunicorn_conf.py"]
+# TODO: where do the log entries end up? Perhaps stop redirecting logs to files?
+CMD ["uv", "run", "gunicorn"]
