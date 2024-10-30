@@ -1,5 +1,6 @@
 import { Spinner } from '@fluentui/react/lib/Spinner';
 import classes from './styles.module.css';
+import { Remark } from 'react-remark';
 
 interface ReflectionCardProps {
 	cardData: CardData;
@@ -56,7 +57,7 @@ function ReflectionCard(props: ReflectionCardProps) {
 		<div
 			className={ className }
 		>
-			<div className={ classes.text }>{ cardData.body }</div>
+			<div className={ classes.text }><Remark>{ cardData.body }</Remark></div>
             
 			<div>
 				<button
