@@ -11,10 +11,14 @@ import { UserContext } from '@/contexts/userContext';
 import { getParagraphText } from '@/utilities';
 import { getReflection } from '@/api';
 
+import { useAuth0 } from '@auth0/auth0-react';
+
 const includeSurroundingParagraphs = false;
 
 export default function Home() {
 	const { username } = useContext(UserContext);
+
+	const { getAccessTokenSilently } = useAuth0();
 
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [curParagraphText, updateCurParagraphText] = useState('');
@@ -100,12 +104,12 @@ export default function Home() {
 		// TODO: Fix typing error
 		const cachedValue: any
 			// | ReflectionResponseItem[]
-			// | Promise<ReflectionResponseItem[]> 
+			// | Promise<ReflectionResponseItem[]>
 		= reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-            getReflection(username, paragraphText, prompt);
+            getReflection(username, paragraphText, prompt, getAccessTokenSilently);
 
 			reflectionsPromise
 				.then(newReflections => {

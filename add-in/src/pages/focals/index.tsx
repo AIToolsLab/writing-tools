@@ -6,6 +6,8 @@ import {
 	PromptButtonSelector
 } from '@/components/promptButtonSelector';
 
+import { useAuth0 } from '@auth0/auth0-react';
+
 import { UserContext } from '@/contexts/userContext';
 
 import { getParagraphText } from '@/utilities';
@@ -16,6 +18,7 @@ export default function Focals() {
 
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [curParagraphText, updateCurParagraphText] = useState('');
+	const { getAccessTokenSilently } = useAuth0();
 
 	const [reflections, updateReflections] = useState<
 		Map<
@@ -110,7 +113,7 @@ export default function Focals() {
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflection(username, paragraphText, prompt);
+				getReflection(username, paragraphText, prompt, getAccessTokenSilently);
 
 			reflectionsPromise
 				.then(newReflections => {

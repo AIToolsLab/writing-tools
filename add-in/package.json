@@ -26,6 +26,7 @@
 		"prepare": "cd .. && husky install add-in/.husky"
 	},
 	"dependencies": {
+		"@auth0/auth0-react": "^2.2.4",
 		"@fluentui/react": "^8.52.3",
 		"@lexical/react": "^0.16.1",
 		"@microsoft/fetch-event-source": "^2.0.1",

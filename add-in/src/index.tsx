@@ -9,6 +9,7 @@ import ChatContextWrapper from './contexts/chatContext';
 import App from './pages/app';
 
 import './taskpane.css';
+import { Auth0Provider } from '@auth0/auth0-react';
 
 initializeIcons();
 
@@ -23,12 +24,27 @@ const render = (Component: any) => {
 			</section>
 		);
 	}
+
 	ReactDOM.render(
 		<ThemeProvider>
 			<ChatContextWrapper>
 				<UserContextWrapper>
 					<PageContextWrapper>
-						<Component />
+					<Auth0Provider
+							domain="dev-62nhczyl7e1oaj8a.us.auth0.com"
+							clientId="W6MVTHKKbejEq7tCcT2oLt8gStOeHxT7"
+							authorizationParams= { {
+								redirectUri: `${window.location.origin}/popup.html`,
+								scope: 'openid profile email read:posts',
+								audience: 'https://tools.kenarnold.org/api', // Value in Identifier field for the API being called.
+								leeway: 10
+							} }
+						>
+							<Component
+								isOfficeInitialized= { isOfficeInitialized }
+							/>
+						</Auth0Provider>
+
 					</PageContextWrapper>
 				</UserContextWrapper>
 			</ChatContextWrapper>

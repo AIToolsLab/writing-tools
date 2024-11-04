@@ -3,6 +3,8 @@ import { useContext } from 'react';
 import { PageContext } from '@/contexts/pageContext';
 import { UserContext } from '@/contexts/userContext';
 
+import { useAuth0 } from '@auth0/auth0-react';
+
 
 import Layout from '@/components/layout';
 
@@ -18,10 +20,23 @@ export interface HomeProps {
 	editorAPI: EditorAPI | null;
 }
 
-export default function App({  editorAPI }: HomeProps) {
+export default function App({ editorAPI }: HomeProps) {
 	const { username } = useContext(UserContext);
 
 	if (username.length === 0) return <Login />;
+
+	const { isLoading, error, loginWithPopup, isAuthenticated } = useAuth0();
+	if (isLoading) return <div>Loading...</div>;
+	if (error) return <div>Oops... { error.message }</div>;
+	if (!isAuthenticated) {
+		return (
+			<div>
+				<button onClick= { () => {
+					loginWithPopup();
+				} }>Log in</button>
+			</div>
+		);
+	}
 
 	const { page } = useContext(PageContext);
 
@@ -34,7 +49,7 @@ export default function App({  editorAPI }: HomeProps) {
 		if (pageName === 'searchbar') return <SearchBar />;
 		if (pageName === 'chat') return <Chat />;
 		if (pageName === 'qve') return <QvE editorAPI={ trueEditorAPI } />;
-		
+
 		// eslint-disable-next-line no-console
 		console.error('Invalid page name', pageName);
 	}
