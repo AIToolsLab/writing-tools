@@ -5,12 +5,21 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Backend",
+            "name": "Backend Debug",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/backend/server.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/backend",
+        },
+        {
+            "name": "Attach to Python Functions",
+            "type": "debugpy",
+            "request": "attach",
+            "connect": {
+                "port": 7071
+            },
+            "preLaunchTask": "func: host start"
         },
         {
             "name": "Frontend Dev Server",
