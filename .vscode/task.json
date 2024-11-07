@@ -1,0 +1,27 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "type": "func",
+      "label": "func: host start",
+      "command": "host start",
+      "problemMatcher": "$func-python-watch",
+      "isBackground": true,
+      "dependsOn": "install dependencies"
+    },
+    {
+      "label": "install dependencies",
+      "type": "shell",
+      "osx": {
+        "command": "uv sync"
+      },
+      "windows": {
+        "command": "uv sync"
+      },
+      "linux": {
+        "command": "uv sync"
+      },
+      "problemMatcher": []
+    }
+  ]
+}
