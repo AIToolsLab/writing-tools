@@ -50,3 +50,8 @@ update the frontend only
 
 add-in: http://localhost:80
 backend: http://localhost:5000/docs
+
+# Running the custom LLM backend
+
+- `cd backend`
+- `uv run --group gpu custom_llm.py --gpu`
