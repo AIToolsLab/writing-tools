@@ -38,7 +38,7 @@
         {
             "name": "Run Both Servers",
             "configurations": [
-                "Backend",
+                "Backend Debug",
                 "Frontend Dev Server"
             ]
         }
