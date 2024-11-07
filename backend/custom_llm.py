@@ -23,6 +23,9 @@ args = parser.parse_args()
 
 USE_GPU = args.gpu
 
+if not USE_GPU:
+    print("Running without GPU. To enable GPU, run with the --gpu flag.")
+
 @asynccontextmanager
 async def models_lifespan(app: FastAPI):
 
@@ -181,6 +184,44 @@ def get_next_token_predictions(original_doc: str,
 
     return {
         'next_tokens': tokenizer.batch_decode(lookahead_sequences, skip_special_tokens=True),
+    }
+
+
+@app.get('/api/gen_revisions')
+def gen_revisions(
+        prompt: str,
+        doc: str,
+        n: Optional[int] = 5):
+
+
+    model = ml_models['llm']['model']
+    tokenizer = ml_models['llm']['tokenizer']
+
+    messages = [
+        {
+            "role": "user",
+            "content": f"{prompt}\n\n{doc}",
+        },
+    ]
+    tokenized_chat = tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors="pt").to(model.device)
+
+    generations = model.generate(
+        tokenized_chat, num_return_sequences=n,
+        max_length=1024, do_sample=True, top_k=50, top_p=0.95, temperature=0.5,
+        return_dict_in_generate=True, output_scores=True)
+    generated_docs = tokenizer.batch_decode(generations.sequences, skip_special_tokens=True)
+    #print(generations.scores)
+
+    # Remove prompt text. see https://github.com/huggingface/transformers/blob/v4.46.2/src/transformers/pipelines/text_generation.py#L37
+    prompt_length = len(
+        tokenizer.decode(
+            tokenized_chat[0],
+            skip_special_tokens=True,
+            clean_up_tokenization_spaces=True,
+    ))
+
+    return {
+        'revised_docs': [dict(doc_text=doc[prompt_length:]) for doc in generated_docs]
     }
 
 
