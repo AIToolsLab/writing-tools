@@ -1,0 +1,56 @@
+.container {
+    background: rgba(209, 235, 253, 0.459);
+    font-weight: bolder;
+    transition: 0.2s;
+    cursor: pointer;
+    border-radius: 5px;
+    box-shadow: 0px 0px 10px 0px rgba(0, 0, 0, 0.3);
+}
+
+.selected {
+    background: rgb(255, 255, 255);
+    transform: translateX(-50px )
+}
+
+.selected:hover {
+    background: rgb(255, 255, 255) !important;
+}
+
+.container:hover {
+    background: rgb(209, 235, 253);
+}
+
+.header {
+    margin-top: 10px;
+    padding: 5px 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.header h1 {
+    font-size: 1rem;
+}
+
+.closeBtn {
+    align-self: center;
+    cursor: pointer;
+    transition: 0.2s;
+    z-index: 999;
+    padding: 10px;
+    border-radius: 999px;
+}
+
+.closeBtn:hover {
+    color: maroon;
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.cardContent {
+    padding: 5px 20px;
+    font-weight: 100;
+    line-height: 20px;
+
+    font-size: 12px;
+    transition: 0.2s;
+}

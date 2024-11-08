@@ -2,6 +2,7 @@
 	display: flex;
 	justify-content: space-between;
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+    gap: 10px;
 }
 
 .editor {
@@ -15,4 +16,12 @@
 	width: 30%;
 	box-shadow: -2px 0 5px rgba(0,0,0,0.1);
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+}
+
+.cardsContainer {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 30%;
 }

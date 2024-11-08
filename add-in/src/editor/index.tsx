@@ -1,9 +1,10 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 
 //import QvE from '@/pages/qve';
 import * as SidebarInner from '@/pages/app';
 
+import Comment from './comment';
 import LexicalEditor from './editor';
 
 import PageContextWrapper from '../contexts/pageContext';
@@ -25,6 +26,15 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 }
 
 function App() {
+    const [comments, updateComments] = useState<TextComment[]>([
+        {
+            title: 'Comment 1',
+            content: 'This is the first comment'
+        }
+    ]); // TODO: Currently these are auto-created by the app, not the user
+
+    const [focusedComment, updateFocusedComment] = useState<number>(-1); // The index of the comment that is currently focused
+
 	// Needs to be a ref so that we can use docRef.current in the editorAPI
 	const docRef = useRef('');
 
@@ -66,10 +76,29 @@ function App() {
 		<div className={ classes.container }>
 			<div className={ classes.editor }>
 				<LexicalEditor
+                    comment={ focusedComment >= 0 ? comments[focusedComment] : null }
+                    commentIndex = { focusedComment }
+                    updateComments={ updateComments }
 					initialState={ localStorage.getItem('doc') || null }
 					updateTextBeforeCursor={ docUpdated }
 				/>
 			</div>
+
+            <div className={ classes.cardsContainer }>
+                {
+                    comments.map(
+                        (card, index) => (
+                            <Comment
+                                key={ index }
+                                commentIndex={ index }
+                                comment={ card }
+                                selected={ index === focusedComment }
+                                onClick={ updateFocusedComment }
+                            />
+                        )
+                    )
+                }
+            </div>
 
 			<div>last revision: {  localStorage.getItem('doc-date')|| ''  }</div>
 			<div className={ classes.sidebar }>

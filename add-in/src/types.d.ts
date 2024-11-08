@@ -1,5 +1,10 @@
 declare module '*.css';
 
+declare interface TextComment {
+    title: string;
+    content: string;
+}
+
 interface ChatMessage {
 	role: string;
 	content: string;

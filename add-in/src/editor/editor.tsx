@@ -1,9 +1,14 @@
+import { useState } from 'react';
+
 import {
 	$getRoot,
 	$getSelection,
 	$isRangeSelection,
+    $createRangeSelection,
 	LexicalNode
 } from 'lexical';
+
+import { $patchStyleText } from '@lexical/selection';
 
 import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
 import {
@@ -16,7 +21,92 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
+
 import classes from './editor.module.css';
+
+type CommentPluginProps = {
+    comment: null | TextComment;
+    commentIndex: number;
+    previousComment: number;
+    updatePreviousComment: (_: number) => void;
+};
+
+function CommentPlugin(props: CommentPluginProps) {
+    const [editor] = useLexicalComposerContext(); // Get the editor instance
+
+    editor.update(() => {
+        console.log(props.commentIndex, props.comment);
+
+        // Remove all highlighting from the editor
+        (function clearStyles() {
+            const selection = $createRangeSelection(); // Create a selection of text nodes
+            
+            // A map of all of the nodes in the editor
+            const nodeMap = editor.getEditorState()._nodeMap;
+
+            const textNodeKeys: string[] = []; // List of keys of all text nodes
+
+            // Get all text nodes
+            nodeMap.forEach(
+                (node, _) => {
+                    // If the node isn't a text node, then skip it
+                    if(node.getType() !== 'text') return;
+                    
+                    textNodeKeys.push(node.getKey());
+                }
+            );
+
+            // If the editor is empty
+            if(textNodeKeys.length === 0) return;
+            
+            // Adjust the selection to be the first and last text nodes (selecting the entire editor)
+            selection.focus.key = textNodeKeys[0];
+            selection.anchor.key = (Number(textNodeKeys[textNodeKeys.length - 1]) + 1).toString();
+                        
+            // Remove all background styles from the selection
+            console.log($patchStyleText(selection, { 'background-color': 'transparent' }), 'dassa');
+        })();
+
+        if(!props.comment || props.commentIndex < 0) return;
+
+        // Create a selection for the paragraph that the comment is for
+        const selection = $createRangeSelection();
+        const nodeMap = editor.getEditorState()._nodeMap;
+
+        // The key of the first node in the paragraph
+        let paragraphKey = '';
+        
+        // Paragraph index in the editor
+        let count = 0;
+
+        nodeMap.forEach(
+            (k, _) => {
+                const node = k;
+
+                if(node.getType() !== 'text') return;
+                
+                // If the current paragraph is the one that the comment is for
+                if(count === props.commentIndex)
+                    paragraphKey = node.getKey();
+                
+                count++;
+            }
+        );
+
+        console.log(count);
+
+        // Create selection for the paragraph
+        selection.anchor.key = paragraphKey;
+        selection.focus.key = (Number(paragraphKey) + 1).toString();
+
+        $patchStyleText(selection, { 'background-color': 'rgba(255, 255, 146, 0.637)' });
+    });
+
+    // props.updatePreviousComment(props.commentIndex);
+
+    return <></>;
+}
 
 function $getTextBeforeCursor() {
 	const selection = $getSelection();
@@ -74,13 +164,17 @@ function $getTextBeforeCursor() {
 	return textBeforeCursor;
 }
 
-function LexicalEditor({
-	updateTextBeforeCursor,
-	initialState
-}: {
-	updateTextBeforeCursor: (text: string) => void;
+type EditorProps = {
+    comment: null | TextComment;
+    commentIndex: number;
+    updateComments: (_: TextComment[]) => void;
+    updateTextBeforeCursor: (text: string) => void;
 	initialState: InitialEditorStateType | null;
-}) {
+}
+
+function LexicalEditor(props: EditorProps) {
+    const [previousComment, updatePreviousComment] = useState(-1);
+
 	return (
 		<>
 			<LexicalComposer // Main editor component
@@ -90,7 +184,7 @@ function LexicalEditor({
 						paragraph: classes.paragraph
 					},
 					onError(_error, _editor) {},
-					editorState: initialState
+					editorState: props.initialState
 				} }
 			>
 				<div className={ classes.editorContainer }>
@@ -119,7 +213,7 @@ function LexicalEditor({
 									$getRoot().getTextContent()
 								);
 
-								updateTextBeforeCursor(textBeforeCursor);
+								props.updateTextBeforeCursor(textBeforeCursor);
 
 								localStorage.setItem(
 									'doc',
@@ -133,6 +227,13 @@ function LexicalEditor({
 							});
 						} }
 					/>
+                    
+                    <CommentPlugin
+                        previousComment={ previousComment }
+                        updatePreviousComment={ updatePreviousComment }
+                        comment={ props.comment }
+                        commentIndex={ props.commentIndex }
+                    />
 
 					<AutoFocusPlugin />
 
