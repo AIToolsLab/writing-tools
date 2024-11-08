@@ -231,11 +231,13 @@ def make_log(payload: Log):
     # use timestamp and a uuid as a row key
     import uuid
     row_key = f"{payload.timestamp}_{uuid.uuid4()}"
+    # table_client.create_entity(entity=dict(
+    #     PartitionKey="",
+    #     RowKey=row_key,
+    #     Body=log_entry_raw)
+    # )
     table_client.create_entity(entity=dict(
-        PartitionKey="",
-        RowKey=row_key,
-        Body=log_entry_raw)
-    )
+        payload.model_dump(), PartitionKey=payload.username, RowKey=row_key))
 
 
 # Helper functions (OLD)
@@ -247,7 +249,7 @@ def make_log(payload: Log):
 static_path = Path("../add-in/dist")
 if static_path.exists():
 
-    @app.get("/")
+    @ app.get("/")
     def index():
         return FileResponse(static_path / "index.html")
 
