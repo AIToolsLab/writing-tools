@@ -1,3 +1,5 @@
+from azure.data.tables import TableServiceClient
+from pydantic import BaseModel, Field, ConfigDict
 import os
 import json
 
@@ -208,10 +210,38 @@ def get_participant_log_filename(username):
     return LOG_PATH / f"{username}.jsonl"
 
 
-# Helper functions
+# Function to get the Azure Table Service
+def get_az_table_service():
+    from azure.identity import DefaultAzureCredential
+    from azure.data.tables import TableServiceClient
+
+    credential = DefaultAzureCredential()
+    table_service = TableServiceClient(
+        endpoint="https://textfocalsb6ab.table.core.windows.net/", credential=credential)
+    return table_service
+
+
+# Function to make a log entry in Azure Table Storage
 def make_log(payload: Log):
-    with open(get_participant_log_filename(payload.username), "a+") as f:
-        f.write(json.dumps(payload.model_dump()) + "\n")
+    """Store the log our Azure Table."""
+
+    table_service = get_az_table_service()
+    table_client = table_service.get_table_client("AppLogs")
+    log_entry_raw = payload.model_dump_json()
+    # use timestamp and a uuid as a row key
+    import uuid
+    row_key = f"{payload.timestamp}_{uuid.uuid4()}"
+    table_client.create_entity(entity=dict(
+        PartitionKey="",
+        RowKey=row_key,
+        Body=log_entry_raw)
+    )
+
+
+# Helper functions (OLD)
+# def make_log(payload: Log):
+#     with open(get_participant_log_filename(payload.username), "a+") as f:
+#         f.write(json.dumps(payload.model_dump()) + "\n")
 
 
 static_path = Path("../add-in/dist")
