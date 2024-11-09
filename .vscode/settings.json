@@ -9,4 +9,7 @@
   "azureFunctions.projectLanguage": "Python",
   "azureFunctions.projectRuntime": "~4",
   "debug.internalConsoleOptions": "neverOpen",
+    "terminal.integrated.automationProfile.osx": {
+    "path": "/bin/bash"
+  },
 }
