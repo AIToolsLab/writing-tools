@@ -5,3 +5,20 @@ __queuestorage__
 local.settings.json
 test
 .venv
+
+# Frontend-related ignores
+node_modules/
+add-in/
+sandbox/
+logViewer/
+custom-editor/
+*.config.js
+webpack.config.js
+package.json
+package-lock.json
+tsconfig.json
+*.tsx
+*.jsx
+*.css
+*.scss
+*.html
