@@ -227,23 +227,17 @@ def make_log(payload: Log):
 
     table_service = get_az_table_service()
     table_client = table_service.get_table_client("AppLogs")
-    log_entry = payload.model_dump()
-    # make sure that all data are primitive types, not dict or list
-    # if it's a dict, json-encode it.
-    for key, value in log_entry.items():
-        if isinstance(value, (dict, list)):
-            log_entry[key] = json.dumps(value)
+    log_entry_raw = payload.model_dump_json()
     # use timestamp and a uuid as a row key
     import uuid
     row_key = f"{payload.timestamp}_{uuid.uuid4()}"
-    log_entry["RowKey"] = row_key
-    log_entry["PartitionKey"] = payload.username
     # table_client.create_entity(entity=dict(
     #     PartitionKey="",
     #     RowKey=row_key,
     #     Body=log_entry_raw)
     # )
-    table_client.create_entity(entity=log_entry)
+    table_client.create_entity(entity=dict(
+        payload.model_dump(), PartitionKey=payload.username, RowKey=row_key))
 
 
 # Helper functions (OLD)
