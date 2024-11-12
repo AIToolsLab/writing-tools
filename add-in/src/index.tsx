@@ -36,7 +36,7 @@ const render = (Component: any) => {
 							authorizationParams= { {
 								redirectUri: `${window.location.origin}/popup.html`,
 								scope: 'openid profile email read:posts',
-								audience: 'https://tools.kenarnold.org/api', // Value in Identifier field for the API being called.
+								audience: 'textfocals.com', // Value in Identifier field for the API being called.
 								leeway: 10
 							} }
 						>
