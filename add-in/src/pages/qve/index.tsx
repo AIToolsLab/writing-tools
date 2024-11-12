@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect, useContext, Fragment } from 'react';
 
 import { UserContext } from '@/contexts/userContext';
 
@@ -69,7 +69,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 
 	const [isLoading, setIsLoading] = useState(false);
 
-	// TODO: Consider using a "hook" for the toast temporarym msg
+	// TODO: Consider using a "hook" for the toast temporary msg
 	const [copied, _setCopied] = useState(false);
 	const [saved, setSaved] = useState(false);
 
@@ -323,8 +323,8 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 				>
 					{ ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => {
 						return (
-							<>
-							<button key={ mode }
+							<Fragment key={ mode }>
+							<button
 								className={ classes.optionsButton }
 								disabled={ docContext.trim() === '' || isLoading }
 								onClick={ () => {
@@ -357,7 +357,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 										: `Get New ${ visibleNameForMode[mode as keyof typeof visibleNameForMode] }` }
 								</div>
 							) }
-							</>
+							</Fragment>
 						);
 					}) }	
 					</div>
