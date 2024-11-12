@@ -2,5 +2,9 @@
   "workbench.editor.customLabels.patterns": {
     "**/index.tsx": "${dirname}/.tsx",
     "**/index.ts": "${dirname}/.ts"
-  }
+  },
+  "cSpell.words": [
+    "addin",
+    "taskpane"
+  ]
 }
