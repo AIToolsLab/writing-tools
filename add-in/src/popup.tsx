@@ -36,12 +36,9 @@ Office.onReady(() => {
     Office.context.ui.messageParent(JSON.stringify(message));
   }
   else {
-    window.location.replace(
-      `https://${auth0Subdomain}/authorize?` +
-        `response_type=token&` +
-        `client_id=${auth0ClientId}&` +
-        `redirect_uri=${window.location.origin}/popup.html&` +
-        `scope=openid`
-    );
+    // Redirect to the destination given in the "redirect" query string parameter.
+    const redirect = new URLSearchParams(window.location.search).get('redirect');
+    if (redirect)
+      window.location.href = redirect;
   }
 });
