@@ -141,7 +141,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	}
 
 	async function handleSelectionChanged() {
-		console.log('handleSelectionChanged');
 		const docText = await getDocContext(true);
 		updateDocContext(docText);
 		const { charsToCursor, docLength } = await getCursorPosInfo();
@@ -209,7 +208,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	/**
 	 * useEffect to ensure that event handlers are set up only once
 	 * and cleaned up when the component is unmounted.
-	 * Note that dependences are empty, so this effect only runs once.
+	 * Note that dependencies are empty, so this effect only runs once.
 	 */
 	useEffect(() => {
 		// Handle initial selection change
