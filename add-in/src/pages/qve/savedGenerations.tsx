@@ -5,7 +5,6 @@ import { AiOutlineStar,
     AiOutlineClose, 
 } from 'react-icons/ai';
 
-import ReactWordcloud from 'react-wordcloud';
 import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
 import { useState } from 'react';
@@ -27,25 +26,7 @@ export default function SavedGenerations({
 }) {
     const [isSavedOpen, setSavedOpen] = useState(false);
 
-    // TODO: need to refactor this 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
-	if (generation.generation_type === 'Keywords') {
-		// Show all keywords as a word cloud
-		const keywords = generation.extra_data.words_by_pos;
-		// Collect all of the words
-		const words: string[] = [];
-		for (const pos in keywords) {
-			words.push(...keywords[pos]);
-		}
-		return (
-			<ReactWordcloud
-				words={ words.map(word => ({ text: word, value: 1 })) }
-				options={ {
-					rotations: 0
-				} }
-			/>
-		);
-	}
 	return <Remark>{ generation.result }</Remark>;
 }
 
