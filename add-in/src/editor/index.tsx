@@ -30,6 +30,10 @@ function App() {
         {
             title: 'Comment 1',
             content: 'This is the first comment'
+        },
+        {
+            title: 'Comment 2',
+            content: 'This is the second comment'
         }
     ]); // TODO: Currently these are auto-created by the app, not the user
 

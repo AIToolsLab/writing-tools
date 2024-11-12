@@ -5,6 +5,8 @@ import {
 	$getSelection,
 	$isRangeSelection,
     $createRangeSelection,
+    $isTextNode,
+    $setSelection,
 	LexicalNode
 } from 'lexical';
 
@@ -36,71 +38,37 @@ function CommentPlugin(props: CommentPluginProps) {
     const [editor] = useLexicalComposerContext(); // Get the editor instance
 
     editor.update(() => {
-        console.log(props.commentIndex, props.comment);
-
         // Remove all highlighting from the editor
         (function clearStyles() {
-            const selection = $createRangeSelection(); // Create a selection of text nodes
-            
-            // A map of all of the nodes in the editor
-            const nodeMap = editor.getEditorState()._nodeMap;
+            const selection = $createRangeSelection();
+            const nodes = $getRoot().getAllTextNodes();
 
-            const textNodeKeys: string[] = []; // List of keys of all text nodes
+            selection.focus.set(nodes[0].getKey(), 0, 'text');
+            selection.anchor.set(nodes[nodes.length - 1].getKey(), nodes[nodes.length - 1].getTextContentSize(), 'text');
+            $setSelection(selection);
 
-            // Get all text nodes
-            nodeMap.forEach(
-                (node, _) => {
-                    // If the node isn't a text node, then skip it
-                    if(node.getType() !== 'text') return;
-                    
-                    textNodeKeys.push(node.getKey());
-                }
-            );
+            console.log(selection);
 
-            // If the editor is empty
-            if(textNodeKeys.length === 0) return;
-            
-            // Adjust the selection to be the first and last text nodes (selecting the entire editor)
-            selection.focus.key = textNodeKeys[0];
-            selection.anchor.key = (Number(textNodeKeys[textNodeKeys.length - 1]) + 1).toString();
-                        
             // Remove all background styles from the selection
-            console.log($patchStyleText(selection, { 'background-color': 'transparent' }), 'dassa');
+            $patchStyleText(selection, { 'background-color': 'transparent' });
+
+            $setSelection($createRangeSelection());
         })();
 
         if(!props.comment || props.commentIndex < 0) return;
 
         // Create a selection for the paragraph that the comment is for
         const selection = $createRangeSelection();
-        const nodeMap = editor.getEditorState()._nodeMap;
 
-        // The key of the first node in the paragraph
-        let paragraphKey = '';
-        
-        // Paragraph index in the editor
-        let count = 0;
+        const nodes = $getRoot().getAllTextNodes()[props.commentIndex];
 
-        nodeMap.forEach(
-            (k, _) => {
-                const node = k;
-
-                if(node.getType() !== 'text') return;
-                
-                // If the current paragraph is the one that the comment is for
-                if(count === props.commentIndex)
-                    paragraphKey = node.getKey();
-                
-                count++;
-            }
-        );
-
-        console.log(count);
-
-        // Create selection for the paragraph
-        selection.anchor.key = paragraphKey;
-        selection.focus.key = (Number(paragraphKey) + 1).toString();
+        if($isTextNode(nodes)) {
+            selection.focus.set(nodes.getKey(), 0, 'text');
+            selection.anchor.set(nodes.getKey(), nodes.getTextContentSize(), 'text');
+        }
 
         $patchStyleText(selection, { 'background-color': 'rgba(255, 255, 146, 0.637)' });
+        $setSelection($createRangeSelection());
     });
 
     // props.updatePreviousComment(props.commentIndex);
