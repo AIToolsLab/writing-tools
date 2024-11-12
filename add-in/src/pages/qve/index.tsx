@@ -140,12 +140,10 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 		updateSavedItems(newSaved);
 	}
 
-	async function getAndUpdateDocContext() {
+	async function handleSelectionChanged() {
+		console.log('handleSelectionChanged');
 		const docText = await getDocContext(true);
 		updateDocContext(docText);
-	}
-
-	async function getAndUpdateCursorPosInfo() {
 		const { charsToCursor, docLength } = await getCursorPosInfo();
 		updateCursorPos(charsToCursor);
 		updateCursorAtEnd(charsToCursor >= docLength);
@@ -215,17 +213,14 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	 */
 	useEffect(() => {
 		// Handle initial selection change
-		getAndUpdateDocContext();
-		getAndUpdateCursorPosInfo();
+		handleSelectionChanged();
 
 		// Handle subsequent selection changes
-		addSelectionChangeHandler(getAndUpdateDocContext);
-		addSelectionChangeHandler(getAndUpdateCursorPosInfo);
+		addSelectionChangeHandler(handleSelectionChanged);
 
 		// Cleanup
 		return () => {
-			removeSelectionChangeHandler(getAndUpdateDocContext);
-			removeSelectionChangeHandler(getAndUpdateCursorPosInfo);
+			removeSelectionChangeHandler(handleSelectionChanged);
 		};
 	}, []);
 
