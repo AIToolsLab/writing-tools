@@ -29,8 +29,12 @@ module.exports = async (env, options) => {
 			vendor: ['react', 'react-dom', 'core-js', '@fluentui/react'],
 			taskpane: ['./src/index.tsx', './src/taskpane.html'],
 			logs: ['./src/logs/index.tsx', './src/logs/logs.html'],
+			popup: [
+				'./src/popup.tsx',
+				'./src/popup.html'
+			],
 			editor: ['./src/editor/index.tsx', './src/editor/editor.html'],
-            commands: './src/commands/commands.ts'
+      commands: './src/commands/commands.ts'
 		},
 		output: {
 			clean: true
@@ -112,10 +116,15 @@ module.exports = async (env, options) => {
 				template: './src/taskpane.html',
 				chunks: ['taskpane', 'vendor', 'polyfills']
 			}),
-            new HtmlWebpackPlugin({
+			new HtmlWebpackPlugin({
 				filename: 'editor.html',
 				template: './src/editor/editor.html',
 				chunks: ['editor', 'vendor']
+			}),
+			new HtmlWebpackPlugin({
+				filename: 'popup.html',
+				template: './src/popup.html',
+				chunks: ['popup', 'vendor', 'polyfills']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'commands.html',

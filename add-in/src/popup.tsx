@@ -1,0 +1,47 @@
+// These came from the Auth0 dashboard.
+// Look in: Applications > this app > Settings > Basic Information
+const auth0Subdomain: string = 'dev-rbroo1fvav24wamu.us.auth0.com';
+const auth0ClientId: string = 'YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr';
+
+// Get the value of a query string from the hash string.
+function getHashStringParameter(name: string) {
+  // eslint-disable-next-line prefer-const
+	let hashString = window.location.hash;
+  // eslint-disable-next-line prefer-const
+	let hashStringParameters = hashString.split('&');
+  // eslint-disable-next-line prefer-const
+	for (let hashStringParameter of hashStringParameters) {
+    // eslint-disable-next-line prefer-const
+		let [key, value] = hashStringParameter.split('=');
+		if (key === `#${name}`) {
+			return value;
+		}
+	}
+	return null;
+}
+
+Office.onReady(() => {
+  // From https://github.com/OfficeDev/Office-Add-in-Auth0/blob/master/Scripts/popup.js
+  // and https://github.com/OfficeDev/Office-Add-in-Auth0/blob/master/Scripts/popupRedirect.js
+  // (kca simplified this to just use a single page)
+  // eslint-disable-next-line prefer-const
+  let accessToken = getHashStringParameter('access_token');
+
+  if (accessToken) {
+    // eslint-disable-next-line prefer-const
+    let message = {
+        status: 'success',
+        auth0Token: accessToken
+    };
+    Office.context.ui.messageParent(JSON.stringify(message));
+  }
+  else {
+    window.location.replace(
+      `https://${auth0Subdomain}/authorize?` +
+        `response_type=token&` +
+        `client_id=${auth0ClientId}&` +
+        `redirect_uri=${window.location.origin}/popup.html&` +
+        `scope=openid`
+    );
+  }
+});
