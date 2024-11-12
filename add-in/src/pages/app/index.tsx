@@ -66,10 +66,35 @@ export default function App({ editorAPI }: HomeProps) {
 		};
 
 
+		// Make the href of the popup be a setter so that we can actually launch the dialog with the correct url to begin with
 		const mockPopup = {
-			location: { href: '' },
+			location: { 
+				set href(url: string) {
+					console.log("Setting location.href to", url);
+					
+					// Set up an Office dialog to do the login flow
+					// height and width are percentages of the size of the screen.
+					// How MS use it: https://github.com/OfficeDev/Office-Add-in-samples/blob/main/Samples/auth/Office-Add-in-Microsoft-Graph-React/utilities/office-apis-helpers.ts#L38
+
+					// Bounce off /popup.html?redirect=... to get the token
+					let redirect = encodeURIComponent(url);
+					let bounceURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') + '/popup.html?redirect=' + redirect;
+					console.log("Bouncing to", bounceURL);
+					Office.context.ui.displayDialogAsync(
+						bounceURL,
+						{ height: 45, width: 55 },
+						function (result) {
+							dialog = result.value;
+							dialog.addEventHandler(
+								Office.EventType.DialogMessageReceived,
+								processMessage
+							);
+						}
+					);
+				}
+			},
 			closed: false,
-			close: () => {},
+			close: () => {mockPopup.closed = true},
 		};
 	// Actually make a popup using MS dialog API
 	// hook the message event from the popup to set close false and get the token
@@ -77,27 +102,6 @@ export default function App({ editorAPI }: HomeProps) {
 		<div>
 			Login here:
 			<button onClick= { async () => {
-				// Set up an Office dialog to do the login flow
-				const fullUrl = location.protocol +
-				'//' +
-				location.hostname +
-				(location.port ? ':' + location.port : '') +
-				'/popup.html';
-
-				// height and width are percentages of the size of the screen.
-				// How MS use it: https://github.com/OfficeDev/Office-Add-in-samples/blob/main/Samples/auth/Office-Add-in-Microsoft-Graph-React/utilities/office-apis-helpers.ts#L38
-				Office.context.ui.displayDialogAsync(
-					fullUrl,
-					{ height: 45, width: 55 },
-					function (result) {
-						dialog = result.value;
-						dialog.addEventHandler(
-							Office.EventType.DialogMessageReceived,
-							processMessage
-						);
-					}
-				);
-
 				// Use this dialog for the Auth0 client library.
 				try {
 					await loginWithPopup(
