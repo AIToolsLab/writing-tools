@@ -50,18 +50,14 @@ export default function App({ editorAPI }: HomeProps) {
 				console.log('Login successful.', token);
 
 				// Mock the window message event that auth0-spa-js expects
-				window.dispatchEvent(
-					// look up what the messagevent is in the Auth0 app
-					new MessageEvent('message', {
-						data: {
-							origin: `https://${auth0Subdomain}`,
-							data: {
-								type: 'authorization_response',
-								response: token // or something like that, mocking whatever the popup actually sends
-							}
-						}
-					})
-				);
+				// see https://github.com/auth0/auth0-spa-js/blob/f2e566849efa398ca599daf9ebdfbbd62fcb1894/__tests__/utils.test.ts#L234
+				let messageEvent = new MessageEvent('message', {
+					data: {
+						type: 'authorization_response',
+						response: {id_token: token}
+					}
+				})
+				window.dispatchEvent(messageEvent);
 			}
 			else {
 				// eslint-disable-next-line no-console
