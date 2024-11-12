@@ -31,8 +31,8 @@ const render = (Component: any) => {
 				<UserContextWrapper>
 					<PageContextWrapper>
 					<Auth0Provider
-							domain="dev-62nhczyl7e1oaj8a.us.auth0.com"
-							clientId="W6MVTHKKbejEq7tCcT2oLt8gStOeHxT7"
+							domain="dev-rbroo1fvav24wamu.us.auth0.com"
+							clientId="YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr"
 							authorizationParams= { {
 								redirectUri: `${window.location.origin}/popup.html`,
 								scope: 'openid profile email read:posts',
