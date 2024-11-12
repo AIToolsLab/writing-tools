@@ -1,8 +1,3 @@
-// These came from the Auth0 dashboard.
-// Look in: Applications > this app > Settings > Basic Information
-const auth0Subdomain: string = 'dev-rbroo1fvav24wamu.us.auth0.com';
-const auth0ClientId: string = 'YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr';
-
 // Get the value of a query string from the hash string.
 function getHashStringParameter(name: string) {
   // eslint-disable-next-line prefer-const
