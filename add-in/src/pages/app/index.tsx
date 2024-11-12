@@ -20,10 +20,9 @@ export interface HomeProps {
 
 export default function App({  editorAPI }: HomeProps) {
 	const { username } = useContext(UserContext);
-
-	if (username.length === 0) return <Login />;
-
 	const { page } = useContext(PageContext);
+	
+	if (username.length === 0) return <Login />;
 
 	// eslint-disable-next-line eqeqeq
 	const trueEditorAPI = (editorAPI == null) ? wordEditorAPI : editorAPI;
