@@ -24,7 +24,9 @@ export default function App({ editorAPI }: HomeProps) {
 
 	const { isLoading, error, loginWithPopup, isAuthenticated, user } = useAuth0();
 	if (isLoading) return <div>Loading...</div>;
-	if (error) return <div>Oops... { error.message }</div>;
+	if (error) return <div>Oops... { error.message }
+		<button onClick={() => {window.location.reload()}}>Reload</button>
+	</div>;
 	if (!isAuthenticated) {
 		let dialog: Office.Dialog;
 
