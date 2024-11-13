@@ -1,13 +1,9 @@
 // Get the value of a query string from the hash string.
 function getHashStringParameter(name: string) {
-  // eslint-disable-next-line prefer-const
-	let hashString = window.location.hash;
-  // eslint-disable-next-line prefer-const
-	let hashStringParameters = hashString.split('&');
-  // eslint-disable-next-line prefer-const
-	for (let hashStringParameter of hashStringParameters) {
-    // eslint-disable-next-line prefer-const
-		let [key, value] = hashStringParameter.split('=');
+	const hashString = window.location.hash;
+	const hashStringParameters = hashString.split('&');
+	for (const hashStringParameter of hashStringParameters) {
+		const [key, value] = hashStringParameter.split('=');
 		if (key === `#${name}`) {
 			return value;
 		}
@@ -19,12 +15,10 @@ Office.onReady(() => {
   // From https://github.com/OfficeDev/Office-Add-in-Auth0/blob/master/Scripts/popup.js
   // and https://github.com/OfficeDev/Office-Add-in-Auth0/blob/master/Scripts/popupRedirect.js
   // (kca simplified this to just use a single page)
-  // eslint-disable-next-line prefer-const
-  let accessToken = getHashStringParameter('access_token');
+  const accessToken = getHashStringParameter('access_token');
 
   if (accessToken) {
-    // eslint-disable-next-line prefer-const
-    let message = {
+    const message = {
         status: 'success',
         auth0Token: accessToken
     };
@@ -33,7 +27,8 @@ Office.onReady(() => {
   else {
     // Redirect to the destination given in the "redirect" query string parameter.
     const redirect = new URLSearchParams(window.location.search).get('redirect');
-    if (redirect)
+    if (redirect) {
       window.location.href = redirect;
+    }
   }
 });
