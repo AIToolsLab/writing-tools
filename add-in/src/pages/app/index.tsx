@@ -45,8 +45,7 @@ export default function App({ editorAPI }: HomeProps) {
 				console.error('Error:', args.error);
 				return;
 			}
-			// eslint-disable-next-line prefer-const
-			let messageFromDialog = JSON.parse(args.message);
+			const messageFromDialog = JSON.parse(args.message);
 			dialog.close();
 
 			if (messageFromDialog.status === 'success') {
@@ -110,7 +109,12 @@ export default function App({ editorAPI }: HomeProps) {
 
 	return (
 		<Layout>
-			User: { user!.name }<button onClick={ () => logout() }>LogOut</button>{ getComponent(page) }
+			User: { user!.name }<button onClick={ () => {
+				console.log("origin", window.location.origin);
+				logout({
+					logoutParams: {returnTo: `${window.location.href}`}
+				});
+			 }}>LogOut</button>{ getComponent(page) }
 		</Layout>
 		);
 }
