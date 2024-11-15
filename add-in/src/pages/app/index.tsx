@@ -22,7 +22,7 @@ export interface HomeProps {
 export default function App({ editorAPI }: HomeProps) {
 	const { username } = useContext(UserContext);
 
-	const { isLoading, error, loginWithPopup, isAuthenticated, user, logout } = useAuth0();
+	const { isLoading, error, loginWithRedirect, handleRedirectCallback, isAuthenticated, user, logout } = useAuth0();
 	if (isLoading) return <div>Loading...</div>;
 	if (error) return (
   <div>Oops... { error.message }
@@ -34,6 +34,7 @@ export default function App({ editorAPI }: HomeProps) {
 	if (!isAuthenticated) {
 		let dialog: Office.Dialog;
 
+		// Strategy: the popup will pass its redirect-callback data here, so we can pass it on to handleRedirectCallback
 		const processMessage = async (
 			args:
 				| { message: string; origin: string | undefined }
@@ -50,20 +51,7 @@ export default function App({ editorAPI }: HomeProps) {
 
 			if (messageFromDialog.status === 'success') {
 				// The dialog reported a successful login.
-				// eslint-disable-next-line prefer-const
-				let token = messageFromDialog.auth0Token;
-				// eslint-disable-next-line no-console
-				console.log('Login successful.', token);
-
-				// Mock the window message event that auth0-spa-js expects
-				// see https://github.com/auth0/auth0-spa-js/blob/f2e566849efa398ca599daf9ebdfbbd62fcb1894/__tests__/utils.test.ts#L234
-				let messageEvent = new MessageEvent('message', {
-					data: {
-						type: 'authorization_response',
-						response: {id_token: token}
-					}
-				})
-				window.dispatchEvent(messageEvent);
+				handleRedirectCallback(messageFromDialog.urlWithAuthInfo);
 			}
 			else {
 				// eslint-disable-next-line no-console
@@ -71,37 +59,6 @@ export default function App({ editorAPI }: HomeProps) {
 			}
 		};
 
-
-		// Make the href of the popup be a setter so that we can actually launch the dialog with the correct url to begin with
-		const mockPopup = {
-			location: {
-				set href(url: string) {
-					console.log("Setting location.href to", url);
-
-					// Set up an Office dialog to do the login flow
-					// height and width are percentages of the size of the screen.
-					// How MS use it: https://github.com/OfficeDev/Office-Add-in-samples/blob/main/Samples/auth/Office-Add-in-Microsoft-Graph-React/utilities/office-apis-helpers.ts#L38
-
-					// Bounce off /popup.html?redirect=... to get the token
-					let redirect = encodeURIComponent(url);
-					let bounceURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') + '/popup.html?redirect=' + redirect;
-					console.log("Bouncing to", bounceURL);
-					Office.context.ui.displayDialogAsync(
-						bounceURL,
-						{ height: 45, width: 55 },
-						function (result) {
-							dialog = result.value;
-							dialog.addEventHandler(
-								Office.EventType.DialogMessageReceived,
-								processMessage
-							);
-						}
-					);
-				}
-			},
-			closed: false,
-			close: () => {mockPopup.closed = true},
-		};
 	// Actually make a popup using MS dialog API
 	// hook the message event from the popup to set close false and get the token
 	return (
@@ -109,23 +66,26 @@ export default function App({ editorAPI }: HomeProps) {
 			Login here:
 			<button onClick= { async () => {
 				// Use this dialog for the Auth0 client library.
-				try {
-					await loginWithPopup(
-						undefined,
-						{
-							popup: mockPopup
-						}
-					);
-				}
-				catch(e) {
-					if (e instanceof PopupCancelledError) {
-					  // Popup was closed before login completed
-						// esline-disable-next-line no-console
-						console.error('Cancelled login');
+				await loginWithRedirect({
+					openUrl: async (url: string) => {
+						const redirect = encodeURIComponent(url);
+						const bounceURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') + '/popup.html?redirect=' + redirect;
+						// height and width are percentages of the size of the screen.
+						// How MS use it: https://github.com/OfficeDev/Office-Add-in-samples/blob/main/Samples/auth/Office-Add-in-Microsoft-Graph-React/utilities/office-apis-helpers.ts#L38
+						Office.context.ui.displayDialogAsync(
+							bounceURL,
+							{ height: 45, width: 55 },
+							function (result) {
+								dialog = result.value;
+								dialog.addEventHandler(
+									Office.EventType.DialogMessageReceived,
+									processMessage
+								);
+							}
+						);
 					}
-				}
-			}
-		}
+				});
+		}}
 				>Log in
 			</button>
 			</div>
