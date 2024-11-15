@@ -24,9 +24,13 @@ export default function App({ editorAPI }: HomeProps) {
 
 	const { isLoading, error, loginWithPopup, isAuthenticated, user } = useAuth0();
 	if (isLoading) return <div>Loading...</div>;
-	if (error) return <div>Oops... { error.message }
-		<button onClick={() => {window.location.reload()}}>Reload</button>
-	</div>;
+	if (error) return (
+  <div>Oops... { error.message }
+		<button onClick={ () => {
+			window.location.reload();
+			} }>Reload</button>
+	</div>
+);
 	if (!isAuthenticated) {
 		let dialog: Office.Dialog;
 
@@ -70,10 +74,10 @@ export default function App({ editorAPI }: HomeProps) {
 
 		// Make the href of the popup be a setter so that we can actually launch the dialog with the correct url to begin with
 		const mockPopup = {
-			location: { 
+			location: {
 				set href(url: string) {
 					console.log("Setting location.href to", url);
-					
+
 					// Set up an Office dialog to do the login flow
 					// height and width are percentages of the size of the screen.
 					// How MS use it: https://github.com/OfficeDev/Office-Add-in-samples/blob/main/Samples/auth/Office-Add-in-Microsoft-Graph-React/utilities/office-apis-helpers.ts#L38
@@ -144,5 +148,5 @@ export default function App({ editorAPI }: HomeProps) {
 		console.error('Invalid page name', pageName);
 	}
 
-	return <Layout>{ user }{ getComponent(page) }</Layout>;
+	return <Layout>User: { user!.name }{ getComponent(page) }</Layout>;
 }
