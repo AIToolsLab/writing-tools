@@ -22,7 +22,7 @@ export interface HomeProps {
 export default function App({ editorAPI }: HomeProps) {
 	const { username } = useContext(UserContext);
 
-	const { isLoading, error, loginWithPopup, isAuthenticated, user } = useAuth0();
+	const { isLoading, error, loginWithPopup, isAuthenticated, user, logout } = useAuth0();
 	if (isLoading) return <div>Loading...</div>;
 	if (error) return (
   <div>Oops... { error.message }
@@ -148,5 +148,9 @@ export default function App({ editorAPI }: HomeProps) {
 		console.error('Invalid page name', pageName);
 	}
 
-	return <Layout>User: { user!.name }{ getComponent(page) }</Layout>;
+	return (
+		<Layout>
+			User: { user!.name }<button onClick={ () => logout() }>LogOut</button>{ getComponent(page) }
+		</Layout>
+		);
 }
