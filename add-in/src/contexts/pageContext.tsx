@@ -8,8 +8,7 @@ export const PageContext = createContext({
 export default function PageContextWrapper({
 	children
 }: PropsWithChildren<any>) {
-	// const [page, updatePage] = useState('login');
-	const [page, updatePage] = useState('reflections');
+	const [page, updatePage] = useState('');
 
 	return (
 		<PageContext.Provider value={ { page, changePage: updatePage } }>
