@@ -1,15 +1,10 @@
 import * as ReactDOM from 'react-dom';
 
 import { initializeIcons } from '@fluentui/font-icons-mdl2';
-import { ThemeProvider } from '@fluentui/react';
-import PageContextWrapper from './contexts/pageContext';
-import UserContextWrapper from './contexts/userContext';
-import ChatContextWrapper from './contexts/chatContext';
 
 import App from './pages/app';
 
 import './taskpane.css';
-import { Auth0Provider } from '@auth0/auth0-react';
 
 initializeIcons();
 
@@ -25,30 +20,7 @@ const render = (Component: any) => {
 		);
 	}
 
-	ReactDOM.render(
-		<ThemeProvider>
-			<ChatContextWrapper>
-				<UserContextWrapper>
-					<PageContextWrapper>
-					<Auth0Provider
-							domain="dev-rbroo1fvav24wamu.us.auth0.com"
-							clientId="YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr"
-							authorizationParams= { {
-								redirectUri: `${window.location.origin}/popup.html`,
-								scope: 'openid profile email read:posts',
-								audience: 'textfocals.com', // Value in Identifier field for the API being called.
-								leeway: 10
-							} }
-						>
-							<Component
-								isOfficeInitialized= { isOfficeInitialized }
-							/>
-						</Auth0Provider>
-
-					</PageContextWrapper>
-				</UserContextWrapper>
-			</ChatContextWrapper>
-		</ThemeProvider>,
+	ReactDOM.render(<Component />,
 		document.getElementById('container')
 	);
 };
