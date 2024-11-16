@@ -39,9 +39,10 @@ function AppInner({ editorAPI }: HomeProps) {
 		</div>
 	);
 	if (error) return (
-		<div>Oops... { error.message }
+		<div className={ classes.container }>
+			<p>Oops... { error.message }</p>
 			<button
-				className={ classes.loginButton }
+				className={ classes.logoutButton }
 				onClick={ () => {
 				window.location.reload();
 				} }
