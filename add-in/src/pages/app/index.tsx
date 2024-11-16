@@ -15,6 +15,7 @@ import Focals from '../focals';
 import SearchBar from '../searchbar';
 import Chat from '../chat';
 import QvE from '../qve';
+import { wordEditorAPI } from '@/api/wordEditorAPI';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
@@ -70,6 +71,9 @@ function AppInner({ editorAPI }: HomeProps) {
 }
 
 export default function App({ editorAPI }: HomeProps) {
+	if (!editorAPI) {
+		editorAPI = wordEditorAPI;
+	}
 	return (
 		<ThemeProvider>
 		<ChatContextWrapper>
