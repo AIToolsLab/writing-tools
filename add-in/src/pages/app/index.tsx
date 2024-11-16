@@ -1,6 +1,8 @@
 import { useContext } from 'react';
 
 import { PageContext } from '@/contexts/pageContext';
+import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
+
 import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
 import { ThemeProvider } from '@fluentui/react';
 // eslint-disable-next-line no-duplicate-imports
@@ -8,6 +10,9 @@ import PageContextWrapper from '@/contexts/pageContext';
 import UserContextWrapper from '@/contexts/userContext';
 import ChatContextWrapper from '@/contexts/chatContext';
 // import { Auth0Provider } from '@auth0/auth0-react';
+
+import classes from './styles.module.css';
+import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 
 import Layout from '@/components/layout';
 
@@ -25,23 +30,51 @@ export interface HomeProps {
 function AppInner({ editorAPI }: HomeProps) {
 	const auth0Client = useAuth0();
 	const { isLoading, error, isAuthenticated, user, logout } = auth0Client;
-	if (isLoading) return <div>auth0 says Loading...</div>;
+	if (isLoading) return (
+		<div className={ classes.loadingContainer }>
+			<div>Auth0 says Loading...</div>
+			<div className={ classes.spinnerWrapper }>
+				<Spinner size={ SpinnerSize.large } />
+			</div>
+		</div>
+	);
 	if (error) return (
-  <div>Oops... { error.message }
-		<button onClick={ () => {
-			window.location.reload();
-			} }>Reload</button>
-	</div>
-);
-	if (!isAuthenticated) {
-	return (
-		<div>
-			Login here:
-			<button onClick= { async () => {
-				await editorAPI.doLogin(auth0Client);
-			} }
-				>Log in
+		<div>Oops... { error.message }
+			<button
+				className={ classes.loginButton }
+				onClick={ () => {
+				window.location.reload();
+				} }
+			>
+				Reload
 			</button>
+		</div>
+	);
+	if (!isAuthenticated) {
+		return (
+			<div className={ classes.loginContainer }>
+				<h3>Not logged in yet?</h3>
+				<button
+					className={ classes.loginButton }
+					onClick= { async () => {
+						await editorAPI.doLogin(auth0Client);
+					} }
+				>
+					<p>Login</p>
+				</button>
+				<hr />
+				<p>Available Auth Providers</p>
+				<div className={ classes.authProviderIconContainer }>
+					<CgGoogle
+						className={ classes.authProviderIcon }
+					/>
+					<CgMicrosoft
+						className={ classes.authProviderIcon }
+					/>
+					<CgFacebook
+						className={ classes.authProviderIcon }
+					/>
+				</div>
 			</div>
 		);
 	}
@@ -61,13 +94,33 @@ function AppInner({ editorAPI }: HomeProps) {
 
 	return (
 		<Layout>
-			User: { user!.name }<button onClick={ () => {
-				// eslint-disable-next-line no-console
-				console.log('origin', window.location.origin);
-				logout({
-					logoutParams: { returnTo: `${window.location.href}` }
-				});
-			} }>LogOut</button>{ getComponent(page) }
+			<div className={ classes.container }>
+				<div className={ classes.profileContainer }>
+					<div className={ classes.profilePicContainer }>
+						<img
+							src={ user && user.picture }
+							alt="Profile"
+							className={ classes.profilePic }
+						/>
+					</div>
+					<div className={ classes.userNameContainer }>
+						User: { user!.name }
+					</div>
+				</div>
+				<button
+					className={ classes.logoutButton }
+					onClick={ () => {
+					// eslint-disable-next-line no-console
+					console.log('origin', window.location.origin);
+					logout({
+						logoutParams: { returnTo: `${window.location.href}` }
+					});
+				} }
+				>
+					LogOut
+				</button>
+			</div>
+			{ getComponent(page) }
 		</Layout>
 		);
 }
