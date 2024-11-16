@@ -9,7 +9,6 @@ import { ThemeProvider } from '@fluentui/react';
 import PageContextWrapper from '@/contexts/pageContext';
 import UserContextWrapper from '@/contexts/userContext';
 import ChatContextWrapper from '@/contexts/chatContext';
-// import { Auth0Provider } from '@auth0/auth0-react';
 
 import classes from './styles.module.css';
 import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
