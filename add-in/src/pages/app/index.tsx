@@ -1,12 +1,13 @@
 import { useContext } from 'react';
 
 import { PageContext } from '@/contexts/pageContext';
-import { useAuth0 } from '@auth0/auth0-react';
+import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
 import { ThemeProvider } from '@fluentui/react';
+// eslint-disable-next-line no-duplicate-imports
 import PageContextWrapper from '@/contexts/pageContext';
 import UserContextWrapper from '@/contexts/userContext';
 import ChatContextWrapper from '@/contexts/chatContext';
-import { Auth0Provider } from '@auth0/auth0-react';
+// import { Auth0Provider } from '@auth0/auth0-react';
 
 import Layout from '@/components/layout';
 
@@ -38,7 +39,7 @@ function AppInner({ editorAPI }: HomeProps) {
 			Login here:
 			<button onClick= { async () => {
 				await editorAPI.doLogin(auth0Client);
-			}}
+			} }
 				>Log in
 			</button>
 			</div>
@@ -61,11 +62,12 @@ function AppInner({ editorAPI }: HomeProps) {
 	return (
 		<Layout>
 			User: { user!.name }<button onClick={ () => {
-				console.log("origin", window.location.origin);
+				// eslint-disable-next-line no-console
+				console.log('origin', window.location.origin);
 				logout({
-					logoutParams: {returnTo: `${window.location.href}`}
+					logoutParams: { returnTo: `${window.location.href}` }
 				});
-			 }}>LogOut</button>{ getComponent(page) }
+			} }>LogOut</button>{ getComponent(page) }
 		</Layout>
 		);
 }
