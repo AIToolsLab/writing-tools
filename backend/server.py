@@ -76,6 +76,10 @@ class GenerationLog(Log):
     completion: Optional[str] = None
     delay: float
 
+class ReflectionLog(Log):
+    paragraph: str
+
+
 
 # Initialize Server
 app = FastAPI()
@@ -133,12 +137,25 @@ async def generation(payload: GenerationRequestPayload) -> nlp.GenerationResult:
 
 @app.post("/api/reflections")
 async def reflections(payload: ReflectionRequestPayload):
-    # TODO: Merge this in and fix logging.
-    # make_log(
-    #    Log(username=payload.username, interaction="reflection", prompt=payload.prompt, ui_id=None)
-    # )
+    start_time = datetime.now()
+    result = await nlp.reflection(prompt=payload.prompt, paragraph=payload.paragraph)
+    end_time = datetime.now()
+    
+    log_entry = ReflectionLog(
+        username=payload.username,
+        interaction="reflection",
+        prompt=payload.prompt,
+        paragraph=payload.paragraph,
+        timestamp=end_time.timestamp(),
+        delay=(end_time - start_time).total_seconds(),
+        result=result.result,
+    )
 
-    return await nlp.reflection(prompt=payload.prompt, paragraph=payload.paragraph)
+    make_log(log_entry)
+
+
+
+    return result
 
 
 @app.post("/api/chat")
@@ -150,7 +167,10 @@ async def chat(payload: ChatRequestPayload):
 
     # TODO: Fix logging
     # make_log(
-    #    Log(username=payload.username, interaction="chat", prompt=payload.messages[-1]['content'], ui_id=None)
+    #    Log(username=payload.username, 
+    # interaction="chat", 
+    # prompt=payload.messages[-1]['content'], 
+    # ui_id=None)
     # )
 
     # Stream response
