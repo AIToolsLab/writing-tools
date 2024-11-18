@@ -11,16 +11,11 @@ import UserContextWrapper from '../contexts/userContext';
 import ChatContextWrapper from '../contexts/chatContext';
 
 import classes from './styles.module.css';
+import { Auth0ContextInterface } from '@auth0/auth0-react';
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 	return (
-		<ChatContextWrapper>
-			<UserContextWrapper>
-				<PageContextWrapper>
-					<SidebarInner.default editorAPI={ editorAPI }/>
-				</PageContextWrapper>
-			</UserContextWrapper>
-		</ChatContextWrapper>
+		<SidebarInner.default editorAPI={ editorAPI }/>
 	);
 }
 
@@ -36,6 +31,9 @@ function App() {
 	};
 
 	const editorAPI: EditorAPI = {
+		doLogin: async (auth0Client: Auth0ContextInterface) => {
+			await auth0Client.loginWithPopup();
+		},
 		getDocContext: async (_positionalSensitivity: boolean) => {
 			return docRef.current;
 		},

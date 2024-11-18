@@ -1,10 +1,6 @@
 import * as ReactDOM from 'react-dom';
 
 import { initializeIcons } from '@fluentui/font-icons-mdl2';
-import { ThemeProvider } from '@fluentui/react';
-import PageContextWrapper from './contexts/pageContext';
-import UserContextWrapper from './contexts/userContext';
-import ChatContextWrapper from './contexts/chatContext';
 
 import App from './pages/app';
 
@@ -23,16 +19,8 @@ const render = (Component: any) => {
 			</section>
 		);
 	}
-	ReactDOM.render(
-		<ThemeProvider>
-			<ChatContextWrapper>
-				<UserContextWrapper>
-					<PageContextWrapper>
-						<Component />
-					</PageContextWrapper>
-				</UserContextWrapper>
-			</ChatContextWrapper>
-		</ThemeProvider>,
+
+	ReactDOM.render(<Component />,
 		document.getElementById('container')
 	);
 };

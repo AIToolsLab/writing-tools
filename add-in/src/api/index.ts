@@ -31,7 +31,8 @@ export function log(payload: LogPayload) {
 export async function getReflection(
 	username: string,
 	paragraph: string,
-	prompt: string
+	prompt: string,
+	getAccessTokenSilently: () => Promise<string>
 ): Promise<ReflectionResponseItem[]> {
 	try {
 		const key = JSON.stringify({ prompt, paragraph });
@@ -40,6 +41,7 @@ export async function getReflection(
 		// ASSUMES that cachedResponse is valid JSON
 
 		if (cachedResponse) return JSON.parse(cachedResponse);
+		const token = await getAccessTokenSilently();
 
 		const data = {
 			username: username,
@@ -50,7 +52,8 @@ export async function getReflection(
 		const response: Response = await fetch(`${SERVER_URL}/reflections`, {
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/json'
+				'Content-Type': 'application/json',
+				Authorization: `Bearer ${token}`
 			},
 			body: JSON.stringify(data)
 		});

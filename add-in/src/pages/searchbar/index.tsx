@@ -9,8 +9,12 @@ import { UserContext } from '@/contexts/userContext';
 import { getParagraphText } from '@/utilities';
 import { getReflection } from '@/api';
 
+import { useAuth0 } from '@auth0/auth0-react';
+
 export default function SearchBar() {
 	const { username } = useContext(UserContext);
+
+	const { getAccessTokenSilently } = useAuth0();
 
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [curParagraphText, updateCurParagraphText] = useState('');
@@ -107,7 +111,7 @@ export default function SearchBar() {
 		const suggestionPrompt = `Write one concise and brief prompt to ask a companion for various points about a piece of academic writing that may warrant reconsideration. The prompt might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer${rhetCtxt ? rhetCtxtDirections : '\n'}.`;
 
 		const suggestionsPromise: Promise<ReflectionResponseItem[]> =
-			getReflection(username, paragraphText, suggestionPrompt);
+			getReflection(username, paragraphText, suggestionPrompt, getAccessTokenSilently);
 
 			suggestionsPromise
 				.then(newPrompts => {
@@ -151,12 +155,12 @@ export default function SearchBar() {
 		// TODO: Fix typing error
 		const cachedValue: any
 			// | ReflectionResponseItem[]
-			// | Promise<ReflectionResponseItem[]> 
+			// | Promise<ReflectionResponseItem[]>
 		= reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflection(username, paragraphText, prompt);
+				getReflection(username, paragraphText, prompt, getAccessTokenSilently);
 
 			reflectionsPromise
 				.then(newReflections => {
