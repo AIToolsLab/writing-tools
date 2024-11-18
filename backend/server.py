@@ -76,9 +76,9 @@ class GenerationLog(Log):
     completion: Optional[str] = None
     delay: float
 
+
 class ReflectionLog(Log):
     paragraph: str
-
 
 
 # Initialize Server
@@ -140,7 +140,7 @@ async def reflections(payload: ReflectionRequestPayload):
     start_time = datetime.now()
     result = await nlp.reflection(prompt=payload.prompt, paragraph=payload.paragraph)
     end_time = datetime.now()
-    
+
     log_entry = ReflectionLog(
         username=payload.username,
         interaction="reflection",
@@ -152,8 +152,6 @@ async def reflections(payload: ReflectionRequestPayload):
     )
 
     make_log(log_entry)
-
-
 
     return result
 
@@ -167,9 +165,9 @@ async def chat(payload: ChatRequestPayload):
 
     # TODO: Fix logging
     # make_log(
-    #    Log(username=payload.username, 
-    # interaction="chat", 
-    # prompt=payload.messages[-1]['content'], 
+    #    Log(username=payload.username,
+    # interaction="chat",
+    # prompt=payload.messages[-1]['content'],
     # ui_id=None)
     # )
 
@@ -247,23 +245,20 @@ def make_log(payload: Log):
 
     table_service = get_az_table_service()
     table_client = table_service.get_table_client("AppLogs")
-    log_entry_raw = payload.model_dump_json()
     # use timestamp and a uuid as a row key
     import uuid
     row_key = f"{payload.timestamp}_{uuid.uuid4()}"
-    # table_client.create_entity(entity=dict(
-    #     PartitionKey="",
-    #     RowKey=row_key,
-    #     Body=log_entry_raw)
-    # )
+
+    entity = payload.model_dump()
+    # Convert unsupported types to supported ones
+    for key, value in entity.items():
+        if isinstance(value, dict):
+            entity[key] = json.dumps(value)
+        elif isinstance(value, list):
+            entity[key] = json.dumps(value)
+
     table_client.create_entity(entity=dict(
-        payload.model_dump(), PartitionKey=payload.username, RowKey=row_key))
-
-
-# Helper functions (OLD)
-# def make_log(payload: Log):
-#     with open(get_participant_log_filename(payload.username), "a+") as f:
-#         f.write(json.dumps(payload.model_dump()) + "\n")
+        entity, PartitionKey=payload.username, RowKey=row_key))
 
 
 static_path = Path("../add-in/dist")
