@@ -2,6 +2,7 @@ import { useContext } from 'react';
 
 import { PageContext } from '@/contexts/pageContext';
 import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
+import { useWindowSize } from '@react-hook/window-size/throttled';
 
 import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
 import { ThemeProvider } from '@fluentui/react';
@@ -29,6 +30,8 @@ export interface HomeProps {
 function AppInner({ editorAPI }: HomeProps) {
 	const auth0Client = useAuth0();
 	const { isLoading, error, isAuthenticated, user, logout } = auth0Client;
+	const [width, _height] = useWindowSize();
+
 	if (isLoading) return (
 		<div className={ classes.loadingContainer }>
 			<div>Auth0 says Loading...</div>
@@ -75,6 +78,14 @@ function AppInner({ editorAPI }: HomeProps) {
 						className={ classes.authProviderIcon }
 					/>
 				</div>
+
+				{ width < 400 && (
+					<div className={ classes.widthAlert }>
+						For best experience please expand the sidebar by dragging the splitter.
+						</div>
+					)
+				}
+
 			</div>
 		);
 	}
