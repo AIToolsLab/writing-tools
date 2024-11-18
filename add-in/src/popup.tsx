@@ -6,7 +6,8 @@ Office.onReady(() => {
   const redirect = searchParams.get('redirect');
   if (redirect) {
     window.location.href = redirect;
-  } else {
+  }
+ else {
     const message = {
         status: 'success',
         urlWithAuthInfo: window.location.href
