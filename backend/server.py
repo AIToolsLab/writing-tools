@@ -22,6 +22,17 @@ from dotenv import load_dotenv
 
 import nlp
 
+
+# Function to get the Azure Table Service
+
+from azure.identity import DefaultAzureCredential
+from azure.data.tables import TableServiceClient
+
+credential = DefaultAzureCredential()
+table_service = TableServiceClient(
+    endpoint="https://textfocalsb6ab.table.core.windows.net/", credential=credential)
+
+
 # Load ENV vars
 load_dotenv()
 
@@ -228,22 +239,10 @@ def get_participant_log_filename(username):
     return LOG_PATH / f"{username}.jsonl"
 
 
-# Function to get the Azure Table Service
-def get_az_table_service():
-    from azure.identity import DefaultAzureCredential
-    from azure.data.tables import TableServiceClient
-
-    credential = DefaultAzureCredential()
-    table_service = TableServiceClient(
-        endpoint="https://textfocalsb6ab.table.core.windows.net/", credential=credential)
-    return table_service
-
-
 # Function to make a log entry in Azure Table Storage
 def make_log(payload: Log):
     """Store the log our Azure Table."""
 
-    table_service = get_az_table_service()
     table_client = table_service.get_table_client("AppLogs")
     # use timestamp and a uuid as a row key
     import uuid
