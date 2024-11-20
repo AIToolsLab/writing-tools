@@ -1,4 +1,4 @@
-name: Backend Tests
+name: Deploy Backend to Azure Functions
 
 on:
   push:
@@ -60,10 +60,6 @@ jobs:
         # Go to your Function App in Azure Portal
         # Click "Overview" → "Get publish profile"
         # Copy the contents of the downloaded file and add it to your GitHub repository secrets as AZURE_FUNCTIONAPP_PUBLISH_PROFILE
-        scm-do-build-during-deployment: true
         respect-funcignore: true
-        enable-oryx-build: true
-
-
 
 
