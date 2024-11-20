@@ -1,6 +1,8 @@
 import azure.functions as func
 import logging
 
+import server
+
 app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 @app.route(route="HttpExample")
