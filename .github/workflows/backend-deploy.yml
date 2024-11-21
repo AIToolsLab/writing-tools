@@ -5,12 +5,14 @@ on:
     paths:
       - 'backend/**'
       - 'pyproject.toml'
-      - '.github/workflows/backend-tests.yml'
+      - '.github/workflows/backend-deploy.yml'
+      - '.python-version'
   pull_request:
     paths:
       - 'backend/**'
       - 'pyproject.toml'
-      - '.github/workflows/backend-tests.yml'
+      - '.github/workflows/backend-deploy.yml'
+      - '.python-version'
 
 
 env:
