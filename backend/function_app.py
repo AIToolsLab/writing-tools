@@ -5,7 +5,7 @@ import server
 app = func.AsgiFunctionApp(
     app=server.app, http_auth_level=func.AuthLevel.ANONYMOUS)
 
-app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
+# app = func.FunctionApp(http_auth_level=func.AuthLevel.ANONYMOUS)
 
 # @app.route(route="HttpExample")
 # def HttpExample(req: func.HttpRequest) -> func.HttpResponse:
