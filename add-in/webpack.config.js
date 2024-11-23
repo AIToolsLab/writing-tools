@@ -150,7 +150,8 @@ module.exports = async (env, options) => {
 			port: process.env.npm_package_config_dev_server_port || 3000,
 			proxy: {
 				'/api': {
-					target: 'http://127.0.0.1:7071'
+					target: 'https://textfocals.azurewebsites.net/',
+					changeOrigin: true
 				}
 			},
 			compress: false
