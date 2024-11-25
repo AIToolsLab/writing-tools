@@ -62,7 +62,7 @@ app.add_middleware(
 
 
 @app.get("/api/highlights")
-def get_highlights(doc: str, prompt: Optional[str] = None, updated_doc: Optional[str] = ''):
+def get_highlights(doc: str, prompt: Optional[str] = None, updated_doc: Optional[str] = '', k: Optional[int] = 5):
     ''' Example of using this in JavaScript:
     
     let url = new URL('http://localhost:8000/api/highlights')
@@ -106,14 +106,15 @@ def get_highlights(doc: str, prompt: Optional[str] = None, updated_doc: Optional
         token_id = joined_ids[idx]
         token = tokenizer.decode(token_id)
         token_loss = -probs[token_id].log().item()
-        most_likely_token_id = probs.argmax()
-        #print(idx, token, token_loss, tokenizer.decode(most_likely_token_id))
+        topk_tokens = probs.topk(k).indices.cpu().numpy().tolist()
+        topk_tokens_decoded = tokenizer.decode(topk_tokens)
         highlights.append(dict(
             start=length_so_far,
             end=length_so_far + len(token),
             token=token,
             token_loss=token_loss,
-            most_likely_token=tokenizer.decode(most_likely_token_id)
+            most_likely_token=topk_tokens_decoded[0],
+            topk_tokens=topk_tokens_decoded,
         ))
         length_so_far += len(token)
     return {'highlights': highlights}
