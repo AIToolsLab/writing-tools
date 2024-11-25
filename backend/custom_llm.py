@@ -107,7 +107,7 @@ def get_highlights(doc: str, prompt: Optional[str] = None, updated_doc: Optional
         token = tokenizer.decode(token_id)
         token_loss = -probs[token_id].log().item()
         topk_tokens = probs.topk(k).indices.cpu().numpy().tolist()
-        topk_tokens_decoded = tokenizer.decode(topk_tokens)
+        topk_tokens_decoded = tokenizer.batch_decode(topk_tokens, skip_special_tokens=True)
         highlights.append(dict(
             start=length_so_far,
             end=length_so_far + len(token),
