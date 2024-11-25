@@ -34,7 +34,7 @@ function AppInner({ editorAPI }: HomeProps) {
 
 	if (isLoading) return (
 		<div className={ classes.loadingContainer }>
-			<div>Auth0 says Loading...</div>
+			<div>Waiting for authentication</div>
 			<div className={ classes.spinnerWrapper }>
 				<Spinner size={ SpinnerSize.large } />
 			</div>
