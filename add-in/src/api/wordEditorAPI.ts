@@ -1,7 +1,7 @@
-import { Auth0ContextInterface, useAuth0 } from '@auth0/auth0-react';
+import { Auth0ContextInterface } from '@auth0/auth0-react';
 
 export const wordEditorAPI: EditorAPI = {
-	doLogin: async (auth0Client: Auth0ContextInterface) => {
+	async doLogin(auth0Client: Auth0ContextInterface): Promise<void> {
 		let dialog: Office.Dialog;
 
 		// Strategy: the popup will pass its redirect-callback data here, so we can pass it on to handleRedirectCallback
@@ -105,7 +105,7 @@ export const wordEditorAPI: EditorAPI = {
 			}
 		});
 	},
-	
+
 	getCursorPosInfo() {
 		return new Promise<{charsToCursor: number, docLength: number}>(async (resolve, _reject) => {
 			await Word.run(async (context: Word.RequestContext) => {
@@ -116,11 +116,11 @@ export const wordEditorAPI: EditorAPI = {
 
 				context.load(rangeToCursor, 'text');
 				context.load(body, 'text');
-				
+
 				await context.sync();
 
 				const charsToCursor = rangeToCursor.text.toString().length;
-				
+
 				const docLength = body.text.toString().length;
 				resolve({ charsToCursor, docLength });
 			});

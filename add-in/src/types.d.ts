@@ -18,7 +18,7 @@ interface SavedItem {
 }
 
 interface EditorAPI {
-	async doLogin(auth0Client: Auth0ContextInterface): void;
+	doLogin(auth0Client: Auth0ContextInterface): Promise<void>;
 	getDocContext(positionalSensitivity: boolean): Promise<string>;
 	getCursorPosInfo(): Promise<{charsToCursor: number, docLength: number}>;
 	addSelectionChangeHandler: (handler: () => void) => void;
