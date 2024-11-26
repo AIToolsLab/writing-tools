@@ -1,20 +1,17 @@
 import argparse
 import os
-import json
-import torch
-from transformers import AutoTokenizer, AutoModelForCausalLM
-
-import uvicorn
-
-from typing import List, Dict, Optional
+import time
+from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Dict, List, Optional
 
+import torch
+import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.testclient import TestClient
+from transformers import AutoModelForCausalLM, AutoTokenizer
 
-from pydantic import BaseModel
-
-from contextlib import asynccontextmanager
 ml_models = {}
 
 parser = argparse.ArgumentParser()
@@ -37,6 +34,29 @@ async def models_lifespan(app: FastAPI):
     }
     print("Loaded llm with device map:")
     print(llm['model'].hf_device_map)
+
+    # Print timing info for each endpoint
+    print("\nRunning endpoint tests...")
+    
+    test_doc = "This is a test document that needs to be revised for clarity and conciseness."
+    test_prompt = "Make this more clear and concise."
+    
+    client = TestClient(app)
+    
+    start = time.time()
+    response = client.get("/api/highlights", 
+        params={"doc": test_doc, "prompt": test_prompt})
+    print(f"Highlights endpoint: {time.time() - start:.2f}s")
+    
+    start = time.time()
+    response = client.get("/api/next_token",
+        params={"original_doc": test_doc, "prompt": test_prompt, "doc_in_progress": "This is"})
+    print(f"Next token endpoint: {time.time() - start:.2f}s")
+    
+    start = time.time()
+    response = client.get("/api/gen_revisions",
+        params={"doc": test_doc, "prompt": test_prompt})
+    print(f"Gen revisions endpoint: {time.time() - start:.2f}s")
 
     yield
 
