@@ -248,6 +248,13 @@ header {
 	position: relative;
 }
 
+/* Responsive Design */
+@media (max-width: 768px) {
+	.members-container {
+		grid-template-columns: repeat(2, 1fr);
+	}
+}
+
 .member {
 	border: 1px solid #e0e0e0;
 	border-radius: 1rem;
