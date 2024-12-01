@@ -258,7 +258,7 @@ header {
 .member:hover {
 	transform: translateY(-0.2rem);
 	box-shadow: 0 1.25rem 2.5rem 0 rgba(0, 0, 0, 0.1);
-	border: transparent;
+	border: 1px transparent;
 }
 
 /* Name and Img container */
