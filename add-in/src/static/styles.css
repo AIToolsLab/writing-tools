@@ -279,12 +279,20 @@ header {
 	color: #9694FF;
 }
 
+.desc-text-light {
+	color: #a8a8a8 !important;
+}
+
 .text-light {
 	color: #a0a0a0 !important;
 }
 
+.text-light:hover {
+	color: #b4b3e6 !important;
+}
+
 .border-light {
-	border: 1px solid #ececec;
+	border: 1px solid #f1f1f1;
 }
 
 .member-img {
@@ -293,6 +301,10 @@ header {
 	height: 12%;
 	border-radius: 0.4rem;
 	margin-right: 0.5rem;
+}
+
+.lowop {
+	opacity: 0.6;
 }
 
 .profile-desc {
