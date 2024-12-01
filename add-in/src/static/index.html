@@ -28,8 +28,8 @@
 
 	<body>
 		<div>
-			<nav>
-				<div class="nav-wrapper">
+			<nav class="nav-wrapper">
+				<div class="logo-wrapper">
 					<a href="#" class="brand-logo">
 						<img src="../../assets/logo_black.png" alt="Logo" height="64px" />
 					</a>
@@ -51,87 +51,15 @@
 		</header>
 
 		<!-- TODO: Add previous works -->
-		<!-- TODO: Add a link to the custom text editor as a demo -->
-
 		<article id="main-article">
-			<section class="article-section">
-				<h2>Introduction</h2>
-				<div class="flexrow">
-					<div class="desc-text">
-						<p>
-							Large Language Models, such as ChatGPT or Claude.ai, are applied to many writing tasks and seem like a “magic
-							tool” due to advanced reasoning capabilities, but there isn’t much variety in the interfaces used to request
-							their outputs.
-						</p>
-						<p>
-							The typical “chat” interface often provides a single, seemingly final answer, which can make users overestimate
-							LLM capabilities and assume its answer is the “best” answer. But we don’t know what really “goes into” an LLM’s
-							training, so we want to help users become more aware of possible limitations.
-						</p>
-					</div>
-					<img class="msdoc-image" src="../../assets/MSdocui.png" alt="Microsoft Word Add-in" />
-				</div>
-			</section>
-
-			<section class="article-section">
-				<h2>Approaches</h2>
-				<div>
-					<div>
-						<p>
-							We developed a Microsoft Word sidebar that offered next-sentence suggestions expressed in four different ways:
-						</p>
-						<ul>
-							<li class="gtype-desc"><strong>Completion of a current thought:</strong> Provides a pre-written single sentence</li>
-							<li class="gtype-desc"><strong>A question about current/future writing:</strong> A question the writer could answer in
-								the next sentence</li>
-							<li class="gtype-desc"><strong>A list of possible vocabulary:</strong> to use in the next sentence</li>
-							<li class="gtype-desc"><strong>A rhetorical strategy to employ:</strong> Directions on the kind of sentence to write,
-								like citing statistics, offering a personal anecdote, etc.</li>
-						</ul>
-					</div>
-					<div class="gtype-img-container">
-						<img class="gtype-img" src="../../assets/Gtype_2024UI.png" alt="Generation Types" />
-					</div>
-				</div>
-			</section>
-
-			<section class="article-section">
-				<h2>Summary</h2>
-				<p>
-					In a pilot study (N=9), writers found questions and rhetorical moves to be useful and friendly. Multiple
-					participants
-					found that the suggestions helped overcome “writer’s block” and characterized the tool as
-					conversational or collaborative. Although writers chose to request "Completion" more often, they often rejected the
-					suggested text. The majority of participants used the “Completions” option most often, and expressed reservation on
-					how their usage of “Completions” affected their authorship and ownership of the text, but did not raise similar
-					objections to other suggestion types. Dissonance between conscious desire for originality and subconscious desire to minimize
-					cognitive load.
-				</p>
-				<p>
-					Overall, non-Completion type suggestions seem to hold the most promise in assisting—but not replacing—users’
-					writing; completions did help with writer’s block when it was aligned with what users wanted to say, but also sometimes
-					induced writers’ block when suggesting ideas that weren’t aligned. This demonstrates the potential for more open-ended
-					suggestions to fill this gap.
-				</p>
-				<p>
-					Multiple participants rejected more at the beginning then noticed the LLM got a better sense of what they were going
-					for later on, suggesting they were cognitively engaged in evaluating the appropriateness of LLM outputs.
-				</p>
-			</section>
-
-			<section class="article-section">
-				<h2>Future Work</h2>
-				<p>
-					On the research end, we plan to further compare writers’ usage of our prototype suggestions, make connections to
-					existing literature, iterate on our current study design for the eventual deployment study, and debrief with the
-					development team on opportunities for additional functionality or affordances.
-				</p>
-				<p>
-					On the development end, we plan to finalize DevOps and deploy our application to Azure, publish to Microsoft Store to run usability tests,
-					iterate on the design of the sidebar, improve the quality of the suggestions, and improve robustness of our system.
-				</p>
-			</section>
+			<div class="previous-works">
+				<div><a class="prevwork-button" href="#">Revision</a></div>
+				<div><a class="prevwork-button" href="./seniorProject2024.html">Drafting</a></div>
+			</div>
 		</article>
+
+
+		<!-- TODO: Add a link to the custom text editor as a demo -->
 
 		<div class="bottom-signup">
 			<div class="signup-button-container">

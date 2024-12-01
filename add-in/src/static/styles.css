@@ -13,8 +13,18 @@
 	padding: 0;
 }
 
-a {
-	text-decoration: none;
+a,
+a:any-link,
+a:active,
+a:link,
+a:-webkit-any-link,
+a:visited {
+	text-decoration: none !important;
+}
+
+.flex {
+	display: flex;
+	flex-direction: column;
 }
 
 body {
@@ -30,13 +40,36 @@ body {
 	flex-direction: row;
 	align-items: center;
 	background-color: var(--gold);
+	justify-content: space-between;
 }
 
 .nav-wrapper span {
 	font-size: 1.5rem;
 	font-weight: 600;
 	color: var(--maroon);
+}
+
+.logo-wrapper {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.icon-links-container {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.6rem;
+}
+
+.ghicon {
 	cursor: pointer;
+	transition: all 0.3s;
+	opacity: 1;
+}
+
+.ghicon:hover {
+	opacity: 0.6;
 }
 
 header {
@@ -76,6 +109,29 @@ header {
 	max-width: 50%;
 }
 
+.previous-works {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	gap: 2rem;
+}
+
+.prevwork-button {
+	border: none;
+	color: var(--maroon);
+	background-color: var(--gold);
+	cursor: pointer;
+	padding: 1rem 2rem;
+	transition: all 0.3s;
+	font-size: 1rem;
+	font-weight: 400;
+}
+
+.prevwork-button:hover {
+	background-color: var(--maroon);
+	color: var(--gold);
+}
+
 .btn-large {
 	font-size: 1.2em;
 	padding: 1.2rem 1.8rem;
@@ -85,6 +141,7 @@ header {
 	display: flex;
 	justify-content: center;
 	align-items: center;
+	margin-top: 5rem;
 	margin-bottom: 5rem;
 }
 
@@ -149,12 +206,14 @@ header {
 .desc-text {
 	display: flex;
 	flex-direction: column;
+	margin-top: 2rem;
 }
 
 .msdoc-image {
 	object-fit: contain;
-	width: 50%;
+	width: 45%;
 	border-radius: 1rem;
+	margin-left: 1rem;
 }
 
 .gtype-desc {
@@ -163,6 +222,7 @@ header {
 	padding: 0.5rem 1rem;
 	border-radius: 1.5rem;
 	font-weight: 300;
+	font-size: 0.9rem;
 	margin-bottom: 0.5rem;
 }
 
@@ -176,6 +236,69 @@ header {
 	object-fit: contain;
 	width: 60%;
 	border-radius: 1rem;
+}
+
+.members-container {
+	display: grid;
+	flex-direction: column;
+	grid-template-columns: repeat(3, 1fr);
+	gap: 1.2rem;
+	grid-auto-rows: minmax(8rem, auto);
+	justify-self: center;
+	position: relative;
+}
+
+.member {
+	border: 1px solid #e0e0e0;
+	border-radius: 1rem;
+	padding: 1rem;
+	transition: all 0.3s;
+}
+
+.member:hover {
+	transform: translateY(-0.2rem);
+	box-shadow: 0 1.25rem 2.5rem 0 rgba(0, 0, 0, 0.1);
+	border: transparent;
+}
+
+/* Name and Img container */
+.name-img {
+	justify-content: start;
+	align-items: center;
+	display: flex;
+}
+
+.name-img h3 {
+	font-size: 1.2rem;
+	font-weight: 600;
+	color: #454545;
+	transition: all 0.2s;
+}
+
+.name-img h3:hover {
+	color: #9694FF;
+}
+
+.text-light {
+	color: #a0a0a0 !important;
+}
+
+.border-light {
+	border: 1px solid #ececec;
+}
+
+.member-img {
+	object-fit: cover;
+	width: 12%;
+	height: 12%;
+	border-radius: 0.4rem;
+	margin-right: 0.5rem;
+}
+
+.profile-desc {
+	display: flex;
+	flex-direction: column;
+	margin-top: 1rem;
 }
 
 footer {
