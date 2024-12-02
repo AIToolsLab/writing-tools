@@ -46,6 +46,7 @@ body {
 	justify-content: space-between;
 }
 
+/* Title Text */
 .nav-wrapper span {
 	font-size: 1.5rem;
 	font-weight: 600;
@@ -78,7 +79,7 @@ body {
 header {
 	background-size: cover;
 	text-align: center;
-	padding: 50px 0;
+	padding: 4rem;
 	background-color: var(--light-gray);
 }
 
@@ -98,9 +99,19 @@ header {
 .header-content>div>p {
 	font-size: 1.3rem;
 	font-weight: 400;
-	background: linear-gradient(to right, #14C38E, #9694FF);
+	/* background: linear-gradient(to right, #14C38E, #9694FF); */
+	background: radial-gradient(circle at 100%, #14C38E, #9694FF 50%, #14C38E 75%, #14C38E 100%);
+	background-size: 200% auto;
 	background-clip: text;
+	-webkit-text-fill-color: transparent;
 	color: transparent;
+	animation: alternateTextColor 8s linear infinite;
+}
+
+@keyframes alternateTextColor {
+	to {
+		background-position: 200% center;
+	}
 }
 
 .header {
@@ -113,7 +124,7 @@ header {
 }
 
 .previous-works {
-	display: flex;
+	display: inline-flex;
 	justify-content: center;
 	align-items: center;
 	gap: 2rem;
@@ -128,6 +139,7 @@ header {
 	transition: all 0.3s;
 	font-size: 1rem;
 	font-weight: 400;
+	display: inline-block;
 }
 
 .prevwork-button:hover {
@@ -181,6 +193,7 @@ header {
 	margin-top: 4rem;
 	margin-left: 1rem;
 	margin-right: 1rem;
+	padding: 0 2rem;
 }
 
 #main-article h2 {
@@ -211,6 +224,21 @@ header {
 	display: flex;
 	flex-direction: column;
 	margin-top: 2rem;
+}
+
+.img-container {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	margin-top: 3rem;
+}
+
+.main-msdoc-img {
+	object-fit: contain;
+	width: 50%;
+	border-radius: 1rem;
+	justify-self: center;
+	display: flex;
 }
 
 .msdoc-image {
