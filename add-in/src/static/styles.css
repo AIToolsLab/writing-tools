@@ -31,6 +31,9 @@ body {
 	/* font-family: Arial, sans-serif; */
 	font-family: "Plus Jakarta Sans", sans-serif;
 	background-color: #FFFFFF;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
 }
 
 .nav-wrapper {
@@ -172,6 +175,7 @@ header {
 	max-width: 64rem;
 	display: flex;
 	justify-self: center;
+	justify-content: center;
 	align-self: center;
 	flex-direction: column;
 	margin-top: 4rem;
@@ -330,10 +334,10 @@ header {
 }
 
 footer {
-	display: block;
+	display: flex;
 	bottom: 0;
-	width: 90%;
 	justify-self: center;
+	justify-content: center;
 	border-top: 1px solid #e0e0e0;
 }
 
