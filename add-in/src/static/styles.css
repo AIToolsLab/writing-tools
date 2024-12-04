@@ -5,6 +5,7 @@
 	--white: #f1f1f1f1;
 	--light-gray: #f8f8f8;
 	--light-blue: #D4EBF8;
+	--shadow-blue: #519fcc;
 }
 
 * {
@@ -124,7 +125,9 @@ header {
 }
 
 .previous-works {
-	display: inline-flex;
+	/* display: inline-flex; */
+	display: flex;
+	flex-direction: column;
 	justify-content: center;
 	align-items: center;
 	gap: 2rem;
@@ -173,13 +176,14 @@ header {
 	text-align: center;
 	letter-spacing: 0.5px;
 	transition: all 0.3s;
+	background-color: var(--light-blue);
 	box-shadow: 0 0.4rem 1rem -0.25rem rgba(0, 0, 0, 0.2), inset 0 -0.1875rem 0.25rem -0.0625rem rgba(0, 0, 0, 0.2), 0 -0.625rem 0.9375rem -0.0625rem rgba(255, 255, 255, 0.6), inset 0 0.1875rem 0.25rem -0.0625rem rgba(255, 255, 255, 0.2), inset 0 0 0.3125rem 0.0625rem rgba(255, 255, 255, 0.8), inset 0 1.25rem 1.875rem 0 rgba(255, 255, 255, 0.2);
 	color: #878787;
 }
 
 #intersted-button:hover {
-	background-color: var(--light-blue);
-	color: #454545;
+	background-color: var(--shadow-blue);
+	color: #ffffff;
 }
 
 #main-article {
@@ -370,6 +374,7 @@ footer {
 
 .footer-content {
 	display: flex;
+	flex-direction: column;
 	justify-content: center;
 	align-items: center;
 	padding: 1rem 0;
@@ -379,4 +384,27 @@ footer {
 	font-size: 0.8rem;
 	font-weight: 400;
 	color: #a0a0a0;
+}
+
+.linkicon-container {
+	display: flex;
+	flex-direction: row;
+	justify-content: center;
+	align-items: center;
+	padding: 0.3rem;
+	gap: 0.3rem;
+}
+
+.linkicon-container > a {
+	text-decoration: none !important;
+	color: #bbbbbb;
+	transition: all 0.1s;
+}
+
+.linkicon-container > a:hover{
+	color: #cacaca;
+}
+
+.linkicon-container > a > i {
+	font-size: 0.9rem;
 }
