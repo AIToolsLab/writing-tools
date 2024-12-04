@@ -77,6 +77,14 @@ body {
 	opacity: 0.6;
 }
 
+#main-page {
+	transition: all 0.5s;
+}
+
+#main-page:hover {
+	transform: rotateZ(90deg);
+}
+
 header {
 	background-size: cover;
 	text-align: center;
