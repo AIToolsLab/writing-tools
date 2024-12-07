@@ -377,6 +377,8 @@ footer {
 	bottom: 0;
 	justify-self: center;
 	justify-content: center;
+	width: 80%;
+	margin: 0 auto;
 	border-top: 1px solid #e0e0e0;
 }
 
