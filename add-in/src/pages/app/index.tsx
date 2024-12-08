@@ -16,7 +16,6 @@ import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 
 import Layout from '@/components/layout';
 
-import Home from '../home';
 import Focals from '../focals';
 import SearchBar from '../searchbar';
 import Chat from '../chat';
@@ -93,7 +92,6 @@ function AppInner({ editorAPI }: HomeProps) {
 	const { page } = useContext(PageContext);
 
 	function getComponent(pageName: string) {
-		if (pageName === 'reflections') return <Home />;
 		if (pageName === 'focals') return <Focals />;
 		if (pageName === 'searchbar') return <SearchBar />;
 		if (pageName === 'chat') return <Chat />;
