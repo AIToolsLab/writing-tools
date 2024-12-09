@@ -26,9 +26,28 @@
 	cursor: pointer;
 }
 
-.spinner {
-	margin-bottom: 10px;
-	padding: 10px;
-	border: 1px solid #aaa;
-	border-radius: 5px;
+.spinnerWrapper {
+	display: flex;
+	z-index: 999;
+	justify-content: center;
+	align-items: center;
+}
+
+.loader {
+	border: 0.25rem solid #80aaff;
+	border-top: 0.25rem solid #FAFAFA;
+	border-radius: 50%;
+	width: 2rem;
+	height: 2rem;
+	animation: spin 1s ease-in-out infinite;
+}
+
+@keyframes spin {
+	0% {
+		transform: rotate(0deg);
+	}
+
+	100% {
+		transform: rotate(360deg);
+	}
 }

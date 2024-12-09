@@ -1,4 +1,3 @@
-import { Spinner } from '@fluentui/react/lib/Spinner';
 import classes from './styles.module.css';
 import { Remark } from 'react-remark';
 
@@ -58,7 +57,7 @@ function ReflectionCard(props: ReflectionCardProps) {
 			className={ className }
 		>
 			<div className={ classes.text }><Remark>{ cardData.body }</Remark></div>
-            
+
 			<div>
 				<button
 					className={ classes.pinButton }
@@ -79,11 +78,8 @@ export function ReflectionCards(props: ReflectionCardsProps) {
 	return (
 		<div>
 			{ cardDataList.length === 0 ? (
-				<div className={ classes.spinner }>
-					<Spinner
-						label="Loading..."
-						labelPosition="right"
-					/>
+				<div className={ classes.spinnerWrapper }>
+					<div className={ classes.loader }></div>
 				</div>
 			) : (
 				cardDataList.map((cardData: CardData, index: number) => (

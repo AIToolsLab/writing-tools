@@ -5,14 +5,12 @@ import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
 import { useWindowSize } from '@react-hook/window-size/throttled';
 
 import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
-import { ThemeProvider } from '@fluentui/react';
 // eslint-disable-next-line no-duplicate-imports
 import PageContextWrapper from '@/contexts/pageContext';
 import UserContextWrapper from '@/contexts/userContext';
 import ChatContextWrapper from '@/contexts/chatContext';
 
 import classes from './styles.module.css';
-import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 
 import Layout from '@/components/layout';
 
@@ -35,7 +33,7 @@ function AppInner({ editorAPI }: HomeProps) {
 		<div className={ classes.loadingContainer }>
 			<div>Waiting for authentication</div>
 			<div className={ classes.spinnerWrapper }>
-				<Spinner size={ SpinnerSize.large } />
+				<div className={ classes.loader }></div>
 			</div>
 		</div>
 	);
@@ -98,7 +96,7 @@ function AppInner({ editorAPI }: HomeProps) {
 		if (pageName === 'qve') return <QvE editorAPI={ editorAPI } />;
 
 		// eslint-disable-next-line no-console
-		console.error('Invalid page name', pageName);
+		// console.error('Invalid page name', pageName);
 	}
 
 	return (
@@ -139,7 +137,6 @@ export default function App({ editorAPI }: HomeProps) {
 		editorAPI = wordEditorAPI;
 	}
 	return (
-		<ThemeProvider>
 		<ChatContextWrapper>
 			<UserContextWrapper>
 				<PageContextWrapper>
@@ -157,6 +154,5 @@ export default function App({ editorAPI }: HomeProps) {
 				</PageContextWrapper>
 			</UserContextWrapper>
 		</ChatContextWrapper>
-		</ThemeProvider>
 	);
 }

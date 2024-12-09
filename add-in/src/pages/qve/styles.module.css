@@ -1,9 +1,9 @@
 .container {
-	padding: 8px;
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: 0.5rem;
 	position: relative;
+	padding: 0.5rem;
 }
 
 .container:hover .disabledTooltip {

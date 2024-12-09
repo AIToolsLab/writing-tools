@@ -26,7 +26,7 @@ module.exports = async (env, options) => {
 		devtool: 'source-map',
 		entry: {
 			polyfill: ['core-js/stable', 'regenerator-runtime/runtime'],
-			vendor: ['react', 'react-dom', 'core-js', '@fluentui/react'],
+			vendor: ['react', 'react-dom', 'core-js'],
 			taskpane: ['./src/index.tsx', './src/taskpane.html'],
 			logs: ['./src/logs/index.tsx', './src/logs/logs.html'],
 			popup: [

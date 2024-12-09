@@ -47,5 +47,23 @@
     justify-content: center; */
 }
 
-.saveButton {
+.button {
+	cursor: pointer;
+	background-color: #ffffff;
+	border: 1px solid #e1e1e1;
+	transition: all 0.15s;
+	padding: 0.5rem 0.4rem;
+	font-weight: 400;
+	color: #383838;
+}
+
+/* Selected Button */
+.currentButton {
+	cursor: pointer;
+	background-color: #f1f1f1;
+	padding: 0.5rem 0.4rem;
+	border-radius: 0;
+	border: 1px solid #8e8e8e;
+	font-weight: 400;
+	color: #000000;
 }

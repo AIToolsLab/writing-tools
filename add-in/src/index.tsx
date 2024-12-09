@@ -1,12 +1,8 @@
 import * as ReactDOM from 'react-dom';
 
-import { initializeIcons } from '@fluentui/font-icons-mdl2';
-
 import App from './pages/app';
 
 import './taskpane.css';
-
-initializeIcons();
 
 let isOfficeInitialized = false;
 
