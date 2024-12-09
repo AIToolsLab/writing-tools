@@ -2,75 +2,85 @@
 <html lang="en">
 	<head>
 		<meta charset="UTF-8" />
-		<meta
-			name="viewport"
-			content="width=device-width, initial-scale=1.0"
-		/>
-
+		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 		<title>Textfocals</title>
 
+		<link rel="stylesheet" href="styles.css" />
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="icon" href="../../assets/logo_black.png" />
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 		<link
-			rel="stylesheet"
-			href="styles.css"
-		/>
-
-        <link
-            rel="favicon"
-            href="../../assets/logo_white.png"
-        />
-
-		<link
-			rel="stylesheet"
-			href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css"
-		/>
-
-		<link
-			href="https://fonts.googleapis.com/icon?family=Material+Icons"
-			rel="stylesheet"
-		/>
+			href="https://fonts.googleapis.com/css2?family=Albert+Sans:ital,wght@0,100..900;1,100..900&family=Fredoka:wght@300..700&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Urbanist:ital,wght@0,100..900;1,100..900&display=swap"
+			rel="stylesheet">
 	</head>
 
 	<body>
-		<div class="navbar-fixed">
-			<nav>
-				<div class="nav-wrapper">
-					<a
-						href="#"
-						class="brand-logo"
-					>
-						<img
-							src="../../assets/logo_white.png"
-							alt="Logo"
-							height="64px"
-						/>
-
-						<span class="flow-text">Textfocals</span>
+		<div>
+			<nav class="nav-wrapper">
+				<div class="logo-wrapper">
+					<a href="#" class="brand-logo">
+						<img src="../../assets/logo_black.png" alt="Logo" height="64px" />
 					</a>
+					<span>Textfocals</span>
+				</div>
+				<div class="icon-links-container">
+					<a href="https://aitoolslab.github.io/" target="_blank" ref="noopener noreferrer"><img id="main-page" src="../../assets/sparkle.png" alt="GitHub" height="32px" /></a>
+					<a href="./longDescription.html" target="_blank" ref="noopener noreferrer"><img class="ghicon" src="../../assets/about.png" alt="About Us" height="32px" /></a>
 				</div>
 			</nav>
 		</div>
 
-		<header class="center-align">
+		<header>
 			<div class="header-content">
 				<div>
-					<h1 class="header responsive-text">Textfocals</h1>
-					<p class="flow-text">
-						AI-powered tools for helping you revise your documents
-					</p>
-                    
-					<div class="row center-align">
-						<div>
-							<a
-								href="https://tinyurl.com/3dfrujnz"
-								id="intersted-button"
-								class="waves-effect waves-light btn-large maroon hoverable"
-							>
-                                Interested? Sign up for our pilot study!
-                            </a>
-						</div>
-					</div>
+					<h1><a href="./longDescription.html" style="text-decoration: none; color: inherit;">Textfocals</a></h1>
+					<p>AI-powered tools for helping you draft and revise your documents</p>
 				</div>
 			</div>
 		</header>
+
+		<!-- TODO: Add previous works -->
+		<article id="main-article">
+			<div class="previous-works">
+				<div><a class="prevwork-button" href="./seniorProject2024.html">2024-2025 Senior Project</a></div>
+			</div>
+			<div class="img-container">
+				<!-- TODO: Slideshow including previous works? -->
+				<img class="main-msdoc-img" src="../../assets/MSdocui.png" alt="Microsoft Word Add-in" />
+			</div>
+		</article>
+
+		<!-- TODO: Add a link to the custom text editor as a demo -->
+
+		<div class="bottom-signup">
+			<div class="signup-button-container">
+				<!-- TODO: Survey should be updated (summer2024) -->
+				<a href="https://tinyurl.com/3dfrujnz" id="intersted-button" target="_blank" ref="noopener noreferrer"
+					class="waves-effect waves-light btn-large maroon hoverable">
+					INTERESTED? SIGN UP FOR OUR STUDY!
+				</a>
+			</div>
+		</div>
+
+		<footer>
+			<div class="footer-content">
+				<div class="footer-text">
+					<p>&copy; 2024 Arnold Lab</p>
+				</div>
+				<div class="link-container">
+					<!-- <a href="./support.html" target="_blank" ref="noopener noreferrer"> -->
+					<a href="./support.html" target="_blank" ref="noopener noreferrer">
+						Support
+					</a>
+					<a href="./privacypolicy.html">
+						Privacy
+					</a>
+					<a href="https://support.office.com/f1/topic/61994a3b-2c87-41c4-a88d-a6455efa362d" target="_blank" ref="noopener noreferrer">
+						EULA
+					</a>
+				</div>
+			</div>
+		</footer>
 	</body>
 </html>
