@@ -3,9 +3,7 @@ import { useState, useEffect, useContext, Fragment } from 'react';
 import { UserContext } from '@/contexts/userContext';
 
 import { Remark } from 'react-remark';
-import { Spinner, SpinnerSize } from '@fluentui/react/lib/Spinner';
 import { FcCheckmark } from 'react-icons/fc';
-import { Toggle } from '@fluentui/react/lib/Toggle';
 import {
 	AiOutlineClose,
 	AiOutlineQuestion,
@@ -13,9 +11,7 @@ import {
 	AiOutlineHighlight,
 	AiOutlineBank,
 	AiOutlineStar,
-	AiOutlineSave,
-	AiOutlineUp,
-	AiOutlineDown
+	AiOutlineSave
 } from 'react-icons/ai';
 
 import { iconFunc } from './iconFunc';
@@ -78,8 +74,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 
 	// Tooltip visibility
 	const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
-	const [copyWarningTooltipVisible, setCopyWarningTooltipVisible] =
-		useState<boolean>(false);
 
 	// eslint-disable-next-line prefer-const
 	const [generation, updateGeneration] = useState<GenerationResult | null>(
@@ -263,7 +257,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 						{ genCtxText.length > 100 ? '...' : '' }
 						{ genCtxText.substring(genCtxText.length - 100) }
 					</div>
-					
+
 					{ /* Question: do we need this? */ }
 					{ false && tooltipVisible === 'GenCtx' && (
 						<div
@@ -288,7 +282,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 						}
 					>
 						{ iconFunc(generationMode) }
-							
+
 					</div>
 				</div>
 			</div>
@@ -297,7 +291,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 	if (isLoading && !generation)
 		results = (
 			<div className={ classes.spinnerWrapper }>
-				<Spinner size={ SpinnerSize.large } />
+				<div className={ classes.loader }></div>
 			</div>
 		);
 
@@ -315,7 +309,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 
 			<div>
 				{ /* Generation Option Buttons */ }
-				<div	
+				<div
 					className={ classes.optionsContainer }
 					onMouseEnter={ () => setTooltipVisible('Disabled') }
 					onMouseLeave={ () => setTooltipVisible(null) }
@@ -348,7 +342,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 							>
 								{ IS_OBSCURED ? obscuredAlphabetForMode[mode as keyof typeof obscuredAlphabetForMode] : visibleIconForMode[mode as keyof typeof visibleIconForMode] }
 							</button>
-						
+
 							{ tooltipVisible === mode && (
 								<div className={ classes.tooltip }>
 									{ IS_OBSCURED
@@ -358,7 +352,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 							) }
 							</Fragment>
 						);
-					}) }	
+					}) }
 					</div>
 
 				<div className={ classes.noteTextWrapper }>
@@ -411,7 +405,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 									}
 									onMouseLeave={ () => {
 										setTooltipVisible(null);
-										setCopyWarningTooltipVisible(false);
 									} }
 								>
 									<AiOutlineClose
@@ -444,7 +437,6 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 									}
 									onMouseLeave={ () => {
 										setTooltipVisible(null);
-										setCopyWarningTooltipVisible(false);
 									} }
 								>
 									<AiOutlineStar
@@ -470,7 +462,7 @@ export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
 				</div>
 
 				{ /* Saved generations */ }
-				<SavedGenerations 
+				<SavedGenerations
 					docContext= { docContext }
 					saved={ saved }
 					isLoading={ isLoading }
