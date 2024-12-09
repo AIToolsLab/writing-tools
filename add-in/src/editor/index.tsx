@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import ReactDOM from 'react-dom';
 
-//import QvE from '@/pages/qve';
+//import Draft from '@/pages/draft';
 import * as SidebarInner from '@/pages/app';
 
 import LexicalEditor from './editor';

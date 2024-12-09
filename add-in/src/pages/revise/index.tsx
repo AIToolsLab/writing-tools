@@ -15,7 +15,7 @@ import { getReflection } from '@/api';
 
 import classes from './styles.module.css';
 
-export default function Focals() {
+export default function Revise() {
 	const { username } = useContext(UserContext);
 
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
