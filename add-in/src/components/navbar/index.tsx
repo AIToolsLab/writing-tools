@@ -5,10 +5,10 @@ import { PageContext } from '@/contexts/pageContext';
 import classes from './styles.module.css';
 
 const pageNames = [
-	{ name: 'focals', title: 'Focals' },
+	{ name: 'revise', title: 'Revise' },
 	{ name: 'searchbar', title: 'SearchBar' },
 	{ name: 'chat', title: 'Chat' },
-	{ name: 'qve', title: 'QvE' },
+	{ name: 'draft', title: 'Draft' },
 ];
 
 export default function Navbar() {

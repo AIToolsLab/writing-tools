@@ -49,7 +49,7 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 	return <Remark>{ generation.result }</Remark>;
 }
 
-export default function QvE({ editorAPI }: { editorAPI: EditorAPI }) {
+export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 	const { username } = useContext(UserContext);
 	const {
 		addSelectionChangeHandler,

@@ -14,10 +14,10 @@ import classes from './styles.module.css';
 
 import Layout from '@/components/layout';
 
-import Focals from '../focals';
+import Revise from '../revise';
 import SearchBar from '../searchbar';
 import Chat from '../chat';
-import QvE from '../qve';
+import Draft from '../draft';
 import { wordEditorAPI } from '@/api/wordEditorAPI';
 
 export interface HomeProps {
@@ -90,10 +90,10 @@ function AppInner({ editorAPI }: HomeProps) {
 	const { page } = useContext(PageContext);
 
 	function getComponent(pageName: string) {
-		if (pageName === 'focals') return <Focals />;
+		if (pageName === 'revise') return <Revise />;
 		if (pageName === 'searchbar') return <SearchBar />;
 		if (pageName === 'chat') return <Chat />;
-		if (pageName === 'qve') return <QvE editorAPI={ editorAPI } />;
+		if (pageName === 'draft') return <Draft editorAPI={ editorAPI } />;
 
 		// eslint-disable-next-line no-console
 		// console.error('Invalid page name', pageName);
