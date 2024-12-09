@@ -5,9 +5,9 @@ import { PageContext } from '@/contexts/pageContext';
 import classes from './styles.module.css';
 
 const pageNames = [
-	// { name: 'focals', title: 'Focals' },
-	// { name: 'searchbar', title: 'SearchBar' },
-	// { name: 'chat', title: 'Chat' },
+	{ name: 'focals', title: 'Focals' },
+	{ name: 'searchbar', title: 'SearchBar' },
+	{ name: 'chat', title: 'Chat' },
 	{ name: 'qve', title: 'QvE' },
 ];
 

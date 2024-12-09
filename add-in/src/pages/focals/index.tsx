@@ -13,6 +13,8 @@ import { UserContext } from '@/contexts/userContext';
 import { getParagraphText } from '@/utilities';
 import { getReflection } from '@/api';
 
+import classes from './styles.module.css';
+
 export default function Focals() {
 	const { username } = useContext(UserContext);
 
@@ -127,7 +129,7 @@ export default function Focals() {
 			reflections.set(cacheKey, reflectionsPromise);
 			return [];
 		}
- else if (cachedValue instanceof Promise) return [];
+		else if (cachedValue instanceof Promise) return [];
 		else return cachedValue;
 	}
 
@@ -188,7 +190,7 @@ export default function Focals() {
 	}
 
 	return (
-		<div className="ms-welcome">
+		<div className={ classes.container }>
 			<PromptButtonSelector
 				currentPrompt={ prompt }
 				updatePrompt={ updatePrompt }

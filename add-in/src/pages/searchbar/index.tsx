@@ -11,6 +11,8 @@ import { getReflection } from '@/api';
 
 import { useAuth0 } from '@auth0/auth0-react';
 
+import classes from './styles.module.css';
+
 export default function SearchBar() {
 	const { username } = useContext(UserContext);
 
@@ -101,10 +103,10 @@ export default function SearchBar() {
 		paragraphText: string,
 	): void {
 		// eslint-disable-next-line no-console
-		console.assert(
-			typeof paragraphText === 'string' && paragraphText !== '',
-			'paragraphText must be a non-empty string'
-		);
+		// console.assert(
+		// 	typeof paragraphText === 'string' && paragraphText !== '',
+		// 	'paragraphText must be a non-empty string'
+		// );
 
 		// META-PROMPT TO GENERATE SUGGESTED PROMPTS GOES HERE (TO REVISE AND/OR REPLACE)
 		// const suggestionPrompt = `Write 3 concise and brief prompts to ask a companion for various points about a piece of academic writing that may warrant reconsideration. Prompts might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer${rhetCtxt ? rhetCtxtDirections : '\n'}Separate each prompt by a bullet point. List in dashes -`;
@@ -141,10 +143,10 @@ export default function SearchBar() {
 		prompt: string
 	): ReflectionResponseItem[] {
 		// eslint-disable-next-line no-console
-		console.assert(
-			typeof paragraphText === 'string' && paragraphText !== '',
-			'paragraphText must be a non-empty string'
-		);
+		// console.assert(
+		// 	typeof paragraphText === 'string' && paragraphText !== '',
+		// 	'paragraphText must be a non-empty string'
+		// );
 
 		// ADDITIONAL CONTEXTUAL DIRECTIONS TO APPEND TO PROMPT GO HERE
 		const addtlDirections = ` ${rhetCtxt ? rhetCtxtDirections : '\n'}Answer concisely with three bullet points: -`;
@@ -174,7 +176,7 @@ export default function SearchBar() {
 			reflections.set(cacheKey, reflectionsPromise);
 			return [];
 		}
- else if (cachedValue instanceof Promise) return [];
+		else if (cachedValue instanceof Promise) return [];
 		else return cachedValue;
 	}
 
@@ -242,9 +244,7 @@ export default function SearchBar() {
 	}
 
 	return (
-		<div
-			className="ms-welcome"
-		>
+		<div className={ classes.container }>
 			<RhetoricalContextBox
 				curRhetCtxt={ rhetCtxt }
 				updateRhetCtxt={ updateRhetCtxt }

@@ -1,7 +1,6 @@
 import { ChangeEvent, useState } from 'react';
 
 import TextareaAutosize from 'react-textarea-autosize';
-import { DefaultButton } from '@fluentui/react/lib/Button';
 
 import classes from './styles.module.css';
 
@@ -100,24 +99,24 @@ export function PromptButtonSelector(
 			<div className={ classes.buttonContainer }>
 				{ promptList.map(
 					(option: { keyword: string; prompt: string }) => (
-						<DefaultButton
+						<button
 							key={ option.keyword }
 							className={
 								currentButton === option.keyword
 									? classes.currentButton
 									: classes.button
 							}
-							text={ option.keyword }
 							onClick={ () => {
 								setPrompt(option.prompt);
 								setCurrentButton(option.keyword);
 							} }
-						/>
+						>
+							{ option.keyword }
+							</button>
 					)
 				) }
 
-				<DefaultButton
-					text="Custom"
+				<button
 					className={
 						currentButton === 'Custom'
 							? classes.currentButton
@@ -127,7 +126,9 @@ export function PromptButtonSelector(
 						setPrompt(customPrompt);
 						setCurrentButton('Custom');
 					} }
-				/>
+				>
+					Custom
+				</button>
 			</div>
 
 			<div className={ classes.textareaContainer }>
