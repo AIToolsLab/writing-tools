@@ -8,7 +8,7 @@ test
 
 # Frontend-related ignores
 node_modules/
-add-in/
+frontend/
 sandbox/
 logViewer/
 custom-editor/

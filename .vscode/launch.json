@@ -25,7 +25,7 @@
             "name": "Frontend Dev Server",
             "type": "node",
             "request": "launch",
-            "cwd": "${workspaceFolder}/add-in",
+            "cwd": "${workspaceFolder}/frontend",
             "runtimeExecutable": "yarn",
             "runtimeArgs": [
                 "run",

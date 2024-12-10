@@ -1,28 +1,28 @@
 name: Frontend Lint
 
 on:
-    # Trigger the workflow on push or pull request,
-    # but only for the base branch
-    push:
-        branches:
-            - main
-    pull_request:
-        branches:
-            - main
+  # Trigger the workflow on push or pull request,
+  # but only for the base branch
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-    run-linters:
-        name: Run linters
-        runs-on: ubuntu-latest
+  run-linters:
+    name: Run linters
+    runs-on: ubuntu-latest
 
-        steps:
-            - name: Check out Git repository
-              uses: actions/checkout@v3
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v3
 
-            - name: Set up Node.js
-              uses: actions/setup-node@v3
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
 
-            - run: yarn
-              working-directory: ./add-in
-            - run: yarn lint
-              working-directory: ./add-in
+      - run: yarn
+        working-directory: ./frontend
+      - run: yarn lint
+        working-directory: ./frontend

@@ -260,7 +260,7 @@ def make_log(payload: Log):
         entity, PartitionKey=payload.username, RowKey=row_key))
 
 
-static_path = Path("../add-in/dist")
+static_path = Path("../frontend/dist")
 if static_path.exists():
 
     @ app.get("/")
@@ -271,7 +271,7 @@ if static_path.exists():
     app.mount("", StaticFiles(directory=static_path), name="static")
 else:
     print("Not mounting static files because the directory does not exist.")
-    print("To build the frontend, run `npm run build` in the add-in directory.")
+    print("To build the frontend, run `npm run build` in the frontend directory.")
 
 
 if __name__ == "__main__":
