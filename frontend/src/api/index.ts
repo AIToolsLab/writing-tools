@@ -7,6 +7,27 @@ export interface LogPayload {
 	[key: string]: any;
 }
 
+export async function pingServer(): Promise<void> {
+  try {
+    const response = await fetch(process.env.REACT_APP_AZURE_FUNCTION_URL + '/api/ping', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      }
+    });
+
+    if (!response.ok) {
+			// eslint-disable-next-line no-console
+      console.warn('Server ping failed:', response.status);
+    }
+  }
+	catch (error) {
+		// eslint-disable-next-line no-console
+    console.warn('Server ping error:', error);
+    // Don't throw - we want to silently handle ping failures
+  }
+}
+
 export function log(payload: LogPayload) {
 	const payloadWithTimestamp = {
 		...payload,

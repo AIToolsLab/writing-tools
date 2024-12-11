@@ -1,4 +1,5 @@
-import { useContext } from 'react';
+import { useContext, useEffect, useRef } from 'react';
+import { pingServer } from '@/api';
 
 import { PageContext } from '@/contexts/pageContext';
 
@@ -13,6 +14,30 @@ const pageNames = [
 
 export default function Navbar() {
 	const { page, changePage } = useContext(PageContext);
+
+	const pingInterval = useRef<NodeJS.Timeout>();
+
+	useEffect(() => {
+		// eslint-disable-next-line no-console
+		console.log('Starting ping interval...');
+
+		pingInterval.current = setInterval(() => {
+		// eslint-disable-next-line no-console
+    console.log(`Pinging server at ${new Date().toISOString()}`);
+
+		// Ping every 2 minutes
+    pingServer()
+			// eslint-disable-next-line no-console
+      .then(() => console.log('Ping successful'))
+			// eslint-disable-next-line no-console
+      .catch(error => console.error('Ping failed:', error));
+  }, 120000);
+		return () => {
+			if (pingInterval.current) {
+				clearInterval(pingInterval.current);
+			}
+		};
+	}, []);
 
 	return (
 		<nav className={ classes.nav }>
