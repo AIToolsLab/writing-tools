@@ -112,6 +112,28 @@ def get_next_token_predictions_inner(
     decoded_next_tokens = tokenizer.batch_decode(lookahead_sequences, skip_special_tokens=True)
     return decoded_next_tokens, next_token_logits
 
+def get_next_token_predictions_generate(
+        model, tokenizer, original_doc, prompt, doc_in_progress, k):
+
+    tokenized_chat = get_tokenized_chat(tokenizer, prompt, original_doc)
+    doc_in_progress_ids = tokenize_doc_in_progress(tokenizer, doc_in_progress)
+
+    joined_ids = torch.cat([tokenized_chat, doc_in_progress_ids])
+    context_without_special_tokens = tokenizer.batch_decode(joined_ids, skip_special_tokens=True)
+    prefix_length = len(context_without_special_tokens)
+    hypotheses = joined_ids[None].to(model.device)
+
+    generation_output = model.generate(
+        hypotheses,
+        return_dict_in_generate=True,
+        output_scores=True,
+        num_beams=5, num_beam_groups=5, max_new_tokens=10, do_sample=False, diversity_penalty=1e5, top_k=None, num_return_sequences=5)#, token_healing=True, tokenizer=tokenizer)
+    sequences = [
+        decoded[prefix_length:]
+        for decoded in tokenizer.batch_decode(generation_output.sequences, skip_special_tokens=True)
+    ]
+    return sequences, 
+
 
 def get_next_token_predictions_slow(
         model, tokenizer, original_doc, prompt, doc_in_progress, k):
