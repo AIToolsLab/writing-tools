@@ -26,7 +26,6 @@ module.exports = async (env, options) => {
 		devtool: 'source-map',
 		entry: {
 			polyfill: ['core-js/stable', 'regenerator-runtime/runtime'],
-			vendor: ['react', 'react-dom', 'core-js'],
 			taskpane: ['./src/index.tsx', './src/taskpane.html'],
 			logs: ['./src/logs/index.tsx', './src/logs/logs.html'],
 			popup: [
@@ -114,17 +113,17 @@ module.exports = async (env, options) => {
 			new HtmlWebpackPlugin({
 				filename: 'taskpane.html',
 				template: './src/taskpane.html',
-				chunks: ['taskpane', 'vendor', 'polyfills']
+				chunks: ['taskpane', 'polyfills']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'editor.html',
 				template: './src/editor/editor.html',
-				chunks: ['editor', 'vendor']
+				chunks: ['editor']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'popup.html',
 				template: './src/popup.html',
-				chunks: ['popup', 'vendor', 'polyfills']
+				chunks: ['popup', 'polyfills']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'commands.html',
