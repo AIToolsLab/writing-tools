@@ -1,5 +1,5 @@
 import torch
-
+from transformers.cache_utils import DynamicCache
 
 
 def get_tokenized_chat(tokenizer, prompt, doc):
@@ -69,31 +69,40 @@ def get_next_token_predictions_inner(
     tokenized_chat = get_tokenized_chat(tokenizer, prompt, original_doc)
     doc_in_progress_ids = tokenize_doc_in_progress(tokenizer, doc_in_progress)
 
+    device = model.device
+
     joined_ids = torch.cat([tokenized_chat, doc_in_progress_ids])
     hypotheses = joined_ids[None].to(model.device)
 
     # For each of the k next tokens, generate most-likely next tokens and append back on until we
     # reach a token with a space
 
-    with torch.no_grad():
-        model_outs = model(hypotheses, output_hidden_states=True)
+    past_key_values = DynamicCache()
 
-    next_token_logits = model_outs.logits[0, -1]
-    branch_tokens = next_token_logits.topk(k).indices
+    with torch.no_grad():
+        model_outs_onestep = model(hypotheses, output_hidden_states=True, past_key_values=past_key_values)
+
+    branch_tokens = model_outs_onestep.logits[0, -1].topk(k).indices
+
+    # split the cache into k reps. We pretend we're doing a "Beam search"...
+    past_key_values.reorder_cache(torch.zeros((k,), dtype=torch.long, device=device))
 
     # Now call the model again, passing the kv cache, so we can continue generating.
     # Each of the k next tokens will be considered as one sequence in a "batch".
     next_tokens_as_batch = branch_tokens.unsqueeze(1)
     assert next_tokens_as_batch.shape == (k, 1)
 
-    # We need to duplicate the kv cache for each of the k next tokens
-    kv_cache = [
-        (key.repeat_interleave(k, dim=0), value.repeat_interleave(k, dim=0))
-        for key, value in model_outs.past_key_values
-    ]
-
+    position_id_for_final_token = joined_ids.shape[0]
+    cache_position = torch.full((1,), position_id_for_final_token, dtype=int, device=device)
     with torch.no_grad():
-        model_outs = model(next_tokens_as_batch, past_key_values=kv_cache, output_hidden_states=True)
+        model_outs = model(
+            next_tokens_as_batch,
+            past_key_values=past_key_values,
+            output_hidden_states=True,
+            use_cache=True,
+            # the cache surprisingly doesn't know the position of the last token
+            cache_position=cache_position
+        )
     
     # Grab the single most likely token from each of the k sequences
     next_token_logits = model_outs.logits[:, -1]
