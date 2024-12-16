@@ -29,7 +29,8 @@ if not USE_GPU:
 async def models_lifespan(app: FastAPI):
 
     #model_name = 'google/gemma-1.1-7b-it'
-    model_name = 'google/gemma-1.1-2b-it'
+    #model_name = 'google/gemma-1.1-2b-it'
+    model_name = 'google/gemma-2-9b-it'
 
     dtype = torch.bfloat16 if USE_GPU else torch.float16
 
