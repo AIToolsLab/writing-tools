@@ -9,7 +9,9 @@ export interface LogPayload {
 
 export async function pingServer(): Promise<void> {
   try {
-    const response = await fetch(process.env.REACT_APP_AZURE_FUNCTION_URL + '/api/ping', {
+		// send an empty GET request to the server
+		const url = `https://textfocals.azurewebsites.net/`;
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
