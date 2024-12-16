@@ -36,7 +36,7 @@ async def models_lifespan(app: FastAPI):
 
     ml_models["llm"] = llm = {
         'tokenizer': AutoTokenizer.from_pretrained(model_name),
-        'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto" if USE_GPU else "cpu", torch_dtype=dtype)#quantization_config=quantization_config)
+        'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto" if USE_GPU else "cpu", torch_dtype=dtype)
     }
     print("Loaded llm with device map:")
     print(llm['model'].hf_device_map)
@@ -59,10 +59,10 @@ async def models_lifespan(app: FastAPI):
         params={"original_doc": test_doc, "prompt": test_prompt, "doc_in_progress": "This is"})
     print(f"Next token endpoint: {time.time() - start:.2f}s")
     
-    # start = time.time()
-    # response = client.get("/api/gen_revisions",
-    #     params={"doc": test_doc, "prompt": test_prompt, "n": 1})
-    # print(f"Gen revisions endpoint: {time.time() - start:.2f}s")
+    start = time.time()
+    response = client.get("/api/gen_revisions",
+        params={"doc": test_doc, "prompt": test_prompt, "n": 1})
+    print(f"Gen revisions endpoint: {time.time() - start:.2f}s")
 
     yield
 
