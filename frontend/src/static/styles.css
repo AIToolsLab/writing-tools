@@ -162,6 +162,27 @@ header {
 	font-weight: bold;
 }
 
+.vision-container {
+	display: flex;
+	flex-direction: column;
+}
+
+.vision-container small {
+	font-size: 0.8rem;
+	font-weight: 400;
+	color: #707070;
+}
+
+.vision-container small a {
+	text-decoration: none;
+	color: #65ba8e;
+	transition: all 0.2s;
+}
+
+.vision-container small a:hover {
+	color: #5eacdd;
+}
+
 .header-image {
 	max-width: 50%;
 }
@@ -261,8 +282,13 @@ header {
 }
 
 .flexrow {
-	display: flex;
+	display: inline-flex;
 	flex-direction: row;
+}
+
+.flexcol {
+	display: flex;
+	flex-direction: column;
 }
 
 .desc-text {
