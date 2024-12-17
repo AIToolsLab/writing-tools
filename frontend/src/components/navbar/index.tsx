@@ -31,7 +31,7 @@ export default function Navbar() {
 			})
 			.catch(error => {
 				// eslint-disable-next-line no-console
-				console.error('Ping failed:', error);
+				console.warn('Ping failed:', error);
 			});
 
 		// Then set up an interval to ping the server every 1.5 minutes
@@ -43,7 +43,7 @@ export default function Navbar() {
 				// eslint-disable-next-line no-console
 				.then(() => console.log('Ping successful'))
 				// eslint-disable-next-line no-console
-				.catch(error => console.error('Ping failed:', error));
+				.catch(error => console.warn('Ping failed:', error));
 		}, PINGINT);
 		return () => {
 			if (pingInterval.current) {
