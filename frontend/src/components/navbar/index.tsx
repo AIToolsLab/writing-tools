@@ -17,6 +17,9 @@ export default function Navbar() {
 
 	const pingInterval = useRef<NodeJS.Timeout>();
 
+	// 1.5 minutes
+	const PINGINT: number = 90 * 1000;
+
 	useEffect(() => {
 		// First ping the server immediately
 		// eslint-disable-next-line no-console
@@ -31,7 +34,7 @@ export default function Navbar() {
 				console.error('Ping failed:', error);
 			});
 
-		// Then set up an interval to ping the server every 2 minutes
+		// Then set up an interval to ping the server every 1.5 minutes
 		pingInterval.current = setInterval(() => {
 			// eslint-disable-next-line no-console
 			console.log(`Pinging server at ${new Date().toISOString()}`);
@@ -41,7 +44,7 @@ export default function Navbar() {
 				.then(() => console.log('Ping successful'))
 				// eslint-disable-next-line no-console
 				.catch(error => console.error('Ping failed:', error));
-		}, 120000);
+		}, PINGINT);
 		return () => {
 			if (pingInterval.current) {
 				clearInterval(pingInterval.current);
