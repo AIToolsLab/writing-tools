@@ -10,7 +10,7 @@ export interface LogPayload {
 export async function pingServer(): Promise<void> {
   try {
 		// Ping the server, which returns the server's current timestamp
-		const url = `https://textfocals.azurewebsites.net${SERVER_URL}/ping`;
+		const url = `${SERVER_URL}/ping`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
