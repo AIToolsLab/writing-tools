@@ -28,6 +28,7 @@ function AppInner({ editorAPI }: HomeProps) {
 	const auth0Client = useAuth0();
 	const { isLoading, error, isAuthenticated, user, logout } = auth0Client;
 	const [width, _height] = useWindowSize();
+	const { page } = useContext(PageContext);
 
 	if (isLoading) return (
 		<div className={ classes.loadingContainer }>
@@ -86,8 +87,6 @@ function AppInner({ editorAPI }: HomeProps) {
 			</div>
 		);
 	}
-
-	const { page } = useContext(PageContext);
 
 	function getComponent(pageName: string) {
 		if (pageName === 'revise') return <Revise />;
