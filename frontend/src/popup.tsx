@@ -10,7 +10,7 @@ Office.onReady(() => {
     if (url.hostname !== auth0Domain) {
       return null;
     }
-    let validatedURL = new URL(`https://${auth0Domain}`);
+    const validatedURL = new URL(`https://${auth0Domain}`);
     if (url.pathname === '/authorize' || url.pathname === '/v2/logout') {
       validatedURL.pathname = url.pathname;
       validatedURL.search = url.search;

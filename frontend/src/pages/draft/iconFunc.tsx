@@ -1,7 +1,7 @@
 import { AiOutlineAlignLeft, AiOutlineQuestion, AiOutlineHighlight } from 'react-icons/ai';
 
-export const iconFunc = (generation_type: string) => {
-    switch (generation_type) {
+export const iconFunc = (generationType: string) => {
+    switch (generationType) {
         case 'Completion':
             return<AiOutlineAlignLeft />;
         case 'Question':

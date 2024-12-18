@@ -137,6 +137,7 @@ export default function App({ editorAPI }: HomeProps) {
 						domain={ process.env.AUTH0_DOMAIN! }
 						clientId={ process.env.AUTH0_CLIENT_ID! }
 						authorizationParams= { {
+							// eslint-disable-next-line camelcase
 							redirect_uri: `${window.location.origin}/popup.html`,
 							scope: 'openid profile email read:posts',
 							audience: 'textfocals.com',
