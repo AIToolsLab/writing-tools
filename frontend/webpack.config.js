@@ -133,6 +133,10 @@ module.exports = async (env, options) => {
 			}),
 			new webpack.ProvidePlugin({
 				Promise: ['es6-promise', 'Promise']
+			}),
+			new webpack.DefinePlugin({
+				'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
+				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr')
 			})
 		],
 		devServer: {
