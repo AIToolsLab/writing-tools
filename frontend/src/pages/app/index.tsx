@@ -26,7 +26,7 @@ export interface HomeProps {
 
 function AppInner({ editorAPI }: HomeProps) {
 	const auth0Client = useAuth0();
-	const { isLoading, error, isAuthenticated, user, logout } = auth0Client;
+	const { isLoading, error, isAuthenticated, user } = auth0Client;
 	const [width, _height] = useWindowSize();
 	const { page } = useContext(PageContext);
 
@@ -77,7 +77,7 @@ function AppInner({ editorAPI }: HomeProps) {
 					/>
 				</div>
 
-				<div className={ classes.widthAlert } style={{ visibility: width < 400 ? 'visible' : 'hidden' }}>
+				<div className={ classes.widthAlert } style={ { visibility: width < 400 ? 'visible' : 'hidden' } }>
 					For best experience please expand the sidebar by dragging the splitter.
 				</div>
 			</div>
