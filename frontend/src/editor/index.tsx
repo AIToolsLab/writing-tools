@@ -6,10 +6,6 @@ import * as SidebarInner from '@/pages/app';
 
 import LexicalEditor from './editor';
 
-import PageContextWrapper from '../contexts/pageContext';
-import UserContextWrapper from '../contexts/userContext';
-import ChatContextWrapper from '../contexts/chatContext';
-
 import classes from './styles.module.css';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
 
