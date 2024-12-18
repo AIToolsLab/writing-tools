@@ -173,3 +173,12 @@ hr {
   border-radius: 2rem;
   transition: all 0.15s;
 }
+
+.versionAlert {
+  font-size: 0.8rem;
+  font-weight: 300;
+  margin-top: 1rem;
+  padding: 1rem 1.5rem;
+  transition: all 0.15s;
+  color: #dc7272;
+}
