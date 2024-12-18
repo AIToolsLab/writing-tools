@@ -21,24 +21,22 @@ export default function Navbar() {
 	const PINGINT: number = 5 * 60 * 1000;
 
 	useEffect(() => {
-		// First ping the server immediately
-		// eslint-disable-next-line no-console
-		console.log(`Pinging server at ${new Date().toISOString()}`);		// This will only happen once
-
 		function doPing() {
 			// eslint-disable-next-line no-console
 			console.log(`Pinging server at ${new Date().toISOString()}`);
 
 			pingServer().then(() => {
 				// eslint-disable-next-line no-console
-				console.log('Ping successful');
+				console.log('Warming up server');
 			}).catch(error => {
 				// eslint-disable-next-line no-console
 				console.warn('Ping failed:', error);
 			});
 		}
 
+		// First ping the server immediately
 		doPing();
+		// Then set up the interval
 		pingInterval.current = setInterval(doPing, PINGINT);
 
 		return () => {
