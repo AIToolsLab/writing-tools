@@ -17,8 +17,8 @@ export default function Navbar() {
 
 	const pingInterval = useRef<NodeJS.Timeout>();
 
-	// 1.5 minutes
-	const PINGINT: number = 90 * 1000;
+	// 5 minutes
+	const PINGINT: number = 5 * 60 * 1000;
 
 	useEffect(() => {
 		// First ping the server immediately
