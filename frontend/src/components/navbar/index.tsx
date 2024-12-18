@@ -17,8 +17,8 @@ export default function Navbar() {
 
 	const pingInterval = useRef<NodeJS.Timeout>();
 
-	// 5 minutes
-	const PINGINT: number = 5 * 60 * 1000;
+	// 2 minutes
+	const PINGINT: number = 2 * 60 * 1000;
 
 	useEffect(() => {
 		function doPing() {
