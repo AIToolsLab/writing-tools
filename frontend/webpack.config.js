@@ -9,7 +9,7 @@ const CopyWebpackPlugin = require('copy-webpack-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 const urlDev = 'https://localhost:3000';
-const urlProd = 'https://textfocals.com';
+const urlProd = 'https://thoughtful-ai.com';
 
 async function getHttpsOptions() {
 	const httpsOptions = await devCerts.getHttpsServerOptions();
