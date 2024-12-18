@@ -4,14 +4,31 @@ Office.onReady(() => {
 	// (kca simplified this to just use a single page)
 	const DEBUG = false;
 	const searchParams = new URLSearchParams(window.location.search);
+  const auth0Domain = process.env.AUTH0_DOMAIN;
 	const redirect = searchParams.get('redirect');
+  function constructValidatedURL(url: URL) {
+    if (url.hostname !== auth0Domain) {
+      return null;
+    }
+    let validatedURL = new URL(`https://${auth0Domain}`);
+    if (url.pathname === '/authorize' || url.pathname === '/v2/logout') {
+      validatedURL.pathname = url.pathname;
+      validatedURL.search = url.search;
+    }
+    return validatedURL;
+  }
 	if (redirect) {
+    const validatedURL = constructValidatedURL(new URL(redirect));
+    if (!validatedURL) {
+      document.body.innerText = `Invalid redirect URL: ${redirect}`;
+      return;
+    }
 		if (DEBUG) {
-			document.body.innerText = `Redirecting to ${redirect}`;
+			document.body.innerText = `Redirecting to ${validatedURL.href}`;
 		}
 		setTimeout(
 			() => {
-				window.location.href = redirect;
+				window.location.href = validatedURL.href;
 			},
 			DEBUG ? 5000 : 0
 		);
