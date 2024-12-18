@@ -9,8 +9,8 @@ export interface LogPayload {
 
 export async function pingServer(): Promise<void> {
   try {
-		// send an empty GET request to the server
-		const url = `https://textfocals.azurewebsites.net/`;
+		// Ping the server, which returns the server's current timestamp
+		const url = `https://textfocals.azurewebsites.net/${SERVER_URL}/ping`;
     const response = await fetch(url, {
       method: 'GET',
       headers: {
@@ -22,6 +22,10 @@ export async function pingServer(): Promise<void> {
 			// eslint-disable-next-line no-console
       console.warn('Server ping failed:', response.status);
     }
+
+		const data = await response.json();
+		// eslint-disable-next-line no-console
+		console.log('Server ping successful:', data);
   }
 	catch (error) {
 		// eslint-disable-next-line no-console

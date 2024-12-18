@@ -198,6 +198,12 @@ async def log_feedback(payload: Log):
     return {"message": "Feedback logged successfully."}
 
 
+# Ping: return the server's current timestamp
+@app.get("/api/ping")
+async def ping():
+    return {"timestamp": datetime.now()}
+
+
 # Show all server logs
 @app.get("/api/logs")
 async def logs(secret: str):
