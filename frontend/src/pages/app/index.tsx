@@ -134,12 +134,12 @@ export default function App({ editorAPI }: HomeProps) {
 			<UserContextWrapper>
 				<PageContextWrapper>
 				<Auth0Provider
-						domain="dev-rbroo1fvav24wamu.us.auth0.com"
-						clientId="YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr"
+						domain={process.env.AUTH0_DOMAIN!}
+						clientId={process.env.AUTH0_CLIENT_ID!}
 						authorizationParams= { {
 							redirect_uri: `${window.location.origin}/popup.html`,
 							scope: 'openid profile email read:posts',
-							audience: 'textfocals.com', // Value in Identifier field for the API being called.
+							audience: 'textfocals.com',
 							leeway: 10
 						} }
 					>		<AppInner editorAPI={ editorAPI } />
