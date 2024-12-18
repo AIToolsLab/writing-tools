@@ -23,28 +23,24 @@ export default function Navbar() {
 	useEffect(() => {
 		// First ping the server immediately
 		// eslint-disable-next-line no-console
-		console.log(`Pinging server at ${new Date().toISOString()}`);
-		pingServer()
-			.then(() => {
-				// eslint-disable-next-line no-console
-				console.log('Ping successful');
-			})
-			.catch(error => {
-				// eslint-disable-next-line no-console
-				console.warn('Ping failed:', error);
-			});
+		console.log(`Pinging server at ${new Date().toISOString()}`);		// This will only happen once
 
-		// Then set up an interval to ping the server every 1.5 minutes
-		pingInterval.current = setInterval(() => {
+		function doPing() {
 			// eslint-disable-next-line no-console
 			console.log(`Pinging server at ${new Date().toISOString()}`);
 
-			pingServer()
+			pingServer().then(() => {
 				// eslint-disable-next-line no-console
-				.then(() => console.log('Ping successful'))
+				console.log('Ping successful');
+			}).catch(error => {
 				// eslint-disable-next-line no-console
-				.catch(error => console.warn('Ping failed:', error));
-		}, PINGINT);
+				console.warn('Ping failed:', error);
+			});
+		}
+
+		doPing();
+		pingInterval.current = setInterval(doPing, PINGINT);
+
 		return () => {
 			if (pingInterval.current) {
 				clearInterval(pingInterval.current);
