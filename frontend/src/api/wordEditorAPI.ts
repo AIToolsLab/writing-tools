@@ -49,8 +49,55 @@ export const wordEditorAPI: EditorAPI = {
 		});
 	},
 
+	async doLogout(auth0Client: Auth0ContextInterface): Promise<void> {
+		let dialog: Office.Dialog;
 
+		// Strategy: the popup will pass its redirect-callback data here, so we can pass it on to handleRedirectCallback
+		const processMessage = async (
+			args:
+				| { message: string; origin: string | undefined }
+				| { error: number }
+		) => {
+			dialog.close();
+			if ('error' in args) {
+				// eslint-disable-next-line no-console
+				console.error('Error:', args.error);
+				return;
+			}
+			const messageFromDialog = JSON.parse(args.message);
 
+			if (messageFromDialog.status === 'success') {
+				// The dialog reported a successful logout.
+				// It seems like we don't need to do anything here, since the auth0 client library has already cleared its cached credentials.
+			}
+			else {
+				// eslint-disable-next-line no-console
+				console.error('Logout failed.', messageFromDialog);
+			}
+		};
+
+		await auth0Client.logout({
+			openUrl: async (url: string) => {
+				const redirect = encodeURIComponent(url);
+				const bounceURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') + '/popup.html?redirect=' + redirect;
+				Office.context.ui.displayDialogAsync(
+					bounceURL,
+					{ height: 45, width: 55 },
+					function (result) {
+						dialog = result.value;
+						dialog.addEventHandler(
+							Office.EventType.DialogMessageReceived,
+							processMessage
+						);
+					}
+				);
+			},
+			logoutParams: {
+				returnTo: `${location.origin}/popup.html?logout=true`
+			}
+		});
+	},
+	
 	addSelectionChangeHandler: (handler: () => void) => {
 		Office.context.document.addHandlerAsync(
 			Office.EventType.DocumentSelectionChanged,
