@@ -77,13 +77,9 @@ function AppInner({ editorAPI }: HomeProps) {
 					/>
 				</div>
 
-				{ width < 400 && (
-					<div className={ classes.widthAlert }>
-						For best experience please expand the sidebar by dragging the splitter.
-						</div>
-					)
-				}
-
+				<div className={ classes.widthAlert } style={{ visibility: width < 400 ? 'visible' : 'hidden' }}>
+					For best experience please expand the sidebar by dragging the splitter.
+				</div>
 			</div>
 		);
 	}
