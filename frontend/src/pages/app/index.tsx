@@ -134,8 +134,8 @@ export default function App({ editorAPI }: HomeProps) {
 			<UserContextWrapper>
 				<PageContextWrapper>
 				<Auth0Provider
-						domain={process.env.AUTH0_DOMAIN!}
-						clientId={process.env.AUTH0_CLIENT_ID!}
+						domain={ process.env.AUTH0_DOMAIN! }
+						clientId={ process.env.AUTH0_CLIENT_ID! }
 						authorizationParams= { {
 							redirect_uri: `${window.location.origin}/popup.html`,
 							scope: 'openid profile email read:posts',
