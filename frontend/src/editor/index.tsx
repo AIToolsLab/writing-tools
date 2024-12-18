@@ -34,6 +34,9 @@ function App() {
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
 			await auth0Client.loginWithPopup();
 		},
+		doLogout: async (auth0Client: Auth0ContextInterface) => {
+			await auth0Client.logout();
+		},
 		getDocContext: async (_positionalSensitivity: boolean) => {
 			return docRef.current;
 		},

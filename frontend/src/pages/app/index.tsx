@@ -114,9 +114,7 @@ function AppInner({ editorAPI }: HomeProps) {
 					onClick={ () => {
 					// eslint-disable-next-line no-console
 					console.log('origin', window.location.origin);
-					logout({
-						logoutParams: { returnTo: `${window.location.href}` }
-					});
+					editorAPI.doLogout(auth0Client);
 				} }
 				>
 					LogOut
@@ -139,7 +137,7 @@ export default function App({ editorAPI }: HomeProps) {
 						domain="dev-rbroo1fvav24wamu.us.auth0.com"
 						clientId="YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr"
 						authorizationParams= { {
-							redirectUri: `${window.location.origin}/popup.html`,
+							redirect_uri: `${window.location.origin}/popup.html`,
 							scope: 'openid profile email read:posts',
 							audience: 'textfocals.com', // Value in Identifier field for the API being called.
 							leeway: 10
