@@ -26,7 +26,7 @@ export interface HomeProps {
 
 function AppInner({ editorAPI }: HomeProps) {
 	const auth0Client = useAuth0();
-	const { isLoading, error, isAuthenticated, user, logout } = auth0Client;
+	const { isLoading, error, isAuthenticated, user } = auth0Client;
 	const [width, _height] = useWindowSize();
 	const { page } = useContext(PageContext);
 

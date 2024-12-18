@@ -15,7 +15,8 @@ Office.onReady(() => {
 			},
 			DEBUG ? 5000 : 0
 		);
-	} else {
+	}
+ else {
 		// Note: this will also get called with `logout=true` in the logout flow, but
 		// the only thing we need to do here is message the parent to get the dialog to close,
 		// so it's fine to take the same action in both cases.
