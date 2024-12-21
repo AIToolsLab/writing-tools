@@ -1,7 +1,5 @@
-import { useContext } from 'react';
-import { PageName } from '@/contexts/pageContext';
-
-import { PageContext } from '@/contexts/pageContext';
+import { useContext, useEffect, useRef } from 'react';
+import { PageName, PageContext } from '@/contexts/pageContext';
 
 import classes from './styles.module.css';
 
