@@ -169,7 +169,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 					gtype: type,
 					prompt: contextText
 				}),
-				signal: AbortSignal.timeout(7000)
+				signal: AbortSignal.timeout(20000)
 			});
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);
