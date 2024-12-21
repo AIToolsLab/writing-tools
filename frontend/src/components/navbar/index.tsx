@@ -1,11 +1,25 @@
 import { useContext } from 'react';
+import { PageName } from '@/contexts/pageContext';
 
 import { PageContext } from '@/contexts/pageContext';
 
 import classes from './styles.module.css';
 
-const pageNames = [
-	{ name: 'draft', title: 'Draft' },
+/**
+ * An array of objects representing the names and titles of pages.
+ * Each object contains the following properties:
+ * 
+ * @property {PageName} name - The name identifier of the page.
+ * @property {string} title - The display title of the page.
+ */
+
+type Page = {
+	name: PageName;
+	title: string;
+};
+
+const pageNames: Page[] = [
+	{ name: PageName.Draft, title: 'Draft' },
 	// { name: 'revise', title: 'Revise' },
 	// { name: 'searchbar', title: 'SearchBar' },
 	// { name: 'chat', title: 'Chat' },

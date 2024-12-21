@@ -7,7 +7,7 @@ import { useWindowSize } from '@react-hook/window-size/throttled';
 
 import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
 // eslint-disable-next-line no-duplicate-imports
-import PageContextWrapper from '@/contexts/pageContext';
+import PageContextWrapper, { PageName } from '@/contexts/pageContext';
 import UserContextWrapper from '@/contexts/userContext';
 import ChatContextWrapper from '@/contexts/chatContext';
 
@@ -163,14 +163,18 @@ function AppInner({ editorAPI }: HomeProps) {
 		);
 	}
 
-	function getComponent(pageName: string) {
-		if (pageName === 'revise') return <Revise />;
-		if (pageName === 'searchbar') return <SearchBar />;
-		if (pageName === 'chat') return <Chat />;
-		if (pageName === 'draft') return <Draft editorAPI={ editorAPI } />;
-
-		// eslint-disable-next-line no-console
-		// console.error('Invalid page name', pageName);
+	function getComponent(pageName: PageName): JSX.Element | null {
+		switch (pageName) {
+			case PageName.Revise:
+				return <Revise />;
+			case PageName.SearchBar:
+				return <SearchBar />;
+			case PageName.Chat:
+				return <Chat />;
+			case PageName.Draft:
+				return <Draft editorAPI={ editorAPI } />;
+		}
+		return null;
 	}
 
 	return (

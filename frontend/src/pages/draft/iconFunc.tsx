@@ -8,6 +8,8 @@ export const iconFunc = (generationType: string) => {
             return <AiOutlineQuestion />;
         case 'Keywords':
             return <AiOutlineHighlight />;
+        default:
+            return null;
     }
 };
 
