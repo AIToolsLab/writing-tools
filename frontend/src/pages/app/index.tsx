@@ -1,13 +1,12 @@
 import { useContext, useRef, useEffect } from 'react';
 import { pingServer } from '@/api';
 
-import { PageContext } from '@/contexts/pageContext';
 import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
 import { useWindowSize } from '@react-hook/window-size/throttled';
 
 import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
-// eslint-disable-next-line no-duplicate-imports
-import PageContextWrapper, { PageName } from '@/contexts/pageContext';
+
+import PageContextWrapper, { PageName, PageContext } from '@/contexts/pageContext';
 import UserContextWrapper from '@/contexts/userContext';
 import ChatContextWrapper from '@/contexts/chatContext';
 
