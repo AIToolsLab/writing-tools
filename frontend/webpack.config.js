@@ -29,22 +29,22 @@ module.exports = async (env, options) => {
 			react: ['react', 'react-dom'],
 			taskpane: {
 				import: ['./src/index.tsx', './src/taskpane.html'],
-				dependOn: "react"
+				dependOn: 'react'
 			},
 			logs: {
 				import: ['./src/logs/index.tsx', './src/logs/logs.html'],
-				dependOn: "react"
+				dependOn: 'react'
 			},
 			popup: {
 				import: [
 					'./src/popup.tsx',
 					'./src/popup.html'
 				],
-				dependOn: "react"
+				dependOn: 'react'
 			},
 			editor: {
 				import: ['./src/editor/index.tsx', './src/editor/editor.html'],
-				dependOn: "react"
+				dependOn: 'react'
 			},
 		    commands: './src/commands/commands.ts'
 		},
