@@ -24,6 +24,8 @@
 		"watch": "webpack --mode development --watch",
 		"lint": "eslint \"**/*.{js,ts,tsx}\"",
 		"lint:fix": "eslint --fix --ext .js,.ts,.tsx .",
+    	"format": "prettier --check \"**/*.{js,ts,tsx,json,md}\"",
+		"format:fix": "prettier --write \"**/*.{js,ts,tsx,json,md}\"",
 		"prepare": "cd .. && husky install add-in/.husky"
 	},
 	"dependencies": {
@@ -68,6 +70,7 @@
 		"office-addin-dev-certs": "^1.11.3",
 		"office-addin-manifest": "^1.12.3",
 		"os-browserify": "^0.3.0",
+		"prettier": "^3.4.2",
 		"process": "^0.11.10",
 		"regenerator-runtime": "^0.13.7",
 		"source-map-loader": "^3.0.0",
@@ -83,7 +86,8 @@
 	],
 	"lint-staged": {
 		"**/*.{js,ts,tsx}": [
-			"yarn run lint"
+			"yarn run lint",
+			"yarn run format"
 		]
 	},
 	"packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
