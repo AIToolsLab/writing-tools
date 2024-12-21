@@ -23,7 +23,8 @@
 		"validate:prod": "office-addin-manifest validate -p dist/manifest.xml",
 		"watch": "webpack --mode development --watch",
 		"lint": "eslint \"**/*.{js,ts,tsx}\"",
-		"lint:fix": "eslint --fix --ext .js,.ts,.tsx ."
+		"lint:fix": "eslint --fix --ext .js,.ts,.tsx .",
+		"prepare": "husky"
 	},
 	"dependencies": {
 		"@auth0/auth0-react": "^2.2.4",
@@ -38,8 +39,7 @@
 		"react-icons": "^5.2.1",
 		"react-remark": "^2.1.0",
 		"react-textarea-autosize": "^8.5.3",
-		"regenerator-runtime": "^0.14.1",
-		"style-loader": "^4.0.0"
+		"regenerator-runtime": "^0.14.1"
 	},
 	"devDependencies": {
 		"@babel/core": "^7.24.0",
@@ -80,6 +80,7 @@
 		"os-browserify": "^0.3.0",
 		"process": "^0.11.10",
 		"source-map-loader": "^5.0.0",
+		"style-loader": "^4.0.0",
 		"ts-loader": "^9.5.1",
 		"ts-node": "^10.9.2",
 		"typescript": "^5.4.2",
