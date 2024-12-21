@@ -1,8 +1,6 @@
 import { useContext, useEffect, useRef } from 'react';
 import { pingServer } from '@/api';
-import { PageName } from '@/contexts/pageContext';
-
-import { PageContext } from '@/contexts/pageContext';
+import { PageName, PageContext } from '@/contexts/pageContext';
 
 import classes from './styles.module.css';
 
