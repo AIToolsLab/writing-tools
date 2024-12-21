@@ -1,8 +1,6 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
-*$py.class
-.ruff_cache
 
 # C extensions
 *.so
@@ -46,4 +44,10 @@ venv.bak/
 
 # Javascript stuff
 node_modules/
+
+# Data
 *.db
+
+# Azurite
+__azurite_*
+
