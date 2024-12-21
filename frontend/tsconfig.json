@@ -1,11 +1,20 @@
 {
 	"compilerOptions": {
-		"module": "CommonJS",
-		"target": "ES5",
-		"lib": ["ES7", "DOM", "ES2021"],
-		"moduleResolution": "node",
-		"outDir": "dist",
+		"allowUnusedLabels": false,
+		"emitDecoratorMetadata": true,
+		"esModuleInterop": true,
+		"experimentalDecorators": true,
+		"forceConsistentCasingInFileNames": true,
 		"jsx": "react-jsx",
+		"module": "ES2020",
+		"moduleResolution": "node",
+		"noImplicitReturns": true,
+		"noUnusedParameters": true,
+		"outDir": "dist",
+		"removeComments": false,
+		"sourceMap": true,
+		"target": "es5",
+		"lib": ["ES7", "DOM", "ES2021"],
 		"paths": {
 			"*": ["./src/*.d.ts"],
 			"@/*": ["./src/*"]
@@ -16,22 +25,21 @@
 		"isolatedModules": false,
 		"downlevelIteration": true,
 		"incremental": true,
-		"esModuleInterop": true,
-		"forceConsistentCasingInFileNames": true,
 		"strict": true,
 		"noImplicitAny": true,
 		"alwaysStrict": true,
 		"skipLibCheck": true,
 		"typeRoots": ["node_modules/@types"],
 		"pretty": true,
-		"sourceMap": true,
-		"removeComments": false
 	},
 	"include": ["**/*.ts", "**/*.tsx"],
 	"exclude": ["node_modules"],
 	"compileOnSave": false,
 	"buildOnSave": false,
 	"ts-node": {
+		"compilerOptions": {
+			"module": "commonjs"
+		  },
 		"files": true
 	}
 }

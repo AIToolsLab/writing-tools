@@ -1,4 +1,7 @@
 {
+	"extends": [
+		"plugin:office-addins/react"
+	],
 	"env": {
 		"browser": true,
 		"es2021": true
@@ -14,7 +17,7 @@
 			"jsx": true
 		}
 	},
-	"plugins": ["react", "@typescript-eslint"],
+	"plugins": ["react", "@typescript-eslint", "office-addins"],
 	"rules": {
 		"react/no-unescaped-entities": "off",
 		"no-constant-condition": "error",

@@ -26,15 +26,27 @@ module.exports = async (env, options) => {
 		devtool: 'source-map',
 		entry: {
 			polyfill: ['core-js/stable', 'regenerator-runtime/runtime'],
-			vendor: ['react', 'react-dom', 'core-js'],
-			taskpane: ['./src/index.tsx', './src/taskpane.html'],
-			logs: ['./src/logs/index.tsx', './src/logs/logs.html'],
-			popup: [
-				'./src/popup.tsx',
-				'./src/popup.html'
-			],
-			editor: ['./src/editor/index.tsx', './src/editor/editor.html'],
-      commands: './src/commands/commands.ts'
+			react: ['react', 'react-dom'],
+			taskpane: {
+				import: ['./src/index.tsx', './src/taskpane.html'],
+				dependOn: "react"
+			},
+			logs: {
+				import: ['./src/logs/index.tsx', './src/logs/logs.html'],
+				dependOn: "react"
+			},
+			popup: {
+				import: [
+					'./src/popup.tsx',
+					'./src/popup.html'
+				],
+				dependOn: "react"
+			},
+			editor: {
+				import: ['./src/editor/index.tsx', './src/editor/editor.html'],
+				dependOn: "react"
+			},
+		    commands: './src/commands/commands.ts'
 		},
 		output: {
 			clean: true
@@ -52,9 +64,6 @@ module.exports = async (env, options) => {
 					exclude: /node_modules/,
 					use: {
 						loader: 'babel-loader',
-						options: {
-							presets: ['@babel/preset-typescript']
-						}
 					}
 				},
 				{
@@ -68,7 +77,7 @@ module.exports = async (env, options) => {
 					use: 'html-loader'
 				},
 				{
-					test: /\.(png|jpg|jpeg|gif|ico)$/,
+					test: /\.(png|jpg|jpeg|ttf|woff|woff2|gif|ico)$/,
 					type: 'asset/resource',
 					generator: {
 						filename: 'assets/[name][ext][query]'
@@ -114,22 +123,22 @@ module.exports = async (env, options) => {
 			new HtmlWebpackPlugin({
 				filename: 'taskpane.html',
 				template: './src/taskpane.html',
-				chunks: ['taskpane', 'vendor', 'polyfills']
+				chunks: ['polyfill', 'taskpane', 'react']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'editor.html',
 				template: './src/editor/editor.html',
-				chunks: ['editor', 'vendor']
+				chunks: ['editor', 'react']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'popup.html',
 				template: './src/popup.html',
-				chunks: ['popup', 'vendor', 'polyfills']
+				chunks: ['polyfill', 'popup', 'react']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'commands.html',
 				template: './src/commands/commands.html',
-				chunks: ['commands']
+				chunks: ['polyfill', 'commands']
 			}),
 			new webpack.ProvidePlugin({
 				Promise: ['es6-promise', 'Promise']
@@ -152,12 +161,13 @@ module.exports = async (env, options) => {
 						: await getHttpsOptions()
 			},
 			port: process.env.npm_package_config_dev_server_port || 3000,
-			proxy: {
-				'/api': {
+			proxy: [
+				{
+					context: ['/api'],
 					target: 'https://textfocals.azurewebsites.net/',
 					changeOrigin: true
 				}
-			},
+			],
 			compress: false
 		}
 	};
