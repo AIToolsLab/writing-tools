@@ -1,4 +1,5 @@
-import { useContext } from 'react';
+import { useContext, useRef, useEffect } from 'react';
+import { pingServer } from '@/api';
 
 import { PageContext } from '@/contexts/pageContext';
 import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
@@ -24,11 +25,47 @@ export interface HomeProps {
 	editorAPI: EditorAPI;
 }
 
+function usePingServer() {
+
+	const pingInterval = useRef<NodeJS.Timeout>();
+
+	// 2 minutes
+	const PINGINT: number = 2 * 60 * 1000;
+
+	useEffect(() => {
+		function doPing() {
+			// eslint-disable-next-line no-console
+			console.log(`Pinging server at ${new Date().toISOString()}`);
+
+			pingServer().then(() => {
+				// eslint-disable-next-line no-console
+				console.log('Warming up server');
+			}).catch(error => {
+				// eslint-disable-next-line no-console
+				console.warn('Ping failed:', error);
+			});
+		}
+
+		// First ping the server immediately
+		doPing();
+		// Then set up the interval
+		pingInterval.current = setInterval(doPing, PINGINT);
+
+		return () => {
+			if (pingInterval.current) {
+				clearInterval(pingInterval.current);
+			}
+		};
+	}, []);
+}
+
 function AppInner({ editorAPI }: HomeProps) {
 	const auth0Client = useAuth0();
 	const { isLoading, error, isAuthenticated, user } = auth0Client;
 	const [width, _height] = useWindowSize();
 	const { page } = useContext(PageContext);
+
+	usePingServer();
 
 	// Detect if the user is using the latest version of Office
 	// https://learn.microsoft.com/en-us/office/dev/add-ins/develop/support-ie-11?tabs=ie
@@ -119,7 +156,7 @@ function AppInner({ editorAPI }: HomeProps) {
 				</div>
 
 				<div className={ classes.versionAlert } style={ { visibility: !isOfficeLatest() ? 'visible' : 'hidden' } }>
-					This add-in will not run in your version of Office. Please upgrade either to
+					This add-in may not run correctly in your version of Office. Please upgrade either to
 					perpetual Office 2021 (or later) or to a Microsoft 365 account.
 				</div>
 			</div>
