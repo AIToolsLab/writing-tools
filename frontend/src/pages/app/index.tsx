@@ -65,6 +65,8 @@ function AppInner({ editorAPI }: HomeProps) {
 	const [width, _height] = useWindowSize();
 	const { page } = useContext(PageContext);
 
+	// eslint-disable-next-line no-console
+	console.log("Calling usePingServer");
 	usePingServer();
 
 	// Detect if the user is using the latest version of Office
