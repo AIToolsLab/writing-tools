@@ -1,4 +1,4 @@
-import { useContext, useRef, useEffect } from 'react';
+import { useContext, useRef, useEffect, useState } from 'react';
 import { pingServer } from '@/api';
 
 import { PageContext } from '@/contexts/pageContext';
@@ -20,10 +20,11 @@ import SearchBar from '../searchbar';
 import Chat from '../chat';
 import Draft from '../draft';
 import { wordEditorAPI } from '@/api/wordEditorAPI';
+import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
-}
+}	
 
 function usePingServer() {
 
@@ -64,6 +65,9 @@ function AppInner({ editorAPI }: HomeProps) {
 	const { isLoading, error, isAuthenticated, user } = auth0Client;
 	const [width, _height] = useWindowSize();
 	const { page } = useContext(PageContext);
+	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
+		return localStorage.getItem('hasCompletedOnboarding') === 'false';
+	});
 
 	usePingServer();
 
@@ -125,40 +129,45 @@ function AppInner({ editorAPI }: HomeProps) {
 	);
 	if (!isAuthenticated) {
 		return (
-			<div className={ classes.loginContainer }>
-				<h3>Not logged in yet?</h3>
-				<button
-					className={ classes.loginButton }
-					onClick= { async () => {
-						await editorAPI.doLogin(auth0Client);
-					} }
-				>
-					<p>Login</p>
-				</button>
-
-				<hr />
-
-				<p>Available Auth Providers</p>
-				<div className={ classes.authProviderIconContainer }>
-					<CgGoogle
-						className={ classes.authProviderIcon }
+			<div>
+				{!hasCompletedOnboarding ? (
+					<OnboardingCarousel 
+						onComplete={() => {
+							setHasCompletedOnboarding(true);
+							localStorage.setItem('hasCompletedOnboarding', 'true');
+						}} 
 					/>
-					<CgMicrosoft
-						className={ classes.authProviderIcon }
-					/>
-					<CgFacebook
-						className={ classes.authProviderIcon }
-					/>
-				</div>
+				) : (
+					<div className={classes.loginContainer}>
+						<h3>Not logged in yet?</h3>
+						<button
+							className={classes.loginButton}
+							onClick={async () => {
+								await editorAPI.doLogin(auth0Client);
+							}}
+						>
+							<p>Login</p>
+						</button>
 
-				<div className={ classes.widthAlert } style={ { visibility: width < 400 ? 'visible' : 'hidden' } }>
-					For best experience please expand the sidebar by dragging the splitter.
-				</div>
+						<hr />
 
-				<div className={ classes.versionAlert } style={ { visibility: !isOfficeLatest() ? 'visible' : 'hidden' } }>
-					This add-in may not run correctly in your version of Office. Please upgrade either to
-					perpetual Office 2021 (or later) or to a Microsoft 365 account.
-				</div>
+						<p>Available Auth Providers</p>
+						<div className={classes.authProviderIconContainer}>
+							<CgGoogle className={classes.authProviderIcon} />
+							<CgMicrosoft className={classes.authProviderIcon} />
+							<CgFacebook className={classes.authProviderIcon} />
+						</div>
+
+						<div className={classes.widthAlert} style={{ visibility: width < 400 ? 'visible' : 'hidden' }}>
+							For best experience please expand the sidebar by dragging the splitter.
+						</div>
+
+						<div className={classes.versionAlert} style={{ visibility: !isOfficeLatest() ? 'visible' : 'hidden' }}>
+							This add-in may not run correctly in your version of Office. Please upgrade either to
+							perpetual Office 2021 (or later) or to a Microsoft 365 account.
+						</div>
+					</div>
+				)}
 			</div>
 		);
 	}

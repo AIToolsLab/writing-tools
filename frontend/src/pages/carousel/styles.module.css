@@ -1,0 +1,94 @@
+.onboardingContainer {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    position: relative;
+    background: white;
+    padding: 20px;
+  }
+  
+  .carouselWrapper {
+    overflow: hidden;
+    width: 100%;
+    position: relative;
+  }
+  
+  .carouselSlide {
+    display: flex;
+    transition: transform 0.3s ease-in-out;
+    width: 100%;
+  }
+  
+  .carouselItem {
+    display: flex;
+    flex-direction: column;
+    padding-right: 15px;
+    min-width: 100%;
+    width: 100%;
+
+    flex: 0 0 100%;
+    box-sizing: border-box;
+
+    overflow: hidden;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  
+  .carouselItem:last-child {
+    margin-right: 0;
+  }
+  
+
+  
+
+  
+.carouselItem p, .carouselItem h2 {
+    padding: 0 15px;
+  }
+
+
+  .carouselControls {
+    margin-top: 20px;
+    bottom: 30px;
+
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  
+  .carouselDots {
+    display: flex;
+    gap: 8px;
+  }
+  
+  .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ccc;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    transition: background-color 0.3s;
+  }
+  
+  .activeDot {
+    background: #007bff;
+  }
+  
+  .nextButton {
+    padding: 10px 20px;
+    background: #007bff;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: background-color 0.3s;
+  }
+  
+  .nextButton:hover {
+    background: #0056b3;
+  }
