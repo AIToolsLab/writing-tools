@@ -95,7 +95,7 @@
             <bt:LongStrings>
                 <bt:String id="GetStarted.Description"
                     DefaultValue="Thoughtful loaded successfully. Go to the HOME tab and click the 'Show Thoughtful' button to get started." />
-                <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Click to Show a Thoughtful" />
+                <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Show Thoughtful sidebar." />
             </bt:LongStrings>
         </Resources>
     </VersionOverrides>
