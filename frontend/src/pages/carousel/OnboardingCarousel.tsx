@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import classes from './styles.module.css';
+import descriptionImage from '../../../assets/c1.png'
+import functionImage from '../../../assets/logo_black.png'
+import benefitsImage from '../../../assets/c3.png'
 
 interface OnboardingCarouselProps {
   onComplete: () => void;
@@ -8,19 +11,23 @@ interface OnboardingCarouselProps {
 const ONBOARDING_SLIDES = [
     {
       title: "Welcome to TextFocals",
-      description: "Provide a simple and brief introduction to the main actions in the add-in.",
-
+      image: functionImage,
+      description: "Thoughtful helps you write more thoughtfully. Its AI encourages your own thinking.",
+      
     },
     {
       title: "Benefits of using TextFocals",
       description: "benefit",
+      image: descriptionImage
 
     },
     {
       title: "function",
       description: "function",
-
+      image: benefitsImage
     }
+
+  
   ];
 
 export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
@@ -44,6 +51,7 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
           <div key={index} className={classes.carouselItem}>
 
             <h2>{slide.title}</h2>
+            <img src={slide.image} className={classes.carouselImage}/>
             <p>{slide.description}</p>
           </div>
         ))}
@@ -59,12 +67,23 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
             />
           ))}
         </div>
+        <div className={classes.carouselButtons}>
+
+        {currentSlide !==ONBOARDING_SLIDES.length - 1 && <button 
+          className={classes.skipButton}
+          onClick={onComplete}
+        >
+            Skip
+          </button>}
+
         <button 
           className={classes.nextButton}
           onClick={nextSlide}
         >
           {currentSlide === ONBOARDING_SLIDES.length - 1 ? 'Get Started' : 'Next'}
         </button>
+
+        </div>
       </div>
     </div>
   );
