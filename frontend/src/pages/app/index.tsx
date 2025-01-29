@@ -23,7 +23,7 @@ import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
-}	
+}
 
 function usePingServer() {
 
@@ -129,44 +129,48 @@ function AppInner({ editorAPI }: HomeProps) {
 	if (!isAuthenticated) {
 		return (
 			<div>
-				{!hasCompletedOnboarding ? (
-					<OnboardingCarousel 
-						onComplete={() => {
+				{ !hasCompletedOnboarding ? (
+					<OnboardingCarousel
+						onComplete={ () => {
 							setHasCompletedOnboarding(true);
 							localStorage.setItem('hasCompletedOnboarding', 'true');
-						}} 
+						} }
 					/>
 				) : (
-					<div className={classes.loginContainer}>
+					<div className={ classes.loginContainer }>
 						<h3>Not logged in yet?</h3>
 						<button
-							className={classes.loginButton}
-							onClick={async () => {
+							className={ classes.loginButton }
+							onClick={ async () => {
 								await editorAPI.doLogin(auth0Client);
-							}}
+							} }
 						>
 							<p>Login</p>
 						</button>
 
+						<div className={ classes.loginInfoContainer }>
+							<p><strong>Note</strong>: the reason for Login is because it is a closed trial of study for now</p>
+						</div>
+
 						<hr />
 
 						<p>Available Auth Providers</p>
-						<div className={classes.authProviderIconContainer}>
-							<CgGoogle className={classes.authProviderIcon} />
-							<CgMicrosoft className={classes.authProviderIcon} />
-							<CgFacebook className={classes.authProviderIcon} />
+						<div className={ classes.authProviderIconContainer }>
+							<CgGoogle className={ classes.authProviderIcon } />
+							<CgMicrosoft className={ classes.authProviderIcon } />
+							<CgFacebook className={ classes.authProviderIcon } />
 						</div>
 
-						<div className={classes.widthAlert} style={{ visibility: width < 400 ? 'visible' : 'hidden' }}>
+						<div className={ classes.widthAlert } style={ { visibility: width < 400 ? 'visible' : 'hidden' } }>
 							For best experience please expand the sidebar by dragging the splitter.
 						</div>
 
-						<div className={classes.versionAlert} style={{ visibility: !isOfficeLatest() ? 'visible' : 'hidden' }}>
+						<div className={ classes.versionAlert } style={ { visibility: !isOfficeLatest() ? 'visible' : 'hidden' } }>
 							This add-in may not run correctly in your version of Office. Please upgrade either to
 							perpetual Office 2021 (or later) or to a Microsoft 365 account.
 						</div>
 					</div>
-				)}
+				) }
 			</div>
 		);
 	}
