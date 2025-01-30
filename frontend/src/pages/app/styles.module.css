@@ -64,7 +64,7 @@ hr {
   font-size: 0.8rem;
   font-weight: 300;
   text-align: center;
-  padding: 0.5rem 1rem;
+  padding: 0.4rem 0.8rem;
 }
 
 .authProviderIconContainer {
@@ -194,4 +194,25 @@ hr {
   padding: 1rem 1.5rem;
   transition: all 0.15s;
   color: #dc7272;
+}
+
+.signupBtnCtnr {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #686868;
+}
+
+.ibtn {
+  text-decoration: none;
+  text-align: center;
+  transition: all 0.2s;
+  color: #809fdb;
+  padding: 0 0.2rem;
+}
+
+.ibtn:hover {
+  color: #6cc7a0;
 }
