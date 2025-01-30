@@ -153,6 +153,15 @@ function AppInner({ editorAPI }: HomeProps) {
 							<p><strong>Note</strong>: the reason for Login is because it is a closed trial of study for now</p>
 						</div>
 
+						<div className={ classes.signupBtnCtnr }>
+							Click
+							<a href="https://tinyurl.com/3dfrujnz" className={ classes.ibtn } target="_blank">
+								here
+							</a>
+							to sign up for the study if interested.
+						</div>
+
+
 						<hr />
 
 						<p>Available Auth Providers</p>
