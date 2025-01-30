@@ -65,7 +65,7 @@ function AppInner({ editorAPI }: HomeProps) {
 	const [width, _height] = useWindowSize();
 	const { page } = useContext(PageContext);
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
-		return localStorage.getItem('hasCompletedOnboarding') === 'false';
+		return localStorage.getItem('hasCompletedOnboarding') === 'true';
 	});
 
 	usePingServer();
