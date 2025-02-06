@@ -68,6 +68,7 @@ function AppInner({ editorAPI }: HomeProps) {
 		return localStorage.getItem('hasCompletedOnboarding') === 'true';
 	});
 
+
 	usePingServer();
 
 	// Detect if the user is using the latest version of Office
@@ -126,6 +127,7 @@ function AppInner({ editorAPI }: HomeProps) {
 			</button>
 		</div>
 	);
+
 	if (!isAuthenticated) {
 		return (
 			<div>
@@ -184,6 +186,34 @@ function AppInner({ editorAPI }: HomeProps) {
 		);
 	}
 
+	// For the beta, only allow Calvin email addresses and example test user
+	const isUserAllowed = user!.email?.endsWith('@calvin.edu') || user!.email === 'example-user@textfocals.com';
+
+	if (!isUserAllowed) {
+		return (
+			<div className={ classes.notAllowedContainer }>
+				<p className={ classes.notAllowedTitle }>Sorry, you are not allowed to access this page.</p>
+				<hr />
+				<p>For the purpose of the beta study, we are limiting access to Calvin email addresses only.</p>
+				<p>
+					<a href="https://thoughtful-ai.com/" className={ classes.ibtn } target="_blank">Contact the developer</a>
+					if you are interested in participating in the study.
+				</p>
+				<hr />
+				<button
+					className={ classes.logoutButton }
+					onClick={ () => {
+						// eslint-disable-next-line no-console
+						console.log('origin', window.location.origin);
+						editorAPI.doLogout(auth0Client);
+					} }
+				>
+					LogOut
+				</button>
+			</div>
+		);
+	}
+
 	function getComponent(pageName: PageName): JSX.Element | null {
 		switch (pageName) {
 			case PageName.Revise:
@@ -197,6 +227,7 @@ function AppInner({ editorAPI }: HomeProps) {
 		}
 		return null;
 	}
+
 
 	return (
 		<Layout>
