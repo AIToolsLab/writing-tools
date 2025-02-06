@@ -9,7 +9,7 @@
     <ProviderName>Calvin University Computer Science Department</ProviderName>
     <DefaultLocale>en-US</DefaultLocale>
     <DisplayName DefaultValue="Thoughtful" />
-    <Description DefaultValue="Get the reflections you want on your writing." />
+    <Description DefaultValue="AI tools to help you write thoughtfully" />
     <IconUrl DefaultValue="https://localhost:3000/assets/logo.png" />
     <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/logo_highres.png" />
     <SupportUrl DefaultValue="https://localhost:3000" />
