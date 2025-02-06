@@ -21,7 +21,7 @@
     </Hosts>
     <Requirements>
         <Sets DefaultMinVersion="1.1">
-            <Set Name="WordApi" MinVersion="1.8" />
+            <Set Name="WordApi" MinVersion="1.7" />
         </Sets>
     </Requirements>
     <DefaultSettings>
