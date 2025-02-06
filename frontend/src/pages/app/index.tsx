@@ -128,7 +128,7 @@ function AppInner({ editorAPI }: HomeProps) {
 		</div>
 	);
 
-	if (!isAuthenticated) {
+	if (!isAuthenticated || !user) {
 		return (
 			<div>
 				{ !hasCompletedOnboarding ? (
@@ -187,7 +187,7 @@ function AppInner({ editorAPI }: HomeProps) {
 	}
 
 	// For the beta, only allow Calvin email addresses and example test user
-	const isUserAllowed = user!.email?.endsWith('@calvin.edu') || user!.email === 'example-user@textfocals.com';
+	const isUserAllowed = user.email?.endsWith('@calvin.edu') || user.email === 'example-user@textfocals.com';
 
 	if (!isUserAllowed) {
 		return (
