@@ -114,37 +114,44 @@ export const wordEditorAPI: EditorAPI = {
 	/**
 	 * Retrieves the text content of the Word document.
 	 */
-	getDocContext(positionalSensitivity: boolean): Promise<string> {
-		return new Promise<string>(async (resolve, reject) => {
+	getDocContext(): Promise<DocContext> {
+		return new Promise<DocContext>(async (resolve, reject) => {
 			try {
 				await Word.run(async (context: Word.RequestContext) => {
 					const body: Word.Body = context.document.body;
-					let contextText = '';
+					let docContext: DocContext = {
+						beforeCursor: '',
+						selectedText: '',
+						afterCursor: ''
+					};
 
-					if (positionalSensitivity) {
-						// wordSelection will only be word touching cursor if none highlighted
-						const wordSelection = context.document
-							.getSelection()
-							.getTextRanges([' '], false);
+					const wordSelection = context.document
+						.getSelection()
+						.getTextRanges([' '], false);
 
-						context.load(wordSelection, 'items');
-						await context.sync();
+					context.load(wordSelection, 'items');
+					await context.sync();
 
-						// Get range from beginning of doc up to the last word in wordSelection
-						const lastCursorWord = wordSelection
-							.items[wordSelection.items.length - 1];
-						const contextRange = lastCursorWord.expandTo(body.getRange('Start'));
+					// Get the text of the selected word
+					docContext.selectedText = wordSelection.items.map(item => item.text).join(' ');
 
-						context.load(contextRange, 'text');
-						await context.sync();
-						contextText = contextRange.text;
-					}
-					else {
-						context.load(body, 'text');
-						await context.sync();
-						contextText = body.text;
-					}
-					resolve(contextText);
+					
+					// Get the text before the selected word
+					const beforeCursor = wordSelection.items[0].expandTo(body.getRange('Start'));
+					context.load(beforeCursor, 'text');
+
+					
+					// Get the text after the selected word
+					const afterCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('End'));
+					context.load(afterCursor, 'text');
+
+
+					await context.sync();
+
+					docContext.beforeCursor = beforeCursor.text;
+					docContext.afterCursor = afterCursor.text;
+					resolve(docContext);
+					
 				});
 			}
             catch (error) {

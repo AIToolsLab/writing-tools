@@ -18,7 +18,7 @@ export default function SavedGenerations({
     savedItems, 
     deleteSavedItem,
 }: { 
-    docContext: string, 
+    docContext: DocContext, 
     saved: boolean, 
     isLoading: boolean 
     savedItems: SavedItem[],
@@ -36,7 +36,7 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
             <div className={ classes.historyButtonWrapper }>
                 <button
                     className={ classes.historyButton }
-                    disabled={ docContext.trim() === '' || isLoading }
+                    disabled={ docContext.beforeCursor === '' || isLoading }
                     onClick={ () => {
                         // Toggle between the current page and the saved page
                         setSavedOpen(!isSavedOpen);

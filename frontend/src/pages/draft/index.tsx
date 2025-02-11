@@ -58,7 +58,11 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 		getCursorPosInfo
 	} = editorAPI;
 
-	const [docContext, updateDocContext] = useState('');
+	const [docContext, updateDocContext] = useState<DocContext>({
+		beforeCursor: '',
+		selectedText: '',
+		afterCursor: ''
+	});
 	const [_cursorPos, updateCursorPos] = useState(0);
 	const [_cursorAtEnd, updateCursorAtEnd] = useState(true);
 	const [genCtxText, updateGenCtxText] = useState('');
@@ -135,7 +139,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 	}
 
 	async function handleSelectionChanged() {
-		const docText = await getDocContext(true);
+		const docText = await getDocContext();
 		updateDocContext(docText);
 		const { charsToCursor, docLength } = await getCursorPosInfo();
 		updateCursorPos(charsToCursor);
@@ -226,7 +230,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 			</div>
 		);
 	else if (generationMode === 'None' || generation === null)
-		if (!docContext.trim())
+		if (docContext.beforeCursor === '')
 			results = (
 				<div className={ classes.initTextWrapper }>
 					<div className={ classes.initText }>
@@ -302,8 +306,8 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 			<div className={ classes.contextText }>
 				<h4>Suggestions will be generated using:</h4>
 				<p>
-					{ docContext.length > 100 ? '...' : '' }
-					{ docContext.substring(docContext.length - 100) }
+					{ docContext.beforeCursor.length > 100 ? '...' : '' }
+					{ docContext.beforeCursor.substring(docContext.beforeCursor.length - 100) }
 				</p>
 			</div>
 
@@ -319,20 +323,20 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 							<Fragment key={ mode }>
 							<button
 								className={ classes.optionsButton }
-								disabled={ docContext.trim() === '' || isLoading }
+								disabled={ docContext.beforeCursor === '' || isLoading }
 								onClick={ () => {
 									log({
 										username: username,
 										interaction: `${mode}_Frontend`,
-										prompt: docContext
+										prompt: docContext.beforeCursor
 									});
-									if (docContext === '') return;
+									if (docContext.beforeCursor === '') return;
 
 									updateGenerationMode(mode);
 									getGeneration(
 										username,
 										`${mode}_Backend`,
-										docContext
+										docContext.beforeCursor
 									);
 								} }
 								onMouseEnter={ () =>
@@ -427,7 +431,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 									className={ classes.utilIconWrapper }
 									onClick={ () => {
 										// Save the generation
-										save(generation, docContext);
+										save(generation, docContext.beforeCursor);
 
 										setSaved(true);
 										setTimeout(() => setSaved(false), 2000);
