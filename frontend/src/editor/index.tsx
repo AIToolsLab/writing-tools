@@ -33,8 +33,12 @@ function App() {
 		doLogout: async (auth0Client: Auth0ContextInterface) => {
 			await auth0Client.logout();
 		},
-		getDocContext: async (_positionalSensitivity: boolean) => {
-			return docRef.current;
+		getDocContext: async (): Promise<DocContext> => {
+			return {
+				beforeCursor: docRef.current,  
+				selectedText: '',              
+				afterCursor: ''                
+			};
 		},
 		getCursorPosInfo: async () => {
 			const doc = docRef.current;

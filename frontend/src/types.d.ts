@@ -25,7 +25,7 @@ interface SavedItem {
 interface EditorAPI {
 	doLogin(auth0Client: Auth0ContextInterface): Promise<void>;
 	doLogout(auth0Client: Auth0ContextInterface): Promise<void>;
-	getDocContext(positionalSensitivity: boolean): Promise<string>;
+	getDocContext(): Promise<DocContext>;
 	getCursorPosInfo(): Promise<{charsToCursor: number, docLength: number}>;
 	addSelectionChangeHandler: (handler: () => void) => void;
 	removeSelectionChangeHandler: (handler: () => void) => void;
@@ -43,3 +43,10 @@ interface CardData {
 	paragraphIndex: number;
 	body: string;
 }
+
+interface DocContext {
+	beforeCursor: string;
+	selectedText: string;
+	afterCursor: string;
+}
+
