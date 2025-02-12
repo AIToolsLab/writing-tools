@@ -26,7 +26,6 @@ interface EditorAPI {
 	doLogin(auth0Client: Auth0ContextInterface): Promise<void>;
 	doLogout(auth0Client: Auth0ContextInterface): Promise<void>;
 	getDocContext(): Promise<DocContext>;
-	getCursorPosInfo(): Promise<{charsToCursor: number, docLength: number}>;
 	addSelectionChangeHandler: (handler: () => void) => void;
 	removeSelectionChangeHandler: (handler: () => void) => void;
 }

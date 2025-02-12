@@ -97,7 +97,7 @@ export const wordEditorAPI: EditorAPI = {
 			}
 		});
 	},
-	
+
 	addSelectionChangeHandler: (handler: () => void) => {
 		Office.context.document.addHandlerAsync(
 			Office.EventType.DocumentSelectionChanged,
@@ -119,7 +119,7 @@ export const wordEditorAPI: EditorAPI = {
 			try {
 				await Word.run(async (context: Word.RequestContext) => {
 					const body: Word.Body = context.document.body;
-					let docContext: DocContext = {
+					const docContext: DocContext = {
 						beforeCursor: '',
 						selectedText: '',
 						afterCursor: ''
@@ -135,12 +135,12 @@ export const wordEditorAPI: EditorAPI = {
 					// Get the text of the selected word
 					docContext.selectedText = wordSelection.items.map(item => item.text).join(' ');
 
-					
+
 					// Get the text before the selected word
 					const beforeCursor = wordSelection.items[0].expandTo(body.getRange('Start'));
 					context.load(beforeCursor, 'text');
 
-					
+
 					// Get the text after the selected word
 					const afterCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('End'));
 					context.load(afterCursor, 'text');
@@ -151,33 +151,12 @@ export const wordEditorAPI: EditorAPI = {
 					docContext.beforeCursor = beforeCursor.text;
 					docContext.afterCursor = afterCursor.text;
 					resolve(docContext);
-					
+
 				});
 			}
-            catch (error) {
+			catch (error) {
 				reject(error);
 			}
-		});
-	},
-
-	getCursorPosInfo() {
-		return new Promise<{charsToCursor: number, docLength: number}>(async (resolve, _reject) => {
-			await Word.run(async (context: Word.RequestContext) => {
-				const body: Word.Body = context.document.body;
-
-				const cursorSelection = context.document.getSelection();
-				const rangeToCursor = cursorSelection.expandTo(body.getRange('Start'));
-
-				context.load(rangeToCursor, 'text');
-				context.load(body, 'text');
-
-				await context.sync();
-
-				const charsToCursor = rangeToCursor.text.toString().length;
-
-				const docLength = body.text.toString().length;
-				resolve({ charsToCursor, docLength });
-			});
 		});
 	}
 };
