@@ -13,12 +13,8 @@ import {
 	AiOutlineStar,
 	AiOutlineSave
 } from 'react-icons/ai';
-
 import { iconFunc } from './iconFunc';
-
-
 import { SERVER_URL, log } from '@/api';
-
 import classes from './styles.module.css';
 import SavedGenerations from './savedGenerations';
 
@@ -45,7 +41,6 @@ const visibleIconForMode = {
 
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
-
 	return <Remark>{ generation.result }</Remark>;
 }
 
@@ -90,6 +85,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 
 	const IS_OBSCURED = false;
 
+	// Save the generation
 	function save(generation: GenerationResult, document: string) {
 		const newSaved = [...savedItems];
 
@@ -118,6 +114,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 		updateSavedItems(newSaved);
 	}
 
+	// Delete a saved item
 	function deleteSavedItem(dateSaved: Date) {
 		const newSaved = [...savedItems].filter(
 			savedItem => savedItem.dateSaved !== dateSaved
@@ -137,12 +134,13 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 		updateSavedItems(newSaved);
 	}
 
+	// Update the cursor position
 	async function handleSelectionChanged() {
+		// Get the document context (before cursor, selected text, after cursor)
 		const docInfo = await getDocContext();
 		updateDocContext(docInfo);
 
-		// const { charsToCursor, docLength } = await getCursorPosInfo();
-
+		// Update the cursor position
 		const charsToCursor = docInfo.beforeCursor.length;
     const docLength = docInfo.beforeCursor.length + docInfo.selectedText.length + docInfo.afterCursor.length;
 
@@ -150,6 +148,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 		updateCursorAtEnd(charsToCursor >= docLength);
 	}
 
+	// Get a generation from the backend
 	async function getGeneration(
 		username: string,
 		type: string,
@@ -186,7 +185,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 			updateGeneration((await response.json()) as GenerationResult);
 			updateGenCtxText(contextText);
 		}
- catch (err: any) {
+		catch (err: any) {
 			setIsLoading(false);
 			let errMsg = '';
 			if (err.name === 'AbortError')
@@ -252,9 +251,6 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 			);
 	else
 		results = (
-			// <div className={ classes.resultTextWrapper }>
-			// 	<div className={ classes.resultText }>{ generation }</div>
-			// </div>
 			<div className={ classes.resultTextWrapper }>
 				<div>
 					<div
@@ -290,7 +286,6 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 						}
 					>
 						{ iconFunc(generationMode) }
-
 					</div>
 				</div>
 			</div>

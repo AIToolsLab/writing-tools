@@ -48,4 +48,3 @@ interface DocContext {
 	selectedText: string;
 	afterCursor: string;
 }
-
