@@ -101,7 +101,7 @@ export async function getReflection(
 
 		return relfectionResponses;
 	}
- catch (error) {
+	catch (error) {
 		// TODO: Log errors better
 		// console.error(error);
 		// debugger;

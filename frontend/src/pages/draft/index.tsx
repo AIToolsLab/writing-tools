@@ -54,8 +54,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 	const {
 		addSelectionChangeHandler,
 		removeSelectionChangeHandler,
-		getDocContext,
-		getCursorPosInfo
+		getDocContext
 	} = editorAPI;
 
 	const [docContext, updateDocContext] = useState<DocContext>({
@@ -139,9 +138,14 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 	}
 
 	async function handleSelectionChanged() {
-		const docText = await getDocContext();
-		updateDocContext(docText);
-		const { charsToCursor, docLength } = await getCursorPosInfo();
+		const docInfo = await getDocContext();
+		updateDocContext(docInfo);
+
+		// const { charsToCursor, docLength } = await getCursorPosInfo();
+
+		const charsToCursor = docInfo.beforeCursor.length;
+    const docLength = docInfo.beforeCursor.length + docInfo.selectedText.length + docInfo.afterCursor.length;
+
 		updateCursorPos(charsToCursor);
 		updateCursorAtEnd(charsToCursor >= docLength);
 	}

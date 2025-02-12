@@ -35,15 +35,10 @@ function App() {
 		},
 		getDocContext: async (): Promise<DocContext> => {
 			return {
-				beforeCursor: docRef.current,  
-				selectedText: '',              
-				afterCursor: ''                
+				beforeCursor: docRef.current,
+				selectedText: '',
+				afterCursor: ''
 			};
-		},
-		getCursorPosInfo: async () => {
-			const doc = docRef.current;
-
-			return { charsToCursor: doc.length, docLength: doc.length };
 		},
 		addSelectionChangeHandler: (handler: () => void) => {
 			selectionChangeHandlers.current.push(handler);
