@@ -125,6 +125,7 @@ export const wordEditorAPI: EditorAPI = {
 						afterCursor: ''
 					};
 
+					// Get the selected word
 					const wordSelection = context.document
 						.getSelection()
 						.getTextRanges([' '], false);
@@ -135,23 +136,20 @@ export const wordEditorAPI: EditorAPI = {
 					// Get the text of the selected word
 					docContext.selectedText = wordSelection.items.map(item => item.text).join(' ');
 
-
 					// Get the text before the selected word
 					const beforeCursor = wordSelection.items[0].expandTo(body.getRange('Start'));
 					context.load(beforeCursor, 'text');
-
 
 					// Get the text after the selected word
 					const afterCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('End'));
 					context.load(afterCursor, 'text');
 
-
 					await context.sync();
 
+					// Set the beforeCursor and afterCursor properties of the docContext object
 					docContext.beforeCursor = beforeCursor.text;
 					docContext.afterCursor = afterCursor.text;
 					resolve(docContext);
-
 				});
 			}
 			catch (error) {
