@@ -208,7 +208,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 	}
 
 	// Temporarily select the text from the start to the cursor
-	async function selectToCursor(duration: number = 1000): Promise<void> {
+	async function _selectToCursor(duration: number = 1000): Promise<void> {
     try {
 			await Word.run(async (context: Word.RequestContext) => {
 				// TODO: Instead, use the "wordSelection" from the wordEditorAPI.ts
@@ -362,9 +362,10 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 								className={ classes.optionsButton }
 								disabled={ docContext.beforeCursor === '' || isLoading }
 								onClick={ async () => {
-									if (docContext.beforeCursor !== '') {
-										await selectToCursor();
-									}
+									// if (docContext.beforeCursor !== '') {
+									// 	await selectToCursor();
+									// }
+
 									log({
 										username: username,
 										interaction: `${mode}_Frontend`,
