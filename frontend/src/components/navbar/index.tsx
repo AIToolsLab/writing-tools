@@ -6,7 +6,7 @@ import classes from './styles.module.css';
 /**
  * An array of objects representing the names and titles of pages.
  * Each object contains the following properties:
- * 
+ *
  * @property {PageName} name - The name identifier of the page.
  * @property {string} title - The display title of the page.
  */
@@ -18,7 +18,7 @@ type Page = {
 
 const pageNames: Page[] = [
 	{ name: PageName.Draft, title: 'Draft' },
-	// { name: 'revise', title: 'Revise' },
+	// { name: PageName.Revise, title: 'Revise' },
 	// { name: 'searchbar', title: 'SearchBar' },
 	// { name: 'chat', title: 'Chat' },
 ];
