@@ -271,7 +271,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 			</div>
 		);
 	else if (generationMode === 'None' || generation === null)
-		if (docContext.beforeCursor === '')
+		if (!docContext.beforeCursor.trim())
 			results = (
 				<div className={ classes.initTextWrapper }>
 					<div className={ classes.initText }>
