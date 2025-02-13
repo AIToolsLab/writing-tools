@@ -146,6 +146,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 
 		updateCursorPos(charsToCursor);
 		updateCursorAtEnd(charsToCursor >= docLength);
+		// updateCursorAtEnd((docInfo.selectedText + docInfo.afterCursor).trim().length > 0);
 	}
 
 	// Get a generation from the backend
