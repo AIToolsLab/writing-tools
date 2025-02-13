@@ -134,6 +134,7 @@ export const wordEditorAPI: EditorAPI = {
 					await context.sync();
 
 					// Get the text of the selected word
+					// Note that we need to join by ' ' to make sure to grab the entire word (which would end with a space)
 					docContext.selectedText = wordSelection.items.map(item => item.text).join(' ');
 
 					// Get the text before the selected word
