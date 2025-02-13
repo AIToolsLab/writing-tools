@@ -206,6 +206,44 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 		setIsLoading(false);
 	}
 
+	// Temporarily select the text from the start to the cursor
+	async function selectToCursor(duration: number = 1000): Promise<void> {
+    try {
+			await Word.run(async (context: Word.RequestContext) => {
+				// TODO: Instead, use the "wordSelection" from the wordEditorAPI.ts
+				const body = context.document.body;
+				const wordSelection = context.document
+        .getSelection()
+        .getTextRanges([' '], false);
+
+				context.load(wordSelection, 'items');
+				await context.sync();
+
+				// Get the range from start to the end of current word
+				const rangeToCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('Start'));
+
+				// Select the range
+				rangeToCursor.select();
+				// rangeToCursor.font.highlightColor = '#FFFF00';
+				await context.sync();
+
+				// Unselect after specified duration
+				setTimeout(async () => {
+					await Word.run(async (context: Word.RequestContext) => {
+						const rangeToCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('Start'));
+						rangeToCursor.select();
+						// rangeToCursor.font.highlightColor = '#ffffff';
+						await context.sync();
+					});
+				}, duration);
+			});
+    }
+		catch (error) {
+			// eslint-disable-next-line no-console
+			console.error('Error highlighting text:', error);
+    }
+	}
+
 	/**
 	 * useEffect to ensure that event handlers are set up only once
 	 * and cleaned up when the component is unmounted.
@@ -323,7 +361,10 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 							<button
 								className={ classes.optionsButton }
 								disabled={ docContext.beforeCursor === '' || isLoading }
-								onClick={ () => {
+								onClick={ async () => {
+									if (docContext.beforeCursor !== '') {
+										await selectToCursor();
+									}
 									log({
 										username: username,
 										interaction: `${mode}_Frontend`,
