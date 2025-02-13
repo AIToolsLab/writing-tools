@@ -127,29 +127,29 @@ export const wordEditorAPI: EditorAPI = {
 
 					// Get the selected word
 					const wordSelection = context.document
-						.getSelection()
-						.getTextRanges([' '], false);
+						.getSelection();
+						//.getTextRanges([''], false);
 
 					context.load(wordSelection, 'items');
 					await context.sync();
 
 					// Get the text of the selected word
 					// Note that we need to join by ' ' to make sure to grab the entire word (which would end with a space)
-					docContext.selectedText = wordSelection.items.map(item => item.text).join(' ');
+					docContext.selectedText = wordSelection.text;//items.map(item => item.text).join(' ');
 
 					// Get the text before the selected word
-					const beforeCursor = wordSelection.items[0].expandTo(body.getRange('Start'));
+					const beforeCursor = wordSelection.expandTo(body.getRange('Start'));
 					context.load(beforeCursor, 'text');
 
 					// Get the text after the selected word
-					const afterCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('End'));
+					const afterCursor = wordSelection.expandTo(body.getRange('End'));
 					context.load(afterCursor, 'text');
 
 					await context.sync();
 
 					// Set the beforeCursor and afterCursor properties of the docContext object
-					docContext.beforeCursor = beforeCursor.text;
-					docContext.afterCursor = afterCursor.text;
+					docContext.beforeCursor = beforeCursor.text.slice(0, -docContext.selectedText.length);
+					docContext.afterCursor = afterCursor.text.slice(docContext.selectedText.length);
 					resolve(docContext);
 				});
 			}

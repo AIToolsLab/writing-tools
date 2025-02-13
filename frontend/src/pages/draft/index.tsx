@@ -225,7 +225,6 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 
 				// Select the range
 				rangeToCursor.select();
-				// rangeToCursor.font.highlightColor = '#FFFF00';
 				await context.sync();
 
 				// Unselect after specified duration
@@ -233,7 +232,6 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 					await Word.run(async (context: Word.RequestContext) => {
 						const rangeToCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('Start'));
 						rangeToCursor.select();
-						// rangeToCursor.font.highlightColor = '#ffffff';
 						await context.sync();
 					});
 				}, duration);
@@ -346,6 +344,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 				<p>
 					{ docContext.beforeCursor.length > 100 ? '...' : '' }
 					{ docContext.beforeCursor.substring(docContext.beforeCursor.length - 100) }
+					{ /* { JSON.stringify(docContext) } */ }
 				</p>
 			</div>
 
