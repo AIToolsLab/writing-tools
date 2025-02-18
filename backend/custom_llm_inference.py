@@ -203,7 +203,7 @@ def continue_messages_inner(model, tokenizer, messages, n_branch_tokens, n_futur
     #     tokenized_chat = tokenizer.apply_chat_template(messages, tokenize=True, continue_final_message=True, return_tensors="pt").to(model.device)
     # else:
     #     tokenized_chat = tokenizer.apply_chat_template(messages, tokenize=True, add_generation_prompt=True, return_tensors="pt").to(model.device)
-    tokenized_chat = tokenizer.apply_chat_template(messages, tokenize=True, return_tensors="pt").to(model.device)
+    tokenized_chat = tokenizer.apply_chat_template(messages, tokenize=True, return_tensors="pt", continue_final_message=True).to(model.device)
 
     print(tokenizer.batch_decode(tokenized_chat, skip_special_tokens=False))
 
