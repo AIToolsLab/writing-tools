@@ -37,7 +37,8 @@ def get_highlights_inner(model, tokenizer, doc, prompt, updated_doc, k):
     updated_doc_ids = tokenize_doc_in_progress(tokenizer, updated_doc)
 
     joined_ids = torch.cat([tokenized_chat, updated_doc_ids])
-    # Call the model
+
+    # Compute the next-token logits for the entire document
     with torch.no_grad():
         logits = model(joined_ids[None].to(model.device)).logits[0].cpu()
     
@@ -194,7 +195,7 @@ def get_next_token_predictions_slow(
 
 
 
-def continue_messages_inner(model, tokenizer, messages, n_branch_tokens, n_future_tokens)
+def continue_messages_inner(model, tokenizer, messages, n_branch_tokens, n_future_tokens):
     device = model.device
 
     final_message_is_assistant = messages[-1]['role'] == "assistant"
