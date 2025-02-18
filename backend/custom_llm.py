@@ -37,7 +37,12 @@ async def models_lifespan(app: FastAPI):
 
     ml_models["llm"] = llm = {
         'tokenizer': AutoTokenizer.from_pretrained(model_name),
-        'model': AutoModelForCausalLM.from_pretrained(model_name, device_map="auto" if USE_GPU else "cpu", torch_dtype=dtype)
+        'model': AutoModelForCausalLM.from_pretrained(
+            model_name,
+            device_map="auto" if USE_GPU else "cpu",
+            torch_dtype=dtype,
+            attn_implementation='eager'
+        )
     }
     print("Loaded llm with device map:")
     print(llm['model'].hf_device_map)
