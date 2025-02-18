@@ -1,19 +1,31 @@
 import marimo
 
-__generated_with = "0.9.27"
+__generated_with = "0.10.6"
 app = marimo.App(width="medium")
 
 
 @app.cell
-def __():
+def _():
     import marimo as mo
     from transformers import AutoModelForCausalLM, AutoTokenizer
     import torch
-    return AutoModelForCausalLM, AutoTokenizer, mo, torch
+    import sys
+    import pathlib
+    backend_path = pathlib.Path("backend").resolve().absolute()
+    sys.path.insert(0, str(backend_path))
+    return (
+        AutoModelForCausalLM,
+        AutoTokenizer,
+        backend_path,
+        mo,
+        pathlib,
+        sys,
+        torch,
+    )
 
 
 @app.cell
-def __(AutoModelForCausalLM, AutoTokenizer, torch):
+def _(AutoModelForCausalLM, AutoTokenizer, torch):
     model_name = 'google/gemma-2-2b-it'
     #model_name = "HuggingFaceTB/SmolLM2-1.7B-Instruct"
     #model_name = 'Qwen/Qwen2.5-0.5B-Instruct'
@@ -26,7 +38,13 @@ def __(AutoModelForCausalLM, AutoTokenizer, torch):
 
 
 @app.cell
-def __(tokenizer, torch):
+def _(sys):
+    sys.path
+    return
+
+
+@app.cell
+def _(tokenizer, torch):
     import custom_llm_inference
     get_tokenized_chat = custom_llm_inference.get_tokenized_chat
     def tokenize_doc_in_progress(tokenizer, doc_in_progress):
@@ -50,7 +68,7 @@ def __(tokenizer, torch):
 
 
 @app.cell
-def __():
+def _():
     doc = "The quick brown fox loves to jump over some really lazy dogs because it's just distracted from doing what foxes ought to do."
     prompt = "Rewrite this document to make more sense."
     updated_doc = doc
@@ -59,14 +77,14 @@ def __():
 
 
 @app.cell
-def __():
+def _():
     #ref_output = custom_llm_inference.get_next_token_predictions_inner(model, tokenizer, doc, prompt, doc_in_progress="", k=5)
     #ref_output
     return
 
 
 @app.cell
-def __(
+def _(
     custom_llm_inference,
     doc,
     doc_in_progress,
@@ -80,19 +98,13 @@ def __(
 
 
 @app.cell
-def __():
+def _():
     from transformers.cache_utils import DynamicCache
     return (DynamicCache,)
 
 
 @app.cell
-def __(tokenizer):
-    tokenizer.__len__()
-    return
-
-
-@app.cell
-def __(
+def _(
     DynamicCache,
     doc,
     get_tokenized_chat,
@@ -174,41 +186,65 @@ def __(
 
 
 @app.cell
-def __(past_key_values):
+def _(torch):
+    torch.nn.modules.module
+    return
+
+
+@app.cell
+def _(past_key_values):
     past_key_values.key_cache[1].shape
     return
 
 
 @app.cell
-def __(lookahead_sequences, tokenizer):
+def _(lookahead_sequences, tokenizer):
     tokenizer.batch_decode(lookahead_sequences)
     return
 
 
 @app.cell
-def __(next_token_logits, ref_output):
+def _(next_token_logits, ref_output):
     print(next_token_logits)
     print(ref_output[1])
     return
 
 
 @app.cell
-def __(next_token_logits, ref_output, torch):
+def _(next_token_logits, ref_output, torch):
     #torch.allclose(next_token_logits, ref_output[1])
     torch.linalg.vector_norm((next_token_logits - ref_output[1]), dim=1)
     return
 
 
 @app.cell
-def __(hypotheses, model, tokenizer):
-    seqs = model.generate(hypotheses, num_beams=5, num_beam_groups=5, max_new_tokens=10, do_sample=False, diversity_penalty=1e5, top_k=None, num_return_sequences=5)#, token_healing=True, tokenizer=tokenizer)
+def _(hypotheses, model, seqs, tokenizer):
+    beam_group_output = model.generate(hypotheses, num_beams=5, num_beam_groups=5, max_new_tokens=3, do_sample=False, diversity_penalty=1e5, top_k=None, num_return_sequences=5, return_dict_in_generate=True)
     tokenizer.batch_decode(seqs)
-    return (seqs,)
+    return (beam_group_output,)
 
 
 @app.cell
-def __(tokenizer):
+def _(tokenizer):
     tokenizer.convert_tokens_to_ids([" "])
+    return
+
+
+@app.cell
+def _():
+    from transformers.generation.beam_search import BeamSearchScorer
+    return (BeamSearchScorer,)
+
+
+@app.cell
+def _(hypotheses):
+    hypotheses.shape
+    return
+
+
+@app.cell
+def _(hypotheses, model):
+    model.generate(hypotheses, do_sample=True, num_return_sequences=5, temperature=.9)
     return
 
 
