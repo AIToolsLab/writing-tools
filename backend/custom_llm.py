@@ -67,7 +67,7 @@ async def models_lifespan(app: FastAPI):
     
     start = time.time()
     response = client.get("/api/gen_revisions",
-        params={"doc": test_doc, "prompt": test_prompt, "n": 1})
+        params={"doc": test_doc, "prompt": test_prompt, "n": 1, "max_length": 16})
     print(f"Gen revisions endpoint: {time.time() - start:.2f}s")
 
     yield
@@ -138,7 +138,9 @@ def get_next_token_predictions(original_doc: str,
 def gen_revisions(
         prompt: str,
         doc: str,
-        n: Optional[int] = 5):
+        n: Optional[int] = 5,
+        max_length: Optional[int] = 1024,
+        ):
 
 
     model = ml_models['llm']['model']
@@ -154,7 +156,7 @@ def gen_revisions(
 
     generations = model.generate(
         tokenized_chat, num_return_sequences=n,
-        max_length=1024, do_sample=True, top_k=50, top_p=0.95, temperature=0.5,
+        max_length=max_length, do_sample=True, top_k=50, top_p=0.95, temperature=0.5,
         return_dict_in_generate=True, output_scores=True)
     generated_docs = tokenizer.batch_decode(generations.sequences, skip_special_tokens=True)
     #print(generations.scores)
