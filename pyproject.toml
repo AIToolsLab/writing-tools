@@ -29,4 +29,9 @@ gpu = [
     "accelerate>=1.1.1",
     "torch>=2.5.1",
     "transformers>=4.46.2",
+    "tokenizers>=0.21.0",
+]
+dev = [
+    "ipython>=8.32.0",
+    "marimo>=0.10.6",
 ]
