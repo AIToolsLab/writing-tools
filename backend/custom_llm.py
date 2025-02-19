@@ -156,7 +156,7 @@ def gen_revisions(
 
     generations = model.generate(
         tokenized_chat, num_return_sequences=n,
-        max_length=max_length, do_sample=True, top_k=50, top_p=0.95, temperature=0.5,
+        max_new_tokens=max_length, do_sample=True, top_k=50, top_p=0.95, temperature=0.5,
         return_dict_in_generate=True, output_scores=True)
     generated_docs = tokenizer.batch_decode(generations.sequences, skip_special_tokens=True)
     #print(generations.scores)
