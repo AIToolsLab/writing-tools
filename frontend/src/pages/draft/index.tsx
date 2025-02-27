@@ -57,6 +57,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 		selectedText: '',
 		afterCursor: ''
 	});
+
 	const [_cursorPos, updateCursorPos] = useState(0);
 	const [_cursorAtEnd, updateCursorAtEnd] = useState(true);
 	const [genCtxText, updateGenCtxText] = useState('');
@@ -208,7 +209,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 	}
 
 	// Temporarily select the text from the start to the cursor
-	async function selectToCursor(duration: number = 1000): Promise<void> {
+	async function _selectToCursor(duration: number = 1000): Promise<void> {
     try {
 			await Word.run(async (context: Word.RequestContext) => {
 				// TODO: Instead, use the "wordSelection" from the wordEditorAPI.ts
@@ -242,6 +243,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 			console.error('Error highlighting text:', error);
     }
 	}
+
 
 	/**
 	 * useEffect to ensure that event handlers are set up only once
@@ -342,8 +344,8 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 			<div className={ classes.contextText }>
 				<h4>Suggestions will be generated using:</h4>
 				<p>
-					{ docContext.beforeCursor.length > 100 ? '...' : '' }
-					{ docContext.beforeCursor.substring(docContext.beforeCursor.length - 100) }
+					{ (docContext.beforeCursor + docContext.selectedText).length > 100 ? '...' : '' }
+					{ (docContext.beforeCursor + docContext.selectedText).substring((docContext.beforeCursor + docContext.selectedText).length - 100) }
 					{ /* { JSON.stringify(docContext) } */ }
 				</p>
 			</div>
@@ -362,14 +364,14 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 								className={ classes.optionsButton }
 								disabled={ docContext.beforeCursor === '' || isLoading }
 								onClick={ async () => {
-									if (docContext.beforeCursor !== '') {
-										await selectToCursor();
-									}
+									// if (docContext.beforeCursor !== '') {
+									// 	await selectToCursor();
+									// }
 
 									log({
 										username: username,
 										interaction: `${mode}_Frontend`,
-										prompt: docContext.beforeCursor
+										prompt: docContext.beforeCursor + docContext.selectedText
 									});
 									if (docContext.beforeCursor === '') return;
 
@@ -377,7 +379,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 									getGeneration(
 										username,
 										`${mode}_Backend`,
-										docContext.beforeCursor
+										docContext.beforeCursor + docContext.selectedText
 									);
 								} }
 								onMouseEnter={ () =>
