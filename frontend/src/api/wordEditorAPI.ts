@@ -1,4 +1,6 @@
+import { getParagraphText } from '@/utilities';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
+import { resolve } from 'path';
 
 export const wordEditorAPI: EditorAPI = {
 	async doLogin(auth0Client: Auth0ContextInterface): Promise<void> {
@@ -151,6 +153,33 @@ export const wordEditorAPI: EditorAPI = {
 					docContext.beforeCursor = beforeCursor.text;
 					docContext.afterCursor = afterCursor.text;
 					resolve(docContext);
+				});
+			}
+			catch (error) {
+				reject(error);
+			}
+		});
+	},
+
+	GetParagraphTexts(): Promise<{ curParagraphIndex: number; newParagraphTexts: string[] }> {
+		return new Promise<{ curParagraphIndex: number; newParagraphTexts: string[] }>(async (resolve, reject) => {
+			try {
+				await Word.run(async (context: Word.RequestContext) => {
+					const paragraphs: Word.ParagraphCollection = context.document.body.paragraphs;
+					paragraphs.load();
+					await context.sync();
+
+					const curParagraph = context.document.getSelection().paragraphs.getFirstOrNullObject();
+					curParagraph.load();
+					await context.sync();
+
+					const curParagraphIndex = paragraphs.items.findIndex(item => item.text === curParagraph.text);
+
+
+					const newParagraphTexts = paragraphs.items.map(item => item.text);
+
+
+					resolve({ curParagraphIndex, newParagraphTexts });
 				});
 			}
 			catch (error) {
