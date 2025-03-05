@@ -217,7 +217,7 @@ function AppInner({ editorAPI }: HomeProps) {
 	function getComponent(pageName: PageName): JSX.Element | null {
 		switch (pageName) {
 			case PageName.Revise:
-				return <Revise />;
+				return <Revise editorAPI={ editorAPI } />;
 			case PageName.SearchBar:
 				return <SearchBar />;
 			case PageName.Chat:
