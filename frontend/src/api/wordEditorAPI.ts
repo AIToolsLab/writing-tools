@@ -1,6 +1,4 @@
-import { getParagraphText } from '@/utilities';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
-import { resolve } from 'path';
 
 export const wordEditorAPI: EditorAPI = {
 	async doLogin(auth0Client: Auth0ContextInterface): Promise<void> {
@@ -161,24 +159,26 @@ export const wordEditorAPI: EditorAPI = {
 		});
 	},
 
+	// Get the text of the current paragraph and the text of all paragraphs in the document
 	GetParagraphTexts(): Promise<{ curParagraphIndex: number; newParagraphTexts: string[] }> {
 		return new Promise<{ curParagraphIndex: number; newParagraphTexts: string[] }>(async (resolve, reject) => {
 			try {
 				await Word.run(async (context: Word.RequestContext) => {
+					// Load all paragraphs in the document
 					const paragraphs: Word.ParagraphCollection = context.document.body.paragraphs;
 					paragraphs.load();
 					await context.sync();
 
+					// Load the current paragraph (the one that the cursor is in)
 					const curParagraph = context.document.getSelection().paragraphs.getFirstOrNullObject();
 					curParagraph.load();
 					await context.sync();
 
+					// Get the index of the current paragraph and the text of all paragraphs
 					const curParagraphIndex = paragraphs.items.findIndex(item => item.text === curParagraph.text);
-
-
 					const newParagraphTexts = paragraphs.items.map(item => item.text);
 
-
+					// Return the index of the current paragraph and the text of all paragraphs
 					resolve({ curParagraphIndex, newParagraphTexts });
 				});
 			}

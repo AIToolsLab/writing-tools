@@ -1,23 +1,17 @@
 import { useState, useEffect, useContext } from 'react';
-
 import { ReflectionCards } from '@/components/reflectionCard';
 import {
 	defaultPrompt,
 	PromptButtonSelector
 } from '@/components/promptButtonSelector';
-
 import { useAuth0 } from '@auth0/auth0-react';
-
 import { UserContext } from '@/contexts/userContext';
-
-import { getParagraphText } from '@/utilities';
 import { getReflection } from '@/api';
-
 import classes from './styles.module.css';
+
 
 export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	const { username } = useContext(UserContext);
-
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [curParagraphIndex, updateCurParagraphIndex] = useState(0);
 	const { getAccessTokenSilently } = useAuth0();
@@ -31,12 +25,6 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 
 	const [prompt, updatePrompt] = useState(defaultPrompt);
 
-	// console.log({
-	// 	paragraphTexts,
-	// 	curParagraphText,
-	// 	reflections,
-	// 	prompt
-	// });
 
 	/**
 	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
@@ -58,8 +46,6 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 		const paragraphTexts = await editorAPI.GetParagraphTexts();
 		updateParagraphTexts(paragraphTexts.newParagraphTexts);
 		updateCurParagraphIndex(paragraphTexts.curParagraphIndex);
-
-
 	}
 
 	/**
@@ -172,7 +158,6 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 				currentPrompt={ prompt }
 				updatePrompt={ updatePrompt }
 			/>
-
 			{...reflectionCardsContainer}
 		</div>
 	);
