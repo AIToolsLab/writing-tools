@@ -8,7 +8,7 @@ import LexicalEditor from './editor';
 
 import classes from './styles.module.css';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
-import { wordEditorAPI } from '@/api/wordEditorAPI';
+// import { wordEditorAPI } from '@/api/wordEditorAPI';
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 	return (
@@ -51,9 +51,9 @@ function App() {
 			// eslint-disable-next-line no-console
 			else console.warn('Handler not found');
 		},
-		GetParagraphTexts: async (): Promise<{ curParagraphIndex: number; newParagraphTexts: string[] }> => {
-			return await wordEditorAPI.GetParagraphTexts();
-		}
+		// GetParagraphTexts: async (): Promise<{ curParagraphIndex: number; newParagraphTexts: string[] }> => {
+		// 	return await wordEditorAPI.GetParagraphTexts();
+		// }
 	};
 
 	const docUpdated = (content: string) => {
