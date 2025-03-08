@@ -126,60 +126,29 @@ export const wordEditorAPI: EditorAPI = {
 					};
 
 					// Get the selected word
-					const wordSelection = context.document
-						.getSelection()
-						.getTextRanges([' '], false);
+					const wordSelection = context.document.getSelection();
 
 					context.load(wordSelection, 'items');
 					await context.sync();
 
 					// Get the text of the selected word
-					// Note that we need to join by ' ' to make sure to grab the entire word (which would end with a space)
-					docContext.selectedText = wordSelection.items.map(item => item.text).join(' ');
+					docContext.selectedText = wordSelection.text;
 
 					// Get the text before the selected word
-					const beforeCursor = wordSelection.items[0].expandTo(body.getRange('Start'));
+					const beforeCursor = wordSelection.expandTo(body.getRange('Start'));
 					context.load(beforeCursor, 'text');
 
 					// Get the text after the selected word
-					const afterCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('End'));
+					const afterCursor = wordSelection.expandTo(body.getRange('End'));
 					context.load(afterCursor, 'text');
 
 					await context.sync();
 
 					// Set the beforeCursor and afterCursor properties of the docContext object
-					docContext.beforeCursor = beforeCursor.text;
-					docContext.afterCursor = afterCursor.text;
+					// Note that we only slice only if the selected text is not empty
+					docContext.beforeCursor = beforeCursor.text.slice(0, -docContext.selectedText.length) || beforeCursor.text;
+					docContext.afterCursor = afterCursor.text.slice(docContext.selectedText.length);
 					resolve(docContext);
-				});
-			}
-			catch (error) {
-				reject(error);
-			}
-		});
-	},
-
-	// Get the text of the current paragraph and the text of all paragraphs in the document
-	GetParagraphTexts(): Promise<{ curParagraphIndex: number; newParagraphTexts: string[] }> {
-		return new Promise<{ curParagraphIndex: number; newParagraphTexts: string[] }>(async (resolve, reject) => {
-			try {
-				await Word.run(async (context: Word.RequestContext) => {
-					// Load all paragraphs in the document
-					const paragraphs: Word.ParagraphCollection = context.document.body.paragraphs;
-					paragraphs.load();
-					await context.sync();
-
-					// Load the current paragraph (the one that the cursor is in)
-					const curParagraph = context.document.getSelection().paragraphs.getFirstOrNullObject();
-					curParagraph.load();
-					await context.sync();
-
-					// Get the index of the current paragraph and the text of all paragraphs
-					const curParagraphIndex = paragraphs.items.findIndex(item => item.text === curParagraph.text);
-					const newParagraphTexts = paragraphs.items.map(item => item.text);
-
-					// Return the index of the current paragraph and the text of all paragraphs
-					resolve({ curParagraphIndex, newParagraphTexts });
 				});
 			}
 			catch (error) {

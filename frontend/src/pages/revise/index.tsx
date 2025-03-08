@@ -8,13 +8,19 @@ import { useAuth0 } from '@auth0/auth0-react';
 import { UserContext } from '@/contexts/userContext';
 import { getReflection } from '@/api';
 import classes from './styles.module.css';
+import { getCurParagraph } from '@/utilities/selectionUtil';
 
 
 export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	const { username } = useContext(UserContext);
-	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
-	const [curParagraphIndex, updateCurParagraphIndex] = useState(0);
+	const [docContext, updateDocContext] = useState<DocContext>({
+		beforeCursor: '',
+		selectedText: '',
+		afterCursor: ''
+	});
+	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
 	const { getAccessTokenSilently } = useAuth0();
+	const { getDocContext } = editorAPI;
 
 	const [reflections, updateReflections] = useState<
 		Map<
@@ -43,9 +49,13 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
 	 */
 	async function handleSelectionChange(): Promise<void> {
-		const paragraphTexts = await editorAPI.GetParagraphTexts();
-		updateParagraphTexts(paragraphTexts.newParagraphTexts);
-		updateCurParagraphIndex(paragraphTexts.curParagraphIndex);
+		// const paragraphTexts = await editorAPI.GetParagraphTexts();
+
+		const docInfo = await getDocContext();
+		updateDocContext(docInfo);
+		// const paragraphTexts = getCurParagraph(docContext);
+		// updateParagraphTexts(paragraphTexts.newParagraphTexts);
+		// updateCurParagraphIndex(paragraphTexts.curParagraphIndex);
 	}
 
 	/**
@@ -102,13 +112,14 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	 * @param {number} paragraphIndex - The index of the paragraph to create reflection cards for.
 	 * @returns {React.JSX.Element} - The created reflection cards as a JSX element.
 	 */
-	function createReflectionCards(paragraphIndex: number): JSX.Element {
+	function createReflectionCards(): JSX.Element {
+		// Get the current paragraph text
 		const reflectionsForThisParagraph: ReflectionResponseItem[] =
-			getReflectionsSync(paragraphTexts[paragraphIndex], prompt);
+			getReflectionsSync(paragraphTexts[curParagraphIndex], prompt);
 
 		const cardDataList: CardData[] = reflectionsForThisParagraph.map(
 			reflectionResponseItem => ({
-				paragraphIndex,
+				paragraphIndex: curParagraphIndex,
 				body: reflectionResponseItem.reflection
 			})
 		);
@@ -149,7 +160,7 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	if (selectedIndex !== -1) {
 		// Check if the current paragraph is available
 		if (paragraphTexts[selectedIndex] !== '')
-			reflectionCardsContainer.push(createReflectionCards(selectedIndex));
+			reflectionCardsContainer.push(createReflectionCards());
 	}
 
 	return (
