@@ -49,13 +49,8 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
 	 */
 	async function handleSelectionChange(): Promise<void> {
-		// const paragraphTexts = await editorAPI.GetParagraphTexts();
-
 		const docInfo = await getDocContext();
 		updateDocContext(docInfo);
-		// const paragraphTexts = getCurParagraph(docContext);
-		// updateParagraphTexts(paragraphTexts.newParagraphTexts);
-		// updateCurParagraphIndex(paragraphTexts.curParagraphIndex);
 	}
 
 	/**
