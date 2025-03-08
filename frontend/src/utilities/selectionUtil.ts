@@ -9,7 +9,8 @@ export function getBefore(docContext: DocContext): string {
   const { beforeCursor, selectedText, afterCursor } = docContext;
 
   // Complete the word if the end of the last word is not complete
-  const completeWord = afterCursor.split(' ')[0];
+  // treat both space and \r as word separators
+  const completeWord = afterCursor.split(/[ \r]/, 1)[0];
   return beforeCursor + selectedText + completeWord;
 }
 
