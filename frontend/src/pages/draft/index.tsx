@@ -1,7 +1,5 @@
 import { useState, useEffect, useContext, Fragment } from 'react';
-
 import { UserContext } from '@/contexts/userContext';
-
 import { Remark } from 'react-remark';
 import { FcCheckmark } from 'react-icons/fc';
 import {
@@ -17,6 +15,7 @@ import { iconFunc } from './iconFunc';
 import { SERVER_URL, log } from '@/api';
 import classes from './styles.module.css';
 import SavedGenerations from './savedGenerations';
+import { getBefore } from '@/utilities/selectionUtil';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
@@ -135,7 +134,7 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 	}
 
 	// Update the cursor position
-	async function handleSelectionChanged() {
+	async function handleSelectionChanged(): Promise<void> {
 		// Get the document context (before cursor, selected text, after cursor)
 		const docInfo = await getDocContext();
 		updateDocContext(docInfo);
@@ -342,8 +341,8 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 			<div className={ classes.contextText }>
 				<h4>Suggestions will be generated using:</h4>
 				<p>
-					{ docContext.beforeCursor.length > 100 ? '...' : '' }
-					{ docContext.beforeCursor.substring(docContext.beforeCursor.length - 100) }
+					{ getBefore(docContext).length > 100 ? '...' : '' }
+					{ getBefore(docContext).substring(getBefore(docContext).length - 100) }
 					{ /* { JSON.stringify(docContext) } */ }
 				</p>
 			</div>
@@ -369,15 +368,15 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 									log({
 										username: username,
 										interaction: `${mode}_Frontend`,
-										prompt: docContext.beforeCursor
+										prompt: getBefore(docContext)
 									});
-									if (docContext.beforeCursor === '') return;
+									if (getBefore(docContext) === '') return;
 
 									updateGenerationMode(mode);
 									getGeneration(
 										username,
 										`${mode}_Backend`,
-										docContext.beforeCursor
+										getBefore(docContext)
 									);
 								} }
 								onMouseEnter={ () =>

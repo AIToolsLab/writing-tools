@@ -49,7 +49,7 @@ function App() {
 			if (index !== -1) selectionChangeHandlers.current.splice(index, 1);
 			// eslint-disable-next-line no-console
 			else console.warn('Handler not found');
-		}
+		},
 	};
 
 	const docUpdated = (content: string) => {

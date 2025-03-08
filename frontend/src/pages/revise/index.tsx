@@ -1,26 +1,26 @@
 import { useState, useEffect, useContext } from 'react';
-
 import { ReflectionCards } from '@/components/reflectionCard';
 import {
 	defaultPrompt,
 	PromptButtonSelector
 } from '@/components/promptButtonSelector';
-
 import { useAuth0 } from '@auth0/auth0-react';
-
 import { UserContext } from '@/contexts/userContext';
-
-import { getParagraphText } from '@/utilities';
 import { getReflection } from '@/api';
-
 import classes from './styles.module.css';
+import { getCurParagraph } from '@/utilities/selectionUtil';
 
-export default function Revise() {
+
+export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	const { username } = useContext(UserContext);
-
-	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
-	const [curParagraphText, updateCurParagraphText] = useState('');
+	const [docContext, updateDocContext] = useState<DocContext>({
+		beforeCursor: '',
+		selectedText: '',
+		afterCursor: ''
+	});
+	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
 	const { getAccessTokenSilently } = useAuth0();
+	const { getDocContext } = editorAPI;
 
 	const [reflections, updateReflections] = useState<
 		Map<
@@ -31,12 +31,6 @@ export default function Revise() {
 
 	const [prompt, updatePrompt] = useState(defaultPrompt);
 
-	// console.log({
-	// 	paragraphTexts,
-	// 	curParagraphText,
-	// 	reflections,
-	// 	prompt
-	// });
 
 	/**
 	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
@@ -45,22 +39,7 @@ export default function Revise() {
 	 *
 	 * @returns {Promise<void>} - A promise that resolves once the paragraph texts are loaded and updated.
 	 */
-	function loadParagraphTexts(): Promise<void> {
-		// TODO: We are not expecting frequent document changes yet. Consider caching.
-		return Word.run(async (context: Word.RequestContext) => {
-			const paragraphs: Word.ParagraphCollection =
-				context.document.body.paragraphs;
 
-			paragraphs.load();
-			await context.sync();
-
-			const newParagraphTexts: string[] = paragraphs.items.map(item =>
-				getParagraphText(item)
-			);
-
-			updateParagraphTexts(newParagraphTexts);
-		});
-	}
 
 	/**
 	 * Handles the change in selection within the Word document.
@@ -70,19 +49,8 @@ export default function Revise() {
 	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
 	 */
 	async function handleSelectionChange(): Promise<void> {
-		await Word.run(async (context: Word.RequestContext) => {
-			const selectedParagraphs: Word.ParagraphCollection =
-				context.document.getSelection().paragraphs;
-
-			context.load(selectedParagraphs);
-			await context.sync();
-
-			const curParagraph: Word.Paragraph = selectedParagraphs.items[0];
-			updateCurParagraphText(getParagraphText(curParagraph));
-		});
-
-		// Potentially expensive
-		loadParagraphTexts();
+		const docInfo = await getDocContext();
+		updateDocContext(docInfo);
 	}
 
 	/**
@@ -139,13 +107,14 @@ export default function Revise() {
 	 * @param {number} paragraphIndex - The index of the paragraph to create reflection cards for.
 	 * @returns {React.JSX.Element} - The created reflection cards as a JSX element.
 	 */
-	function createReflectionCards(paragraphIndex: number): JSX.Element {
+	function createReflectionCards(): JSX.Element {
+		// Get the current paragraph text
 		const reflectionsForThisParagraph: ReflectionResponseItem[] =
-			getReflectionsSync(paragraphTexts[paragraphIndex], prompt);
+			getReflectionsSync(paragraphTexts[curParagraphIndex], prompt);
 
 		const cardDataList: CardData[] = reflectionsForThisParagraph.map(
 			reflectionResponseItem => ({
-				paragraphIndex,
+				paragraphIndex: curParagraphIndex,
 				body: reflectionResponseItem.reflection
 			})
 		);
@@ -178,7 +147,7 @@ export default function Revise() {
 	}, []);
 
 	// Index of the currently selected paragraph
-	const selectedIndex = paragraphTexts.indexOf(curParagraphText);
+	const selectedIndex = curParagraphIndex;
 	const reflectionCardsContainer: React.JSX.Element[] = [];
 
 	// Display the reflection cards that are relevant to the currently selected
@@ -186,7 +155,7 @@ export default function Revise() {
 	if (selectedIndex !== -1) {
 		// Check if the current paragraph is available
 		if (paragraphTexts[selectedIndex] !== '')
-			reflectionCardsContainer.push(createReflectionCards(selectedIndex));
+			reflectionCardsContainer.push(createReflectionCards());
 	}
 
 	return (
@@ -195,7 +164,6 @@ export default function Revise() {
 				currentPrompt={ prompt }
 				updatePrompt={ updatePrompt }
 			/>
-
 			{...reflectionCardsContainer}
 		</div>
 	);
