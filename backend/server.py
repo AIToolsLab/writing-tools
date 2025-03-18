@@ -29,6 +29,8 @@ from azure.identity import DefaultAzureCredential
 from azure.data.tables import TableServiceClient
 
 credential = DefaultAzureCredential()
+if credential is None or not credential.get_token("https://storage.azure.com/.default"):
+    raise ValueError("Failed to obtain Azure credentials. Please check your environment.")
 table_service = TableServiceClient(
     endpoint="https://textfocalsb6ab.table.core.windows.net/", credential=credential)
 
@@ -254,22 +256,26 @@ def get_participant_log_filename(username):
 def make_log(payload: Log):
     """Store the log our Azure Table."""
 
-    table_client = table_service.get_table_client("AppLogs")
-    # use timestamp and a uuid as a row key
-    import uuid
-    row_key = f"{payload.timestamp}_{uuid.uuid4()}"
+    try:
+        table_client = table_service.get_table_client("AppLogs")
+        # use timestamp and a uuid as a row key
+        import uuid
+        row_key = f"{payload.timestamp}_{uuid.uuid4()}"
 
-    entity = payload.model_dump()
-    # Convert unsupported types to supported ones
-    for key, value in entity.items():
-        if isinstance(value, dict):
-            entity[key] = json.dumps(value)
-        elif isinstance(value, list):
-            entity[key] = json.dumps(value)
+        entity = payload.model_dump()
+        # Convert unsupported types to supported ones
+        for key, value in entity.items():
+            if isinstance(value, dict):
+                entity[key] = json.dumps(value)
+            elif isinstance(value, list):
+                entity[key] = json.dumps(value)
 
-    table_client.create_entity(entity=dict(
-        entity, PartitionKey=payload.username, RowKey=row_key))
+        table_client.create_entity(entity=dict(
+            entity, PartitionKey=payload.username, RowKey=row_key))
 
+    except Exception as e:
+        print(f"Error logging to Azure Table: {e}")
+        
 
 static_path = Path("../frontend/dist")
 if static_path.exists():
