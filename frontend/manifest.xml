@@ -8,7 +8,7 @@
     <Version>1.0.0.1</Version>
     <ProviderName>Calvin University Computer Science Department</ProviderName>
     <DefaultLocale>en-US</DefaultLocale>
-    <DisplayName DefaultValue="Thoughtful" />
+    <DisplayName DefaultValue="Thoughtful-dev" />
     <Description DefaultValue="AI tools to help you write thoughtfully" />
     <IconUrl DefaultValue="https://localhost:3000/assets/logo.png" />
     <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/logo_highres.png" />
@@ -88,14 +88,14 @@
             </bt:Urls>
             <bt:ShortStrings>
                 <bt:String id="GetStarted.Title"
-                    DefaultValue="Get started with Thoughtful!" />
+                    DefaultValue="Get started with Thoughtful-dev!" />
                 <bt:String id="CommandsGroup.Label" DefaultValue="Commands Group" />
-                <bt:String id="TaskpaneButton.Label" DefaultValue="Show Thoughtful" />
+                <bt:String id="TaskpaneButton.Label" DefaultValue="Show Thoughtful-dev" />
             </bt:ShortStrings>
             <bt:LongStrings>
                 <bt:String id="GetStarted.Description"
-                    DefaultValue="Thoughtful loaded successfully. Go to the HOME tab and click the 'Show Thoughtful' button to get started." />
-                <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Show Thoughtful sidebar." />
+                    DefaultValue="Thoughtful-dev loaded successfully. Go to the HOME tab and click the 'Show Thoughtful-dev' button to get started." />
+                <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Show Thoughtful-dev sidebar." />
             </bt:LongStrings>
         </Resources>
     </VersionOverrides>

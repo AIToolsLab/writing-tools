@@ -115,6 +115,7 @@ module.exports = async (env, options) => {
 							else
 								return content
 									.toString()
+									.replace(/\-dev/g, '')
 									.replace(new RegExp(urlDev, 'g'), urlProd);
 						}
 					}
