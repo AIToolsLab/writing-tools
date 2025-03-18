@@ -10,7 +10,7 @@ from datetime import datetime
 import uvicorn
 import asyncio
 
-from fastapi import FastAPI
+from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -22,17 +22,8 @@ from dotenv import load_dotenv
 
 import nlp
 
-
-# Function to get the Azure Table Service
-
-from azure.identity import DefaultAzureCredential
-from azure.data.tables import TableServiceClient
-
-credential = DefaultAzureCredential()
-if credential is None or not credential.get_token("https://storage.azure.com/.default"):
-    raise ValueError("Failed to obtain Azure credentials. Please check your environment.")
-table_service = TableServiceClient(
-    endpoint="https://textfocalsb6ab.table.core.windows.net/", credential=credential)
+from azure.identity.aio import DefaultAzureCredential
+from azure.data.tables.aio import TableServiceClient
 
 
 # Load ENV vars
@@ -110,7 +101,7 @@ app.add_middleware(
 
 # Routes
 @app.post("/api/generation")
-async def generation(payload: GenerationRequestPayload) -> nlp.GenerationResult:
+async def generation(payload: GenerationRequestPayload, background_tasks: BackgroundTasks) -> nlp.GenerationResult:
     '''
     To test this endpoint from curl:
 
@@ -143,13 +134,13 @@ async def generation(payload: GenerationRequestPayload) -> nlp.GenerationResult:
     for key, value in result.extra_data.items():
         if not hasattr(log_entry, key):
             setattr(log_entry, key, value)
-    make_log(log_entry)
+    background_tasks.add_task(make_log, log_entry)
 
     return result
 
 
 @app.post("/api/reflections")
-async def reflections(payload: ReflectionRequestPayload):
+async def reflections(payload: ReflectionRequestPayload, background_tasks: BackgroundTasks):
     start_time = datetime.now()
     result = await nlp.reflection(prompt=payload.prompt, paragraph=payload.paragraph)
     end_time = datetime.now()
@@ -164,7 +155,7 @@ async def reflections(payload: ReflectionRequestPayload):
         result=result.result,
     )
 
-    make_log(log_entry)
+    background_tasks.add_task(make_log, log_entry)
 
     return result
 
@@ -195,7 +186,7 @@ async def chat(payload: ChatRequestPayload):
 
 @app.post("/api/log")
 async def log_feedback(payload: Log):
-    make_log(payload)
+    await make_log(payload)
 
     return {"message": "Feedback logged successfully."}
 
@@ -253,29 +244,35 @@ def get_participant_log_filename(username):
 
 
 # Function to make a log entry in Azure Table Storage
-def make_log(payload: Log):
+async def make_log(payload: Log):
     """Store the log our Azure Table."""
 
-    try:
-        table_client = table_service.get_table_client("AppLogs")
-        # use timestamp and a uuid as a row key
-        import uuid
-        row_key = f"{payload.timestamp}_{uuid.uuid4()}"
+    credential = DefaultAzureCredential()
+    if credential is None:# or not await credential.get_token("https://storage.azure.com/.default"):
+        raise ValueError("Failed to obtain Azure credentials. Please check your environment.")
+    async with TableServiceClient(
+        endpoint="https://textfocalsb6ab.table.core.windows.net/", credential=credential) as table_service:
 
-        entity = payload.model_dump()
-        # Convert unsupported types to supported ones
-        for key, value in entity.items():
-            if isinstance(value, dict):
-                entity[key] = json.dumps(value)
-            elif isinstance(value, list):
-                entity[key] = json.dumps(value)
+        try:
+            table_client = table_service.get_table_client("AppLogs")
+            # use timestamp and a uuid as a row key
+            import uuid
+            row_key = f"{payload.timestamp}_{uuid.uuid4()}"
 
-        table_client.create_entity(entity=dict(
-            entity, PartitionKey=payload.username, RowKey=row_key))
+            entity = payload.model_dump()
+            # Convert unsupported types to supported ones
+            for key, value in entity.items():
+                if isinstance(value, dict):
+                    entity[key] = json.dumps(value)
+                elif isinstance(value, list):
+                    entity[key] = json.dumps(value)
 
-    except Exception as e:
-        print(f"Error logging to Azure Table: {e}")
-        
+            await table_client.create_entity(entity=dict(
+                entity, PartitionKey=payload.username, RowKey=row_key))
+
+        except Exception as e:
+            print(f"Error logging to Azure Table: {e}")
+            
 
 static_path = Path("../frontend/dist")
 if static_path.exists():
