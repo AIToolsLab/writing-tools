@@ -238,7 +238,7 @@ function AppInner({ editorAPI }: HomeProps) {
 							src={ user && user.picture }
 							alt="Profile"
 							className={ classes.profilePic }
-							referrerPolicy='no-referrer'
+							referrerPolicy="no-referrer"
 						/>
 					</div>
 					<div className={ classes.userNameContainer }>
