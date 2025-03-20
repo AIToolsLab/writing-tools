@@ -25,6 +25,7 @@ import nlp
 from azure.identity.aio import DefaultAzureCredential
 from azure.data.tables.aio import TableServiceClient
 
+import logging
 
 # Load ENV vars
 load_dotenv()
@@ -136,7 +137,14 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
             setattr(log_entry, key, value)
     background_tasks.add_task(make_log, log_entry)
 
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+
+    final_end_time = datetime.now()
+    log = final_end_time - start_time
+    logger.info(f"Total generation request operation took: {log.total_seconds()} seconds")
     return result
+
 
 
 @app.post("/api/reflections")
@@ -245,6 +253,9 @@ def get_participant_log_filename(username):
 
 # Function to make a log entry in Azure Table Storage
 async def make_log(payload: Log):
+    logging.basicConfig(level=logging.INFO)
+    logger = logging.getLogger(__name__)
+    start_time = datetime.now()
     """Store the log our Azure Table."""
 
     credential = DefaultAzureCredential()
@@ -269,7 +280,10 @@ async def make_log(payload: Log):
 
             await table_client.create_entity(entity=dict(
                 entity, PartitionKey=payload.username, RowKey=row_key))
-
+            
+            end_time = datetime.now()
+            log = end_time - start_time
+            logger.info(f"make_log() operation took: {log.total_seconds()} seconds")
         except Exception as e:
             print(f"Error logging to Azure Table: {e}")
             
