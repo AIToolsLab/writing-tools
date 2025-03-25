@@ -28,7 +28,12 @@ function App() {
 
 	const editorAPI: EditorAPI = {
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
-			await auth0Client.loginWithPopup();
+			try {
+				await auth0Client.loginWithPopup();
+			}
+			catch (error) {
+				console.error('auth0Client.loginWithPopup Error:', error);
+			}
 		},
 		doLogout: async (auth0Client: Auth0ContextInterface) => {
 			await auth0Client.logout();
