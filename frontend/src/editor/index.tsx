@@ -28,10 +28,28 @@ function App() {
 
 	const editorAPI: EditorAPI = {
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
-			await auth0Client.loginWithPopup();
+			try {
+				await auth0Client.loginWithPopup();
+			}
+			catch (error) {
+				// eslint-disable-next-line no-console
+				console.error('auth0Client.loginWithPopup Error:', error);
+			}
 		},
 		doLogout: async (auth0Client: Auth0ContextInterface) => {
-			await auth0Client.logout();
+			try {
+				await auth0Client.logout(
+					{
+						logoutParams: {
+							returnTo: `${location.origin}/editor.html`
+						}
+					}
+				);
+			}
+			catch (error) {
+				// eslint-disable-next-line no-console
+				console.error('auth0Client.logout Error:', error);
+			}
 		},
 		getDocContext: async (): Promise<DocContext> => {
 			return {
