@@ -10,6 +10,7 @@ export const wordEditorAPI: EditorAPI = {
 				| { message: string; origin: string | undefined }
 				| { error: number }
 		) => {
+			
 			if ('error' in args) {
 				// eslint-disable-next-line no-console
 				console.error('Error:', args.error);
@@ -20,7 +21,13 @@ export const wordEditorAPI: EditorAPI = {
 
 			if (messageFromDialog.status === 'success') {
 				// The dialog reported a successful login.
-				auth0Client.handleRedirectCallback(messageFromDialog.urlWithAuthInfo);
+				try {
+					auth0Client.handleRedirectCallback(messageFromDialog.urlWithAuthInfo);
+				}
+				catch (error) {
+					// eslint-disable-next-line no-console
+					console.error('auth0Client.handleRedirectCallback Error:', error);
+				}
 			}
 			else {
 				// eslint-disable-next-line no-console
