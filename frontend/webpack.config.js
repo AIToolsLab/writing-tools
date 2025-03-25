@@ -11,6 +11,8 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const urlDev = 'https://localhost:3000';
 const urlProd = 'https://app.thoughtful-ai.com';
 
+const backendServer = (process.env.USE_AZURE === "false") ? 'http://0.0.0.0:8000/' : 'https://textfocals.azurewebsites.net/';
+
 async function getHttpsOptions() {
 	const httpsOptions = await devCerts.getHttpsServerOptions();
 	return {
@@ -165,7 +167,7 @@ module.exports = async (env, options) => {
 			proxy: [
 				{
 					context: ['/api'],
-					target: 'https://textfocals.azurewebsites.net/',
+					target: backendServer,
 					changeOrigin: true
 				}
 			],
