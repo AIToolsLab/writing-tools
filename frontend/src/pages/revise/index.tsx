@@ -20,7 +20,11 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	});
 	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
 	const { getAccessTokenSilently } = useAuth0();
-	const { getDocContext } = editorAPI;
+	const {
+		addSelectionChangeHandler,
+		removeSelectionChangeHandler,
+		getDocContext
+	} = editorAPI;
 
 	const [reflections, updateReflections] = useState<
 		Map<
@@ -48,7 +52,7 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	 *
 	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
 	 */
-	async function handleSelectionChange(): Promise<void> {
+	async function handleSelectionChanged(): Promise<void> {
 		const docInfo = await getDocContext();
 		updateDocContext(docInfo);
 	}
@@ -129,20 +133,14 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 
 	useEffect(() => {
 		// Handle initial selection change
-		handleSelectionChange();
+		handleSelectionChanged();
 
 		// Handle subsequent selection changes
-		Office.context.document.addHandlerAsync(
-			Office.EventType.DocumentSelectionChanged,
-			handleSelectionChange
-		);
+		addSelectionChangeHandler(handleSelectionChanged);
 
 		// Cleanup
 		return () => {
-			Office.context.document.removeHandlerAsync(
-				Office.EventType.DocumentSelectionChanged,
-				handleSelectionChange
-			);
+			removeSelectionChangeHandler(handleSelectionChanged);
 		};
 	}, []);
 
