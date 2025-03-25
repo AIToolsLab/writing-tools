@@ -38,7 +38,13 @@ function App() {
 		},
 		doLogout: async (auth0Client: Auth0ContextInterface) => {
 			try {
-				await auth0Client.logout();
+				await auth0Client.logout(
+					{
+						logoutParams: {
+							returnTo: `${location.origin}/editor.html`
+						}
+					}
+				);
 			}
 			catch (error) {
 				// eslint-disable-next-line no-console
