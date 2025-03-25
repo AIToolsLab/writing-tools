@@ -48,7 +48,13 @@ Office.onReady(() => {
 		}
 		setTimeout(
 			() => {
-				Office.context.ui.messageParent(JSON.stringify(message));
+				if (Office.context && Office.context.ui) {
+					Office.context.ui.messageParent(JSON.stringify(message));
+				}
+				else {
+					// eslint-disable-next-line no-console
+					console.error('Could not message parent: Office.context.ui is undefined');
+				}
 			},
 			DEBUG ? 5000 : 0
 		);
