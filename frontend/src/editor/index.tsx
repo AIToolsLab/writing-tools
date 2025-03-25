@@ -36,7 +36,12 @@ function App() {
 			}
 		},
 		doLogout: async (auth0Client: Auth0ContextInterface) => {
-			await auth0Client.logout();
+			try {
+				await auth0Client.logout();
+			}
+			catch (error) {
+				console.error('auth0Client.logout Error:', error);
+			}
 		},
 		getDocContext: async (): Promise<DocContext> => {
 			return {
