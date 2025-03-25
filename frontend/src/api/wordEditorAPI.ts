@@ -10,14 +10,14 @@ export const wordEditorAPI: EditorAPI = {
 				| { message: string; origin: string | undefined }
 				| { error: number }
 		) => {
-			
 			if ('error' in args) {
 				// eslint-disable-next-line no-console
 				console.error('Error:', args.error);
+				if (dialog) dialog.close();
 				return;
 			}
 			const messageFromDialog = JSON.parse(args.message);
-			dialog.close();
+			if (dialog) dialog.close();
 
 			if (messageFromDialog.status === 'success') {
 				// The dialog reported a successful login.
@@ -37,21 +37,27 @@ export const wordEditorAPI: EditorAPI = {
 
 		await auth0Client.loginWithRedirect({
 			openUrl: async (url: string) => {
-				const redirect = encodeURIComponent(url);
-				const bounceURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') + '/popup.html?redirect=' + redirect;
-				// height and width are percentages of the size of the screen.
-				// How MS use it: https://github.com/OfficeDev/Office-Add-in-samples/blob/main/Samples/auth/Office-Add-in-Microsoft-Graph-React/utilities/office-apis-helpers.ts#L38
-				Office.context.ui.displayDialogAsync(
-					bounceURL,
-					{ height: 45, width: 55 },
-					function (result) {
-						dialog = result.value;
-						dialog.addEventHandler(
-							Office.EventType.DialogMessageReceived,
-							processMessage
-						);
-					}
-				);
+				try {
+					const redirect = encodeURIComponent(url);
+					const bounceURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') + '/popup.html?redirect=' + redirect;
+					// height and width are percentages of the size of the screen.
+					// How MS use it: https://github.com/OfficeDev/Office-Add-in-samples/blob/main/Samples/auth/Office-Add-in-Microsoft-Graph-React/utilities/office-apis-helpers.ts#L38
+					Office.context.ui.displayDialogAsync(
+						bounceURL,
+						{ height: 45, width: 55 },
+						function (result) {
+							dialog = result.value;
+							dialog.addEventHandler(
+								Office.EventType.DialogMessageReceived,
+								processMessage
+							);
+						}
+					);
+				}
+				catch (error) {
+					// eslint-disable-next-line no-console
+					console.error('Error opening URL:', error);
+				}
 			}
 		});
 	},
