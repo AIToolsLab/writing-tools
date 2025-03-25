@@ -32,6 +32,7 @@ function App() {
 				await auth0Client.loginWithPopup();
 			}
 			catch (error) {
+				// eslint-disable-next-line no-console
 				console.error('auth0Client.loginWithPopup Error:', error);
 			}
 		},
@@ -40,6 +41,7 @@ function App() {
 				await auth0Client.logout();
 			}
 			catch (error) {
+				// eslint-disable-next-line no-console
 				console.error('auth0Client.logout Error:', error);
 			}
 		},
