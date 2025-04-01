@@ -227,10 +227,10 @@ function $getTextBeforeCursor() {
 }
 
 function LexicalEditor({
-	updateTextBeforeCursor,
+	updateDocContext,
 	initialState
 }: {
-	updateTextBeforeCursor: (text: string) => void;
+	updateDocContext: (docContext: DocContext) => void;
 	initialState: InitialEditorStateType | null;
 }) {
 	return (
@@ -275,7 +275,7 @@ function LexicalEditor({
 								// 	$getRoot().getTextContent()
 								// );
 
-								updateTextBeforeCursor(textBeforeCursor);
+								updateDocContext(docContext);
 
 								localStorage.setItem(
 									'doc',

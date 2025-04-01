@@ -8,6 +8,7 @@ import LexicalEditor from './editor';
 
 import classes from './styles.module.css';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
+import { getBefore } from '@/utilities/selectionUtil';
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 	return (
@@ -28,28 +29,10 @@ function App() {
 
 	const editorAPI: EditorAPI = {
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
-			try {
-				await auth0Client.loginWithPopup();
-			}
-			catch (error) {
-				// eslint-disable-next-line no-console
-				console.error('auth0Client.loginWithPopup Error:', error);
-			}
+			await auth0Client.loginWithPopup();
 		},
 		doLogout: async (auth0Client: Auth0ContextInterface) => {
-			try {
-				await auth0Client.logout(
-					{
-						logoutParams: {
-							returnTo: `${location.origin}/editor.html`
-						}
-					}
-				);
-			}
-			catch (error) {
-				// eslint-disable-next-line no-console
-				console.error('auth0Client.logout Error:', error);
-			}
+			await auth0Client.logout();
 		},
 		getDocContext: async (): Promise<DocContext> => {
 			return {
@@ -70,8 +53,8 @@ function App() {
 		},
 	};
 
-	const docUpdated = (content: string) => {
-		docRef.current = content;
+	const docUpdated = (docContext: DocContext) => {
+		docRef.current = getBefore(docContext);
 
 		handleSelectionChange();
 	};
@@ -81,7 +64,7 @@ function App() {
 			<div className={ classes.editor }>
 				<LexicalEditor
 					initialState={ localStorage.getItem('doc') || null }
-					updateTextBeforeCursor={ docUpdated }
+					updateDocContext={ docUpdated }
 				/>
 			</div>
 
