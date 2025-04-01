@@ -18,10 +18,157 @@ import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 
 import classes from './editor.module.css';
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function $getDocContext() {
-	return;
+
+function $getDocContext(): DocContext {
+  // Initialize default empty context
+  const docContext: DocContext = {
+    beforeCursor: '',
+    selectedText: '',
+    afterCursor: ''
+  };
+
+  // Get current selection
+  const selection = $getSelection();
+
+  // If no valid range selection exists, return empty context
+  if (!$isRangeSelection(selection)) {
+    return docContext;
+  }
+
+  // Get selected text content
+  docContext.selectedText = selection.getTextContent();
+
+  // Get points for traversal
+  let anchor = selection.anchor;
+  let focus = selection.focus;
+
+	// If the selection is backward, we need to swap the anchor and focus points.
+	if (selection.isBackward()) {
+		const temp = anchor;
+		anchor = focus;
+		focus = temp;
+	}
+
+  const anchorNode = anchor.getNode();
+  const focusNode = focus.getNode();
+  const anchorOffset = anchor.offset;
+  const focusOffset = focus.offset;
+
+  // Collect text before cursor
+  docContext.beforeCursor = getCursorText(anchorNode, anchorOffset, 'before');
+
+  // Collect text after cursor
+  docContext.afterCursor = getCursorText(focusNode, focusOffset, 'after');
+
+  return docContext;
 }
+
+// DFS traversal to get document order
+function collectNodes(node: any, visitedNodes: Set<string>, allNodes: LexicalNode[]) {
+	const nodeKey = node.getKey();
+	if (visitedNodes.has(nodeKey)) return;
+	visitedNodes.add(nodeKey);
+
+	allNodes.push(node);
+
+	// Add children in document order
+	if ('getChildren' in node) {
+		const children = node.getChildren();
+		for (const child of children) {
+			collectNodes(child, visitedNodes, allNodes);
+		}
+	}
+}
+
+/**
+ * Gets text from document start to cursor position or from cursor position to document end.
+ */
+function getCursorText(aNode: any, aOffset: any, mode: string): string {
+	let cursorText = '';
+	if (mode === 'before') {
+		const root = $getRoot();
+		const visitedNodes = new Set<string>();
+
+		// Get the text from the current node up to the cursor position
+		const currentNodeText = aNode.getTextContent();
+		const textInAnchorNode = currentNodeText.substring(0, aOffset);
+
+		// First perform a traversal to build document order
+		const allNodes: LexicalNode[] = [];
+		const anchorKey = aNode.getKey();
+
+		// DFS traversal to get document order
+		collectNodes(root, visitedNodes, allNodes);
+		visitedNodes.clear();
+
+
+		for (const node of allNodes) {
+			const nodeKey = node.getKey();
+			// If we found the anchor node, add partial text and stop
+			if (nodeKey === anchorKey) {
+				cursorText += textInAnchorNode;
+				break;
+			}
+
+			// For other nodes, add appropriate content based on node type
+			if (node.getType() === 'text') {
+				cursorText += node.getTextContent();
+			}
+			else if (node.getType() === 'paragraph') {
+				// Use \r to match Word API paragraph behavior
+				cursorText += '\r';
+			}
+			else if (node.getType() === 'linebreak') {
+				cursorText += '\u000b';
+			}
+		}
+	}
+	else if (mode === 'after') {
+		const root = $getRoot();
+		const visitedNodes = new Set<string>();
+
+		// Get the text from cursor position to the end of current node
+		const currentNodeText = aNode.getTextContent();
+		const textInFocusNode = currentNodeText.substring(aOffset);
+
+		// First perform a traversal to build document order
+		const allNodes: LexicalNode[] = [];
+		const focusKey = aNode.getKey();
+
+		collectNodes(root, visitedNodes, allNodes);
+		visitedNodes.clear();
+
+		// Flag to indicate we're past the focus node
+		let pastFocusNode = false;
+
+		for (const node of allNodes) {
+			const nodeKey = node.getKey();
+
+			// When we find the focus node
+			if (nodeKey === focusKey) {
+				cursorText += textInFocusNode;
+				pastFocusNode = true;
+				continue;
+			}
+
+			// Only collect text for nodes after the focus
+			if (pastFocusNode) {
+				if (node.getType() === 'text') {
+					cursorText += node.getTextContent();
+				}
+				else if (node.getType() === 'paragraph') {
+					cursorText += '\r';
+				}
+				else if (node.getType() === 'linebreak') {
+					cursorText += '\u000b';
+				}
+			}
+		}
+	}
+	return cursorText;
+}
+
+
 
 function $getTextBeforeCursor() {
 	const selection = $getSelection();
@@ -113,16 +260,20 @@ function LexicalEditor({
 								const textBeforeCursor = $getTextBeforeCursor();
 
 								// eslint-disable-next-line no-console
-								console.log(
-									'Text before cursor:',
-									textBeforeCursor
-								);
+								// console.log(
+								// 	'Text before cursor:',
+								// 	textBeforeCursor
+								// );
+
+								const docContext = $getDocContext();
+								// eslint-disable-next-line no-console
+								console.log(JSON.stringify(docContext));
 
 								// eslint-disable-next-line no-console
-								console.log(
-									'Full document:',
-									$getRoot().getTextContent()
-								);
+								// console.log(
+								// 	'Full document:',
+								// 	$getRoot().getTextContent()
+								// );
 
 								updateTextBeforeCursor(textBeforeCursor);
 
