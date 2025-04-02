@@ -169,7 +169,7 @@ function getCursorText(aNode: any, aOffset: any, mode: string): string {
 }
 
 
-
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function $getTextBeforeCursor() {
 	const selection = $getSelection();
 
@@ -257,7 +257,7 @@ function LexicalEditor({
 					<OnChangePlugin
 						onChange={ editorState => {
 							editorState.read(() => {
-								const textBeforeCursor = $getTextBeforeCursor();
+								// const textBeforeCursor = $getTextBeforeCursor();
 
 								// eslint-disable-next-line no-console
 								// console.log(

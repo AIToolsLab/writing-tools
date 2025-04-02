@@ -68,7 +68,7 @@ function App() {
 				/>
 			</div>
 
-			<div>last revision: {  localStorage.getItem('doc-date')|| ''  }</div>
+			{ /* <div>last revision: {  localStorage.getItem('doc-date')|| ''  }</div> */ }
 			<div className={ classes.sidebar }>
 				<Sidebar editorAPI={ editorAPI } />
 			</div>
