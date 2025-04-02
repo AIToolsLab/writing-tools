@@ -75,6 +75,7 @@ function collectNodes(node: any, visitedNodes: Set<string>, allNodes: LexicalNod
 	if ('getChildren' in node) {
 		const children = node.getChildren();
 		for (const child of children) {
+			// Recursively collect nodes
 			collectNodes(child, visitedNodes, allNodes);
 		}
 	}
@@ -85,37 +86,54 @@ function collectNodes(node: any, visitedNodes: Set<string>, allNodes: LexicalNod
  */
 function getCursorText(aNode: any, aOffset: any, mode: string): string {
 	let cursorText = '';
+
+	const root = $getRoot();
+	const visitedNodes = new Set<string>();
+
+	// Get the text from the current node up to the cursor position
+	const currentNodeText = aNode.getTextContent();
+
+	let textInNode = '';
+
 	if (mode === 'before') {
-		const root = $getRoot();
-		const visitedNodes = new Set<string>();
+		textInNode = currentNodeText.substring(0, aOffset);
+	}
+	else if (mode === 'after') {
+		textInNode = currentNodeText.substring(aOffset);
+	}
 
-		// Get the text from the current node up to the cursor position
-		const currentNodeText = aNode.getTextContent();
-		const textInAnchorNode = currentNodeText.substring(0, aOffset);
+	// First perform a traversal to build document order
+	const allNodes: LexicalNode[] = [];
+	const aKey = aNode.getKey();
 
-		// First perform a traversal to build document order
-		const allNodes: LexicalNode[] = [];
-		const anchorKey = aNode.getKey();
+	// DFS traversal to get document order
+	collectNodes(root, visitedNodes, allNodes);
+	visitedNodes.clear();
 
-		// DFS traversal to get document order
-		collectNodes(root, visitedNodes, allNodes);
-		visitedNodes.clear();
+	// Flag to indicate we're past the focus node
+	let pastFocusNode = false;
 
-
-		for (const node of allNodes) {
-			const nodeKey = node.getKey();
-			// If we found the anchor node, add partial text and stop
-			if (nodeKey === anchorKey) {
-				cursorText += textInAnchorNode;
+	for (const node of allNodes) {
+		const nodeKey = node.getKey();
+		// If we found the anchor node, add partial text and stop
+		if (nodeKey === aKey) {
+			cursorText += textInNode;
+			if (mode === 'before') {
 				break;
 			}
+			else if (mode === 'after') {
+				pastFocusNode = true;
+				continue;
+			}
+		}
 
-			// For other nodes, add appropriate content based on node type
+		// For other nodes, add appropriate content based on node type
+		// Only collect text for nodes after the focus
+		if (pastFocusNode || mode === 'before') {
 			if (node.getType() === 'text') {
 				cursorText += node.getTextContent();
 			}
 			else if (node.getType() === 'paragraph') {
-				// Use \r to match Word API paragraph behavior
 				cursorText += '\r';
 			}
 			else if (node.getType() === 'linebreak') {
@@ -123,48 +141,7 @@ function getCursorText(aNode: any, aOffset: any, mode: string): string {
 			}
 		}
 	}
-	else if (mode === 'after') {
-		const root = $getRoot();
-		const visitedNodes = new Set<string>();
 
-		// Get the text from cursor position to the end of current node
-		const currentNodeText = aNode.getTextContent();
-		const textInFocusNode = currentNodeText.substring(aOffset);
-
-		// First perform a traversal to build document order
-		const allNodes: LexicalNode[] = [];
-		const focusKey = aNode.getKey();
-
-		collectNodes(root, visitedNodes, allNodes);
-		visitedNodes.clear();
-
-		// Flag to indicate we're past the focus node
-		let pastFocusNode = false;
-
-		for (const node of allNodes) {
-			const nodeKey = node.getKey();
-
-			// When we find the focus node
-			if (nodeKey === focusKey) {
-				cursorText += textInFocusNode;
-				pastFocusNode = true;
-				continue;
-			}
-
-			// Only collect text for nodes after the focus
-			if (pastFocusNode) {
-				if (node.getType() === 'text') {
-					cursorText += node.getTextContent();
-				}
-				else if (node.getType() === 'paragraph') {
-					cursorText += '\r';
-				}
-				else if (node.getType() === 'linebreak') {
-					cursorText += '\u000b';
-				}
-			}
-		}
-	}
 	return cursorText;
 }
 
