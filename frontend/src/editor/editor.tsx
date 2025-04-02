@@ -244,7 +244,7 @@ function LexicalEditor({
 
 								const docContext = $getDocContext();
 								// eslint-disable-next-line no-console
-								console.log(JSON.stringify(docContext));
+								// console.log(JSON.stringify(docContext));
 
 								// eslint-disable-next-line no-console
 								// console.log(
