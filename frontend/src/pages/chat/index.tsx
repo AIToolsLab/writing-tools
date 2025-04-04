@@ -1,4 +1,4 @@
-import { useState, useContext } from 'react';
+import { useState, useContext, useEffect } from 'react';
 
 import { AiOutlineSend } from 'react-icons/ai';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
@@ -11,10 +11,73 @@ import { UserContext } from '@/contexts/userContext';
 import { SERVER_URL } from '@/api';
 
 import classes from './styles.module.css';
+import { getCurParagraph } from '@/utilities/selectionUtil';
 
-export default function Chat() {
+export default function Chat({ editorAPI }: { editorAPI: EditorAPI }) {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const { username } = useContext(UserContext);
+
+	/* Document Context (FIXME: make this a hook) */
+	const {
+		addSelectionChangeHandler,
+		removeSelectionChangeHandler,
+		getDocContext
+	} = editorAPI;
+	const [docContext, updateDocContext] = useState<DocContext>({
+		beforeCursor: '',
+		selectedText: '',
+		afterCursor: ''
+	});
+
+	async function handleSelectionChanged(): Promise<void> {
+		const newDocContext = await getDocContext();
+		updateDocContext(newDocContext);
+		updateChatMessagesWithDocContext(newDocContext);
+	}
+
+	function updateChatMessagesWithDocContext(newDocContext: DocContext) {
+		const docContextMessageContent = (
+			docContext.selectedText === ''
+				? `Here is my document, with the current cursor position marked with <<CURSOR>>: ${newDocContext.beforeCursor}${newDocContext.selectedText}<<CURSOR>>${newDocContext.afterCursor}`
+				: `Here is my document, with the current selection marked with <<CURSOR>>: ${newDocContext.beforeCursor}<<CURSOR>>${newDocContext.selectedText}<<CURSOR>>${newDocContext.afterCursor}`
+		);
+	
+
+		let newMessages = chatMessages;
+		if (chatMessages.length === 0) {
+			// Initialize the chat with the system message and the document-context message.
+			const systemMessage = {
+				role: 'system',
+				content:
+					'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise.'
+			};
+
+			const docContextMessage = {
+				role: 'user',
+				content: docContextMessageContent
+			};
+
+			const initialAssistantMessage = {
+				role: 'assistant',
+				content: "What do you think about your document so far?"
+			};
+			newMessages = [systemMessage, docContextMessage, initialAssistantMessage];
+		} else {
+			// Update the document context message with the current selection.
+			newMessages[1].content = docContextMessageContent;
+		}
+		updateChatMessages(newMessages);
+	}
+
+	useEffect(() => {
+		addSelectionChangeHandler(handleSelectionChanged);
+		// Initial call to set the initial state
+		handleSelectionChanged();
+		return () => {
+			removeSelectionChangeHandler(handleSelectionChanged);
+		};
+	}, [addSelectionChangeHandler, removeSelectionChangeHandler]);
+
 
 	const [isSendingMessage, updateSendingMessage] = useState(false);
 
