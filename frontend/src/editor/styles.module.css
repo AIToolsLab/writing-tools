@@ -5,12 +5,23 @@
 }
 
 .editor {
-	width: 50%;
+	/* width: 60%; */
+	min-width: 60rem;
+}
+
+@media (max-width: 1280px) {
+	.editor {
+		width: 60%;
+		min-width: auto;
+	}
+	.container {
+		justify-content: center;
+	}
 }
 
 .sidebar {
-    max-height: 92vh;
-    margin: 20px;
+	max-height: 92vh;
+	margin: 20px;
 	overflow-y: scroll;
 	width: 30%;
 	box-shadow: -2px 0 5px rgba(0,0,0,0.1);

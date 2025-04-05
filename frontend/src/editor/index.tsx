@@ -8,6 +8,7 @@ import LexicalEditor from './editor';
 
 import classes from './styles.module.css';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
+import { getBefore } from '@/utilities/selectionUtil';
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 	return (
@@ -70,8 +71,8 @@ function App() {
 		},
 	};
 
-	const docUpdated = (content: string) => {
-		docRef.current = content;
+	const docUpdated = (docContext: DocContext) => {
+		docRef.current = getBefore(docContext);
 
 		handleSelectionChange();
 	};
@@ -81,11 +82,11 @@ function App() {
 			<div className={ classes.editor }>
 				<LexicalEditor
 					initialState={ localStorage.getItem('doc') || null }
-					updateTextBeforeCursor={ docUpdated }
+					updateDocContext={ docUpdated }
 				/>
 			</div>
 
-			<div>last revision: {  localStorage.getItem('doc-date')|| ''  }</div>
+			{ /* <div>last revision: {  localStorage.getItem('doc-date')|| ''  }</div> */ }
 			<div className={ classes.sidebar }>
 				<Sidebar editorAPI={ editorAPI } />
 			</div>
