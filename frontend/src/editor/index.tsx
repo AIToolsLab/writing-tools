@@ -1,14 +1,9 @@
-import { useRef } from 'react';
+import { useRef, useContext } from 'react';
 import ReactDOM from 'react-dom';
-
-//import Draft from '@/pages/draft';
-import * as SidebarInner from '@/pages/app';
-
-import LexicalEditor from './editor';
-
-import classes from './styles.module.css';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
-import { getBefore } from '@/utilities/selectionUtil';
+import * as SidebarInner from '@/pages/app';
+import LexicalEditor from './editor';
+import classes from './styles.module.css';
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 	return (
@@ -18,7 +13,11 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 
 function App() {
 	// Needs to be a ref so that we can use docRef.current in the editorAPI
-	const docRef = useRef('');
+	const docContextRef = useRef<DocContext>({
+		beforeCursor: '',
+		selectedText: '',
+		afterCursor: ''
+	});
 
 	// Since this is a list, a useState would have worked as well
 	const selectionChangeHandlers = useRef<(() => void)[]>([]);
@@ -35,11 +34,7 @@ function App() {
 			await auth0Client.logout();
 		},
 		getDocContext: async (): Promise<DocContext> => {
-			return {
-				beforeCursor: docRef.current,
-				selectedText: '',
-				afterCursor: ''
-			};
+			return docContextRef.current;
 		},
 		addSelectionChangeHandler: (handler: () => void) => {
 			selectionChangeHandlers.current.push(handler);
@@ -54,7 +49,7 @@ function App() {
 	};
 
 	const docUpdated = (docContext: DocContext) => {
-		docRef.current = getBefore(docContext);
+		docContextRef.current = docContext;
 
 		handleSelectionChange();
 	};
