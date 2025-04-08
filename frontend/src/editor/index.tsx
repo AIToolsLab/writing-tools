@@ -1,4 +1,4 @@
-import { useRef, useContext } from 'react';
+import { useRef } from 'react';
 import ReactDOM from 'react-dom';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
 import * as SidebarInner from '@/pages/app';
