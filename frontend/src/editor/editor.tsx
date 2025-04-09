@@ -146,63 +146,6 @@ function getCursorText(aNode: any, aOffset: any, mode: string): string {
 }
 
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function $getTextBeforeCursor() {
-	const selection = $getSelection();
-
-	if (!$isRangeSelection(selection)) return '';
-
-	const anchor = selection.anchor;
-	const anchorNode = anchor.getNode();
-	let anchorOffset = anchor.offset;
-
-	const currentNodeText = anchorNode.getTextContent();
-
-	// If anchorOffset is mid-word, extend it to the end of the word.
-	// Use a regular expression to find an end-of-word boundary.
-	if (anchorOffset < currentNodeText.length) {
-		const wordEnd = /(\W|$)/.exec(currentNodeText.slice(anchorOffset));
-
-		if (wordEnd) anchorOffset += wordEnd.index;
-	}
-
-	let textBeforeCursor = currentNodeText.slice(0, anchorOffset);
-
-	// Get text from previous siblings and their descendants
-	let currentNode: LexicalNode = anchorNode;
-	let prevNode: LexicalNode | null;
-
-	while ((prevNode = currentNode.getPreviousSibling())) {
-		currentNode = prevNode;
-		if (currentNode.getType() === 'paragraph')
-			textBeforeCursor = '\n\n' + textBeforeCursor;
-		else if (currentNode.getType() === 'linebreak')
-			textBeforeCursor = '\n' + textBeforeCursor;
-
-		textBeforeCursor = currentNode.getTextContent() + textBeforeCursor;
-	}
-
-	// Traverse up the tree and get text from previous siblings
-	let parent = anchorNode.getParent();
-
-	while (parent) {
-		let sibling: LexicalNode = parent;
-		let nextSibling: LexicalNode | null;
-
-		while ((nextSibling = sibling.getPreviousSibling())) {
-			if (sibling.getType() === 'paragraph')
-				textBeforeCursor = '\n\n' + textBeforeCursor;
-
-			sibling = nextSibling;
-			textBeforeCursor = sibling.getTextContent() + textBeforeCursor;
-		}
-
-		parent = parent.getParent();
-	}
-
-	return textBeforeCursor;
-}
-
 function LexicalEditor({
 	updateDocContext,
 	initialState
@@ -234,23 +177,7 @@ function LexicalEditor({
 					<OnChangePlugin
 						onChange={ editorState => {
 							editorState.read(() => {
-								// const textBeforeCursor = $getTextBeforeCursor();
-
-								// eslint-disable-next-line no-console
-								// console.log(
-								// 	'Text before cursor:',
-								// 	textBeforeCursor
-								// );
-
 								const docContext = $getDocContext();
-								// eslint-disable-next-line no-console
-								// console.log(JSON.stringify(docContext));
-
-								// eslint-disable-next-line no-console
-								// console.log(
-								// 	'Full document:',
-								// 	$getRoot().getTextContent()
-								// );
 
 								updateDocContext(docContext);
 
