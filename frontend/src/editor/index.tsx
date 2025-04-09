@@ -1,13 +1,9 @@
 import { useRef } from 'react';
 import ReactDOM from 'react-dom';
-
-//import Draft from '@/pages/draft';
-import * as SidebarInner from '@/pages/app';
-
-import LexicalEditor from './editor';
-
-import classes from './styles.module.css';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
+import * as SidebarInner from '@/pages/app';
+import LexicalEditor from './editor';
+import classes from './styles.module.css';
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 	return (
@@ -16,8 +12,12 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 }
 
 function App() {
-	// Needs to be a ref so that we can use docRef.current in the editorAPI
-	const docRef = useRef('');
+	// This is a reference to the current document context
+	const docContextRef = useRef<DocContext>({
+		beforeCursor: '',
+		selectedText: '',
+		afterCursor: ''
+	});
 
 	// Since this is a list, a useState would have worked as well
 	const selectionChangeHandlers = useRef<(() => void)[]>([]);
@@ -52,11 +52,7 @@ function App() {
 			}
 		},
 		getDocContext: async (): Promise<DocContext> => {
-			return {
-				beforeCursor: docRef.current,
-				selectedText: '',
-				afterCursor: ''
-			};
+			return docContextRef.current;
 		},
 		addSelectionChangeHandler: (handler: () => void) => {
 			selectionChangeHandlers.current.push(handler);
@@ -70,8 +66,8 @@ function App() {
 		},
 	};
 
-	const docUpdated = (content: string) => {
-		docRef.current = content;
+	const docUpdated = (docContext: DocContext) => {
+		docContextRef.current = docContext;
 
 		handleSelectionChange();
 	};
@@ -81,11 +77,11 @@ function App() {
 			<div className={ classes.editor }>
 				<LexicalEditor
 					initialState={ localStorage.getItem('doc') || null }
-					updateTextBeforeCursor={ docUpdated }
+					updateDocContext={ docUpdated }
 				/>
 			</div>
 
-			<div>last revision: {  localStorage.getItem('doc-date')|| ''  }</div>
+			{ /* <div>last revision: {  localStorage.getItem('doc-date')|| ''  }</div> */ }
 			<div className={ classes.sidebar }>
 				<Sidebar editorAPI={ editorAPI } />
 			</div>
