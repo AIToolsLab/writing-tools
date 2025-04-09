@@ -12,7 +12,7 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 }
 
 function App() {
-	// Needs to be a ref so that we can use docRef.current in the editorAPI
+	// This is a reference to the current document context
 	const docContextRef = useRef<DocContext>({
 		beforeCursor: '',
 		selectedText: '',
