@@ -221,7 +221,7 @@ function AppInner({ editorAPI }: HomeProps) {
 			case PageName.SearchBar:
 				return <SearchBar />;
 			case PageName.Chat:
-				return <Chat />;
+				return <Chat editorAPI={ editorAPI } />;
 			case PageName.Draft:
 				return <Draft editorAPI={ editorAPI } />;
 		}
