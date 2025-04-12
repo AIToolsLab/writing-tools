@@ -9,6 +9,7 @@ import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
 import PageContextWrapper, { PageName, PageContext } from '@/contexts/pageContext';
 import UserContextWrapper from '@/contexts/userContext';
 import ChatContextWrapper from '@/contexts/chatContext';
+import EditorContextWrapper from '@/contexts/editorContext';
 
 import classes from './styles.module.css';
 
@@ -217,13 +218,13 @@ function AppInner({ editorAPI }: HomeProps) {
 	function getComponent(pageName: PageName): JSX.Element | null {
 		switch (pageName) {
 			case PageName.Revise:
-				return <Revise editorAPI={ editorAPI } />;
+				return <Revise />;
 			case PageName.SearchBar:
 				return <SearchBar />;
 			case PageName.Chat:
-				return <Chat editorAPI={ editorAPI } />;
+				return <Chat />;
 			case PageName.Draft:
-				return <Draft editorAPI={ editorAPI } />;
+				return <Draft />;
 		}
 		return null;
 	}
@@ -269,20 +270,23 @@ export default function App({ editorAPI }: HomeProps) {
 		<ChatContextWrapper>
 			<UserContextWrapper>
 				<PageContextWrapper>
-				<Auth0Provider
-						domain={ process.env.AUTH0_DOMAIN! }
-						clientId={ process.env.AUTH0_CLIENT_ID! }
-						cacheLocation="localstorage"
-						useRefreshTokens={ true }
-						authorizationParams= { {
-							// eslint-disable-next-line camelcase
-							redirect_uri: `${window.location.origin}/popup.html`,
-							scope: 'openid profile email read:posts',
-							audience: 'textfocals.com',
-							leeway: 10
-						} }
-					>		<AppInner editorAPI={ editorAPI } />
-				</Auth0Provider>
+					<EditorContextWrapper editorAPI={ editorAPI }>
+						<Auth0Provider
+							domain={ process.env.AUTH0_DOMAIN! }
+							clientId={ process.env.AUTH0_CLIENT_ID! }
+							cacheLocation="localstorage"
+							useRefreshTokens={ true }
+							authorizationParams= { {
+								// eslint-disable-next-line camelcase
+								redirect_uri: `${window.location.origin}/popup.html`,
+								scope: 'openid profile email read:posts',
+								audience: 'textfocals.com',
+								leeway: 10
+							} }
+						>
+							<AppInner editorAPI={ editorAPI } />
+						</Auth0Provider>
+					</EditorContextWrapper>
 				</PageContextWrapper>
 			</UserContextWrapper>
 		</ChatContextWrapper>

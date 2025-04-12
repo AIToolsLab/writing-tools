@@ -7,15 +7,16 @@ import ChatMessage from '@/components/chatMessage';
 
 import { ChatContext } from '@/contexts/chatContext';
 import { UserContext } from '@/contexts/userContext';
+import { EditorContext } from '@/contexts/editorContext';
 
 import { SERVER_URL } from '@/api';
 
 import classes from './styles.module.css';
-import { getCurParagraph } from '@/utilities/selectionUtil';
 
-export default function Chat({ editorAPI }: { editorAPI: EditorAPI }) {
+export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const { username } = useContext(UserContext);
+	const editorAPI = useContext(EditorContext);
 
 	/* Document Context (FIXME: make this a hook) */
 	const {
@@ -59,10 +60,11 @@ export default function Chat({ editorAPI }: { editorAPI: EditorAPI }) {
 
 			const initialAssistantMessage = {
 				role: 'assistant',
-				content: "What do you think about your document so far?"
+				content: 'What do you think about your document so far?'
 			};
 			newMessages = [systemMessage, docContextMessage, initialAssistantMessage];
-		} else {
+		}
+ 		else {
 			// Update the document context message with the current selection.
 			newMessages[1].content = docContextMessageContent;
 		}

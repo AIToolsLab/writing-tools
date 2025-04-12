@@ -1,5 +1,6 @@
 import { useState, useEffect, useContext, Fragment } from 'react';
 import { UserContext } from '@/contexts/userContext';
+import { EditorContext } from '@/contexts/editorContext';
 import { Remark } from 'react-remark';
 import { FcCheckmark } from 'react-icons/fc';
 import {
@@ -43,8 +44,10 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 	return <Remark>{ generation.result }</Remark>;
 }
 
-export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
+export default function Draft() {
+	const editorAPI = useContext(EditorContext);
 	const { username } = useContext(UserContext);
+	
 	const {
 		addSelectionChangeHandler,
 		removeSelectionChangeHandler,
