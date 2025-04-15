@@ -5,25 +5,23 @@
 }
 
 .editor {
-	/* width: 60%; */
 	min-width: 60rem;
-}
-
-@media (max-width: 1280px) {
-	.editor {
-		width: 60%;
-		min-width: auto;
-	}
-	.container {
-		justify-content: center;
-	}
+	max-width: 60rem;
+	width: 100%;
 }
 
 .sidebar {
-	max-height: 92vh;
 	margin: 20px;
 	overflow-y: scroll;
-	width: 30%;
+	width: 28rem;
+	min-width: 28rem;
 	box-shadow: -2px 0 5px rgba(0,0,0,0.1);
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+	position: sticky;
+	right: 0;
+	background-color: white;
+}
+
+.sidebar::-webkit-scrollbar {
+	display: none;
 }

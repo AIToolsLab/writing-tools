@@ -1,15 +1,13 @@
 .editorContainer {
     margin: 20px;
-    height: 90vh;
     background: #fff;
     color: #000;
     position: relative;
     line-height: 20px;
     font-weight: 400;
     text-align: left;
-    border: 1px solid rgb(218, 218, 218);
     box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-    padding: 50px 0px 50px 50px;
+    padding: 50px 0 50px 50px;
 }
 
 .editor {
@@ -22,7 +20,28 @@
     caret-color: #444;
     overflow-y: scroll;
     height: 80vh;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+    padding-right: 46px;
 }
+
+.editor::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+}
+.editor::-webkit-scrollbar-track {
+    background: transparent;
+    margin-right: -4px;
+}
+.editor::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    margin-right: -4px;
+}
+.editor::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.4);
+}
+
 .placeholder {
     color: #6b6b6b;
     overflow: hidden;
