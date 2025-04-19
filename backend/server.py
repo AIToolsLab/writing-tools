@@ -39,6 +39,12 @@ PORT = int(os.getenv("PORT") or 8000)
 LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
 print(f"Log secret: {LOG_SECRET!r}")
 
+# Flag for whether to include any document text in the logs.
+# In the future we'll enable this for developers and study participants who have consented.
+# For now, we'll just disable all logging of document text.
+LOG_DOCTEXT = False
+
+
 # Declare Types
 
 
@@ -108,6 +114,7 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
 
     $ curl -X POST -H "Content-Type: application/json" -d '{"username": "test", "gtype": "Completion_Backend", "prompt": "This is a test prompt."}' http://localhost:8000/api/generation
     '''
+
     start_time = datetime.now()
     if payload.gtype == "Completion_Backend":
         result = await nlp.chat_completion(payload.prompt)
@@ -127,14 +134,15 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
         timestamp=end_time.timestamp(),
         username=payload.username,
         interaction=payload.gtype,
-        prompt=payload.prompt,
-        result=result.result,
+        prompt=payload.prompt if LOG_DOCTEXT else "",
+        result=result.result if LOG_DOCTEXT else "",
         delay=(end_time - start_time).total_seconds(),
     )
     # add on extra data
-    for key, value in result.extra_data.items():
-        if not hasattr(log_entry, key):
-            setattr(log_entry, key, value)
+    if LOG_DOCTEXT:
+        for key, value in result.extra_data.items():
+            if not hasattr(log_entry, key):
+                setattr(log_entry, key, value)
     background_tasks.add_task(make_log, log_entry)
 
     logging.basicConfig(level=logging.INFO)
@@ -156,11 +164,11 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
     log_entry = ReflectionLog(
         username=payload.username,
         interaction="reflection",
-        prompt=payload.prompt,
-        paragraph=payload.paragraph,
+        prompt=payload.prompt if LOG_DOCTEXT else "",
+        paragraph=payload.paragraph if LOG_DOCTEXT else "",
         timestamp=end_time.timestamp(),
         delay=(end_time - start_time).total_seconds(),
-        result=result.result,
+        result=result.result if LOG_DOCTEXT else "",
     )
 
     background_tasks.add_task(make_log, log_entry)
@@ -176,6 +184,9 @@ async def chat(payload: ChatRequestPayload):
     )
 
     # TODO: Fix logging
+    # messages_for_log = payload.messages if LOG_DOCTEXT else [{
+    #     "role": message.get("role", ""),
+    # } for message in payload.messages]
     # make_log(
     #    Log(username=payload.username,
     # interaction="chat",
