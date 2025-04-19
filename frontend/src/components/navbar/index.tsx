@@ -20,7 +20,7 @@ const pageNames: Page[] = [
 	{ name: PageName.Draft, title: 'Draft' },
 	{ name: PageName.Revise, title: 'Revise' },
 	// { name: 'searchbar', title: 'SearchBar' },
-	// { name: 'chat', title: 'Chat' },
+	{ name: PageName.Chat, title: 'Chat' },
 ];
 
 export default function Navbar() {
