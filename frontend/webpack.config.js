@@ -46,6 +46,10 @@ module.exports = async (env, options) => {
 				import: ['./src/editor/index.tsx', './src/editor/editor.html'],
 				dependOn: 'react'
 			},
+			demoeditor: {
+				import: ['./src/editor/demoeditor.tsx', './src/editor/demoeditor.html'],
+				dependOn: 'react'
+			},
 		    commands: './src/commands/commands.ts'
 		},
 		output: {
@@ -130,6 +134,11 @@ module.exports = async (env, options) => {
 				filename: 'editor.html',
 				template: './src/editor/editor.html',
 				chunks: ['editor', 'react']
+			}),
+			new HtmlWebpackPlugin({
+				filename: 'demoeditor.html',
+				template: './src/editor/demoeditor.html',
+				chunks: ['demoeditor', 'react']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'popup.html',
