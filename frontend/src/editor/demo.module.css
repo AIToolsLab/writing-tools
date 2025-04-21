@@ -1,0 +1,25 @@
+.container {
+	display: flex;
+	justify-content: center;
+	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+}
+
+.editor {
+	min-width: 40rem;
+	max-width: 40rem;
+	width: 100%;
+}
+
+.sidebar {
+	margin: 20px;
+	overflow-y: scroll;
+	width: 28rem;
+	min-width: 28rem;
+	box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+	background-color: white;
+}
+
+.sidebar::-webkit-scrollbar {
+	display: none;
+}
