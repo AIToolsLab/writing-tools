@@ -1,9 +1,11 @@
-import { useRef } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import ReactDOM from 'react-dom';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
 import * as SidebarInner from '@/pages/app';
 import LexicalEditor from './editor';
 import classes from './demo.module.css';
+
+const MAX_WORD_COUNT = 200;
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 	return (
@@ -19,12 +21,81 @@ function App() {
 		afterCursor: ''
 	});
 
+	// Add word count state
+	const [wordCount, setWordCount] = useState<number>(0);
+	// Add state to track when word count exceeds limit
+	const [isOverLimit, setIsOverLimit] = useState<boolean>(false);
+
 	// Since this is a list, a useState would have worked as well
 	const selectionChangeHandlers = useRef<(() => void)[]>([]);
 
 	const handleSelectionChange = () => {
 		selectionChangeHandlers.current.forEach(handler => handler());
 	};
+
+	// Add effect to prevent input when word count exceeds limit
+	useEffect(() => {
+		const editorElement = document.querySelector(`.${classes.editor}`);
+		if (!editorElement) return;
+
+		// Function to handle input events
+		const handleBeforeInput = (event: Event) => {
+			const inputEvent = event as InputEvent;
+			if (isOverLimit && (
+				inputEvent.inputType === 'insertText' ||
+				inputEvent.inputType === 'insertFromPaste' ||
+				inputEvent.inputType.startsWith('insert')
+			)) {
+				event.preventDefault();
+			}
+		};
+
+		// Function to handle paste events specifically
+		const handlePaste = (event: Event) => {
+			const pasteEvent = event as ClipboardEvent;
+
+			// Only check if we're at or near the limit
+			if (wordCount >= MAX_WORD_COUNT - 5) {
+				const clipboardText = pasteEvent.clipboardData?.getData('text') || '';
+				const potentialWordCount = clipboardText.trim().split(/\s+/).filter(word => word.length > 0).length;
+
+				// If pasting would exceed our limit, prevent it
+				if (wordCount + potentialWordCount > MAX_WORD_COUNT) {
+					event.preventDefault();
+					// Optionally show a notification that paste was blocked
+					const notification = document.createElement('div');
+					notification.className = classes.pasteNotification;
+					notification.textContent = `Paste blocked: Would exceed ${MAX_WORD_COUNT} word limit`;
+					editorElement.appendChild(notification);
+
+					// Remove notification after a short delay
+					setTimeout(() => {
+						if (notification.parentNode === editorElement) {
+							editorElement.removeChild(notification);
+						}
+					}, 3000);
+				}
+			}
+		};
+
+		// Add event listeners
+		editorElement.addEventListener('beforeinput', handleBeforeInput);
+		editorElement.addEventListener('paste', handlePaste);
+
+		// Update visual feedback when over limit
+		if (isOverLimit) {
+			editorElement.classList.add(classes.overLimit);
+		}
+		else {
+			editorElement.classList.remove(classes.overLimit);
+		}
+
+		// Clean up when component unmounts
+		return () => {
+			editorElement.removeEventListener('beforeinput', handleBeforeInput);
+			editorElement.removeEventListener('paste', handlePaste);
+		};
+	}, [isOverLimit, wordCount]);
 
 	const editorAPI: EditorAPI = {
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
@@ -69,6 +140,15 @@ function App() {
 	const docUpdated = (docContext: DocContext) => {
 		docContextRef.current = docContext;
 
+		// Calculate word count - combine all text and count words
+		const fullText = docContext.beforeCursor + docContext.selectedText + docContext.afterCursor;
+		const words = fullText.trim().split(/\s+/).filter(word => word.length > 0);
+		const newWordCount = words.length;
+		setWordCount(newWordCount);
+
+		// Check if word count exceeds limit
+		setIsOverLimit(newWordCount > MAX_WORD_COUNT);
+
 		handleSelectionChange();
 	};
 
@@ -79,6 +159,9 @@ function App() {
 					initialState={ localStorage.getItem('doc') || null }
 					updateDocContext={ docUpdated }
 				/>
+				<div className={ `${classes.wordCount} ${isOverLimit ? classes.wordCountLimit : ''}` }>
+					Words: { wordCount }/{ MAX_WORD_COUNT }
+				</div>
 			</div>
 
 			{ /* <div>last revision: {  localStorage.getItem('doc-date')|| ''  }</div> */ }
