@@ -50,37 +50,8 @@ function App() {
 			}
 		};
 
-		// Function to handle paste events specifically
-		const handlePaste = (event: Event) => {
-			const pasteEvent = event as ClipboardEvent;
-
-			// Only check if we're at or near the limit
-			if (wordCount >= MAX_WORD_COUNT - 5) {
-				const clipboardText = pasteEvent.clipboardData?.getData('text') || '';
-				const potentialWordCount = clipboardText.trim().split(/\s+/).filter(word => word.length > 0).length;
-
-				// If pasting would exceed our limit, prevent it
-				if (wordCount + potentialWordCount > MAX_WORD_COUNT) {
-					event.preventDefault();
-					// Optionally show a notification that paste was blocked
-					const notification = document.createElement('div');
-					notification.className = classes.pasteNotification;
-					notification.textContent = `Paste blocked: Would exceed ${MAX_WORD_COUNT} word limit`;
-					editorElement.appendChild(notification);
-
-					// Remove notification after a short delay
-					setTimeout(() => {
-						if (notification.parentNode === editorElement) {
-							editorElement.removeChild(notification);
-						}
-					}, 3000);
-				}
-			}
-		};
-
-		// Add event listeners
+		// Add event listener
 		editorElement.addEventListener('beforeinput', handleBeforeInput);
-		editorElement.addEventListener('paste', handlePaste);
 
 		// Update visual feedback when over limit
 		if (isOverLimit) {
@@ -93,9 +64,8 @@ function App() {
 		// Clean up when component unmounts
 		return () => {
 			editorElement.removeEventListener('beforeinput', handleBeforeInput);
-			editorElement.removeEventListener('paste', handlePaste);
 		};
-	}, [isOverLimit, wordCount]);
+	}, [isOverLimit]);
 
 	const editorAPI: EditorAPI = {
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
