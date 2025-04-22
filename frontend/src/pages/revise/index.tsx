@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useContext } from 'react';
 import { ReflectionCards } from '@/components/reflectionCard';
 import {
 	defaultPrompt,
@@ -9,22 +9,15 @@ import { UserContext } from '@/contexts/userContext';
 import { getReflection } from '@/api';
 import classes from './styles.module.css';
 import { getCurParagraph } from '@/utilities/selectionUtil';
+import { useDocContext } from '@/utilities';
 
 
 export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	const { username } = useContext(UserContext);
-	const [docContext, updateDocContext] = useState<DocContext>({
-		beforeCursor: '',
-		selectedText: '',
-		afterCursor: ''
-	});
+	const docContext = useDocContext(editorAPI);
 	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
 	const { getAccessTokenSilently } = useAuth0();
-	const {
-		addSelectionChangeHandler,
-		removeSelectionChangeHandler,
-		getDocContext
-	} = editorAPI;
+
 
 	const [reflections, updateReflections] = useState<
 		Map<
@@ -35,27 +28,6 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 
 	const [prompt, updatePrompt] = useState(defaultPrompt);
 
-
-	/**
-	 * Loads the text content of all paragraphs in the Word document and updates the paragraph texts.
-	 * This function retrieves and loads all paragraphs from the Word document and extracts their text content.
-	 * The extracted paragraph texts are then used to update and refresh the paragraphTexts state.
-	 *
-	 * @returns {Promise<void>} - A promise that resolves once the paragraph texts are loaded and updated.
-	 */
-
-
-	/**
-	 * Handles the change in selection within the Word document.
-	 * Retrieves the selected paragraphs and updates the current paragraph text accordingly.
-	 * Also updates the paragraph texts, potentially triggering an expensive operation.
-	 *
-	 * @returns {Promise<void>} - A promise that resolves once the selection change is handled.
-	 */
-	async function handleSelectionChanged(): Promise<void> {
-		const docInfo = await getDocContext();
-		updateDocContext(docInfo);
-	}
 
 	/**
 	 * Retrieves the reflections associated with a given paragraph text and prompt synchronously.
@@ -131,18 +103,6 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 		);
 	}
 
-	useEffect(() => {
-		// Handle initial selection change
-		handleSelectionChanged();
-
-		// Handle subsequent selection changes
-		addSelectionChangeHandler(handleSelectionChanged);
-
-		// Cleanup
-		return () => {
-			removeSelectionChangeHandler(handleSelectionChanged);
-		};
-	}, []);
 
 	// Index of the currently selected paragraph
 	const selectedIndex = curParagraphIndex;
