@@ -82,7 +82,7 @@ function App() {
 				await auth0Client.logout(
 					{
 						logoutParams: {
-							returnTo: `${location.origin}/editor.html`
+							returnTo: `${location.origin}/demoeditor.html`
 						}
 					}
 				);
