@@ -10,7 +10,7 @@ If you can't find the Add-ins tab, look instead on the File menu for "Get Add-in
 
 # Running the add-in
 
-- `cd add-in`
+- `cd frontend`
 - `yarn`
 - `yarn run dev-server`
 
