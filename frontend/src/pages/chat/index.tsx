@@ -2,6 +2,7 @@ import { useState, useContext, useEffect } from 'react';
 
 import { AiOutlineSend } from 'react-icons/ai';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { FaLightbulb, FaSearch } from 'react-icons/fa';
 
 import ChatMessage from '@/components/chatMessage';
 
@@ -111,13 +112,38 @@ export default function Chat() {
 			}),
 			onmessage(msg) {
 				const message = JSON.parse(msg.data);
-				const choice = message.choices[0];
-				if (choice.finish_reason === 'stop') return;
-				const newContent = choice.delta.content;
-				// need to make a new "newMessages" object to force React to update :(
-				newMessages = newMessages.slice();
-				newMessages[newMessages.length - 1].content += newContent;
-				updateChatMessages(newMessages);
+				console.log('Server response message:', message);
+				
+				if (message.type === 'web_search_call') {
+					console.log('Web search response:', message);
+					return;
+				}
+				
+				if (message.type === 'message') {
+					console.log('Message content:', message.content);
+					if (message.content && message.content.length > 0 && message.content[0].type === 'output_text') {
+						const textContent = message.content[0].text;
+						const annotations = message.content[0].annotations || [];
+						console.log('Annotations:', annotations);
+						
+						newMessages = newMessages.slice();
+						newMessages[newMessages.length - 1].content = textContent;
+						updateChatMessages(newMessages);
+					}
+					return;
+				}
+				
+				if (message.choices && message.choices[0]) {
+					const choice = message.choices[0];
+					if (choice.finish_reason === 'stop') return;
+					
+					if (choice.delta && choice.delta.content) {
+						const newContent = choice.delta.content;
+						newMessages = newMessages.slice();
+						newMessages[newMessages.length - 1].content += newContent;
+						updateChatMessages(newMessages);
+					}
+				}
 			}
 		});
 
@@ -150,6 +176,93 @@ export default function Chat() {
 		updateChatMessages(newMessages);
 	}
 
+	async function suggestExamples() {
+		const newDocContext = await getDocContext();
+		updateDocContext(newDocContext);
+		
+		const userMessage = {
+			role: 'user',
+			content: 'Please suggest examples that would fit into my text at the cursor position.'
+		};
+		
+		const systemPrompt = 
+			'I am writing an essay, and you will generate a list of examples that fit into my text. The example will be generated on the cursor position <<CURSOR>>\n' +
+			'You will receive my ongoing essay text.\n' +
+			'Based on the given text, ask me what kind of examples I am looking for.\n' +
+			'Then, generate a concise and brief description list of possible examples. Examples MUST be REAL and SPECIFIC.\n\n' +
+			'Format your response as a numbered list. For EACH example:\n' +
+			'1. Give a clear, brief title for the example\n' + 
+			'2. Provide a 1 sentence description\n' +
+			'3. For each example, include a reference in the format: (Source: name of source or website)\n\n' +
+			'IMPORTANT: Format each example exactly like this:\n' +
+			'1. Example Title: Brief description of the example. (Source: Name of Organization or Publication)\n' +
+			'2. Another Example Title: Brief description of another example. (Source: Name of Another Source)\n\n' +
+			'Be concise but specific in your examples. Examples should be factual and realistic.';
+		
+		let newMessages = [
+			...chatMessages,
+			userMessage,
+			{ role: 'assistant', content: '' }
+		];
+		
+		updateChatMessages(newMessages);
+		updateSendingMessage(true);
+		
+		await fetchEventSource(`${SERVER_URL}/chat`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json'
+			},
+			body: JSON.stringify({
+				messages: [
+					{ role: 'system', content: systemPrompt },
+					{ 
+						role: 'user', 
+						content: `Here is my document, with the current cursor position marked with <<CURSOR>>: ${newDocContext.beforeCursor}<<CURSOR>>${newDocContext.afterCursor}`
+					}
+				],
+				username: username
+			}),
+			onmessage(msg) {
+				const message = JSON.parse(msg.data);
+				console.log('Server response message:', message);
+				
+				if (message.type === 'web_search_call') {
+					console.log('Web search response:', message);
+					return;
+				}
+				
+				if (message.type === 'message') {
+					console.log('Message content:', message.content);
+					if (message.content && message.content.length > 0 && message.content[0].type === 'output_text') {
+						const textContent = message.content[0].text;
+						const annotations = message.content[0].annotations || [];
+						console.log('Annotations:', annotations);
+						
+						newMessages = newMessages.slice();
+						newMessages[newMessages.length - 1].content = textContent;
+						updateChatMessages(newMessages);
+					}
+					return;
+				}
+				
+				if (message.choices && message.choices[0]) {
+					const choice = message.choices[0];
+					if (choice.finish_reason === 'stop') return;
+					
+					if (choice.delta && choice.delta.content) {
+						const newContent = choice.delta.content;
+						newMessages = newMessages.slice();
+						newMessages[newMessages.length - 1].content += newContent;
+						updateChatMessages(newMessages);
+					}
+				}
+			}
+		});
+		
+		updateSendingMessage(false);
+	}
+
 	return (
 		<div className={ classes.container }>
 			<div className={ classes.messageContainer }>
@@ -166,35 +279,49 @@ export default function Chat() {
 				)) }
 			</div>
 
-			<form
-				className={ classes.sendMessage }
-				onSubmit={ sendMessage }
-			>
-				<label className={ classes.label }>
-					<textarea
+			<div className={ classes.controlsContainer }>
+				<form
+					className={ classes.sendMessage }
+					onSubmit={ sendMessage }
+				>
+					<label className={ classes.label }>
+						<textarea
+							disabled={ isSendingMessage }
+							placeholder="Send a message"
+							value={ message }
+							onChange={ e =>
+								updateMessage(
+									(e.target as HTMLTextAreaElement).value
+								)
+							}
+							className={ classes.messageInput }
+						/>
+
+						<button type="submit">
+							<AiOutlineSend />
+						</button>
+					</label>
+				</form>
+
+				<div className={ classes.buttonContainer }>
+					<button
+						onClick={ suggestExamples }
+						className={ classes.exampleButton }
 						disabled={ isSendingMessage }
-						placeholder="Send a message"
-						value={ message }
-						onChange={ e =>
-							updateMessage(
-								(e.target as HTMLTextAreaElement).value
-							)
-						}
-						className={ classes.messageInput }
-					/>
-
-					<button type="submit">
-						<AiOutlineSend />
+					>
+						<FaLightbulb /> 
+						<FaSearch />
+						<span>Example Suggestions</span>
 					</button>
-				</label>
-			</form>
-
-			<button
-				onClick={ () => updateChatMessages([]) }
-				className={ classes.clearChat }
-			>
-				Clear Chat
-			</button>
+					
+					<button
+						onClick={ () => updateChatMessages([]) }
+						className={ classes.clearChat }
+					>
+						Clear Chat
+					</button>
+				</div>
+			</div>
 		</div>
 	);
 }

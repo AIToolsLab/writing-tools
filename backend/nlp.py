@@ -73,17 +73,25 @@ async def chat(messages: Iterable[ChatCompletionMessageParam], temperature: floa
     # FIXME: figure out why result might ever be None
     return result or ""
 
-def chat_stream(messages: Iterable[ChatCompletionMessageParam], temperature: float):
-    return openai_client.chat.completions.create(
-        model=MODEL_NAME,
-        messages=messages,
-        temperature=temperature,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        stream=True,
-    )
+def chat_stream(messages: Iterable[ChatCompletionMessageParam], temperature: float, tools=None, tool_choice=None):
+    params = {
+        "model": MODEL_NAME,
+        "messages": messages,
+        "temperature": temperature,
+        "max_tokens": 1024,
+        "top_p": 1,
+        "frequency_penalty": 0,
+        "presence_penalty": 0,
+        "stream": True,
+    }
+    
+    if tools:
+        params["tools"] = tools
+    
+    if tool_choice:
+        params["tool_choice"] = tool_choice
+        
+    return openai_client.chat.completions.create(**params)
 
 
 async def completion(prompt: str):

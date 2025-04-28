@@ -1,11 +1,30 @@
 .container {
-	margin: 10px;
 	display: flex;
 	flex-direction: column;
-	gap: 16px;
+	height: 100%;
+	padding: 1rem;
+	overflow: hidden;
+}
+
+.messageContainer {
+	flex: 1;
+	overflow-y: auto;
+	padding-bottom: 1rem;
+}
+
+.controlsContainer {
+	border-top: 1px solid #e9ecef;
+	padding-top: 1rem;
+	margin-top: auto;
+}
+
+.sendMessage {
+	margin-bottom: 1rem;
 }
 
 .label {
+	position: relative;
+	width: 100%;
 	display: flex;
 	align-items: center;
 	border: 1px solid grey;
@@ -37,18 +56,46 @@
 }
 
 .clearChat {
-	background: none;
+	margin-top: 1rem;
+	padding: 0.5rem 1rem;
+	border-radius: 0.5rem;
+	background-color: #f8f9fa;
+	color: #212529;
 	cursor: pointer;
-	border: 1px solid black;
-	padding: 5px 10px;
-	bottom: 0;
-	transition: 0.15s;
-	align-self: flex-end;
+	transition: all 0.2s ease-in-out;
 }
 
 .clearChat:hover {
-	background: black;
+	background-color: #e9ecef;
+}
+
+.buttonContainer {
+	display: flex;
+	justify-content: space-between;
+	width: 100%;
+	gap: 1rem;
+}
+
+.exampleButton {
+	padding: 0.75rem 1rem;
+	border-radius: 0.5rem;
+	background-color: #0a84ff;
 	color: white;
+	cursor: pointer;
+	transition: all 0.2s ease-in-out;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	flex: 1;
+}
+
+.exampleButton:hover {
+	background-color: #0074e8;
+}
+
+.exampleButton:disabled {
+	background-color: #a5caff;
+	cursor: not-allowed;
 }
 
 .systemPrompt {
