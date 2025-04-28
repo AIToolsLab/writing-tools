@@ -3,7 +3,7 @@ from pydantic import BaseModel, Field, ConfigDict
 import os
 import json
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Any
 from pathlib import Path
 from datetime import datetime
 
@@ -65,6 +65,8 @@ class ReflectionResponses(BaseModel):
 class ChatRequestPayload(BaseModel):
     messages: List[Dict[str, str]]
     username: str
+    tools: Optional[List[Dict[str, Any]]] = None
+    tool_choice: Optional[str] = None
 
 
 class Log(BaseModel):
@@ -173,6 +175,8 @@ async def chat(payload: ChatRequestPayload):
     response = await nlp.chat_stream(
         messages=payload.messages,
         temperature=0.7,
+        tools=payload.tools,
+        tool_choice=payload.tool_choice
     )
 
     # TODO: Fix logging
