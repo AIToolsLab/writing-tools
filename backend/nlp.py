@@ -327,4 +327,4 @@ async def rmove(prompt: str) -> GenerationResult:
 
 # Construct prompt prefix
 def construct_prompt_prefix(prompt):
-    return f"With the current document in mind:\n\n{prompt}\n\n"
+    return f"With the current document in mind:<document>\n{prompt}\n</document>\n\n"
