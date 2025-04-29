@@ -18,52 +18,7 @@
         #container {
             height: 100%;
         }
-
-        /* Demo mode specific styles to apply inline before React loads */
-        .demo-mode {
-            font-family: 'Segoe UI', sans-serif, Arial, sans-serif !important;
-        }
 		</style>
-		<script>
-			// Process URL parameters for demo configuration
-			window.onload = function() {
-				// Parse URL parameters
-				const urlParams = new URLSearchParams(window.location.search);
-
-				// Check if this is a demo
-				const isDemo = urlParams.get('isDemo') === 'true';
-
-				// Get word limit if specified
-				const wordLimit = urlParams.get('wordLimit');
-
-				// Store parameters in window for access by editor components
-				window.editorConfig = {
-					isDemo: isDemo,
-					wordLimit: wordLimit ? parseInt(wordLimit, 10) : null,
-					// Add other demo-specific settings here
-					font: isDemo ? "'Segoe UI', sans-serif" : "Arial, sans-serif"
-				};
-
-				// Apply demo styling if in demo mode
-				if (isDemo) {
-					// Apply font styling
-					document.body.style.fontFamily = window.editorConfig.font;
-					document.body.classList.add('demo-mode');
-
-					// Add any additional inline styles needed for demo mode
-					const demoStyles = document.createElement('style');
-					demoStyles.textContent = `
-						#container {
-							display: flex;
-							justify-content: center;
-						}
-					`;
-					document.head.appendChild(demoStyles);
-				}
-
-				// The main editor script can access these settings via window.editorConfig
-			};
-		</script>
 	</head>
 
 	<body>
