@@ -4,7 +4,12 @@ import { Auth0ContextInterface } from '@auth0/auth0-react';
 import * as SidebarInner from '@/pages/app';
 import LexicalEditor from './editor';
 import classes from './styles.module.css';
-import demoClasses from './demo.module.css';
+
+// Interface for editor props
+interface EditorProps {
+  isDemo?: boolean;
+  wordLimit?: number | null;
+}
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 	return (
@@ -12,7 +17,10 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
 	);
 }
 
-function App() {
+function App(props: EditorProps) {
+	const isDemo = props.isDemo || false;
+	const wordLimit = props.wordLimit || null;
+
 	// This is a reference to the current document context
 	const docContextRef = useRef<DocContext>({
 		beforeCursor: '',
@@ -22,10 +30,6 @@ function App() {
 
 	// Since this is a list, a useState would have worked as well
 	const selectionChangeHandlers = useRef<(() => void)[]>([]);
-
-	// Read configuration from window.editorConfig (set in editor.html)
-	const isDemo = (window as any).editorConfig?.isDemo || false;
-	const wordLimit = (window as any).editorConfig?.wordLimit || null;
 
 	// Add word count state for demo mode
 	const [wordCount, setWordCount] = useState<number>(0);
@@ -41,7 +45,7 @@ function App() {
 		if (!isDemo || !wordLimit) return;
 
 		// Find editor element, accounting for different class names in demo vs regular mode
-		const editorSelector = isDemo ? `.${demoClasses.editor}` : `.${classes.editor}`;
+		const editorSelector = isDemo ? `.${classes.demoeditor}` : `.${classes.editor}`;
 		const editorElement = document.querySelector(editorSelector);
 		if (!editorElement) return;
 
@@ -62,10 +66,10 @@ function App() {
 
 		// Update visual feedback when over limit
 		if (isOverLimit) {
-			editorElement.classList.add(demoClasses.overLimit);
+			editorElement.classList.add(classes.overLimit);
 		}
 		else {
-			editorElement.classList.remove(demoClasses.overLimit);
+			editorElement.classList.remove(classes.overLimit);
 		}
 
 		// Clean up when component unmounts
@@ -132,24 +136,36 @@ function App() {
 	};
 
 	return (
-		<div className={ isDemo ? demoClasses.container : classes.container }>
-			<div className={ isDemo ? demoClasses.editor : classes.editor }>
+		<div className={ isDemo ? classes.democontainer : classes.container }>
+			<div className={ isDemo ? classes.demoeditor : classes.editor }>
 				<LexicalEditor
 					initialState={ localStorage.getItem('doc') || null }
 					updateDocContext={ docUpdated }
 				/>
 				{ isDemo && wordLimit && (
-					<div className={ `${demoClasses.wordCount} ${isOverLimit ? demoClasses.wordCountLimit : ''}` }>
+					<div className={ `${classes.wordCount} ${isOverLimit ? classes.wordCountLimit : ''}` }>
 						Words: { wordCount }/{ wordLimit }
 					</div>
 				) }
 			</div>
 
-			<div className={ isDemo ? demoClasses.sidebar : classes.sidebar }>
+			<div className={ isDemo ? classes.demosidebar : classes.sidebar }>
 				<Sidebar editorAPI={ editorAPI } />
 			</div>
 		</div>
 	);
 }
 
-ReactDOM.render(<App />, document.getElementById('container'));
+// Parse URL parameters and render App with appropriate props
+const urlParams = new URLSearchParams(window.location.search);
+const isDemo = urlParams.get('isDemo') === 'true';
+const wordLimitParam = urlParams.get('wordLimit');
+const wordLimit = wordLimitParam ? parseInt(wordLimitParam, 10) : null;
+
+ReactDOM.render(
+  <App
+    isDemo={ isDemo }
+    wordLimit={ wordLimit }
+  />,
+  document.getElementById('container')
+);
