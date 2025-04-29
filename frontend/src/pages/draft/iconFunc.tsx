@@ -1,4 +1,4 @@
-import { AiOutlineAlignLeft, AiOutlineQuestion, AiOutlineHighlight } from 'react-icons/ai';
+import { AiOutlineAlignLeft, AiOutlineQuestion, AiOutlineHighlight, AiOutlineBank } from 'react-icons/ai';
 
 export const iconFunc = (generationType: string) => {
     switch (generationType) {
@@ -8,6 +8,8 @@ export const iconFunc = (generationType: string) => {
             return <AiOutlineQuestion />;
         case 'Keywords':
             return <AiOutlineHighlight />;
+        case 'RMove':
+            return <AiOutlineBank />;
         default:
             return null;
     }
