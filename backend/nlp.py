@@ -24,10 +24,23 @@ openai_client = AsyncOpenAI(
     api_key=openai_api_key,
 )
 
+dummy_client = AsyncOpenAI(base_url="https://localhost:8000/v1", api_key="")
+# make a dummy request to make sure everything is imported
+try:
+    dummy_client.chat.completions.create(
+        model=MODEL_NAME,
+        messages=[{"role": "user", "content": "Hello"}],
+    )
+except openai.APIConnectionError:
+    # We expect this error because we're connecting to a non-existent server
+    pass
+
 # Load spaCy model for sentence splitting
 try:
     nlp = spacy.load("en_core_web_sm")
     # nlp = spacy.load("en_core_web_trf")
+    # Warm up the model
+    nlp("Hello world. This is a test.").sents
 except:
     print("Need to download spaCy model. Run:")
     print("python -m spacy download en_core_web_sm")
