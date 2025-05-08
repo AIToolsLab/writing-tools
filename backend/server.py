@@ -26,9 +26,13 @@ from azure.identity.aio import DefaultAzureCredential
 from azure.data.tables.aio import TableServiceClient
 
 import logging
+from openai import OpenAI
+import httpx
 
 # Load ENV vars
 load_dotenv()
+
+MODEL_NAME = "gpt-4o"
 
 LOG_PATH = Path("./logs").absolute()
 
@@ -90,6 +94,10 @@ class GenerationLog(Log):
 
 class ReflectionLog(Log):
     paragraph: str
+
+
+class OpenAIModelInfoResponse(BaseModel):
+    model: str
 
 
 # Initialize Server
@@ -210,15 +218,17 @@ async def log_feedback(payload: Log):
     return {"message": "Feedback logged successfully."}
 
 
-class PingResponse(BaseModel):
-    timestamp: datetime
-
-# Ping: return the server's current timestamp
-
-
 @app.get("/api/ping")
-async def ping() -> PingResponse:
-    return PingResponse(timestamp=datetime.now())
+async def ping() -> OpenAIModelInfoResponse:
+    url = f"https://api.openai.com/v1/models/{MODEL_NAME}"
+    headers = {"Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"}
+
+    async with httpx.AsyncClient() as client:
+        response = await client.get(url, headers=headers)
+        response.raise_for_status()
+        model_info = response.json()
+
+    return OpenAIModelInfoResponse(model=model_info["id"])
 
 
 # Show all server logs
@@ -291,13 +301,13 @@ async def make_log(payload: Log):
 
             await table_client.create_entity(entity=dict(
                 entity, PartitionKey=payload.username, RowKey=row_key))
-            
+
             end_time = datetime.now()
             log = end_time - start_time
             logger.info(f"make_log() operation took: {log.total_seconds()} seconds")
         except Exception as e:
             print(f"Error logging to Azure Table: {e}")
-            
+
 
 static_path = Path("../frontend/dist")
 if static_path.exists():
