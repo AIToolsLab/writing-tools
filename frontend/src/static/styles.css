@@ -102,14 +102,15 @@ body::-webkit-scrollbar-thumb:hover {
 	transition: all 0.5s;
 	border-radius: 50%;
 	padding: 0.2rem;
+	transition: 0.3s all;
 }
 
 #main-page:hover {
 	background-color: #ff9a47;
-	animation: funAnimations 4s linear infinite;
+	animation: rotateRight 4s ease-in-out infinite;
 }
 
-@keyframes funAnimations {
+@keyframes rotateRight {
 	0% {
 		transform: rotate(0deg);
 		background-color: #ff9a47;
@@ -343,7 +344,7 @@ header {
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	margin-top: 3rem;
+	margin-bottom: 4rem;
 }
 
 .main-msdoc-img {
