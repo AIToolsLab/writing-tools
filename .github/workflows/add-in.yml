@@ -6,9 +6,15 @@ on:
   push:
     branches:
       - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/add-in.yml'
   pull_request:
     branches:
       - main
+    paths:
+      - 'frontend/**'
+      - '.github/workflows/add-in.yml'
 
 jobs:
   run-linters:
