@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext, Fragment } from 'react';
+import { useState, useContext, Fragment } from 'react';
 import { UserContext } from '@/contexts/userContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { Remark } from 'react-remark';
@@ -17,6 +17,7 @@ import { SERVER_URL, log } from '@/api';
 import classes from './styles.module.css';
 import SavedGenerations from './savedGenerations';
 import { getBefore } from '@/utilities/selectionUtil';
+import { useDocContext } from '@/utilities';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
@@ -46,21 +47,8 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
+	const docContext = useDocContext(editorAPI);
 	const { username } = useContext(UserContext);
-	
-	const {
-		addSelectionChangeHandler,
-		removeSelectionChangeHandler,
-		getDocContext
-	} = editorAPI;
-
-	const [docContext, updateDocContext] = useState<DocContext>({
-		beforeCursor: '',
-		selectedText: '',
-		afterCursor: ''
-	});
-	const [_cursorPos, updateCursorPos] = useState(0);
-	const [_cursorAtEnd, updateCursorAtEnd] = useState(true);
 	const [genCtxText, updateGenCtxText] = useState('');
 
 	const [isLoading, setIsLoading] = useState(false);
@@ -136,20 +124,6 @@ export default function Draft() {
 		updateSavedItems(newSaved);
 	}
 
-	// Update the cursor position
-	async function handleSelectionChanged(): Promise<void> {
-		// Get the document context (before cursor, selected text, after cursor)
-		const docInfo = await getDocContext();
-		updateDocContext(docInfo);
-
-		// Update the cursor position
-		const charsToCursor = docInfo.beforeCursor.length;
-    const docLength = docInfo.beforeCursor.length + docInfo.selectedText.length + docInfo.afterCursor.length;
-
-		updateCursorPos(charsToCursor);
-		updateCursorAtEnd(charsToCursor >= docLength);
-		// updateCursorAtEnd((docInfo.selectedText + docInfo.afterCursor).trim().length > 0);
-	}
 
 	// Get a generation from the backend
 	async function getGeneration(
@@ -245,23 +219,6 @@ export default function Draft() {
     }
 	}
 
-	/**
-	 * useEffect to ensure that event handlers are set up only once
-	 * and cleaned up when the component is unmounted.
-	 * Note that dependencies are empty, so this effect only runs once.
-	 */
-	useEffect(() => {
-		// Handle initial selection change
-		handleSelectionChanged();
-
-		// Handle subsequent selection changes
-		addSelectionChangeHandler(handleSelectionChanged);
-
-		// Cleanup
-		return () => {
-			removeSelectionChangeHandler(handleSelectionChanged);
-		};
-	}, []);
 
 	let results = null;
 

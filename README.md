@@ -10,7 +10,7 @@ If you can't find the Add-ins tab, look instead on the File menu for "Get Add-in
 
 # Running the add-in
 
-- `cd add-in`
+- `cd frontend`
 - `yarn`
 - `yarn run dev-server`
 
@@ -36,23 +36,6 @@ Run `./test_generation` in the `backend` folder to make a test request. However,
 
 - `cd backend`
 - `uv run func host start`
-
-# Running the docker container (docker required)
-
-build and run the backend & frontend (add-in)
-
-- `docker-compose up --build`
-
-update the backend only
-
-- `docker-compose build backend`
-
-update the frontend only
-
-- `docker-compose build frontend`
-
-add-in: http://localhost:80
-backend: http://localhost:5000/docs
 
 # Running the custom LLM backend
 

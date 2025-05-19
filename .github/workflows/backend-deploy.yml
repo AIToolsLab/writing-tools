@@ -2,15 +2,12 @@ name: Deploy Backend to Azure Functions
 
 on:
   push:
+    branches:
+      - main
     paths:
       - 'backend/**'
       - 'pyproject.toml'
-      - '.github/workflows/backend-deploy.yml'
-      - '.python-version'
-  pull_request:
-    paths:
-      - 'backend/**'
-      - 'pyproject.toml'
+      - 'uv.lock'
       - '.github/workflows/backend-deploy.yml'
       - '.python-version'
 
@@ -40,8 +37,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        uv sync && uv pip freeze > backend/requirements.txt
-
+        uv sync --no-dev && uv pip freeze > backend/requirements.txt
 
     - name: 'Resolve Project Dependencies Using Pip'
       shell: bash

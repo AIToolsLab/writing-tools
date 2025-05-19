@@ -6,12 +6,12 @@
 		<title>Thoughtful</title>
 
 		<link rel="stylesheet" href="styles.css" />
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
     <link rel="icon" href="../../assets/logo_black.png" />
 		<link rel="preconnect" href="https://fonts.googleapis.com">
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 		<link
-			href="https://fonts.googleapis.com/css2?family=Albert+Sans:ital,wght@0,100..900;1,100..900&family=Fredoka:wght@300..700&family=Montserrat:ital,wght@0,100..900;1,100..900&family=Nunito+Sans:ital,opsz,wght@0,6..12,200..1000;1,6..12,200..1000&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&family=Urbanist:ital,wght@0,100..900;1,100..900&display=swap"
+			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap"
 			rel="stylesheet">
 	</head>
 
@@ -25,8 +25,16 @@
 					<span>Thoughtful</span>
 				</div>
 				<div class="icon-links-container">
-					<a href="https://aitoolslab.github.io/" target="_blank" ref="noopener noreferrer"><img id="main-page" src="../../assets/sparkle.png" alt="GitHub" height="32px" /></a>
-					<a href="./longDescription.html" target="_blank" ref="noopener noreferrer"><img class="ghicon" src="../../assets/about.png" alt="About Us" height="32px" /></a>
+					<a target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit;" class="msstore-icon"
+						href="https://appsource.microsoft.com/en-us/product/office/WA200008131?tab=Overview">
+						<i class="fa-brands fa-microsoft" style="font-size:32px"></i>
+					</a>
+					<a href="https://aitoolslab.github.io/" target="_blank" ref="noopener noreferrer">
+						<img id="main-page" src="../../assets/sparkle.png" alt="GitHub" height="32px" />
+					</a>
+					<a href="./longDescription.html" target="_blank" ref="noopener noreferrer">
+						<img class="ghicon" src="../../assets/about.png" alt="About Us" height="32px" />
+					</a>
 				</div>
 			</nav>
 		</div>
@@ -40,25 +48,38 @@
 			</div>
 		</header>
 
-		<!-- TODO: Add previous works -->
 		<article id="main-article">
-			<div class="previous-works">
-				<div><a class="prevwork-button" href="./seniorProject2024.html">2024-2025 Senior Project</a></div>
-			</div>
 			<div class="img-container">
 				<!-- TODO: Slideshow including previous works? -->
 				<img class="main-msdoc-img" src="../../assets/MSdocui.png" alt="Microsoft Word Add-in" />
 			</div>
 		</article>
 
-		<!-- TODO: Add a link to the custom text editor as a demo -->
+		<!-- Embedded demo -->
+		<article id="editor-demo">
+			<a href="/editor.html"
+				target="_blank" rel="noopener noreferrer">
+				<h1 id="try-text">Try it out!</h1>
+			</a>
+			<iframe
+				id="editor-frame"
+				src="editor.html?isDemo=true&wordLimit=200"
+				title="Thoughtful Editor"
+				allowfullscreen
+				allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+				style="border: none; width: 100%; height: 650px; margin: 1rem auto;"
+			></iframe>
+			<a href="https://appsource.microsoft.com/en-us/product/office/WA200008131?tab=Overview"
+				target="_blank" rel="noopener noreferrer">
+				<h1 id="try-text">Or add to Microsoft Word</h1>
+			</a>
+		</article>
 
 		<div class="bottom-signup">
 			<div class="signup-button-container">
-				<!-- TODO: Survey should be updated (summer2024) -->
-				<a href="https://tinyurl.com/3dfrujnz" id="intersted-button" target="_blank" ref="noopener noreferrer"
-					class="waves-effect waves-light btn-large maroon hoverable">
-					INTERESTED? SIGN UP FOR OUR STUDY!
+				<a href="https://tinyurl.com/3dfrujnz" target="_blank" rel="noopener noreferrer"
+					class="prevwork-button">
+					Intereseted? Sign up for our Study!
 				</a>
 			</div>
 		</div>
@@ -66,17 +87,16 @@
 		<footer>
 			<div class="footer-content">
 				<div class="footer-text">
-					<p>&copy; 2024 Arnold Lab</p>
+					<p>&copy; 2025 Arnold Lab</p>
 				</div>
 				<div class="link-container">
-					<!-- <a href="./support.html" target="_blank" ref="noopener noreferrer"> -->
-					<a href="./support.html" target="_blank" ref="noopener noreferrer">
+					<a href="./support.html" target="_blank" rel="noopener noreferrer">
 						Support
 					</a>
 					<a href="./privacypolicy.html">
 						Privacy
 					</a>
-					<a href="https://support.office.com/f1/topic/61994a3b-2c87-41c4-a88d-a6455efa362d" target="_blank" ref="noopener noreferrer">
+					<a href="https://support.office.com/f1/topic/61994a3b-2c87-41c4-a88d-a6455efa362d" target="_blank" rel="noopener noreferrer">
 						EULA
 					</a>
 				</div>
