@@ -13,7 +13,7 @@ import {
 } from 'react-icons/ai';
 import { iconFunc } from './iconFunc';
 import { SERVER_URL, log } from '@/api';
-import classes from './styles.module.css';
+// import classes from './styles.module.css';
 import SavedGenerations from './savedGenerations';
 import { getBefore } from '@/utilities/selectionUtil';
 import { useDocContext } from '@/utilities';
@@ -220,37 +220,33 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 	}
 
 
+	// Tailwind replacement for error, init, result, spinner, and icon containers
 	let results = null;
-
 	if (errorMsg !== '')
 		results = (
-			<div className={ classes.errorTextWrapper }>
-				<div className={ classes.errorText }>{ errorMsg }</div>
+			<div className="mx-4 p-4 transition text-red-600 text-center">
+				<div className="text-base">{ errorMsg }</div>
 			</div>
 		);
 	else if (generationMode === 'None' || generation === null)
 		if (!docContext.beforeCursor.trim())
 			results = (
-				<div className={ classes.initTextWrapper }>
-					<div className={ classes.initText }>
-						Write something in the document to get started!
-					</div>
+				<div className="mt-4 mx-4 p-4 transition">
+					<div className="text-sm text-gray-500 text-center transition">Write something in the document to get started!</div>
 				</div>
 			);
 		else
 			results = (
-				<div className={ classes.initTextWrapper }>
-					<div className={ classes.initText }>
-						Click a button to generate a suggestion.
-					</div>
+				<div className="mt-4 mx-4 p-4 transition">
+					<div className="text-sm text-gray-500 text-center transition">Click a button to generate a suggestion.</div>
 				</div>
 			);
 	else
 		results = (
-			<div className={ classes.resultTextWrapper }>
+			<div className="mt-1 mx-2 p-4 border border-gray-300 rounded-2xl transition flex">
 				<div>
 					<div
-						className={ classes.genCtxText }
+						className="text-xs text-gray-400 pb-1 cursor-pointer hover:text-black"
 						onMouseEnter={ () => setTooltipVisible('GenCtx') }
 						onMouseLeave={ () => setTooltipVisible(null) }
 					>
@@ -261,26 +257,17 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 					{ /* Question: do we need this? */ }
 					{ false && tooltipVisible === 'GenCtx' && (
 						<div
-							className={ [
-								classes.disabledTooltip,
-								classes.tooltip_genCtxText
-							].join(' ') }
+							className="absolute top-[18%] left-1/2 -translate-x-1/2 bg-gray-100 bg-opacity-70 text-gray-500 px-3 py-2 rounded text-xs font-light whitespace-nowrap z-50 opacity-100 pointer-events-none shadow-md"
 						>
 							{ 'Generated based on this document text' }
 						</div>
 					) }
-					<div className={ classes.resultText }>
+					<div className="text-base whitespace-pre-wrap transition flex-col animate-fadeIn">
 						<GenerationResult generation={ generation } />
 					</div>
 				</div>
-				<div className={ classes.genIconsContainer }>
-					<div
-						className={
-							!IS_OBSCURED
-								? classes.genTypeIconWrapper
-								: classes.genTypeIconWrapper_obscured
-						}
-					>
+				<div className="flex flex-col justify-center items-center ml-auto">
+					<div className="bg-white rounded-lg p-1">
 						{ iconFunc(generationMode) }
 					</div>
 				</div>
@@ -289,18 +276,18 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 
 	if (isLoading && !generation)
 		results = (
-			<div className={ classes.spinnerWrapper }>
-				<div className={ classes.loader }></div>
+			<div className="flex z-[999] justify-center items-center p-4">
+				<div className="border-4 border-blue-300 border-t-white rounded-full w-8 h-8 animate-spin"></div>
 			</div>
 		);
 
 	return (
-		<div className={ classes.container }>
+		<div className="flex flex-col gap-2 relative p-2">
 
 			{ /* Document Context Text Container */ }
-			<div className={ classes.contextText }>
-				<h4>Suggestions will be generated using:</h4>
-				<p>
+			<div className="text-xs p-2 m-2 shadow-[0_6px_10px_0_rgba(147,123,109,0.1)]">
+				<h4 className="text-xs mt-0.5 mb-1">Suggestions will be generated using:</h4>
+				<p className="break-all whitespace-normal">
 					{ getBefore(docContext).length > 100 ? '...' : '' }
 					{ getBefore(docContext).substring(getBefore(docContext).length - 100) }
 					{ /* { JSON.stringify(docContext) } */ }
@@ -310,164 +297,99 @@ export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
 			<div>
 				{ /* Generation Option Buttons */ }
 				<div
-					className={ classes.optionsContainer }
+					className="flex flex-row justify-center mt-4 mb-4 relative"
 					onMouseEnter={ () => setTooltipVisible('Disabled') }
 					onMouseLeave={ () => setTooltipVisible(null) }
 				>
-					{ ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => {
-						return (
-							<Fragment key={ mode }>
+					{ ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => (
+						<Fragment key={ mode }>
 							<button
-								className={ classes.optionsButton }
+								className="bg-white text-base font-semibold w-[42px] h-[42px] flex justify-center items-center border border-gray-100 transition duration-150 cursor-pointer rounded-full m-1 disabled:cursor-default hover:enabled:bg-gray-100 hover:enabled:shadow-[0_6px_10px_0_rgba(120,60,20,0.1)] hover:enabled:rotate-6"
 								disabled={ docContext.beforeCursor === '' || isLoading }
 								onClick={ async () => {
-									// if (docContext.beforeCursor !== '') {
-									// 	await selectToCursor();
-									// }
-
-									log({
-										username: username,
-										interaction: `${mode}_Frontend`,
-										prompt: getBefore(docContext)
-									});
+									log({ username, interaction: `${mode}_Frontend`, prompt: getBefore(docContext) });
 									if (getBefore(docContext) === '') return;
-
 									updateGenerationMode(mode);
-									getGeneration(
-										username,
-										`${mode}_Backend`,
-										getBefore(docContext)
-									);
+									getGeneration(username, `${mode}_Backend`, getBefore(docContext));
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible(mode)
-								}
+								onMouseEnter={ () => setTooltipVisible(mode) }
 								onMouseLeave={ () => setTooltipVisible(null) }
 							>
 								{ IS_OBSCURED ? obscuredAlphabetForMode[mode as keyof typeof obscuredAlphabetForMode] : visibleIconForMode[mode as keyof typeof visibleIconForMode] }
 							</button>
-
 							{ tooltipVisible === mode && (
-								<div className={ classes.tooltip }>
-									{ IS_OBSCURED
-										? 'Get New Completion'
-										: `Get New ${ visibleNameForMode[mode as keyof typeof visibleNameForMode] }` }
+								<div className="absolute top-[120%] left-1/2 -translate-x-1/2 bg-gray-100 bg-opacity-90 text-gray-700 px-3 py-2 rounded text-xs font-light whitespace-nowrap z-50 opacity-100 pointer-events-none shadow-md">
+									{ IS_OBSCURED ? 'Get New Completion' : `Get New ${ visibleNameForMode[mode as keyof typeof visibleNameForMode] }` }
 								</div>
 							) }
-							</Fragment>
-						);
-					}) }
+						</Fragment>
+					)) }
 					</div>
 
-				<div className={ classes.noteTextWrapper }>
-					<div className={ classes.noteText }>
-						Please note that the quality of AI-generated text may
-						vary
-					</div>
+				<div className="mx-2">
+					<div className="text-[0.75rem] text-gray-400 text-center">Please note that the quality of AI-generated text may vary</div>
 				</div>
 			</div>
 
 			<div>
 				{ /* Result of the generation */ }
-				<div className={ classes.reflectionContainer }>{ results }</div>
+				<div className="my-2">{ results }</div>
 
 				{ /* Close and Save button container */ }
-				<div className={ classes.utilsContainer }>
-					{ /* Question: do we need this? */ }
+				<div className="flex flex-row m-2 justify-center items-center relative">
 					{ copied && (
-						<div className={ classes.utilStateWrapper }>
-							<div className={ classes.copiedStateText }>
-								Copied!
-							</div>
-
+						<div className="flex justify-center items-center animate-fade mr-auto">
+							<div className="text-green-700 font-light pr-1">Copied!</div>
 							<FcCheckmark />
 						</div>
 					) }
-
 					{ saved && (
-						<div className={ classes.utilStateWrapper }>
-							<div className={ classes.savedStateText }>Saved</div>
-
-							<AiOutlineSave className={ classes.savedStateIcon } />
+						<div className="flex justify-center items-center animate-fade mr-auto">
+							<div className="text-indigo-400 font-light pr-1">Saved</div>
+							<AiOutlineSave className="text-indigo-400" />
 						</div>
 					) }
-
-					{ generationMode !== 'None' &&
-						!isLoading &&
-						generation &&
-						errorMsg === '' && (
-							<div className={ classes.buttonsWrapper }>
-								<div
-									className={ classes.utilIconWrapper }
-									onClick={ () => {
-										updateGenerationMode('None');
-										updateGeneration(null);
-										results = null;
-									} }
-									onMouseEnter={ () =>
-										setTooltipVisible('Close')
-									}
-									onMouseLeave={ () => {
-										setTooltipVisible(null);
-									} }
-								>
-									<AiOutlineClose
-										className={ classes.closeIcon }
-									/>
-								</div>
-
-								{ tooltipVisible === 'Close' && (
-									<div
-										className={ [
-											classes.utilTooltip,
-											classes.utilTooltip_close
-										].join(' ') }
-									>
-										Close
-									</div>
-								) }
-
-								<div
-									className={ classes.utilIconWrapper }
-									onClick={ () => {
-										// Save the generation
-										save(generation, docContext.beforeCursor);
-
-										setSaved(true);
-										setTimeout(() => setSaved(false), 2000);
-									} }
-									onMouseEnter={ () =>
-										setTooltipVisible('Save')
-									}
-									onMouseLeave={ () => {
-										setTooltipVisible(null);
-									} }
-								>
-									<AiOutlineStar
-										className={
-											saved
-												? classes.saved
-												: classes.saveIcon
-										}
-									/>
-								</div>
-								{ tooltipVisible === 'Save' && (
-									<div
-										className={ [
-											classes.utilTooltip,
-											classes.utilTooltip_save
-										].join(' ') }
-									>
-										Save
-									</div>
-								) }
+					{ generationMode !== 'None' && !isLoading && generation && errorMsg === '' && (
+						<div className="bg-gray-200 inline-flex flex-row justify-center items-center ml-auto rounded-xl p-1 shadow-md">
+							<div
+								className="cursor-pointer bg-gray-200 rounded-lg p-1 mx-0.5 flex justify-end items-center shadow-sm transition hover:bg-gray-300"
+								onClick={ () => {
+									updateGenerationMode('None');
+									updateGeneration(null);
+									results = null;
+								} }
+								onMouseEnter={ () => setTooltipVisible('Close') }
+								onMouseLeave={ () => setTooltipVisible(null) }
+							>
+								<AiOutlineClose className="text-sm text-gray-500 transition hover:text-gray-700 hover:rotate-180" />
 							</div>
-						) }
+							{ tooltipVisible === 'Close' && (
+								<div className="absolute top-[120%] right-[10%] bg-gray-200 bg-opacity-90 text-gray-700 px-2 py-1 rounded text-xs font-light whitespace-nowrap z-50 opacity-100 pointer-events-none shadow-md">Close</div>
+							) }
+							<div
+								className="cursor-pointer bg-gray-200 rounded-lg p-1 mx-0.5 flex justify-end items-center shadow-sm transition hover:bg-gray-300"
+								onClick={ () => {
+									// Save the generation
+									save(generation, docContext.beforeCursor);
+
+									setSaved(true);
+									setTimeout(() => setSaved(false), 2000);
+								} }
+								onMouseEnter={ () => setTooltipVisible('Save') }
+								onMouseLeave={ () => setTooltipVisible(null) }
+							>
+								<AiOutlineStar className={ saved ? 'text-yellow-400 text-base transition' : 'text-gray-500 text-base transition hover:text-gray-700 hover:rotate-90' } />
+							</div>
+							{ tooltipVisible === 'Save' && (
+								<div className="absolute top-[120%] right-0 bg-gray-200 bg-opacity-90 text-gray-700 px-2 py-1 rounded text-xs font-light whitespace-nowrap z-50 opacity-100 pointer-events-none shadow-md">Save</div>
+							) }
+						</div>
+					) }
 				</div>
 
 				{ /* Saved generations */ }
 				<SavedGenerations
-					docContext= { docContext }
+					docContext={ docContext }
 					saved={ saved }
 					isLoading={ isLoading }
 					savedItems={ savedItems }
