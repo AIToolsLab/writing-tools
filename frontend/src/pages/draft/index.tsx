@@ -1,5 +1,6 @@
 import { useState, useContext, Fragment } from 'react';
 import { UserContext } from '@/contexts/userContext';
+import { EditorContext } from '@/contexts/editorContext';
 import { Remark } from 'react-remark';
 import { FcCheckmark } from 'react-icons/fc';
 import {
@@ -44,11 +45,10 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 	return <Remark>{ generation.result }</Remark>;
 }
 
-
-
-export default function Draft({ editorAPI }: { editorAPI: EditorAPI }) {
-	const { username } = useContext(UserContext);
+export default function Draft() {
+	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
+	const { username } = useContext(UserContext);
 	const [genCtxText, updateGenCtxText] = useState('');
 
 	const [isLoading, setIsLoading] = useState(false);

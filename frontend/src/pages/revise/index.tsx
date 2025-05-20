@@ -9,10 +9,11 @@ import { UserContext } from '@/contexts/userContext';
 import { getReflection } from '@/api';
 import classes from './styles.module.css';
 import { getCurParagraph } from '@/utilities/selectionUtil';
+import { EditorContext } from '@/contexts/editorContext';
 import { useDocContext } from '@/utilities';
 
-
-export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
+export default function Revise() {
+	const editorAPI = useContext(EditorContext);
 	const { username } = useContext(UserContext);
 	const docContext = useDocContext(editorAPI);
 	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
