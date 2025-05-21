@@ -2,10 +2,10 @@ version: '3'
 services:
   frontend:
     build:
-      context: ./add-in
+      context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "80:80"
+      - "5001:80"
     depends_on:
       - backend
 
@@ -22,4 +22,3 @@ services:
 networks:
   default:
     driver: bridge
-
