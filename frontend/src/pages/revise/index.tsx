@@ -15,7 +15,7 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	const { username } = useContext(UserContext);
 	const docContext = useDocContext(editorAPI);
 	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
-	const { getAccessToken, reportAuthError } = useAccessToken();
+	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
 
 
 	const [reflections, updateReflections] = useState<
@@ -98,6 +98,13 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 			})
 		);
 
+		if (cardDataList.length === 0 && authErrorType !== null) {
+			return (
+				<div>
+					No reflections available. Please reauthorize.
+				</div>
+			);
+		}
 		return (
 			<ReflectionCards
 				cardDataList={ cardDataList }
