@@ -1,5 +1,5 @@
-import { useAuth0 } from "@auth0/auth0-react";
-import { createContext, useContext, useState } from "react";
+import { useAuth0 } from '@auth0/auth0-react';
+import { createContext, useContext, useState } from 'react';
 
 interface AccessTokenContextType {
     // Called by the API code to get an access token
@@ -12,16 +12,18 @@ interface AccessTokenContextType {
 
 const AccessTokenContext = createContext<AccessTokenContextType>({
   getAccessToken: async () => {
-    console.warn("getAccessToken called before provider is initialized");
-    return "";
+    // eslint-disable-next-line no-console
+    console.warn('getAccessToken called before provider is initialized');
+    return '';
   },
   reportAuthError: () => {
-    console.warn("reportAuthError called before provider is initialized");
+    // eslint-disable-next-line no-console
+    console.warn('reportAuthError called before provider is initialized');
   },
   authErrorType: null,
 });
 
-export const AccessTokenProvider = ({ children }: { children: React.ReactNode }) => {
+export function AccessTokenProvider({ children }: { children: React.ReactNode }) {
   const {
     getAccessTokenSilently,
   } = useAuth0();
@@ -30,12 +32,13 @@ export const AccessTokenProvider = ({ children }: { children: React.ReactNode })
 
   return (
     <AccessTokenContext.Provider
-      value={{
+      value={ {
         getAccessToken: async () => {
             try {
                 const token = await getAccessTokenSilently();
                 return token;
-            } catch (e: any) {
+            }
+ catch (e: any) {
                 setAuthErrorType(e.error);
                 // reraise the error to be handled by the caller
                 throw e;
@@ -45,11 +48,11 @@ export const AccessTokenProvider = ({ children }: { children: React.ReactNode })
             setAuthErrorType(error.error);
         },
         authErrorType: authErrorType,
-      }}
+      } }
     >
-      {children}
+      { children }
     </AccessTokenContext.Provider>
   );
-};
+}
 
 export const useAccessToken = () => useContext(AccessTokenContext);

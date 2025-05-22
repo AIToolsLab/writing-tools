@@ -67,6 +67,7 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 				})
 				.catch(_error => {
 					reflections.delete(cacheKey);
+					// eslint-disable-next-line no-constant-condition
 					if (false /* error has something to do with auth */) {
 						reportAuthError(_error);
 					}

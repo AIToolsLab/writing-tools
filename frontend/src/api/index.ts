@@ -68,7 +68,6 @@ export async function getReflection(
 
 		if (cachedResponse) return JSON.parse(cachedResponse);
 		const token = await getAccessToken();
-		debugger
 		const data = {
 			username: username,
 			paragraph,
