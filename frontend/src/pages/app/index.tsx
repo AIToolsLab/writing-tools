@@ -249,6 +249,7 @@ function AppInner({ editorAPI }: HomeProps) {
 				</div>
 				{ authErrorType !== null && (
 					<button
+					  className={ classes.logoutButton }
 					  onClick={ async () => {
 						// do login again
 						await editorAPI.doLogin(auth0Client);
