@@ -36,6 +36,7 @@ export function AccessTokenProvider({ children }: { children: React.ReactNode })
         getAccessToken: async () => {
             try {
                 const token = await getAccessTokenSilently();
+                setAuthErrorType(null); // Clear any previous error
                 return token;
             }
  catch (e: any) {
