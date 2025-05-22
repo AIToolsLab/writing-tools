@@ -33,43 +33,41 @@ export default function Chat() {
 	async function handleSelectionChanged(): Promise<void> {
 		const newDocContext = await getDocContext();
 		updateDocContext(newDocContext);
-		updateChatMessagesWithDocContext(newDocContext);
 	}
 
-	function updateChatMessagesWithDocContext(newDocContext: DocContext) {
-		const docContextMessageContent = (
-			docContext.selectedText === ''
-				? `Here is my document, with the current cursor position marked with <<CURSOR>>: ${newDocContext.beforeCursor}${newDocContext.selectedText}<<CURSOR>>${newDocContext.afterCursor}`
-				: `Here is my document, with the current selection marked with <<CURSOR>>: ${newDocContext.beforeCursor}<<CURSOR>>${newDocContext.selectedText}<<CURSOR>>${newDocContext.afterCursor}`
-		);
-	
+	const docContextMessageContent = (
+		docContext.selectedText === ''
+			? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
+			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`
+	);
 
-		let newMessages = chatMessages;
-		if (chatMessages.length === 0) {
-			// Initialize the chat with the system message and the document-context message.
-			const systemMessage = {
-				role: 'system',
-				content:
-					'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise.'
-			};
+	let messagesWithCurDocContext = chatMessages;
+	if (chatMessages.length === 0) {
+		// Initialize the chat with the system message and the document-context message.
+		const systemMessage = {
+			role: 'system',
+			content:
+				'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.'
+		};
 
-			const docContextMessage = {
-				role: 'user',
-				content: docContextMessageContent
-			};
+		const docContextMessage = {
+			role: 'user',
+			content: docContextMessageContent
+		};
 
-			const initialAssistantMessage = {
-				role: 'assistant',
-				content: 'What do you think about your document so far?'
-			};
-			newMessages = [systemMessage, docContextMessage, initialAssistantMessage];
-		}
+		const initialAssistantMessage = {
+			role: 'assistant',
+			content: 'What do you think about your document so far?'
+		};
+		messagesWithCurDocContext = [systemMessage, docContextMessage, initialAssistantMessage];
+	}
  		else {
 			// Update the document context message with the current selection.
-			newMessages[1].content = docContextMessageContent;
+			messagesWithCurDocContext[1].content = docContextMessageContent;
 		}
-		updateChatMessages(newMessages);
-	}
+	useEffect(() => {
+		updateChatMessages(messagesWithCurDocContext);
+	}, [messagesWithCurDocContext, updateChatMessages]);
 
 	useEffect(() => {
 		addSelectionChangeHandler(handleSelectionChanged);
@@ -93,7 +91,7 @@ export default function Chat() {
 		updateSendingMessage(true);
 
 		let newMessages = [
-			...chatMessages,
+			...messagesWithCurDocContext,
 			{ role: 'user', content: message },
 			{ role: 'assistant', content: '' }
 		];
@@ -106,7 +104,7 @@ export default function Chat() {
 				'Content-Type': 'application/json'
 			},
 			body: JSON.stringify({
-				messages: [...chatMessages, { role: 'user', content: message }],
+				messages: newMessages.slice(0, -1),
 				username: username
 			}),
 			onmessage(msg) {
@@ -153,7 +151,7 @@ export default function Chat() {
 	return (
 		<div className={ classes.container }>
 			<div className={ classes.messageContainer }>
-				{ chatMessages.map((message, index) => (
+				{ messagesWithCurDocContext.map((message, index) => (
 					<ChatMessage
 						key={ index }
 						role={ message.role }
