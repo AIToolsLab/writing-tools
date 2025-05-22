@@ -10,14 +10,15 @@ import { getReflection } from '@/api';
 import classes from './styles.module.css';
 import { getCurParagraph } from '@/utilities/selectionUtil';
 import { useDocContext } from '@/utilities';
+import { useAccessToken } from '@/contexts/accessTokenContext';
 
 
 export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	const { username } = useContext(UserContext);
 	const docContext = useDocContext(editorAPI);
 	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
-	const { getAccessTokenSilently } = useAuth0();
-
+	const { accessToken } = useAccessToken();
+	/* TODO: use refreshAccessToken() if we get an expired token error. */
 
 	const [reflections, updateReflections] = useState<
 		Map<
@@ -59,7 +60,7 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflection(username, paragraphText, prompt, getAccessTokenSilently);
+				getReflection(username, paragraphText, prompt, accessToken);
 
 			reflectionsPromise
 				.then(newReflections => {

@@ -20,6 +20,7 @@ import Chat from '../chat';
 import Draft from '../draft';
 import { wordEditorAPI } from '@/api/wordEditorAPI';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
+import { AccessTokenProvider, useAccessToken } from '@/contexts/accessTokenContext';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
@@ -64,6 +65,7 @@ function AppInner({ editorAPI }: HomeProps) {
 	const { isLoading, error, isAuthenticated, user } = auth0Client;
 	const [width, _height] = useWindowSize();
 	const { page } = useContext(PageContext);
+	const { consentNeeded, doConsent, loginNeeded, refreshAccessToken } = useAccessToken();
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
 		return localStorage.getItem('hasCompletedOnboarding') === 'true';
 	});
@@ -245,6 +247,28 @@ function AppInner({ editorAPI }: HomeProps) {
 						User: { user!.name }
 					</div>
 				</div>
+				{ consentNeeded && (
+					/* NOTE: this codepath is not tested yet */
+					<button
+						className={ classes.consentButton }
+						onClick={ async () => {
+							await doConsent();
+						}}
+					>
+						Allow Access
+					</button>
+				) }
+				{ loginNeeded && (
+					<button
+						className={ classes.consentButton }
+						onClick={ async () => {
+							await editorAPI.doLogin(auth0Client);
+							await refreshAccessToken();
+						}}
+					>
+						Log in again
+					</button>
+				) }
 				<button
 					className={ classes.logoutButton }
 					onClick={ () => {
@@ -269,20 +293,23 @@ export default function App({ editorAPI }: HomeProps) {
 		<ChatContextWrapper>
 			<UserContextWrapper>
 				<PageContextWrapper>
-				<Auth0Provider
-						domain={ process.env.AUTH0_DOMAIN! }
-						clientId={ process.env.AUTH0_CLIENT_ID! }
-						cacheLocation="localstorage"
-						useRefreshTokens={ true }
-						authorizationParams= { {
-							// eslint-disable-next-line camelcase
-							redirect_uri: `${window.location.origin}/popup.html`,
-							scope: 'openid profile email read:posts',
-							audience: 'textfocals.com',
-							leeway: 10
-						} }
-					>		<AppInner editorAPI={ editorAPI } />
-				</Auth0Provider>
+						<Auth0Provider
+							domain={ process.env.AUTH0_DOMAIN! }
+							clientId={ process.env.AUTH0_CLIENT_ID! }
+							cacheLocation="localstorage"
+							useRefreshTokens={ true }
+							authorizationParams= { {
+								// eslint-disable-next-line camelcase
+								redirect_uri: `${window.location.origin}/popup.html`,
+								scope: 'openid profile email read:posts',
+								audience: 'textfocals.com',
+								leeway: 10
+							} }
+						>
+							<AccessTokenProvider>
+								<AppInner editorAPI={ editorAPI } />
+							</AccessTokenProvider>
+						</Auth0Provider>
 				</PageContextWrapper>
 			</UserContextWrapper>
 		</ChatContextWrapper>

@@ -12,6 +12,7 @@ import { getReflection } from '@/api';
 import { useAuth0 } from '@auth0/auth0-react';
 
 import classes from './styles.module.css';
+import { useAccessToken } from '@/contexts/accessTokenContext';
 
 export default function SearchBar() {
 	const { username } = useContext(UserContext);
@@ -21,6 +22,9 @@ export default function SearchBar() {
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [curParagraphText, updateCurParagraphText] = useState('');
 
+		const { accessToken, refreshAccessToken } = useAccessToken();
+	
+		
 	const [reflections, updateReflections] = useState<
 		Map<
 			string,
@@ -113,7 +117,7 @@ export default function SearchBar() {
 		const suggestionPrompt = `Write one concise and brief prompt to ask a companion for various points about a piece of academic writing that may warrant reconsideration. The prompt might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer${rhetCtxt ? rhetCtxtDirections : '\n'}.`;
 
 		const suggestionsPromise: Promise<ReflectionResponseItem[]> =
-			getReflection(username, paragraphText, suggestionPrompt, getAccessTokenSilently);
+			getReflection(username, paragraphText, suggestionPrompt, accessToken);
 
 			suggestionsPromise
 				.then(newPrompts => {
@@ -162,7 +166,7 @@ export default function SearchBar() {
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflection(username, paragraphText, prompt, getAccessTokenSilently);
+				getReflection(username, paragraphText, prompt, accessToken);
 
 			reflectionsPromise
 				.then(newReflections => {
