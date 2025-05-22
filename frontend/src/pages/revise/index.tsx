@@ -4,19 +4,18 @@ import {
 	defaultPrompt,
 	PromptButtonSelector
 } from '@/components/promptButtonSelector';
-import { useAuth0 } from '@auth0/auth0-react';
 import { UserContext } from '@/contexts/userContext';
 import { getReflection } from '@/api';
 import classes from './styles.module.css';
 import { getCurParagraph } from '@/utilities/selectionUtil';
 import { useDocContext } from '@/utilities';
-
+import { useAccessToken } from '@/contexts/authTokenContext';
 
 export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 	const { username } = useContext(UserContext);
 	const docContext = useDocContext(editorAPI);
 	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
-	const { getAccessTokenSilently } = useAuth0();
+	const { getAccessToken, reportAuthError } = useAccessToken();
 
 
 	const [reflections, updateReflections] = useState<
@@ -59,7 +58,7 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflection(username, paragraphText, prompt, getAccessTokenSilently);
+				getReflection(username, paragraphText, prompt, getAccessToken);
 
 			reflectionsPromise
 				.then(newReflections => {
@@ -68,6 +67,9 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 				})
 				.catch(_error => {
 					reflections.delete(cacheKey);
+					if (false /* error has something to do with auth */) {
+						reportAuthError(_error);
+					}
 				});
 
 			reflections.set(cacheKey, reflectionsPromise);

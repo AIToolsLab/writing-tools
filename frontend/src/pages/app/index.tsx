@@ -20,6 +20,7 @@ import Chat from '../chat';
 import Draft from '../draft';
 import { wordEditorAPI } from '@/api/wordEditorAPI';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
+import { AccessTokenProvider, useAccessToken } from '@/contexts/authTokenContext';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
@@ -67,6 +68,7 @@ function AppInner({ editorAPI }: HomeProps) {
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
 		return localStorage.getItem('hasCompletedOnboarding') === 'true';
 	});
+	const { authErrorType } = useAccessToken();
 
 
 	usePingServer();
@@ -245,6 +247,14 @@ function AppInner({ editorAPI }: HomeProps) {
 						User: { user!.name }
 					</div>
 				</div>
+				{ authErrorType !== null && (
+					<button
+					  onClick={ async () => {
+						// do login again
+						await editorAPI.doLogin(auth0Client);
+					  } }
+					  >Reauthorize</button>
+				) }
 				<button
 					className={ classes.logoutButton }
 					onClick={ () => {
@@ -281,7 +291,10 @@ export default function App({ editorAPI }: HomeProps) {
 							audience: 'textfocals.com',
 							leeway: 10
 						} }
-					>		<AppInner editorAPI={ editorAPI } />
+					>
+						<AccessTokenProvider>
+							<AppInner editorAPI={ editorAPI } />
+						</AccessTokenProvider>
 				</Auth0Provider>
 				</PageContextWrapper>
 			</UserContextWrapper>
