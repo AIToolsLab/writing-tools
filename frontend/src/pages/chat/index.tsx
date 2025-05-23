@@ -151,12 +151,12 @@ export default function Chat() {
 	return (
 		<div className={ classes.container }>
 			<div className={ classes.messageContainer }>
-				{ messagesWithCurDocContext.map((message, index) => (
+				{ messagesWithCurDocContext.slice(2).map((message, index) => (
 					<ChatMessage
-						key={ index }
+						key={ index + 2 }
 						role={ message.role }
 						content={ message.content }
-						index={ index }
+						index={ index + 2}
 						refresh={ regenMessage }
 						deleteMessage={ () => {} }
 						convertToComment={ () => {} }
