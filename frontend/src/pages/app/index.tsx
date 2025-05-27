@@ -6,8 +6,10 @@ import { useWindowSize } from '@react-hook/window-size/throttled';
 
 import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
 
-import PageContextWrapper, { PageName, PageContext } from '@/contexts/pageContext';
-import UserContextWrapper from '@/contexts/userContext';
+import PageContextWrapper, {
+	PageName,
+	PageContext
+} from '@/contexts/pageContext';
 import ChatContextWrapper from '@/contexts/chatContext';
 import EditorContextWrapper from '@/contexts/editorContext';
 
@@ -21,14 +23,16 @@ import Chat from '../chat';
 import Draft from '../draft';
 import { wordEditorAPI } from '@/api/wordEditorAPI';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
-import { AccessTokenProvider, useAccessToken } from '@/contexts/authTokenContext';
+import {
+	AccessTokenProvider,
+	useAccessToken
+} from '@/contexts/authTokenContext';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
 }
 
 function usePingServer() {
-
 	const pingInterval = useRef<NodeJS.Timeout>();
 
 	// 2 minutes
@@ -39,13 +43,15 @@ function usePingServer() {
 			// eslint-disable-next-line no-console
 			console.log(`Pinging server at ${new Date().toISOString()}`);
 
-			pingServer().then(() => {
-				// eslint-disable-next-line no-console
-				console.log('Warming up server');
-			}).catch(error => {
-				// eslint-disable-next-line no-console
-				console.warn('Ping failed:', error);
-			});
+			pingServer()
+				.then(() => {
+					// eslint-disable-next-line no-console
+					console.log('Warming up server');
+				})
+				.catch(error => {
+					// eslint-disable-next-line no-console
+					console.warn('Ping failed:', error);
+				});
 		}
 
 		// First ping the server immediately
@@ -71,7 +77,6 @@ function AppInner({ editorAPI }: HomeProps) {
 	});
 	const { authErrorType } = useAccessToken();
 
-
 	usePingServer();
 
 	// Detect if the user is using the latest version of Office
@@ -89,7 +94,7 @@ function AppInner({ editorAPI }: HomeProps) {
       */
 			return false;
 		}
-		else if (navigator.userAgent.indexOf('Edge') !== -1) {
+ else if (navigator.userAgent.indexOf('Edge') !== -1) {
 			/*
 				EdgeHTML is the browser in use. Do one of the following:
         1. Provide an alternate add-in experience that's supported in EdgeHTML (Microsoft Edge Legacy).
@@ -100,7 +105,7 @@ function AppInner({ editorAPI }: HomeProps) {
       */
 			return false;
 		}
-		else {
+ else {
 			/*
         A webview other than Trident or EdgeHTML is in use.
         Provide a full-featured version of the add-in here.
@@ -109,27 +114,29 @@ function AppInner({ editorAPI }: HomeProps) {
 		}
 	}
 
-	if (isLoading) return (
-		<div className={ classes.loadingContainer }>
-			<div>Waiting for authentication</div>
-			<div className={ classes.spinnerWrapper }>
-				<div className={ classes.loader }></div>
+	if (isLoading)
+		return (
+			<div className={ classes.loadingContainer }>
+				<div>Waiting for authentication</div>
+				<div className={ classes.spinnerWrapper }>
+					<div className={ classes.loader }></div>
+				</div>
 			</div>
-		</div>
-	);
-	if (error) return (
-		<div className={ classes.container }>
-			<p>Oops... { error.message }</p>
-			<button
-				className={ classes.logoutButton }
-				onClick={ () => {
-				window.location.reload();
-				} }
-			>
-				Reload
-			</button>
-		</div>
-	);
+		);
+	if (error)
+		return (
+			<div className={ classes.container }>
+				<p>Oops... { error.message }</p>
+				<button
+					className={ classes.logoutButton }
+					onClick={ () => {
+						window.location.reload();
+					} }
+				>
+					Reload
+				</button>
+			</div>
+		);
 
 	if (!isAuthenticated || !user) {
 		return (
@@ -138,7 +145,10 @@ function AppInner({ editorAPI }: HomeProps) {
 					<OnboardingCarousel
 						onComplete={ () => {
 							setHasCompletedOnboarding(true);
-							localStorage.setItem('hasCompletedOnboarding', 'true');
+							localStorage.setItem(
+								'hasCompletedOnboarding',
+								'true'
+							);
 						} }
 					/>
 				) : (
@@ -154,17 +164,23 @@ function AppInner({ editorAPI }: HomeProps) {
 						</button>
 
 						<div className={ classes.loginInfoContainer }>
-							<p><strong>Note</strong>: the reason for Login is because it is a closed trial of study for now</p>
+							<p>
+								<strong>Note</strong>: the reason for Login is
+								because it is a closed trial of study for now
+							</p>
 						</div>
 
 						<div className={ classes.signupBtnCtnr }>
 							Click
-							<a href="https://tinyurl.com/3dfrujnz" className={ classes.ibtn } target="_blank">
+							<a
+								href="https://tinyurl.com/3dfrujnz"
+								className={ classes.ibtn }
+								target="_blank"
+							>
 								here
 							</a>
 							to sign up for the study if interested.
 						</div>
-
 
 						<hr />
 
@@ -175,13 +191,27 @@ function AppInner({ editorAPI }: HomeProps) {
 							<CgFacebook className={ classes.authProviderIcon } />
 						</div>
 
-						<div className={ classes.widthAlert } style={ { visibility: width < 400 ? 'visible' : 'hidden' } }>
-							For best experience please expand the sidebar by dragging the splitter.
+						<div
+							className={ classes.widthAlert }
+							style={ {
+								visibility: width < 400 ? 'visible' : 'hidden'
+							} }
+						>
+							For best experience please expand the sidebar by
+							dragging the splitter.
 						</div>
 
-						<div className={ classes.versionAlert } style={ { visibility: !isOfficeLatest() ? 'visible' : 'hidden' } }>
-							This add-in may not run correctly in your version of Office. Please upgrade either to
-							perpetual Office 2021 (or later) or to a Microsoft 365 account.
+						<div
+							className={ classes.versionAlert }
+							style={ {
+								visibility: !isOfficeLatest()
+									? 'visible'
+									: 'hidden'
+							} }
+						>
+							This add-in may not run correctly in your version of
+							Office. Please upgrade either to perpetual Office
+							2021 (or later) or to a Microsoft 365 account.
 						</div>
 					</div>
 				) }
@@ -190,16 +220,29 @@ function AppInner({ editorAPI }: HomeProps) {
 	}
 
 	// For the beta, only allow Calvin email addresses and example test user
-	const isUserAllowed = user.email?.endsWith('@calvin.edu') || user.email === 'example-user@textfocals.com';
+	const isUserAllowed =
+		user.email?.endsWith('@calvin.edu') ||
+		user.email === 'example-user@textfocals.com';
 
 	if (!isUserAllowed) {
 		return (
 			<div className={ classes.notAllowedContainer }>
-				<p className={ classes.notAllowedTitle }>Sorry, you are not allowed to access this page.</p>
+				<p className={ classes.notAllowedTitle }>
+					Sorry, you are not allowed to access this page.
+				</p>
 				<hr />
-				<p>For the purpose of the beta study, we are limiting access to Calvin email addresses only.</p>
 				<p>
-					<a href="https://thoughtful-ai.com/" className={ classes.ibtn } target="_blank">Contact the developer</a>
+					For the purpose of the beta study, we are limiting access to
+					Calvin email addresses only.
+				</p>
+				<p>
+					<a
+						href="https://thoughtful-ai.com/"
+						className={ classes.ibtn }
+						target="_blank"
+					>
+						Contact the developer
+					</a>
 					if you are interested in participating in the study.
 				</p>
 				<hr />
@@ -231,7 +274,6 @@ function AppInner({ editorAPI }: HomeProps) {
 		return null;
 	}
 
-
 	return (
 		<Layout>
 			<div className={ classes.container }>
@@ -250,27 +292,29 @@ function AppInner({ editorAPI }: HomeProps) {
 				</div>
 				{ authErrorType !== null && (
 					<button
-					  className={ classes.logoutButton }
-					  onClick={ async () => {
-						// do login again
-						await editorAPI.doLogin(auth0Client);
-					  } }
-					  >Reauthorize</button>
+						className={ classes.logoutButton }
+						onClick={ async () => {
+							// do login again
+							await editorAPI.doLogin(auth0Client);
+						} }
+					>
+						Reauthorize
+					</button>
 				) }
 				<button
 					className={ classes.logoutButton }
 					onClick={ () => {
-					// eslint-disable-next-line no-console
-					console.log('origin', window.location.origin);
-					editorAPI.doLogout(auth0Client);
-				} }
+						// eslint-disable-next-line no-console
+						console.log('origin', window.location.origin);
+						editorAPI.doLogout(auth0Client);
+					} }
 				>
 					LogOut
 				</button>
 			</div>
 			{ getComponent(page) }
 		</Layout>
-		);
+	);
 }
 
 export default function App({ editorAPI }: HomeProps) {
@@ -279,29 +323,27 @@ export default function App({ editorAPI }: HomeProps) {
 	}
 	return (
 		<ChatContextWrapper>
-			<UserContextWrapper>
-				<PageContextWrapper>
-					<EditorContextWrapper editorAPI={ editorAPI }>
-						<Auth0Provider
-							domain={ process.env.AUTH0_DOMAIN! }
-							clientId={ process.env.AUTH0_CLIENT_ID! }
-							cacheLocation="localstorage"
-							useRefreshTokens={ true }
-							authorizationParams= { {
-								// eslint-disable-next-line camelcase
-								redirect_uri: `${window.location.origin}/popup.html`,
-								scope: 'openid profile email read:posts',
-								audience: 'textfocals.com',
-								leeway: 10
-							} }
-						>
-							<AccessTokenProvider>
+			<PageContextWrapper>
+				<EditorContextWrapper editorAPI={ editorAPI }>
+					<Auth0Provider
+						domain={ process.env.AUTH0_DOMAIN! }
+						clientId={ process.env.AUTH0_CLIENT_ID! }
+						cacheLocation="localstorage"
+						useRefreshTokens={ true }
+						authorizationParams={ {
+							// eslint-disable-next-line camelcase
+							redirect_uri: `${window.location.origin}/popup.html`,
+							scope: 'openid profile email read:posts',
+							audience: 'textfocals.com',
+							leeway: 10
+						} }
+					>
+						<AccessTokenProvider>
 							<AppInner editorAPI={ editorAPI } />
-							</AccessTokenProvider>
-						</Auth0Provider>
-					</EditorContextWrapper>
-				</PageContextWrapper>
-			</UserContextWrapper>
+						</AccessTokenProvider>
+					</Auth0Provider>
+				</EditorContextWrapper>
+			</PageContextWrapper>
 		</ChatContextWrapper>
 	);
 }
