@@ -156,7 +156,7 @@ export default function Chat() {
 						key={ index + 2 }
 						role={ message.role }
 						content={ message.content }
-						index={ index + 2}
+						index={ index + 2 }
 						refresh={ regenMessage }
 						deleteMessage={ () => {} }
 						convertToComment={ () => {} }
