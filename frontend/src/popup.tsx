@@ -1,62 +1,70 @@
-Office.onReady(() => {
-	// From https://github.com/OfficeDev/Office-Add-in-Auth0/blob/master/Scripts/popup.js
-	// and https://github.com/OfficeDev/Office-Add-in-Auth0/blob/master/Scripts/popupRedirect.js
-	// (kca simplified this to just use a single page)
-	const DEBUG = false;
-	const searchParams = new URLSearchParams(window.location.search);
-  const auth0Domain = process.env.AUTH0_DOMAIN;
-	const redirect = searchParams.get('redirect');
-  function constructValidatedURL(url: URL) {
-    if (url.hostname !== auth0Domain) {
-      return null;
+import { AuthorizationServiceConfiguration, RedirectRequestHandler, AuthorizationRequest, BaseTokenRequestHandler, TokenRequest, GRANT_TYPE_AUTHORIZATION_CODE, FetchRequestor } from '@openid/appauth';
+
+const googleAuthConfig = JSON.parse(process.env.GOOGLE_AUTH_CONFIG || '{}');
+if (!googleAuthConfig.clientId) {
+	document.body.innerText = 'Google Auth client ID is not configured.';
+}
+
+
+const GOOGLE_CLIENT_ID = googleAuthConfig.client_id;
+const REDIRECT_URI = window.location.origin + '/popup.html';
+const SCOPE = 'openid email profile';
+
+async function runPKCEFlow() {
+  // 1. Discover endpoints (or hardcode as below)
+  const serviceConfig = new AuthorizationServiceConfiguration({
+    authorization_endpoint: googleAuthConfig.auth_uri,
+    token_endpoint: googleAuthConfig.token_uri,
+  });
+
+  // 2. Handle redirect back from Google
+  const requestHandler = new RedirectRequestHandler(new LocalStorageBackend(), window.location, new DefaultCrypto());
+  const tokenHandler = new BaseTokenRequestHandler(new FetchRequestor());
+
+  // If this is the redirect back from Google, complete the flow
+  const request = await requestHandler.completeAuthorizationRequestIfPossible();
+  if (request) {
+    // Exchange code for tokens
+    const tokenRequest = new TokenRequest({
+      client_id: GOOGLE_CLIENT_ID,
+      redirect_uri: REDIRECT_URI,
+      grant_type: GRANT_TYPE_AUTHORIZATION_CODE,
+      code: request.code,
+      extras: { code_verifier: request.internal.code_verifier }
+    });
+
+    try {
+      const tokenResponse = await tokenHandler.performTokenRequest(serviceConfig, tokenRequest);
+      // Send tokens to parent
+      Office.context.ui.messageParent(JSON.stringify({
+        status: 'success',
+        accessToken: tokenResponse.accessToken,
+        idToken: tokenResponse.idToken,
+      }));
     }
-    const validatedURL = new URL(`https://${auth0Domain}`);
-    if (url.pathname === '/authorize' || url.pathname === '/v2/logout') {
-      validatedURL.pathname = url.pathname;
-      validatedURL.search = url.search;
+	catch (err: any) {
+      Office.context.ui.messageParent(JSON.stringify({
+        status: 'error',
+        error: err.toString(),
+      }));
     }
-    return validatedURL;
+    return;
   }
-	if (redirect) {
-    const validatedURL = constructValidatedURL(new URL(redirect));
-    if (!validatedURL) {
-      document.body.innerText = `Invalid redirect URL: ${redirect}`;
-      return;
-    }
-		if (DEBUG) {
-			document.body.innerText = `Redirecting to ${validatedURL.href}`;
-		}
-		setTimeout(
-			() => {
-				window.location.href = validatedURL.href;
-			},
-			DEBUG ? 5000 : 0
-		);
-	}
- else {
-		// Note: this will also get called with `logout=true` in the logout flow, but
-		// the only thing we need to do here is message the parent to get the dialog to close,
-		// so it's fine to take the same action in both cases.
-		const message = {
-			status: 'success',
-			urlWithAuthInfo: window.location.href
-		};
-		if (DEBUG) {
-			document.body.innerText = `Messaging parent with ${JSON.stringify(
-				message
-			)}`;
-		}
-		setTimeout(
-			() => {
-				if (Office.context && Office.context.ui) {
-					Office.context.ui.messageParent(JSON.stringify(message));
-				}
-				else {
-					// eslint-disable-next-line no-console
-					console.error('Could not message parent: Office.context.ui is undefined');
-				}
-			},
-			DEBUG ? 5000 : 0
-		);
-	}
+
+  // 3. If not a redirect, start the auth flow
+  const authRequest = new AuthorizationRequest({
+    client_id: GOOGLE_CLIENT_ID,
+    redirect_uri: REDIRECT_URI,
+    scope: SCOPE,
+    response_type: AuthorizationRequest.RESPONSE_TYPE_CODE,
+    state: undefined,
+    extras: { prompt: 'select_account' }
+  }, new DefaultCrypto());
+
+  // This will redirect to Google, then back to this page
+  requestHandler.performAuthorizationRequest(serviceConfig, authRequest);
+}
+
+Office.onReady(() => {
+  runPKCEFlow();
 });

@@ -14,6 +14,24 @@ const urlProd = 'https://app.thoughtful-ai.com';
 const backendDev = 'http://0.0.0.0:8000/';
 const backendProd = 'https://textfocals.azurewebsites.net/';
 
+// Read oauth secret from file not using require directly to avoid bundling it
+const fs = require('fs');
+const oauthSecretFilePath = path.resolve(__dirname, 'oauth_secret.json');
+let oauthSecretFromFile;
+try {
+	oauthSecretFromFile = JSON.parse(fs.readFileSync(oauthSecretFilePath, 'utf8'));
+} catch (error) {
+	console.error('Error reading oauth-secret.json:', error);
+	throw new Error('Failed to load OAuth secret. Please ensure oauth-secret.json exists and is valid.');
+}
+
+// Expose only the client_id, auth_uri, and token_uri fields
+const oauthSecret = {
+	client_id: oauthSecretFromFile.client_id,
+	auth_uri: oauthSecretFromFile.auth_uri,
+	token_uri: oauthSecretFromFile.token_uri
+};
+
 async function getHttpsOptions() {
 	const httpsOptions = await devCerts.getHttpsServerOptions();
 	return {
@@ -149,7 +167,8 @@ module.exports = async (env, options) => {
 			}),
 			new webpack.DefinePlugin({
 				'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
-				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr')
+				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
+				'process.env.GOOGLE_AUTH_CONFIG': JSON.stringify(oauthSecret)
 			})
 		],
 		devServer: {
