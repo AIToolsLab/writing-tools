@@ -51,3 +51,5 @@ node_modules/
 # Azurite
 __azurite_*
 
+
+oauth_secret.json
