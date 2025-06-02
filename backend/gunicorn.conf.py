@@ -1,4 +1,4 @@
-bind = "127.0.0.1:5000"
+bind = "0.0.0.0:5000"
 worker_class = "uvicorn.workers.UvicornWorker"
 wsgi_app = "server:app"
 # We haven't tested with multiple workers (and probably not necessary anyway).
