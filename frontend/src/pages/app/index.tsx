@@ -19,7 +19,6 @@ import Revise from '../revise';
 import SearchBar from '../searchbar';
 import Chat from '../chat';
 import Draft from '../draft';
-import { wordEditorAPI } from '@/api/wordEditorAPI';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { AccessTokenProvider, useAccessToken } from '@/contexts/authTokenContext';
 
@@ -276,10 +275,6 @@ function AppInner({ editorAPI, demoMode }: HomeProps) {
 }
 
 export default function App({ editorAPI, demoMode }: HomeProps) {
-	if (!editorAPI) {
-		editorAPI = wordEditorAPI;
-	}
-
 	// If demo mode is enabled, we use a mock access token provider
 	const AccessTokenProvider = demoMode
 		? DemoAccessTokenProviderWrapper
@@ -295,6 +290,7 @@ export default function App({ editorAPI, demoMode }: HomeProps) {
 							clientId={ process.env.AUTH0_CLIENT_ID! }
 							cacheLocation="localstorage"
 							useRefreshTokens={ true }
+							useRefreshTokensFallback={ true }
 							authorizationParams= { {
 								// eslint-disable-next-line camelcase
 								redirect_uri: `${window.location.origin}/popup.html`,
