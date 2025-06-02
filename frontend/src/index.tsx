@@ -10,7 +10,7 @@ let isOfficeInitialized = false;
 const render = (Component: React.ComponentType<HomeProps>) => {
 	ReactDOM.render(
 		isOfficeInitialized ? (
-			<Component editorAPI={ wordEditorAPI } />
+			<Component editorAPI={ wordEditorAPI } demoMode={ false } />
 		) : (
 			<section className="ms-welcome__progress ms-u-fadeIn500">
 				<p>Please sideload your add-in to see app body.</p>
