@@ -283,6 +283,7 @@ export default function App({ editorAPI }: HomeProps) {
 							clientId={ process.env.AUTH0_CLIENT_ID! }
 							cacheLocation="localstorage"
 							useRefreshTokens={ true }
+							useRefreshTokensFallback={ true }
 							authorizationParams= { {
 								// eslint-disable-next-line camelcase
 								redirect_uri: `${window.location.origin}/popup.html`,
