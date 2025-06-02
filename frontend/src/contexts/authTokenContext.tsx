@@ -1,4 +1,3 @@
-import { useAuth0 } from '@auth0/auth0-react';
 import { createContext, useContext, useState } from 'react';
 
 interface AccessTokenContextType {
@@ -23,11 +22,13 @@ const AccessTokenContext = createContext<AccessTokenContextType>({
   authErrorType: null,
 });
 
-export function AccessTokenProvider({ children }: { children: React.ReactNode }) {
-  const {
-    getAccessTokenSilently,
-  } = useAuth0();
 
+interface AccessTokenProviderProps {
+  children: React.ReactNode;
+  getAccessTokenSilently: () => Promise<string>;
+}
+
+export function AccessTokenProvider({ children, getAccessTokenSilently }: AccessTokenProviderProps) {
   const [authErrorType, setAuthErrorType] = useState<string | null>(null);
 
   return (
