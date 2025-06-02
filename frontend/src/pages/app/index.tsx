@@ -19,7 +19,6 @@ import Revise from '../revise';
 import SearchBar from '../searchbar';
 import Chat from '../chat';
 import Draft from '../draft';
-import { wordEditorAPI } from '@/api/wordEditorAPI';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { AccessTokenProvider, useAccessToken } from '@/contexts/authTokenContext';
 
@@ -274,9 +273,6 @@ function AppInner({ editorAPI }: HomeProps) {
 }
 
 export default function App({ editorAPI }: HomeProps) {
-	if (!editorAPI) {
-		editorAPI = wordEditorAPI;
-	}
 	return (
 		<ChatContextWrapper>
 			<UserContextWrapper>
