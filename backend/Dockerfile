@@ -20,5 +20,4 @@ WORKDIR /app/backend
 EXPOSE 5000
 
 # run the server
-# TODO: where do the log entries end up? Perhaps stop redirecting logs to files?
 CMD ["uv", "run", "gunicorn"]
