@@ -11,9 +11,9 @@ interface EditorProps {
   wordLimit?: number | null;
 }
 
-function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
+function Sidebar({ editorAPI, demoMode }: { editorAPI: EditorAPI, demoMode: boolean }) {
 	return (
-		<SidebarInner.default editorAPI={ editorAPI }/>
+		<SidebarInner.default editorAPI={ editorAPI } demoMode={ demoMode } />
 	);
 }
 
@@ -151,7 +151,7 @@ function App(props: EditorProps) {
 			</div>
 
 			<div className={ isDemo ? classes.demosidebar : classes.sidebar }>
-				<Sidebar editorAPI={ editorAPI } />
+				<Sidebar editorAPI={ editorAPI } demoMode={ isDemo } />
 			</div>
 		</div>
 	);
