@@ -149,7 +149,7 @@ export default function Chat() {
 	}
 
 	return (
-		<div className={ classes.container }>
+		<div className="m-2 flex flex-col gap-4">
 			<div className={ classes.messageContainer }>
 				{ messagesWithCurDocContext.slice(2).map((message, index) => (
 					<ChatMessage
