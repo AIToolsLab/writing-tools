@@ -19,12 +19,12 @@ import Revise from '../revise';
 import SearchBar from '../searchbar';
 import Chat from '../chat';
 import Draft from '../draft';
-import { wordEditorAPI } from '@/api/wordEditorAPI';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { AccessTokenProvider, useAccessToken } from '@/contexts/authTokenContext';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
+	demoMode: boolean;
 }
 
 function usePingServer() {
@@ -61,7 +61,7 @@ function usePingServer() {
 	}, []);
 }
 
-function AppInner({ editorAPI }: HomeProps) {
+function AppInner({ editorAPI, demoMode }: HomeProps) {
 	const auth0Client = useAuth0();
 	const { isLoading, error, isAuthenticated, user } = auth0Client;
 	const [width, _height] = useWindowSize();
@@ -70,7 +70,6 @@ function AppInner({ editorAPI }: HomeProps) {
 		return localStorage.getItem('hasCompletedOnboarding') === 'true';
 	});
 	const { authErrorType } = useAccessToken();
-
 
 	usePingServer();
 
@@ -131,7 +130,7 @@ function AppInner({ editorAPI }: HomeProps) {
 		</div>
 	);
 
-	if (!isAuthenticated || !user) {
+	if (!demoMode && (!isAuthenticated || !user)) {
 		return (
 			<div>
 				{ !hasCompletedOnboarding ? (
@@ -190,9 +189,9 @@ function AppInner({ editorAPI }: HomeProps) {
 	}
 
 	// For the beta, only allow Calvin email addresses and example test user
-	const isUserAllowed = user.email?.endsWith('@calvin.edu') || user.email === 'example-user@textfocals.com';
+	const isUserAllowed = demoMode || user?.email?.endsWith('@calvin.edu') || user?.email === 'example-user@textfocals.com';
 
-	if (!isUserAllowed) {
+	if (!demoMode && !isUserAllowed) {
 		return (
 			<div className={ classes.notAllowedContainer }>
 				<p className={ classes.notAllowedTitle }>Sorry, you are not allowed to access this page.</p>
@@ -234,6 +233,7 @@ function AppInner({ editorAPI }: HomeProps) {
 
 	return (
 		<Layout>
+			{ user && (
 			<div className={ classes.container }>
 				<div className={ classes.profileContainer }>
 					<div className={ classes.profilePicContainer }>
@@ -268,15 +268,18 @@ function AppInner({ editorAPI }: HomeProps) {
 					LogOut
 				</button>
 			</div>
+		) }
 			{ getComponent(page) }
 		</Layout>
 		);
 }
 
-export default function App({ editorAPI }: HomeProps) {
-	if (!editorAPI) {
-		editorAPI = wordEditorAPI;
-	}
+export default function App({ editorAPI, demoMode }: HomeProps) {
+	// If demo mode is enabled, we use a mock access token provider
+	const AccessTokenProvider = demoMode
+		? DemoAccessTokenProviderWrapper
+		: Auth0AccessTokenProviderWrapper;
+
 	return (
 		<ChatContextWrapper>
 			<UserContextWrapper>
@@ -287,6 +290,7 @@ export default function App({ editorAPI }: HomeProps) {
 							clientId={ process.env.AUTH0_CLIENT_ID! }
 							cacheLocation="localstorage"
 							useRefreshTokens={ true }
+							useRefreshTokensFallback={ true }
 							authorizationParams= { {
 								// eslint-disable-next-line camelcase
 								redirect_uri: `${window.location.origin}/popup.html`,
@@ -296,12 +300,33 @@ export default function App({ editorAPI }: HomeProps) {
 							} }
 						>
 							<AccessTokenProvider>
-							<AppInner editorAPI={ editorAPI } />
+								<AppInner editorAPI={ editorAPI } demoMode={ demoMode } />
 							</AccessTokenProvider>
 						</Auth0Provider>
 					</EditorContextWrapper>
 				</PageContextWrapper>
 			</UserContextWrapper>
 		</ChatContextWrapper>
+	);
+}
+
+function DemoAccessTokenProviderWrapper({ children }: { children: React.ReactNode }) {
+	const getAccessTokenSilently = async () => {
+		// Simulate a token retrieval for demo purposes
+		return 'demo-access-token';
+	};
+	return (
+		<AccessTokenProvider getAccessTokenSilently={ getAccessTokenSilently }>
+			{ children }
+		</AccessTokenProvider>
+	);
+}
+
+function Auth0AccessTokenProviderWrapper({ children }: { children: React.ReactNode }) {
+	const { getAccessTokenSilently } = useAuth0();
+	return (
+		<AccessTokenProvider getAccessTokenSilently={ getAccessTokenSilently }>
+			{ children }
+		</AccessTokenProvider>
 	);
 }
