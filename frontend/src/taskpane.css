@@ -6,3 +6,7 @@ body {
 	padding: 0;
 	background: white;
 }
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
