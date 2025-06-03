@@ -182,7 +182,7 @@ export default function Chat() {
 				className={ classes.sendMessage }
 				onSubmit={ sendMessage }
 			>
-				<label className={ classes.label }>
+				<label className= "flex items-center border border-gray-500 justify-between p-[10px]">
 					<textarea
 						disabled={ isSendingMessage }
 						placeholder="Send a message"
@@ -192,10 +192,11 @@ export default function Chat() {
 								(e.target as HTMLTextAreaElement).value
 							)
 						}
-						className={ classes.messageInput }
+						className="w-9/1 outline-none border-none resize-none h-[100px]"
 					/>
 
-					<button type="submit">
+					<button type="submit"
+						className="bg-transparent cursor-pointer border border-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white">
 						<AiOutlineSend />
 					</button>
 				</label>
@@ -203,7 +204,7 @@ export default function Chat() {
 
 			<button
 				onClick={ () => updateChatMessages([]) }
-				className={ classes.clearChat }
+				className="bg-transparent cursor-pointer border boder-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
 			>
 				Clear Chat
 			</button>
