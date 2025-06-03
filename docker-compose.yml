@@ -20,6 +20,8 @@ services:
     environment:
       - PORT=5000
       - DEBUG=False
+    volumes:
+      - ./backend/logs:/app/logs
 
 networks:
   default:
