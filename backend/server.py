@@ -1,4 +1,3 @@
-from azure.data.tables import TableServiceClient
 from pydantic import BaseModel, Field, ConfigDict
 import os
 import json
@@ -21,9 +20,6 @@ from pydantic import BaseModel, ConfigDict
 from dotenv import load_dotenv
 
 import nlp
-
-from azure.identity.aio import DefaultAzureCredential
-from azure.data.tables.aio import TableServiceClient
 
 import logging
 
@@ -262,41 +258,9 @@ def get_participant_log_filename(username):
     return LOG_PATH / f"{username}.jsonl"
 
 
-# Function to make a log entry in Azure Table Storage
 async def make_log(payload: Log):
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    start_time = datetime.now()
-    """Store the log our Azure Table."""
-
-    credential = DefaultAzureCredential()
-    if credential is None:# or not await credential.get_token("https://storage.azure.com/.default"):
-        raise ValueError("Failed to obtain Azure credentials. Please check your environment.")
-    async with TableServiceClient(
-        endpoint="https://textfocalsb6ab.table.core.windows.net/", credential=credential) as table_service:
-
-        try:
-            table_client = table_service.get_table_client("AppLogs")
-            # use timestamp and a uuid as a row key
-            import uuid
-            row_key = f"{payload.timestamp}_{uuid.uuid4()}"
-
-            entity = payload.model_dump()
-            # Convert unsupported types to supported ones
-            for key, value in entity.items():
-                if isinstance(value, dict):
-                    entity[key] = json.dumps(value)
-                elif isinstance(value, list):
-                    entity[key] = json.dumps(value)
-
-            await table_client.create_entity(entity=dict(
-                entity, PartitionKey=payload.username, RowKey=row_key))
-            
-            end_time = datetime.now()
-            log = end_time - start_time
-            logger.info(f"make_log() operation took: {log.total_seconds()} seconds")
-        except Exception as e:
-            print(f"Error logging to Azure Table: {e}")
+    with open(get_participant_log_filename(payload.username), "a+") as f:
+        f.write(json.dumps(payload.model_dump()) + "\n")
             
 
 static_path = Path("../frontend/dist")
