@@ -86,14 +86,41 @@ module.exports = async (env, options) => {
 						filename: 'assets/[name][ext][query]'
 					}
 				},
+				// CSS Modules: only for *.module.css
 				{
-					test: /\.css$/,
+					test: /\.module\.css$/,
+					exclude: /node_modules/,
 					use: [
 						{
 							loader: 'style-loader'
 						},
 						{
-							loader: 'css-loader'
+							loader: 'css-loader',
+							options: {
+								modules: true
+							}
+						},
+						{
+							loader: 'postcss-loader',
+						}
+					]
+				},
+				// Global CSS (including Tailwind): all other .css files
+				{
+					test: /(?<!\.module)\.css$/,
+					exclude: /node_modules/,
+					use: [
+						{
+							loader: 'style-loader'
+						},
+						{
+							loader: 'css-loader',
+							options: {
+								modules: false
+							}
+						},
+						{
+							loader: 'postcss-loader',
 						}
 					]
 				}
