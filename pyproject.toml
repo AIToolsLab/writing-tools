@@ -34,5 +34,4 @@ gpu = [
 ]
 dev = [
     "ipython>=8.32.0",
-    "marimo>=0.10.6",
 ]
