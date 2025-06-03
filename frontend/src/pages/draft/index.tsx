@@ -18,6 +18,7 @@ import classes from './styles.module.css';
 import SavedGenerations from './savedGenerations';
 import { getBefore } from '@/utilities/selectionUtil';
 import { useDocContext } from '@/utilities';
+import { useAccessToken } from '@/contexts/authTokenContext';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
@@ -49,6 +50,7 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
 	const { username } = useContext(UserContext);
+	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
 	const [genCtxText, updateGenCtxText] = useState('');
 
 	const [isLoading, setIsLoading] = useState(false);
@@ -143,10 +145,12 @@ export default function Draft() {
 		setIsLoading(true);
 
 		try {
+			const token = await getAccessToken();
 			const response = await fetch(`${SERVER_URL}/generation`, {
 				method: 'POST',
 				headers: {
-					'Content-Type': 'application/json'
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${token}`
 				},
 				body: JSON.stringify({
 					username: username,
@@ -182,6 +186,7 @@ export default function Draft() {
 
 		setIsLoading(false);
 	}
+
 
 	// Temporarily select the text from the start to the cursor
 	async function _selectToCursor(duration: number = 1000): Promise<void> {
@@ -219,6 +224,13 @@ export default function Draft() {
     }
 	}
 
+	if (authErrorType !== null) {
+        return (
+            <div>
+							Please reauthorize.
+						</div>
+        );
+    }
 
 	let results = null;
 
