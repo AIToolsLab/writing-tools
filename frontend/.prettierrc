@@ -2,12 +2,13 @@
 	"useTabs": true,
 	"tabWidth": 4,
 	"printWidth": 80,
-	"trailingComma": "none",
+	"trailingComma": "all",
 	"bracketSpacing": true,
 	"bracketSameLine": false,
 	"arrowParens": "avoid",
 	"singleAttributePerLine": true,
 	"singleQuote": true,
 	"jsxSingleQuote": false,
-	"semi": true
+	"semi": true,
+	"requirePragma": true
 }
