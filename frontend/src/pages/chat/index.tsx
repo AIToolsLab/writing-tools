@@ -6,7 +6,6 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import ChatMessage from '@/components/chatMessage';
 
 import { ChatContext } from '@/contexts/chatContext';
-import { UserContext } from '@/contexts/userContext';
 import { EditorContext } from '@/contexts/editorContext';
 
 import { SERVER_URL } from '@/api';
@@ -15,7 +14,7 @@ import classes from './styles.module.css';
 
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
-	const { username } = useContext(UserContext);
+	const username = new URLSearchParams(window.location.search).get('username') || '';
 	const editorAPI = useContext(EditorContext);
 
 	/* Document Context (FIXME: make this a hook) */

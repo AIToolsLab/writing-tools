@@ -1,5 +1,4 @@
 import { useState, useContext, Fragment } from 'react';
-import { UserContext } from '@/contexts/userContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { Remark } from 'react-remark';
 import { FcCheckmark } from 'react-icons/fc';
@@ -48,7 +47,7 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
-	const { username } = useContext(UserContext);
+	const username = new URLSearchParams(window.location.search).get('username') || '';
 	const [genCtxText, updateGenCtxText] = useState('');
 
 	const [isLoading, setIsLoading] = useState(false);
