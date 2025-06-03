@@ -4,7 +4,6 @@ import {
 	defaultPrompt,
 	PromptButtonSelector
 } from '@/components/promptButtonSelector';
-import { UserContext } from '@/contexts/userContext';
 import { getReflection } from '@/api';
 import classes from './styles.module.css';
 import { getCurParagraph } from '@/utilities/selectionUtil';
@@ -14,11 +13,11 @@ import { useAccessToken } from '@/contexts/authTokenContext';
 
 export default function Revise() {
 	const editorAPI = useContext(EditorContext);
-	const { username } = useContext(UserContext);
+	const username =
+		new URLSearchParams(window.location.search).get('username') || '';
 	const docContext = useDocContext(editorAPI);
 	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
 	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
-
 
 	const [reflections, updateReflections] = useState<
 		Map<
@@ -28,7 +27,6 @@ export default function Revise() {
 	>(new Map());
 
 	const [prompt, updatePrompt] = useState(defaultPrompt);
-
 
 	/**
 	 * Retrieves the reflections associated with a given paragraph text and prompt synchronously.
@@ -77,8 +75,7 @@ export default function Revise() {
 
 			reflections.set(cacheKey, reflectionsPromise);
 			return [];
-		}
-		else if (cachedValue instanceof Promise) return [];
+		} else if (cachedValue instanceof Promise) return [];
 		else return cachedValue;
 	}
 
@@ -101,20 +98,15 @@ export default function Revise() {
 		);
 
 		if (cardDataList.length === 0 && authErrorType !== null) {
-			return (
-				<div>
-					No reflections available. Please reauthorize.
-				</div>
-			);
+			return <div>No reflections available. Please reauthorize.</div>;
 		}
 		return (
 			<ReflectionCards
-				cardDataList={ cardDataList }
-				isHighlighted={ false }
+				cardDataList={cardDataList}
+				isHighlighted={false}
 			/>
 		);
 	}
-
 
 	// Index of the currently selected paragraph
 	const selectedIndex = curParagraphIndex;
@@ -129,10 +121,10 @@ export default function Revise() {
 	}
 
 	return (
-		<div className={ classes.container }>
+		<div className={classes.container}>
 			<PromptButtonSelector
-				currentPrompt={ prompt }
-				updatePrompt={ updatePrompt }
+				currentPrompt={prompt}
+				updatePrompt={updatePrompt}
 			/>
 			{...reflectionCardsContainer}
 		</div>

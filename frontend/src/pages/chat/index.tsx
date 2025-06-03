@@ -6,7 +6,6 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import ChatMessage from '@/components/chatMessage';
 
 import { ChatContext } from '@/contexts/chatContext';
-import { UserContext } from '@/contexts/userContext';
 import { EditorContext } from '@/contexts/editorContext';
 
 import { SERVER_URL } from '@/api';
@@ -15,7 +14,8 @@ import classes from './styles.module.css';
 
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
-	const { username } = useContext(UserContext);
+	const username =
+		new URLSearchParams(window.location.search).get('username') || '';
 	const editorAPI = useContext(EditorContext);
 
 	/* Document Context (FIXME: make this a hook) */
@@ -35,11 +35,10 @@ export default function Chat() {
 		updateDocContext(newDocContext);
 	}
 
-	const docContextMessageContent = (
+	const docContextMessageContent =
 		docContext.selectedText === ''
 			? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
-			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`
-	);
+			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
 
 	let messagesWithCurDocContext = chatMessages;
 	if (chatMessages.length === 0) {
@@ -59,12 +58,15 @@ export default function Chat() {
 			role: 'assistant',
 			content: 'What do you think about your document so far?'
 		};
-		messagesWithCurDocContext = [systemMessage, docContextMessage, initialAssistantMessage];
+		messagesWithCurDocContext = [
+			systemMessage,
+			docContextMessage,
+			initialAssistantMessage
+		];
+	} else {
+		// Update the document context message with the current selection.
+		messagesWithCurDocContext[1].content = docContextMessageContent;
 	}
- 		else {
-			// Update the document context message with the current selection.
-			messagesWithCurDocContext[1].content = docContextMessageContent;
-		}
 	useEffect(() => {
 		updateChatMessages(messagesWithCurDocContext);
 	}, [messagesWithCurDocContext, updateChatMessages]);
@@ -77,7 +79,6 @@ export default function Chat() {
 			removeSelectionChangeHandler(handleSelectionChanged);
 		};
 	}, [addSelectionChangeHandler, removeSelectionChangeHandler]);
-
 
 	const [isSendingMessage, updateSendingMessage] = useState(false);
 
@@ -149,36 +150,36 @@ export default function Chat() {
 	}
 
 	return (
-		<div className={ classes.container }>
-			<div className={ classes.messageContainer }>
-				{ messagesWithCurDocContext.slice(2).map((message, index) => (
+		<div className={classes.container}>
+			<div className={classes.messageContainer}>
+				{messagesWithCurDocContext.slice(2).map((message, index) => (
 					<ChatMessage
-						key={ index + 2 }
-						role={ message.role }
-						content={ message.content }
-						index={ index + 2 }
-						refresh={ regenMessage }
-						deleteMessage={ () => {} }
-						convertToComment={ () => {} }
+						key={index + 2}
+						role={message.role}
+						content={message.content}
+						index={index + 2}
+						refresh={regenMessage}
+						deleteMessage={() => {}}
+						convertToComment={() => {}}
 					/>
-				)) }
+				))}
 			</div>
 
 			<form
-				className={ classes.sendMessage }
-				onSubmit={ sendMessage }
+				className={classes.sendMessage}
+				onSubmit={sendMessage}
 			>
-				<label className={ classes.label }>
+				<label className={classes.label}>
 					<textarea
-						disabled={ isSendingMessage }
+						disabled={isSendingMessage}
 						placeholder="Send a message"
-						value={ message }
-						onChange={ e =>
+						value={message}
+						onChange={e =>
 							updateMessage(
 								(e.target as HTMLTextAreaElement).value
 							)
 						}
-						className={ classes.messageInput }
+						className={classes.messageInput}
 					/>
 
 					<button type="submit">
@@ -188,8 +189,8 @@ export default function Chat() {
 			</form>
 
 			<button
-				onClick={ () => updateChatMessages([]) }
-				className={ classes.clearChat }
+				onClick={() => updateChatMessages([])}
+				className={classes.clearChat}
 			>
 				Clear Chat
 			</button>

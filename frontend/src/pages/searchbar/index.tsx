@@ -4,8 +4,6 @@ import { ReflectionCards } from '@/components/reflectionCard';
 import { SearchBox } from '@/components/searchBox';
 import { RhetoricalContextBox } from '@/components/rhetoricalContextBox';
 
-import { UserContext } from '@/contexts/userContext';
-
 import { getParagraphText } from '@/utilities';
 import { getReflection } from '@/api';
 
@@ -14,7 +12,8 @@ import { useAuth0 } from '@auth0/auth0-react';
 import classes from './styles.module.css';
 
 export default function SearchBar() {
-	const { username } = useContext(UserContext);
+	const username =
+		new URLSearchParams(window.location.search).get('username') || '';
 
 	const { getAccessTokenSilently } = useAuth0();
 
@@ -36,12 +35,13 @@ export default function SearchBar() {
 		'What further evidence or examples would you like to see to support the claims presented in this paragraph?',
 		'What outside the box questions do you have about this paragraph?',
 		'What questions do you have about this paragraph as a writer?',
-		'What questions do you have about this paragraph as a reader?',
+		'What questions do you have about this paragraph as a reader?'
 	];
 
 	const [submittedPrompt, updateSubmittedPrompt] = useState('');
 	const [rhetCtxt, updateRhetCtxt] = useState('');
-	const [suggestedPrompts, updateSuggestedPrompts] = useState<string[]>(defaultPrompts);
+	const [suggestedPrompts, updateSuggestedPrompts] =
+		useState<string[]>(defaultPrompts);
 
 	const rhetCtxtDirections = `, given the following rhetorical situation:\n${rhetCtxt}\n`;
 
@@ -99,9 +99,7 @@ export default function SearchBar() {
 	 * @param paragraphText - The text of the paragraph to generate prompts for.
 	 * @returns void
 	 */
-	function getSuggestions(
-		paragraphText: string,
-	): void {
+	function getSuggestions(paragraphText: string): void {
 		// eslint-disable-next-line no-console
 		// console.assert(
 		// 	typeof paragraphText === 'string' && paragraphText !== '',
@@ -113,20 +111,28 @@ export default function SearchBar() {
 		const suggestionPrompt = `Write one concise and brief prompt to ask a companion for various points about a piece of academic writing that may warrant reconsideration. The prompt might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer${rhetCtxt ? rhetCtxtDirections : '\n'}.`;
 
 		const suggestionsPromise: Promise<ReflectionResponseItem[]> =
-			getReflection(username, paragraphText, suggestionPrompt, getAccessTokenSilently);
+			getReflection(
+				username,
+				paragraphText,
+				suggestionPrompt,
+				getAccessTokenSilently
+			);
 
-			suggestionsPromise
-				.then(newPrompts => {
-						updateSuggestedPrompts(
-								// Prepend the suggestions to the list of hard-coded suggestions
-							[...newPrompts.map(prompt => prompt.reflection ), ...defaultPrompts]
-						);
-				})
-				.catch(error => {
-						// eslint-disable-next-line no-console
-						console.log(error);
-				});
-		}
+		suggestionsPromise
+			.then(newPrompts => {
+				updateSuggestedPrompts(
+					// Prepend the suggestions to the list of hard-coded suggestions
+					[
+						...newPrompts.map(prompt => prompt.reflection),
+						...defaultPrompts
+					]
+				);
+			})
+			.catch(error => {
+				// eslint-disable-next-line no-console
+				console.log(error);
+			});
+	}
 
 	/**
 	 * Retrieves the reflections associated with a given paragraph text and prompt synchronously.
@@ -155,14 +161,19 @@ export default function SearchBar() {
 		const cacheKey: string = JSON.stringify({ paragraphText, prompt });
 
 		// TODO: Fix typing error
-		const cachedValue: any
+		const cachedValue: any =
 			// | ReflectionResponseItem[]
 			// | Promise<ReflectionResponseItem[]>
-		= reflections.get(cacheKey);
+			reflections.get(cacheKey);
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflection(username, paragraphText, prompt, getAccessTokenSilently);
+				getReflection(
+					username,
+					paragraphText,
+					prompt,
+					getAccessTokenSilently
+				);
 
 			reflectionsPromise
 				.then(newReflections => {
@@ -175,8 +186,7 @@ export default function SearchBar() {
 
 			reflections.set(cacheKey, reflectionsPromise);
 			return [];
-		}
-		else if (cachedValue instanceof Promise) return [];
+		} else if (cachedValue instanceof Promise) return [];
 		else return cachedValue;
 	}
 
@@ -186,9 +196,7 @@ export default function SearchBar() {
 	 * @param {number} paragraphIndex - The index of the paragraph to create reflection cards for.
 	 * @returns {React.JSX.Element} - The created reflection cards as a JSX element.
 	 */
-	function createReflectionCards(
-		paragraphIndex: number,
-	): JSX.Element {
+	function createReflectionCards(paragraphIndex: number): JSX.Element {
 		const reflectionsForThisParagraph: ReflectionResponseItem[] =
 			getReflectionsSync(paragraphTexts[paragraphIndex], submittedPrompt);
 
@@ -201,8 +209,8 @@ export default function SearchBar() {
 
 		return (
 			<ReflectionCards
-				cardDataList={ cardDataList }
-				isHighlighted={ false }
+				cardDataList={cardDataList}
+				isHighlighted={false}
 			/>
 		);
 	}
@@ -238,20 +246,18 @@ export default function SearchBar() {
 	if (selectedIndex !== -1 && submittedPrompt !== '') {
 		// Check if the current paragraph is available
 		if (paragraphTexts[selectedIndex] !== '')
-			reflectionCardsContainer.push(
-				createReflectionCards(selectedIndex)
-			);
+			reflectionCardsContainer.push(createReflectionCards(selectedIndex));
 	}
 
 	return (
-		<div className={ classes.container }>
+		<div className={classes.container}>
 			<RhetoricalContextBox
-				curRhetCtxt={ rhetCtxt }
-				updateRhetCtxt={ updateRhetCtxt }
+				curRhetCtxt={rhetCtxt}
+				updateRhetCtxt={updateRhetCtxt}
 			/>
 			<SearchBox
-				updateSubmittedPrompt={ updateSubmittedPrompt }
-				promptSuggestions={ suggestedPrompts }
+				updateSubmittedPrompt={updateSubmittedPrompt}
+				promptSuggestions={suggestedPrompts}
 			/>
 			{...reflectionCardsContainer}
 		</div>
