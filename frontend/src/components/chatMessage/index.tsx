@@ -1,7 +1,5 @@
 import { Remark } from 'react-remark';
 
-import classes from './styles.module.css';
-
 type ChatMessageProps = {
 	index: number;
 	refresh: (_: number) => void;
@@ -11,7 +9,7 @@ type ChatMessageProps = {
 
 export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
 	return (
-		<div className={ classes.container }>
+		<div className= "w-[10] relative ">
 			{ /*
                 props.role !== 'assistant' ? (
                     <div className={ classes.toolbar }>
@@ -35,18 +33,17 @@ export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
                 )*/ }
 
 			<div
-				className={ `${classes.cardContainer} ${
-					props.role === 'user' ? classes.noBorderBottom : ''
-				}` }
+				className={ `$ border border-black p-[10px] flex gap-[15px] items-center ${
+					props.role === 'user' ? 'border-b-0' : ''}` }
 			>
-				<div className={ classes.pfpContainer }>
+				<div className= "flex items-center justify-center w-[40px] h-[40px]">
 					{ props.role === 'user' ? (
 						<img
 							src="https://source.boringavatars.com/marble/30/Maria%20user"
 							alt="User"
 						/>
 					) : (
-						<div className={ classes.pfp } />
+						<div className= "w-[30px] h-[30px] bg-emerald-400"/>
 					) }
 				</div>
 
