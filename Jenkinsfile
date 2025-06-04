@@ -1,5 +1,5 @@
 pipeline {
-    agent { docker compose: 'docker-compose.yml' }
+    agent any
     stages {
         stage('Build') {
             steps {
