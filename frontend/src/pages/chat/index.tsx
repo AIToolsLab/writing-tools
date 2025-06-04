@@ -12,11 +12,13 @@ import { EditorContext } from '@/contexts/editorContext';
 import { SERVER_URL } from '@/api';
 
 import classes from './styles.module.css';
+import { useAccessToken } from '@/contexts/authTokenContext';
 
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const { username } = useContext(UserContext);
 	const editorAPI = useContext(EditorContext);
+	const { getAccessToken, authErrorType } = useAccessToken();
 
 	/* Document Context (FIXME: make this a hook) */
 	const {
@@ -98,10 +100,12 @@ export default function Chat() {
 
 		updateChatMessages(newMessages);
 
+		const token = await getAccessToken();
 		await fetchEventSource(`${SERVER_URL}/chat`, {
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/json'
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${token}`
 			},
 			body: JSON.stringify({
 				messages: newMessages.slice(0, -1),
@@ -127,10 +131,12 @@ export default function Chat() {
 	async function regenMessage(index: number) {
 		// Resubmit the conversation up until the last message,
 		// so it regenerates the last assistant message.
+		const token = await getAccessToken();
 		const response = await fetch(`${SERVER_URL}/chat`, {
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/json'
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${token}`
 			},
 			body: JSON.stringify({
 				messages: chatMessages.slice(0, index)
@@ -147,6 +153,14 @@ export default function Chat() {
 
 		updateChatMessages(newMessages);
 	}
+
+	if (authErrorType !== null) {
+        return (
+            <div>
+							Please reauthorize.
+						</div>
+        );
+    }
 
 	return (
 		<div className={ classes.container }>
