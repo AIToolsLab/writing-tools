@@ -25,7 +25,9 @@ pipeline {
             }
             steps {
                 echo 'Deploying the application...'
-                sh 'docker-compose up -d'
+                withCredentials([string(credentialsId: 'OpenAI-API-Key-Thoughtful', variable: 'OPENAI_API_KEY')]) {
+                    sh 'OPENAI_API_KEY=${OPENAI_API_KEY} docker-compose up -d'
+                }
             }
         }
     }
