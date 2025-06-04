@@ -254,8 +254,12 @@ async def logs(secret: str):
 
 
 def get_participant_log_filename(username):
-    assert "/" not in username, "Invalid username."
-    return LOG_PATH / f"{username}.jsonl"
+    # Normalize and validate the path
+    sanitized_filename = f"{username}.jsonl"
+    full_path = os.path.normpath(LOG_PATH / sanitized_filename)
+    if not str(full_path).startswith(str(LOG_PATH)):
+        raise ValueError("Invalid username or path traversal attempt detected.")
+    return full_path
 
 
 async def make_log(payload: Log):
