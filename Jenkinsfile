@@ -21,7 +21,10 @@ pipeline {
         // }
         stage('Deploy') {
             when {
-                branch 'main'
+                anyOf {
+                    branch 'main'
+                    branch 'dockerize'
+                }
             }
             steps {
                 echo 'Deploying the application...'
