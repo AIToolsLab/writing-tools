@@ -178,20 +178,16 @@ export default function Chat() {
 			</div>
 
 			<form
-				className= "w-full flex flex-col gap-2"
-				onSubmit={ sendMessage }
-			>
+				className= "w-full flex flex-col gap-2" onSubmit={ sendMessage }>
+
 				<label className= "flex items-center border border-gray-500 justify-between p-[10px]">
 					<textarea
+				
 						disabled={ isSendingMessage }
 						placeholder="Send a message"
 						value={ message }
-						onChange={ e =>
-							updateMessage(
-								(e.target as HTMLTextAreaElement).value
-							)
-						}
-						className="w-9/1 outline-none border-none resize-none h-[100px]"
+						onChange={ e => updateMessage(e.target.value) }
+	
 					/>
 
 					<button type="submit"
