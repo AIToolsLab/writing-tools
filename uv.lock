@@ -166,30 +166,6 @@ wheels = [
 ]
 
 [[package]]
-name = "azure-data-tables"
-version = "12.5.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "azure-core" },
-    { name = "isodate" },
-    { name = "typing-extensions" },
-    { name = "yarl" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/f1/16/e467974d486e19229bc2ba3b3503d9d7d4da9e27a21e48a9075d202442de/azure-data-tables-12.5.0.tar.gz", hash = "sha256:eea393a6380c42eb03e807825c037832003d09c823294831da15e81155a0b4e6", size = 255714, upload-time = "2024-01-11T01:11:28.183Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/f4/4b/33758c2542d55c172132f6c9ada9278dc3532aa3924882051cffbfb0394e/azure_data_tables-12.5.0-py3-none-any.whl", hash = "sha256:fa45330f45c0d7a45db353c196cb4265bdf03fb1de9e1e726c30b8dd5ea55e5d", size = 131823, upload-time = "2024-01-11T01:11:32.013Z" },
-]
-
-[[package]]
-name = "azure-functions"
-version = "1.21.3"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/ee/6a/614f670cd8d28c68f744d849fafb654e6ab456954eb7160ddee25bfaa373/azure-functions-1.21.3.tar.gz", hash = "sha256:c359b9dbd2998c84d8595e31a28ffad4e8ca8dcfb4a3798327f776a67f964351", size = 205342, upload-time = "2024-10-09T17:06:08.071Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/85/9f/2ab4ee66cb803d48b4a685a2c0a1a20b8f54f9c8a4ac474ffe1ebc0f9466/azure_functions-1.21.3-py3-none-any.whl", hash = "sha256:6c45f5e61fe59328c81928a428d43c838e9ead52f1cde1628fcabb372fa10cc8", size = 185657, upload-time = "2024-10-09T17:06:06.088Z" },
-]
-
-[[package]]
 name = "azure-identity"
 version = "1.18.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2111,8 +2087,6 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiohttp" },
-    { name = "azure-data-tables" },
-    { name = "azure-functions" },
     { name = "azure-identity" },
     { name = "azure-keyvault-secrets" },
     { name = "en-core-web-sm" },
@@ -2141,8 +2115,6 @@ gpu = [
 [package.metadata]
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.11.14" },
-    { name = "azure-data-tables", specifier = "==12.5.0" },
-    { name = "azure-functions", specifier = ">=1.12.0" },
     { name = "azure-identity", specifier = ">=1.18.0" },
     { name = "azure-keyvault-secrets", specifier = ">=4.8.0" },
     { name = "en-core-web-sm", url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl" },
