@@ -11,7 +11,6 @@ import { EditorContext } from '@/contexts/editorContext';
 
 import { SERVER_URL } from '@/api';
 
-import classes from './styles.module.css';
 import { useAccessToken } from '@/contexts/authTokenContext';
 
 export default function Chat() {
@@ -164,7 +163,7 @@ export default function Chat() {
 
 	return (
 		<div className="m-2 flex flex-col gap-4">
-			<div className={ classes.messageContainer }>
+			<div className= "flex-col gap-2 max-h-[500px] bottom-0 overflow-y-auto" >
 				{ messagesWithCurDocContext.slice(2).map((message, index) => (
 					<ChatMessage
 						key={ index + 2 }
@@ -179,7 +178,7 @@ export default function Chat() {
 			</div>
 
 			<form
-				className={ classes.sendMessage }
+				className= "w-full flex flex-col gap-2"
 				onSubmit={ sendMessage }
 			>
 				<label className= "flex items-center border border-gray-500 justify-between p-[10px]">
