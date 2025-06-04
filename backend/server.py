@@ -1,8 +1,8 @@
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, AfterValidator
 import os
 import json
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Annotated
 from pathlib import Path
 from datetime import datetime
 
@@ -41,17 +41,28 @@ print(f"Log secret: {LOG_SECRET!r}")
 LOG_DOCTEXT = False
 
 
+def validate_username(username: str):
+    if not username or not isinstance(username, str):
+        raise ValueError("Username must be a non-empty string.")
+    if len(username) > 50:
+        raise ValueError("Username must be 50 characters or less.")
+    if not all(c.isalnum() or c in ('_', '-') for c in username):
+        raise ValueError("Username must be alphanumeric or contain '_' or '-' only.")
+    return username
+
+
 # Declare Types
+ValidatedUsername = Annotated[str, AfterValidator(validate_username)]
 
 
 class GenerationRequestPayload(BaseModel):
-    username: str
+    username: ValidatedUsername
     gtype: str
     prompt: str
 
 
 class ReflectionRequestPayload(BaseModel):
-    username: str
+    username: ValidatedUsername
     paragraph: str  # TODO: update name
     prompt: str
 
@@ -66,14 +77,14 @@ class ReflectionResponses(BaseModel):
 
 class ChatRequestPayload(BaseModel):
     messages: List[Dict[str, str]]
-    username: str
+    username: ValidatedUsername
 
 
 class Log(BaseModel):
     model_config = ConfigDict(extra='allow')
     timestamp: float
     ok: bool = True
-    username: str
+    username: ValidatedUsername
     interaction: str
 
 
@@ -254,8 +265,7 @@ async def logs(secret: str):
 
 
 def get_participant_log_filename(username):
-    assert "/" not in username, "Invalid username."
-    return LOG_PATH / f"{username}.jsonl"
+    return LOG_PATH / f"{validate_username(username)}.jsonl"
 
 
 async def make_log(payload: Log):
