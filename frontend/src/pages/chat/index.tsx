@@ -18,7 +18,7 @@ export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const { username } = useContext(UserContext);
 	const editorAPI = useContext(EditorContext);
-	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
+	const { getAccessToken, authErrorType } = useAccessToken();
 
 	/* Document Context (FIXME: make this a hook) */
 	const {

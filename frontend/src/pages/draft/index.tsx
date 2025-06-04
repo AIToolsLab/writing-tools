@@ -50,7 +50,7 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
 	const { username } = useContext(UserContext);
-	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
+	const { getAccessToken, authErrorType } = useAccessToken();
 	const [genCtxText, updateGenCtxText] = useState('');
 
 	const [isLoading, setIsLoading] = useState(false);
