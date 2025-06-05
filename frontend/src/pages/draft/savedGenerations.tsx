@@ -1,9 +1,7 @@
-import classes from './styles.module.css';
-import { AiOutlineStar, 
-    AiOutlineUp, 
-    AiOutlineDown, 
-    AiOutlineClose, 
+import {
+    AiOutlineClose,
 } from 'react-icons/ai';
+import classes from './styles.module.css';
 
 import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
