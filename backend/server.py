@@ -42,8 +42,8 @@ LOG_DOCTEXT = False
 
 
 def validate_username(username: str):
-    if not username or not isinstance(username, str):
-        raise ValueError("Username must be a non-empty string.")
+    if not isinstance(username, str):
+        raise ValueError("Username must be a string.")
     if len(username) > 50:
         raise ValueError("Username must be 50 characters or less.")
     if not all(c.isalnum() or c in ('_', '-') for c in username):
