@@ -36,6 +36,7 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
                         // Toggle between the current page and the saved page
                         setSavedOpen(!isSavedOpen);
                     } }
+                    title={ isSavedOpen ? "Hide Saved Items" : "Show Saved Items" }
                 >
                     <div
                         className={
@@ -55,16 +56,6 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
                             <AiOutlineDown className={ classes.savedPageIconIndicator } />
                         ) }
                     </div>
-                    { isSavedOpen && (
-                    <div className={ classes.savedPageTooltip }>
-                        Show Saved Items
-                    </div>
-                    ) }
-                    { !isSavedOpen && (
-                    <div className={ classes.savedPageTooltip }>
-                        Hide Saved Items
-                    </div>
-                    ) }
                 </button>
 
             </div>
