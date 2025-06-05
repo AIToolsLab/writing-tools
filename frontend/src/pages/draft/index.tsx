@@ -27,12 +27,7 @@ const visibleNameForMode = {
 	'RMove': 'Rhetorical Move'
 };
 
-const obscuredAlphabetForMode = {
-	'Completion': 'A',
-	'Question': 'B',
-	'Keywords': 'C',
-	'RMove': 'D'
-};
+
 
 const visibleIconForMode = {
 	'Completion': <AiOutlineAlignLeft />,
@@ -75,7 +70,7 @@ export default function Draft() {
 
 	const [generationMode, updateGenerationMode] = useState('None');
 
-	const IS_OBSCURED = false;
+
 
 	// Save the generation
 	function save(generation: GenerationResult, document: string) {
@@ -296,9 +291,7 @@ export default function Draft() {
 				<div className={ classes.genIconsContainer }>
 					<div
 						className={
-							!IS_OBSCURED
-								? classes.genTypeIconWrapper
-								: classes.genTypeIconWrapper_obscured
+								classes.genTypeIconWrapper
 						}
 					>
 						{ iconFunc(generationMode) }
@@ -364,14 +357,12 @@ export default function Draft() {
 								}
 								onMouseLeave={ () => setTooltipVisible(null) }
 							>
-								{ IS_OBSCURED ? obscuredAlphabetForMode[mode as keyof typeof obscuredAlphabetForMode] : visibleIconForMode[mode as keyof typeof visibleIconForMode] }
+							   { visibleIconForMode[mode as keyof typeof visibleIconForMode] }
 							</button>
 
 							{ tooltipVisible === mode && (
 								<div className={ classes.tooltip }>
-									{ IS_OBSCURED
-										? 'Get New Completion'
-										: `Get New ${ visibleNameForMode[mode as keyof typeof visibleNameForMode] }` }
+								   { `Get New ${ visibleNameForMode[mode as keyof typeof visibleNameForMode] }` }
 								</div>
 							) }
 							</Fragment>
