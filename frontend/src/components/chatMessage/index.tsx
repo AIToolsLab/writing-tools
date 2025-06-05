@@ -11,7 +11,7 @@ type ChatMessageProps = {
 
 export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
 	return (
-		<div className= "w-[10] relative ">
+		<div className={ `w-full mb-2 ${props.role === 'user' ? 'flex justify-end' : 'flex justify-start'}` } >
 			{ /*
                 props.role !== 'assistant' ? (
                     <div className={ classes.toolbar }>
@@ -33,23 +33,24 @@ export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
                         />
                     </div>
                 )*/ }
-
 			<div
-				className={ `$ border border-black p-[10px] flex gap-[15px] items-center ${
-					props.role === 'user' ? 'border-b-0' : ''}` }
+				className={ `max-w-[85%] p-4 border rounded-lg flex gap-4 items-start ${
+					props.role === 'user' ? 'bg-blue-50 border-blue-300 mr-2': 'bg-gray-50 border-gray-300 ml-2'}` }
 			>
-				<div className= "flex items-center justify-center w-[40px] h-[40px]">
+                
+				<div className= "flex-shrink-0">
 					{ props.role === 'user' ? (
 						<img
 							src="https://api.dicebear.com/9.x/initials/svg?seed=HY"
                             /*hardcoded for now, to change later with api, backgroundColor=00acc1,1e88e5,5e35b1,7cb342,8e24aa,039be5,43a047,00897b,3949ab,c0ca33,d81b60,e53935,f4511e,fb8c00,fdd835,ffb300*/
+                            className="w-8 h-8"
 						/>
 					) : (
 						<div className= "w-[30px] h-[30px] bg-emerald-400"/>
 					) }
 				</div>
 
-                <div><Remark>{ props.content }</Remark></div>
+                <div className="text-gray-800"><Remark>{ props.content }</Remark></div>
             </div>
         </div>
     );

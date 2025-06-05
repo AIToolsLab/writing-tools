@@ -1,28 +1,6 @@
-.container {
-	display: flex;
-	flex-direction: column;
-	gap: 0.5rem;
-	position: relative;
-	padding: 0.5rem;
-}
-
 .container:hover .disabledTooltip {
 	opacity: 1;
 	visibility: visible;
-}
-
-.toggle {
-	display: flex;
-	flex-direction: row;
-	justify-content: center;
-	align-items: center;
-}
-
-.contextText {
-	font-size: 0.8rem;
-	padding: 8px;
-	margin: 8px;
-	box-shadow: -1px 6px 10px 0 rgba(147, 123, 109, 0.1);
 }
 
 .contextText p {
@@ -168,64 +146,6 @@ h4 {
 	100% {
 		transform: rotate(360deg);
 	}
-}
-
-.initTextWrapper {
-	margin-top: 16px;
-	margin-right: 16px;
-	margin-left: 16px;
-	padding: 16px;
-	transition: 0.15s;
-}
-
-.errorTextWrapper {
-	margin-right: 16px;
-	margin-left: 16px;
-	padding: 16px;
-	transition: 0.15s;
-}
-
-.errorText {
-	font-size: 1rem;
-	color: #ff0000;
-	text-align: center;
-}
-
-.initText {
-	font-size: 0.9rem;
-	color: #888888;
-	text-align: center;
-	transition: 0.15s;
-}
-
-.resultTextWrapper {
-	margin-top: 4px;
-	margin-right: 8px;
-	margin-left: 8px;
-	padding: 16px;
-	border: 1px solid #c8c8c8;
-	border-radius: 16px;
-	transition: 0.15s;
-	display: flex;
-}
-
-.resultText {
-	font-size: 1rem;
-	white-space: pre-wrap;
-	transition: 0.15s;
-	animation: fadeIn 0.3s ease-in-out;
-	flex-direction: column;
-}
-
-.genCtxText {
-	font-size: 0.8rem;
-	color: #aaaaaa;
-	padding-bottom: 4px;
-	cursor: pointer;
-}
-
-.genCtxText:hover {
-	color: #000000;
 }
 
 .utilsContainer {
