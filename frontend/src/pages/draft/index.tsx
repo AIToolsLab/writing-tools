@@ -262,25 +262,6 @@ export default function Draft() {
 						{ genCtxText.substring(genCtxText.length - 100) }
 					</div>
 
-					{ /* Question: do we need this? */ }
-					{ false && tooltipVisible === 'GenCtx' && (
-						<div
-							className="
-							absolute left-1/2 -translate-x-1/2 
-							top-[18%] bg-[rgba(247,247,247,0.7)] 
-							text-[rgba(66,66,66,0.7)] 
-							px-3 py-2 rounded-sm 
-							text-[0.8rem] font-extralight 
-							whitespace-nowrap 
-							z-[1000] opacity-0 invisible 
-							pointer-events-none 
-							shadow-[-1px_2px_3px_rgba(120,60,20,0.1)] 
-							transition-opacity transition-[visibility] 
-							duration-200 ease-in-out"
-								>
-							Generated based on this document text
-						</div>
-					) }
 					<div className="text-base whitespace-pre-wrap transition duration-150 animate-fade-in">
 						<GenerationResult generation={ generation } />
 					</div>
