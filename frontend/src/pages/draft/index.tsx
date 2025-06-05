@@ -54,9 +54,6 @@ export default function Draft() {
 	// State for saved page
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 
-	// Tooltip visibility
-	const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
-
 	// eslint-disable-next-line prefer-const
 	const [generation, updateGeneration] = useState<GenerationResult | null>(
 		null
@@ -255,8 +252,6 @@ export default function Draft() {
 				<div>
 					<div
 						className= "text-[0.8rem] text-[#aaaaaa] pb-1 cursor-pointer hover:text-black"
-						onMouseEnter={ () => setTooltipVisible('GenCtx') }
-						onMouseLeave={ () => setTooltipVisible(null) }
 					>
 						{ genCtxText.length > 100 ? '...' : '' }
 						{ genCtxText.substring(genCtxText.length - 100) }
@@ -302,8 +297,6 @@ export default function Draft() {
 				{ /* Generation Option Buttons */ }
 				<div
 					className={ classes.optionsContainer }
-					onMouseEnter={ () => setTooltipVisible('Disabled') }
-					onMouseLeave={ () => setTooltipVisible(null) }
 				>
 					{ ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => {
 						return (
@@ -311,6 +304,8 @@ export default function Draft() {
 							<button
 								className={ classes.optionsButton }
 								disabled={ docContext.beforeCursor === '' || isLoading }
+								title={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
+								aria-label={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
 								onClick={ async () => {
 									// if (docContext.beforeCursor !== '') {
 									// 	await selectToCursor();
@@ -330,19 +325,9 @@ export default function Draft() {
 										getBefore(docContext)
 									);
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible(mode)
-								}
-								onMouseLeave={ () => setTooltipVisible(null) }
 							>
 							   { visibleIconForMode[mode as keyof typeof visibleIconForMode] }
 							</button>
-
-							{ tooltipVisible === mode && (
-								<div className={ classes.tooltip }>
-								   { `Get New ${ visibleNameForMode[mode as keyof typeof visibleNameForMode] }` }
-								</div>
-							) }
 							</Fragment>
 						);
 					}) }
@@ -385,12 +370,6 @@ export default function Draft() {
 										setSaved(true);
 										setTimeout(() => setSaved(false), 2000);
 									} }
-									onMouseEnter={ () =>
-										setTooltipVisible('Save')
-									}
-									onMouseLeave={ () => {
-										setTooltipVisible(null);
-									} }
 								>
 									<AiOutlineStar
 										className={
@@ -400,16 +379,6 @@ export default function Draft() {
 										}
 									/>
 								</div>
-								{ tooltipVisible === 'Save' && (
-									<div
-										className={ [
-											classes.utilTooltip,
-											classes.utilTooltip_save
-										].join(' ') }
-									>
-										Save
-									</div>
-								) }
 							</div>
 						) }
 				</div>
