@@ -63,29 +63,11 @@ export default function Draft() {
 
 	// Save the generation
 	function save(generation: GenerationResult, document: string) {
-		const newSaved = [...savedItems];
-
-		// Don't re-save things that are already saved
-		if (
-			newSaved.filter(
-				item =>
-					item.generation === generation && item.document === document
-			).length > 0
-		)
-			return;
-
-		newSaved.unshift({
+		const newSaved = [...savedItems, {
 			document: document,
 			generation: generation,
 			dateSaved: new Date()
-		});
-
-		log({
-			username: username,
-			interaction: 'Save',
-			prompt: document,
-			result: generation
-		});
+		}];
 
 		updateSavedItems(newSaved);
 	}
@@ -147,8 +129,10 @@ export default function Draft() {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
 			updateErrorMsg('');
-			updateGeneration((await response.json()) as GenerationResult);
+			const generated = await response.json() as GenerationResult;
+			updateGeneration(generated);
 			updateGenCtxText(contextText);
+			save(generated, contextText);
 		}
 		catch (err: any) {
 			setIsLoading(false);
@@ -338,31 +322,6 @@ export default function Draft() {
 			<div>
 				{ /* Result of the generation */ }
 				<div className={ classes.reflectionContainer }>{ results }</div>
-
-				{ /* Close and Save button container */ }
-				<div className={ classes.utilsContainer }>
-					{ 
-						!isLoading &&
-						generation &&
-						errorMsg === '' && (
-							<div className={ classes.buttonsWrapper }>
-
-								<div
-									className={ classes.utilIconWrapper }
-									onClick={ () => {
-										// Save the generation
-										save(generation, docContext.beforeCursor);
-									} }
-								>
-									<AiOutlineStar
-										className={
-												classes.saveIcon
-										}
-									/>
-								</div>
-							</div>
-						) }
-				</div>
 
 				{ /* Saved generations */ }
 				<SavedGenerations
