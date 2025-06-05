@@ -18,6 +18,7 @@ import classes from './styles.module.css';
 import SavedGenerations from './savedGenerations';
 import { getBefore } from '@/utilities/selectionUtil';
 import { useDocContext } from '@/utilities';
+import { useAccessToken } from '@/contexts/authTokenContext';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
@@ -49,6 +50,7 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
 	const { username } = useContext(UserContext);
+	const { getAccessToken, authErrorType } = useAccessToken();
 	const [genCtxText, updateGenCtxText] = useState('');
 
 	const [isLoading, setIsLoading] = useState(false);
@@ -143,10 +145,12 @@ export default function Draft() {
 		setIsLoading(true);
 
 		try {
+			const token = await getAccessToken();
 			const response = await fetch(`${SERVER_URL}/generation`, {
 				method: 'POST',
 				headers: {
-					'Content-Type': 'application/json'
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${token}`
 				},
 				body: JSON.stringify({
 					username: username,
@@ -182,6 +186,7 @@ export default function Draft() {
 
 		setIsLoading(false);
 	}
+
 
 	// Temporarily select the text from the start to the cursor
 	async function _selectToCursor(duration: number = 1000): Promise<void> {
@@ -219,38 +224,45 @@ export default function Draft() {
     }
 	}
 
+	if (authErrorType !== null) {
+        return (
+            <div>
+							Please reauthorize.
+						</div>
+        );
+    }
 
 	let results = null;
 
 	if (errorMsg !== '')
 		results = (
-			<div className={ classes.errorTextWrapper }>
-				<div className={ classes.errorText }>{ errorMsg }</div>
+			<div className= "mr-[16px] ml-[16px] p-[16px] duration-150">
+				<div className="text-base text-red-500 text-center">{ errorMsg }</div>
 			</div>
 		);
 	else if (generationMode === 'None' || generation === null)
 		if (!docContext.beforeCursor.trim())
 			results = (
-				<div className={ classes.initTextWrapper }>
-					<div className={ classes.initText }>
+				<div className="mt-4 ml-4 mr-4 p-4 transition duration-150">
+					<div className="text-sm text-gray-500 text-center transition duration-150">
 						Write something in the document to get started!
 					</div>
 				</div>
 			);
 		else
 			results = (
-				<div className={ classes.initTextWrapper }>
-					<div className={ classes.initText }>
+				<div className="mt-4 ml-4 mr-4 p-4 transition duration-150">
+					<div className="text-sm text-gray-500 text-center transition duration-150">
 						Click a button to generate a suggestion.
 					</div>
 				</div>
 			);
 	else
 		results = (
-			<div className={ classes.resultTextWrapper }>
+			<div className="mt-1 mr-2 ml-2 p-4 border border-[#c8c8c8] rounded-[16px] transition duration-150 flex">
 				<div>
 					<div
-						className={ classes.genCtxText }
+						className= "text-[0.8rem] text-[#aaaaaa] pb-1 cursor-pointer hover:text-black"
 						onMouseEnter={ () => setTooltipVisible('GenCtx') }
 						onMouseLeave={ () => setTooltipVisible(null) }
 					>
@@ -261,15 +273,23 @@ export default function Draft() {
 					{ /* Question: do we need this? */ }
 					{ false && tooltipVisible === 'GenCtx' && (
 						<div
-							className={ [
-								classes.disabledTooltip,
-								classes.tooltip_genCtxText
-							].join(' ') }
-						>
-							{ 'Generated based on this document text' }
+							className="
+							absolute left-1/2 -translate-x-1/2 
+							top-[18%] bg-[rgba(247,247,247,0.7)] 
+							text-[rgba(66,66,66,0.7)] 
+							px-3 py-2 rounded-sm 
+							text-[0.8rem] font-extralight 
+							whitespace-nowrap 
+							z-[1000] opacity-0 invisible 
+							pointer-events-none 
+							shadow-[-1px_2px_3px_rgba(120,60,20,0.1)] 
+							transition-opacity transition-[visibility] 
+							duration-200 ease-in-out"
+								>
+							Generated based on this document text
 						</div>
 					) }
-					<div className={ classes.resultText }>
+					<div className="text-base whitespace-pre-wrap transition duration-150 animate-fade-in">
 						<GenerationResult generation={ generation } />
 					</div>
 				</div>
@@ -295,10 +315,10 @@ export default function Draft() {
 		);
 
 	return (
-		<div className={ classes.container }>
+		<div className=" flex flex-col gap-2 relative p-2">
 
 			{ /* Document Context Text Container */ }
-			<div className={ classes.contextText }>
+			<div className= "text-sm p-[8px] m-[8px] shadow-[0_6px_10px_-1px_rgba(147,123,109,0.1)]">
 				<h4>Suggestions will be generated using:</h4>
 				<p>
 					{ getBefore(docContext).length > 100 ? '...' : '' }

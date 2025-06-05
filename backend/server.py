@@ -1,9 +1,8 @@
-from azure.data.tables import TableServiceClient
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, AfterValidator
 import os
 import json
 
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Annotated
 from pathlib import Path
 from datetime import datetime
 
@@ -21,9 +20,6 @@ from pydantic import BaseModel, ConfigDict
 from dotenv import load_dotenv
 
 import nlp
-
-from azure.identity.aio import DefaultAzureCredential
-from azure.data.tables.aio import TableServiceClient
 
 import logging
 
@@ -45,17 +41,28 @@ print(f"Log secret: {LOG_SECRET!r}")
 LOG_DOCTEXT = False
 
 
+def validate_username(username: str):
+    if not isinstance(username, str):
+        raise ValueError("Username must be a string.")
+    if len(username) > 50:
+        raise ValueError("Username must be 50 characters or less.")
+    if not all(c.isalnum() or c in ('_', '-') for c in username):
+        raise ValueError("Username must be alphanumeric or contain '_' or '-' only.")
+    return username
+
+
 # Declare Types
+ValidatedUsername = Annotated[str, AfterValidator(validate_username)]
 
 
 class GenerationRequestPayload(BaseModel):
-    username: str
+    username: ValidatedUsername
     gtype: str
     prompt: str
 
 
 class ReflectionRequestPayload(BaseModel):
-    username: str
+    username: ValidatedUsername
     paragraph: str  # TODO: update name
     prompt: str
 
@@ -70,14 +77,14 @@ class ReflectionResponses(BaseModel):
 
 class ChatRequestPayload(BaseModel):
     messages: List[Dict[str, str]]
-    username: str
+    username: ValidatedUsername
 
 
 class Log(BaseModel):
     model_config = ConfigDict(extra='allow')
     timestamp: float
     ok: bool = True
-    username: str
+    username: ValidatedUsername
     interaction: str
 
 
@@ -258,45 +265,12 @@ async def logs(secret: str):
 
 
 def get_participant_log_filename(username):
-    assert "/" not in username, "Invalid username."
-    return LOG_PATH / f"{username}.jsonl"
+    return LOG_PATH / f"{validate_username(username)}.jsonl"
 
 
-# Function to make a log entry in Azure Table Storage
 async def make_log(payload: Log):
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    start_time = datetime.now()
-    """Store the log our Azure Table."""
-
-    credential = DefaultAzureCredential()
-    if credential is None:# or not await credential.get_token("https://storage.azure.com/.default"):
-        raise ValueError("Failed to obtain Azure credentials. Please check your environment.")
-    async with TableServiceClient(
-        endpoint="https://textfocalsb6ab.table.core.windows.net/", credential=credential) as table_service:
-
-        try:
-            table_client = table_service.get_table_client("AppLogs")
-            # use timestamp and a uuid as a row key
-            import uuid
-            row_key = f"{payload.timestamp}_{uuid.uuid4()}"
-
-            entity = payload.model_dump()
-            # Convert unsupported types to supported ones
-            for key, value in entity.items():
-                if isinstance(value, dict):
-                    entity[key] = json.dumps(value)
-                elif isinstance(value, list):
-                    entity[key] = json.dumps(value)
-
-            await table_client.create_entity(entity=dict(
-                entity, PartitionKey=payload.username, RowKey=row_key))
-            
-            end_time = datetime.now()
-            log = end_time - start_time
-            logger.info(f"make_log() operation took: {log.total_seconds()} seconds")
-        except Exception as e:
-            print(f"Error logging to Azure Table: {e}")
+    with open(get_participant_log_filename(payload.username), "a+") as f:
+        f.write(json.dumps(payload.model_dump()) + "\n")
             
 
 static_path = Path("../frontend/dist")

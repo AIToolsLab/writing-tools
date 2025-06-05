@@ -11,12 +11,13 @@ import { EditorContext } from '@/contexts/editorContext';
 
 import { SERVER_URL } from '@/api';
 
-import classes from './styles.module.css';
+import { useAccessToken } from '@/contexts/authTokenContext';
 
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const { username } = useContext(UserContext);
 	const editorAPI = useContext(EditorContext);
+	const { getAccessToken, authErrorType } = useAccessToken();
 
 	/* Document Context (FIXME: make this a hook) */
 	const {
@@ -98,10 +99,12 @@ export default function Chat() {
 
 		updateChatMessages(newMessages);
 
+		const token = await getAccessToken();
 		await fetchEventSource(`${SERVER_URL}/chat`, {
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/json'
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${token}`
 			},
 			body: JSON.stringify({
 				messages: newMessages.slice(0, -1),
@@ -127,10 +130,12 @@ export default function Chat() {
 	async function regenMessage(index: number) {
 		// Resubmit the conversation up until the last message,
 		// so it regenerates the last assistant message.
+		const token = await getAccessToken();
 		const response = await fetch(`${SERVER_URL}/chat`, {
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/json'
+				'Content-Type': 'application/json',
+				'Authorization': `Bearer ${token}`
 			},
 			body: JSON.stringify({
 				messages: chatMessages.slice(0, index)
@@ -148,9 +153,17 @@ export default function Chat() {
 		updateChatMessages(newMessages);
 	}
 
+	if (authErrorType !== null) {
+        return (
+            <div>
+							Please reauthorize.
+						</div>
+        );
+    }
+
 	return (
-		<div className={ classes.container }>
-			<div className={ classes.messageContainer }>
+		<div className="m-2 flex flex-col gap-4">
+			<div className= "flex-col gap-2 max-h-[500px] bottom-0 overflow-y-auto" >
 				{ messagesWithCurDocContext.slice(2).map((message, index) => (
 					<ChatMessage
 						key={ index + 2 }
@@ -165,23 +178,20 @@ export default function Chat() {
 			</div>
 
 			<form
-				className={ classes.sendMessage }
-				onSubmit={ sendMessage }
-			>
-				<label className={ classes.label }>
+				className= "w-full flex flex-col gap-2" onSubmit={ sendMessage }>
+
+				<label className= "flex items-center border border-gray-500 justify-between p-[10px]">
 					<textarea
+				
 						disabled={ isSendingMessage }
 						placeholder="Send a message"
 						value={ message }
-						onChange={ e =>
-							updateMessage(
-								(e.target as HTMLTextAreaElement).value
-							)
-						}
-						className={ classes.messageInput }
+						onChange={ e => updateMessage(e.target.value) }
+	
 					/>
 
-					<button type="submit">
+					<button type="submit"
+						className="bg-transparent cursor-pointer border border-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white">
 						<AiOutlineSend />
 					</button>
 				</label>
@@ -189,7 +199,7 @@ export default function Chat() {
 
 			<button
 				onClick={ () => updateChatMessages([]) }
-				className={ classes.clearChat }
+				className="bg-transparent cursor-pointer border boder-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
 			>
 				Clear Chat
 			</button>

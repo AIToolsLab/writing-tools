@@ -4,6 +4,8 @@ import { Auth0ContextInterface } from '@auth0/auth0-react';
 import * as SidebarInner from '@/pages/app';
 import LexicalEditor from './editor';
 import classes from './styles.module.css';
+import './styles.css';
+
 
 // Interface for editor props
 interface EditorProps {
@@ -137,6 +139,7 @@ function App(props: EditorProps) {
 
 	return (
 		<div className={ isDemo ? classes.democontainer : classes.container }>
+			
 			<div className={ isDemo ? classes.demoeditor : classes.editor }>
 				<LexicalEditor
 					//@ts-ignore, see https://github.com/facebook/lexical/issues/5079
