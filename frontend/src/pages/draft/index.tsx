@@ -19,6 +19,7 @@ import SavedGenerations from './savedGenerations';
 import { getBefore } from '@/utilities/selectionUtil';
 import { useDocContext } from '@/utilities';
 import { useAccessToken } from '@/contexts/authTokenContext';
+import { get } from 'http';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
@@ -91,6 +92,8 @@ export default function Draft() {
 
 		updateSavedItems(newSaved);
 	}
+
+	const beforeContext = getBefore(docContext);
 
 
 	// Get a generation from the backend
@@ -266,8 +269,8 @@ export default function Draft() {
 			<div className= "text-sm p-[8px] m-[8px] shadow-[0_6px_10px_-1px_rgba(147,123,109,0.1)]">
 				<h4>Suggestions will be generated using:</h4>
 				<p>
-					{ getBefore(docContext).length > 100 ? '...' : '' }
-					{ getBefore(docContext).substring(getBefore(docContext).length - 100) }
+					{ beforeContext.length > 100 ? '...' : '' }
+					{ beforeContext.substring(beforeContext.length - 100) }
 					{ /* { JSON.stringify(docContext) } */ }
 				</p>
 			</div>
@@ -293,14 +296,14 @@ export default function Draft() {
 									log({
 										username: username,
 										interaction: `${mode}_Frontend`,
-										prompt: getBefore(docContext)
+										prompt: beforeContext
 									});
-									if (getBefore(docContext) === '') return;
+									if (beforeContext === '') return;
 
 									getGeneration(
 										username,
 										`${mode}_Backend`,
-										getBefore(docContext)
+										beforeContext
 									);
 								} }
 							>
