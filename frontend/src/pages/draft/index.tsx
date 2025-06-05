@@ -59,8 +59,6 @@ export default function Draft() {
 	// Update Error Message
 	const [errorMsg, updateErrorMsg] = useState('');
 
-	const [generationMode, updateGenerationMode] = useState('None');
-
 
 
 	// Save the generation
@@ -226,7 +224,7 @@ export default function Draft() {
 				<div className="text-base text-red-500 text-center">{ errorMsg }</div>
 			</div>
 		);
-	else if (generationMode === 'None' || generation === null)
+	else if (generation === null)
 		if (!docContext.beforeCursor.trim())
 			results = (
 				<div className="mt-4 ml-4 mr-4 p-4 transition duration-150">
@@ -264,7 +262,7 @@ export default function Draft() {
 								classes.genTypeIconWrapper
 						}
 					>
-						{ iconFunc(generationMode) }
+						{ iconFunc(generation.generation_type) }
 					</div>
 				</div>
 			</div>
@@ -315,7 +313,6 @@ export default function Draft() {
 									});
 									if (getBefore(docContext) === '') return;
 
-									updateGenerationMode(mode);
 									getGeneration(
 										username,
 										`${mode}_Backend`,
@@ -344,7 +341,7 @@ export default function Draft() {
 
 				{ /* Close and Save button container */ }
 				<div className={ classes.utilsContainer }>
-					{ generationMode !== 'None' &&
+					{ 
 						!isLoading &&
 						generation &&
 						errorMsg === '' && (
