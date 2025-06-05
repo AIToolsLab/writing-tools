@@ -48,9 +48,6 @@ export default function Draft() {
 
 	const [isLoading, setIsLoading] = useState(false);
 
-	// TODO: Consider using a "hook" for the toast temporary msg
-	const [saved, setSaved] = useState(false);
-
 	// State for saved page
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 
@@ -347,14 +344,6 @@ export default function Draft() {
 
 				{ /* Close and Save button container */ }
 				<div className={ classes.utilsContainer }>
-					{ saved && (
-						<div className={ classes.utilStateWrapper }>
-							<div className={ classes.savedStateText }>Saved</div>
-
-							<AiOutlineSave className={ classes.savedStateIcon } />
-						</div>
-					) }
-
 					{ generationMode !== 'None' &&
 						!isLoading &&
 						generation &&
@@ -366,16 +355,11 @@ export default function Draft() {
 									onClick={ () => {
 										// Save the generation
 										save(generation, docContext.beforeCursor);
-
-										setSaved(true);
-										setTimeout(() => setSaved(false), 2000);
 									} }
 								>
 									<AiOutlineStar
 										className={
-											saved
-												? classes.saved
-												: classes.saveIcon
+												classes.saveIcon
 										}
 									/>
 								</div>
@@ -385,7 +369,6 @@ export default function Draft() {
 
 				{ /* Saved generations */ }
 				<SavedGenerations
-					saved={ saved }
 					savedItems={ savedItems }
 					deleteSavedItem={ deleteSavedItem }
 				/>

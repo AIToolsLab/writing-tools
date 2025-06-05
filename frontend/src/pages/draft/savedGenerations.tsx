@@ -12,11 +12,9 @@ import { useState } from 'react';
 
 
 export default function SavedGenerations({ 
-    saved, 
     savedItems, 
     deleteSavedItem,
 }: { 
-    saved: boolean, 
     savedItems: SavedItem[],
     deleteSavedItem: (dateSaved: Date) => void,
 }) {
@@ -45,7 +43,7 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
                     >
                         <AiOutlineStar
                             className={
-                                isSavedOpen || saved
+                                isSavedOpen
                                     ? classes.savedPageIconActive   
                                     : classes.savedPageIcon
                             }
