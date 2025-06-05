@@ -139,7 +139,7 @@ function App(props: EditorProps) {
 
 	return (
 		<div className={ isDemo ? classes.democontainer : classes.container }>
-			<div className="text-3xl font-bold underline ">tailwind test</div>
+			
 			<div className={ isDemo ? classes.demoeditor : classes.editor }>
 				<LexicalEditor
 					//@ts-ignore, see https://github.com/facebook/lexical/issues/5079

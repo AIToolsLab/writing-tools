@@ -41,7 +41,7 @@ export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
 				<div className= "flex-shrink-0">
 					{ props.role === 'user' ? (
 						<img
-							src="https://api.dicebear.com/9.x/initials/svg?seed=HY"
+							src="https://api.dicebear.com/9.x/initials/svg?seed=User"
                             /*hardcoded for now, to change later with api, backgroundColor=00acc1,1e88e5,5e35b1,7cb342,8e24aa,039be5,43a047,00897b,3949ab,c0ca33,d81b60,e53935,f4511e,fb8c00,fdd835,ffb300*/
                             className="w-8 h-8"
 						/>
