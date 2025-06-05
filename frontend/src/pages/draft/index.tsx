@@ -1,25 +1,20 @@
-import { useState, useContext, Fragment } from 'react';
-import { UserContext } from '@/contexts/userContext';
-import { EditorContext } from '@/contexts/editorContext';
-import { Remark } from 'react-remark';
-import { FcCheckmark } from 'react-icons/fc';
-import {
-	AiOutlineClose,
-	AiOutlineQuestion,
-	AiOutlineAlignLeft,
-	AiOutlineHighlight,
-	AiOutlineBank,
-	AiOutlineStar,
-	AiOutlineSave
-} from 'react-icons/ai';
-import { iconFunc } from './iconFunc';
 import { SERVER_URL, log } from '@/api';
-import classes from './styles.module.css';
-import SavedGenerations from './savedGenerations';
-import { getBefore } from '@/utilities/selectionUtil';
-import { useDocContext } from '@/utilities';
 import { useAccessToken } from '@/contexts/authTokenContext';
-import { get } from 'http';
+import { EditorContext } from '@/contexts/editorContext';
+import { UserContext } from '@/contexts/userContext';
+import { useDocContext } from '@/utilities';
+import { getBefore } from '@/utilities/selectionUtil';
+import { Fragment, useContext, useState } from 'react';
+import {
+	AiOutlineAlignLeft,
+	AiOutlineBank,
+	AiOutlineHighlight,
+	AiOutlineQuestion,
+} from 'react-icons/ai';
+import { Remark } from 'react-remark';
+import { iconFunc } from './iconFunc';
+import SavedGenerations from './savedGenerations';
+import classes from './styles.module.css';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
