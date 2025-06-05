@@ -27,8 +27,6 @@ const visibleNameForMode = {
 	'RMove': 'Rhetorical Move'
 };
 
-
-
 const visibleIconForMode = {
 	'Completion': <AiOutlineAlignLeft />,
 	'Question': <AiOutlineQuestion />,
@@ -51,7 +49,6 @@ export default function Draft() {
 	const [isLoading, setIsLoading] = useState(false);
 
 	// TODO: Consider using a "hook" for the toast temporary msg
-	const [copied, _setCopied] = useState(false);
 	const [saved, setSaved] = useState(false);
 
 	// State for saved page
@@ -384,17 +381,6 @@ export default function Draft() {
 
 				{ /* Close and Save button container */ }
 				<div className={ classes.utilsContainer }>
-					{ /* Question: do we need this? */ }
-					{ copied && (
-						<div className={ classes.utilStateWrapper }>
-							<div className={ classes.copiedStateText }>
-								Copied!
-							</div>
-
-							<FcCheckmark />
-						</div>
-					) }
-
 					{ saved && (
 						<div className={ classes.utilStateWrapper }>
 							<div className={ classes.savedStateText }>Saved</div>
