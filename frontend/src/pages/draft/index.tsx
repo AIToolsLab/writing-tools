@@ -1,37 +1,26 @@
-import { useState, useContext, Fragment } from 'react';
-import { UserContext } from '@/contexts/userContext';
-import { EditorContext } from '@/contexts/editorContext';
-import { Remark } from 'react-remark';
-import { FcCheckmark } from 'react-icons/fc';
-import {
-	AiOutlineClose,
-	AiOutlineQuestion,
-	AiOutlineAlignLeft,
-	AiOutlineHighlight,
-	AiOutlineBank,
-	AiOutlineStar,
-	AiOutlineSave
-} from 'react-icons/ai';
-import { iconFunc } from './iconFunc';
 import { SERVER_URL, log } from '@/api';
-import classes from './styles.module.css';
-import SavedGenerations from './savedGenerations';
-import { getBefore } from '@/utilities/selectionUtil';
-import { useDocContext } from '@/utilities';
 import { useAccessToken } from '@/contexts/authTokenContext';
+import { EditorContext } from '@/contexts/editorContext';
+import { UserContext } from '@/contexts/userContext';
+import { useDocContext } from '@/utilities';
+import { getBefore } from '@/utilities/selectionUtil';
+import { Fragment, useContext, useState } from 'react';
+import {
+	AiOutlineAlignLeft,
+	AiOutlineBank,
+	AiOutlineHighlight,
+	AiOutlineQuestion,
+} from 'react-icons/ai';
+import { Remark } from 'react-remark';
+import { iconFunc } from './iconFunc';
+import SavedGenerations from './savedGenerations';
+import classes from './styles.module.css';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
 	'Question': 'Questions',
 	'Keywords': 'Keywords',
 	'RMove': 'Rhetorical Move'
-};
-
-const obscuredAlphabetForMode = {
-	'Completion': 'A',
-	'Question': 'B',
-	'Keywords': 'C',
-	'RMove': 'D'
 };
 
 const visibleIconForMode = {
@@ -55,15 +44,8 @@ export default function Draft() {
 
 	const [isLoading, setIsLoading] = useState(false);
 
-	// TODO: Consider using a "hook" for the toast temporary msg
-	const [copied, _setCopied] = useState(false);
-	const [saved, setSaved] = useState(false);
-
 	// State for saved page
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
-
-	// Tooltip visibility
-	const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
 
 	// eslint-disable-next-line prefer-const
 	const [generation, updateGeneration] = useState<GenerationResult | null>(
@@ -73,41 +55,30 @@ export default function Draft() {
 	// Update Error Message
 	const [errorMsg, updateErrorMsg] = useState('');
 
-	const [generationMode, updateGenerationMode] = useState('None');
 
-	const IS_OBSCURED = false;
 
 	// Save the generation
 	function save(generation: GenerationResult, document: string) {
-		const newSaved = [...savedItems];
-
-		// Don't re-save things that are already saved
-		if (
-			newSaved.filter(
-				item =>
-					item.generation === generation && item.document === document
-			).length > 0
-		)
-			return;
-
-		newSaved.unshift({
+		const newSaved = [...savedItems, {
 			document: document,
 			generation: generation,
 			dateSaved: new Date()
-		});
-
-		log({
-			username: username,
-			interaction: 'Save',
-			prompt: document,
-			result: generation
-		});
+		}];
 
 		updateSavedItems(newSaved);
 	}
 
 	// Delete a saved item
 	function deleteSavedItem(dateSaved: Date) {
+		const savedItemIdx = savedItems.findIndex(
+			savedItem => savedItem.dateSaved === dateSaved
+		);
+		if (savedItemIdx === -1) {
+			// eslint-disable-next-line no-console
+			console.warn('Saved item not found for deletion');
+			return;
+		}
+		// Create a new array without the item to be deleted
 		const newSaved = [...savedItems].filter(
 			savedItem => savedItem.dateSaved !== dateSaved
 		);
@@ -115,16 +86,14 @@ export default function Draft() {
 		log({
 			username: username,
 			interaction: 'Delete',
-			prompt: savedItems.filter(
-				savedItem => savedItem.dateSaved === dateSaved
-			)[0].document,
-			result: savedItems.filter(
-				savedItem => savedItem.dateSaved === dateSaved
-			)[0].generation
+			prompt: savedItems[savedItemIdx].document,
+			result: savedItems[savedItemIdx].generation
 		});
 
 		updateSavedItems(newSaved);
 	}
+
+	const beforeContext = getBefore(docContext);
 
 
 	// Get a generation from the backend
@@ -163,8 +132,10 @@ export default function Draft() {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
 			updateErrorMsg('');
-			updateGeneration((await response.json()) as GenerationResult);
+			const generated = await response.json() as GenerationResult;
+			updateGeneration(generated);
 			updateGenCtxText(contextText);
+			save(generated, contextText);
 		}
 		catch (err: any) {
 			setIsLoading(false);
@@ -240,7 +211,7 @@ export default function Draft() {
 				<div className="text-base text-red-500 text-center">{ errorMsg }</div>
 			</div>
 		);
-	else if (generationMode === 'None' || generation === null)
+	else if (generation === null)
 		if (!docContext.beforeCursor.trim())
 			results = (
 				<div className="mt-4 ml-4 mr-4 p-4 transition duration-150">
@@ -263,32 +234,11 @@ export default function Draft() {
 				<div>
 					<div
 						className= "text-[0.8rem] text-[#aaaaaa] pb-1 cursor-pointer hover:text-black"
-						onMouseEnter={ () => setTooltipVisible('GenCtx') }
-						onMouseLeave={ () => setTooltipVisible(null) }
 					>
 						{ genCtxText.length > 100 ? '...' : '' }
 						{ genCtxText.substring(genCtxText.length - 100) }
 					</div>
 
-					{ /* Question: do we need this? */ }
-					{ false && tooltipVisible === 'GenCtx' && (
-						<div
-							className="
-							absolute left-1/2 -translate-x-1/2 
-							top-[18%] bg-[rgba(247,247,247,0.7)] 
-							text-[rgba(66,66,66,0.7)] 
-							px-3 py-2 rounded-sm 
-							text-[0.8rem] font-extralight 
-							whitespace-nowrap 
-							z-[1000] opacity-0 invisible 
-							pointer-events-none 
-							shadow-[-1px_2px_3px_rgba(120,60,20,0.1)] 
-							transition-opacity transition-[visibility] 
-							duration-200 ease-in-out"
-								>
-							Generated based on this document text
-						</div>
-					) }
 					<div className="text-base whitespace-pre-wrap transition duration-150 animate-fade-in">
 						<GenerationResult generation={ generation } />
 					</div>
@@ -296,12 +246,10 @@ export default function Draft() {
 				<div className={ classes.genIconsContainer }>
 					<div
 						className={
-							!IS_OBSCURED
-								? classes.genTypeIconWrapper
-								: classes.genTypeIconWrapper_obscured
+								classes.genTypeIconWrapper
 						}
 					>
-						{ iconFunc(generationMode) }
+						{ iconFunc(generation.generation_type) }
 					</div>
 				</div>
 			</div>
@@ -321,8 +269,8 @@ export default function Draft() {
 			<div className= "text-sm p-[8px] m-[8px] shadow-[0_6px_10px_-1px_rgba(147,123,109,0.1)]">
 				<h4>Suggestions will be generated using:</h4>
 				<p>
-					{ getBefore(docContext).length > 100 ? '...' : '' }
-					{ getBefore(docContext).substring(getBefore(docContext).length - 100) }
+					{ beforeContext.length > 100 ? '...' : '' }
+					{ beforeContext.substring(beforeContext.length - 100) }
 					{ /* { JSON.stringify(docContext) } */ }
 				</p>
 			</div>
@@ -331,8 +279,6 @@ export default function Draft() {
 				{ /* Generation Option Buttons */ }
 				<div
 					className={ classes.optionsContainer }
-					onMouseEnter={ () => setTooltipVisible('Disabled') }
-					onMouseLeave={ () => setTooltipVisible(null) }
 				>
 					{ ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => {
 						return (
@@ -340,40 +286,25 @@ export default function Draft() {
 							<button
 								className={ classes.optionsButton }
 								disabled={ docContext.beforeCursor === '' || isLoading }
+								title={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
+								aria-label={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
 								onClick={ async () => {
-									// if (docContext.beforeCursor !== '') {
-									// 	await selectToCursor();
-									// }
-
 									log({
 										username: username,
 										interaction: `${mode}_Frontend`,
-										prompt: getBefore(docContext)
+										prompt: beforeContext
 									});
-									if (getBefore(docContext) === '') return;
+									if (beforeContext === '') return;
 
-									updateGenerationMode(mode);
 									getGeneration(
 										username,
 										`${mode}_Backend`,
-										getBefore(docContext)
+										beforeContext
 									);
 								} }
-								onMouseEnter={ () =>
-									setTooltipVisible(mode)
-								}
-								onMouseLeave={ () => setTooltipVisible(null) }
 							>
-								{ IS_OBSCURED ? obscuredAlphabetForMode[mode as keyof typeof obscuredAlphabetForMode] : visibleIconForMode[mode as keyof typeof visibleIconForMode] }
+							   { visibleIconForMode[mode as keyof typeof visibleIconForMode] }
 							</button>
-
-							{ tooltipVisible === mode && (
-								<div className={ classes.tooltip }>
-									{ IS_OBSCURED
-										? 'Get New Completion'
-										: `Get New ${ visibleNameForMode[mode as keyof typeof visibleNameForMode] }` }
-								</div>
-							) }
 							</Fragment>
 						);
 					}) }
@@ -391,105 +322,8 @@ export default function Draft() {
 				{ /* Result of the generation */ }
 				<div className={ classes.reflectionContainer }>{ results }</div>
 
-				{ /* Close and Save button container */ }
-				<div className={ classes.utilsContainer }>
-					{ /* Question: do we need this? */ }
-					{ copied && (
-						<div className={ classes.utilStateWrapper }>
-							<div className={ classes.copiedStateText }>
-								Copied!
-							</div>
-
-							<FcCheckmark />
-						</div>
-					) }
-
-					{ saved && (
-						<div className={ classes.utilStateWrapper }>
-							<div className={ classes.savedStateText }>Saved</div>
-
-							<AiOutlineSave className={ classes.savedStateIcon } />
-						</div>
-					) }
-
-					{ generationMode !== 'None' &&
-						!isLoading &&
-						generation &&
-						errorMsg === '' && (
-							<div className={ classes.buttonsWrapper }>
-								<div
-									className={ classes.utilIconWrapper }
-									onClick={ () => {
-										updateGenerationMode('None');
-										updateGeneration(null);
-										results = null;
-									} }
-									onMouseEnter={ () =>
-										setTooltipVisible('Close')
-									}
-									onMouseLeave={ () => {
-										setTooltipVisible(null);
-									} }
-								>
-									<AiOutlineClose
-										className={ classes.closeIcon }
-									/>
-								</div>
-
-								{ tooltipVisible === 'Close' && (
-									<div
-										className={ [
-											classes.utilTooltip,
-											classes.utilTooltip_close
-										].join(' ') }
-									>
-										Close
-									</div>
-								) }
-
-								<div
-									className={ classes.utilIconWrapper }
-									onClick={ () => {
-										// Save the generation
-										save(generation, docContext.beforeCursor);
-
-										setSaved(true);
-										setTimeout(() => setSaved(false), 2000);
-									} }
-									onMouseEnter={ () =>
-										setTooltipVisible('Save')
-									}
-									onMouseLeave={ () => {
-										setTooltipVisible(null);
-									} }
-								>
-									<AiOutlineStar
-										className={
-											saved
-												? classes.saved
-												: classes.saveIcon
-										}
-									/>
-								</div>
-								{ tooltipVisible === 'Save' && (
-									<div
-										className={ [
-											classes.utilTooltip,
-											classes.utilTooltip_save
-										].join(' ') }
-									>
-										Save
-									</div>
-								) }
-							</div>
-						) }
-				</div>
-
 				{ /* Saved generations */ }
 				<SavedGenerations
-					docContext= { docContext }
-					saved={ saved }
-					isLoading={ isLoading }
 					savedItems={ savedItems }
 					deleteSavedItem={ deleteSavedItem }
 				/>
