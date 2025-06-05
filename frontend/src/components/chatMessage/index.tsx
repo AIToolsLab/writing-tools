@@ -1,5 +1,4 @@
 import { Remark } from 'react-remark';
-import { initials } from '@dicebear/collection';
 
 
 type ChatMessageProps = {
