@@ -375,35 +375,6 @@ export default function Draft() {
 						generation &&
 						errorMsg === '' && (
 							<div className={ classes.buttonsWrapper }>
-								<div
-									className={ classes.utilIconWrapper }
-									onClick={ () => {
-										updateGenerationMode('None');
-										updateGeneration(null);
-										results = null;
-									} }
-									onMouseEnter={ () =>
-										setTooltipVisible('Close')
-									}
-									onMouseLeave={ () => {
-										setTooltipVisible(null);
-									} }
-								>
-									<AiOutlineClose
-										className={ classes.closeIcon }
-									/>
-								</div>
-
-								{ tooltipVisible === 'Close' && (
-									<div
-										className={ [
-											classes.utilTooltip,
-											classes.utilTooltip_close
-										].join(' ') }
-									>
-										Close
-									</div>
-								) }
 
 								<div
 									className={ classes.utilIconWrapper }
