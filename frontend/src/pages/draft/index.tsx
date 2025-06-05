@@ -75,6 +75,15 @@ export default function Draft() {
 
 	// Delete a saved item
 	function deleteSavedItem(dateSaved: Date) {
+		const savedItemIdx = savedItems.findIndex(
+			savedItem => savedItem.dateSaved === dateSaved
+		);
+		if (savedItemIdx === -1) {
+			// eslint-disable-next-line no-console
+			console.warn('Saved item not found for deletion');
+			return;
+		}
+		// Create a new array without the item to be deleted
 		const newSaved = [...savedItems].filter(
 			savedItem => savedItem.dateSaved !== dateSaved
 		);
@@ -82,12 +91,8 @@ export default function Draft() {
 		log({
 			username: username,
 			interaction: 'Delete',
-			prompt: savedItems.filter(
-				savedItem => savedItem.dateSaved === dateSaved
-			)[0].document,
-			result: savedItems.filter(
-				savedItem => savedItem.dateSaved === dateSaved
-			)[0].generation
+			prompt: savedItems[savedItemIdx].document,
+			result: savedItems[savedItemIdx].generation
 		});
 
 		updateSavedItems(newSaved);
@@ -289,10 +294,6 @@ export default function Draft() {
 								title={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
 								aria-label={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
 								onClick={ async () => {
-									// if (docContext.beforeCursor !== '') {
-									// 	await selectToCursor();
-									// }
-
 									log({
 										username: username,
 										interaction: `${mode}_Frontend`,
