@@ -12,15 +12,11 @@ import { useState } from 'react';
 
 
 export default function SavedGenerations({ 
-    docContext,  
     saved, 
-    isLoading,
     savedItems, 
     deleteSavedItem,
 }: { 
-    docContext: DocContext, 
     saved: boolean, 
-    isLoading: boolean 
     savedItems: SavedItem[],
     deleteSavedItem: (dateSaved: Date) => void,
 }) {
@@ -36,7 +32,6 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
             <div className={ classes.historyButtonWrapper }>
                 <button
                     className={ classes.historyButton }
-                    disabled={ docContext.beforeCursor === '' || isLoading }
                     onClick={ () => {
                         // Toggle between the current page and the saved page
                         setSavedOpen(!isSavedOpen);

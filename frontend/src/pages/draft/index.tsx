@@ -464,9 +464,7 @@ export default function Draft() {
 
 				{ /* Saved generations */ }
 				<SavedGenerations
-					docContext= { docContext }
 					saved={ saved }
-					isLoading={ isLoading }
 					savedItems={ savedItems }
 					deleteSavedItem={ deleteSavedItem }
 				/>
