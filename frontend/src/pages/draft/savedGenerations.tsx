@@ -7,7 +7,6 @@ import { AiOutlineStar,
 
 import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
-import { useState } from 'react';
 
 
 
@@ -18,7 +17,6 @@ export default function SavedGenerations({
     savedItems: SavedItem[],
     deleteSavedItem: (dateSaved: Date) => void,
 }) {
-    const [isSavedOpen, setSavedOpen] = useState(false);
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
 	return <Remark>{ generation.result }</Remark>;
@@ -27,50 +25,19 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 
     return (
         <div className={ classes.historyContainer }>
-            <div className={ classes.historyButtonWrapper }>
-                <button
-                    className={ classes.historyButton }
-                    onClick={ () => {
-                        // Toggle between the current page and the saved page
-                        setSavedOpen(!isSavedOpen);
-                    } }
-                    title={ isSavedOpen ? "Hide Saved Items" : "Show Saved Items" }
-                >
-                    <div
-                        className={
-                            classes.savedPageIconIndicatorContainer
-                        }
-                    >
-                        <AiOutlineStar
-                            className={
-                                isSavedOpen
-                                    ? classes.savedPageIconActive   
-                                    : classes.savedPageIcon
-                            }
-                        />
-                        { isSavedOpen ? (
-                            <AiOutlineUp className={ classes.savedPageIconIndicator } />
-                        ) : (
-                            <AiOutlineDown className={ classes.savedPageIconIndicator } />
-                        ) }
-                    </div>
-                </button>
 
-            </div>
 
             <div className={ classes.historyItemContainer }>
 
                 { /* can we use || ? */ }
 
-                { isSavedOpen && savedItems.length === 0 ? (
+                { savedItems.length === 0 ? (
                     <div className={ classes.historyEmptyWrapper }>
                         <div className={ classes.historyText }>
                             No saved generations... 
                         </div>
                     </div>
                 ) : (
-                    isSavedOpen &&
-                    savedItems.length !== 0 &&
                     savedItems.map((savedItem, index) => (
                         <div
                             key={ index }
