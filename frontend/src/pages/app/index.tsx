@@ -6,7 +6,6 @@ import { useWindowSize } from '@react-hook/window-size/throttled';
 
 import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
 
-import PageContextWrapper, { PageName, PageContext } from '@/contexts/pageContext';
 import ChatContextWrapper from '@/contexts/chatContext';
 import EditorContextWrapper from '@/contexts/editorContext';
 
@@ -20,6 +19,8 @@ import Chat from '../chat';
 import Draft from '../draft';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { AccessTokenProvider, useAccessToken } from '@/contexts/authTokenContext';
+import { useAtomValue } from 'jotai';
+import { PageName, pageNameAtom } from '@/contexts/pageContext';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
@@ -64,7 +65,7 @@ function AppInner({ editorAPI, demoMode }: HomeProps) {
 	const auth0Client = useAuth0();
 	const { isLoading, error, isAuthenticated, user } = auth0Client;
 	const [width, _height] = useWindowSize();
-	const { page } = useContext(PageContext);
+	const page = useAtomValue(pageNameAtom)
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
 		return localStorage.getItem('hasCompletedOnboarding') === 'true';
 	});
@@ -281,7 +282,6 @@ export default function App({ editorAPI, demoMode }: HomeProps) {
 
 	return (
 		<ChatContextWrapper>
-				<PageContextWrapper>
 					<EditorContextWrapper editorAPI={ editorAPI }>
 						<Auth0Provider
 							domain={ process.env.AUTH0_DOMAIN! }
@@ -302,7 +302,6 @@ export default function App({ editorAPI, demoMode }: HomeProps) {
 							</AccessTokenProvider>
 						</Auth0Provider>
 					</EditorContextWrapper>
-				</PageContextWrapper>
 		</ChatContextWrapper>
 	);
 }
