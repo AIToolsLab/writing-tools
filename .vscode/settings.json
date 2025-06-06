@@ -7,6 +7,7 @@
     "addin",
     "taskpane"
   ],
+  "eslint.workingDirectories": ["./frontend"],
   "debug.internalConsoleOptions": "neverOpen",
     "terminal.integrated.automationProfile.osx": {
     "path": "/bin/bash"

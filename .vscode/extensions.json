@@ -1,5 +1,7 @@
 {
   "recommendations": [
-    "ms-python.python"
+    "ms-python.python",
+    "bradlc.vscode-tailwindcss",
+    "dbaeumer.vscode-eslint"
   ]
 }
