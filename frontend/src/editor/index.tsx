@@ -19,7 +19,7 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 
 function EditorScreen() {
 	const mode = useAtomValue(overallModeAtom)
-	const isDemo = mode === 'demo';
+	const isDemo = mode === OverallMode.demo;
 
 	// This is a reference to the current document context
 	const docContextRef = useRef<DocContext>({
