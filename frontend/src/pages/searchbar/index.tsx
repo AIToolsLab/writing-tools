@@ -4,7 +4,7 @@ import { ReflectionCards } from '@/components/reflectionCard';
 import { SearchBox } from '@/components/searchBox';
 import { RhetoricalContextBox } from '@/components/rhetoricalContextBox';
 
-import { UserContext } from '@/contexts/userContext';
+import { usernameAtom } from '@/contexts/userContext';
 
 import { getParagraphText } from '@/utilities';
 import { getReflection } from '@/api';
@@ -12,9 +12,10 @@ import { getReflection } from '@/api';
 import { useAuth0 } from '@auth0/auth0-react';
 
 import classes from './styles.module.css';
+import { useAtomValue } from 'jotai';
 
 export default function SearchBar() {
-	const { username } = useContext(UserContext);
+	const username = useAtomValue(usernameAtom);
 
 	const { getAccessTokenSilently } = useAuth0();
 
