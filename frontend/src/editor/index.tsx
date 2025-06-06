@@ -1,25 +1,25 @@
-import { useRef, useState, useEffect } from 'react';
-import ReactDOM from 'react-dom';
-import { Auth0ContextInterface } from '@auth0/auth0-react';
+import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
+import { studyConditionAtom, taskDescriptionAtom } from '@/contexts/studyContext';
 import * as SidebarInner from '@/pages/app';
+import { Auth0ContextInterface } from '@auth0/auth0-react';
+import { getDefaultStore, useAtomValue } from 'jotai';
+import { useRef, useState } from 'react';
+import ReactDOM from 'react-dom';
 import LexicalEditor from './editor';
-import classes from './styles.module.css';
 import './styles.css';
+import classes from './styles.module.css';
 
 
-// Interface for editor props
-interface EditorProps {
-  isDemo?: boolean;
-}
 
-function Sidebar({ editorAPI, demoMode }: { editorAPI: EditorAPI, demoMode: boolean }) {
+function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 	return (
-		<SidebarInner.default editorAPI={ editorAPI } demoMode={ demoMode } />
+		<SidebarInner.default editorAPI={ editorAPI } />
 	);
 }
 
-function App(props: EditorProps) {
-	const isDemo = props.isDemo || false;
+function EditorScreen() {
+	const mode = useAtomValue(overallModeAtom)
+	const isDemo = mode === 'demo';
 
 	// This is a reference to the current document context
 	const docContextRef = useRef<DocContext>({
@@ -108,19 +108,56 @@ function App(props: EditorProps) {
 			</div>
 
 			<div className={ isDemo ? classes.demosidebar : classes.sidebar }>
-				<Sidebar editorAPI={ editorAPI } demoMode={ isDemo } />
+				<Sidebar editorAPI={ editorAPI } />
 			</div>
 		</div>
 	);
 }
 
+const Router = ({
+	page
+}: {
+	page: string;
+}) => {
+
+	if (page === 'editor') {
+		getDefaultStore().set(overallModeAtom, OverallMode.full);
+		return <EditorScreen />;
+	}
+	else if (page === 'demo') {
+		getDefaultStore().set(overallModeAtom, OverallMode.demo);
+		return <EditorScreen />;
+	} else if (page.startsWith('study')) {
+		getDefaultStore().set(overallModeAtom, OverallMode.study);
+		if (page === 'study-intro') {
+			return <div>Study Intro Page</div>;
+		}
+		else if (page === 'study-task1') {
+			const condition = 'questions'; // This would be dynamically set based on the study task
+			getDefaultStore().set(studyConditionAtom, condition);
+			const taskDescription = "Writing task ...";
+			getDefaultStore().set(taskDescriptionAtom, taskDescription);
+			return <div>Study Task 1 Page - Condition: {condition}
+				<div>{taskDescription}</div>
+				<EditorScreen />
+			</div>;
+		}
+		else {
+			return <div>Unknown study page</div>;
+		}
+	}
+	else {
+		return <div>Page not found</div>;
+	}
+}
+
 // Parse URL parameters and render App with appropriate props
 const urlParams = new URLSearchParams(window.location.search);
-const isDemo = urlParams.get('isDemo') === 'true';
+const page = urlParams.get('page');
 
 ReactDOM.render(
-  <App
-    isDemo={ isDemo }
+  <Router
+    page = { page || 'editor' }
   />,
   document.getElementById('container')
 );
