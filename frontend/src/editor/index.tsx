@@ -10,7 +10,6 @@ import './styles.css';
 // Interface for editor props
 interface EditorProps {
   isDemo?: boolean;
-  wordLimit?: number | null;
 }
 
 function Sidebar({ editorAPI, demoMode }: { editorAPI: EditorAPI, demoMode: boolean }) {
@@ -21,7 +20,6 @@ function Sidebar({ editorAPI, demoMode }: { editorAPI: EditorAPI, demoMode: bool
 
 function App(props: EditorProps) {
 	const isDemo = props.isDemo || false;
-	const wordLimit = props.wordLimit || null;
 
 	// This is a reference to the current document context
 	const docContextRef = useRef<DocContext>({
@@ -35,50 +33,11 @@ function App(props: EditorProps) {
 
 	// Add word count state for demo mode
 	const [wordCount, setWordCount] = useState<number>(0);
-	// Add state to track when word count exceeds limit
-	const [isOverLimit, setIsOverLimit] = useState<boolean>(false);
 
 	const handleSelectionChange = () => {
 		selectionChangeHandlers.current.forEach(handler => handler());
 	};
 
-	// Add effect to prevent input when word count exceeds limit (only in demo mode)
-	useEffect(() => {
-		if (!isDemo || !wordLimit) return;
-
-		// Find editor element, accounting for different class names in demo vs regular mode
-		const editorSelector = isDemo ? `.${classes.demoeditor}` : `.${classes.editor}`;
-		const editorElement = document.querySelector(editorSelector);
-		if (!editorElement) return;
-
-		// Function to handle input events
-		const handleBeforeInput = (event: Event) => {
-			const inputEvent = event as InputEvent;
-			if (isOverLimit && (
-				inputEvent.inputType === 'insertText' ||
-				inputEvent.inputType === 'insertFromPaste' ||
-				inputEvent.inputType.startsWith('insert')
-			)) {
-				event.preventDefault();
-			}
-		};
-
-		// Add event listener
-		editorElement.addEventListener('beforeinput', handleBeforeInput);
-
-		// Update visual feedback when over limit
-		if (isOverLimit) {
-			editorElement.classList.add(classes.overLimit);
-		}
-		else {
-			editorElement.classList.remove(classes.overLimit);
-		}
-
-		// Clean up when component unmounts
-		return () => {
-			editorElement.removeEventListener('beforeinput', handleBeforeInput);
-		};
-	}, [isDemo, wordLimit, isOverLimit]);
 
 	const editorAPI: EditorAPI = {
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
@@ -123,16 +82,11 @@ function App(props: EditorProps) {
 	const docUpdated = (docContext: DocContext) => {
 		docContextRef.current = docContext;
 
-		// Calculate word count for demo mode with word limit
-		if (isDemo && wordLimit) {
-			const fullText = docContext.beforeCursor + docContext.selectedText + docContext.afterCursor;
-			const words = fullText.trim().split(/\s+/).filter(word => word.length > 0);
-			const newWordCount = words.length;
-			setWordCount(newWordCount);
-
-			// Check if word count exceeds limit
-			setIsOverLimit(newWordCount > wordLimit);
-		}
+		// Calculate word count
+		const fullText = docContext.beforeCursor + docContext.selectedText + docContext.afterCursor;
+		const words = fullText.trim().split(/\s+/).filter(word => word.length > 0);
+		const newWordCount = words.length;
+		setWordCount(newWordCount);
 
 		handleSelectionChange();
 	};
@@ -146,9 +100,9 @@ function App(props: EditorProps) {
 					initialState={ localStorage.getItem('doc') || undefined }
 					updateDocContext={ docUpdated }
 				/>
-				{ isDemo && wordLimit && (
-					<div className={ `${classes.wordCount} ${isOverLimit ? classes.wordCountLimit : ''}` }>
-						Words: { wordCount }/{ wordLimit }
+				{ isDemo && (
+					<div className={ `${classes.wordCount}` }>
+						Words: { wordCount }
 					</div>
 				) }
 			</div>
@@ -163,13 +117,10 @@ function App(props: EditorProps) {
 // Parse URL parameters and render App with appropriate props
 const urlParams = new URLSearchParams(window.location.search);
 const isDemo = urlParams.get('isDemo') === 'true';
-const wordLimitParam = urlParams.get('wordLimit');
-const wordLimit = wordLimitParam ? parseInt(wordLimitParam, 10) : null;
 
 ReactDOM.render(
   <App
     isDemo={ isDemo }
-    wordLimit={ wordLimit }
   />,
   document.getElementById('container')
 );
