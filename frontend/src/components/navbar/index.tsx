@@ -1,4 +1,3 @@
-import { useContext } from 'react';
 import { PageName, pageNameAtom } from '@/contexts/pageContext';
 
 import classes from './styles.module.css';

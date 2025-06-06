@@ -1,4 +1,4 @@
-import { useContext, useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { pingServer } from '@/api';
 
 import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';

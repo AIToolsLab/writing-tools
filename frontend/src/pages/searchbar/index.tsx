@@ -1,4 +1,4 @@
-import { useState, useEffect, useContext } from 'react';
+import { useState, useEffect } from 'react';
 
 import { ReflectionCards } from '@/components/reflectionCard';
 import { SearchBox } from '@/components/searchBox';
