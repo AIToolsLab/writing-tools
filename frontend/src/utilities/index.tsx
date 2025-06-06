@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useRef, useSyncExternalStore } from 'react';
 
 /**
  * Converts a Word paragraph object into a usable string by removing leading and trailing
@@ -32,34 +32,33 @@ export function useDocContext(editorAPI: EditorAPI) {
 		getDocContext
 	} = editorAPI;
 
-	const [docContext, updateDocContext] = useState<DocContext>({
+	const docContextRef = useRef<DocContext>({
 		beforeCursor: '',
 		selectedText: '',
 		afterCursor: ''
 	});
 
-	async function handleSelectionChanged(): Promise<void> {
-		// Get the document context (before cursor, selected text, after cursor)
-		const docInfo = await getDocContext();
-		updateDocContext(docInfo);
-	}
-
-	/**
-	 * useEffect to ensure that event handlers are set up only once
-	 * and cleaned up when the component is unmounted.
-	 * Note that dependencies are empty, so this effect only runs once.
-	 */
-	useEffect(() => {
-		// Handle initial selection change
-		handleSelectionChanged();
-
-		// Handle subsequent selection changes
-		addSelectionChangeHandler(handleSelectionChanged);
-
-		// Cleanup
-		return () => {
-			removeSelectionChangeHandler(handleSelectionChanged);
-		};
-	}, []);
-	return docContext;
+	// See https://react.dev/learn/you-might-not-need-an-effect#subscribing-to-an-external-store
+	return useSyncExternalStore(
+		function subscribe(callback: () => void): () => void {
+			async function handleSelectionChanged(): Promise<void> {
+				docContextRef.current = await getDocContext();
+				callback(); // Notify subscribers of the change
+			}
+			// Subscribe to selection change events
+			addSelectionChangeHandler(handleSelectionChanged);
+			// Return a cleanup function to remove the handler
+			return () => {
+				removeSelectionChangeHandler(handleSelectionChanged);
+			};
+		},
+		function getSnapshot(): DocContext {
+			return docContextRef.current;
+		},
+		function getServerSnapshot(): DocContext {
+			// This function is used for server-side rendering, if applicable.
+			// It should return the same snapshot as getSnapshot.
+			return docContextRef.current;
+		}
+	);
 }

@@ -1,5 +1,5 @@
-import { useRef, useState, useEffect } from 'react';
-import ReactDOM from 'react-dom';
+import { useRef, useState, useEffect, StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
 import * as SidebarInner from '@/pages/app';
 import LexicalEditor from './editor';
@@ -166,10 +166,13 @@ const isDemo = urlParams.get('isDemo') === 'true';
 const wordLimitParam = urlParams.get('wordLimit');
 const wordLimit = wordLimitParam ? parseInt(wordLimitParam, 10) : null;
 
-ReactDOM.render(
-  <App
-    isDemo={ isDemo }
-    wordLimit={ wordLimit }
-  />,
-  document.getElementById('container')
+const container = document.getElementById('container')!;
+const root = createRoot(container);
+root.render(
+	<StrictMode>
+		<App
+			isDemo={isDemo}
+			wordLimit={wordLimit}
+		/>
+	</StrictMode>
 );
