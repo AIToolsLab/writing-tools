@@ -7,7 +7,6 @@ import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
 
 import PageContextWrapper, { PageName, PageContext } from '@/contexts/pageContext';
-import UserContextWrapper from '@/contexts/userContext';
 import ChatContextWrapper from '@/contexts/chatContext';
 import EditorContextWrapper from '@/contexts/editorContext';
 
@@ -282,7 +281,6 @@ export default function App({ editorAPI, demoMode }: HomeProps) {
 
 	return (
 		<ChatContextWrapper>
-			<UserContextWrapper>
 				<PageContextWrapper>
 					<EditorContextWrapper editorAPI={ editorAPI }>
 						<Auth0Provider
@@ -305,7 +303,6 @@ export default function App({ editorAPI, demoMode }: HomeProps) {
 						</Auth0Provider>
 					</EditorContextWrapper>
 				</PageContextWrapper>
-			</UserContextWrapper>
 		</ChatContextWrapper>
 	);
 }

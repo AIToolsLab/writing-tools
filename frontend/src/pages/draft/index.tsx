@@ -1,7 +1,7 @@
 import { SERVER_URL, log } from '@/api';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
-import { UserContext } from '@/contexts/userContext';
+import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import { getBefore } from '@/utilities/selectionUtil';
 import { Fragment, useContext, useState } from 'react';
@@ -15,6 +15,7 @@ import {
 import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
+import { useAtomValue } from 'jotai';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
@@ -115,7 +116,7 @@ function SavedGenerations({
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
-	const { username } = useContext(UserContext);
+	const username = useAtomValue(usernameAtom);
 	const { getAccessToken, authErrorType } = useAccessToken();
 	const [genCtxText, updateGenCtxText] = useState('');
 
