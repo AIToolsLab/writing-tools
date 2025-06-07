@@ -93,7 +93,7 @@ function EditorScreen() {
 
 	return (
 		<div className={ isDemo ? classes.democontainer : classes.container }>
-			
+
 			<div className={ isDemo ? classes.demoeditor : classes.editor }>
 				<LexicalEditor
 					//@ts-ignore, see https://github.com/facebook/lexical/issues/5079
@@ -131,10 +131,26 @@ function Router({
 	else if (page.startsWith('study')) {
 		getDefaultStore().set(overallModeAtom, OverallMode.study);
 		if (page === 'study-intro') {
-			return <div>Study Intro Page</div>;
+			return <div className={classes.studyIntroContainer}>
+            <h1>Welcome!</h1>
+            <p>
+							Thank you for participating in our writing study. You'll complete three writing tasks (about 200-250 words each) on different topics.
+							After completing each task, click 'Done' to save your work and continue to the next task.
+							As you write, pay attention to the suggestions the writing tool offers and use them when
+							they seem helpful. There are no right or wrong ways to interact with the tool.
+							Your responses will be kept confidential. You can ask questions at any time.
+            </p>
+						<button
+								onClick={() => window.location.search = '?page=study-task1'}
+								className={classes.startButton}
+						>
+								Start Study
+						</button>
+
+        </div>;
 		}
 		else if (page === 'study-task1') {
-			const condition = 'Write a 200-word argument supporting your viewpoint.' // This would be dynamically set based on the study task
+			const condition = 'questions'; // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
 			const taskDescription = 'Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);	
