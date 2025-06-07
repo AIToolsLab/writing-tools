@@ -6,11 +6,7 @@ import { useDocContext } from '@/utilities';
 import { getBefore } from '@/utilities/selectionUtil';
 import { Fragment, useContext, useState } from 'react';
 import {
-	AiOutlineAlignLeft,
-	AiOutlineBank,
 	AiOutlineClose,
-	AiOutlineHighlight,
-	AiOutlineQuestion,
 } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
@@ -22,13 +18,6 @@ const visibleNameForMode = {
 	'Question': 'Questions',
 	'Keywords': 'Keywords',
 	'RMove': 'Rhetorical Move'
-};
-
-const visibleIconForMode = {
-	'Completion': <AiOutlineAlignLeft />,
-	'Question': <AiOutlineQuestion />,
-	'Keywords': <AiOutlineHighlight />,
-	'RMove': <AiOutlineBank />
 };
 
 
@@ -381,7 +370,7 @@ export default function Draft() {
 									);
 								} }
 							>
-							   { visibleIconForMode[mode as keyof typeof visibleIconForMode] }
+							   { iconFunc(mode) }
 							</button>
 							</Fragment>
 						);

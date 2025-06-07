@@ -20,11 +20,10 @@ import Draft from '../draft';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { AccessTokenProvider, useAccessToken } from '@/contexts/authTokenContext';
 import { useAtomValue } from 'jotai';
-import { PageName, pageNameAtom } from '@/contexts/pageContext';
+import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
-	demoMode: boolean;
 }
 
 function usePingServer() {
@@ -61,7 +60,9 @@ function usePingServer() {
 	}, []);
 }
 
-function AppInner({ editorAPI, demoMode }: HomeProps) {
+function AppInner({ editorAPI }: HomeProps) {
+	const mode = useAtomValue(overallModeAtom);
+	const noAuthMode = mode !== OverallMode.full;
 	const auth0Client = useAuth0();
 	const { isLoading, error, isAuthenticated, user } = auth0Client;
 	const [width, _height] = useWindowSize();
@@ -130,7 +131,7 @@ function AppInner({ editorAPI, demoMode }: HomeProps) {
 		</div>
 	);
 
-	if (!demoMode && (!isAuthenticated || !user)) {
+	if (!noAuthMode && (!isAuthenticated || !user)) {
 		return (
 			<div>
 				{ !hasCompletedOnboarding ? (
@@ -189,9 +190,9 @@ function AppInner({ editorAPI, demoMode }: HomeProps) {
 	}
 
 	// For the beta, only allow Calvin email addresses and example test user
-	const isUserAllowed = demoMode || user?.email?.endsWith('@calvin.edu') || user?.email === 'example-user@textfocals.com';
+	const isUserAllowed = noAuthMode || user?.email?.endsWith('@calvin.edu') || user?.email === 'example-user@textfocals.com';
 
-	if (!demoMode && !isUserAllowed) {
+	if (!noAuthMode && !isUserAllowed) {
 		return (
 			<div className={ classes.notAllowedContainer }>
 				<p className={ classes.notAllowedTitle }>Sorry, you are not allowed to access this page.</p>
@@ -274,11 +275,14 @@ function AppInner({ editorAPI, demoMode }: HomeProps) {
 		);
 }
 
-export default function App({ editorAPI, demoMode }: HomeProps) {
+export default function App({ editorAPI }: HomeProps) {
 	// If demo mode is enabled, we use a mock access token provider
-	const AccessTokenProvider = demoMode
-		? DemoAccessTokenProviderWrapper
-		: Auth0AccessTokenProviderWrapper;
+	const mode = useAtomValue(overallModeAtom);
+	const needAuth = mode == OverallMode.full;
+
+	const AccessTokenProvider = needAuth
+		? Auth0AccessTokenProviderWrapper
+		: DemoAccessTokenProviderWrapper;
 
 	return (
 		<ChatContextWrapper>
@@ -298,7 +302,7 @@ export default function App({ editorAPI, demoMode }: HomeProps) {
 							} }
 						>
 							<AccessTokenProvider>
-								<AppInner editorAPI={ editorAPI } demoMode={ demoMode } />
+								<AppInner editorAPI={ editorAPI } />
 							</AccessTokenProvider>
 						</Auth0Provider>
 					</EditorContextWrapper>
