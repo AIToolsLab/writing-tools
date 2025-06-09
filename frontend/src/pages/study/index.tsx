@@ -351,7 +351,6 @@ export default function Draft() {
 				<div
 					className={ classes.optionsContainer }
 				>
-					{isStudy === true ? (
 						<button
 							className={ classes.optionsButton }
 							disabled={ docContext.beforeCursor === '' || isLoading }
@@ -369,35 +368,6 @@ export default function Draft() {
 						>
 							{ iconFunc(studyCondition as keyof typeof visibleNameForMode) }
 						</button>
-					) : ( ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => {
-						return (
-							<Fragment key={ mode }>
-							<button
-								className={ classes.optionsButton }
-								disabled={ docContext.beforeCursor === '' || isLoading }
-								title={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
-								aria-label={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
-								onClick={ async () => {
-									log({
-										username: username,
-										interaction: `${mode}_Frontend`,
-										prompt: beforeContext
-									});
-									if (beforeContext === '') return;
-
-									getGeneration(
-										username,
-										`${mode}_Backend`,
-										beforeContext
-									);
-								} }
-							>
-							   { iconFunc(mode) }
-							</button>
-							</Fragment>
-						);
-					})
-					) }
 					</div>
 
 
