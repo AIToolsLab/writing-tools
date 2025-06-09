@@ -20,6 +20,7 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 EXPOSE 80
 
-RUN ["nginx", "-t"]
+# Fails because backend doesn't exist at image-build time
+#RUN ["nginx", "-t"]
 
 CMD ["nginx", "-g", "daemon off;"]
