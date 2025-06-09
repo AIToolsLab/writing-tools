@@ -52,7 +52,9 @@ module.exports = async (env, options) => {
 		    commands: './src/commands/commands.ts'
 		},
 		output: {
-			clean: true
+			clean: true,
+			filename: '[name].[contenthash].js',
+			chunkFilename: '[name].[contenthash].js'
 		},
 		resolve: {
 			alias: {
@@ -83,7 +85,7 @@ module.exports = async (env, options) => {
 					test: /\.(png|jpg|jpeg|ttf|woff|woff2|gif|ico)$/,
 					type: 'asset/resource',
 					generator: {
-						filename: 'assets/[name][ext][query]'
+						filename: 'assets/[name].[contenthash][ext][query]'
 					}
 				},
 				// CSS Modules: only for *.module.css
