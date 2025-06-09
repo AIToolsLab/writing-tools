@@ -4,7 +4,7 @@ pipeline {
         stage('Build') {
             steps {
                 echo 'Building the application...'
-                sh 'docker compose --no-cache -f docker-compose.yml -f docker-compose-prod.yml build'
+                sh 'docker compose -f docker-compose.yml -f docker-compose-prod.yml build --no-cache'
             }
         }
         // stage('Test') {
