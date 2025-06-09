@@ -1,0 +1,17 @@
+services:
+  frontend:
+    ports:
+      - "5001:80"
+    environment:
+      - NODE_ENV=production
+
+  backend:
+    ports:
+      - "5000:5000"
+    environment:
+      - DEBUG=True
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+networks:
+  default:
+    driver: bridge

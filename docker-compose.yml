@@ -3,8 +3,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "5001:80"
     depends_on:
       - backend
 
@@ -12,11 +10,8 @@ services:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    ports:
-      - "5000:5000"
     environment:
       - PORT=5000
-      - DEBUG=False
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./backend/logs:/app/logs
