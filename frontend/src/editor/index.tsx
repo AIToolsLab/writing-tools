@@ -160,6 +160,12 @@ function Router({
 				<div> {taskDescription}</div>
 
 				<EditorScreen />
+
+				<button
+					onClick={() => window.location.search = '?page=study-task2'}
+					className={classes.doneButton}> I'm Done
+				</button>
+
 			</div>;
 		}
 		else if (page === 'study-task2') {
@@ -172,6 +178,12 @@ function Router({
 				<div>
 					{taskDescription}</div>
 				<EditorScreen />
+
+				<button
+					onClick={() => window.location.search = '?page=study-task3'}
+					className={classes.doneButton}> I'm Done
+				</button>
+
 			</div>;
 		}
 		else if (page === 'study-task3') {
@@ -184,6 +196,12 @@ function Router({
 				<div>
 					{taskDescription}</div>
 				<EditorScreen />
+
+				<button
+					onClick={() => window.location.search = '?page=study-intro'}
+					className={classes.doneButton}> I'm Done
+				</button>
+
 			</div>;
 		}
 		else {
