@@ -168,7 +168,6 @@ function Router({
 		}
 		else if (page === 'study-task2') {
 			const condition = 'Question' // This would be dynamically set based on the study task
-			const condition = 'Question' // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
 			const taskDescription = 'description';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
