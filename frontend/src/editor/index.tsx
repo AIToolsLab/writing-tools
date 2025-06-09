@@ -9,8 +9,6 @@ import LexicalEditor from './editor';
 import './styles.css';
 import classes from './styles.module.css';
 
-
-
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 	return (
 		<SidebarInner.default editorAPI={ editorAPI } />
@@ -18,7 +16,7 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 }
 
 function EditorScreen() {
-	const mode = useAtomValue(overallModeAtom)
+	const mode = useAtomValue(overallModeAtom);
 	const isDemo = mode === OverallMode.demo;
 
 	// This is a reference to the current document context
@@ -105,7 +103,7 @@ function EditorScreen() {
 						Words: { wordCount }
 					</div>
 				) }
-			</div>
+			</div> 
 
 			<div className={ isDemo ? classes.demosidebar : classes.sidebar }>
 				<Sidebar editorAPI={ editorAPI } />
@@ -169,7 +167,7 @@ function Router({
 			</div>;
 		}
 		else if (page === 'study-task2') {
-			const condition = 'condition' // This would be dynamically set based on the study task
+			const condition = 'Question' // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
 			const taskDescription = 'description';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
@@ -187,7 +185,7 @@ function Router({
 			</div>;
 		}
 		else if (page === 'study-task3') {
-			const condition = 'condition' // This would be dynamically set based on the study task
+			const condition = 'RMove' // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
 			const taskDescription = 'description';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);

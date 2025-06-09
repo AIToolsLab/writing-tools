@@ -4,7 +4,7 @@ import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import { getBefore } from '@/utilities/selectionUtil';
-import { Fragment, useContext, useState } from 'react';
+import { useContext, useState } from 'react';
 import {
 	AiOutlineClose,
 } from 'react-icons/ai';
@@ -12,7 +12,6 @@ import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
 import { useAtomValue } from 'jotai';
-import { overallModeAtom } from '@/contexts/pageContext';
 import { studyConditionAtom } from '@/contexts/studyContext';
 
 const visibleNameForMode = {
@@ -108,7 +107,6 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
-	const isStudy = 'study' === useAtomValue(overallModeAtom);
 	const studyCondition = useAtomValue(studyConditionAtom);
 	const { getAccessToken, authErrorType } = useAccessToken();
 	const [genCtxText, updateGenCtxText] = useState('');
@@ -351,7 +349,6 @@ export default function Draft() {
 				<div
 					className={ classes.optionsContainer }
 				>
-					{isStudy === true ? (
 						<button
 							className={ classes.optionsButton }
 							disabled={ docContext.beforeCursor === '' || isLoading }
@@ -369,35 +366,6 @@ export default function Draft() {
 						>
 							{ iconFunc(studyCondition as keyof typeof visibleNameForMode) }
 						</button>
-					) : ( ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => {
-						return (
-							<Fragment key={ mode }>
-							<button
-								className={ classes.optionsButton }
-								disabled={ docContext.beforeCursor === '' || isLoading }
-								title={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
-								aria-label={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
-								onClick={ async () => {
-									log({
-										username: username,
-										interaction: `${mode}_Frontend`,
-										prompt: beforeContext
-									});
-									if (beforeContext === '') return;
-
-									getGeneration(
-										username,
-										`${mode}_Backend`,
-										beforeContext
-									);
-								} }
-							>
-							   { iconFunc(mode) }
-							</button>
-							</Fragment>
-						);
-					})
-					) }
 					</div>
 
 
