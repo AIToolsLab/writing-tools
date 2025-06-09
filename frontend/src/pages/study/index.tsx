@@ -12,6 +12,8 @@ import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
 import { useAtomValue } from 'jotai';
+import { overallModeAtom } from '@/contexts/pageContext';
+import { studyConditionAtom } from '@/contexts/studyContext';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
@@ -25,10 +27,10 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 	return <Remark>{ generation.result }</Remark>;
 }
 
-function SavedGenerations({ 
-    savedItems, 
+function SavedGenerations({
+    savedItems,
     deleteSavedItem,
-}: { 
+}: {
     savedItems: SavedItem[],
     deleteSavedItem: (dateSaved: Date) => void,
 }) {
@@ -45,7 +47,7 @@ function SavedGenerations({
                 { savedItems.length === 0 ? (
                     <div className={ classes.historyEmptyWrapper }>
                         <div className={ classes.historyText }>
-                            No saved generations... 
+                            No saved generations...
                         </div>
                     </div>
                 ) : (
@@ -55,8 +57,8 @@ function SavedGenerations({
                             className={ classes.historyItem }
                         >
                             <div className={ classes.historyText }>
-                                <p className={ classes.historyDoc }  
-                                onClick={ () => { 
+                                <p className={ classes.historyDoc }
+                                onClick={ () => {
                                     // Show the whole document text
                                 } }     >
                                     ...
@@ -106,6 +108,8 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
+	const isStudy = 'study' === useAtomValue(overallModeAtom);
+	const studyCondition = useAtomValue(studyConditionAtom);
 	const { getAccessToken, authErrorType } = useAccessToken();
 	const [genCtxText, updateGenCtxText] = useState('');
 
@@ -347,7 +351,25 @@ export default function Draft() {
 				<div
 					className={ classes.optionsContainer }
 				>
-					{ ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => {
+					{isStudy === true ? (
+						<button
+							className={ classes.optionsButton }
+							disabled={ docContext.beforeCursor === '' || isLoading }
+							title= {visibleNameForMode[studyCondition as keyof typeof visibleNameForMode]}
+							aria-label={ visibleNameForMode[studyCondition  as keyof typeof visibleNameForMode] }
+							onClick={ async () => {
+								log({
+									username: username,
+									interaction: `${studyCondition}_Frontend`,
+									prompt: beforeContext
+								});
+								if (beforeContext === '') return;
+								getGeneration(username, `${studyCondition}_Backend`, beforeContext);
+							} }
+						>
+							{ iconFunc(studyCondition as keyof typeof visibleNameForMode) }
+						</button>
+					) : ( ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => {
 						return (
 							<Fragment key={ mode }>
 							<button
@@ -374,8 +396,11 @@ export default function Draft() {
 							</button>
 							</Fragment>
 						);
-					}) }
+					})
+					) }
 					</div>
+
+
 
 				<div className={ classes.noteTextWrapper }>
 					<div className={ classes.noteText }>
