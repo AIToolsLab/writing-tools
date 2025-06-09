@@ -21,6 +21,7 @@ import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { AccessTokenProvider, useAccessToken } from '@/contexts/authTokenContext';
 import { useAtomValue } from 'jotai';
 import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
+import Study from '../study';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
@@ -227,6 +228,8 @@ function AppInner({ editorAPI }: HomeProps) {
 				return <Chat />;
 			case PageName.Draft:
 				return <Draft />;
+			case PageName.Study:
+				return <Study />;
 		}
 		return null;
 	}
@@ -278,7 +281,7 @@ function AppInner({ editorAPI }: HomeProps) {
 export default function App({ editorAPI }: HomeProps) {
 	// If demo mode is enabled, we use a mock access token provider
 	const mode = useAtomValue(overallModeAtom);
-	const needAuth = mode == OverallMode.full;
+	const needAuth = mode === OverallMode.full;
 
 	const AccessTokenProvider = needAuth
 		? Auth0AccessTokenProviderWrapper

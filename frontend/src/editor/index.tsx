@@ -1,4 +1,4 @@
-import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
+import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
 import { studyConditionAtom, taskDescriptionAtom } from '@/contexts/studyContext';
 import * as SidebarInner from '@/pages/app';
 import { Auth0ContextInterface } from '@auth0/auth0-react';
@@ -127,8 +127,9 @@ function Router({
 	else if (page === 'demo') {
 		getDefaultStore().set(overallModeAtom, OverallMode.demo);
 		return <EditorScreen />;
-	} 
+	}
 	else if (page.startsWith('study')) {
+		getDefaultStore().set(pageNameAtom, PageName.Study);
 		getDefaultStore().set(overallModeAtom, OverallMode.study);
 		if (page === 'study-intro') {
 			return <div className={classes.studyIntroContainer}>
@@ -150,17 +151,17 @@ function Router({
         </div>;
 		}
 		else if (page === 'study-task1') {
-			const condition = 'questions'; // This would be dynamically set based on the study task
+			const condition = 'Keywords'; // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
 			const taskDescription = 'Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
-			getDefaultStore().set(taskDescriptionAtom, taskDescription);	
+			getDefaultStore().set(taskDescriptionAtom, taskDescription);
 
 			return <div>Study Task 1 Page - Condition: {condition}
 				<div> {taskDescription}</div>
-				
+
 				<EditorScreen />
 			</div>;
-		} 
+		}
 		else if (page === 'study-task2') {
 			const condition = 'condition' // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
@@ -168,11 +169,11 @@ function Router({
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
 
 			return <div>Study Task 2 Page - Condition: {condition}
-				<div> 
+				<div>
 					{taskDescription}</div>
 				<EditorScreen />
 			</div>;
-		} 
+		}
 		else if (page === 'study-task3') {
 			const condition = 'condition' // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
@@ -180,7 +181,7 @@ function Router({
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
 
 			return <div>Study Task 3 Page - Condition: {condition}
-				<div> 
+				<div>
 					{taskDescription}</div>
 				<EditorScreen />
 			</div>;

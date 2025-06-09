@@ -4,7 +4,8 @@ export enum PageName {
 	Revise = 'revise',
 	SearchBar = 'searchbar',
 	Chat = 'chat',
-	Draft = 'draft'
+	Draft = 'draft',
+	Study = 'study'
   }
 
 
