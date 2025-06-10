@@ -165,7 +165,7 @@ function LexicalEditor({
 					editorState: initialState
 				} }
 			>
-				<div className={ classes.editorContainer }>
+				<div className="">
 					<RichTextPlugin
 						contentEditable={
 							<ContentEditable className={ classes.editor } />
