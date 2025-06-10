@@ -353,6 +353,7 @@ h4 {
 	height: 40vh;
 	justify-content: center;
 	align-items: center;
+	border: 1px, solid, red; 
 }
 
 .historyButtonWrapper {

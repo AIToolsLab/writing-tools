@@ -179,7 +179,7 @@ export default function Chat() {
 			</div>
 
 			<form
-				className= "w-full flex flex-col gap-2" onSubmit={ sendMessage }>
+				className= "w-full flex flex-col gap-2 max-h-80" onSubmit={ sendMessage }>
 
 				<label className= "flex items-center border border-gray-500 justify-between p-[10px]">
 					<textarea
