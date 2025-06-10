@@ -1,17 +1,15 @@
 services:
   frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    depends_on:
-      - backend
+    ports:
+      - "19571:80"
+    environment:
+      - NODE_ENV=production
 
   backend:
-    build:
-      context: .
-      dockerfile: backend/Dockerfile
+    ports: []
     environment:
       - PORT=5000
+      - DEBUG=False
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./backend/logs:/app/logs

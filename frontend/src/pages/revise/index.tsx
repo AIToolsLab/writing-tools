@@ -4,19 +4,21 @@ import {
 	defaultPrompt,
 	PromptButtonSelector
 } from '@/components/promptButtonSelector';
-import { useAuth0 } from '@auth0/auth0-react';
-import { UserContext } from '@/contexts/userContext';
+import { usernameAtom } from '@/contexts/userContext';
 import { getReflection } from '@/api';
 import classes from './styles.module.css';
 import { getCurParagraph } from '@/utilities/selectionUtil';
+import { EditorContext } from '@/contexts/editorContext';
 import { useDocContext } from '@/utilities';
+import { useAccessToken } from '@/contexts/authTokenContext';
+import { useAtomValue } from 'jotai';
 
-
-export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
-	const { username } = useContext(UserContext);
+export default function Revise() {
+	const editorAPI = useContext(EditorContext);
+	const username = useAtomValue(usernameAtom);
 	const docContext = useDocContext(editorAPI);
 	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
-	const { getAccessTokenSilently } = useAuth0();
+	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
 
 
 	const [reflections, updateReflections] = useState<
@@ -59,7 +61,7 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflection(username, paragraphText, prompt, getAccessTokenSilently);
+				getReflection(username, paragraphText, prompt, getAccessToken);
 
 			reflectionsPromise
 				.then(newReflections => {
@@ -68,6 +70,10 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 				})
 				.catch(_error => {
 					reflections.delete(cacheKey);
+					// eslint-disable-next-line no-constant-condition
+					if (false /* error has something to do with auth */) {
+						reportAuthError(_error);
+					}
 				});
 
 			reflections.set(cacheKey, reflectionsPromise);
@@ -95,6 +101,13 @@ export default function Revise({ editorAPI }: { editorAPI: EditorAPI }) {
 			})
 		);
 
+		if (cardDataList.length === 0 && authErrorType !== null) {
+			return (
+				<div>
+					No reflections available. Please reauthorize.
+				</div>
+			);
+		}
 		return (
 			<ReflectionCards
 				cardDataList={ cardDataList }

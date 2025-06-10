@@ -1,10 +1,13 @@
 :root {
 	--maroon: #891b2f;
 	--gold: #eecc0a;
+	--gold2: #f9e37d;
 	--black: #231f20;
 	--white: #f1f1f1f1;
 	--light-gray: #f8f8f8;
 	--light-blue: #D4EBF8;
+	--light-blue2: #8ad4ff;
+	--dark-blue: #1e3a8a;
 	--shadow-blue: #519fcc;
 }
 
@@ -34,6 +37,25 @@ body {
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
+}
+
+body::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+	position: absolute;
+	right: 0;
+}
+body::-webkit-scrollbar-track {
+	background-color: transparent;
+	margin-right: -6px;
+}
+body::-webkit-scrollbar-thumb {
+	background: rgba(0, 0, 0, 0.1);
+	border-radius: 6px;
+	margin-right: -6px;
+}
+body::-webkit-scrollbar-thumb:hover {
+	background: rgba(0, 0, 0, 0.4);
 }
 
 .nav-wrapper {
@@ -70,6 +92,9 @@ body {
 	cursor: pointer;
 	transition: all 0.15s;
 	opacity: 1;
+	display: flex;
+	justify-content: center;
+	align-items: center;
 }
 
 .ghicon:hover {
@@ -80,14 +105,31 @@ body {
 	transition: all 0.5s;
 	border-radius: 50%;
 	padding: 0.2rem;
+	transition: 0.3s all;
+	display: flex;
+	justify-content: center;
+	align-items: center;
 }
 
 #main-page:hover {
 	background-color: #ff9a47;
-	animation: funAnimations 4s linear infinite;
+	animation: rotateRight 4s ease-in-out infinite;
 }
 
-@keyframes funAnimations {
+.msstore-icon {
+	cursor: pointer;
+	transition: all 0.15s;
+	opacity: 1;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+}
+
+.msstore-icon:hover {
+	opacity: 0.6;
+}
+
+@keyframes rotateRight {
 	0% {
 		transform: rotate(0deg);
 		background-color: #ff9a47;
@@ -208,6 +250,31 @@ header {
 	text-decoration: none;
 }
 
+#editor-demo  {
+	background-color: var(--light-gray);
+	border-radius: 1rem;
+	padding: 1rem;
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	flex-direction: column;
+	margin-top: 2rem;
+}
+
+#try-text {
+	background-color: var(--light-blue2);
+	color: var(--white);
+	font-size: 1.2rem;
+	border-radius: 2rem;
+	padding: 0.4rem 0.8rem;
+	border: 4px solid var(--light-blue);
+	transition: all 0.3s;
+}
+
+#try-text:hover {
+	color: var(--dark-blue);
+}
+
 .prevwork-button:hover {
 	background-color: var(--maroon);
 	color: var(--gold);
@@ -301,7 +368,7 @@ header {
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	margin-top: 3rem;
+	margin-bottom: 4rem;
 }
 
 .main-msdoc-img {

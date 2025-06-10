@@ -2,24 +2,22 @@ FROM python:3.11
 
 WORKDIR /app
 
-# Install uv
-RUN pip install uv
+# Install uv from the distroless image https://docs.astral.sh/uv/guides/integration/docker/#available-images
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
 # Copy pyproject.toml and uv.lock from the parent directory
 COPY ../pyproject.toml ../uv.lock ./
 
-# Install dependencies using uv with --frozen flag
-RUN uv sync --frozen
-
-# activate the .venv environment
-RUN uv venv .venv
-ENV PATH="/app/.venv/bin:$PATH"
+# Install dependencies
+RUN uv sync --locked
 
 # Copy backend files
-COPY . .
+COPY backend ./backend
 
 WORKDIR /app/backend
 
+# Expose the port the app runs on
+EXPOSE 5000
+
 # run the server
-# TODO: where do the log entries end up? Perhaps stop redirecting logs to files?
 CMD ["uv", "run", "gunicorn"]

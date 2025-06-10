@@ -1,4 +1,4 @@
-import { useContext, useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { pingServer } from '@/api';
 
 import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
@@ -6,9 +6,8 @@ import { useWindowSize } from '@react-hook/window-size/throttled';
 
 import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
 
-import PageContextWrapper, { PageName, PageContext } from '@/contexts/pageContext';
-import UserContextWrapper from '@/contexts/userContext';
 import ChatContextWrapper from '@/contexts/chatContext';
+import EditorContextWrapper from '@/contexts/editorContext';
 
 import classes from './styles.module.css';
 
@@ -18,8 +17,11 @@ import Revise from '../revise';
 import SearchBar from '../searchbar';
 import Chat from '../chat';
 import Draft from '../draft';
-import { wordEditorAPI } from '@/api/wordEditorAPI';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
+import { AccessTokenProvider, useAccessToken } from '@/contexts/authTokenContext';
+import { useAtomValue } from 'jotai';
+import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
+import Study from '../study';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
@@ -60,14 +62,16 @@ function usePingServer() {
 }
 
 function AppInner({ editorAPI }: HomeProps) {
+	const mode = useAtomValue(overallModeAtom);
+	const noAuthMode = mode !== OverallMode.full;
 	const auth0Client = useAuth0();
 	const { isLoading, error, isAuthenticated, user } = auth0Client;
 	const [width, _height] = useWindowSize();
-	const { page } = useContext(PageContext);
+	const page = useAtomValue(pageNameAtom)
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
 		return localStorage.getItem('hasCompletedOnboarding') === 'true';
 	});
-
+	const { authErrorType } = useAccessToken();
 
 	usePingServer();
 
@@ -128,7 +132,7 @@ function AppInner({ editorAPI }: HomeProps) {
 		</div>
 	);
 
-	if (!isAuthenticated || !user) {
+	if (!noAuthMode && (!isAuthenticated || !user)) {
 		return (
 			<div>
 				{ !hasCompletedOnboarding ? (
@@ -187,9 +191,9 @@ function AppInner({ editorAPI }: HomeProps) {
 	}
 
 	// For the beta, only allow Calvin email addresses and example test user
-	const isUserAllowed = user.email?.endsWith('@calvin.edu') || user.email === 'example-user@textfocals.com';
+	const isUserAllowed = noAuthMode || user?.email?.endsWith('@calvin.edu') || user?.email === 'example-user@textfocals.com';
 
-	if (!isUserAllowed) {
+	if (!noAuthMode && !isUserAllowed) {
 		return (
 			<div className={ classes.notAllowedContainer }>
 				<p className={ classes.notAllowedTitle }>Sorry, you are not allowed to access this page.</p>
@@ -217,13 +221,15 @@ function AppInner({ editorAPI }: HomeProps) {
 	function getComponent(pageName: PageName): JSX.Element | null {
 		switch (pageName) {
 			case PageName.Revise:
-				return <Revise editorAPI={ editorAPI } />;
+				return <Revise />;
 			case PageName.SearchBar:
 				return <SearchBar />;
 			case PageName.Chat:
 				return <Chat />;
 			case PageName.Draft:
-				return <Draft editorAPI={ editorAPI } />;
+				return <Draft />;
+			case PageName.Study:
+				return <Study />;
 		}
 		return null;
 	}
@@ -231,6 +237,7 @@ function AppInner({ editorAPI }: HomeProps) {
 
 	return (
 		<Layout>
+			{ user && (
 			<div className={ classes.container }>
 				<div className={ classes.profileContainer }>
 					<div className={ classes.profilePicContainer }>
@@ -245,6 +252,15 @@ function AppInner({ editorAPI }: HomeProps) {
 						User: { user!.name }
 					</div>
 				</div>
+				{ authErrorType !== null && (
+					<button
+					  className={ classes.logoutButton }
+					  onClick={ async () => {
+						// do login again
+						await editorAPI.doLogin(auth0Client);
+					  } }
+					  >Reauthorize</button>
+				) }
 				<button
 					className={ classes.logoutButton }
 					onClick={ () => {
@@ -256,35 +272,64 @@ function AppInner({ editorAPI }: HomeProps) {
 					LogOut
 				</button>
 			</div>
+		) }
 			{ getComponent(page) }
 		</Layout>
 		);
 }
 
 export default function App({ editorAPI }: HomeProps) {
-	if (!editorAPI) {
-		editorAPI = wordEditorAPI;
-	}
+	// If demo mode is enabled, we use a mock access token provider
+	const mode = useAtomValue(overallModeAtom);
+	const needAuth = mode === OverallMode.full;
+
+	const AccessTokenProvider = needAuth
+		? Auth0AccessTokenProviderWrapper
+		: DemoAccessTokenProviderWrapper;
+
 	return (
 		<ChatContextWrapper>
-			<UserContextWrapper>
-				<PageContextWrapper>
-				<Auth0Provider
-						domain={ process.env.AUTH0_DOMAIN! }
-						clientId={ process.env.AUTH0_CLIENT_ID! }
-						cacheLocation="localstorage"
-						useRefreshTokens={ true }
-						authorizationParams= { {
-							// eslint-disable-next-line camelcase
-							redirect_uri: `${window.location.origin}/popup.html`,
-							scope: 'openid profile email read:posts',
-							audience: 'textfocals.com',
-							leeway: 10
-						} }
-					>		<AppInner editorAPI={ editorAPI } />
-				</Auth0Provider>
-				</PageContextWrapper>
-			</UserContextWrapper>
+					<EditorContextWrapper editorAPI={ editorAPI }>
+						<Auth0Provider
+							domain={ process.env.AUTH0_DOMAIN! }
+							clientId={ process.env.AUTH0_CLIENT_ID! }
+							cacheLocation="localstorage"
+							useRefreshTokens={ true }
+							useRefreshTokensFallback={ true }
+							authorizationParams= { {
+								// eslint-disable-next-line camelcase
+								redirect_uri: `${window.location.origin}/popup.html`,
+								scope: 'openid profile email read:posts',
+								audience: 'textfocals.com',
+								leeway: 10
+							} }
+						>
+							<AccessTokenProvider>
+								<AppInner editorAPI={ editorAPI } />
+							</AccessTokenProvider>
+						</Auth0Provider>
+					</EditorContextWrapper>
 		</ChatContextWrapper>
+	);
+}
+
+function DemoAccessTokenProviderWrapper({ children }: { children: React.ReactNode }) {
+	const getAccessTokenSilently = async () => {
+		// Simulate a token retrieval for demo purposes
+		return 'demo-access-token';
+	};
+	return (
+		<AccessTokenProvider getAccessTokenSilently={ getAccessTokenSilently }>
+			{ children }
+		</AccessTokenProvider>
+	);
+}
+
+function Auth0AccessTokenProviderWrapper({ children }: { children: React.ReactNode }) {
+	const { getAccessTokenSilently } = useAuth0();
+	return (
+		<AccessTokenProvider getAccessTokenSilently={ getAccessTokenSilently }>
+			{ children }
+		</AccessTokenProvider>
 	);
 }

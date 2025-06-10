@@ -6,8 +6,6 @@ readme = "README.md"
 requires-python = ">=3.11" 
 dependencies = [
     "azure-identity>=1.18.0",
-    "azure-functions>=1.12.0",
-    "azure-data-tables==12.5.0",
     "azure-keyvault-secrets>=4.8.0",
     "en-core-web-sm",
     "fastapi>=0.115.0",
@@ -34,5 +32,4 @@ gpu = [
 ]
 dev = [
     "ipython>=8.32.0",
-    "marimo>=0.10.6",
 ]

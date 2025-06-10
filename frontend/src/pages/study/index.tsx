@@ -4,7 +4,7 @@ import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import { getBefore } from '@/utilities/selectionUtil';
-import { Fragment, useContext, useState } from 'react';
+import { useContext, useState } from 'react';
 import {
 	AiOutlineClose,
 } from 'react-icons/ai';
@@ -12,6 +12,7 @@ import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
 import { useAtomValue } from 'jotai';
+import { studyConditionAtom } from '@/contexts/studyContext';
 
 const visibleNameForMode = {
 	'Completion': 'Suggestions',
@@ -25,10 +26,10 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 	return <Remark>{ generation.result }</Remark>;
 }
 
-function SavedGenerations({ 
-    savedItems, 
+function SavedGenerations({
+    savedItems,
     deleteSavedItem,
-}: { 
+}: {
     savedItems: SavedItem[],
     deleteSavedItem: (dateSaved: Date) => void,
 }) {
@@ -45,7 +46,7 @@ function SavedGenerations({
                 { savedItems.length === 0 ? (
                     <div className={ classes.historyEmptyWrapper }>
                         <div className={ classes.historyText }>
-                            No saved generations... 
+                            No saved generations...
                         </div>
                     </div>
                 ) : (
@@ -55,8 +56,8 @@ function SavedGenerations({
                             className={ classes.historyItem }
                         >
                             <div className={ classes.historyText }>
-                                <p className={ classes.historyDoc }  
-                                onClick={ () => { 
+                                <p className={ classes.historyDoc }
+                                onClick={ () => {
                                     // Show the whole document text
                                 } }     >
                                     ...
@@ -106,6 +107,7 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
+	const studyCondition = useAtomValue(studyConditionAtom);
 	const { getAccessToken, authErrorType } = useAccessToken();
 	const [genCtxText, updateGenCtxText] = useState('');
 
@@ -126,11 +128,12 @@ export default function Draft() {
 
 	// Save the generation
 	function save(generation: GenerationResult, document: string) {
-		const newSaved = [...savedItems, {
+		const newSaved = [{
 			document: document,
 			generation: generation,
 			dateSaved: new Date()
-		}];
+		},
+		...savedItems];
 
 		updateSavedItems(newSaved);
 	}
@@ -347,35 +350,26 @@ export default function Draft() {
 				<div
 					className={ classes.optionsContainer }
 				>
-					{ ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => {
-						return (
-							<Fragment key={ mode }>
-							<button
-								className={ classes.optionsButton }
-								disabled={ docContext.beforeCursor === '' || isLoading }
-								title={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
-								aria-label={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
-								onClick={ async () => {
-									log({
-										username: username,
-										interaction: `${mode}_Frontend`,
-										prompt: beforeContext
-									});
-									if (beforeContext === '') return;
-
-									getGeneration(
-										username,
-										`${mode}_Backend`,
-										beforeContext
-									);
-								} }
-							>
-							   { iconFunc(mode) }
-							</button>
-							</Fragment>
-						);
-					}) }
+						<button
+							className={ classes.optionsButton }
+							disabled={ docContext.beforeCursor === '' || isLoading }
+							title= {visibleNameForMode[studyCondition as keyof typeof visibleNameForMode]}
+							aria-label={ visibleNameForMode[studyCondition  as keyof typeof visibleNameForMode] }
+							onClick={ async () => {
+								log({
+									username: username,
+									interaction: `${studyCondition}_Frontend`,
+									prompt: beforeContext
+								});
+								if (beforeContext === '') return;
+								getGeneration(username, `${studyCondition}_Backend`, beforeContext);
+							} }
+						>
+							{ iconFunc(studyCondition as keyof typeof visibleNameForMode) }
+						</button>
 					</div>
+
+
 
 				<div className={ classes.noteTextWrapper }>
 					<div className={ classes.noteText }>

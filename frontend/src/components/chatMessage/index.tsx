@@ -1,6 +1,5 @@
 import { Remark } from 'react-remark';
 
-import classes from './styles.module.css';
 
 type ChatMessageProps = {
 	index: number;
@@ -11,7 +10,7 @@ type ChatMessageProps = {
 
 export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
 	return (
-		<div className={ classes.container }>
+		<div className={ `w-full mb-2 ${props.role === 'user' ? 'flex justify-end' : 'flex justify-start'}` } >
 			{ /*
                 props.role !== 'assistant' ? (
                     <div className={ classes.toolbar }>
@@ -33,24 +32,24 @@ export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
                         />
                     </div>
                 )*/ }
-
 			<div
-				className={ `${classes.cardContainer} ${
-					props.role === 'user' ? classes.noBorderBottom : ''
-				}` }
+				className={ `max-w-[85%] p-4 border rounded-lg flex gap-4 items-start ${
+					props.role === 'user' ? 'bg-blue-50 border-blue-300 mr-2': 'bg-gray-50 border-gray-300 ml-2'}` }
 			>
-				<div className={ classes.pfpContainer }>
+                
+				<div className= "flex-shrink-0">
 					{ props.role === 'user' ? (
 						<img
-							src="https://source.boringavatars.com/marble/30/Maria%20user"
-							alt="User"
+							src="https://api.dicebear.com/9.x/initials/svg?seed=User"
+                            /*hardcoded for now, to change later with api, backgroundColor=00acc1,1e88e5,5e35b1,7cb342,8e24aa,039be5,43a047,00897b,3949ab,c0ca33,d81b60,e53935,f4511e,fb8c00,fdd835,ffb300*/
+                            className="w-8 h-8"
 						/>
 					) : (
-						<div className={ classes.pfp } />
+						<div className= "w-[30px] h-[30px] bg-emerald-400"/>
 					) }
 				</div>
 
-                <div><Remark>{ props.content }</Remark></div>
+                <div className="text-gray-800"><Remark>{ props.content }</Remark></div>
             </div>
         </div>
     );
