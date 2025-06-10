@@ -1,5 +1,6 @@
 .editorContainer {
     margin: 20px;
+    width: 600px;
     background: #fff;
     color: #000;
     position: relative;
@@ -8,6 +9,8 @@
     text-align: left;
     box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
     padding: 50px 0 50px 50px;
+    padding-bottom: 50px;
+    max-height: 80vh;
 }
 
 .editor {
