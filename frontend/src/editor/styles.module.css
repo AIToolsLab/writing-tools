@@ -2,7 +2,7 @@
 	display: flex;
 	justify-content: space-between;
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
-	max-height: 85vh;
+	max-height: 80vh;
 }
 
 .editor {
