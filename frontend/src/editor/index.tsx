@@ -90,9 +90,9 @@ function EditorScreen() {
 	};
 
 	return (
-		<div className={ isDemo ? classes.democontainer : classes.container }>
+		<div className="flex-auto flex flex-row overflow-scroll">
 
-			<div className={ isDemo ? classes.demoeditor : classes.editor }>
+			<div className="">
 				<LexicalEditor
 					//@ts-ignore, see https://github.com/facebook/lexical/issues/5079
 					initialState={ localStorage.getItem('doc') || undefined }
@@ -105,7 +105,7 @@ function EditorScreen() {
 				) }
 			</div> 
 
-			<div className={ isDemo ? classes.demosidebar : classes.sidebar }>
+			<div className="min-w-96">
 				<Sidebar editorAPI={ editorAPI } />
 			</div>
 		</div>
@@ -154,14 +154,14 @@ function Router({
 			const taskDescription = 'Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
 
-			return <div>Study Task 1 Page - Condition: {condition}
+			return <div className=''>Study Task 1 Page - Condition: {condition}
 				<div> {taskDescription}</div>
 
 				<EditorScreen />
 
 				<button
 					onClick={() => window.location.search = '?page=study-task2'}
-					className={classes.doneButton}> I'm Done
+					className={classes.doneButton}> Next Task
 				</button>
 
 			</div>;
@@ -174,12 +174,14 @@ function Router({
 
 			return <div>Study Task 2 Page - Condition: {condition}
 				<div>
-					{taskDescription}</div>
-				<EditorScreen />
+					{taskDescription}
+				</div>
 
+				<EditorScreen />
+				
 				<button
 					onClick={() => window.location.search = '?page=study-task3'}
-					className={classes.doneButton}> I'm Done
+					className={classes.doneButton}> Next Task
 				</button>
 
 			</div>;

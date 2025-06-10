@@ -349,6 +349,8 @@ h4 {
 }
 
 .historyContainer {
+	overflow-y: scroll;
+	height: 40vh;
 	justify-content: center;
 	align-items: center;
 }
