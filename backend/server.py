@@ -165,7 +165,7 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
 @app.post("/api/reflections")
 async def reflections(payload: ReflectionRequestPayload, background_tasks: BackgroundTasks):
     start_time = datetime.now()
-    result = await nlp.reflection(prompt=payload.prompt, paragraph=payload.paragraph)
+    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph)
     end_time = datetime.now()
 
     log_entry = ReflectionLog(
@@ -271,7 +271,6 @@ def get_participant_log_filename(username):
 async def make_log(payload: Log):
     with open(get_participant_log_filename(payload.username), "a+") as f:
         f.write(json.dumps(payload.model_dump()) + "\n")
-            
 
 static_path = Path("../frontend/dist")
 if static_path.exists():

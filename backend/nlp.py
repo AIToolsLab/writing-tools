@@ -86,11 +86,11 @@ def chat_stream(messages: Iterable[ChatCompletionMessageParam], temperature: flo
     )
 
 
-async def completion(prompt: str):
+async def completion(userDoc: str):
     # Generate a completion based on the now-complete last sentence.
     response = await openai_client.completions.create(
         model="gpt-3.5-turbo-instruct",
-        prompt=prompt,
+        prompt=userDoc,
         temperature=1,
         max_tokens=1024,
         top_p=1,
@@ -110,25 +110,23 @@ class GenerationResult(BaseModel):
     extra_data: Dict[str, Any]
 
 
-async def chat_completion(prompt: str, temperature=1.0) -> GenerationResult:
+async def chat_completion(userDoc: str, temperature=1.0) -> GenerationResult:
     # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
     word_limit = str(random.randint(15, 30))
-    RHETORICAL_SITUATION = "You are a completion bot for a 200-word essay"
+    RHETORICAL_SITUATION = "Act as a completion bot for a 200-word essay"
 
     # Assign prompt based on whether the document ends with a newline for a new paragraph
-    ends_with_newline = prompt.endswith("\r\r") or prompt.endswith("\n")
+    ends_with_newline = userDoc.endswith("\r\r") or userDoc.endswith("\n")
     if ends_with_newline:
-        system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words."
+        completion_prompt = f"{RHETORICAL_SITUATION}. For the given text above, write 1 sentence to start the next paragraph. Use at least 1 and at most {word_limit} words."
     else:
-        system_chat_prompt = f"{RHETORICAL_SITUATION}. For the given text, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words."
+        completion_prompt = f"{RHETORICAL_SITUATION}. For the given text above, write a continuation that does not exceed one sentence. Use at least 1 and at most {word_limit} words."
+
+    full_prompt = construct_prompt_prefix(userDoc) + completion_prompt
 
     result = await chat(
         messages=[
-            {
-                "role": "system",
-                "content": system_chat_prompt,
-            },
-            {"role": "user", "content": prompt},
+            {"role": "user", "content": full_prompt},
         ],
         temperature=temperature,
     )
@@ -141,15 +139,14 @@ async def chat_completion(prompt: str, temperature=1.0) -> GenerationResult:
             "temperature": temperature,
             "word_limit": word_limit,
             "ends_with_newline": ends_with_newline,
-            "system_chat_prompt": system_chat_prompt,
         })
 
 
-async def question(prompt: str) -> GenerationResult:
-    example_completion_data = (await chat_completion(prompt))
-    example = example_completion_data.result
+async def question(userDoc: str) -> GenerationResult:
+    completion_data = (await chat_completion(userDoc))
+    completion = completion_data.result
 
-    final_sentence = get_final_sentence(prompt)
+    final_sentence = get_final_sentence(userDoc)
 
     temperature = 1.0
 
@@ -157,16 +154,19 @@ async def question(prompt: str) -> GenerationResult:
         or final_sentence.endswith("\n")
         or is_full_sentence(final_sentence)
     ):
-        question_prompt = f"With the current document in mind:\n\n{prompt}\n\nWrite a question that would inspire the ideas expressed in the next given sentence."
+        question_prompt = f"Write a question that would inspire the ideas expressed in the next given sentence."
     else:
-        question_prompt = f"With the current document in mind:\n\n{prompt}\n\nReword the following completion as a who/what/when/where/why/how question."
-    completion_length = len(example.split())
+        question_prompt = f"Reword the following completion as a who/what/when/where/why/how question."
+    completion_length = len(completion.split())
     max_length = max(int(completion_length * 0.8), 7)
     question_prompt += f" Use no more than {max_length} words."
 
-    full_prompt = (
-        f"{question_prompt}\n\n{example}"
+
+    transformation_prompt = (
+        f"{question_prompt}\n\n{completion}"
     )
+
+    full_prompt = construct_prompt_prefix(userDoc) + transformation_prompt
 
     questions = await chat(
         messages=[
@@ -179,20 +179,20 @@ async def question(prompt: str) -> GenerationResult:
         generation_type="Question",
         result=questions,
         extra_data={
-            "completion": example,
+            "completion": completion,
             "temperature": temperature,
-            "example_completion_data": example_completion_data,
+            "completion_data": completion_data,
             "is_full_sentence": is_full_sentence(final_sentence),
             "max_length": max_length,
         })
 
 
-async def reflection(prompt: str, paragraph: str) -> GenerationResult:
+async def reflection(userDoc: str, paragraph: str) -> GenerationResult:
     temperature = 1.0
 
     questions = await chat(
         messages=[
-            {"role": "system", "content": prompt},
+            {"role": "system", "content": userDoc},
             {"role": "user", "content": paragraph},
         ],
         temperature=temperature,
@@ -202,17 +202,17 @@ async def reflection(prompt: str, paragraph: str) -> GenerationResult:
         generation_type="Reflection",
         result=questions,
         extra_data={
-            "prompt": prompt,
+            "prompt": userDoc,
             "temperature": temperature,
         })
 
 
-async def keywords(prompt: str) -> GenerationResult:
-    completion = (await chat_completion(prompt)).result
+async def keywords(userDoc: str) -> GenerationResult:
+    completion = (await chat_completion(userDoc)).result
 
     keyword_dict = defaultdict(set)
     pos_labels = dict(NOUN="Nouns", PROPN="Proper Nouns", VERB="Verbs",
-                      ADJ="Adjectives", ADV="Adverbs", INTJ="Interjections")
+                        ADJ="Adjectives", ADV="Adverbs", INTJ="Interjections")
 
     # Process the text with spaCy
     doc = nlp(completion)
@@ -243,10 +243,10 @@ async def keywords(prompt: str) -> GenerationResult:
     )
 
 
-async def structure(prompt: str) -> GenerationResult:
-    completion = (await chat_completion(prompt)).result
+async def structure(userDoc: str) -> GenerationResult:
+    completion = (await chat_completion(userDoc)).result
 
-    prior_sentence = get_final_sentence(prompt)
+    prior_sentence = get_final_sentence(userDoc)
     new_sentence = (prior_sentence.endswith("\r\r")
         or prior_sentence.endswith("\n")
         or is_full_sentence(prior_sentence)
@@ -260,10 +260,10 @@ async def structure(prompt: str) -> GenerationResult:
         # return not determiner and (keyword_pos or past_participle or ly_word)
 
         plainword_tag = token.tag_ in ["CC", "CD", "DT", "EX", "IN", "LS",
-                                       "MD", "PDT", "PRP", "PRP$", "RP", "TO", "WDT", "WP", "WP$", "WRB"]
+                                        "MD", "PDT", "PRP", "PRP$", "RP", "TO", "WDT", "WP", "WP$", "WRB"]
         simple_adverb = (
             token.tag_ in ["RB", "RBR", "RBS",
-                           "WRB"] and token.text[-2:] != "ly"
+                            "WRB"] and token.text[-2:] != "ly"
         )
         aux = token.pos_ == "AUX"
         punct = token.is_punct
@@ -298,16 +298,14 @@ async def structure(prompt: str) -> GenerationResult:
 
 
 # Rhetorical Move
-async def rmove(prompt: str) -> GenerationResult:
+async def rmove(userDoc: str) -> GenerationResult:
     #final_sentence = get_final_sentence(prompt)
 
     temperature = 1.0
 
-    move_prompt = f"You are a writing assistant. Name a rhetorical category the next sentence in the given document should fulfill. Answer in the following format: <Category>: <Instruction>. Use no more than 10 words."
+    move_prompt = f"Act as a writing assistant. Name a rhetorical category the next sentence in the above document should fulfill. Answer in the following format: <Category>: <Instruction>. Use no more than 10 words."
 
-    full_prompt = (
-        f"{move_prompt}\n\n{prompt}"
-    )
+    full_prompt = construct_prompt_prefix(userDoc) + move_prompt
 
     rhetorical_move = await chat(
         messages=[
@@ -325,3 +323,8 @@ async def rmove(prompt: str) -> GenerationResult:
             "move_prompt": move_prompt,
         }
     )
+
+
+# Construct prompt prefix
+def construct_prompt_prefix(userDoc: str) -> str:
+    return f"With the current document in mind:<document>\n{userDoc}\n</document>\n\n"
