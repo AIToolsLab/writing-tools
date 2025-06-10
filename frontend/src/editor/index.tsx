@@ -103,7 +103,7 @@ function EditorScreen() {
 						Words: { wordCount }
 					</div>
 				) }
-			</div> 
+			</div>
 
 			<div className={ isDemo ? classes.demosidebar : classes.sidebar }>
 				<Sidebar editorAPI={ editorAPI } />
@@ -149,7 +149,7 @@ function Router({
         </div>;
 		}
 		else if (page === 'study-task1') {
-			const condition = 'Keywords'; // This would be dynamically set based on the study task
+			const condition = 'Completion'; // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
 			const taskDescription = 'Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
