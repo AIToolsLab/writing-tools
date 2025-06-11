@@ -151,17 +151,17 @@ function Router({
 		else if (page === 'study-task1') {
 			const condition = 'Completion'; // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
-			const taskDescription = 'Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
+			const taskDescription = 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
 
-			return <div>Study Task 1 Page - Condition: {condition}
-				<div> {taskDescription}</div>
+			return <div>
+				<div className={classes.studytaskcontainer}> {taskDescription} </div>
 
 				<EditorScreen />
 
 				<button
 					onClick={() => window.location.search = '?page=study-task2'}
-					className={classes.doneButton}> I'm Done
+					className={classes.doneButton}> Save and Continue
 				</button>
 
 			</div>;
@@ -169,17 +169,17 @@ function Router({
 		else if (page === 'study-task2') {
 			const condition = 'Question' // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
-			const taskDescription = 'description';
+			const taskDescription = 'Task 2: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
 
-			return <div>Study Task 2 Page - Condition: {condition}
-				<div>
-					{taskDescription}</div>
+			return <div>
+				<div className={classes.studytaskcontainer}> {taskDescription} </div>
+
 				<EditorScreen />
 
 				<button
 					onClick={() => window.location.search = '?page=study-task3'}
-					className={classes.doneButton}> I'm Done
+					className={classes.doneButton}> Save and Continue
 				</button>
 
 			</div>;
@@ -187,12 +187,12 @@ function Router({
 		else if (page === 'study-task3') {
 			const condition = 'RMove' // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
-			const taskDescription = 'description';
+			const taskDescription = 'Task 3: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
 
-			return <div>Study Task 3 Page - Condition: {condition}
-				<div>
-					{taskDescription}</div>
+			return <div>
+				<div className={classes.studytaskcontainer}> {taskDescription} </div>
+
 				<EditorScreen />
 
 				<button
