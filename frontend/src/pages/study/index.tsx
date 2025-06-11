@@ -333,7 +333,7 @@ export default function Draft() {
 		);
 
 	return (
-		<div className=" flex flex-col gap-2 relative p-2 h-[75vh]">
+		<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
 
 			{ /* Document Context Text Container */ }
 			<div className= "text-sm p-[8px] m-[8px] shadow-[0_6px_10px_-1px_rgba(147,123,109,0.1)]">
@@ -381,7 +381,7 @@ export default function Draft() {
 
 
 				{ /* Result of the generation */ }
-				<div>{ results }</div>
+				<div className='h-[60vh] overflow-auto'>{ results }</div>
 
 				{ /* Saved generations */ }
 				<SavedGenerations
