@@ -155,7 +155,7 @@ function AppInner({ editorAPI }: HomeProps) {
 						</button>
 
 						<div className={ classes.loginInfoContainer }>
-							<p><strong>Note</strong>: the reason for Login is because it is a closed trial of study for now</p>
+							<p><strong>Note</strong>: login is required since this is a closed trial for now.</p>
 						</div>
 
 						<div className={ classes.signupBtnCtnr }>

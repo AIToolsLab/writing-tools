@@ -103,7 +103,7 @@ function EditorScreen() {
 						Words: { wordCount }
 					</div>
 				) }
-			</div> 
+			</div>
 
 			<div className="min-w-96">
 				<Sidebar editorAPI={ editorAPI } />

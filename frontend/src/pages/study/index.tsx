@@ -128,11 +128,12 @@ export default function Draft() {
 
 	// Save the generation
 	function save(generation: GenerationResult, document: string) {
-		const newSaved = [...savedItems, {
+		const newSaved = [{
 			document: document,
 			generation: generation,
 			dateSaved: new Date()
-		}];
+		},
+		...savedItems];
 
 		updateSavedItems(newSaved);
 	}
