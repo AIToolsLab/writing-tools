@@ -30,6 +30,7 @@ h4 {
 
 .optionsButton,
 .optionsButtonActive {
+	display: flex; /* Fixes centering of icon in suggestion button */
 	background-color: #ffffff;
 	font-size: 1rem;
 	font-weight: 600;
