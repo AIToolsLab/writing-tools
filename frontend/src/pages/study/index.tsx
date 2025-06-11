@@ -333,7 +333,7 @@ export default function Draft() {
 		);
 
 	return (
-		<div className=" flex flex-col gap-2 relative p-2">
+		<div className=" flex flex-col gap-2 relative p-2 h-[75vh]">
 
 			{ /* Document Context Text Container */ }
 			<div className= "text-sm p-[8px] m-[8px] shadow-[0_6px_10px_-1px_rgba(147,123,109,0.1)]">
@@ -379,16 +379,16 @@ export default function Draft() {
 				</div>
 			</div>
 
-			<div>
+
 				{ /* Result of the generation */ }
-				<div className={ classes.reflectionContainer }>{ results }</div>
+				<div>{ results }</div>
 
 				{ /* Saved generations */ }
 				<SavedGenerations
 					savedItems={ savedItems }
 					deleteSavedItem={ deleteSavedItem }
 				/>
-			</div>
+
 		</div>
 	);
 }
