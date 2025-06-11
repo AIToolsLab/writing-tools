@@ -7,7 +7,9 @@
     font-weight: 400;
     text-align: left;
     box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-    padding: 50px 0 50px 50px;
+    padding: 50px 50px 50px 50px; /* NEW: Add right padding to the editor container instead of doing that in editor */
+    height: 80vh; /* NEW: Set height to 80vh for the editor container */
+    border: black solid 1px;
 }
 
 .editor {
@@ -19,10 +21,10 @@
     outline: 0;
     caret-color: #444;
     overflow-y: scroll;
-    height: 80vh;
+    height: 100%; /* NEW: Full height to fill the editorcontainer */
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
-    padding-right: 46px;
+    border: black solid 1px;
 }
 
 .editor::-webkit-scrollbar {

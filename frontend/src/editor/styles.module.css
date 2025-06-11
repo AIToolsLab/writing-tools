@@ -2,6 +2,7 @@
 	display: flex;
 	justify-content: space-between;
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+	border: green solid 1px;
 }
 
 .editor {
@@ -12,6 +13,7 @@
 
 .sidebar {
 	margin: 20px;
+	height: 80vh; /* NEW: Set height to 80vh for the sidebar */
 	overflow-y: scroll;
 	width: 28rem;
 	min-width: 28rem;
@@ -20,12 +22,15 @@
 	position: sticky;
 	right: 0;
 	background-color: white;
+	border: red solid 1px;
 }
 
 .democontainer {
 	display: flex;
 	justify-content: center;
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+	/* height: 80vh; NEW: Set height to 80vh for the demo container */
+	border: blue solid 1px;
 }
 
 .demoeditor {
