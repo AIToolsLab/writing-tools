@@ -1,26 +1,26 @@
 /* Container for the editor and sidebar in editor and study page */
 .container {
-	display: flex;
 	justify-content: space-evenly;
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+	display: flex;
+  flex-direction: row;
 }
 
 .editor {
-	min-width: 60rem;
+	flex: 1;
+	min-width: 15rem;
 	max-width: 60rem;
-	width: 100%;
 }
 
 /* Sidebar for editor and study page */
 .sidebar {
-	margin: 20px;
+	flex: 0 1 28rem;
+	min-width: 14rem;
+	margin: 20px 0px 20px 0px;
 	height: 80vh; /*NEW: Set height to 80vh for the sidebar*/
 	overflow-y: scroll;
-	width: 28rem;
-	min-width: 28rem;
 	box-shadow: -2px 0 5px rgba(0,0,0,0.3);
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
-	position: sticky;
 	right: 0;
 	background-color: white;
 }
