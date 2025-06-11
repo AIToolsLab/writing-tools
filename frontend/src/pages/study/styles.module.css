@@ -351,8 +351,6 @@ h4 {
 .historyContainer {
 	justify-content: center;
 	align-items: center;
-	overflow-y: scroll;
-	height: 30vh;
 }
 
 .historyButtonWrapper {
