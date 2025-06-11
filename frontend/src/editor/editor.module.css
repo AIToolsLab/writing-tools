@@ -1,4 +1,4 @@
-/* Controls CSS for editor container in all the pages (editor, demo, study) */
+/* Controls CSS for editor in all the pages (editor, demo, study) */
 .editorContainer {
     margin: 20px;
     background: #fff;
@@ -12,7 +12,7 @@
     height: 80vh; /* NEW: Set height to 80vh for the editor container */
 }
 
-/* Controls CSS for editor container in all the pages (editor, demo, study) */
+/* Controls CSS for editor in all the pages (editor, demo, study) */
 .editor {
     resize: none;
     font-size: 16px;
