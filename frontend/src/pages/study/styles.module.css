@@ -18,8 +18,8 @@ h4 {
 	display: flex;
 	flex-direction: row;
 	justify-content: center;
-	margin-top: 0.1rem;
-	margin-bottom: 0.1rem;
+	margin-top: 1rem;
+	margin-bottom: 1rem;
 	position: relative;
 }
 
@@ -30,7 +30,6 @@ h4 {
 
 .optionsButton,
 .optionsButtonActive {
-	display: flex; /* Fixes centering of icon in suggestion button */
 	background-color: #ffffff;
 	font-size: 1rem;
 	font-weight: 600;
@@ -351,8 +350,6 @@ h4 {
 .historyContainer {
 	justify-content: center;
 	align-items: center;
-	height: 100%;
-	overflow-y: scroll;
 }
 
 .historyButtonWrapper {
