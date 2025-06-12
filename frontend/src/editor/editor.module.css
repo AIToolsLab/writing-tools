@@ -1,4 +1,3 @@
-/* Controls CSS for editor in all the pages (editor, demo, study) */
 .editorContainer {
     margin: 20px;
     background: #fff;
@@ -7,12 +6,10 @@
     line-height: 20px;
     font-weight: 400;
     text-align: left;
-    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
-    padding: 50px 50px 50px 50px; /* NEW: Add right padding to the editor container instead of doing that in editor */
-    height: 80vh; /* NEW: Set height to 80vh for the editor container */
+    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
+    padding: 50px 0 50px 50px;
 }
 
-/* Controls CSS for editor in all the pages (editor, demo, study) */
 .editor {
     resize: none;
     font-size: 16px;
@@ -22,9 +19,10 @@
     outline: 0;
     caret-color: #444;
     overflow-y: scroll;
-    height: 100%; /* NEW: Full height to fill the editorcontainer */
+    height: 80vh;
     scrollbar-width: thin;
     scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+    padding-right: 46px;
 }
 
 .editor::-webkit-scrollbar {
