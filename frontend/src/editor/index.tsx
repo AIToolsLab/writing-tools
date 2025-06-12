@@ -112,6 +112,16 @@ function EditorScreen() {
 	);
 }
 
+const studyPageNames = [
+	'study-intro',
+	'study-introSurvey',
+	'study-task1',
+	'study-posttask1',
+	'study-task2',
+	'study-posttask2',
+	'study-task3'
+];
+
 function Router({
 	page
 }: {
@@ -127,9 +137,15 @@ function Router({
 		return <EditorScreen />;
 	}
 	else if (page.startsWith('study')) {
+		const studyPageIndex = studyPageNames.indexOf(page);
+		if (studyPageIndex === -1) {
+			return <div>Unknown study page</div>;
+		}
+		const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
 		getDefaultStore().set(pageNameAtom, PageName.Study);
 		getDefaultStore().set(overallModeAtom, OverallMode.study);
 		if (page === 'study-intro') {
+			// TODO: consent form
 			return <div className={classes.studyIntroContainer}>
             <h1>Welcome!</h1>
             <p>
@@ -148,7 +164,15 @@ function Router({
 
         </div>;
 		}
-		else if (page === 'study-task1') {
+		else if (page === 'study-introSurvey') {
+			const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=${nextPage}`);
+			const introSurveyURL = `https://qualtrics.com/...`; // Replace with actual survey URL
+			return <div className={classes.studyIntroContainer}>
+				<a href={`${introSurveyURL}&redirect_url=${redirectURL}`}>Take the Intro Survey</a>
+			</div>;
+		}
+		else if (page.startsWith('study-task')) {
+			const taskNumber = page.replace('study-task', '');
 			const condition = 'Completion'; // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
 			const taskDescription = 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
