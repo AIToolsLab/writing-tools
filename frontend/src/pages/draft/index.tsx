@@ -152,7 +152,7 @@ export default function Draft() {
 
 		log({
 			username: username,
-			interaction: 'Delete',
+			event: 'Delete',
 			prompt: savedItems[savedItemIdx].document,
 			result: savedItems[savedItemIdx].generation
 		});
@@ -215,7 +215,7 @@ export default function Draft() {
 			updateGeneration(null);
 			log({
 				username: username,
-				interaction: "error",
+				event: "generation_error",
 				generation_type: type,
 				prompt: contextText,
 				result: errMsg
@@ -359,7 +359,7 @@ export default function Draft() {
 								onClick={ async () => {
 									log({
 										username: username,
-										interaction: "request_suggestion",
+										event: "request_suggestion",
 										// eslint-disable-next-line camelcase
 										generation_type: mode,
 										prompt: beforeContext

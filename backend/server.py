@@ -89,7 +89,7 @@ class Log(BaseModel):
     timestamp: float
     ok: bool = True
     username: ValidatedUsername
-    interaction: str
+    event: str
 
 
 class GenerationLog(Log):
@@ -148,7 +148,7 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
     log_entry = GenerationLog(
         timestamp=end_time.timestamp(),
         username=payload.username,
-        interaction="suggestion_generated",
+        event="suggestion_generated",
         generation_type=payload.gtype,
         prompt=payload.prompt if LOG_DOCTEXT else "",
         result=result.result if LOG_DOCTEXT else "",
@@ -176,7 +176,7 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
 
     log_entry = ReflectionLog(
         username=payload.username,
-        interaction="reflection",
+        event="reflection_generated",
         prompt=payload.prompt if LOG_DOCTEXT else "",
         paragraph=payload.paragraph if LOG_DOCTEXT else "",
         timestamp=end_time.timestamp(),
@@ -202,7 +202,7 @@ async def chat(payload: ChatRequestPayload):
     # } for message in payload.messages]
     # make_log(
     #    Log(username=payload.username,
-    # interaction="chat",
+    # event="chat_message",
     # prompt=payload.messages[-1]['content'],
     # ui_id=None)
     # )
