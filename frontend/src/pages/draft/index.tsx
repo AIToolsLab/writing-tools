@@ -152,7 +152,7 @@ export default function Draft() {
 
 		log({
 			username: username,
-			interaction: 'Delete',
+			event: 'Delete',
 			prompt: savedItems[savedItemIdx].document,
 			result: savedItems[savedItemIdx].generation
 		});
@@ -215,7 +215,9 @@ export default function Draft() {
 			updateGeneration(null);
 			log({
 				username: username,
-				interaction: type,
+				event: "generation_error",
+				// eslint-disable-next-line camelcase
+				generation_type: type,
 				prompt: contextText,
 				result: errMsg
 			});
@@ -358,14 +360,16 @@ export default function Draft() {
 								onClick={ async () => {
 									log({
 										username: username,
-										interaction: `${mode}_Frontend`,
+										event: "request_suggestion",
+										// eslint-disable-next-line camelcase
+										generation_type: mode,
 										prompt: beforeContext
 									});
 									if (beforeContext === '') return;
 
 									getGeneration(
 										username,
-										`${mode}_Backend`,
+										mode,
 										beforeContext
 									);
 								} }

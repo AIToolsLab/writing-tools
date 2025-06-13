@@ -7,7 +7,7 @@ import classes from './styles.module.css';
 
 interface Log {
     username: string;
-    interaction: string;
+    event: string;
     prompt: string;
     result: string;
     completion: string;
@@ -65,7 +65,7 @@ function App() {
                                             {
                                                 groupedLogs[username].map((log: Log) => (
                                                     <li key={ log.timestamp }>
-                                                        <p><strong>Interaction:</strong> { log.interaction }</p>
+                                                        <p><strong>Event:</strong> { log.event }</p>
                                                         <p><strong>Prompt:</strong> { log.prompt }</p>
                                                         <p><strong>Result:</strong> { log.result }</p>
                                                         <p><strong>Completion:</strong> { log.completion }</p>

@@ -155,7 +155,7 @@ export default function Draft() {
 
 		log({
 			username: username,
-			interaction: 'Delete',
+			event: 'Delete',
 			prompt: savedItems[savedItemIdx].document,
 			result: savedItems[savedItemIdx].generation
 		});
@@ -218,7 +218,9 @@ export default function Draft() {
 			updateGeneration(null);
 			log({
 				username: username,
-				interaction: type,
+				event: "generation_error",
+				// eslint-disable-next-line camelcase
+				generation_type: type,
 				prompt: contextText,
 				result: errMsg
 			});
@@ -272,6 +274,14 @@ export default function Draft() {
 						</div>
         );
     }
+
+	if (studyCondition === null) {
+		return (
+			<div className="text-center text-red-500">
+				Study condition is not set. Please check your setup.
+			</div>
+		);
+	}
 
 	let results = null;
 
@@ -358,11 +368,13 @@ export default function Draft() {
 							onClick={ async () => {
 								log({
 									username: username,
-									interaction: `${studyCondition}_Frontend`,
+									event: "request_suggestion",
+									// eslint-disable-next-line camelcase
+									generation_type: studyCondition,
 									prompt: beforeContext
 								});
 								if (beforeContext === '') return;
-								getGeneration(username, `${studyCondition}_Backend`, beforeContext);
+								getGeneration(username, studyCondition, beforeContext);
 							} }
 						>
 							{ iconFunc(studyCondition as keyof typeof visibleNameForMode) }
