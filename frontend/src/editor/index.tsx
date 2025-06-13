@@ -8,6 +8,7 @@ import ReactDOM from 'react-dom';
 import LexicalEditor from './editor';
 import './styles.css';
 import classes from './styles.module.css';
+import { log } from '@/api';
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 	return (
@@ -147,8 +148,11 @@ function Router({
 		return <EditorScreen />;
 	}
 	else if (page.startsWith('study')) {
-		//const urlParams = new URLSearchParams(window.location.search);
-		//const username = urlParams.get('username');
+		const urlParams = new URLSearchParams(window.location.search);
+		const username = urlParams.get('username');
+		if (!username) {
+			return <div> Please provide an username in the URL parameter. </div>;
+		}
 
 		getDefaultStore().set(pageNameAtom, PageName.Study);
 		getDefaultStore().set(overallModeAtom, OverallMode.study);
@@ -171,10 +175,17 @@ function Router({
 				they seem helpful. There are no right or wrong ways to interact with the tool.
 				Your responses will be kept confidential. You can ask questions at any time.
             </p>
-					<button
-					onClick={() => 
-						window.location.search = `?page=study-introSurvey`}
-						className={classes.startButton}
+				<button
+					onClick={() => {
+						log ({
+							username: username,
+							event: 'StartStudy',
+							interaction: 'User clicked Start Study button'
+						});
+						urlParams.set('page', 'study-introSurvey')
+						window.location.search = urlParams.toString()
+;					}}
+					className={classes.startButton}
 				>
 					Start Study
 				</button>
@@ -182,12 +193,24 @@ function Router({
         </div>;
 		}
 		if (page === 'study-introSurvey') {
+			const nextUrlParams = new URLSearchParams(window.location.search);
+      		nextUrlParams.set('page', 'study-task1');
+      		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
  
-			const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task1`);
+			//const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task1`);
 			const introSurveyURL = 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4';
 			return (
 				<div className={classes.studyIntroContainer}>
-				<a
+				<a 
+					onClick={() => {
+							log ({
+								username: username,
+								event: 'StartIntroSurvey',
+								interaction: 'User clicked Intro Survey button'
+							});
+							urlParams.set('page', 'study-task1')
+							window.location.search = urlParams.toString()
+	;					}}
 					href={`${introSurveyURL}?redirect_url=${redirectURL}`}
 					className={classes.startButton}
 					>
@@ -197,16 +220,10 @@ function Router({
 			);
 		}
  
-		// else if (page === 'study-introSurvey') {
-		// 	const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task1`);
-		// 	return <div className={classes.studyIntroContainer}>
-		// 		<p>Redirecting to survey...</p>
-		// 		<script>
-		// 			{`window.location.href = '${SURVEY_URLS.intro}?redirect_url=${redirectURL}';`}
-		// 		</script>
-		// 	</div>;
-		// }
 		else if (page === 'study-task1') {
+			const nextUrlParams = new URLSearchParams(window.location.search);
+      		nextUrlParams.set('page', 'study-posttask1');
+
 			const condition = 'Completion'; // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
 			const taskDescription = 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
@@ -218,18 +235,37 @@ function Router({
 				<EditorScreen />
 
 				<button
-					onClick={() => window.location.search = '?page=study-posttask1'}
+					onClick={() => {
+						log ({
+							username: username,
+							event: 'FinishTask1',
+							interaction: 'User finished Task 1'
+						});
+						urlParams.set('page', 'study-posttask1')
+						window.location.search = urlParams.toString()
+;					}}
 					className={classes.doneButton}> Save and Continue
 				</button>
 			</div>;
 		}
 		else if (page === 'study-posttask1') {
+			const nextUrlParams = new URLSearchParams(window.location.search);
+      		nextUrlParams.set('page', 'study-task2');
+      		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+ 
 			return <div className={classes.studyIntroContainer}>
 				<p> Thank you for completing Task 1. Please take a moment to complete a brief survey.</p>
 				<button
 					onClick={() => {
-						// Redirect to post-task1 survey
-						const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task2`);
+						log ({
+							username: username,
+							event: 'StartPostTask1',
+							interaction: 'User started post task 1 survey'
+						});
+						urlParams.set('page', 'study-task2')
+						window.location.search = urlParams.toString()
+;
+						//const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task2`);
 						window.location.href = `${SURVEY_URLS.postTask1}?redirect_url=${redirectURL}`;
 					}}
 					className={classes.startButton}
@@ -239,9 +275,12 @@ function Router({
 			</div>;
 		}
 		else if (page === 'study-task2') {
+			const nextUrlParams = new URLSearchParams(window.location.search);
+      		nextUrlParams.set('page', 'study-posttask2');
+
 			const condition = 'Question' // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
-			const taskDescription = 'Task 2: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
+			const taskDescription = 'Task 2: The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements.';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
 
 			return <div>
@@ -250,19 +289,38 @@ function Router({
 				<EditorScreen />
 
 				<button
-					onClick={() => window.location.search = '?page=study-posttask2'}
+					onClick={() => {
+						log ({
+							username: username,
+							event: 'FinishTask2',
+							interaction: 'User finished Task 2'
+						});
+						urlParams.set('page', 'study-posttask2')
+						window.location.search = urlParams.toString()
+;					}}
 					className={classes.doneButton}> Save and Continue
 				</button>
 
 			</div>;
 		}
 		else if (page === 'study-posttask2') {
+			const nextUrlParams = new URLSearchParams(window.location.search);
+      		nextUrlParams.set('page', 'study-task3');
+      		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+
 			return <div className={classes.studyIntroContainer}>
 				<p> Thank you for completing Task 2. Please take a moment to complete a brief survey.</p>
 				<button
 					onClick={() => {
-						// Redirect to post-task1 survey
-						const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task3`);
+						log ({
+							username: username,
+							event: 'StartPostTask2',
+							interaction: 'User started post task 2 survey'
+						});
+						urlParams.set('page', 'study-task3')
+						window.location.search = urlParams.toString()
+;
+						//const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task2`);
 						window.location.href = `${SURVEY_URLS.postTask2}?redirect_url=${redirectURL}`;
 					}}
 					className={classes.startButton}
@@ -272,9 +330,12 @@ function Router({
 			</div>;
 		}
 		else if (page === 'study-task3') {
+			const nextUrlParams = new URLSearchParams(window.location.search);
+      		nextUrlParams.set('page', 'study-posttask3');
+
 			const condition = 'RMove' // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
-			const taskDescription = 'Task 3: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
+			const taskDescription = 'Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
 
 			return <div>
@@ -283,19 +344,38 @@ function Router({
 				<EditorScreen />
 
 				<button
-					onClick={() => window.location.search = '?page=study-posttask3'}
+					onClick={() => {
+						log ({
+							username: username,
+							event: 'FinishTask3',
+							interaction: 'User finished Task 3'
+						});
+						urlParams.set('page', 'study-posttask3')
+						window.location.search = urlParams.toString()
+;					}}
 					className={classes.doneButton}> Save and Continue
 				</button>
 
 			</div>;
 		}
 		else if (page === 'study-posttask3') {
+			const nextUrlParams = new URLSearchParams(window.location.search);
+      		nextUrlParams.set('page', 'study-final');
+      		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+
 			return <div className={classes.studyIntroContainer}>
 				<p> Thank you for completing Task 3. Please take a moment to complete a brief survey.</p>
 				<button
 					onClick={() => {
-						// Redirect to post-task1 survey
-						const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-final`);
+						log ({
+							username: username,
+							event: 'StartPostTask3',
+							interaction: 'User started post task 3 survey'
+						});
+						urlParams.set('page', 'study-final')
+						window.location.search = urlParams.toString()
+;
+						//const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task2`);
 						window.location.href = `${SURVEY_URLS.postTask3}?redirect_url=${redirectURL}`;
 					}}
 					className={classes.startButton}
@@ -309,7 +389,15 @@ function Router({
 				<h1>Study Complete</h1>
 				<p>Thank you for participating in our writing study.</p>
 				<button
-					onClick={() => window.location.search = '?page=editor'}
+					onClick={() => {
+						log ({
+							username: username,
+							event: 'FinishedStudy',
+							interaction: 'User finished the study'
+						});
+						urlParams.set('page', 'study-intro')
+						window.location.search = urlParams.toString()
+;					}}
 					className={classes.startButton}
 				>
 					Return to Start
