@@ -273,6 +273,14 @@ export default function Draft() {
         );
     }
 
+	if (studyCondition === null) {
+		return (
+			<div className="text-center text-red-500">
+				Study condition is not set. Please check your setup.
+			</div>
+		);
+	}
+
 	let results = null;
 
 	if (errorMsg !== '')
