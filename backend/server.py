@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict, AfterValidator
 import os
 import json
 
-from typing import List, Dict, Optional, Annotated
+from typing import List, Dict, Optional, Annotated, Literal
 from pathlib import Path
 from datetime import datetime
 
@@ -89,6 +89,7 @@ class Log(BaseModel):
 
 
 class GenerationLog(Log):
+    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove"]
     prompt: str
     result: str
     completion: Optional[str] = None
@@ -119,19 +120,22 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
     '''
     To test this endpoint from curl:
 
-    $ curl -X POST -H "Content-Type: application/json" -d '{"username": "test", "gtype": "Completion_Backend", "prompt": "This is a test prompt."}' http://localhost:8000/api/generation
+    $ curl -X POST -H "Content-Type: application/json" -d '{"username": "test", "gtype": "Completion", "prompt": "This is a test prompt."}' http://localhost:8000/api/generation
     '''
 
+    # Sometimes gtype will have a _Backend suffix, so we strip it out
+    payload.gtype = payload.gtype.replace("_Backend", "")
+
     start_time = datetime.now()
-    if payload.gtype == "Completion_Backend":
+    if payload.gtype == "Completion":
         result = await nlp.chat_completion(payload.prompt)
-    elif payload.gtype == "Question_Backend":
+    elif payload.gtype == "Question":
         result = await nlp.question(payload.prompt)
-    elif payload.gtype == "Keywords_Backend":
+    elif payload.gtype == "Keywords":
         result = await nlp.keywords(payload.prompt)
-    elif payload.gtype == "Structure_Backend":
+    elif payload.gtype == "Structure":
         result = await nlp.structure(payload.prompt)
-    elif payload.gtype == "RMove_Backend":
+    elif payload.gtype == "RMove":
         result = await nlp.rmove(payload.prompt)
     else:
         raise ValueError(f"Invalid generation type: {payload.gtype}")
@@ -140,7 +144,8 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
     log_entry = GenerationLog(
         timestamp=end_time.timestamp(),
         username=payload.username,
-        interaction=payload.gtype,
+        interaction="suggestion_generated",
+        generation_type=payload.gtype,
         prompt=payload.prompt if LOG_DOCTEXT else "",
         result=result.result if LOG_DOCTEXT else "",
         delay=(end_time - start_time).total_seconds(),

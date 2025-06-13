@@ -215,7 +215,8 @@ export default function Draft() {
 			updateGeneration(null);
 			log({
 				username: username,
-				interaction: type,
+				interaction: "error",
+				generation_type: type,
 				prompt: contextText,
 				result: errMsg
 			});
@@ -358,14 +359,16 @@ export default function Draft() {
 								onClick={ async () => {
 									log({
 										username: username,
-										interaction: `${mode}_Frontend`,
+										interaction: "request_suggestion",
+										// eslint-disable-next-line camelcase
+										generation_type: mode,
 										prompt: beforeContext
 									});
 									if (beforeContext === '') return;
 
 									getGeneration(
 										username,
-										`${mode}_Backend`,
+										mode,
 										beforeContext
 									);
 								} }
