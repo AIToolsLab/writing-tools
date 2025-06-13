@@ -237,7 +237,7 @@ function AppInner({ editorAPI }: HomeProps) {
 
 	return (
 		<Layout>
-			{ user && (
+			{ !noAuthMode && user && (
 			<div className={ classes.container }>
 				<div className={ classes.profileContainer }>
 					<div className={ classes.profilePicContainer }>

@@ -280,7 +280,7 @@ function Router({
 
 			const condition = 'Question' // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
-			const taskDescription = 'Task 2: The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements.';
+			const taskDescription = 'Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements. [Details are given below in the editor document]';
 			getDefaultStore().set(taskDescriptionAtom, taskDescription);
 
 			return <div>
