@@ -22,6 +22,10 @@ from dotenv import load_dotenv
 import nlp
 
 import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 
 # Load ENV vars
 load_dotenv()
@@ -156,9 +160,6 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
             if not hasattr(log_entry, key):
                 setattr(log_entry, key, value)
     background_tasks.add_task(make_log, log_entry)
-
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
 
     final_end_time = datetime.now()
     log = final_end_time - start_time
