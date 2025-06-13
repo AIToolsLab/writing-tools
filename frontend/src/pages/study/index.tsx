@@ -219,6 +219,7 @@ export default function Draft() {
 			log({
 				username: username,
 				event: "generation_error",
+				// eslint-disable-next-line camelcase
 				generation_type: type,
 				prompt: contextText,
 				result: errMsg
