@@ -114,19 +114,19 @@ function EditorScreen() {
 }
 
 const studyPageNames = [
-	'study-introSurvey',
 	'study-intro',
+	'study-introSurvey',
 	'study-task1',
-	'study-posttask1',
+	'study-postTask1',
 	'study-task2',
-	'study-posttask2',
+	'study-postTask2',
 	'study-task3',
-	'study-posttask3',
+	'study-postTask3',
 	'study-final'
 ];
 
 const SURVEY_URLS = {
-	preStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4', // Pre-study survey
+	preStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4',
 	postTask1: 'https://calvin.co1.qualtrics.com/jfe/form/SV_6Vuc9vgqMuEqzVY',
 	postTask2: 'https://calvin.co1.qualtrics.com/jfe/form/SV_7X8tAiech6zP79A',
 	postTask3: 'https://calvin.co1.qualtrics.com/jfe/form/SV_1M8MN5b0H9pfYsm',
@@ -148,22 +148,23 @@ function Router({
 		return <EditorScreen />;
 	}
 	else if (page.startsWith('study')) {
-		const urlParams = new URLSearchParams(window.location.search);
-		const username = urlParams.get('username');
-		if (!username) {
-			return <div> Please provide an username in the URL parameter. </div>;
-		}
 
 		getDefaultStore().set(pageNameAtom, PageName.Study);
 		getDefaultStore().set(overallModeAtom, OverallMode.study);
+
+		const urlParams = new URLSearchParams(window.location.search);
+		const username = urlParams.get('username');
+		if (!username) {
+			return <div> Please provide a username in the URL parameter. </div>;
+		}
 
 		const studyPageIndex = studyPageNames.indexOf(page);
 		if (studyPageIndex === -1) {
 			return <div>Unknown study page</div>;
 		}
-		
-		//const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
-		
+
+		const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
+
 		if (page === 'study-intro') {
 			// TODO: consent form
 			return <div className={classes.studyIntroContainer}>
@@ -196,12 +197,12 @@ function Router({
 			const nextUrlParams = new URLSearchParams(window.location.search);
       		nextUrlParams.set('page', 'study-task1');
       		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
- 
+
 			//const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task1`);
 			const introSurveyURL = 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4';
 			return (
 				<div className={classes.studyIntroContainer}>
-				<a 
+				<a
 					onClick={() => {
 							log ({
 								username: username,
@@ -219,10 +220,10 @@ function Router({
 				</div>
 			);
 		}
- 
+
 		else if (page === 'study-task1') {
 			const nextUrlParams = new URLSearchParams(window.location.search);
-      		nextUrlParams.set('page', 'study-posttask1');
+      		nextUrlParams.set('page', 'study-postTask1');
 
 			const condition = 'Completion'; // This would be dynamically set based on the study task
 			getDefaultStore().set(studyConditionAtom, condition);
@@ -241,18 +242,18 @@ function Router({
 							event: 'FinishTask1',
 							interaction: 'User finished Task 1'
 						});
-						urlParams.set('page', 'study-posttask1')
+						urlParams.set('page', 'study-postTask1')
 						window.location.search = urlParams.toString()
 ;					}}
 					className={classes.doneButton}> Save and Continue
 				</button>
 			</div>;
 		}
-		else if (page === 'study-posttask1') {
+		else if (page === 'study-postTask1') {
 			const nextUrlParams = new URLSearchParams(window.location.search);
       		nextUrlParams.set('page', 'study-task2');
       		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
- 
+
 			return <div className={classes.studyIntroContainer}>
 				<p> Thank you for completing Task 1. Please take a moment to complete a brief survey.</p>
 				<button
