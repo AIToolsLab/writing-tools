@@ -163,24 +163,39 @@ function EditorScreen( {taskID, initialContent }: {taskID?: string; initialConte
 }
 
 const studyPageNames = [
-	'study-introSurvey',
 	'study-intro',
+	'study-introSurvey',
 	'study-task1',
-	'study-posttask1',
+	'study-postTask1',
 	'study-task2',
-	'study-posttask2',
+	'study-postTask2',
 	'study-task3',
-	'study-posttask3',
+	'study-postTask3',
 	'study-final'
 ];
 
 const SURVEY_URLS = {
-	preStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4', // Pre-study survey
+	preStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4',
 	postTask1: 'https://calvin.co1.qualtrics.com/jfe/form/SV_6Vuc9vgqMuEqzVY',
 	postTask2: 'https://calvin.co1.qualtrics.com/jfe/form/SV_7X8tAiech6zP79A',
 	postTask3: 'https://calvin.co1.qualtrics.com/jfe/form/SV_1M8MN5b0H9pfYsm',
 	final: 'https://calvin.co1.qualtrics.com/jfe/form/SV_79DIQlYz4SJCwnk'
 };
+
+const taskConfigs = {
+		'1': {
+			condition: 'Completion',
+			taskDescription: 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.',
+		},
+		'2': {
+			condition: 'Question',
+			taskDescription: 'Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements. [Details are given below in the editor document]',
+		},
+		'3': {
+			condition: 'RMove',
+			taskDescription: 'Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.',
+		},
+	};
 
 function Router({
 	page
@@ -208,22 +223,23 @@ function Router({
 		return <EditorScreen />;
 	}
 	else if (page.startsWith('study')) {
-		const urlParams = new URLSearchParams(window.location.search);
-		const username = urlParams.get('username');
-		if (!username) {
-			return <div> Please provide an username in the URL parameter. </div>;
-		}
 
 		getDefaultStore().set(pageNameAtom, PageName.Study);
 		getDefaultStore().set(overallModeAtom, OverallMode.study);
+
+		const urlParams = new URLSearchParams(window.location.search);
+		const username = urlParams.get('username');
+		if (!username) {
+			return <div> Please provide a username in the URL parameter. </div>;
+		}
 
 		const studyPageIndex = studyPageNames.indexOf(page);
 		if (studyPageIndex === -1) {
 			return <div>Unknown study page</div>;
 		}
-		
-		//const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
-		
+
+		const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
+
 		if (page === 'study-intro') {
 			// TODO: consent form
 			return <div className={classes.studyIntroContainer}>
@@ -242,7 +258,7 @@ function Router({
 							event: 'StartStudy',
 							interaction: 'User clicked Start Study button'
 						});
-						urlParams.set('page', 'study-introSurvey')
+						urlParams.set('page', nextPage)
 						window.location.search = urlParams.toString()
 ;					}}
 					className={classes.startButton}
@@ -254,22 +270,19 @@ function Router({
 		}
 		if (page === 'study-introSurvey') {
 			const nextUrlParams = new URLSearchParams(window.location.search);
-      		nextUrlParams.set('page', 'study-task1');
-      		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
- 
-			//const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task1`);
-			const introSurveyURL = 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4';
+      nextUrlParams.set('page', nextPage);
+      const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+			const introSurveyURL = SURVEY_URLS.preStudy;
+
 			return (
 				<div className={classes.studyIntroContainer}>
-				<a 
+				<a
 					onClick={() => {
 							log ({
 								username: username,
 								event: 'StartIntroSurvey',
 								interaction: 'User clicked Intro Survey button'
 							});
-							urlParams.set('page', 'study-task1')
-							window.location.search = urlParams.toString()
 	;					}}
 					href={`${introSurveyURL}?redirect_url=${redirectURL}`}
 					className={classes.startButton}
@@ -279,70 +292,17 @@ function Router({
 				</div>
 			);
 		}
- 
-		else if (page === 'study-task1') {
-			const nextUrlParams = new URLSearchParams(window.location.search);
-      		nextUrlParams.set('page', 'study-posttask1');
 
-			const condition = 'Completion'; // This would be dynamically set based on the study task
-			getDefaultStore().set(studyConditionAtom, condition);
-			const taskDescription = 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.';
-			getDefaultStore().set(taskDescriptionAtom, taskDescription);
-			clearPreviousData('task1');
+		else if (page.startsWith('study-task')){
+			const urlParams = new URLSearchParams(window.location.search);
 
-			return <div>
-				<div className={classes.studytaskcontainer}> {taskDescription} </div>
-
-				<EditorScreen taskID='task1' />
-
-				<button
-					onClick={() => {
-						log ({
-							username: username,
-							event: 'FinishTask1',
-							interaction: 'User finished Task 1'
-						});
-						urlParams.set('page', 'study-posttask1')
-						window.location.search = urlParams.toString()
-;					}}
-					className={classes.doneButton}> Save and Continue
-				</button>
-			</div>;
+			const taskNumber = page.replace('study-task', '');
+			const taskConfig = taskConfigs[taskNumber as keyof typeof taskConfigs];
+			if (!taskConfig) {
+				return <div>Invalid task number</div>;
 		}
-		else if (page === 'study-posttask1') {
-			const nextUrlParams = new URLSearchParams(window.location.search);
-      		nextUrlParams.set('page', 'study-task2');
-      		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
- 
-			return <div className={classes.studyIntroContainer}>
-				<p> Thank you for completing Task 1. Please take a moment to complete a brief survey.</p>
-				<button
-					onClick={() => {
-						log ({
-							username: username,
-							event: 'StartPostTask1',
-							interaction: 'User started post task 1 survey'
-						});
-						urlParams.set('page', 'study-task2')
-						window.location.search = urlParams.toString()
-;
-						//const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task2`);
-						window.location.href = `${SURVEY_URLS.postTask1}?redirect_url=${redirectURL}`;
-					}}
-					className={classes.startButton}
-				>
-					Take Survey
-				</button>
-			</div>;
-		}
-		else if (page === 'study-task2') {
-			const nextUrlParams = new URLSearchParams(window.location.search);
-      		nextUrlParams.set('page', 'study-posttask2');
-
-			const condition = 'Question' // This would be dynamically set based on the study task
-			getDefaultStore().set(studyConditionAtom, condition);
-			const taskDescription = 'Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements. [Details are given below in the editor document]';
-			getDefaultStore().set(taskDescriptionAtom, taskDescription);
+			getDefaultStore().set(studyConditionAtom, taskConfig.condition);
+			getDefaultStore().set(taskDescriptionAtom, taskConfig.taskDescription);
 			clearPreviousData('task2');
 
 			const task2InitialContent =  
@@ -367,115 +327,51 @@ function Router({
 				- Prepare sustainability reports and presentations for clients
 				- Stay current with environmental regulations and industry trends`;
 
-			return <div>
-				<div className={classes.studytaskcontainer}> {taskDescription} </div>
+			return (
+				<div>
+					<div className={classes.studytaskcontainer}>{taskConfig.taskDescription}</div>
 
-				<EditorScreen taskID="task2" initialContent={task2InitialContent}/>
+					<EditorScreen taskID="task2" initialContent={task2InitialContent}/>
 
-				<button
-					onClick={() => {
-						log ({
-							username: username,
-							event: 'FinishTask2',
-							interaction: 'User finished Task 2'
-						});
-						urlParams.set('page', 'study-posttask2')
-						window.location.search = urlParams.toString()
-;					}}
-					className={classes.doneButton}> Save and Continue
-				</button>
-
-			</div>;
+					<button
+						onClick={() => {
+							log({
+								username: username,
+								event: `FinishTask${taskNumber}`,
+								interaction: `User finished Task ${taskNumber}`
+							});
+							urlParams.set('page', nextPage);
+							window.location.search = urlParams.toString();
+						}}
+						className={classes.doneButton}
+					>
+						Save and Continue
+					</button>
+				</div>
+			);
 		}
-		else if (page === 'study-posttask2') {
+		else if (page.startsWith('study-postTask')) {
 			const nextUrlParams = new URLSearchParams(window.location.search);
-      		nextUrlParams.set('page', 'study-task3');
-      		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+			nextUrlParams.set('page', nextPage);
+			const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+			const postTaskNumber = page.replace('study-postTask', '');
+			const postTaskSurveyURL = SURVEY_URLS[`postTask${postTaskNumber}` as keyof typeof SURVEY_URLS];
 
 			return <div className={classes.studyIntroContainer}>
-				<p> Thank you for completing Task 2. Please take a moment to complete a brief survey.</p>
-				<button
+				<p> Thank you for completing Task {postTaskNumber}. Please take a moment to complete a brief survey.</p>
+				<a
 					onClick={() => {
 						log ({
 							username: username,
-							event: 'StartPostTask2',
-							interaction: 'User started post task 2 survey'
+							event: `StartPostTask${postTaskNumber}`,
+							interaction: `User started post task ${postTaskNumber} survey`
 						});
-						urlParams.set('page', 'study-task3')
-						window.location.search = urlParams.toString()
-;
-						//const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task2`);
-						window.location.href = `${SURVEY_URLS.postTask2}?redirect_url=${redirectURL}`;
 					}}
+					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}`}
 					className={classes.startButton}
 				>
 					Take Survey
-				</button>
-			</div>;
-		}
-		else if (page === 'study-task3') {
-			const nextUrlParams = new URLSearchParams(window.location.search);
-      		nextUrlParams.set('page', 'study-posttask3');
-
-			const condition = 'RMove' // This would be dynamically set based on the study task
-			getDefaultStore().set(studyConditionAtom, condition);
-			const taskDescription = 'Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.';
-			getDefaultStore().set(taskDescriptionAtom, taskDescription);
-			clearPreviousData('task3');
-
-			const task3InitialContent =  
-				`CRISPR-Cas9 is a revolutionary gene-editing technology that allows scientists to make precise changes to DNA. Originally discovered as part of bacteria's immune system, CRISPR works like molecular scissors that can cut DNA at specific locations and either remove, add, or replace genetic material.
-
-				The CRISPR system consists of two main components: a guide RNA that identifies the target DNA sequence, and the Cas9 protein that acts as the cutting tool. When these components are introduced into a cell, they seek out the matching DNA sequence and make a precise cut. The cell's natural repair mechanisms then fix the break, allowing scientists to insert new genetic material or correct defective genes.
-
-				This technology has enormous potential for treating genetic diseases, improving crops, and advancing medical research. Scientists have already begun clinical trials using CRISPR to treat conditions like sickle cell disease and certain types of cancer. In agriculture, researchers are developing crops that are more resistant to diseases and climate change.
-
-				However, CRISPR also raises important ethical questions, particularly regarding its use in human embryos, which could create permanent changes that would be passed down to future generations. The scientific community continues to debate the appropriate boundaries for this powerful technology while working to ensure its safe and beneficial application.`;
-
-			return <div>
-				<div className={classes.studytaskcontainer}> {taskDescription} </div>
-
-				<EditorScreen taskID="task3" initialContent={task3InitialContent}/>
-
-				<button
-					onClick={() => {
-						log ({
-							username: username,
-							event: 'FinishTask3',
-							interaction: 'User finished Task 3'
-						});
-						urlParams.set('page', 'study-posttask3')
-						window.location.search = urlParams.toString()
-;					}}
-					className={classes.doneButton}> Save and Continue
-				</button>
-
-			</div>;
-		}
-		else if (page === 'study-posttask3') {
-			const nextUrlParams = new URLSearchParams(window.location.search);
-      		nextUrlParams.set('page', 'study-final');
-      		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
-
-			return <div className={classes.studyIntroContainer}>
-				<p> Thank you for completing Task 3. Please take a moment to complete a brief survey.</p>
-				<button
-					onClick={() => {
-						log ({
-							username: username,
-							event: 'StartPostTask3',
-							interaction: 'User started post task 3 survey'
-						});
-						urlParams.set('page', 'study-final')
-						window.location.search = urlParams.toString()
-;
-						//const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?page=study-task2`);
-						window.location.href = `${SURVEY_URLS.postTask3}?redirect_url=${redirectURL}`;
-					}}
-					className={classes.startButton}
-				>
-					Take Survey
-				</button>
+				</a>
 			</div>;
 		}
 		else if (page === 'study-final') {
