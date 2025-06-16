@@ -11,8 +11,6 @@ services:
       - PORT=5000
       - DEBUG=False
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-    volumes:
-      - ./backend/logs:/app/logs
 
 networks:
   default:
