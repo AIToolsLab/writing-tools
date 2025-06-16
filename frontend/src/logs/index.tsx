@@ -3,8 +3,6 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { SERVER_URL } from '@/api';
 
-import classes from './styles.module.css';
-
 interface Log {
     username: string;
     interaction: string;
@@ -27,9 +25,9 @@ function Collapsible({ text, maxWidth = 200 }: { text: any, maxWidth?: number })
         displayText = String(text ?? '');
     }
     return (
-        <details className={classes.collapsible} style={{ maxWidth }} title={displayText}>
-            <summary>{displayText.length > 100 ? displayText.slice(0, 100) + '…' : displayText}</summary>
-            <pre style={{ whiteSpace: 'pre-wrap' }}>{displayText}</pre>
+        <details className="whitespace-pre-wrap" style={{ maxWidth }} title={displayText}>
+            <summary className="truncate text-gray-500">{displayText.length > 100 ? displayText.slice(0, 100) + '…' : displayText}</summary>
+            <pre className="whitespace-pre-wrap">{displayText}</pre>
         </details>
     );
 }
@@ -71,24 +69,24 @@ function EntriesTable({ entries }: { entries: Log[] }) {
     }).reverse();
 
     return (
-        <table className={classes.table}>
+        <table className="max-w-full border border-gray-300">
             <thead>
                 <tr>
-                    <th>Timestamp</th>
-                    <th>Interaction</th>
-                    <th>Prompt</th>
-                    <th>Result</th>
-                    <th>Completion</th>
+                    <th className="p-2">Timestamp</th>
+                    <th className="p-2">Interaction</th>
+                    <th className="p-2">Prompt</th>
+                    <th className="p-2">Result</th>
+                    <th className="p-2">Completion</th>
                 </tr>
             </thead>
             <tbody>
                 {annotatedEntries.map((entry: any, i: number) => (
                     <tr key={i}>
-                        <td>{secondsToHMS(entry.secondsSinceStart)}</td>
-                        <td style={{ backgroundColor: getInteractionColor(entry.interaction) }}>{entry.interaction}</td>
-                        <td><Collapsible text={entry.prompt} /></td>
-                        <td><Collapsible text={entry.result} /></td>
-                        <td><Collapsible text={entry.completion} /></td>
+                        <td className="p-2">{secondsToHMS(entry.secondsSinceStart)}</td>
+                        <td className="p-2" style={{ backgroundColor: getInteractionColor(entry.interaction) }}>{entry.interaction}</td>
+                        <td className="p-2"><Collapsible text={entry.prompt} /></td>
+                        <td className="p-2"><Collapsible text={entry.result} /></td>
+                        <td className="p-2"><Collapsible text={entry.completion} /></td>
                     </tr>
                 ))}
             </tbody>
@@ -156,36 +154,36 @@ function App() {
     }, [desiredEntries]);
 
     return (
-        <div className={classes.container}>
-            <div style={{ marginBottom: 16 }}>
-                <label>
+        <div className="p-6">
+            <div className="mb-4 flex items-center gap-6">
+                <label className="flex items-center gap-2">
                     Username:
                     <input
                         list="usernames"
                         value={username}
                         onChange={e => setUsername(e.target.value)}
                         placeholder="Select or type username"
-                        style={{ marginLeft: 8 }}
+                        className="px-3 py-2 border border-gray-300 rounded transition duration-150 cursor-pointer focus:cursor-text focus:outline-none focus:border-black hover:border-black"
                     />
                     <datalist id="usernames">
                         {availableUsernames.map(u => <option key={u} value={u} />)}
                     </datalist>
                 </label>
-                <label style={{ marginLeft: 24 }}>
+                <label className="flex items-center gap-2">
                     <input
                         type="checkbox"
                         checked={includePlayground}
                         onChange={e => setIncludePlayground(e.target.checked)}
-                        style={{ marginRight: 4 }}
+                        className="mr-1"
                     />
                     Include Playground
                 </label>
             </div>
-            <div style={{ marginBottom: 16 }}>
+            <div className="mb-4">
                 <strong>{desiredEntries.length}</strong> entries selected of <strong>{logs.length}</strong> total entries.<br />
                 Last entry: {desiredEntries.length > 0 ? new Date(desiredEntries[desiredEntries.length - 1].timestamp * 1000).toLocaleString() : 'No entries'}
             </div>
-            <div style={{ marginBottom: 16 }}>
+            <div className="mb-4">
                 <strong>Generation Type Counts:</strong>
                 <ul>
                     {generationTypeCounts.map(({ generationType, count }: { generationType: string, count: number }) => (
@@ -193,8 +191,8 @@ function App() {
                     ))}
                 </ul>
             </div>
-            <div style={{ marginBottom: 16 }}>
-                <label>
+            <div className="mb-4">
+                <label className="flex items-center gap-2">
                     Log Secret:
                     <input
                         type="text"
@@ -204,7 +202,7 @@ function App() {
                             localStorage.setItem('logSecret', e.target.value);
                         }}
                         placeholder="Enter log secret"
-                        style={{ marginLeft: 8 }}
+                        className="px-3 py-2 border border-gray-300 rounded transition duration-150 cursor-pointer focus:cursor-text focus:outline-none focus:border-black hover:border-black"
                     />
                 </label>
             </div>
