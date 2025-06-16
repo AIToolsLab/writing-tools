@@ -1,7 +1,7 @@
 import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
 import { studyConditionAtom, taskDescriptionAtom } from '@/contexts/studyContext';
 import * as SidebarInner from '@/pages/app';
-import { Auth0ContextInterface } from '@auth0/auth0-react';
+import { Auth0ContextInterface, initialContext } from '@auth0/auth0-react';
 import { getDefaultStore, useAtomValue } from 'jotai';
 import { useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -9,6 +9,7 @@ import LexicalEditor from './editor';
 import './styles.css';
 import classes from './styles.module.css';
 import { log } from '@/api';
+import { initialAuthState } from '@auth0/auth0-react/dist/auth-state';
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 	return (
@@ -35,6 +36,37 @@ function EditorScreen( {taskID, initialContent }: {taskID?: string; initialConte
 
 	const handleSelectionChange = () => {
 		selectionChangeHandlers.current.forEach(handler => handler());
+	};
+
+	// Create initial state from content
+	const createInitialState = (text: string) => {
+		return JSON.stringify({
+		root: {
+			children: text.split('\n\n').map(paragraph => ({
+			children: [
+				{
+				detail: 0,
+				format: 0,
+				mode: "normal",
+				style: "",
+				text: paragraph,
+				type: "text",
+				version: 1
+				}
+			],
+			direction: "ltr",
+			format: "",
+			indent: 0,
+			type: "paragraph",
+			version: 1
+			})),
+			direction: "ltr",
+			format: "",
+			indent: 0,
+			type: "root",
+			version: 1
+		}
+		});
 	};
 
 
@@ -90,36 +122,6 @@ function EditorScreen( {taskID, initialContent }: {taskID?: string; initialConte
 		handleSelectionChange();
 	};
 
-	// Create initial state from content
-	const createInitialState = (text: string) => {
-		return JSON.stringify({
-		root: {
-			children: text.split('\n\n').map(paragraph => ({
-			children: [
-				{
-				detail: 0,
-				format: 0,
-				mode: "normal",
-				style: "",
-				text: paragraph,
-				type: "text",
-				version: 1
-				}
-			],
-			direction: "ltr",
-			format: "",
-			indent: 0,
-			type: "paragraph",
-			version: 1
-			})),
-			direction: "ltr",
-			format: "",
-			indent: 0,
-			type: "root",
-			version: 1
-		}
-		});
-	};
 
 	//Determine storage keys based on the task
 	const getStorageKey = () => {
@@ -186,14 +188,42 @@ const taskConfigs = {
 		'1': {
 			condition: 'Completion',
 			taskDescription: 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.',
+			initialContent: ``
 		},
 		'2': {
 			condition: 'Question',
 			taskDescription: 'Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements. [Details are given below in the editor document]',
+			initialContent: `GreenTech Solutions - Sustainability Coordinator Position
+
+				Company Overview:
+				GreenTech Solutions is a fast-growing environmental consulting firm that helps businesses reduce their carbon footprint and implement sustainable practices. We work with companies across various industries to develop eco-friendly strategies that benefit both the environment and their bottom line.
+
+				Position Requirements:
+				- Bachelor's degree in Environmental Science, Sustainability, or related field
+				- Strong communication and project management skills
+				- Experience with sustainability reporting and environmental assessments
+				- Knowledge of marketing principles for promoting green initiatives
+				- Ability to work with diverse teams and clients
+				- Internship or work experience in environmental or sustainability roles preferred
+
+				Job Responsibilities:
+				- Assist clients in developing and implementing sustainability plans
+				- Conduct environmental impact assessments
+				- Create marketing materials to promote sustainable practices
+				- Collaborate with cross-functional teams on green initiatives
+				- Prepare sustainability reports and presentations for clients
+				- Stay current with environmental regulations and industry trends`
 		},
 		'3': {
 			condition: 'RMove',
 			taskDescription: 'Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.',
+			initialContent: `CRISPR-Cas9 is a revolutionary gene-editing technology that allows scientists to make precise changes to DNA. Originally discovered as part of bacteria's immune system, CRISPR works like molecular scissors that can cut DNA at specific locations and either remove, add, or replace genetic material.Add commentMore actions
+
+				The CRISPR system consists of two main components: a guide RNA that identifies the target DNA sequence, and the Cas9 protein that acts as the cutting tool. When these components are introduced into a cell, they seek out the matching DNA sequence and make a precise cut. The cell's natural repair mechanisms then fix the break, allowing scientists to insert new genetic material or correct defective genes.
+
+				This technology has enormous potential for treating genetic diseases, improving crops, and advancing medical research. Scientists have already begun clinical trials using CRISPR to treat conditions like sickle cell disease and certain types of cancer. In agriculture, researchers are developing crops that are more resistant to diseases and climate change.
+
+				However, CRISPR also raises important ethical questions, particularly regarding its use in human embryos, which could create permanent changes that would be passed down to future generations. The scientific community continues to debate the appropriate boundaries for this powerful technology while working to ensure its safe and beneficial application.`
 		},
 	};
 
@@ -270,8 +300,8 @@ function Router({
 		}
 		if (page === 'study-introSurvey') {
 			const nextUrlParams = new URLSearchParams(window.location.search);
-      nextUrlParams.set('page', nextPage);
-      const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+      		nextUrlParams.set('page', nextPage);
+      		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
 			const introSurveyURL = SURVEY_URLS.preStudy;
 
 			return (
@@ -301,37 +331,19 @@ function Router({
 			if (!taskConfig) {
 				return <div>Invalid task number</div>;
 		}
+			const taskID = `task${taskNumber}`;
 			getDefaultStore().set(studyConditionAtom, taskConfig.condition);
 			getDefaultStore().set(taskDescriptionAtom, taskConfig.taskDescription);
-			clearPreviousData('task2');
-
-			const task2InitialContent =  
-				`GreenTech Solutions - Sustainability Coordinator Position
-
-				Company Overview:
-				GreenTech Solutions is a fast-growing environmental consulting firm that helps businesses reduce their carbon footprint and implement sustainable practices. We work with companies across various industries to develop eco-friendly strategies that benefit both the environment and their bottom line.
-
-				Position Requirements:
-				- Bachelor's degree in Environmental Science, Sustainability, or related field
-				- Strong communication and project management skills
-				- Experience with sustainability reporting and environmental assessments
-				- Knowledge of marketing principles for promoting green initiatives
-				- Ability to work with diverse teams and clients
-				- Internship or work experience in environmental or sustainability roles preferred
-
-				Job Responsibilities:
-				- Assist clients in developing and implementing sustainability plans
-				- Conduct environmental impact assessments
-				- Create marketing materials to promote sustainable practices
-				- Collaborate with cross-functional teams on green initiatives
-				- Prepare sustainability reports and presentations for clients
-				- Stay current with environmental regulations and industry trends`;
+			clearPreviousData(taskID);
 
 			return (
 				<div>
 					<div className={classes.studytaskcontainer}>{taskConfig.taskDescription}</div>
 
-					<EditorScreen taskID="task2" initialContent={task2InitialContent}/>
+					<EditorScreen 
+						taskID={taskID} 
+						initialContent={taskConfig.initialContent}
+					/>
 
 					<button
 						onClick={() => {
