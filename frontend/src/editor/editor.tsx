@@ -148,10 +148,12 @@ function getCursorText(aNode: any, aOffset: any, mode: string): string {
 
 function LexicalEditor({
 	updateDocContext,
-	initialState
+	initialState,
+	storageKey = 'doc'
 }: {
 	updateDocContext: (docContext: DocContext) => void;
 	initialState: InitialEditorStateType | null;
+	storageKey?: string;
 }) {
 	return (
 		<>
@@ -186,10 +188,7 @@ function LexicalEditor({
 									JSON.stringify(editorState)
 								);
 								const currentDate = new Date().toISOString();
-								localStorage.setItem(
-									'doc-date',
-									currentDate
-								);
+								localStorage.setItem(`${storageKey}-date`, currentDate);
 							});
 						} }
 					/>
