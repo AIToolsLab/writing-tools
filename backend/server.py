@@ -1,3 +1,5 @@
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from pydantic import BaseModel, Field, ConfigDict, AfterValidator
 import os
 import json
@@ -35,8 +37,6 @@ PORT = int(os.getenv("PORT") or 8000)
 LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
 print(f"Log secret: {LOG_SECRET!r}")
 
-# Flag for whether to include any document text in the logs.
-# In the future we'll enable this for developers and study participants who have consented.
 
 def should_log(username: str) -> bool:
     """
@@ -118,6 +118,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    print(f"The client sent invalid data!: {exc}")
+    return await request_validation_exception_handler(request, exc)
+
 
 
 # Routes
