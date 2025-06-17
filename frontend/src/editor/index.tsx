@@ -66,7 +66,6 @@ function EditorScreen( {taskID, initialContent }: {taskID?: string; initialConte
 		});
 	};
 
-
 	const editorAPI: EditorAPI = {
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
 			try {
@@ -119,13 +118,11 @@ function EditorScreen( {taskID, initialContent }: {taskID?: string; initialConte
 		handleSelectionChange();
 	};
 
-
 	//Determine storage keys based on the task
 	const getStorageKey = () => {
 		return taskID ? `doc-${taskID}` : 'doc';
 	};
 
-	//Get initial state
 	const getInitialState = () => {
 		const storageKey = getStorageKey();
 
@@ -287,8 +284,8 @@ function Router({
 							interaction: 'User clicked Start Study button'
 						});
 						urlParams.set('page', nextPage)
-						window.location.search = urlParams.toString()
-;					}}
+						window.location.search = urlParams.toString();					
+					}}
 					className={classes.startButton}
 				>
 					Start Study
@@ -401,7 +398,7 @@ function Router({
 								event: 'PostStudySurvey',
 								interaction: 'User clicked final Post Study Survey button'
 							});
-	;					}}
+;					}}
 					href={`${postStudySurveyURL}?redirect_url=${redirectURL}`}
 					className={classes.startButton}
 					>
@@ -423,8 +420,8 @@ function Router({
 							interaction: 'User finished the study'
 						});
 						urlParams.set('page', 'study-intro')
-						window.location.search = urlParams.toString()
-;					}}
+						window.location.search = urlParams.toString();					
+					}}
 					className={classes.startButton}
 				>
 					Return to Start
@@ -432,9 +429,7 @@ function Router({
 			</div>;
 		}
 		else {
-			return <div>Unknown study page</div>;
-		}
-	}
+			return <div>Unknown study page</div>; }}
 	else {
 		return <div>Page not found</div>;
 	}
