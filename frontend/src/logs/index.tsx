@@ -46,16 +46,6 @@ function getInteractionColor(interaction: string) {
     return '#FFFFFF';
 }
 
-function deduplicateLogs(logs: Log[]): Log[] {
-    const seen = new Set<string>();
-    return logs.filter(log => {
-        const key = `${log.timestamp}|${log.interaction}|${log.username}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-    });
-}
-
 function EntriesTable({ entries }: { entries: Log[] }) {
     let lastTimestamp: number | null = null;
     const annotatedEntries = entries.map((entry) => {
@@ -100,32 +90,63 @@ function App() {
     const [includePlayground, setIncludePlayground] = useState(false);
     const [logSecret, setLogSecret] = useState<string>(() => localStorage.getItem('logSecret') || '');
     const logsRef = useRef<Log[]>([]);
+    const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-    // Fetch logs via SSE
+    // Helper: get log counts per username
+    const getLogCounts = (logs: Log[]) => {
+        const counts: Record<string, number> = {};
+        for (const log of logs) {
+            counts[log.username] = (counts[log.username] || 0) + 1;
+        }
+        return counts;
+    };
+
+    // Poll logs from server
     useEffect(() => {
         if (!logSecret) return;
-        const streamer = new EventSource(`${SERVER_URL}/logs?secret=${encodeURIComponent(logSecret)}`);
-        streamer.onmessage = (event) => {
-            const parsedLogs = JSON.parse(event.data);
-            let newLogs: Log[] = parsedLogs.map((log: { logs: Log[] }) => log.logs).flat();
-            // Convert timestamp to number (seconds)
-            newLogs = newLogs.map((x) => {
-                const ts = typeof x.timestamp === 'string' ? new Date(x.timestamp).getTime() / 1000 : x.timestamp;
-                const isBackend = x.interaction.endsWith('_Backend');
-                return {
-                    ...x,
-                    timestamp: ts,
-                    isBackend,
-                    generationType: isBackend ? x.interaction.replace('_Backend', '') : undefined,
-                    isPlayground: ((x.prompt || '').trim().startsWith('From the Wikipedia page on Calvin University')),
-                };
-            });
-            // Deduplicate
-            const allLogs = deduplicateLogs([...logsRef.current, ...newLogs]);
-            logsRef.current = allLogs;
-            setLogs(allLogs);
+        let stopped = false;
+        async function pollLogs() {
+            if (stopped) return;
+            const logCounts = getLogCounts(logsRef.current);
+            try {
+                const resp = await fetch(`${SERVER_URL}/logs_poll`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ log_positions: logCounts, secret: logSecret }),
+                });
+                if (resp.ok) {
+                    const updates = await resp.json();
+                    let newLogs: Log[] = updates.map((log: { logs: Log[] }) => log.logs).flat();
+                    newLogs = newLogs.map((x) => {
+                        const ts = typeof x.timestamp === 'string' ? new Date(x.timestamp).getTime() / 1000 : x.timestamp;
+                        const isBackend = x.interaction.endsWith('_Backend');
+                        return {
+                            ...x,
+                            timestamp: ts,
+                            isBackend,
+                            generationType: isBackend ? x.interaction.replace('_Backend', '') : undefined,
+                            isPlayground: ((x.prompt || '').trim().startsWith('From the Wikipedia page on Calvin University')),
+                        };
+                    });
+                    // Just append new logs (no deduplication)
+                    const allLogs = [...logsRef.current, ...newLogs];
+                    logsRef.current = allLogs;
+                    setLogs(allLogs);
+                }
+            } catch (e) {
+                // Optionally handle error
+            }
+            if (!stopped) {
+                pollingRef.current = setTimeout(pollLogs, 2000);
+            }
+        }
+        pollLogs();
+        return () => {
+            stopped = true;
+            if (pollingRef.current) clearTimeout(pollingRef.current);
         };
-        return () => streamer.close();
     }, [logSecret]);
 
     // Username datalist

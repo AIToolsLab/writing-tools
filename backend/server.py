@@ -11,11 +11,11 @@ from typing import Annotated, Dict, List, Optional
 import nlp
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi import BackgroundTasks, FastAPI, Request, Body
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from sse_starlette.sse import EventSourceResponse
@@ -101,35 +101,8 @@ class ReflectionLog(Log):
     paragraph: str
 
 
-shutting_down = False
-
-@asynccontextmanager
-async def app_lifespan(app: FastAPI):
-    global shutting_down
-    print("Starting up server...")
-    yield
-    # shutdown
-    print("Shutting down server...")
-    shutting_down = True
-
-# Also shutdown on Ctrl+C (SIGINT) or SIGTERM
-def signal_handler(signal_number, frame):
-    global shutting_down
-    print(f"Received signal {signal_number}. Shutting down server...")
-    shutting_down = True
-
-def combined_signal_handler(signal_number, frame):
-    signal_handler(signal_number, frame)
-    if signal_number == signal.SIGINT and callable(old_sigint_handler):
-        old_sigint_handler(signal_number, frame)
-    if signal_number == signal.SIGTERM and callable(old_sigterm_handler):
-        old_sigterm_handler(signal_number, frame)
-
-old_sigint_handler = signal.signal(signal.SIGINT, combined_signal_handler)
-old_sigterm_handler = signal.signal(signal.SIGTERM, combined_signal_handler)
-
 # Initialize Server
-app = FastAPI(lifespan=app_lifespan)
+app = FastAPI()
 
 origins = ["*"]
 
@@ -268,47 +241,53 @@ async def ping() -> PingResponse:
     return PingResponse(timestamp=datetime.now())
 
 
-# Show all server logs
-@app.get("/api/logs")
-async def logs(secret: str, request: Request):
-    async def log_generator():
-        assert LOG_SECRET != "", "Logging secret not set."
-        if secret != LOG_SECRET:
-            yield json.dumps({"error": "Invalid secret."})
-            return
+# Log viewer endpoint
+class LogsPollRequest(BaseModel):
+    log_positions: Dict[str, int]
+    secret: str
 
-        log_positions = {}
+@app.post("/api/logs_poll")
+async def logs_poll(
+    req: LogsPollRequest = Body(...)
+):
+    """
+    Polling endpoint for logs. Client sends a dict of {username: num_logs_already_have}.
+    Returns new log entries for each username since that count, deduplicated by timestamp+interaction+username.
+    """
+    log_positions = req.log_positions or {}
+    secret = req.secret
+    assert LOG_SECRET != "", "Logging secret not set."
+    if secret != LOG_SECRET:
+        return JSONResponse({"error": "Invalid secret."}, status_code=403)
 
-        try:
-            while True:
-                print("Tick")
-                if shutting_down or await request.is_disconnected():
-                    print("Shutting down or client disconnected.")
-                    break
-                updates = []
-                log_files = {
-                    participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
-
-                for username, log_file in log_files.items():
-                    with open(log_file, "r") as file:
-                        file.seek(log_positions.get(username, 0))
-                        new_lines = file.readlines()
-
-                        if new_lines:
-                            updates.append({
-                                "username": username,
-                                "logs": [json.loads(line) for line in new_lines],
-                            })
-                            log_positions[username] = file.tell()
-
-                if updates:
-                    yield json.dumps(updates)
-
-                await asyncio.sleep(1)  # Adjust the sleep time as needed
-        except asyncio.CancelledError:
-            print("Connection closed by client.")
-
-    return EventSourceResponse(log_generator(), send_timeout=10.0)
+    updates = []
+    log_files = {participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
+    for username, log_file in log_files.items():
+        if username == '.jsonl':
+            continue
+        with open(log_file, "r") as file:
+            all_lines = file.readlines()
+            # Deduplicate all entries by (timestamp, interaction, username)
+            seen = set()
+            deduped = []
+            for line in all_lines:
+                try:
+                    entry = json.loads(line)
+                    key = f"{entry.get('timestamp')}|{entry.get('interaction')}|{entry.get('username')}"
+                    if key not in seen:
+                        seen.add(key)
+                        deduped.append(entry)
+                except Exception:
+                    continue
+            # Only send entries after the client's count
+            start_line = log_positions.get(username, 0)
+            new_entries = deduped[start_line:]
+            if new_entries:
+                updates.append({
+                    "username": username,
+                    "logs": new_entries,
+                })
+    return updates
 
 
 def get_participant_log_filename(username):
