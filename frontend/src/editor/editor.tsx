@@ -184,7 +184,7 @@ function LexicalEditor({
 								updateDocContext(docContext);
 
 								localStorage.setItem(
-									'doc',
+									storageKey ='doc',
 									JSON.stringify(editorState)
 								);
 								const currentDate = new Date().toISOString();
