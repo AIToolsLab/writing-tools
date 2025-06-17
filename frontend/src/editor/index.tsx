@@ -114,12 +114,16 @@ function EditorScreen() {
 }
 
 const studyPageNames = [
+	'study-consentForm',
 	'study-intro',
 	'study-introSurvey',
+	'study-startTask1',
 	'study-task1',
 	'study-postTask1',
+	'study-startTask2',
 	'study-task2',
 	'study-postTask2',
+	'study-startTask3',
 	'study-task3',
 	'study-postTask3',
 	'study-postStudySurvey',
@@ -127,6 +131,7 @@ const studyPageNames = [
 ];
 
 const SURVEY_URLS = {
+	consentForm: 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW',
 	preStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4',
 	postTask1: 'https://calvin.co1.qualtrics.com/jfe/form/SV_6Vuc9vgqMuEqzVY',
 	postTask2: 'https://calvin.co1.qualtrics.com/jfe/form/SV_7X8tAiech6zP79A',
@@ -134,20 +139,33 @@ const SURVEY_URLS = {
 	postStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_79DIQlYz4SJCwnk'
 };
 
+
 const taskConfigs = {
-		'1': {
-			condition: 'Completion',
-			taskDescription: 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.',
-		},
-		'2': {
-			condition: 'Question',
-			taskDescription: 'Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements. [Details are given below in the editor document]',
-		},
-		'3': {
-			condition: 'RMove',
-			taskDescription: 'Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.',
-		},
-	};
+	'1': {
+		taskDescription: 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.'
+	},
+	'2': {
+		taskDescription: 'Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements.'
+	},
+	'3': {
+		taskDescription: 'Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.'
+	}
+}
+
+const letterToCondition = {
+  e: 'Completion',
+  q: 'Question',
+  r: 'RMove'
+};
+
+// This is the mapping of condition order letter abbreviation received from the URL parameter (eg. eqr, req, ...) to conditions.
+function mapInputToDict(input: string) {
+  const result: Record<string, { condition: string }> = {};
+  input.split('').forEach((letter, idx) => {
+    result[(idx + 1).toString()] = { condition: letterToCondition[letter as keyof typeof letterToCondition] };
+  });
+  return result;
+}
 
 function Router({
 	page
@@ -170,9 +188,28 @@ function Router({
 
 		const urlParams = new URLSearchParams(window.location.search);
 		const username = urlParams.get('username');
+		const conditionOrder = urlParams.get('order');
+
 		if (!username) {
 			return <div> Please provide a username in the URL parameter. </div>;
 		}
+
+		if (!conditionOrder) {
+			return <div> Please provide a condition order in the URL parameter. </div>;
+		}
+
+		const isValidOrder =
+			// Check if the condition order only contains valid letters (e, q, r) and has no duplicates
+			conditionOrder.split('').every((letter) =>
+			Object.keys(letterToCondition).includes(letter)
+			) &&
+			new Set(conditionOrder.split('')).size === conditionOrder.length;
+
+		if (!isValidOrder) {
+			return <div> Invalid condition order. Please use a unique combination of 'e', 'q', and 'r'. </div>;
+		}
+
+		const conditionConfigs = mapInputToDict(conditionOrder);
 
 		const studyPageIndex = studyPageNames.indexOf(page);
 		if (studyPageIndex === -1) {
@@ -181,12 +218,33 @@ function Router({
 
 		const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
 
-		if (page === 'study-intro') {
-			// TODO: consent form
+		if (page === 'study-consentForm') {
+			const nextUrlParams = new URLSearchParams(window.location.search);
+      nextUrlParams.set('page', nextPage);
+      const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+			const consentFormURL = SURVEY_URLS.consentForm;
+
+			return <div className={classes.studyIntroContainer}>
+				<a
+					onClick={() => {
+						log ({
+							username: username,
+							event: 'ConsentForm',
+							interaction: 'User clicked Consent Form button'
+						});
+;					}}
+					href={`${consentFormURL}?redirect_url=${redirectURL}`}
+					className={classes.startButton}
+				>
+					Sign Consent Form
+				</a>
+				</div>;
+		}
+		else if (page === 'study-intro') {
 			return <div className={classes.studyIntroContainer}>
             <h1>Welcome!</h1>
             <p>
-				Thank you for participating in our writing study. You'll complete three writing tasks on different topics.
+				Thank you for agreeing to participate in our writing study. You'll complete three writing tasks on different topics.
 				After completing each task, click 'Done' to save your work and continue to the next task.
 				As you write, pay attention to the suggestions the writing tool offers and use them when
 				they seem helpful. There are no right or wrong ways to interact with the tool.
@@ -209,7 +267,7 @@ function Router({
 
         </div>;
 		}
-		if (page === 'study-introSurvey') {
+		else if (page === 'study-introSurvey') {
 			const nextUrlParams = new URLSearchParams(window.location.search);
       nextUrlParams.set('page', nextPage);
       const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
@@ -233,16 +291,49 @@ function Router({
 				</div>
 			);
 		}
+		else if (page.startsWith('study-startTask')) {
+			const urlParams = new URLSearchParams(window.location.search);
 
+			const startTaskNumber = page.replace('study-startTask', '');
+			const conditionConfig = conditionConfigs[startTaskNumber as keyof typeof conditionConfigs];
+
+			if (!conditionConfig) {
+				return <div>Invalid task number</div>;
+			}
+
+			const taskCondition = conditionConfig.condition;
+
+			return (
+				<div className={classes.studyIntroContainer}>
+					<button
+						onClick={() => {
+							log({
+								username: username,
+								event: `StartTask${startTaskNumber}`,
+								interaction: `User started Task ${startTaskNumber}`,
+								condition: taskCondition
+							});
+							urlParams.set('page', nextPage);
+							window.location.search = urlParams.toString();
+						}}
+						className={classes.startButton}
+					>
+						Start Task {startTaskNumber}
+					</button>
+				</div>
+			);
+		}
 		else if (page.startsWith('study-task')){
 			const urlParams = new URLSearchParams(window.location.search);
 
 			const taskNumber = page.replace('study-task', '');
 			const taskConfig = taskConfigs[taskNumber as keyof typeof taskConfigs];
+			const conditionConfig =  conditionConfigs[taskNumber as keyof typeof conditionConfigs];
+
 			if (!taskConfig) {
 				return <div>Invalid task number</div>;
 		}
-			getDefaultStore().set(studyConditionAtom, taskConfig.condition);
+			getDefaultStore().set(studyConditionAtom, conditionConfig.condition);
 			getDefaultStore().set(taskDescriptionAtom, taskConfig.taskDescription);
 
 			return (
