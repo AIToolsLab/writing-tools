@@ -350,6 +350,7 @@ function Router({
 							log({
 								username: username,
 								event: `FinishTask${taskNumber}`,
+								taskID: taskID,
 								interaction: `User finished Task ${taskNumber}`
 							});
 							urlParams.set('page', nextPage);
