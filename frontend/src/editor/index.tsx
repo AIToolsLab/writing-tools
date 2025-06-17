@@ -137,20 +137,33 @@ const SURVEY_URLS = {
 	postStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_79DIQlYz4SJCwnk'
 };
 
+
 const taskConfigs = {
-		'1': {
-			condition: 'Completion',
-			taskDescription: 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.',
-		},
-		'2': {
-			condition: 'Question',
-			taskDescription: 'Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements. [Details are given below in the editor document]',
-		},
-		'3': {
-			condition: 'RMove',
-			taskDescription: 'Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.',
-		},
-	};
+	'1': {
+		taskDescription: 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.'
+	},
+	'2': {
+		taskDescription: 'Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements.'
+	},
+	'3': {
+		taskDescription: 'Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.'
+	}
+}
+
+const letterToCondition = {
+  e: 'Completion',
+  q: 'Question',
+  r: 'RMove'
+};
+
+// This is the mapping of condition order letter abbreviation received from the URL parameter (eg. eqr, req, ...) to conditions.
+function mapInputToDict(input: string) {
+  const result: Record<string, { condition: string }> = {};
+  input.split('').forEach((letter, idx) => {
+    result[(idx + 1).toString()] = { condition: letterToCondition[letter as keyof typeof letterToCondition] };
+  });
+  return result;
+}
 
 function Router({
 	page
@@ -173,9 +186,17 @@ function Router({
 
 		const urlParams = new URLSearchParams(window.location.search);
 		const username = urlParams.get('username');
+		const conditionOrder = urlParams.get('order');
+
 		if (!username) {
 			return <div> Please provide a username in the URL parameter. </div>;
 		}
+
+		if (!conditionOrder) {
+			return <div> Please provide a condition order in the URL parameter. </div>;
+		}
+
+		const conditionConfigs = mapInputToDict(conditionOrder);
 
 		const studyPageIndex = studyPageNames.indexOf(page);
 		if (studyPageIndex === -1) {
@@ -240,13 +261,13 @@ function Router({
 			const urlParams = new URLSearchParams(window.location.search);
 
 			const startTaskNumber = page.replace('study-startTask', '');
-			const taskConfig = taskConfigs[startTaskNumber as keyof typeof taskConfigs];
+			const conditionConfig = conditionConfigs[startTaskNumber as keyof typeof conditionConfigs];
 
-			if (!taskConfig) {
+			if (!conditionConfig) {
 				return <div>Invalid task number</div>;
 			}
 
-			const taskCondition = taskConfig.condition;
+			const taskCondition = conditionConfig.condition;
 
 			return (
 				<div className={classes.studyIntroContainer}>
@@ -273,10 +294,12 @@ function Router({
 
 			const taskNumber = page.replace('study-task', '');
 			const taskConfig = taskConfigs[taskNumber as keyof typeof taskConfigs];
+			const conditionConfig =  conditionConfigs[taskNumber as keyof typeof conditionConfigs];
+
 			if (!taskConfig) {
 				return <div>Invalid task number</div>;
 		}
-			getDefaultStore().set(studyConditionAtom, taskConfig.condition);
+			getDefaultStore().set(studyConditionAtom, conditionConfig.condition);
 			getDefaultStore().set(taskDescriptionAtom, taskConfig.taskDescription);
 
 			return (
