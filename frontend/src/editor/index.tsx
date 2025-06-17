@@ -114,6 +114,7 @@ function EditorScreen() {
 }
 
 const studyPageNames = [
+	'study-consentForm',
 	'study-intro',
 	'study-introSurvey',
 	'study-startTask1',
@@ -130,6 +131,7 @@ const studyPageNames = [
 ];
 
 const SURVEY_URLS = {
+	consentForm: 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW',
 	preStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4',
 	postTask1: 'https://calvin.co1.qualtrics.com/jfe/form/SV_6Vuc9vgqMuEqzVY',
 	postTask2: 'https://calvin.co1.qualtrics.com/jfe/form/SV_7X8tAiech6zP79A',
@@ -205,12 +207,33 @@ function Router({
 
 		const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
 
-		if (page === 'study-intro') {
-			// TODO: consent form
+		if (page === 'study-consentForm') {
+			const nextUrlParams = new URLSearchParams(window.location.search);
+      nextUrlParams.set('page', nextPage);
+      const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+			const consentFormURL = SURVEY_URLS.consentForm;
+
+			return <div className={classes.studyIntroContainer}>
+				<a
+					onClick={() => {
+						log ({
+							username: username,
+							event: 'ConsentForm',
+							interaction: 'User clicked Consent Form button'
+						});
+;					}}
+					href={`${consentFormURL}?redirect_url=${redirectURL}`}
+					className={classes.startButton}
+				>
+					Sign Consent Form
+				</a>
+				</div>;
+		}
+		else if (page === 'study-intro') {
 			return <div className={classes.studyIntroContainer}>
             <h1>Welcome!</h1>
             <p>
-				Thank you for participating in our writing study. You'll complete three writing tasks on different topics.
+				Thank you for agreeing to participate in our writing study. You'll complete three writing tasks on different topics.
 				After completing each task, click 'Done' to save your work and continue to the next task.
 				As you write, pay attention to the suggestions the writing tool offers and use them when
 				they seem helpful. There are no right or wrong ways to interact with the tool.
@@ -233,7 +256,7 @@ function Router({
 
         </div>;
 		}
-		if (page === 'study-introSurvey') {
+		else if (page === 'study-introSurvey') {
 			const nextUrlParams = new URLSearchParams(window.location.search);
       nextUrlParams.set('page', nextPage);
       const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
