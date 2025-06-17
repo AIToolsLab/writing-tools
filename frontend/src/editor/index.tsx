@@ -228,17 +228,6 @@ function Router({
 	page: string;
 }) {
 
-	// This function will clear previous task data when moving to a different page
-	const clearPreviousData = (currentTaskID: string) => {
-		const allTaskIDs = ['task1', 'task2', 'task3'];
-		allTaskIDs.forEach(taskID => {
-			if (taskID !== currentTaskID) {
-				localStorage.removeItem(`doc-${taskID}`);
-				localStorage.removeItem(`doc-${taskID}-date`);
-			}
-		});
-	};
-
 	if (page === 'editor') {
 		getDefaultStore().set(overallModeAtom, OverallMode.full);
 		return <EditorScreen />;
@@ -329,7 +318,6 @@ function Router({
 			const taskID = `task${taskNumber}`;
 			getDefaultStore().set(studyConditionAtom, taskConfig.condition);
 			getDefaultStore().set(taskDescriptionAtom, taskConfig.taskDescription);
-			clearPreviousData(taskID);
 
 			return (
 				<div>
