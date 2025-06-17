@@ -198,6 +198,17 @@ function Router({
 			return <div> Please provide a condition order in the URL parameter. </div>;
 		}
 
+		const isValidOrder =
+			// Check if the condition order only contains valid letters (e, q, r) and has no duplicates
+			conditionOrder.split('').every((letter) =>
+			Object.keys(letterToCondition).includes(letter)
+			) &&
+			new Set(conditionOrder.split('')).size === conditionOrder.length;
+
+		if (!isValidOrder) {
+			return <div> Invalid condition order. Please use a unique combination of 'e', 'q', and 'r'. </div>;
+		}
+
 		const conditionConfigs = mapInputToDict(conditionOrder);
 
 		const studyPageIndex = studyPageNames.indexOf(page);
