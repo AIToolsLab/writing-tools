@@ -116,10 +116,13 @@ function EditorScreen() {
 const studyPageNames = [
 	'study-intro',
 	'study-introSurvey',
+	'study-startTask1',
 	'study-task1',
 	'study-postTask1',
+	'study-startTask2',
 	'study-task2',
 	'study-postTask2',
+	'study-startTask3',
 	'study-task3',
 	'study-postTask3',
 	'study-postStudySurvey',
@@ -233,7 +236,38 @@ function Router({
 				</div>
 			);
 		}
+		else if (page.startsWith('study-startTask')) {
+			const urlParams = new URLSearchParams(window.location.search);
 
+			const startTaskNumber = page.replace('study-startTask', '');
+			const taskConfig = taskConfigs[startTaskNumber as keyof typeof taskConfigs];
+
+			if (!taskConfig) {
+				return <div>Invalid task number</div>;
+			}
+
+			const taskCondition = taskConfig.condition;
+
+			return (
+				<div className={classes.studyIntroContainer}>
+					<button
+						onClick={() => {
+							log({
+								username: username,
+								event: `StartTask${startTaskNumber}`,
+								interaction: `User started Task ${startTaskNumber}`,
+								condition: taskCondition
+							});
+							urlParams.set('page', nextPage);
+							window.location.search = urlParams.toString();
+						}}
+						className={classes.startButton}
+					>
+						Start Task {startTaskNumber}
+					</button>
+				</div>
+			);
+		}
 		else if (page.startsWith('study-task')){
 			const urlParams = new URLSearchParams(window.location.search);
 
