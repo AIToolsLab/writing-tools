@@ -122,6 +122,7 @@ const studyPageNames = [
 	'study-postTask2',
 	'study-task3',
 	'study-postTask3',
+	'study-postStudySurvey',
 	'study-final'
 ];
 
@@ -130,7 +131,7 @@ const SURVEY_URLS = {
 	postTask1: 'https://calvin.co1.qualtrics.com/jfe/form/SV_6Vuc9vgqMuEqzVY',
 	postTask2: 'https://calvin.co1.qualtrics.com/jfe/form/SV_7X8tAiech6zP79A',
 	postTask3: 'https://calvin.co1.qualtrics.com/jfe/form/SV_1M8MN5b0H9pfYsm',
-	final: 'https://calvin.co1.qualtrics.com/jfe/form/SV_79DIQlYz4SJCwnk'
+	postStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_79DIQlYz4SJCwnk'
 };
 
 const taskConfigs = {
@@ -290,6 +291,32 @@ function Router({
 					Take Survey
 				</a>
 			</div>;
+		}
+		else if (page === 'study-postStudySurvey') {
+			const nextUrlParams = new URLSearchParams(window.location.search);
+      nextUrlParams.set('page', nextPage);
+      const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+			const postStudySurveyURL = SURVEY_URLS.postStudy;
+
+			return (
+				<div className={classes.studyIntroContainer}>
+					<p> Thank you for completing all three writing tasks. Please take a moment to complete the final survey.</p>
+				<a
+					onClick={() => {
+							log ({
+								username: username,
+								event: 'PostStudySurvey',
+								interaction: 'User clicked final Post Study Survey button'
+							});
+	;					}}
+					href={`${postStudySurveyURL}?redirect_url=${redirectURL}`}
+					className={classes.startButton}
+					>
+					Take the Post Study Survey
+					</a>
+				</div>
+			);
+
 		}
 		else if (page === 'study-final') {
 			return <div className={classes.studyIntroContainer}>
