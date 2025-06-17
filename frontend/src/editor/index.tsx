@@ -1,7 +1,7 @@
 import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
 import { studyConditionAtom, taskDescriptionAtom } from '@/contexts/studyContext';
 import * as SidebarInner from '@/pages/app';
-import { Auth0ContextInterface, initialContext } from '@auth0/auth0-react';
+import { Auth0ContextInterface} from '@auth0/auth0-react';
 import { getDefaultStore, useAtomValue } from 'jotai';
 import { useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -9,7 +9,6 @@ import LexicalEditor from './editor';
 import './styles.css';
 import classes from './styles.module.css';
 import { log } from '@/api';
-import { initialAuthState } from '@auth0/auth0-react/dist/auth-state';
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 	return (
