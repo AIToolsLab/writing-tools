@@ -1,11 +1,8 @@
-import asyncio
 import json
 import logging
 import os
-import signal
 import io
 import zipfile
-from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Dict, List, Optional
@@ -13,13 +10,13 @@ from typing import Annotated, Dict, List, Optional
 import nlp
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, FastAPI, Request, Body
+from fastapi import BackgroundTasks, FastAPI, Body
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import AfterValidator, BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict
 from sse_starlette.sse import EventSourceResponse
 
 # Load ENV vars

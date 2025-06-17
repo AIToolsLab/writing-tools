@@ -114,6 +114,7 @@ function App() {
                     headers: {
                         'Content-Type': 'application/json',
                     },
+                    // eslint-disable-next-line camelcase
                     body: JSON.stringify({ log_positions: logCounts, secret: logSecret }),
                 });
                 if (resp.ok) {
