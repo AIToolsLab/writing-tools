@@ -16,7 +16,7 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 	);
 }
 
-function EditorScreen( {taskID, initialContent }: {taskID?: string; initialContent?: string}) {
+function EditorScreen( {taskID, taskPrompt }: {taskID?: string; taskPrompt?: string}) {
 	const mode = useAtomValue(overallModeAtom);
 	const isDemo = mode === OverallMode.demo;
 
@@ -126,10 +126,10 @@ function EditorScreen( {taskID, initialContent }: {taskID?: string; initialConte
 	const getInitialState = () => {
 		const storageKey = getStorageKey();
 
-		if (initialContent) {
+		if (taskPrompt) {
 			localStorage.removeItem(storageKey);
 			localStorage.removeItem(`${storageKey}-date`);
-			return createInitialState(initialContent);
+			return createInitialState(taskPrompt);
 		}
 		return localStorage.getItem(storageKey) || undefined;
 	};
@@ -182,13 +182,12 @@ const SURVEY_URLS = {
 const taskConfigs = {
 		'1': {
 			condition: 'Completion',
-			taskDescription: 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.',
-			initialContent: ``
+			taskPrompt: 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.', 
 		},
 		'2': {
 			condition: 'Question',
-			taskDescription: 'Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements. [Details are given below in the editor document]',
-			initialContent: `GreenTech Solutions - Sustainability Coordinator Position
+			taskPrompt: `Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements. [Details are given below in the editor document]
+			GreenTech Solutions - Sustainability Coordinator Position
 
 				Company Overview:
 				GreenTech Solutions is a fast-growing environmental consulting firm that helps businesses reduce their carbon footprint and implement sustainable practices. We work with companies across various industries to develop eco-friendly strategies that benefit both the environment and their bottom line.
@@ -211,8 +210,9 @@ const taskConfigs = {
 		},
 		'3': {
 			condition: 'RMove',
-			taskDescription: 'Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.',
-			initialContent: `		CRISPR-Cas9 is a revolutionary gene-editing technology that allows scientists to make precise changes to DNA. Originally discovered as part of bacteria's immune system, CRISPR works like molecular scissors that can cut DNA at specific locations and either remove, add, or replace genetic material.
+			taskPrompt: `Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.
+			
+			CRISPR-Cas9 is a revolutionary gene-editing technology that allows scientists to make precise changes to DNA. Originally discovered as part of bacteria's immune system, CRISPR works like molecular scissors that can cut DNA at specific locations and either remove, add, or replace genetic material.
 
 			The CRISPR system consists of two main components: a guide RNA that identifies the target DNA sequence, and the Cas9 protein that acts as the cutting tool. When these components are introduced into a cell, they seek out the matching DNA sequence and make a precise cut. The cell's natural repair mechanisms then fix the break, allowing scientists to insert new genetic material or correct defective genes.
 
@@ -317,15 +317,15 @@ function Router({
 		}
 			const taskID = `task${taskNumber}`;
 			getDefaultStore().set(studyConditionAtom, taskConfig.condition);
-			getDefaultStore().set(taskDescriptionAtom, taskConfig.taskDescription);
+			getDefaultStore().set(taskDescriptionAtom, taskConfig.taskPrompt);
 
 			return (
 				<div>
-					<div className={classes.studytaskcontainer}>{taskConfig.taskDescription}</div>
+					<div className={classes.studytaskcontainer}>{taskConfig.taskPrompt}</div>
 
 					<EditorScreen 
 						taskID={taskID} 
-						initialContent={taskConfig.initialContent}
+						taskPrompt={taskConfig.taskPrompt}
 					/>
 
 					<button
