@@ -3,6 +3,8 @@ import json
 import logging
 import os
 import signal
+import io
+import zipfile
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -15,7 +17,7 @@ from fastapi import BackgroundTasks, FastAPI, Request, Body
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 from sse_starlette.sse import EventSourceResponse
@@ -288,6 +290,28 @@ async def logs_poll(
                     "logs": new_entries,
                 })
     return updates
+
+
+@app.get("/api/download_logs")
+async def download_logs(secret: str):
+    """
+    Download all log files as a ZIP archive.
+    """
+    assert LOG_SECRET != "", "Logging secret not set."
+    if secret != LOG_SECRET:
+        return JSONResponse({"error": "Invalid secret."}, status_code=403)
+
+    # Create an in-memory bytes buffer
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for log_file in LOG_PATH.glob("*.jsonl"):
+            zipf.write(log_file, arcname=log_file.name)
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=logs.zip"}
+    )
 
 
 def get_participant_log_filename(username):
