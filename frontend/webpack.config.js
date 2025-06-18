@@ -12,7 +12,6 @@ const urlDev = 'https://localhost:3000';
 const urlProd = 'https://app.thoughtful-ai.com';
 
 const backendDev = 'http://0.0.0.0:8000/';
-const backendProd = 'https://textfocals.azurewebsites.net/';
 
 async function getHttpsOptions() {
 	const httpsOptions = await devCerts.getHttpsServerOptions();
@@ -197,7 +196,7 @@ module.exports = async (env, options) => {
 			proxy: [
 				{
 					context: ['/api'],
-					target: dev ? backendDev : backendProd,
+					target: backendDev,
 					changeOrigin: true
 				}
 			],

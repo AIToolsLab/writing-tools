@@ -41,8 +41,15 @@ print(f"Log secret: {LOG_SECRET!r}")
 
 # Flag for whether to include any document text in the logs.
 # In the future we'll enable this for developers and study participants who have consented.
-# For now, we'll just disable all logging of document text.
-LOG_DOCTEXT = False
+
+def should_log(username: str) -> bool:
+    """
+    Determines whether to log document text based on the username.
+    
+    Currently, production users don't have "username" flags (authentication is handled by Auth0),
+    but study users have non-empty usernames.
+    """
+    return username != ""
 
 
 def validate_username(username: str):
@@ -126,6 +133,7 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
 
     $ curl -X POST -H "Content-Type: application/json" -d '{"username": "test", "gtype": "Completion", "prompt": "This is a test prompt."}' http://localhost:8000/api/generation
     '''
+    should_log_doctext = should_log(payload.username)
 
     # Sometimes gtype will have a _Backend suffix, so we strip it out
     payload.gtype = payload.gtype.replace("_Backend", "")
@@ -150,12 +158,12 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
         username=payload.username,
         event="suggestion_generated",
         generation_type=payload.gtype,
-        prompt=payload.prompt if LOG_DOCTEXT else "",
-        result=result.result if LOG_DOCTEXT else "",
+        prompt=payload.prompt if should_log_doctext else "",
+        result=result.result if should_log_doctext else "",
         delay=(end_time - start_time).total_seconds(),
     )
     # add on extra data
-    if LOG_DOCTEXT:
+    if should_log_doctext:
         for key, value in result.extra_data.items():
             if not hasattr(log_entry, key):
                 setattr(log_entry, key, value)
@@ -170,6 +178,8 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
 
 @app.post("/api/reflections")
 async def reflections(payload: ReflectionRequestPayload, background_tasks: BackgroundTasks):
+    should_log_doctext = should_log(payload.username)
+
     start_time = datetime.now()
     result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph)
     end_time = datetime.now()
@@ -177,11 +187,11 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
     log_entry = ReflectionLog(
         username=payload.username,
         event="reflection_generated",
-        prompt=payload.prompt if LOG_DOCTEXT else "",
-        paragraph=payload.paragraph if LOG_DOCTEXT else "",
+        prompt=payload.prompt if should_log_doctext else "",
+        paragraph=payload.paragraph if should_log_doctext else "",
         timestamp=end_time.timestamp(),
         delay=(end_time - start_time).total_seconds(),
-        result=result.result if LOG_DOCTEXT else "",
+        result=result.result if should_log_doctext else "",
     )
 
     background_tasks.add_task(make_log, log_entry)
