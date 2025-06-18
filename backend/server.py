@@ -1,27 +1,24 @@
-from pydantic import BaseModel, Field, ConfigDict, AfterValidator
-import os
+import io
 import json
-
-from typing import List, Dict, Optional, Annotated, Literal
-from pathlib import Path
+import logging
+import os
+import zipfile
 from datetime import datetime
-
-import uvicorn
-import asyncio
-
-from fastapi import FastAPI, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-
-from sse_starlette.sse import EventSourceResponse
-
-from pydantic import BaseModel, ConfigDict
-from dotenv import load_dotenv
+from pathlib import Path
+from typing import Annotated, Dict, List, Literal, Optional
 
 import nlp
+import uvicorn
+from dotenv import load_dotenv
+from fastapi import BackgroundTasks, Body, FastAPI
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import AfterValidator, BaseModel, ConfigDict
+from sse_starlette.sse import EventSourceResponse
 
-import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -35,12 +32,10 @@ LOG_PATH = Path("./logs").absolute()
 DEBUG = os.getenv("DEBUG") or False
 PORT = int(os.getenv("PORT") or 8000)
 
-# FIXME: Use auth0 instead
+# The log secret is stored in .env file for local development.
 LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
 print(f"Log secret: {LOG_SECRET!r}")
 
-# Flag for whether to include any document text in the logs.
-# In the future we'll enable this for developers and study participants who have consented.
 
 def should_log(username: str) -> bool:
     """
@@ -116,6 +111,7 @@ app = FastAPI()
 
 origins = ["*"]
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
@@ -123,6 +119,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    print(f"The client sent invalid data!: {exc}")
+    return await request_validation_exception_handler(request, exc)
+
 
 
 # Routes
@@ -244,40 +247,75 @@ async def ping() -> PingResponse:
     return PingResponse(timestamp=datetime.now())
 
 
-# Show all server logs
-@app.get("/api/logs")
-async def logs(secret: str):
-    async def log_generator():
-        assert LOG_SECRET != "", "Logging secret not set."
-        if secret != LOG_SECRET:
-            yield json.dumps({"error": "Invalid secret."})
-            return
+# Log viewer endpoint
+class LogsPollRequest(BaseModel):
+    log_positions: Dict[str, int]
+    secret: str
 
-        log_positions = {}
+@app.post("/api/logs_poll")
+async def logs_poll(
+    req: LogsPollRequest = Body(...)
+):
+    """
+    Polling endpoint for logs. Client sends a dict of {username: num_logs_already_have}.
+    Returns new log entries for each username since that count, deduplicated by timestamp+interaction+username.
+    """
+    log_positions = req.log_positions or {}
+    secret = req.secret
+    assert LOG_SECRET != "", "Logging secret not set."
+    if secret != LOG_SECRET:
+        return JSONResponse({"error": "Invalid secret."}, status_code=403)
 
-        while True:
-            updates = []
-            log_files = {
-                participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
+    updates = []
+    log_files = {participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
+    for username, log_file in log_files.items():
+        if username == '.jsonl':
+            continue
+        with open(log_file, "r") as file:
+            all_lines = file.readlines()
+            # Deduplicate all entries by (timestamp, interaction, username)
+            seen = set()
+            deduped = []
+            for line in all_lines:
+                try:
+                    entry = json.loads(line)
+                    key = f"{entry.get('timestamp')}|{entry.get('interaction')}|{entry.get('username')}"
+                    if key not in seen:
+                        seen.add(key)
+                        deduped.append(entry)
+                except Exception:
+                    continue
+            # Only send entries after the client's count
+            start_line = log_positions.get(username, 0)
+            new_entries = deduped[start_line:]
+            if new_entries:
+                updates.append({
+                    "username": username,
+                    "logs": new_entries,
+                })
+    return updates
 
-            for username, log_file in log_files.items():
-                with open(log_file, "r") as file:
-                    file.seek(log_positions.get(username, 0))
-                    new_lines = file.readlines()
 
-                    if new_lines:
-                        updates.append({
-                            "username": username,
-                            "logs": [json.loads(line) for line in new_lines],
-                        })
-                        log_positions[username] = file.tell()
+@app.get("/api/download_logs")
+async def download_logs(secret: str):
+    """
+    Download all log files as a ZIP archive.
+    """
+    assert LOG_SECRET != "", "Logging secret not set."
+    if secret != LOG_SECRET:
+        return JSONResponse({"error": "Invalid secret."}, status_code=403)
 
-            if updates:
-                yield json.dumps(updates)
-
-            await asyncio.sleep(1)  # Adjust the sleep time as needed
-
-    return EventSourceResponse(log_generator())
+    # Create an in-memory bytes buffer
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for log_file in LOG_PATH.glob("*.jsonl"):
+            zipf.write(log_file, arcname=log_file.name)
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=logs.zip"}
+    )
 
 
 def get_participant_log_filename(username):

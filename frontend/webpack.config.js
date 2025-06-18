@@ -163,6 +163,11 @@ module.exports = async (env, options) => {
 				chunks: ['editor', 'react']
 			}),
 			new HtmlWebpackPlugin({
+				filename: 'logs.html',
+				template: './src/logs/logs.html',
+				chunks: ['logs', 'react']
+			}),
+			new HtmlWebpackPlugin({
 				filename: 'popup.html',
 				template: './src/popup.html',
 				chunks: ['polyfill', 'popup', 'react']
