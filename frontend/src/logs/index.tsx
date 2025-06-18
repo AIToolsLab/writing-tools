@@ -5,13 +5,13 @@ import { SERVER_URL } from '@/api';
 
 interface Log {
     username: string;
-    interaction: string;
+    event: string;
     prompt: string;
     result: string;
     completion: string;
-    timestamp: number; // Use number for easier calculations
+    timestamp: number;
     isBackend?: boolean;
-    generationType?: string;
+    generation_type?: string;
     isPlayground?: boolean;
 }
 
@@ -122,13 +122,11 @@ function App() {
                     let newLogs: Log[] = updates.map((log: { logs: Log[] }) => log.logs).flat();
                     newLogs = newLogs.map((x) => {
                         const ts = typeof x.timestamp === 'string' ? new Date(x.timestamp).getTime() / 1000 : x.timestamp;
-                        const isBackend = x.interaction.endsWith('_Backend');
+                        const isBackend = ['suggestion_generated', 'reflection_generated', 'reflection_generated'].includes(x.event);
                         return {
                             ...x,
                             timestamp: ts,
                             isBackend,
-                            generationType: isBackend ? x.interaction.replace('_Backend', '') : undefined,
-                            isPlayground: ((x.prompt || '').trim().startsWith('From the Wikipedia page on Calvin University')),
                         };
                     });
                     // Just append new logs (no deduplication)
@@ -167,8 +165,8 @@ function App() {
     const generationTypeCounts = useMemo(() => {
         return Object.entries(
             desiredEntries.reduce((acc: Record<string, number>, x) => {
-                if (x.isBackend && x.generationType) {
-                    acc[x.generationType] = (acc[x.generationType] || 0) + 1;
+                if (x.isBackend && x.generation_type) {
+                    acc[x.generation_type] = (acc[x.generation_type] || 0) + 1;
                 }
                 return acc;
             }, {} as Record<string, number>)
