@@ -159,12 +159,16 @@ function EditorScreen( {taskID, taskPrompt }: {taskID?: string; taskPrompt?: str
 }
 
 const studyPageNames = [
+	'study-consentForm',
 	'study-intro',
 	'study-introSurvey',
+	'study-startTask1',
 	'study-task1',
 	'study-postTask1',
+	'study-startTask2',
 	'study-task2',
 	'study-postTask2',
+	'study-startTask3',
 	'study-task3',
 	'study-postTask3',
 	'study-postStudySurvey',
@@ -172,12 +176,14 @@ const studyPageNames = [
 ];
 
 const SURVEY_URLS = {
+	consentForm: 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW',
 	preStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4',
 	postTask1: 'https://calvin.co1.qualtrics.com/jfe/form/SV_6Vuc9vgqMuEqzVY',
 	postTask2: 'https://calvin.co1.qualtrics.com/jfe/form/SV_7X8tAiech6zP79A',
 	postTask3: 'https://calvin.co1.qualtrics.com/jfe/form/SV_1M8MN5b0H9pfYsm',
 	postStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_79DIQlYz4SJCwnk'
 };
+
 
 const taskConfigs = {
 		'1': {
@@ -219,8 +225,23 @@ const taskConfigs = {
 			This technology has enormous potential for treating genetic diseases, improving crops, and advancing medical research. Scientists have already begun clinical trials using CRISPR to treat conditions like sickle cell disease and certain types of cancer. In agriculture, researchers are developing crops that are more resistant to diseases and climate change.
 
 			However, CRISPR also raises important ethical questions, particularly regarding its use in human embryos, which could create permanent changes that would be passed down to future generations. The scientific community continues to debate the appropriate boundaries for this powerful technology while working to ensure its safe and beneficial application.`
-		},
-	};
+		}
+	}	
+	
+	const letterToCondition = {
+  			e: 'Completion',
+  			q: 'Question',
+  			r: 'RMove'
+		};
+
+		// This is the mapping of condition order letter abbreviation received from the URL parameter (eg. eqr, req, ...) to conditions.
+		function mapInputToDict(input: string) {
+		const result: Record<string, { condition: string }> = {};
+		input.split('').forEach((letter, idx) => {
+			result[(idx + 1).toString()] = { condition: letterToCondition[letter as keyof typeof letterToCondition] };
+		});
+		return result;
+	}	
 
 function Router({
 	page
@@ -243,9 +264,28 @@ function Router({
 
 		const urlParams = new URLSearchParams(window.location.search);
 		const username = urlParams.get('username');
+		const conditionOrder = urlParams.get('order');
+
 		if (!username) {
 			return <div> Please provide a username in the URL parameter. </div>;
 		}
+
+		if (!conditionOrder) {
+			return <div> Please provide a condition order in the URL parameter. </div>;
+		}
+
+		const isValidOrder =
+			// Check if the condition order only contains valid letters (e, q, r) and has no duplicates
+			conditionOrder.split('').every((letter) =>
+			Object.keys(letterToCondition).includes(letter)
+			) &&
+			new Set(conditionOrder.split('')).size === conditionOrder.length;
+
+		if (!isValidOrder) {
+			return <div> Invalid condition order. Please use a unique combination of 'e', 'q', and 'r'. </div>;
+		}
+
+		const conditionConfigs = mapInputToDict(conditionOrder);
 
 		const studyPageIndex = studyPageNames.indexOf(page);
 		if (studyPageIndex === -1) {
@@ -254,12 +294,33 @@ function Router({
 
 		const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
 
-		if (page === 'study-intro') {
-			// TODO: consent form
+		if (page === 'study-consentForm') {
+			const nextUrlParams = new URLSearchParams(window.location.search);
+      nextUrlParams.set('page', nextPage);
+      const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+			const consentFormURL = SURVEY_URLS.consentForm;
+
+			return <div className={classes.studyIntroContainer}>
+				<a
+					onClick={() => {
+						log ({
+							username: username,
+							event: 'ConsentForm',
+							interaction: 'User clicked Consent Form button'
+						});
+;					}}
+					href={`${consentFormURL}?redirect_url=${redirectURL}`}
+					className={classes.startButton}
+				>
+					Sign Consent Form
+				</a>
+				</div>;
+		}
+		else if (page === 'study-intro') {
 			return <div className={classes.studyIntroContainer}>
             <h1>Welcome!</h1>
             <p>
-				Thank you for participating in our writing study. You'll complete three writing tasks on different topics.
+				Thank you for agreeing to participate in our writing study. You'll complete three writing tasks on different topics.
 				After completing each task, click 'Done' to save your work and continue to the next task.
 				As you write, pay attention to the suggestions the writing tool offers and use them when
 				they seem helpful. There are no right or wrong ways to interact with the tool.
@@ -282,7 +343,7 @@ function Router({
 
         </div>;
 		}
-		if (page === 'study-introSurvey') {
+		else if (page === 'study-introSurvey') {
 			const nextUrlParams = new URLSearchParams(window.location.search);
       		nextUrlParams.set('page', nextPage);
       		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
@@ -306,17 +367,50 @@ function Router({
 				</div>
 			);
 		}
+		else if (page.startsWith('study-startTask')) {
+			const urlParams = new URLSearchParams(window.location.search);
 
+			const startTaskNumber = page.replace('study-startTask', '');
+			const conditionConfig = conditionConfigs[startTaskNumber as keyof typeof conditionConfigs];
+
+			if (!conditionConfig) {
+				return <div>Invalid task number</div>;
+			}
+
+			const taskCondition = conditionConfig.condition;
+
+			return (
+				<div className={classes.studyIntroContainer}>
+					<button
+						onClick={() => {
+							log({
+								username: username,
+								event: `StartTask${startTaskNumber}`,
+								interaction: `User started Task ${startTaskNumber}`,
+								condition: taskCondition
+							});
+							urlParams.set('page', nextPage);
+							window.location.search = urlParams.toString();
+						}}
+						className={classes.startButton}
+					>
+						Start Task {startTaskNumber}
+					</button>
+				</div>
+			);
+		}
 		else if (page.startsWith('study-task')){
 			const urlParams = new URLSearchParams(window.location.search);
 
 			const taskNumber = page.replace('study-task', '');
 			const taskConfig = taskConfigs[taskNumber as keyof typeof taskConfigs];
+			const conditionConfig =  conditionConfigs[taskNumber as keyof typeof conditionConfigs];
+
 			if (!taskConfig) {
 				return <div>Invalid task number</div>;
 		}
 			const taskID = `task${taskNumber}`;
-			getDefaultStore().set(studyConditionAtom, taskConfig.condition);
+			getDefaultStore().set(studyConditionAtom, conditionConfig.condition);
 			getDefaultStore().set(taskDescriptionAtom, taskConfig.taskPrompt);
 
 			return (
