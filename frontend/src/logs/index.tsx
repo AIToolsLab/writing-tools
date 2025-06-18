@@ -172,6 +172,21 @@ function App() {
 
     return (
         <div className="p-6">
+            <div className="mb-4">
+                <label className="flex items-center gap-2">
+                    Log Secret:
+                    <input
+                        type="text"
+                        value={logSecret}
+                        onChange={e => {
+                            setLogSecret(e.target.value);
+                            localStorage.setItem('logSecret', e.target.value);
+                        }}
+                        placeholder="Enter log secret"
+                        className="px-3 py-2 border border-gray-300 rounded transition duration-150 cursor-pointer focus:cursor-text focus:outline-none focus:border-black hover:border-black"
+                    />
+                </label>
+            </div>
             <div className="mb-4 flex items-center gap-6">
                 <label className="flex items-center gap-2">
                     Username:
@@ -199,21 +214,7 @@ function App() {
                     ))}
                 </ul>
             </div>
-            <div className="mb-4">
-                <label className="flex items-center gap-2">
-                    Log Secret:
-                    <input
-                        type="text"
-                        value={logSecret}
-                        onChange={e => {
-                            setLogSecret(e.target.value);
-                            localStorage.setItem('logSecret', e.target.value);
-                        }}
-                        placeholder="Enter log secret"
-                        className="px-3 py-2 border border-gray-300 rounded transition duration-150 cursor-pointer focus:cursor-text focus:outline-none focus:border-black hover:border-black"
-                    />
-                </label>
-            </div>
+
             <EntriesTable entries={desiredEntries} />
         </div>
     );
