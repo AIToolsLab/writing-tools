@@ -2,7 +2,7 @@ from pydantic import BaseModel, Field, ConfigDict, AfterValidator
 import os
 import json
 
-from typing import List, Dict, Optional, Annotated
+from typing import List, Dict, Optional, Annotated, Literal
 from pathlib import Path
 from datetime import datetime
 
@@ -22,6 +22,10 @@ from dotenv import load_dotenv
 import nlp
 
 import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 
 # Load ENV vars
 load_dotenv()
@@ -92,10 +96,11 @@ class Log(BaseModel):
     timestamp: float
     ok: bool = True
     username: ValidatedUsername
-    interaction: str
+    event: str
 
 
 class GenerationLog(Log):
+    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove"]
     prompt: str
     result: str
     completion: Optional[str] = None
@@ -126,20 +131,23 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
     '''
     To test this endpoint from curl:
 
-    $ curl -X POST -H "Content-Type: application/json" -d '{"username": "test", "gtype": "Completion_Backend", "prompt": "This is a test prompt."}' http://localhost:8000/api/generation
+    $ curl -X POST -H "Content-Type: application/json" -d '{"username": "test", "gtype": "Completion", "prompt": "This is a test prompt."}' http://localhost:8000/api/generation
     '''
     should_log_doctext = should_log(payload.username)
 
+    # Sometimes gtype will have a _Backend suffix, so we strip it out
+    payload.gtype = payload.gtype.replace("_Backend", "")
+
     start_time = datetime.now()
-    if payload.gtype == "Completion_Backend":
+    if payload.gtype == "Completion":
         result = await nlp.chat_completion(payload.prompt)
-    elif payload.gtype == "Question_Backend":
+    elif payload.gtype == "Question":
         result = await nlp.question(payload.prompt)
-    elif payload.gtype == "Keywords_Backend":
+    elif payload.gtype == "Keywords":
         result = await nlp.keywords(payload.prompt)
-    elif payload.gtype == "Structure_Backend":
+    elif payload.gtype == "Structure":
         result = await nlp.structure(payload.prompt)
-    elif payload.gtype == "RMove_Backend":
+    elif payload.gtype == "RMove":
         result = await nlp.rmove(payload.prompt)
     else:
         raise ValueError(f"Invalid generation type: {payload.gtype}")
@@ -148,7 +156,8 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
     log_entry = GenerationLog(
         timestamp=end_time.timestamp(),
         username=payload.username,
-        interaction=payload.gtype,
+        event="suggestion_generated",
+        generation_type=payload.gtype,
         prompt=payload.prompt if should_log_doctext else "",
         result=result.result if should_log_doctext else "",
         delay=(end_time - start_time).total_seconds(),
@@ -159,9 +168,6 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
             if not hasattr(log_entry, key):
                 setattr(log_entry, key, value)
     background_tasks.add_task(make_log, log_entry)
-
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
 
     final_end_time = datetime.now()
     log = final_end_time - start_time
@@ -180,7 +186,7 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
 
     log_entry = ReflectionLog(
         username=payload.username,
-        interaction="reflection",
+        event="reflection_generated",
         prompt=payload.prompt if should_log_doctext else "",
         paragraph=payload.paragraph if should_log_doctext else "",
         timestamp=end_time.timestamp(),
@@ -206,7 +212,7 @@ async def chat(payload: ChatRequestPayload):
     # } for message in payload.messages]
     # make_log(
     #    Log(username=payload.username,
-    # interaction="chat",
+    # event="chat_message",
     # prompt=payload.messages[-1]['content'],
     # ui_id=None)
     # )

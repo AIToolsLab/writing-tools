@@ -3,7 +3,7 @@ export const SERVER_URL = '/api';
 // Define a type for payload. Includes at least: eventType and username
 export interface LogPayload {
 	username: string;
-	interaction: string;
+	event: string;
 	[key: string]: any;
 }
 
