@@ -10,9 +10,8 @@ interface Log {
     result: string;
     completion: string;
     timestamp: number;
-    isBackend?: boolean;
+    isBackend: boolean;
     generation_type?: string;
-    isPlayground?: boolean;
 }
 
 // Collapsible component for prompt/result/completion
@@ -87,7 +86,6 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 function App() {
     const [logs, setLogs] = useState<Log[]>([]);
     const [username, setUsername] = useState('');
-    const [includePlayground, setIncludePlayground] = useState(false);
     const [logSecret, setLogSecret] = useState<string>(() => localStorage.getItem('logSecret') || '');
     const logsRef = useRef<Log[]>([]);
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
@@ -156,10 +154,9 @@ function App() {
     // Filtered logs
     const desiredEntries = useMemo(() => {
         return logs.filter(x =>
-            (!username || x.username === username) &&
-            (includePlayground || !x.isPlayground)
+            (!username || x.username === username)
         );
-    }, [logs, username, includePlayground]);
+    }, [logs, username]);
 
     // Generation type counts
     const generationTypeCounts = useMemo(() => {
@@ -188,15 +185,6 @@ function App() {
                     <datalist id="usernames">
                         {availableUsernames.map(u => <option key={u} value={u} />)}
                     </datalist>
-                </label>
-                <label className="flex items-center gap-2">
-                    <input
-                        type="checkbox"
-                        checked={includePlayground}
-                        onChange={e => setIncludePlayground(e.target.checked)}
-                        className="mr-1"
-                    />
-                    Include Playground
                 </label>
             </div>
             <div className="mb-4">
