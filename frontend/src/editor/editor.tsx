@@ -19,7 +19,7 @@ import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import classes from './editor.module.css';
 
 
-function $getDocContext(): DocContext {
+function $getDocContext(taskPrompt?: string): DocContext {
   // Initialize default empty context
   const docContext: DocContext = {
     beforeCursor: '',
@@ -59,6 +59,12 @@ function $getDocContext(): DocContext {
 
   // Collect text after cursor
   docContext.afterCursor = getCursorText(focusNode, focusOffset, 'after');
+
+  // Prepend if necessary
+  if (taskPrompt) {
+	docContext.beforeCursor = taskPrompt + '\n\n' + docContext.beforeCursor;
+	docContext.selectedText = taskPrompt + '\n\n' + docContext.selectedText;
+  }
 
   return docContext;
 }
@@ -149,11 +155,13 @@ function getCursorText(aNode: any, aOffset: any, mode: string): string {
 function LexicalEditor({
 	updateDocContext,
 	initialState,
-	storageKey = 'doc'
+	storageKey = 'doc',
+	taskPrompt
 }: {
 	updateDocContext: (docContext: DocContext) => void;
 	initialState: InitialEditorStateType | null;
 	storageKey?: string;
+	taskPrompt?: string;
 }) {
 	return (
 		<>
@@ -179,12 +187,12 @@ function LexicalEditor({
 					<OnChangePlugin
 						onChange={ editorState => {
 							editorState.read(() => {
-								const docContext = $getDocContext();
+								const docContext = $getDocContext(taskPrompt);
 
 								updateDocContext(docContext);
 
 								localStorage.setItem(
-									storageKey ='doc',
+									storageKey,
 									JSON.stringify(editorState)
 								);
 								const currentDate = new Date().toISOString();

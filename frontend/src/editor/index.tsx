@@ -16,7 +16,7 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 	);
 }
 
-function EditorScreen( {taskID, taskPrompt }: {taskID?: string; taskPrompt?: string}) {
+function EditorScreen( {taskID}: {taskID?: string; taskPrompt?: string}) {
 	const mode = useAtomValue(overallModeAtom);
 	const isDemo = mode === OverallMode.demo;
 
@@ -38,33 +38,33 @@ function EditorScreen( {taskID, taskPrompt }: {taskID?: string; taskPrompt?: str
 	};
 
 	//Convert plain text into the proper Lexical JSON format
-	const createInitialState = (text: string) => {
-		return JSON.stringify({
-		root: {
-			children: text.split('\n\n').map(paragraph => ({
-			children: [
-				{
-				detail: 0,
-				format: 0,
-				mode: "normal",
-				style: "",
-				text: paragraph,
-				type: "text",
-				version: 1
-				}
-			],
-			direction: "ltr",
-			format: "",
-			type: "paragraph",
-			version: 1
-			})),
-			direction: "ltr",
-			format: "",
-			type: "root",
-			version: 1
-		}
-		});
-	};
+	// const createInitialState = (text: string) => {
+	// 	return JSON.stringify({
+	// 	root: {
+	// 		children: text.split('\n\n').map(paragraph => ({
+	// 		children: [
+	// 			{
+	// 			detail: 0,
+	// 			format: 0,
+	// 			mode: "normal",
+	// 			style: "",
+	// 			text: paragraph,
+	// 			type: "text",
+	// 			version: 1
+	// 			}
+	// 		],
+	// 		direction: "ltr",
+	// 		format: "",
+	// 		type: "paragraph",
+	// 		version: 1
+	// 		})),
+	// 		direction: "ltr",
+	// 		format: "",
+	// 		type: "root",
+	// 		version: 1
+	// 	}
+	// 	});
+	// };
 
 	const editorAPI: EditorAPI = {
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
@@ -126,11 +126,11 @@ function EditorScreen( {taskID, taskPrompt }: {taskID?: string; taskPrompt?: str
 	const getInitialState = () => {
 		const storageKey = getStorageKey();
 
-		if (taskPrompt) {
-			localStorage.removeItem(storageKey);
-			localStorage.removeItem(`${storageKey}-date`);
-			return createInitialState(taskPrompt);
-		}
+		// if (taskPrompt) {
+		// 	localStorage.removeItem(storageKey);
+		// 	localStorage.removeItem(`${storageKey}-date`);
+		// 	return createInitialState(taskPrompt);
+		// }
 		return localStorage.getItem(storageKey) || undefined;
 	};
 
@@ -143,6 +143,7 @@ function EditorScreen( {taskID, taskPrompt }: {taskID?: string; taskPrompt?: str
 					initialState={ getInitialState()}
 					updateDocContext={ docUpdated }
 					storageKey={ getStorageKey()}
+					// taskPrompt={ taskPrompt }
 				/>
 				{ isDemo && (
 					<div className={ `${classes.wordCount}` }>
