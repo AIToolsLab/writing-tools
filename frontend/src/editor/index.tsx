@@ -16,7 +16,7 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 	);
 }
 
-function EditorScreen( {taskID}: {taskID?: string; taskPrompt?: string}) {
+function EditorScreen( {taskID, taskPrompt}: {taskID?: string; taskPrompt?: string}) {
 	const mode = useAtomValue(overallModeAtom);
 	const isDemo = mode === OverallMode.demo;
 
@@ -114,6 +114,7 @@ function EditorScreen( {taskID}: {taskID?: string; taskPrompt?: string}) {
 					initialState={ getInitialState()}
 					updateDocContext={ docUpdated }
 					storageKey={ getStorageKey()}
+					taskPrompt={ taskPrompt }
 				/>
 				{ isDemo && (
 					<div className={ `${classes.wordCount}` }>

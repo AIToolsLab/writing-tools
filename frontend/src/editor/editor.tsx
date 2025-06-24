@@ -19,7 +19,7 @@ import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import classes from './editor.module.css';
 
 
-function $getDocContext(taskPrompt?: string): DocContext {
+function $getDocContext(): DocContext {
   // Initialize default empty context
   const docContext: DocContext = {
     beforeCursor: '',
@@ -59,12 +59,6 @@ function $getDocContext(taskPrompt?: string): DocContext {
 
   // Collect text after cursor
   docContext.afterCursor = getCursorText(focusNode, focusOffset, 'after');
-
-  // Prepend if necessary
-  if (taskPrompt) {
-	docContext.beforeCursor = taskPrompt + docContext.beforeCursor;
-	docContext.selectedText = taskPrompt + docContext.selectedText;
-  }
 
   return docContext;
 }
@@ -187,7 +181,12 @@ function LexicalEditor({
 					<OnChangePlugin
 						onChange={ editorState => {
 							editorState.read(() => {
-								const docContext = $getDocContext(taskPrompt);
+								const docContext = $getDocContext();
+
+								// Prepend if necessary
+								if (taskPrompt) {
+									docContext.beforeCursor = taskPrompt + docContext.beforeCursor;
+								}
 
 								updateDocContext(docContext);
 
