@@ -387,8 +387,6 @@ function Router({
 
 			return (
 				<div>
-					<div className={classes.studytaskcontainer}>{taskConfig.taskPrompt}</div>
-
 					<EditorScreen 
 						taskID={taskID} 
 						taskPrompt={taskConfig.taskPrompt}
