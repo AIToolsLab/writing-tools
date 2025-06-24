@@ -187,7 +187,7 @@ function LexicalEditor({
 
 								// Prepend if necessary
 								if (taskPrompt) {
-									docContext.beforeCursor = taskPrompt + docContext.beforeCursor;
+									docContext.beforeCursor = taskPrompt + '\n\n' + docContext.beforeCursor;
 								}
 
 								updateDocContext(docContext);
