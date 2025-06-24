@@ -37,35 +37,6 @@ function EditorScreen( {taskID}: {taskID?: string; taskPrompt?: string}) {
 		selectionChangeHandlers.current.forEach(handler => handler());
 	};
 
-	//Convert plain text into the proper Lexical JSON format
-	// const createInitialState = (text: string) => {
-	// 	return JSON.stringify({
-	// 	root: {
-	// 		children: text.split('\n\n').map(paragraph => ({
-	// 		children: [
-	// 			{
-	// 			detail: 0,
-	// 			format: 0,
-	// 			mode: "normal",
-	// 			style: "",
-	// 			text: paragraph,
-	// 			type: "text",
-	// 			version: 1
-	// 			}
-	// 		],
-	// 		direction: "ltr",
-	// 		format: "",
-	// 		type: "paragraph",
-	// 		version: 1
-	// 		})),
-	// 		direction: "ltr",
-	// 		format: "",
-	// 		type: "root",
-	// 		version: 1
-	// 	}
-	// 	});
-	// };
-
 	const editorAPI: EditorAPI = {
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
 			try {
@@ -143,7 +114,6 @@ function EditorScreen( {taskID}: {taskID?: string; taskPrompt?: string}) {
 					initialState={ getInitialState()}
 					updateDocContext={ docUpdated }
 					storageKey={ getStorageKey()}
-					// taskPrompt={ taskPrompt }
 				/>
 				{ isDemo && (
 					<div className={ `${classes.wordCount}` }>
