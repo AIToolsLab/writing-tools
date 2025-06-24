@@ -62,8 +62,8 @@ function $getDocContext(taskPrompt?: string): DocContext {
 
   // Prepend if necessary
   if (taskPrompt) {
-	docContext.beforeCursor = taskPrompt + '\n\n' + docContext.beforeCursor;
-	docContext.selectedText = taskPrompt + '\n\n' + docContext.selectedText;
+	docContext.beforeCursor = taskPrompt + docContext.beforeCursor;
+	docContext.selectedText = taskPrompt + docContext.selectedText;
   }
 
   return docContext;
