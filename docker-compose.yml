@@ -5,6 +5,7 @@ services:
       dockerfile: Dockerfile
     depends_on:
       - backend
+    restart: unless-stopped
 
   backend:
     build:
@@ -15,6 +16,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./backend/logs:/app/backend/logs
+    restart: unless-stopped
 
 networks:
   default:

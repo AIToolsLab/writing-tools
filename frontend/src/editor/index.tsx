@@ -150,9 +150,9 @@ const studyPageNames = [
 const SURVEY_URLS = {
 	consentForm: 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW',
 	preStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4',
-	postTask1: 'https://calvin.co1.qualtrics.com/jfe/form/SV_6Vuc9vgqMuEqzVY',
-	postTask2: 'https://calvin.co1.qualtrics.com/jfe/form/SV_7X8tAiech6zP79A',
-	postTask3: 'https://calvin.co1.qualtrics.com/jfe/form/SV_1M8MN5b0H9pfYsm',
+	Completion: 'https://calvin.co1.qualtrics.com/jfe/form/SV_6Vuc9vgqMuEqzVY',
+	Question: 'https://calvin.co1.qualtrics.com/jfe/form/SV_7X8tAiech6zP79A',
+	RMove: 'https://calvin.co1.qualtrics.com/jfe/form/SV_1M8MN5b0H9pfYsm',
 	postStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_79DIQlYz4SJCwnk'
 };
 
@@ -415,7 +415,9 @@ function Router({
 			nextUrlParams.set('page', nextPage);
 			const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
 			const postTaskNumber = page.replace('study-postTask', '');
-			const postTaskSurveyURL = SURVEY_URLS[`postTask${postTaskNumber}` as keyof typeof SURVEY_URLS];
+			const conditionConfig = conditionConfigs[postTaskNumber as keyof typeof conditionConfigs];
+			const condition = conditionConfig.condition;
+			const postTaskSurveyURL = SURVEY_URLS[condition as keyof typeof SURVEY_URLS];
 
 			return <div className={classes.studyIntroContainer}>
 				<p> Thank you for completing Task {postTaskNumber}. Please take a moment to complete a brief survey.</p>
