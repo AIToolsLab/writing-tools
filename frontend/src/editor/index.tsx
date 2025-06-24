@@ -1,7 +1,7 @@
 import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
 import { studyConditionAtom, taskDescriptionAtom } from '@/contexts/studyContext';
 import * as SidebarInner from '@/pages/app';
-import { Auth0ContextInterface } from '@auth0/auth0-react';
+import { Auth0ContextInterface} from '@auth0/auth0-react';
 import { getDefaultStore, useAtomValue } from 'jotai';
 import { useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -16,7 +16,7 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 	);
 }
 
-function EditorScreen() {
+function EditorScreen( {taskID, taskPrompt}: {taskID?: string; taskPrompt?: string}) {
 	const mode = useAtomValue(overallModeAtom);
 	const isDemo = mode === OverallMode.demo;
 
@@ -36,7 +36,6 @@ function EditorScreen() {
 	const handleSelectionChange = () => {
 		selectionChangeHandlers.current.forEach(handler => handler());
 	};
-
 
 	const editorAPI: EditorAPI = {
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
@@ -90,14 +89,32 @@ function EditorScreen() {
 		handleSelectionChange();
 	};
 
+	//Determine storage keys based on the task
+	const getStorageKey = () => {
+		return taskID ? `doc-${taskID}` : 'doc';
+	};
+
+	const getInitialState = () => {
+		const storageKey = getStorageKey();
+
+		// if (taskPrompt) {
+		// 	localStorage.removeItem(storageKey);
+		// 	localStorage.removeItem(`${storageKey}-date`);
+		// 	return createInitialState(taskPrompt);
+		// }
+		return localStorage.getItem(storageKey) || undefined;
+	};
+
 	return (
 		<div className={ isDemo ? classes.democontainer : classes.container }>
 
 			<div className={ isDemo ? classes.demoeditor : classes.editor }>
 				<LexicalEditor
-					//@ts-ignore, see https://github.com/facebook/lexical/issues/5079
-					initialState={ localStorage.getItem('doc') || undefined }
+					//@ts-ignore
+					initialState={ getInitialState()}
 					updateDocContext={ docUpdated }
+					storageKey={ getStorageKey()}
+					taskPrompt={ taskPrompt }
 				/>
 				{ isDemo && (
 					<div className={ `${classes.wordCount}` }>
@@ -141,31 +158,62 @@ const SURVEY_URLS = {
 
 
 const taskConfigs = {
-	'1': {
-		taskDescription: 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.'
-	},
-	'2': {
-		taskDescription: 'Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements.'
-	},
-	'3': {
-		taskDescription: 'Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.'
-	}
-}
+		'1': {
+			condition: 'Completion',
+			taskPrompt: 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.', 
+		},
+		'2': {
+			condition: 'Question',
+			taskPrompt: `Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements. [Details are given below in the editor document]
+			GreenTech Solutions - Sustainability Coordinator Position
 
-const letterToCondition = {
-  e: 'Completion',
-  q: 'Question',
-  r: 'RMove'
-};
+				Company Overview:
+				GreenTech Solutions is a fast-growing environmental consulting firm that helps businesses reduce their carbon footprint and implement sustainable practices. We work with companies across various industries to develop eco-friendly strategies that benefit both the environment and their bottom line.
 
-// This is the mapping of condition order letter abbreviation received from the URL parameter (eg. eqr, req, ...) to conditions.
-function mapInputToDict(input: string) {
-  const result: Record<string, { condition: string }> = {};
-  input.split('').forEach((letter, idx) => {
-    result[(idx + 1).toString()] = { condition: letterToCondition[letter as keyof typeof letterToCondition] };
-  });
-  return result;
-}
+				Position Requirements:
+				- Bachelor's degree in Environmental Science, Sustainability, or related field
+				- Strong communication and project management skills
+				- Experience with sustainability reporting and environmental assessments
+				- Knowledge of marketing principles for promoting green initiatives
+				- Ability to work with diverse teams and clients
+				- Internship or work experience in environmental or sustainability roles preferred
+
+				Job Responsibilities:
+				- Assist clients in developing and implementing sustainability plans
+				- Conduct environmental impact assessments
+				- Create marketing materials to promote sustainable practices
+				- Collaborate with cross-functional teams on green initiatives
+				- Prepare sustainability reports and presentations for clients
+				- Stay current with environmental regulations and industry trends`
+		},
+		'3': {
+			condition: 'RMove',
+			taskPrompt: `Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.
+			
+			CRISPR-Cas9 is a revolutionary gene-editing technology that allows scientists to make precise changes to DNA. Originally discovered as part of bacteria's immune system, CRISPR works like molecular scissors that can cut DNA at specific locations and either remove, add, or replace genetic material.
+
+			The CRISPR system consists of two main components: a guide RNA that identifies the target DNA sequence, and the Cas9 protein that acts as the cutting tool. When these components are introduced into a cell, they seek out the matching DNA sequence and make a precise cut. The cell's natural repair mechanisms then fix the break, allowing scientists to insert new genetic material or correct defective genes.
+
+			This technology has enormous potential for treating genetic diseases, improving crops, and advancing medical research. Scientists have already begun clinical trials using CRISPR to treat conditions like sickle cell disease and certain types of cancer. In agriculture, researchers are developing crops that are more resistant to diseases and climate change.
+
+			However, CRISPR also raises important ethical questions, particularly regarding its use in human embryos, which could create permanent changes that would be passed down to future generations. The scientific community continues to debate the appropriate boundaries for this powerful technology while working to ensure its safe and beneficial application.`
+		}
+	}	
+	
+	const letterToCondition = {
+  			e: 'Completion',
+  			q: 'Question',
+  			r: 'RMove'
+		};
+
+		// This is the mapping of condition order letter abbreviation received from the URL parameter (eg. eqr, req, ...) to conditions.
+		function mapInputToDict(input: string) {
+		const result: Record<string, { condition: string }> = {};
+		input.split('').forEach((letter, idx) => {
+			result[(idx + 1).toString()] = { condition: letterToCondition[letter as keyof typeof letterToCondition] };
+		});
+		return result;
+	}	
 
 function Router({
 	page
@@ -258,8 +306,8 @@ function Router({
 							interaction: 'User clicked Start Study button'
 						});
 						urlParams.set('page', nextPage)
-						window.location.search = urlParams.toString()
-;					}}
+						window.location.search = urlParams.toString();					
+					}}
 					className={classes.startButton}
 				>
 					Start Study
@@ -269,8 +317,8 @@ function Router({
 		}
 		else if (page === 'study-introSurvey') {
 			const nextUrlParams = new URLSearchParams(window.location.search);
-      nextUrlParams.set('page', nextPage);
-      const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+      		nextUrlParams.set('page', nextPage);
+      		const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
 			const introSurveyURL = SURVEY_URLS.preStudy;
 
 			return (
@@ -333,20 +381,23 @@ function Router({
 			if (!taskConfig) {
 				return <div>Invalid task number</div>;
 		}
+			const taskID = `task${taskNumber}`;
 			getDefaultStore().set(studyConditionAtom, conditionConfig.condition);
-			getDefaultStore().set(taskDescriptionAtom, taskConfig.taskDescription);
+			getDefaultStore().set(taskDescriptionAtom, taskConfig.taskPrompt);
 
 			return (
 				<div>
-					<div className={classes.studytaskcontainer}>{taskConfig.taskDescription}</div>
-
-					<EditorScreen />
+					<EditorScreen 
+						taskID={taskID} 
+						taskPrompt={taskConfig.taskPrompt}
+					/>
 
 					<button
 						onClick={() => {
 							log({
 								username: username,
 								event: `FinishTask${taskNumber}`,
+								taskID: taskID,
 								interaction: `User finished Task ${taskNumber}`
 							});
 							urlParams.set('page', nextPage);
@@ -401,7 +452,7 @@ function Router({
 								event: 'PostStudySurvey',
 								interaction: 'User clicked final Post Study Survey button'
 							});
-	;					}}
+;					}}
 					href={`${postStudySurveyURL}?redirect_url=${redirectURL}`}
 					className={classes.startButton}
 					>
@@ -423,8 +474,8 @@ function Router({
 							interaction: 'User finished the study'
 						});
 						urlParams.set('page', 'study-intro')
-						window.location.search = urlParams.toString()
-;					}}
+						window.location.search = urlParams.toString();					
+					}}
 					className={classes.startButton}
 				>
 					Return to Start
@@ -432,9 +483,7 @@ function Router({
 			</div>;
 		}
 		else {
-			return <div>Unknown study page</div>;
-		}
-	}
+			return <div>Unknown study page</div>; }}
 	else {
 		return <div>Page not found</div>;
 	}

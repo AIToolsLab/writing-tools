@@ -148,10 +148,14 @@ function getCursorText(aNode: any, aOffset: any, mode: string): string {
 
 function LexicalEditor({
 	updateDocContext,
-	initialState
+	initialState,
+	storageKey = 'doc',
+	taskPrompt
 }: {
 	updateDocContext: (docContext: DocContext) => void;
 	initialState: InitialEditorStateType | null;
+	storageKey?: string;
+	taskPrompt?: string;
 }) {
 	return (
 		<>
@@ -166,9 +170,11 @@ function LexicalEditor({
 				} }
 			>
 				<div className={ classes.editorContainer }>
+					<div className={ classes.editor }>
+					<div className="whitespace-pre-line border-b-2">{taskPrompt}</div>
 					<RichTextPlugin
 						contentEditable={
-							<ContentEditable className={ classes.editor } />
+							<ContentEditable className="" />
 						}
 						placeholder={ <div className={ classes.placeholder } /> }
 						ErrorBoundary={ LexicalErrorBoundary }
@@ -179,17 +185,19 @@ function LexicalEditor({
 							editorState.read(() => {
 								const docContext = $getDocContext();
 
+								// Prepend if necessary
+								if (taskPrompt) {
+									docContext.beforeCursor = taskPrompt + '\n\n' + docContext.beforeCursor;
+								}
+
 								updateDocContext(docContext);
 
 								localStorage.setItem(
-									'doc',
+									storageKey,
 									JSON.stringify(editorState)
 								);
 								const currentDate = new Date().toISOString();
-								localStorage.setItem(
-									'doc-date',
-									currentDate
-								);
+								localStorage.setItem(`${storageKey}-date`, currentDate);
 							});
 						} }
 					/>
@@ -197,6 +205,7 @@ function LexicalEditor({
 					<AutoFocusPlugin />
 
 					<HistoryPlugin />
+				</div>
 				</div>
 			</LexicalComposer>
 		</>
