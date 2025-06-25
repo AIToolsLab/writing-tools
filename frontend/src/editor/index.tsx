@@ -1,7 +1,7 @@
 import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
 import { studyConditionAtom, taskDescriptionAtom } from '@/contexts/studyContext';
 import * as SidebarInner from '@/pages/app';
-import { Auth0ContextInterface} from '@auth0/auth0-react';
+import { Auth0ContextInterface } from '@auth0/auth0-react';
 import { getDefaultStore, useAtomValue } from 'jotai';
 import { useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
@@ -96,12 +96,6 @@ function EditorScreen( {taskID, taskPrompt}: {taskID?: string; taskPrompt?: stri
 
 	const getInitialState = () => {
 		const storageKey = getStorageKey();
-
-		// if (taskPrompt) {
-		// 	localStorage.removeItem(storageKey);
-		// 	localStorage.removeItem(`${storageKey}-date`);
-		// 	return createInitialState(taskPrompt);
-		// }
 		return localStorage.getItem(storageKey) || undefined;
 	};
 
