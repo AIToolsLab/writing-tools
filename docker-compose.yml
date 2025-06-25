@@ -14,6 +14,7 @@ services:
     environment:
       - PORT=5000
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LOG_SECRET=${LOG_SECRET}
     volumes:
       - ./backend/logs:/app/backend/logs
     restart: unless-stopped
