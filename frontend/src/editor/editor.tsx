@@ -17,6 +17,10 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 
 import classes from './editor.module.css';
+import { log } from '@/api';
+import { overallModeAtom, pageNameAtom } from '@/contexts/pageContext';
+import { useAtomValue } from 'jotai';
+import { usernameAtom } from '@/contexts/userContext';
 
 
 function $getDocContext(): DocContext {
@@ -157,6 +161,10 @@ function LexicalEditor({
 	storageKey?: string;
 	taskPrompt?: string;
 }) {
+	const mode = useAtomValue(overallModeAtom);
+	const page = useAtomValue(pageNameAtom);
+	const username = useAtomValue(usernameAtom);
+
 	return (
 		<>
 			<LexicalComposer // Main editor component
@@ -188,6 +196,15 @@ function LexicalEditor({
 								// Prepend if necessary
 								if (taskPrompt) {
 									docContext.beforeCursor = taskPrompt + '\n\n' + docContext.beforeCursor;
+								}
+
+								// Log the document update only for study purposes
+								if (mode === 'study' && page === 'study' && username) {
+									log({
+									username: username,
+									event: 'Document Update',
+									currentDocumentState: docContext,
+								});
 								}
 
 								updateDocContext(docContext);
