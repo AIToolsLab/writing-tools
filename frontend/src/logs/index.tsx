@@ -48,9 +48,9 @@ function EntriesTable({ entries }: { entries: Log[] }) {
     const annotatedEntries = entries.map((entry) => {
         const newEntry = { ...entry } as LogWithAnnotatedTimestamp;
         if (lastTimestamp !== null) {
-            newEntry.secondsSinceLast = (entry.timestamp - lastTimestamp) / 1000;
+            newEntry.secondsSinceLast = (entry.timestamp - lastTimestamp);
         }
-        newEntry.secondsSinceStart = (entry.timestamp - entries[0].timestamp) / 1000;
+        newEntry.secondsSinceStart = (entry.timestamp - entries[0].timestamp);
         lastTimestamp = entry.timestamp;
         return newEntry;
     }).reverse();
