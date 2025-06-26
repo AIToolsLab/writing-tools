@@ -38,13 +38,6 @@ function secondsToHMS(seconds: number) {
     return `${pad(m)}m${pad(s)}`;
 }
 
-function getInteractionColor(interaction: string) {
-    if (interaction.includes('Backend')) return '#BBE9FF';
-    if (interaction.includes('Frontend')) return '#FFEADD';
-    if (interaction.includes('Sensitivity')) return '#FFFED3';
-    return '#FFFFFF';
-}
-
 function EntriesTable({ entries }: { entries: Log[] }) {
     let lastTimestamp: number | null = null;
     const annotatedEntries = entries.map((entry) => {
@@ -62,7 +55,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
             <thead>
                 <tr>
                     <th className="p-2">Timestamp</th>
-                    <th className="p-2">Interaction</th>
+                    <th className="p-2">Event</th>
                     <th className="p-2">Prompt</th>
                     <th className="p-2">Result</th>
                     <th className="p-2">Completion</th>
@@ -72,7 +65,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
                 {annotatedEntries.map((entry: any, i: number) => (
                     <tr key={i}>
                         <td className="p-2">{secondsToHMS(entry.secondsSinceStart)}</td>
-                        <td className="p-2" style={{ backgroundColor: getInteractionColor(entry.interaction) }}>{entry.interaction}</td>
+                        <td className="p-2">{entry.event}{entry.interaction && ` (${entry.interaction})`}</td>
                         <td className="p-2"><Collapsible text={entry.prompt} /></td>
                         <td className="p-2"><Collapsible text={entry.result} /></td>
                         <td className="p-2"><Collapsible text={entry.completion} /></td>
