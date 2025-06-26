@@ -14,6 +14,11 @@ interface Log {
     generation_type?: string;
 }
 
+interface LogWithAnnotatedTimestamp extends Log {
+    secondsSinceLast?: number;
+    secondsSinceStart?: number;
+}   
+
 // Collapsible component for prompt/result/completion
 function Collapsible({ text, maxWidth = 200 }: { text: any, maxWidth?: number }) {
     // If text is an object, render as JSON
@@ -41,7 +46,7 @@ function secondsToHMS(seconds: number) {
 function EntriesTable({ entries }: { entries: Log[] }) {
     let lastTimestamp: number | null = null;
     const annotatedEntries = entries.map((entry) => {
-        const newEntry = { ...entry } as any;
+        const newEntry = { ...entry } as LogWithAnnotatedTimestamp;
         if (lastTimestamp !== null) {
             newEntry.secondsSinceLast = (entry.timestamp - lastTimestamp) / 1000;
         }
