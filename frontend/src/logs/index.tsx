@@ -6,6 +6,7 @@ import { SERVER_URL } from '@/api';
 interface Log {
     username: string;
     event: string;
+    interaction?: string;
     prompt: string;
     result: string;
     completion: string;
@@ -15,8 +16,8 @@ interface Log {
 }
 
 interface LogWithAnnotatedTimestamp extends Log {
-    secondsSinceLast?: number;
-    secondsSinceStart?: number;
+    secondsSinceLast: number;
+    secondsSinceStart: number;
 }   
 
 // Collapsible component for prompt/result/completion
@@ -67,7 +68,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
                 </tr>
             </thead>
             <tbody>
-                {annotatedEntries.map((entry: any, i: number) => (
+                {annotatedEntries.map((entry: LogWithAnnotatedTimestamp, i: number) => (
                     <tr key={i}>
                         <td className="p-2">{secondsToHMS(entry.secondsSinceStart)}</td>
                         <td className="p-2">{entry.event}{entry.interaction && ` (${entry.interaction})`}</td>
