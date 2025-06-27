@@ -179,7 +179,7 @@ function LexicalEditor({
 			>
 				<div className={ classes.editorContainer }>
 					<div className={ classes.editor }>
-					<div className="whitespace-pre-line border-b-2">{taskPrompt}</div>
+					{ taskPrompt && <div className="whitespace-pre-line border-b-2">{taskPrompt}</div> }
 					<RichTextPlugin
 						contentEditable={
 							<ContentEditable className="" />
