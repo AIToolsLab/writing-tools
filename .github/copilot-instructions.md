@@ -5,8 +5,7 @@ This repository contains a multi-component writing tools application with specif
 ## Project Structure
 
 - **Frontend** (`/frontend`): TypeScript/React Microsoft Office Add-in
-- **Backend** (`/backend`): Python FastAPI application  
-- **LogViewer** (`/logViewer`): Observable Framework for log visualization
+- **Backend** (`/backend`): Python FastAPI application
 
 ## Package Managers
 
@@ -28,14 +27,6 @@ This repository contains a multi-component writing tools application with specif
   - Run commands: `uv run <command>`
   - Run server: `uv run python server.py` or `uv run uvicorn server:app --host localhost --port 8000 --reload`
   - Run tests: `uv run pytest`
-
-### LogViewer (`/logViewer`)
-- **Use `yarn`** - NOT npm
-- Commands:
-  - Install dependencies: `yarn install`
-  - Run dev server: `yarn dev`
-  - Build: `yarn build`
-  - Deploy: `yarn deploy`
 
 ## Coding Conventions
 
@@ -59,7 +50,7 @@ This repository contains a multi-component writing tools application with specif
 - Use CamelCase for class names
 
 ### General
-- Use absolute paths when referencing files in the repository
+- Use relative paths when referencing files in the repository
 - Lint and format code before committing
 - Use descriptive commit messages
 - Add appropriate error handling
@@ -74,10 +65,6 @@ uv sync
 
 # Frontend setup
 cd frontend
-yarn install
-
-# LogViewer setup  
-cd logViewer
 yarn install
 ```
 
@@ -94,10 +81,6 @@ uv run python server.py
 # Backend server (with auto-reload)
 cd backend
 uv run uvicorn server:app --host localhost --port 8000 --reload
-
-# LogViewer development
-cd logViewer
-yarn dev
 ```
 
 ### Testing and Linting
@@ -119,7 +102,6 @@ uv run ruff check
 
 - The frontend is a Microsoft Office Add-in that communicates with the backend API
 - The backend provides API endpoints for text processing and AI-powered writing assistance
-- The LogViewer provides analytics and monitoring of the application usage
 - Authentication is handled through Auth0 in the frontend
 - The backend uses Azure services for deployment and secrets management
 
@@ -147,4 +129,4 @@ uv run ruff check
 - Follow RESTful API conventions
 - Use environment variables for configuration
 
-Remember: Always use the correct package manager (`yarn` for frontend/logViewer, `uv` for backend) and follow the established coding conventions for each component.
+Remember: Always use the correct package manager (`yarn` for frontend, `uv` for backend) and follow the established coding conventions for each component.
