@@ -7,6 +7,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Dict, List, Literal, Optional
 
+import aiohttp
 import jwt
 import nlp
 import uvicorn
@@ -50,6 +51,32 @@ security = HTTPBearer(auto_error=False)
 # Initialize HTTP Bearer security scheme
 security = HTTPBearer(auto_error=False)
 
+# Cache for JWT public keys
+_jwks_cache = {}
+
+async def get_jwks_key(kid: str) -> str:
+    """Fetch and cache Auth0 public keys for JWT verification."""
+    if kid in _jwks_cache:
+        return _jwks_cache[kid]
+    
+    try:
+        jwks_url = f"{JWT_ISSUER}.well-known/jwks.json"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(jwks_url) as response:
+                jwks = await response.json()
+                
+        for key in jwks.get("keys", []):
+            if key.get("kid") == kid:
+                # Convert JWK to PEM format for PyJWT
+                from jwt.algorithms import RSAAlgorithm
+                public_key = RSAAlgorithm.from_jwk(key)
+                _jwks_cache[kid] = public_key
+                return public_key
+                
+        raise HTTPException(status_code=401, detail="Unable to find appropriate key")
+    except Exception as e:
+        logger.error(f"Failed to fetch JWKS: {e}")
+        raise HTTPException(status_code=401, detail="Token verification failed")
 
 async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
     """
@@ -72,12 +99,23 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
         }
     
     try:
-        # For Auth0 tokens, we typically need to fetch the public key
-        # For now, we'll do basic JWT validation without signature verification
-        # In production, you'd want to verify the signature against Auth0's public key
+        # Get token header to extract kid (key ID)
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+        
+        if not kid:
+            raise HTTPException(status_code=401, detail="Token missing key ID")
+        
+        # Get the appropriate public key
+        public_key = await get_jwks_key(kid)
+        
+        # Verify the token with signature verification
         payload = jwt.decode(
-            token, 
-            options={"verify_signature": False, "verify_aud": False, "verify_iss": False}
+            token,
+            public_key,
+            algorithms=["RS256"],
+            audience=JWT_AUDIENCE,
+            issuer=JWT_ISSUER
         )
         
         # Basic validation
@@ -89,8 +127,11 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
         
     except jwt.ExpiredSignatureError:
         raise HTTPException(status_code=401, detail="Token expired")
-    except jwt.InvalidTokenError:
-        raise HTTPException(status_code=401, detail="Invalid token")
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    except Exception as e:
+        logger.error(f"Token verification error: {e}")
+        raise HTTPException(status_code=401, detail="Token verification failed")
 
 
 def should_log(username: str) -> bool:
@@ -189,7 +230,7 @@ async def validation_exception_handler(request, exc):
 async def generation(
     payload: GenerationRequestPayload, 
     background_tasks: BackgroundTasks,
-    token_data: dict = Depends(verify_token)
+    auth_token_data: dict = Depends(verify_token)
 ) -> nlp.GenerationResult:
     '''
     To test this endpoint from curl:
@@ -243,7 +284,7 @@ async def generation(
 async def reflections(
     payload: ReflectionRequestPayload, 
     background_tasks: BackgroundTasks,
-    token_data: dict = Depends(verify_token)
+    auth_token_data: dict = Depends(verify_token)
 ):
     should_log_doctext = should_log(payload.username)
 
@@ -269,7 +310,7 @@ async def reflections(
 @app.post("/api/chat")
 async def chat(
     payload: ChatRequestPayload,
-    token_data: dict = Depends(verify_token)
+    auth_token_data: dict = Depends(verify_token)
 ):
     response = await nlp.chat_stream(
         messages=payload.messages,
@@ -312,6 +353,17 @@ class PingResponse(BaseModel):
 @app.get("/api/ping")
 async def ping() -> PingResponse:
     return PingResponse(timestamp=datetime.now())
+
+
+@app.get("/api/test-auth")
+async def test_auth(auth_token_data: dict = Depends(verify_token)) -> dict:
+    """Test endpoint to verify authentication without external dependencies"""
+    return {
+        "authenticated": True,
+        "user_id": auth_token_data.get("sub"),
+        "is_demo": auth_token_data.get("is_demo", False),
+        "message": "Authentication successful"
+    }
 
 
 # Log viewer endpoint

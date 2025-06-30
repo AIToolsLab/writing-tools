@@ -6,8 +6,8 @@ echo "=========================================="
 
 # Test 1: Start server in background
 echo "1. Starting server..."
-cd /home/runner/work/writing-tools/writing-tools/backend
-python -m uvicorn server:app --host 0.0.0.0 --port 8000 &
+cd backend
+uv run uvicorn server:app --host 0.0.0.0 --port 8000 &
 SERVER_PID=$!
 
 # Wait for server to start
@@ -42,6 +42,17 @@ else
   echo "   Response: $RESPONSE"
 fi
 
+# Test protected endpoint authentication requirement
+echo "   Testing protected test endpoint..."
+RESPONSE=$(curl -s -X GET http://localhost:8000/api/test-auth)
+
+if [[ $RESPONSE == *"Authorization header required"* ]]; then
+  echo "   ✅ Test endpoint correctly requires authentication"
+else
+  echo "   ❌ Test endpoint should require authentication"
+  echo "   Response: $RESPONSE"
+fi
+
 # Test public endpoint
 echo "   Testing public endpoint..."
 RESPONSE=$(curl -s -X GET http://localhost:8000/api/ping)
@@ -53,16 +64,15 @@ else
   echo "   Response: $RESPONSE"
 fi
 
-# Test demo token (will fail at OpenAI level, but JWT validation should pass)
+# Test demo token (using test endpoint that doesn't require external APIs)
 echo "   Testing demo token..."
-RESPONSE=$(curl -s -X POST -H "Content-Type: application/json" \
+RESPONSE=$(curl -s -X GET \
   -H "Authorization: Bearer demo-access-token" \
-  -d '{"username": "test", "gtype": "Completion", "prompt": "test"}' \
-  http://localhost:8000/api/generation)
+  http://localhost:8000/api/test-auth)
 
-# Demo token should pass JWT validation but fail at OpenAI level
-if [[ $RESPONSE == *"Internal Server Error"* ]] || [[ $RESPONSE != *"Authorization header required"* ]] && [[ $RESPONSE != *"Invalid token"* ]]; then
-  echo "   ✅ Demo token passes JWT validation (OpenAI failure expected)"
+# Demo token should pass JWT validation
+if [[ $RESPONSE == *"authenticated"* ]] && [[ $RESPONSE == *"true"* ]]; then
+  echo "   ✅ Demo token passes JWT validation"
 else
   echo "   ❌ Demo token should pass JWT validation"
   echo "   Response: $RESPONSE"
