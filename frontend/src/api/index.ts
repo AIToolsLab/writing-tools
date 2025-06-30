@@ -7,33 +7,6 @@ export interface LogPayload {
 	[key: string]: any;
 }
 
-export async function pingServer(): Promise<void> {
-  try {
-		// Ping the server, which returns the server's current timestamp
-		const url = `${SERVER_URL}/ping`;
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    });
-
-    if (!response.ok) {
-			// eslint-disable-next-line no-console
-      console.warn('Server ping failed:', response.status);
-    }
-
-		const data = await response.json();
-		// eslint-disable-next-line no-console
-		console.log('Server ping successful:', data);
-  }
-	catch (error) {
-		// eslint-disable-next-line no-console
-    console.warn('Server ping error:', error);
-    // Don't throw - we want to silently handle ping failures
-  }
-}
-
 export function log(payload: LogPayload) {
 	const payloadWithTimestamp = {
 		...payload,

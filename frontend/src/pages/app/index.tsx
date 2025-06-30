@@ -1,5 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
-import { pingServer } from '@/api';
+import { useState } from 'react';
 
 import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
 import { useWindowSize } from '@react-hook/window-size/throttled';
@@ -27,40 +26,6 @@ export interface HomeProps {
 	editorAPI: EditorAPI;
 }
 
-function usePingServer() {
-
-	const pingInterval = useRef<NodeJS.Timeout>();
-
-	// 2 minutes
-	const PINGINT: number = 2 * 60 * 1000;
-
-	useEffect(() => {
-		function doPing() {
-			// eslint-disable-next-line no-console
-			console.log(`Pinging server at ${new Date().toISOString()}`);
-
-			pingServer().then(() => {
-				// eslint-disable-next-line no-console
-				console.log('Warming up server');
-			}).catch(error => {
-				// eslint-disable-next-line no-console
-				console.warn('Ping failed:', error);
-			});
-		}
-
-		// First ping the server immediately
-		doPing();
-		// Then set up the interval
-		pingInterval.current = setInterval(doPing, PINGINT);
-
-		return () => {
-			if (pingInterval.current) {
-				clearInterval(pingInterval.current);
-			}
-		};
-	}, []);
-}
-
 function AppInner({ editorAPI }: HomeProps) {
 	const mode = useAtomValue(overallModeAtom);
 	const noAuthMode = mode !== OverallMode.full;
@@ -72,8 +37,6 @@ function AppInner({ editorAPI }: HomeProps) {
 		return localStorage.getItem('hasCompletedOnboarding') === 'true';
 	});
 	const { authErrorType } = useAccessToken();
-
-	usePingServer();
 
 	// Detect if the user is using the latest version of Office
 	// https://learn.microsoft.com/en-us/office/dev/add-ins/develop/support-ie-11?tabs=ie
