@@ -16,7 +16,7 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 
-import classes from './editor.module.css';
+// CSS modules replaced with Tailwind classes
 import { log } from '@/api';
 import { overallModeAtom, pageNameAtom } from '@/contexts/pageContext';
 import { useAtomValue } from 'jotai';
@@ -171,20 +171,20 @@ function LexicalEditor({
 				initialConfig={ {
 					namespace: 'essay',
 					theme: {
-						paragraph: classes.paragraph
+						paragraph: 'mb-4 relative'
 					},
 					onError(_error, _editor) {},
 					editorState: initialState
 				} }
 			>
-				<div className={ classes.editorContainer }>
-					<div className={ classes.editor }>
+				<div className="m-5 bg-white text-black relative leading-5 font-normal text-left shadow-lg p-12 h-[80vh]">
+					<div className="resize-none text-base relative outline-none overflow-y-scroll h-full editor-scrollbar" style={{caretColor: '#444'}}>
 					{ taskPrompt && <div className="whitespace-pre-line border-b-2">{taskPrompt}</div> }
 					<RichTextPlugin
 						contentEditable={
 							<ContentEditable className="" />
 						}
-						placeholder={ <div className={ classes.placeholder } /> }
+						placeholder={ <div className="text-gray-500 overflow-hidden absolute text-ellipsis top-12 left-12 text-sm select-none inline-block pointer-events-none" /> }
 						ErrorBoundary={ LexicalErrorBoundary }
 					/>
 
