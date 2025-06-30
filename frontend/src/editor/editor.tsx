@@ -16,7 +16,6 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 
-// CSS modules replaced with Tailwind classes
 import { log } from '@/api';
 import { overallModeAtom, pageNameAtom } from '@/contexts/pageContext';
 import { useAtomValue } from 'jotai';
@@ -178,7 +177,7 @@ function LexicalEditor({
 				} }
 			>
 				<div className="m-5 bg-white text-black relative leading-5 font-normal text-left shadow-lg p-12 h-[80vh]">
-					<div className="resize-none text-base relative outline-none overflow-y-scroll h-full editor-scrollbar" style={{caretColor: '#444'}}>
+					<div className="resize-none text-base relative outline-none overflow-y-scroll h-full">
 					{ taskPrompt && <div className="whitespace-pre-line border-b-2">{taskPrompt}</div> }
 					<RichTextPlugin
 						contentEditable={
