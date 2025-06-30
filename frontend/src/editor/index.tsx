@@ -439,7 +439,13 @@ function Router({
 		else if (page === 'study-postStudySurvey') {
 			const nextUrlParams = new URLSearchParams(window.location.search);
       nextUrlParams.set('page', nextPage);
-      const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+			const isProlific = urlParams.get('isProlific') === 'true';
+			let redirectURL;
+			if (isProlific) {
+				redirectURL = 'https://app.prolific.com/submissions/complete?cc=C998008G'
+			} else {
+				redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+			}
 			const postStudySurveyURL = SURVEY_URLS.postStudy;
 
 			return (
@@ -463,23 +469,14 @@ function Router({
 
 		}
 		else if (page === 'study-final') {
-			return <div className={classes.studyIntroContainer}>
-				<h1>Study Complete</h1>
-				<p>Thank you for participating in our writing study.</p>
-				<button
-					onClick={() => {
-						log ({
+			log ({
 							username: username,
 							event: 'FinishedStudy',
 							interaction: 'User finished the study'
 						});
-						urlParams.set('page', 'study-intro')
-						window.location.search = urlParams.toString();
-					}}
-					className={classes.startButton}
-				>
-					Return to Start
-				</button>
+			return <div className={classes.studyIntroContainer}>
+				<h1>Study Complete</h1>
+				<p>Thank you for participating in our writing study.</p>
 			</div>;
 		}
 		else {
