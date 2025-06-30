@@ -7,14 +7,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Dict, List, Literal, Optional
 
+import jwt
 import nlp
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Body, FastAPI
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel, ConfigDict
 from sse_starlette.sse import EventSourceResponse
@@ -35,6 +37,60 @@ PORT = int(os.getenv("PORT") or 8000)
 # The log secret is stored in .env file for local development.
 LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
 print(f"Log secret: {LOG_SECRET!r}")
+
+# JWT Configuration for Auth0
+JWT_ISSUER = os.getenv("JWT_ISSUER", "https://textfocals.auth0.com/")
+JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "textfocals.com")
+DEMO_API_KEY = os.getenv("DEMO_API_KEY", "demo-key")
+
+# Initialize HTTP Bearer security scheme
+security = HTTPBearer(auto_error=False)
+
+
+# Initialize HTTP Bearer security scheme
+security = HTTPBearer(auto_error=False)
+
+
+async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    """
+    Verify JWT token and return decoded payload.
+    Handles both Auth0 tokens and demo tokens.
+    """
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    token = credentials.credentials
+    
+    # Handle demo token
+    if token == "demo-access-token":
+        return {
+            "sub": "demo-user",
+            "username": "demo",
+            "iss": "demo",
+            "aud": JWT_AUDIENCE,
+            "is_demo": True
+        }
+    
+    try:
+        # For Auth0 tokens, we typically need to fetch the public key
+        # For now, we'll do basic JWT validation without signature verification
+        # In production, you'd want to verify the signature against Auth0's public key
+        payload = jwt.decode(
+            token, 
+            options={"verify_signature": False, "verify_aud": False, "verify_iss": False}
+        )
+        
+        # Basic validation
+        if not payload.get("sub"):
+            raise HTTPException(status_code=401, detail="Invalid token: missing subject")
+            
+        payload["is_demo"] = False
+        return payload
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
 
 
 def should_log(username: str) -> bool:
@@ -130,7 +186,11 @@ async def validation_exception_handler(request, exc):
 
 # Routes
 @app.post("/api/generation")
-async def generation(payload: GenerationRequestPayload, background_tasks: BackgroundTasks) -> nlp.GenerationResult:
+async def generation(
+    payload: GenerationRequestPayload, 
+    background_tasks: BackgroundTasks,
+    token_data: dict = Depends(verify_token)
+) -> nlp.GenerationResult:
     '''
     To test this endpoint from curl:
 
@@ -180,7 +240,11 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
 
 
 @app.post("/api/reflections")
-async def reflections(payload: ReflectionRequestPayload, background_tasks: BackgroundTasks):
+async def reflections(
+    payload: ReflectionRequestPayload, 
+    background_tasks: BackgroundTasks,
+    token_data: dict = Depends(verify_token)
+):
     should_log_doctext = should_log(payload.username)
 
     start_time = datetime.now()
@@ -203,7 +267,10 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
 
 
 @app.post("/api/chat")
-async def chat(payload: ChatRequestPayload):
+async def chat(
+    payload: ChatRequestPayload,
+    token_data: dict = Depends(verify_token)
+):
     response = await nlp.chat_stream(
         messages=payload.messages,
         temperature=0.7,

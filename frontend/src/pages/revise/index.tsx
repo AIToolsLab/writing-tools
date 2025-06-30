@@ -61,7 +61,7 @@ export default function Revise() {
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflection(username, paragraphText, prompt, getAccessToken);
+				getReflection(username, paragraphText, prompt, getAccessToken, reportAuthError);
 
 			reflectionsPromise
 				.then(newReflections => {
@@ -70,10 +70,7 @@ export default function Revise() {
 				})
 				.catch(_error => {
 					reflections.delete(cacheKey);
-					// eslint-disable-next-line no-constant-condition
-					if (false /* error has something to do with auth */) {
-						reportAuthError(_error);
-					}
+					// The error handling is now done inside getReflection
 				});
 
 			reflections.set(cacheKey, reflectionsPromise);

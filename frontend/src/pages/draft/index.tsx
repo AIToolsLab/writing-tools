@@ -106,7 +106,7 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
-	const { getAccessToken, authErrorType } = useAccessToken();
+	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
 	const [genCtxText, updateGenCtxText] = useState('');
 
 	const [isLoading, setIsLoading] = useState(false);
@@ -196,6 +196,10 @@ export default function Draft() {
 				signal: AbortSignal.timeout(20000)
 			});
 			if (!response.ok) {
+				if (response.status === 401 || response.status === 403) {
+					reportAuthError({ error: 'unauthorized' });
+					return;
+				}
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
 			updateErrorMsg('');
