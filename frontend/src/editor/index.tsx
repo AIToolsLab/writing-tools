@@ -150,9 +150,7 @@ const studyPageNames = [
 const SURVEY_URLS = {
 	consentForm: 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW',
 	preStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4',
-	Completion: 'https://calvin.co1.qualtrics.com/jfe/form/SV_6Vuc9vgqMuEqzVY',
-	Question: 'https://calvin.co1.qualtrics.com/jfe/form/SV_7X8tAiech6zP79A',
-	RMove: 'https://calvin.co1.qualtrics.com/jfe/form/SV_1M8MN5b0H9pfYsm',
+	postTask: 'https://calvin.co1.qualtrics.com/jfe/form/SV_8wPtqNx6ZjL2HJQ',
 	postStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_79DIQlYz4SJCwnk'
 };
 
@@ -416,7 +414,7 @@ function Router({
 			const postTaskNumber = page.replace('study-postTask', '');
 			const conditionConfig = conditionConfigs[postTaskNumber as keyof typeof conditionConfigs];
 			const condition = conditionConfig.condition;
-			const postTaskSurveyURL = SURVEY_URLS[condition as keyof typeof SURVEY_URLS];
+			const postTaskSurveyURL = SURVEY_URLS.postTask;
 
 			return <div className={classes.studyIntroContainer}>
 				<p> Thank you for completing Task {postTaskNumber}. Please take a moment to complete a brief survey.</p>
@@ -425,10 +423,10 @@ function Router({
 						log ({
 							username: username,
 							event: `StartPostTask${postTaskNumber}`,
-							interaction: `User started post task ${postTaskNumber} survey`
+							interaction: `User started post task ${postTaskNumber} survey with condition ${condition}`
 						});
 					}}
-					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}`}
+					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${condition}`}
 					className={classes.startButton}
 				>
 					Take Survey
