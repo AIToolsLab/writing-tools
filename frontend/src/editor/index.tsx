@@ -293,7 +293,6 @@ function Router({
             <h1>Welcome!</h1>
             <p>
 				Thank you for agreeing to participate in our writing study. You'll complete three writing tasks on different topics.
-				After completing each task, click 'Done' to save your work and continue to the next task.
 				As you write, pay attention to the suggestions the writing tool offers and use them when
 				they seem helpful. There are no right or wrong ways to interact with the tool.
 				Your responses will be kept confidential. You can ask questions at any time.
@@ -469,11 +468,6 @@ function Router({
 
 		}
 		else if (page === 'study-final') {
-			log ({
-							username: username,
-							event: 'FinishedStudy',
-							interaction: 'User finished the study'
-						});
 			return <div className={classes.studyIntroContainer}>
 				<h1>Study Complete</h1>
 				<p>Thank you for participating in our writing study.</p>
