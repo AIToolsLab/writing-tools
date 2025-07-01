@@ -179,10 +179,10 @@ function LexicalEditor({
 			>
 				<div className={ classes.editorContainer }>
 					<div className={ classes.editor }>
-					{ taskPrompt && <div className="whitespace-pre-line border-b-2">{taskPrompt}</div> }
+					{ taskPrompt && <div className="whitespace-pre-line">{taskPrompt}</div> }
 					<RichTextPlugin
 						contentEditable={
-							<ContentEditable className="" />
+							<ContentEditable className={classes.editor} />
 						}
 						placeholder={ <div className={ classes.placeholder } /> }
 						ErrorBoundary={ LexicalErrorBoundary }
