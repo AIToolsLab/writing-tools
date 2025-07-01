@@ -157,11 +157,10 @@ const SURVEY_URLS = {
 
 const taskConfigs = {
 		'1': {
-			condition: 'Completion',
-			taskPrompt: 'Task 1: Should companies adopt a four-day work week (working Monday through Thursday) instead of the traditional five-day schedule? Consider impacts on productivity, employee well-being, and business operations.',
-		},
+			taskPrompt:`The director of the International Health Foundation recently released this announcement: 'A new medical test that allows the early detection of a particular disease will prevent the deaths of people all over the world who would otherwise die from the disease. The test has been extremely effective in allowing doctors to diagnose the disease six months to a year before it would have been spotted by conventional means. As soon as we can institute this test as a routine procedure in hospitals around the world, the death rate from this disease will plummet.'
+
+			After reading the above passage, write a response in which you examine the stated and/or unstated assumptions of the argument. Be sure to explain how the argument depends on the assumptions and what the consequences are if the assumptions prove unwarranted.`		},
 		'2': {
-			condition: 'Question',
 			taskPrompt: `Task 2: Write a cover letter for the position described. The applicant is a recent college graduate with a major in Environmental Sustainability and a minor in Marketing, with relevant internship experience. Demonstrate how their background aligns with the company’s mission and requirements. [Details are given below in the editor document]
 			GreenTech Solutions - Sustainability Coordinator Position
 
@@ -185,7 +184,6 @@ const taskConfigs = {
 				- Stay current with environmental regulations and industry trends`
 		},
 		'3': {
-			condition: 'RMove',
 			taskPrompt: `Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.
 
 			CRISPR-Cas9 is a revolutionary gene-editing technology that allows scientists to make precise changes to DNA. Originally discovered as part of bacteria's immune system, CRISPR works like molecular scissors that can cut DNA at specific locations and either remove, add, or replace genetic material.
