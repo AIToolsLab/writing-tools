@@ -346,14 +346,14 @@ export default function Draft() {
 		<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
 
 			{ /* Document Context Text Container */ }
-			<div className= "text-sm p-[8px] m-[8px] shadow-[0_6px_10px_-1px_rgba(147,123,109,0.1)]">
+			{/* <div className= "text-sm p-[8px] m-[8px] shadow-[0_6px_10px_-1px_rgba(147,123,109,0.1)]">
 				<h4>Suggestions will be generated using:</h4>
 				<p>
 					{ beforeContext.length > 100 ? '...' : '' }
-					{ beforeContext.substring(beforeContext.length - 100) }
+					{ beforeContext.substring(beforeContext.length - 100) } */}
 					{ /* { JSON.stringify(docContext) } */ }
-				</p>
-			</div>
+				{/* </p>
+			</div>  */}
 
 			<div>
 				{ /* Generation Option Buttons */ }
