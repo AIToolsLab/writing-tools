@@ -380,18 +380,7 @@ export default function Draft() {
 							{ iconFunc(studyCondition as keyof typeof visibleNameForMode) }
 						</button>
 					</div>
-
-
-
-				<div className={ classes.noteTextWrapper }>
-					<div className={ classes.noteText }>
-						Please note that the quality of AI-generated text may
-						vary
-					</div>
-				</div>
 			</div>
-
-
 				{ /* Result of the generation */ }
 				<div className='h-[60vh] overflow-auto'>{ results }</div>
 
@@ -401,6 +390,12 @@ export default function Draft() {
 					deleteSavedItem={ deleteSavedItem }
 				/>
 
+				<div className={ classes.noteTextWrapper }>
+					<div className={ classes.noteText }>
+						Please note that the quality of AI-generated text may
+						vary
+					</div>
+				</div>
 		</div>
 	);
 }
