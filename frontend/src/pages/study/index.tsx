@@ -46,7 +46,7 @@ function SavedGenerations({
                 { savedItems.length === 0 ? (
                     <div className={ classes.historyEmptyWrapper }>
                         <div className={ classes.historyText }>
-                            No saved generations...
+                            No generations...
                         </div>
                     </div>
                 ) : (
@@ -319,16 +319,6 @@ export default function Draft() {
 	return (
 		<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
 
-			{ /* Document Context Text Container */ }
-			{/* <div className= "text-sm p-[8px] m-[8px] shadow-[0_6px_10px_-1px_rgba(147,123,109,0.1)]">
-				<h4>Suggestions will be generated using:</h4>
-				<p>
-					{ beforeContext.length > 100 ? '...' : '' }
-					{ beforeContext.substring(beforeContext.length - 100) } */}
-					{ /* { JSON.stringify(docContext) } */ }
-				{/* </p>
-			</div>  */}
-
 			<div>
 				{ /* Generation Option Buttons */ }
 				<div
@@ -355,8 +345,6 @@ export default function Draft() {
 						</button>
 					</div>
 			</div>
-				{ /* Result of the generation */ }
-				<div className='h-[60vh] overflow-auto'>{ results }</div>
 
 				{ /* Saved generations */ }
 				<SavedGenerations
