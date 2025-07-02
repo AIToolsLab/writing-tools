@@ -6,6 +6,7 @@ import { SERVER_URL } from '@/api';
 interface Log {
     username: string;
     event: string;
+    interaction?: string;
     prompt: string;
     result: string;
     completion: string;
@@ -13,6 +14,11 @@ interface Log {
     isBackend: boolean;
     generation_type?: string;
 }
+
+interface LogWithAnnotatedTimestamp extends Log {
+    secondsSinceLast: number;
+    secondsSinceStart: number;
+}   
 
 // Collapsible component for prompt/result/completion
 function Collapsible({ text, maxWidth = 200 }: { text: any, maxWidth?: number }) {
@@ -41,11 +47,11 @@ function secondsToHMS(seconds: number) {
 function EntriesTable({ entries }: { entries: Log[] }) {
     let lastTimestamp: number | null = null;
     const annotatedEntries = entries.map((entry) => {
-        const newEntry = { ...entry } as any;
+        const newEntry = { ...entry } as LogWithAnnotatedTimestamp;
         if (lastTimestamp !== null) {
-            newEntry.secondsSinceLast = (entry.timestamp - lastTimestamp) / 1000;
+            newEntry.secondsSinceLast = (entry.timestamp - lastTimestamp);
         }
-        newEntry.secondsSinceStart = (entry.timestamp - entries[0].timestamp) / 1000;
+        newEntry.secondsSinceStart = (entry.timestamp - entries[0].timestamp);
         lastTimestamp = entry.timestamp;
         return newEntry;
     }).reverse();
@@ -58,17 +64,17 @@ function EntriesTable({ entries }: { entries: Log[] }) {
                     <th className="p-2">Event</th>
                     <th className="p-2">Prompt</th>
                     <th className="p-2">Result</th>
-                    <th className="p-2">Completion</th>
+                    <th className="p-2">Type</th>
                 </tr>
             </thead>
             <tbody>
-                {annotatedEntries.map((entry: any, i: number) => (
+                {annotatedEntries.map((entry: LogWithAnnotatedTimestamp, i: number) => (
                     <tr key={i}>
                         <td className="p-2">{secondsToHMS(entry.secondsSinceStart)}</td>
                         <td className="p-2">{entry.event}{entry.interaction && ` (${entry.interaction})`}</td>
                         <td className="p-2"><Collapsible text={entry.prompt} /></td>
                         <td className="p-2"><Collapsible text={entry.result} /></td>
-                        <td className="p-2"><Collapsible text={entry.completion} /></td>
+                        <td className="p-2"><Collapsible text={entry.generation_type} /></td>
                     </tr>
                 ))}
             </tbody>
@@ -76,12 +82,16 @@ function EntriesTable({ entries }: { entries: Log[] }) {
     );
 }
 
+
 function App() {
     const [logs, setLogs] = useState<Log[]>([]);
     const [username, setUsername] = useState('');
     const [logSecret, setLogSecret] = useState<string>(() => localStorage.getItem('logSecret') || '');
     const logsRef = useRef<Log[]>([]);
     const pollingRef = useRef<NodeJS.Timeout | null>(null);
+    const [dragActive, setDragActive] = useState(false);
+    const [dragError, setDragError] = useState<string | null>(null);
+    const [fileMode, setFileMode] = useState(false);
 
     // Helper: get log counts per username
     const getLogCounts = (logs: Log[]) => {
@@ -92,9 +102,22 @@ function App() {
         return counts;
     };
 
-    // Poll logs from server
+    // Helper: parse a log object (normalize timestamp, isBackend)
+    const parseLog = (x: any): Log => {
+        const ts = typeof x.timestamp === 'string' ? new Date(x.timestamp).getTime() / 1000 : x.timestamp;
+        const isBackend = ['suggestion_generated', 'reflection_generated', 'reflection_generated'].includes(x.event);
+        return { ...x, timestamp: ts, isBackend };
+    };
+
+    // Helper: parse a JSONL string into Log[]
+    const parseLogFile = (text: string): Log[] => {
+        const lines = text.split(/\r?\n/).filter(Boolean);
+        return lines.map(line => parseLog(JSON.parse(line)));
+    };
+
+    // Poll logs from server (disabled if fileMode)
     useEffect(() => {
-        if (!logSecret) return;
+        if (!logSecret || fileMode) return;
         let stopped = false;
         async function pollLogs() {
             if (stopped) return;
@@ -110,16 +133,7 @@ function App() {
                 });
                 if (resp.ok) {
                     const updates = await resp.json();
-                    let newLogs: Log[] = updates.map((log: { logs: Log[] }) => log.logs).flat();
-                    newLogs = newLogs.map((x) => {
-                        const ts = typeof x.timestamp === 'string' ? new Date(x.timestamp).getTime() / 1000 : x.timestamp;
-                        const isBackend = ['suggestion_generated', 'reflection_generated', 'reflection_generated'].includes(x.event);
-                        return {
-                            ...x,
-                            timestamp: ts,
-                            isBackend,
-                        };
-                    });
+                    const newLogs: Log[] = updates.map((log: { logs: Log[] }) => log.logs).flat().map(parseLog);
                     // Just append new logs (no deduplication)
                     const allLogs = [...logsRef.current, ...newLogs];
                     logsRef.current = allLogs;
@@ -137,8 +151,38 @@ function App() {
             stopped = true;
             if (pollingRef.current) clearTimeout(pollingRef.current);
         };
-    }, [logSecret]);
+    }, [logSecret, fileMode]);
 
+    // Drag and drop file handler
+    const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setDragActive(true);
+    };
+    const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setDragActive(false);
+    };
+    const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+        e.preventDefault();
+        setDragActive(false);
+        setDragError(null);
+        const file = e.dataTransfer.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (event) => {
+            try {
+                // Try to parse as JSONL (one JSON per line)
+                const text = event.target?.result as string;
+                const parsed: Log[] = parseLogFile(text);
+                setLogs(parsed);
+                logsRef.current = parsed;
+                setFileMode(true);
+            } catch (err) {
+                setDragError('Failed to parse file: ' + (err as Error).message);
+            }
+        };
+        reader.readAsText(file);
+    };
     // Username datalist
     const availableUsernames = useMemo(() => {
         return Array.from(new Set(logs.map(x => x.username))).sort();
@@ -147,7 +191,8 @@ function App() {
     // Filtered logs
     const desiredEntries = useMemo(() => {
         return logs.filter(x =>
-            (!username || x.username === username)
+            (!username || x.username === username) &&
+            (x.event === 'suggestion_generated')
         );
     }, [logs, username]);
 
@@ -164,7 +209,21 @@ function App() {
     }, [desiredEntries]);
 
     return (
-        <div className="p-6">
+        <div
+            className={`p-6 relative ${dragActive ? 'bg-blue-50 border-2 border-blue-400' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{ minHeight: 400 }}
+        >
+            {dragActive && (
+                <div className="absolute inset-0 flex items-center justify-center bg-blue-100 bg-opacity-80 z-10 border-2 border-blue-400 rounded">
+                    <span className="text-lg font-bold text-blue-700">Drop a log file to view it</span>
+                </div>
+            )}
+            {dragError && (
+                <div className="mb-4 text-red-600">{dragError}</div>
+            )}
             <div className="mb-4">
                 <label className="flex items-center gap-2">
                     Log Secret:
@@ -177,8 +236,10 @@ function App() {
                         }}
                         placeholder="Enter log secret"
                         className="px-3 py-2 border border-gray-300 rounded transition duration-150 cursor-pointer focus:cursor-text focus:outline-none focus:border-black hover:border-black"
+                        disabled={fileMode}
                     />
                 </label>
+                {fileMode && <span className="ml-4 text-sm text-blue-700">Viewing logs from file. Drag a new file to replace, or reload to return to server mode.</span>}
             </div>
             <div className="mb-4 flex items-center gap-6">
                 <label className="flex items-center gap-2">
@@ -207,7 +268,6 @@ function App() {
                     ))}
                 </ul>
             </div>
-
             <EntriesTable entries={desiredEntries} />
         </div>
     );
