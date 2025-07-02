@@ -191,7 +191,8 @@ function App() {
     // Filtered logs
     const desiredEntries = useMemo(() => {
         return logs.filter(x =>
-            (!username || x.username === username)
+            (!username || x.username === username) &&
+            (x.event === 'suggestion_generated')
         );
     }, [logs, username]);
 
