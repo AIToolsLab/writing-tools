@@ -308,32 +308,6 @@ export default function Draft() {
 					</div>
 				</div>
 			);
-	else
-		results = (
-			<div className="mt-1 mr-2 ml-2 p-4 border border-[#c8c8c8] rounded-[16px] transition duration-150 flex">
-				<div>
-					<div
-						className= "text-[0.8rem] text-[#aaaaaa] pb-1 cursor-pointer hover:text-black"
-					>
-						{ genCtxText.length > 100 ? '...' : '' }
-						{ genCtxText.substring(genCtxText.length - 100) }
-					</div>
-
-					<div className="text-base whitespace-pre-wrap transition duration-150 animate-fade-in">
-						<GenerationResult generation={ generation } />
-					</div>
-				</div>
-				<div className={ classes.genIconsContainer }>
-					<div
-						className={
-								classes.genTypeIconWrapper
-						}
-					>
-						{ iconFunc(generation.generation_type) }
-					</div>
-				</div>
-			</div>
-		);
 
 	if (isLoading && !generation)
 		results = (
