@@ -309,13 +309,13 @@ export default function Draft() {
 				</div>
 			);
 
-	if (isLoading && !generation)
+	if (isLoading && !generation) 
 		results = (
 			<div className={ classes.spinnerWrapper }>
 				<div className={ classes.loader }></div>
 			</div>
 		);
-
+	
 	return (
 		<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
 
@@ -345,6 +345,7 @@ export default function Draft() {
 						</button>
 					</div>
 			</div>
+			{ results }
 
 				{ /* Saved generations */ }
 				<SavedGenerations
