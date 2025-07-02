@@ -64,7 +64,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
                     <th className="p-2">Event</th>
                     <th className="p-2">Prompt</th>
                     <th className="p-2">Result</th>
-                    <th className="p-2">Completion</th>
+                    <th className="p-2">Type</th>
                 </tr>
             </thead>
             <tbody>
@@ -74,7 +74,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
                         <td className="p-2">{entry.event}{entry.interaction && ` (${entry.interaction})`}</td>
                         <td className="p-2"><Collapsible text={entry.prompt} /></td>
                         <td className="p-2"><Collapsible text={entry.result} /></td>
-                        <td className="p-2"><Collapsible text={entry.completion} /></td>
+                        <td className="p-2"><Collapsible text={entry.generation_type} /></td>
                     </tr>
                 ))}
             </tbody>
