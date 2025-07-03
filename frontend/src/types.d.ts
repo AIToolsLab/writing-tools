@@ -17,7 +17,7 @@ interface GenerationResult {
 }
 
 interface SavedItem {
-	document: string;
+	document: DocContext;
 	generation: GenerationResult;
 	dateSaved: Date;
 }
