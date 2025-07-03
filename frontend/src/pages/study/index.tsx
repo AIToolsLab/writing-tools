@@ -38,7 +38,6 @@ function SavedGenerations({
     return (
         <div className={ classes.historyContainer }>
 
-
             <div className={ classes.historyItemContainer }>
 
                 { /* can we use || ? */ }
@@ -46,7 +45,7 @@ function SavedGenerations({
                 { savedItems.length === 0 ? (
                     <div className={ classes.historyEmptyWrapper }>
                         <div className={ classes.historyText }>
-                            No saved generations...
+                            No suggestions...
                         </div>
                     </div>
                 ) : (
@@ -102,14 +101,12 @@ function SavedGenerations({
     );
 }
 
-
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
 	const studyCondition = useAtomValue(studyConditionAtom);
 	const { getAccessToken, authErrorType } = useAccessToken();
-	const [genCtxText, updateGenCtxText] = useState('');
 
 	const [isLoading, setIsLoading] = useState(false);
 
@@ -123,8 +120,6 @@ export default function Draft() {
 
 	// Update Error Message
 	const [errorMsg, updateErrorMsg] = useState('');
-
-
 
 	// Save the generation
 	function save(generation: GenerationResult, document: string) {
@@ -165,7 +160,6 @@ export default function Draft() {
 
 	const beforeContext = getBefore(docContext);
 
-
 	// Get a generation from the backend
 	async function getGeneration(
 		username: string,
@@ -204,7 +198,6 @@ export default function Draft() {
 			updateErrorMsg('');
 			const generated = await response.json() as GenerationResult;
 			updateGeneration(generated);
-			updateGenCtxText(contextText);
 			save(generated, contextText);
 		}
 		catch (err: any) {
@@ -229,7 +222,6 @@ export default function Draft() {
 
 		setIsLoading(false);
 	}
-
 
 	// Temporarily select the text from the start to the cursor
 	async function _selectToCursor(duration: number = 1000): Promise<void> {
@@ -308,52 +300,17 @@ export default function Draft() {
 					</div>
 				</div>
 			);
-	else
-		results = (
-			<div className="mt-1 mr-2 ml-2 p-4 border border-[#c8c8c8] rounded-[16px] transition duration-150 flex">
-				<div>
-					<div
-						className= "text-[0.8rem] text-[#aaaaaa] pb-1 cursor-pointer hover:text-black"
-					>
-						{ genCtxText.length > 100 ? '...' : '' }
-						{ genCtxText.substring(genCtxText.length - 100) }
-					</div>
 
-					<div className="text-base whitespace-pre-wrap transition duration-150 animate-fade-in">
-						<GenerationResult generation={ generation } />
-					</div>
-				</div>
-				<div className={ classes.genIconsContainer }>
-					<div
-						className={
-								classes.genTypeIconWrapper
-						}
-					>
-						{ iconFunc(generation.generation_type) }
-					</div>
-				</div>
-			</div>
-		);
-
-	if (isLoading && !generation)
+	if (isLoading && !generation) 
 		results = (
 			<div className={ classes.spinnerWrapper }>
 				<div className={ classes.loader }></div>
 			</div>
 		);
-
+	
 	return (
+		<>
 		<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
-
-			{ /* Document Context Text Container */ }
-			<div className= "text-sm p-[8px] m-[8px] shadow-[0_6px_10px_-1px_rgba(147,123,109,0.1)]">
-				<h4>Suggestions will be generated using:</h4>
-				<p>
-					{ beforeContext.length > 100 ? '...' : '' }
-					{ beforeContext.substring(beforeContext.length - 100) }
-					{ /* { JSON.stringify(docContext) } */ }
-				</p>
-			</div>
 
 			<div>
 				{ /* Generation Option Buttons */ }
@@ -380,27 +337,22 @@ export default function Draft() {
 							{ iconFunc(studyCondition as keyof typeof visibleNameForMode) }
 						</button>
 					</div>
+			</div>
+			{ results }
 
+				{ /* Saved generations */ }
+				<SavedGenerations 
+					savedItems={ savedItems }
+					deleteSavedItem={ deleteSavedItem }
+				/>
+		</div>
 
-
-				<div className={ classes.noteTextWrapper }>
+		<div className={ classes.noteTextWrapper }>
 					<div className={ classes.noteText }>
 						Please note that the quality of AI-generated text may
 						vary
 					</div>
 				</div>
-			</div>
-
-
-				{ /* Result of the generation */ }
-				<div className='h-[60vh] overflow-auto'>{ results }</div>
-
-				{ /* Saved generations */ }
-				<SavedGenerations
-					savedItems={ savedItems }
-					deleteSavedItem={ deleteSavedItem }
-				/>
-
-		</div>
+		</>
 	);
 }

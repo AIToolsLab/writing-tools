@@ -35,11 +35,11 @@ h4 {
 	font-size: 1rem;
 	font-weight: 600;
 	/* padding: 8px 14px; */
-	width: 42px;
-	height: 42px;
+	width: 52px;
+	height: 52px;
 	justify-content: center;
 	align-items: center;
-	border: 1px solid #f0f0f0;
+	border: 2px solid #f0f0f0;
 	transition: 0.15s;
 	cursor: pointer;
 	border-radius: 24px;
