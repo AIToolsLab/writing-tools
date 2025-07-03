@@ -1,5 +1,5 @@
 import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
-import { studyConditionAtom, taskDescriptionAtom } from '@/contexts/studyContext';
+import { studyConditionAtom, currentTaskContextAtom } from '@/contexts/studyContext';
 import * as SidebarInner from '@/pages/app';
 import { Auth0ContextInterface} from '@auth0/auth0-react';
 import { getDefaultStore, useAtomValue } from 'jotai';
@@ -9,6 +9,7 @@ import LexicalEditor from './editor';
 import './styles.css';
 import classes from './styles.module.css';
 import { log } from '@/api';
+import { usernameAtom } from '@/contexts/userContext';
 
 function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 	return (
@@ -16,8 +17,10 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 	);
 }
 
-function EditorScreen( {taskID, taskPrompt}: {taskID?: string; taskPrompt?: string}) {
+function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: ContextSection[] }) {
 	const mode = useAtomValue(overallModeAtom);
+	const page = useAtomValue(pageNameAtom);
+	const username = useAtomValue(usernameAtom);
 	const isDemo = mode === OverallMode.demo;
 
 	// This is a reference to the current document context
@@ -80,6 +83,20 @@ function EditorScreen( {taskID, taskPrompt}: {taskID?: string; taskPrompt?: stri
 	const docUpdated = (docContext: DocContext) => {
 		docContextRef.current = docContext;
 
+		if (contextData) {
+			docContext.contextData = contextData;
+		}
+
+		// Log the document update only for study purposes
+		if (mode === 'study' && page === 'study' && username) {
+			log({
+			username: username,
+			event: 'Document Update',
+			currentDocumentState: docContext,
+		});
+		}
+
+
 		// Calculate word count
 		const fullText = docContext.beforeCursor + docContext.selectedText + docContext.afterCursor;
 		const words = fullText.trim().split(/\s+/).filter(word => word.length > 0);
@@ -110,11 +127,10 @@ function EditorScreen( {taskID, taskPrompt}: {taskID?: string; taskPrompt?: stri
 
 			<div className={ isDemo ? classes.demoeditor : classes.editor }>
 				<LexicalEditor
-					//@ts-ignore
-					initialState={ getInitialState()}
+					// @ts-expect-error
+					initialState={ getInitialState() }
 					updateDocContext={ docUpdated }
 					storageKey={ getStorageKey()}
-					taskPrompt={ taskPrompt }
 				/>
 				{ isDemo && (
 					<div className={ `${classes.wordCount}` }>
@@ -155,43 +171,60 @@ const SURVEY_URLS = {
 };
 
 
-const taskConfigs = {
-		'1': {
-			taskPrompt:`The marketing director of RetailMax stated: 'Shifting our entire advertising budget to social media influencer partnerships will triple our sales among consumers aged 18-34. Influencer marketing generates 6 times higher engagement rates than traditional advertising. Young consumers trust influencer recommendations more than celebrity endorsements or TV commercials. This strategy will establish our brand as the preferred choice for the next generation of shoppers.'
+const taskContexts: Record<string, ContextSection[]> = {
+		'1': [
+				{
+					title: "Prompt",
+					content: `The marketing director of RetailMax stated: 'Shifting our entire advertising budget to social media influencer partnerships will triple our sales among consumers aged 18-34. Influencer marketing generates 6 times higher engagement rates than traditional advertising. Young consumers trust influencer recommendations more than celebrity endorsements or TV commercials. This strategy will establish our brand as the preferred choice for the next generation of shoppers.'
 
-			Write a response in which you examine the stated and/or unstated assumptions of the argument. Be sure to explain how the argument depends on the assumptions and what the implications are if the assumptions prove unwarranted.`		},
-		'2': {
-			taskPrompt: `
-			You will write a professional email from the perspective of a fictional job applicant. Write a professional email to the hiring manager expressing your interest in the job position. Please read the following information carefully:
+Write a response in which you examine the stated and/or unstated assumptions of the argument. Be sure to explain how the argument depends on the assumptions and what the implications are if the assumptions prove unwarranted.`
 
-			Your Role: You are Sarah Martinez, writing an email about a job opportunity.
+				}
+			],
+		'2': [
+				{
+					title: "Prompt",
+					content: `You will write a professional email from the perspective of a fictional job applicant. Write a professional email to the hiring manager expressing your interest in the job position. Please read the following information carefully:`
+				},
+				{
+					title: "Your Role",
+					content: `You are Sarah Martinez, writing an email about a job opportunity.`
+				},
+				{
+					title: "Sarah's Background",
+					content: `- Recently completed an Associate's degree in General Studies
+- Worked 3 years as a shift supervisor at a busy coffee shop chain
+- Experience training new employees and handling customer complaints
+- Volunteered for 2 years at a local food bank, helping with intake and organization
+- Managed scheduling and inventory at the coffee shop
+- Bilingual (English/Spanish)
+- Known for staying calm under pressure and being very reliable
+- Interested in healthcare because she wants to help people in her community
+- Has some basic computer skills from college and work`
+				},
+				{
+					title: "Job Opportunity",
+					content: `Administrative Coordinator - Community Health Center
+We're seeking an organized, detail-oriented Administrative Coordinator to support our busy community health center. Responsibilities include scheduling appointments, maintaining patient records, coordinating between departments, and providing excellent customer service to patients and families. The ideal candidate is a strong communicator who works well in a fast-paced environment and is passionate about helping others. Previous healthcare experience preferred but not required. We value reliability, empathy, and problem-solving skills.`
+				}
+			],
+		'3': [
+				{
+					title: "Prompt",
+					content: `After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.`
+				},
+				{
+					title: "Reference Documents",
+					content: `
+CRISPR-Cas9 is a revolutionary gene-editing technology that allows scientists to make precise changes to DNA. Originally discovered as part of bacteria's immune system, CRISPR works like molecular scissors that can cut DNA at specific locations and either remove, add, or replace genetic material.
 
-			Sarah's Background:
-			Recently completed an Associate's degree in General Studies
-			Worked 3 years as a shift supervisor at a busy coffee shop chain
-			Experience training new employees and handling customer complaints
-			Volunteered for 2 years at a local food bank, helping with intake and organization
-			Managed scheduling and inventory at the coffee shop
-			Bilingual (English/Spanish)
-			Known for staying calm under pressure and being very reliable
-			Interested in healthcare because she wants to help people in her community
-			Has some basic computer skills from college and work
+The CRISPR system consists of two main components: a guide RNA that identifies the target DNA sequence, and the Cas9 protein that acts as the cutting tool. When these components are introduced into a cell, they seek out the matching DNA sequence and make a precise cut. The cell's natural repair mechanisms then fix the break, allowing scientists to insert new genetic material or correct defective genes.
 
-			Job Opportunity:
-			Administrative Coordinator - Community Health Center
-			We're seeking an organized, detail-oriented Administrative Coordinator to support our busy community health center. Responsibilities include scheduling appointments, maintaining patient records, coordinating between departments, and providing excellent customer service to patients and families. The ideal candidate is a strong communicator who works well in a fast-paced environment and is passionate about helping others. Previous healthcare experience preferred but not required. We value reliability, empathy, and problem-solving skills.`
-		},
-		'3': {
-			taskPrompt: `Task 3: After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.
+This technology has enormous potential for treating genetic diseases, improving crops, and advancing medical research. Scientists have already begun clinical trials using CRISPR to treat conditions like sickle cell disease and certain types of cancer. In agriculture, researchers are developing crops that are more resistant to diseases and climate change.
 
-			CRISPR-Cas9 is a revolutionary gene-editing technology that allows scientists to make precise changes to DNA. Originally discovered as part of bacteria's immune system, CRISPR works like molecular scissors that can cut DNA at specific locations and either remove, add, or replace genetic material.
-
-			The CRISPR system consists of two main components: a guide RNA that identifies the target DNA sequence, and the Cas9 protein that acts as the cutting tool. When these components are introduced into a cell, they seek out the matching DNA sequence and make a precise cut. The cell's natural repair mechanisms then fix the break, allowing scientists to insert new genetic material or correct defective genes.
-
-			This technology has enormous potential for treating genetic diseases, improving crops, and advancing medical research. Scientists have already begun clinical trials using CRISPR to treat conditions like sickle cell disease and certain types of cancer. In agriculture, researchers are developing crops that are more resistant to diseases and climate change.
-
-			However, CRISPR also raises important ethical questions, particularly regarding its use in human embryos, which could create permanent changes that would be passed down to future generations. The scientific community continues to debate the appropriate boundaries for this powerful technology while working to ensure its safe and beneficial application.`
-		}
+However, CRISPR also raises important ethical questions, particularly regarding its use in human embryos, which could create permanent changes that would be passed down to future generations. The scientific community continues to debate the appropriate boundaries for this powerful technology while working to ensure its safe and beneficial application.`
+				}
+			],
 	}
 
 	const letterToCondition = {
@@ -368,21 +401,21 @@ function Router({
 			const urlParams = new URLSearchParams(window.location.search);
 
 			const taskNumber = page.replace('study-task', '');
-			const taskConfig = taskConfigs[taskNumber as keyof typeof taskConfigs];
+			const curTaskContexts = taskContexts[taskNumber as keyof typeof taskContexts];
 			const conditionConfig =  conditionConfigs[taskNumber as keyof typeof conditionConfigs];
 
-			if (!taskConfig) {
+			if (!curTaskContexts) {
 				return <div>Invalid task number</div>;
 		}
 			const taskID = `task${taskNumber}`;
 			getDefaultStore().set(studyConditionAtom, conditionConfig.condition);
-			getDefaultStore().set(taskDescriptionAtom, taskConfig.taskPrompt);
+			getDefaultStore().set(currentTaskContextAtom, curTaskContexts);
 
 			return (
 				<div>
 					<EditorScreen
 						taskID={taskID}
-						taskPrompt={taskConfig.taskPrompt}
+						contextData={curTaskContexts}
 					/>
 
 					<button
