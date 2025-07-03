@@ -150,12 +150,12 @@ function LexicalEditor({
 	updateDocContext,
 	initialState,
 	storageKey = 'doc',
-	taskPrompt
+	preamble
 }: {
 	updateDocContext: (docContext: DocContext) => void;
 	initialState: InitialEditorStateType | null;
 	storageKey?: string;
-	taskPrompt?: string;
+	preamble?: React.ReactNode
 }) {
 
 	return (
@@ -172,7 +172,7 @@ function LexicalEditor({
 			>
 				<div className={ classes.editorContainer }>
 					<div className={ classes.editor }>
-					{ taskPrompt && <div className="whitespace-pre-line">{taskPrompt}</div> }
+					{ preamble && <div className="whitespace-pre-line">{preamble}</div> }
 					<RichTextPlugin
 						contentEditable={
 							<ContentEditable className={classes.editor} />

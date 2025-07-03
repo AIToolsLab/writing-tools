@@ -122,6 +122,16 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 		return localStorage.getItem(storageKey) || undefined;
 	};
 
+	const preamble = contextData && <>
+	{contextData.map((section, index) => (
+		<div key={index}>
+			<h3 className="font-bold">{section.title}</h3>
+			<p className="whitespace-pre-line">{section.content}</p>
+		</div>
+	))}
+	<h3 className="pt-1 font-bold border-t-2">Write Here</h3>
+	</>
+
 	return (
 		<div className={ isDemo ? classes.democontainer : classes.container }>
 
@@ -131,6 +141,7 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 					initialState={ getInitialState() }
 					updateDocContext={ docUpdated }
 					storageKey={ getStorageKey()}
+					preamble={ preamble }
 				/>
 				{ isDemo && (
 					<div className={ `${classes.wordCount}` }>
