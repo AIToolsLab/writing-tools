@@ -18,7 +18,7 @@ export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const username = useAtomValue(usernameAtom)
 	const editorAPI = useContext(EditorContext);
-	const { getAccessToken, authErrorType } = useAccessToken();
+	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
 
 	/* Document Context (FIXME: make this a hook) */
 	const {
@@ -100,28 +100,43 @@ export default function Chat() {
 
 		updateChatMessages(newMessages);
 
-		const token = await getAccessToken();
-		await fetchEventSource(`${SERVER_URL}/chat`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${token}`
-			},
-			body: JSON.stringify({
-				messages: newMessages.slice(0, -1),
-				username: username
-			}),
-			onmessage(msg) {
-				const message = JSON.parse(msg.data);
-				const choice = message.choices[0];
-				if (choice.finish_reason === 'stop') return;
-				const newContent = choice.delta.content;
-				// need to make a new "newMessages" object to force React to update :(
-				newMessages = newMessages.slice();
-				newMessages[newMessages.length - 1].content += newContent;
-				updateChatMessages(newMessages);
-			}
-		});
+		try {
+			const token = await getAccessToken();
+			await fetchEventSource(`${SERVER_URL}/chat`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${token}`
+				},
+				body: JSON.stringify({
+					messages: newMessages.slice(0, -1),
+					username: username
+				}),
+				onmessage(msg) {
+					const message = JSON.parse(msg.data);
+					const choice = message.choices[0];
+					if (choice.finish_reason === 'stop') return;
+					const newContent = choice.delta.content;
+					// need to make a new "newMessages" object to force React to update :(
+					newMessages = newMessages.slice();
+					newMessages[newMessages.length - 1].content += newContent;
+					updateChatMessages(newMessages);
+				},
+				onerror(err) {
+					// Handle HTTP errors from the server
+					if (err && typeof err === 'object' && 'status' in err) {
+						const status = (err as any).status;
+						if (status === 401 || status === 403) {
+							reportAuthError({ error: 'unauthorized' });
+						}
+					}
+					throw err;
+				}
+			});
+		} catch (error) {
+			// Handle other errors (like network errors)
+			console.error('Chat API error:', error);
+		}
 
 		updateSendingMessage(false);
 
@@ -131,27 +146,40 @@ export default function Chat() {
 	async function regenMessage(index: number) {
 		// Resubmit the conversation up until the last message,
 		// so it regenerates the last assistant message.
-		const token = await getAccessToken();
-		const response = await fetch(`${SERVER_URL}/chat`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${token}`
-			},
-			body: JSON.stringify({
-				messages: chatMessages.slice(0, index)
-			})
-		});
+		try {
+			const token = await getAccessToken();
+			const response = await fetch(`${SERVER_URL}/chat`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `Bearer ${token}`
+				},
+				body: JSON.stringify({
+					messages: chatMessages.slice(0, index)
+				})
+			});
 
-		const responseJson = await response.json();
+			if (response.status === 401 || response.status === 403) {
+				reportAuthError({ error: 'unauthorized' });
+				return;
+			}
 
-		const newMessages = [...chatMessages];
-		newMessages[index + 1] = {
-			role: 'assistant',
-			content: responseJson
-		};
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
 
-		updateChatMessages(newMessages);
+			const responseJson = await response.json();
+
+			const newMessages = [...chatMessages];
+			newMessages[index + 1] = {
+				role: 'assistant',
+				content: responseJson
+			};
+
+			updateChatMessages(newMessages);
+		} catch (error) {
+			console.error('Regen message API error:', error);
+		}
 	}
 
 	if (authErrorType !== null) {

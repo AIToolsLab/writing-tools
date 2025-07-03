@@ -9,7 +9,7 @@ import { usernameAtom } from '@/contexts/userContext';
 import { getParagraphText } from '@/utilities';
 import { getReflection } from '@/api';
 
-import { useAuth0 } from '@auth0/auth0-react';
+import { useAccessToken } from '@/contexts/authTokenContext';
 
 import classes from './styles.module.css';
 import { useAtomValue } from 'jotai';
@@ -17,7 +17,7 @@ import { useAtomValue } from 'jotai';
 export default function SearchBar() {
 	const username = useAtomValue(usernameAtom);
 
-	const { getAccessTokenSilently } = useAuth0();
+	const { getAccessToken, reportAuthError } = useAccessToken();
 
 	const [paragraphTexts, updateParagraphTexts] = useState<string[]>([]);
 	const [curParagraphText, updateCurParagraphText] = useState('');
@@ -114,7 +114,7 @@ export default function SearchBar() {
 		const suggestionPrompt = `Write one concise and brief prompt to ask a companion for various points about a piece of academic writing that may warrant reconsideration. The prompt might ask for the main point, important concepts, claims or arguments, possible counterarguments, additional evidence/examples, points of ambiguity, and questions as a reader/writer${rhetCtxt ? rhetCtxtDirections : '\n'}.`;
 
 		const suggestionsPromise: Promise<ReflectionResponseItem[]> =
-			getReflection(username, paragraphText, suggestionPrompt, getAccessTokenSilently);
+			getReflection(username, paragraphText, suggestionPrompt, getAccessToken, reportAuthError);
 
 			suggestionsPromise
 				.then(newPrompts => {
@@ -163,7 +163,7 @@ export default function SearchBar() {
 
 		if (typeof cachedValue === 'undefined') {
 			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflection(username, paragraphText, prompt, getAccessTokenSilently);
+				getReflection(username, paragraphText, prompt, getAccessToken, reportAuthError);
 
 			reflectionsPromise
 				.then(newReflections => {

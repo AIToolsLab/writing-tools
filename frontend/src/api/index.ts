@@ -59,7 +59,8 @@ export async function getReflection(
 	username: string,
 	paragraph: string,
 	prompt: string,
-	getAccessToken: () => Promise<string>
+	getAccessToken: () => Promise<string>,
+	reportAuthError?: (error: any) => void
 ): Promise<ReflectionResponseItem[]> {
 		const key = JSON.stringify({ prompt, paragraph });
 
@@ -67,35 +68,48 @@ export async function getReflection(
 		// ASSUMES that cachedResponse is valid JSON
 
 		if (cachedResponse) return JSON.parse(cachedResponse);
-		const token = await getAccessToken();
-		const data = {
-			username: username,
-			paragraph,
-			prompt
-		};
+		
+		try {
+			const token = await getAccessToken();
+			const data = {
+				username: username,
+				paragraph,
+				prompt
+			};
 
-		const response: Response = await fetch(`${SERVER_URL}/reflections`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				Authorization: `Bearer ${token}`
-			},
-			body: JSON.stringify(data)
-		});
+			const response: Response = await fetch(`${SERVER_URL}/reflections`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${token}`
+				},
+				body: JSON.stringify(data)
+			});
 
-		if (!response.ok) throw new Error('Request failed ' + response.status);
-
-		const responseData: GenerationResult = await response.json();
-		// console.log('responseData', responseData);
-
-		// HACK: fake a list of ReflectionResponseItem objects
-		const relfectionResponses = [
-			{
-				reflection: responseData.result
+			if (response.status === 401 || response.status === 403) {
+				if (reportAuthError) {
+					reportAuthError({ error: 'unauthorized' });
+				}
+				throw new Error('Unauthorized');
 			}
-		];
 
-		localStorage.setItem(key, JSON.stringify(relfectionResponses));
+			if (!response.ok) throw new Error('Request failed ' + response.status);
 
-		return relfectionResponses;
+			const responseData: GenerationResult = await response.json();
+			// console.log('responseData', responseData);
+
+			// HACK: fake a list of ReflectionResponseItem objects
+			const relfectionResponses = [
+				{
+					reflection: responseData.result
+				}
+			];
+
+			localStorage.setItem(key, JSON.stringify(relfectionResponses));
+
+			return relfectionResponses;
+		} catch (error) {
+			console.error('Reflection API error:', error);
+			throw error;
+		}
 }

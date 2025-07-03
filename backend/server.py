@@ -7,14 +7,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Dict, List, Literal, Optional
 
+import aiohttp
+import jwt
 import nlp
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Body, FastAPI
+from fastapi import BackgroundTasks, Body, Depends, FastAPI, HTTPException, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel, ConfigDict
 from sse_starlette.sse import EventSourceResponse
@@ -35,6 +38,100 @@ PORT = int(os.getenv("PORT") or 8000)
 # The log secret is stored in .env file for local development.
 LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
 print(f"Log secret: {LOG_SECRET!r}")
+
+# JWT Configuration for Auth0
+JWT_ISSUER = os.getenv("JWT_ISSUER", "https://textfocals.auth0.com/")
+JWT_AUDIENCE = os.getenv("JWT_AUDIENCE", "textfocals.com")
+DEMO_API_KEY = os.getenv("DEMO_API_KEY", "demo-key")
+
+# Initialize HTTP Bearer security scheme
+security = HTTPBearer(auto_error=False)
+
+
+# Initialize HTTP Bearer security scheme
+security = HTTPBearer(auto_error=False)
+
+# Cache for JWT public keys
+_jwks_cache = {}
+
+async def get_jwks_key(kid: str) -> str:
+    """Fetch and cache Auth0 public keys for JWT verification."""
+    if kid in _jwks_cache:
+        return _jwks_cache[kid]
+    
+    try:
+        jwks_url = f"{JWT_ISSUER}.well-known/jwks.json"
+        async with aiohttp.ClientSession() as session:
+            async with session.get(jwks_url) as response:
+                jwks = await response.json()
+                
+        for key in jwks.get("keys", []):
+            if key.get("kid") == kid:
+                # Convert JWK to PEM format for PyJWT
+                from jwt.algorithms import RSAAlgorithm
+                public_key = RSAAlgorithm.from_jwk(key)
+                _jwks_cache[kid] = public_key
+                return public_key
+                
+        raise HTTPException(status_code=401, detail="Unable to find appropriate key")
+    except Exception as e:
+        logger.error(f"Failed to fetch JWKS: {e}")
+        raise HTTPException(status_code=401, detail="Token verification failed")
+
+async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(security)) -> dict:
+    """
+    Verify JWT token and return decoded payload.
+    Handles both Auth0 tokens and demo tokens.
+    """
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Authorization header required")
+    
+    token = credentials.credentials
+    
+    # Handle demo token
+    if token == "demo-access-token":
+        return {
+            "sub": "demo-user",
+            "username": "demo",
+            "iss": "demo",
+            "aud": JWT_AUDIENCE,
+            "is_demo": True
+        }
+    
+    try:
+        # Get token header to extract kid (key ID)
+        header = jwt.get_unverified_header(token)
+        kid = header.get("kid")
+        
+        if not kid:
+            raise HTTPException(status_code=401, detail="Token missing key ID")
+        
+        # Get the appropriate public key
+        public_key = await get_jwks_key(kid)
+        
+        # Verify the token with signature verification
+        payload = jwt.decode(
+            token,
+            public_key,
+            algorithms=["RS256"],
+            audience=JWT_AUDIENCE,
+            issuer=JWT_ISSUER
+        )
+        
+        # Basic validation
+        if not payload.get("sub"):
+            raise HTTPException(status_code=401, detail="Invalid token: missing subject")
+            
+        payload["is_demo"] = False
+        return payload
+        
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
+    except Exception as e:
+        logger.error(f"Token verification error: {e}")
+        raise HTTPException(status_code=401, detail="Token verification failed")
 
 
 def should_log(username: str) -> bool:
@@ -130,7 +227,11 @@ async def validation_exception_handler(request, exc):
 
 # Routes
 @app.post("/api/generation")
-async def generation(payload: GenerationRequestPayload, background_tasks: BackgroundTasks) -> nlp.GenerationResult:
+async def generation(
+    payload: GenerationRequestPayload, 
+    background_tasks: BackgroundTasks,
+    auth_token_data: dict = Depends(verify_token)
+) -> nlp.GenerationResult:
     '''
     To test this endpoint from curl:
 
@@ -180,7 +281,11 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
 
 
 @app.post("/api/reflections")
-async def reflections(payload: ReflectionRequestPayload, background_tasks: BackgroundTasks):
+async def reflections(
+    payload: ReflectionRequestPayload, 
+    background_tasks: BackgroundTasks,
+    auth_token_data: dict = Depends(verify_token)
+):
     should_log_doctext = should_log(payload.username)
 
     start_time = datetime.now()
@@ -203,7 +308,10 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
 
 
 @app.post("/api/chat")
-async def chat(payload: ChatRequestPayload):
+async def chat(
+    payload: ChatRequestPayload,
+    auth_token_data: dict = Depends(verify_token)
+):
     response = await nlp.chat_stream(
         messages=payload.messages,
         temperature=0.7,
@@ -245,6 +353,17 @@ class PingResponse(BaseModel):
 @app.get("/api/ping")
 async def ping() -> PingResponse:
     return PingResponse(timestamp=datetime.now())
+
+
+@app.get("/api/test-auth")
+async def test_auth(auth_token_data: dict = Depends(verify_token)) -> dict:
+    """Test endpoint to verify authentication without external dependencies"""
+    return {
+        "authenticated": True,
+        "user_id": auth_token_data.get("sub"),
+        "is_demo": auth_token_data.get("is_demo", False),
+        "message": "Authentication successful"
+    }
 
 
 # Log viewer endpoint
