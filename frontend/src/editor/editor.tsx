@@ -17,10 +17,6 @@ import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 
 import classes from './editor.module.css';
-import { log } from '@/api';
-import { overallModeAtom, pageNameAtom } from '@/contexts/pageContext';
-import { useAtomValue } from 'jotai';
-import { usernameAtom } from '@/contexts/userContext';
 
 
 function $getDocContext(): DocContext {
@@ -154,16 +150,13 @@ function LexicalEditor({
 	updateDocContext,
 	initialState,
 	storageKey = 'doc',
-	taskPrompt
+	preamble
 }: {
 	updateDocContext: (docContext: DocContext) => void;
 	initialState: InitialEditorStateType | null;
 	storageKey?: string;
-	taskPrompt?: string;
+	preamble?: React.ReactNode
 }) {
-	const mode = useAtomValue(overallModeAtom);
-	const page = useAtomValue(pageNameAtom);
-	const username = useAtomValue(usernameAtom);
 
 	return (
 		<>
@@ -179,7 +172,7 @@ function LexicalEditor({
 			>
 				<div className={ classes.editorContainer }>
 					<div className={ classes.editor }>
-					{ taskPrompt && <div className="whitespace-pre-line">{taskPrompt}</div> }
+					{ preamble && <div className="whitespace-pre-line">{preamble}</div> }
 					<RichTextPlugin
 						contentEditable={
 							<ContentEditable className={classes.editor} />
@@ -192,20 +185,6 @@ function LexicalEditor({
 						onChange={ editorState => {
 							editorState.read(() => {
 								const docContext = $getDocContext();
-
-								// Prepend if necessary
-								if (taskPrompt) {
-									docContext.beforeCursor = taskPrompt + '\n\n' + docContext.beforeCursor;
-								}
-
-								// Log the document update only for study purposes
-								if (mode === 'study' && page === 'study' && username) {
-									log({
-									username: username,
-									event: 'Document Update',
-									currentDocumentState: docContext,
-								});
-								}
 
 								updateDocContext(docContext);
 

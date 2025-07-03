@@ -55,14 +55,6 @@ function SavedGenerations({
                             className={ classes.historyItem }
                         >
                             <div className={ classes.historyText }>
-                                <p className={ classes.historyDoc }
-                                onClick={ () => {
-                                    // Show the whole document text
-                                } }     >
-                                    ...
-                                    { savedItem.document.substring(savedItem.document.length - 100    ) }
-                                </p>
-
                                 <GenerationResult generation={ savedItem.generation } />
                             </div>
                             <div
@@ -122,7 +114,7 @@ export default function Draft() {
 	const [errorMsg, updateErrorMsg] = useState('');
 
 	// Save the generation
-	function save(generation: GenerationResult, document: string) {
+	function save(generation: GenerationResult, document: DocContext) {
 		const newSaved = [{
 			document: document,
 			generation: generation,
@@ -169,12 +161,6 @@ export default function Draft() {
 		updateGeneration(null);
 		updateErrorMsg('');
 
-		// eslint-disable-next-line no-console
-		console.assert(
-			typeof contextText === 'string' && contextText !== '',
-			'contextText must be a non-empty string'
-		);
-
 		setIsLoading(true);
 
 		try {
@@ -198,7 +184,7 @@ export default function Draft() {
 			updateErrorMsg('');
 			const generated = await response.json() as GenerationResult;
 			updateGeneration(generated);
-			save(generated, contextText);
+			save(generated, docContext);
 		}
 		catch (err: any) {
 			setIsLoading(false);
