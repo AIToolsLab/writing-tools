@@ -48,11 +48,10 @@ We're helping a writer draft a document. Please output three actionable, inspiri
 
 """,
     "reader_questions": """\
-We're helping a writer draft a document. Please output three questions that an insightful interviewer might have about the document. Guidelines:
+We're helping a writer draft a document. Play the role of a curious reader. Please output three questions that a curious reader might have about the document. Guidelines:
 
-- Don't give specific words or phrases for the writer to use.
-- Focus on questions that **build on what the writer already has written** but also **make the writer think about something they haven't considered yet**.
-- Keep each question concise.
+- Direct the questions to the writer.
+- Keep each question concise and inquisitive
 - Make each question very specific to the document, not general questions that could apply to any document.
 
 """
