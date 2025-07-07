@@ -1,7 +1,7 @@
 from collections import defaultdict
 import os
 import random
-from typing import Any, Iterable, List, Dict, Literal
+from typing import Any, Iterable, List, Dict, Literal, Optional
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -35,6 +35,96 @@ except:
     # print("python -m spacy download en_core_web_trf")
 
     exit()
+
+
+prompts = {
+    "advice": """\
+We're helping a writer draft a document. Please output three actionable, inspiring, and fresh directive instructions that would help the writer think about what they should write next. Guidelines:
+
+- Don't give specific words or phrases for the writer to use.
+- Keep each piece of advice short.
+- Express the advice in the form of a directive instruction, not a question.
+- If reference documents are given, focus on questions that can be answered by reference to those documents.
+
+""",
+    "reader_questions": """\
+We're helping a writer draft a document. Please output three questions that an insightful interviewer might have about the document. Guidelines:
+
+- Don't give specific words or phrases for the writer to use.
+- Focus on questions that **build on what the writer already has written** but also **make the writer think about something they haven't considered yet**.
+- Keep each question concise.
+- Make each question very specific to the document, not general questions that could apply to any document.
+
+"""
+}
+
+
+class ContextSection(BaseModel):
+    title: str
+    content: str
+
+class DocContext(BaseModel):
+    contextData: Optional[List[ContextSection]] = None
+    beforeCursor: str
+    selectedText: str
+    afterCursor: str
+
+
+class GenerationResult(BaseModel):
+    generation_type: str
+    result: str
+    extra_data: Dict[str, Any]
+
+
+
+def get_full_prompt(prompt_name: str, doc_context: DocContext) -> str:
+    prompt = prompts[prompt_name]
+
+    if doc_context.contextData:
+        context_sections = "\n\n".join(
+            [f"## {section.title}\n\n{section.content}" for section in doc_context.contextData]
+        )
+        prompt += f"\n\n# Additional Context:\n\n{context_sections}"
+
+    # Add the document context to the prompt
+    if doc_context.selectedText == '':
+        title_text = "with the current cursor position marked with <<CURSOR>>"
+        context_text = f"{doc_context.beforeCursor}${doc_context.selectedText}<<CURSOR>>${doc_context.afterCursor}"
+    else:
+        title_text = f"with the current selection marked with <<SELECTION>> tags"
+        context_text = f"{doc_context.beforeCursor}<<SELECTION>>{doc_context.selectedText}<<SELECTION>>{doc_context.afterCursor}"
+
+    prompt += f"\n\n# Writer's Document So Far {title_text}:\n\n{context_text}"
+    return prompt
+
+
+# Structured response for multiple suggestions
+class SuggestionItem(BaseModel):
+    content: str
+
+class SuggestionResponse(BaseModel):
+    suggestions: List[SuggestionItem]
+
+
+async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
+    full_prompt = get_full_prompt(prompt_name, doc_context)
+    completion = await openai_client.chat.completions.parse(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content": "You are a helpful and insightful writing assistant."},
+            {"role": "user", "content": full_prompt}
+        ],
+        response_format=SuggestionResponse
+    )
+
+    # Extract the response content from the parsed message
+    suggestion_response = completion.choices[0].message.parsed
+    if not suggestion_response or not suggestion_response.suggestions:
+        raise ValueError("No suggestions found in the response.")
+    markdown_response = "\n\n".join(
+        [f"- {item.content}" for item in suggestion_response.suggestions]
+    )
+    return GenerationResult(generation_type=prompt_name, result=markdown_response, extra_data={})
 
 
 def get_final_sentence(text):
@@ -102,12 +192,6 @@ async def completion(userDoc: str):
     result = response.choices[0].text
 
     return result
-
-
-class GenerationResult(BaseModel):
-    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove", "Reflection"]
-    result: str
-    extra_data: Dict[str, Any]
 
 
 async def chat_completion(userDoc: str, temperature=1.0) -> GenerationResult:
