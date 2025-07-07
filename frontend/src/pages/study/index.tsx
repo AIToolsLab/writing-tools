@@ -3,7 +3,6 @@ import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
-import { getBefore } from '@/utilities/selectionUtil';
 import { useContext, useState } from 'react';
 import {
 	AiOutlineClose,
@@ -150,13 +149,9 @@ export default function Draft() {
 		updateSavedItems(newSaved);
 	}
 
-	const beforeContext = getBefore(docContext);
-
 	// Get a generation from the backend
-	async function getGeneration(
-		username: string,
+	async function getSuggestion(
 		type: string,
-		contextText: string
 	) {
 		updateGeneration(null);
 		updateErrorMsg('');
@@ -165,7 +160,7 @@ export default function Draft() {
 
 		try {
 			const token = await getAccessToken();
-			const response = await fetch(`${SERVER_URL}/generation`, {
+			const response = await fetch(`${SERVER_URL}/get_suggestion`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -174,7 +169,7 @@ export default function Draft() {
 				body: JSON.stringify({
 					username: username,
 					gtype: type,
-					prompt: contextText
+					doc_context: docContext
 				}),
 				signal: AbortSignal.timeout(20000)
 			});
@@ -200,7 +195,7 @@ export default function Draft() {
 				event: "generation_error",
 				// eslint-disable-next-line camelcase
 				generation_type: type,
-				prompt: contextText,
+				docContext: docContext,
 				result: errMsg
 			});
 			return;
@@ -305,7 +300,7 @@ export default function Draft() {
 				>
 						<button
 							className={ classes.optionsButton }
-							disabled={ docContext.beforeCursor === '' || isLoading }
+							disabled={ isLoading }
 							title= {visibleNameForMode[studyCondition as keyof typeof visibleNameForMode]}
 							aria-label={ visibleNameForMode[studyCondition  as keyof typeof visibleNameForMode] }
 							onClick={ async () => {
@@ -314,10 +309,9 @@ export default function Draft() {
 									event: "request_suggestion",
 									// eslint-disable-next-line camelcase
 									generation_type: studyCondition,
-									prompt: beforeContext
+									docContext: docContext
 								});
-								if (beforeContext === '') return;
-								getGeneration(username, studyCondition, beforeContext);
+								getSuggestion(studyCondition);
 							} }
 						>
 							{ iconFunc(studyCondition as keyof typeof visibleNameForMode) }
