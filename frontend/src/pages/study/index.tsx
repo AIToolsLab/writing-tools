@@ -39,8 +39,6 @@ function SavedGenerations({
 
             <div className={ classes.historyItemContainer }>
 
-                { /* can we use || ? */ }
-
                 { savedItems.length === 0 ? (
                     <div className={ classes.historyEmptyWrapper }>
                         <div className={ classes.historyText }>
@@ -98,21 +96,13 @@ export default function Draft() {
 	const username = useAtomValue(usernameAtom);
 	const studyCondition = useAtomValue(studyConditionAtom);
 	const { getAccessToken, authErrorType } = useAccessToken();
-
 	const [isLoading, setIsLoading] = useState(false);
-
-	// State for saved page
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
-
-	// eslint-disable-next-line prefer-const
 	const [generation, updateGeneration] = useState<GenerationResult | null>(
 		null
 	);
-
-	// Update Error Message
 	const [errorMsg, updateErrorMsg] = useState('');
 
-	// Save the generation
 	function save(generation: GenerationResult, document: DocContext) {
 		const newSaved = [{
 			document: document,
@@ -124,7 +114,6 @@ export default function Draft() {
 		updateSavedItems(newSaved);
 	}
 
-	// Delete a saved item
 	function deleteSavedItem(dateSaved: Date) {
 		const savedItemIdx = savedItems.findIndex(
 			savedItem => savedItem.dateSaved === dateSaved
@@ -202,42 +191,6 @@ export default function Draft() {
 		}
 
 		setIsLoading(false);
-	}
-
-	// Temporarily select the text from the start to the cursor
-	async function _selectToCursor(duration: number = 1000): Promise<void> {
-    try {
-			await Word.run(async (context: Word.RequestContext) => {
-				// TODO: Instead, use the "wordSelection" from the wordEditorAPI.ts
-				const body = context.document.body;
-				const wordSelection = context.document
-        .getSelection()
-        .getTextRanges([' '], false);
-
-				context.load(wordSelection, 'items');
-				await context.sync();
-
-				// Get the range from start to the end of current word
-				const rangeToCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('Start'));
-
-				// Select the range
-				rangeToCursor.select();
-				await context.sync();
-
-				// Unselect after specified duration
-				setTimeout(async () => {
-					await Word.run(async (context: Word.RequestContext) => {
-						const rangeToCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('Start'));
-						rangeToCursor.select();
-						await context.sync();
-					});
-				}, duration);
-			});
-    }
-		catch (error) {
-			// eslint-disable-next-line no-console
-			console.error('Error highlighting text:', error);
-    }
 	}
 
 	if (authErrorType !== null) {
@@ -320,7 +273,6 @@ export default function Draft() {
 			</div>
 			{ results }
 
-				{ /* Saved generations */ }
 				<SavedGenerations 
 					savedItems={ savedItems }
 					deleteSavedItem={ deleteSavedItem }
