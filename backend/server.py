@@ -189,7 +189,7 @@ async def get_suggestion(payload: SuggestionRequestWithDocContext, background_ta
     should_log_doctext = should_log(payload.username)
 
     start_time = datetime.now()
-    allowed_gtypes = ["advice", "reader_questions", "example_sentences"]
+    allowed_gtypes = list(nlp.prompts.keys())
     if payload.gtype not in allowed_gtypes:
         raise ValueError(f"Invalid generation type: {payload.gtype}")
     result = await nlp.get_suggestion(payload.gtype, payload.doc_context)

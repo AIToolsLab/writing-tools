@@ -38,22 +38,31 @@ except:
 
 
 prompts = {
-    "advice": """\
+    "proposal_advice": """\
 We're helping a writer draft a document. Please output three actionable, inspiring, and fresh directive instructions that would help the writer think about what they should write next. Guidelines:
 
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
 - Don't give specific words or phrases for the writer to use.
-- Keep each piece of advice short.
+- Keep each piece of advice concise.
 - Express the advice in the form of a directive instruction, not a question.
-- If reference documents are given, focus on questions that can be answered by reference to those documents.
-
+- Make each piece of advice very specific to the current document, not general advice that could apply to any document.
 """,
-    "reader_questions": """\
-We're helping a writer draft a document. Play the role of a curious reader. Please output three questions that a curious reader might have about the document. Guidelines:
+    "proposal_questions": """\
+We're helping a writer draft a document. List three questions that the document *ought* to address but does *not* yet address. Guidelines:
 
-- Direct the questions to the writer.
-- Keep each question concise and inquisitive
-- Make each question very specific to the document, not general questions that could apply to any document.
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Don't give specific words or phrases for the writer to use.
+- Keep each question concise.
+- Make each question very specific to the current document, not general questions that could apply to any document.
+""",
+    "analysis_missing": """\
+We're helping a writer draft a document. List three observations of things that are missing from the document. Guidelines:
 
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Don't give specific words or phrases for the writer to use.
+- Keep each observation concise.
+- Make each observation very specific to the current document, not general observations that could apply to any document.
+- Don't tell the writer what to do, just point out what is missing.
 """
 }
 

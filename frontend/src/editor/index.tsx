@@ -240,8 +240,8 @@ However, CRISPR also raises important ethical questions, particularly regarding 
 
 	const letterToCondition = {
   			e: 'example_sentences',
-  			q: 'reader_questions',
-  			r: 'advice'
+  			q: 'analysis_missing',
+  			r: 'proposal_advice'
 		};
 
 		// This is the mapping of condition order letter abbreviation received from the URL parameter (eg. eqr, req, ...) to conditions.
