@@ -7,6 +7,7 @@ import { getBefore } from '@/utilities/selectionUtil';
 import { useContext, useState } from 'react';
 import {
 	AiOutlineClose,
+	AiOutlineReload,
 } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
@@ -14,12 +15,7 @@ import classes from './styles.module.css';
 import { useAtomValue } from 'jotai';
 import { studyConditionAtom } from '@/contexts/studyContext';
 
-const visibleNameForMode = {
-	'Completion': 'Suggestions',
-	'Question': 'Questions',
-	'Keywords': 'Keywords',
-	'RMove': 'Rhetorical Move'
-};
+
 
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
@@ -233,20 +229,20 @@ export default function Draft() {
 			);
 		else
 			results = (
-				<div className="mt-4 ml-4 mr-4 p-4 transition duration-150">
+				<div className="mt-4 ml-4 mr-4 p-0 transition duration-150">
 					<div className="text-sm text-gray-500 text-center transition duration-150">
-						Click a button to generate a suggestion.
+						Click the button above to generate a suggestion.
 					</div>
 				</div>
 			);
 
-	if (isLoading && !generation) 
+	if (isLoading && !generation)
 		results = (
 			<div className={ classes.spinnerWrapper }>
 				<div className={ classes.loader }></div>
 			</div>
 		);
-	
+
 	return (
 		<>
 		<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
@@ -259,8 +255,6 @@ export default function Draft() {
 						<button
 							className={ classes.optionsButton }
 							disabled={ docContext.beforeCursor === '' || isLoading }
-							title= {visibleNameForMode[studyCondition as keyof typeof visibleNameForMode]}
-							aria-label={ visibleNameForMode[studyCondition  as keyof typeof visibleNameForMode] }
 							onClick={ async () => {
 								log({
 									username: username,
@@ -273,13 +267,13 @@ export default function Draft() {
 								getGeneration(username, studyCondition, beforeContext);
 							} }
 						>
-							{ iconFunc(studyCondition as keyof typeof visibleNameForMode) }
+							<AiOutlineReload/>
 						</button>
 					</div>
 			</div>
 			{ results }
 
-				<SavedGenerations 
+				<SavedGenerations
 					savedItems={ savedItems }
 					deleteSavedItem={ deleteSavedItem }
 				/>
