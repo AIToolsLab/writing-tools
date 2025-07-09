@@ -330,10 +330,10 @@ function Router({
 			return <div className={classes.studyIntroContainer}>
             <h1>Welcome!</h1>
             <p>
-				Thank you for agreeing to participate in our writing study. You'll complete three writing tasks on different topics.
-				As you write, pay attention to the suggestions the writing tool offers and use them when
+				Thank you for agreeing to participate in our writing study. You will be working on three different writing tasks. Each task will have a different type of writing support.
+				As you write, please pay attention to the suggestions the writing tool offers and use them when
 				they seem helpful. There are no right or wrong ways to interact with the tool.
-				Your responses will be kept confidential. You can ask questions at any time.
+				Your responses will be kept confidential.
             </p>
 				<button
 					onClick={() => {
