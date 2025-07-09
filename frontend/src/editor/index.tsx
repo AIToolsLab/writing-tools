@@ -475,7 +475,7 @@ function Router({
 							condition: taskCondition
 						});
 					}}
-					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${taskCondition}`}
+					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${taskCondition}&task=${taskNumber}`}
 					className={classes.startButton}
 				>
 					Take the Post Task Survey
