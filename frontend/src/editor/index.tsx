@@ -315,8 +315,7 @@ function Router({
 					onClick={() => {
 						log ({
 							username: username,
-							event: 'ConsentForm',
-							interaction: 'User clicked Consent Form button'
+							event: 'Consent Form'
 						});
 ;					}}
 					href={`${consentFormURL}?redirect_url=${redirectURL}&username=${username}`}
@@ -339,8 +338,7 @@ function Router({
 					onClick={() => {
 						log ({
 							username: username,
-							event: 'StartStudy',
-							interaction: 'User clicked Start Study button'
+							event: 'Started Study'
 						});
 						urlParams.set('page', nextPage)
 						window.location.search = urlParams.toString();
@@ -364,8 +362,7 @@ function Router({
 					onClick={() => {
 							log ({
 								username: username,
-								event: 'StartIntroSurvey',
-								interaction: 'User clicked Intro Survey button'
+								event: 'Intro Survey'
 							});
 	;					}}
 					href={`${introSurveyURL}?redirect_url=${redirectURL}&username=${username}`}
@@ -379,8 +376,8 @@ function Router({
 		else if (page.startsWith('study-startTask')) {
 			const urlParams = new URLSearchParams(window.location.search);
 
-			const startTaskNumber = page.replace('study-startTask', '');
-			const conditionConfig = conditionConfigs[startTaskNumber as keyof typeof conditionConfigs];
+			const taskNumber = page.replace('study-startTask', '');
+			const conditionConfig = conditionConfigs[taskNumber as keyof typeof conditionConfigs];
 
 			if (!conditionConfig) {
 				return <div>Invalid task number</div>;
@@ -390,13 +387,13 @@ function Router({
 
 			return (
 				<div className={classes.studyIntroContainer}>
-					<p> Now we'll start the task {startTaskNumber} out of 3. <br/> In this task, you'll using writing assistance system {taskCondition} </p>
+					<p> Now we'll start the task {taskNumber} out of 3. <br/> In this task, you'll using writing assistance system {taskCondition} </p>
 					<button
 						onClick={() => {
 							log({
 								username: username,
-								event: `StartTask${startTaskNumber}`,
-								interaction: `User started Task ${startTaskNumber}`,
+								event: `Started Task ${taskNumber}`,
+								taskNumber: taskNumber,
 								condition: taskCondition
 							});
 							urlParams.set('page', nextPage);
@@ -404,7 +401,7 @@ function Router({
 						}}
 						className={classes.startButton}
 					>
-						Start Task {startTaskNumber}
+						Start Task {taskNumber}
 					</button>
 				</div>
 			);
@@ -416,11 +413,17 @@ function Router({
 			const curTaskContexts = taskContexts[taskNumber as keyof typeof taskContexts];
 			const conditionConfig =  conditionConfigs[taskNumber as keyof typeof conditionConfigs];
 
+			if (!conditionConfig) {
+				return <div>Invalid task number</div>;
+			}
+
+			const taskCondition = conditionConfig.condition;
+
 			if (!curTaskContexts) {
 				return <div>Invalid task number</div>;
 		}
 			const taskID = `task${taskNumber}`;
-			getDefaultStore().set(studyConditionAtom, conditionConfig.condition);
+			getDefaultStore().set(studyConditionAtom, taskCondition);
 			getDefaultStore().set(currentTaskContextAtom, curTaskContexts);
 
 			return (
@@ -434,9 +437,9 @@ function Router({
 						onClick={() => {
 							log({
 								username: username,
-								event: `FinishTask${taskNumber}`,
-								taskID: taskID,
-								interaction: `User finished Task ${taskNumber}`
+								event: `Finished Task ${taskNumber}`,
+								taskNumber: taskNumber,
+								condition: taskCondition
 							});
 							urlParams.set('page', nextPage);
 							window.location.search = urlParams.toString();
@@ -452,25 +455,31 @@ function Router({
 			const nextUrlParams = new URLSearchParams(window.location.search);
 			nextUrlParams.set('page', nextPage);
 			const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
-			const postTaskNumber = page.replace('study-postTask', '');
-			const conditionConfig = conditionConfigs[postTaskNumber as keyof typeof conditionConfigs];
-			const condition = conditionConfig.condition;
+			const taskNumber = page.replace('study-postTask', '');
+			const conditionConfig = conditionConfigs[taskNumber as keyof typeof conditionConfigs];
+
+			if (!conditionConfig) {
+				return <div>Invalid task number</div>;
+			}
+
+			const taskCondition = conditionConfig.condition;
 			const postTaskSurveyURL = SURVEY_URLS.postTask;
 
 			return <div className={classes.studyIntroContainer}>
-				<p> Thank you for completing Task {postTaskNumber}. Please take a moment to complete a brief survey.</p>
+				<p> Thank you for completing Task {taskNumber}. Please take a moment to complete a brief survey.</p>
 				<a
 					onClick={() => {
 						log ({
 							username: username,
-							event: `StartPostTask${postTaskNumber}`,
-							interaction: `User started post task ${postTaskNumber} survey with condition ${condition}`
+							event: `Started Post Task Survey ${taskNumber}`,
+							taskNumber: taskNumber,
+							condition: taskCondition
 						});
 					}}
-					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${condition}`}
+					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${taskCondition}&task=${taskNumber}`}
 					className={classes.startButton}
 				>
-					Take Survey
+					Take the Post Task Survey
 				</a>
 			</div>;
 		}
@@ -493,14 +502,13 @@ function Router({
 					onClick={() => {
 							log ({
 								username: username,
-								event: 'PostStudySurvey',
-								interaction: 'User clicked final Post Study Survey button'
+								event: 'Started Final Survey'
 							});
 ;					}}
 					href={`${postStudySurveyURL}?redirect_url=${redirectURL}&username=${username}`}
 					className={classes.startButton}
 					>
-					Take the Post Study Survey
+					Take the Final Survey
 					</a>
 				</div>
 			);
