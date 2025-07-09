@@ -63,6 +63,15 @@ We're helping a writer draft a document. List three observations of things that 
 - Keep each observation concise.
 - Make each observation very specific to the current document, not general observations that could apply to any document.
 - Don't tell the writer what to do, just point out what is missing.
+""",
+    "analysis_audience": """\
+We're helping a writer draft a document. List three reactions that a reader in the intended audience might have to the document. Guidelines:
+
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Don't give specific words or phrases for the writer to use.
+- Keep each reaction concise.
+- Make each reaction very specific to the current document, not general reactions that could apply to any document.
+- Don't tell the writer what to do, just point out what a reader might think or feel.
 """
 }
 
