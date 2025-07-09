@@ -243,15 +243,16 @@ However, CRISPR also raises important ethical questions, particularly regarding 
   			q: 'Question',
   			r: 'RMove'
 		};
-
-		// This is the mapping of condition order letter abbreviation received from the URL parameter (eg. eqr, req, ...) to conditions.
+		
+        // This function maps the randomized order string from the URL (e.g., 'eqr', 'req', etc.) to generic condition labels ('condition_A', 'condition_B', 'condition_C') for each task.	
 		function mapInputToDict(input: string) {
-		const result: Record<string, { condition: string }> = {};
-		input.split('').forEach((letter, idx) => {
-			result[(idx + 1).toString()] = { condition: letterToCondition[letter as keyof typeof letterToCondition] };
-		});
-		return result;
-	}
+			const result: Record<string, { condition: string }> = {};
+			const labels = ['condition_A', 'condition_B', 'condition_C'];
+			input.split('').forEach((_, idx) => {
+				result[(idx + 1).toString()] = { condition: labels[idx] };
+			});
+			return result;
+}
 
 function Router({
 	page
