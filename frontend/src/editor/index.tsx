@@ -254,6 +254,7 @@ However, CRISPR also raises important ethical questions, particularly regarding 
 		return result;
 	}
 
+		// This assigns generic labels to each task based on the order of the input string.
 		function mapInputToLabels(input: string) {
 			const result: Record<string, { condition: string }> = {};
 			const taskLabel = ['Type A', 'Type B', 'Type C'];
