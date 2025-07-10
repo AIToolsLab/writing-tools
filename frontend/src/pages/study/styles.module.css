@@ -34,12 +34,11 @@ h4 {
 	background-color: #ffffff;
 	font-size: 1rem;
 	font-weight: 600;
-	/* padding: 8px 14px; */
 	width: 52px;
 	height: 52px;
 	justify-content: center;
 	align-items: center;
-	border: 2px solid #f0f0f0;
+	border: 2px solid rgb(178, 176, 176);
 	transition: 0.15s;
 	cursor: pointer;
 	border-radius: 24px;
