@@ -389,17 +389,18 @@ function Router({
 
 			const taskNumber = page.replace('study-startTask', '');
 			const conditionConfig = conditionConfigs[taskNumber as keyof typeof conditionConfigs];
+			const labelConfig = labelConfigs[taskNumber as keyof typeof labelConfigs];
 
 			if (!conditionConfig) {
 				return <div>Invalid task number</div>;
 			}
 
 			const taskCondition = conditionConfig.condition;
-			const taskLabel = conditionConfig.condition;
+			const taskLabel = labelConfig.condition;
 
 			return (
 				<div className={classes.studyIntroContainer}>
-					<p> Now we'll start the task {taskNumber} out of 3. <br/> In this task, you'll using writing assistance system {taskLabel} </p>
+					<p> Now you will start task {taskNumber} of 3. <br/> In this task, you will be using Suggestion {taskLabel} </p>
 					<button
 						onClick={() => {
 							log({
@@ -491,7 +492,7 @@ function Router({
 							condition: taskCondition
 						});
 					}}
-					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${taskCondition}&task=${taskNumber}`}
+					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${taskCondition}&task=${taskNumber}&suggestion_type=${taskLabel}`}
 					className={classes.startButton}
 				>
 					Take the Post Task Survey
