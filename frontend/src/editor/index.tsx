@@ -388,6 +388,7 @@ function Router({
 
 			return (
 				<div className={classes.studyIntroContainer}>
+					<p> Now we'll start the task {taskNumber} out of 3. <br/> In this task, you'll using writing assistance system {taskCondition} </p>
 					<button
 						onClick={() => {
 							log({
