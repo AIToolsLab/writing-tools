@@ -72,6 +72,16 @@ We're helping a writer draft a document. List three reactions that a reader in t
 - Keep each reaction concise.
 - Make each reaction very specific to the current document, not general reactions that could apply to any document.
 - Don't tell the writer what to do, just point out what a reader might think or feel.
+""",
+    "analysis_expectations": """\
+We're helping a writer draft a document. List three ways in which this document doesn't meet the expectations that a reader in the intended audience might have. Guidelines:
+
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Don't give specific words or phrases for the writer to use.
+- Keep each observation concise.
+- Make each observation very specific to the current document, not general observations that could apply to any document.
+- Use short quotes from the document, when necessary, to illustrate the issue.
+- Don't tell the writer what to do. Just state expectations that are not met.
 """
 }
 

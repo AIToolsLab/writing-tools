@@ -240,7 +240,7 @@ However, CRISPR also raises important ethical questions, particularly regarding 
 
 	const letterToCondition = {
   			e: 'example_sentences',
-  			q: 'analysis_audience',
+  			q: 'analysis_expectations',
   			r: 'proposal_advice'
 		};
 
