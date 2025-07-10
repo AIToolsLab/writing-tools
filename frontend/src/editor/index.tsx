@@ -247,9 +247,9 @@ However, CRISPR also raises important ethical questions, particularly regarding 
         // This function maps the randomized order string from the URL (e.g., 'eqr', 'req', etc.) to generic condition labels ('condition_A', 'condition_B', 'condition_C') for each task.	
 		function mapInputToDict(input: string) {
 			const result: Record<string, { condition: string }> = {};
-			const labels = ['condition_A', 'condition_B', 'condition_C'];
+			const taskLabels = ['A', 'B', 'C'];
 			input.split('').forEach((_, idx) => {
-				result[(idx + 1).toString()] = { condition: labels[idx] };
+				result[(idx + 1).toString()] = { condition: taskLabels[idx] };
 			});
 			return result;
 }
@@ -385,10 +385,11 @@ function Router({
 			}
 
 			const taskCondition = conditionConfig.condition;
+			const taskLabels = conditionConfig.condition;
 
 			return (
 				<div className={classes.studyIntroContainer}>
-					<p> Now we'll start the task {taskNumber} out of 3. <br/> In this task, you'll using writing assistance system {taskCondition} </p>
+					<p> Now we'll start the task {taskNumber} out of 3. <br/> In this task, you'll using writing assistance system {taskLabels} </p>
 					<button
 						onClick={() => {
 							log({
@@ -464,6 +465,7 @@ function Router({
 			}
 
 			const taskCondition = conditionConfig.condition;
+			const taskLabels = conditionConfig.condition;
 			const postTaskSurveyURL = SURVEY_URLS.postTask;
 
 			return <div className={classes.studyIntroContainer}>
@@ -477,7 +479,7 @@ function Router({
 							condition: taskCondition
 						});
 					}}
-					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${taskCondition}&task=${taskNumber}`}
+					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${taskLabels}&task=${taskNumber}`}
 					className={classes.startButton}
 				>
 					Take the Post Task Survey
