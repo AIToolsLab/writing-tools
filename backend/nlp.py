@@ -101,7 +101,7 @@ def get_full_prompt(prompt_name: str, doc_context: DocContext) -> str:
         context_sections = "\n\n".join(
             [f"## {section.title}\n\n{section.content}" for section in doc_context.contextData]
         )
-        prompt += f"\n\n# Additional Context:\n\n{context_sections}"
+        prompt += f"\n\n# Additional Context (will *not* be visible to the reader of the document):\n\n{context_sections}"
 
     # Add the document context to the prompt
     if doc_context.selectedText == '':
