@@ -70,13 +70,6 @@ function SavedGenerations({
                                         }
                                     />
                                 </div>
-                                <div
-                                    className={
-                                        classes.genTypeIconWrapper
-                                    }
-                                >
-                                    { iconFunc(savedItem.generation.generation_type) }
-                                </div>
                             </div>
                         </div>
                     ))
