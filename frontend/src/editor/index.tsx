@@ -22,6 +22,7 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 	const page = useAtomValue(pageNameAtom);
 	const username = useAtomValue(usernameAtom);
 	const isDemo = mode === OverallMode.demo;
+	const isStudy = mode === OverallMode.study;
 
 	// This is a reference to the current document context
 	const docContextRef = useRef<DocContext>({
@@ -129,7 +130,7 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 			<p className="whitespace-pre-line">{section.content}</p>
 		</div>
 	))}
-	<h3 className="pt-1 font-bold border-t-2">Write Here</h3>
+	<h3 className="mt-4 pt-3 pb-3 font-bold border-t-2">Write Here</h3>
 	</>
 
 	return (
@@ -143,7 +144,7 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 					storageKey={ getStorageKey()}
 					preamble={ preamble }
 				/>
-				{ isDemo && (
+				{ (isDemo || isStudy) && (
 					<div className={ `${classes.wordCount}` }>
 						Words: { wordCount }
 					</div>
