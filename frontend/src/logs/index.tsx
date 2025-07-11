@@ -54,7 +54,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
         newEntry.secondsSinceStart = (entry.timestamp - entries[0].timestamp);
         lastTimestamp = entry.timestamp;
         return newEntry;
-    }).reverse();
+    });//.reverse();
 
     return (
         <table className="max-w-full border border-gray-300">
@@ -62,9 +62,9 @@ function EntriesTable({ entries }: { entries: Log[] }) {
                 <tr>
                     <th className="p-2">Timestamp</th>
                     <th className="p-2">Event</th>
+                    <th className="p-2">Type</th>
                     <th className="p-2">Prompt</th>
                     <th className="p-2">Result</th>
-                    <th className="p-2">Type</th>
                 </tr>
             </thead>
             <tbody>
@@ -72,9 +72,9 @@ function EntriesTable({ entries }: { entries: Log[] }) {
                     <tr key={i}>
                         <td className="p-2">{secondsToHMS(entry.secondsSinceStart)}</td>
                         <td className="p-2">{entry.event}{entry.interaction && ` (${entry.interaction})`}</td>
+                        <td className="p-2">{entry.generation_type}</td>
                         <td className="p-2"><Collapsible text={entry.prompt} /></td>
                         <td className="p-2"><Collapsible text={entry.result} /></td>
-                        <td className="p-2"><Collapsible text={entry.generation_type} /></td>
                     </tr>
                 ))}
             </tbody>
