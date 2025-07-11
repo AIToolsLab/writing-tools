@@ -13,6 +13,9 @@ const urlProd = 'https://app.thoughtful-ai.com';
 
 const backendDev = 'http://0.0.0.0:8000/';
 
+const idProd = '46d2493d-60db-4522-b2aa-e6f2c08d2508';
+const idDev = '46d2493d-60db-4522-b2aa-e6f2c08d2507';
+
 async function getHttpsOptions() {
 	const httpsOptions = await devCerts.getHttpsServerOptions();
 	return {
@@ -147,6 +150,7 @@ module.exports = async (env, options) => {
 								return content
 									.toString()
 									.replace(/\-dev/g, '')
+									.replace(new RegExp(idDev, 'g'), idProd)
 									.replace(new RegExp(urlDev, 'g'), urlProd);
 						}
 					}
