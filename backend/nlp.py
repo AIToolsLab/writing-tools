@@ -106,7 +106,7 @@ Guidelines:
 - Avoid using directive language like "consider", "you should", "mention", "highlight", etc. Instead, just state the observation.
 """,
     "analysis_describe": """\
-We're helping a writer draft a document. Give three descriptions of the document so far.
+We're helping a writer draft a document. Give three constructive critiques of the document so far.
 
 Guidelines:
 
@@ -114,6 +114,7 @@ Guidelines:
 - Don't give specific words or phrases for the writer to use.
 - Keep each description concise, less than 20 words.
 - Make each description very specific to the current document, not general observations that could apply to any document.
+- Each critique should be expressed as a sentence describing the document, not as a directive to the writer.
 """
 }
 
