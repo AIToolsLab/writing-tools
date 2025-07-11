@@ -38,6 +38,15 @@ except:
 
 
 prompts = {
+    "example_sentences": """\
+We're helping a writer draft a document. Please output three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next. Guidelines:
+
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- If the writer is in the middle of a sentence, output three possible continuations of that sentence.
+- If the writer is at the end of a paragraph, output three possible sentences that would start the next paragraph.
+- Each output should be *at most one sentence* long.
+- Use ellipses to truncate sentences that are longer than about 20 words.
+""",
     "proposal_advice": """\
 We're helping a writer draft a document. Please output three actionable, inspiring, and fresh directive instructions that would help the writer think about what they should write next. Guidelines:
 
