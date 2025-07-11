@@ -5,7 +5,6 @@
 
 .contextText p {
     word-break: break-all;
-    white-space: normal;
 }
 
 h4 {
@@ -459,15 +458,6 @@ h4 {
 	margin: 8px;
 }
 
-.historyItem li {
-	display: flex;
-	list-style-type: circle;
-}
-
-.historyText {
-	white-space: pre-wrap;
-}
-
 .savedIconsContainer {
 	display: flex;
 	flex-direction: column;
@@ -562,8 +552,4 @@ h4 {
 
 .historyDoc:hover {
 	color: #9c9ae1;
-}
-
-p {
-	margin: 0;
 }

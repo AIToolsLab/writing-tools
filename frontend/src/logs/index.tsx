@@ -13,6 +13,7 @@ interface Log {
     timestamp: number;
     isBackend: boolean;
     generation_type?: string;
+    currentDocumentState?: any;
 }
 
 interface LogWithAnnotatedTimestamp extends Log {
@@ -21,7 +22,7 @@ interface LogWithAnnotatedTimestamp extends Log {
 }   
 
 // Collapsible component for prompt/result/completion
-function Collapsible({ text, maxWidth = 200 }: { text: any, maxWidth?: number }) {
+function Collapsible({ text, maxWidth = 75, truncateEnd = true }: { text: any, maxWidth?: number, truncateEnd?: boolean }) {
     // If text is an object, render as JSON
     let displayText: string;
     if (typeof text === 'object' && text !== null) {
@@ -29,9 +30,19 @@ function Collapsible({ text, maxWidth = 200 }: { text: any, maxWidth?: number })
     } else {
         displayText = String(text ?? '');
     }
+
+    let summaryText = displayText;
+    if (displayText.length > maxWidth) {
+        if (truncateEnd) {
+            summaryText = displayText.slice(0, maxWidth - 3) + '…';
+        } else {
+            summaryText = '…' + displayText.slice(displayText.length - maxWidth + 3);
+        }
+    }
+
     return (
         <details className="whitespace-pre-wrap" style={{ maxWidth }} title={displayText}>
-            <summary className="truncate text-gray-500">{displayText.length > 100 ? displayText.slice(0, 100) + '…' : displayText}</summary>
+            <summary className="truncate text-gray-500">{summaryText}</summary>
             <pre className="whitespace-pre-wrap">{displayText}</pre>
         </details>
     );
@@ -46,6 +57,7 @@ function secondsToHMS(seconds: number) {
 
 function EntriesTable({ entries }: { entries: Log[] }) {
     let lastTimestamp: number | null = null;
+    let lastDocContext: any = null;
     const annotatedEntries = entries.map((entry) => {
         const newEntry = { ...entry } as LogWithAnnotatedTimestamp;
         if (lastTimestamp !== null) {
@@ -53,32 +65,123 @@ function EntriesTable({ entries }: { entries: Log[] }) {
         }
         newEntry.secondsSinceStart = (entry.timestamp - entries[0].timestamp);
         lastTimestamp = entry.timestamp;
+        if (entry.currentDocumentState) {
+            lastDocContext = entry.currentDocumentState;
+        } else {
+            newEntry.currentDocumentState = lastDocContext;
+        }
         return newEntry;
-    }).reverse();
+    }).filter((x) => x.event === 'suggestion_generated');
+
+    // Regenerations are tracked by index. null means requested but not yet completed (loading)
+    const [regenResults, setRegenResults] = useState<Record<number, string | null>>({});
+
+    // Which type of generation to regenerate
+    const uniqueGenerationTypes = ["example_sentences", "analysis_describe", "proposal_advice"];
+    const [regenType, setRegenType] = useState<string>(uniqueGenerationTypes[0]);
+
+    const regenerateSuggestion = async (gtype: string, docContext: any) => {
+        const resp = await fetch('/api/get_suggestion', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                username: 'regenerate',
+                gtype,
+                // eslint-disable-next-line camelcase
+                doc_context: docContext
+            })
+        });
+        if (!resp.ok) throw new Error(`Error: ${resp.status}`);
+        const data = await resp.json();
+        return data && typeof data === 'object' && 'result' in data ? data.result : JSON.stringify(data, null, 2);
+    };
+
+    // Regenerate all handler
+    const handleRegenerateAll = async () => {
+        const indices = annotatedEntries
+            .map((entry, idx) => ({ entry, idx }))
+            .map(({ idx }) => idx);
+        // Set all to loading (null) first
+        setRegenResults(indices.reduce((acc, i) => ({ ...acc, [i]: null }), {}));
+        await Promise.all(indices.map(async i => {
+            const entry = annotatedEntries[i];
+            let result: string;
+            try {
+                result = await regenerateSuggestion(regenType, entry.currentDocumentState);
+            } catch (err) {
+                result = (err as Error).message;
+            }
+            setRegenResults(prev => ({ ...prev, [i]: result }));
+        }));
+    };
 
     return (
-        <table className="max-w-full border border-gray-300">
-            <thead>
-                <tr>
-                    <th className="p-2">Timestamp</th>
-                    <th className="p-2">Event</th>
-                    <th className="p-2">Prompt</th>
-                    <th className="p-2">Result</th>
-                    <th className="p-2">Type</th>
-                </tr>
-            </thead>
-            <tbody>
-                {annotatedEntries.map((entry: LogWithAnnotatedTimestamp, i: number) => (
-                    <tr key={i}>
-                        <td className="p-2">{secondsToHMS(entry.secondsSinceStart)}</td>
-                        <td className="p-2">{entry.event}{entry.interaction && ` (${entry.interaction})`}</td>
-                        <td className="p-2"><Collapsible text={entry.prompt} /></td>
-                        <td className="p-2"><Collapsible text={entry.result} /></td>
-                        <td className="p-2"><Collapsible text={entry.generation_type} /></td>
+        <div>
+            <div className="mb-2 flex items-center gap-2">
+                <span className="font-semibold">Regenerate All:</span>
+                <select
+                    className="border rounded px-2 py-1"
+                    value={regenType}
+                    onChange={e => setRegenType(e.target.value)}
+                >
+                    {uniqueGenerationTypes.map(type => (
+                        <option key={type} value={type}>{type}</option>
+                    ))}
+                </select>
+                <button
+                    className="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition duration-150"
+                    onClick={handleRegenerateAll}
+                    disabled={annotatedEntries.length === 0}
+                >
+                    Regenerate All
+                </button>
+            </div>
+            <table className="max-w-full border border-gray-300">
+                <thead>
+                    <tr>
+                        <th className="p-2">Timestamp</th>
+                        <th className="p-2">Event</th>
+                        <th className="p-2">Type</th>
+                        <th className="p-2">Prompt</th>
+                        <th className="p-2">Result</th>
+                        <th className="p-2">Regen</th>
                     </tr>
-                ))}
-            </tbody>
-        </table>
+                </thead>
+                <tbody>
+                    {annotatedEntries.map((entry: LogWithAnnotatedTimestamp, i: number) => (
+                        <tr key={i}>
+                            <td className="p-2">{secondsToHMS(entry.secondsSinceStart)}</td>
+                            <td className="p-2">{entry.event}{entry.interaction && ` (${entry.interaction})`}</td>
+                            <td className="p-2">{entry.generation_type}</td>
+                            <td className="p-2"><Collapsible text={entry.prompt} truncateEnd={false} /></td>
+                            <td className="p-2"><Collapsible text={entry.result} /></td>
+                            <td className="p-2">
+                                {(regenResults[i] === null) && <div className="text-blue-500">Regenerating...</div>}
+                                {regenResults[i] && (
+                                    <div className="mb-2 p-2 bg-gray-100 rounded text-sm text-gray-800 whitespace-pre-wrap">{regenResults[i]}</div>
+                                )}
+                                <button
+                                    className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-150"
+                                    onClick={async () => {
+                                        setRegenResults(prev => ({ ...prev, [i]: null }));
+                                        let result: string;
+                                        try {
+                                            result = await regenerateSuggestion(regenType, entry.currentDocumentState);
+                                        } catch (err) {
+                                            result = (err as Error).message;
+                                        }
+                                        setRegenResults(prev => ({ ...prev, [i]: result }));
+                                    }}
+                                    disabled={regenResults[i] === null}
+                                >
+                                    Regenerate
+                                </button>
+                            </td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
+        </div>
     );
 }
 
@@ -191,8 +294,7 @@ function App() {
     // Filtered logs
     const desiredEntries = useMemo(() => {
         return logs.filter(x =>
-            (!username || x.username === username) &&
-            (x.event === 'suggestion_generated')
+            (!username || x.username === username)
         );
     }, [logs, username]);
 

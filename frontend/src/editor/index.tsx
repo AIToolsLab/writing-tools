@@ -199,7 +199,7 @@ Write a response in which you examine the stated and/or unstated assumptions of 
 					content: `You will write a professional email from the perspective of a fictional job applicant. Write a professional email to the hiring manager expressing your interest in the job position. Please read the following information carefully:`
 				},
 				{
-					title: "Your Role",
+					title: "Writer's Role",
 					content: `You are Sarah Martinez, writing an email about a job opportunity.`
 				},
 				{
@@ -240,9 +240,9 @@ However, CRISPR also raises important ethical questions, particularly regarding 
 	}
 
 	const letterToCondition = {
-  			e: 'Completion',
-  			q: 'Question',
-  			r: 'RMove'
+  			e: 'example_sentences',
+  			q: 'analysis_describe',
+  			r: 'proposal_advice'
 		};
 
 		// This is the mapping of condition order letter abbreviation received from the URL parameter (eg. eqr, req, ...) to conditions.

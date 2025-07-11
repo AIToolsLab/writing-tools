@@ -3,14 +3,12 @@ import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
-import { getBefore } from '@/utilities/selectionUtil';
 import { useContext, useState } from 'react';
 import {
 	AiOutlineClose,
 	AiOutlineReload,
 } from 'react-icons/ai';
 import { Remark } from 'react-remark';
-import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
 import { useAtomValue } from 'jotai';
 import { studyConditionAtom } from '@/contexts/studyContext';
@@ -19,7 +17,7 @@ import { studyConditionAtom } from '@/contexts/studyContext';
 
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
-	return <Remark>{ generation.result }</Remark>;
+	return <div className='prose'><Remark>{ generation.result }</Remark></div>;
 }
 
 function SavedGenerations({
@@ -88,9 +86,6 @@ export default function Draft() {
 	const { getAccessToken, authErrorType } = useAccessToken();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
-	const [generation, updateGeneration] = useState<GenerationResult | null>(
-		null
-	);
 	const [errorMsg, updateErrorMsg] = useState('');
 
 	function save(generation: GenerationResult, document: DocContext) {
@@ -128,22 +123,17 @@ export default function Draft() {
 		updateSavedItems(newSaved);
 	}
 
-	const beforeContext = getBefore(docContext);
-
 	// Get a generation from the backend
-	async function getGeneration(
-		username: string,
+	async function getSuggestion(
 		type: string,
-		contextText: string
 	) {
-		updateGeneration(null);
 		updateErrorMsg('');
 
 		setIsLoading(true);
 
 		try {
 			const token = await getAccessToken();
-			const response = await fetch(`${SERVER_URL}/generation`, {
+			const response = await fetch(`${SERVER_URL}/get_suggestion`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -152,7 +142,8 @@ export default function Draft() {
 				body: JSON.stringify({
 					username: username,
 					gtype: type,
-					prompt: contextText
+					// eslint-disable-next-line camelcase
+					doc_context: docContext
 				}),
 				signal: AbortSignal.timeout(20000)
 			});
@@ -161,7 +152,6 @@ export default function Draft() {
 			}
 			updateErrorMsg('');
 			const generated = await response.json() as GenerationResult;
-			updateGeneration(generated);
 			save(generated, docContext);
 		}
 		catch (err: any) {
@@ -172,13 +162,12 @@ export default function Draft() {
 			else errMsg = `${err.name}: ${err.message}. Please try again.`;
 
 			updateErrorMsg(errMsg);
-			updateGeneration(null);
 			log({
 				username: username,
 				event: "generation_error",
 				// eslint-disable-next-line camelcase
 				generation_type: type,
-				prompt: contextText,
+				docContext: docContext,
 				result: errMsg
 			});
 			return;
@@ -203,17 +192,17 @@ export default function Draft() {
 		);
 	}
 
-	let results = null;
+	let alerts = null;
 
 	if (errorMsg !== '')
-		results = (
+		alerts = (
 			<div className= "mr-[16px] ml-[16px] p-[16px] duration-150">
 				<div className="text-base text-red-500 text-center">{ errorMsg }</div>
 			</div>
 		);
-	else if (generation === null)
+	else if (savedItems.length === 0)
 		if (!docContext.beforeCursor.trim())
-			results = (
+			alerts = (
 				<div className="mt-4 ml-4 mr-4 p-4 transition duration-150">
 					<div className="text-sm text-gray-500 text-center transition duration-150">
 						Write something in the document to get started!
@@ -221,16 +210,16 @@ export default function Draft() {
 				</div>
 			);
 		else
-			results = (
+			alerts = (
 				<div className="mt-4 ml-4 mr-4 p-0 transition duration-150">
-					<div className="text-sm text-gray-500 text-center transition duration-150">
+					<div className="text-sm text-stone-950 text-center transition duration-150">
 						Click the button above to generate a suggestion.
 					</div>
 				</div>
 			);
 
-	if (isLoading && !generation)
-		results = (
+	if (isLoading)
+		alerts = (
 			<div className={ classes.spinnerWrapper }>
 				<div className={ classes.loader }></div>
 			</div>
@@ -247,24 +236,23 @@ export default function Draft() {
 				>
 						<button
 							className={ classes.optionsButton }
-							disabled={ docContext.beforeCursor === '' || isLoading }
+							disabled={ isLoading }
 							onClick={ async () => {
 								log({
 									username: username,
 									event: "request_suggestion",
 									// eslint-disable-next-line camelcase
 									generation_type: studyCondition,
-									prompt: beforeContext
+									docContext: docContext
 								});
-								if (beforeContext === '') return;
-								getGeneration(username, studyCondition, beforeContext);
+								getSuggestion(studyCondition);
 							} }
 						>
 							<AiOutlineReload/>
 						</button>
 					</div>
 			</div>
-			{ results }
+			{ alerts }
 
 				<SavedGenerations
 					savedItems={ savedItems }

@@ -8,8 +8,8 @@
     font-weight: 400;
     text-align: left;
     box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
-    padding: 50px 50px 50px 50px; /* NEW: Add right padding to the editor container instead of doing that in editor */
-    height: 80vh; /* NEW: Set height to 80vh for the editor container */
+    padding: 10px;
+    height: 80vh;
 }
 
 /* Controls CSS for editor in all the pages (editor, demo, study) */
