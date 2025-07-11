@@ -254,6 +254,16 @@ However, CRISPR also raises important ethical questions, particularly regarding 
 		return result;
 	}
 
+		// This assigns generic labels to each task based on the order of the input string.
+		function mapInputToLabels(input: string) {
+			const result: Record<string, { condition: string }> = {};
+			const taskLabel = ['Type A', 'Type B', 'Type C'];
+			input.split('').forEach((_, idx) => {
+				result[(idx + 1).toString()] = { condition: taskLabel[idx] };
+			});
+			return result;
+	}
+
 function Router({
 	page
 }: {
@@ -297,6 +307,7 @@ function Router({
 		}
 
 		const conditionConfigs = mapInputToDict(conditionOrder);
+		const labelConfigs = mapInputToLabels(conditionOrder);
 
 		const studyPageIndex = studyPageNames.indexOf(page);
 		if (studyPageIndex === -1) {
@@ -307,8 +318,8 @@ function Router({
 
 		if (page === 'study-consentForm') {
 			const nextUrlParams = new URLSearchParams(window.location.search);
-      nextUrlParams.set('page', nextPage);
-      const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+			nextUrlParams.set('page', nextPage);
+			const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
 			const consentFormURL = SURVEY_URLS.consentForm;
 
 			return <div className={classes.studyIntroContainer}>
@@ -379,15 +390,18 @@ function Router({
 
 			const taskNumber = page.replace('study-startTask', '');
 			const conditionConfig = conditionConfigs[taskNumber as keyof typeof conditionConfigs];
+			const labelConfig = labelConfigs[taskNumber as keyof typeof labelConfigs];
 
 			if (!conditionConfig) {
 				return <div>Invalid task number</div>;
 			}
 
 			const taskCondition = conditionConfig.condition;
+			const taskLabel = labelConfig.condition;
 
 			return (
 				<div className={classes.studyIntroContainer}>
+					<p> Now you will start task {taskNumber} of 3. <br/> In this task, you will be using Suggestion {taskLabel}. </p>
 					<button
 						onClick={() => {
 							log({
@@ -457,16 +471,19 @@ function Router({
 			const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
 			const taskNumber = page.replace('study-postTask', '');
 			const conditionConfig = conditionConfigs[taskNumber as keyof typeof conditionConfigs];
+			const labelConfig = labelConfigs[taskNumber as keyof typeof labelConfigs];
 
 			if (!conditionConfig) {
 				return <div>Invalid task number</div>;
 			}
 
 			const taskCondition = conditionConfig.condition;
+			const taskLabel = labelConfig.condition;
+
 			const postTaskSurveyURL = SURVEY_URLS.postTask;
 
 			return <div className={classes.studyIntroContainer}>
-				<p> Thank you for completing Task {taskNumber}. Please take a moment to complete a brief survey.</p>
+				<p> Thank you for completing Task {taskNumber} using Suggestion {taskLabel}. <br/> Please take a moment to complete a brief survey.</p>
 				<a
 					onClick={() => {
 						log ({
@@ -476,7 +493,7 @@ function Router({
 							condition: taskCondition
 						});
 					}}
-					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${taskCondition}&task=${taskNumber}`}
+					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${taskCondition}&task=${taskNumber}&suggestion_type=${taskLabel}`}
 					className={classes.startButton}
 				>
 					Take the Post Task Survey
