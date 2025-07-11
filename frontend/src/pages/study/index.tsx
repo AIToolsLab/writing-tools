@@ -9,7 +9,6 @@ import {
 	AiOutlineReload,
 } from 'react-icons/ai';
 import { Remark } from 'react-remark';
-import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
 import { useAtomValue } from 'jotai';
 import { studyConditionAtom } from '@/contexts/studyContext';
@@ -147,6 +146,7 @@ export default function Draft() {
 				body: JSON.stringify({
 					username: username,
 					gtype: type,
+					// eslint-disable-next-line camelcase
 					doc_context: docContext
 				}),
 				signal: AbortSignal.timeout(20000)
