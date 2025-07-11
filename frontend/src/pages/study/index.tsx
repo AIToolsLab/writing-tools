@@ -18,7 +18,7 @@ import { studyConditionAtom } from '@/contexts/studyContext';
 
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
-	return <Remark>{ generation.result }</Remark>;
+	return <div className='prose'><Remark>{ generation.result }</Remark></div>;
 }
 
 function SavedGenerations({
