@@ -22,6 +22,7 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 	const page = useAtomValue(pageNameAtom);
 	const username = useAtomValue(usernameAtom);
 	const isDemo = mode === OverallMode.demo;
+	const isStudy = mode === OverallMode.study;
 
 	// This is a reference to the current document context
 	const docContextRef = useRef<DocContext>({
@@ -129,7 +130,7 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 			<p className="whitespace-pre-line">{section.content}</p>
 		</div>
 	))}
-	<h3 className="pt-1 font-bold border-t-2">Write Here</h3>
+	<h3 className="mt-4 pt-3 pb-3 font-bold border-t-2">Write Here</h3>
 	</>
 
 	return (
@@ -143,7 +144,7 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 					storageKey={ getStorageKey()}
 					preamble={ preamble }
 				/>
-				{ isDemo && (
+				{ (isDemo || isStudy) && (
 					<div className={ `${classes.wordCount}` }>
 						Words: { wordCount }
 					</div>
@@ -315,8 +316,7 @@ function Router({
 					onClick={() => {
 						log ({
 							username: username,
-							event: 'ConsentForm',
-							interaction: 'User clicked Consent Form button'
+							event: 'Consent Form'
 						});
 ;					}}
 					href={`${consentFormURL}?redirect_url=${redirectURL}&username=${username}`}
@@ -330,17 +330,16 @@ function Router({
 			return <div className={classes.studyIntroContainer}>
             <h1>Welcome!</h1>
             <p>
-				Thank you for agreeing to participate in our writing study. You'll complete three writing tasks on different topics.
-				As you write, pay attention to the suggestions the writing tool offers and use them when
+				Thank you for agreeing to participate in our writing study. You will be working on three different writing tasks. Each task will have a different type of writing support.
+				As you write, please pay attention to the suggestions the writing tool offers and use them when
 				they seem helpful. There are no right or wrong ways to interact with the tool.
-				Your responses will be kept confidential. You can ask questions at any time.
+				Your responses will be kept confidential.
             </p>
 				<button
 					onClick={() => {
 						log ({
 							username: username,
-							event: 'StartStudy',
-							interaction: 'User clicked Start Study button'
+							event: 'Started Study'
 						});
 						urlParams.set('page', nextPage)
 						window.location.search = urlParams.toString();
@@ -364,8 +363,7 @@ function Router({
 					onClick={() => {
 							log ({
 								username: username,
-								event: 'StartIntroSurvey',
-								interaction: 'User clicked Intro Survey button'
+								event: 'Intro Survey'
 							});
 	;					}}
 					href={`${introSurveyURL}?redirect_url=${redirectURL}&username=${username}`}
@@ -379,8 +377,8 @@ function Router({
 		else if (page.startsWith('study-startTask')) {
 			const urlParams = new URLSearchParams(window.location.search);
 
-			const startTaskNumber = page.replace('study-startTask', '');
-			const conditionConfig = conditionConfigs[startTaskNumber as keyof typeof conditionConfigs];
+			const taskNumber = page.replace('study-startTask', '');
+			const conditionConfig = conditionConfigs[taskNumber as keyof typeof conditionConfigs];
 
 			if (!conditionConfig) {
 				return <div>Invalid task number</div>;
@@ -394,8 +392,8 @@ function Router({
 						onClick={() => {
 							log({
 								username: username,
-								event: `StartTask${startTaskNumber}`,
-								interaction: `User started Task ${startTaskNumber}`,
+								event: `Started Task ${taskNumber}`,
+								taskNumber: taskNumber,
 								condition: taskCondition
 							});
 							urlParams.set('page', nextPage);
@@ -403,7 +401,7 @@ function Router({
 						}}
 						className={classes.startButton}
 					>
-						Start Task {startTaskNumber}
+						Start Task {taskNumber}
 					</button>
 				</div>
 			);
@@ -415,11 +413,17 @@ function Router({
 			const curTaskContexts = taskContexts[taskNumber as keyof typeof taskContexts];
 			const conditionConfig =  conditionConfigs[taskNumber as keyof typeof conditionConfigs];
 
+			if (!conditionConfig) {
+				return <div>Invalid task number</div>;
+			}
+
+			const taskCondition = conditionConfig.condition;
+
 			if (!curTaskContexts) {
 				return <div>Invalid task number</div>;
 		}
 			const taskID = `task${taskNumber}`;
-			getDefaultStore().set(studyConditionAtom, conditionConfig.condition);
+			getDefaultStore().set(studyConditionAtom, taskCondition);
 			getDefaultStore().set(currentTaskContextAtom, curTaskContexts);
 
 			return (
@@ -433,9 +437,9 @@ function Router({
 						onClick={() => {
 							log({
 								username: username,
-								event: `FinishTask${taskNumber}`,
-								taskID: taskID,
-								interaction: `User finished Task ${taskNumber}`
+								event: `Finished Task ${taskNumber}`,
+								taskNumber: taskNumber,
+								condition: taskCondition
 							});
 							urlParams.set('page', nextPage);
 							window.location.search = urlParams.toString();
@@ -451,25 +455,31 @@ function Router({
 			const nextUrlParams = new URLSearchParams(window.location.search);
 			nextUrlParams.set('page', nextPage);
 			const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
-			const postTaskNumber = page.replace('study-postTask', '');
-			const conditionConfig = conditionConfigs[postTaskNumber as keyof typeof conditionConfigs];
-			const condition = conditionConfig.condition;
+			const taskNumber = page.replace('study-postTask', '');
+			const conditionConfig = conditionConfigs[taskNumber as keyof typeof conditionConfigs];
+
+			if (!conditionConfig) {
+				return <div>Invalid task number</div>;
+			}
+
+			const taskCondition = conditionConfig.condition;
 			const postTaskSurveyURL = SURVEY_URLS.postTask;
 
 			return <div className={classes.studyIntroContainer}>
-				<p> Thank you for completing Task {postTaskNumber}. Please take a moment to complete a brief survey.</p>
+				<p> Thank you for completing Task {taskNumber}. Please take a moment to complete a brief survey.</p>
 				<a
 					onClick={() => {
 						log ({
 							username: username,
-							event: `StartPostTask${postTaskNumber}`,
-							interaction: `User started post task ${postTaskNumber} survey with condition ${condition}`
+							event: `Started Post Task Survey ${taskNumber}`,
+							taskNumber: taskNumber,
+							condition: taskCondition
 						});
 					}}
-					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${condition}`}
+					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${taskCondition}&task=${taskNumber}`}
 					className={classes.startButton}
 				>
-					Take Survey
+					Take the Post Task Survey
 				</a>
 			</div>;
 		}
@@ -492,14 +502,13 @@ function Router({
 					onClick={() => {
 							log ({
 								username: username,
-								event: 'PostStudySurvey',
-								interaction: 'User clicked final Post Study Survey button'
+								event: 'Started Final Survey'
 							});
 ;					}}
 					href={`${postStudySurveyURL}?redirect_url=${redirectURL}&username=${username}`}
 					className={classes.startButton}
 					>
-					Take the Post Study Survey
+					Take the Final Survey
 					</a>
 				</div>
 			);
