@@ -11,9 +11,10 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const urlDev = 'https://localhost:3000';
 const urlProd = 'https://app.thoughtful-ai.com';
 
+const backendDev = 'http://0.0.0.0:8000/';
+
 const idProd = '46d2493d-60db-4522-b2aa-e6f2c08d2508';
 const idDev = '46d2493d-60db-4522-b2aa-e6f2c08d2507';
-
 
 async function getHttpsOptions() {
 	const httpsOptions = await devCerts.getHttpsServerOptions();
@@ -53,7 +54,9 @@ module.exports = async (env, options) => {
 		    commands: './src/commands/commands.ts'
 		},
 		output: {
-			clean: true
+			clean: true,
+			filename: '[name].[contenthash].js',
+			chunkFilename: '[name].[contenthash].js'
 		},
 		resolve: {
 			alias: {
@@ -84,17 +87,44 @@ module.exports = async (env, options) => {
 					test: /\.(png|jpg|jpeg|ttf|woff|woff2|gif|ico)$/,
 					type: 'asset/resource',
 					generator: {
-						filename: 'assets/[name][ext][query]'
+						filename: 'assets/[name].[contenthash][ext][query]'
 					}
 				},
+				// CSS Modules: only for *.module.css
 				{
-					test: /\.css$/,
+					test: /\.module\.css$/,
+					exclude: /node_modules/,
 					use: [
 						{
 							loader: 'style-loader'
 						},
 						{
-							loader: 'css-loader'
+							loader: 'css-loader',
+							options: {
+								modules: true
+							}
+						},
+						{
+							loader: 'postcss-loader',
+						}
+					]
+				},
+				// Global CSS (including Tailwind): all other .css files
+				{
+					test: /(?<!\.module)\.css$/,
+					exclude: /node_modules/,
+					use: [
+						{
+							loader: 'style-loader'
+						},
+						{
+							loader: 'css-loader',
+							options: {
+								modules: false
+							}
+						},
+						{
+							loader: 'postcss-loader',
 						}
 					]
 				}
@@ -137,6 +167,11 @@ module.exports = async (env, options) => {
 				chunks: ['editor', 'react']
 			}),
 			new HtmlWebpackPlugin({
+				filename: 'logs.html',
+				template: './src/logs/logs.html',
+				chunks: ['logs', 'react']
+			}),
+			new HtmlWebpackPlugin({
 				filename: 'popup.html',
 				template: './src/popup.html',
 				chunks: ['polyfill', 'popup', 'react']
@@ -170,7 +205,7 @@ module.exports = async (env, options) => {
 			proxy: [
 				{
 					context: ['/api'],
-					target: 'https://textfocals.azurewebsites.net/',
+					target: backendDev,
 					changeOrigin: true
 				}
 			],

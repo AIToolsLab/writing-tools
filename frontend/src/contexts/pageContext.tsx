@@ -1,28 +1,19 @@
-import { PropsWithChildren, createContext, useState } from 'react';
+import { atom } from "jotai";
+
 export enum PageName {
 	Revise = 'revise',
 	SearchBar = 'searchbar',
 	Chat = 'chat',
-	Draft = 'draft'
+	Draft = 'draft',
+	Study = 'study'
   }
 
 
-export const PageContext = createContext<{
-  page: PageName;
-  changePage: (page: PageName) => void;
-}>({
-  page: PageName.Draft,
-  changePage: () => {},
-});
-
-export default function PageContextWrapper({
-	children
-}: PropsWithChildren<any>) {
-	const [page, updatePage] = useState(PageName.Draft);
-
-	return (
-		<PageContext.Provider value={ { page, changePage: updatePage } }>
-			{ children }
-		</PageContext.Provider>
-	);
+export enum OverallMode {
+	full = 'full',
+	demo = 'demo',
+	study = 'study'
 }
+
+export const pageNameAtom = atom<PageName>(PageName.Draft);
+export const overallModeAtom = atom<OverallMode>(OverallMode.full);

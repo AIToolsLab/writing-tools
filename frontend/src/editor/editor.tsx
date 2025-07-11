@@ -148,11 +148,16 @@ function getCursorText(aNode: any, aOffset: any, mode: string): string {
 
 function LexicalEditor({
 	updateDocContext,
-	initialState
+	initialState,
+	storageKey = 'doc',
+	preamble
 }: {
 	updateDocContext: (docContext: DocContext) => void;
 	initialState: InitialEditorStateType | null;
+	storageKey?: string;
+	preamble?: React.ReactNode
 }) {
+
 	return (
 		<>
 			<LexicalComposer // Main editor component
@@ -166,9 +171,11 @@ function LexicalEditor({
 				} }
 			>
 				<div className={ classes.editorContainer }>
+					<div className={ classes.editor }>
+					{ preamble && <div className="whitespace-pre-line">{preamble}</div> }
 					<RichTextPlugin
 						contentEditable={
-							<ContentEditable className={ classes.editor } />
+							<ContentEditable className={classes.editor} />
 						}
 						placeholder={ <div className={ classes.placeholder } /> }
 						ErrorBoundary={ LexicalErrorBoundary }
@@ -182,14 +189,11 @@ function LexicalEditor({
 								updateDocContext(docContext);
 
 								localStorage.setItem(
-									'doc',
+									storageKey,
 									JSON.stringify(editorState)
 								);
 								const currentDate = new Date().toISOString();
-								localStorage.setItem(
-									'doc-date',
-									currentDate
-								);
+								localStorage.setItem(`${storageKey}-date`, currentDate);
 							});
 						} }
 					/>
@@ -197,6 +201,7 @@ function LexicalEditor({
 					<AutoFocusPlugin />
 
 					<HistoryPlugin />
+				</div>
 				</div>
 			</LexicalComposer>
 		</>

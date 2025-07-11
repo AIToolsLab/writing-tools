@@ -3,7 +3,7 @@ export const SERVER_URL = '/api';
 // Define a type for payload. Includes at least: eventType and username
 export interface LogPayload {
 	username: string;
-	interaction: string;
+	event: string;
 	[key: string]: any;
 }
 
@@ -59,17 +59,15 @@ export async function getReflection(
 	username: string,
 	paragraph: string,
 	prompt: string,
-	getAccessTokenSilently: () => Promise<string>
+	getAccessToken: () => Promise<string>
 ): Promise<ReflectionResponseItem[]> {
-	try {
 		const key = JSON.stringify({ prompt, paragraph });
 
 		const cachedResponse = localStorage.getItem(key);
 		// ASSUMES that cachedResponse is valid JSON
 
 		if (cachedResponse) return JSON.parse(cachedResponse);
-		const token = await getAccessTokenSilently();
-
+		const token = await getAccessToken();
 		const data = {
 			username: username,
 			paragraph,
@@ -100,11 +98,4 @@ export async function getReflection(
 		localStorage.setItem(key, JSON.stringify(relfectionResponses));
 
 		return relfectionResponses;
-	}
-	catch (error) {
-		// TODO: Log errors better
-		// console.error(error);
-		// debugger;
-		return [];
-	}
 }
