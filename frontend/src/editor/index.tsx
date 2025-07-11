@@ -189,7 +189,10 @@ const taskContexts: Record<string, ContextSection[]> = {
 					title: "Prompt",
 					content: `The marketing director of RetailMax stated: 'Shifting our entire advertising budget to social media influencer partnerships will triple our sales among consumers aged 18-34. Influencer marketing generates 6 times higher engagement rates than traditional advertising. Young consumers trust influencer recommendations more than celebrity endorsements or TV commercials. This strategy will establish our brand as the preferred choice for the next generation of shoppers.'
 
-Write a response in which you examine the stated and/or unstated assumptions of the argument. Be sure to explain how the argument depends on the assumptions and what the implications are if the assumptions prove unwarranted.`
+Write a response in which you examine the stated and/or unstated assumptions of the argument. Be sure to explain how the argument depends on the assumptions and what the implications are if the assumptions prove unwarranted.
+
+Keep in mind that you have about 15 minutes to write around 150-200 words to complete this task. 
+Please, click the "Save and Continue" once done. `
 
 				}
 			],
@@ -401,7 +404,7 @@ function Router({
 
 			return (
 				<div className={classes.studyIntroContainer}>
-					<p> Now you will start task {taskNumber} of 3. <br/> In this task, you will be using Suggestion {taskLabel}. You have about 13-15 minutes to write around 150-200 words to complete this task.</p>
+					<p> Now you will start task {taskNumber} of 3. <br/> In this task, you will be using Suggestion {taskLabel}.</p>
 					<button
 						onClick={() => {
 							log({
