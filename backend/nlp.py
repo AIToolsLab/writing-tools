@@ -87,7 +87,7 @@ We're helping a writer draft a document. List three ways in which this document 
 
 - Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
 - Don't give specific words or phrases for the writer to use.
-- Keep each observation concise.
+- Keep each observation concise, less than 20 words.
 - Make each observation very specific to the current document, not general observations that could apply to any document.
 - Use short quotes from the document, when necessary, to illustrate the issue.
 - Don't tell the writer what to do. Just state expectations that are not met.
