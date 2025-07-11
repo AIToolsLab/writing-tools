@@ -343,7 +343,7 @@ function Router({
             <p>
 				Thank you for agreeing to participate in our writing study. You will be working on three different writing tasks. Each task will have a different type of writing support.
 				As you write, please pay attention to the suggestions the writing tool offers and use them when
-				they seem helpful. There are no right or wrong ways to interact with the tool. You have about 15 minutes to write 150-200 words for each tasks.
+				they seem helpful. There are no right or wrong ways to interact with the tool. You have about 13-15 minutes to write 150-200 words for each tasks.
 				Your responses will be kept confidential.
             </p>
 				<button
