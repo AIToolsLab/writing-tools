@@ -401,7 +401,7 @@ function Router({
 
 			return (
 				<div className={classes.studyIntroContainer}>
-					<p> Now you will start task {taskNumber} of 3. <br/> In this task, you will be using Suggestion {taskLabel}. </p>
+					<p> Now you will start task {taskNumber} of 3. <br/> In this task, you will be using Suggestion {taskLabel}. You have about 13-15 minutes to write around 150-200 words to complete this task.</p>
 					<button
 						onClick={() => {
 							log({
