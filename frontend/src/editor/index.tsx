@@ -401,7 +401,7 @@ function Router({
 
 			return (
 				<div className={classes.studyIntroContainer}>
-					<p> Now you will start task {taskNumber} of 3. <br/> In this task, you will be using Suggestion {taskLabel} </p>
+					<p> Now you will start task {taskNumber} of 3. <br/> In this task, you will be using Suggestion {taskLabel}. </p>
 					<button
 						onClick={() => {
 							log({
