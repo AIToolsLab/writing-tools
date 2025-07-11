@@ -86,9 +86,6 @@ export default function Draft() {
 	const { getAccessToken, authErrorType } = useAccessToken();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
-	const [generation, updateGeneration] = useState<GenerationResult | null>(
-		null
-	);
 	const [errorMsg, updateErrorMsg] = useState('');
 
 	function save(generation: GenerationResult, document: DocContext) {
@@ -130,7 +127,6 @@ export default function Draft() {
 	async function getSuggestion(
 		type: string,
 	) {
-		updateGeneration(null);
 		updateErrorMsg('');
 
 		setIsLoading(true);
@@ -156,7 +152,6 @@ export default function Draft() {
 			}
 			updateErrorMsg('');
 			const generated = await response.json() as GenerationResult;
-			updateGeneration(generated);
 			save(generated, docContext);
 		}
 		catch (err: any) {
@@ -167,7 +162,6 @@ export default function Draft() {
 			else errMsg = `${err.name}: ${err.message}. Please try again.`;
 
 			updateErrorMsg(errMsg);
-			updateGeneration(null);
 			log({
 				username: username,
 				event: "generation_error",
@@ -198,17 +192,17 @@ export default function Draft() {
 		);
 	}
 
-	let results = null;
+	let alerts = null;
 
 	if (errorMsg !== '')
-		results = (
+		alerts = (
 			<div className= "mr-[16px] ml-[16px] p-[16px] duration-150">
 				<div className="text-base text-red-500 text-center">{ errorMsg }</div>
 			</div>
 		);
-	else if (generation === null)
+	else if (savedItems.length === 0)
 		if (!docContext.beforeCursor.trim())
-			results = (
+			alerts = (
 				<div className="mt-4 ml-4 mr-4 p-4 transition duration-150">
 					<div className="text-sm text-gray-500 text-center transition duration-150">
 						Write something in the document to get started!
@@ -216,16 +210,16 @@ export default function Draft() {
 				</div>
 			);
 		else
-			results = (
+			alerts = (
 				<div className="mt-4 ml-4 mr-4 p-0 transition duration-150">
-					<div className="text-sm text-gray-500 text-center transition duration-150">
+					<div className="text-sm text-stone-950 text-center transition duration-150">
 						Click the button above to generate a suggestion.
 					</div>
 				</div>
 			);
 
-	if (isLoading && !generation)
-		results = (
+	if (isLoading)
+		alerts = (
 			<div className={ classes.spinnerWrapper }>
 				<div className={ classes.loader }></div>
 			</div>
@@ -258,7 +252,7 @@ export default function Draft() {
 						</button>
 					</div>
 			</div>
-			{ results }
+			{ alerts }
 
 				<SavedGenerations
 					savedItems={ savedItems }
