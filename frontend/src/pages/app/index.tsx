@@ -175,7 +175,7 @@ function AppInner({ editorAPI }: HomeProps) {
 						editorAPI.doLogout(auth0Client);
 					} }
 				>
-					LogOut
+					Sign Out
 				</button>
 			</div>
 		);
@@ -232,7 +232,7 @@ function AppInner({ editorAPI }: HomeProps) {
 					editorAPI.doLogout(auth0Client);
 				} }
 				>
-					LogOut
+					Sign Out
 				</button>
 			</div>
 		) }
