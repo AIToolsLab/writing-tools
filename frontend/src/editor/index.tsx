@@ -1,10 +1,10 @@
+import { useRef, useState, StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
 import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
 import { studyConditionAtom, currentTaskContextAtom } from '@/contexts/studyContext';
 import * as SidebarInner from '@/pages/app';
 import { Auth0ContextInterface} from '@auth0/auth0-react';
 import { getDefaultStore, useAtomValue } from 'jotai';
-import { useRef, useState } from 'react';
-import ReactDOM from 'react-dom';
 import LexicalEditor from './editor';
 import './styles.css';
 import classes from './styles.module.css';
@@ -548,9 +548,12 @@ function Router({
 const urlParams = new URLSearchParams(window.location.search);
 const page = urlParams.get('page');
 
-ReactDOM.render(
-  <Router
-    page = { page || 'editor' }
-  />,
-  document.getElementById('container')
+const container = document.getElementById('container')!;
+const root = createRoot(container);
+root.render(
+	<StrictMode>
+		<Router
+			page={page || 'editor'}
+		/>
+	</StrictMode>
 );
