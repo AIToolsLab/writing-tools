@@ -63,6 +63,7 @@ We're helping a writer draft a document. Please output three possible options fo
 - Focus on the area of the document that is currently being written.
 - If the writer is in the middle of a sentence, output three possible continuations of that sentence.
 - If the writer is at the end of a paragraph, output three possible sentences that would start the next paragraph.
+- The three sentences should be three different paths that the writer could take, each starting from the current point in the document; they do **NOT** go in sequence.
 - Each output should be *at most one sentence* long.
 - Use ellipses to truncate sentences that are longer than about 20 words.
 """,
