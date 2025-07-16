@@ -1,15 +1,15 @@
 services:
   frontend:
     ports:
-      - "19571:80"
+      - "5001:80"
     environment:
       - NODE_ENV=production
 
   backend:
-    ports: []
+    ports:
+      - "5000:5000"
     environment:
-      - PORT=5000
-      - DEBUG=False
+      - DEBUG=True
       - OPENAI_API_KEY=${OPENAI_API_KEY}
 
 networks:

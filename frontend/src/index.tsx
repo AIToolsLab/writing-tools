@@ -22,7 +22,7 @@ const render = (Component: React.ComponentType<HomeProps>) => {
 	}
 	root.render(
 		<StrictMode>
-			<Component editorAPI={ wordEditorAPI } demoMode={ false } />
+			<Component editorAPI={ wordEditorAPI } />
 		</StrictMode>
 	);
 };

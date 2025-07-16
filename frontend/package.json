@@ -51,6 +51,8 @@
 		"@babel/core": "^7.24.0",
 		"@babel/preset-env": "^7.25.4",
 		"@babel/preset-typescript": "^7.23.3",
+		"@biomejs/biome": "2.0.6",
+		"@tailwindcss/typography": "^0.5.16",
 		"@types/mocha": "^10.0.6",
 		"@types/node": "^20.11.25",
 		"@types/office-js": "^1.0.377",
@@ -96,7 +98,7 @@
 		"typescript": "^5.4.2",
 		"webpack": "^5.95.0",
 		"webpack-cli": "^5.1.4",
-		"webpack-dev-server": "5.1.0"
+		"webpack-dev-server": "5.2.1"
 	},
 	"browserslist": [
 		"ie 11"

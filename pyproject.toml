@@ -10,7 +10,7 @@ dependencies = [
     "en-core-web-sm",
     "fastapi>=0.115.0",
     "gunicorn>=23.0.0",
-    "openai>=1.47.0",
+    "openai>=1.93",
     "python-dotenv>=1.0.1",
     "spacy>=3.8",
     "sse-starlette>=2.1.3",
