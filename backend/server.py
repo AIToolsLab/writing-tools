@@ -68,6 +68,12 @@ class GenerationRequestPayload(BaseModel):
     prompt: str
 
 
+class SuggestionRequestWithDocContext(BaseModel):
+    username: ValidatedUsername
+    gtype: str
+    doc_context: nlp.DocContext
+
+
 class ReflectionRequestPayload(BaseModel):
     username: ValidatedUsername
     paragraph: str  # TODO: update name
@@ -182,6 +188,38 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
     logger.info(f"Total generation request operation took: {log.total_seconds()} seconds")
     return result
 
+
+@app.post("/api/get_suggestion")
+async def get_suggestion(payload: SuggestionRequestWithDocContext, background_tasks: BackgroundTasks) -> nlp.GenerationResult:
+    should_log_doctext = should_log(payload.username)
+
+    start_time = datetime.now()
+    allowed_gtypes = list(nlp.prompts.keys())
+    if payload.gtype not in allowed_gtypes:
+        raise ValueError(f"Invalid generation type: {payload.gtype}")
+    result = await nlp.get_suggestion(payload.gtype, payload.doc_context)
+    end_time = datetime.now()
+
+    # log_entry = GenerationLog(
+    #     timestamp=end_time.timestamp(),
+    #     username=payload.username,
+    #     event="suggestion_generated",
+    #     generation_type=payload.gtype,
+    #     prompt=payload.prompt if should_log_doctext else "",
+    #     result=result.result if should_log_doctext else "",
+    #     delay=(end_time - start_time).total_seconds(),
+    # )
+    # # add on extra data
+    # if should_log_doctext:
+    #     for key, value in result.extra_data.items():
+    #         if not hasattr(log_entry, key):
+    #             setattr(log_entry, key, value)
+    # background_tasks.add_task(make_log, log_entry)
+
+    final_end_time = datetime.now()
+    log = final_end_time - start_time
+    logger.info(f"Total generation request operation took: {log.total_seconds()} seconds")
+    return result
 
 
 @app.post("/api/reflections")

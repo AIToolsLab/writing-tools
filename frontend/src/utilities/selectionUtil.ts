@@ -6,12 +6,16 @@
  * @returns A string concatenating the text before cursor, selected text, and the first word from text after cursor
  */
 export function getBefore(docContext: DocContext): string {
-  const { beforeCursor, selectedText, afterCursor } = docContext;
+  const { contextData, beforeCursor, selectedText, afterCursor } = docContext;
+
+  const joinedContextData = contextData ?
+    contextData.map((section) => `## ${section.title}\n\n${section.content}\n\n`).join('') + '\n\n---\n\n' :
+    '';
 
   // Complete the word if the end of the last word is not complete
   // treat both space and \r as word separators
   const completeWord = afterCursor.split(/[ \r]/, 1)[0];
-  return beforeCursor + selectedText + completeWord;
+  return joinedContextData + beforeCursor + selectedText + completeWord;
 }
 
 /**

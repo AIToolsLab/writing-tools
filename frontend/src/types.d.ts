@@ -17,7 +17,7 @@ interface GenerationResult {
 }
 
 interface SavedItem {
-	document: string;
+	document: DocContext;
 	generation: GenerationResult;
 	dateSaved: Date;
 }
@@ -43,7 +43,13 @@ interface CardData {
 	body: string;
 }
 
+interface ContextSection {
+	title: string;
+	content: string;
+}
+
 interface DocContext {
+	contextData?: ContextSection[];
 	beforeCursor: string;
 	selectedText: string;
 	afterCursor: string;

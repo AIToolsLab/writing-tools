@@ -55,14 +55,6 @@ function SavedGenerations({
                             className={ classes.historyItem }
                         >
                             <div className={ classes.historyText }>
-                                <p className={ classes.historyDoc }  
-                                onClick={ () => { 
-                                    // Show the whole document text
-                                } }     >
-                                    ...
-                                    { savedItem.document.substring(savedItem.document.length - 100    ) }
-                                </p>
-
                                 <GenerationResult generation={ savedItem.generation } />
                             </div>
                             <div
@@ -125,7 +117,7 @@ export default function Draft() {
 
 
 	// Save the generation
-	function save(generation: GenerationResult, document: string) {
+	function save(generation: GenerationResult, document: DocContext) {
 		const newSaved = [...savedItems, {
 			document: document,
 			generation: generation,
@@ -202,7 +194,7 @@ export default function Draft() {
 			const generated = await response.json() as GenerationResult;
 			updateGeneration(generated);
 			updateGenCtxText(contextText);
-			save(generated, contextText);
+			save(generated, docContext);
 		}
 		catch (err: any) {
 			setIsLoading(false);

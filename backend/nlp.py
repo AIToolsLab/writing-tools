@@ -1,7 +1,7 @@
 from collections import defaultdict
 import os
 import random
-from typing import Any, Iterable, List, Dict, Literal
+from typing import Any, Iterable, List, Dict, Literal, Optional
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -54,6 +54,155 @@ async def warmup_nlp():
 
     # Warm up the SpaCy model by processing a sample text
     nlp("Hello world. This is a test.").sents
+
+prompts = {
+    "example_sentences": """\
+We're helping a writer draft a document. Please output three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next. Guidelines:
+
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- If the writer is in the middle of a sentence, output three possible continuations of that sentence.
+- If the writer is at the end of a paragraph, output three possible sentences that would start the next paragraph.
+- Each output should be *at most one sentence* long.
+- Use ellipses to truncate sentences that are longer than about 20 words.
+""",
+    "proposal_advice": """\
+We're helping a writer draft a document. Please output three actionable, inspiring, and fresh directive instructions that would help the writer think about what they should write next. Guidelines:
+
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Don't give specific words or phrases for the writer to use.
+- Keep each piece of advice concise.
+- Express the advice in the form of a directive instruction, not a question.
+- Make each piece of advice very specific to the current document, not general advice that could apply to any document.
+""",
+    "proposal_questions": """\
+We're helping a writer draft a document. List three questions that the document *ought* to address but does *not* yet address. Guidelines:
+
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Don't give specific words or phrases for the writer to use.
+- Keep each question concise.
+- Make each question very specific to the current document, not general questions that could apply to any document.
+""",
+    "analysis_missing": """\
+We're helping a writer draft a document. List three observations of things that are missing from the document. Guidelines:
+
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Don't give specific words or phrases for the writer to use.
+- Keep each observation concise.
+- Make each observation very specific to the current document, not general observations that could apply to any document.
+- Don't tell the writer what to do, just point out what is missing.
+""",
+    "analysis_audience": """\
+We're helping a writer draft a document. List three reactions that a reader in the intended audience might have to the document. Guidelines:
+
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Don't give specific words or phrases for the writer to use.
+- Keep each reaction concise.
+- Make each reaction very specific to the current document, not general reactions that could apply to any document.
+- Don't tell the writer what to do, just point out what a reader might think or feel.
+""",
+    "analysis_expectations": """\
+We're helping a writer draft a document. List three ways in which this document doesn't meet the expectations that a reader in the intended audience might have. Guidelines:
+
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Don't give specific words or phrases for the writer to use.
+- Keep each observation concise, less than 20 words.
+- Make each observation very specific to the current document, not general observations that could apply to any document.
+- Use short quotes from the document, when necessary, to illustrate the issue.
+- Don't tell the writer what to do. Just state expectations that are not met.
+""",
+    "analysis_critique": """\
+We're helping a writer draft a document. Provide inspiring, fresh, and constructive critique of the document by listing three specific observations.
+
+Guidelines:
+
+- If the writer has not yet written enough to warrant a critique, just say "Not enough text to critique."
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Don't give specific words or phrases for the writer to use.
+- Aim for at least one positive and one critical observation. (Don't label them as such, just provide three observations.)
+- Keep each observation concise, less than 20 words.
+- Make each observation very specific to the current document, not general observations that could apply to any document.
+- Avoid using directive language like "consider", "you should", "mention", "highlight", etc. Instead, just state the observation.
+""",
+    "analysis_describe": """\
+We're helping a writer draft a document. Give three constructive critiques of the document so far.
+
+Guidelines:
+
+- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Don't give specific words or phrases for the writer to use.
+- Keep each description concise, less than 20 words.
+- Make each description very specific to the current document, not general observations that could apply to any document.
+- Each critique should be expressed as a sentence describing the document, not as a directive to the writer.
+"""
+}
+
+
+class ContextSection(BaseModel):
+    title: str
+    content: str
+
+class DocContext(BaseModel):
+    contextData: Optional[List[ContextSection]] = None
+    beforeCursor: str
+    selectedText: str
+    afterCursor: str
+
+
+class GenerationResult(BaseModel):
+    generation_type: str
+    result: str
+    extra_data: Dict[str, Any]
+
+
+
+def get_full_prompt(prompt_name: str, doc_context: DocContext) -> str:
+    prompt = prompts[prompt_name]
+
+    if doc_context.contextData:
+        context_sections = "\n\n".join(
+            [f"## {section.title}\n\n{section.content}" for section in doc_context.contextData]
+        )
+        prompt += f"\n\n# Additional Context (will *not* be visible to the reader of the document):\n\n{context_sections}"
+
+    # Add the document context to the prompt
+    if doc_context.selectedText == '':
+        title_text = "with the current cursor position marked with <<CURSOR>>"
+        context_text = f"{doc_context.beforeCursor}${doc_context.selectedText}<<CURSOR>>${doc_context.afterCursor}"
+    else:
+        title_text = f"with the current selection marked with <<SELECTION>> tags"
+        context_text = f"{doc_context.beforeCursor}<<SELECTION>>{doc_context.selectedText}<<SELECTION>>{doc_context.afterCursor}"
+
+    prompt += f"\n\n# Writer's Document So Far {title_text}:\n\n{context_text}"
+    return prompt
+
+
+# Structured response for multiple suggestions
+class SuggestionItem(BaseModel):
+    content: str
+
+class SuggestionResponse(BaseModel):
+    suggestions: List[SuggestionItem]
+
+
+async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
+    full_prompt = get_full_prompt(prompt_name, doc_context)
+    completion = await openai_client.chat.completions.parse(
+        model=MODEL_NAME,
+        messages=[
+            {"role": "system", "content": "You are a helpful and insightful writing assistant."},
+            {"role": "user", "content": full_prompt}
+        ],
+        response_format=SuggestionResponse
+    )
+
+    # Extract the response content from the parsed message
+    suggestion_response = completion.choices[0].message.parsed
+    if not suggestion_response or not suggestion_response.suggestions:
+        raise ValueError("No suggestions found in the response.")
+    markdown_response = "\n\n".join(
+        [f"- {item.content}" for item in suggestion_response.suggestions]
+    )
+    return GenerationResult(generation_type=prompt_name, result=markdown_response, extra_data={})
 
 
 def get_final_sentence(text):
@@ -121,12 +270,6 @@ async def completion(userDoc: str):
     result = response.choices[0].text
 
     return result
-
-
-class GenerationResult(BaseModel):
-    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove", "Reflection"]
-    result: str
-    extra_data: Dict[str, Any]
 
 
 async def chat_completion(userDoc: str, temperature=1.0) -> GenerationResult:

@@ -1,22 +1,29 @@
-import * as React from 'react';
-import * as ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import App, { HomeProps } from './pages/app';
 import { wordEditorAPI } from '@/api/wordEditorAPI';
 
 import './taskpane.css';
+import { StrictMode } from 'react';
+
+const container = document.getElementById('container')!;
+const root = createRoot(container);
+
 
 let isOfficeInitialized = false;
 
 const render = (Component: React.ComponentType<HomeProps>) => {
-	ReactDOM.render(
-		isOfficeInitialized ? (
-			<Component editorAPI={ wordEditorAPI } />
-		) : (
+	if (!isOfficeInitialized) {
+		root.render(
 			<section className="ms-welcome__progress ms-u-fadeIn500">
 				<p>Please sideload your add-in to see app body.</p>
 			</section>
-		),
-		document.getElementById('container')
+		);
+		return;
+	}
+	root.render(
+		<StrictMode>
+			<Component editorAPI={ wordEditorAPI } />
+		</StrictMode>
 	);
 };
 

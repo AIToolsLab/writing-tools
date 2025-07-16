@@ -1055,6 +1055,60 @@
   resolved "https://registry.yarnpkg.com/@bcoe/v8-coverage/-/v8-coverage-0.2.3.tgz#75a2e8b51cb758a7553d6804a5932d7aace75c39"
   integrity sha512-0hYQ8SB4Db5zvZB4axdMHGwEaQjkZzFjQiN9LVYvIFB2nSUHW9tYpxWriPrWDASIxiaXax83REcLxuSdnGPZtw==
 
+"@biomejs/biome@2.0.6":
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/@biomejs/biome/-/biome-2.0.6.tgz#23a40836078496a0afd61981830e2cffdd0b7c6a"
+  integrity sha512-RRP+9cdh5qwe2t0gORwXaa27oTOiQRQvrFf49x2PA1tnpsyU7FIHX4ZOFMtBC4QNtyWsN7Dqkf5EDbg4X+9iqA==
+  optionalDependencies:
+    "@biomejs/cli-darwin-arm64" "2.0.6"
+    "@biomejs/cli-darwin-x64" "2.0.6"
+    "@biomejs/cli-linux-arm64" "2.0.6"
+    "@biomejs/cli-linux-arm64-musl" "2.0.6"
+    "@biomejs/cli-linux-x64" "2.0.6"
+    "@biomejs/cli-linux-x64-musl" "2.0.6"
+    "@biomejs/cli-win32-arm64" "2.0.6"
+    "@biomejs/cli-win32-x64" "2.0.6"
+
+"@biomejs/cli-darwin-arm64@2.0.6":
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/@biomejs/cli-darwin-arm64/-/cli-darwin-arm64-2.0.6.tgz#1121846e8fea18552a29b994a2db69fdd17fa4f1"
+  integrity sha512-AzdiNNjNzsE6LfqWyBvcL29uWoIuZUkndu+wwlXW13EKcBHbbKjNQEZIJKYDc6IL+p7bmWGx3v9ZtcRyIoIz5A==
+
+"@biomejs/cli-darwin-x64@2.0.6":
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/@biomejs/cli-darwin-x64/-/cli-darwin-x64-2.0.6.tgz#87915d3bae7da978ccae2950939b54e4d434828d"
+  integrity sha512-wJjjP4E7bO4WJmiQaLnsdXMa516dbtC6542qeRkyJg0MqMXP0fvs4gdsHhZ7p9XWTAmGIjZHFKXdsjBvKGIJJQ==
+
+"@biomejs/cli-linux-arm64-musl@2.0.6":
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/@biomejs/cli-linux-arm64-musl/-/cli-linux-arm64-musl-2.0.6.tgz#b148603978eebd4828889727b940506891014c6e"
+  integrity sha512-CVPEMlin3bW49sBqLBg2x016Pws7eUXA27XYDFlEtponD0luYjg2zQaMJ2nOqlkKG9fqzzkamdYxHdMDc2gZFw==
+
+"@biomejs/cli-linux-arm64@2.0.6":
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/@biomejs/cli-linux-arm64/-/cli-linux-arm64-2.0.6.tgz#7ed0943b74ce99e0002da08025fb9d09f591fa78"
+  integrity sha512-ZSVf6TYo5rNMUHIW1tww+rs/krol7U5A1Is/yzWyHVZguuB0lBnIodqyFuwCNqG9aJGyk7xIMS8HG0qGUPz0SA==
+
+"@biomejs/cli-linux-x64-musl@2.0.6":
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/@biomejs/cli-linux-x64-musl/-/cli-linux-x64-musl-2.0.6.tgz#979cab6bec8e4d5898b4564118fabc9a657270f1"
+  integrity sha512-mKHE/e954hR/hSnAcJSjkf4xGqZc/53Kh39HVW1EgO5iFi0JutTN07TSjEMg616julRtfSNJi0KNyxvc30Y4rQ==
+
+"@biomejs/cli-linux-x64@2.0.6":
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/@biomejs/cli-linux-x64/-/cli-linux-x64-2.0.6.tgz#13ddebbf0b5e807fbf7d3edad7d8a052459c021e"
+  integrity sha512-geM1MkHTV1Kh2Cs/Xzot9BOF3WBacihw6bkEmxkz4nSga8B9/hWy5BDiOG3gHDGIBa8WxT0nzsJs2f/hPqQIQw==
+
+"@biomejs/cli-win32-arm64@2.0.6":
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/@biomejs/cli-win32-arm64/-/cli-win32-arm64-2.0.6.tgz#cead818d167948c991e5034b76008d7abb99d79e"
+  integrity sha512-290V4oSFoKaprKE1zkYVsDfAdn0An5DowZ+GIABgjoq1ndhvNxkJcpxPsiYtT7slbVe3xmlT0ncdfOsN7KruzA==
+
+"@biomejs/cli-win32-x64@2.0.6":
+  version "2.0.6"
+  resolved "https://registry.yarnpkg.com/@biomejs/cli-win32-x64/-/cli-win32-x64-2.0.6.tgz#53acf543060bfda18853dfa81b34e6e95fb545a5"
+  integrity sha512-bfM1Bce0d69Ao7pjTjUS+AWSZ02+5UHdiAP85Th8e9yV5xzw6JrHXbL5YWlcEKQ84FIZMdDc7ncuti1wd2sdbw==
+
 "@cspotcode/source-map-support@^0.8.0":
   version "0.8.1"
   resolved "https://registry.yarnpkg.com/@cspotcode/source-map-support/-/source-map-support-0.8.1.tgz#00629c35a688e05a88b1cda684fb9d5e73f000a1"
@@ -2030,6 +2084,16 @@
     "@tailwindcss/oxide" "4.1.8"
     postcss "^8.4.41"
     tailwindcss "4.1.8"
+
+"@tailwindcss/typography@^0.5.16":
+  version "0.5.16"
+  resolved "https://registry.yarnpkg.com/@tailwindcss/typography/-/typography-0.5.16.tgz#a926c8f44d5c439b2915e231cad80058850047c6"
+  integrity sha512-0wDLwCVF5V3x3b1SGXPCDcdsbDHMBe+lkFzBRaHeLvNi+nrrnZ1lA18u+OTWO8iSWU2GxUOCvlXtDuqftc1oiA==
+  dependencies:
+    lodash.castarray "^4.4.0"
+    lodash.isplainobject "^4.0.6"
+    lodash.merge "^4.6.2"
+    postcss-selector-parser "6.0.10"
 
 "@tsconfig/node10@^1.0.7":
   version "1.0.11"
@@ -3460,15 +3524,10 @@ camelcase@^6.2.0:
   resolved "https://registry.yarnpkg.com/camelcase/-/camelcase-6.3.0.tgz#5685b95eb209ac9c0c177467778c9c84df58ba9a"
   integrity sha512-Gmy6FhYlCY7uOElZUSbxo2UCDH8owEk996gkbrpsgGtrJLM3J7jGxl9Ic7Qwwj4ivOE5AWZWRMecDdF7hqGjFA==
 
-caniuse-lite@^1.0.30001688:
-  version "1.0.30001689"
-  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001689.tgz#67ca960dd5f443903e19949aeacc9d28f6e10910"
-  integrity sha512-CmeR2VBycfa+5/jOfnp/NpWPGd06nf1XYiefUvhXFfZE4GkRc9jv+eGPS4nT558WS/8lYCzV8SlANCIPvbWP1g==
-
-caniuse-lite@^1.0.30001702, caniuse-lite@^1.0.30001718:
-  version "1.0.30001721"
-  resolved "https://registry.yarnpkg.com/caniuse-lite/-/caniuse-lite-1.0.30001721.tgz#36b90cd96901f8c98dd6698bf5c8af7d4c6872d7"
-  integrity sha512-cOuvmUVtKrtEaoKiO0rSc29jcjwMwX5tOHDy4MgVFEWiUXj4uBMJkwI8MDySkgXidpMiHUcviogAvFi4pA2hDQ==
+caniuse-lite@^1.0.30001688, caniuse-lite@^1.0.30001702, caniuse-lite@^1.0.30001718:
+  version "1.0.30001727"
+  resolved "https://registry.npmjs.org/caniuse-lite/-/caniuse-lite-1.0.30001727.tgz"
+  integrity sha512-pB68nIHmbN6L/4C6MH1DokyR3bYqFwjaSs/sWDHGj4CTcFtQUQMuJftVwWkXq7mNWOybD3KhUv3oWHoGxgP14Q==
 
 chalk@5.3.0:
   version "5.3.0"
@@ -6883,10 +6942,20 @@ locate-path@^7.1.0:
   dependencies:
     p-locate "^6.0.0"
 
+lodash.castarray@^4.4.0:
+  version "4.4.0"
+  resolved "https://registry.yarnpkg.com/lodash.castarray/-/lodash.castarray-4.4.0.tgz#c02513515e309daddd4c24c60cfddcf5976d9115"
+  integrity sha512-aVx8ztPv7/2ULbArGJ2Y42bG1mEQ5mGjpdvrbJcJFU3TbYybe+QlLS4pst9zV52ymy2in1KpFPiZnAOATxD4+Q==
+
 lodash.debounce@^4.0.8:
   version "4.0.8"
   resolved "https://registry.yarnpkg.com/lodash.debounce/-/lodash.debounce-4.0.8.tgz#82d79bff30a67c4005ffd5e2515300ad9ca4d7af"
   integrity sha512-FT1yDzDYEoYWhnSGnpE/4Kj1fLZkDFyqRb7fNt6FdYOSxlUWAtp42Eh6Wb0rGIv/m9Bgo7x4GhQbm5Ys4SG5ow==
+
+lodash.isplainobject@^4.0.6:
+  version "4.0.6"
+  resolved "https://registry.yarnpkg.com/lodash.isplainobject/-/lodash.isplainobject-4.0.6.tgz#7c526a52d89b45c45cc690b88163be0497f550cb"
+  integrity sha512-oSXzaWypCMHkPC3NvBEaPHf0KsA5mvPrOPgQWDsbg8n7orZ290M0BmC/jgRZ4vcJ6DTAhjrsSYgdsW/F+MFOBA==
 
 lodash.memoize@^4.1.2:
   version "4.1.2"
@@ -7875,6 +7944,14 @@ postcss-modules-values@^4.0.0:
   integrity sha512-RDxHkAiEGI78gS2ofyvCsu7iycRv7oqw5xMWn9iMoR0N/7mf9D50ecQqUo5BZ9Zh2vH4bCUR/ktCqbB9m8vJjQ==
   dependencies:
     icss-utils "^5.0.0"
+
+postcss-selector-parser@6.0.10:
+  version "6.0.10"
+  resolved "https://registry.yarnpkg.com/postcss-selector-parser/-/postcss-selector-parser-6.0.10.tgz#79b61e2c0d1bfc2602d549e11d0876256f8df88d"
+  integrity sha512-IQ7TZdoaqbT+LCpShg46jnZVlhWD2w6iQYAcYXfHARZ7X1t/UGhhceQDs5X0cGqKvYlHNOuv7Oa1xmb0oQuA3w==
+  dependencies:
+    cssesc "^3.0.0"
+    util-deprecate "^1.0.2"
 
 postcss-selector-parser@^6.0.2, postcss-selector-parser@^6.0.4:
   version "6.0.13"
