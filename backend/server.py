@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import zipfile
+from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Dict, List, Literal, Optional
@@ -112,8 +113,12 @@ class ReflectionLog(Log):
     paragraph: str
 
 
-# Initialize Server
-app = FastAPI()
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    await nlp.warmup_nlp()
+    yield
+
+app = FastAPI(lifespan=app_lifespan)
 
 origins = ["*"]
 
