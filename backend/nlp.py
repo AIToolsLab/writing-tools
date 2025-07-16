@@ -12,6 +12,7 @@ from openai.types.chat.chat_completion_message_param import ChatCompletionMessag
 from openai import AsyncOpenAI
 
 MODEL_NAME = "gpt-4o"
+DEBUG_PROMPTS = True
 
 # Create OpenAI client
 load_dotenv()
@@ -59,7 +60,7 @@ prompts = {
     "example_sentences": """\
 We're helping a writer draft a document. Please output three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next. Guidelines:
 
-- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Focus on the area of the document that is currently being written.
 - If the writer is in the middle of a sentence, output three possible continuations of that sentence.
 - If the writer is at the end of a paragraph, output three possible sentences that would start the next paragraph.
 - Each output should be *at most one sentence* long.
@@ -68,7 +69,7 @@ We're helping a writer draft a document. Please output three possible options fo
     "proposal_advice": """\
 We're helping a writer draft a document. Please output three actionable, inspiring, and fresh directive instructions that would help the writer think about what they should write next. Guidelines:
 
-- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Focus on the area of the document that is currently being written.
 - Don't give specific words or phrases for the writer to use.
 - Keep each piece of advice concise.
 - Express the advice in the form of a directive instruction, not a question.
@@ -77,7 +78,7 @@ We're helping a writer draft a document. Please output three actionable, inspiri
     "proposal_questions": """\
 We're helping a writer draft a document. List three questions that the document *ought* to address but does *not* yet address. Guidelines:
 
-- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Focus on the area of the document that is currently being written.
 - Don't give specific words or phrases for the writer to use.
 - Keep each question concise.
 - Make each question very specific to the current document, not general questions that could apply to any document.
@@ -85,7 +86,7 @@ We're helping a writer draft a document. List three questions that the document 
     "analysis_missing": """\
 We're helping a writer draft a document. List three observations of things that are missing from the document. Guidelines:
 
-- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Focus on the area of the document that is currently being written.
 - Don't give specific words or phrases for the writer to use.
 - Keep each observation concise.
 - Make each observation very specific to the current document, not general observations that could apply to any document.
@@ -94,7 +95,7 @@ We're helping a writer draft a document. List three observations of things that 
     "analysis_audience": """\
 We're helping a writer draft a document. List three reactions that a reader in the intended audience might have to the document. Guidelines:
 
-- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Focus on the area of the document that is currently being written.
 - Don't give specific words or phrases for the writer to use.
 - Keep each reaction concise.
 - Make each reaction very specific to the current document, not general reactions that could apply to any document.
@@ -103,7 +104,7 @@ We're helping a writer draft a document. List three reactions that a reader in t
     "analysis_expectations": """\
 We're helping a writer draft a document. List three ways in which this document doesn't meet the expectations that a reader in the intended audience might have. Guidelines:
 
-- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Focus on the area of the document that is currently being written.
 - Don't give specific words or phrases for the writer to use.
 - Keep each observation concise, less than 20 words.
 - Make each observation very specific to the current document, not general observations that could apply to any document.
@@ -116,7 +117,7 @@ We're helping a writer draft a document. Provide inspiring, fresh, and construct
 Guidelines:
 
 - If the writer has not yet written enough to warrant a critique, just say "Not enough text to critique."
-- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Focus on the area of the document that is currently being written.
 - Don't give specific words or phrases for the writer to use.
 - Aim for at least one positive and one critical observation. (Don't label them as such, just provide three observations.)
 - Keep each observation concise, less than 20 words.
@@ -128,7 +129,7 @@ We're helping a writer draft a document. Give three constructive critiques of th
 
 Guidelines:
 
-- Focus on the area of the document that is currently being written, which is marked with <<CURSOR>> or <<SELECTION>> tags.
+- Focus on the area of the document that is currently being written.
 - Don't give specific words or phrases for the writer to use.
 - Keep each description concise, less than 20 words.
 - Make each description very specific to the current document, not general observations that could apply to any document.
@@ -164,15 +165,17 @@ def get_full_prompt(prompt_name: str, doc_context: DocContext) -> str:
         )
         prompt += f"\n\n# Additional Context (will *not* be visible to the reader of the document):\n\n{context_sections}"
 
-    # Add the document context to the prompt
-    if doc_context.selectedText == '':
-        title_text = "with the current cursor position marked with <<CURSOR>>"
-        context_text = f"{doc_context.beforeCursor}${doc_context.selectedText}<<CURSOR>>${doc_context.afterCursor}"
-    else:
-        title_text = f"with the current selection marked with <<SELECTION>> tags"
-        context_text = f"{doc_context.beforeCursor}<<SELECTION>>{doc_context.selectedText}<<SELECTION>>{doc_context.afterCursor}"
+    document_text = doc_context.beforeCursor + doc_context.selectedText + doc_context.afterCursor
 
-    prompt += f"\n\n# Writer's Document So Far {title_text}:\n\n{context_text}"
+    prompt += f"\n\n# Writer's Document So Far\n\n<document>\n{document_text}</document>\n\n"
+    if doc_context.selectedText == '':
+        prompt += "\n\n## Current Selection\n\nNo text selected."
+        before_cursor = doc_context.beforeCursor[-50:]
+        before_cursor_cur_line = before_cursor.rsplit('\n', 1)[-1]
+        prompt += f"\n\n## Text Around Cursor\n\n\"{doc_context.beforeCursor[-50:]}{doc_context.afterCursor[:50]}\"\n{' ' * len(before_cursor_cur_line)}^ Cursor Position"
+    else:
+        prompt += f"\n\n## Current Selection\n\n{doc_context.selectedText}"
+        prompt += f"\n\n## Text Nearby The Selection\n\n\"{doc_context.beforeCursor[-50:]}{doc_context.selectedText}{doc_context.afterCursor[:50]}\""
     return prompt
 
 
@@ -186,6 +189,8 @@ class SuggestionResponse(BaseModel):
 
 async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
     full_prompt = get_full_prompt(prompt_name, doc_context)
+    if DEBUG_PROMPTS:
+        print(f"Prompt for {prompt_name}:\n{full_prompt}\n")
     completion = await openai_client.chat.completions.parse(
         model=MODEL_NAME,
         messages=[
