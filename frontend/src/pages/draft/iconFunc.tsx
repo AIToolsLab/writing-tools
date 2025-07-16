@@ -1,15 +1,13 @@
-import { AiOutlineAlignLeft, AiOutlineQuestion, AiOutlineHighlight, AiOutlineBank } from 'react-icons/ai';
+import { AiOutlineAim, AiOutlineAlignLeft, AiOutlineAudit } from 'react-icons/ai';
 
 export const iconFunc = (generationType: string) => {
     switch (generationType) {
-        case 'Completion':
-            return<AiOutlineAlignLeft />;
-        case 'Question':
-            return <AiOutlineQuestion />;
-        case 'Keywords':
-            return <AiOutlineHighlight />;
-        case 'RMove':
-            return <AiOutlineBank />;
+        case 'example_sentences':
+            return <AiOutlineAlignLeft />;
+        case 'analysis_describe':
+            return <AiOutlineAudit />;
+        case "proposal_advice":
+            return <AiOutlineAim />;
         default:
             return null;
     }
