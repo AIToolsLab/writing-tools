@@ -12,7 +12,7 @@ from openai.types.chat.chat_completion_message_param import ChatCompletionMessag
 from openai import AsyncOpenAI
 
 MODEL_NAME = "gpt-4o"
-DEBUG_PROMPTS = True
+DEBUG_PROMPTS = False
 
 # Create OpenAI client
 load_dotenv()
