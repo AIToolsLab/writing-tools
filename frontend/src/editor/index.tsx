@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, StrictMode } from 'react';
+import { useRef, useState, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
 import { studyConditionAtom, currentTaskContextAtom } from '@/contexts/studyContext';
@@ -552,8 +552,8 @@ const container = document.getElementById('container')!;
 const root = createRoot(container);
 root.render(
 	<StrictMode>
-		<App
-			page = { page || 'editor' }
+		<Router
+			page={page || 'editor'}
 		/>
 	</StrictMode>
 );

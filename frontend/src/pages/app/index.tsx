@@ -1,5 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
-import { pingServer } from '@/api';
+import { useState } from 'react';
 
 import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
 import { useWindowSize } from '@react-hook/window-size/throttled';
