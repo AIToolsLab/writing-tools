@@ -40,7 +40,7 @@ except:
 
 async def warmup_nlp():
     # Warm up the OpenAI client by making a dummy request
-    dummy_client = AsyncOpenAI(base_url="https://localhost:8000/v1", api_key="")
+    dummy_client = openai.AsyncOpenAI(base_url="https://localhost:8000/v1", api_key="", timeout=0.01, max_retries=0)
     # make a dummy request to make sure everything is imported
     try:
         await dummy_client.chat.completions.create(
