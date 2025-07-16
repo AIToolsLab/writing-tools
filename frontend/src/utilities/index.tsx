@@ -47,6 +47,11 @@ export function useDocContext(editorAPI: EditorAPI) {
 			}
 			// Subscribe to selection change events
 			addSelectionChangeHandler(handleSelectionChanged);
+			// Trigger the initial fetch of the document context
+			handleSelectionChanged().catch(error => {
+				// eslint-disable-next-line no-console
+				console.error('Error fetching document context:', error);
+			});
 			// Return a cleanup function to remove the handler
 			return () => {
 				removeSelectionChangeHandler(handleSelectionChanged);
