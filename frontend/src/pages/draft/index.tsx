@@ -167,7 +167,7 @@ export default function Draft() {
 			setIsLoading(false);
 			let errMsg = '';
 			if (err.name === 'AbortError')
-				errMsg = `${err.name}: Timeout. Please try again.`;
+				errMsg = `Generating a suggestion took too long, please try again.`;
 			else errMsg = `${err.name}: ${err.message}. Please try again.`;
 
 			updateErrorMsg(errMsg);
