@@ -3,23 +3,21 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    ports:
-      - "5001:80"
     depends_on:
       - backend
+    restart: unless-stopped
 
   backend:
     build:
       context: .
       dockerfile: backend/Dockerfile
-    ports:
-      - "5000:5000"
     environment:
       - PORT=5000
-      - DEBUG=False
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LOG_SECRET=${LOG_SECRET}
     volumes:
-      - ./backend/logs:/app/logs
+      - ./backend/logs:/app/backend/logs
+    restart: unless-stopped
 
 networks:
   default:

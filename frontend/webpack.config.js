@@ -12,7 +12,9 @@ const urlDev = 'https://localhost:3000';
 const urlProd = 'https://app.thoughtful-ai.com';
 
 const backendDev = 'http://0.0.0.0:8000/';
-const backendProd = 'https://textfocals.azurewebsites.net/';
+
+const idProd = '46d2493d-60db-4522-b2aa-e6f2c08d2508';
+const idDev = '46d2493d-60db-4522-b2aa-e6f2c08d2507';
 
 async function getHttpsOptions() {
 	const httpsOptions = await devCerts.getHttpsServerOptions();
@@ -52,7 +54,9 @@ module.exports = async (env, options) => {
 		    commands: './src/commands/commands.ts'
 		},
 		output: {
-			clean: true
+			clean: true,
+			filename: '[name].[contenthash].js',
+			chunkFilename: '[name].[contenthash].js'
 		},
 		resolve: {
 			alias: {
@@ -83,7 +87,7 @@ module.exports = async (env, options) => {
 					test: /\.(png|jpg|jpeg|ttf|woff|woff2|gif|ico)$/,
 					type: 'asset/resource',
 					generator: {
-						filename: 'assets/[name][ext][query]'
+						filename: 'assets/[name].[contenthash][ext][query]'
 					}
 				},
 				// CSS Modules: only for *.module.css
@@ -146,6 +150,7 @@ module.exports = async (env, options) => {
 								return content
 									.toString()
 									.replace(/\-dev/g, '')
+									.replace(new RegExp(idDev, 'g'), idProd)
 									.replace(new RegExp(urlDev, 'g'), urlProd);
 						}
 					}
@@ -160,6 +165,11 @@ module.exports = async (env, options) => {
 				filename: 'editor.html',
 				template: './src/editor/editor.html',
 				chunks: ['editor', 'react']
+			}),
+			new HtmlWebpackPlugin({
+				filename: 'logs.html',
+				template: './src/logs/logs.html',
+				chunks: ['logs', 'react']
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'popup.html',
@@ -195,7 +205,7 @@ module.exports = async (env, options) => {
 			proxy: [
 				{
 					context: ['/api'],
-					target: dev ? backendDev : backendProd,
+					target: backendDev,
 					changeOrigin: true
 				}
 			],

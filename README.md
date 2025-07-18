@@ -32,11 +32,6 @@ After cloning this repo:
 
 Run `./test_generation` in the `backend` folder to make a test request. However, it runs against the prod server; change the URL to run against a local server.
 
-## Running the backend server locally with FastAPI Azure Functions
-
-- `cd backend`
-- `uv run func host start`
-
 # Running the custom LLM backend
 
 - `cd backend`

@@ -1,7 +1,7 @@
-import { useContext } from 'react';
-import { PageName, PageContext } from '@/contexts/pageContext';
+import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
 
 import classes from './styles.module.css';
+import { useAtom, useAtomValue } from 'jotai';
 
 /**
  * An array of objects representing the names and titles of pages.
@@ -24,9 +24,14 @@ const pageNames: Page[] = [
 ];
 
 export default function Navbar() {
-	const { page, changePage } = useContext(PageContext);
+	const [ page, changePage ] = useAtom(pageNameAtom);
+	const mode = useAtomValue(overallModeAtom);
+	const isStudyMode = mode === OverallMode.study;
 
-	return (
+	if (isStudyMode) {
+		 return;
+	} else {
+		return (
 		<nav className={ classes.nav }>
 			{ pageNames.map(({ name: pageName, title: pageTitle }) => (
 				<p
@@ -39,4 +44,5 @@ export default function Navbar() {
 			)) }
 		</nav>
 	);
+	}
 }

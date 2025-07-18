@@ -6,16 +6,17 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import ChatMessage from '@/components/chatMessage';
 
 import { ChatContext } from '@/contexts/chatContext';
-import { UserContext } from '@/contexts/userContext';
+import { usernameAtom } from '@/contexts/userContext';
 import { EditorContext } from '@/contexts/editorContext';
 
 import { SERVER_URL } from '@/api';
 
 import { useAccessToken } from '@/contexts/authTokenContext';
+import { useAtomValue } from 'jotai';
 
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
-	const { username } = useContext(UserContext);
+	const username = useAtomValue(usernameAtom)
 	const editorAPI = useContext(EditorContext);
 	const { getAccessToken, authErrorType } = useAccessToken();
 

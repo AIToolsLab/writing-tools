@@ -161,6 +161,11 @@ export const wordEditorAPI: EditorAPI = {
 					// Note that we only slice only if the selected text is not empty
 					docContext.beforeCursor = beforeCursor.text.slice(0, -docContext.selectedText.length) || beforeCursor.text;
 					docContext.afterCursor = afterCursor.text.slice(docContext.selectedText.length);
+
+					// Replace \r with \n for consistency
+					docContext.beforeCursor = docContext.beforeCursor.replace(/\r/g, '\n');
+					docContext.selectedText = docContext.selectedText.replace(/\r/g, '\n');
+					docContext.afterCursor = docContext.afterCursor.replace(/\r/g, '\n');
 					resolve(docContext);
 				});
 			}

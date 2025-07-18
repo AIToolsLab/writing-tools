@@ -1,161 +1,154 @@
-import { useState, useContext, Fragment } from 'react';
-import { UserContext } from '@/contexts/userContext';
-import { EditorContext } from '@/contexts/editorContext';
-import { Remark } from 'react-remark';
-import { FcCheckmark } from 'react-icons/fc';
-import {
-	AiOutlineClose,
-	AiOutlineQuestion,
-	AiOutlineAlignLeft,
-	AiOutlineHighlight,
-	AiOutlineBank,
-	AiOutlineStar,
-	AiOutlineSave
-} from 'react-icons/ai';
-import { iconFunc } from './iconFunc';
 import { SERVER_URL, log } from '@/api';
-import classes from './styles.module.css';
-import SavedGenerations from './savedGenerations';
-import { getBefore } from '@/utilities/selectionUtil';
-import { useDocContext } from '@/utilities';
 import { useAccessToken } from '@/contexts/authTokenContext';
+import { EditorContext } from '@/contexts/editorContext';
+import { usernameAtom } from '@/contexts/userContext';
+import { useDocContext } from '@/utilities';
+import { Fragment, useContext, useState } from 'react';
+import { AiOutlineClose, AiOutlineReload } from 'react-icons/ai';
+import { Remark } from 'react-remark';
+import { iconFunc } from './iconFunc';
+import classes from './styles.module.css';
+import { useAtomValue } from 'jotai';
+import { studyConditionAtom } from '@/contexts/studyContext';
 
 const visibleNameForMode = {
-	'Completion': 'Suggestions',
-	'Question': 'Questions',
-	'Keywords': 'Keywords',
-	'RMove': 'Rhetorical Move'
+	example_sentences: 'Examples',
+	analysis_describe: 'Analysis',
+	proposal_advice: 'Advice'
 };
 
-const obscuredAlphabetForMode = {
-	'Completion': 'A',
-	'Question': 'B',
-	'Keywords': 'C',
-	'RMove': 'D'
-};
-
-const visibleIconForMode = {
-	'Completion': <AiOutlineAlignLeft />,
-	'Question': <AiOutlineQuestion />,
-	'Keywords': <AiOutlineHighlight />,
-	'RMove': <AiOutlineBank />
-};
-
+const modes = ['example_sentences', 'analysis_describe', 'proposal_advice'];
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
-	return <Remark>{ generation.result }</Remark>;
+	return (
+		<div className="prose">
+			<div className="text-bold">
+				{
+					visibleNameForMode[
+						generation.generation_type as keyof typeof visibleNameForMode
+					]
+				}
+			</div>{' '}
+			<Remark>{generation.result}</Remark>
+		</div>
+	);
+}
+
+function SavedGenerations({
+	savedItems,
+	deleteSavedItem
+}: {
+	savedItems: SavedItem[];
+	deleteSavedItem: (dateSaved: Date) => void;
+}) {
+	return (
+		<div className={classes.historyContainer}>
+			<div className={classes.historyItemContainer}>
+				{savedItems.length === 0 ? (
+					<div className={classes.historyEmptyWrapper}>
+						<div className={classes.historyText}>
+							No suggestions...
+						</div>
+					</div>
+				) : (
+					savedItems.map((savedItem, index) => (
+						<div
+							key={index}
+							className={classes.historyItem}
+						>
+							<div className={classes.historyText}>
+								<GenerationResult
+									generation={savedItem.generation}
+								/>
+							</div>
+							<div className={classes.savedIconsContainer}>
+								<div
+									className={
+										classes.historyCloseButtonWrapper
+									}
+									onClick={() =>
+										deleteSavedItem(savedItem.dateSaved)
+									}
+								>
+									<AiOutlineClose
+										className={classes.historyCloseButton}
+									/>
+								</div>
+							</div>
+						</div>
+					))
+				)}
+			</div>
+		</div>
+	);
 }
 
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
-	const { username } = useContext(UserContext);
+	const username = useAtomValue(usernameAtom);
+	const studyCondition = useAtomValue(studyConditionAtom);
 	const { getAccessToken, authErrorType } = useAccessToken();
-	const [genCtxText, updateGenCtxText] = useState('');
-
 	const [isLoading, setIsLoading] = useState(false);
-
-	// TODO: Consider using a "hook" for the toast temporary msg
-	const [copied, _setCopied] = useState(false);
-	const [saved, setSaved] = useState(false);
-
-	// State for saved page
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
-
-	// Tooltip visibility
-	const [tooltipVisible, setTooltipVisible] = useState<string | null>(null);
-
-	// eslint-disable-next-line prefer-const
-	const [generation, updateGeneration] = useState<GenerationResult | null>(
-		null
-	);
-
-	// Update Error Message
 	const [errorMsg, updateErrorMsg] = useState('');
 
-	const [generationMode, updateGenerationMode] = useState('None');
-
-	const IS_OBSCURED = false;
-
-	// Save the generation
-	function save(generation: GenerationResult, document: string) {
-		const newSaved = [...savedItems];
-
-		// Don't re-save things that are already saved
-		if (
-			newSaved.filter(
-				item =>
-					item.generation === generation && item.document === document
-			).length > 0
-		)
-			return;
-
-		newSaved.unshift({
-			document: document,
-			generation: generation,
-			dateSaved: new Date()
-		});
-
-		log({
-			username: username,
-			interaction: 'Save',
-			prompt: document,
-			result: generation
-		});
+	function save(generation: GenerationResult, document: DocContext) {
+		const newSaved = [
+			{
+				document: document,
+				generation: generation,
+				dateSaved: new Date()
+			},
+			...savedItems
+		];
 
 		updateSavedItems(newSaved);
 	}
 
-	// Delete a saved item
 	function deleteSavedItem(dateSaved: Date) {
+		const savedItemIdx = savedItems.findIndex(
+			savedItem => savedItem.dateSaved === dateSaved
+		);
+		if (savedItemIdx === -1) {
+			// eslint-disable-next-line no-console
+			console.warn('Saved item not found for deletion');
+			return;
+		}
+		// Create a new array without the item to be deleted
 		const newSaved = [...savedItems].filter(
 			savedItem => savedItem.dateSaved !== dateSaved
 		);
 
 		log({
 			username: username,
-			interaction: 'Delete',
-			prompt: savedItems.filter(
-				savedItem => savedItem.dateSaved === dateSaved
-			)[0].document,
-			result: savedItems.filter(
-				savedItem => savedItem.dateSaved === dateSaved
-			)[0].generation
+			event: 'Delete',
+			prompt: savedItems[savedItemIdx].document,
+			result: savedItems[savedItemIdx].generation
 		});
 
 		updateSavedItems(newSaved);
 	}
 
-
 	// Get a generation from the backend
-	async function getGeneration(
-		username: string,
-		type: string,
-		contextText: string
-	) {
-		updateGeneration(null);
+	async function getSuggestion(type: string) {
 		updateErrorMsg('');
-
-		// eslint-disable-next-line no-console
-		console.assert(
-			typeof contextText === 'string' && contextText !== '',
-			'contextText must be a non-empty string'
-		);
 
 		setIsLoading(true);
 
 		try {
 			const token = await getAccessToken();
-			const response = await fetch(`${SERVER_URL}/generation`, {
+			const response = await fetch(`${SERVER_URL}/get_suggestion`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${token}`
+					Authorization: `Bearer ${token}`
 				},
 				body: JSON.stringify({
 					username: username,
 					gtype: type,
-					prompt: contextText
+					// eslint-disable-next-line camelcase
+					doc_context: docContext
 				}),
 				signal: AbortSignal.timeout(20000)
 			});
@@ -163,10 +156,9 @@ export default function Draft() {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
 			updateErrorMsg('');
-			updateGeneration((await response.json()) as GenerationResult);
-			updateGenCtxText(contextText);
-		}
-		catch (err: any) {
+			const generated = (await response.json()) as GenerationResult;
+			save(generated, docContext);
+		} catch (err: any) {
 			setIsLoading(false);
 			let errMsg = '';
 			if (err.name === 'AbortError')
@@ -174,11 +166,12 @@ export default function Draft() {
 			else errMsg = `${err.name}: ${err.message}. Please try again.`;
 
 			updateErrorMsg(errMsg);
-			updateGeneration(null);
 			log({
 				username: username,
-				interaction: type,
-				prompt: contextText,
+				event: 'generation_error',
+				// eslint-disable-next-line camelcase
+				generation_type: type,
+				docContext: docContext,
 				result: errMsg
 			});
 			return;
@@ -187,62 +180,23 @@ export default function Draft() {
 		setIsLoading(false);
 	}
 
-
-	// Temporarily select the text from the start to the cursor
-	async function _selectToCursor(duration: number = 1000): Promise<void> {
-    try {
-			await Word.run(async (context: Word.RequestContext) => {
-				// TODO: Instead, use the "wordSelection" from the wordEditorAPI.ts
-				const body = context.document.body;
-				const wordSelection = context.document
-        .getSelection()
-        .getTextRanges([' '], false);
-
-				context.load(wordSelection, 'items');
-				await context.sync();
-
-				// Get the range from start to the end of current word
-				const rangeToCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('Start'));
-
-				// Select the range
-				rangeToCursor.select();
-				await context.sync();
-
-				// Unselect after specified duration
-				setTimeout(async () => {
-					await Word.run(async (context: Word.RequestContext) => {
-						const rangeToCursor = wordSelection.items[wordSelection.items.length-1].expandTo(body.getRange('Start'));
-						rangeToCursor.select();
-						await context.sync();
-					});
-				}, duration);
-			});
-    }
-		catch (error) {
-			// eslint-disable-next-line no-console
-			console.error('Error highlighting text:', error);
-    }
+	if (authErrorType !== null) {
+		return <div>Please reauthorize.</div>;
 	}
 
-	if (authErrorType !== null) {
-        return (
-            <div>
-							Please reauthorize.
-						</div>
-        );
-    }
-
-	let results = null;
+	let alerts = null;
 
 	if (errorMsg !== '')
-		results = (
-			<div className= "mr-[16px] ml-[16px] p-[16px] duration-150">
-				<div className="text-base text-red-500 text-center">{ errorMsg }</div>
+		alerts = (
+			<div className="mr-[16px] ml-[16px] p-[16px] duration-150">
+				<div className="text-base text-red-500 text-center">
+					{errorMsg}
+				</div>
 			</div>
 		);
-	else if (generationMode === 'None' || generation === null)
+	else if (savedItems.length === 0)
 		if (!docContext.beforeCursor.trim())
-			results = (
+			alerts = (
 				<div className="mt-4 ml-4 mr-4 p-4 transition duration-150">
 					<div className="text-sm text-gray-500 text-center transition duration-150">
 						Write something in the document to get started!
@@ -250,250 +204,76 @@ export default function Draft() {
 				</div>
 			);
 		else
-			results = (
-				<div className="mt-4 ml-4 mr-4 p-4 transition duration-150">
-					<div className="text-sm text-gray-500 text-center transition duration-150">
-						Click a button to generate a suggestion.
+			alerts = (
+				<div className="mt-4 ml-4 mr-4 p-0 transition duration-150">
+					<div className="text-sm text-stone-950 text-center transition duration-150">
+						Click the button above to generate a suggestion.
 					</div>
 				</div>
 			);
-	else
-		results = (
-			<div className="mt-1 mr-2 ml-2 p-4 border border-[#c8c8c8] rounded-[16px] transition duration-150 flex">
-				<div>
-					<div
-						className= "text-[0.8rem] text-[#aaaaaa] pb-1 cursor-pointer hover:text-black"
-						onMouseEnter={ () => setTooltipVisible('GenCtx') }
-						onMouseLeave={ () => setTooltipVisible(null) }
-					>
-						{ genCtxText.length > 100 ? '...' : '' }
-						{ genCtxText.substring(genCtxText.length - 100) }
-					</div>
 
-					{ /* Question: do we need this? */ }
-					{ false && tooltipVisible === 'GenCtx' && (
-						<div
-							className="
-							absolute left-1/2 -translate-x-1/2 
-							top-[18%] bg-[rgba(247,247,247,0.7)] 
-							text-[rgba(66,66,66,0.7)] 
-							px-3 py-2 rounded-sm 
-							text-[0.8rem] font-extralight 
-							whitespace-nowrap 
-							z-[1000] opacity-0 invisible 
-							pointer-events-none 
-							shadow-[-1px_2px_3px_rgba(120,60,20,0.1)] 
-							transition-opacity transition-[visibility] 
-							duration-200 ease-in-out"
-								>
-							Generated based on this document text
-						</div>
-					) }
-					<div className="text-base whitespace-pre-wrap transition duration-150 animate-fade-in">
-						<GenerationResult generation={ generation } />
-					</div>
-				</div>
-				<div className={ classes.genIconsContainer }>
-					<div
-						className={
-							!IS_OBSCURED
-								? classes.genTypeIconWrapper
-								: classes.genTypeIconWrapper_obscured
-						}
-					>
-						{ iconFunc(generationMode) }
-					</div>
-				</div>
+	if (isLoading)
+		alerts = (
+			<div className={classes.spinnerWrapper}>
+				<div className={classes.loader}></div>
 			</div>
 		);
 
-	if (isLoading && !generation)
-		results = (
-			<div className={ classes.spinnerWrapper }>
-				<div className={ classes.loader }></div>
-			</div>
-		);
+	const isStudy = studyCondition !== null;
+	const modesToShow = isStudy ? [studyCondition] : modes;
 
 	return (
-		<div className=" flex flex-col gap-2 relative p-2">
-
-			{ /* Document Context Text Container */ }
-			<div className= "text-sm p-[8px] m-[8px] shadow-[0_6px_10px_-1px_rgba(147,123,109,0.1)]">
-				<h4>Suggestions will be generated using:</h4>
-				<p>
-					{ getBefore(docContext).length > 100 ? '...' : '' }
-					{ getBefore(docContext).substring(getBefore(docContext).length - 100) }
-					{ /* { JSON.stringify(docContext) } */ }
-				</p>
-			</div>
-
-			<div>
-				{ /* Generation Option Buttons */ }
-				<div
-					className={ classes.optionsContainer }
-					onMouseEnter={ () => setTooltipVisible('Disabled') }
-					onMouseLeave={ () => setTooltipVisible(null) }
-				>
-					{ ['Completion', 'Question', 'Keywords', 'RMove'].map(mode => {
-						return (
-							<Fragment key={ mode }>
-							<button
-								className={ classes.optionsButton }
-								disabled={ docContext.beforeCursor === '' || isLoading }
-								onClick={ async () => {
-									// if (docContext.beforeCursor !== '') {
-									// 	await selectToCursor();
-									// }
-
-									log({
-										username: username,
-										interaction: `${mode}_Frontend`,
-										prompt: getBefore(docContext)
-									});
-									if (getBefore(docContext) === '') return;
-
-									updateGenerationMode(mode);
-									getGeneration(
-										username,
-										`${mode}_Backend`,
-										getBefore(docContext)
-									);
-								} }
-								onMouseEnter={ () =>
-									setTooltipVisible(mode)
-								}
-								onMouseLeave={ () => setTooltipVisible(null) }
-							>
-								{ IS_OBSCURED ? obscuredAlphabetForMode[mode as keyof typeof obscuredAlphabetForMode] : visibleIconForMode[mode as keyof typeof visibleIconForMode] }
-							</button>
-
-							{ tooltipVisible === mode && (
-								<div className={ classes.tooltip }>
-									{ IS_OBSCURED
-										? 'Get New Completion'
-										: `Get New ${ visibleNameForMode[mode as keyof typeof visibleNameForMode] }` }
-								</div>
-							) }
-							</Fragment>
-						);
-					}) }
-					</div>
-
-				<div className={ classes.noteTextWrapper }>
-					<div className={ classes.noteText }>
-						Please note that the quality of AI-generated text may
-						vary
-					</div>
-				</div>
-			</div>
-
-			<div>
-				{ /* Result of the generation */ }
-				<div className={ classes.reflectionContainer }>{ results }</div>
-
-				{ /* Close and Save button container */ }
-				<div className={ classes.utilsContainer }>
-					{ /* Question: do we need this? */ }
-					{ copied && (
-						<div className={ classes.utilStateWrapper }>
-							<div className={ classes.copiedStateText }>
-								Copied!
-							</div>
-
-							<FcCheckmark />
-						</div>
-					) }
-
-					{ saved && (
-						<div className={ classes.utilStateWrapper }>
-							<div className={ classes.savedStateText }>Saved</div>
-
-							<AiOutlineSave className={ classes.savedStateIcon } />
-						</div>
-					) }
-
-					{ generationMode !== 'None' &&
-						!isLoading &&
-						generation &&
-						errorMsg === '' && (
-							<div className={ classes.buttonsWrapper }>
-								<div
-									className={ classes.utilIconWrapper }
-									onClick={ () => {
-										updateGenerationMode('None');
-										updateGeneration(null);
-										results = null;
-									} }
-									onMouseEnter={ () =>
-										setTooltipVisible('Close')
-									}
-									onMouseLeave={ () => {
-										setTooltipVisible(null);
-									} }
-								>
-									<AiOutlineClose
-										className={ classes.closeIcon }
-									/>
-								</div>
-
-								{ tooltipVisible === 'Close' && (
-									<div
-										className={ [
-											classes.utilTooltip,
-											classes.utilTooltip_close
-										].join(' ') }
-									>
-										Close
-									</div>
-								) }
-
-								<div
-									className={ classes.utilIconWrapper }
-									onClick={ () => {
-										// Save the generation
-										save(generation, docContext.beforeCursor);
-
-										setSaved(true);
-										setTimeout(() => setSaved(false), 2000);
-									} }
-									onMouseEnter={ () =>
-										setTooltipVisible('Save')
-									}
-									onMouseLeave={ () => {
-										setTooltipVisible(null);
-									} }
-								>
-									<AiOutlineStar
-										className={
-											saved
-												? classes.saved
-												: classes.saveIcon
+		<>
+			<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
+				<div>
+					{/* Generation Option Buttons */}
+					<div className={classes.optionsContainer}>
+						{modesToShow.map(mode => {
+							return (
+								<Fragment key={mode}>
+									<button
+										className={classes.optionsButton}
+										disabled={
+											docContext.beforeCursor === '' ||
+											isLoading
 										}
-									/>
-								</div>
-								{ tooltipVisible === 'Save' && (
-									<div
-										className={ [
-											classes.utilTooltip,
-											classes.utilTooltip_save
-										].join(' ') }
-									>
-										Save
-									</div>
-								) }
-							</div>
-						) }
-				</div>
+										onClick={async () => {
+											log({
+												username: username,
+												event: 'request_suggestion',
+												// eslint-disable-next-line camelcase
+												generation_type: mode,
+												docContext: docContext
+											});
 
-				{ /* Saved generations */ }
+											getSuggestion(mode);
+										}}
+									>
+										{isStudy ? (
+											<AiOutlineReload />
+										) : (
+											iconFunc(mode)
+										)}
+										{/* { isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode] } */}
+									</button>
+								</Fragment>
+							);
+						})}
+					</div>
+				</div>
+				{alerts}
+
 				<SavedGenerations
-					docContext= { docContext }
-					saved={ saved }
-					isLoading={ isLoading }
-					savedItems={ savedItems }
-					deleteSavedItem={ deleteSavedItem }
+					savedItems={savedItems}
+					deleteSavedItem={deleteSavedItem}
 				/>
 			</div>
-		</div>
+
+			<div className={classes.noteTextWrapper}>
+				<div className={classes.noteText}>
+					Please note that the quality of AI-generated text may vary
+				</div>
+			</div>
+		</>
 	);
 }

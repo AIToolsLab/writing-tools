@@ -1,27 +1,29 @@
-from pydantic import BaseModel, Field, ConfigDict, AfterValidator
-import os
+import io
 import json
-
-from typing import List, Dict, Optional, Annotated
-from pathlib import Path
+import logging
+import os
+import zipfile
+from contextlib import asynccontextmanager
 from datetime import datetime
-
-import uvicorn
-import asyncio
-
-from fastapi import FastAPI, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-
-from sse_starlette.sse import EventSourceResponse
-
-from pydantic import BaseModel, ConfigDict
-from dotenv import load_dotenv
+from pathlib import Path
+from typing import Annotated, Dict, List, Literal, Optional
 
 import nlp
+import uvicorn
+from dotenv import load_dotenv
+from fastapi import BackgroundTasks, Body, FastAPI
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import AfterValidator, BaseModel, ConfigDict
+from sse_starlette.sse import EventSourceResponse
 
-import logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 
 # Load ENV vars
 load_dotenv()
@@ -31,14 +33,19 @@ LOG_PATH = Path("./logs").absolute()
 DEBUG = os.getenv("DEBUG") or False
 PORT = int(os.getenv("PORT") or 8000)
 
-# FIXME: Use auth0 instead
+# The log secret is stored in .env file for local development.
 LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
 print(f"Log secret: {LOG_SECRET!r}")
 
-# Flag for whether to include any document text in the logs.
-# In the future we'll enable this for developers and study participants who have consented.
-# For now, we'll just disable all logging of document text.
-LOG_DOCTEXT = False
+
+def should_log(username: str) -> bool:
+    """
+    Determines whether to log document text based on the username.
+    
+    Currently, production users don't have "username" flags (authentication is handled by Auth0),
+    but study users have non-empty usernames.
+    """
+    return username != ""
 
 
 def validate_username(username: str):
@@ -59,6 +66,12 @@ class GenerationRequestPayload(BaseModel):
     username: ValidatedUsername
     gtype: str
     prompt: str
+
+
+class SuggestionRequestWithDocContext(BaseModel):
+    username: ValidatedUsername
+    gtype: str
+    doc_context: nlp.DocContext
 
 
 class ReflectionRequestPayload(BaseModel):
@@ -85,10 +98,11 @@ class Log(BaseModel):
     timestamp: float
     ok: bool = True
     username: ValidatedUsername
-    interaction: str
+    event: str
 
 
 class GenerationLog(Log):
+    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove"]
     prompt: str
     result: str
     completion: Optional[str] = None
@@ -99,10 +113,15 @@ class ReflectionLog(Log):
     paragraph: str
 
 
-# Initialize Server
-app = FastAPI()
+@asynccontextmanager
+async def app_lifespan(app: FastAPI):
+    await nlp.warmup_nlp()
+    yield
+
+app = FastAPI(lifespan=app_lifespan)
 
 origins = ["*"]
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -113,25 +132,36 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    print(f"The client sent invalid data!: {exc}")
+    return await request_validation_exception_handler(request, exc)
+
+
+
 # Routes
 @app.post("/api/generation")
 async def generation(payload: GenerationRequestPayload, background_tasks: BackgroundTasks) -> nlp.GenerationResult:
     '''
     To test this endpoint from curl:
 
-    $ curl -X POST -H "Content-Type: application/json" -d '{"username": "test", "gtype": "Completion_Backend", "prompt": "This is a test prompt."}' http://localhost:8000/api/generation
+    $ curl -X POST -H "Content-Type: application/json" -d '{"username": "test", "gtype": "Completion", "prompt": "This is a test prompt."}' http://localhost:8000/api/generation
     '''
+    should_log_doctext = should_log(payload.username)
+
+    # Sometimes gtype will have a _Backend suffix, so we strip it out
+    payload.gtype = payload.gtype.replace("_Backend", "")
 
     start_time = datetime.now()
-    if payload.gtype == "Completion_Backend":
+    if payload.gtype == "Completion":
         result = await nlp.chat_completion(payload.prompt)
-    elif payload.gtype == "Question_Backend":
+    elif payload.gtype == "Question":
         result = await nlp.question(payload.prompt)
-    elif payload.gtype == "Keywords_Backend":
+    elif payload.gtype == "Keywords":
         result = await nlp.keywords(payload.prompt)
-    elif payload.gtype == "Structure_Backend":
+    elif payload.gtype == "Structure":
         result = await nlp.structure(payload.prompt)
-    elif payload.gtype == "RMove_Backend":
+    elif payload.gtype == "RMove":
         result = await nlp.rmove(payload.prompt)
     else:
         raise ValueError(f"Invalid generation type: {payload.gtype}")
@@ -140,20 +170,18 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
     log_entry = GenerationLog(
         timestamp=end_time.timestamp(),
         username=payload.username,
-        interaction=payload.gtype,
-        prompt=payload.prompt if LOG_DOCTEXT else "",
-        result=result.result if LOG_DOCTEXT else "",
+        event="suggestion_generated",
+        generation_type=payload.gtype,
+        prompt=payload.prompt if should_log_doctext else "",
+        result=result.result if should_log_doctext else "",
         delay=(end_time - start_time).total_seconds(),
     )
     # add on extra data
-    if LOG_DOCTEXT:
+    if should_log_doctext:
         for key, value in result.extra_data.items():
             if not hasattr(log_entry, key):
                 setattr(log_entry, key, value)
     background_tasks.add_task(make_log, log_entry)
-
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
 
     final_end_time = datetime.now()
     log = final_end_time - start_time
@@ -161,21 +189,55 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
     return result
 
 
+@app.post("/api/get_suggestion")
+async def get_suggestion(payload: SuggestionRequestWithDocContext, background_tasks: BackgroundTasks) -> nlp.GenerationResult:
+    should_log_doctext = should_log(payload.username)
+
+    start_time = datetime.now()
+    allowed_gtypes = list(nlp.prompts.keys())
+    if payload.gtype not in allowed_gtypes:
+        raise ValueError(f"Invalid generation type: {payload.gtype}")
+    result = await nlp.get_suggestion(payload.gtype, payload.doc_context)
+    end_time = datetime.now()
+
+    # log_entry = GenerationLog(
+    #     timestamp=end_time.timestamp(),
+    #     username=payload.username,
+    #     event="suggestion_generated",
+    #     generation_type=payload.gtype,
+    #     prompt=payload.prompt if should_log_doctext else "",
+    #     result=result.result if should_log_doctext else "",
+    #     delay=(end_time - start_time).total_seconds(),
+    # )
+    # # add on extra data
+    # if should_log_doctext:
+    #     for key, value in result.extra_data.items():
+    #         if not hasattr(log_entry, key):
+    #             setattr(log_entry, key, value)
+    # background_tasks.add_task(make_log, log_entry)
+
+    final_end_time = datetime.now()
+    log = final_end_time - start_time
+    logger.info(f"Total generation request operation took: {log.total_seconds()} seconds")
+    return result
+
 
 @app.post("/api/reflections")
 async def reflections(payload: ReflectionRequestPayload, background_tasks: BackgroundTasks):
+    should_log_doctext = should_log(payload.username)
+
     start_time = datetime.now()
-    result = await nlp.reflection(prompt=payload.prompt, paragraph=payload.paragraph)
+    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph)
     end_time = datetime.now()
 
     log_entry = ReflectionLog(
         username=payload.username,
-        interaction="reflection",
-        prompt=payload.prompt if LOG_DOCTEXT else "",
-        paragraph=payload.paragraph if LOG_DOCTEXT else "",
+        event="reflection_generated",
+        prompt=payload.prompt if should_log_doctext else "",
+        paragraph=payload.paragraph if should_log_doctext else "",
         timestamp=end_time.timestamp(),
         delay=(end_time - start_time).total_seconds(),
-        result=result.result if LOG_DOCTEXT else "",
+        result=result.result if should_log_doctext else "",
     )
 
     background_tasks.add_task(make_log, log_entry)
@@ -196,7 +258,7 @@ async def chat(payload: ChatRequestPayload):
     # } for message in payload.messages]
     # make_log(
     #    Log(username=payload.username,
-    # interaction="chat",
+    # event="chat_message",
     # prompt=payload.messages[-1]['content'],
     # ui_id=None)
     # )
@@ -228,40 +290,75 @@ async def ping() -> PingResponse:
     return PingResponse(timestamp=datetime.now())
 
 
-# Show all server logs
-@app.get("/api/logs")
-async def logs(secret: str):
-    async def log_generator():
-        assert LOG_SECRET != "", "Logging secret not set."
-        if secret != LOG_SECRET:
-            yield json.dumps({"error": "Invalid secret."})
-            return
+# Log viewer endpoint
+class LogsPollRequest(BaseModel):
+    log_positions: Dict[str, int]
+    secret: str
 
-        log_positions = {}
+@app.post("/api/logs_poll")
+async def logs_poll(
+    req: LogsPollRequest = Body(...)
+):
+    """
+    Polling endpoint for logs. Client sends a dict of {username: num_logs_already_have}.
+    Returns new log entries for each username since that count, deduplicated by timestamp+interaction+username.
+    """
+    log_positions = req.log_positions or {}
+    secret = req.secret
+    assert LOG_SECRET != "", "Logging secret not set."
+    if secret != LOG_SECRET:
+        return JSONResponse({"error": "Invalid secret."}, status_code=403)
 
-        while True:
-            updates = []
-            log_files = {
-                participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
+    updates = []
+    log_files = {participant.stem: participant for participant in LOG_PATH.glob("*.jsonl")}
+    for username, log_file in log_files.items():
+        if username == '.jsonl':
+            continue
+        with open(log_file, "r") as file:
+            all_lines = file.readlines()
+            # Deduplicate all entries by (timestamp, interaction, username)
+            seen = set()
+            deduped = []
+            for line in all_lines:
+                try:
+                    entry = json.loads(line)
+                    key = f"{entry.get('timestamp')}|{entry.get('interaction')}|{entry.get('username')}"
+                    if key not in seen:
+                        seen.add(key)
+                        deduped.append(entry)
+                except Exception:
+                    continue
+            # Only send entries after the client's count
+            start_line = log_positions.get(username, 0)
+            new_entries = deduped[start_line:]
+            if new_entries:
+                updates.append({
+                    "username": username,
+                    "logs": new_entries,
+                })
+    return updates
 
-            for username, log_file in log_files.items():
-                with open(log_file, "r") as file:
-                    file.seek(log_positions.get(username, 0))
-                    new_lines = file.readlines()
 
-                    if new_lines:
-                        updates.append({
-                            "username": username,
-                            "logs": [json.loads(line) for line in new_lines],
-                        })
-                        log_positions[username] = file.tell()
+@app.get("/api/download_logs")
+async def download_logs(secret: str):
+    """
+    Download all log files as a ZIP archive.
+    """
+    assert LOG_SECRET != "", "Logging secret not set."
+    if secret != LOG_SECRET:
+        return JSONResponse({"error": "Invalid secret."}, status_code=403)
 
-            if updates:
-                yield json.dumps(updates)
-
-            await asyncio.sleep(1)  # Adjust the sleep time as needed
-
-    return EventSourceResponse(log_generator())
+    # Create an in-memory bytes buffer
+    zip_buffer = io.BytesIO()
+    with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zipf:
+        for log_file in LOG_PATH.glob("*.jsonl"):
+            zipf.write(log_file, arcname=log_file.name)
+    zip_buffer.seek(0)
+    return StreamingResponse(
+        zip_buffer,
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=logs.zip"}
+    )
 
 
 def get_participant_log_filename(username):
@@ -271,7 +368,6 @@ def get_participant_log_filename(username):
 async def make_log(payload: Log):
     with open(get_participant_log_filename(payload.username), "a+") as f:
         f.write(json.dumps(payload.model_dump()) + "\n")
-            
 
 static_path = Path("../frontend/dist")
 if static_path.exists():

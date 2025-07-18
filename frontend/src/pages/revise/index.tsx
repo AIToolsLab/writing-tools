@@ -4,17 +4,18 @@ import {
 	defaultPrompt,
 	PromptButtonSelector
 } from '@/components/promptButtonSelector';
-import { UserContext } from '@/contexts/userContext';
+import { usernameAtom } from '@/contexts/userContext';
 import { getReflection } from '@/api';
 import classes from './styles.module.css';
 import { getCurParagraph } from '@/utilities/selectionUtil';
 import { EditorContext } from '@/contexts/editorContext';
 import { useDocContext } from '@/utilities';
 import { useAccessToken } from '@/contexts/authTokenContext';
+import { useAtomValue } from 'jotai';
 
 export default function Revise() {
 	const editorAPI = useContext(EditorContext);
-	const { username } = useContext(UserContext);
+	const username = useAtomValue(usernameAtom);
 	const docContext = useDocContext(editorAPI);
 	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
 	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
