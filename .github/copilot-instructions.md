@@ -103,7 +103,6 @@ uv run ruff check
 - The frontend is a Microsoft Office Add-in that communicates with the backend API
 - The backend provides API endpoints for text processing and AI-powered writing assistance
 - Authentication is handled through Auth0 in the frontend
-- The backend uses Azure services for deployment and secrets management
 
 ## File Naming and Organization
 
@@ -111,7 +110,6 @@ uv run ruff check
 - Group related files in appropriate directories
 - Use descriptive file names that indicate purpose
 - Keep components modular and reusable
-- Separate concerns between UI, logic, and API layers
 
 ## Common Patterns
 
@@ -126,7 +124,6 @@ uv run ruff check
 - Use FastAPI for API endpoints
 - Implement proper error handling and validation
 - Use dependency injection for testability
-- Follow RESTful API conventions
 - Use environment variables for configuration
 
 Remember: Always use the correct package manager (`yarn` for frontend, `uv` for backend) and follow the established coding conventions for each component.
