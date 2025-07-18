@@ -8,6 +8,7 @@ import {
 	useCallback,
 	useContext,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from 'react';
@@ -30,22 +31,26 @@ const visibleNameForMode = {
 
 const modes = ['example_sentences', 'analysis_describe', 'proposal_advice'];
 
+interface SuggestionRequest {
+	docContext: DocContext;
+	type: string;
+}
+
 class Fetcher {
-	requestInFlight: { docContext: DocContext; type: string } | null;
+	requestInFlight: SuggestionRequest | null;
+	previousRequest: SuggestionRequest | null;
+
 	constructor() {
 		this.requestInFlight = null;
+		this.previousRequest = null;
 	}
 
 	async fetchSuggestion(
-		type: string,
-		docContext: DocContext,
+		request: SuggestionRequest,
 		accessToken: string,
 		username: string,
 	): Promise<GenerationResult> {
-		this.requestInFlight = {
-			docContext,
-			type,
-		};
+		this.requestInFlight = request;
 		try {
 			const response = await fetch(`${SERVER_URL}/get_suggestion`, {
 				method: 'POST',
@@ -55,9 +60,9 @@ class Fetcher {
 				},
 				body: JSON.stringify({
 					username: username,
-					gtype: type,
+					gtype: request.type,
 					// eslint-disable-next-line camelcase
-					doc_context: docContext,
+					doc_context: request.docContext,
 				}),
 				signal: AbortSignal.timeout(20000),
 			});
@@ -73,6 +78,7 @@ class Fetcher {
 			else errMsg = `${err.name}: ${err.message}. Please try again.`;
 			throw new Error(errMsg);
 		} finally {
+			this.previousRequest = request;
 			this.requestInFlight = null;
 		}
 	}
@@ -183,7 +189,7 @@ function useResettableInterval(callback: () => void, interval: number) {
 
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
-	const docContext = useDocContext(editorAPI);
+	const docContextSnapshot = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
 	const studyCondition = useAtomValue(studyConditionAtom);
 	const { getAccessToken, authErrorType } = useAccessToken();
@@ -198,11 +204,14 @@ export default function Draft() {
 		}
 		return fetcherRef.current;
 	}, []);
-	const docContextRef = useRef<DocContext>(docContext);
-	docContextRef.current = docContext;
+	const docContextRef = useRef<DocContext>(docContextSnapshot);
+	docContextRef.current = docContextSnapshot;
 
 	const isStudy = studyCondition !== null;
-	const modesToShow = isStudy ? [studyCondition] : modes;
+	const modesToShow = useMemo(
+		() => (isStudy ? [studyCondition] : modes),
+		[isStudy, studyCondition]
+	);
 
 	const shouldAutoRefresh = isStudy;
 
@@ -251,7 +260,7 @@ export default function Draft() {
 
 	// Get a generation from the backend
 	const getSuggestion = useCallback(
-		async function getSuggestion(type: string, docContext: DocContext, isUserInitiated = true) {
+		async function getSuggestion(suggestionRequest: SuggestionRequest, isUserInitiated = true) {
 			updateErrorMsg('');
 			if (isUserInitiated) {
 				setIsLoading(true);
@@ -259,12 +268,11 @@ export default function Draft() {
 			try {
 				const token = await getAccessToken();
 				const suggestion = await getFetcher().fetchSuggestion(
-					type,
-					docContext,
+					suggestionRequest,
 					token,
 					username,
 				);
-				save(suggestion, docContext);
+				save(suggestion, suggestionRequest.docContext);
 			} catch (err: any) {
 				const errMsg: string =
 					err.message ||
@@ -273,8 +281,8 @@ export default function Draft() {
 					username: username,
 					event: 'generation_error',
 					// eslint-disable-next-line camelcase
-					generation_type: type,
-					docContext: docContext,
+					generation_type: suggestionRequest.type,
+					docContext: suggestionRequest.docContext,
 					result: errMsg,
 				});
 				updateErrorMsg(errMsg);
@@ -289,14 +297,34 @@ export default function Draft() {
 		if (!shouldAutoRefresh) {
 			return;
 		}
+		const request = {
+			docContext: docContextRef.current,
+			type: modesToShow[0],
+		};
 		if (getFetcher().requestInFlight) {
 			console.warn(
 				'Auto-refresh skipped because a request is already in flight.',
 			);
 			return;
 		}
-		getSuggestion(modesToShow[0], docContextRef.current, false);
-	}, [getFetcher, getSuggestion, modesToShow, shouldAutoRefresh]);
+		const prevRequest = getFetcher().previousRequest;
+		if (prevRequest && 
+			prevRequest.docContext === docContextRef.current &&
+			prevRequest.type === modesToShow[0]) {
+			console.warn(
+				'Auto-refresh skipped because the previous request is the same as the current one.',
+			);
+			return;
+		}
+		log({
+			username: username,
+			event: 'auto_refresh',
+			// eslint-disable-next-line camelcase
+			generation_type: modesToShow[0],
+			docContext: docContextRef.current,
+		});
+		getSuggestion(request, false);
+	}, [getFetcher, getSuggestion, modesToShow, shouldAutoRefresh, username]);
 
 	const resetAutoRefresh = useResettableInterval(
 		autoRefreshCallback,
@@ -354,11 +382,15 @@ export default function Draft() {
 												event: 'request_suggestion',
 												// eslint-disable-next-line camelcase
 												generation_type: mode,
-												docContext: docContext,
+												docContext: docContextRef.current,
 											});
 
 											resetAutoRefresh();
-											getSuggestion(mode, docContextRef.current, true);
+											const request = {
+												docContext: docContextRef.current,
+												type: mode,
+											};
+											getSuggestion(request, true);
 										}}
 									>
 										{isStudy ? (
