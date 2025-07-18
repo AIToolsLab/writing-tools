@@ -5,9 +5,12 @@
   },
   "cSpell.words": [
     "addin",
+    "addins",
     "taskpane"
   ],
-  "eslint.workingDirectories": ["./frontend"],
+  "eslint.workingDirectories": [
+    "./frontend"
+  ],
   "debug.internalConsoleOptions": "neverOpen",
     "terminal.integrated.automationProfile.osx": {
     "path": "/bin/bash"
