@@ -4,85 +4,83 @@ import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import { Fragment, useContext, useState } from 'react';
-import {
-	AiOutlineClose,
-	AiOutlineReload,
-} from 'react-icons/ai';
+import { AiOutlineClose, AiOutlineReload } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
 import { useAtomValue } from 'jotai';
 import { studyConditionAtom } from '@/contexts/studyContext';
 
-
 const visibleNameForMode = {
-	"example_sentences": "Examples",
-	"analysis_describe": "Analysis",
-	"proposal_advice": "Advice"
+	example_sentences: 'Examples',
+	analysis_describe: 'Analysis',
+	proposal_advice: 'Advice'
 };
 
-const modes = ["example_sentences", "analysis_describe", "proposal_advice"];
+const modes = ['example_sentences', 'analysis_describe', 'proposal_advice'];
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
-	return <div className='prose'><div className="text-bold">{visibleNameForMode[generation.generation_type as keyof typeof visibleNameForMode]}</div> <Remark>{ generation.result }</Remark></div>;
+	return (
+		<div className="prose">
+			<div className="text-bold">
+				{
+					visibleNameForMode[
+						generation.generation_type as keyof typeof visibleNameForMode
+					]
+				}
+			</div>{' '}
+			<Remark>{generation.result}</Remark>
+		</div>
+	);
 }
 
 function SavedGenerations({
-    savedItems,
-    deleteSavedItem,
+	savedItems,
+	deleteSavedItem
 }: {
-    savedItems: SavedItem[],
-    deleteSavedItem: (dateSaved: Date) => void,
+	savedItems: SavedItem[];
+	deleteSavedItem: (dateSaved: Date) => void;
 }) {
-
-
-    return (
-        <div className={ classes.historyContainer }>
-
-            <div className={ classes.historyItemContainer }>
-
-                { savedItems.length === 0 ? (
-                    <div className={ classes.historyEmptyWrapper }>
-                        <div className={ classes.historyText }>
-                            No suggestions...
-                        </div>
-                    </div>
-                ) : (
-                    savedItems.map((savedItem, index) => (
-                        <div
-                            key={ index }
-                            className={ classes.historyItem }
-                        >
-                            <div className={ classes.historyText }>
-                                <GenerationResult generation={ savedItem.generation } />
-                            </div>
-                            <div
-                                className={ classes.savedIconsContainer }
-                            >
-                                <div
-                                    className={
-                                        classes.historyCloseButtonWrapper
-                                    }
-                                    onClick={ () =>
-                                        deleteSavedItem(
-                                            savedItem.dateSaved
-                                        )
-                                    }
-                                >
-                                    <AiOutlineClose
-                                        className={
-                                            classes.historyCloseButton
-                                        }
-                                    />
-                                </div>
-                            </div>
-                        </div>
-                    ))
-                ) }
-            </div>
-        </div>
-
-    );
+	return (
+		<div className={classes.historyContainer}>
+			<div className={classes.historyItemContainer}>
+				{savedItems.length === 0 ? (
+					<div className={classes.historyEmptyWrapper}>
+						<div className={classes.historyText}>
+							No suggestions...
+						</div>
+					</div>
+				) : (
+					savedItems.map((savedItem, index) => (
+						<div
+							key={index}
+							className={classes.historyItem}
+						>
+							<div className={classes.historyText}>
+								<GenerationResult
+									generation={savedItem.generation}
+								/>
+							</div>
+							<div className={classes.savedIconsContainer}>
+								<div
+									className={
+										classes.historyCloseButtonWrapper
+									}
+									onClick={() =>
+										deleteSavedItem(savedItem.dateSaved)
+									}
+								>
+									<AiOutlineClose
+										className={classes.historyCloseButton}
+									/>
+								</div>
+							</div>
+						</div>
+					))
+				)}
+			</div>
+		</div>
+	);
 }
 
 export default function Draft() {
@@ -96,12 +94,14 @@ export default function Draft() {
 	const [errorMsg, updateErrorMsg] = useState('');
 
 	function save(generation: GenerationResult, document: DocContext) {
-		const newSaved = [{
-			document: document,
-			generation: generation,
-			dateSaved: new Date()
-		},
-		...savedItems];
+		const newSaved = [
+			{
+				document: document,
+				generation: generation,
+				dateSaved: new Date()
+			},
+			...savedItems
+		];
 
 		updateSavedItems(newSaved);
 	}
@@ -131,9 +131,7 @@ export default function Draft() {
 	}
 
 	// Get a generation from the backend
-	async function getSuggestion(
-		type: string,
-	) {
+	async function getSuggestion(type: string) {
 		updateErrorMsg('');
 
 		setIsLoading(true);
@@ -144,7 +142,7 @@ export default function Draft() {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					'Authorization': `Bearer ${token}`
+					Authorization: `Bearer ${token}`
 				},
 				body: JSON.stringify({
 					username: username,
@@ -158,10 +156,9 @@ export default function Draft() {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
 			updateErrorMsg('');
-			const generated = await response.json() as GenerationResult;
+			const generated = (await response.json()) as GenerationResult;
 			save(generated, docContext);
-		}
-		catch (err: any) {
+		} catch (err: any) {
 			setIsLoading(false);
 			let errMsg = '';
 			if (err.name === 'AbortError')
@@ -171,7 +168,7 @@ export default function Draft() {
 			updateErrorMsg(errMsg);
 			log({
 				username: username,
-				event: "generation_error",
+				event: 'generation_error',
 				// eslint-disable-next-line camelcase
 				generation_type: type,
 				docContext: docContext,
@@ -184,19 +181,17 @@ export default function Draft() {
 	}
 
 	if (authErrorType !== null) {
-        return (
-            <div>
-							Please reauthorize.
-						</div>
-        );
-    }
+		return <div>Please reauthorize.</div>;
+	}
 
 	let alerts = null;
 
 	if (errorMsg !== '')
 		alerts = (
-			<div className= "mr-[16px] ml-[16px] p-[16px] duration-150">
-				<div className="text-base text-red-500 text-center">{ errorMsg }</div>
+			<div className="mr-[16px] ml-[16px] p-[16px] duration-150">
+				<div className="text-base text-red-500 text-center">
+					{errorMsg}
+				</div>
 			</div>
 		);
 	else if (savedItems.length === 0)
@@ -219,8 +214,8 @@ export default function Draft() {
 
 	if (isLoading)
 		alerts = (
-			<div className={ classes.spinnerWrapper }>
-				<div className={ classes.loader }></div>
+			<div className={classes.spinnerWrapper}>
+				<div className={classes.loader}></div>
 			</div>
 		);
 
@@ -229,53 +224,56 @@ export default function Draft() {
 
 	return (
 		<>
-		<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
+			<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
+				<div>
+					{/* Generation Option Buttons */}
+					<div className={classes.optionsContainer}>
+						{modesToShow.map(mode => {
+							return (
+								<Fragment key={mode}>
+									<button
+										className={classes.optionsButton}
+										disabled={
+											docContext.beforeCursor === '' ||
+											isLoading
+										}
+										onClick={async () => {
+											log({
+												username: username,
+												event: 'request_suggestion',
+												// eslint-disable-next-line camelcase
+												generation_type: mode,
+												docContext: docContext
+											});
 
-			<div>
-				{ /* Generation Option Buttons */ }
-				<div
-					className={ classes.optionsContainer }
-				>
-					{ modesToShow.map(mode => {
-						return (
-							<Fragment key={ mode }>
-							<button
-								className={ classes.optionsButton }
-								disabled={ docContext.beforeCursor === '' || isLoading }
-								onClick={ async () => {
-									log({
-										username: username,
-										event: "request_suggestion",
-										// eslint-disable-next-line camelcase
-										generation_type: mode,
-										docContext: docContext
-									});
-
-									getSuggestion(mode);
-								} }
-							>
-							   { isStudy ? <AiOutlineReload /> : iconFunc(mode) }
-							   {/* { isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode] } */}
-							</button>
-							</Fragment>
-						);
-					}) }
-					</div>
-			</div>
-			{ alerts }
-
-				<SavedGenerations
-					savedItems={ savedItems }
-					deleteSavedItem={ deleteSavedItem }
-				/>
-		</div>
-
-		<div className={ classes.noteTextWrapper }>
-					<div className={ classes.noteText }>
-						Please note that the quality of AI-generated text may
-						vary
+											getSuggestion(mode);
+										}}
+									>
+										{isStudy ? (
+											<AiOutlineReload />
+										) : (
+											iconFunc(mode)
+										)}
+										{/* { isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode] } */}
+									</button>
+								</Fragment>
+							);
+						})}
 					</div>
 				</div>
+				{alerts}
+
+				<SavedGenerations
+					savedItems={savedItems}
+					deleteSavedItem={deleteSavedItem}
+				/>
+			</div>
+
+			<div className={classes.noteTextWrapper}>
+				<div className={classes.noteText}>
+					Please note that the quality of AI-generated text may vary
+				</div>
+			</div>
 		</>
 	);
 }
