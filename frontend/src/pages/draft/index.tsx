@@ -3,7 +3,7 @@
  */
 
 import { useAtomValue } from 'jotai';
-import { Fragment, useCallback, useContext, useState } from 'react';
+import { Fragment, useCallback, useContext, useRef, useState } from 'react';
 import { AiOutlineClose, AiOutlineReload } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 import { log, SERVER_URL } from '@/api';
@@ -22,6 +22,53 @@ const visibleNameForMode = {
 };
 
 const modes = ['example_sentences', 'analysis_describe', 'proposal_advice'];
+
+class Fetcher {
+	requestInFlight: { docContext: DocContext; type: string; } | null;
+	constructor() {
+		this.requestInFlight = null;
+	}
+
+	async fetchSuggestion(
+		type: string,
+		docContext: DocContext,
+		accessToken: string,
+		username: string,
+	): Promise<GenerationResult> {
+		this.requestInFlight = {
+			docContext, type
+		}
+		try {
+			const response = await fetch(`${SERVER_URL}/get_suggestion`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${accessToken}`,
+				},
+				body: JSON.stringify({
+					username: username,
+					gtype: type,
+					// eslint-disable-next-line camelcase
+					doc_context: docContext,
+				}),
+				signal: AbortSignal.timeout(20000),
+			});
+			if (!response.ok) {
+				throw new Error(`HTTP error! status: ${response.status}`);
+			}
+			const generated = (await response.json()) as GenerationResult;			
+			return generated;
+		} catch (err: any) {
+			let errMsg = '';
+			if (err.name === 'AbortError')
+				errMsg = `Generating a suggestion took too long, please try again.`;
+			else errMsg = `${err.name}: ${err.message}. Please try again.`;
+			throw new Error(errMsg);
+		} finally {
+			this.requestInFlight = null;
+		}
+	}
+}
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
 	return (
@@ -55,9 +102,9 @@ function SavedGenerations({
 						</div>
 					</div>
 				) : (
-					savedItems.map((savedItem, index) => (
+					savedItems.map(savedItem => (
 						<div
-							key={index}
+							key={savedItem.dateSaved.toString()}
 							className={classes.historyItem}
 						>
 							<div className={classes.historyText}>
@@ -96,11 +143,21 @@ export default function Draft() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 	const [errorMsg, updateErrorMsg] = useState('');
+	const fetcherRef = useRef<Fetcher | null>(null);
+
+	const getFetcher = useCallback((): Fetcher => {
+		if (!fetcherRef.current) {
+			fetcherRef.current = new Fetcher();
+		}
+		return fetcherRef.current;
+	}, []);
+	const docContextRef = useRef<DocContext>(docContext);
+	docContextRef.current = docContext;
 
 	const isStudy = studyCondition !== null;
 	const modesToShow = isStudy ? [studyCondition] : modes;
 
-	function save(generation: GenerationResult, document: DocContext) {
+	const save = useCallback((generation: GenerationResult, document: DocContext) => {
 		updateSavedItems(savedItems => [
 			{
 				document: document,
@@ -109,7 +166,7 @@ export default function Draft() {
 			},
 			...savedItems,
 		]);
-	}
+	}, []);
 
 	function deleteSavedItem(dateSaved: Date) {
 		updateSavedItems(savedItems => {
@@ -147,34 +204,17 @@ export default function Draft() {
 			setIsLoading(true);
 			try {
 				const token = await getAccessToken();
-				const response = await fetch(`${SERVER_URL}/get_suggestion`, {
-					method: 'POST',
-					headers: {
-						'Content-Type': 'application/json',
-						Authorization: `Bearer ${token}`,
-					},
-					body: JSON.stringify({
-						username: username,
-						gtype: type,
-						// eslint-disable-next-line camelcase
-						doc_context: docContext,
-					}),
-					signal: AbortSignal.timeout(20000),
-				});
-				if (!response.ok) {
-					throw new Error(`HTTP error! status: ${response.status}`);
-				}
-				updateErrorMsg('');
-				const generated = (await response.json()) as GenerationResult;
-				save(generated, docContext);
+				const suggestion = await getFetcher().fetchSuggestion(
+					type,
+					docContext,
+					token,
+					username,
+				);
+				save(suggestion, docContext);
 			} catch (err: any) {
-				setIsLoading(false);
-				let errMsg = '';
-				if (err.name === 'AbortError')
-					errMsg = `Generating a suggestion took too long, please try again.`;
-				else errMsg = `${err.name}: ${err.message}. Please try again.`;
-
-				updateErrorMsg(errMsg);
+				const errMsg: string =
+					err.message ||
+					'An error occurred while generating the suggestion.';
 				log({
 					username: username,
 					event: 'generation_error',
@@ -183,12 +223,12 @@ export default function Draft() {
 					docContext: docContext,
 					result: errMsg,
 				});
-				return;
+				updateErrorMsg(errMsg);
 			}
 
 			setIsLoading(false);
 		},
-		[getAccessToken, docContext, username],
+		[getAccessToken, getFetcher, docContext, username, save],
 	);
 
 	if (authErrorType !== null) {
@@ -240,6 +280,7 @@ export default function Draft() {
 							return (
 								<Fragment key={mode}>
 									<button
+										type='button'
 										className={classes.optionsButton}
 										disabled={
 											docContext.beforeCursor === '' ||
