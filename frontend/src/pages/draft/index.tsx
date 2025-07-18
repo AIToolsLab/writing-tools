@@ -1,20 +1,24 @@
-import { SERVER_URL, log } from '@/api';
-import { useAccessToken } from '@/contexts/authTokenContext';
-import { EditorContext } from '@/contexts/editorContext';
-import { usernameAtom } from '@/contexts/userContext';
-import { useDocContext } from '@/utilities';
+/**
+ * @format
+ */
+
+import { useAtomValue } from 'jotai';
 import { Fragment, useCallback, useContext, useState } from 'react';
 import { AiOutlineClose, AiOutlineReload } from 'react-icons/ai';
 import { Remark } from 'react-remark';
+import { log, SERVER_URL } from '@/api';
+import { useAccessToken } from '@/contexts/authTokenContext';
+import { EditorContext } from '@/contexts/editorContext';
+import { studyConditionAtom } from '@/contexts/studyContext';
+import { usernameAtom } from '@/contexts/userContext';
+import { useDocContext } from '@/utilities';
 import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
-import { useAtomValue } from 'jotai';
-import { studyConditionAtom } from '@/contexts/studyContext';
 
 const visibleNameForMode = {
-	"example_sentences": 'Examples',
-	"analysis_describe": 'Analysis',
-	"proposal_advice": 'Advice'
+	example_sentences: 'Examples',
+	analysis_describe: 'Analysis',
+	proposal_advice: 'Advice',
 };
 
 const modes = ['example_sentences', 'analysis_describe', 'proposal_advice'];
@@ -36,7 +40,7 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 
 function SavedGenerations({
 	savedItems,
-	deleteSavedItem
+	deleteSavedItem,
 }: {
 	savedItems: SavedItem[];
 	deleteSavedItem: (dateSaved: Date) => void;
@@ -97,15 +101,14 @@ export default function Draft() {
 	const modesToShow = isStudy ? [studyCondition] : modes;
 
 	function save(generation: GenerationResult, document: DocContext) {
-		updateSavedItems((savedItems) => 
-			[
-				{
-					document: document,
-					generation: generation,
-					dateSaved: new Date()
-				},
-				...savedItems
-			]);
+		updateSavedItems(savedItems => [
+			{
+				document: document,
+				generation: generation,
+				dateSaved: new Date(),
+			},
+			...savedItems,
+		]);
 	}
 
 	function deleteSavedItem(dateSaved: Date) {
@@ -116,7 +119,7 @@ export default function Draft() {
 			}
 			// Find the index of the item to be deleted
 			const savedItemIdx = savedItems.findIndex(
-				savedItem => savedItem.dateSaved === dateSaved
+				savedItem => savedItem.dateSaved === dateSaved,
 			);
 			if (savedItemIdx === -1) {
 				console.warn('Saved item not found for deletion');
@@ -124,66 +127,69 @@ export default function Draft() {
 			}
 			// Create a new array without the item to be deleted
 			const newSaved = savedItems.filter(
-				savedItem => savedItem.dateSaved !== dateSaved
+				savedItem => savedItem.dateSaved !== dateSaved,
 			);
 
 			log({
 				username: username,
 				event: 'Delete',
 				prompt: savedItems[savedItemIdx].document,
-				result: savedItems[savedItemIdx].generation
+				result: savedItems[savedItemIdx].generation,
 			});
 			return newSaved;
 		});
 	}
 
 	// Get a generation from the backend
-	const getSuggestion = useCallback(async function getSuggestion(type: string) {
-		updateErrorMsg('');
-		setIsLoading(true);
-		try {
-			const token = await getAccessToken();
-			const response = await fetch(`${SERVER_URL}/get_suggestion`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`
-				},
-				body: JSON.stringify({
-					username: username,
-					gtype: type,
-					// eslint-disable-next-line camelcase
-					doc_context: docContext
-				}),
-				signal: AbortSignal.timeout(20000)
-			});
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
+	const getSuggestion = useCallback(
+		async function getSuggestion(type: string) {
 			updateErrorMsg('');
-			const generated = (await response.json()) as GenerationResult;
-			save(generated, docContext);
-		} catch (err: any) {
+			setIsLoading(true);
+			try {
+				const token = await getAccessToken();
+				const response = await fetch(`${SERVER_URL}/get_suggestion`, {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({
+						username: username,
+						gtype: type,
+						// eslint-disable-next-line camelcase
+						doc_context: docContext,
+					}),
+					signal: AbortSignal.timeout(20000),
+				});
+				if (!response.ok) {
+					throw new Error(`HTTP error! status: ${response.status}`);
+				}
+				updateErrorMsg('');
+				const generated = (await response.json()) as GenerationResult;
+				save(generated, docContext);
+			} catch (err: any) {
+				setIsLoading(false);
+				let errMsg = '';
+				if (err.name === 'AbortError')
+					errMsg = `Generating a suggestion took too long, please try again.`;
+				else errMsg = `${err.name}: ${err.message}. Please try again.`;
+
+				updateErrorMsg(errMsg);
+				log({
+					username: username,
+					event: 'generation_error',
+					// eslint-disable-next-line camelcase
+					generation_type: type,
+					docContext: docContext,
+					result: errMsg,
+				});
+				return;
+			}
+
 			setIsLoading(false);
-			let errMsg = '';
-			if (err.name === 'AbortError')
-				errMsg = `Generating a suggestion took too long, please try again.`;
-			else errMsg = `${err.name}: ${err.message}. Please try again.`;
-
-			updateErrorMsg(errMsg);
-			log({
-				username: username,
-				event: 'generation_error',
-				// eslint-disable-next-line camelcase
-				generation_type: type,
-				docContext: docContext,
-				result: errMsg
-			});
-			return;
-		}
-
-		setIsLoading(false);
-	}, [getAccessToken, docContext, username]);
+		},
+		[getAccessToken, docContext, username],
+	);
 
 	if (authErrorType !== null) {
 		return <div>Please reauthorize.</div>;
@@ -245,7 +251,7 @@ export default function Draft() {
 												event: 'request_suggestion',
 												// eslint-disable-next-line camelcase
 												generation_type: mode,
-												docContext: docContext
+												docContext: docContext,
 											});
 
 											getSuggestion(mode);
