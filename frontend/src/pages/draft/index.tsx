@@ -3,7 +3,14 @@
  */
 
 import { useAtomValue } from 'jotai';
-import { Fragment, useCallback, useContext, useRef, useState } from 'react';
+import {
+	Fragment,
+	useCallback,
+	useContext,
+	useEffect,
+	useRef,
+	useState,
+} from 'react';
 import { AiOutlineClose, AiOutlineReload } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 import { log, SERVER_URL } from '@/api';
@@ -24,7 +31,7 @@ const visibleNameForMode = {
 const modes = ['example_sentences', 'analysis_describe', 'proposal_advice'];
 
 class Fetcher {
-	requestInFlight: { docContext: DocContext; type: string; } | null;
+	requestInFlight: { docContext: DocContext; type: string } | null;
 	constructor() {
 		this.requestInFlight = null;
 	}
@@ -36,8 +43,9 @@ class Fetcher {
 		username: string,
 	): Promise<GenerationResult> {
 		this.requestInFlight = {
-			docContext, type
-		}
+			docContext,
+			type,
+		};
 		try {
 			const response = await fetch(`${SERVER_URL}/get_suggestion`, {
 				method: 'POST',
@@ -56,7 +64,7 @@ class Fetcher {
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
-			const generated = (await response.json()) as GenerationResult;			
+			const generated = (await response.json()) as GenerationResult;
 			return generated;
 		} catch (err: any) {
 			let errMsg = '';
@@ -134,6 +142,45 @@ function SavedGenerations({
 	);
 }
 
+/**
+ * Call a callback function at a specified interval, with the ability to reset the interval.
+ *
+ * @param callback The function to be called on each interval.
+ * @param interval The interval duration in milliseconds.
+ * @returns A function to reset the interval.
+ */
+function useResettableInterval(callback: () => void, interval: number) {
+	const timerRef = useRef<NodeJS.Timeout | null>(null);
+	const callbackRef = useRef(callback);
+
+	useEffect(() => {
+		callbackRef.current = callback;
+	}, [callback]);
+
+	useEffect(() => {
+		if (timerRef.current) {
+			clearInterval(timerRef.current);
+		}
+		timerRef.current = setInterval(() => {
+			callbackRef.current();
+		}, interval);
+		return () => {
+			if (timerRef.current) {
+				clearInterval(timerRef.current);
+			}
+		};
+	}, [interval]);
+
+	return useCallback(() => {
+		if (timerRef.current) {
+			clearInterval(timerRef.current);
+		}
+		timerRef.current = setInterval(() => {
+			callbackRef.current();
+		}, interval);
+	}, [interval]);
+}
+
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
@@ -157,16 +204,21 @@ export default function Draft() {
 	const isStudy = studyCondition !== null;
 	const modesToShow = isStudy ? [studyCondition] : modes;
 
-	const save = useCallback((generation: GenerationResult, document: DocContext) => {
-		updateSavedItems(savedItems => [
-			{
-				document: document,
-				generation: generation,
-				dateSaved: new Date(),
-			},
-			...savedItems,
-		]);
-	}, []);
+	const shouldAutoRefresh = isStudy;
+
+	const save = useCallback(
+		(generation: GenerationResult, document: DocContext) => {
+			updateSavedItems(savedItems => [
+				{
+					document: document,
+					generation: generation,
+					dateSaved: new Date(),
+				},
+				...savedItems,
+			]);
+		},
+		[],
+	);
 
 	function deleteSavedItem(dateSaved: Date) {
 		updateSavedItems(savedItems => {
@@ -231,6 +283,24 @@ export default function Draft() {
 		[getAccessToken, getFetcher, docContext, username, save],
 	);
 
+	const autoRefreshCallback = useCallback(() => {
+		if (!shouldAutoRefresh) {
+			return;
+		}
+		if (getFetcher().requestInFlight) {
+			console.warn(
+				'Auto-refresh skipped because a request is already in flight.',
+			);
+			return;
+		}
+		getSuggestion(modesToShow[0]);
+	}, [getFetcher, getSuggestion, modesToShow, shouldAutoRefresh]);
+
+	const resetAutoRefresh = useResettableInterval(
+		autoRefreshCallback,
+		10000, // 10 seconds
+	);
+
 	if (authErrorType !== null) {
 		return <div>Please reauthorize.</div>;
 	}
@@ -280,7 +350,7 @@ export default function Draft() {
 							return (
 								<Fragment key={mode}>
 									<button
-										type='button'
+										type="button"
 										className={classes.optionsButton}
 										disabled={
 											docContext.beforeCursor === '' ||
@@ -295,6 +365,7 @@ export default function Draft() {
 												docContext: docContext,
 											});
 
+											resetAutoRefresh();
 											getSuggestion(mode);
 										}}
 									>
