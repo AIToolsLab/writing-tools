@@ -1,6 +1,6 @@
 import { useRef, useState, StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
+import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 import { studyConditionAtom, currentTaskContextAtom } from '@/contexts/studyContext';
 import * as SidebarInner from '@/pages/app';
 import { Auth0ContextInterface} from '@auth0/auth0-react';
@@ -19,7 +19,6 @@ function Sidebar({ editorAPI }: { editorAPI: EditorAPI}) {
 
 function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: ContextSection[] }) {
 	const mode = useAtomValue(overallModeAtom);
-	const page = useAtomValue(pageNameAtom);
 	const username = useAtomValue(usernameAtom);
 	const isDemo = mode === OverallMode.demo;
 	const isStudy = mode === OverallMode.study;
