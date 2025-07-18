@@ -58,9 +58,7 @@ export default [
       'react-hooks/exhaustive-deps': 'warn',
       
       // Office add-in specific rules
-      'office-addins/no-navigational-load': 'warn',
-      // Warn on camel_case identifiers
-      'camelcase': ['warn', { properties: 'never', ignoreDestructuring: true }]
+      'office-addins/no-navigational-load': 'warn'
     }
   },
   
@@ -131,9 +129,6 @@ export default [
       
       // Office add-in specific rules
       'office-addins/no-navigational-load': 'warn'
-      ,
-      // Warn on camel_case identifiers
-      'camelcase': ['warn', { properties: 'always', ignoreDestructuring: false }]
     }
   }
 ];
