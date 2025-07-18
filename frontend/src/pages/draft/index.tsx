@@ -3,7 +3,7 @@ import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
-import { Fragment, useContext, useState, useEffect, useRef } from 'react';
+import { Fragment, useCallback, useContext, useState } from 'react';
 import { AiOutlineClose, AiOutlineReload } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
@@ -12,9 +12,9 @@ import { useAtomValue } from 'jotai';
 import { studyConditionAtom } from '@/contexts/studyContext';
 
 const visibleNameForMode = {
-	example_sentences: 'Examples',
-	analysis_describe: 'Analysis',
-	proposal_advice: 'Advice'
+	"example_sentences": 'Examples',
+	"analysis_describe": 'Analysis',
+	"proposal_advice": 'Advice'
 };
 
 const modes = ['example_sentences', 'analysis_describe', 'proposal_advice'];
@@ -93,52 +93,52 @@ export default function Draft() {
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 	const [errorMsg, updateErrorMsg] = useState('');
 
-	// Auto-refresh interval in ms (configurable)
-	const AUTO_REFRESH_INTERVAL = 30000;
-	const timerRef = useRef<NodeJS.Timeout | null>(null);
+	const isStudy = studyCondition !== null;
+	const modesToShow = isStudy ? [studyCondition] : modes;
 
 	function save(generation: GenerationResult, document: DocContext) {
-		const newSaved = [
-			{
-				document: document,
-				generation: generation,
-				dateSaved: new Date()
-			},
-			...savedItems
-		];
-
-		updateSavedItems(newSaved);
+		updateSavedItems((savedItems) => 
+			[
+				{
+					document: document,
+					generation: generation,
+					dateSaved: new Date()
+				},
+				...savedItems
+			]);
 	}
 
 	function deleteSavedItem(dateSaved: Date) {
-		const savedItemIdx = savedItems.findIndex(
-			savedItem => savedItem.dateSaved === dateSaved
-		);
-		if (savedItemIdx === -1) {
-			// eslint-disable-next-line no-console
-			console.warn('Saved item not found for deletion');
-			return;
-		}
-		// Create a new array without the item to be deleted
-		const newSaved = [...savedItems].filter(
-			savedItem => savedItem.dateSaved !== dateSaved
-		);
+		updateSavedItems(savedItems => {
+			if (savedItems.length === 0) {
+				console.warn('No saved items to delete');
+				return savedItems;
+			}
+			// Find the index of the item to be deleted
+			const savedItemIdx = savedItems.findIndex(
+				savedItem => savedItem.dateSaved === dateSaved
+			);
+			if (savedItemIdx === -1) {
+				console.warn('Saved item not found for deletion');
+				return savedItems;
+			}
+			// Create a new array without the item to be deleted
+			const newSaved = savedItems.filter(
+				savedItem => savedItem.dateSaved !== dateSaved
+			);
 
-		log({
-			username: username,
-			event: 'Delete',
-			prompt: savedItems[savedItemIdx].document,
-			result: savedItems[savedItemIdx].generation
+			log({
+				username: username,
+				event: 'Delete',
+				prompt: savedItems[savedItemIdx].document,
+				result: savedItems[savedItemIdx].generation
+			});
+			return newSaved;
 		});
-
-		updateSavedItems(newSaved);
 	}
 
 	// Get a generation from the backend
-	async function getSuggestion(
-		type: string,
-		{ fromAutoRefresh = false }: { fromAutoRefresh?: boolean } = {}
-	) {
+	const getSuggestion = useCallback(async function getSuggestion(type: string) {
 		updateErrorMsg('');
 		setIsLoading(true);
 		try {
@@ -181,41 +181,9 @@ export default function Draft() {
 			});
 			return;
 		}
+
 		setIsLoading(false);
-		// If this was a manual request, reset the timer
-		if (!fromAutoRefresh && isStudy) {
-			resetAutoRefresh();
-		}
-	}
-
-	// Auto-refresh logic
-	const isStudy = studyCondition !== null;
-	const modesToShow = isStudy ? [studyCondition] : modes;
-
-	function resetAutoRefresh() {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-		}
-		if (isStudy) {
-			timerRef.current = setInterval(() => {
-				// Only refresh if not loading and docContext is not empty
-				if (!isLoading) {
-					getSuggestion(studyCondition, { fromAutoRefresh: true });
-				}
-			}, AUTO_REFRESH_INTERVAL);
-		}
-	}
-
-	useEffect(() => {
-		if (isStudy) {
-			resetAutoRefresh();
-		}
-		return () => {
-			if (timerRef.current) {
-				clearInterval(timerRef.current);
-			}
-		};
-	}, [isStudy, studyCondition]);
+	}, [getAccessToken, docContext, username]);
 
 	if (authErrorType !== null) {
 		return <div>Please reauthorize.</div>;
@@ -271,7 +239,7 @@ export default function Draft() {
 											docContext.beforeCursor === '' ||
 											isLoading
 										}
-										onClick={async () => {
+										onClick={() => {
 											log({
 												username: username,
 												event: 'request_suggestion',
@@ -279,7 +247,8 @@ export default function Draft() {
 												generation_type: mode,
 												docContext: docContext
 											});
-											await getSuggestion(mode);
+
+											getSuggestion(mode);
 										}}
 									>
 										{isStudy ? (
@@ -295,11 +264,13 @@ export default function Draft() {
 					</div>
 				</div>
 				{alerts}
+
 				<SavedGenerations
 					savedItems={savedItems}
 					deleteSavedItem={deleteSavedItem}
 				/>
 			</div>
+
 			<div className={classes.noteTextWrapper}>
 				<div className={classes.noteText}>
 					Please note that the quality of AI-generated text may vary
