@@ -1,12 +1,16 @@
 /* eslint-disable no-undef */
 
-const path = require('path');
+import { fileURLToPath } from 'url';
+//import { resolve as _resolve } from 'path';
+import path from 'path';
 
-const webpack = require('webpack');
-const devCerts = require('office-addin-dev-certs');
+const __dirname = fileURLToPath(new URL('.', import.meta.url));
 
-const CopyWebpackPlugin = require('copy-webpack-plugin');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
+import webpack from 'webpack';
+import { getHttpsServerOptions } from 'office-addin-dev-certs';
+
+import CopyWebpackPlugin from 'copy-webpack-plugin';
+import HtmlWebpackPlugin from 'html-webpack-plugin';
 
 const urlDev = 'https://localhost:3000';
 const urlProd = 'https://app.thoughtful-ai.com';
@@ -17,7 +21,7 @@ const idProd = '46d2493d-60db-4522-b2aa-e6f2c08d2508';
 const idDev = '46d2493d-60db-4522-b2aa-e6f2c08d2507';
 
 async function getHttpsOptions() {
-	const httpsOptions = await devCerts.getHttpsServerOptions();
+	const httpsOptions = await getHttpsServerOptions();
 	return {
 		ca: httpsOptions.ca,
 		key: httpsOptions.key,
@@ -25,7 +29,7 @@ async function getHttpsOptions() {
 	};
 }
 
-module.exports = async (env, options) => {
+export default async (env, options) => {
 	const dev = options.mode === 'development';
 	const config = {
 		devtool: 'source-map',
@@ -51,7 +55,7 @@ module.exports = async (env, options) => {
 				import: ['./src/editor/index.tsx', './src/editor/editor.html'],
 				dependOn: 'react'
 			},
-		    commands: './src/commands/commands.ts'
+			commands: './src/commands/commands.ts'
 		},
 		output: {
 			clean: true,
