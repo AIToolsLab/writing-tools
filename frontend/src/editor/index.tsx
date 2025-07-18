@@ -89,7 +89,7 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 		}
 
 		// Log the document update only for study purposes
-		if (mode === 'study' && page === 'study' && username) {
+		if (mode === 'study' && username) {
 			log({
 			username: username,
 			event: 'Document Update',
@@ -280,7 +280,6 @@ function Router({
 	}
 	else if (page.startsWith('study')) {
 
-		getDefaultStore().set(pageNameAtom, PageName.Study);
 		getDefaultStore().set(overallModeAtom, OverallMode.study);
 
 		const urlParams = new URLSearchParams(window.location.search);

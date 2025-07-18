@@ -6,11 +6,14 @@ import { useDocContext } from '@/utilities';
 import { Fragment, useContext, useState } from 'react';
 import {
 	AiOutlineClose,
+	AiOutlineReload,
 } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
 import { useAtomValue } from 'jotai';
+import { studyConditionAtom } from '@/contexts/studyContext';
+
 
 const visibleNameForMode = {
 	"example_sentences": "Examples",
@@ -21,7 +24,7 @@ const visibleNameForMode = {
 const modes = ["example_sentences", "analysis_describe", "proposal_advice"];
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
-	return <div className='prose'><Remark>{ generation.result }</Remark></div>;
+	return <div className='prose'><div className="text-bold">{visibleNameForMode[generation.generation_type as keyof typeof visibleNameForMode]}</div> <Remark>{ generation.result }</Remark></div>;
 }
 
 function SavedGenerations({
@@ -72,13 +75,6 @@ function SavedGenerations({
                                         }
                                     />
                                 </div>
-                                <div
-                                    className={
-                                        classes.genTypeIconWrapper
-                                    }
-                                >
-                                    { iconFunc(savedItem.generation.generation_type) }
-                                </div>
                             </div>
                         </div>
                     ))
@@ -93,6 +89,7 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
+	const studyCondition = useAtomValue(studyConditionAtom);
 	const { getAccessToken, authErrorType } = useAccessToken();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
@@ -227,6 +224,9 @@ export default function Draft() {
 			</div>
 		);
 
+	const isStudy = studyCondition !== null;
+	const modesToShow = isStudy ? [studyCondition] : modes;
+
 	return (
 		<>
 		<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
@@ -236,14 +236,12 @@ export default function Draft() {
 				<div
 					className={ classes.optionsContainer }
 				>
-					{ modes.map(mode => {
+					{ modesToShow.map(mode => {
 						return (
 							<Fragment key={ mode }>
 							<button
 								className={ classes.optionsButton }
 								disabled={ docContext.beforeCursor === '' || isLoading }
-								title={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
-								aria-label={ visibleNameForMode[mode as keyof typeof visibleNameForMode] }
 								onClick={ async () => {
 									log({
 										username: username,
@@ -256,7 +254,8 @@ export default function Draft() {
 									getSuggestion(mode);
 								} }
 							>
-							   { iconFunc(mode) }
+							   { isStudy ? <AiOutlineReload /> : iconFunc(mode) }
+							   {/* { isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode] } */}
 							</button>
 							</Fragment>
 						);

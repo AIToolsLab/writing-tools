@@ -5,7 +5,6 @@ export enum PageName {
 	SearchBar = 'searchbar',
 	Chat = 'chat',
 	Draft = 'draft',
-	Study = 'study'
   }
 
 
