@@ -157,7 +157,7 @@ class GenerationResult(BaseModel):
 
 
 
-def get_full_prompt(prompt_name: str, doc_context: DocContext) -> str:
+def get_full_prompt(prompt_name: str, doc_context: DocContext, context_chars: int = 100) -> str:
     prompt = prompts[prompt_name]
 
     if doc_context.contextData:
@@ -169,14 +169,15 @@ def get_full_prompt(prompt_name: str, doc_context: DocContext) -> str:
     document_text = doc_context.beforeCursor + doc_context.selectedText + doc_context.afterCursor
 
     prompt += f"\n\n# Writer's Document So Far\n\n<document>\n{document_text}</document>\n\n"
+    before_cursor_trim = doc_context.beforeCursor[-context_chars:]
+    after_cursor_trim = doc_context.afterCursor[:context_chars]
     if doc_context.selectedText == '':
         prompt += "\n\n## Current Selection\n\nNo text selected."
-        before_cursor = doc_context.beforeCursor[-50:]
-        before_cursor_cur_line = before_cursor.rsplit('\n', 1)[-1]
-        prompt += f"\n\n## Text Around Cursor\n\n\"{doc_context.beforeCursor[-50:]}{doc_context.afterCursor[:50]}\"\n{' ' * len(before_cursor_cur_line)}^ Cursor Position"
+        before_cursor_cur_line = before_cursor_trim.rsplit('\n', 1)[-1]
+        prompt += f"\n\n## Text Around Cursor\n\n\"{before_cursor_trim}{after_cursor_trim}\"\n{' ' * len(before_cursor_cur_line)}^ Cursor Position"
     else:
         prompt += f"\n\n## Current Selection\n\n{doc_context.selectedText}"
-        prompt += f"\n\n## Text Nearby The Selection\n\n\"{doc_context.beforeCursor[-50:]}{doc_context.selectedText}{doc_context.afterCursor[:50]}\""
+        prompt += f"\n\n## Text Nearby The Selection\n\n\"{before_cursor_trim}{doc_context.selectedText}{after_cursor_trim}\""
     return prompt
 
 
