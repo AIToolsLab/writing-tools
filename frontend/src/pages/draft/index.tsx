@@ -318,22 +318,13 @@ export default function Draft() {
 			</div>
 		);
 	else if (savedItems.length === 0)
-		if (!docContext.beforeCursor.trim())
-			alerts = (
-				<div className="mt-4 ml-4 mr-4 p-4 transition duration-150">
-					<div className="text-sm text-gray-500 text-center transition duration-150">
-						Write something in the document to get started!
-					</div>
+		alerts = (
+			<div className="mt-4 ml-4 mr-4 p-0 transition duration-150">
+				<div className="text-sm text-stone-950 text-center transition duration-150">
+					Click the button above to generate a suggestion.
 				</div>
-			);
-		else
-			alerts = (
-				<div className="mt-4 ml-4 mr-4 p-0 transition duration-150">
-					<div className="text-sm text-stone-950 text-center transition duration-150">
-						Click the button above to generate a suggestion.
-					</div>
-				</div>
-			);
+			</div>
+		);
 
 	if (isLoading)
 		alerts = (
@@ -355,7 +346,6 @@ export default function Draft() {
 										type="button"
 										className={classes.optionsButton}
 										disabled={
-											docContext.beforeCursor === '' ||
 											isLoading
 										}
 										onClick={() => {
