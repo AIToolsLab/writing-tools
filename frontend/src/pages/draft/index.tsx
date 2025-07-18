@@ -3,7 +3,7 @@ import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
-import { Fragment, useContext, useState } from 'react';
+import { Fragment, useContext, useState, useEffect, useRef } from 'react';
 import { AiOutlineClose, AiOutlineReload } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 import { iconFunc } from './iconFunc';
@@ -93,6 +93,10 @@ export default function Draft() {
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 	const [errorMsg, updateErrorMsg] = useState('');
 
+	// Auto-refresh interval in ms (configurable)
+	const AUTO_REFRESH_INTERVAL = 30000;
+	const timerRef = useRef<NodeJS.Timeout | null>(null);
+
 	function save(generation: GenerationResult, document: DocContext) {
 		const newSaved = [
 			{
@@ -131,11 +135,12 @@ export default function Draft() {
 	}
 
 	// Get a generation from the backend
-	async function getSuggestion(type: string) {
+	async function getSuggestion(
+		type: string,
+		{ fromAutoRefresh = false }: { fromAutoRefresh?: boolean } = {}
+	) {
 		updateErrorMsg('');
-
 		setIsLoading(true);
-
 		try {
 			const token = await getAccessToken();
 			const response = await fetch(`${SERVER_URL}/get_suggestion`, {
@@ -176,9 +181,41 @@ export default function Draft() {
 			});
 			return;
 		}
-
 		setIsLoading(false);
+		// If this was a manual request, reset the timer
+		if (!fromAutoRefresh && isStudy) {
+			resetAutoRefresh();
+		}
 	}
+
+	// Auto-refresh logic
+	const isStudy = studyCondition !== null;
+	const modesToShow = isStudy ? [studyCondition] : modes;
+
+	function resetAutoRefresh() {
+		if (timerRef.current) {
+			clearInterval(timerRef.current);
+		}
+		if (isStudy) {
+			timerRef.current = setInterval(() => {
+				// Only refresh if not loading and docContext is not empty
+				if (!isLoading) {
+					getSuggestion(studyCondition, { fromAutoRefresh: true });
+				}
+			}, AUTO_REFRESH_INTERVAL);
+		}
+	}
+
+	useEffect(() => {
+		if (isStudy) {
+			resetAutoRefresh();
+		}
+		return () => {
+			if (timerRef.current) {
+				clearInterval(timerRef.current);
+			}
+		};
+	}, [isStudy, studyCondition]);
 
 	if (authErrorType !== null) {
 		return <div>Please reauthorize.</div>;
@@ -219,9 +256,6 @@ export default function Draft() {
 			</div>
 		);
 
-	const isStudy = studyCondition !== null;
-	const modesToShow = isStudy ? [studyCondition] : modes;
-
 	return (
 		<>
 			<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
@@ -245,8 +279,7 @@ export default function Draft() {
 												generation_type: mode,
 												docContext: docContext
 											});
-
-											getSuggestion(mode);
+											await getSuggestion(mode);
 										}}
 									>
 										{isStudy ? (
@@ -262,13 +295,11 @@ export default function Draft() {
 					</div>
 				</div>
 				{alerts}
-
 				<SavedGenerations
 					savedItems={savedItems}
 					deleteSavedItem={deleteSavedItem}
 				/>
 			</div>
-
 			<div className={classes.noteTextWrapper}>
 				<div className={classes.noteText}>
 					Please note that the quality of AI-generated text may vary
