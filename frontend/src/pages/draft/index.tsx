@@ -217,6 +217,12 @@ export default function Draft() {
 
 	const save = useCallback(
 		(generation: GenerationResult, document: DocContext) => {
+			log({
+				username: username,
+				event: 'ShowSuggestion',
+				prompt: document,
+				result: generation,
+			})
 			updateSavedItems(savedItems => [
 				{
 					document: document,
@@ -226,7 +232,7 @@ export default function Draft() {
 				...savedItems,
 			]);
 		},
-		[],
+		[username],
 	);
 
 	function deleteSavedItem(dateSaved: Date) {
