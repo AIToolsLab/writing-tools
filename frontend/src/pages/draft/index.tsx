@@ -210,7 +210,7 @@ export default function Draft() {
 	const isStudy = studyCondition !== null;
 	const modesToShow = useMemo(
 		() => (isStudy ? [studyCondition] : modes),
-		[isStudy, studyCondition]
+		[isStudy, studyCondition],
 	);
 
 	const shouldAutoRefresh = isStudy;
@@ -260,7 +260,10 @@ export default function Draft() {
 
 	// Get a generation from the backend
 	const getSuggestion = useCallback(
-		async function getSuggestion(suggestionRequest: SuggestionRequest, isUserInitiated = true) {
+		async function getSuggestion(
+			suggestionRequest: SuggestionRequest,
+			isUserInitiated = true,
+		) {
 			updateErrorMsg('');
 			if (isUserInitiated) {
 				setIsLoading(true);
@@ -308,9 +311,11 @@ export default function Draft() {
 			return;
 		}
 		const prevRequest = getFetcher().previousRequest;
-		if (prevRequest && 
+		if (
+			prevRequest &&
 			prevRequest.docContext === docContextRef.current &&
-			prevRequest.type === modesToShow[0]) {
+			prevRequest.type === modesToShow[0]
+		) {
 			console.warn(
 				'Auto-refresh skipped because the previous request is the same as the current one.',
 			);
@@ -373,21 +378,21 @@ export default function Draft() {
 									<button
 										type="button"
 										className={classes.optionsButton}
-										disabled={
-											isLoading
-										}
+										disabled={isLoading}
 										onClick={() => {
 											log({
 												username: username,
 												event: 'request_suggestion',
 												// eslint-disable-next-line camelcase
 												generation_type: mode,
-												docContext: docContextRef.current,
+												docContext:
+													docContextRef.current,
 											});
 
 											resetAutoRefresh();
 											const request = {
-												docContext: docContextRef.current,
+												docContext:
+													docContextRef.current,
 												type: mode,
 											};
 											getSuggestion(request, true);
