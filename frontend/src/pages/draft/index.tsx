@@ -251,9 +251,11 @@ export default function Draft() {
 
 	// Get a generation from the backend
 	const getSuggestion = useCallback(
-		async function getSuggestion(type: string) {
+		async function getSuggestion(type: string, docContext: DocContext, isUserInitiated = true) {
 			updateErrorMsg('');
-			setIsLoading(true);
+			if (isUserInitiated) {
+				setIsLoading(true);
+			}
 			try {
 				const token = await getAccessToken();
 				const suggestion = await getFetcher().fetchSuggestion(
@@ -280,7 +282,7 @@ export default function Draft() {
 
 			setIsLoading(false);
 		},
-		[getAccessToken, getFetcher, docContext, username, save],
+		[getAccessToken, getFetcher, username, save],
 	);
 
 	const autoRefreshCallback = useCallback(() => {
@@ -293,7 +295,7 @@ export default function Draft() {
 			);
 			return;
 		}
-		getSuggestion(modesToShow[0]);
+		getSuggestion(modesToShow[0], docContextRef.current, false);
 	}, [getFetcher, getSuggestion, modesToShow, shouldAutoRefresh]);
 
 	const resetAutoRefresh = useResettableInterval(
@@ -366,7 +368,7 @@ export default function Draft() {
 											});
 
 											resetAutoRefresh();
-											getSuggestion(mode);
+											getSuggestion(mode, docContextRef.current, true);
 										}}
 									>
 										{isStudy ? (
