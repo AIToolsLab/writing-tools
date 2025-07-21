@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 import { studyConditionAtom, currentTaskContextAtom } from '@/contexts/studyContext';
 import * as SidebarInner from '@/pages/app';
-import { Auth0ContextInterface} from '@auth0/auth0-react';
+import type { Auth0ContextInterface} from '@auth0/auth0-react';
 import { getDefaultStore, useAtomValue } from 'jotai';
 import LexicalEditor from './editor';
 import './styles.css';
@@ -66,7 +66,7 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 			}
 		},
 		getDocContext: async (): Promise<DocContext> => {
-			return docContextRef.current;
+			return Promise.resolve(docContextRef.current);
 		},
 		addSelectionChangeHandler: (handler: () => void) => {
 			selectionChangeHandlers.current.push(handler);
@@ -88,7 +88,7 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 		}
 
 		// Log the document update only for study purposes
-		if (mode === 'study' && username) {
+		if (mode === OverallMode.study && username) {
 			log({
 			username: username,
 			event: 'Document Update',
@@ -124,6 +124,7 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 
 	const preamble = contextData && <>
 	{contextData.map((section, index) => (
+		// biome-ignore lint/suspicious/noArrayIndexKey: it will actually be mostly stable.
 		<div key={index}>
 			<h3 className="font-bold">{section.title}</h3>
 			<p className="whitespace-pre-line">{section.content}</p>
@@ -137,17 +138,17 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 
 			<div className={ isDemo ? classes.demoeditor : classes.editor }>
 				<LexicalEditor
-					// @ts-expect-error
+					// @ts-expect-error initialState needs to actually be `undefined`, not null, see see https://github.com/facebook/lexical/issues/5079
 					initialState={ getInitialState() }
-					updateDocContext={ docUpdated }
+q					updateDocContext={ docUpdated }
 					storageKey={ getStorageKey()}
 					preamble={ preamble }
 				/>
-				{ (isDemo || isStudy) && (
+				{ (isDemo || isStudy) ? (
 					<div className={ `${classes.wordCount}` }>
 						Words: { wordCount }
 					</div>
-				) }
+				) : null }
 			</div>
 
 			<div className={ isDemo ? classes.demosidebar : classes.sidebar }>
@@ -345,6 +346,7 @@ function Router({
 				Your responses will be kept confidential.
             </p>
 				<button
+					type='button'
 					onClick={() => {
 						log ({
 							username: username,
@@ -387,8 +389,8 @@ function Router({
 			const urlParams = new URLSearchParams(window.location.search);
 
 			const taskNumber = page.replace('study-startTask', '');
-			const conditionConfig = conditionConfigs[taskNumber as keyof typeof conditionConfigs];
-			const labelConfig = labelConfigs[taskNumber as keyof typeof labelConfigs];
+			const conditionConfig = conditionConfigs[taskNumber];
+			const labelConfig = labelConfigs[taskNumber];
 
 			if (!conditionConfig) {
 				return <div>Invalid task number</div>;
@@ -401,6 +403,7 @@ function Router({
 				<div className={classes.studyIntroContainer}>
 					<p> Now you will start task {taskNumber} of 3. <br/> In this task, you will be using Suggestion {taskLabel}. </p>
 					<button
+						type='button'
 						onClick={() => {
 							log({
 								username: username,
@@ -422,8 +425,8 @@ function Router({
 			const urlParams = new URLSearchParams(window.location.search);
 
 			const taskNumber = page.replace('study-task', '');
-			const curTaskContexts = taskContexts[taskNumber as keyof typeof taskContexts];
-			const conditionConfig =  conditionConfigs[taskNumber as keyof typeof conditionConfigs];
+			const curTaskContexts = taskContexts[taskNumber];
+			const conditionConfig =  conditionConfigs[taskNumber];
 
 			if (!conditionConfig) {
 				return <div>Invalid task number</div>;
@@ -446,6 +449,7 @@ function Router({
 					/>
 
 					<button
+						type='button'
 						onClick={() => {
 							log({
 								username: username,
@@ -466,10 +470,10 @@ function Router({
 		else if (page.startsWith('study-postTask')) {
 			const nextUrlParams = new URLSearchParams(window.location.search);
 			nextUrlParams.set('page', nextPage);
-			const redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+			const redirectURL = encodeURIComponent(`${window.location.origin}/editor.html?${nextUrlParams.toString()}`);
 			const taskNumber = page.replace('study-postTask', '');
-			const conditionConfig = conditionConfigs[taskNumber as keyof typeof conditionConfigs];
-			const labelConfig = labelConfigs[taskNumber as keyof typeof labelConfigs];
+			const conditionConfig = conditionConfigs[taskNumber];
+			const labelConfig = labelConfigs[taskNumber];
 
 			if (!conditionConfig) {
 				return <div>Invalid task number</div>;
@@ -502,11 +506,11 @@ function Router({
 			const nextUrlParams = new URLSearchParams(window.location.search);
       nextUrlParams.set('page', nextPage);
 			const isProlific = urlParams.get('isProlific') === 'true';
-			let redirectURL;
+			let redirectURL: string;
 			if (isProlific) {
 				redirectURL = 'https://app.prolific.com/submissions/complete?cc=C998008G'
 			} else {
-				redirectURL = encodeURIComponent(window.location.origin + `/editor.html?${nextUrlParams.toString()}`);
+				redirectURL = encodeURIComponent(`${window.location.origin}/editor.html?${nextUrlParams.toString()}`);
 			}
 			const postStudySurveyURL = SURVEY_URLS.postStudy;
 
@@ -546,12 +550,14 @@ function Router({
 const urlParams = new URLSearchParams(window.location.search);
 const page = urlParams.get('page');
 
-const container = document.getElementById('container')!;
-const root = createRoot(container);
-root.render(
-	<StrictMode>
-		<Router
-			page={page || 'editor'}
-		/>
-	</StrictMode>
-);
+const container = document.getElementById('container');
+if (container) {
+	const root = createRoot(container);
+	root.render(
+		<StrictMode>
+			<Router
+				page={page || 'editor'}
+			/>
+		</StrictMode>
+	);
+}
