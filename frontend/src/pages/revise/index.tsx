@@ -1,141 +1,182 @@
-import { useState, useContext } from 'react';
-import { ReflectionCards } from '@/components/reflectionCard';
-import {
-	defaultPrompt,
-	PromptButtonSelector
-} from '@/components/promptButtonSelector';
-import { usernameAtom } from '@/contexts/userContext';
-import { getReflection } from '@/api';
-import classes from './styles.module.css';
-import { getCurParagraph } from '@/utilities/selectionUtil';
-import { EditorContext } from '@/contexts/editorContext';
-import { useDocContext } from '@/utilities';
+/**
+ * @format
+ */
+
+import { SERVER_URL } from '@/api';
 import { useAccessToken } from '@/contexts/authTokenContext';
+import { EditorContext } from '@/contexts/editorContext';
+import { usernameAtom } from '@/contexts/userContext';
+import { useDocContext } from '@/utilities';
+import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { useAtomValue } from 'jotai';
+import { useCallback, useContext, useState } from 'react';
+
+const promptList = [
+	{
+		keyword: 'Main Point',
+		prompt: 'List the main points that the writer is making.',
+	},
+	{
+		keyword: 'Important Concepts',
+		prompt: 'List the most important concepts.',
+	},
+	{
+		keyword: 'Claims and Arguments',
+		prompt: 'List the claims or arguments presented.',
+	},
+	{
+		keyword: 'Counterarguments',
+		prompt: 'List potential counterarguments to the claims presented.',
+	},
+	{
+		keyword: 'Further Evidence',
+		prompt: 'List further evidence or examples you would like to see to support the claims presented.',
+	},
+	{
+		keyword: 'Outside the Box',
+		prompt: 'List outside-the-box questions or ideas that are directly related to this text.',
+	},
+	{
+		keyword: 'Questions Addressed by Writer',
+		prompt: 'List questions that the writer seems to be addressing in this text.',
+	},
+	{
+		keyword: 'Questions a Reader Might Have',
+		prompt: 'List questions that a reader might have about this text.',
+	},
+];
+
+const systemPrompt = `\
+We are powering a tool that is designed to help people write thoughtfully, with full cognitive engagement in their work, thinking about their complete rhetorical situation.
+
+The user is currently in a "visualization" part of the tool, where the tool promises to help the writer visualize their document to help them understand what points they are making, what their current structure is, what are the concepts and relationships in their document, and many other possible visualizations. The appropriate visualization will depend on the document, the writer, and the context. The writer may not have provided us with all necessary context; we should ask for additional details as needed.
+
+We should reference specific parts of the document as much as possible. Within the body of the visualization or conversation, add a reference using Markdown numbered footnote syntax [^1], [^2], [^3], etc. Wait until the end of the response to include all of the footnote bodies. For each footnote body, include a short verbatim quote from the document (without quotation marks) that is long enough to uniquely identify the referenced part of the document, but max of one line.
+
+When generating a visualization, it is critical that we remain faithful to the document provided. If we ever realize that we've deviated from the document text, even slightly, we must include a remark to that effect in [square brackets] as soon as possible after the deviation.`;
+
+class Visualization {
+	response: string;
+	id: string;
+	constructor(
+		public prompt: string,
+		public docContext: DocContext,
+	) {
+		this.prompt = prompt;
+		this.docContext = docContext;
+		this.response = '';
+		this.id = Date.now().toString();
+	}
+}
 
 export default function Revise() {
 	const editorAPI = useContext(EditorContext);
 	const username = useAtomValue(usernameAtom);
 	const docContext = useDocContext(editorAPI);
-	const { curParagraphIndex, paragraphTexts } = getCurParagraph(docContext);
 	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
+	const [loading, setLoading] = useState(false);
+	const [visualizations, setVisualizations] = useState<Visualization[]>([]);
 
+	const requestVisualization = useCallback(
+		async (prompt: string) => {
+			const token = await getAccessToken();
+			if (!token) {
+				console.error('No access token available');
+				return;
+			}
+			const newViz = new Visualization(prompt, docContext);
+			setVisualizations(prev => [...prev, newViz]);
+			/* Kick off a streaming request to the server to get the visualization response */
 
-	const [reflections, updateReflections] = useState<
-		Map<
-			string,
-			ReflectionResponseItem[] | Promise<ReflectionResponseItem[]>
-		>
-	>(new Map());
+			const chatMessages = [
+				{
+					role: 'system',
+					content: systemPrompt,
+				},
+				{
+					role: 'user',
+					content: `
+<document>
+${docContext.beforeCursor}${docContext.selectedText}${docContext.afterCursor}
+</document>
 
-	const [prompt, updatePrompt] = useState(defaultPrompt);
-
-
-	/**
-	 * Retrieves the reflections associated with a given paragraph text and prompt synchronously.
-	 * If the reflections exist in the cache, they are returned immediately. Otherwise, an API
-	 * request is made to fetch the reflections from the server, and any subsequent calls to this
-	 * function with the same paragraph text and prompt will await the completion of the API request.
-	 *
-	 * @param {string} paragraphText - The text of the paragraph to retrieve reflections for.
-	 * @param {string} prompt - The prompt used for reflection.
-	 * @returns {ReflectionResponseItem[]} - The reflections associated with the paragraph text and prompt.
-	 */
-	function getReflectionsSync(
-		paragraphText: string,
-		prompt: string
-	): ReflectionResponseItem[] {
-		// eslint-disable-next-line no-console
-		console.assert(
-			typeof paragraphText === 'string' && paragraphText !== '',
-			'paragraphText must be a non-empty string'
-		);
-
-		const cacheKey: string = JSON.stringify({ paragraphText, prompt });
-
-		// TODO: Fix typing error
-		const cachedValue: any =
-			// | ReflectionResponseItem[]
-			// | Promise<ReflectionResponseItem[]>
-			reflections.get(cacheKey);
-
-		if (typeof cachedValue === 'undefined') {
-			const reflectionsPromise: Promise<ReflectionResponseItem[]> =
-				getReflection(username, paragraphText, prompt, getAccessToken);
-
-			reflectionsPromise
-				.then(newReflections => {
-					reflections.set(cacheKey, newReflections);
-					updateReflections(new Map(reflections));
-				})
-				.catch(_error => {
-					reflections.delete(cacheKey);
-					// eslint-disable-next-line no-constant-condition
-					if (false /* error has something to do with auth */) {
-						reportAuthError(_error);
+<request>
+Go part-by-part through the document. For each part, please do the following: ${prompt}
+</request>`,
+				},
+			];
+			setLoading(true);
+			fetchEventSource(`${SERVER_URL}/chat`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					messages: chatMessages,
+					username: username,
+				}),
+				onmessage(msg) {
+					const message = JSON.parse(msg.data);
+					const choice = message.choices[0];
+					if (choice.finish_reason === 'stop') {
+						setLoading(false);
+						return;
 					}
-				});
-
-			reflections.set(cacheKey, reflectionsPromise);
-			return [];
-		}
-		else if (cachedValue instanceof Promise) return [];
-		else return cachedValue;
-	}
-
-	/**
-	 * Creates reflection cards for a given paragraph and returns them as JSX element.
-	 *
-	 * @param {number} paragraphIndex - The index of the paragraph to create reflection cards for.
-	 * @returns {React.JSX.Element} - The created reflection cards as a JSX element.
-	 */
-	function createReflectionCards(): JSX.Element {
-		// Get the current paragraph text
-		const reflectionsForThisParagraph: ReflectionResponseItem[] =
-			getReflectionsSync(paragraphTexts[curParagraphIndex], prompt);
-
-		const cardDataList: CardData[] = reflectionsForThisParagraph.map(
-			reflectionResponseItem => ({
-				paragraphIndex: curParagraphIndex,
-				body: reflectionResponseItem.reflection
-			})
-		);
-
-		if (cardDataList.length === 0 && authErrorType !== null) {
-			return (
-				<div>
-					No reflections available. Please reauthorize.
-				</div>
-			);
-		}
-		return (
-			<ReflectionCards
-				cardDataList={ cardDataList }
-				isHighlighted={ false }
-			/>
-		);
-	}
-
-
-	// Index of the currently selected paragraph
-	const selectedIndex = curParagraphIndex;
-	const reflectionCardsContainer: React.JSX.Element[] = [];
-
-	// Display the reflection cards that are relevant to the currently selected
-	// paragraph, as well as its previous and next paragraphs
-	if (selectedIndex !== -1) {
-		// Check if the current paragraph is available
-		if (paragraphTexts[selectedIndex] !== '')
-			reflectionCardsContainer.push(createReflectionCards());
-	}
+					const newContent = choice.delta.content;
+					newViz.response += newContent;
+					setVisualizations(prev => {
+						// Force React to update by creating a new array
+						const updatedViz = [...prev];
+						const index = updatedViz.findIndex(
+							v => v.id === newViz.id,
+						);
+						if (index !== -1) {
+							updatedViz[index] = newViz;
+						}
+						return updatedViz;
+					});
+				},
+				onerror(err) {
+					console.error('Error fetching visualization:', err);
+					setLoading(false);
+					// TODO: maybe auth error?
+				},
+			});
+		},
+		[docContext, getAccessToken, username],
+	);
 
 	return (
-		<div className={ classes.container }>
-			<PromptButtonSelector
-				currentPrompt={ prompt }
-				updatePrompt={ updatePrompt }
-			/>
-			{...reflectionCardsContainer}
+		<div className="flex flex-col">
+			{/* prompt buttons: row-flowed list of buttons */}
+			<div className="flex flex-row flex-wrap">
+				{promptList.map(prompt => (
+					<div
+						key={prompt.keyword}
+						className=""
+					>
+						<button
+							type="button"
+							onClick={() => requestVisualization(prompt.prompt)}
+							className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors duration-150 shadow-sm border border-gray-200 mr-2 mb-2"
+						>
+							{prompt.keyword}
+						</button>
+					</div>
+				))}
+			</div>
+			{/* visualizations: list of visualizations */}
+			<div className="flex flex-col">
+				{visualizations.map((viz, index) => (
+					<div
+						key={index}
+						className="bg-white p-4 mb-2 rounded-md shadow-sm border border-gray-200"
+					>
+						<p className="text-gray-800">{viz.response}</p>
+					</div>
+				))}
+			</div>
 		</div>
 	);
 }
