@@ -9,7 +9,7 @@ import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { useAtomValue } from 'jotai';
-import { useCallback, useContext, useState } from 'react';
+import { useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { Remark } from 'react-remark';
 
 interface Prompt {
@@ -20,9 +20,9 @@ interface Prompt {
 
 const promptList: Prompt[] = [
 	{
-		keyword: "Hierarchical Outline",
+		keyword: 'Hierarchical Outline',
 		prompt: 'Create a hierarchical outline of the document.',
-		isOverall: true
+		isOverall: true,
 	},
 	{
 		keyword: 'Main Point',
@@ -63,7 +63,7 @@ We are powering a tool that is designed to help people write thoughtfully, with 
 
 The user is currently in a "visualization" part of the tool, where the tool promises to help the writer visualize their document to help them understand what points they are making, what their current structure is, what are the concepts and relationships in their document, and many other possible visualizations. The appropriate visualization will depend on the document, the writer, and the context. The writer may not have provided us with all necessary context; we should ask for additional details as needed.
 
-Our response MUST reference specific parts of the document. We use Markdown links to reference document text: [ref](doctext:A%20short%20verbatim%20quote).
+Our response MUST reference specific parts of the document. We use Markdown links to reference document text: [ref](doctext:A%20short%20verbatim%20quote). The link target must exist, it must start with "doctext:", and it must be a URL-component-encoded verbatim quote from the document text, without quotation marks.
 
 When generating a visualization, it is critical that we remain faithful to the document provided. If we ever realize that we've deviated from the document text, even slightly, we must include a remark to that effect in [square brackets] as soon as possible after the deviation.`;
 
@@ -88,9 +88,29 @@ class Visualization {
 		return;
 		//const refRegex = /<ref id="(\d+)" \/>/g;
 		//const refTextRegex = /<ref-text id="(\d+)">([^<]+)<\/ref-text>/g;
-	
 	}
 }
+
+const makeAnchorWithCallback = (
+	clickCallbackRef: React.MutableRefObject<(href: string) => void>,
+) => {
+	return (props: React.ComponentProps<'a'>) => {
+		const { href, children, ...rest } = props;
+		return (
+			<a
+				{...rest}
+				href={href}
+				className="text-blue-500 hover:underline"
+				onClick={e => {
+					e.preventDefault();
+					if (href) clickCallbackRef.current?.(href);
+				}}
+			>
+				{children}
+			</a>
+		);
+	};
+};
 
 export default function Revise() {
 	const editorAPI = useContext(EditorContext);
@@ -99,6 +119,16 @@ export default function Revise() {
 	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
 	const [loading, setLoading] = useState(false);
 	const [visualizations, setVisualizations] = useState<Visualization[]>([]);
+	const clickCallbackRef = useRef((href: string) => {
+		if (href.startsWith('doctext:')) {
+			const text = decodeURIComponent(href.slice('doctext:'.length));
+			alert(`Selected text: ${text}`);
+		}
+	});
+	const AnchorWithCallback = useMemo(
+		() => makeAnchorWithCallback(clickCallbackRef),
+		[],
+	);
 
 	const requestVisualization = useCallback(
 		async (prompt: Prompt) => {
@@ -108,7 +138,9 @@ export default function Revise() {
 				return;
 			}
 
-			const request = prompt.isOverall ? prompt.prompt : `Go part-by-part through the document. For each part, please do the following: ${prompt.prompt}`;
+			const request = prompt.isOverall
+				? prompt.prompt
+				: `Go part-by-part through the document. For each part, please do the following: ${prompt.prompt}`;
 
 			const newViz = new Visualization(request, docContext);
 			setVisualizations(prev => [...prev, newViz]);
@@ -153,7 +185,10 @@ ${request}
 						if (choice.finish_reason === 'stop') {
 							setLoading(false);
 							newViz.parseResponse();
-							console.log('Visualization response complete:', newViz.response);
+							console.log(
+								'Visualization response complete:',
+								newViz.response,
+							);
 							return;
 						}
 						const newContent = choice.delta.content;
@@ -205,13 +240,19 @@ ${request}
 			</div>
 			{/* visualizations: list of visualizations */}
 			<div className="flex flex-col">
-				{visualizations.map((viz, index) => (
+				{visualizations.map((viz) => (
 					<div
-						key={index}
+						key={viz.id}
 						className="bg-white p-4 mb-2 rounded-md shadow-sm border border-gray-200"
 					>
 						<div className="text-gray-800 prose">
-							<Remark>
+							<Remark
+								rehypeReactOptions={{
+									components: {
+										a: AnchorWithCallback,
+									},
+								}}
+							>
 								{viz.response}
 							</Remark>
 						</div>
