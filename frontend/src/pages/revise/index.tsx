@@ -10,6 +10,7 @@ import { useDocContext } from '@/utilities';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { useAtomValue } from 'jotai';
 import { useCallback, useContext, useState } from 'react';
+import { Remark } from 'react-remark';
 
 const promptList = [
 	{
@@ -51,13 +52,16 @@ We are powering a tool that is designed to help people write thoughtfully, with 
 
 The user is currently in a "visualization" part of the tool, where the tool promises to help the writer visualize their document to help them understand what points they are making, what their current structure is, what are the concepts and relationships in their document, and many other possible visualizations. The appropriate visualization will depend on the document, the writer, and the context. The writer may not have provided us with all necessary context; we should ask for additional details as needed.
 
-We should reference specific parts of the document as much as possible. Within the body of the visualization or conversation, add a reference using Markdown numbered footnote syntax [^1], [^2], [^3], etc. Wait until the end of the response to include all of the footnote bodies. For each footnote body, include a short verbatim quote from the document (without quotation marks) that is long enough to uniquely identify the referenced part of the document, but max of one line.
+Our response MUST reference specific parts of the document. References are comprised of <ref> tags and <ref-text> tags. Within the body of the visualization or conversation, we use self-closed <ref> tags with a numeric id attribute, like <ref id="1" /> (incrementing id as needed). Then, at the end of the response, we include <ref-text> tags that enclose document text: <ref-text id="1">document_text</ref-text> where document_text is a short verbatim quote from the document (without quotation marks) that is long enough to uniquely identify the referenced part of the document, but max of one line.
 
 When generating a visualization, it is critical that we remain faithful to the document provided. If we ever realize that we've deviated from the document text, even slightly, we must include a remark to that effect in [square brackets] as soon as possible after the deviation.`;
 
 class Visualization {
 	response: string;
 	id: string;
+	parsedResponse: string | null = null;
+	references: string[] = [];
+
 	constructor(
 		public prompt: string,
 		public docContext: DocContext,
@@ -66,6 +70,14 @@ class Visualization {
 		this.docContext = docContext;
 		this.response = '';
 		this.id = Date.now().toString();
+	}
+
+	parseResponse() {
+		this.parsedResponse = this.response;
+		return;
+		//const refRegex = /<ref id="(\d+)" \/>/g;
+		//const refTextRegex = /<ref-text id="(\d+)">([^<]+)<\/ref-text>/g;
+	
 	}
 }
 
@@ -117,25 +129,36 @@ Go part-by-part through the document. For each part, please do the following: ${
 					username: username,
 				}),
 				onmessage(msg) {
-					const message = JSON.parse(msg.data);
-					const choice = message.choices[0];
-					if (choice.finish_reason === 'stop') {
-						setLoading(false);
-						return;
-					}
-					const newContent = choice.delta.content;
-					newViz.response += newContent;
-					setVisualizations(prev => {
-						// Force React to update by creating a new array
-						const updatedViz = [...prev];
-						const index = updatedViz.findIndex(
-							v => v.id === newViz.id,
-						);
-						if (index !== -1) {
-							updatedViz[index] = newViz;
+					try {
+						if (!msg.data) {
+							// I'm not sure why this happens.
+							return;
 						}
-						return updatedViz;
-					});
+						const message = JSON.parse(msg.data);
+						const choice = message.choices[0];
+						if (choice.finish_reason === 'stop') {
+							setLoading(false);
+							newViz.parseResponse();
+							console.log('Visualization response complete:', newViz.response);
+							return;
+						}
+						const newContent = choice.delta.content;
+						newViz.response += newContent;
+						setVisualizations(prev => {
+							// Force React to update by creating a new array
+							const updatedViz = [...prev];
+							const index = updatedViz.findIndex(
+								v => v.id === newViz.id,
+							);
+							if (index !== -1) {
+								updatedViz[index] = newViz;
+							}
+							return updatedViz;
+						});
+					} catch (error) {
+						console.error('Error parsing message:', error);
+						setLoading(false);
+					}
 				},
 				onerror(err) {
 					console.error('Error fetching visualization:', err);
@@ -173,7 +196,11 @@ Go part-by-part through the document. For each part, please do the following: ${
 						key={index}
 						className="bg-white p-4 mb-2 rounded-md shadow-sm border border-gray-200"
 					>
-						<p className="text-gray-800">{viz.response}</p>
+						<div className="text-gray-800">
+							<Remark>
+								{viz.response}
+							</Remark>
+						</div>
 					</div>
 				))}
 			</div>
