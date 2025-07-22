@@ -151,7 +151,7 @@ q					updateDocContext={ docUpdated }
 				) : null }
 			</div>
 
-			<div className={ isDemo ? classes.demosidebar : classes.sidebar }>
+			<div className={`overflow-y-scroll ${isDemo ? classes.demosidebar : classes.sidebar}`}>
 				<Sidebar editorAPI={ editorAPI } />
 			</div>
 		</div>
