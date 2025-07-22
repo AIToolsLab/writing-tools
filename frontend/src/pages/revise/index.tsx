@@ -12,7 +12,18 @@ import { useAtomValue } from 'jotai';
 import { useCallback, useContext, useState } from 'react';
 import { Remark } from 'react-remark';
 
-const promptList = [
+interface Prompt {
+	keyword: string;
+	prompt: string;
+	isOverall?: boolean;
+}
+
+const promptList: Prompt[] = [
+	{
+		keyword: "Hierarchical Outline",
+		prompt: 'Create a hierarchical outline of the document.',
+		isOverall: true
+	},
 	{
 		keyword: 'Main Point',
 		prompt: 'List the main points that the writer is making.',
@@ -52,7 +63,7 @@ We are powering a tool that is designed to help people write thoughtfully, with 
 
 The user is currently in a "visualization" part of the tool, where the tool promises to help the writer visualize their document to help them understand what points they are making, what their current structure is, what are the concepts and relationships in their document, and many other possible visualizations. The appropriate visualization will depend on the document, the writer, and the context. The writer may not have provided us with all necessary context; we should ask for additional details as needed.
 
-Our response MUST reference specific parts of the document. References are comprised of <ref> tags and <ref-text> tags. Within the body of the visualization or conversation, we use self-closed <ref> tags with a numeric id attribute, like <ref id="1" /> (incrementing id as needed). Then, at the end of the response, we include <ref-text> tags that enclose document text: <ref-text id="1">document_text</ref-text> where document_text is a short verbatim quote from the document (without quotation marks) that is long enough to uniquely identify the referenced part of the document, but max of one line.
+Our response MUST reference specific parts of the document. We use Markdown links to reference document text: [ref](doctext:A%20short%20verbatim%20quote).
 
 When generating a visualization, it is critical that we remain faithful to the document provided. If we ever realize that we've deviated from the document text, even slightly, we must include a remark to that effect in [square brackets] as soon as possible after the deviation.`;
 
@@ -90,13 +101,16 @@ export default function Revise() {
 	const [visualizations, setVisualizations] = useState<Visualization[]>([]);
 
 	const requestVisualization = useCallback(
-		async (prompt: string) => {
+		async (prompt: Prompt) => {
 			const token = await getAccessToken();
 			if (!token) {
 				console.error('No access token available');
 				return;
 			}
-			const newViz = new Visualization(prompt, docContext);
+
+			const request = prompt.isOverall ? prompt.prompt : `Go part-by-part through the document. For each part, please do the following: ${prompt.prompt}`;
+
+			const newViz = new Visualization(request, docContext);
 			setVisualizations(prev => [...prev, newViz]);
 			/* Kick off a streaming request to the server to get the visualization response */
 
@@ -113,7 +127,7 @@ ${docContext.beforeCursor}${docContext.selectedText}${docContext.afterCursor}
 </document>
 
 <request>
-Go part-by-part through the document. For each part, please do the following: ${prompt}
+${request}
 </request>`,
 				},
 			];
@@ -181,7 +195,7 @@ Go part-by-part through the document. For each part, please do the following: ${
 					>
 						<button
 							type="button"
-							onClick={() => requestVisualization(prompt.prompt)}
+							onClick={() => requestVisualization(prompt)}
 							className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors duration-150 shadow-sm border border-gray-200 mr-2 mb-2"
 						>
 							{prompt.keyword}
@@ -196,7 +210,7 @@ Go part-by-part through the document. For each part, please do the following: ${
 						key={index}
 						className="bg-white p-4 mb-2 rounded-md shadow-sm border border-gray-200"
 					>
-						<div className="text-gray-800">
+						<div className="text-gray-800 prose">
 							<Remark>
 								{viz.response}
 							</Remark>
