@@ -1,20 +1,20 @@
+import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
+import {
+	type InitialEditorStateType,
+	LexicalComposer
+} from '@lexical/react/LexicalComposer';
+import { ContentEditable } from '@lexical/react/LexicalContentEditable';
+import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
+import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
+import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
+import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import {
 	$getRoot,
 	$getSelection,
 	$isRangeSelection,
-	LexicalNode
+	type ElementNode,
+	type LexicalNode
 } from 'lexical';
-
-import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
-import {
-	InitialEditorStateType,
-	LexicalComposer
-} from '@lexical/react/LexicalComposer';
-import { ContentEditable } from '@lexical/react/LexicalContentEditable';
-import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
-import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
-import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
-import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 
 import classes from './editor.module.css';
 
@@ -64,7 +64,7 @@ function $getDocContext(): DocContext {
 }
 
 // DFS traversal to get document order
-function collectNodes(node: any, visitedNodes: Set<string>, allNodes: LexicalNode[]) {
+function collectNodes(node: ElementNode | LexicalNode, visitedNodes: Set<string>, allNodes: LexicalNode[]) {
 	const nodeKey = node.getKey();
 	if (visitedNodes.has(nodeKey)) return;
 	visitedNodes.add(nodeKey);
@@ -84,7 +84,7 @@ function collectNodes(node: any, visitedNodes: Set<string>, allNodes: LexicalNod
 /**
  * Gets text from document start to cursor position or from cursor position to document end.
  */
-function getCursorText(aNode: any, aOffset: any, mode: string): string {
+function getCursorText(aNode: LexicalNode, aOffset: number, mode: string): string {
 	let cursorText = '';
 
 	const root = $getRoot();
@@ -159,7 +159,6 @@ function LexicalEditor({
 }) {
 
 	return (
-		<>
 			<LexicalComposer // Main editor component
 				initialConfig={ {
 					namespace: 'essay',
@@ -172,7 +171,7 @@ function LexicalEditor({
 			>
 				<div className={ classes.editorContainer }>
 					<div className={ classes.editor }>
-					{ preamble && <div className="whitespace-pre-line">{preamble}</div> }
+					{ preamble ? <div className="whitespace-pre-line">{preamble}</div> : null }
 					<RichTextPlugin
 						contentEditable={
 							<ContentEditable className={classes.editor} />
@@ -204,7 +203,6 @@ function LexicalEditor({
 				</div>
 				</div>
 			</LexicalComposer>
-		</>
 	);
 }
 
