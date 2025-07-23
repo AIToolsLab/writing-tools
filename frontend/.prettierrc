@@ -9,6 +9,5 @@
 	"singleAttributePerLine": true,
 	"singleQuote": true,
 	"jsxSingleQuote": false,
-	"semi": true,
-	"requirePragma": true
+	"semi": true
 }
