@@ -5,8 +5,6 @@
 	"trailingComma": "all",
 	"bracketSpacing": true,
 	"bracketSameLine": false,
-	"arrowParens": "avoid",
-	"singleAttributePerLine": true,
 	"singleQuote": true,
 	"jsxSingleQuote": false,
 	"semi": true
