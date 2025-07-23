@@ -2,15 +2,15 @@
  * @format
  */
 
+import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { useAtomValue } from 'jotai';
+import { useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { Remark } from 'react-remark';
 import { SERVER_URL } from '@/api';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { useAtomValue } from 'jotai';
-import { useCallback, useContext, useMemo, useRef, useState } from 'react';
-import { Remark } from 'react-remark';
 
 interface Prompt {
 	keyword: string;
