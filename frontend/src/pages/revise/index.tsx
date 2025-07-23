@@ -25,6 +25,11 @@ const promptList: Prompt[] = [
 		isOverall: true,
 	},
 	{
+		keyword: "Inspirational Exemplar",
+		prompt: "Imagine an exemplar document with a similar rhetorical situation to this document (e.g., that might be published in the same venue) but a different specific message. Suppose that the document was written exceptionally well, by a famous author. What would that document look like? Provide a two-level *outline* of that exemplar document. For each outline point, provide (1) a short quote from the imagined exemplar and (2) a reference (in link format) to similar material in the actual writer's current (provided) document. If the writer's document does not yet contain a section that corresponds to the imagined exemplar section, reference a part of the document that it could be added near.",
+		isOverall: true,
+	},
+	{
 		keyword: 'Main Point',
 		prompt: 'List the main points that the writer is making.',
 	},
