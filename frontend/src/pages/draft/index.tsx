@@ -222,7 +222,7 @@ export default function Draft() {
 				event: 'ShowSuggestion',
 				prompt: document,
 				result: generation,
-			})
+			});
 			updateSavedItems(savedItems => [
 				{
 					document: document,

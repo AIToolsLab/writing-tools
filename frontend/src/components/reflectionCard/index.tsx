@@ -15,7 +15,7 @@ const handlePinAction = handleThumbsUpAction;
 
 async function handleThumbsUpAction(
 	paragraphIndex: number,
-	comment: string
+	comment: string,
 ): Promise<void> {
 	await Word.run(async (context: Word.RequestContext) => {
 		// Retrieve and load all the paragraphs from the Word document
@@ -53,15 +53,15 @@ function ReflectionCard(props: ReflectionCardProps) {
 	const { cardData, className } = props;
 
 	return (
-		<div
-			className={ className }
-		>
-			<div className={ classes.text }><Remark>{ cardData.body }</Remark></div>
+		<div className={className}>
+			<div className={classes.text}>
+				<Remark>{cardData.body}</Remark>
+			</div>
 
 			<div>
 				<button
-					className={ classes.pinButton }
-					onClick={ () =>
+					className={classes.pinButton}
+					onClick={() =>
 						handlePinAction(cardData.paragraphIndex, cardData.body)
 					}
 				>
@@ -77,23 +77,21 @@ export function ReflectionCards(props: ReflectionCardsProps) {
 
 	return (
 		<div>
-			{ cardDataList.length === 0 ? (
-				<div className={ classes.spinnerWrapper }>
-					<div className={ classes.loader }></div>
+			{cardDataList.length === 0 ? (
+				<div className={classes.spinnerWrapper}>
+					<div className={classes.loader}></div>
 				</div>
 			) : (
 				cardDataList.map((cardData: CardData, index: number) => (
 					<ReflectionCard
-						key={ index }
-						cardData={ cardData }
+						key={index}
+						cardData={cardData}
 						className={
-							isHighlighted
-								? classes.isHighlighted
-								: classes.card
+							isHighlighted ? classes.isHighlighted : classes.card
 						}
 					/>
 				))
-			) }
+			)}
 		</div>
 	);
 }

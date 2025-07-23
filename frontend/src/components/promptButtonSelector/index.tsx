@@ -79,7 +79,7 @@ export const defaultKeyword = promptList[0].keyword;
  * @returns {JSX.Element} - The rendered button selector component.
  */
 export function PromptButtonSelector(
-	props: PromptButtonSelectorProps
+	props: PromptButtonSelectorProps,
 ): JSX.Element {
 	const { currentPrompt, updatePrompt } = props;
 
@@ -95,26 +95,26 @@ export function PromptButtonSelector(
 	}
 
 	return (
-		<div className={ classes.promptButtonSelector }>
-			<div className={ classes.buttonContainer }>
-				{ promptList.map(
+		<div className={classes.promptButtonSelector}>
+			<div className={classes.buttonContainer}>
+				{promptList.map(
 					(option: { keyword: string; prompt: string }) => (
 						<button
-							key={ option.keyword }
+							key={option.keyword}
 							className={
 								currentButton === option.keyword
 									? classes.currentButton
 									: classes.button
 							}
-							onClick={ () => {
+							onClick={() => {
 								setPrompt(option.prompt);
 								setCurrentButton(option.keyword);
-							} }
+							}}
 						>
-							{ option.keyword }
-							</button>
-					)
-				) }
+							{option.keyword}
+						</button>
+					),
+				)}
 
 				<button
 					className={
@@ -122,30 +122,32 @@ export function PromptButtonSelector(
 							? classes.currentButton
 							: classes.button
 					}
-					onClick={ () => {
+					onClick={() => {
 						setPrompt(customPrompt);
 						setCurrentButton('Custom');
-					} }
+					}}
 				>
 					Custom
 				</button>
 			</div>
 
-			<div className={ classes.textareaContainer }>
+			<div className={classes.textareaContainer}>
 				<TextareaAutosize
-					className={ classes.textarea }
-					value={ displayedPrompt }
-					onChange={ (e: ChangeEvent) => {
-						setDisplayedPrompt((e.target as HTMLInputElement).value);
+					className={classes.textarea}
+					value={displayedPrompt}
+					onChange={(e: ChangeEvent) => {
+						setDisplayedPrompt(
+							(e.target as HTMLInputElement).value,
+						);
 						setCurrentButton('Custom');
-					} }
+					}}
 				/>
 
-				{ currentButton === 'Custom' && (
-					<div className={ classes.operationButtonContainer }>
-						<div className={ classes.saveButton }>
+				{currentButton === 'Custom' && (
+					<div className={classes.operationButtonContainer}>
+						<div className={classes.saveButton}>
 							<button
-								onClick={ () => {
+								onClick={() => {
 									if (
 										displayedPrompt.trim().length !== 0 &&
 										displayedPrompt.trim() !== currentPrompt
@@ -153,24 +155,24 @@ export function PromptButtonSelector(
 										setCustomPrompt(displayedPrompt);
 										updatePrompt(displayedPrompt);
 									}
-								} }
+								}}
 							>
 								Save
 							</button>
 						</div>
 
-						<div className={ classes.clearButton }>
+						<div className={classes.clearButton}>
 							<button
-								onClick={ () => {
+								onClick={() => {
 									setDisplayedPrompt('');
 									setCustomPrompt('');
-								} }
+								}}
 							>
 								Clear
 							</button>
 						</div>
 					</div>
-				) }
+				)}
 			</div>
 		</div>
 	);

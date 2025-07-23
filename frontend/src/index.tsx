@@ -8,7 +8,6 @@ import { StrictMode } from 'react';
 const container = document.getElementById('container')!;
 const root = createRoot(container);
 
-
 let isOfficeInitialized = false;
 
 const render = (Component: React.ComponentType<HomeProps>) => {
@@ -16,14 +15,14 @@ const render = (Component: React.ComponentType<HomeProps>) => {
 		root.render(
 			<section className="ms-welcome__progress ms-u-fadeIn500">
 				<p>Please sideload your add-in to see app body.</p>
-			</section>
+			</section>,
 		);
 		return;
 	}
 	root.render(
 		<StrictMode>
-			<Component editorAPI={ wordEditorAPI } />
-		</StrictMode>
+			<Component editorAPI={wordEditorAPI} />
+		</StrictMode>,
 	);
 };
 

@@ -25,7 +25,7 @@ const promptList: Prompt[] = [
 		isOverall: true,
 	},
 	{
-		keyword: "Inspirational Exemplar",
+		keyword: 'Inspirational Exemplar',
 		prompt: "Imagine an exemplar document with a similar rhetorical situation to this document (e.g., that might be published in the same venue) but a different specific message. Suppose that the document was written exceptionally well, by a famous author. What would that document look like? Provide a two-level *outline* of that exemplar document. For each outline point, provide (1) a short quote from the imagined exemplar and (2) a reference (in link format) to similar material in the actual writer's current (provided) document. If the writer's document does not yet contain a section that corresponds to the imagined exemplar section, reference a part of the document that it could be added near.",
 		isOverall: true,
 	},
@@ -245,7 +245,7 @@ ${request}
 			</div>
 			{/* visualizations: list of visualizations */}
 			<div className="flex flex-col">
-				{visualizations.map((viz) => (
+				{visualizations.map(viz => (
 					<div
 						key={viz.id}
 						className="bg-white p-4 mb-2 rounded-md shadow-sm border border-gray-200"

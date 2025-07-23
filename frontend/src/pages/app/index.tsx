@@ -16,9 +16,17 @@ import Revise from '../revise';
 import Chat from '../chat';
 import Draft from '../draft';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
-import { AccessTokenProvider, useAccessToken } from '@/contexts/authTokenContext';
+import {
+	AccessTokenProvider,
+	useAccessToken,
+} from '@/contexts/authTokenContext';
 import { useAtomValue } from 'jotai';
-import { OverallMode, overallModeAtom, PageName, pageNameAtom } from '@/contexts/pageContext';
+import {
+	OverallMode,
+	overallModeAtom,
+	PageName,
+	pageNameAtom,
+} from '@/contexts/pageContext';
 
 export interface HomeProps {
 	editorAPI: EditorAPI;
@@ -30,7 +38,7 @@ function AppInner({ editorAPI }: HomeProps) {
 	const auth0Client = useAuth0();
 	const { isLoading, error, isAuthenticated, user } = auth0Client;
 	const [width, _height] = useWindowSize();
-	const page = useAtomValue(pageNameAtom)
+	const page = useAtomValue(pageNameAtom);
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
 		return localStorage.getItem('hasCompletedOnboarding') === 'true';
 	});
@@ -50,8 +58,7 @@ function AppInner({ editorAPI }: HomeProps) {
         perpetual Office 2021 (or later) or to a Microsoft 365 account."
       */
 			return false;
-		}
-		else if (navigator.userAgent.indexOf('Edge') !== -1) {
+		} else if (navigator.userAgent.indexOf('Edge') !== -1) {
 			/*
 				EdgeHTML is the browser in use. Do one of the following:
         1. Provide an alternate add-in experience that's supported in EdgeHTML (Microsoft Edge Legacy).
@@ -61,8 +68,7 @@ function AppInner({ editorAPI }: HomeProps) {
         perpetual Office 2021 (or later) or to a Microsoft 365 account."
       */
 			return false;
-		}
-		else {
+		} else {
 			/*
         A webview other than Trident or EdgeHTML is in use.
         Provide a full-featured version of the add-in here.
@@ -71,107 +77,146 @@ function AppInner({ editorAPI }: HomeProps) {
 		}
 	}
 
-	if (isLoading) return (
-		<div className={ classes.loadingContainer }>
-			<div>Waiting for authentication</div>
-			<div className={ classes.spinnerWrapper }>
-				<div className={ classes.loader }></div>
+	if (isLoading)
+		return (
+			<div className={classes.loadingContainer}>
+				<div>Waiting for authentication</div>
+				<div className={classes.spinnerWrapper}>
+					<div className={classes.loader}></div>
+				</div>
 			</div>
-		</div>
-	);
-	if (error) return (
-		<div className={ classes.container }>
-			<p>Oops... { error.message }</p>
-			<button
-				className={ classes.logoutButton }
-				onClick={ () => {
-				window.location.reload();
-				} }
-			>
-				Reload
-			</button>
-		</div>
-	);
+		);
+	if (error)
+		return (
+			<div className={classes.container}>
+				<p>Oops... {error.message}</p>
+				<button
+					className={classes.logoutButton}
+					onClick={() => {
+						window.location.reload();
+					}}
+				>
+					Reload
+				</button>
+			</div>
+		);
 
 	if (!noAuthMode && (!isAuthenticated || !user)) {
 		return (
 			<div>
-				{ !hasCompletedOnboarding ? (
+				{!hasCompletedOnboarding ? (
 					<OnboardingCarousel
-						onComplete={ () => {
+						onComplete={() => {
 							setHasCompletedOnboarding(true);
-							localStorage.setItem('hasCompletedOnboarding', 'true');
-						} }
+							localStorage.setItem(
+								'hasCompletedOnboarding',
+								'true',
+							);
+						}}
 					/>
 				) : (
-					<div className={ classes.loginContainer }>
+					<div className={classes.loginContainer}>
 						<h3>Not logged in yet?</h3>
 						<button
-							className={ classes.loginButton }
-							onClick={ async () => {
+							className={classes.loginButton}
+							onClick={async () => {
 								await editorAPI.doLogin(auth0Client);
-							} }
+							}}
 						>
 							<p>Login</p>
 						</button>
 
-						<div className={ classes.loginInfoContainer }>
-							<p><strong>Note</strong>: login is required since this is a closed trial for now.</p>
+						<div className={classes.loginInfoContainer}>
+							<p>
+								<strong>Note</strong>: login is required since
+								this is a closed trial for now.
+							</p>
 						</div>
 
-						<div className={ classes.signupBtnCtnr }>
+						<div className={classes.signupBtnCtnr}>
 							Click
-							<a href="https://tinyurl.com/3dfrujnz" className={ classes.ibtn } target="_blank">
+							<a
+								href="https://tinyurl.com/3dfrujnz"
+								className={classes.ibtn}
+								target="_blank"
+							>
 								here
 							</a>
 							to sign up for the study if interested.
 						</div>
 
-
 						<hr />
 
 						<p>Available Auth Providers</p>
-						<div className={ classes.authProviderIconContainer }>
-							<CgGoogle className={ classes.authProviderIcon } />
-							<CgMicrosoft className={ classes.authProviderIcon } />
-							<CgFacebook className={ classes.authProviderIcon } />
+						<div className={classes.authProviderIconContainer}>
+							<CgGoogle className={classes.authProviderIcon} />
+							<CgMicrosoft className={classes.authProviderIcon} />
+							<CgFacebook className={classes.authProviderIcon} />
 						</div>
 
-						<div className={ classes.widthAlert } style={ { visibility: width < 400 ? 'visible' : 'hidden' } }>
-							For best experience please expand the sidebar by dragging the splitter.
+						<div
+							className={classes.widthAlert}
+							style={{
+								visibility: width < 400 ? 'visible' : 'hidden',
+							}}
+						>
+							For best experience please expand the sidebar by
+							dragging the splitter.
 						</div>
 
-						<div className={ classes.versionAlert } style={ { visibility: !isOfficeLatest() ? 'visible' : 'hidden' } }>
-							This add-in may not run correctly in your version of Office. Please upgrade either to
-							perpetual Office 2021 (or later) or to a Microsoft 365 account.
+						<div
+							className={classes.versionAlert}
+							style={{
+								visibility: !isOfficeLatest()
+									? 'visible'
+									: 'hidden',
+							}}
+						>
+							This add-in may not run correctly in your version of
+							Office. Please upgrade either to perpetual Office
+							2021 (or later) or to a Microsoft 365 account.
 						</div>
 					</div>
-				) }
+				)}
 			</div>
 		);
 	}
 
 	// For the beta, only allow Calvin email addresses and example test user
-	const isUserAllowed = noAuthMode || user?.email?.endsWith('@calvin.edu') || user?.email === 'example-user@textfocals.com';
+	const isUserAllowed =
+		noAuthMode ||
+		user?.email?.endsWith('@calvin.edu') ||
+		user?.email === 'example-user@textfocals.com';
 
 	if (!noAuthMode && !isUserAllowed) {
 		return (
-			<div className={ classes.notAllowedContainer }>
-				<p className={ classes.notAllowedTitle }>Sorry, you are not allowed to access this page.</p>
+			<div className={classes.notAllowedContainer}>
+				<p className={classes.notAllowedTitle}>
+					Sorry, you are not allowed to access this page.
+				</p>
 				<hr />
-				<p>For the purpose of the beta study, we are limiting access to Calvin email addresses only.</p>
 				<p>
-					<a href="https://thoughtful-ai.com/" className={ classes.ibtn } target="_blank">Contact the developer</a>
+					For the purpose of the beta study, we are limiting access to
+					Calvin email addresses only.
+				</p>
+				<p>
+					<a
+						href="https://thoughtful-ai.com/"
+						className={classes.ibtn}
+						target="_blank"
+					>
+						Contact the developer
+					</a>
 					if you are interested in participating in the study.
 				</p>
 				<hr />
 				<button
-					className={ classes.logoutButton }
-					onClick={ () => {
+					className={classes.logoutButton}
+					onClick={() => {
 						// eslint-disable-next-line no-console
 						console.log('origin', window.location.origin);
 						editorAPI.doLogout(auth0Client);
-					} }
+					}}
 				>
 					Sign Out
 				</button>
@@ -191,48 +236,49 @@ function AppInner({ editorAPI }: HomeProps) {
 		return null;
 	}
 
-
 	return (
 		<Layout>
-			{ !noAuthMode && user && (
-			<div className={ classes.container }>
-				<div className={ classes.profileContainer }>
-					<div className={ classes.profilePicContainer }>
-						<img
-							src={ user && user.picture }
-							alt="Profile"
-							className={ classes.profilePic }
-							referrerPolicy="no-referrer"
-						/>
+			{!noAuthMode && user && (
+				<div className={classes.container}>
+					<div className={classes.profileContainer}>
+						<div className={classes.profilePicContainer}>
+							<img
+								src={user && user.picture}
+								alt="Profile"
+								className={classes.profilePic}
+								referrerPolicy="no-referrer"
+							/>
+						</div>
+						<div className={classes.userNameContainer}>
+							User: {user!.name}
+						</div>
 					</div>
-					<div className={ classes.userNameContainer }>
-						User: { user!.name }
-					</div>
-				</div>
-				{ authErrorType !== null && (
+					{authErrorType !== null && (
+						<button
+							className={classes.logoutButton}
+							onClick={async () => {
+								// do login again
+								await editorAPI.doLogin(auth0Client);
+							}}
+						>
+							Reauthorize
+						</button>
+					)}
 					<button
-					  className={ classes.logoutButton }
-					  onClick={ async () => {
-						// do login again
-						await editorAPI.doLogin(auth0Client);
-					  } }
-					  >Reauthorize</button>
-				) }
-				<button
-					className={ classes.logoutButton }
-					onClick={ () => {
-					// eslint-disable-next-line no-console
-					console.log('origin', window.location.origin);
-					editorAPI.doLogout(auth0Client);
-				} }
-				>
-					Sign Out
-				</button>
-			</div>
-		) }
-			{ getComponent(page) }
+						className={classes.logoutButton}
+						onClick={() => {
+							// eslint-disable-next-line no-console
+							console.log('origin', window.location.origin);
+							editorAPI.doLogout(auth0Client);
+						}}
+					>
+						Sign Out
+					</button>
+				</div>
+			)}
+			{getComponent(page)}
 		</Layout>
-		);
+	);
 }
 
 export default function App({ editorAPI }: HomeProps) {
@@ -246,47 +292,55 @@ export default function App({ editorAPI }: HomeProps) {
 
 	return (
 		<ChatContextWrapper>
-					<EditorContextWrapper editorAPI={ editorAPI }>
-						<Auth0Provider
-							domain={ process.env.AUTH0_DOMAIN! }
-							clientId={ process.env.AUTH0_CLIENT_ID! }
-							cacheLocation="localstorage"
-							useRefreshTokens={ true }
-							useRefreshTokensFallback={ true }
-							authorizationParams= { {
-								// eslint-disable-next-line camelcase
-								redirect_uri: `${window.location.origin}/popup.html`,
-								scope: 'openid profile email read:posts',
-								audience: 'textfocals.com',
-								leeway: 10
-							} }
-						>
-							<AccessTokenProvider>
-								<AppInner editorAPI={ editorAPI } />
-							</AccessTokenProvider>
-						</Auth0Provider>
-					</EditorContextWrapper>
+			<EditorContextWrapper editorAPI={editorAPI}>
+				<Auth0Provider
+					domain={process.env.AUTH0_DOMAIN!}
+					clientId={process.env.AUTH0_CLIENT_ID!}
+					cacheLocation="localstorage"
+					useRefreshTokens={true}
+					useRefreshTokensFallback={true}
+					authorizationParams={{
+						// eslint-disable-next-line camelcase
+						redirect_uri: `${window.location.origin}/popup.html`,
+						scope: 'openid profile email read:posts',
+						audience: 'textfocals.com',
+						leeway: 10,
+					}}
+				>
+					<AccessTokenProvider>
+						<AppInner editorAPI={editorAPI} />
+					</AccessTokenProvider>
+				</Auth0Provider>
+			</EditorContextWrapper>
 		</ChatContextWrapper>
 	);
 }
 
-function DemoAccessTokenProviderWrapper({ children }: { children: React.ReactNode }) {
+function DemoAccessTokenProviderWrapper({
+	children,
+}: {
+	children: React.ReactNode;
+}) {
 	const getAccessTokenSilently = async () => {
 		// Simulate a token retrieval for demo purposes
 		return 'demo-access-token';
 	};
 	return (
-		<AccessTokenProvider getAccessTokenSilently={ getAccessTokenSilently }>
-			{ children }
+		<AccessTokenProvider getAccessTokenSilently={getAccessTokenSilently}>
+			{children}
 		</AccessTokenProvider>
 	);
 }
 
-function Auth0AccessTokenProviderWrapper({ children }: { children: React.ReactNode }) {
+function Auth0AccessTokenProviderWrapper({
+	children,
+}: {
+	children: React.ReactNode;
+}) {
 	const { getAccessTokenSilently } = useAuth0();
 	return (
-		<AccessTokenProvider getAccessTokenSilently={ getAccessTokenSilently }>
-			{ children }
+		<AccessTokenProvider getAccessTokenSilently={getAccessTokenSilently}>
+			{children}
 		</AccessTokenProvider>
 	);
 }

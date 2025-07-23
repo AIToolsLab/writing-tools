@@ -10,13 +10,13 @@ export interface LogPayload {
 export function log(payload: LogPayload) {
 	const payloadWithTimestamp = {
 		...payload,
-		timestamp: +new Date() / 1000
+		timestamp: +new Date() / 1000,
 	};
 	fetch(`${SERVER_URL}/log`, {
 		method: 'POST',
 		headers: {
-			'Content-Type': 'application/json'
+			'Content-Type': 'application/json',
 		},
-		body: JSON.stringify(payloadWithTimestamp)
+		body: JSON.stringify(payloadWithTimestamp),
 	});
 }
