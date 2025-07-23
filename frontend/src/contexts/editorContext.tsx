@@ -4,11 +4,11 @@ import { type PropsWithChildren, createContext } from 'react';
 export const EditorContext = createContext<EditorAPI>({
   doLogin: async () => {},
   doLogout: async () => {},
-  getDocContext: async () => ({
+  getDocContext: () => (new Promise<DocContext>(resolve => resolve({
     beforeCursor: '',
     selectedText: '',
     afterCursor: ''
-  }),
+  }))),
   addSelectionChangeHandler: () => {},
   removeSelectionChangeHandler: () => {}
 });

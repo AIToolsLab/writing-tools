@@ -1,11 +1,11 @@
-import { Auth0ContextInterface } from '@auth0/auth0-react';
+import type { Auth0ContextInterface } from '@auth0/auth0-react';
 
 export const wordEditorAPI: EditorAPI = {
 	async doLogin(auth0Client: Auth0ContextInterface): Promise<void> {
 		let dialog: Office.Dialog;
 
 		// Strategy: the popup will pass its redirect-callback data here, so we can pass it on to handleRedirectCallback
-		const processMessage = async (
+		const processMessage = (
 			args:
 				| { message: string; origin: string | undefined }
 				| { error: number }
@@ -22,7 +22,7 @@ export const wordEditorAPI: EditorAPI = {
 			if (messageFromDialog.status === 'success') {
 				// The dialog reported a successful login.
 				try {
-					auth0Client.handleRedirectCallback(messageFromDialog.urlWithAuthInfo);
+					auth0Client.handleRedirectCallback(messageFromDialog.urlWithAuthInfo as string);
 				}
 				catch (error) {
 					// eslint-disable-next-line no-console
@@ -36,7 +36,7 @@ export const wordEditorAPI: EditorAPI = {
 		};
 
 		await auth0Client.loginWithRedirect({
-			openUrl: async (url: string) => {
+			openUrl: (url: string) => {
 				try {
 					const redirect = encodeURIComponent(url);
 					const bounceURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') + '/popup.html?redirect=' + redirect;
@@ -45,7 +45,7 @@ export const wordEditorAPI: EditorAPI = {
 					Office.context.ui.displayDialogAsync(
 						bounceURL,
 						{ height: 45, width: 55 },
-						function (result) {
+						(result) => {
 							dialog = result.value;
 							dialog.addEventHandler(
 								Office.EventType.DialogMessageReceived,
@@ -66,10 +66,9 @@ export const wordEditorAPI: EditorAPI = {
 		let dialog: Office.Dialog;
 
 		// Strategy: the popup will pass its redirect-callback data here, so we can pass it on to handleRedirectCallback
-		const processMessage = async (
-			args:
-				| { message: string; origin: string | undefined }
-				| { error: number }
+		const processMessage = (args:
+			| { message: string; origin: string | undefined }
+			| { error: number }
 		) => {
 			dialog.close();
 			if ('error' in args) {
@@ -90,13 +89,13 @@ export const wordEditorAPI: EditorAPI = {
 		};
 
 		await auth0Client.logout({
-			openUrl: async (url: string) => {
+			openUrl: (url: string) => {
 				const redirect = encodeURIComponent(url);
 				const bounceURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') + '/popup.html?redirect=' + redirect;
 				Office.context.ui.displayDialogAsync(
 					bounceURL,
 					{ height: 45, width: 55 },
-					function (result) {
+					(result) => {
 						dialog = result.value;
 						dialog.addEventHandler(
 							Office.EventType.DialogMessageReceived,
