@@ -126,50 +126,52 @@ export const wordEditorAPI: EditorAPI = {
 	/**
 	 * Retrieves the text content of the Word document.
 	 */
-	getDocContext(): Promise<DocContext> {
-		return new Promise<DocContext>(async (resolve, reject) => {
-			try {
-				await Word.run(async (context: Word.RequestContext) => {
-					const body: Word.Body = context.document.body;
-					const docContext: DocContext = {
-						beforeCursor: '',
-						selectedText: '',
-						afterCursor: ''
+	async getDocContext(): Promise<DocContext> {
+		return new Promise<DocContext>((resolve, reject) => {
+			Word.run(async (context: Word.RequestContext) => {
+				const body: Word.Body = context.document.body;
+				const docContext: DocContext = {
+					beforeCursor: '',
+					selectedText: '',
+					afterCursor: ''
 					};
 
-					// Get the selected word
-					const wordSelection = context.document.getSelection();
+				// Get the selected word
+				const wordSelection = context.document.getSelection();
 
-					context.load(wordSelection, 'items');
-					await context.sync();
+				context.load(wordSelection, 'items');
+				await context.sync();
 
-					// Get the text of the selected word
-					docContext.selectedText = wordSelection.text;
+				// Get the text of the selected word
+				docContext.selectedText = wordSelection.text;
 
-					// Get the text before the selected word
-					const beforeCursor = wordSelection.expandTo(body.getRange('Start'));
-					context.load(beforeCursor, 'text');
+				// Get the text before the selected word
+				const beforeCursor = wordSelection.expandTo(body.getRange('Start'));
+				context.load(beforeCursor, 'text');
 
-					// Get the text after the selected word
-					const afterCursor = wordSelection.expandTo(body.getRange('End'));
-					context.load(afterCursor, 'text');
+				// Get the text after the selected word
+				const afterCursor = wordSelection.expandTo(body.getRange('End'));
+				context.load(afterCursor, 'text');
 
-					await context.sync();
+				await context.sync();
 
-					// Set the beforeCursor and afterCursor properties of the docContext object
-					// Note that we only slice only if the selected text is not empty
-					docContext.beforeCursor = beforeCursor.text.slice(0, -docContext.selectedText.length) || beforeCursor.text;
-					docContext.afterCursor = afterCursor.text.slice(docContext.selectedText.length);
+				// Set the beforeCursor and afterCursor properties of the docContext object
+				// Note that we only slice only if the selected text is not empty
+				docContext.beforeCursor = beforeCursor.text.slice(0, -docContext.selectedText.length) || beforeCursor.text;
+				docContext.afterCursor = afterCursor.text.slice(docContext.selectedText.length);
 
-					// Replace \r with \n for consistency
-					docContext.beforeCursor = docContext.beforeCursor.replace(/\r/g, '\n');
-					docContext.selectedText = docContext.selectedText.replace(/\r/g, '\n');
-					docContext.afterCursor = docContext.afterCursor.replace(/\r/g, '\n');
-					resolve(docContext);
-				});
-			}
-			catch (error) {
-				reject(error);
+				// Replace \r with \n for consistency
+				docContext.beforeCursor = docContext.beforeCursor.replace(/\r/g, '\n');
+				docContext.selectedText = docContext.selectedText.replace(/\r/g, '\n');
+				docContext.afterCursor = docContext.afterCursor.replace(/\r/g, '\n');
+				resolve(docContext);
+			}).catch((error) => {
+				// eslint-disable-next-line no-console
+				console.error('Error getting document context:', error);
+				reject(error as Error);
+			});
+		});
+	},
 			}
 		});
 	}
