@@ -1,11 +1,11 @@
-import { Auth0ContextInterface } from '@auth0/auth0-react';
+import type { Auth0ContextInterface } from '@auth0/auth0-react';
 
 export const wordEditorAPI: EditorAPI = {
 	async doLogin(auth0Client: Auth0ContextInterface): Promise<void> {
 		let dialog: Office.Dialog;
 
 		// Strategy: the popup will pass its redirect-callback data here, so we can pass it on to handleRedirectCallback
-		const processMessage = async (
+		const processMessage = (
 			args:
 				| { message: string; origin: string | undefined }
 				| { error: number }
@@ -22,7 +22,7 @@ export const wordEditorAPI: EditorAPI = {
 			if (messageFromDialog.status === 'success') {
 				// The dialog reported a successful login.
 				try {
-					auth0Client.handleRedirectCallback(messageFromDialog.urlWithAuthInfo);
+					auth0Client.handleRedirectCallback(messageFromDialog.urlWithAuthInfo as string);
 				}
 				catch (error) {
 					// eslint-disable-next-line no-console
@@ -36,7 +36,7 @@ export const wordEditorAPI: EditorAPI = {
 		};
 
 		await auth0Client.loginWithRedirect({
-			openUrl: async (url: string) => {
+			openUrl: (url: string) => {
 				try {
 					const redirect = encodeURIComponent(url);
 					const bounceURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') + '/popup.html?redirect=' + redirect;
@@ -45,7 +45,7 @@ export const wordEditorAPI: EditorAPI = {
 					Office.context.ui.displayDialogAsync(
 						bounceURL,
 						{ height: 45, width: 55 },
-						function (result) {
+						(result) => {
 							dialog = result.value;
 							dialog.addEventHandler(
 								Office.EventType.DialogMessageReceived,
@@ -66,10 +66,9 @@ export const wordEditorAPI: EditorAPI = {
 		let dialog: Office.Dialog;
 
 		// Strategy: the popup will pass its redirect-callback data here, so we can pass it on to handleRedirectCallback
-		const processMessage = async (
-			args:
-				| { message: string; origin: string | undefined }
-				| { error: number }
+		const processMessage = (args:
+			| { message: string; origin: string | undefined }
+			| { error: number }
 		) => {
 			dialog.close();
 			if ('error' in args) {
@@ -90,13 +89,13 @@ export const wordEditorAPI: EditorAPI = {
 		};
 
 		await auth0Client.logout({
-			openUrl: async (url: string) => {
+			openUrl: (url: string) => {
 				const redirect = encodeURIComponent(url);
 				const bounceURL = location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') + '/popup.html?redirect=' + redirect;
 				Office.context.ui.displayDialogAsync(
 					bounceURL,
 					{ height: 45, width: 55 },
-					function (result) {
+					(result) => {
 						dialog = result.value;
 						dialog.addEventHandler(
 							Office.EventType.DialogMessageReceived,
@@ -127,50 +126,72 @@ export const wordEditorAPI: EditorAPI = {
 	/**
 	 * Retrieves the text content of the Word document.
 	 */
-	getDocContext(): Promise<DocContext> {
-		return new Promise<DocContext>(async (resolve, reject) => {
-			try {
-				await Word.run(async (context: Word.RequestContext) => {
-					const body: Word.Body = context.document.body;
-					const docContext: DocContext = {
-						beforeCursor: '',
-						selectedText: '',
-						afterCursor: ''
+	async getDocContext(): Promise<DocContext> {
+		return new Promise<DocContext>((resolve, reject) => {
+			Word.run(async (context: Word.RequestContext) => {
+				const body: Word.Body = context.document.body;
+				const docContext: DocContext = {
+					beforeCursor: '',
+					selectedText: '',
+					afterCursor: ''
 					};
 
-					// Get the selected word
-					const wordSelection = context.document.getSelection();
+				// Get the selected word
+				const wordSelection = context.document.getSelection();
 
-					context.load(wordSelection, 'items');
-					await context.sync();
+				context.load(wordSelection, 'text');
+				await context.sync();
 
-					// Get the text of the selected word
-					docContext.selectedText = wordSelection.text;
+				// Get the text of the selected word
+				docContext.selectedText = wordSelection.text;
 
-					// Get the text before the selected word
-					const beforeCursor = wordSelection.expandTo(body.getRange('Start'));
-					context.load(beforeCursor, 'text');
+				// Get the text before the selected word
+				const beforeCursor = wordSelection.expandTo(body.getRange('Start'));
+				context.load(beforeCursor, 'text');
 
-					// Get the text after the selected word
-					const afterCursor = wordSelection.expandTo(body.getRange('End'));
-					context.load(afterCursor, 'text');
+				// Get the text after the selected word
+				const afterCursor = wordSelection.expandTo(body.getRange('End'));
+				context.load(afterCursor, 'text');
 
-					await context.sync();
+				await context.sync();
 
-					// Set the beforeCursor and afterCursor properties of the docContext object
-					// Note that we only slice only if the selected text is not empty
-					docContext.beforeCursor = beforeCursor.text.slice(0, -docContext.selectedText.length) || beforeCursor.text;
-					docContext.afterCursor = afterCursor.text.slice(docContext.selectedText.length);
+				// Set the beforeCursor and afterCursor properties of the docContext object
+				// Note that we only slice only if the selected text is not empty
+				docContext.beforeCursor = beforeCursor.text.slice(0, -docContext.selectedText.length) || beforeCursor.text;
+				docContext.afterCursor = afterCursor.text.slice(docContext.selectedText.length);
 
-					// Replace \r with \n for consistency
-					docContext.beforeCursor = docContext.beforeCursor.replace(/\r/g, '\n');
-					docContext.selectedText = docContext.selectedText.replace(/\r/g, '\n');
-					docContext.afterCursor = docContext.afterCursor.replace(/\r/g, '\n');
-					resolve(docContext);
-				});
-			}
-			catch (error) {
-				reject(error);
+				// Replace \r with \n for consistency
+				docContext.beforeCursor = docContext.beforeCursor.replace(/\r/g, '\n');
+				docContext.selectedText = docContext.selectedText.replace(/\r/g, '\n');
+				docContext.afterCursor = docContext.afterCursor.replace(/\r/g, '\n');
+				resolve(docContext);
+			}).catch((error) => {
+				// eslint-disable-next-line no-console
+				console.error('Error getting document context:', error);
+				reject(error as Error);
+			});
+		});
+	},
+
+	/** Select a phrase in the document. */
+	selectPhrase(phrase: string): Promise<void> {
+		return Word.run(async (context: Word.RequestContext) => {
+			const body: Word.Body = context.document.body;
+			const searchResults = body.search(phrase, {
+				ignorePunct: true,
+				ignoreSpace: true,
+				matchCase: false,
+				matchWildcards: false,
+			});
+			context.load(searchResults, 'items');
+			await context.sync();
+
+			if (searchResults.items.length > 0) {
+				const firstResult = searchResults.items[0];
+				firstResult.select();
+				return;
+			} else {
+				throw new Error('Phrase not found');
 			}
 		});
 	}

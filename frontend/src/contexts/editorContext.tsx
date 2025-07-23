@@ -4,13 +4,17 @@ import { type PropsWithChildren, createContext } from 'react';
 export const EditorContext = createContext<EditorAPI>({
   doLogin: async () => {},
   doLogout: async () => {},
-  getDocContext: async () => ({
+  getDocContext: () => (new Promise<DocContext>(resolve => resolve({
     beforeCursor: '',
     selectedText: '',
     afterCursor: ''
-  }),
+  }))),
   addSelectionChangeHandler: () => {},
-  removeSelectionChangeHandler: () => {}
+  removeSelectionChangeHandler: () => {},
+  selectPhrase: () => {
+    console.warn('selectPhrase is not implemented yet');
+    return new Promise<void>(resolve => resolve());
+  },
 });
 
 export default function EditorContextWrapper({

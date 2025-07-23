@@ -19,7 +19,6 @@ type Page = {
 const pageNames: Page[] = [
 	{ name: PageName.Draft, title: 'Draft' },
 	{ name: PageName.Revise, title: 'Revise' },
-	// { name: 'searchbar', title: 'SearchBar' },
 	{ name: PageName.Chat, title: 'Chat' },
 ];
 

@@ -13,6 +13,7 @@ import { SERVER_URL } from '@/api';
 
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { useAtomValue } from 'jotai';
+import { useDocContext } from '@/utilities';
 
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
@@ -20,22 +21,7 @@ export default function Chat() {
 	const editorAPI = useContext(EditorContext);
 	const { getAccessToken, authErrorType } = useAccessToken();
 
-	/* Document Context (FIXME: make this a hook) */
-	const {
-		addSelectionChangeHandler,
-		removeSelectionChangeHandler,
-		getDocContext
-	} = editorAPI;
-	const [docContext, updateDocContext] = useState<DocContext>({
-		beforeCursor: '',
-		selectedText: '',
-		afterCursor: ''
-	});
-
-	async function handleSelectionChanged(): Promise<void> {
-		const newDocContext = await getDocContext();
-		updateDocContext(newDocContext);
-	}
+	const docContext = useDocContext(editorAPI);
 
 	const docContextMessageContent = (
 		docContext.selectedText === ''
@@ -70,15 +56,6 @@ export default function Chat() {
 	useEffect(() => {
 		updateChatMessages(messagesWithCurDocContext);
 	}, [messagesWithCurDocContext, updateChatMessages]);
-
-	useEffect(() => {
-		addSelectionChangeHandler(handleSelectionChanged);
-		// Initial call to set the initial state
-		handleSelectionChanged();
-		return () => {
-			removeSelectionChangeHandler(handleSelectionChanged);
-		};
-	}, [addSelectionChangeHandler, removeSelectionChangeHandler]);
 
 
 	const [isSendingMessage, updateSendingMessage] = useState(false);

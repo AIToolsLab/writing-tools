@@ -25,9 +25,10 @@ interface SavedItem {
 interface EditorAPI {
 	doLogin(auth0Client: Auth0ContextInterface): Promise<void>;
 	doLogout(auth0Client: Auth0ContextInterface): Promise<void>;
-	getDocContext(): Promise<DocContext>;
+	getDocContext(this: void): Promise<DocContext>;
 	addSelectionChangeHandler: (handler: () => void) => void;
 	removeSelectionChangeHandler: (handler: () => void) => void;
+	selectPhrase: (text: string) => Promise<void>;
 }
 
 interface ReflectionResponseItem {

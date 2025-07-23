@@ -89,7 +89,7 @@
             <bt:ShortStrings>
                 <bt:String id="GetStarted.Title"
                     DefaultValue="Get started with Thoughtful-dev!" />
-                <bt:String id="CommandsGroup.Label" DefaultValue="Commands Group" />
+                <bt:String id="CommandsGroup.Label" DefaultValue="Thoughtful" />
                 <bt:String id="TaskpaneButton.Label" DefaultValue="Show Thoughtful-dev" />
             </bt:ShortStrings>
             <bt:LongStrings>

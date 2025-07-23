@@ -1,4 +1,4 @@
-import { useRef, useSyncExternalStore } from 'react';
+import { useEffect, useState } from 'react';
 
 /**
  * Converts a Word paragraph object into a usable string by removing leading and trailing
@@ -32,38 +32,35 @@ export function useDocContext(editorAPI: EditorAPI) {
 		getDocContext
 	} = editorAPI;
 
-	const docContextRef = useRef<DocContext>({
+	const [docContext, updateDocContext] = useState<DocContext>({
 		beforeCursor: '',
 		selectedText: '',
 		afterCursor: ''
 	});
 
-	// See https://react.dev/learn/you-might-not-need-an-effect#subscribing-to-an-external-store
-	return useSyncExternalStore(
-		function subscribe(callback: () => void): () => void {
-			async function handleSelectionChanged(): Promise<void> {
-				docContextRef.current = await getDocContext();
-				callback(); // Notify subscribers of the change
-			}
-			// Subscribe to selection change events
-			addSelectionChangeHandler(handleSelectionChanged);
-			// Trigger the initial fetch of the document context
-			handleSelectionChanged().catch(error => {
-				// eslint-disable-next-line no-console
-				console.error('Error fetching document context:', error);
+	/**
+	 * useEffect to ensure that event handlers are set up only once
+	 * and cleaned up when the component is unmounted.
+	 * Note that dependencies are empty, so this effect only runs once.
+	 */
+	useEffect(() => {
+		function handleSelectionChanged(): void {
+			// Get the document context (before cursor, selected text, after cursor)
+			getDocContext().then((docInfo: DocContext) => {
+				updateDocContext(docInfo);
 			});
-			// Return a cleanup function to remove the handler
-			return () => {
-				removeSelectionChangeHandler(handleSelectionChanged);
-			};
-		},
-		function getSnapshot(): DocContext {
-			return docContextRef.current;
-		},
-		function getServerSnapshot(): DocContext {
-			// This function is used for server-side rendering, if applicable.
-			// It should return the same snapshot as getSnapshot.
-			return docContextRef.current;
 		}
-	);
+
+		// Handle initial selection change
+		handleSelectionChanged();
+
+		// Handle subsequent selection changes
+		addSelectionChangeHandler(handleSelectionChanged);
+
+		// Cleanup
+		return () => {
+			removeSelectionChangeHandler(handleSelectionChanged);
+		};
+	}, [addSelectionChangeHandler, getDocContext, removeSelectionChangeHandler]);
+	return docContext;
 }
