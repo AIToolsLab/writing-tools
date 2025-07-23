@@ -1,16 +1,15 @@
-import { atom } from "jotai";
+import { atom } from 'jotai';
 
 export enum PageName {
 	Revise = 'revise',
 	Chat = 'chat',
 	Draft = 'draft',
-  }
-
+}
 
 export enum OverallMode {
 	full = 'full',
 	demo = 'demo',
-	study = 'study'
+	study = 'study',
 }
 
 export const pageNameAtom = atom<PageName>(PageName.Draft);

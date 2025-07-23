@@ -5,7 +5,7 @@
 	--black: #231f20;
 	--white: #f1f1f1f1;
 	--light-gray: #f8f8f8;
-	--light-blue: #D4EBF8;
+	--light-blue: #d4ebf8;
 	--light-blue2: #8ad4ff;
 	--dark-blue: #1e3a8a;
 	--shadow-blue: #519fcc;
@@ -32,8 +32,8 @@ a:visited {
 }
 
 body {
-	font-family: "Plus Jakarta Sans", sans-serif;
-	background-color: #FFFFFF;
+	font-family: 'Plus Jakarta Sans', sans-serif;
+	background-color: #ffffff;
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
@@ -173,7 +173,7 @@ header {
 	justify-content: center;
 }
 
-.header-content>div>h1 {
+.header-content > div > h1 {
 	font-size: 2.5rem;
 	font-weight: 700;
 	margin-bottom: 1rem;
@@ -181,11 +181,17 @@ header {
 	text-shadow: 0 0.1rem 0.1rem rgba(0, 0, 0, 0.1);
 }
 
-.header-content>div>p {
+.header-content > div > p {
 	font-size: 1.3rem;
 	font-weight: 400;
 	/* background: linear-gradient(to right, #14C38E, #9694FF); */
-	background: radial-gradient(circle at 100%, #14C38E, #9694FF 50%, #14C38E 75%, #14C38E 100%);
+	background: radial-gradient(
+		circle at 100%,
+		#14c38e,
+		#9694ff 50%,
+		#14c38e 75%,
+		#14c38e 100%
+	);
 	background-size: 200% auto;
 	background-clip: text;
 	-webkit-text-fill-color: transparent;
@@ -250,7 +256,7 @@ header {
 	text-decoration: none;
 }
 
-#editor-demo  {
+#editor-demo {
 	background-color: var(--light-gray);
 	border-radius: 1rem;
 	padding: 1rem;
@@ -307,7 +313,13 @@ header {
 	letter-spacing: 0.5px;
 	transition: all 0.3s;
 	background-color: var(--light-blue);
-	box-shadow: 0 0.4rem 1rem -0.25rem rgba(0, 0, 0, 0.2), inset 0 -0.1875rem 0.25rem -0.0625rem rgba(0, 0, 0, 0.2), 0 -0.625rem 0.9375rem -0.0625rem rgba(255, 255, 255, 0.6), inset 0 0.1875rem 0.25rem -0.0625rem rgba(255, 255, 255, 0.2), inset 0 0 0.3125rem 0.0625rem rgba(255, 255, 255, 0.8), inset 0 1.25rem 1.875rem 0 rgba(255, 255, 255, 0.2);
+	box-shadow:
+		0 0.4rem 1rem -0.25rem rgba(0, 0, 0, 0.2),
+		inset 0 -0.1875rem 0.25rem -0.0625rem rgba(0, 0, 0, 0.2),
+		0 -0.625rem 0.9375rem -0.0625rem rgba(255, 255, 255, 0.6),
+		inset 0 0.1875rem 0.25rem -0.0625rem rgba(255, 255, 255, 0.2),
+		inset 0 0 0.3125rem 0.0625rem rgba(255, 255, 255, 0.8),
+		inset 0 1.25rem 1.875rem 0 rgba(255, 255, 255, 0.2);
 	color: #878787;
 }
 
@@ -468,7 +480,7 @@ header {
 }
 
 .name-img h3:hover {
-	color: #9694FF;
+	color: #9694ff;
 }
 
 .desc-text-light {
@@ -545,6 +557,6 @@ footer {
 	font-size: 0.7rem;
 }
 
-.link-container > a:hover{
+.link-container > a:hover {
 	color: #cacaca;
 }

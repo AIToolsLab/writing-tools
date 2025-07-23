@@ -5,7 +5,7 @@ export default function Layout({ children }: React.PropsWithChildren<any>) {
 		<>
 			<Navbar />
 
-			{ children }
+			{children}
 		</>
 	);
 }

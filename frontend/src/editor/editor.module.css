@@ -1,63 +1,63 @@
 /* Controls CSS for editor in all the pages (editor, demo, study) */
 .editorContainer {
-    margin: 20px;
-    background: #fff;
-    color: #000;
-    position: relative;
-    line-height: 20px;
-    font-weight: 400;
-    text-align: left;
-    box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
-    padding: 10px;
-    height: 80vh;
+	margin: 20px;
+	background: #fff;
+	color: #000;
+	position: relative;
+	line-height: 20px;
+	font-weight: 400;
+	text-align: left;
+	box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
+	padding: 10px;
+	height: 80vh;
 }
 
 /* Controls CSS for editor in all the pages (editor, demo, study) */
 .editor {
-    resize: none;
-    font-size: 16px;
-    caret-color: rgb(5, 5, 5);
-    position: relative;
-    tab-size: 1;
-    outline: 0;
-    caret-color: #444;
-    overflow-y: scroll;
-    height: 100%; /* NEW: Full height to fill the editorcontainer */
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+	resize: none;
+	font-size: 16px;
+	caret-color: rgb(5, 5, 5);
+	position: relative;
+	tab-size: 1;
+	outline: 0;
+	caret-color: #444;
+	overflow-y: scroll;
+	height: 100%; /* NEW: Full height to fill the editorcontainer */
+	scrollbar-width: thin;
+	scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
 }
 
 .editor::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
+	width: 4px;
+	height: 4px;
 }
 .editor::-webkit-scrollbar-track {
-    background: transparent;
-    margin-right: -4px;
+	background: transparent;
+	margin-right: -4px;
 }
 .editor::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 4px;
-    margin-right: -4px;
+	background: rgba(0, 0, 0, 0.1);
+	border-radius: 4px;
+	margin-right: -4px;
 }
 .editor::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.4);
+	background: rgba(0, 0, 0, 0.4);
 }
 
 .placeholder {
-    color: #6b6b6b;
-    overflow: hidden;
-    position: absolute;
-    text-overflow: ellipsis;
-    top: 50px;
-    left: 50px;
-    font-size: 15px;
-    user-select: none;
-    display: inline-block;
-    pointer-events: none;
+	color: #6b6b6b;
+	overflow: hidden;
+	position: absolute;
+	text-overflow: ellipsis;
+	top: 50px;
+	left: 50px;
+	font-size: 15px;
+	user-select: none;
+	display: inline-block;
+	pointer-events: none;
 }
 
 .paragraph {
-    margin: 0 0 1em 0;
-    position: relative;
+	margin: 0 0 1em 0;
+	position: relative;
 }

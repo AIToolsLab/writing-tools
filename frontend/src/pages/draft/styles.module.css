@@ -4,7 +4,7 @@
 }
 
 .contextText p {
-    word-break: break-all;
+	word-break: break-all;
 }
 
 h4 {
@@ -86,7 +86,9 @@ h4 {
 	z-index: 1000;
 	opacity: 0;
 	visibility: hidden;
-	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+	transition:
+		opacity 0.2s ease-in-out,
+		visibility 0.2s ease-in-out;
 	pointer-events: none;
 	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
 }
@@ -105,7 +107,9 @@ h4 {
 	z-index: 1000;
 	opacity: 0;
 	visibility: hidden;
-	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+	transition:
+		opacity 0.2s ease-in-out,
+		visibility 0.2s ease-in-out;
 	pointer-events: none;
 	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
 }
@@ -130,7 +134,7 @@ h4 {
 
 .loader {
 	border: 0.25rem solid #80aaff;
-	border-top: 0.25rem solid #FAFAFA;
+	border-top: 0.25rem solid #fafafa;
 	border-radius: 50%;
 	width: 2rem;
 	height: 2rem;
@@ -177,7 +181,9 @@ h4 {
 	z-index: 1000;
 	opacity: 0;
 	visibility: hidden;
-	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+	transition:
+		opacity 0.2s ease-in-out,
+		visibility 0.2s ease-in-out;
 	pointer-events: none;
 	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
 }
@@ -382,12 +388,14 @@ h4 {
 	z-index: 1000;
 	opacity: 0;
 	visibility: hidden;
-	transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+	transition:
+		opacity 0.2s ease-in-out,
+		visibility 0.2s ease-in-out;
 	pointer-events: none;
 	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
 }
 
-.historyButton:hover .savedPageTooltip  {
+.historyButton:hover .savedPageTooltip {
 	opacity: 1;
 	visibility: visible;
 }

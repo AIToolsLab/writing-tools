@@ -29,13 +29,13 @@ export function useDocContext(editorAPI: EditorAPI) {
 	const {
 		addSelectionChangeHandler,
 		removeSelectionChangeHandler,
-		getDocContext
+		getDocContext,
 	} = editorAPI;
 
 	const [docContext, updateDocContext] = useState<DocContext>({
 		beforeCursor: '',
 		selectedText: '',
-		afterCursor: ''
+		afterCursor: '',
 	});
 
 	/**
@@ -61,6 +61,10 @@ export function useDocContext(editorAPI: EditorAPI) {
 		return () => {
 			removeSelectionChangeHandler(handleSelectionChanged);
 		};
-	}, [addSelectionChangeHandler, getDocContext, removeSelectionChangeHandler]);
+	}, [
+		addSelectionChangeHandler,
+		getDocContext,
+		removeSelectionChangeHandler,
+	]);
 	return docContext;
 }

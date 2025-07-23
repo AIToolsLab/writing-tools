@@ -25,7 +25,7 @@ const promptList: Prompt[] = [
 		isOverall: true,
 	},
 	{
-		keyword: "Inspirational Exemplar",
+		keyword: 'Inspirational Exemplar',
 		prompt: "Imagine an exemplar document with a similar rhetorical situation to this document (e.g., that might be published in the same venue) but a different specific message. Suppose that the document was written exceptionally well, by a famous author. What would that document look like? Provide a two-level *outline* of that exemplar document. For each outline point, provide (1) a short quote from the imagined exemplar and (2) a reference (in link format) to similar material in the actual writer's current (provided) document. If the writer's document does not yet contain a section that corresponds to the imagined exemplar section, reference a part of the document that it could be added near.",
 		isOverall: true,
 	},
@@ -106,7 +106,7 @@ const makeAnchorWithCallback = (
 				{...rest}
 				href={href}
 				className="text-blue-500 hover:underline"
-				onClick={e => {
+				onClick={(e) => {
 					e.preventDefault();
 					if (href) clickCallbackRef.current?.(href);
 				}}
@@ -148,7 +148,7 @@ export default function Revise() {
 				: `Go part-by-part through the document. For each part, please do the following: ${prompt.prompt}`;
 
 			const newViz = new Visualization(request, docContext);
-			setVisualizations(prev => [...prev, newViz]);
+			setVisualizations((prev) => [...prev, newViz]);
 			/* Kick off a streaming request to the server to get the visualization response */
 
 			const chatMessages = [
@@ -198,11 +198,11 @@ ${request}
 						}
 						const newContent = choice.delta.content;
 						newViz.response += newContent;
-						setVisualizations(prev => {
+						setVisualizations((prev) => {
 							// Force React to update by creating a new array
 							const updatedViz = [...prev];
 							const index = updatedViz.findIndex(
-								v => v.id === newViz.id,
+								(v) => v.id === newViz.id,
 							);
 							if (index !== -1) {
 								updatedViz[index] = newViz;
@@ -228,11 +228,8 @@ ${request}
 		<div className="flex flex-col">
 			{/* prompt buttons: row-flowed list of buttons */}
 			<div className="flex flex-row flex-wrap">
-				{promptList.map(prompt => (
-					<div
-						key={prompt.keyword}
-						className=""
-					>
+				{promptList.map((prompt) => (
+					<div key={prompt.keyword} className="">
 						<button
 							type="button"
 							onClick={() => requestVisualization(prompt)}

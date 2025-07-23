@@ -17,17 +17,16 @@ import { useDocContext } from '@/utilities';
 
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
-	const username = useAtomValue(usernameAtom)
+	const username = useAtomValue(usernameAtom);
 	const editorAPI = useContext(EditorContext);
 	const { getAccessToken, authErrorType } = useAccessToken();
 
 	const docContext = useDocContext(editorAPI);
 
-	const docContextMessageContent = (
+	const docContextMessageContent =
 		docContext.selectedText === ''
 			? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
-			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`
-	);
+			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
 
 	let messagesWithCurDocContext = chatMessages;
 	if (chatMessages.length === 0) {
@@ -35,28 +34,30 @@ export default function Chat() {
 		const systemMessage = {
 			role: 'system',
 			content:
-				'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.'
+				'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.',
 		};
 
 		const docContextMessage = {
 			role: 'user',
-			content: docContextMessageContent
+			content: docContextMessageContent,
 		};
 
 		const initialAssistantMessage = {
 			role: 'assistant',
-			content: 'What do you think about your document so far?'
+			content: 'What do you think about your document so far?',
 		};
-		messagesWithCurDocContext = [systemMessage, docContextMessage, initialAssistantMessage];
+		messagesWithCurDocContext = [
+			systemMessage,
+			docContextMessage,
+			initialAssistantMessage,
+		];
+	} else {
+		// Update the document context message with the current selection.
+		messagesWithCurDocContext[1].content = docContextMessageContent;
 	}
- 		else {
-			// Update the document context message with the current selection.
-			messagesWithCurDocContext[1].content = docContextMessageContent;
-		}
 	useEffect(() => {
 		updateChatMessages(messagesWithCurDocContext);
 	}, [messagesWithCurDocContext, updateChatMessages]);
-
 
 	const [isSendingMessage, updateSendingMessage] = useState(false);
 
@@ -72,7 +73,7 @@ export default function Chat() {
 		let newMessages = [
 			...messagesWithCurDocContext,
 			{ role: 'user', content: message },
-			{ role: 'assistant', content: '' }
+			{ role: 'assistant', content: '' },
 		];
 
 		updateChatMessages(newMessages);
@@ -82,11 +83,11 @@ export default function Chat() {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${token}`
+				Authorization: `Bearer ${token}`,
 			},
 			body: JSON.stringify({
 				messages: newMessages.slice(0, -1),
-				username: username
+				username: username,
 			}),
 			onmessage(msg) {
 				const message = JSON.parse(msg.data);
@@ -97,7 +98,7 @@ export default function Chat() {
 				newMessages = newMessages.slice();
 				newMessages[newMessages.length - 1].content += newContent;
 				updateChatMessages(newMessages);
-			}
+			},
 		});
 
 		updateSendingMessage(false);
@@ -113,11 +114,11 @@ export default function Chat() {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
-				'Authorization': `Bearer ${token}`
+				Authorization: `Bearer ${token}`,
 			},
 			body: JSON.stringify({
-				messages: chatMessages.slice(0, index)
-			})
+				messages: chatMessages.slice(0, index),
+			}),
 		});
 
 		const responseJson = await response.json();
@@ -125,58 +126,52 @@ export default function Chat() {
 		const newMessages = [...chatMessages];
 		newMessages[index + 1] = {
 			role: 'assistant',
-			content: responseJson
+			content: responseJson,
 		};
 
 		updateChatMessages(newMessages);
 	}
 
 	if (authErrorType !== null) {
-        return (
-            <div>
-							Please reauthorize.
-						</div>
-        );
-    }
+		return <div>Please reauthorize.</div>;
+	}
 
 	return (
 		<div className="m-2 flex flex-col gap-4">
-			<div className= "flex-col gap-2 max-h-[500px] bottom-0 overflow-y-auto" >
-				{ messagesWithCurDocContext.slice(2).map((message, index) => (
+			<div className="flex-col gap-2 max-h-[500px] bottom-0 overflow-y-auto">
+				{messagesWithCurDocContext.slice(2).map((message, index) => (
 					<ChatMessage
-						key={ index + 2 }
-						role={ message.role }
-						content={ message.content }
-						index={ index + 2 }
-						refresh={ regenMessage }
-						deleteMessage={ () => {} }
-						convertToComment={ () => {} }
+						key={index + 2}
+						role={message.role}
+						content={message.content}
+						index={index + 2}
+						refresh={regenMessage}
+						deleteMessage={() => {}}
+						convertToComment={() => {}}
 					/>
-				)) }
+				))}
 			</div>
 
-			<form
-				className= "w-full flex flex-col gap-2" onSubmit={ sendMessage }>
-
-				<label className= "flex items-center border border-gray-500 justify-between p-[10px]">
+			<form className="w-full flex flex-col gap-2" onSubmit={sendMessage}>
+				<label className="flex items-center border border-gray-500 justify-between p-[10px]">
 					<textarea
-				
-						disabled={ isSendingMessage }
+						disabled={isSendingMessage}
 						placeholder="Send a message"
-						value={ message }
-						onChange={ e => updateMessage(e.target.value) }
-	
+						value={message}
+						onChange={(e) => updateMessage(e.target.value)}
 					/>
 
-					<button type="submit"
-						className="bg-transparent cursor-pointer border border-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white">
+					<button
+						type="submit"
+						className="bg-transparent cursor-pointer border border-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
+					>
 						<AiOutlineSend />
 					</button>
 				</label>
 			</form>
 
 			<button
-				onClick={ () => updateChatMessages([]) }
+				onClick={() => updateChatMessages([])}
 				className="bg-transparent cursor-pointer border boder-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
 			>
 				Clear Chat

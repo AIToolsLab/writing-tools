@@ -1,158 +1,158 @@
 * {
-  box-sizing: border-box;
+	box-sizing: border-box;
 }
 
 .onboardingContainer {
-  max-width: 42rem;
-  width: 100%;
-  margin: 0 auto;
-  background: white;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
+	max-width: 42rem;
+	width: 100%;
+	margin: 0 auto;
+	background: white;
+	padding: 1.5rem;
+	border-radius: 0.5rem;
 }
 
 .carouselWrapper {
-  position: relative;
-  overflow: hidden;
-  width: 100%;
-  margin-bottom: 2rem;
+	position: relative;
+	overflow: hidden;
+	width: 100%;
+	margin-bottom: 2rem;
 }
 
 .carouselSlide {
-  display: flex;
-  transition: transform 0.3s ease-in-out;
-  width: 100%;
+	display: flex;
+	transition: transform 0.3s ease-in-out;
+	width: 100%;
 }
 
 .carouselItem {
-  flex: 0 0 100%;
-  min-width: 100%;
-  display: flex;
-  justify-content: center;
-  padding: 0 1rem;
+	flex: 0 0 100%;
+	min-width: 100%;
+	display: flex;
+	justify-content: center;
+	padding: 0 1rem;
 }
 
 .slideContent {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  max-width: 32rem;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	width: 100%;
+	max-width: 32rem;
 }
 
 .slideTitle {
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: #1a1a1a;
-  margin: 0 0 1.5rem 0;
-  text-align: center;
+	font-size: 1.5rem;
+	font-weight: 600;
+	color: #1a1a1a;
+	margin: 0 0 1.5rem 0;
+	text-align: center;
 }
 
 .imageWrapper {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 1.5rem;
+	width: 100%;
+	aspect-ratio: 16 / 9;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 1.5rem;
 }
 
 .carouselImage {
-  max-height: 20rem;
-  min-height: 12rem;
-  width: auto;
-  object-fit: contain;
+	max-height: 20rem;
+	min-height: 12rem;
+	width: auto;
+	object-fit: contain;
 }
 
 .slideDescription {
-  text-align: center;
-  color: #4a4a4a;
-  max-width: 24rem;
-  margin: 0 auto;
-  line-height: 1.5;
+	text-align: center;
+	color: #4a4a4a;
+	max-width: 24rem;
+	margin: 0 auto;
+	line-height: 1.5;
 }
 
 .carouselControls {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 1.25rem;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 1.25rem;
 }
 
 .carouselDots {
-  display: flex;
-  gap: 0.5rem;
+	display: flex;
+	gap: 0.5rem;
 }
 
 .dot {
-  width: 0.5rem;
-  height: 0.5rem;
-  border-radius: 50%;
-  background: #e0e0e0;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  transition: background-color 0.2s;
+	width: 0.5rem;
+	height: 0.5rem;
+	border-radius: 50%;
+	background: #e0e0e0;
+	border: none;
+	padding: 0;
+	cursor: pointer;
+	transition: background-color 0.2s;
 }
 
 .dot:hover {
-  background: #bdbdbd;
+	background: #bdbdbd;
 }
 
 .activeDot {
-  background: #007bff;
+	background: #007bff;
 }
 
 .carouselButtons {
-  display: flex;
-  gap: 1rem;
+	display: flex;
+	gap: 1rem;
 }
 
 .nextButton,
 .skipButton {
-  padding: 0.625rem 1.25rem;
-  border-radius: 1.5rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.2s;
-  border: none;
+	padding: 0.625rem 1.25rem;
+	border-radius: 1.5rem;
+	font-weight: 600;
+	cursor: pointer;
+	transition: all 0.2s;
+	border: none;
 }
 
 .nextButton {
-  background: #007bff;
-  color: white;
+	background: #007bff;
+	color: white;
 }
 
 .nextButton:hover {
-  background: #0056b3;
+	background: #0056b3;
 }
 
 .skipButton {
-  background: transparent;
-  color: #007bff;
+	background: transparent;
+	color: #007bff;
 }
 
 .skipButton:hover {
-  color: #0056b3;
-  background: rgba(0, 123, 255, 0.1);
+	color: #0056b3;
+	background: rgba(0, 123, 255, 0.1);
 }
 
 @media (max-width: 480px) {
-  .onboardingContainer {
-    padding: 1rem;
-  }
+	.onboardingContainer {
+		padding: 1rem;
+	}
 
-  .slideTitle {
-    font-size: 1.25rem;
-  }
+	.slideTitle {
+		font-size: 1.25rem;
+	}
 
-  .carouselImage {
-    max-height: 12rem;
-  }
+	.carouselImage {
+		max-height: 12rem;
+	}
 }
 
 @media (min-width: 640px) {
-  .carouselImage {
-    max-height: 20rem;
-  }
+	.carouselImage {
+		max-height: 20rem;
+	}
 }
