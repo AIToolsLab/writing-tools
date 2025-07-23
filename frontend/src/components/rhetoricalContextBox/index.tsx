@@ -35,7 +35,7 @@ export function RhetoricalContextBox(
 							defaultValue=""
 							value={searchBoxText}
 							placeholder="Enter Rhetorical Situation..."
-							onChange={event => {
+							onChange={(event) => {
 								if (rhetCtxtSaved) updateRhetCtxtSaved(false);
 								if (event.target.value.trim() === '') {
 									updateSearchBoxText('');
@@ -43,8 +43,8 @@ export function RhetoricalContextBox(
 								} else updateSearchBoxText(event.target.value);
 							}}
 							// Adaptively resize textarea to fit text content
-							ref={ref => ref && handleAutoResize(ref)}
-							onKeyDown={event => {
+							ref={(ref) => ref && handleAutoResize(ref)}
+							onKeyDown={(event) => {
 								if (event.key === 'Enter' && !event.shiftKey) {
 									event.preventDefault(); // Prevent newline (submit instead)
 									if (searchBoxText !== '') {

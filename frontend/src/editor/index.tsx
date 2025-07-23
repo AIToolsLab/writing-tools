@@ -44,7 +44,7 @@ function EditorScreen({
 	const [wordCount, setWordCount] = useState<number>(0);
 
 	const handleSelectionChange = () => {
-		selectionChangeHandlers.current.forEach(handler => handler());
+		selectionChangeHandlers.current.forEach((handler) => handler());
 	};
 
 	const editorAPI: EditorAPI = {
@@ -84,7 +84,7 @@ function EditorScreen({
 
 		selectPhrase(_text) {
 			console.warn('selectPhrase is not implemented yet');
-			return new Promise<void>(resolve => resolve());
+			return new Promise<void>((resolve) => resolve());
 		},
 	};
 
@@ -112,7 +112,7 @@ function EditorScreen({
 		const words = fullText
 			.trim()
 			.split(/\s+/)
-			.filter(word => word.length > 0);
+			.filter((word) => word.length > 0);
 		const newWordCount = words.length;
 		setWordCount(newWordCount);
 
@@ -313,7 +313,7 @@ function Router({ page }: { page: string }) {
 			// Check if the condition order only contains valid letters (e, q, r) and has no duplicates
 			conditionOrder
 				.split('')
-				.every(letter =>
+				.every((letter) =>
 					Object.keys(letterToCondition).includes(letter),
 				) &&
 			new Set(conditionOrder.split('')).size === conditionOrder.length;

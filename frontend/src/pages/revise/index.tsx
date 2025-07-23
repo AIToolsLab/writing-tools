@@ -106,7 +106,7 @@ const makeAnchorWithCallback = (
 				{...rest}
 				href={href}
 				className="text-blue-500 hover:underline"
-				onClick={e => {
+				onClick={(e) => {
 					e.preventDefault();
 					if (href) clickCallbackRef.current?.(href);
 				}}
@@ -148,7 +148,7 @@ export default function Revise() {
 				: `Go part-by-part through the document. For each part, please do the following: ${prompt.prompt}`;
 
 			const newViz = new Visualization(request, docContext);
-			setVisualizations(prev => [...prev, newViz]);
+			setVisualizations((prev) => [...prev, newViz]);
 			/* Kick off a streaming request to the server to get the visualization response */
 
 			const chatMessages = [
@@ -198,11 +198,11 @@ ${request}
 						}
 						const newContent = choice.delta.content;
 						newViz.response += newContent;
-						setVisualizations(prev => {
+						setVisualizations((prev) => {
 							// Force React to update by creating a new array
 							const updatedViz = [...prev];
 							const index = updatedViz.findIndex(
-								v => v.id === newViz.id,
+								(v) => v.id === newViz.id,
 							);
 							if (index !== -1) {
 								updatedViz[index] = newViz;
@@ -228,11 +228,8 @@ ${request}
 		<div className="flex flex-col">
 			{/* prompt buttons: row-flowed list of buttons */}
 			<div className="flex flex-row flex-wrap">
-				{promptList.map(prompt => (
-					<div
-						key={prompt.keyword}
-						className=""
-					>
+				{promptList.map((prompt) => (
+					<div key={prompt.keyword} className="">
 						<button
 							type="button"
 							onClick={() => requestVisualization(prompt)}
@@ -245,7 +242,7 @@ ${request}
 			</div>
 			{/* visualizations: list of visualizations */}
 			<div className="flex flex-col">
-				{visualizations.map(viz => (
+				{visualizations.map((viz) => (
 					<div
 						key={viz.id}
 						className="bg-white p-4 mb-2 rounded-md shadow-sm border border-gray-200"

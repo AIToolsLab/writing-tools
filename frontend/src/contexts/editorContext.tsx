@@ -5,7 +5,7 @@ export const EditorContext = createContext<EditorAPI>({
 	doLogin: async () => {},
 	doLogout: async () => {},
 	getDocContext: () =>
-		new Promise<DocContext>(resolve =>
+		new Promise<DocContext>((resolve) =>
 			resolve({
 				beforeCursor: '',
 				selectedText: '',
@@ -16,7 +16,7 @@ export const EditorContext = createContext<EditorAPI>({
 	removeSelectionChangeHandler: () => {},
 	selectPhrase: () => {
 		console.warn('selectPhrase is not implemented yet');
-		return new Promise<void>(resolve => resolve());
+		return new Promise<void>((resolve) => resolve());
 	},
 });
 

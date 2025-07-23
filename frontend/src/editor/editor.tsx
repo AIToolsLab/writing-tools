@@ -187,7 +187,7 @@ function LexicalEditor({
 					/>
 
 					<OnChangePlugin
-						onChange={editorState => {
+						onChange={(editorState) => {
 							editorState.read(() => {
 								const docContext = $getDocContext();
 

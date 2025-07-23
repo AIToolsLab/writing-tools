@@ -28,10 +28,10 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 	const [isDropdownClicked, setIsDropdownClicked] = useState(false); // Whether searchbar dropdown is clicked
 
 	// Filter the prompt lists based on the current prompt
-	const filteredNewPromptList = promptSuggestions.filter(prompt =>
+	const filteredNewPromptList = promptSuggestions.filter((prompt) =>
 		prompt.toLowerCase().includes(searchBoxText.toLowerCase()),
 	);
-	const filteredHistoryList = prevPrompts.filter(prompt =>
+	const filteredHistoryList = prevPrompts.filter((prompt) =>
 		prompt.toLowerCase().includes(searchBoxText.toLowerCase()),
 	);
 
@@ -59,7 +59,7 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 					defaultValue=""
 					value={searchBoxText}
 					placeholder="Explain..."
-					onChange={event => {
+					onChange={(event) => {
 						updateSearchBoxTextSent(false);
 						if (event.target.value.trim() === '') {
 							updateSearchBoxText('');
@@ -67,8 +67,8 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 						} else updateSearchBoxText(event.target.value);
 					}}
 					// Adaptively resize textarea to fit text content
-					ref={ref => ref && handleAutoResize(ref)}
-					onKeyDown={event => {
+					ref={(ref) => ref && handleAutoResize(ref)}
+					onKeyDown={(event) => {
 						if (
 							event.key === 'Enter' &&
 							!event.shiftKey &&

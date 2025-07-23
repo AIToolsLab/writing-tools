@@ -36,7 +36,7 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
 		if (currentSlide === ONBOARDING_SLIDES.length - 1) {
 			onComplete();
 		} else {
-			setCurrentSlide(prev => prev + 1);
+			setCurrentSlide((prev) => prev + 1);
 		}
 	};
 
@@ -48,10 +48,7 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
 					style={{ transform: `translateX(-${currentSlide * 100}%)` }}
 				>
 					{ONBOARDING_SLIDES.map((slide, index) => (
-						<div
-							key={index}
-							className={classes.carouselItem}
-						>
+						<div key={index} className={classes.carouselItem}>
 							<div className={classes.slideContent}>
 								<h2 className={classes.slideTitle}>
 									{slide.title}
@@ -95,10 +92,7 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
 							Skip
 						</button>
 					)}
-					<button
-						className={classes.nextButton}
-						onClick={nextSlide}
-					>
+					<button className={classes.nextButton} onClick={nextSlide}>
 						{currentSlide === ONBOARDING_SLIDES.length - 1
 							? 'Get Started'
 							: 'Next'}

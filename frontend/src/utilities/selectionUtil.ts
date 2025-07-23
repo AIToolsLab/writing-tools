@@ -10,7 +10,10 @@ export function getBefore(docContext: DocContext): string {
 
 	const joinedContextData = contextData
 		? contextData
-				.map(section => `## ${section.title}\n\n${section.content}\n\n`)
+				.map(
+					(section) =>
+						`## ${section.title}\n\n${section.content}\n\n`,
+				)
 				.join('') + '\n\n---\n\n'
 		: '';
 

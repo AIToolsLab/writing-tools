@@ -54,7 +54,7 @@ export const wordEditorAPI: EditorAPI = {
 					Office.context.ui.displayDialogAsync(
 						bounceURL,
 						{ height: 45, width: 55 },
-						result => {
+						(result) => {
 							dialog = result.value;
 							dialog.addEventHandler(
 								Office.EventType.DialogMessageReceived,
@@ -109,7 +109,7 @@ export const wordEditorAPI: EditorAPI = {
 				Office.context.ui.displayDialogAsync(
 					bounceURL,
 					{ height: 45, width: 55 },
-					result => {
+					(result) => {
 						dialog = result.value;
 						dialog.addEventHandler(
 							Office.EventType.DialogMessageReceived,
@@ -198,7 +198,7 @@ export const wordEditorAPI: EditorAPI = {
 					'\n',
 				);
 				resolve(docContext);
-			}).catch(error => {
+			}).catch((error) => {
 				// eslint-disable-next-line no-console
 				console.error('Error getting document context:', error);
 				reject(error as Error);

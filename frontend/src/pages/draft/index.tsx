@@ -116,7 +116,7 @@ function SavedGenerations({
 						</div>
 					</div>
 				) : (
-					savedItems.map(savedItem => (
+					savedItems.map((savedItem) => (
 						<div
 							key={savedItem.dateSaved.toString()}
 							className={classes.historyItem}
@@ -223,7 +223,7 @@ export default function Draft() {
 				prompt: document,
 				result: generation,
 			});
-			updateSavedItems(savedItems => [
+			updateSavedItems((savedItems) => [
 				{
 					document: document,
 					generation: generation,
@@ -236,14 +236,14 @@ export default function Draft() {
 	);
 
 	function deleteSavedItem(dateSaved: Date) {
-		updateSavedItems(savedItems => {
+		updateSavedItems((savedItems) => {
 			if (savedItems.length === 0) {
 				console.warn('No saved items to delete');
 				return savedItems;
 			}
 			// Find the index of the item to be deleted
 			const savedItemIdx = savedItems.findIndex(
-				savedItem => savedItem.dateSaved === dateSaved,
+				(savedItem) => savedItem.dateSaved === dateSaved,
 			);
 			if (savedItemIdx === -1) {
 				console.warn('Saved item not found for deletion');
@@ -251,7 +251,7 @@ export default function Draft() {
 			}
 			// Create a new array without the item to be deleted
 			const newSaved = savedItems.filter(
-				savedItem => savedItem.dateSaved !== dateSaved,
+				(savedItem) => savedItem.dateSaved !== dateSaved,
 			);
 
 			log({
@@ -378,7 +378,7 @@ export default function Draft() {
 				<div>
 					{/* Generation Option Buttons */}
 					<div className={classes.optionsContainer}>
-						{modesToShow.map(mode => {
+						{modesToShow.map((mode) => {
 							return (
 								<Fragment key={mode}>
 									<button

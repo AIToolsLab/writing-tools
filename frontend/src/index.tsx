@@ -27,7 +27,7 @@ const render = (Component: React.ComponentType<HomeProps>) => {
 };
 
 /* Render application after Office initializes */
-Office.onReady(info => {
+Office.onReady((info) => {
 	if (info.host === Office.HostType.Word) isOfficeInitialized = true;
 	render(App);
 });

@@ -72,7 +72,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 	let lastTimestamp: number | null = null;
 	let lastDocContext: any = null;
 	const annotatedEntries = entries
-		.map(entry => {
+		.map((entry) => {
 			const newEntry = { ...entry } as LogWithAnnotatedTimestamp;
 			if (lastTimestamp !== null) {
 				newEntry.secondsSinceLast = entry.timestamp - lastTimestamp;
@@ -86,7 +86,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 			}
 			return newEntry;
 		})
-		.filter(x => x.event === 'suggestion_generated');
+		.filter((x) => x.event === 'suggestion_generated');
 
 	// Regenerations are tracked by index. null means requested but not yet completed (loading)
 	const [regenResults, setRegenResults] = useState<
@@ -131,7 +131,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 			indices.reduce((acc, i) => ({ ...acc, [i]: null }), {}),
 		);
 		await Promise.all(
-			indices.map(async i => {
+			indices.map(async (i) => {
 				const entry = annotatedEntries[i];
 				let result: string;
 				try {
@@ -142,7 +142,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 				} catch (err) {
 					result = (err as Error).message;
 				}
-				setRegenResults(prev => ({ ...prev, [i]: result }));
+				setRegenResults((prev) => ({ ...prev, [i]: result }));
 			}),
 		);
 	};
@@ -154,13 +154,10 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 				<select
 					className="border rounded px-2 py-1"
 					value={regenType}
-					onChange={e => setRegenType(e.target.value)}
+					onChange={(e) => setRegenType(e.target.value)}
 				>
-					{uniqueGenerationTypes.map(type => (
-						<option
-							key={type}
-							value={type}
-						>
+					{uniqueGenerationTypes.map((type) => (
+						<option key={type} value={type}>
 							{type}
 						</option>
 					))}
@@ -220,7 +217,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 									<button
 										className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-150"
 										onClick={async () => {
-											setRegenResults(prev => ({
+											setRegenResults((prev) => ({
 												...prev,
 												[i]: null,
 											}));
@@ -234,7 +231,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 											} catch (err) {
 												result = (err as Error).message;
 											}
-											setRegenResults(prev => ({
+											setRegenResults((prev) => ({
 												...prev,
 												[i]: result,
 											}));
@@ -291,7 +288,7 @@ function App() {
 	// Helper: parse a JSONL string into Log[]
 	const parseLogFile = (text: string): Log[] => {
 		const lines = text.split(/\r?\n/).filter(Boolean);
-		return lines.map(line => parseLog(JSON.parse(line)));
+		return lines.map((line) => parseLog(JSON.parse(line)));
 	};
 
 	// Poll logs from server (disabled if fileMode)
@@ -354,7 +351,7 @@ function App() {
 		const file = e.dataTransfer.files[0];
 		if (!file) return;
 		const reader = new FileReader();
-		reader.onload = event => {
+		reader.onload = (event) => {
 			try {
 				// Try to parse as JSONL (one JSON per line)
 				const text = event.target?.result as string;
@@ -370,12 +367,12 @@ function App() {
 	};
 	// Username datalist
 	const availableUsernames = useMemo(() => {
-		return Array.from(new Set(logs.map(x => x.username))).sort();
+		return Array.from(new Set(logs.map((x) => x.username))).sort();
 	}, [logs]);
 
 	// Filtered logs
 	const desiredEntries = useMemo(() => {
-		return logs.filter(x => !username || x.username === username);
+		return logs.filter((x) => !username || x.username === username);
 	}, [logs, username]);
 
 	// Generation type counts
@@ -418,7 +415,7 @@ function App() {
 					<input
 						type="text"
 						value={logSecret}
-						onChange={e => {
+						onChange={(e) => {
 							setLogSecret(e.target.value);
 							localStorage.setItem('logSecret', e.target.value);
 						}}
@@ -440,16 +437,13 @@ function App() {
 					<input
 						list="usernames"
 						value={username}
-						onChange={e => setUsername(e.target.value)}
+						onChange={(e) => setUsername(e.target.value)}
 						placeholder="Select or type username"
 						className="px-3 py-2 border border-gray-300 rounded transition duration-150 cursor-pointer focus:cursor-text focus:outline-none focus:border-black hover:border-black"
 					/>
 					<datalist id="usernames">
-						{availableUsernames.map(u => (
-							<option
-								key={u}
-								value={u}
-							/>
+						{availableUsernames.map((u) => (
+							<option key={u} value={u} />
 						))}
 					</datalist>
 				</label>
