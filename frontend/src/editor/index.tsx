@@ -78,6 +78,11 @@ function EditorScreen( {taskID, contextData}: {taskID?: string; contextData?: Co
 			// eslint-disable-next-line no-console
 			else console.warn('Handler not found');
 		},
+
+		selectPhrase(_text) {
+			console.warn('selectPhrase is not implemented yet');
+			return new Promise<void>(resolve => resolve());
+		},
 	};
 
 	const docUpdated = (docContext: DocContext) => {

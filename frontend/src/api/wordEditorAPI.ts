@@ -172,6 +172,26 @@ export const wordEditorAPI: EditorAPI = {
 			});
 		});
 	},
+
+	/** Select a phrase in the document. */
+	selectPhrase(phrase: string): Promise<void> {
+		return Word.run(async (context: Word.RequestContext) => {
+			const body: Word.Body = context.document.body;
+			const searchResults = body.search(phrase, {
+				ignorePunct: true,
+				ignoreSpace: true,
+				matchCase: false,
+				matchWildcards: false,
+			});
+			context.load(searchResults, 'items');
+			await context.sync();
+
+			if (searchResults.items.length > 0) {
+				const firstResult = searchResults.items[0];
+				firstResult.select();
+				return;
+			} else {
+				throw new Error('Phrase not found');
 			}
 		});
 	}

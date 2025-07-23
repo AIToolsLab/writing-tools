@@ -28,6 +28,7 @@ interface EditorAPI {
 	getDocContext(this: void): Promise<DocContext>;
 	addSelectionChangeHandler: (handler: () => void) => void;
 	removeSelectionChangeHandler: (handler: () => void) => void;
+	selectPhrase: (text: string) => Promise<void>;
 }
 
 interface ReflectionResponseItem {

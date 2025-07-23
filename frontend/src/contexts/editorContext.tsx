@@ -10,7 +10,11 @@ export const EditorContext = createContext<EditorAPI>({
     afterCursor: ''
   }))),
   addSelectionChangeHandler: () => {},
-  removeSelectionChangeHandler: () => {}
+  removeSelectionChangeHandler: () => {},
+  selectPhrase: () => {
+    console.warn('selectPhrase is not implemented yet');
+    return new Promise<void>(resolve => resolve());
+  },
 });
 
 export default function EditorContextWrapper({
