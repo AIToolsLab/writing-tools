@@ -224,6 +224,11 @@ ${request}
 		[docContext, getAccessToken, username],
 	);
 
+	const curVisualization =
+		visualizations.length > 0
+			? visualizations[visualizations.length - 1]
+			: null;
+
 	return (
 		<div className="flex flex-col">
 			{/* prompt buttons: row-flowed list of buttons */}
@@ -240,26 +245,25 @@ ${request}
 					</div>
 				))}
 			</div>
-			{/* visualizations: list of visualizations */}
-			<div className="flex flex-col">
-				{visualizations.map((viz) => (
-					<div
-						key={viz.id}
-						className="bg-white p-4 mb-2 rounded-md shadow-sm border border-gray-200"
-					>
-						<div className="text-gray-800 prose">
-							<Remark
-								rehypeReactOptions={{
-									components: {
-										a: AnchorWithCallback,
-									},
-								}}
-							>
-								{viz.response}
-							</Remark>
-						</div>
+			{/* visualization */}
+			<div className="bg-white p-4 mb-2 rounded-md shadow-sm border border-gray-200">
+				{curVisualization ? (
+					<div className="text-gray-800 prose">
+						<Remark
+							rehypeReactOptions={{
+								components: {
+									a: AnchorWithCallback,
+								},
+							}}
+						>
+							{curVisualization?.response}
+						</Remark>
 					</div>
-				))}
+				) : (
+					<div className="text-gray-500">
+						Click a button to generate a visualization.
+					</div>
+				)}
 			</div>
 		</div>
 	);
