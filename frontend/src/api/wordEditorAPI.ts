@@ -139,7 +139,7 @@ export const wordEditorAPI: EditorAPI = {
 				// Get the selected word
 				const wordSelection = context.document.getSelection();
 
-				context.load(wordSelection, 'items');
+				context.load(wordSelection, 'text');
 				await context.sync();
 
 				// Get the text of the selected word
