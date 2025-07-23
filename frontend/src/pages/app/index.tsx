@@ -13,7 +13,6 @@ import classes from './styles.module.css';
 import Layout from '@/components/layout';
 
 import Revise from '../revise';
-import SearchBar from '../searchbar';
 import Chat from '../chat';
 import Draft from '../draft';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
@@ -184,8 +183,6 @@ function AppInner({ editorAPI }: HomeProps) {
 		switch (pageName) {
 			case PageName.Revise:
 				return <Revise />;
-			case PageName.SearchBar:
-				return <SearchBar />;
 			case PageName.Chat:
 				return <Chat />;
 			case PageName.Draft:
