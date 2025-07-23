@@ -75,7 +75,6 @@ When generating a visualization, it is critical that we remain faithful to the d
 class Visualization {
 	response: string;
 	id: string;
-	parsedResponse: string | null = null;
 	references: string[] = [];
 
 	constructor(
@@ -86,13 +85,6 @@ class Visualization {
 		this.docContext = docContext;
 		this.response = '';
 		this.id = Date.now().toString();
-	}
-
-	parseResponse() {
-		this.parsedResponse = this.response;
-		return;
-		//const refRegex = /<ref id="(\d+)" \/>/g;
-		//const refTextRegex = /<ref-text id="(\d+)">([^<]+)<\/ref-text>/g;
 	}
 }
 
@@ -189,7 +181,6 @@ ${request}
 						const choice = message.choices[0];
 						if (choice.finish_reason === 'stop') {
 							setLoading(false);
-							newViz.parseResponse();
 							console.log(
 								'Visualization response complete:',
 								newViz.response,
