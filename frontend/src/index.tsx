@@ -33,8 +33,10 @@ Office.onReady((info) => {
 });
 
 if ((module as any).hot)
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 	(module as any).hot.accept('./pages/app', () => {
-		const NextApp = require('./pages/app').default;
+		// eslint-disable-next-line @typescript-eslint/no-require-imports
+		const NextApp = require('./pages/app').default as typeof App;
 
 		render(NextApp);
 	});

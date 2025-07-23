@@ -47,8 +47,8 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
 					className={classes.carouselSlide}
 					style={{ transform: `translateX(-${currentSlide * 100}%)` }}
 				>
-					{ONBOARDING_SLIDES.map((slide, index) => (
-						<div key={index} className={classes.carouselItem}>
+					{ONBOARDING_SLIDES.map((slide) => (
+						<div key={slide.title} className={classes.carouselItem}>
 							<div className={classes.slideContent}>
 								<h2 className={classes.slideTitle}>
 									{slide.title}
@@ -73,6 +73,8 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
 				<div className={classes.carouselDots}>
 					{ONBOARDING_SLIDES.map((_, index) => (
 						<button
+							type='button'
+							// biome-ignore lint/suspicious/noArrayIndexKey: it's literally the index
 							key={index}
 							className={`${classes.dot} ${
 								currentSlide === index ? classes.activeDot : ''
@@ -86,13 +88,14 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
 				<div className={classes.carouselButtons}>
 					{currentSlide !== ONBOARDING_SLIDES.length - 1 && (
 						<button
+							type='button'
 							className={classes.skipButton}
 							onClick={onComplete}
 						>
 							Skip
 						</button>
 					)}
-					<button className={classes.nextButton} onClick={nextSlide}>
+					<button className={classes.nextButton} onClick={nextSlide} type='button'>
 						{currentSlide === ONBOARDING_SLIDES.length - 1
 							? 'Get Started'
 							: 'Next'}
