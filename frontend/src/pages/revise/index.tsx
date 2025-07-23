@@ -63,7 +63,7 @@ We are powering a tool that is designed to help people write thoughtfully, with 
 
 The user is currently in a "visualization" part of the tool, where the tool promises to help the writer visualize their document to help them understand what points they are making, what their current structure is, what are the concepts and relationships in their document, and many other possible visualizations. The appropriate visualization will depend on the document, the writer, and the context. The writer may not have provided us with all necessary context; we should ask for additional details as needed.
 
-Our response MUST reference specific parts of the document. We use Markdown links to reference document text: [ref](doctext:A%20short%20verbatim%20quote). The link target must exist, it must start with "doctext:", and it must be a URL-component-encoded verbatim quote from the document text, without quotation marks.
+Our response MUST reference specific parts of the document. We use Markdown links to reference document text: [ref](doctext:A%20short%20verbatim%20quote). The link target must exist, it must start with "doctext:", and it must be a URL-component-encoded verbatim quote from the document text (not to exceed 240 characters), without quotation marks.
 
 When generating a visualization, it is critical that we remain faithful to the document provided. If we ever realize that we've deviated from the document text, even slightly, we must include a remark to that effect in [square brackets] as soon as possible after the deviation.`;
 
@@ -122,7 +122,7 @@ export default function Revise() {
 	const clickCallbackRef = useRef((href: string) => {
 		if (href.startsWith('doctext:')) {
 			const text = decodeURIComponent(href.slice('doctext:'.length));
-			alert(`Selected text: ${text}`);
+			editorAPI.selectPhrase(text);
 		}
 	});
 	const AnchorWithCallback = useMemo(
