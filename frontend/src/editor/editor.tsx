@@ -1,7 +1,10 @@
+/**
+ * @format
+ */
 import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
 import {
 	type InitialEditorStateType,
-	LexicalComposer
+	LexicalComposer,
 } from '@lexical/react/LexicalComposer';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
@@ -13,34 +16,33 @@ import {
 	$getSelection,
 	$isRangeSelection,
 	type ElementNode,
-	type LexicalNode
+	type LexicalNode,
 } from 'lexical';
 
 import classes from './editor.module.css';
 
-
 function $getDocContext(): DocContext {
-  // Initialize default empty context
-  const docContext: DocContext = {
-    beforeCursor: '',
-    selectedText: '',
-    afterCursor: ''
-  };
+	// Initialize default empty context
+	const docContext: DocContext = {
+		beforeCursor: '',
+		selectedText: '',
+		afterCursor: '',
+	};
 
-  // Get current selection
-  const selection = $getSelection();
+	// Get current selection
+	const selection = $getSelection();
 
-  // If no valid range selection exists, return empty context
-  if (!$isRangeSelection(selection)) {
-    return docContext;
-  }
+	// If no valid range selection exists, return empty context
+	if (!$isRangeSelection(selection)) {
+		return docContext;
+	}
 
-  // Get selected text content
-  docContext.selectedText = selection.getTextContent();
+	// Get selected text content
+	docContext.selectedText = selection.getTextContent();
 
-  // Get points for traversal
-  let anchor = selection.anchor;
-  let focus = selection.focus;
+	// Get points for traversal
+	let anchor = selection.anchor;
+	let focus = selection.focus;
 
 	// If the selection is backward, we need to swap the anchor and focus points.
 	if (selection.isBackward()) {
@@ -49,22 +51,26 @@ function $getDocContext(): DocContext {
 		focus = temp;
 	}
 
-  const anchorNode = anchor.getNode();
-  const focusNode = focus.getNode();
-  const anchorOffset = anchor.offset;
-  const focusOffset = focus.offset;
+	const anchorNode = anchor.getNode();
+	const focusNode = focus.getNode();
+	const anchorOffset = anchor.offset;
+	const focusOffset = focus.offset;
 
-  // Collect text before cursor
-  docContext.beforeCursor = getCursorText(anchorNode, anchorOffset, 'before');
+	// Collect text before cursor
+	docContext.beforeCursor = getCursorText(anchorNode, anchorOffset, 'before');
 
-  // Collect text after cursor
-  docContext.afterCursor = getCursorText(focusNode, focusOffset, 'after');
+	// Collect text after cursor
+	docContext.afterCursor = getCursorText(focusNode, focusOffset, 'after');
 
-  return docContext;
+	return docContext;
 }
 
 // DFS traversal to get document order
-function collectNodes(node: ElementNode | LexicalNode, visitedNodes: Set<string>, allNodes: LexicalNode[]) {
+function collectNodes(
+	node: ElementNode | LexicalNode,
+	visitedNodes: Set<string>,
+	allNodes: LexicalNode[],
+) {
 	const nodeKey = node.getKey();
 	if (visitedNodes.has(nodeKey)) return;
 	visitedNodes.add(nodeKey);
@@ -84,7 +90,11 @@ function collectNodes(node: ElementNode | LexicalNode, visitedNodes: Set<string>
 /**
  * Gets text from document start to cursor position or from cursor position to document end.
  */
-function getCursorText(aNode: LexicalNode, aOffset: number, mode: string): string {
+function getCursorText(
+	aNode: LexicalNode,
+	aOffset: number,
+	mode: string,
+): string {
 	let cursorText = '';
 
 	const root = $getRoot();
@@ -97,8 +107,7 @@ function getCursorText(aNode: LexicalNode, aOffset: number, mode: string): strin
 
 	if (mode === 'before') {
 		textInNode = currentNodeText.substring(0, aOffset);
-	}
-	else if (mode === 'after') {
+	} else if (mode === 'after') {
 		textInNode = currentNodeText.substring(aOffset);
 	}
 
@@ -120,8 +129,7 @@ function getCursorText(aNode: LexicalNode, aOffset: number, mode: string): strin
 			cursorText += textInNode;
 			if (mode === 'before') {
 				break;
-			}
-			else if (mode === 'after') {
+			} else if (mode === 'after') {
 				pastFocusNode = true;
 				continue;
 			}
@@ -132,11 +140,9 @@ function getCursorText(aNode: LexicalNode, aOffset: number, mode: string): strin
 		if (pastFocusNode || mode === 'before') {
 			if (node.getType() === 'text') {
 				cursorText += node.getTextContent();
-			}
-			else if (node.getType() === 'paragraph') {
+			} else if (node.getType() === 'paragraph') {
 				cursorText += '\r';
-			}
-			else if (node.getType() === 'linebreak') {
+			} else if (node.getType() === 'linebreak') {
 				cursorText += '\u000b';
 			}
 		}
@@ -145,43 +151,43 @@ function getCursorText(aNode: LexicalNode, aOffset: number, mode: string): strin
 	return cursorText;
 }
 
-
 function LexicalEditor({
 	updateDocContext,
 	initialState,
 	storageKey = 'doc',
-	preamble
+	preamble,
 }: {
 	updateDocContext: (docContext: DocContext) => void;
 	initialState: InitialEditorStateType | null;
 	storageKey?: string;
-	preamble?: React.ReactNode
+	preamble?: React.ReactNode;
 }) {
-
 	return (
-			<LexicalComposer // Main editor component
-				initialConfig={ {
-					namespace: 'essay',
-					theme: {
-						paragraph: classes.paragraph
-					},
-					onError(_error, _editor) {},
-					editorState: initialState
-				} }
-			>
-				<div className={ classes.editorContainer }>
-					<div className={ classes.editor }>
-					{ preamble ? <div className="whitespace-pre-line">{preamble}</div> : null }
+		<LexicalComposer // Main editor component
+			initialConfig={{
+				namespace: 'essay',
+				theme: {
+					paragraph: classes.paragraph,
+				},
+				onError(_error, _editor) {},
+				editorState: initialState,
+			}}
+		>
+			<div className={classes.editorContainer}>
+				<div className={classes.editor}>
+					{preamble ? (
+						<div className="whitespace-pre-line">{preamble}</div>
+					) : null}
 					<RichTextPlugin
 						contentEditable={
 							<ContentEditable className={classes.editor} />
 						}
-						placeholder={ <div className={ classes.placeholder } /> }
-						ErrorBoundary={ LexicalErrorBoundary }
+						placeholder={<div className={classes.placeholder} />}
+						ErrorBoundary={LexicalErrorBoundary}
 					/>
 
 					<OnChangePlugin
-						onChange={ editorState => {
+						onChange={editorState => {
 							editorState.read(() => {
 								const docContext = $getDocContext();
 
@@ -189,20 +195,23 @@ function LexicalEditor({
 
 								localStorage.setItem(
 									storageKey,
-									JSON.stringify(editorState)
+									JSON.stringify(editorState),
 								);
 								const currentDate = new Date().toISOString();
-								localStorage.setItem(`${storageKey}-date`, currentDate);
+								localStorage.setItem(
+									`${storageKey}-date`,
+									currentDate,
+								);
 							});
-						} }
+						}}
 					/>
 
 					<AutoFocusPlugin />
 
 					<HistoryPlugin />
 				</div>
-				</div>
-			</LexicalComposer>
+			</div>
+		</LexicalComposer>
 	);
 }
 
