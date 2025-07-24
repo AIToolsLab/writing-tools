@@ -60,7 +60,7 @@ prompts = {
     "example_sentences": """\
 We're helping a writer draft a document. Please output three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next. Guidelines:
 
-- Focus on the area of the document that is currently being written.
+- Focus on the area of the document that is closest to the writer's cursor.
 - If the writer is in the middle of a sentence, output three possible continuations of that sentence.
 - If the writer is at the end of a paragraph, output three possible sentences that would start the next paragraph.
 - The three sentences should be three different paths that the writer could take, each starting from the current point in the document; they do **NOT** go in sequence.
@@ -70,7 +70,7 @@ We're helping a writer draft a document. Please output three possible options fo
     "proposal_advice": """\
 We're helping a writer draft a document. Please output three actionable, inspiring, and fresh directive instructions that would help the writer think about what they should write next. Guidelines:
 
-- Focus on the area of the document that is currently being written.
+- Focus on the area of the document that is closest to the writer's cursor.
 - Don't give specific words or phrases for the writer to use.
 - Keep each piece of advice concise.
 - Express the advice in the form of a directive instruction, not a question.
@@ -79,7 +79,7 @@ We're helping a writer draft a document. Please output three actionable, inspiri
     "proposal_questions": """\
 We're helping a writer draft a document. List three questions that the document *ought* to address but does *not* yet address. Guidelines:
 
-- Focus on the area of the document that is currently being written.
+- Focus on the area of the document that is closest to the writer's cursor.
 - Don't give specific words or phrases for the writer to use.
 - Keep each question concise.
 - Make each question very specific to the current document, not general questions that could apply to any document.
@@ -87,7 +87,7 @@ We're helping a writer draft a document. List three questions that the document 
     "analysis_missing": """\
 We're helping a writer draft a document. List three observations of things that are missing from the document. Guidelines:
 
-- Focus on the area of the document that is currently being written.
+- Focus on the area of the document that is closest to the writer's cursor.
 - Don't give specific words or phrases for the writer to use.
 - Keep each observation concise.
 - Make each observation very specific to the current document, not general observations that could apply to any document.
@@ -96,7 +96,7 @@ We're helping a writer draft a document. List three observations of things that 
     "analysis_audience": """\
 We're helping a writer draft a document. List three reactions that a reader in the intended audience might have to the document. Guidelines:
 
-- Focus on the area of the document that is currently being written.
+- Focus on the area of the document that is closest to the writer's cursor.
 - Don't give specific words or phrases for the writer to use.
 - Keep each reaction concise.
 - Make each reaction very specific to the current document, not general reactions that could apply to any document.
@@ -105,7 +105,7 @@ We're helping a writer draft a document. List three reactions that a reader in t
     "analysis_expectations": """\
 We're helping a writer draft a document. List three ways in which this document doesn't meet the expectations that a reader in the intended audience might have. Guidelines:
 
-- Focus on the area of the document that is currently being written.
+- Focus on the area of the document that is closest to the writer's cursor.
 - Don't give specific words or phrases for the writer to use.
 - Keep each observation concise, less than 20 words.
 - Make each observation very specific to the current document, not general observations that could apply to any document.
@@ -118,7 +118,7 @@ We're helping a writer draft a document. Provide inspiring, fresh, and construct
 Guidelines:
 
 - If the writer has not yet written enough to warrant a critique, just say "Not enough text to critique."
-- Focus on the area of the document that is currently being written.
+- Focus on the area of the document that is closest to the writer's cursor.
 - Don't give specific words or phrases for the writer to use.
 - Aim for at least one positive and one critical observation. (Don't label them as such, just provide three observations.)
 - Keep each observation concise, less than 20 words.
@@ -130,7 +130,7 @@ We're helping a writer draft a document. Give three constructive critiques of th
 
 Guidelines:
 
-- Focus on the area of the document that is currently being written.
+- Focus on the area of the document that is closest to the writer's cursor.
 - Don't give specific words or phrases for the writer to use.
 - Keep each description concise, less than 20 words.
 - Make each description very specific to the current document, not general observations that could apply to any document.
@@ -172,9 +172,7 @@ def get_full_prompt(prompt_name: str, doc_context: DocContext, context_chars: in
     before_cursor_trim = doc_context.beforeCursor[-context_chars:]
     after_cursor_trim = doc_context.afterCursor[:context_chars]
     if doc_context.selectedText == '':
-        prompt += "\n\n## Current Selection\n\nNo text selected."
-        before_cursor_cur_line = before_cursor_trim.rsplit('\n', 1)[-1]
-        prompt += f"\n\n## Text Around Cursor\n\n\"{before_cursor_trim}{after_cursor_trim}\"\n{' ' * len(before_cursor_cur_line)}^ Cursor Position"
+        prompt += f"\n\n## Text Right Before the Cursor\n\n\"{before_cursor_trim}\""
     else:
         prompt += f"\n\n## Current Selection\n\n{doc_context.selectedText}"
         prompt += f"\n\n## Text Nearby The Selection\n\n\"{before_cursor_trim}{doc_context.selectedText}{after_cursor_trim}\""
