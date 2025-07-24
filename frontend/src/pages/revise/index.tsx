@@ -31,7 +31,7 @@ const promptList: Prompt[] = [
 	},
 	{
 		keyword: 'Where to Work Next',
-		prompt: 'List 7 places in the document that the writer could direct their attention to next. Respond with a Markdown list where each item contains a doctext link to a specific part of the document, followed by a comma-separated list of 2-3 single words or extremely short phrases describing what aspect of that location could use attention.',
+		prompt: 'List 7 places in the document that the writer could direct their attention to next. Respond with a Markdown list, most important first, where each item contains a doctext link to a specific part of the document, followed by a very short description of what aspect of that location could use attention. Include both places that the author has explicitly labeled as needing work (e.g., using TODO, brackets, all-caps, or other markers) and places that were not explicitly labeled but that could use work based on the content.',
 		isOverall: true,
 	},
 	{
@@ -129,6 +129,10 @@ export default function Revise() {
 	const docContext = useDocContext(editorAPI);
 	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
 	const [loading, setLoading] = useState(false);
+	const [customPrompts, setCustomPrompts] = useState<Prompt[]>([]);
+	const [selectedCustomPrompt, setSelectedCustomPrompt] = useState<
+		number | null
+	>(null);
 	const [visualizations, setVisualizations] = useState<Visualization[]>([]);
 	const clickCallbackRef = useRef((href: string) => {
 		if (href.startsWith('doctext:')) {
