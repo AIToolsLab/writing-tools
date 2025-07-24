@@ -35,7 +35,6 @@ PORT = int(os.getenv("PORT") or 8000)
 
 # The log secret is stored in .env file for local development.
 LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
-print(f"Log secret: {LOG_SECRET!r}")
 
 
 def should_log(username: str) -> bool:
