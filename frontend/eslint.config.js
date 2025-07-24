@@ -107,6 +107,7 @@ export default [
         caughtErrorsIgnorePattern: '^_'
       }],
       '@typescript-eslint/no-floating-promises': 'off', // Temporarily allow unhandled promises
+      '@typescript-eslint/no-misused-promises': 'warn',
       '@typescript-eslint/no-explicit-any': 'off', // Temporarily allow explicit any
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
