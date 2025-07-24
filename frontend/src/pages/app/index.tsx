@@ -241,14 +241,6 @@ function AppInner({ editorAPI }: HomeProps) {
 			{!noAuthMode && user && (
 				<div className={classes.container}>
 					<div className={classes.profileContainer}>
-						<div className={classes.profilePicContainer}>
-							<img
-								src={user && user.picture}
-								alt="Profile"
-								className={classes.profilePic}
-								referrerPolicy="no-referrer"
-							/>
-						</div>
 						<div className={classes.userNameContainer}>
 							User: {user!.name}
 						</div>
