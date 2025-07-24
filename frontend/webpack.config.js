@@ -153,7 +153,7 @@ export default async (env, options) => {
 							else
 								return content
 									.toString()
-									.replace(/\-dev/g, '')
+									.replace(/-dev/g, '')
 									.replace(new RegExp(idDev, 'g'), idProd)
 									.replace(new RegExp(urlDev, 'g'), urlProd);
 						}
