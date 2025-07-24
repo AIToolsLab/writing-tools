@@ -30,6 +30,11 @@ const promptList: Prompt[] = [
 		isOverall: true,
 	},
 	{
+		keyword: 'Where to Work Next',
+		prompt: 'List 7 places in the document that the writer could direct their attention to next. Respond with a Markdown list where each item contains a doctext link to a specific part of the document, followed by a comma-separated list of 2-3 single words or extremely short phrases describing what aspect of that location could use attention.',
+		isOverall: true,
+	},
+	{
 		keyword: 'Main Point',
 		prompt: 'List the main points that the writer is making.',
 	},
