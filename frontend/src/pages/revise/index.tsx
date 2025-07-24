@@ -133,7 +133,31 @@ export default function Revise() {
 	const clickCallbackRef = useRef((href: string) => {
 		if (href.startsWith('doctext:')) {
 			const text = decodeURIComponent(href.slice('doctext:'.length));
-			editorAPI.selectPhrase(text);
+			(async () => {
+				let currentlySearchingForText = text;
+				while (currentlySearchingForText.length > 0) {
+					try {
+						await editorAPI.selectPhrase(currentlySearchingForText);
+						return;
+					} catch {
+						// If selection fails, trim off a word on each side.
+						const nextSearchText = currentlySearchingForText
+							.split(' ')
+							.slice(1, -1)
+							.join(' ');
+						if (nextSearchText === currentlySearchingForText) {
+							// If trimming didn't change the text, break to avoid infinite loop.
+							break;
+						}
+						currentlySearchingForText = nextSearchText;
+						console.warn(
+							'Falling back to shorter text:',
+							currentlySearchingForText,
+						);
+					}
+				}
+				console.warn('Failed to select phrase:', text);
+			})();
 		}
 	});
 	const AnchorWithCallback = useMemo(
