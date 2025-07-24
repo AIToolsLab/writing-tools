@@ -160,29 +160,21 @@ export const wordEditorAPI: EditorAPI = {
 				docContext.selectedText = wordSelection.text;
 
 				// Get the text before the selected word
-				const beforeCursor = wordSelection.expandTo(
+				const beforeCursor = wordSelection.getRange('Start').expandTo(
 					body.getRange('Start'),
 				);
 				context.load(beforeCursor, 'text');
 
 				// Get the text after the selected word
-				const afterCursor = wordSelection.expandTo(
+				const afterCursor = wordSelection.getRange('End').expandTo(
 					body.getRange('End'),
 				);
 				context.load(afterCursor, 'text');
 
 				await context.sync();
 
-				// Set the beforeCursor and afterCursor properties of the docContext object
-				// Note that we only slice only if the selected text is not empty
-				docContext.beforeCursor =
-					beforeCursor.text.slice(
-						0,
-						-docContext.selectedText.length,
-					) || beforeCursor.text;
-				docContext.afterCursor = afterCursor.text.slice(
-					docContext.selectedText.length,
-				);
+				docContext.beforeCursor = beforeCursor.text;
+				docContext.afterCursor = afterCursor.text;
 
 				// Replace \r with \n for consistency
 				docContext.beforeCursor = docContext.beforeCursor.replace(
