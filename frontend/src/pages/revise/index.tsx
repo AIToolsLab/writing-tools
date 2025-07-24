@@ -258,6 +258,19 @@ ${request}
 			? visualizations[visualizations.length - 1]
 			: null;
 
+	if (
+		docContext.beforeCursor.length === 0 &&
+		docContext.selectedText.length === 0 &&
+		docContext.afterCursor.length === 0
+	) {
+		return (
+			<div className="text-gray-500">
+				The document seems to be empty. Either you haven't written
+				anything yet, or the text is still loading.
+			</div>
+		);
+	}
+
 	return (
 		<div className="flex flex-col">
 			{/* prompt buttons: row-flowed list of buttons */}
