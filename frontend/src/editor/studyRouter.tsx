@@ -176,10 +176,11 @@ export function StudyRouter({ page }: { page: string }) {
 	}
 
 	const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
+    const nextUrlParams = new URLSearchParams(window.location.search);
+    nextUrlParams.set('page', nextPage);
+    const isProlific = urlParams.get('isProlific') === 'true';
 
 	if (page === 'study-consentForm') {
-		const nextUrlParams = new URLSearchParams(window.location.search);
-		nextUrlParams.set('page', nextPage);
 		const redirectURL = encodeURIComponent(
 			window.location.origin + `/editor.html?${nextUrlParams.toString()}`,
 		);
@@ -237,8 +238,6 @@ export function StudyRouter({ page }: { page: string }) {
 			</div>
 		);
 	} else if (page === 'study-introSurvey') {
-		const nextUrlParams = new URLSearchParams(window.location.search);
-		nextUrlParams.set('page', nextPage);
 		const redirectURL = encodeURIComponent(
 			window.location.origin + `/editor.html?${nextUrlParams.toString()}`,
 		);
@@ -261,8 +260,6 @@ export function StudyRouter({ page }: { page: string }) {
 			</div>
 		);
 	} else if (page.startsWith('study-startTask')) {
-		const urlParams = new URLSearchParams(window.location.search);
-
 		const taskNumber = page.replace('study-startTask', '');
 		const conditionConfig = conditionConfigs[taskNumber];
 		const labelConfig = labelConfigs[taskNumber];
@@ -299,8 +296,6 @@ export function StudyRouter({ page }: { page: string }) {
 			</div>
 		);
 	} else if (page.startsWith('study-task')) {
-		const urlParams = new URLSearchParams(window.location.search);
-
 		const taskNumber = page.replace('study-task', '');
 		const curTaskContexts = taskContexts[taskNumber];
 		const conditionConfig = conditionConfigs[taskNumber];
@@ -341,8 +336,6 @@ export function StudyRouter({ page }: { page: string }) {
 			</div>
 		);
 	} else if (page.startsWith('study-postTask')) {
-		const nextUrlParams = new URLSearchParams(window.location.search);
-		nextUrlParams.set('page', nextPage);
 		const redirectURL = encodeURIComponent(
 			`${window.location.origin}/editor.html?${nextUrlParams.toString()}`,
 		);
@@ -383,9 +376,6 @@ export function StudyRouter({ page }: { page: string }) {
 			</div>
 		);
 	} else if (page === 'study-postStudySurvey') {
-		const nextUrlParams = new URLSearchParams(window.location.search);
-		nextUrlParams.set('page', nextPage);
-		const isProlific = urlParams.get('isProlific') === 'true';
 		let redirectURL: string;
 		if (isProlific) {
 			redirectURL =
