@@ -27,7 +27,7 @@ function Collapsible({
 	maxWidth = 75,
 	truncateEnd = true,
 }: {
-	text: any;
+	text: unknown;
 	maxWidth?: number;
 	truncateEnd?: boolean;
 }) {
@@ -36,7 +36,15 @@ function Collapsible({
 	if (typeof text === 'object' && text !== null) {
 		displayText = JSON.stringify(text, null, 2);
 	} else {
-		displayText = String(text ?? '');
+		if (text == null) {
+			displayText = '';
+		} else if (typeof text === 'string') {
+			displayText = text;
+		} else if (typeof text === 'number' || typeof text === 'boolean') {
+			displayText = String(text);
+		} else {
+			displayText = JSON.stringify(text);
+		}
 	}
 
 	let summaryText = displayText;
@@ -117,7 +125,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 		if (!resp.ok) throw new Error(`Error: ${resp.status}`);
 		const data = await resp.json();
 		return data && typeof data === 'object' && 'result' in data
-			? data.result
+			? (data as {result: string}).result
 			: JSON.stringify(data, null, 2);
 	};
 
@@ -269,17 +277,18 @@ function App() {
 	};
 
 	// Helper: parse a log object (normalize timestamp, isBackend)
-	const parseLog = (x: any): Log => {
+	const parseLog = (x: unknown): Log => {
+		const logData = x as Record<string, unknown>;
 		const ts =
-			typeof x.timestamp === 'string'
-				? new Date(x.timestamp).getTime() / 1000
-				: x.timestamp;
+			typeof logData.timestamp === 'string'
+				? new Date(logData.timestamp).getTime() / 1000
+				: (logData.timestamp as number);
 		const isBackend = [
 			'suggestion_generated',
 			'reflection_generated',
 			'reflection_generated',
-		].includes(x.event);
-		return { ...x, timestamp: ts, isBackend };
+		].includes(logData.event as string);
+		return { ...logData, timestamp: ts, isBackend } as Log;
 	};
 
 	// Helper: parse a JSONL string into Log[]
@@ -308,7 +317,7 @@ function App() {
 					}),
 				});
 				if (resp.ok) {
-					const updates = await resp.json();
+					const updates = await resp.json() as Array<{ logs: Log[] }>;
 					const newLogs: Log[] = updates
 						.map((log: { logs: Log[] }) => log.logs)
 						.flat()
@@ -318,7 +327,7 @@ function App() {
 					logsRef.current = allLogs;
 					setLogs(allLogs);
 				}
-			} catch (e) {
+			} catch (_e) {
 				// Optionally handle error
 			}
 			if (!stopped) {

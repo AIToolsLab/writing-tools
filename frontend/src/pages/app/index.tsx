@@ -119,8 +119,8 @@ function AppInner({ editorAPI }: HomeProps) {
 						<h3>Not logged in yet?</h3>
 						<button
 							className={classes.loginButton}
-							onClick={async () => {
-								await editorAPI.doLogin(auth0Client);
+							onClick={() => {
+								void editorAPI.doLogin(auth0Client);
 							}}
 						>
 							<p>Login</p>
@@ -247,9 +247,9 @@ function AppInner({ editorAPI }: HomeProps) {
 					{authErrorType !== null && (
 						<button
 							className={classes.logoutButton}
-							onClick={async () => {
+							onClick={() => {
 								// do login again
-								await editorAPI.doLogin(auth0Client);
+								void editorAPI.doLogin(auth0Client);
 							}}
 						>
 							Reauthorize
@@ -311,9 +311,9 @@ function DemoAccessTokenProviderWrapper({
 }: {
 	children: React.ReactNode;
 }) {
-	const getAccessTokenSilently = async () => {
+	const getAccessTokenSilently = () => {
 		// Simulate a token retrieval for demo purposes
-		return 'demo-access-token';
+		return Promise.resolve('demo-access-token');
 	};
 	return (
 		<AccessTokenProvider getAccessTokenSilently={getAccessTokenSilently}>
