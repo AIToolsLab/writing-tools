@@ -127,10 +127,10 @@ export default function Revise() {
 	const editorAPI = useContext(EditorContext);
 	const username = useAtomValue(usernameAtom);
 	const docContext = useDocContext(editorAPI);
-	const { getAccessToken, reportAuthError, authErrorType } = useAccessToken();
-	const [loading, setLoading] = useState(false);
-	const [customPrompts, setCustomPrompts] = useState<Prompt[]>([]);
-	const [selectedCustomPrompt, setSelectedCustomPrompt] = useState<
+	const { getAccessToken, reportAuthError: _reportAuthError, authErrorType: _authErrorType } = useAccessToken();
+	const [_loading, setLoading] = useState(false);
+	const [_customPrompts, _setCustomPrompts] = useState<Prompt[]>([]);
+	const [_selectedCustomPrompt, _setSelectedCustomPrompt] = useState<
 		number | null
 	>(null);
 	const [visualizations, setVisualizations] = useState<Visualization[]>([]);
