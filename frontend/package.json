@@ -94,7 +94,7 @@
 		"less-loader": "^12.2.0",
 		"lint-staged": "^14.0.1",
 		"office-addin-cli": "^1.6.5",
-		"office-addin-debugging": "^5.1.6",
+		"office-addin-debugging": "^6.0.3",
 		"office-addin-dev-certs": "^1.13.5",
 		"office-addin-lint": "^2.3.5",
 		"office-addin-manifest": "^1.13.6",
