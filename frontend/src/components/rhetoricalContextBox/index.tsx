@@ -12,7 +12,7 @@ interface RhetoricalContextBoxProps {
 export function RhetoricalContextBox(
 	props: RhetoricalContextBoxProps,
 ): JSX.Element {
-	const { curRhetCtxt, updateRhetCtxt } = props;
+	const { curRhetCtxt: _curRhetCtxt, updateRhetCtxt } = props;
 	const [rhetCtxtSaved, updateRhetCtxtSaved] = useState(false);
 	const [searchBoxText, updateSearchBoxText] = useState('');
 

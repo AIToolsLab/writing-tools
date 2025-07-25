@@ -1,4 +1,4 @@
-import { type PropsWithChildren, createContext, useState } from 'react';
+import { type PropsWithChildren, createContext, useState, useMemo } from 'react';
 
 // Stores chat messages in a context so that they are saved when a user switches between tabs
 export const ChatContext = createContext<{
@@ -11,11 +11,16 @@ export const ChatContext = createContext<{
 
 export default function ChatContextWrapper({
 	children,
-}: PropsWithChildren<any>) {
-	const [chatMessages, updateChatMessages] = useState([] as ChatMessage[]);
+}: PropsWithChildren) {
+	const [chatMessages, updateChatMessages] = useState<ChatMessage[]>([]);
+
+	const contextValue = useMemo(() => ({
+		chatMessages,
+		updateChatMessages
+	}), [chatMessages]);
 
 	return (
-		<ChatContext.Provider value={{ chatMessages, updateChatMessages }}>
+		<ChatContext.Provider value={contextValue}>
 			{children}
 		</ChatContext.Provider>
 	);

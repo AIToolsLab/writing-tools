@@ -61,9 +61,9 @@ function ReflectionCard(props: ReflectionCardProps) {
 			<div>
 				<button
 					className={classes.pinButton}
-					onClick={() =>
-						handlePinAction(cardData.paragraphIndex, cardData.body)
-					}
+					onClick={() => {
+						void handlePinAction(cardData.paragraphIndex, cardData.body);
+					}}
 				>
 					Pin
 				</button>

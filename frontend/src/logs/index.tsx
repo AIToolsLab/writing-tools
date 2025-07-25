@@ -117,7 +117,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 		if (!resp.ok) throw new Error(`Error: ${resp.status}`);
 		const data = await resp.json();
 		return data && typeof data === 'object' && 'result' in data
-			? data.result
+			? (data as {result: string}).result
 			: JSON.stringify(data, null, 2);
 	};
 
@@ -308,7 +308,7 @@ function App() {
 					}),
 				});
 				if (resp.ok) {
-					const updates = await resp.json();
+					const updates = await resp.json() as Array<{ logs: Log[] }>;
 					const newLogs: Log[] = updates
 						.map((log: { logs: Log[] }) => log.logs)
 						.flat()
@@ -318,7 +318,7 @@ function App() {
 					logsRef.current = allLogs;
 					setLogs(allLogs);
 				}
-			} catch (e) {
+			} catch (_e) {
 				// Optionally handle error
 			}
 			if (!stopped) {
