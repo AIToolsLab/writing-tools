@@ -150,30 +150,22 @@ export const wordEditorAPI: EditorAPI = {
 					afterCursor: '',
 				};
 
-				// Get the selected word
 				const wordSelection = context.document.getSelection();
-
-				context.load(wordSelection, 'text');
-				await context.sync();
-
-				// Get the text of the selected word
-				docContext.selectedText = wordSelection.text;
-
-				// Get the text before the selected word
 				const beforeCursor = wordSelection.getRange('Start').expandTo(
 					body.getRange('Start'),
 				);
-				context.load(beforeCursor, 'text');
-
-				// Get the text after the selected word
 				const afterCursor = wordSelection.getRange('End').expandTo(
 					body.getRange('End'),
 				);
+
+				// Request the content of these items from Word
+				context.load(wordSelection, 'text');
+				context.load(beforeCursor, 'text');
 				context.load(afterCursor, 'text');
-
 				await context.sync();
-
+				
 				docContext.beforeCursor = beforeCursor.text;
+				docContext.selectedText = wordSelection.text;
 				docContext.afterCursor = afterCursor.text;
 
 				// Replace \r with \n for consistency
