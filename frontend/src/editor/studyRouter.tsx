@@ -114,7 +114,23 @@ function mapInputToLabels(input: string) {
     return result;
 }
 
-
+function getBrowserMetadata() {
+    return {
+        userAgent: navigator.userAgent,
+        screenWidth: window.screen.width,
+        screenHeight: window.screen.height,
+        windowWidth: window.innerWidth,
+        windowHeight: window.innerHeight,
+        colorDepth: window.screen.colorDepth,
+        pixelDepth: window.screen.pixelDepth,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        language: navigator.language,
+        languages: navigator.languages,
+        platform: navigator.platform,
+        cookieEnabled: navigator.cookieEnabled,
+        onLine: navigator.onLine,
+    };
+}
 
 export function StudyRouter({ page }: { page: string }) {
     const setStudyCondition = useSetAtom(studyConditionAtom);
@@ -206,9 +222,15 @@ export function StudyRouter({ page }: { page: string }) {
                 <button
                     type="button"
                     onClick={() => {
+                        const browserMetadata = getBrowserMetadata();
+                        
                         log({
                             username: username,
                             event: 'Started Study',
+                            urlParameters: window.location.search,
+                            browserMetadata: browserMetadata,
+                            conditionOrder: conditionOrder,
+                            conditionMappings: conditionConfigs,
                         });
                         urlParams.set('page', nextPage);
                         window.location.search = urlParams.toString();
