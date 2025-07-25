@@ -207,6 +207,12 @@ export default function Draft() {
 	const docContextRef = useRef<DocContext>(docContextSnapshot);
 	docContextRef.current = docContextSnapshot;
 
+	// console.log({
+	// 	before: docContextSnapshot.beforeCursor.slice(-50),
+	// 	selected: docContextSnapshot.selectedText,
+	// 	after: docContextSnapshot.afterCursor.slice(0, 50),
+	// });
+
 	const isStudy = studyCondition !== null;
 	const modesToShow = useMemo(
 		() => (isStudy ? [studyCondition] : modes),

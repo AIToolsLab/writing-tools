@@ -38,11 +38,7 @@ export function useDocContext(editorAPI: EditorAPI) {
 		afterCursor: '',
 	});
 
-	/**
-	 * useEffect to ensure that event handlers are set up only once
-	 * and cleaned up when the component is unmounted.
-	 * Note that dependencies are empty, so this effect only runs once.
-	 */
+	 // Register event handlers for selection changes in the document.
 	useEffect(() => {
 		function handleSelectionChanged(): void {
 			// Get the document context (before cursor, selected text, after cursor)
