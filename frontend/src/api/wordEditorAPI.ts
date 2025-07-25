@@ -11,7 +11,7 @@ export const wordEditorAPI: EditorAPI = {
 				| { error: number },
 		) => {
 			if ('error' in args) {
-				// eslint-disable-next-line no-console
+				 
 				console.error('Error:', args.error);
 				if (dialog) dialog.close();
 				return;
@@ -26,14 +26,14 @@ export const wordEditorAPI: EditorAPI = {
 						messageFromDialog.urlWithAuthInfo as string,
 					);
 				} catch (error) {
-					// eslint-disable-next-line no-console
+					 
 					console.error(
 						'auth0Client.handleRedirectCallback Error:',
 						error,
 					);
 				}
 			} else {
-				// eslint-disable-next-line no-console
+				 
 				console.error('Login failed.', messageFromDialog);
 			}
 		};
@@ -63,7 +63,7 @@ export const wordEditorAPI: EditorAPI = {
 						},
 					);
 				} catch (error) {
-					// eslint-disable-next-line no-console
+					 
 					console.error('Error opening URL:', error);
 				}
 			},
@@ -81,7 +81,7 @@ export const wordEditorAPI: EditorAPI = {
 		) => {
 			dialog.close();
 			if ('error' in args) {
-				// eslint-disable-next-line no-console
+				 
 				console.error('Error:', args.error);
 				return;
 			}
@@ -91,7 +91,7 @@ export const wordEditorAPI: EditorAPI = {
 				// The dialog reported a successful logout.
 				// It seems like we don't need to do anything here, since the auth0 client library has already cleared its cached credentials.
 			} else {
-				// eslint-disable-next-line no-console
+				 
 				console.error('Logout failed.', messageFromDialog);
 			}
 		};
@@ -183,7 +183,7 @@ export const wordEditorAPI: EditorAPI = {
 				);
 				resolve(docContext);
 			}).catch((error) => {
-				// eslint-disable-next-line no-console
+				 
 				console.error('Error getting document context:', error);
 				reject(error as Error);
 			});

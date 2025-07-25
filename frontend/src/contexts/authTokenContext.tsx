@@ -11,12 +11,12 @@ interface AccessTokenContextType {
 
 const AccessTokenContext = createContext<AccessTokenContextType>({
 	getAccessToken: async () => {
-		// eslint-disable-next-line no-console
+		 
 		console.warn('getAccessToken called before provider is initialized');
 		return '';
 	},
 	reportAuthError: () => {
-		// eslint-disable-next-line no-console
+		 
 		console.warn('reportAuthError called before provider is initialized');
 	},
 	authErrorType: null,

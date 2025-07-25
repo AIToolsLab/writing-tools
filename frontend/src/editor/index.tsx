@@ -52,7 +52,7 @@ function EditorScreen({
 			try {
 				await auth0Client.loginWithPopup();
 			} catch (error) {
-				// eslint-disable-next-line no-console
+				 
 				console.error('auth0Client.loginWithPopup Error:', error);
 			}
 		},
@@ -64,7 +64,7 @@ function EditorScreen({
 					},
 				});
 			} catch (error) {
-				// eslint-disable-next-line no-console
+				 
 				console.error('auth0Client.logout Error:', error);
 			}
 		},
@@ -78,7 +78,7 @@ function EditorScreen({
 			const index = selectionChangeHandlers.current.indexOf(handler);
 
 			if (index !== -1) selectionChangeHandlers.current.splice(index, 1);
-			// eslint-disable-next-line no-console
+			 
 			else console.warn('Handler not found');
 		},
 

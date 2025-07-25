@@ -112,8 +112,7 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 				/>
 			</div>
 			{/* The dropdown of prompt recommendations */}
-			{!searchBoxTextSent && dropdownVisible && (
-				<div
+			{!searchBoxTextSent && dropdownVisible ? <div
 					onMouseDown={() => {
 						setIsDropdownClicked(true);
 					}}
@@ -234,8 +233,7 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 							},
 						)}
 					</ul>
-				</div>
-			)}
+				</div> : null}
 		</div>
 	);
 }

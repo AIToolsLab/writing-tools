@@ -213,7 +213,7 @@ function AppInner({ editorAPI }: HomeProps) {
 				<button
 					className={classes.logoutButton}
 					onClick={() => {
-						// eslint-disable-next-line no-console
+						 
 						console.log('origin', window.location.origin);
 						editorAPI.doLogout(auth0Client);
 					}}
@@ -238,11 +238,10 @@ function AppInner({ editorAPI }: HomeProps) {
 
 	return (
 		<Layout>
-			{!noAuthMode && user && (
-				<div className={classes.container}>
+			{!noAuthMode && user ? <div className={classes.container}>
 					<div className={classes.profileContainer}>
 						<div className={classes.userNameContainer}>
-							User: {user!.name}
+							User: {user.name}
 						</div>
 					</div>
 					{authErrorType !== null && (
@@ -259,15 +258,14 @@ function AppInner({ editorAPI }: HomeProps) {
 					<button
 						className={classes.logoutButton}
 						onClick={() => {
-							// eslint-disable-next-line no-console
+							 
 							console.log('origin', window.location.origin);
 							editorAPI.doLogout(auth0Client);
 						}}
 					>
 						Sign Out
 					</button>
-				</div>
-			)}
+				</div> : null}
 			{getComponent(page)}
 		</Layout>
 	);
@@ -292,7 +290,7 @@ export default function App({ editorAPI }: HomeProps) {
 					useRefreshTokens={true}
 					useRefreshTokensFallback={true}
 					authorizationParams={{
-						// eslint-disable-next-line camelcase
+						 
 						redirect_uri: `${window.location.origin}/popup.html`,
 						scope: 'openid profile email read:posts',
 						audience: 'textfocals.com',

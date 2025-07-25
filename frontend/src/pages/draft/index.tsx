@@ -61,7 +61,7 @@ class Fetcher {
 				body: JSON.stringify({
 					username: username,
 					gtype: request.type,
-					// eslint-disable-next-line camelcase
+					 
 					doc_context: request.docContext,
 				}),
 				signal: AbortSignal.timeout(20000),
@@ -295,7 +295,7 @@ export default function Draft() {
 				log({
 					username: username,
 					event: 'generation_error',
-					// eslint-disable-next-line camelcase
+					 
 					generation_type: suggestionRequest.type,
 					docContext: suggestionRequest.docContext,
 					result: errMsg,
@@ -336,7 +336,7 @@ export default function Draft() {
 		log({
 			username: username,
 			event: 'auto_refresh',
-			// eslint-disable-next-line camelcase
+			 
 			generation_type: modesToShow[0],
 			docContext: docContextRef.current,
 		});
@@ -395,7 +395,7 @@ export default function Draft() {
 											log({
 												username: username,
 												event: 'request_suggestion',
-												// eslint-disable-next-line camelcase
+												 
 												generation_type: mode,
 												docContext:
 													docContextRef.current,
