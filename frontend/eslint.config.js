@@ -14,6 +14,22 @@ export default [
   // Base JavaScript configuration for all files
   js.configs.recommended,
   
+  // Node.js config files
+  {
+    files: ['*.config.js', 'jest.config.js', 'tailwind.config.js'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'commonjs',
+      globals: {
+        module: 'writable',
+        require: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+        process: 'readonly'
+      }
+    }
+  },
+  
   // JavaScript/JSX files (including config files) - non-type-aware rules only
   {
     files: ['**/*.{js,jsx}'],
