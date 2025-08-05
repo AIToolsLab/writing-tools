@@ -379,8 +379,8 @@ export default function Draft() {
 		);
 
 	return (
-		<>
-			<div className=" flex flex-col gap-2 relative p-2 h-[73vh]">
+		<div className="flex flex-col flex-1">
+			<div className="flex flex-col flex-1 gap-2 relative p-2">
 				<div>
 					{/* Generation Option Buttons */}
 					<div className={classes.optionsContainer}>
@@ -435,6 +435,6 @@ export default function Draft() {
 					Please note that the quality of AI-generated text may vary
 				</div>
 			</div>
-		</>
+		</div>
 	);
 }

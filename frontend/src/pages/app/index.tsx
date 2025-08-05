@@ -3,7 +3,6 @@ import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
 import { useContext, useState } from 'react';
 import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
-import Layout from '@/components/layout';
 import {
 	AccessTokenProvider,
 	useAccessToken,
@@ -228,7 +227,7 @@ function AppInner() {
 	}
 
 	return (
-		<>
+		<div className="h-full flex flex-col">
 			<Navbar />
 			{!noAuthMode && user ? (
 				<div className={classes.container}>
@@ -260,7 +259,7 @@ function AppInner() {
 				</div>
 			) : null}
 			{getComponent(page)}
-		</>
+		</div>
 	);
 }
 
