@@ -21,6 +21,7 @@ import Chat from '../chat';
 import Draft from '../draft';
 import Revise from '../revise';
 import classes from './styles.module.css';
+import Navbar from '@/components/navbar';
 
 function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
@@ -227,7 +228,8 @@ function AppInner() {
 	}
 
 	return (
-		<Layout>
+		<>
+			<Navbar />
 			{!noAuthMode && user ? (
 				<div className={classes.container}>
 					<div className={classes.profileContainer}>
@@ -258,7 +260,7 @@ function AppInner() {
 				</div>
 			) : null}
 			{getComponent(page)}
-		</Layout>
+		</>
 	);
 }
 
