@@ -11,9 +11,10 @@ import classes from './styles.module.css';
 import { log } from '@/api';
 import { usernameAtom } from '@/contexts/userContext';
 import { StudyRouter } from './studyRouter';
+import { EditorContext } from '@/contexts/editorContext';
 
-function Sidebar({ editorAPI }: { editorAPI: EditorAPI }) {
-	return <SidebarInner.default editorAPI={editorAPI} />;
+function Sidebar() {
+	return <SidebarInner.default />;
 }
 
 export function EditorScreen({
@@ -166,7 +167,9 @@ export function EditorScreen({
 			<div
 				className={`overflow-y-scroll ${isDemo ? classes.demosidebar : classes.sidebar}`}
 			>
-				<Sidebar editorAPI={editorAPI} />
+				<EditorContext.Provider value={editorAPI}>
+					<Sidebar />
+				</EditorContext.Provider>
 			</div>
 		</div>
 	);

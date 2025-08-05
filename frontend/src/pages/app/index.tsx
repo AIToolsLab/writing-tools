@@ -1,44 +1,35 @@
-import { useState } from 'react';
-
-import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
+import { Auth0Provider, useAuth0 } from '@auth0/auth0-react';
 import { useWindowSize } from '@react-hook/window-size/throttled';
-
-import { useAuth0, Auth0Provider } from '@auth0/auth0-react';
-
-import ChatContextWrapper from '@/contexts/chatContext';
-import EditorContextWrapper from '@/contexts/editorContext';
-
-import classes from './styles.module.css';
-
+import { useAtomValue } from 'jotai';
+import { useContext, useState } from 'react';
+import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
 import Layout from '@/components/layout';
-
-import Revise from '../revise';
-import Chat from '../chat';
-import Draft from '../draft';
-import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import {
 	AccessTokenProvider,
 	useAccessToken,
 } from '@/contexts/authTokenContext';
-import { useAtomValue } from 'jotai';
+import ChatContextWrapper from '@/contexts/chatContext';
+import { EditorContext } from '@/contexts/editorContext';
 import {
 	OverallMode,
 	overallModeAtom,
 	PageName,
 	pageNameAtom,
 } from '@/contexts/pageContext';
+import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
+import Chat from '../chat';
+import Draft from '../draft';
+import Revise from '../revise';
+import classes from './styles.module.css';
 
-export interface HomeProps {
-	editorAPI: EditorAPI;
-}
-
-function AppInner({ editorAPI }: HomeProps) {
+function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
 	const noAuthMode = mode !== OverallMode.full;
 	const auth0Client = useAuth0();
 	const { isLoading, error, isAuthenticated, user } = auth0Client;
 	const [width, _height] = useWindowSize();
 	const page = useAtomValue(pageNameAtom);
+	const editorAPI = useContext(EditorContext);
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
 		return localStorage.getItem('hasCompletedOnboarding') === 'true';
 	});
@@ -213,7 +204,6 @@ function AppInner({ editorAPI }: HomeProps) {
 				<button
 					className={classes.logoutButton}
 					onClick={() => {
-						 
 						console.log('origin', window.location.origin);
 						editorAPI.doLogout(auth0Client);
 					}}
@@ -238,7 +228,8 @@ function AppInner({ editorAPI }: HomeProps) {
 
 	return (
 		<Layout>
-			{!noAuthMode && user ? <div className={classes.container}>
+			{!noAuthMode && user ? (
+				<div className={classes.container}>
 					<div className={classes.profileContainer}>
 						<div className={classes.userNameContainer}>
 							User: {user.name}
@@ -258,20 +249,20 @@ function AppInner({ editorAPI }: HomeProps) {
 					<button
 						className={classes.logoutButton}
 						onClick={() => {
-							 
 							console.log('origin', window.location.origin);
 							editorAPI.doLogout(auth0Client);
 						}}
 					>
 						Sign Out
 					</button>
-				</div> : null}
+				</div>
+			) : null}
 			{getComponent(page)}
 		</Layout>
 	);
 }
 
-export default function App({ editorAPI }: HomeProps) {
+export default function App() {
 	// If demo mode is enabled, we use a mock access token provider
 	const mode = useAtomValue(overallModeAtom);
 	const needAuth = mode === OverallMode.full;
@@ -282,26 +273,23 @@ export default function App({ editorAPI }: HomeProps) {
 
 	return (
 		<ChatContextWrapper>
-			<EditorContextWrapper editorAPI={editorAPI}>
-				<Auth0Provider
-					domain={process.env.AUTH0_DOMAIN!}
-					clientId={process.env.AUTH0_CLIENT_ID!}
-					cacheLocation="localstorage"
-					useRefreshTokens={true}
-					useRefreshTokensFallback={true}
-					authorizationParams={{
-						 
-						redirect_uri: `${window.location.origin}/popup.html`,
-						scope: 'openid profile email read:posts',
-						audience: 'textfocals.com',
-						leeway: 10,
-					}}
-				>
-					<AccessTokenProvider>
-						<AppInner editorAPI={editorAPI} />
-					</AccessTokenProvider>
-				</Auth0Provider>
-			</EditorContextWrapper>
+			<Auth0Provider
+				domain={process.env.AUTH0_DOMAIN!}
+				clientId={process.env.AUTH0_CLIENT_ID!}
+				cacheLocation="localstorage"
+				useRefreshTokens={true}
+				useRefreshTokensFallback={true}
+				authorizationParams={{
+					redirect_uri: `${window.location.origin}/popup.html`,
+					scope: 'openid profile email read:posts',
+					audience: 'textfocals.com',
+					leeway: 10,
+				}}
+			>
+				<AccessTokenProvider>
+					<AppInner />
+				</AccessTokenProvider>
+			</Auth0Provider>
 		</ChatContextWrapper>
 	);
 }

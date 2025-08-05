@@ -1,16 +1,17 @@
 import { createRoot } from 'react-dom/client';
-import App, { HomeProps } from './pages/app';
+import App from './pages/app';
 import { wordEditorAPI } from '@/api/wordEditorAPI';
 
 import './taskpane.css';
 import { StrictMode } from 'react';
+import { EditorContext } from './contexts/editorContext';
 
 const container = document.getElementById('container')!;
 const root = createRoot(container);
 
 let isOfficeInitialized = false;
 
-const render = (Component: React.ComponentType<HomeProps>) => {
+const render = (Component: React.ComponentType) => {
 	if (!isOfficeInitialized) {
 		root.render(
 			<section className="ms-welcome__progress ms-u-fadeIn500">
@@ -21,7 +22,9 @@ const render = (Component: React.ComponentType<HomeProps>) => {
 	}
 	root.render(
 		<StrictMode>
-			<Component editorAPI={wordEditorAPI} />
+			<EditorContext.Provider value={wordEditorAPI}>
+				<Component />
+			</EditorContext.Provider>
 		</StrictMode>,
 	);
 };

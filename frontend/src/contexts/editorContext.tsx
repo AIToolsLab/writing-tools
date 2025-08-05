@@ -19,14 +19,3 @@ export const EditorContext = createContext<EditorAPI>({
 		return new Promise<void>((resolve) => resolve());
 	},
 });
-
-export default function EditorContextWrapper({
-	children,
-	editorAPI,
-}: PropsWithChildren<{ editorAPI: EditorAPI }>) {
-	return (
-		<EditorContext.Provider value={editorAPI}>
-			{children}
-		</EditorContext.Provider>
-	);
-}
