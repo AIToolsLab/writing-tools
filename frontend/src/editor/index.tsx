@@ -1,4 +1,4 @@
-import { useRef, useState, StrictMode } from 'react';
+import { useRef, useState, StrictMode, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 
@@ -48,7 +48,7 @@ export function EditorScreen({
 		selectionChangeHandlers.current.forEach((handler) => { handler(); });
 	};
 
-	const editorAPI: EditorAPI = {
+	const editorAPI: EditorAPI = useMemo(() => ({
 		doLogin: async (auth0Client: Auth0ContextInterface) => {
 			try {
 				await auth0Client.loginWithPopup();
@@ -87,7 +87,7 @@ export function EditorScreen({
 			console.warn('selectPhrase is not implemented yet');
 			return new Promise<void>((resolve) => resolve());
 		},
-	};
+	}), []);
 
 	const docUpdated = (docContext: DocContext) => {
 		docContextRef.current = docContext;
