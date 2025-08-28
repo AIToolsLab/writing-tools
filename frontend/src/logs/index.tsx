@@ -135,9 +135,11 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 			.map((entry, idx) => ({ entry, idx }))
 			.map(({ idx }) => idx);
 		// Set all to loading (null) first
-		setRegenResults(
-			indices.reduce((acc, i) => ({ ...acc, [i]: null }), {}),
-		);
+		const loadingResults: Record<number, string | null> = {};
+		for (const i of indices) {
+			loadingResults[i] = null;
+		}
+		setRegenResults(loadingResults);
 		await Promise.all(
 			indices.map(async (i) => {
 				const entry = annotatedEntries[i];
@@ -150,7 +152,11 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 				} catch (err) {
 					result = (err as Error).message;
 				}
-				setRegenResults((prev) => ({ ...prev, [i]: result }));
+				setRegenResults((prev) => {
+					const updated = { ...prev };
+					updated[i] = result;
+					return updated;
+				});
 			}),
 		);
 	};
