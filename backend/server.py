@@ -1,3 +1,4 @@
+import copy
 import io
 import json
 import logging
@@ -6,7 +7,7 @@ import zipfile
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Dict, List, Literal, Optional
+from typing import Annotated, Any, Dict, List, Literal
 
 import nlp
 import uvicorn
@@ -17,7 +18,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import AfterValidator, BaseModel, ConfigDict
+from pydantic import AfterValidator, BaseModel
 from sse_starlette.sse import EventSourceResponse
 
 logging.basicConfig(level=logging.INFO)
@@ -66,17 +67,42 @@ class GenerationRequestPayload(BaseModel):
     gtype: str
     prompt: str
 
+    def sanitized(self):
+        return GenerationRequestPayload(
+            username=self.username,
+            gtype=self.gtype,
+            prompt="[REDACTED]"
+        )
+
 
 class SuggestionRequestWithDocContext(BaseModel):
     username: ValidatedUsername
     gtype: str
     doc_context: nlp.DocContext
 
+    def sanitized(self):
+        return SuggestionRequestWithDocContext(
+            username=self.username,
+            gtype=self.gtype,
+            doc_context=nlp.DocContext(
+                beforeCursor="[REDACTED]",
+                afterCursor="[REDACTED]",
+                selectedText=f"({len(self.doc_context.selectedText)} characters)" if self.doc_context.selectedText else "",
+            )
+        )
+
 
 class ReflectionRequestPayload(BaseModel):
     username: ValidatedUsername
     paragraph: str  # TODO: update name
     prompt: str
+
+    def sanitized(self):
+        return ReflectionRequestPayload(
+            username=self.username,
+            paragraph="[REDACTED]",
+            prompt="[REDACTED]"
+        )
 
 
 class ReflectionResponseItem(BaseModel):
@@ -88,28 +114,23 @@ class ReflectionResponses(BaseModel):
 
 
 class ChatRequestPayload(BaseModel):
-    messages: List[Dict[str, str]]
+    messages: List[nlp.ChatCompletionMessageParam]
     username: ValidatedUsername
 
 
 class Log(BaseModel):
-    model_config = ConfigDict(extra='allow')
     timestamp: float
     ok: bool = True
     username: ValidatedUsername
     event: str
+    extra_data: Dict[str, Any] = {}
 
 
-class GenerationLog(Log):
-    generation_type: Literal["Completion", "Question", "Keywords", "Structure", "RMove"]
-    prompt: str
+class RequestLog(Log):
+    request_type: Literal["Generation", "Suggestion", "Reflection"]
+    request: GenerationRequestPayload | SuggestionRequestWithDocContext | ReflectionRequestPayload
     result: str
-    completion: Optional[str] = None
     delay: float
-
-
-class ReflectionLog(Log):
-    paragraph: str
 
 
 @asynccontextmanager
@@ -166,20 +187,18 @@ async def generation(payload: GenerationRequestPayload, background_tasks: Backgr
         raise ValueError(f"Invalid generation type: {payload.gtype}")
     end_time = datetime.now()
 
-    log_entry = GenerationLog(
+    log_entry = RequestLog(
         timestamp=end_time.timestamp(),
         username=payload.username,
         event="suggestion_generated",
-        generation_type=payload.gtype,
-        prompt=payload.prompt if should_log_doctext else "",
-        result=result.result if should_log_doctext else "",
+        request_type="Generation",
+        request=payload.sanitized() if not should_log_doctext else payload,
+        result=result.result if should_log_doctext else f"{len(result.result)} characters REDACTED",
         delay=(end_time - start_time).total_seconds(),
     )
     # add on extra data
     if should_log_doctext:
-        for key, value in result.extra_data.items():
-            if not hasattr(log_entry, key):
-                setattr(log_entry, key, value)
+        log_entry.extra_data = result.extra_data
     background_tasks.add_task(make_log, log_entry)
 
     final_end_time = datetime.now()
@@ -199,21 +218,17 @@ async def get_suggestion(payload: SuggestionRequestWithDocContext, background_ta
     result = await nlp.get_suggestion(payload.gtype, payload.doc_context)
     end_time = datetime.now()
 
-    # log_entry = GenerationLog(
-    #     timestamp=end_time.timestamp(),
-    #     username=payload.username,
-    #     event="suggestion_generated",
-    #     generation_type=payload.gtype,
-    #     prompt=payload.prompt if should_log_doctext else "",
-    #     result=result.result if should_log_doctext else "",
-    #     delay=(end_time - start_time).total_seconds(),
-    # )
-    # # add on extra data
-    # if should_log_doctext:
-    #     for key, value in result.extra_data.items():
-    #         if not hasattr(log_entry, key):
-    #             setattr(log_entry, key, value)
-    # background_tasks.add_task(make_log, log_entry)
+    log_entry = RequestLog(
+        timestamp=end_time.timestamp(),
+        username=payload.username,
+        event="suggestion_generated",
+        request_type="Suggestion",
+        request=payload.sanitized() if not should_log_doctext else payload,
+        result=result.result if should_log_doctext else f"{len(result.result)} characters REDACTED",
+        delay=(end_time - start_time).total_seconds(),
+    )
+
+    background_tasks.add_task(make_log, log_entry)
 
     final_end_time = datetime.now()
     log = final_end_time - start_time
@@ -229,38 +244,42 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
     result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph)
     end_time = datetime.now()
 
-    log_entry = ReflectionLog(
+    background_tasks.add_task(make_log, RequestLog(
+        timestamp=end_time.timestamp(),
         username=payload.username,
         event="reflection_generated",
-        prompt=payload.prompt if should_log_doctext else "",
-        paragraph=payload.paragraph if should_log_doctext else "",
-        timestamp=end_time.timestamp(),
+        request_type="Reflection",
+        request=payload.sanitized() if not should_log_doctext else payload,
+        result=result.result if should_log_doctext else f"{len(result.result)} characters REDACTED",
         delay=(end_time - start_time).total_seconds(),
-        result=result.result if should_log_doctext else "",
-    )
-
-    background_tasks.add_task(make_log, log_entry)
+    ))
 
     return result
 
 
 @app.post("/api/chat")
-async def chat(payload: ChatRequestPayload):
+async def chat(payload: ChatRequestPayload, background_tasks: BackgroundTasks):
+    should_log_doctext = should_log(payload.username)
+
+    start_time = datetime.now()
     response = await nlp.chat_stream(
         messages=payload.messages,
         temperature=0.7,
     )
 
-    # TODO: Fix logging
-    # messages_for_log = payload.messages if LOG_DOCTEXT else [{
-    #     "role": message.get("role", ""),
-    # } for message in payload.messages]
-    # make_log(
-    #    Log(username=payload.username,
-    # event="chat_message",
-    # prompt=payload.messages[-1]['content'],
-    # ui_id=None)
-    # )
+    messages_for_log = json.dumps(payload.messages if should_log_doctext else [{
+        "role": message.get("role", ""),
+        "content": f"{len(message.get('content', ''))} characters REDACTED" if isinstance(message.get('content'), str) else "[REDACTED]"
+    } for message in payload.messages])
+
+    background_tasks.add_task(make_log, Log(
+        timestamp=start_time.timestamp(),
+        username=payload.username,
+        event="chat_message",
+        extra_data={
+            "messages": messages_for_log
+        }
+    ))
 
     # Stream response
     async def generator():
@@ -272,8 +291,28 @@ async def chat(payload: ChatRequestPayload):
 
 
 @app.post("/api/log")
-async def log_feedback(payload: Log):
-    await make_log(payload)
+async def log_from_client(payload: Dict[str, Any], background_tasks: BackgroundTasks):
+    payload_copy = copy.deepcopy(payload)
+    extra_data = {}
+    if 'timestamp' in payload_copy:
+        extra_data['client_timestamp'] = payload_copy.pop('timestamp')
+    username = None
+    if 'username' in payload_copy:
+        try:
+            username = validate_username(payload_copy.get('username', ''))
+            # If validation succeeds...
+            del payload_copy['username']
+        except Exception:
+            pass
+    event = payload_copy.pop('event', 'unknown_event')
+    extra_data.update(payload_copy)
+    
+    background_tasks.add_task(make_log, Log(
+        timestamp=datetime.now().timestamp(),
+        username=username or "unknown",
+        event=event,
+        extra_data=extra_data
+    ))
 
     return {"message": "Feedback logged successfully."}
 

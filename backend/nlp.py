@@ -1,7 +1,7 @@
 from collections import defaultdict
 import os
 import random
-from typing import Any, Iterable, List, Dict, Literal, Optional
+from typing import Any, Iterable, List, Dict, Optional
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
