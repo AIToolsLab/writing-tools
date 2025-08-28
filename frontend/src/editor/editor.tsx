@@ -160,7 +160,7 @@ function LexicalEditor({
 	updateDocContext: (docContext: DocContext) => void;
 	initialState: InitialEditorStateType | null;
 	storageKey?: string;
-	preamble?: React.ReactNode;
+	preamble?: JSX.Element;
 }) {
 	return (
 		<LexicalComposer // Main editor component

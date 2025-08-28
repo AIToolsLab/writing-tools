@@ -1,11 +1,9 @@
 import { useSetAtom } from 'jotai';
 import { log } from '@/api';
-import {
-	currentTaskContextAtom,
-	studyConditionAtom,
-} from '@/contexts/studyContext';
+import { studyDataAtom } from '@/contexts/studyContext';
 import { EditorScreen } from '.';
 import classes from './styles.module.css';
+import { title } from 'process';
 
 const studyPageNames = [
 	'study-consentForm',
@@ -40,7 +38,7 @@ Write a response in which you examine the stated and/or unstated assumptions of 
 	},
 ];
 
-const hiringManagerTask = [
+const _hiringManagerTask = [
 		{
 			title: 'Prompt',
 			content: `You will write a professional email from the perspective of a fictional job applicant. Write a professional email to the hiring manager expressing your interest in the job position. Please read the following information carefully:`,
@@ -86,9 +84,70 @@ However, CRISPR also raises important ethical questions, particularly regarding 
 		},
 	];
 
+const summarizeMeetingNotesTask = [
+	{
+		title: 'Task',
+		content: "Write a brief follow-up email after a client meeting, referencing key details from the meeting notes"
+	},
+	{
+		title: 'Meeting Notes',
+		content: `
+Meeting Notes - TechStart Inc Client Meeting
+Date: Tuesday, March 12, 2024
+Attendee: Sarah Chen (CTO)
+Topic: Software license renewal discussion
+
+Raw notes:
+- Current $50K annual contract expires April 30
+- Sarah mentioned system has been "mostly solid" but had some downtime issues in January
+- Legal team is asking about data residency requirements - new EU clients coming onboard
+- Sarah seemed concerned about compliance but wasn't sure exactly what's needed
+- She mentioned budget might be tight this quarter, asked about payment options
+- Security audit - she said "we probably need one" but unclear on timeline
+- Their IT director (Mike) has been asking questions about our disaster recovery procedures
+- Sarah will talk to legal "sometime this week" about requirements
+- Also mentioned they're evaluating 2-3 other vendors "just as due diligence"
+- Asked if we could provide references from similar-sized companies
+- Meeting ended a bit abruptly - she had another call
+`
+	}
+]
+
+const summarizeMeetingNotesTaskFalse = [
+	summarizeMeetingNotesTask[0],
+	{
+		title: "Meeting Notes",
+		content: `\
+Meeting Notes - DataFlow Corp Client Meeting  
+Date: Wednesday, March 13, 2024
+Attendee: Sarah Liu (CTO)
+Topic: Consulting services contract discussion
+
+Raw notes:
+- Proposed $75K project fee for system integration
+- Current processes are "pretty inefficient" according to Sarah
+- Engineering team is concerned about timeline - they have a product launch in May
+- Sarah seemed enthusiastic about our approach but mentioned budget approval needed
+- Asked about our experience with similar integrations
+- Technical demo requested - she wants to show her team
+- Their head of engineering (Alex) has been skeptical of outside consultants
+- Sarah will check with engineering "early next week" about requirements  
+- Also mentioned they're considering building solution in-house
+- Asked if we could provide case studies from similar companies
+- Meeting went well - scheduled follow-up for next month
+`
+	}
+]
+
 const taskContexts: Record<string, ContextSection[]> = {
 	'1': unstatedAssumptionsTask,
-	'2': hiringManagerTask,
+	'2': summarizeMeetingNotesTask,//hiringManagerTask,
+	'3': explainCrisprTask
+};
+
+const falseContexts: Record<string, ContextSection[]> = {
+	'1': unstatedAssumptionsTask,
+	'2': summarizeMeetingNotesTaskFalse,
 	'3': explainCrisprTask
 };
 
@@ -139,8 +198,7 @@ function getBrowserMetadata() {
 }
 
 export function StudyRouter({ page }: { page: string }) {
-	const setStudyCondition = useSetAtom(studyConditionAtom);
-	const setCurrentTaskContext = useSetAtom(currentTaskContextAtom);
+	const setStudyData = useSetAtom(studyDataAtom);
 	const urlParams = new URLSearchParams(window.location.search);
 	const username = urlParams.get('username');
 	const conditionOrder = urlParams.get('order');
@@ -304,6 +362,7 @@ export function StudyRouter({ page }: { page: string }) {
 	} else if (page.startsWith('study-task')) {
 		const taskNumber = page.replace('study-task', '');
 		const curTaskContexts = taskContexts[taskNumber];
+		const falseContext = falseContexts[taskNumber];
 		const conditionConfig = conditionConfigs[taskNumber];
 
 		if (!conditionConfig) {
@@ -316,12 +375,29 @@ export function StudyRouter({ page }: { page: string }) {
 			return <div>Invalid task number</div>;
 		}
 		const taskID = `task${taskNumber}`;
-		setStudyCondition(taskCondition);
-		setCurrentTaskContext(curTaskContexts);
+		setStudyData((prevData) => ({
+			...prevData,
+			condition: taskCondition,
+			trueContext: curTaskContexts,
+			falseContext: falseContext,
+		}));
+
+		const editorPreamble = (
+		<>
+			{curTaskContexts.map((section, index) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: it will actually be mostly stable.
+				<div key={index}>
+					<h3 className="font-bold">{section.title}</h3>
+					<p className="whitespace-pre-line">{section.content}</p>
+				</div>
+			))}
+			<h3 className="mt-4 pt-3 pb-3 font-bold border-t-2">Write Here</h3>
+		</>
+	);
 
 		return (
 			<div>
-				<EditorScreen taskID={taskID} contextData={curTaskContexts} />
+				<EditorScreen taskID={taskID} contextData={falseContext} editorPreamble={editorPreamble} />
 
 				<button
 					type="button"

@@ -1,4 +1,9 @@
 import { atom } from 'jotai';
 
-export const studyConditionAtom = atom<string | null>(null);
-export const currentTaskContextAtom = atom<ContextSection[] | null>(null);
+export type StudyData = {
+    condition: string;
+    trueContext: ContextSection[];
+    falseContext: ContextSection[];
+};
+
+export const studyDataAtom = atom<StudyData | null>(null);

@@ -17,7 +17,7 @@ import { Remark } from 'react-remark';
 import { log, SERVER_URL } from '@/api';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
-import { studyConditionAtom } from '@/contexts/studyContext';
+import { studyDataAtom } from '@/contexts/studyContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import { iconFunc } from './iconFunc';
@@ -191,7 +191,7 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContextSnapshot = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
-	const studyCondition = useAtomValue(studyConditionAtom);
+	const studyData = useAtomValue(studyDataAtom);
 	const { getAccessToken, authErrorType } = useAccessToken();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
@@ -213,10 +213,10 @@ export default function Draft() {
 	// 	after: docContextSnapshot.afterCursor.slice(0, 50),
 	// });
 
-	const isStudy = studyCondition !== null;
+	const isStudy = studyData !== null;
 	const modesToShow = useMemo(
-		() => (isStudy ? [studyCondition] : modes),
-		[isStudy, studyCondition],
+		() => (isStudy ? [studyData.condition] : modes),
+		[isStudy, studyData],
 	);
 
 	const shouldAutoRefresh = isStudy;

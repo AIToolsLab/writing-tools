@@ -19,9 +19,11 @@ function Sidebar() {
 
 export function EditorScreen({
 	taskID,
+	editorPreamble,
 	contextData,
 }: {
 	taskID?: string;
+	editorPreamble?: JSX.Element;
 	contextData?: ContextSection[];
 }) {
 	const mode = useAtomValue(overallModeAtom);
@@ -134,19 +136,6 @@ export function EditorScreen({
 		return localStorage.getItem(storageKey) || undefined;
 	};
 
-	const preamble = contextData && (
-		<>
-			{contextData.map((section, index) => (
-				// biome-ignore lint/suspicious/noArrayIndexKey: it will actually be mostly stable.
-				<div key={index}>
-					<h3 className="font-bold">{section.title}</h3>
-					<p className="whitespace-pre-line">{section.content}</p>
-				</div>
-			))}
-			<h3 className="mt-4 pt-3 pb-3 font-bold border-t-2">Write Here</h3>
-		</>
-	);
-
 	return (
 		<div className={isDemo ? classes.democontainer : classes.container}>
 			<div className={isDemo ? classes.demoeditor : classes.editor}>
@@ -155,7 +144,7 @@ export function EditorScreen({
 					initialState={getInitialState()}
 					updateDocContext={docUpdated}
 					storageKey={getStorageKey()}
-					preamble={preamble}
+					preamble={editorPreamble}
 				/>
 				{isDemo || isStudy ? (
 					<div className={`${classes.wordCount}`}>
