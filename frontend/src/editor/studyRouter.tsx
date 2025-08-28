@@ -3,7 +3,6 @@ import { log } from '@/api';
 import { studyDataAtom } from '@/contexts/studyContext';
 import { EditorScreen } from '.';
 import classes from './styles.module.css';
-import { title } from 'process';
 
 const studyPageNames = [
 	'study-consentForm',
