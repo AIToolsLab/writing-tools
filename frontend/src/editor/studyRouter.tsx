@@ -31,16 +31,16 @@ const SURVEY_URLS = {
 	postStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_79DIQlYz4SJCwnk',
 };
 
-const taskContexts: Record<string, ContextSection[]> = {
-	'1': [
-		{
-			title: 'Prompt',
-			content: `The marketing director of RetailMax stated: 'Shifting our entire advertising budget to social media influencer partnerships will triple our sales among consumers aged 18-34. Influencer marketing generates 6 times higher engagement rates than traditional advertising. Young consumers trust influencer recommendations more than celebrity endorsements or TV commercials. This strategy will establish our brand as the preferred choice for the next generation of shoppers.'
+const unstatedAssumptionsTask = [
+	{
+		title: 'Prompt',
+		content: `The marketing director of RetailMax stated: 'Shifting our entire advertising budget to social media influencer partnerships will triple our sales among consumers aged 18-34. Influencer marketing generates 6 times higher engagement rates than traditional advertising. Young consumers trust influencer recommendations more than celebrity endorsements or TV commercials. This strategy will establish our brand as the preferred choice for the next generation of shoppers.'
 
 Write a response in which you examine the stated and/or unstated assumptions of the argument. Be sure to explain how the argument depends on the assumptions and what the implications are if the assumptions prove unwarranted.`,
-		},
-	],
-	'2': [
+	},
+];
+
+const hiringManagerTask = [
 		{
 			title: 'Prompt',
 			content: `You will write a professional email from the perspective of a fictional job applicant. Write a professional email to the hiring manager expressing your interest in the job position. Please read the following information carefully:`,
@@ -66,8 +66,9 @@ Write a response in which you examine the stated and/or unstated assumptions of 
 			content: `Administrative Coordinator - Community Health Center
 We're seeking an organized, detail-oriented Administrative Coordinator to support our busy community health center. Responsibilities include scheduling appointments, maintaining patient records, coordinating between departments, and providing excellent customer service to patients and families. The ideal candidate is a strong communicator who works well in a fast-paced environment and is passionate about helping others. Previous healthcare experience preferred but not required. We value reliability, empathy, and problem-solving skills.`,
 		},
-	],
-	'3': [
+	];
+
+const explainCrisprTask = 	[
 		{
 			title: 'Prompt',
 			content: `After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.`,
@@ -83,7 +84,12 @@ This technology has enormous potential for treating genetic diseases, improving 
 
 However, CRISPR also raises important ethical questions, particularly regarding its use in human embryos, which could create permanent changes that would be passed down to future generations. The scientific community continues to debate the appropriate boundaries for this powerful technology while working to ensure its safe and beneficial application.`,
 		},
-	],
+	];
+
+const taskContexts: Record<string, ContextSection[]> = {
+	'1': unstatedAssumptionsTask,
+	'2': hiringManagerTask,
+	'3': explainCrisprTask
 };
 
 const letterToCondition = {
