@@ -283,7 +283,7 @@ ${request}
 					<div key={prompt.keyword} className="">
 						<button
 							type="button"
-							onClick={() => requestVisualization(prompt)}
+							onClick={() => {requestVisualization(prompt); }}
 							className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors duration-150 shadow-sm border border-gray-200 mr-2 mb-2"
 						>
 							{prompt.keyword}

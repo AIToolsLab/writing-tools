@@ -45,7 +45,7 @@ export function EditorScreen({
 	const [wordCount, setWordCount] = useState<number>(0);
 
 	const handleSelectionChange = () => {
-		selectionChangeHandlers.current.forEach((handler) => handler());
+		selectionChangeHandlers.current.forEach((handler) => { handler(); });
 	};
 
 	const editorAPI: EditorAPI = {
