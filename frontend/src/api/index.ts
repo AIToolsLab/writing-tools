@@ -4,6 +4,7 @@ export const SERVER_URL = '/api';
 export interface LogPayload {
 	username: string;
 	event: string;
+	// biome-ignore lint/suspicious/noExplicitAny: Logs should be able to hold anything serializable
 	[key: string]: any;
 }
 
