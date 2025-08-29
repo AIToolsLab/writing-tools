@@ -30,8 +30,18 @@ const promptList: Prompt[] = [
 		isOverall: true,
 	},
 	{
+		keyword: "Possible Structure",
+		prompt: 'Imagine 3 possible overall structures for this document. For each structure, provide a short description of the structure and then a two-level outline of the structure. For each outline point, provide a reference (in link format) to material in the writer\'s current (provided) document that could be used as a starting point for that section.',
+		isOverall: true,
+	},
+	{
 		keyword: 'Where to Work Next',
 		prompt: 'List 7 places in the document that the writer could direct their attention to next. Respond with a Markdown list, most important first, where each item contains a doctext link to a specific part of the document, followed by a very short description of what aspect of that location could use attention. Include both places that the author has explicitly labeled as needing work (e.g., using TODO, brackets, all-caps, or other markers) and places that were not explicitly labeled but that could use work based on the content.',
+		isOverall: true,
+	},
+	{
+		keyword: "Related parts",
+		prompt: "Consider the part of the document near the cursor. List other parts of the document that are related to this part. Organize the list by type of relationship.",
 		isOverall: true,
 	},
 	{
