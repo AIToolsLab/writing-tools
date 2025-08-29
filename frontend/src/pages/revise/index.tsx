@@ -96,6 +96,33 @@ Our response MUST reference specific parts of the document. We use Markdown link
 
 When generating a visualization, it is critical that we remain faithful to the document provided. If we ever realize that we've deviated from the document text, even slightly, we must include a remark to that effect in [square brackets] as soon as possible after the deviation.`;
 
+
+function getDocTextAsPrompt(docContext: DocContext, contextChars = 100) {
+	let prompt = ``;
+	
+	if (docContext.contextData && docContext.contextData.length > 0) {
+		const contextSections = docContext.contextData.map(section => {
+			return `<context title="${section.title}">\n${section.content}</context>`;
+		}).join("\n\n");
+		prompt += `<additional-context><!-- Note: will *not* be visible to the reader of the document -->\n\n${contextSections}</additional-context>`;
+	}
+
+	prompt += `<writer-doc-so-far>
+${docContext.beforeCursor}${docContext.selectedText}${docContext.afterCursor}
+</writer-doc-so-far>
+`;
+
+	const beforeCursorTrim = docContext.beforeCursor.slice(-contextChars);
+	const afterCursorTrim = docContext.afterCursor.slice(0, contextChars);
+	if (docContext.selectedText === '') {
+		prompt += `\n\n## Text Right Before the Cursor\n\n"${beforeCursorTrim}"`;
+	} else {
+		prompt += `\n\n## Current Selection\n\n${docContext.selectedText}`;
+		prompt += `\n\n## Text Nearby The Selection\n\n"${beforeCursorTrim}${docContext.selectedText}${afterCursorTrim}"`;
+	}
+	return prompt;
+}
+
 class Visualization {
 	response: string;
 	id: string;
@@ -195,6 +222,8 @@ export default function Revise() {
 			setVisualizations((prev) => [...prev, newViz]);
 			/* Kick off a streaming request to the server to get the visualization response */
 
+			const docTextAsPrompt = getDocTextAsPrompt(docContext);
+
 			const chatMessages = [
 				{
 					role: 'system',
@@ -203,9 +232,7 @@ export default function Revise() {
 				{
 					role: 'user',
 					content: `
-<document>
-${docContext.beforeCursor}${docContext.selectedText}${docContext.afterCursor}
-</document>
+${docTextAsPrompt}
 
 <request>
 ${request}
