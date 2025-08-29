@@ -3,7 +3,6 @@ import { log } from '@/api';
 import { studyDataAtom } from '@/contexts/studyContext';
 import { EditorScreen } from '.';
 import classes from './styles.module.css';
-import { ConsentForm } from '@/components/ConsentForm';
 
 const studyPageNames = [
 	'study-consentForm',
@@ -23,6 +22,7 @@ const studyPageNames = [
 ];
 
 const SURVEY_URLS = {
+	consentForm: 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW',
 	preStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4',
 	postTask: 'https://calvin.co1.qualtrics.com/jfe/form/SV_8wPtqNx6ZjL2HJQ',
 	postStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_79DIQlYz4SJCwnk',
@@ -244,21 +244,25 @@ export function StudyRouter({ page }: { page: string }) {
     const isProlific = urlParams.get('isProlific') === 'true';
 
 	if (page === 'study-consentForm') {
-		const redirectURL = (
-			`${window.location.origin}/editor.html?${nextUrlParams.toString()}`
+		const redirectURL = encodeURIComponent(
+			window.location.origin + `/editor.html?${nextUrlParams.toString()}`,
 		);
+		const consentFormURL = SURVEY_URLS.consentForm;
 
 		return (
 			<div className={classes.studyIntroContainer}>
-				<ConsentForm
-					onConsent={() => {
+				<a
+					onClick={() => {
 						log({
 							username: username,
 							event: 'Consent Form',
 						});
-						window.location.href = redirectURL;
 					}}
-				/>
+					href={`${consentFormURL}?redirect_url=${redirectURL}&username=${username}`}
+					className={classes.startButton}
+				>
+					Sign Consent Form
+				</a>
 			</div>
 		);
 	} else if (page === 'study-intro') {
