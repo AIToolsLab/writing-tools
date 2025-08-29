@@ -70,6 +70,8 @@ class Fetcher {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
 			const generated = (await response.json()) as GenerationResult;
+			// Set previousRequest only when the response is successful
+			this.previousRequest = request;
 			return generated;
 		} catch (err: any) {
 			let errMsg = '';
@@ -78,7 +80,6 @@ class Fetcher {
 			else errMsg = `${err.name}: ${err.message}. Please try again.`;
 			throw new Error(errMsg);
 		} finally {
-			this.previousRequest = request;
 			this.requestInFlight = null;
 		}
 	}
