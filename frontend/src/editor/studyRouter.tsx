@@ -100,9 +100,17 @@ function getBrowserMetadata() {
 	};
 }
 
-function SurveyPage({ title, basename, questions, username, redirectURL, children }: { title: string; basename: string; questions: any[]; username: string; redirectURL: string; children?: React.ReactNode }) {
+function ScrollablePage({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="h-dvh overflow-y-scroll max-w-xl m-auto">
+		<div className="h-dvh overflow-y-scroll max-w-xl m-auto p-2 prose">
+			{children}
+		</div>
+	);
+}
+
+function SurveyPage({ title, basename, questions, username, redirectURL, children }: { title: string; basename: string; questions: QuestionType[]; username: string; redirectURL: string; children?: React.ReactNode }) {
+	return (
+		<ScrollablePage>
 			{children}
 			<Survey
 				title={title}
@@ -117,7 +125,7 @@ function SurveyPage({ title, basename, questions, username, redirectURL, childre
 						window.location.href = redirectURL;
 					}}
 				/>
-			</div>
+			</ScrollablePage>
 		);
 
 }
@@ -176,7 +184,7 @@ export function StudyRouter({ page }: { page: string }) {
 		const consentFormURL = SURVEY_URLS.consentForm;
 
 		return (
-			<div className={classes.studyIntroContainer}>
+			<div className='flex flex-col items-center justify-center text-center min-h-full max-w-lg m-auto p-2'>
 				<a
 					onClick={() => {
 						log({
@@ -193,17 +201,12 @@ export function StudyRouter({ page }: { page: string }) {
 		);
 	} else if (page === 'study-intro') {
 		return (
-			<div className={classes.studyIntroContainer}>
+			<ScrollablePage>
 				<h1>Welcome!</h1>
-				<p>
-					Thank you for agreeing to participate in our writing study.
-					You will be working on three different writing tasks. Each
-					task will have a different type of writing support. As you
-					write, please pay attention to the suggestions the writing
-					tool offers and use them when they seem helpful. There are
-					no right or wrong ways to interact with the tool. Your
-					responses will be kept confidential.
-				</p>
+				<p>Thank you for agreeing to participate in our writing study.</p>
+				<p>You will be working on a short writing task to help us understand how people use AI writing tools.</p>
+				<p>As you write, please pay attention to the suggestions the writing tool offers. Be aware the suggestions may be incorrect in various ways.</p>
+				<p>Your responses will be kept confidential.</p>
 				<button
 					type="button"
 					onClick={() => {
@@ -223,7 +226,7 @@ export function StudyRouter({ page }: { page: string }) {
 				>
 					Start Study
 				</button>
-			</div>
+			</ScrollablePage>
 		);
 	} else if (page === 'study-introSurvey') {
 		const redirectURL = (
