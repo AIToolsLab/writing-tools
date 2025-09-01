@@ -6,84 +6,19 @@ import classes from './styles.module.css';
 import { QuestionType, Survey } from '@/surveyViews';
 import * as SurveyData from '@/surveyData';
 
+const SURVEY_URLS = {
+	consentForm: 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW',
+};
+
 const studyPageNames = [
 	'study-consentForm',
 	'study-intro',
 	'study-introSurvey',
-	'study-startTask1',
-	'study-task1',
-	'study-postTask1',
-	'study-startTask2',
-	'study-task2',
-	'study-postTask2',
-	'study-startTask3',
-	'study-task3',
-	'study-postTask3',
-	'study-postStudySurvey',
+	'study-startTask',
+	'study-task',
+	'study-postTask',
 	'study-final',
 ];
-
-const SURVEY_URLS = {
-	consentForm: 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW',
-	preStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_eM6R5Yw7nnJ3jh4',
-	postTask: 'https://calvin.co1.qualtrics.com/jfe/form/SV_8wPtqNx6ZjL2HJQ',
-	postStudy: 'https://calvin.co1.qualtrics.com/jfe/form/SV_79DIQlYz4SJCwnk',
-};
-
-const unstatedAssumptionsTask = [
-	{
-		title: 'Prompt',
-		content: `The marketing director of RetailMax stated: 'Shifting our entire advertising budget to social media influencer partnerships will triple our sales among consumers aged 18-34. Influencer marketing generates 6 times higher engagement rates than traditional advertising. Young consumers trust influencer recommendations more than celebrity endorsements or TV commercials. This strategy will establish our brand as the preferred choice for the next generation of shoppers.'
-
-Write a response in which you examine the stated and/or unstated assumptions of the argument. Be sure to explain how the argument depends on the assumptions and what the implications are if the assumptions prove unwarranted.`,
-	},
-];
-
-const _hiringManagerTask = [
-		{
-			title: 'Prompt',
-			content: `You will write a professional email from the perspective of a fictional job applicant. Write a professional email to the hiring manager expressing your interest in the job position. Please read the following information carefully:`,
-		},
-		{
-			title: "Writer's Role",
-			content: `You are Sarah Martinez, writing an email about a job opportunity.`,
-		},
-		{
-			title: "Sarah's Background",
-			content: `- Recently completed an Associate's degree in General Studies
-- Worked 3 years as a shift supervisor at a busy coffee shop chain
-- Experience training new employees and handling customer complaints
-- Volunteered for 2 years at a local food bank, helping with intake and organization
-- Managed scheduling and inventory at the coffee shop
-- Bilingual (English/Spanish)
-- Known for staying calm under pressure and being very reliable
-- Interested in healthcare because she wants to help people in her community
-- Has some basic computer skills from college and work`,
-		},
-		{
-			title: 'Job Opportunity',
-			content: `Administrative Coordinator - Community Health Center
-We're seeking an organized, detail-oriented Administrative Coordinator to support our busy community health center. Responsibilities include scheduling appointments, maintaining patient records, coordinating between departments, and providing excellent customer service to patients and families. The ideal candidate is a strong communicator who works well in a fast-paced environment and is passionate about helping others. Previous healthcare experience preferred but not required. We value reliability, empathy, and problem-solving skills.`,
-		},
-	];
-
-const explainCrisprTask = 	[
-		{
-			title: 'Prompt',
-			content: `After reading these paragraphs, write a summary that explains CRISPR gene editing to your 11th grade biology classmates. Your goal is to help them understand what CRISPR is, how it works, and why it matters, using language and examples they would find clear and engaging.`,
-		},
-		{
-			title: 'Reference Documents',
-			content: `
-CRISPR-Cas9 is a revolutionary gene-editing technology that allows scientists to make precise changes to DNA. Originally discovered as part of bacteria's immune system, CRISPR works like molecular scissors that can cut DNA at specific locations and either remove, add, or replace genetic material.
-
-The CRISPR system consists of two main components: a guide RNA that identifies the target DNA sequence, and the Cas9 protein that acts as the cutting tool. When these components are introduced into a cell, they seek out the matching DNA sequence and make a precise cut. The cell's natural repair mechanisms then fix the break, allowing scientists to insert new genetic material or correct defective genes.
-
-This technology has enormous potential for treating genetic diseases, improving crops, and advancing medical research. Scientists have already begun clinical trials using CRISPR to treat conditions like sickle cell disease and certain types of cancer. In agriculture, researchers are developing crops that are more resistant to diseases and climate change.
-
-However, CRISPR also raises important ethical questions, particularly regarding its use in human embryos, which could create permanent changes that would be passed down to future generations. The scientific community continues to debate the appropriate boundaries for this powerful technology while working to ensure its safe and beneficial application.`,
-		},
-	];
 
 const summarizeMeetingNotesTask = [
 	{
@@ -140,45 +75,12 @@ Raw notes:
 	}
 ]
 
-const taskContexts: Record<string, ContextSection[]> = {
-	'1': unstatedAssumptionsTask,
-	'2': summarizeMeetingNotesTask,//hiringManagerTask,
-	'3': explainCrisprTask
-};
-
-const falseContexts: Record<string, ContextSection[]> = {
-	'1': unstatedAssumptionsTask,
-	'2': summarizeMeetingNotesTaskFalse,
-	'3': explainCrisprTask
-};
-
 const letterToCondition = {
 	e: 'example_sentences',
 	q: 'analysis_describe',
 	r: 'proposal_advice',
 };
 
-// This is the mapping of condition order letter abbreviation received from the URL parameter (eg. eqr, req, ...) to conditions.
-function mapInputToDict(input: string) {
-	const result: Record<string, { condition: string }> = {};
-	input.split('').forEach((letter, idx) => {
-		result[(idx + 1).toString()] = {
-			condition:
-				letterToCondition[letter as keyof typeof letterToCondition],
-		};
-	});
-	return result;
-}
-
-// This assigns generic labels to each task based on the order of the input string.
-function mapInputToLabels(input: string) {
-	const result: Record<string, { condition: string }> = {};
-	const taskLabel = ['Type A', 'Type B', 'Type C'];
-	input.split('').forEach((_, idx) => {
-		result[(idx + 1).toString()] = { condition: taskLabel[idx] };
-	});
-	return result;
-}
 
 function getBrowserMetadata() {
 	return {
@@ -196,6 +98,28 @@ function getBrowserMetadata() {
 		cookieEnabled: navigator.cookieEnabled,
 		onLine: navigator.onLine,
 	};
+}
+
+function SurveyPage({ title, basename, questions, username, redirectURL, children }: { title: string; basename: string; questions: any[]; username: string; redirectURL: string; children?: React.ReactNode }) {
+	return (
+		<div className="h-dvh overflow-y-scroll max-w-xl m-auto">
+			{children}
+			<Survey
+				title={title}
+				basename={basename}
+				questions={questions}
+				onAdvance={(surveyData: Record<string, any>) => {
+						log({
+							username: username,
+							event: `surveyComplete:${basename}`,
+							surveyData: surveyData,
+						});
+						window.location.href = redirectURL;
+					}}
+				/>
+			</div>
+		);
+
 }
 
 export function StudyRouter({ page }: { page: string }) {
@@ -232,8 +156,8 @@ export function StudyRouter({ page }: { page: string }) {
 		);
 	}
 
-	const conditionConfigs = mapInputToDict(conditionOrder);
-	const labelConfigs = mapInputToLabels(conditionOrder);
+	const conditionCode = conditionOrder[0];
+	const conditionName = letterToCondition[conditionCode as keyof typeof letterToCondition];
 
 	const studyPageIndex = studyPageNames.indexOf(page);
 	if (studyPageIndex === -1) {
@@ -247,7 +171,7 @@ export function StudyRouter({ page }: { page: string }) {
 
 	if (page === 'study-consentForm') {
 		const redirectURL = encodeURIComponent(
-			window.location.origin + `/editor.html?${nextUrlParams.toString()}`,
+			`${window.location.origin}/editor.html?${nextUrlParams.toString()}`,
 		);
 		const consentFormURL = SURVEY_URLS.consentForm;
 
@@ -257,7 +181,7 @@ export function StudyRouter({ page }: { page: string }) {
 					onClick={() => {
 						log({
 							username: username,
-							event: 'Consent Form',
+							event: 'launchConsentForm',
 						});
 					}}
 					href={`${consentFormURL}?redirect_url=${redirectURL}&username=${username}`}
@@ -291,7 +215,6 @@ export function StudyRouter({ page }: { page: string }) {
 							urlParameters: window.location.search,
 							browserMetadata: browserMetadata,
 							conditionOrder: conditionOrder,
-							conditionMappings: conditionConfigs,
 						});
 						urlParams.set('page', nextPage);
 						window.location.search = urlParams.toString();
@@ -315,100 +238,45 @@ export function StudyRouter({ page }: { page: string }) {
 			...SurveyData.aiWritingTools
 		]
 
-		return (
-			<div className="h-dvh overflow-y-scroll max-w-xl m-auto">
-				<Survey
-					title="Intro Survey"
-					basename="intro-survey"
-					questions={questions}
-					onAdvance={(surveyData: Record<string, any>) => {
-						log({
-							username: username,
-							event: 'Intro Survey',
-							surveyData: surveyData,
-						});
-						window.location.href = redirectURL;
-					}}
-				/>
-			</div>
-		);
-	} else if (page === 'study-introSurvey-qualtrics') {
-		const redirectURL = encodeURIComponent(
-			window.location.origin + `/editor.html?${nextUrlParams.toString()}`,
-		);
-		const introSurveyURL = SURVEY_URLS.preStudy;
-
-		return (
-			<div className={classes.studyIntroContainer}>
-				<a
-					onClick={() => {
-						log({
-							username: username,
-							event: 'Intro Survey',
-						});
-					}}
-					href={`${introSurveyURL}?redirect_url=${redirectURL}&username=${username}`}
-					className={classes.startButton}
-				>
-					Take the Intro Survey
-				</a>
-			</div>
-		);
-	} else if (page.startsWith('study-startTask')) {
-		const taskNumber = page.replace('study-startTask', '');
-		const conditionConfig = conditionConfigs[taskNumber];
-		const labelConfig = labelConfigs[taskNumber];
-
-		if (!conditionConfig) {
-			return <div>Invalid task number</div>;
-		}
-
-		const taskCondition = conditionConfig.condition;
-		const taskLabel = labelConfig.condition;
-
+		return <SurveyPage
+			title="Intro Survey"
+			basename="intro-survey"
+			questions={questions}
+			username={username}
+			redirectURL={redirectURL}
+		/>;
+	} else if (page === 'study-startTask') {
 		return (
 			<div className={classes.studyIntroContainer}>
 				<p>
-					Now you will start task {taskNumber} of 3. <br /> In this
-					task, you will be using Suggestion {taskLabel}.
+					On the next page, you'll be presented with a writing task.
+
+					Take up to 10-15 minutes to write 200-250 words.
 				</p>
 				<button
 					type="button"
 					onClick={() => {
 						log({
 							username: username,
-							event: `Started Task ${taskNumber}`,
-							taskNumber: taskNumber,
-							condition: taskCondition,
+							event: 'taskStart',
+							condition: conditionName,
 						});
 						urlParams.set('page', nextPage);
 						window.location.search = urlParams.toString();
 					}}
 					className={classes.startButton}
 				>
-					Start Task {taskNumber}
+					Start Writing Task
 				</button>
 			</div>
 		);
-	} else if (page.startsWith('study-task')) {
-		const taskNumber = page.replace('study-task', '');
-		const curTaskContexts = taskContexts[taskNumber];
-		const falseContext = falseContexts[taskNumber];
-		const conditionConfig = conditionConfigs[taskNumber];
+	} else if (page === 'study-task') {
+		const curTaskContexts = summarizeMeetingNotesTask;
+		const falseContext = summarizeMeetingNotesTaskFalse;
 
-		if (!conditionConfig) {
-			return <div>Invalid task number</div>;
-		}
-
-		const taskCondition = conditionConfig.condition;
-
-		if (!curTaskContexts) {
-			return <div>Invalid task number</div>;
-		}
-		const taskID = `task${taskNumber}`;
 		setStudyData((prevData) => ({
 			...prevData,
-			condition: taskCondition,
+			condition: conditionName,
 			trueContext: curTaskContexts,
 			falseContext: falseContext,
 		}));
@@ -428,16 +296,16 @@ export function StudyRouter({ page }: { page: string }) {
 
 		return (
 			<div>
-				<EditorScreen taskID={taskID} contextData={falseContext} editorPreamble={editorPreamble} />
+				<EditorScreen contextData={falseContext} editorPreamble={editorPreamble} />
 
 				<button
 					type="button"
 					onClick={() => {
 						log({
 							username: username,
-							event: `Finished Task ${taskNumber}`,
-							taskNumber: taskNumber,
-							condition: taskCondition,
+							event: 'taskComplete',
+							condition: conditionName,
+							// TODO: add the document text here
 						});
 						urlParams.set('page', nextPage);
 						window.location.search = urlParams.toString();
@@ -452,73 +320,26 @@ export function StudyRouter({ page }: { page: string }) {
 		const redirectURL = encodeURIComponent(
 			`${window.location.origin}/editor.html?${nextUrlParams.toString()}`,
 		);
-		const taskNumber = page.replace('study-postTask', '');
-		const conditionConfig = conditionConfigs[taskNumber];
-		const labelConfig = labelConfigs[taskNumber];
 
-		if (!conditionConfig) {
-			return <div>Invalid task number</div>;
-		}
-
-		const taskCondition = conditionConfig.condition;
-		const taskLabel = labelConfig.condition;
-
-		const postTaskSurveyURL = SURVEY_URLS.postTask;
+		const postTaskSurveyQuestions = [
+			...SurveyData.tlxQuestions,
+			SurveyData.techDiff,
+			SurveyData.otherFinal
+		];
 
 		return (
-			<div className={classes.studyIntroContainer}>
+			<SurveyPage
+				title="Post Task Survey"
+				basename="postTask"
+				questions={postTaskSurveyQuestions}
+				username={username}
+				redirectURL={redirectURL}
+			>
 				<p>
-					Thank you for completing Task {taskNumber} using Suggestion{' '}
-					{taskLabel}. <br /> Please take a moment to complete a brief
+					Thank you for completing the writing task. <br /> Please take a moment to complete a brief
 					survey.
 				</p>
-				<a
-					onClick={() => {
-						log({
-							username: username,
-							event: `Started Post Task Survey ${taskNumber}`,
-							taskNumber: taskNumber,
-							condition: taskCondition,
-						});
-					}}
-					href={`${postTaskSurveyURL}?redirect_url=${redirectURL}&username=${username}&condition=${taskCondition}&task=${taskNumber}&suggestion_type=${taskLabel}`}
-					className={classes.startButton}
-				>
-					Take the Post Task Survey
-				</a>
-			</div>
-		);
-	} else if (page === 'study-postStudySurvey') {
-		let redirectURL: string;
-		if (isProlific) {
-			redirectURL =
-				'https://app.prolific.com/submissions/complete?cc=C998008G';
-		} else {
-			redirectURL = encodeURIComponent(
-				`${window.location.origin}/editor.html?${nextUrlParams.toString()}`,
-			);
-		}
-		const postStudySurveyURL = SURVEY_URLS.postStudy;
-
-		return (
-			<div className={classes.studyIntroContainer}>
-				<p>
-					Thank you for completing all three writing tasks. Please
-					take a moment to complete the final survey.
-				</p>
-				<a
-					onClick={() => {
-						log({
-							username: username,
-							event: 'Started Final Survey',
-						});
-					}}
-					href={`${postStudySurveyURL}?redirect_url=${redirectURL}&username=${username}`}
-					className={classes.startButton}
-				>
-					Take the Final Survey
-				</a>
-			</div>
+			</SurveyPage>
 		);
 	} else if (page === 'study-final') {
 		return (
