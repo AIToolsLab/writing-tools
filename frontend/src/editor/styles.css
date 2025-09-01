@@ -1,2 +1,32 @@
 @import 'tailwindcss';
 @plugin "@tailwindcss/typography";
+
+/* Custom styles */
+/** Survey Views */
+.Question textarea {
+  width: 100%;
+}
+
+@keyframes complete {
+  from,
+  to {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(0.75);
+  }
+}
+
+.Question.missing {
+  /*background: hsl(0, 81%, 94%);*/
+  /*border-left: 2px dashed red;*/
+  border-left: 2px solid transparent;
+}
+
+.Question.complete {
+  border-left: 2px solid green;
+  /*hsl(150, 77%, 95%);*/
+  /*opacity: .7;*/
+  transition: border-left-color .25s ease-in-out;
+}

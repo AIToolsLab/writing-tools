@@ -23,11 +23,18 @@ export const ControlledInput = ({
     };
     const proto = multiline ? "textarea" : "input";
     const innerProps: Record<string, any> = {};
+    // Tailwind classes for consistent styling
+    const baseClass =
+      "block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-base text-gray-900 placeholder-gray-400 focus:border-violet-500 focus:outline-none focus:ring-2 focus:ring-violet-300 disabled:bg-gray-100 disabled:text-gray-400";
     if (!multiline) {
       innerProps.autoComplete = "off";
       innerProps.autoCorrect = "off";
       innerProps.autoCapitalize = "on";
       innerProps.spellCheck = "false";
+      innerProps.type = props.type || "text";
+      innerProps.className = `${baseClass} min-h-[2.5rem]`;
+    } else {
+      innerProps.className = `${baseClass} resize-y min-h-[5rem]`;
     }
     innerProps.name = name;
     innerProps.onChange = (evt: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
