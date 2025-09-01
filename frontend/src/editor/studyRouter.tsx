@@ -3,6 +3,8 @@ import { log } from '@/api';
 import { studyDataAtom } from '@/contexts/studyContext';
 import { EditorScreen } from '.';
 import classes from './styles.module.css';
+import { Survey } from '@/surveyViews';
+import * as SurveyData from '@/surveyData';
 
 const studyPageNames = [
 	'study-consentForm',
@@ -298,6 +300,32 @@ export function StudyRouter({ page }: { page: string }) {
 				>
 					Start Study
 				</button>
+			</div>
+		);
+	} else if (page === 'study-introSurvey-local') {
+		const redirectURL = (
+			`${window.location.origin}/editor.html?${nextUrlParams.toString()}`
+		);
+
+		const questions = [
+			SurveyData.age,
+			SurveyData.gender,
+		]
+
+		return (
+			<div className={classes.studyIntroContainer}>
+				<Survey
+					title="Intro Survey"
+					basename="intro-survey"
+					questions={questions}
+					onAdvance={() => {
+						log({
+							username: username,
+							event: 'Intro Survey',
+						});
+						window.location.href = redirectURL;
+					}}
+				/>
 			</div>
 		);
 	} else if (page === 'study-introSurvey') {
