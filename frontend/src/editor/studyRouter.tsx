@@ -1,5 +1,5 @@
 import { useSetAtom } from 'jotai';
-import { log } from '@/api';
+import { log, LogPayload } from '@/api';
 import { studyDataAtom } from '@/contexts/studyContext';
 import { EditorScreen } from '.';
 import classes from './styles.module.css';
@@ -100,9 +100,15 @@ function getBrowserMetadata() {
 	};
 }
 
+function logThenRedirect(payload: LogPayload, redirectURL: string) {
+	log(payload).then(() => {
+		window.location.href = redirectURL;
+	});
+}
+
 function ScrollablePage({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="h-dvh overflow-y-scroll max-w-xl m-auto p-2 prose">
+		<div className="h-dvh overflow-y-scroll max-w-3xl m-auto p-2 prose">
 			{children}
 		</div>
 	);
@@ -117,12 +123,11 @@ function SurveyPage({ title, basename, questions, username, redirectURL, childre
 				basename={basename}
 				questions={questions}
 				onAdvance={(surveyData: Record<string, any>) => {
-						log({
+					logThenRedirect({
 							username: username,
 							event: `surveyComplete:${basename}`,
 							surveyData: surveyData,
-						});
-						window.location.href = redirectURL;
+						}, redirectURL);
 					}}
 				/>
 			</ScrollablePage>
@@ -175,12 +180,10 @@ export function StudyRouter({ page }: { page: string }) {
 	const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
     const nextUrlParams = new URLSearchParams(window.location.search);
     nextUrlParams.set('page', nextPage);
+	const nextPageURL = `${window.location.origin}/editor.html?${nextUrlParams.toString()}`;
     const isProlific = urlParams.get('isProlific') === 'true';
 
 	if (page === 'study-consentForm') {
-		const redirectURL = encodeURIComponent(
-			`${window.location.origin}/editor.html?${nextUrlParams.toString()}`,
-		);
 		const consentFormURL = SURVEY_URLS.consentForm;
 
 		return (
@@ -192,7 +195,7 @@ export function StudyRouter({ page }: { page: string }) {
 							event: 'launchConsentForm',
 						});
 					}}
-					href={`${consentFormURL}?redirect_url=${redirectURL}&username=${username}`}
+					href={`${consentFormURL}?redirect_url=${encodeURIComponent(nextPageURL)}&username=${username}`}
 					className={classes.startButton}
 				>
 					Sign Consent Form
@@ -212,15 +215,13 @@ export function StudyRouter({ page }: { page: string }) {
 					onClick={() => {
 						const browserMetadata = getBrowserMetadata();
 
-						log({
+						logThenRedirect({
 							username: username,
 							event: 'Started Study',
 							urlParameters: window.location.search,
 							browserMetadata: browserMetadata,
 							conditionOrder: conditionOrder,
-						});
-						urlParams.set('page', nextPage);
-						window.location.search = urlParams.toString();
+						}, nextPageURL);
 					}}
 					className={classes.startButton}
 				>
@@ -229,10 +230,6 @@ export function StudyRouter({ page }: { page: string }) {
 			</ScrollablePage>
 		);
 	} else if (page === 'study-introSurvey') {
-		const redirectURL = (
-			`${window.location.origin}/editor.html?${nextUrlParams.toString()}`
-		);
-
 		const questions: QuestionType[] = [
 			SurveyData.age,
 			SurveyData.gender,
@@ -246,7 +243,7 @@ export function StudyRouter({ page }: { page: string }) {
 			basename="intro-survey"
 			questions={questions}
 			username={username}
-			redirectURL={redirectURL}
+			redirectURL={nextPageURL}
 		/>;
 	} else if (page === 'study-startTask') {
 		return (
@@ -259,13 +256,11 @@ export function StudyRouter({ page }: { page: string }) {
 				<button
 					type="button"
 					onClick={() => {
-						log({
+						logThenRedirect({
 							username: username,
 							event: 'taskStart',
 							condition: conditionName,
-						});
-						urlParams.set('page', nextPage);
-						window.location.search = urlParams.toString();
+						}, nextPageURL);
 					}}
 					className={classes.startButton}
 				>
@@ -304,14 +299,12 @@ export function StudyRouter({ page }: { page: string }) {
 				<button
 					type="button"
 					onClick={() => {
-						log({
+						logThenRedirect({
 							username: username,
 							event: 'taskComplete',
 							condition: conditionName,
 							// TODO: add the document text here
-						});
-						urlParams.set('page', nextPage);
-						window.location.search = urlParams.toString();
+						}, nextPageURL);
 					}}
 					className={classes.doneButton}
 				>
@@ -320,10 +313,6 @@ export function StudyRouter({ page }: { page: string }) {
 			</div>
 		);
 	} else if (page.startsWith('study-postTask')) {
-		const redirectURL = encodeURIComponent(
-			`${window.location.origin}/editor.html?${nextUrlParams.toString()}`,
-		);
-
 		const postTaskSurveyQuestions = [
 			...SurveyData.tlxQuestions,
 			SurveyData.techDiff,
@@ -336,7 +325,7 @@ export function StudyRouter({ page }: { page: string }) {
 				basename="postTask"
 				questions={postTaskSurveyQuestions}
 				username={username}
-				redirectURL={redirectURL}
+				redirectURL={nextPageURL}
 			>
 				<p>
 					Thank you for completing the writing task. <br /> Please take a moment to complete a brief

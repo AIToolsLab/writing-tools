@@ -13,7 +13,7 @@ export function log(payload: LogPayload) {
 		...payload,
 		timestamp: Date.now() / 1000,
 	};
-	fetch(`${SERVER_URL}/log`, {
+	return fetch(`${SERVER_URL}/log`, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
