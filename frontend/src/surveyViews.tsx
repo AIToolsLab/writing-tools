@@ -4,19 +4,34 @@ import React from "react";
 import { ControlledInput, OptionsInput, NextBtn, LikertInput, inputStateAtom } from "./ControlledInput";
 import { useAtomValue } from "jotai";
 
+export interface QuestionHeaderType {
+  text: string | JSX.Element;
+};
+
+export interface QuestionBodyType {
+  text: string | JSX.Element;
+  name: string;
+  responseType: string;
+  levels?: string[];
+  optional?: boolean;
+  flags?: Record<string, any>;
+};
+
+export type QuestionType = QuestionHeaderType | QuestionBodyType;
+
 function classNames(...args: (string | null | undefined)[]) {
   return args.filter(Boolean).join(" ");
 }
 
-export function likert(name: string, text: (string | JSX.Element), degrees: number, labels: [string, string]) {
-  const options: string[] = Array(degrees).fill("");
-  options[0] = labels[0];
-  options[degrees - 1] = labels[1];
+export function likert(name: string, text: (string | JSX.Element), degrees: number, labels: [string, string]): QuestionBodyType {
+  const levels: string[] = Array(degrees).fill("");
+  levels[0] = labels[0];
+  levels[degrees - 1] = labels[1];
   return {
     text,
     name,
     responseType: "likert",
-    options,
+    levels,
   };
 }
 
@@ -94,14 +109,6 @@ export const ColumnDictionary = inject("state")(() => (
 
 */
 
-interface QuestionType {
-  text: string | JSX.Element;
-  name: string;
-  responseType: string;
-  options?: string[];
-  flags?: Record<string, any>;
-};
-
 const Question = ({ basename, question }: {
   basename: string;
   question: QuestionType
@@ -110,7 +117,7 @@ const Question = ({ basename, question }: {
     let responseType = null;
     let responseVarName = null;
     let responseClass = null;
-    if (question.responseType) {
+    if ('responseType' in question) {
       console.assert(question.responseType in responseTypes);
       responseType = responseTypes[question.responseType];
       responseVarName = `${basename}-${question.name}`;

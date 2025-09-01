@@ -3,7 +3,7 @@ import { log } from '@/api';
 import { studyDataAtom } from '@/contexts/studyContext';
 import { EditorScreen } from '.';
 import classes from './styles.module.css';
-import { Survey } from '@/surveyViews';
+import { QuestionType, Survey } from '@/surveyViews';
 import * as SurveyData from '@/surveyData';
 
 const studyPageNames = [
@@ -302,33 +302,37 @@ export function StudyRouter({ page }: { page: string }) {
 				</button>
 			</div>
 		);
-	} else if (page === 'study-introSurvey-local') {
+	} else if (page === 'study-introSurvey') {
 		const redirectURL = (
 			`${window.location.origin}/editor.html?${nextUrlParams.toString()}`
 		);
 
-		const questions = [
+		const questions: QuestionType[] = [
 			SurveyData.age,
 			SurveyData.gender,
+			SurveyData.english_proficiency,
+			SurveyData.chatbotFamiliar,
+			...SurveyData.aiWritingTools
 		]
 
 		return (
-			<div className={classes.studyIntroContainer}>
+			<div className="h-dvh overflow-y-scroll max-w-xl m-auto">
 				<Survey
 					title="Intro Survey"
 					basename="intro-survey"
 					questions={questions}
-					onAdvance={() => {
+					onAdvance={(surveyData: Record<string, any>) => {
 						log({
 							username: username,
 							event: 'Intro Survey',
+							surveyData: surveyData,
 						});
 						window.location.href = redirectURL;
 					}}
 				/>
 			</div>
 		);
-	} else if (page === 'study-introSurvey') {
+	} else if (page === 'study-introSurvey-qualtrics') {
 		const redirectURL = encodeURIComponent(
 			window.location.origin + `/editor.html?${nextUrlParams.toString()}`,
 		);

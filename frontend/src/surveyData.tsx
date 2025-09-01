@@ -1,8 +1,8 @@
 // From https://github.com/kcarnold/textrec/blob/master/src/frontend/src/SurveyData.js
 
-import { likert, agreeLikert } from "./surveyViews";
+import { likert, agreeLikert, QuestionType } from "./surveyViews";
 
-export const otherMid = {
+export const otherMid: QuestionType = {
   text:
     "Any other comments? (There will be more surveys before the end of the experiment.)",
   responseType: "text",
@@ -37,7 +37,7 @@ const postTaskBaseQuestions = [
 ];
 */
 
-export const tlxQuestions = [
+export const tlxQuestions: QuestionType[] = [
   likert("mental", "How mentally demanding was the task?", 7, [
     "Very low",
     "Very high",
@@ -128,6 +128,37 @@ export const english_proficiency = {
   name: "english_proficiency",
   options: ["Basic", "Conversational", "Fluent", "Native or bilingual"],
 };
+
+export const chatbotFamiliar: QuestionType = likert(
+  "chatbotFamiliar",
+  "How familiar are you with AI chatbots such as ChatGPT, Google Gemini, Microsoft Copilot and other similar platforms?",
+  5,
+  ["Not familiar at all", "Extremely familiar"]
+);
+
+
+/*
+      Generating portions of text (e.g. using ChatGPT, Google Gemini, Microsoft Copilot)         Writing with auto-completion (e.g. Grammarly, Google Docs/MS Word text prediction)         Writing with auto-correction (e.g. Grammarly, Google Docs/MS Word text correction)         Using smart replies (e.g. Gmail, Microsoft Outlook)         Others (Please specify below, in adequate detail)               
+        */
+
+export const aiWritingTools: QuestionType[] = [
+  {
+    text: "How often do you use the following kinds of AI writing tools?"
+  },
+  likert("generatingText", "Generating portions of text (e.g. using ChatGPT, Google Gemini, Microsoft Copilot)", 5, ["Never", "Very frequently"]),
+  likert("autoCompletion", "Writing with auto-completion (e.g. Grammarly, Google Docs/MS Word text prediction)", 5, ["Never", "Very frequently"]),
+  likert("autoCorrection", "Writing with auto-correction (e.g. Grammarly, Google Docs/MS Word text correction)", 5, ["Never", "Very frequently"]),
+  likert("smartReplies", "Using smart replies (e.g. Gmail, Microsoft Outlook)", 5, ["Never", "Very frequently"]),
+  {
+    text: "Briefly describe any other use of AI writing tools",
+    responseType: "text",
+    name: "otherAIWritingTools",
+    optional: true,
+    flags: { multiline: true, placeholder: "optional" },
+  }
+]
+
+
 
 export const techDiff = {
   text:

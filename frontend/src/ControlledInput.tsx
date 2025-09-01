@@ -160,7 +160,13 @@ export const NextBtn = (props: NextBtnProps) => {
   return (
     <button
       type="button"
-      className="NextBtn"
+      className={
+        [
+          "bg-white border border-solid rounded-md text-black cursor-pointer inline-block text-[1.1em] font-bold h-8 leading-8 px-12 text-center no-underline whitespace-nowrap border-[#9b4dca]",
+          // Disabled state
+          !enabled ? "text-gray-400 border-gray-400 cursor-not-allowed" : "hover:bg-violet-50 focus:ring-2 focus:ring-violet-300"
+        ].join(' ')
+      }
       onClick={() => {
         if (!props.confirm || window.confirm("Are you sure?")) {
           props.advance();
