@@ -146,9 +146,9 @@ export const aiWritingTools: QuestionType[] = [
     text: "How often do you use the following kinds of AI writing tools?"
   },
   likert("generatingText", "Generating portions of text (e.g. using ChatGPT, Google Gemini, Microsoft Copilot)", 5, ["Never", "Very frequently"]),
-  likert("autoCompletion", "Writing with auto-completion (e.g. Grammarly, Google Docs/MS Word text prediction)", 5, ["Never", "Very frequently"]),
-  likert("autoCorrection", "Writing with auto-correction (e.g. Grammarly, Google Docs/MS Word text correction)", 5, ["Never", "Very frequently"]),
-  likert("smartReplies", "Using smart replies (e.g. Gmail, Microsoft Outlook)", 5, ["Never", "Very frequently"]),
+  likert("autoCorrection", "Writing with correction suggestions (e.g. Grammarly, Google Docs/MS Word text correction)", 5, ["Never", "Very frequently"]),
+  likert("autoCompletion", "Writing with completion suggestions (e.g. Grammarly, Google Docs/MS Word text prediction)", 5, ["Never", "Very frequently"]),
+  likert("smartReplies", "Using 'smart replies' (e.g. complete-message suggestions in Gmail or Microsoft Outlook)", 5, ["Never", "Very frequently"]),
   {
     text: "Briefly describe any other use of AI writing tools",
     responseType: "text",
