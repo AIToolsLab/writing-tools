@@ -268,11 +268,14 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
     
     # Shuffle with deterministic seed
     random.seed(shuffle_seed)
-    random.shuffle(all_suggestions)
-    
-    # Take first 3 suggestions
-    selected_suggestions = all_suggestions[:3]
-    
+
+    # Ensure that the 3 selected suggestions include at least 1 true and 1 false
+    while True:
+        random.shuffle(all_suggestions)
+        selected_suggestions = all_suggestions[:3]
+        if len(set(item["source"] for item in selected_suggestions)) > 1:
+            break
+
     # Create markdown response
     markdown_response = "\n\n".join([f"- {item['content']}" for item in selected_suggestions])
     
