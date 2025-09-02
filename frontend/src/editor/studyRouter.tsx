@@ -294,7 +294,7 @@ export function StudyRouter({ page }: { page: string }) {
 
 		return (
 			<div>
-				<EditorScreen contextData={falseContext} editorPreamble={editorPreamble} />
+				<EditorScreen contextData={curTaskContexts} falseContextData={falseContext} editorPreamble={editorPreamble} />
 
 				<button
 					type="button"

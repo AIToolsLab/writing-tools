@@ -21,10 +21,12 @@ export function EditorScreen({
 	taskID,
 	editorPreamble,
 	contextData,
+	falseContextData,
 }: {
 	taskID?: string;
 	editorPreamble?: JSX.Element;
 	contextData?: ContextSection[];
+	falseContextData?: ContextSection[];
 }) {
 	const mode = useAtomValue(overallModeAtom);
 	const username = useAtomValue(usernameAtom);
@@ -94,6 +96,9 @@ export function EditorScreen({
 
 		if (contextData) {
 			docContext.contextData = contextData;
+		}
+		if (falseContextData) {
+			docContext.falseContextData = falseContextData;
 		}
 
 		// Log the document update only for study purposes

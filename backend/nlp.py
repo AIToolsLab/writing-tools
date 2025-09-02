@@ -1,4 +1,7 @@
+import asyncio
 from collections import defaultdict
+import hashlib
+import json
 import os
 import random
 from typing import Any, Iterable, List, Dict, Optional
@@ -12,7 +15,7 @@ from openai.types.chat.chat_completion_message_param import ChatCompletionMessag
 from openai import AsyncOpenAI
 
 MODEL_NAME = "gpt-4o"
-DEBUG_PROMPTS = False
+DEBUG_PROMPTS = True
 
 # Create OpenAI client
 load_dotenv()
@@ -145,6 +148,7 @@ class ContextSection(BaseModel):
 
 class DocContext(BaseModel):
     contextData: Optional[List[ContextSection]] = None
+    falseContextData: Optional[List[ContextSection]] = None
     beforeCursor: str
     selectedText: str
     afterCursor: str
@@ -157,12 +161,15 @@ class GenerationResult(BaseModel):
 
 
 
-def get_full_prompt(prompt_name: str, doc_context: DocContext, context_chars: int = 100) -> str:
+def get_full_prompt(prompt_name: str, doc_context: DocContext, context_chars: int = 100, use_false_context: bool = False) -> str:
     prompt = prompts[prompt_name]
 
-    if doc_context.contextData:
+    # Choose which context to use based on the flag
+    context_data = doc_context.falseContextData if use_false_context else doc_context.contextData
+    
+    if context_data:
         context_sections = "\n\n".join(
-            [f"## {section.title}\n\n{section.content}" for section in doc_context.contextData]
+            [f"## {section.title}\n\n{section.content}" for section in context_data]
         )
         prompt += f"\n\n# Additional Context (will *not* be visible to the reader of the document):\n\n{context_sections}"
 
@@ -187,10 +194,13 @@ class SuggestionResponse(BaseModel):
     suggestions: List[SuggestionItem]
 
 
-async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
-    full_prompt = get_full_prompt(prompt_name, doc_context)
+async def _get_suggestions_from_context(prompt_name: str, doc_context: DocContext, use_false_context: bool = False) -> List[SuggestionItem]:
+    """Helper function to get suggestions from a specific context"""
+    full_prompt = get_full_prompt(prompt_name, doc_context, use_false_context=use_false_context)
     if DEBUG_PROMPTS:
-        print(f"Prompt for {prompt_name}:\n{full_prompt}\n")
+        context_type = "false" if use_false_context else "true"
+        print(f"Prompt for {prompt_name} ({context_type} context):\n{full_prompt}\n")
+    
     completion = await openai_client.chat.completions.parse(
         model=MODEL_NAME,
         messages=[
@@ -200,14 +210,82 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
         response_format=SuggestionResponse
     )
 
-    # Extract the response content from the parsed message
     suggestion_response = completion.choices[0].message.parsed
     if not suggestion_response or not suggestion_response.suggestions:
         raise ValueError("No suggestions found in the response.")
-    markdown_response = "\n\n".join(
-        [f"- {item.content}" for item in suggestion_response.suggestions]
-    )
-    return GenerationResult(generation_type=prompt_name, result=markdown_response, extra_data={})
+    
+    return suggestion_response.suggestions
+
+
+async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
+    # If falseContextData is None/empty, use baseline behavior
+    if not doc_context.falseContextData:
+        full_prompt = get_full_prompt(prompt_name, doc_context)
+        if DEBUG_PROMPTS:
+            print(f"Prompt for {prompt_name} (baseline):\n{full_prompt}\n")
+        completion = await openai_client.chat.completions.parse(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are a helpful and insightful writing assistant."},
+                {"role": "user", "content": full_prompt}
+            ],
+            response_format=SuggestionResponse
+        )
+
+        suggestion_response = completion.choices[0].message.parsed
+        if not suggestion_response or not suggestion_response.suggestions:
+            raise ValueError("No suggestions found in the response.")
+        markdown_response = "\n\n".join(
+            [f"- {item.content}" for item in suggestion_response.suggestions]
+        )
+        return GenerationResult(generation_type=prompt_name, result=markdown_response, extra_data={})
+
+    # Study mode: parallel calls with mixing
+    true_suggestions_task = _get_suggestions_from_context(prompt_name, doc_context, use_false_context=False)
+    false_suggestions_task = _get_suggestions_from_context(prompt_name, doc_context, use_false_context=True)
+    
+    # Execute both calls in parallel
+    true_suggestions, false_suggestions = await asyncio.gather(true_suggestions_task, false_suggestions_task)
+    
+    # Create seed from request body hash for repeatable shuffling
+    request_body = {
+        "prompt_name": prompt_name,
+        "beforeCursor": doc_context.beforeCursor,
+        "selectedText": doc_context.selectedText,
+        "afterCursor": doc_context.afterCursor,
+        "contextData": [{"title": s.title, "content": s.content} for s in doc_context.contextData] if doc_context.contextData else None,
+        "falseContextData": [{"title": s.title, "content": s.content} for s in doc_context.falseContextData] if doc_context.falseContextData else None
+    }
+    request_hash = hashlib.sha256(json.dumps(request_body, sort_keys=True).encode()).hexdigest()
+    shuffle_seed = int(request_hash[:8], 16)  # Use first 8 hex chars as seed
+    
+    # Combine and shuffle suggestions
+    all_suggestions = []
+    for i, suggestion in enumerate(true_suggestions):
+        all_suggestions.append({"content": suggestion.content, "source": "true", "original_index": i})
+    for i, suggestion in enumerate(false_suggestions):
+        all_suggestions.append({"content": suggestion.content, "source": "false", "original_index": i})
+    
+    # Shuffle with deterministic seed
+    random.seed(shuffle_seed)
+    random.shuffle(all_suggestions)
+    
+    # Take first 3 suggestions
+    selected_suggestions = all_suggestions[:3]
+    
+    # Create markdown response
+    markdown_response = "\n\n".join([f"- {item['content']}" for item in selected_suggestions])
+    
+    # Create metadata for logging
+    extra_data = {
+        "shuffle_seed": shuffle_seed,
+        "request_hash": request_hash,
+        "suggestion_sources": [{"content": item["content"], "source": item["source"], "original_index": item["original_index"]} for item in selected_suggestions],
+        "total_true_suggestions": sum(1 for item in selected_suggestions if item["source"] == "true"),
+        "total_false_suggestions": sum(1 for item in selected_suggestions if item["source"] == "false")
+    }
+    
+    return GenerationResult(generation_type=prompt_name, result=markdown_response, extra_data=extra_data)
 
 
 def get_final_sentence(text):

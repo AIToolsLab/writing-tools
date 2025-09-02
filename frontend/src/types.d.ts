@@ -51,6 +51,7 @@ interface ContextSection {
 
 interface DocContext {
 	contextData?: ContextSection[];
+	falseContextData?: ContextSection[];
 	beforeCursor: string;
 	selectedText: string;
 	afterCursor: string;
