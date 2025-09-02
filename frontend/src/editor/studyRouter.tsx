@@ -76,9 +76,9 @@ Raw notes:
 ]
 
 const letterToCondition = {
-	e: 'example_sentences',
-	q: 'analysis_describe',
-	r: 'proposal_advice',
+	g: 'example_sentences',
+	a: 'analysis_describe',
+	p: 'proposal_advice',
 };
 
 
@@ -139,37 +139,27 @@ export function StudyRouter({ page }: { page: string }) {
 	const setStudyData = useSetAtom(studyDataAtom);
 	const urlParams = new URLSearchParams(window.location.search);
 	const username = urlParams.get('username');
-	const conditionOrder = urlParams.get('order');
+	const conditionCode = urlParams.get('condition');
 
 	if (!username) {
 		return <div> Please provide a username in the URL parameter. </div>;
 	}
 
-	if (!conditionOrder) {
+	if (!conditionCode) {
 		return (
-			<div>Please provide a condition order in the URL parameter.</div>
+			<div>Please provide a condition code in the URL parameter.</div>
 		);
 	}
 
-	const isValidOrder =
-		// Check if the condition order only contains valid letters (e, q, r) and has no duplicates
-		conditionOrder
-			.split('')
-			.every((letter) =>
-				Object.keys(letterToCondition).includes(letter),
-			) &&
-		new Set(conditionOrder.split('')).size === conditionOrder.length;
+	const isValidCondition = conditionCode && Object.keys(letterToCondition).includes(conditionCode);
 
-	if (!isValidOrder) {
+	if (!isValidCondition) {
 		return (
 			<div>
-				Invalid condition order. Please use a unique combination of 'e',
-				'q', and 'r'.
+				Invalid condition code. Please use one of the following: {Object.keys(letterToCondition).join(', ')}
 			</div>
 		);
 	}
-
-	const conditionCode = conditionOrder[0];
 	const conditionName = letterToCondition[conditionCode as keyof typeof letterToCondition];
 
 	const studyPageIndex = studyPageNames.indexOf(page);
@@ -220,7 +210,7 @@ export function StudyRouter({ page }: { page: string }) {
 							event: 'Started Study',
 							urlParameters: window.location.search,
 							browserMetadata: browserMetadata,
-							conditionOrder: conditionOrder,
+							conditionCode: conditionCode,
 						}, nextPageURL);
 					}}
 					className={classes.startButton}
