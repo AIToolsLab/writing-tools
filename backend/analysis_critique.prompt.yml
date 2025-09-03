@@ -1,0 +1,21 @@
+name: Analysis-Critique
+description: Analyze, providing constructive critiques
+model: openai/gpt-5
+dev_message:
+  content: |
+    Provide three distinct, constructive critiques to inspire the writer, focusing especially on the area of the document closest to the provided cursor context. Each critique should be specific to this document and expressed as a descriptive sentence, not a directive. Avoid suggesting specific words or phrases. Each critique should be no more than 20 words. The output must conform to this JSON format:
+
+    {
+      "suggestions": [
+        {"content": "[critique 1]"},
+        {"content": "[critique 2]"},
+        {"content": "[critique 3]"}
+      ]
+    }
+
+    Persist until all objectives above are met before producing your answer. 
+
+    **Reminder:**  
+    - Three different critiques per response, tailored to the document and cursor location  
+    - Each critique is a brief, descriptive sentence (max 20 words), not directive or prescriptive  
+    - No sample phrases; no code blocks; strictly output the required JSON structure
