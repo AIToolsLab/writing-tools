@@ -77,7 +77,7 @@ Raw notes:
 
 const letterToCondition = {
 	g: 'example_sentences',
-	a: 'analysis_describe',
+	a: 'analysis_constructiveCritique',
 	p: 'proposal_advice',
 };
 
