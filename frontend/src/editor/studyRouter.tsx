@@ -3,7 +3,7 @@ import { log, LogPayload } from '@/api';
 import { studyDataAtom } from '@/contexts/studyContext';
 import { EditorScreen } from '.';
 import classes from './styles.module.css';
-import { QuestionType, Survey } from '@/surveyViews';
+import { agreeLikert, QuestionType, Survey } from '@/surveyViews';
 import * as SurveyData from '@/surveyData';
 
 const SURVEY_URLS = {
@@ -304,6 +304,8 @@ export function StudyRouter({ page }: { page: string }) {
 		);
 	} else if (page.startsWith('study-postTask')) {
 		const postTaskSurveyQuestions = [
+			agreeLikert("easyToUnderstand", "The AI text was easy to understand", 5),
+			agreeLikert("feltPressured", "I felt pressured to do what the AI suggested", 5),
 			...SurveyData.tlxQuestions,
 			SurveyData.techDiff,
 			SurveyData.otherFinal
