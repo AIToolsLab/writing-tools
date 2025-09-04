@@ -114,6 +114,12 @@ function ScrollablePage({ children }: { children: React.ReactNode }) {
 	);
 }
 
+const generalTaskInstructions = <>
+	<p>As you write, please pay attention to the text that the AI offers on the sidebar.</p>
+	<p>The AI can make mistakes. Check important info.</p>
+	<p>Your responses will be kept confidential.</p>
+</>;
+
 function SurveyPage({ title, basename, questions, username, redirectURL, children }: { title: string; basename: string; questions: QuestionType[]; username: string; redirectURL: string; children?: React.ReactNode }) {
 	return (
 		<ScrollablePage>
@@ -198,9 +204,7 @@ export function StudyRouter({ page }: { page: string }) {
 				<h1>Welcome!</h1>
 				<p>Thank you for agreeing to participate in our writing study.</p>
 				<p>You will be working on a short writing task to help us understand how people use AI writing tools.</p>
-				<p>As you write, please pay attention to the text that the AI offers on the sidebar.</p>
-				<p>The AI can make mistakes. Check important info.</p>
-				<p>Your responses will be kept confidential.</p>
+				{generalTaskInstructions}
 				<button
 					type="button"
 					onClick={() => {
@@ -238,11 +242,13 @@ export function StudyRouter({ page }: { page: string }) {
 		/>;
 	} else if (page === 'study-startTask') {
 		return (
-			<div className={classes.studyIntroContainer}>
+			<ScrollablePage>
 				<p>
 					On the next page, you'll be presented with a writing task.
-
-					Take up to 10-15 minutes to write 200-250 words.
+				</p>
+				{generalTaskInstructions}
+				<p>
+					Please write approximately 200 words (a word count will be shown in the top right corner).
 				</p>
 				<button
 					type="button"
@@ -257,7 +263,7 @@ export function StudyRouter({ page }: { page: string }) {
 				>
 					Start Writing Task
 				</button>
-			</div>
+			</ScrollablePage>
 		);
 	} else if (page === 'study-task') {
 		const curTaskContexts = summarizeMeetingNotesTask;
@@ -299,7 +305,7 @@ export function StudyRouter({ page }: { page: string }) {
 					}}
 					className={classes.doneButton}
 				>
-					Save and Continue
+					I'm Done (I've written about 200 words)
 				</button>
 			</div>
 		);
