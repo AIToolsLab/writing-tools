@@ -25,11 +25,11 @@ import classes from './styles.module.css';
 
 const visibleNameForMode = {
 	example_sentences: 'Examples',
-	analysis_describe: 'Analysis',
+	analysis_readerPerspective: "Reader's Perspective",
 	proposal_advice: 'Advice',
 };
 
-const modes = ['example_sentences', 'analysis_describe', 'proposal_advice'];
+const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advice'];
 
 interface SuggestionRequest {
 	docContext: DocContext;
