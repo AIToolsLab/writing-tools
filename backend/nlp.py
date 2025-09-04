@@ -138,15 +138,11 @@ def get_full_prompt(prompt_name: str, doc_context: DocContext, context_chars: in
     return prompt
 
 
-# Structured response for multiple suggestions
-class SuggestionItem(BaseModel):
-    content: str
-
-class SuggestionResponse(BaseModel):
-    suggestions: List[SuggestionItem]
+class ListResponse(BaseModel):
+    responses: List[str]
 
 
-async def _get_suggestions_from_context(prompt_name: str, doc_context: DocContext, use_false_context: bool = False) -> List[SuggestionItem]:
+async def _get_suggestions_from_context(prompt_name: str, doc_context: DocContext, use_false_context: bool = False) -> List[str]:
     """Helper function to get suggestions from a specific context"""
     full_prompt = get_full_prompt(prompt_name, doc_context, use_false_context=use_false_context)
     if DEBUG_PROMPTS:
@@ -159,14 +155,14 @@ async def _get_suggestions_from_context(prompt_name: str, doc_context: DocContex
             {"role": "system", "content": "You are a helpful and insightful writing assistant."},
             {"role": "user", "content": full_prompt}
         ],
-        response_format=SuggestionResponse
+        response_format=ListResponse
     )
 
     suggestion_response = completion.choices[0].message.parsed
-    if not suggestion_response or not suggestion_response.suggestions:
-        raise ValueError("No suggestions found in the response.")
-    
-    return suggestion_response.suggestions
+    if suggestion_response is None:
+        return []
+
+    return suggestion_response.responses
 
 
 async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
@@ -181,14 +177,14 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
                 {"role": "system", "content": "You are a helpful and insightful writing assistant."},
                 {"role": "user", "content": full_prompt}
             ],
-            response_format=SuggestionResponse
+            response_format=List[str]
         )
 
         suggestion_response = completion.choices[0].message.parsed
-        if not suggestion_response or not suggestion_response.suggestions:
+        if not suggestion_response or not suggestion_response:
             raise ValueError("No suggestions found in the response.")
         markdown_response = "\n\n".join(
-            [f"- {item.content}" for item in suggestion_response.suggestions]
+            [f"- {item}" for item in suggestion_response]
         )
         return GenerationResult(generation_type=prompt_name, result=markdown_response, extra_data={})
 
@@ -198,7 +194,14 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
     
     # Execute both calls in parallel
     true_suggestions, false_suggestions = await asyncio.gather(true_suggestions_task, false_suggestions_task)
-    
+
+    if len(true_suggestions) == 0 or len(false_suggestions) == 0:
+        # One or both of the queries refused.
+        return GenerationResult(generation_type=prompt_name, result="", extra_data={})
+
+    if len(true_suggestions) != 3 or len(false_suggestions) != 3:
+        raise ValueError("Unexpected number of suggestions returned.")
+
     # Create seed from request body hash for repeatable shuffling
     request_body = {
         "prompt_name": prompt_name,
@@ -214,10 +217,10 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
     # Combine and shuffle suggestions
     all_suggestions = []
     for i, suggestion in enumerate(true_suggestions):
-        all_suggestions.append({"content": suggestion.content, "source": "true", "original_index": i})
+        all_suggestions.append({"content": suggestion, "source": "true", "original_index": i})
     for i, suggestion in enumerate(false_suggestions):
-        all_suggestions.append({"content": suggestion.content, "source": "false", "original_index": i})
-    
+        all_suggestions.append({"content": suggestion, "source": "false", "original_index": i})
+
     # Shuffle with deterministic seed
     random.seed(shuffle_seed)
 

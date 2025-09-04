@@ -288,7 +288,12 @@ export default function Draft() {
 					token,
 					username,
 				);
-				save(suggestion, suggestionRequest.docContext);
+				// Suggestion text might be empty
+				if (suggestion.result === '') {
+					console.warn('Received empty suggestion.');
+				} else {
+					save(suggestion, suggestionRequest.docContext);
+				}
 			} catch (err: any) {
 				const errMsg: string =
 					err.message ||
