@@ -23,54 +23,54 @@ const studyPageNames = [
 const summarizeMeetingNotesTask = [
 	{
 		title: 'Task',
-		content: "Write a brief follow-up email after a client meeting, referencing key details from the meeting notes"
+		content: "Write a follow-up email to Sarah Chen explaining the security audit process and proposing next steps for moving forward. Be sure not to include any sensitive information."
 	},
 	{
 		title: 'Meeting Notes',
 		content: `
-Meeting Notes - TechStart Inc Client Meeting
-Date: Tuesday, March 12, 2024
-Attendee: Sarah Chen (CTO)
-Topic: Software license renewal discussion
+Client Meeting + Internal Debrief - September 10, 2025
+TechStart Inc renewal discussion with Sarah Chen (CTO)
 
-Raw notes:
-- Current $50K annual contract expires April 30
-- Sarah mentioned system has been "mostly solid" but had some downtime issues in January
-- Legal team is asking about data residency requirements - new EU clients coming onboard
-- Sarah seemed concerned about compliance but wasn't sure exactly what's needed
-- She mentioned budget might be tight this quarter, asked about payment options
-- Security audit - she said "we probably need one" but unclear on timeline
-- Their IT director (Mike) has been asking questions about our disaster recovery procedures
-- Sarah will talk to legal "sometime this week" about requirements
-- Also mentioned they're evaluating 2-3 other vendors "just as due diligence"
-- Asked if we could provide references from similar-sized companies
-- Meeting ended a bit abruptly - she had another call
+CLIENT DISCUSSION:
+- $50K annual license expires October 31
+- New EU clients creating compliance concerns  
+- Sarah wants security audit - asked "what's involved and how long does this take?"
+- Mentioned budget constraints but seemed committed to renewal
+- Said "we need to get this wrapped up in the next few weeks"
+- Evaluating competitors but emphasized wanting to stick with us if possible
+
+INTERNAL TEAM DISCUSSION (after client left):
+- Security audits typically take 2-3 weeks once started
+- Legal says their compliance needs are actually minimal - mostly documentation
+- Their timeline pressure works in our favor
+- Main competitor (CloudTech) can't deliver audit services
+- Sarah seemed overwhelmed by technical requirements
 `
 	}
 ]
 
 const summarizeMeetingNotesTaskFalse = [
-	summarizeMeetingNotesTask[0],
+	{
+		title: "Task",
+		content: "Write a follow-up email to our internal team about renewal strategy and timeline."
+	},
 	{
 		title: "Meeting Notes",
 		content: `\
-Meeting Notes - DataFlow Corp Client Meeting  
-Date: Wednesday, March 13, 2024
-Attendee: Sarah Liu (CTO)
-Topic: Consulting services contract discussion
+Client Meeting - September 10, 2025  
+TechFlow Corp renewal discussion with Sara Chin (CEO)
 
-Raw notes:
-- Proposed $75K project fee for system integration
-- Current processes are "pretty inefficient" according to Sarah
-- Engineering team is concerned about timeline - they have a product launch in May
-- Sarah seemed enthusiastic about our approach but mentioned budget approval needed
-- Asked about our experience with similar integrations
-- Technical demo requested - she wants to show her team
-- Their head of engineering (Alex) has been skeptical of outside consultants
-- Sarah will check with engineering "early next week" about requirements  
-- Also mentioned they're considering building solution in-house
-- Asked if we could provide case studies from similar companies
-- Meeting went well - scheduled follow-up for next month
+NOTES:
+- $75K annual license expires November 15
+- Budget pre-approved up to $80K for security upgrades
+- Sarah wants technical demo - said "we're ready to move forward quickly"
+- Emphasized excitement about our new features
+- Said "timeline is flexible, no rush on our end"
+- This is our highest-margin client (80% profit)
+- Sarah seemed eager to close - probably won't negotiate much
+- Legal says we should push for multi-year contract
+- Competitor CloudTech charges 40% less but terrible support
+- Easy renewal - they have no other realistic options
 `
 	}
 ]
