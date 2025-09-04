@@ -1,9 +1,9 @@
 import { useSetAtom } from 'jotai';
-import { log, LogPayload } from '@/api';
+import { log, type LogPayload } from '@/api';
 import { studyDataAtom } from '@/contexts/studyContext';
 import { EditorScreen } from '.';
 import classes from './styles.module.css';
-import { agreeLikert, QuestionType, Survey } from '@/surveyViews';
+import { agreeLikert, type QuestionType, Survey } from '@/surveyViews';
 import * as SurveyData from '@/surveyData';
 
 const SURVEY_URLS = {
