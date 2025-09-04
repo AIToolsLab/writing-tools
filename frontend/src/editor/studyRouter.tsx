@@ -7,6 +7,7 @@ import { agreeLikert, type QuestionType, Survey } from '@/surveyViews';
 import * as SurveyData from '@/surveyData';
 
 const wave = "wave-1";
+const completionCode = "C728GXTB";
 
 const SURVEY_URLS = {
 	consentForm: 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW',
@@ -352,6 +353,7 @@ export function StudyRouter({ page }: { page: string }) {
 				text: <h3>Now a few questions about the task overall:</h3>
 			},
 			...SurveyData.tlxQuestions,
+			agreeLikert("feltEngaged", "I felt engaged in the writing task", 5),
 			{
 				text: "Did you use any other writing tools besides the provided sidebar during this task?",
 				responseType: "options",
@@ -382,7 +384,7 @@ export function StudyRouter({ page }: { page: string }) {
 				<h1>Study Complete</h1>
 				<p>Thank you for participating in our writing study.</p>
 				{isProlific ? (
-					"Your completion code is CXL95TEH"
+					`Your completion code is ${completionCode}`
 				) : null}
 			</div>
 		);
