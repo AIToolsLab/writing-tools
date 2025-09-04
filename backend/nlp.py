@@ -79,8 +79,8 @@ We're helping a writer draft a document. Please output three actionable, inspiri
 - Express the advice in the form of a directive instruction, not a question.
 - Make each piece of advice very specific to the current document, not general advice that could apply to any document.
 """,
-    "analysis_constructiveCritique": """\
-We're helping a writer draft a document. Give three constructive critiques of the document so far.
+    "analysis_readerPerspective": """\
+We're helping a writer draft a document. Give three reactions that the audience might have to the document so far.
 
 Guidelines:
 
@@ -88,7 +88,8 @@ Guidelines:
 - Don't give specific words or phrases for the writer to use.
 - Keep each description concise, less than 20 words.
 - Make each description very specific to the current document, not general observations that could apply to any document.
-- Each critique should be expressed as a sentence describing the document, not as a directive to the writer.
+- Each reaction should be expressed as a sentence describing how the reader or audience might feel about the document, not as a directive to the writer.
+- If there is not enough written in the document to be able to anticipate an audience reaction, simply respond with an empty list.
 """
 }
 

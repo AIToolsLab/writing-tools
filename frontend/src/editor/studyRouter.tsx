@@ -77,7 +77,7 @@ NOTES:
 
 const letterToCondition = {
 	g: 'example_sentences',
-	a: 'analysis_constructiveCritique',
+	a: 'analysis_readerPerspective',
 	p: 'proposal_advice',
 };
 
