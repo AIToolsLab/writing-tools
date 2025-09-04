@@ -162,7 +162,7 @@ export const aiWritingTools: QuestionType[] = [
 
 export const techDiff = {
   text:
-    "Did you experience any technical difficulties that you haven't reported already?",
+    "Did you experience any technical difficulties?",
   responseType: "text",
   name: "techDiff",
   optional: true,
@@ -171,7 +171,7 @@ export const techDiff = {
 
 export const otherFinal = {
   text:
-    "Aaaand... we're done! Any feedback or ideas for us? What went well? What could have been better? You may leave this blank.",
+    "Aaaand... we're done! Any feedback or ideas for us? What went well? What could have been better? Was the compensation fair? You may leave this blank.",
   responseType: "text",
   name: "other",
   optional: true,

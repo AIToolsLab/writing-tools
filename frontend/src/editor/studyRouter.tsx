@@ -116,6 +116,13 @@ function ScrollablePage({ children }: { children: React.ReactNode }) {
 
 const generalTaskInstructions = <>
 	<p>As you write, please pay attention to the text that the AI offers on the sidebar.</p>
+	<p>
+		Copy-paste rules:
+		<ul>
+			<li>Feel free to copy-paste any text from the AI sidebar.</li>
+			<li>Please do not use any <em>other</em> writing aids, like Grammarly or ChatGPT, for the writing task.</li>
+		</ul>
+	</p>
 	<p>The AI can make mistakes. Check important info.</p>
 	<p>Your responses will be kept confidential.</p>
 </>;
@@ -311,13 +318,43 @@ export function StudyRouter({ page }: { page: string }) {
 		);
 	} else if (page.startsWith('study-postTask')) {
 		const postTaskSurveyQuestions = [
+			{
+				text: <>
+					<p>
+						A quick debrief: each group of 3 texts included text from two different AI systems.
+					</p>
+					<p>
+						One of those systems was provided with intentionally incorrect information. The other was provided the same information as you were.
+					</p>
+					<p>So some of the texts may have contained inaccuracies. But even the incorrect information may have been helpful to you in some ways.</p>
+					<p>
+						Please answer the following questions about your experience.
+					</p>
+				</>
+			},
 			agreeLikert("easyToUnderstand", "The AI text was easy to understand", 5),
+			agreeLikert("helpedMe", "The AI text helped me with the writing task", 5),
 			agreeLikert("feltPressured", "I felt pressured to do what the AI suggested", 5),
 			agreeLikert("thinkCarefully", "I had to think carefully about whether the AI text was appropriate", 5),
 			agreeLikert("thinkCarefully", "I had to think carefully about how to use the AI text", 5),
 			agreeLikert("newAspects", "The AI text made me consider aspects that I hadn't thought of", 5),
 			agreeLikert("reflectsThinking", "The final text reflects my thinking", 5),
+			{
+				text: "How would you describe the text that the AI provided?",
+				responseType: "text",
+				name: "aiTextDescription",
+				flags: { multiline: true }
+			},
+			{
+				text: <h3>Now a few questions about the task overall:</h3>
+			},
 			...SurveyData.tlxQuestions,
+			{
+				text: "Did you use any other writing tools besides the provided sidebar during this task?",
+				responseType: "options",
+				name: "otherTools",
+				options: ["No", "Autocomplete on my keyboard", "Grammarly or a similar tool", "ChatGPT or a similar tool"]
+			},
 			SurveyData.techDiff,
 			SurveyData.otherFinal
 		];
