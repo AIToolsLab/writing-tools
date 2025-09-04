@@ -198,7 +198,8 @@ export function StudyRouter({ page }: { page: string }) {
 				<h1>Welcome!</h1>
 				<p>Thank you for agreeing to participate in our writing study.</p>
 				<p>You will be working on a short writing task to help us understand how people use AI writing tools.</p>
-				<p>As you write, please pay attention to the suggestions the writing tool offers. Be aware the suggestions may be incorrect in various ways.</p>
+				<p>As you write, please pay attention to the text that the AI offers on the sidebar.</p>
+				<p>The AI can make mistakes. Check important info.</p>
 				<p>Your responses will be kept confidential.</p>
 				<button
 					type="button"
