@@ -341,6 +341,9 @@ export function StudyRouter({ page }: { page: string }) {
 			<div className={classes.studyIntroContainer}>
 				<h1>Study Complete</h1>
 				<p>Thank you for participating in our writing study.</p>
+				{isProlific ? (
+					"Your completion code is CXL95TEH"
+				) : null}
 			</div>
 		);
 	} else {
