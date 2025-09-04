@@ -6,6 +6,8 @@ import classes from './styles.module.css';
 import { agreeLikert, type QuestionType, Survey } from '@/surveyViews';
 import * as SurveyData from '@/surveyData';
 
+const wave = "wave-1";
+
 const SURVEY_URLS = {
 	consentForm: 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW',
 };
@@ -223,6 +225,7 @@ export function StudyRouter({ page }: { page: string }) {
 							urlParameters: window.location.search,
 							browserMetadata: browserMetadata,
 							conditionCode: conditionCode,
+							wave
 						}, nextPageURL);
 					}}
 					className={classes.startButton}
