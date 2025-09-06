@@ -5,14 +5,14 @@ import {
 } from 'react-icons/ai';
 
 export const iconFunc = (generationType: string) => {
-	switch (generationType) {
-		case 'example_sentences':
-			return <AiOutlineAlignLeft />;
-		case 'analysis_describe':
-			return <AiOutlineAudit />;
-		case 'proposal_advice':
-			return <AiOutlineAim />;
-		default:
-			return null;
+	if (generationType.includes('example')) {
+		return <AiOutlineAlignLeft />;
 	}
+	if (generationType.includes('analysis')) {
+		return <AiOutlineAudit />;
+	}
+	if (generationType.includes('proposal')) {
+		return <AiOutlineAim />;
+	}
+	return null;
 };
