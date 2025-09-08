@@ -5,6 +5,7 @@ import { EditorScreen } from '.';
 import classes from './styles.module.css';
 import { agreeLikert, type QuestionType, Survey } from '@/surveyViews';
 import * as SurveyData from '@/surveyData';
+import { useEffect } from 'react';
 
 const wave = "wave-1";
 const completionCode = "C728GXTB";
@@ -153,9 +154,17 @@ function SurveyPage({ title, basename, questions, username, redirectURL, childre
 
 export function StudyRouter({ page }: { page: string }) {
 	const setStudyData = useSetAtom(studyDataAtom);
-	const urlParams = new URLSearchParams(window.location.search);
+	const searchParams = window.location.search;
+	const urlParams = new URLSearchParams(searchParams);
 	const username = urlParams.get('username');
 	const conditionCode = urlParams.get('condition');
+	useEffect(() => {
+		log({
+			username: username || '',
+			event: `view:${page}`,
+			urlParameters: searchParams,
+		});
+	}, [page, searchParams, username]);
 
 	if (!username) {
 		return <div> Please provide a username in the URL parameter. </div>;
