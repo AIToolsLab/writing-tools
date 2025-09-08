@@ -27,28 +27,32 @@ const studyPageNames = [
 const summarizeMeetingNotesTask = [
 	{
 		title: 'Task',
-		content: "Write a follow-up email to Sarah Chen explaining the security audit process and proposing next steps for moving forward. Be sure not to include any sensitive information."
+		content: "David had to leave this meeting early, before some bad news was shared. Write an email to David, diplomatically delivering the bad news to him and help him manage client expectations."
 	},
 	{
 		title: 'Meeting Notes',
-		content: `
-Client Meeting + Internal Debrief - September 10, 2025
-TechStart Inc renewal discussion with Sarah Chen (CTO)
+		content: `Title: Project Budget Meeting #2 - Q4 Marketing Campaign
+Attendees: you, David (Manager), Lisa (Finance), Tom (Marketing)
 
-CLIENT DISCUSSION:
-- $50K annual license expires October 31
-- New EU clients creating compliance concerns  
-- Sarah wants security audit - asked "what's involved and how long does this take?"
-- Mentioned budget constraints but seemed committed to renewal
-- Said "we need to get this wrapped up in the next few weeks"
-- Evaluating competitors but emphasized wanting to stick with us if possible
+Background: follow-up meeting after client feedback
 
-INTERNAL TEAM DISCUSSION (after client left):
-- Security audits typically take 2-3 weeks once started
-- Legal says their compliance needs are actually minimal - mostly documentation
-- Their timeline pressure works in our favor
-- Main competitor (CloudTech) can't deliver audit services
-- Sarah seemed overwhelmed by technical requirements
+Notes (from AI notetaker):
+- David plans to present the revised plan to client on Thursday
+- Client requested changes: more focus on social media, less on search ads.
+- David presented revised $50k budget split: $30k for social media, $20k for search ads.
+- Lisa seemed concerned about timeline with Q4 freeze coming
+- David got an urgent call and had to leave immediately
+- Lisa revealed new Q4 constraints: can only approve $35k total
+- Have to cut search ads entirely, focus only on social
+- Tom worried: "David was excited about the search-to-social funnel"
+- Tom estimates cutting search ads reduces reach by 40%
+- Lisa emphasized: "We have to stick to the $35k budget"
+- Lisa: "If social performs well, we might add search ads back in Q1"
+
+Next steps:
+- You: update David about constraints and decisions before Thursday client meeting.
+- Lisa: update Q4 budget
+- Tom: draft revised marketing strategy
 `
 	}
 ]
@@ -56,25 +60,25 @@ INTERNAL TEAM DISCUSSION (after client left):
 const summarizeMeetingNotesTaskFalse = [
 	{
 		title: "Task",
-		content: "Write a follow-up email to our internal team about renewal strategy and timeline."
+		content: "Write a follow-up email for this meeting."
 	},
 	{
 		title: "Meeting Notes",
 		content: `\
-Client Meeting - September 10, 2025  
-TechFlow Corp renewal discussion with Sara Chin (CEO)
+Title: Project Budget Meeting #1 - Q4 Marketing Campaign
+Attendees: You, David (Manager), Lisa (Finance), Tom (Marketing)
 
-NOTES:
-- $75K annual license expires November 15
-- Budget pre-approved up to $80K for security upgrades
-- Sarah wants technical demo - said "we're ready to move forward quickly"
-- Emphasized excitement about our new features
-- Said "timeline is flexible, no rush on our end"
-- This is our highest-margin client (80% profit)
-- Sarah seemed eager to close - probably won't negotiate much
-- Legal says we should push for multi-year contract
-- Competitor CloudTech charges 40% less but terrible support
-- Easy renewal - they have no other realistic options
+Background: Initial budget planning meeting
+
+Notes (from AI notetaker):
+- David presented $50K budget: $30K search ads, $20K social media
+- Tom excited about integrated approach: "social and search will work great together"
+- David excited about "search-to-social funnel": use search data to target socials
+- Lisa approved full budget - "looks solid, let's move forward"
+- Full team alignment on dual-channel approach
+- Timeline approved for Q4 launch
+
+Next step: David presenting approved strategy to client
 `
 	}
 ]
