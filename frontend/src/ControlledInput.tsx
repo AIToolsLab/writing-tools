@@ -118,6 +118,7 @@ export const LikertInput = ({
             // biome-ignore lint/suspicious/noArrayIndexKey: The index actually does matter here.
             key={idx}
             style={{ display: "block", textAlign: "center", flex: "1 1 0px" }}
+            className={`${choice === `${idx}` ? "bg-green-100" : "bg-gray-50"} rounded-md m-1`}
             title={spying ? `${name}=${idx}` : undefined}
           >
             <input

@@ -375,10 +375,15 @@ export function StudyRouter({ page }: { page: string }) {
 				flags: { multiline: true }
 			},
 			{
-				text: <h3>Now a few questions about the task overall:</h3>
+				text: <>
+					<h3>Now a few questions about the task overall.</h3>
+					(These questions are adapted from the "Task Load Index" (TLX), which you can look up later if you're curious.)
+				</>,
 			},
 			...SurveyData.tlxQuestions,
-			agreeLikert("feltEngaged", "I felt engaged in the writing task", 5),
+			{
+				text: "A few last things as we wrap up:"
+			},
 			{
 				text: "Did you use any other writing tools besides the provided sidebar during this task?",
 				responseType: "options",
@@ -398,8 +403,7 @@ export function StudyRouter({ page }: { page: string }) {
 				redirectURL={nextPageURL}
 			>
 				<p>
-					Thank you for completing the writing task. <br /> Please take a moment to complete a brief
-					survey.
+					Thank you for completing the writing task. <br /> Please tell us about your experience.
 				</p>
 			</SurveyPage>
 		);
