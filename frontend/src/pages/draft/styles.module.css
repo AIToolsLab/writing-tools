@@ -481,6 +481,10 @@ h4 {
 	margin-bottom: auto;
 	border-radius: 12px;
 	transition: 0.15s;
+	border: none;
+	background: transparent;
+	cursor: pointer;
+	display: flex;
 }
 
 .genTypeIconWrapper {
@@ -560,4 +564,33 @@ h4 {
 
 .historyDoc:hover {
 	color: #9c9ae1;
+}
+
+/* Transition animations for saved items */
+:global(.saved-item-enter) {
+	opacity: 0;
+	max-height: 0;
+	overflow: hidden;
+	transform: translateY(-20px);
+}
+
+:global(.saved-item-enter-active) {
+	opacity: 1;
+	max-height: 1000px;
+	transform: translateY(0);
+	transition: opacity 300ms ease-in-out, max-height 300ms ease-in-out, transform 300ms ease-in-out;
+}
+
+:global(.saved-item-exit) {
+	opacity: 1;
+	max-height: 1000px;
+	overflow: hidden;
+	transform: translateY(0);
+}
+
+:global(.saved-item-exit-active) {
+	opacity: 0;
+	max-height: 0;
+	transform: translateY(-20px);
+	transition: opacity 300ms ease-in-out, max-height 300ms ease-in-out, transform 300ms ease-in-out;
 }

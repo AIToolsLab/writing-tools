@@ -14,6 +14,7 @@ import {
 } from 'react';
 import { AiOutlineClose, AiOutlineReload } from 'react-icons/ai';
 import { Remark } from 'react-remark';
+import { TransitionGroup, CSSTransition } from 'react-transition-group';
 import { log, SERVER_URL } from '@/api';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
@@ -107,6 +108,30 @@ function SavedGenerations({
 	savedItems: SavedItem[];
 	deleteSavedItem: (dateSaved: Date) => void;
 }) {
+	const nodeRefs = useRef<Map<string, React.RefObject<HTMLDivElement>>>(new Map());
+
+	// Create or get ref for each item
+	const getNodeRef = useCallback((key: string) => {
+		if (!nodeRefs.current.has(key)) {
+			nodeRefs.current.set(key, { current: null });
+		}
+		const ref = nodeRefs.current.get(key);
+		if (!ref) {
+			throw new Error(`Failed to create ref for key: ${key}`);
+		}
+		return ref;
+	}, []);
+
+	// Clean up refs for removed items
+	useEffect(() => {
+		const currentKeys = new Set(savedItems.map(item => item.dateSaved.toString()));
+		for (const [key] of nodeRefs.current) {
+			if (!currentKeys.has(key)) {
+				nodeRefs.current.delete(key);
+			}
+		}
+	}, [savedItems]);
+
 	return (
 		<div className={classes.historyContainer}>
 			<div className={classes.historyItemContainer}>
@@ -117,32 +142,48 @@ function SavedGenerations({
 						</div>
 					</div>
 				) : (
-					savedItems.map((savedItem) => (
-						<div
-							key={savedItem.dateSaved.toString()}
-							className={classes.historyItem}
-						>
-							<div className={classes.historyText}>
-								<GenerationResult
-									generation={savedItem.generation}
-								/>
-							</div>
-							<div className={classes.savedIconsContainer}>
-								<div
-									className={
-										classes.historyCloseButtonWrapper
-									}
-									onClick={() =>
-										deleteSavedItem(savedItem.dateSaved)
-									}
+					<TransitionGroup>
+						{savedItems.map((savedItem) => {
+							const key = savedItem.dateSaved.toString();
+							const nodeRef = getNodeRef(key);
+							
+							return (
+								<CSSTransition
+									key={key}
+									nodeRef={nodeRef}
+									timeout={300}
+									classNames="saved-item"
 								>
-									<AiOutlineClose
-										className={classes.historyCloseButton}
-									/>
-								</div>
-							</div>
-						</div>
-					))
+									<div
+										ref={nodeRef}
+										className={classes.historyItem}
+									>
+										<div className={classes.historyText}>
+											<GenerationResult
+												generation={savedItem.generation}
+											/>
+										</div>
+										<div className={classes.savedIconsContainer}>
+											<button
+												type="button"
+												className={
+													classes.historyCloseButtonWrapper
+												}
+												onClick={() =>
+													deleteSavedItem(savedItem.dateSaved)
+												}
+												aria-label="Delete saved item"
+											>
+												<AiOutlineClose
+													className={classes.historyCloseButton}
+												/>
+											</button>
+										</div>
+									</div>
+								</CSSTransition>
+							);
+						})}
+					</TransitionGroup>
 				)}
 			</div>
 		</div>
