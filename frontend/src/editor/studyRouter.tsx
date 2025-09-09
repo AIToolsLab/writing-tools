@@ -7,7 +7,7 @@ import { agreeLikert, type QuestionType, Survey } from '@/surveyViews';
 import * as SurveyData from '@/surveyData';
 import { useEffect } from 'react';
 
-const wave = "wave-1";
+const wave = "wave-2";
 const completionCode = "C728GXTB";
 
 const SURVEY_URLS = {
