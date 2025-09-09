@@ -349,13 +349,25 @@ export function StudyRouter({ page }: { page: string }) {
 					</p>
 				</>
 			},
+			{
+				text: "Can you recall a specific moment when you read a suggestion and decided not to use it? What made you decide that? Be as specific as you can.",
+				responseType: "text",
+				name: "suggestionNotUsed",
+				flags: { multiline: true }
+			},
+			{
+				text: "Can you recall a specific moment when you read a suggestion and it affected what you wrote next? Be as specific as you can.",
+				responseType: "text",
+				name: "suggestionRecall",
+				flags: { multiline: true }
+			},
 			agreeLikert("easyToUnderstand", "The AI text was easy to understand", 5),
 			agreeLikert("helpedMe", "The AI text helped me with the writing task", 5),
 			agreeLikert("feltPressured", "I felt pressured to do what the AI suggested", 5),
 			agreeLikert("thinkCarefullyAppropriate", "I had to think carefully about whether the AI text was appropriate", 5),
 			agreeLikert("thinkCarefullyHowToUse", "I had to think carefully about how to use the AI text", 5),
 			agreeLikert("newAspects", "The AI text made me consider aspects that I hadn't thought of", 5),
-			agreeLikert("reflectsThinking", "The final text reflects my thinking", 5),
+			agreeLikert("aiShapedFinalText", "The AI text significantly shaped the final text", 5),
 			{
 				text: "How would you describe the text that the AI provided?",
 				responseType: "text",
