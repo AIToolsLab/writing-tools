@@ -436,8 +436,9 @@ export default function Draft() {
 								<Fragment key={mode}>
 									<button
 										type="button"
-										className={classes.optionsButton}
+										className="cursor-pointer border border-gray-300 bg-white px-3 py-1 rounded-md flex items-center gap-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
 										disabled={isLoading}
+										title={isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode]}
 										onClick={() => {
 											log({
 												username: username,
@@ -462,7 +463,7 @@ export default function Draft() {
 										) : (
 											iconFunc(mode)
 										)}
-										{/* { isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode] } */}
+										{ isStudy ? "Refresh" : null }
 									</button>
 								</Fragment>
 							);
