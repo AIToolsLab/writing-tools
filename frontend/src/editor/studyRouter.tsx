@@ -128,7 +128,7 @@ const generalTaskInstructions = <>
 		Copy-paste rules:
 		<ul>
 			<li>Feel free to copy-paste any text from the AI sidebar.</li>
-			<li>Please do not use any <em>other</em> writing aids, like Grammarly or ChatGPT, for the writing task.</li>
+			<li>Please do not use any <em>other</em> writing aids, like Grammarly or ChatGPT, for the writing task. (Normal text entry features like spell check and autocomplete are <em>allowed</em>.)</li>
 		</ul>
 	</p>
 	<p>The AI can make mistakes. Check important info.</p>
