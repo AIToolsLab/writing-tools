@@ -224,9 +224,11 @@ export function StudyRouter({ page }: { page: string }) {
 	} else if (page === 'study-intro') {
 		return (
 			<ScrollablePage>
-				<h1>Welcome!</h1>
-				<p>Thank you for agreeing to participate in our writing study.</p>
-				<p>You will be working on a short writing task to help us understand how people use AI writing tools.</p>
+				<h1>Hi!</h1>
+				<p>We're a group of students and one professor at Calvin University, a small mostly-undergrad school in Grand Rapids, Michigan.</p>
+				<p>We've been interested in how different kinds of AI affect what&mdash;and how&mdash;people write.</p>
+				<p>In this study, we will explore how AI writing tools influence your writing process and outcomes.</p>
+				<p>Thank you for helping us out!</p>
 				{generalTaskInstructions}
 				<button
 					type="button"
