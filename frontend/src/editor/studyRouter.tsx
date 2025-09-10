@@ -230,6 +230,7 @@ export function StudyRouter({ page }: { page: string }) {
 				<p>In this study, we will explore how AI writing tools influence your writing process and outcomes.</p>
 				<p>Thank you for helping us out!</p>
 				{generalTaskInstructions}
+				<p>Ready?</p>
 				<button
 					type="button"
 					onClick={() => {
