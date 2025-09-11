@@ -236,25 +236,15 @@ Notes (from AI notetaker):
 Next step: David presenting approved strategy to client
 '''
 
-from openai import OpenAI
-client = OpenAI()
-
 cache_dir = root / 'responses_cache'
-
-from tenacity import (
-    retry,
-    stop_after_attempt,
-    wait_random_exponential,
-)  # for exponential backoff
-
 
 import joblib
 cache = joblib.Memory(location=cache_dir, verbose=0)
 
-@cache.cache
-@retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
-def get_openai_response(**kwargs):
-    return client.chat.completions.create(**kwargs)
+from openai_utils import get_openai_response
+
+get_openai_response = cache.cache(get_openai_response)
+
 ```
 
 ```{python}
@@ -369,10 +359,164 @@ issues_df = all_data_df['doc_text'].apply(count_issues).fillna(0).astype(int)
 all_data_df = pd.concat([all_data_df, issues_df.add_prefix('n_issue_')], axis=1)
 ```
 
+### Exclusions
+
+We exclude participants with very low quality scores or extremely fast writing speeds, as these likely indicate lack of engagement with the task.
+
 ```{python}
-sns.violinplot(x='condition', y='overall_quality', data=all_data_df)
+sns.violinplot(y='words_per_minute', data=all_data_df)
+all_data_df['words_per_minute'].describe()
 ```
 
 ```{python}
-sns.violinplot(x='condition', y='n_issue_factual', data=all_data_df)
+#all_data_df[all_data_df['username'].str.startswith('67ef')].iloc[0]#['doc_text']
+
+all_data_df['excluded'] = (all_data_df['overall_quality'] <= 1) | (all_data_df['words_per_minute'] > 100)
+all_data_df['excluded'].value_counts()
+# break it down by condition
+all_data_df.query('excluded')['condition'].value_counts()
+```
+
+```{python}
+filtered_data_df = all_data_df[~all_data_df['excluded']].copy().assign(
+    condition_short=lambda df: df['condition'].str.extract(r'([^_]+)')
+)
+len(filtered_data_df)
+```
+
+```{python}
+filtered_data_df['n_issue_factual'].value_counts()
+```
+
+```{python}
+sns.violinplot(x='condition_short', y='overall_quality', data=filtered_data_df)
+```
+
+```{python}
+sns.violinplot(x='condition_short', y='n_issue_factual', data=filtered_data_df)
+```
+
+
+```{python}
+import statsmodels.api as sm
+import statsmodels.formula.api as smf
+
+model = smf.ols('n_issue_factual ~ condition_short', data=filtered_data_df).fit()
+print(model.summary())
+```
+
+
+```{python}
+sns.catplot(x='condition_short', y='n_issue_factual', data=filtered_data_df, kind='violin')
+```
+
+
+```{python}
+sns.catplot(x='condition_short', y='overall_quality', data=filtered_data_df, kind='violin')
+```
+
+
+
+```{python}
+
+# Get all columns starting with "survey-"
+survey_columns = [col for col in all_data_df.columns if col.startswith('survey-')]
+
+# Filter out non-numeric columns and columns with all NaN values
+numeric_survey_cols = []
+for col in survey_columns:
+    if all_data_df[col].dtype in ['int64', 'float64'] and not all_data_df[col].isna().all():
+        numeric_survey_cols.append(col)
+
+# Calculate number of rows and columns for subplots
+test_columns = numeric_survey_cols + ['words_per_minute', 'n_issue_factual', 'n_issue_audience', 'n_issue_other']
+n_plots = len(test_columns)
+n_cols = 3  # Number of columns in the grid
+n_rows = math.ceil(n_plots / n_cols)
+
+# Create figure with subplots
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, n_rows * 4))
+axes = axes.flatten()
+
+# Plot each survey column plus the words per minute column
+for i, col in enumerate(test_columns):
+    # Clean up column name for display
+    display_name = col.replace('survey-', '').replace('-', ' ')
+    
+    # Create boxplot
+    #sns.violinplot(x='condition', y=col, data=all_data_df, ax=axes[i])
+    sns.barplot(x='condition_short', y=col, data=filtered_data_df, errorbar='sd', ax=axes[i], capsize=0.1, err_kws={'linewidth': 1.5})
+
+    # Add individual data points for better visibility
+    sns.stripplot(x='condition_short', y=col, data=filtered_data_df, 
+                 color='black', size=4, jitter=True, alpha=0.7, ax=axes[i])
+    
+    # Set titles and labels
+    axes[i].set_title(display_name)
+    axes[i].set_xlabel('')
+    axes[i].set_ylabel('Score')
+    
+    # Rotate x-axis labels for better readability
+    #axes[i].set_xticklabels(axes[i].get_xticklabels(), rotation=45, ha='right')
+
+# Hide unused subplots
+for j in range(i+1, len(axes)):
+    axes[j].set_visible(False)
+
+plt.tight_layout()
+plt.show()
+```
+
+
+```{python}
+import pandas as pd
+import numpy as np
+from scipy import stats
+
+def kruskal_wallis_report(df, group_col, outcome_col):
+    """
+    Perform Kruskal-Wallis test and return human-readable results.
+    
+    Parameters:
+    df: pandas DataFrame
+    group_col: str, name of grouping column
+    outcome_col: str, name of outcome column
+    """
+    
+    # Get groups and prepare data
+    groups = df[group_col].unique()
+    group_data = [df[df[group_col] == group][outcome_col].values for group in groups]
+    
+    # Descriptive stats
+    print(f"Kruskal-Wallis Test: {outcome_col} by {group_col}")
+    print("=" * 50)
+    
+    for group in groups:
+        data = df[df[group_col] == group][outcome_col]
+        print(f"{group}: n={len(data)}, median={data.median():.1f}, "
+              f"IQR=({data.quantile(0.25):.1f}-{data.quantile(0.75):.1f})")
+    
+    # Perform test
+    h_stat, p_val = stats.kruskal(*group_data)
+    
+    print(f"\nTest Results:")
+    print(f"H-statistic: {h_stat:.3f}")
+    print(f"p-value: {p_val:.4f}")
+    
+    # Interpretation
+    alpha = 0.05
+    if p_val < alpha:
+        print(f"\nResult: Significant difference between groups (p < {alpha})")
+    else:
+        print(f"\nResult: No significant difference between groups (p >= {alpha})")
+    
+    return h_stat, p_val
+
+h_stat, p_val = kruskal_wallis_report(filtered_data_df, 'condition_short', 'n_issue_factual')
+```
+
+
+
+```{python}
+#all_data_df[all_data_df['username'].str.startswith('6505')]
 ```
