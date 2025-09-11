@@ -1,0 +1,378 @@
+---
+title: "Log Analysis"
+---
+
+```{python}
+from pathlib import Path
+import pandas as pd
+import json
+from collections import defaultdict
+import tqdm
+
+root = Path('/Volumes/Data-Crypt/2025 FA/logs/')
+all_logs = list(root.glob('*.jsonl'))
+len(all_logs)
+
+MIN_DATE = pd.Timestamp('2025-09-08')
+CUR_WAVE = 'wave-2'
+
+all_data = []
+for log_file in all_logs:
+    log_data = [json.loads(line) for line in log_file.read_text().splitlines()]
+    username = log_data[0]['username']
+    condition = None
+    by_event = defaultdict(list)
+    for line in log_data:
+        if 'condition' in line.get('extra_data', {}):
+            condition = line['extra_data']['condition']
+        by_event[line.get('event')].append(line)
+
+    if 'Started Study' not in by_event:
+        print("No study start")
+        continue
+    study_start_event = by_event['Started Study'][0]
+    #if study_start_event['username'].startswith('6687'):
+    #    break
+    wave = study_start_event['extra_data'].get('wave')
+    if wave == 'wave-1' and pd.Timestamp.fromtimestamp(study_start_event['timestamp']) > MIN_DATE:
+        # Oops, forgot to bump the wave for wave 2
+        wave = 'wave-2'
+    if wave != CUR_WAVE:
+        #print("Wrong wave", wave, "for file", log_file.name)
+        continue
+
+    is_complete = len(by_event['taskComplete']) > 0
+    if not is_complete:
+        continue
+    surveys = {line['event'].split(':', 1)[1].replace('intro-survey', 'intro'): line['extra_data']['surveyData'] for line in log_data if 'surveyData' in line.get('extra_data', {})}
+    #print(username, condition, is_complete, ', '.join(surveys.keys()))
+
+    doc_state = None
+    doc_text = ''
+    num_bulk_insertions = 0
+    num_bulk_deletions = 0
+    first_nonempty_document_ts = None
+    last_doc_update_ts = None
+    # "event": "Document Update", "extra_data": {"client_timestamp": 1757011917.853, "currentDocumentState": {"beforeCursor": "", "selectedText": "", "afterCursor": ""
+    by_event['Document Update'].sort(key=lambda x: x['extra_data']['client_timestamp'])
+    for line in by_event['Document Update']:
+        new_doc_state = line['extra_data'].get('currentDocumentState', {})
+        new_doc_text = new_doc_state.get('beforeCursor', '') + new_doc_state.get('selectedText', '') + new_doc_state.get('afterCursor', '')
+        doc_text_normalize_ws = ' '.join(doc_text.split())
+        new_doc_text_normalize_ws = ' '.join(new_doc_text.split())
+        if len(new_doc_text_normalize_ws) > 0 and first_nonempty_document_ts is None:
+            first_nonempty_document_ts = line['extra_data'].get('client_timestamp')
+        num_words_diff = len(new_doc_text_normalize_ws.split()) - len(doc_text_normalize_ws.split())
+        if num_words_diff > 1:
+            num_bulk_insertions += 1
+        elif num_words_diff < -1:
+            num_bulk_deletions += 1
+        doc_text = new_doc_text
+        doc_state = new_doc_state
+        if line['extra_data'].get('client_timestamp') is not None:
+            last_doc_update_ts = line['extra_data'].get('client_timestamp')
+
+    time_spent_writing = last_doc_update_ts - first_nonempty_document_ts if last_doc_update_ts and first_nonempty_document_ts else None
+    words_per_minute = (len(doc_text.split()) / time_spent_writing * 60) if time_spent_writing else None
+
+    for survey_name, survey_data in surveys.items():
+        # print all the survey questions and their responses
+        for question, response in survey_data.items():
+            if question == 'postTask-techDiff' or question == 'postTask-other':
+                print(f"  {question}: {response}")
+
+    datum = {
+        'username': username,
+        'condition': condition,
+        'is_complete': is_complete,
+        'surveys': surveys,
+        'logs': log_data,
+        'doc_state': doc_state,
+        'doc_text': doc_text.replace('\r', '\n'),
+        'num_bulk_insertions': num_bulk_insertions,
+        'num_bulk_deletions': num_bulk_deletions,
+        'updates_per_character': len(by_event['Document Update']) / (len(doc_text) + 1),
+        'time_spent_writing': time_spent_writing,
+        'words_per_minute': words_per_minute
+    }
+
+    # Add the survey data as columns
+    for survey_name, survey_data in surveys.items():
+        for question, response in survey_data.items():
+            question = question.replace('intro-survey', 'intro')
+            try:
+                response = int(response)
+            except (ValueError, TypeError):
+                pass
+            datum[f"survey-{question}"] = response
+
+    all_data.append(datum)
+
+all_data_df = pd.DataFrame(all_data)
+print(len(all_data_df), "complete participants")
+
+
+for index, row in all_data_df.iterrows():
+    print(row['condition'])
+    print('-', row['survey-postTask-suggestionRecall'])
+    print('-', row['survey-postTask-suggestionNotUsed'])
+```
+
+```{python}
+import seaborn as sns
+import numpy as np
+import math
+
+import matplotlib.pyplot as plt
+
+# Get all columns starting with "survey-"
+survey_columns = [col for col in all_data_df.columns if col.startswith('survey-')]
+
+# Filter out non-numeric columns and columns with all NaN values
+numeric_survey_cols = []
+for col in survey_columns:
+    if all_data_df[col].dtype in ['int64', 'float64'] and not all_data_df[col].isna().all():
+        numeric_survey_cols.append(col)
+
+# Calculate number of rows and columns for subplots
+test_columns = numeric_survey_cols + ['words_per_minute']#, 'error_counts', 'consistency_diff']
+n_plots = len(test_columns)
+n_cols = 3  # Number of columns in the grid
+n_rows = math.ceil(n_plots / n_cols)
+
+# Create figure with subplots
+fig, axes = plt.subplots(n_rows, n_cols, figsize=(15, n_rows * 4))
+axes = axes.flatten()
+
+# extract short condition names (before the underscore)
+filtered_data = all_data_df[all_data_df['words_per_minute'] < 100].assign(
+    condition_short=lambda df: df['condition'].str.extract(r'([^_]+)')
+)
+
+# Plot each survey column plus the words per minute column
+for i, col in enumerate(test_columns):
+    # Clean up column name for display
+    display_name = col.replace('survey-', '').replace('-', ' ')
+    
+    # Create boxplot
+    #sns.violinplot(x='condition', y=col, data=all_data_df, ax=axes[i])
+    sns.barplot(x='condition_short', y=col, data=filtered_data, errorbar='sd', ax=axes[i], capsize=0.1, err_kws={'linewidth': 1.5})
+
+    # Add individual data points for better visibility
+    sns.stripplot(x='condition_short', y=col, data=filtered_data, 
+                 color='black', size=4, jitter=True, alpha=0.7, ax=axes[i])
+    
+    # Set titles and labels
+    axes[i].set_title(display_name)
+    axes[i].set_xlabel('')
+    axes[i].set_ylabel('Score')
+    
+    # Rotate x-axis labels for better readability
+    #axes[i].set_xticklabels(axes[i].get_xticklabels(), rotation=45, ha='right')
+
+# Hide unused subplots
+for j in range(i+1, len(axes)):
+    axes[j].set_visible(False)
+
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+from dotenv import load_dotenv
+load_dotenv('/Users/ka37/code/writing-tools/backend/.env')
+
+scenario_true = '''
+# Task
+
+David had to leave this meeting early, before some bad news was shared. Write an email to David, diplomatically delivering the bad news to him and help him manage client expectations.
+
+# Meeting Notes
+
+Title: Project Budget Meeting #2 - Q4 Marketing Campaign
+Attendees: you, David (Manager), Lisa (Finance), Tom (Marketing)
+
+Background: follow-up meeting after client feedback
+
+Notes (from AI notetaker):
+- David plans to present the revised plan to client on Thursday
+- Client requested changes: more focus on social media, less on search ads.
+- David presented revised $50k budget split: $30k for social media, $20k for search ads.
+- Lisa seemed concerned about timeline with Q4 freeze coming
+- David got an urgent call and had to leave immediately
+- Lisa revealed new Q4 constraints: can only approve $35k total
+- Have to cut search ads entirely, focus only on social
+- Tom worried: "David was excited about the search-to-social funnel"
+- Tom estimates cutting search ads reduces reach by 40%
+- Lisa emphasized: "We have to stick to the $35k budget"
+- Lisa: "If social performs well, we might add search ads back in Q1"
+
+Next steps:
+- You: update David about constraints and decisions before Thursday client meeting.
+- Lisa: update Q4 budget
+- Tom: draft revised marketing strategy
+'''
+
+scenario_false = '''
+# Task
+
+Write a follow-up email for this meeting.
+
+# Meeting Notes
+
+Title: Project Budget Meeting #1 - Q4 Marketing Campaign
+Attendees: You, David (Manager), Lisa (Finance), Tom (Marketing)
+
+Background: Initial budget planning meeting
+
+Notes (from AI notetaker):
+- David presented $50K budget: $30K search ads, $20K social media
+- Tom excited about integrated approach: "social and search will work great together"
+- David excited about "search-to-social funnel": use search data to target socials
+- Lisa approved full budget - "looks solid, let's move forward"
+- Full team alignment on dual-channel approach
+- Timeline approved for Q4 launch
+
+Next step: David presenting approved strategy to client
+'''
+
+from openai import OpenAI
+client = OpenAI()
+
+cache_dir = root / 'responses_cache'
+
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_random_exponential,
+)  # for exponential backoff
+
+
+import joblib
+cache = joblib.Memory(location=cache_dir, verbose=0)
+
+@cache.cache
+@retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(6))
+def get_openai_response(**kwargs):
+    return client.chat.completions.create(**kwargs)
+```
+
+```{python}
+# This was used as input to the OpenAI gpt-5 prompt generator utility.
+# The resulting prompt was edited to move the phrase first in the JSON output, but otherwise was not changed.
+# The resulting prompt is the developer message in the following function.
+labeling_prompt = '''\
+You are an expert annotator for text classification tasks.
+
+You will be given a context and a piece of text. You will perform two labeling tasks:
+
+## Identifying Inconsistencies
+
+Your task is to identify phrases in the text that are inconsistent with the context. Identify at least two types of inconsistencies:
+
+- **Factual Inconsistencies**: These are statements that contradict or misrepresent the facts presented in the context. For example if the context states that something was not approved but the text proceeds as if it is approved, that is a factual inconsistency.
+- **Audience Inconsistencies**: These are statements that do not align with the intended audience's perspective or knowledge level. For example, if the text presents information that the audience would clearly already know as if it were new information, that is an audience inconsistency.
+
+## Quality Ratings
+
+Rate the quality of the text along the following dimensions, on a scale from 1 to 5 (1 = very poor, 5 = excellent):
+
+- **Clarity**: How clear and understandable is the text?
+- **Coherence**: How logically consistent and well-structured is the text?
+- **Engagement**: How engaging and interesting is the text to read?
+- **Tone**: How appropriate is the tone of the text for the intended audience and purpose?
+- **Overall Quality**: Overall, how would you rate the quality of the text?
+
+## Output Format
+
+You should output a JSON object in the following format:
+{
+  "inconsistencies": [
+    {
+      "type": "factual" | "audience" | "other",
+      "phrase": "the inconsistent phrase from the text",
+      "explanation": "a brief explanation of why this phrase is inconsistent"
+    },
+    ...
+  ],
+  "ratings": {
+    "clarity": int,
+    "coherence": int,
+    "engagement": int,
+    "tone": int,
+    "overall": int
+  }
+}
+'''
+```
+
+```{python}
+def get_labels(doc_text, scenario):
+    user_message = f'''\
+<scenario>
+{scenario}
+</scenario>
+
+<text>
+{doc_text}
+</text>
+'''
+    messages = [
+    {
+      "role": "developer",
+      "content": [
+        {
+          "type": "text",
+          "text": "You are an expert annotator for text classification tasks. For each example, you will be given:\n\n- **Context**: Background information or statements establishing facts and intended audience.\n- **Text**: A target passage to evaluate.\n\nYour annotation consists of:\n\n## 1. Identifying Inconsistencies\nAnalyze the text for two types of inconsistencies:\n- **Factual Inconsistencies**: Phrases contradicting or misrepresenting facts from the context.\n- **Audience Inconsistencies**: Phrases presenting information at the wrong knowledge level, or inaccurately assuming the audience's perspective.\n\nFor each inconsistency, provide:\n- type (\"factual\" or \"audience\"; use \"other\" sparingly if not covered by these)\n- phrase (the specific problematic segment from the text)\n- explanation (concise reasoning why the phrase is inconsistent)\n\n**Think step-by-step to verify each potential inconsistency by comparing text statements with context facts and analyzing the appropriateness for the audience. Document your reasoning first, then your extracted inconsistencies last.**\n\n## 2. Quality Ratings\n\nIndependently rate the text on:\n\n- **Clarity** (1-5): Is it clearly expressed?\n- **Coherence** (1-5): Logical structure and flow.\n- **Engagement** (1-5): How compelling or interesting it is.\n- **Tone** (1-5): Appropriateness for the audience and context.\n- **Overall Quality** (1-5): General effectiveness.\n\nCarefully consider context and audience in each rating. Reflect on each dimension before assigning a score, and only provide ratings after all have been considered.\n\n## Output Format\n\nProduce a JSON object (do NOT wrap in code block), strictly in this structure:\n{\n  \"inconsistencies\": [\n    {\n      \"phrase\": \"[excerpt from text]\",\n      \"explanation\": \"[brief explanation]\",\n      \"type\": \"factual\" | \"audience\" | \"other\"\n    }\n    // ...repeat for each inconsistency found\n  ],\n  \"ratings\": {\n    \"clarity\": [int 1-5],\n    \"coherence\": [int 1-5],\n    \"engagement\": [int 1-5],\n    \"tone\": [int 1-5],\n    \"overall\": [int 1-5]\n  }\n}\n\n## Example\n\n### Input:\nContext: \"The Board did not approve the new software system. The audience consists of experienced IT professionals.\"\nText: \"As the new software system has already been approved, all team members will migrate by next month. The new system is capable of sending emails, which may be unfamiliar to many users.\"\n\n### Output:\n{\n  \"inconsistencies\": [\n    {\n      \"phrase\": \"As the new software system has already been approved, all team members will migrate by next month.\",\n      \"explanation\": \"Contradicts the context, which stated the board did not approve the system.\",\n      \"type\": \"factual\"\n    },\n    {\n      \"phrase\": \"The new system is capable of sending emails, which may be unfamiliar to many users.\",\n      \"explanation\": \"Assumes email functionality is unfamiliar, which is unlikely for an audience of experienced IT professionals.\",\n      \"type\": \"audience\"\n    }\n  ],\n  \"ratings\": {\n    \"clarity\": 3,\n    \"coherence\": 2,\n    \"engagement\": 3,\n    \"tone\": 2,\n    \"overall\": 2\n  }\n}\n\n*(In realistic examples, provide more thorough inconsistency explanations and longer phrases as appropriate.)*\n\n---\n\n**Important:**  \n- Explicitly reason through context, audience, and text statements before extracting inconsistencies or providing ratings.\n- Only present the conclusions (inconsistencies, ratings) at the end.  \n- Output only the specified JSON object, no extra comments or explanation.\n\n**Reminder:**  \nFirst analyze for inconsistencies (reason through context/Text/audience), then provide only the results in the JSON output. Rate all quality dimensions last, after all have been independently considered."
+        }
+      ]
+    },
+    {
+        "role": "user",
+        "content": [
+            {
+            "type": "text",
+            "text": user_message
+            }
+        ]
+    }
+    ]
+
+    return get_openai_response(
+        model="gpt-5",
+        messages=messages,
+        response_format={"type": "text"},
+        verbosity="medium",
+        reasoning_effort="medium"
+    )
+
+def get_overall_quality(doc_text):
+    response = get_labels(doc_text, scenario_true)
+    print(response.usage.prompt_tokens_details.cached_tokens, "cached tokens")
+    data = json.loads(response.choices[0].message.content)
+    return data['ratings']['overall']
+
+def count_issues(doc_text):
+    response = get_labels(doc_text, scenario_true)
+    data = json.loads(response.choices[0].message.content)
+    # aggregate by type
+    type_counts = defaultdict(int)
+    for issue in data['inconsistencies']:
+        type_counts[issue['type']] += 1
+    return pd.Series(type_counts)
+```
+
+
+```{python}
+all_data_df['overall_quality'] = [get_overall_quality(doc_text) for doc_text in tqdm.tqdm(all_data_df['doc_text'])]
+issues_df = all_data_df['doc_text'].apply(count_issues).fillna(0).astype(int)
+all_data_df = pd.concat([all_data_df, issues_df.add_prefix('n_issue_')], axis=1)
+```
+
+```{python}
+sns.violinplot(x='condition', y='overall_quality', data=all_data_df)
+```
+
+```{python}
+sns.violinplot(x='condition', y='n_issue_factual', data=all_data_df)
+```
