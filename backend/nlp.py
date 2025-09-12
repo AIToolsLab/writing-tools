@@ -177,14 +177,14 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
                 {"role": "system", "content": "You are a helpful and insightful writing assistant."},
                 {"role": "user", "content": full_prompt}
             ],
-            response_format=List[str]
+            response_format=ListResponse
         )
 
         suggestion_response = completion.choices[0].message.parsed
         if not suggestion_response or not suggestion_response:
             raise ValueError("No suggestions found in the response.")
         markdown_response = "\n\n".join(
-            [f"- {item}" for item in suggestion_response]
+            [f"- {item}" for item in suggestion_response.responses]
         )
         return GenerationResult(generation_type=prompt_name, result=markdown_response, extra_data={})
 
