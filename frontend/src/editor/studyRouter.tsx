@@ -304,6 +304,7 @@ export function StudyRouter({ page }: { page: string }) {
 			);
 		}
 		const autoRefreshInterval = parseInt(urlParams.get('autoRefreshInterval') || '10000');
+		console.log("Auto refresh interval:", autoRefreshInterval, 'contextToUse:', contextToUse);
 
 		setStudyData((prevData) => ({
 			...prevData,
