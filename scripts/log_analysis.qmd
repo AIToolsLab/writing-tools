@@ -12,7 +12,10 @@ import tqdm
 root = Path('/Volumes/Data-Crypt/2025 FA/logs/')
 all_logs = list(root.glob('*.jsonl'))
 len(all_logs)
+all_logs[0]
+```
 
+```{python}
 MIN_DATE = pd.Timestamp('2025-09-08')
 CUR_WAVE = 'wave-2'
 
@@ -40,6 +43,9 @@ for log_file in all_logs:
     if wave != CUR_WAVE:
         #print("Wrong wave", wave, "for file", log_file.name)
         continue
+
+    if num_errors := len(by_event['generation_error']):
+        print(f"{username} had {num_errors} generation errors")
 
     is_complete = len(by_event['taskComplete']) > 0
     if not is_complete:
@@ -93,7 +99,10 @@ for log_file in all_logs:
         'num_bulk_deletions': num_bulk_deletions,
         'updates_per_character': len(by_event['Document Update']) / (len(doc_text) + 1),
         'time_spent_writing': time_spent_writing,
-        'words_per_minute': words_per_minute
+        'words_per_minute': words_per_minute,
+        'num_errors': num_errors,
+        'event_counts': {event: len(events) for event, events in by_event.items()},
+        'suggestions': [e['extra_data']['result'] for e in by_event['ShowSuggestion'] if 'result' in e.get('extra_data', {})],
     }
 
     # Add the survey data as columns
@@ -107,7 +116,7 @@ for log_file in all_logs:
             datum[f"survey-{question}"] = response
 
     all_data.append(datum)
-
+    
 all_data_df = pd.DataFrame(all_data)
 print(len(all_data_df), "complete participants")
 
@@ -116,6 +125,10 @@ for index, row in all_data_df.iterrows():
     print(row['condition'])
     print('-', row['survey-postTask-suggestionRecall'])
     print('-', row['survey-postTask-suggestionNotUsed'])
+```
+
+```{python}
+all_data_df.groupby('condition')['num_errors'].describe()
 ```
 
 ```{python}
@@ -444,8 +457,8 @@ for i, col in enumerate(test_columns):
     display_name = col.replace('survey-', '').replace('-', ' ')
     
     # Create boxplot
-    #sns.violinplot(x='condition', y=col, data=all_data_df, ax=axes[i])
-    sns.barplot(x='condition_short', y=col, data=filtered_data_df, errorbar='sd', ax=axes[i], capsize=0.1, err_kws={'linewidth': 1.5})
+    sns.violinplot(x='condition_short', y=col, data=filtered_data_df, ax=axes[i])
+    #sns.barplot(x='condition_short', y=col, data=filtered_data_df, errorbar='sd', ax=axes[i], capsize=0.1, err_kws={'linewidth': 1.5})
 
     # Add individual data points for better visibility
     sns.stripplot(x='condition_short', y=col, data=filtered_data_df, 
@@ -465,6 +478,119 @@ for j in range(i+1, len(axes)):
 
 plt.tight_layout()
 plt.show()
+```
+
+```{python}
+import scipy.stats as stats
+from itertools import combinations
+import numpy as np
+
+def pilot_kruskal_analysis(df, columns, grouping_var='condition', alpha=0.05):
+    """
+    Pilot analysis for 3+ groups focusing on effect sizes and power estimation
+    """
+    results = {}
+    
+    for col in columns:
+        clean_data = df[[col, grouping_var]].dropna()
+        groups = clean_data[grouping_var].unique()
+        group_data = [clean_data[clean_data[grouping_var] == group][col].values 
+                     for group in groups]
+        
+        # Overall Kruskal-Wallis test
+        kw_stat, kw_p = stats.kruskal(*group_data)
+        
+        # Effect size: eta-squared for Kruskal-Wallis
+        # η² = (H - k + 1) / (N - k) where H = KW statistic, k = groups, N = total sample
+        N = len(clean_data)
+        k = len(groups)
+        eta_squared = (kw_stat - k + 1) / (N - k) if N > k else 0
+        eta_squared = max(0, eta_squared)  # Can't be negative
+        
+        # Group descriptives
+        group_stats = {}
+        for group in groups:
+            data = clean_data[clean_data[grouping_var] == group][col].values
+            group_stats[group] = {
+                'median': np.median(data),
+                'n': len(data),
+                'rank_mean': np.mean(stats.rankdata(np.concatenate(group_data))
+                                   [clean_data[grouping_var] == group])
+            }
+        
+        # Pairwise comparisons (uncorrected for exploration)
+        pairwise_results = {}
+        for group1, group2 in combinations(groups, 2):
+            data1 = clean_data[clean_data[grouping_var] == group1][col].values
+            data2 = clean_data[clean_data[grouping_var] == group2][col].values
+            
+            if len(data1) > 0 and len(data2) > 0:
+                u_stat, u_p = stats.mannwhitneyu(data1, data2, alternative='two-sided')
+                r_rb = 1 - (2 * u_stat) / (len(data1) * len(data2))
+                
+                pairwise_results[f"{group1}_vs_{group2}"] = {
+                    'p_value': u_p,
+                    'rank_biserial_r': r_rb,
+                    'median_diff': np.median(data1) - np.median(data2)
+                }
+        
+        # Power estimation for future study
+        # For Kruskal-Wallis, rough approximation based on eta-squared
+        if eta_squared > 0:
+            # Very rough: n_per_group ≈ 20/(k*η²) for 80% power
+            n_needed_per_group = max(5, int(np.ceil(20 / (k * eta_squared))))
+        else:
+            n_needed_per_group = "Cannot estimate - no effect detected"
+        
+        results[col] = {
+            'kw_statistic': kw_stat,
+            'kw_p_value': kw_p,
+            'eta_squared': eta_squared,
+            'group_stats': group_stats,
+            'pairwise_comparisons': pairwise_results,
+            'n_per_group_for_80pct_power': n_needed_per_group
+        }
+    
+    return results
+
+# Run the analysis
+pilot_results = pilot_kruskal_analysis(filtered_data_df, test_columns)
+
+# Display results
+print("PILOT ANALYSIS RESULTS (3 CONDITIONS)")
+print("=" * 50)
+
+for col, result in pilot_results.items():
+    print(f"\n{col.replace('survey-', '').replace('-', ' ')}:")
+    print(f"  Kruskal-Wallis H = {result['kw_statistic']:.3f}, p = {result['kw_p_value']:.3f}")
+    print(f"  Effect size (η²) = {result['eta_squared']:.3f}")
+    print(f"  N needed per group (80% power): {result['n_per_group_for_80pct_power']}")
+    
+    # Show group medians
+    print("  Group medians:")
+    for group, stats_dict in result['group_stats'].items():
+        print(f"    {group}: {stats_dict['median']:.2f} (n={stats_dict['n']})")
+    
+    # Show strongest pairwise comparison
+    if result['pairwise_comparisons']:
+        strongest = max(result['pairwise_comparisons'].items(), 
+                       key=lambda x: abs(x[1]['rank_biserial_r']))
+        comp_name, comp_stats = strongest
+        print(f"  Strongest pairwise: {comp_name}")
+        print(f"    r = {comp_stats['rank_biserial_r']:.3f}, p = {comp_stats['p_value']:.3f}")
+
+# Summary of promising variables
+promising = [(col, res) for col, res in pilot_results.items() 
+             if res['eta_squared'] > 0.06 or res['kw_p_value'] < 0.15]  # Liberal criteria
+
+if promising:
+    print(f"\n\nPROMISING VARIABLES (η² > 0.06 or p < 0.15):")
+    print("-" * 40)
+    for col, res in promising:
+        print(f"{col}: η² = {res['eta_squared']:.3f}, p = {res['kw_p_value']:.3f}")
+else:
+    print(f"\n\nNo variables met liberal significance criteria.")
+    print("Consider which variables show largest effect sizes for future focus.")
 ```
 
 
@@ -519,4 +645,8 @@ h_stat, p_val = kruskal_wallis_report(filtered_data_df, 'condition_short', 'n_is
 
 ```{python}
 #all_data_df[all_data_df['username'].str.startswith('6505')]
+```
+
+```{python}
+all_data_df.drop(columns=['username', 'logs', 'surveys']).to_csv(root / 'all_participant_data.csv', index=False)
 ```
