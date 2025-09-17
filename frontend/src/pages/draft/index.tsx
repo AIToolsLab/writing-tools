@@ -209,6 +209,10 @@ function useResettableInterval(callback: () => void, interval: number) {
 		if (timerRef.current) {
 			clearInterval(timerRef.current);
 		}
+		if (interval <= 0) {
+			timerRef.current = null;
+			return;
+		}
 		timerRef.current = setInterval(() => {
 			callbackRef.current();
 		}, interval);
@@ -256,12 +260,13 @@ export default function Draft() {
 	// });
 
 	const isStudy = studyData !== null;
+	const autoRefreshInterval = isStudy ? studyData.autoRefreshInterval : 0;
 	const modesToShow = useMemo(
 		() => (isStudy ? [studyData.condition] : modes),
 		[isStudy, studyData],
 	);
 
-	const shouldAutoRefresh = isStudy;
+	const shouldAutoRefresh = autoRefreshInterval > 0;
 
 	const save = useCallback(
 		(generation: GenerationResult, document: DocContext) => {
@@ -372,7 +377,7 @@ export default function Draft() {
 		const prevRequest = getFetcher().previousRequest;
 		if (
 			prevRequest &&
-			prevRequest.docContext === docContextRef.current &&
+			JSON.stringify(prevRequest.docContext) === JSON.stringify(docContextRef.current) &&
 			prevRequest.type === modesToShow[0]
 		) {
 			console.warn(
@@ -392,7 +397,7 @@ export default function Draft() {
 
 	const resetAutoRefresh = useResettableInterval(
 		autoRefreshCallback,
-		10000, // 10 seconds
+		autoRefreshInterval,
 	);
 
 	if (authErrorType !== null) {

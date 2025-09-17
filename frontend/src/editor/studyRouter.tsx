@@ -295,12 +295,23 @@ export function StudyRouter({ page }: { page: string }) {
 	} else if (page === 'study-task') {
 		const curTaskContexts = summarizeMeetingNotesTask;
 		const falseContext = summarizeMeetingNotesTaskFalse;
+		const contextToUse = urlParams.get('contextToUse') || 'mixed';
+		if (!['true', 'false', 'mixed'].includes(contextToUse)) {
+			return (
+				<div>
+					Invalid contextToUse parameter. Please use one of the following: true, false, mixed
+				</div>
+			);
+		}
+		const autoRefreshInterval = parseInt(urlParams.get('autoRefreshInterval') || '10000');
 
 		setStudyData((prevData) => ({
 			...prevData,
 			condition: conditionName,
 			trueContext: curTaskContexts,
 			falseContext: falseContext,
+			autoRefreshInterval: autoRefreshInterval,
+			contextToUse: contextToUse as 'true' | 'false' | 'mixed',
 		}));
 
 		const editorPreamble = (

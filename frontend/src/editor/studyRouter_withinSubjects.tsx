@@ -411,6 +411,8 @@ export function StudyRouter({ page }: { page: string }) {
 			condition: taskCondition,
 			trueContext: curTaskContexts,
 			falseContext: falseContext,
+			autoRefreshInterval: 10000,
+			contextToUse: 'mixed'
 		}));
 
 		const editorPreamble = (
