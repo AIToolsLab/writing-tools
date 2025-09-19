@@ -86,8 +86,8 @@ Guidelines:
 
 - Focus on the area of the document that is closest to the writer's cursor.
 - Don't give specific words or phrases for the writer to use.
-- Keep each description concise, less than 20 words.
-- Make each description very specific to the current document, not general observations that could apply to any document.
+- Keep each reaction concise, less than 20 words.
+- Make each reaction very specific to the current document, not general observations that could apply to any document.
 - Each reaction should be expressed as a sentence describing how the reader or audience might feel about the document, not as a directive to the writer.
 - If there is not enough written in the document to be able to anticipate an audience reaction, simply respond with an empty list.
 """
