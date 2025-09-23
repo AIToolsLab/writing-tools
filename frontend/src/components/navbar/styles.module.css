@@ -6,17 +6,20 @@
 	gap: 32px;
 }
 
-.nav p {
+
+/* Reshaped Tabs list items styling */
+.nav [role="tab"] {
 	cursor: pointer;
 	transition: 0.15s;
+	padding: 4px 8px;
 }
 
-.nav p:hover {
+.nav [role="tab"]:hover {
 	text-decoration: underline;
 	text-underline-offset: 5px;
 }
 
-.active {
+.nav [data-active="true"] {
 	text-decoration: underline;
 	text-underline-offset: 5px;
 }

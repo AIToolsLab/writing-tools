@@ -11,6 +11,7 @@ import { getHttpsServerOptions } from 'office-addin-dev-certs';
 
 import CopyWebpackPlugin from 'copy-webpack-plugin';
 import HtmlWebpackPlugin from 'html-webpack-plugin';
+import MiniCssExtractPlugin from 'mini-css-extract-plugin';
 
 const urlDev = 'https://localhost:3000';
 const urlProd = 'https://app.thoughtful-ai.com';
@@ -94,14 +95,45 @@ export default async (env, options) => {
 						filename: 'assets/[name].[contenthash][ext][query]'
 					}
 				},
+				// Allow Reshaped package CSS to be processed (it ships CSS in node_modules)
+				{
+					test: /node_modules[\\/]reshaped[\\/].*\.module\.css$/,
+					use: [
+						dev ? 'style-loader' : MiniCssExtractPlugin.loader,
+						{
+							loader: 'css-loader',
+							options: {
+								// Reshaped uses CSS modules for some files
+								modules: true
+							}
+						},
+						{
+							loader: 'postcss-loader'
+						}
+					]
+				},
+				{
+					test: /node_modules[\\/]reshaped[\\/].*\.css$/,
+					exclude: /\.module\.css$/,
+					use: [
+						dev ? 'style-loader' : MiniCssExtractPlugin.loader,
+						{
+							loader: 'css-loader',
+							options: {
+								modules: false
+							}
+						},
+						{
+							loader: 'postcss-loader'
+						}
+					]
+				},
 				// CSS Modules: only for *.module.css
 				{
 					test: /\.module\.css$/,
 					exclude: /node_modules/,
 					use: [
-						{
-							loader: 'style-loader'
-						},
+						dev ? 'style-loader' : MiniCssExtractPlugin.loader,
 						{
 							loader: 'css-loader',
 							options: {
@@ -118,9 +150,7 @@ export default async (env, options) => {
 					test: /(?<!\.module)\.css$/,
 					exclude: /node_modules/,
 					use: [
-						{
-							loader: 'style-loader'
-						},
+						dev ? 'style-loader' : MiniCssExtractPlugin.loader,
 						{
 							loader: 'css-loader',
 							options: {
@@ -135,6 +165,8 @@ export default async (env, options) => {
 			]
 		},
 		plugins: [
+			// Extract CSS into separate files in production for better caching
+			...(!dev ? [new MiniCssExtractPlugin({ filename: '[name].[contenthash].css' })] : []),
 			new CopyWebpackPlugin({
 				patterns: [
 					{
