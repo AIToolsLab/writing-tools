@@ -295,24 +295,6 @@ def chat_stream(messages: Iterable[ChatCompletionMessageParam], temperature: flo
     )
 
 
-async def completion(userDoc: str):
-    # Generate a completion based on the now-complete last sentence.
-    response = await openai_client.completions.create(
-        model="gpt-3.5-turbo-instruct",
-        prompt=userDoc,
-        temperature=1,
-        max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
-        stop=[".", "!", "?"],
-    )
-
-    result = response.choices[0].text
-
-    return result
-
-
 async def chat_completion(userDoc: str, temperature=1.0) -> GenerationResult:
     # 15 is about the length of an average sentence. GPT's most verbose sentences tend to be about ~30 words maximum.
     word_limit = str(random.randint(15, 30))
