@@ -57,7 +57,7 @@ cd backend && uv run uvicorn server:app --host localhost --port 8000 --reload
 # Frontend
 cd frontend && yarn lint:fix && yarn format
 
-# Backend  
+# Backend
 cd backend && uv run pytest && uv run ruff check
 ```
 
@@ -69,7 +69,7 @@ cd backend && uv run pytest && uv run ruff check
 - **Styling**: Tailwind CSS with CSS modules
 - **Authentication**: Auth0 integration
 - **Build Tool**: Webpack with TypeScript
-- **Key Entry Points**: 
+- **Key Entry Points**:
   - `src/taskpane.html` - Main task pane interface
   - `src/editor/editor.tsx` - Document editor integration
   - `src/api/index.ts` - Backend API communication
@@ -96,14 +96,14 @@ cd backend && uv run pytest && uv run ruff check
 - React JSX transform configured
 - ES2020 modules with es5 target for IE11 compatibility
 
-### Python Configuration  
+### Python Configuration
 - **Type Checking**: MyPy with Pydantic plugin enabled
 - **Linting**: Ruff with standard Python exclusions
 - **Testing**: pytest framework
 - **Environment**: Environment variables loaded from `.env` file
 
 ### Office Add-in Specific
-- Manifest file: `frontend/manifest.xml` 
+- Manifest file: `frontend/manifest.xml`
 - Supports both desktop and web versions of Microsoft Word
 - Development certificates managed by office-addin-dev-certs
 
@@ -128,7 +128,7 @@ cd backend && uv run pytest && uv run ruff check
 - Jest testing framework configured
 - Test files should be in `__tests__` directories or have `.test.ts` suffix
 
-### Backend Tests  
+### Backend Tests
 - Use pytest with async test support
 - Test files: `*_tests.py` or `test_*.py`
 - Run specific tests: `uv run pytest backend/test_specific.py`
