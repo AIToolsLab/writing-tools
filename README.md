@@ -31,3 +31,5 @@ Run `./test_generation` script in the `backend` folder to make a test request. H
 
 - `cd backend`
 - `uv run --group gpu custom_llm.py --gpu`
+
+You may need to request access to a model on HuggingFace (e.g., https://huggingface.co/google/gemma-2-9b-it) and [login to huggingface-cli](https://huggingface.co/docs/huggingface_hub/main/en/guides/cli#hf-auth-login).
