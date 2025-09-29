@@ -14,7 +14,11 @@ import openai
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
 from openai import AsyncOpenAI
 
-MODEL_NAME = "gpt-4o"
+MODEL_PARAMS = {
+    "model": "gpt-5-mini",
+    "reasoning_effort": "minimal",
+    #"text_verbosity": "medium"
+}
 DEBUG_PROMPTS = False
 
 # Create OpenAI client
@@ -48,7 +52,8 @@ async def warmup_nlp():
     # make a dummy request to make sure everything is imported
     try:
         await dummy_client.chat.completions.create(
-            model=MODEL_NAME,
+            model="gpt-5-mini",
+            reasoning_effort="low",
             messages=[{"role": "user", "content": "Hello"}],
         )
     except openai.APIConnectionError:
@@ -68,7 +73,7 @@ We're helping a writer draft a document. Please output three possible options fo
 - If the writer is at the end of a paragraph, output three possible sentences that would start the next paragraph.
 - The three sentences should be three different paths that the writer could take, each starting from the current point in the document; they do **NOT** go in sequence.
 - Each output should be *at most one sentence* long.
-- Use ellipses to truncate sentences that are longer than about 20 words.
+- Use ellipses to truncate sentences that are longer than about **10 words**.
 """,
     "proposal_advice": """\
 We're helping a writer draft a document. Please output three actionable, inspiring, and fresh directive instructions that would help the writer think about what they should write next. Guidelines:
@@ -150,7 +155,7 @@ async def _get_suggestions_from_context(prompt_name: str, doc_context: DocContex
         print(f"Prompt for {prompt_name} ({context_type} context):\n{full_prompt}\n")
     
     completion = await openai_client.chat.completions.parse(
-        model=MODEL_NAME,
+        **MODEL_PARAMS,
         messages=[
             {"role": "system", "content": "You are a helpful and insightful writing assistant."},
             {"role": "user", "content": full_prompt}
@@ -172,7 +177,7 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
         if DEBUG_PROMPTS:
             print(f"Prompt for {prompt_name} (baseline):\n{full_prompt}\n")
         completion = await openai_client.chat.completions.parse(
-            model=MODEL_NAME,
+            **MODEL_PARAMS,
             messages=[
                 {"role": "system", "content": "You are a helpful and insightful writing assistant."},
                 {"role": "user", "content": full_prompt}
@@ -268,13 +273,9 @@ def obscure(token):
 
 async def chat(messages: Iterable[ChatCompletionMessageParam], temperature: float) -> str:
     response = await openai_client.chat.completions.create(
-        model=MODEL_NAME,
+        **MODEL_PARAMS,
         messages=messages,
-        temperature=temperature,
         max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
     )
 
     result = response.choices[0].message.content
@@ -284,13 +285,9 @@ async def chat(messages: Iterable[ChatCompletionMessageParam], temperature: floa
 
 def chat_stream(messages: Iterable[ChatCompletionMessageParam], temperature: float):
     return openai_client.chat.completions.create(
-        model=MODEL_NAME,
+        **MODEL_PARAMS,
         messages=messages,
-        temperature=temperature,
         max_tokens=1024,
-        top_p=1,
-        frequency_penalty=0,
-        presence_penalty=0,
         stream=True,
     )
 
