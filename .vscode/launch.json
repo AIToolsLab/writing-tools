@@ -5,12 +5,33 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "Backend Debug",
+            "name": "Backend Debug (uvicorn)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uvicorn",
+            "args": [
+                "server:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                "8000",
+                "--reload"
+            ],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/backend",
+            "envFile": "${workspaceFolder}/backend/.env",
+            "justMyCode": false
+        },
+        {
+            "name": "Backend Debug (server.py)",
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/backend/server.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/backend",
+            "envFile": "${workspaceFolder}/backend/.env",
+            "justMyCode": true,
+            "purpose": ["debug-in-terminal"]
         },
         {
             "name": "Frontend Dev Server",
@@ -29,7 +50,7 @@
         {
             "name": "Run Both Servers",
             "configurations": [
-                "Backend Debug",
+                "Backend Debug (uvicorn)",
                 "Frontend Dev Server"
             ]
         }
