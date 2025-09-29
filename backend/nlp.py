@@ -80,16 +80,15 @@ We're helping a writer draft a document. Please output three actionable, inspiri
 - Make each piece of advice very specific to the current document, not general advice that could apply to any document.
 """,
     "analysis_readerPerspective": """\
-We're helping a writer draft a document. Give three reactions that the audience might have to the document so far.
+You are assisting in drafting a document for a specific person. Generate three possible questions the person might have about the document so far.
 
 Guidelines:
 
-- Focus on the area of the document that is closest to the writer's cursor.
-- Don't give specific words or phrases for the writer to use.
-- Keep each reaction concise, less than 20 words.
-- Make each reaction very specific to the current document, not general observations that could apply to any document.
-- Each reaction should be expressed as a sentence describing how the reader or audience might feel about the document, not as a directive to the writer.
-- If there is not enough written in the document to be able to anticipate an audience reaction, simply respond with an empty list.
+- Avoid suggesting specific words or phrases.
+- Limit each question to under 20 words.
+- Ensure all questions specifically reflect details or qualities from the current document, avoiding broad or generic statements.
+- Each question should be expressed as a perspective describing how the person might feel about the document, not as a directive to the writer.
+- If there is insufficient context to generate genuine questions, return an empty list.
 """
 }
 
