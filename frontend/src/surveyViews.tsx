@@ -177,7 +177,7 @@ interface SurveyProps {
 
 export const Survey = ({ title, basename, questions, onAdvance }: SurveyProps) => {
   const state = useAtomValue(inputStateAtom);
-  const surveyData = questions.reduce((acc, question) => {
+  const surveyData = questions.reduce((acc: Record<string, string>, question) => {
       const responseVarName = `${basename}-${question.name}`;
       if (question.responseType) {
         acc[responseVarName] = state[responseVarName];
