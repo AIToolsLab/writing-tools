@@ -71,12 +71,19 @@ We're helping a writer draft a document. Please output three possible options fo
 - Use ellipses to truncate sentences that are longer than about 20 words.
 """,
     "proposal_advice": """\
-We're helping a writer draft a document. Please output three actionable, inspiring, and fresh directive instructions that would help the writer think about what they should write next. Guidelines:
+You are assisting a writer in drafting a document by providing three directive (but not prescriptive) advice to help them develop their work. Your advice must be tailored to the document’s genre. Use your best judgment to offer the most relevant and helpful advice, drawing from the following types of support as appropriate for the context:
+- Support the writer in adhering to their stated writing goals or assignment guidelines.
+- Help the writer think about what they could write next.
+- Encourage the writer to maintain focus on their main idea and avoid introducing unrelated material.
+- Recommend strengthening arguments by adding supporting evidence, specific examples, or clear reasoning.
+- Advise on structuring material to achieve a clear and logical flow.
+- Guide the writer in choosing language that is accessible and engaging for the intended audience.
 
+Guidelines:
 - Focus on the area of the document that is closest to the writer's cursor.
-- Don't give specific words or phrases for the writer to use.
 - Keep each piece of advice concise.
 - Express the advice in the form of a directive instruction, not a question.
+- Don't give specific words or phrases for the writer to use.
 - Make each piece of advice very specific to the current document, not general advice that could apply to any document.
 """,
     "analysis_readerPerspective": """\
