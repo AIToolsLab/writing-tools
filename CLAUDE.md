@@ -122,6 +122,91 @@ cd backend && uv run pytest && uv run ruff check
 - Async/await pattern for API endpoints
 - Proper error handling with FastAPI exception handlers
 
+## User Study Mode
+
+The application includes a built-in user study system for conducting writing research experiments.
+
+### Study Flow
+
+The study follows a linear progression through pages controlled by [studyRouter.tsx](frontend/src/editor/studyRouter.tsx):
+
+1. **study-consentForm** - Redirects to external Qualtrics consent form
+2. **study-intro** - Welcome page with study overview and instructions
+3. **study-introSurvey** - Demographic and AI familiarity questions
+4. **study-startTask** - Pre-task instructions
+5. **study-task** - Main writing task with AI assistance
+6. **study-postTask** - Post-task survey (TLX, experience questions)
+7. **study-final** - Completion page with optional Prolific code
+
+### Accessing Study Mode
+
+Study pages are accessed via URL parameters:
+```
+/editor.html?page=study-intro&username=USER_ID&condition=CONDITION_CODE
+```
+
+Required parameters:
+- `username` - Unique participant identifier
+- `condition` - Condition code mapping to different AI assistance modes:
+  - `g` → example_sentences (3 example next sentences)
+  - `a` → analysis_readerPerspective (3 reader reactions)
+  - `p` → proposal_advice (3 pieces of directive advice)
+  - `n` → no_ai (no AI assistance, static message only)
+  - `f` → complete_document (AI generates full completed document)
+
+Optional parameters:
+- `isProlific=true` - Shows completion code on final page
+- `contextToUse=true|false|mixed` - Controls which context the AI uses (not applicable for no_ai)
+- `autoRefreshInterval=10000` - Interval (ms) for auto-refreshing AI suggestions (disabled for no_ai and complete_document)
+
+### Study Configuration
+
+Key configuration in [studyRouter.tsx](frontend/src/editor/studyRouter.tsx):
+- `wave` - Study wave identifier (currently "wave-2")
+- `completionCode` - Prolific completion code
+- `letterToCondition` - Maps condition codes to condition names
+- Task content in `summarizeMeetingNotesTask` and `summarizeMeetingNotesTaskFalse`
+
+### Study State Management
+
+Study-specific state is managed via Jotai atoms:
+- `overallModeAtom` ([pageContext.tsx](frontend/src/contexts/pageContext.tsx)) - Set to `OverallMode.study` during studies
+- `studyDataAtom` ([studyContext.tsx](frontend/src/contexts/studyContext.tsx)) - Stores:
+  - `condition` - Current condition name
+  - `trueContext` - Correct task context
+  - `falseContext` - Intentionally incorrect context (for mixed conditions)
+  - `autoRefreshInterval` - Refresh interval for AI suggestions
+  - `contextToUse` - Which context to provide to AI
+
+### Logging
+
+All study interactions are logged to the backend via `log()` function in [api/index.ts](frontend/src/api/index.ts):
+
+Key logged events:
+- `view:{pageName}` - Page views (logged on every page)
+- `Started Study` - Study initiation with browser metadata
+- `taskStart` / `taskComplete` - Task boundaries
+- `Document Update` - Document state changes during study mode (logged in [editor/index.tsx](frontend/src/editor/index.tsx:105-111))
+- `surveyComplete:{surveyName}` - Survey submissions with responses
+
+Browser metadata captured:
+- User agent, screen/window dimensions, color depth
+- Timezone, language preferences, platform
+- Cookie/online status
+
+### Study Components
+
+- **EditorScreen** ([editor/index.tsx](frontend/src/editor/index.tsx)) - Main editor with word count display in study mode
+- **StudyRouter** ([editor/studyRouter.tsx](frontend/src/editor/studyRouter.tsx)) - Manages study page routing and state
+- **Survey** ([surveyViews.tsx](frontend/src/surveyViews.tsx)) - Reusable survey component
+- **SurveyData** ([surveyData.tsx](frontend/src/surveyData.tsx)) - Pre-defined survey questions
+
+### Document Storage
+
+Documents are stored in localStorage with task-specific keys:
+- Study tasks: `doc-{taskID}`
+- Regular editor: `doc`
+
 ## Testing
 
 Testing is not yet well configured in this repo. When editing code, suggest high-value tests to add but wait for approval.

@@ -266,46 +266,107 @@ export function StudyRouter({ page }: { page: string }) {
 			</div>
 		);
 	} else if (page.startsWith('study-postTask')) {
-		const postTaskSurveyQuestions = [
-			{
+		const postTaskSurveyQuestions: QuestionType[] = [];
+
+		// Add condition-specific debrief and questions
+		if (conditionName === 'no_ai') {
+			// No AI-specific questions for no_ai condition
+			postTaskSurveyQuestions.push({
 				text: <>
 					<p>
-						A quick debrief: each group of 3 texts included text from two different AI systems.
+						Thank you for completing the writing task without AI assistance.
 					</p>
-					<p>
-						One of those systems was provided with intentionally incorrect information. The other was provided the same information as you were.
-					</p>
-					<p>So some of the texts may have contained inaccuracies. But even the incorrect information may have been helpful to you in some ways.</p>
 					<p>
 						Please answer the following questions about your experience.
 					</p>
 				</>
-			},
-			{
-				text: "Can you recall a specific moment when you read a suggestion and decided not to use it? What made you decide that? Be as specific as you can.",
-				responseType: "text",
-				name: "suggestionNotUsed",
-				flags: { multiline: true }
-			},
-			{
-				text: "Can you recall a specific moment when you read a suggestion and it affected what you wrote next? Be as specific as you can.",
-				responseType: "text",
-				name: "suggestionRecall",
-				flags: { multiline: true }
-			},
-			agreeLikert("easyToUnderstand", "The AI text was easy to understand", 5),
-			agreeLikert("helpedMe", "The AI text helped me with the writing task", 5),
-			agreeLikert("feltPressured", "I felt pressured to do what the AI suggested", 5),
-			agreeLikert("thinkCarefullyAppropriate", "I had to think carefully about whether the AI text was appropriate", 5),
-			agreeLikert("thinkCarefullyHowToUse", "I had to think carefully about how to use the AI text", 5),
-			agreeLikert("newAspects", "The AI text made me consider aspects that I hadn't thought of", 5),
-			agreeLikert("aiShapedFinalText", "The AI text significantly shaped the final text", 5),
-			{
-				text: "How would you describe the text that the AI provided?",
-				responseType: "text",
-				name: "aiTextDescription",
-				flags: { multiline: true }
-			},
+			});
+		} else if (conditionName === 'complete_document') {
+			postTaskSurveyQuestions.push(
+				{
+					text: <>
+						<p>
+							A quick debrief: the AI system that generated complete drafts was provided with intentionally incorrect information.
+						</p>
+						<p>So the drafts may have contained inaccuracies. But even the incorrect information may have been helpful to you in some ways.</p>
+						<p>
+							Please answer the following questions about your experience.
+						</p>
+					</>
+				},
+				{
+					text: "Can you recall a specific moment when you read the AI-generated draft and decided not to use part of it? What made you decide that? Be as specific as you can.",
+					responseType: "text",
+					name: "suggestionNotUsed",
+					flags: { multiline: true }
+				},
+				{
+					text: "Can you recall a specific moment when you read the AI-generated draft and it affected what you wrote next? Be as specific as you can.",
+					responseType: "text",
+					name: "suggestionRecall",
+					flags: { multiline: true }
+				},
+				agreeLikert("easyToUnderstand", "The AI-generated draft was easy to understand", 5),
+				agreeLikert("helpedMe", "The AI-generated draft helped me with the writing task", 5),
+				agreeLikert("feltPressured", "I felt pressured to use what the AI suggested", 5),
+				agreeLikert("thinkCarefullyAppropriate", "I had to think carefully about whether the AI draft was appropriate", 5),
+				agreeLikert("thinkCarefullyHowToUse", "I had to think carefully about how to use the AI draft", 5),
+				agreeLikert("newAspects", "The AI draft made me consider aspects that I hadn't thought of", 5),
+				agreeLikert("aiShapedFinalText", "The AI draft significantly shaped the final text", 5),
+				{
+					text: "How would you describe the draft that the AI provided?",
+					responseType: "text",
+					name: "aiTextDescription",
+					flags: { multiline: true }
+				}
+			);
+		} else {
+			// Original questions for bullet-point conditions
+			postTaskSurveyQuestions.push(
+				{
+					text: <>
+						<p>
+							A quick debrief: each group of 3 texts included text from two different AI systems.
+						</p>
+						<p>
+							One of those systems was provided with intentionally incorrect information. The other was provided the same information as you were.
+						</p>
+						<p>So some of the texts may have contained inaccuracies. But even the incorrect information may have been helpful to you in some ways.</p>
+						<p>
+							Please answer the following questions about your experience.
+						</p>
+					</>
+				},
+				{
+					text: "Can you recall a specific moment when you read a suggestion and decided not to use it? What made you decide that? Be as specific as you can.",
+					responseType: "text",
+					name: "suggestionNotUsed",
+					flags: { multiline: true }
+				},
+				{
+					text: "Can you recall a specific moment when you read a suggestion and it affected what you wrote next? Be as specific as you can.",
+					responseType: "text",
+					name: "suggestionRecall",
+					flags: { multiline: true }
+				},
+				agreeLikert("easyToUnderstand", "The AI text was easy to understand", 5),
+				agreeLikert("helpedMe", "The AI text helped me with the writing task", 5),
+				agreeLikert("feltPressured", "I felt pressured to do what the AI suggested", 5),
+				agreeLikert("thinkCarefullyAppropriate", "I had to think carefully about whether the AI text was appropriate", 5),
+				agreeLikert("thinkCarefullyHowToUse", "I had to think carefully about how to use the AI text", 5),
+				agreeLikert("newAspects", "The AI text made me consider aspects that I hadn't thought of", 5),
+				agreeLikert("aiShapedFinalText", "The AI text significantly shaped the final text", 5),
+				{
+					text: "How would you describe the text that the AI provided?",
+					responseType: "text",
+					name: "aiTextDescription",
+					flags: { multiline: true }
+				}
+			);
+		}
+
+		// Add common questions for all conditions
+		postTaskSurveyQuestions.push(
 			{
 				text: <>
 					<h3>Now a few questions about the task overall.</h3>
@@ -324,7 +385,7 @@ export function StudyRouter({ page }: { page: string }) {
 			},
 			SurveyData.techDiff,
 			SurveyData.otherFinal
-		];
+		);
 
 		return (
 			<SurveyPage

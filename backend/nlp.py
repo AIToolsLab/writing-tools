@@ -73,6 +73,16 @@ Guidelines:
 - Make each reaction very specific to the current document, not general observations that could apply to any document.
 - Each reaction should be expressed as a sentence describing how the reader or audience might feel about the document, not as a directive to the writer.
 - If there is not enough written in the document to be able to anticipate an audience reaction, simply respond with an empty list.
+""",
+    "complete_document": """\
+We're helping a writer complete and polish their document. Please provide a complete, polished version of the document. Guidelines:
+
+- Start with what the writer has already written (if anything).
+- Complete any unfinished sentences or thoughts.
+- Maintain the writer's tone, style, and voice throughout.
+- Polish the text for clarity and coherence.
+- Keep the document focused on the task and context provided.
+- Output the complete document as continuous prose, not as a list.
 """
 }
 
@@ -125,6 +135,10 @@ class ListResponse(BaseModel):
     responses: List[str]
 
 
+class SingleResponse(BaseModel):
+    response: str
+
+
 async def _get_suggestions_from_context(prompt_name: str, doc_context: DocContext, use_false_context: bool = False) -> List[str]:
     """Helper function to get suggestions from a specific context"""
     full_prompt = get_full_prompt(prompt_name, doc_context, use_false_context=use_false_context)
@@ -149,6 +163,25 @@ async def _get_suggestions_from_context(prompt_name: str, doc_context: DocContex
 
 
 async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
+    # Special handling for complete_document: always use false context only, single response
+    if prompt_name == "complete_document":
+        full_prompt = get_full_prompt(prompt_name, doc_context, use_false_context=True)
+        if DEBUG_PROMPTS:
+            print(f"Prompt for {prompt_name} (false context only):\n{full_prompt}\n")
+        completion = await openai_client.chat.completions.parse(
+            model=MODEL_NAME,
+            messages=[
+                {"role": "system", "content": "You are a helpful and insightful writing assistant."},
+                {"role": "user", "content": full_prompt}
+            ],
+            response_format=SingleResponse
+        )
+
+        suggestion_response = completion.choices[0].message.parsed
+        if not suggestion_response or not suggestion_response.response:
+            raise ValueError("No response found from complete_document.")
+        return GenerationResult(generation_type=prompt_name, result=suggestion_response.response, extra_data={})
+
     # If falseContextData is None/empty, use baseline behavior
     if not doc_context.falseContextData:
         full_prompt = get_full_prompt(prompt_name, doc_context)

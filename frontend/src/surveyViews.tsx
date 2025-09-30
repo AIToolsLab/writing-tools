@@ -14,6 +14,7 @@ export interface QuestionBodyType {
   responseType: string;
   levels?: string[];
   optional?: boolean;
+  options?: string[] | { key: string, value: string }[];
   flags?: Record<string, any>;
 };
 

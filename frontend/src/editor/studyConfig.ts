@@ -76,6 +76,8 @@ const letterToCondition = {
 	g: 'example_sentences',
 	a: 'analysis_readerPerspective',
 	p: 'proposal_advice',
+	n: 'no_ai',
+	f: 'complete_document',
 };
 
 export { wave, completionCode, consentFormURL, studyPageNames, summarizeMeetingNotesTask, summarizeMeetingNotesTaskFalse, letterToCondition };
