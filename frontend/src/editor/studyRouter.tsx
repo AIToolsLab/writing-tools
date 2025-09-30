@@ -26,59 +26,37 @@ const studyPageNames = [
 
 const summarizeMeetingNotesTask = [
 	{
-		title: 'Task',
-		content: "David had to leave this meeting early, before some bad news was shared. Write an email to David, diplomatically delivering the bad news to him and help him manage client expectations."
+		title: 'Your Role',
+		content: "You are a public relations representative coordinating a panel with a famous social media influencer, Jayden, and need to communicate changes."
 	},
 	{
-		title: 'Meeting Notes',
-		content: `Title: Project Budget Meeting #2 - Q4 Marketing Campaign
-Attendees: you, David (Manager), Lisa (Finance), Tom (Marketing)
-
-Background: follow-up meeting after client feedback
-
-Notes (from AI notetaker):
-- David plans to present the revised plan to client on Thursday
-- Client requested changes: more focus on social media, less on search ads.
-- David presented revised $50k budget split: $30k for social media, $20k for search ads.
-- Lisa seemed concerned about timeline with Q4 freeze coming
-- David got an urgent call and had to leave immediately
-- Lisa revealed new Q4 constraints: can only approve $35k total
-- Have to cut search ads entirely, focus only on social
-- Tom worried: "David was excited about the search-to-social funnel"
-- Tom estimates cutting search ads reduces reach by 40%
-- Lisa emphasized: "We have to stick to the $35k budget"
-- Lisa: "If social performs well, we might add search ads back in Q1"
-
-Next steps:
-- You: update David about constraints and decisions before Thursday client meeting.
-- Lisa: update Q4 budget
-- Tom: draft revised marketing strategy
+		title: 'Context',
+		content: "Jayden gets to share the same room with another influencer, Sophia. His event with Sophia is supposed to start at 2pm in room 13. "
+	},
+	{
+		title: 'Your Task',
+		content: `
+- Clearly communicate the last-minute logistical changes.
+- Confirm whether Jayden will still be able to hold the event.
+- Do your best to maintain a good working relationship with Jayden and preserve your professional reputation.
 `
 	}
 ]
 
 const summarizeMeetingNotesTaskFalse = [
 	{
-		title: "Task",
-		content: "Write a follow-up email for this meeting."
+		title: 'Your Role',
+		content: "You are a public relations representative coordinating a panel with a famous social media influencer, Jayden, and need to communicate some last-minute logistical changes."
 	},
 	{
-		title: "Meeting Notes",
-		content: `\
-Title: Project Budget Meeting #1 - Q4 Marketing Campaign
-Attendees: You, David (Manager), Lisa (Finance), Tom (Marketing)
-
-Background: Initial budget planning meeting
-
-Notes (from AI notetaker):
-- David presented $50K budget: $30K search ads, $20K social media
-- Tom excited about integrated approach: "social and search will work great together"
-- David excited about "search-to-social funnel": use search data to target socials
-- Lisa approved full budget - "looks solid, let's move forward"
-- Full team alignment on dual-channel approach
-- Timeline approved for Q4 launch
-
-Next step: David presenting approved strategy to client
+		title: 'Context',
+		content: "Due to a series of miscommunications, Jayden’s room was double-booked with an even more famous influencer, Sophia. His event was originally supposed to start at 1pm in room 12—but because Sophia is a more important guest, Jayden’s event needs to be moved to 1:30pm in room 14."
+	},
+	{
+		title: 'Your Task',
+		content: `
+- Inform Jayden of this last-minute collaboration.
+- Confirm whether Sophia will still be able to hold the event.
 `
 	}
 ]
