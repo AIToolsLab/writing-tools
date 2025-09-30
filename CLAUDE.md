@@ -66,18 +66,18 @@ cd backend && uv run pytest && uv run ruff check
 ### Frontend (Office Add-in)
 - **React/TypeScript** application using Office.js APIs
 - **State Management**: Jotai for global state
-- **Styling**: Tailwind CSS with CSS modules
+- **Styling**: a mix of Tailwind CSS and CSS modules
 - **Authentication**: Auth0 integration
 - **Build Tool**: Webpack with TypeScript
 - **Key Entry Points**: 
-  - `src/taskpane.html` - Main task pane interface
+  - `src/taskpane.html` - Main task pane interface for MS Word
+  - `src/editor/editor.html` - Standalone editor for demo and user study
   - `src/editor/editor.tsx` - Document editor integration
   - `src/api/index.ts` - Backend API communication
 
 ### Backend (FastAPI)
 - **Framework**: FastAPI with uvicorn server
 - **AI Integration**: OpenAI API for text processing
-- **NLP Processing**: spaCy for text analysis (`nlp.py`)
 - **Authentication**: auth0 signed JWT tokens (work in progress)
 - **Logging**: Structured logging to `/backend/logs/` directory
 - **Key Files**:
@@ -94,7 +94,7 @@ cd backend && uv run pytest && uv run ruff check
 ### TypeScript Configuration
 - Strict mode enabled with path aliases (`@/*` maps to `./src/*`)
 - React JSX transform configured
-- ES2020 modules with es5 target for IE11 compatibility
+- ES2020 modules with es5 target for IE11 compatibility (but IE is not tested so it's likely to not work)
 
 ### Python Configuration  
 - **Type Checking**: MyPy with Pydantic plugin enabled
@@ -124,11 +124,4 @@ cd backend && uv run pytest && uv run ruff check
 
 ## Testing
 
-### Frontend Tests
-- Jest testing framework configured
-- Test files should be in `__tests__` directories or have `.test.ts` suffix
-
-### Backend Tests  
-- Use pytest with async test support
-- Test files: `*_tests.py` or `test_*.py`
-- Run specific tests: `uv run pytest backend/test_specific.py`
+Testing is not yet well configured in this repo. When editing code, suggest high-value tests to add but wait for approval.
