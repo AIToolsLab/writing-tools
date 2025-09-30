@@ -75,14 +75,11 @@ Guidelines:
 - If there is not enough written in the document to be able to anticipate an audience reaction, simply respond with an empty list.
 """,
     "complete_document": """\
-We're helping a writer complete and polish their document. Please provide a complete, polished version of the document. Guidelines:
+We're helping a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing. Guidelines:
 
-- Start with what the writer has already written (if anything).
-- Complete any unfinished sentences or thoughts.
+- Use the text in the document as a starting point, but make any changes needed to make the document complete and polished.
 - Maintain the writer's tone, style, and voice throughout.
 - Polish the text for clarity and coherence.
-- Keep the document focused on the task and context provided.
-- Output the complete document as continuous prose, not as a list.
 """
 }
 
