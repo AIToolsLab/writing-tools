@@ -135,10 +135,6 @@ class ListResponse(BaseModel):
     responses: List[str]
 
 
-class SingleResponse(BaseModel):
-    response: str
-
-
 async def _get_suggestions_from_context(prompt_name: str, doc_context: DocContext, use_false_context: bool = False) -> List[str]:
     """Helper function to get suggestions from a specific context"""
     full_prompt = get_full_prompt(prompt_name, doc_context, use_false_context=use_false_context)
@@ -163,24 +159,23 @@ async def _get_suggestions_from_context(prompt_name: str, doc_context: DocContex
 
 
 async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
-    # Special handling for complete_document: always use false context only, single response
+    # Special handling for complete_document: always use false context only, plain completion
     if prompt_name == "complete_document":
         full_prompt = get_full_prompt(prompt_name, doc_context, use_false_context=True)
         if DEBUG_PROMPTS:
             print(f"Prompt for {prompt_name} (false context only):\n{full_prompt}\n")
-        completion = await openai_client.chat.completions.parse(
+        completion = await openai_client.chat.completions.create(
             model=MODEL_NAME,
             messages=[
                 {"role": "system", "content": "You are a helpful and insightful writing assistant."},
                 {"role": "user", "content": full_prompt}
-            ],
-            response_format=SingleResponse
+            ]
         )
 
-        suggestion_response = completion.choices[0].message.parsed
-        if not suggestion_response or not suggestion_response.response:
+        result = completion.choices[0].message.content
+        if not result:
             raise ValueError("No response found from complete_document.")
-        return GenerationResult(generation_type=prompt_name, result=suggestion_response.response, extra_data={})
+        return GenerationResult(generation_type=prompt_name, result=result, extra_data={})
 
     # If falseContextData is None/empty, use baseline behavior
     if not doc_context.falseContextData:
