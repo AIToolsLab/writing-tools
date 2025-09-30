@@ -26,59 +26,60 @@ const studyPageNames = [
 
 const summarizeMeetingNotesTask = [
 	{
-		title: 'Task',
-		content: "David had to leave this meeting early, before some bad news was shared. Write an email to David, diplomatically delivering the bad news to him and help him manage client expectations."
+		title: 'Your Role',
+		content: "You are a Marketing Coordinator leading your first major Q4 campaign. Your manager, David, has been championing your work to senior leadership."
 	},
 	{
-		title: 'Meeting Notes',
-		content: `Title: Project Budget Meeting #2 - Q4 Marketing Campaign
-Attendees: you, David (Manager), Lisa (Finance), Tom (Marketing)
+		title: 'Campaign Context',
+		content: "David is scheduled to present your $50k campaign budget to the client tomorrow. Your plan allocates $30k to social and $20k to search to create a “search-to-social” funnel. "
+	},
+	{
+		title: 'The Bad News',
+		content: "A recent meeting with Lisa (Finance Director) revealed a Q4 budget freeze and a significant cut to your campaign budget: it's now $35k (a 30% reduction). As a result, Lisa has stated that search ads must be eliminated entirely in favor of social ads. "
+	},
+	{
+		title: 'Impact',
+		content: "This means 40% less reach than promised. While Lisa floated the possibility of adding search ads back in Q1 (no guarantees), Tom (the Marketing Analyst) is concerned because the client specifically requested both channels. "
+	},
+	{
+		title: 'Your Task',
+		content: `Email David immediately to:
 
 Background: follow-up meeting after client feedback
 
-Notes (from AI notetaker):
-- David plans to present the revised plan to client on Thursday
-- Client requested changes: more focus on social media, less on search ads.
-- David presented revised $50k budget split: $30k for social media, $20k for search ads.
-- Lisa seemed concerned about timeline with Q4 freeze coming
-- David got an urgent call and had to leave immediately
-- Lisa revealed new Q4 constraints: can only approve $35k total
-- Have to cut search ads entirely, focus only on social
-- Tom worried: "David was excited about the search-to-social funnel"
-- Tom estimates cutting search ads reduces reach by 40%
-- Lisa emphasized: "We have to stick to the $35k budget"
-- Lisa: "If social performs well, we might add search ads back in Q1"
-
-Next steps:
-- You: update David about constraints and decisions before Thursday client meeting.
-- Lisa: update Q4 budget
-- Tom: draft revised marketing strategy
+- Inform him of the budget cut and its implications for his client presentation tomorrow on Thursday.
+- Position yourself as proactive and on top of the situation.
+- Provide clear guidance on what he needs to communicate to the client regarding these changes.
+- Maintain a professional tone that respects both David (your manager) and Lisa (Finance).
 `
 	}
 ]
 
 const summarizeMeetingNotesTaskFalse = [
 	{
-		title: "Task",
-		content: "Write a follow-up email for this meeting."
+		title: 'Your Role',
+		content: "You are a Marketing Coordinator leading your first major Q4 campaign. Your manager, David, has been championing your work to senior leadership."
 	},
 	{
-		title: "Meeting Notes",
-		content: `\
-Title: Project Budget Meeting #1 - Q4 Marketing Campaign
-Attendees: You, David (Manager), Lisa (Finance), Tom (Marketing)
+		title: 'Campaign Context',
+		content: "David is scheduled to present your $20k campaign budget to the client next week. Your plan allocates $10k to search and $10k to social to create a “search-to-social” funnel. "
+	},
+	{
+		title: 'The Bad News',
+		content: "A recent meeting with Lisa (Finance Director) revealed a Q4 budget freeze and a significant raise to your campaign budget: it's now $35k (a 30% increase). "
+	},
+	{
+		title: 'Impact',
+		content: "This means 40% more reach than promised. Tom (the Marketing Analyst) is excited for both the client and David. "
+	},
+	{
+		title: 'Your Task',
+		content: `Email David when free to:
 
-Background: Initial budget planning meeting
+Background: summary email after team meeting
 
-Notes (from AI notetaker):
-- David presented $50K budget: $30K search ads, $20K social media
-- Tom excited about integrated approach: "social and search will work great together"
-- David excited about "search-to-social funnel": use search data to target socials
-- Lisa approved full budget - "looks solid, let's move forward"
-- Full team alignment on dual-channel approach
-- Timeline approved for Q4 launch
-
-Next step: David presenting approved strategy to client
+- Inform him of the budget increase and its implications for his client presentation next week.
+- Provide information on what he needs to communicate to the client.
 `
 	}
 ]
