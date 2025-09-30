@@ -1,51 +1,27 @@
-"""
-This script is intended to be run once to create a .env file with the necessary environment variables.
+#!/usr/bin/env python3
 
-To run this script successfully, you must have permission to read from the specified Azure Key Vault
-and be signed in to Azure CLI (https://learn.microsoft.com/en-us/cli/azure/).
+import random, string
+from pathlib import Path
 
-Usage: python get_env.py
-"""
+backend_path = Path(__file__).parent
+env_file = backend_path / ".env"
 
-import socket
-from azure.keyvault.secrets import SecretClient
-from azure.identity import DefaultAzureCredential
+if env_file.exists():
+    print(".env file already exists. Exiting...")
+    exit(0)
 
-VAULT_NAME = "arnoldlab"
-OPENAI_API_SECRET_NAME = "OpenAI-project"
-DATABASE_URI_SECRET_NAME = "TestTextfocalsDBURI"
+print("Get an OpenAI API Key from https://platform.openai.com/account/api-keys")
+print ("(Check with project is selected in the top-left corner)")
+openai_api_key = input("Enter your OpenAI API Key: ").strip()
 
-# Set DEBUG_STATUS to "False" if running on production machine, "True" otherwise
-DEBUG_STATUS = "False" if socket.getfqdn() == "ds1.cs.calvin.edu" else "True"
-# Prod runs on 19570, dev runs on 8000
-PORT = "19571" if DEBUG_STATUS == "False" else "8000"
+if not openai_api_key.startswith("sk-"):
+    print("That key doesn't look like a valid OpenAI API key. Exiting...")
+    exit(1)
 
+log_secret = '-'.join(''.join(random.choices(string.ascii_lowercase + string.digits, k=6)) for _ in range(6))
 
-def get_keyvault(vault_name: str) -> SecretClient:
-    """Retrieve the client for accessing the specified Azure Key Vault."""
-    key_vault_url = f"https://{vault_name}.vault.azure.net"
-    credential = DefaultAzureCredential()
+with open(env_file, "w") as f:
+    f.write(f'OPENAI_API_KEY="{openai_api_key}"\n')
+    f.write(f'LOG_SECRET="{log_secret}"\n')
 
-    return SecretClient(vault_url=key_vault_url, credential=credential)
-
-
-def create_env():
-    """Create a .env file with the necessary environment variables."""
-    vault = get_keyvault(VAULT_NAME)
-
-    config = {
-        "OPENAI_API_KEY": vault.get_secret(OPENAI_API_SECRET_NAME).value,
-        "DATABASE_URI": vault.get_secret(DATABASE_URI_SECRET_NAME).value,
-        "DEBUG": DEBUG_STATUS,
-        "PORT": PORT,
-        "LOG_SECRET": vault.get_secret("LoggingSecret").value,
-    }
-
-    with open(".env", "w") as f:
-        for key, value in config.items():
-            f.write(f'{key}="{value}"\n')
-
-
-if __name__ == "__main__":
-    create_env()
-    print("Successfully created .env file")
+print(f".env file created at {env_file}")
