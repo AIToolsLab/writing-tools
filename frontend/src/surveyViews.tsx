@@ -8,6 +8,12 @@ export interface QuestionHeaderType {
   text: string | JSX.Element;
 };
 
+interface TextQuestionFlags {
+  multiline?: boolean;
+  type?: string;
+  placeholder?: string;
+}
+
 export interface QuestionBodyType {
   text: string | JSX.Element;
   name: string;
@@ -15,7 +21,7 @@ export interface QuestionBodyType {
   levels?: string[];
   optional?: boolean;
   options?: string[] | { key: string, value: string }[];
-  flags?: Record<string, any>;
+  flags?: TextQuestionFlags;
 };
 
 export type QuestionType = QuestionHeaderType | QuestionBodyType;
