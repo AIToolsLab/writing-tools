@@ -27,9 +27,4 @@ After cloning this repo:
 
 Run `./test_generation` script in the `backend` folder to make a test request. However, it runs against the prod server; change the URL to run against a local server (e.g., `http://localhost:8000/api/generation`).
 
-# Running the custom LLM backend
-
-- `cd backend`
-- `uv run --group gpu custom_llm.py --gpu`
-
-You may need to request access to a model on HuggingFace (e.g., https://huggingface.co/google/gemma-2-9b-it) and [login to huggingface-cli](https://huggingface.co/docs/huggingface_hub/main/en/guides/cli#hf-auth-login).
+Note: the custom LLM backend has moved to https://github.com/AIToolsLab/writing-prototypes.
