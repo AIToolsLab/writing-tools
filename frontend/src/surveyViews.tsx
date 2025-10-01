@@ -8,13 +8,20 @@ export interface QuestionHeaderType {
   text: string | JSX.Element;
 };
 
+interface TextQuestionFlags {
+  multiline?: boolean;
+  type?: string;
+  placeholder?: string;
+}
+
 export interface QuestionBodyType {
   text: string | JSX.Element;
   name: string;
   responseType: string;
   levels?: string[];
   optional?: boolean;
-  flags?: Record<string, any>;
+  options?: string[] | { key: string, value: string }[];
+  flags?: TextQuestionFlags;
 };
 
 export type QuestionType = QuestionHeaderType | QuestionBodyType;
@@ -176,7 +183,7 @@ interface SurveyProps {
 
 export const Survey = ({ title, basename, questions, onAdvance }: SurveyProps) => {
   const state = useAtomValue(inputStateAtom);
-  const surveyData = questions.reduce((acc, question) => {
+  const surveyData = questions.reduce((acc: Record<string, string>, question) => {
       const responseVarName = `${basename}-${question.name}`;
       if (question.responseType) {
         acc[responseVarName] = state[responseVarName];
