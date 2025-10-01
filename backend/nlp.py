@@ -19,9 +19,7 @@ MODEL_PARAMS = {
 }
 DEBUG_PROMPTS = False
 
-# Create OpenAI client
 load_dotenv()
-
 openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
 
 if openai_api_key == "":
