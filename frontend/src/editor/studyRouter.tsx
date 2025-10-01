@@ -6,7 +6,7 @@ import classes from './styles.module.css';
 import { agreeLikert, type QuestionType, Survey } from '@/surveyViews';
 import * as SurveyData from '@/surveyData';
 import { useEffect } from 'react';
-import { letterToCondition, studyPageNames, consentFormURL, wave, summarizeMeetingNotesTask, summarizeMeetingNotesTaskFalse, completionCode } from './studyConfig';
+import { letterToCondition, studyPageNames, consentFormURL, wave, prFixTask, prFixTaskFalse, completionCode } from './studyConfig';
 
 
 function getBrowserMetadata() {
@@ -210,8 +210,8 @@ export function StudyRouter({ page }: { page: string }) {
 			</ScrollablePage>
 		);
 	} else if (page === 'study-task') {
-		const curTaskContexts = summarizeMeetingNotesTask;
-		const falseContext = summarizeMeetingNotesTaskFalse;
+		const curTaskContexts = prFixTask;
+		const falseContext = prFixTaskFalse;
 		const contextToUse = urlParams.get('contextToUse') || 'mixed';
 		if (!['true', 'false', 'mixed'].includes(contextToUse)) {
 			return (

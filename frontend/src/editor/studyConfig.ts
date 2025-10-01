@@ -13,7 +13,7 @@ const studyPageNames = [
 	'study-final',
 ];
 
-const summarizeMeetingNotesTask = [
+const prFixTask = [
 	{
 		title: 'Your Role',
 		content: "You are a public relations representative coordinating a panel with a famous social media influencer, Jayden, and need to communicate changes."
@@ -32,7 +32,7 @@ const summarizeMeetingNotesTask = [
 	}
 ]
 
-const summarizeMeetingNotesTaskFalse = [
+const prFixTaskFalse = [
 	{
 		title: 'Your Role',
 		content: "You are a public relations representative coordinating a panel with a famous social media influencer, Jayden, and need to communicate some last-minute logistical changes."
@@ -59,4 +59,4 @@ const letterToCondition = {
 	f: 'complete_document',
 };
 
-export { wave, completionCode, consentFormURL, studyPageNames, summarizeMeetingNotesTask, summarizeMeetingNotesTaskFalse, letterToCondition };
+export { wave, completionCode, consentFormURL, studyPageNames, prFixTask, prFixTaskFalse, letterToCondition };
