@@ -191,7 +191,7 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
         if DEBUG_PROMPTS:
             print(f"Prompt for {prompt_name} (false context only):\n{full_prompt}\n")
         completion = await openai_client.chat.completions.create(
-            model=MODEL_NAME,
+            **MODEL_PARAMS,
             messages=[
                 {"role": "system", "content": "You are a helpful and insightful writing assistant."},
                 {"role": "user", "content": full_prompt}
