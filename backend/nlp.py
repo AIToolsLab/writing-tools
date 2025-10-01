@@ -75,14 +75,17 @@ Guidelines:
 - Make each piece of advice very specific to the current document, not general advice that could apply to any document.
 """,
     "analysis_readerPerspective": """\
-You are assisting in drafting a document for a specific person. Generate three possible questions the person might have about the document so far.
+You are assisting in drafting a document for a specific person. Generate three possible responses the person might have about the document so far.
 
 Guidelines:
 
 - Avoid suggesting specific words or phrases.
-- Limit each question to under 20 words.
-- Ensure all questions specifically reflect details or qualities from the current document, avoiding broad or generic statements.
-- Each question should be expressed as a perspective describing how the person might feel about the document, not as a directive to the writer.
+- Limit each response to under 20 words.
+- Ensure all responses specifically reflect details or qualities from the current document, avoiding broad or generic statements.
+- Each response should be expressed as a perspective describing how the person might feel about the document, not as a directive to the writer.
+- Each response should report the person's experience of the text and the effects it had on the person as the reader. Something that sounds like, "Here's what happened to me when I read this."
+- Each response should give an actionable insight that the writer could use to improve the document.
+- Each response should be distinct from the others.
 - If there is insufficient context to generate genuine questions, return an empty list.
 """,
 }
