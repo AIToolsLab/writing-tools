@@ -49,7 +49,9 @@ async def warmup_nlp():
 
 prompts = {
     "example_sentences": """\
-We're helping a writer draft a document. Please output three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next. Guidelines:
+You are assisting a writer in drafting a document. Generate three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next. 
+
+Guidelines:
 
 - Focus on the area of the document that is closest to the writer's cursor.
 - If the writer is in the middle of a sentence, output three possible continuations of that sentence.
@@ -59,7 +61,7 @@ We're helping a writer draft a document. Please output three possible options fo
 - Use ellipses to truncate sentences that are longer than about **10 words**.
 """,
     "proposal_advice": """\
-You are assisting a writer in drafting a document by providing three directive (but not prescriptive) advice to help them develop their work. Your advice must be tailored to the document’s genre. Use your best judgment to offer the most relevant and helpful advice, drawing from the following types of support as appropriate for the context:
+You are assisting a writer in drafting a document by providing three directive (but not prescriptive) advice to help them develop their work. Your advice must be tailored to the document's genre. Use your best judgment to offer the most relevant and helpful advice, drawing from the following types of support as appropriate for the context:
 - Support the writer in adhering to their stated writing goals or assignment guidelines.
 - Help the writer think about what they could write next.
 - Encourage the writer to maintain focus on their main idea and avoid introducing unrelated material.
@@ -75,7 +77,7 @@ Guidelines:
 - Make each piece of advice very specific to the current document, not general advice that could apply to any document.
 """,
     "analysis_readerPerspective": """\
-You are assisting in drafting a document for a specific person. Generate three possible questions the person might have about the document so far.
+You are assisting a writer in drafting a document for a specific person. Generate three possible questions the person might have about the document so far.
 
 Guidelines:
 
