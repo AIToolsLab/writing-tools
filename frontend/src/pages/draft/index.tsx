@@ -28,6 +28,8 @@ const visibleNameForMode = {
 	example_sentences: 'Examples',
 	analysis_readerPerspective: 'Possible questions your reader might have:',
 	proposal_advice: 'Advice',
+	complete_document: 'Complete Document',
+	no_ai: 'No AI',
 };
 
 const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advice'];
@@ -87,15 +89,18 @@ class Fetcher {
 }
 
 function GenerationResult({ generation }: { generation: GenerationResult }) {
+	const showTitle = generation.generation_type !== 'complete_document';
 	return (
 		<div className="prose">
-			<div className="text-bold">
-				{
-					visibleNameForMode[
-						generation.generation_type as keyof typeof visibleNameForMode
-					]
-				}
-			</div>{' '}
+			{showTitle ? (
+				<div className="text-bold">
+					{
+						visibleNameForMode[
+							generation.generation_type as keyof typeof visibleNameForMode
+						]
+					}
+				</div>
+			) : null}{' '}
 			<Remark>{generation.result}</Remark>
 		</div>
 	);
@@ -260,7 +265,9 @@ export default function Draft() {
 	// });
 
 	const isStudy = studyData !== null;
-	const autoRefreshInterval = isStudy ? studyData.autoRefreshInterval : 0;
+	const currentCondition = isStudy ? studyData.condition : null;
+	const isNoAI = currentCondition === 'no_ai';
+	const autoRefreshInterval = isStudy && !isNoAI ? studyData.autoRefreshInterval : 0;
 	const modesToShow = useMemo(
 		() => (isStudy ? [studyData.condition] : modes),
 		[isStudy, studyData],
@@ -404,6 +411,19 @@ export default function Draft() {
 		return <div>Please reauthorize.</div>;
 	}
 
+	// Handle no_ai condition with static message
+	if (isNoAI) {
+		return (
+			<div className="flex flex-col flex-1">
+				<div className="flex flex-col flex-1 gap-2 relative p-2">
+					<div className="mt-4 ml-4 mr-4 p-4 text-center text-stone-700">
+						AI suggestions are unavailable for this task. (Please do not use any other AI systems either.)
+					</div>
+				</div>
+			</div>
+		);
+	}
+
 	let alerts = null;
 
 	if (errorMsg !== '')
@@ -448,7 +468,7 @@ export default function Draft() {
 											log({
 												username: username,
 												event: 'request_suggestion',
-												 
+
 												generation_type: mode,
 												docContext:
 													docContextRef.current,
