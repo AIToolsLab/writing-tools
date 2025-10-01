@@ -14,6 +14,7 @@ from openai import AsyncOpenAI
 
 MODEL_PARAMS = {
     "model": "gpt-4o",
+    # "model": "gpt-5-mini",
     # "reasoning_effort": "minimal",
     # "text_verbosity": "medium"
 }
@@ -39,7 +40,8 @@ async def warmup_nlp():
     try:
         await dummy_client.chat.completions.create(
             model="gpt-4o",
-            # reasoning_effort="low",
+            # model="gpt-5-mini",
+            # reasoning_effort="minimal",
             messages=[{"role": "user", "content": "Hello"}],
         )
     except openai.APIConnectionError:
