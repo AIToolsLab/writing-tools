@@ -75,9 +75,6 @@ const summarizeMeetingNotesTaskFalse = [
 	{
 		title: 'Your Task',
 		content: `Email David when free to:
-
-Background: summary email after team meeting
-
 - Inform him of the budget increase and its implications for his client presentation next week.
 - Provide information on what he needs to communicate to the client.
 `
