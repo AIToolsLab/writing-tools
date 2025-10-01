@@ -417,7 +417,7 @@ export default function Draft() {
 			<div className="flex flex-col flex-1">
 				<div className="flex flex-col flex-1 gap-2 relative p-2">
 					<div className="mt-4 ml-4 mr-4 p-4 text-center text-stone-700">
-						AI suggestions are unavailable for this task.
+						AI suggestions are unavailable for this task. (Please do not use any other AI systems either.)
 					</div>
 				</div>
 			</div>
