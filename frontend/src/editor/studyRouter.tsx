@@ -31,7 +31,7 @@ const summarizeMeetingNotesTask = [
 	},
 	{
 		title: 'Context',
-		content: "Jayden gets to share the same room with another influencer, Sophia. His event with Sophia is supposed to start at 2pm in room 13. "
+		content: "Due to a series of miscommunications, Jayden’s room was double-booked with an even more famous influencer, Sophia. His event was originally supposed to start at 1pm in room 12—but because Sophia is a more important guest, Jayden’s event needs to be moved to 1:30pm in room 14. "
 	},
 	{
 		title: 'Your Task',
@@ -50,13 +50,14 @@ const summarizeMeetingNotesTaskFalse = [
 	},
 	{
 		title: 'Context',
-		content: "Due to a series of miscommunications, Jayden’s room was double-booked with an even more famous influencer, Sophia. His event was originally supposed to start at 1pm in room 12—but because Sophia is a more important guest, Jayden’s event needs to be moved to 1:30pm in room 14."
+		content: "Jayden gets to share the same room with another influencer, Sophia. His event with Sophia is supposed to start at 2pm in room 13. "
 	},
 	{
 		title: 'Your Task',
 		content: `
-- Inform Jayden of this last-minute collaboration.
-- Confirm whether Sophia will still be able to hold the event.
+- Inform Jayden that he'll be in room 23.
+- Time is unchanged.
+- Stay focused on the logistical details without worrying about the feelings of the recipient.
 `
 	}
 ]
