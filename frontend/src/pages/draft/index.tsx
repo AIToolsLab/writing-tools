@@ -267,8 +267,7 @@ export default function Draft() {
 	const isStudy = studyData !== null;
 	const currentCondition = isStudy ? studyData.condition : null;
 	const isNoAI = currentCondition === 'no_ai';
-	const isCompleteDocument = currentCondition === 'complete_document';
-	const autoRefreshInterval = isStudy && !isNoAI && !isCompleteDocument ? studyData.autoRefreshInterval : 0;
+	const autoRefreshInterval = isStudy && !isNoAI ? studyData.autoRefreshInterval : 0;
 	const modesToShow = useMemo(
 		() => (isStudy ? [studyData.condition] : modes),
 		[isStudy, studyData],
