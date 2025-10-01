@@ -26,7 +26,7 @@ import classes from './styles.module.css';
 
 const visibleNameForMode = {
 	example_sentences: 'Examples',
-	analysis_readerPerspective: "Reader's Perspective",
+	analysis_readerPerspective: 'Possible questions your reader might have:',
 	proposal_advice: 'Advice',
 };
 
