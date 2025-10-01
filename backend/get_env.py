@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
-import random, string
+import random
+import string
 from pathlib import Path
 
 backend_path = Path(__file__).parent

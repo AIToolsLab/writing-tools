@@ -24,6 +24,7 @@ dev = [
     "joblib>=1.5.2",
     "jupyter>=1.1.1",
     "pandas>=2.3.2",
+    "ruff>=0.13.2",
     "scipy>=1.16.1",
     "seaborn>=0.13.2",
     "statsmodels>=0.14.5",
