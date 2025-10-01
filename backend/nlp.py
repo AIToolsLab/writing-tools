@@ -51,8 +51,9 @@ async def warmup_nlp():
 
 prompts = {
     "example_sentences": """\
-We're helping a writer draft a document. Please output three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next. Guidelines:
+You are assisting a writer in drafting a document. Generate three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next.
 
+Guidelines:
 - Focus on the area of the document that is closest to the writer's cursor.
 - If the writer is in the middle of a sentence, output three possible continuations of that sentence.
 - If the writer is at the end of a paragraph, output three possible sentences that would start the next paragraph.
@@ -61,7 +62,7 @@ We're helping a writer draft a document. Please output three possible options fo
 - Use ellipses to truncate sentences that are longer than about **10 words**.
 """,
     "proposal_advice": """\
-You are assisting a writer in drafting a document by providing three directive (but not prescriptive) advice to help them develop their work. Your advice must be tailored to the document’s genre. Use your best judgment to offer the most relevant and helpful advice, drawing from the following types of support as appropriate for the context:
+You are assisting a writer in drafting a document by providing three directive (but not prescriptive) advice to help them develop their work. Your advice must be tailored to the document's genre. Use your best judgment to offer the most relevant and helpful advice, drawing from the following types of support as appropriate for the context:
 - Support the writer in adhering to their stated writing goals or assignment guidelines.
 - Help the writer think about what they could write next.
 - Encourage the writer to maintain focus on their main idea and avoid introducing unrelated material.
@@ -71,16 +72,15 @@ You are assisting a writer in drafting a document by providing three directive (
 
 Guidelines:
 - Focus on the area of the document that is closest to the writer's cursor.
-- Keep each piece of advice concise.
+- Keep each piece of advice under 20 words.
 - Express the advice in the form of a directive instruction, not a question.
 - Don't give specific words or phrases for the writer to use.
 - Make each piece of advice very specific to the current document, not general advice that could apply to any document.
 """,
     "analysis_readerPerspective": """\
-You are assisting in drafting a document for a specific person. Generate three possible questions the person might have about the document so far.
+You are assisting a writer in drafting a document for a specific person. Generate three possible questions the person might have about the document so far.
 
 Guidelines:
-
 - Avoid suggesting specific words or phrases.
 - Limit each question to under 20 words.
 - Ensure all questions specifically reflect details or qualities from the current document, avoiding broad or generic statements.
@@ -88,8 +88,9 @@ Guidelines:
 - If there is insufficient context to generate genuine questions, return an empty list.
 """,
     "complete_document": """\
-We're helping a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing. Guidelines:
+You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing. 
 
+Guidelines:
 - Use the text in the document as a starting point, but make any changes needed to make the document complete and polished.
 - Maintain the writer's tone, style, and voice throughout.
 - Polish the text for clarity and coherence.
