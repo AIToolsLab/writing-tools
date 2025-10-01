@@ -89,6 +89,13 @@ Guidelines:
 - Each question should be expressed as a perspective describing how the person might feel about the document, not as a directive to the writer.
 - If there is insufficient context to generate genuine questions, return an empty list.
 """,
+    "complete_document": """\
+We're helping a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing. Guidelines:
+
+- Use the text in the document as a starting point, but make any changes needed to make the document complete and polished.
+- Maintain the writer's tone, style, and voice throughout.
+- Polish the text for clarity and coherence.
+"""
 }
 
 
@@ -182,6 +189,24 @@ async def _get_suggestions_from_context(
 
 
 async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
+    # Special handling for complete_document: always use false context only, plain completion
+    if prompt_name == "complete_document":
+        full_prompt = get_full_prompt(prompt_name, doc_context, use_false_context=True)
+        if DEBUG_PROMPTS:
+            print(f"Prompt for {prompt_name} (false context only):\n{full_prompt}\n")
+        completion = await openai_client.chat.completions.create(
+            **MODEL_PARAMS,
+            messages=[
+                {"role": "system", "content": "You are a helpful and insightful writing assistant."},
+                {"role": "user", "content": full_prompt}
+            ]
+        )
+
+        result = completion.choices[0].message.content
+        if not result:
+            raise ValueError("No response found from complete_document.")
+        return GenerationResult(generation_type=prompt_name, result=result, extra_data={})
+
     # If falseContextData is None/empty, use baseline behavior
     if not doc_context.falseContextData:
         full_prompt = get_full_prompt(prompt_name, doc_context)
