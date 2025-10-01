@@ -14,8 +14,8 @@ from openai.types.chat.chat_completion_message_param import ChatCompletionMessag
 from openai import AsyncOpenAI
 
 MODEL_PARAMS = {
-    "model": "gpt-5-mini",
-    "reasoning_effort": "minimal",
+    "model": "gpt-4o",
+    # "reasoning_effort": "minimal",
     #"text_verbosity": "medium"
 }
 DEBUG_PROMPTS = False
@@ -39,8 +39,8 @@ async def warmup_nlp():
     # make a dummy request to make sure everything is imported
     try:
         await dummy_client.chat.completions.create(
-            model="gpt-5-mini",
-            reasoning_effort="low",
+            model="gpt-4o",
+            # reasoning_effort="low",
             messages=[{"role": "user", "content": "Hello"}],
         )
     except openai.APIConnectionError:
