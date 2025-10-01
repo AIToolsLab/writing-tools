@@ -25,12 +25,12 @@ import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
 
 const visibleNameForMode = {
-	example_sentences: 'Examples',
+	example_sentences: 'Examples of what you could write next:',
 	analysis_readerPerspective: 'Possible questions your reader might have:',
-	proposal_advice: 'Advice',
+	proposal_advice: 'Advice for your next words:',
 	complete_document: 'Complete Document',
 	no_ai: 'No AI',
-};
+}
 
 const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advice'];
 
