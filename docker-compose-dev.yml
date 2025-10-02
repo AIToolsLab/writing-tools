@@ -11,6 +11,8 @@ services:
     environment:
       - DEBUG=True
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ./backend/logs:/app/backend/logs
 
 networks:
   default:
