@@ -23,6 +23,7 @@ import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
+import { Button } from '@/components/ui/button';
 
 const visibleNameForMode = {
 	example_sentences: 'Examples of what you could write next:',
@@ -459,9 +460,8 @@ export default function Draft() {
 						{modesToShow.map((mode) => {
 							return (
 								<Fragment key={mode}>
-									<button
-										type="button"
-										className="cursor-pointer border border-gray-300 bg-white px-3 py-1 rounded-md flex items-center gap-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+									<Button
+										variant={"default"}
 										disabled={isLoading}
 										title={isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode]}
 										onClick={() => {
@@ -489,7 +489,7 @@ export default function Draft() {
 											iconFunc(mode)
 										)}
 										{ isStudy ? "Refresh" : null }
-									</button>
+									</Button>
 								</Fragment>
 							);
 						})}
