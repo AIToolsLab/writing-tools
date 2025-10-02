@@ -174,13 +174,13 @@ function LexicalEditor({
 			}}
 		>
 			<div className={classes.editorContainer}>
-				<div className={classes.editor}>
+				<div className={"resize-none text-base caret-zinc-900 relative outline-none overflow-y-scroll h-full editor-scrollbar"}>
 					{preamble ? (
 						<div className="whitespace-pre-line">{preamble}</div>
 					) : null}
 					<RichTextPlugin
 						contentEditable={
-							<ContentEditable className={classes.editor} />
+							<ContentEditable className={"resize-none text-base caret-zinc-900 relative outline-none overflow-y-scroll editor-scrollbar"} />
 						}
 						placeholder={<div className={classes.placeholder} />}
 						ErrorBoundary={LexicalErrorBoundary}

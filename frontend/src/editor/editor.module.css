@@ -12,38 +12,6 @@
 	height: 80vh;
 }
 
-/* Controls CSS for editor in all the pages (editor, demo, study) */
-.editor {
-	resize: none;
-	font-size: 16px;
-	caret-color: rgb(5, 5, 5);
-	position: relative;
-	tab-size: 1;
-	outline: 0;
-	caret-color: #444;
-	overflow-y: scroll;
-	height: 100%; /* NEW: Full height to fill the editorcontainer */
-	scrollbar-width: thin;
-	scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
-}
-
-.editor::-webkit-scrollbar {
-	width: 4px;
-	height: 4px;
-}
-.editor::-webkit-scrollbar-track {
-	background: transparent;
-	margin-right: -4px;
-}
-.editor::-webkit-scrollbar-thumb {
-	background: rgba(0, 0, 0, 0.1);
-	border-radius: 4px;
-	margin-right: -4px;
-}
-.editor::-webkit-scrollbar-thumb:hover {
-	background: rgba(0, 0, 0, 0.4);
-}
-
 .placeholder {
 	color: #6b6b6b;
 	overflow: hidden;
