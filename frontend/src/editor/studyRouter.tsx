@@ -115,6 +115,23 @@ export function StudyRouter({ page }: { page: string }) {
 		return <div>Unknown study page</div>;
 	}
 
+	if (window.innerWidth < 600 || window.innerHeight < 500 || navigator.userAgent.toLowerCase().includes('mobile')) {
+		return (
+			<div className='flex flex-col items-center justify-center text-center min-h-full max-w-lg m-auto p-2'>
+				<h1>Screen Too Small</h1>
+				<p>
+					It looks like you're using a device with a small screen (like a phone or tablet) or your browser window is too small.
+				</p>
+				<p>
+					If you're on a phone or tablet, please switch to a laptop or desktop computer to participate in this study.
+				</p>
+				<p>
+					If you're on a laptop or desktop computer, please make your browser window larger (at least 600 pixels wide and 500 pixels tall) and refresh the page.
+				</p>
+			</div>
+		);
+	}
+
 	const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
     const nextUrlParams = new URLSearchParams(window.location.search);
     nextUrlParams.set('page', nextPage);
