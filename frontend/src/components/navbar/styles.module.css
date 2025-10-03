@@ -1,10 +1,16 @@
 .nav {
+	position: sticky;
 	top: 0;
+	z-index: 40;
 	width: 100%;
 	display: flex;
 	justify-content: center;
 	gap: 12px;
 	align-items: center;
+	background: var(--nav-bg, rgba(255, 255, 255, 0.96));
+	padding: 12px 16px;
+	box-shadow: 0 1px 0 rgba(2, 6, 23, 0.06);
+
 }
 
 /* Style the secondary buttons inside the nav to look framed */
