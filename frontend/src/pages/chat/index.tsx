@@ -66,13 +66,14 @@ export default function Chat() {
 	async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
 		e.preventDefault();
 
-		if (!message) return;
+		const trimmedMessage = message.trim();
+		if (!trimmedMessage) return;
 
 		updateSendingMessage(true);
 
 		let newMessages = [
 			...messagesWithCurDocContext,
-			{ role: 'user', content: message },
+			{ role: 'user', content: trimmedMessage },
 			{ role: 'assistant', content: '' },
 		];
 
@@ -137,45 +138,57 @@ export default function Chat() {
 	}
 
 	return (
-		<div className="m-2 flex flex-col gap-4">
-			<div className="flex-col gap-2 max-h-[500px] bottom-0 overflow-y-auto">
-				{messagesWithCurDocContext.slice(2).map((message, index) => (
-					<ChatMessage
-						key={index + 2}
-						role={message.role}
-						content={message.content}
-						index={index + 2}
-						refresh={regenMessage}
-						deleteMessage={() => {}}
-						convertToComment={() => {}}
-					/>
-				))}
+		<div className="flex w-full flex-col items-center gap-6 px-4 py-6">
+			<div className="flex w-full max-w-4xl flex-col gap-4">
+				<div className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl">
+					<div className="space-y-4 overflow-y-auto px-6 py-6 max-h-[520px]">
+						{messagesWithCurDocContext.slice(2).map((message, index) => (
+							<ChatMessage
+								key={index + 2}
+								role={message.role}
+								content={message.content}
+								index={index + 2}
+								refresh={regenMessage}
+								deleteMessage={() => {}}
+								convertToComment={() => {}}
+							/>
+						))}
+					</div>
+
+					<form className="border-t border-slate-100 bg-slate-50/60 px-4 py-4" onSubmit={sendMessage}>
+						<label className="sr-only" htmlFor="chat-input">
+							Send a message
+						</label>
+						<div className="flex w-full items-end gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition focus-within:border-sky-400 focus-within:ring-2 focus-within:ring-sky-200">
+							<textarea
+								id="chat-input"
+								disabled={isSendingMessage}
+								placeholder="Send a message"
+								value={message}
+								onChange={(e) => updateMessage(e.target.value)}
+								rows={3}
+								className="h-28 w-full resize-none border-none bg-transparent text-sm leading-6 text-slate-700 placeholder:text-slate-400 outline-none"
+							/>
+							<button
+								type="submit"
+								className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-sky-500 text-white shadow-sm transition hover:bg-sky-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+								disabled={isSendingMessage || message.trim() === ''}
+								aria-label="Send message"
+							>
+								<AiOutlineSend className="text-lg" />
+							</button>
+						</div>
+					</form>
+				</div>
+
+				<button
+					onClick={() => updateChatMessages([])}
+					className="self-end text-sm font-medium text-slate-500 transition hover:text-slate-700"
+					type="button"
+				>
+					Clear Chat
+				</button>
 			</div>
-
-			<form className="w-full flex flex-col gap-2" onSubmit={sendMessage}>
-				<label className="flex items-center border border-gray-500 justify-between p-[10px]">
-					<textarea
-						disabled={isSendingMessage}
-						placeholder="Send a message"
-						value={message}
-						onChange={(e) => updateMessage(e.target.value)}
-					/>
-
-					<button
-						type="submit"
-						className="bg-transparent cursor-pointer border border-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
-					>
-						<AiOutlineSend />
-					</button>
-				</label>
-			</form>
-
-			<button
-				onClick={() => updateChatMessages([])}
-				className="bg-transparent cursor-pointer border boder-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
-			>
-				Clear Chat
-			</button>
 		</div>
 	);
 }

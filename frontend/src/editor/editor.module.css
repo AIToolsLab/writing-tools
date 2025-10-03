@@ -22,7 +22,8 @@
 	outline: 0;
 	caret-color: #444;
 	overflow-y: scroll;
-	height: 100%; /* NEW: Full height to fill the editorcontainer */
+	height: 100%;
+	/* NEW: Full height to fill the editorcontainer */
 	scrollbar-width: thin;
 	scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
 }
@@ -31,15 +32,18 @@
 	width: 4px;
 	height: 4px;
 }
+
 .editor::-webkit-scrollbar-track {
 	background: transparent;
 	margin-right: -4px;
 }
+
 .editor::-webkit-scrollbar-thumb {
 	background: rgba(0, 0, 0, 0.1);
 	border-radius: 4px;
 	margin-right: -4px;
 }
+
 .editor::-webkit-scrollbar-thumb:hover {
 	background: rgba(0, 0, 0, 0.4);
 }

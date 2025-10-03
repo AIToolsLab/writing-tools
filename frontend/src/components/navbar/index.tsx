@@ -7,6 +7,7 @@ import {
 
 import classes from './styles.module.css';
 import { useAtom, useAtomValue } from 'jotai';
+import ButtonSecondary from '@/components/ui/button-secondary';
 
 /**
  * An array of objects representing the names and titles of pages.
@@ -38,13 +39,14 @@ export default function Navbar() {
 		return (
 			<nav className={classes.nav}>
 				{pageNames.map(({ name: pageName, title: pageTitle }) => (
-					<p
+					<ButtonSecondary
 						key={pageName}
 						onClick={() => changePage(pageName)}
-						className={page === pageName ? classes.active : ''}
+						className={page === pageName ? classes.activeButton : ''}
+						aria-current={page === pageName ? 'page' : undefined}
 					>
 						{pageTitle}
-					</p>
+					</ButtonSecondary>
 				))}
 			</nav>
 		);
