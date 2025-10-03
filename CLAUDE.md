@@ -14,14 +14,13 @@ This is a writing tools application consisting of two main components:
 **CRITICAL**: Always use the correct package manager for each component:
 
 ### Frontend (`/frontend`)
-- **Use `yarn`** - NOT npm
 - Commands:
-  - Install: `yarn` or `yarn install`
-  - Dev server: `yarn run dev-server`
-  - Build: `yarn build` (production) or `yarn build:dev` (development)
-  - Lint: `yarn lint` or `yarn lint:fix`
-  - Format: `yarn format` or `yarn style:fix` (lint + format)
-  - Test: `yarn test`
+  - Install: `npm install`
+  - Dev server: `npm run dev-server`
+  - Build: `npm run build` (production) or `npm run build:dev` (development)
+  - Lint: `npm run lint` or `npm run lint:fix`
+  - Format: `npm run format` or `npm run style:fix` (lint + format)
+  - Test: `npm run test`
 
 ### Backend (`/backend`)
 - **Use `uv`** - NOT pip
@@ -40,13 +39,13 @@ This is a writing tools application consisting of two main components:
 uv sync
 
 # Frontend setup
-cd frontend && yarn install
+cd frontend && npm install
 ```
 
 ### Running Services
 ```bash
 # Frontend development server (runs on port 3000)
-cd frontend && yarn run dev-server
+cd frontend && npm run dev-server
 
 # Backend server with auto-reload
 cd backend && uv run uvicorn server:app --host localhost --port 8000 --reload
@@ -55,7 +54,7 @@ cd backend && uv run uvicorn server:app --host localhost --port 8000 --reload
 ### Testing and Linting
 ```bash
 # Frontend
-cd frontend && yarn lint:fix && yarn format
+cd frontend && npm run lint:fix && npm run format
 
 # Backend  
 cd backend && uv run pytest && uv run ruff check

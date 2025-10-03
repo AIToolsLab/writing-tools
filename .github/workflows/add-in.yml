@@ -28,9 +28,9 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v3
 
-      - run: yarn
+      - run: npm install
         working-directory: ./frontend
-      - run: yarn lint
+      - run: npm run lint
         working-directory: ./frontend
 
 permissions:

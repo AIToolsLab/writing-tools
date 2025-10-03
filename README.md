@@ -11,10 +11,10 @@ If you can't find the Add-ins tab, look instead on the File menu for "Get Add-in
 # Running the add-in
 
 - `cd frontend`
-- `yarn`
-- `yarn run dev-server`
+- `npm install`
+- `npm run dev-server`
 
-Run `yarn lint --fix` to auto-fix (almost) all lint errors.
+Run `npm run lint --fix` to auto-fix (almost) all lint errors.
 
 # Running the backend server
 
