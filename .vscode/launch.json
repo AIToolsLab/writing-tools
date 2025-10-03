@@ -38,7 +38,7 @@
             "type": "node",
             "request": "launch",
             "cwd": "${workspaceFolder}/frontend",
-            "runtimeExecutable": "yarn",
+            "runtimeExecutable": "npm",
             "runtimeArgs": [
                 "run",
                 "dev-server"
