@@ -21,6 +21,7 @@ import Draft from '../draft';
 import Revise from '../revise';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
+import UserBadge from '@/components/ui/UserBadge';
 
 function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
@@ -41,29 +42,29 @@ function AppInner() {
 		if (navigator.userAgent.indexOf('Trident') !== -1) {
 			/*
 				Trident is the webview in use. Do one of the following:
-        1. Provide an alternate add-in experience that doesn't use any of the HTML5
-        features that aren't supported in Trident (Internet Explorer 11).
-        2. Enable the add-in to gracefully fail by adding a message to the UI that
-        says something similar to:
-        "This add-in won't run in your version of Office. Please upgrade either to
-        perpetual Office 2021 (or later) or to a Microsoft 365 account."
-      */
+				1. Provide an alternate add-in experience that doesn't use any of the HTML5
+				features that aren't supported in Trident (Internet Explorer 11).
+				2. Enable the add-in to gracefully fail by adding a message to the UI that
+				says something similar to:
+				"This add-in won't run in your version of Office. Please upgrade either to
+				perpetual Office 2021 (or later) or to a Microsoft 365 account."
+			*/
 			return false;
 		} else if (navigator.userAgent.indexOf('Edge') !== -1) {
 			/*
 				EdgeHTML is the browser in use. Do one of the following:
-        1. Provide an alternate add-in experience that's supported in EdgeHTML (Microsoft Edge Legacy).
-        2. Enable the add-in to gracefully fail by adding a message to the UI that
-        says something similar to:
-        "This add-in won't run in your version of Office. Please upgrade either to
-        perpetual Office 2021 (or later) or to a Microsoft 365 account."
-      */
+				1. Provide an alternate add-in experience that's supported in EdgeHTML (Microsoft Edge Legacy).
+				2. Enable the add-in to gracefully fail by adding a message to the UI that
+				says something similar to:
+				"This add-in won't run in your version of Office. Please upgrade either to
+				perpetual Office 2021 (or later) or to a Microsoft 365 account."
+			*/
 			return false;
 		} else {
 			/*
-        A webview other than Trident or EdgeHTML is in use.
-        Provide a full-featured version of the add-in here.
-      */
+				A webview other than Trident or EdgeHTML is in use.
+				Provide a full-featured version of the add-in here.
+			*/
 			return true;
 		}
 	}
@@ -232,9 +233,7 @@ function AppInner() {
 			{!noAuthMode && user ? (
 				<div className={classes.container}>
 					<div className={classes.profileContainer}>
-						<div className={classes.userNameContainer}>
-							User: {user.name}
-						</div>
+						<UserBadge name={user.name ?? 'User'} />
 					</div>
 					{authErrorType !== null && (
 						<button

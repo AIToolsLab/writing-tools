@@ -1,0 +1,51 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 9999px;
+  background: linear-gradient(180deg, #fff, #fbfbfb);
+  border: 1px solid rgba(15, 23, 42, 0.04);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 9999px;
+  object-fit: cover;
+  box-shadow: 0 2px 6px rgba(2, 6, 23, 0.06);
+}
+
+.initialAvatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #0f172a;
+  /* slate-900 */
+  color: #fff;
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+}
+
+.label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.name {
+  font-size: 1rem;
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.08);
+}
