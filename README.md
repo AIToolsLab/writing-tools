@@ -28,3 +28,8 @@ After cloning this repo:
 Run `./test_generation` script in the `backend` folder to make a test request. However, it runs against the prod server; change the URL to run against a local server (e.g., `http://localhost:8000/api/generation`).
 
 Note: the custom LLM backend has moved to https://github.com/AIToolsLab/writing-prototypes.
+
+
+# Contributing
+
+Please read our [Contributing Guidelines](CONTRIBUTING.md) for information on our GitHub workflow, branch naming, commit messages, and PR process.
