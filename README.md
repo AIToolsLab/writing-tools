@@ -28,3 +28,17 @@ After cloning this repo:
 Run `./test_generation` script in the `backend` folder to make a test request. However, it runs against the prod server; change the URL to run against a local server (e.g., `http://localhost:8000/api/generation`).
 
 Note: the custom LLM backend has moved to https://github.com/AIToolsLab/writing-prototypes.
+
+
+# Contributing
+
+We follow specific GitHub conventions to keep our project organized and maintain code quality.
+
+**Quick Start:**
+1. Create an issue for your task
+2. Create a branch: `<type>/<description>` (e.g., `feat/add-user-login`)
+3. Make commits: `<type>: <description>` (e.g., `feat: add login form`)
+4. Open a PR and link to your issue
+5. Get at least one approval before merging
+
+For detailed conventions on branch naming, commit messages, PR process, and issue management, see [CONTRIBUTING.md](CONTRIBUTING.md).
