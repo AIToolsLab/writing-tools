@@ -32,4 +32,13 @@ Note: the custom LLM backend has moved to https://github.com/AIToolsLab/writing-
 
 # Contributing
 
-Please read our [Contributing Guidelines](CONTRIBUTING.md) for information on our GitHub workflow, branch naming, commit messages, and PR process.
+We follow specific GitHub conventions to keep our project organized and maintain code quality.
+
+**Quick Start:**
+1. Create an issue for your task
+2. Create a branch: `<type>/<description>` (e.g., `feat/add-user-login`)
+3. Make commits: `<type>: <description>` (e.g., `feat: add login form`)
+4. Open a PR and link to your issue
+5. Get at least one approval before merging
+
+For detailed conventions on branch naming, commit messages, PR process, and issue management, see [CONTRIBUTING.md](CONTRIBUTING.md).
