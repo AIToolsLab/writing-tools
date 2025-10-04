@@ -4,6 +4,36 @@
 
 ---
 
+## Typical Workflow
+
+**Day-to-day process:**
+
+1. **Pick a task** - Look at open issues, assign one to yourself
+2. **Create branch** - `git checkout -b feature/task-name`
+3. **Work and commit** - Make changes, commit with proper messages
+4. **Push and PR** - Push branch, open pull request
+5. **Review** - Get teammate approval
+6. **Merge** - Merge PR, delete branch
+7. **Close issue** - Issue closes automatically if you used `Closes #X`
+
+**Example:**
+```bash
+# Start new work
+git checkout main
+git pull
+git checkout -b feat/add-user-dashboard
+
+# Make changes and commit
+git add .
+git commit -m "feat: add user dashboard layout"
+
+# Push and create PR
+git push origin feat/add-user-dashboard
+# Then open PR on GitHub linking to issue
+```
+
+---
+
 ## Branch Naming
 
 **Format:** `<type>/<short-description>`
@@ -198,31 +228,5 @@ Links, screenshots, or relevant context
 
 ---
 
-## Typical Workflow
 
-**Day-to-day process:**
-
-1. **Pick a task** - Look at open issues, assign one to yourself
-2. **Create branch** - `git checkout -b feature/task-name`
-3. **Work and commit** - Make changes, commit with proper messages
-4. **Push and PR** - Push branch, open pull request
-5. **Review** - Get teammate approval
-6. **Merge** - Merge PR, delete branch
-7. **Close issue** - Issue closes automatically if you used `Closes #X`
-
-**Example:**
-```bash
-# Start new work
-git checkout main
-git pull
-git checkout -b feat/add-user-dashboard
-
-# Make changes and commit
-git add .
-git commit -m "feat: add user dashboard layout"
-
-# Push and create PR
-git push origin feat/add-user-dashboard
-# Then open PR on GitHub linking to issue
-```
 
