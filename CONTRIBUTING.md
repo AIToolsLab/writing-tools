@@ -226,8 +226,3 @@ git push origin feat/add-user-dashboard
 # Then open PR on GitHub linking to issue
 ```
 
----
-
-**Team Members:** [Add names]
-**Course:** [Course name/number]
-**Last Updated:** [Date]
