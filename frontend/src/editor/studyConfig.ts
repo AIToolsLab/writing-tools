@@ -70,7 +70,7 @@ const summarizeMeetingNotesTaskFalse = [
 const prFixTask = [
 	{
 		title: 'Your Role',
-		content: "You are a public relations representative from ConnectCon coordinating a panel on Building Your Personal Brand with a famous social media influencer, Jayden, and need to communicate these logistical details."
+		content: "You are a public relations representative from ConnectCon coordinating a panel on Building Your Personal Brand with a famous social media influencer, Jayden, and need to communicate the following logistical details."
 	},
 	{
 		title: 'Context',
@@ -97,7 +97,7 @@ const prFixTask = [
 const prFixTaskFalse = [
 	{
 		title: 'Your Role',
-		content: "You are a public relations representative coordinating a panel with a famous social media influencer, Jayden, and need to communicate these following logistical details."
+		content: "You are a public relations representative coordinating a panel with a famous social media influencer, Jayden, and need to communicate the following logistical details."
 	},
 	{
 		title: 'Context',
