@@ -142,8 +142,13 @@ export function EditorScreen({
 	};
 
 	return (
-		<div className={isDemo ? classes.democontainer : classes.container}>
-			<div className={isDemo ? classes.demoeditor : classes.editor}>
+		<div className={isDemo 
+  ? "flex justify-center font-sans" 
+  : "flex justify-evenly font-sans flex-row"}>
+  
+  <div className={isDemo 
+    ? "min-w-[40rem] max-w-[40rem] w-full relative" 
+    : "flex-1 min-w-[15rem]"}>
 				<LexicalEditor
 					// @ts-expect-error initialState needs to actually be `undefined`, not null, see see https://github.com/facebook/lexical/issues/5079
 					initialState={getInitialState()}
@@ -159,8 +164,13 @@ export function EditorScreen({
 			</div>
 
 			<div
-				className={`overflow-y-scroll ${isDemo ? classes.demosidebar : classes.sidebar}`}
-			>
+  className={`overflow-y-scroll ${
+    isDemo
+      ? "m-5 h-[80vh] min-w-[28rem] w-[28rem] shadow-[ -2px_0_5px_rgba(0,0,0,0.1)] font-sans bg-white"
+      : "/* fallback sidebar styles here */"
+  }`}
+>
+
 				<EditorContext.Provider value={editorAPI}>
 					<Sidebar />
 				</EditorContext.Provider>
