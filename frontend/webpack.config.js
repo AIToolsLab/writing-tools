@@ -95,78 +95,23 @@ export default async (env, options) => {
 						filename: 'assets/[name].[contenthash][ext][query]'
 					}
 				},
-				// Allow Reshaped package CSS to be processed (it ships CSS in node_modules)
 				{
-					test: /node_modules[\\/]reshaped[\\/].*\.module\.css$/,
+					test: /\.css$/,
 					use: [
-						dev ? 'style-loader' : MiniCssExtractPlugin.loader,
-						{
-							loader: 'css-loader',
-							options: {
-								// Reshaped uses CSS modules for some files
-								modules: true
-							}
+					{
+						loader: MiniCssExtractPlugin.loader,
+						options: {
+						esModule: false,
 						},
-						{
-							loader: 'postcss-loader'
-						}
-					]
-				},
-				{
-					test: /node_modules[\\/]reshaped[\\/].*\.css$/,
-					exclude: /\.module\.css$/,
-					use: [
-						dev ? 'style-loader' : MiniCssExtractPlugin.loader,
-						{
-							loader: 'css-loader',
-							options: {
-								modules: false
-							}
-						},
-						{
-							loader: 'postcss-loader'
-						}
-					]
-				},
-				// CSS Modules: only for *.module.css
-				{
-					test: /\.module\.css$/,
-					exclude: /node_modules/,
-					use: [
-						dev ? 'style-loader' : MiniCssExtractPlugin.loader,
-						{
-							loader: 'css-loader',
-							options: {
-								modules: true
-							}
-						},
-						{
-							loader: 'postcss-loader',
-						}
-					]
-				},
-				// Global CSS (including Tailwind): all other .css files
-				{
-					test: /(?<!\.module)\.css$/,
-					exclude: /node_modules/,
-					use: [
-						dev ? 'style-loader' : MiniCssExtractPlugin.loader,
-						{
-							loader: 'css-loader',
-							options: {
-								modules: false
-							}
-						},
-						{
-							loader: 'postcss-loader',
-						}
-					]
+					},
+					"css-loader",
+					"postcss-loader",
+					],
 				}
 			]
 		},
 		plugins: [
-			// Extract CSS into separate files in production for better caching
-			...(!dev ? [new MiniCssExtractPlugin({ filename: '[name].[contenthash].css' })] : []),
+			new MiniCssExtractPlugin({ filename: '[name].[contenthash].css' }),
 			new CopyWebpackPlugin({
 				patterns: [
 					{
