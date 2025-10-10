@@ -6,88 +6,7 @@ import classes from './styles.module.css';
 import { agreeLikert, type QuestionType, Survey } from '@/surveyViews';
 import * as SurveyData from '@/surveyData';
 import { useEffect } from 'react';
-
-const wave = "wave-2";
-const completionCode = "C728GXTB";
-
-const SURVEY_URLS = {
-	consentForm: 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW',
-};
-
-const studyPageNames = [
-	'study-consentForm',
-	'study-intro',
-	'study-introSurvey',
-	'study-startTask',
-	'study-task',
-	'study-postTask',
-	'study-final',
-];
-
-const summarizeMeetingNotesTask = [
-	{
-		title: 'Task',
-		content: "David had to leave this meeting early, before some bad news was shared. Write an email to David, diplomatically delivering the bad news to him and help him manage client expectations."
-	},
-	{
-		title: 'Meeting Notes',
-		content: `Title: Project Budget Meeting #2 - Q4 Marketing Campaign
-Attendees: you, David (Manager), Lisa (Finance), Tom (Marketing)
-
-Background: follow-up meeting after client feedback
-
-Notes (from AI notetaker):
-- David plans to present the revised plan to client on Thursday
-- Client requested changes: more focus on social media, less on search ads.
-- David presented revised $50k budget split: $30k for social media, $20k for search ads.
-- Lisa seemed concerned about timeline with Q4 freeze coming
-- David got an urgent call and had to leave immediately
-- Lisa revealed new Q4 constraints: can only approve $35k total
-- Have to cut search ads entirely, focus only on social
-- Tom worried: "David was excited about the search-to-social funnel"
-- Tom estimates cutting search ads reduces reach by 40%
-- Lisa emphasized: "We have to stick to the $35k budget"
-- Lisa: "If social performs well, we might add search ads back in Q1"
-
-Next steps:
-- You: update David about constraints and decisions before Thursday client meeting.
-- Lisa: update Q4 budget
-- Tom: draft revised marketing strategy
-`
-	}
-]
-
-const summarizeMeetingNotesTaskFalse = [
-	{
-		title: "Task",
-		content: "Write a follow-up email for this meeting."
-	},
-	{
-		title: "Meeting Notes",
-		content: `\
-Title: Project Budget Meeting #1 - Q4 Marketing Campaign
-Attendees: You, David (Manager), Lisa (Finance), Tom (Marketing)
-
-Background: Initial budget planning meeting
-
-Notes (from AI notetaker):
-- David presented $50K budget: $30K search ads, $20K social media
-- Tom excited about integrated approach: "social and search will work great together"
-- David excited about "search-to-social funnel": use search data to target socials
-- Lisa approved full budget - "looks solid, let's move forward"
-- Full team alignment on dual-channel approach
-- Timeline approved for Q4 launch
-
-Next step: David presenting approved strategy to client
-`
-	}
-]
-
-const letterToCondition = {
-	g: 'example_sentences',
-	a: 'analysis_readerPerspective',
-	p: 'proposal_advice',
-};
+import { letterToCondition, studyPageNames, consentFormURL, wave, prFixTask, prFixTaskFalse, completionCode } from './studyConfig';
 
 
 function getBrowserMetadata() {
@@ -196,6 +115,23 @@ export function StudyRouter({ page }: { page: string }) {
 		return <div>Unknown study page</div>;
 	}
 
+	if (window.innerWidth < 600 || window.innerHeight < 500 || navigator.userAgent.toLowerCase().includes('mobile')) {
+		return (
+			<div className='flex flex-col items-center justify-center text-center min-h-full max-w-lg m-auto p-2'>
+				<h1>Screen Too Small</h1>
+				<p>
+					It looks like you're using a device with a small screen (like a phone or tablet) or your browser window is too small.
+				</p>
+				<p>
+					If you're on a phone or tablet, please switch to a laptop or desktop computer to participate in this study.
+				</p>
+				<p>
+					If you're on a laptop or desktop computer, please make your browser window larger (at least 600 pixels wide and 500 pixels tall) and refresh the page.
+				</p>
+			</div>
+		);
+	}
+
 	const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
     const nextUrlParams = new URLSearchParams(window.location.search);
     nextUrlParams.set('page', nextPage);
@@ -203,8 +139,6 @@ export function StudyRouter({ page }: { page: string }) {
     const isProlific = urlParams.get('isProlific') === 'true';
 
 	if (page === 'study-consentForm') {
-		const consentFormURL = SURVEY_URLS.consentForm;
-
 		return (
 			<div className='flex flex-col items-center justify-center text-center min-h-full max-w-lg m-auto p-2'>
 				<a
@@ -293,8 +227,8 @@ export function StudyRouter({ page }: { page: string }) {
 			</ScrollablePage>
 		);
 	} else if (page === 'study-task') {
-		const curTaskContexts = summarizeMeetingNotesTask;
-		const falseContext = summarizeMeetingNotesTaskFalse;
+		const curTaskContexts = prFixTask;
+		const falseContext = prFixTaskFalse;
 		const contextToUse = urlParams.get('contextToUse') || 'mixed';
 		if (!['true', 'false', 'mixed'].includes(contextToUse)) {
 			return (
@@ -349,46 +283,107 @@ export function StudyRouter({ page }: { page: string }) {
 			</div>
 		);
 	} else if (page.startsWith('study-postTask')) {
-		const postTaskSurveyQuestions = [
-			{
+		const postTaskSurveyQuestions: QuestionType[] = [];
+
+		// Add condition-specific debrief and questions
+		if (conditionName === 'no_ai') {
+			// No AI-specific questions for no_ai condition
+			postTaskSurveyQuestions.push({
 				text: <>
 					<p>
-						A quick debrief: each group of 3 texts included text from two different AI systems.
+						Thank you for completing the writing task without AI assistance.
 					</p>
-					<p>
-						One of those systems was provided with intentionally incorrect information. The other was provided the same information as you were.
-					</p>
-					<p>So some of the texts may have contained inaccuracies. But even the incorrect information may have been helpful to you in some ways.</p>
 					<p>
 						Please answer the following questions about your experience.
 					</p>
 				</>
-			},
-			{
-				text: "Can you recall a specific moment when you read a suggestion and decided not to use it? What made you decide that? Be as specific as you can.",
-				responseType: "text",
-				name: "suggestionNotUsed",
-				flags: { multiline: true }
-			},
-			{
-				text: "Can you recall a specific moment when you read a suggestion and it affected what you wrote next? Be as specific as you can.",
-				responseType: "text",
-				name: "suggestionRecall",
-				flags: { multiline: true }
-			},
-			agreeLikert("easyToUnderstand", "The AI text was easy to understand", 5),
-			agreeLikert("helpedMe", "The AI text helped me with the writing task", 5),
-			agreeLikert("feltPressured", "I felt pressured to do what the AI suggested", 5),
-			agreeLikert("thinkCarefullyAppropriate", "I had to think carefully about whether the AI text was appropriate", 5),
-			agreeLikert("thinkCarefullyHowToUse", "I had to think carefully about how to use the AI text", 5),
-			agreeLikert("newAspects", "The AI text made me consider aspects that I hadn't thought of", 5),
-			agreeLikert("aiShapedFinalText", "The AI text significantly shaped the final text", 5),
-			{
-				text: "How would you describe the text that the AI provided?",
-				responseType: "text",
-				name: "aiTextDescription",
-				flags: { multiline: true }
-			},
+			});
+		} else if (conditionName === 'complete_document') {
+			postTaskSurveyQuestions.push(
+				{
+					text: <>
+						<p>
+							A quick debrief: the AI system that generated complete drafts was provided with intentionally incorrect information.
+						</p>
+						<p>So the drafts may have contained inaccuracies. But even the incorrect information may have been helpful to you in some ways.</p>
+						<p>
+							Please answer the following questions about your experience.
+						</p>
+					</>
+				},
+				{
+					text: "Can you recall a specific moment when you read the AI-generated draft and decided not to use part of it? What made you decide that? Be as specific as you can.",
+					responseType: "text",
+					name: "suggestionNotUsed",
+					flags: { multiline: true }
+				},
+				{
+					text: "Can you recall a specific moment when you read the AI-generated draft and it affected what you wrote next? Be as specific as you can.",
+					responseType: "text",
+					name: "suggestionRecall",
+					flags: { multiline: true }
+				},
+				agreeLikert("easyToUnderstand", "The AI-generated draft was easy to understand", 5),
+				agreeLikert("helpedMe", "The AI-generated draft helped me with the writing task", 5),
+				agreeLikert("feltPressured", "I felt pressured to use what the AI suggested", 5),
+				agreeLikert("thinkCarefullyAppropriate", "I had to think carefully about whether the AI draft was appropriate", 5),
+				agreeLikert("thinkCarefullyHowToUse", "I had to think carefully about how to use the AI draft", 5),
+				agreeLikert("newAspects", "The AI draft made me consider aspects that I hadn't thought of", 5),
+				agreeLikert("aiShapedFinalText", "The AI draft significantly shaped the final text", 5),
+				{
+					text: "How would you describe the draft that the AI provided?",
+					responseType: "text",
+					name: "aiTextDescription",
+					flags: { multiline: true }
+				}
+			);
+		} else {
+			// Original questions for bullet-point conditions
+			postTaskSurveyQuestions.push(
+				{
+					text: <>
+						<p>
+							A quick debrief: each group of 3 texts included text from two different AI systems.
+						</p>
+						<p>
+							One of those systems was provided with intentionally incorrect information. The other was provided the same information as you were.
+						</p>
+						<p>So some of the texts may have contained inaccuracies. But even the incorrect information may have been helpful to you in some ways.</p>
+						<p>
+							Please answer the following questions about your experience.
+						</p>
+					</>
+				},
+				{
+					text: "Can you recall a specific moment when you read a suggestion and decided not to use it? What made you decide that? Be as specific as you can.",
+					responseType: "text",
+					name: "suggestionNotUsed",
+					flags: { multiline: true }
+				},
+				{
+					text: "Can you recall a specific moment when you read a suggestion and it affected what you wrote next? Be as specific as you can.",
+					responseType: "text",
+					name: "suggestionRecall",
+					flags: { multiline: true }
+				},
+				agreeLikert("easyToUnderstand", "The AI text was easy to understand", 5),
+				agreeLikert("helpedMe", "The AI text helped me with the writing task", 5),
+				agreeLikert("feltPressured", "I felt pressured to do what the AI suggested", 5),
+				agreeLikert("thinkCarefullyAppropriate", "I had to think carefully about whether the AI text was appropriate", 5),
+				agreeLikert("thinkCarefullyHowToUse", "I had to think carefully about how to use the AI text", 5),
+				agreeLikert("newAspects", "The AI text made me consider aspects that I hadn't thought of", 5),
+				agreeLikert("aiShapedFinalText", "The AI text significantly shaped the final text", 5),
+				{
+					text: "How would you describe the text that the AI provided?",
+					responseType: "text",
+					name: "aiTextDescription",
+					flags: { multiline: true }
+				}
+			);
+		}
+
+		// Add common questions for all conditions
+		postTaskSurveyQuestions.push(
 			{
 				text: <>
 					<h3>Now a few questions about the task overall.</h3>
@@ -407,7 +402,7 @@ export function StudyRouter({ page }: { page: string }) {
 			},
 			SurveyData.techDiff,
 			SurveyData.otherFinal
-		];
+		);
 
 		return (
 			<SurveyPage

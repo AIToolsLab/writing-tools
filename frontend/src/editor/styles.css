@@ -30,3 +30,27 @@
   /*opacity: .7;*/
   transition: border-left-color .25s ease-in-out;
 }
+
+@layer base {
+  .editor-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+  }
+
+  .editor-scrollbar::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  .editor-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+    margin-right: -4px;
+  }
+  .editor-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.1);
+    border-radius: 4px;
+    margin-right: -4px;
+  }
+  .editor-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.4);
+  }
+}

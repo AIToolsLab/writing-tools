@@ -35,8 +35,8 @@
 		"lint:staged": "eslint --fix $(git diff --cached --name-only --diff-filter=ACMR | grep -E '\\.(js|ts|tsx)$' | xargs)",
 		"add-pragma": "prettier --insert-pragma --write",
 		"remove-pragma": "prettier --require-pragma false --write",
-		"style": "yarn lint && yarn format:check",
-		"style:fix": "yarn lint:fix && yarn format",
+		"style": "npm run lint && npm run format:check",
+		"style:fix": "npm run lint:fix && npm run format",
 		"prepare": "husky",
 		"test": "jest"
 	},
@@ -45,6 +45,7 @@
 		"@lexical/react": "^0.16.1",
 		"@microsoft/fetch-event-source": "^2.0.1",
 		"@react-hook/window-size": "^3.1.1",
+		"@types/node": "^24.6.2",
 		"@types/react-transition-group": "^4.4.12",
 		"core-js": "^3.37.1",
 		"jotai": "^2.12.5",
@@ -69,7 +70,6 @@
 		"@tailwindcss/postcss": "^4.1.8",
 		"@tailwindcss/typography": "^0.5.16",
 		"@types/mocha": "^10.0.6",
-		"@types/node": "^20.11.25",
 		"@types/office-js": "^1.0.377",
 		"@types/office-runtime": "^1.0.35",
 		"@types/react": "^18.2.64",
@@ -85,7 +85,7 @@
 		"css-loader": "^6.8.1",
 		"es6-promise": "^4.2.8",
 		"eslint": "^9.0.0",
-		"eslint-plugin-office-addins": "4",
+		"eslint-plugin-office-addins": "^4.0.3",
 		"eslint-plugin-react": "^7.37.5",
 		"eslint-plugin-react-hooks": "^5.2.0",
 		"file-loader": "^6.2.0",
@@ -130,6 +130,5 @@
 			"eslint --fix",
 			"prettier --write"
 		]
-	},
-	"packageManager": "yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e"
+	}
 }

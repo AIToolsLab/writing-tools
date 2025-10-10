@@ -160,52 +160,6 @@ async def validation_exception_handler(request, exc):
 
 
 # Routes
-@app.post("/api/generation")
-async def generation(payload: GenerationRequestPayload, background_tasks: BackgroundTasks) -> nlp.GenerationResult:
-    '''
-    To test this endpoint from curl:
-
-    $ curl -X POST -H "Content-Type: application/json" -d '{"username": "test", "gtype": "Completion", "prompt": "This is a test prompt."}' http://localhost:8000/api/generation
-    '''
-    should_log_doctext = should_log(payload.username)
-
-    # Sometimes gtype will have a _Backend suffix, so we strip it out
-    payload.gtype = payload.gtype.replace("_Backend", "")
-
-    start_time = datetime.now()
-    if payload.gtype == "Completion":
-        result = await nlp.chat_completion(payload.prompt)
-    elif payload.gtype == "Question":
-        result = await nlp.question(payload.prompt)
-    elif payload.gtype == "Keywords":
-        result = await nlp.keywords(payload.prompt)
-    elif payload.gtype == "Structure":
-        result = await nlp.structure(payload.prompt)
-    elif payload.gtype == "RMove":
-        result = await nlp.rmove(payload.prompt)
-    else:
-        raise ValueError(f"Invalid generation type: {payload.gtype}")
-    end_time = datetime.now()
-
-    log_entry = RequestLog(
-        timestamp=end_time.timestamp(),
-        username=payload.username,
-        event="suggestion_generated",
-        request_type="Generation",
-        request=payload.sanitized() if not should_log_doctext else payload,
-        result=result.result if should_log_doctext else f"{len(result.result)} characters REDACTED",
-        delay=(end_time - start_time).total_seconds(),
-    )
-    # add on extra data
-    if should_log_doctext:
-        log_entry.extra_data = result.extra_data
-    background_tasks.add_task(make_log, log_entry)
-
-    final_end_time = datetime.now()
-    log = final_end_time - start_time
-    logger.info(f"Total generation request operation took: {log.total_seconds()} seconds")
-    return result
-
 
 @app.post("/api/get_suggestion")
 async def get_suggestion(payload: SuggestionRequestWithDocContext, background_tasks: BackgroundTasks) -> nlp.GenerationResult:
