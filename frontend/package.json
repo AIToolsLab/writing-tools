@@ -6,7 +6,6 @@
 		"url": "https://github.com/AIToolsLab/writing-tools"
 	},
 	"license": "MIT",
-	"type": "module",
 	"config": {
 		"app_to_debug": "word",
 		"app_type_to_debug": "desktop",
