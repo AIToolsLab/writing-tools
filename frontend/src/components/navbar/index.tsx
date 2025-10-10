@@ -5,7 +5,6 @@ import {
 	pageNameAtom,
 } from '@/contexts/pageContext';
 
-import classes from './styles.module.css';
 import { useAtom, useAtomValue } from 'jotai';
 import { Tabs } from 'reshaped';
 
@@ -37,17 +36,15 @@ export default function Navbar() {
 		return null;
 	} else {
 		return (
-			<nav className={classes.nav}>
-				<Tabs value={page} onChange={({ value }: { value: string }) => changePage(value as PageName)}>
-					<Tabs.List className={classes.nav}>
-						{pageNames.map(({ name: pageName, title: pageTitle }) => (
-							<Tabs.Item key={pageName} value={pageName} data-active={page === pageName ? 'true' : undefined}>
-								{pageTitle}
-							</Tabs.Item>
-						))}
-					</Tabs.List>
-				</Tabs>
-			</nav>
+			<Tabs variant="pills-elevated" name="tabs" value={page} onChange={({ value }: { value: string }) => changePage(value as PageName)}>
+				<Tabs.List>
+					{pageNames.map(({ name: pageName, title: pageTitle }) => (
+						<Tabs.Item key={pageName} value={pageName} data-active={page === pageName ? 'true' : undefined}>
+							{pageTitle}
+						</Tabs.Item>
+					))}
+				</Tabs.List>
+			</Tabs>
 		);
 	}
 }
