@@ -21,6 +21,8 @@ import Draft from '../draft';
 import Revise from '../revise';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
+import { Reshaped } from 'reshaped';
+import "reshaped/themes/slate/theme.css";
 
 function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
@@ -274,6 +276,8 @@ export default function App() {
 
 	return (
 		<ChatContextWrapper>
+			<Reshaped theme="slate">
+
 			<Auth0Provider
 				domain={process.env.AUTH0_DOMAIN!}
 				clientId={process.env.AUTH0_CLIENT_ID!}
@@ -286,11 +290,12 @@ export default function App() {
 					audience: 'textfocals.com',
 					leeway: 10,
 				}}
-			>
+				>
 				<AccessTokenProvider>
 					<AppInner />
 				</AccessTokenProvider>
 			</Auth0Provider>
+			</Reshaped>
 		</ChatContextWrapper>
 	);
 }
