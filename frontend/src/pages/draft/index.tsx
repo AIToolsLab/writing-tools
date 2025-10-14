@@ -445,69 +445,69 @@ export default function Draft() {
 
 	if (isLoading)
 		alerts = (
-			<div className={classes.spin the navbar is using the Reshaped Tabs component.nerWrapper}>
+			<div className={classes.spinnerWrapper}>
 				<div className={classes.loader}></div>
-			</div >
+			</div>
 		);
 
-return (
-	<div className="flex flex-col flex-1">
-		<div className="flex flex-col flex-1 gap-2 relative p-2">
-			<div className="flex justify-center">
-				{/* Generation Option Buttons */}
-				<div className={classes.optionsContainer}>
-					{modesToShow.map((mode) => {
-						return (
-							<Fragment key={mode}>
-								<button
-									type="button"
-									className={classes.optionsButton}
-									disabled={isLoading}
-									title={isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode]}
-									onClick={() => {
-										log({
-											username: username,
-											event: 'request_suggestion',
+	return (
+		<div className="flex flex-col flex-1">
+			<div className="flex flex-col flex-1 gap-2 relative p-2">
+				<div className="flex justify-center">
+					{/* Generation Option Buttons */}
+					<div className={classes.optionsContainer}>
+						{modesToShow.map((mode) => {
+							return (
+								<Fragment key={mode}>
+									<button
+										type="button"
+										className={classes.optionsButton}
+										disabled={isLoading}
+										title={isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode]}
+										onClick={() => {
+											log({
+												username: username,
+												event: 'request_suggestion',
 
-											generation_type: mode,
-											docContext:
-												docContextRef.current,
-										});
+												generation_type: mode,
+												docContext:
+													docContextRef.current,
+											});
 
-										resetAutoRefresh();
-										const request = {
-											docContext:
-												docContextRef.current,
-											type: mode,
-										};
-										getSuggestion(request, true);
-									}}
-								>
-									{isStudy ? (
-										<AiOutlineReload />
-									) : (
-										iconFunc(mode)
-									)}
-									{isStudy ? "Refresh" : null}
-								</button>
-							</Fragment>
-						);
-					})}
+											resetAutoRefresh();
+											const request = {
+												docContext:
+													docContextRef.current,
+												type: mode,
+											};
+											getSuggestion(request, true);
+										}}
+									>
+										{isStudy ? (
+											<AiOutlineReload />
+										) : (
+											iconFunc(mode)
+										)}
+										{isStudy ? "Refresh" : null}
+									</button>
+								</Fragment>
+							);
+						})}
+					</div>
+				</div>
+				{alerts}
+
+				<SavedGenerations
+					savedItems={savedItems}
+					deleteSavedItem={deleteSavedItem}
+				/>
+			</div>
+
+			<div className={classes.noteTextWrapper}>
+				<div className={classes.noteText}>
+					Please note that the quality of AI-generated text may vary
 				</div>
 			</div>
-			{alerts}
-
-			<SavedGenerations
-				savedItems={savedItems}
-				deleteSavedItem={deleteSavedItem}
-			/>
 		</div>
-
-		<div className={classes.noteTextWrapper}>
-			<div className={classes.noteText}>
-				Please note that the quality of AI-generated text may vary
-			</div>
-		</div>
-	</div>
-);
+	);
 }
