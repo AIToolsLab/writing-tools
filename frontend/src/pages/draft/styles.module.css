@@ -29,7 +29,8 @@ h4 {
 
 .optionsButton,
 .optionsButtonActive {
-	display: flex; /* Fixes centering of icon in suggestion button */
+	display: flex;
+	/* Fixes centering of icon in suggestion button */
 	background-color: #ffffff;
 	font-size: 0.875rem;
 	font-weight: 600;
@@ -321,12 +322,15 @@ h4 {
 	0% {
 		opacity: 0;
 	}
+
 	10% {
 		opacity: 0.75;
 	}
+
 	50% {
 		opacity: 1;
 	}
+
 	100% {
 		opacity: 0;
 	}
@@ -336,6 +340,7 @@ h4 {
 	0% {
 		opacity: 0;
 	}
+
 	100% {
 		opacity: 1;
 	}
