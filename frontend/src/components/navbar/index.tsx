@@ -36,15 +36,17 @@ export default function Navbar() {
 		return null;
 	} else {
 		return (
-			<Tabs variant="pills-elevated" name="tabs" value={page} onChange={({ value }: { value: string }) => changePage(value as PageName)}>
-				<Tabs.List>
-					{pageNames.map(({ name: pageName, title: pageTitle }) => (
-						<Tabs.Item key={pageName} value={pageName} data-active={page === pageName ? 'true' : undefined}>
-							{pageTitle}
-						</Tabs.Item>
-					))}
-				</Tabs.List>
-			</Tabs>
+			<div className="flex justify-center">
+				<Tabs variant="pills-elevated" name="tabs" value={page} onChange={({ value }: { value: string }) => changePage(value as PageName)}>
+					<Tabs.List>
+						{pageNames.map(({ name: pageName, title: pageTitle }) => (
+							<Tabs.Item key={pageName} value={pageName} data-active={page === pageName ? 'true' : undefined}>
+								{pageTitle}
+							</Tabs.Item>
+						))}
+					</Tabs.List>
+				</Tabs>
+			</div>
 		);
 	}
 }
