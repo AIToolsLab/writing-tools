@@ -64,7 +64,7 @@ class Fetcher {
 				body: JSON.stringify({
 					username: username,
 					gtype: request.type,
-					 
+
 					doc_context: request.docContext,
 				}),
 				signal: AbortSignal.timeout(20000),
@@ -96,7 +96,7 @@ function GenerationResult({ generation }: { generation: GenerationResult }) {
 				<div className="text-bold">
 					{
 						visibleNameForMode[
-							generation.generation_type as keyof typeof visibleNameForMode
+						generation.generation_type as keyof typeof visibleNameForMode
 						]
 					}
 				</div>
@@ -151,7 +151,7 @@ function SavedGenerations({
 						{savedItems.map((savedItem) => {
 							const key = savedItem.dateSaved.toString();
 							const nodeRef = getNodeRef(key);
-							
+
 							return (
 								<CSSTransition
 									key={key}
@@ -354,7 +354,7 @@ export default function Draft() {
 				log({
 					username: username,
 					event: 'generation_error',
-					 
+
 					generation_type: suggestionRequest.type,
 					docContext: suggestionRequest.docContext,
 					result: errMsg,
@@ -395,7 +395,7 @@ export default function Draft() {
 		log({
 			username: username,
 			event: 'auto_refresh',
-			 
+
 			generation_type: modesToShow[0],
 			docContext: docContextRef.current,
 		});
@@ -453,7 +453,7 @@ export default function Draft() {
 	return (
 		<div className="flex flex-col flex-1">
 			<div className="flex flex-col flex-1 gap-2 relative p-2">
-				<div>
+				<div className="flex justify-center">
 					{/* Generation Option Buttons */}
 					<div className={classes.optionsContainer}>
 						{modesToShow.map((mode) => {
@@ -461,7 +461,7 @@ export default function Draft() {
 								<Fragment key={mode}>
 									<button
 										type="button"
-										className="cursor-pointer border border-gray-300 bg-white px-3 py-1 rounded-md flex items-center gap-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+										className={classes.optionsButton}
 										disabled={isLoading}
 										title={isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode]}
 										onClick={() => {
@@ -488,7 +488,7 @@ export default function Draft() {
 										) : (
 											iconFunc(mode)
 										)}
-										{ isStudy ? "Refresh" : null }
+										{isStudy ? "Refresh" : null}
 									</button>
 								</Fragment>
 							);

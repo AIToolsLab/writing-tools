@@ -1,17 +1,11 @@
 /* eslint-disable no-undef */
 
-import { fileURLToPath } from 'url';
-//import { resolve as _resolve } from 'path';
-import path from 'path';
-
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-
-import webpack from 'webpack';
-import { getHttpsServerOptions } from 'office-addin-dev-certs';
-
-import CopyWebpackPlugin from 'copy-webpack-plugin';
-import HtmlWebpackPlugin from 'html-webpack-plugin';
-import MiniCssExtractPlugin from 'mini-css-extract-plugin';
+const path = require('path');
+const webpack = require('webpack');
+const { getHttpsServerOptions } = require('office-addin-dev-certs');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 
 const urlDev = 'https://localhost:3000';
 const urlProd = 'https://app.thoughtful-ai.com';
@@ -30,7 +24,7 @@ async function getHttpsOptions() {
 	};
 }
 
-export default async (env, options) => {
+module.exports = async (env = {}, options = {}) => {
 	const dev = options.mode === 'development';
 	const config = {
 		devtool: 'source-map',
