@@ -69,4 +69,24 @@ export default defineConfig({
     //   use: { ...devices['Desktop Chrome'], channel: 'chrome' },
     // },
   ],
+
+  webServer: [
+    // Backend Server Configuration
+    {
+      command: 'sh -c "cd backend && uv run uvicorn server:app --host localhost --port 8000', // 'cmd.exe /c' for Windows
+      url: 'http://localhost:8000',
+      cwd: '..',
+      timeout: 120 * 1000,
+      reuseExistingServer: !process.env.CI, // Don't reuse on CI, but reuse locally
+      name: 'Backend',
+    },
+    // Frontend Server Configuration
+    {
+      command: 'npm run dev-server',
+      url: 'http://localhost:3000',
+      timeout: 120 * 1000,
+      reuseExistingServer: !process.env.CI,
+      name: 'Frontend',
+    },
+  ],
 });
