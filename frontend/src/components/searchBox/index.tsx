@@ -1,14 +1,13 @@
-import { useState } from "react";
+import { useState } from 'react';
 import {
 	AiOutlineFileSearch,
 	AiOutlineClose,
 	AiFillCloseCircle,
 	AiOutlineHistory,
-} from "react-icons/ai";
-import { FcNext } from "react-icons/fc";
+} from 'react-icons/ai';
+import { FcNext } from 'react-icons/fc';
 
-import classes from "./styles.module.css";
-import { handleAutoResize } from "@/utilities";
+import { handleAutoResize } from '@/utilities';
 
 interface SearchBoxProps {
 	updateSubmittedPrompt: (prompt: string) => void;
@@ -22,17 +21,17 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 	} = props;
 
 	const [prevPrompts, updatePrevPrompts] = useState<string[]>([]); // Search history
-	const [searchBoxText, updateSearchBoxText] = useState(""); // Current search text
+	const [searchBoxText, updateSearchBoxText] = useState(''); // Current search text
 	const [searchBoxTextSent, updateSearchBoxTextSent] = useState(false); // Whether search text has been submitted
 	const [dropdownVisible, updateDropdownVisible] = useState(false); // Whether searchbar dropdown is visible
 	const [isDropdownClicked, setIsDropdownClicked] = useState(false); // Whether searchbar dropdown is clicked
 
 	// Filter the prompt lists based on the current prompt
 	const filteredNewPromptList = promptSuggestions.filter((prompt) =>
-		prompt.toLowerCase().includes(searchBoxText.toLowerCase())
+		prompt.toLowerCase().includes(searchBoxText.toLowerCase()),
 	);
 	const filteredHistoryList = prevPrompts.filter((prompt) =>
-		prompt.toLowerCase().includes(searchBoxText.toLowerCase())
+		prompt.toLowerCase().includes(searchBoxText.toLowerCase()),
 	);
 
 	// Delete a completion suggestion from history
@@ -43,42 +42,41 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 	}
 
 	return (
-		<div
-			className={`border-2 border-gray-100 bg-gray-100 rounded-[28px] shadow-[0_10px_24px_rgba(0,0,0,0.3)] mb-3 ${classes.searchBoxWrapper}`}
-		>
-			<div className="flex items-center px-[15px]">
+		<div className="flex flex-col w-full max-w-xl mx-auto p-2">
+			<div className="flex items-center bg-white border border-gray-300 rounded-lg shadow-sm px-3 py-2">
 				<AiOutlineFileSearch
-					className="text-[#76abae] text-[1.2rem] transition duration-150 hover:text-[#31363f]"
+					className="text-gray-500 w-5 h-5 mr-2 cursor-pointer"
 					onClick={() => {
-						if (searchBoxText !== "") {
+						if (searchBoxText !== '') {
 							updateSubmittedPrompt(searchBoxText);
 							updateSearchBoxTextSent(true);
 						}
 					}}
 				/>
 				<textarea
-					className="bg-transparent border-none w-full text-[0.9rem] p-2 resize-none box-border align-middle focus:outline-none"
 					defaultValue=""
 					value={searchBoxText}
 					placeholder="Explain..."
 					onChange={(event) => {
 						updateSearchBoxTextSent(false);
-						if (event.target.value.trim() === "") {
-							updateSearchBoxText("");
-							updateSubmittedPrompt("");
+						if (event.target.value.trim() === '') {
+							updateSearchBoxText('');
+							updateSubmittedPrompt('');
 						} else updateSearchBoxText(event.target.value);
 					}}
+					// Adaptively resize textarea to fit text content
 					ref={(ref) => ref && handleAutoResize(ref)}
 					onKeyDown={(event) => {
 						if (
-							event.key === "Enter" &&
+							event.key === 'Enter' &&
 							!event.shiftKey &&
-							searchBoxText !== ""
+							searchBoxText !== ''
 						) {
-							event.preventDefault();
+							event.preventDefault(); // Prevent newline (submit instead)
 							updateSubmittedPrompt(searchBoxText);
 							updateSearchBoxTextSent(true);
-
+							// Prepend submitted prompt to search history storing up to 25 prompts
+							// TODO: Find better number for max history length
 							prevPrompts.unshift(searchBoxText);
 							if (prevPrompts.length > 25) {
 								prevPrompts.pop();
@@ -89,28 +87,32 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 						updateDropdownVisible(true);
 					}}
 					onBlur={() => {
+						// To solve the issue of the dropdown disappearing when clicking on a suggestion
+						// Solution: delay hiding the dropdown by 100ms
 						if (!isDropdownClicked) {
+							// Don't hide dropdown if holding click on dropdown
 							setTimeout(() => {
 								updateDropdownVisible(false);
 							}, 100);
 						}
 					}}
+					className="flex-1 resize-none outline-none text-gray-700 bg-transparent placeholder-gray-400"
 				/>
 				<AiFillCloseCircle
 					style={{
-						display: searchBoxText === "" ? "none" : "flex",
+						display: searchBoxText === '' ? 'none' : 'flex',
 					}}
-					className="text-[#76abae] text-[1.4rem] cursor-pointer transition duration-150 hover:text-[#31363f]"
+					className="text-gray-400 hover:text-gray-600 w-5 h-5 ml-2 cursor-pointer"
 					onClick={() => {
-						updateSearchBoxText("");
-						updateSubmittedPrompt("");
+						updateSearchBoxText('');
+						updateSubmittedPrompt('');
 						updateSearchBoxTextSent(false);
 					}}
 				/>
 			</div>
 
-			{/* Dropdown of prompt recommendations */}
-			{!searchBoxTextSent && dropdownVisible ? (
+			{/* The dropdown of prompt recommendations */}
+			{(!searchBoxTextSent && dropdownVisible) ? (
 				<div
 					onMouseDown={() => {
 						setIsDropdownClicked(true);
@@ -118,61 +120,86 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 					onMouseUp={() => {
 						setIsDropdownClicked(false);
 					}}
+					className="mt-2 bg-white border border-gray-200 rounded-lg shadow-lg"
 				>
-					<hr className="w-[95%] border-none h-px bg-[#cccccc]" />
+					<hr className="border-gray-200" />
+					{/* Matching past searches */}
+					<ul className="max-h-60 overflow-y-auto">
+						{/* Only show 3 past searches */}
+						{filteredHistoryList
+							.slice(0, 3)
+							.map((prompt: string, index: number) => {
+								return (
+									// TODO: make it a valid DOM structure (ul should have li as children)
+									<div
+										key={`history-${index}`}
+										className="flex items-center justify-between px-3 py-2 hover:bg-gray-50"
+									>
+										<li
+											className="flex items-center flex-1 cursor-pointer"
+											onClick={() => {
+												updateSubmittedPrompt(prompt);
+												updateSearchBoxText(prompt);
+												updateSearchBoxTextSent(true);
+											}}
+										>
+											<div className="flex items-center mr-2">
+												<AiOutlineHistory className="text-gray-500 w-4 h-4" />
+											</div>
+											<div className="text-gray-700">
+												{prompt}
+											</div>
+										</li>
 
-					<ul>
-						{/* Past search history (up to 3) */}
-						{filteredHistoryList.slice(0, 3).map((prompt, index) => (
-							<div
-								key={`history-${index}`}
-								className="flex flex-row items-center"
-							>
-								<li
-									className="flex items-center p-2 border-b border-gray-100 cursor-pointer transition duration-150 last:border-b-0 last:pb-5 last:rounded-b-[28px] hover:text-[#00b8f5]"
-									onClick={() => {
-										updateSubmittedPrompt(prompt);
-										updateSearchBoxText(prompt);
-										updateSearchBoxTextSent(true);
-									}}
-								>
-									<div className="flex items-center">
-										<AiOutlineHistory className="text-[1rem] text-[#bbbbbb] mr-2" />
+										<div
+											className="flex items-center ml-2 cursor-pointer"
+											onClick={() => {
+												deleteHistorySuggestion(index);
+											}}
+										>
+											<AiOutlineClose className="text-gray-400 hover:text-gray-600 w-4 h-4" />
+										</div>
 									</div>
-									<div className="ml-1 mr-8">{prompt}</div>
-								</li>
+								);
+							})}
 
-								<div
-									className="flex items-center cursor-pointer rounded-[16px] p-[2px] ml-auto mr-1 transition duration-150 hover:bg-[#eeeeee]"
-									onClick={() => deleteHistorySuggestion(index)}
-								>
-									<AiOutlineClose className="text-[1rem] text-[#888888]" />
-								</div>
-							</div>
-						))}
+						{/* "New" prompt suggestions */}
+						{filteredNewPromptList.map(
+							(prompt: string, index: number) => {
+								return (
+									<li
+										key={`new-${index}`}
+										className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
+										onClick={() => {
+											updateSubmittedPrompt(prompt);
+											updateSearchBoxText(prompt);
+											updateSearchBoxTextSent(true);
 
-						{/* New prompt suggestions */}
-						{filteredNewPromptList.map((prompt, index) => (
-							<li
-								key={`new-${index}`}
-								className="flex items-center p-2 border-b border-gray-100 cursor-pointer transition duration-150 last:border-b-0 last:pb-5 last:rounded-b-[28px] hover:text-[#00b8f5]"
-								onClick={() => {
-									updateSubmittedPrompt(prompt);
-									updateSearchBoxText(prompt);
-									updateSearchBoxTextSent(true);
-
-									prevPrompts.unshift(prompt);
-									if (prevPrompts.length > 25) {
-										prevPrompts.pop();
-									}
-								}}
-							>
-								<div className="flex items-center">
-									<FcNext className="text-[0.65rem] mr-1" />
-								</div>
-								<div className="ml-1 mr-8">{prompt}</div>
-							</li>
-						))}
+											// Prepend submitted prompt to search history storing up to 25 prompts
+											prevPrompts.unshift(prompt);
+											if (prevPrompts.length > 25) {
+												prevPrompts.pop();
+											}
+										}}
+									>
+										<div className="flex items-center mr-2">
+											<FcNext className="w-4 h-4" />
+										</div>
+										<div className="text-gray-700">
+											{prompt}
+										</div>
+										{/* <div
+											className={ classes.searchBoxDropdownDeleteIconWrapper }
+											onClick={ () => {
+												handleSuggestionDelete(prompt);
+											} }
+										>
+											<AiOutlineClose className={ classes.dropdownDeleteIcon } />
+										</div> */}
+									</li>
+								);
+							},
+						)}
 					</ul>
 				</div>
 			) : null}
