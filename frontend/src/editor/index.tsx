@@ -146,9 +146,11 @@ export function EditorScreen({
   ? "flex justify-center font-sans" 
   : "flex justify-evenly font-sans flex-row"}>
   
-  <div className={isDemo 
-    ? "min-w-[40rem] max-w-[40rem] w-full relative" 
-    : "flex-1 min-w-[15rem]"}>
+  <div className={
+	isDemo
+	  ? `min-w-[40rem] max-w-[40rem] w-full relative ${classes.editor}`
+	  : `flex-1 min-w-[15rem] ${classes.editor}`
+  }>
 				<LexicalEditor
 					// @ts-expect-error initialState needs to actually be `undefined`, not null, see see https://github.com/facebook/lexical/issues/5079
 					initialState={getInitialState()}
@@ -164,13 +166,12 @@ export function EditorScreen({
 			</div>
 
 			<div
-  className={`overflow-y-scroll ${
-    isDemo
-      ? "m-5 h-[80vh] min-w-[28rem] w-[28rem] shadow-[ -2px_0_5px_rgba(0,0,0,0.1)] font-sans bg-white"
-      : "/* fallback sidebar styles here */"
-  }`}
->
-
+				className={`overflow-y-scroll ${
+					isDemo
+						? "m-5 h-[80vh] min-w-[28rem] w-[28rem] shadow-[-2px_0_5px_rgba(0,0,0,0.1)] font-sans bg-white"
+						: classes.sidebar
+				}`}
+			>
 				<EditorContext.Provider value={editorAPI}>
 					<Sidebar />
 				</EditorContext.Provider>
@@ -181,19 +182,21 @@ export function EditorScreen({
 
 function Router({ page }: { page: string }) {
 	const setOverallMode = useSetAtom(overallModeAtom);
-	if (page === 'editor') {
+
+	if (page === "editor") {
 		setOverallMode(OverallMode.full);
 		return <EditorScreen />;
-	} else if (page === 'demo') {
+	} else if (page === "demo") {
 		setOverallMode(OverallMode.demo);
 		return <EditorScreen />;
-	} else if (page.startsWith('study')) {
+	} else if (page.startsWith("study")) {
 		setOverallMode(OverallMode.study);
 		return <StudyRouter page={page} />;
 	} else {
 		return <div>Page not found</div>;
 	}
 }
+
 
 const urlParams = new URLSearchParams(window.location.search);
 const page = urlParams.get('page');

@@ -53,14 +53,14 @@ function ReflectionCard(props: ReflectionCardProps) {
 	const { cardData, className } = props;
 
 	return (
-		<div className={className}>
-			<div className={classes.text}>
+		<div className={`${className} flex flex-row justify-between items-start gap-2 p-2 rounded-md border border-gray-400`}>
+			<div className={`${classes.text} flex-1`}>
 				<Remark>{cardData.body}</Remark>
 			</div>
 
 			<div>
 				<button
-					className={classes.pinButton}
+					className={`${classes.pinButton} px-2 py-1 rounded hover:bg-gray-100`}
 					onClick={() => {
 						void handlePinAction(cardData.paragraphIndex, cardData.body);
 					}}
@@ -76,9 +76,9 @@ export function ReflectionCards(props: ReflectionCardsProps) {
 	const { cardDataList, isHighlighted } = props;
 
 	return (
-		<div>
+		<div className="w-full">
 			{cardDataList.length === 0 ? (
-				<div className={classes.spinnerWrapper}>
+				<div className={`${classes.spinnerWrapper} py-4`}>
 					<div className={classes.loader}></div>
 				</div>
 			) : (
