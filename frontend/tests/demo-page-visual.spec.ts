@@ -1,7 +1,13 @@
 import { test, expect } from '@playwright/test';
 
 test('demo page - visual regression', async ({ page }) => {
-  test.setTimeout(120000);
+  // Intercept API calls and return mocked responses
+  await page.route('/api/**', async route => {
+    await route.fulfill({
+      status: 200,
+      body: JSON.stringify({ message: 'mocked' })
+    });
+  });
 
   await page.goto('/');
 
