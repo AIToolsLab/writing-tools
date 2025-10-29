@@ -4,7 +4,7 @@
   gap: 0.75rem;
   padding: 0.4rem 0.75rem;
   border-radius: 9999px;
-  background: linear-gradient(180deg, #fff, #fbfbfb);
+  background: red;
   border: 1px solid rgba(15, 23, 42, 0.04);
   box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06);
 }
