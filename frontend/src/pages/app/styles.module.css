@@ -7,7 +7,7 @@
 	gap: 0.5rem;
 }
 
-.loginContainer > h3 {
+.loginContainer>h3 {
 	font-size: 1rem;
 	font-weight: 300;
 	margin: 0 0 1rem 0;
@@ -22,36 +22,9 @@ hr {
 	border-top: 1px solid #f1f1f1;
 }
 
-.loginContainer > p {
+.loginContainer>p {
 	font-size: 0.8rem;
 	font-weight: 300;
-}
-
-.loginButton {
-	padding: 0.8rem 1.6rem;
-	border-radius: 1rem;
-	border: 1px solid #000000;
-	background-color: #ffffff;
-	cursor: pointer;
-	transition: all 0.15s;
-	font-size: 1rem;
-	font-weight: 800;
-	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, 0.1);
-}
-
-.loginButton:hover {
-	border: 1px solid #000000;
-	background-color: #000000;
-}
-
-.loginButton > p {
-	margin: 0;
-	padding: 0;
-	/* background: linear-gradient(to right, #8bb48e, #0f74bc); */
-	background: linear-gradient(to right, #b0ebb4, #0d92f4);
-	text-shadow: 0.5rem 0.5rem 0.5rem rgba(0, 0, 0, 0.02);
-	background-clip: text;
-	color: transparent;
 }
 
 .loginInfoContainer {
@@ -60,7 +33,7 @@ hr {
 	background-color: #f1f1f1;
 }
 
-.loginInfoContainer > p {
+.loginInfoContainer>p {
 	font-size: 0.8rem;
 	font-weight: 300;
 	text-align: center;
@@ -153,25 +126,6 @@ hr {
 	border-radius: 1rem;
 	padding: 0.2rem 0.4rem;
 	box-shadow: 0 0 0.3rem 0 rgba(0, 0, 0, 0.2);
-}
-
-.logoutButton {
-	padding: 0.4rem 0.8rem;
-	border: none;
-	border-radius: 0.5rem;
-	/* background-color: #f1f1f1; */
-	background-color: #ffffff;
-	border: 1px solid #e1e1e1;
-	cursor: pointer;
-	transition: all 0.15s;
-	font-size: 0.8rem;
-	font-weight: 400;
-	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, 0.1);
-}
-
-.logoutButton:hover {
-	background-color: #e1e1e1;
-	border: 1px solid #e1e1e1;
 }
 
 .widthAlert {

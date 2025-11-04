@@ -15,6 +15,7 @@ import {
 import { AiOutlineClose, AiOutlineReload } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 import { TransitionGroup, CSSTransition } from 'react-transition-group';
+import { Button } from 'reshaped';
 import { log, SERVER_URL } from '@/api';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
@@ -169,20 +170,19 @@ function SavedGenerations({
 											/>
 										</div>
 										<div className={classes.savedIconsContainer}>
-											<button
-												type="button"
-												className={
-													classes.historyCloseButtonWrapper
-												}
+											<Button
+												variant="ghost"
+												color="critical"
+												size="small"
+												rounded
 												onClick={() =>
 													deleteSavedItem(savedItem.dateSaved)
 												}
-												aria-label="Delete saved item"
-											>
-												<AiOutlineClose
-													className={classes.historyCloseButton}
-												/>
-											</button>
+												attributes={{
+													'aria-label': 'Delete saved item'
+												}}
+												icon={AiOutlineClose}
+											/>
 										</div>
 									</div>
 								</CSSTransition>
@@ -453,47 +453,46 @@ export default function Draft() {
 	return (
 		<div className="flex flex-col flex-1">
 			<div className="flex flex-col flex-1 gap-2 relative p-2">
-				<div className="flex justify-center">
+				<div className="flex justify-center gap-1 my-1">
 					{/* Generation Option Buttons */}
-					<div className={classes.optionsContainer}>
-						{modesToShow.map((mode) => {
-							return (
-								<Fragment key={mode}>
-									<button
-										type="button"
-										className={classes.optionsButton}
-										disabled={isLoading}
-										title={isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode]}
-										onClick={() => {
-											log({
-												username: username,
-												event: 'request_suggestion',
+					{modesToShow.map((mode) => {
+						return (
+							<Fragment key={mode}>
+								<Button
+									type="button"
+									variant="outline"
+									color="neutral"
+									size="medium"
+									rounded
+									disabled={isLoading}
+									attributes={{
+										title: isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode]
+									}}
+									onClick={() => {
+										log({
+											username: username,
+											event: 'request_suggestion',
 
-												generation_type: mode,
-												docContext:
-													docContextRef.current,
-											});
+											generation_type: mode,
+											docContext:
+												docContextRef.current,
+										});
 
-											resetAutoRefresh();
-											const request = {
-												docContext:
-													docContextRef.current,
-												type: mode,
-											};
-											getSuggestion(request, true);
-										}}
-									>
-										{isStudy ? (
-											<AiOutlineReload />
-										) : (
-											iconFunc(mode)
-										)}
-										{isStudy ? "Refresh" : null}
-									</button>
-								</Fragment>
-							);
-						})}
-					</div>
+										resetAutoRefresh();
+										const request = {
+											docContext:
+												docContextRef.current,
+											type: mode,
+										};
+										getSuggestion(request, true);
+									}}
+									icon={isStudy ? AiOutlineReload : iconFunc(mode)}
+								>
+									{isStudy ? "Refresh" : null}
+								</Button>
+							</Fragment>
+						);
+					})}
 				</div>
 				{alerts}
 
