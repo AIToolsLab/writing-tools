@@ -67,8 +67,8 @@ cd backend && uv run pytest && uv run ruff check
 - **State Management**: Jotai for global state
 - **Styling**: a mix of Tailwind CSS and CSS modules
 - **Authentication**: Auth0 integration
-- **Build Tool**: Webpack with TypeScript
-- **Key Entry Points**: 
+- **Build Tool**: Vite with TypeScript
+- **Key Entry Points**:
   - `src/taskpane.html` - Main task pane interface for MS Word
   - `src/editor/editor.html` - Standalone editor for demo and user study
   - `src/editor/editor.tsx` - Document editor integration
@@ -93,7 +93,7 @@ cd backend && uv run pytest && uv run ruff check
 ### TypeScript Configuration
 - Strict mode enabled with path aliases (`@/*` maps to `./src/*`)
 - React JSX transform configured
-- ES2020 modules with es5 target for IE11 compatibility (but IE is not tested so it's likely to not work)
+- ES2020 modules and target with bundler module resolution for Vite
 
 ### Python Configuration  
 - **Type Checking**: MyPy with Pydantic plugin enabled
@@ -112,7 +112,7 @@ cd backend && uv run pytest && uv run ruff check
 - Use function declarations for named components, arrow functions for unnamed
 - TypeScript strict mode - always include proper types
 - React components should not explicitly import React (configured in ESLint)
-- Use `@/` prefix for internal imports (webpack alias)
+- Use `@/` prefix for internal imports (Vite alias configured in vite.config.ts)
 - Prefer `const` over `let`, avoid `var`
 
 ### Backend
