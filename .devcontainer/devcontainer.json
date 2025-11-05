@@ -18,10 +18,6 @@
 
 	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
 
-	"mounts": [
-		"source=${localWorkspaceFolder},target=/workspaces/${localWorkspaceFolderBasename},type=bind"
-	],
-
 	// Install uv and dependencies after container is created
 	"postCreateCommand": "pip install uv && cd /workspaces/${localWorkspaceFolderBasename} && uv sync && cd frontend && npm install",
 
