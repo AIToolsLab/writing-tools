@@ -4,13 +4,14 @@ Guidance for Claude Code when working with this repository.
 
 ## Project Structure
 
-Writing tools application with two components:
-- **Frontend** (`/frontend`): TypeScript/React Microsoft Office Add-in for Word
-- **Backend** (`/backend`): Python FastAPI server for text processing and AI assistance
+Writing tools application:
+- `/frontend`: TypeScript/React Microsoft Office Add-in for Word + standalone editor
+- `/backend`: Python FastAPI server for LLM calls and logging
+
+**Central concept**: LLM helps thinking and reflection instead of replacing writing.
 
 ## Package Managers
 
-**CRITICAL**: Use the correct package manager:
 - **Frontend**: `npm` (standard commands in `package.json`)
 - **Backend**: `uv` - NOT pip
   - Install: `uv sync` (run from root)
@@ -24,23 +25,17 @@ Writing tools application with two components:
 - **Path Alias**: `@/*` maps to `./src/*` (webpack config)
 - **Entry Points**:
   - `src/taskpane.html` - Word task pane
-  - `src/editor/editor.html` - Standalone editor and user study
+  - `src/editor/editor.html` - Standalone demo editor and user study
 - **Manifest**: `frontend/manifest.xml` for Office Add-in configuration
 
 ### Backend
-- **SSE (Server-Sent Events)** - Streaming AI responses to frontend
+- OpenAI API (`nlp.py`) + FastAPI with SSE (`server.py`)
 - **Logging**: Structured logs to `/backend/logs/`
 - **Auth**: Auth0 JWT tokens (work in progress)
-
-### Communication
-- Frontend → Backend: REST API at `/api` endpoints
-- Backend → Frontend: SSE for streaming
 
 ## Non-Obvious Configuration
 
 - **TypeScript**: Path aliases enabled (`@/*` → `./src/*`)
-- **Office Add-in**: Supports desktop + web Word, dev certs managed by `office-addin-dev-certs`
-- **Python**: MyPy with Pydantic plugin enabled
 
 ## User Study Mode
 
