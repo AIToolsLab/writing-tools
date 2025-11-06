@@ -1,0 +1,36 @@
+{
+	"name": "Writing Tools Dev",
+
+	// Use a base Ubuntu image and add features
+	"image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+
+	"features": {
+		"ghcr.io/devcontainers/features/node:1": {
+			"version": "lts"
+		},
+		"ghcr.io/devcontainers/features/python:1": {
+			"version": "3.12",
+			"installTools": true
+		},
+		"ghcr.io/devcontainers/features/git:1": {},
+		"ghcr.io/devcontainers/features/github-cli:1": {}
+	},
+
+	"workspaceFolder": "/workspaces/${localWorkspaceFolderBasename}",
+
+	// Install uv and dependencies after container is created
+	"postCreateCommand": "pip install uv && cd /workspaces/${localWorkspaceFolderBasename} && uv sync && cd frontend && npm install",
+
+	"forwardPorts": [3000, 8000],
+
+	"customizations": {
+		"vscode": {
+			"extensions": [
+				"ms-python.python",
+				"ms-python.vscode-pylance",
+				"dbaeumer.vscode-eslint",
+				"esbenp.prettier-vscode"
+			]
+		}
+	}
+}
