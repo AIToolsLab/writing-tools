@@ -2,6 +2,19 @@
 
 This directory contains regression tests for the Vite build configuration to prevent issues that were caught during code review.
 
+## Asset Structure
+
+The project uses two types of assets:
+
+- **`src/assets/`** - Assets imported in TypeScript/React code (e.g., images used in components)
+  - Processed by Vite during build
+  - Output with content hashes (e.g., `logo_black-DiXekjqI.png`)
+  - Use `@/assets/...` imports in code
+
+- **`public/assets/`** - Static assets never imported in code
+  - Copied as-is to `dist/assets/`
+  - Accessed via absolute paths in HTML (e.g., `/assets/about.png`)
+
 ## Test Suites
 
 ### 1. Build Output Tests (`test-build-output.mjs`)

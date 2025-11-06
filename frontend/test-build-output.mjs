@@ -91,10 +91,8 @@ const expectedStaticFiles = [
 	'longDescription.html',
 	'privacypolicy.html',
 	'support.html',
-	'manifest.xml',
-	'assets/logo_black.png',
-	'assets/c1.png',
-	'assets/c2.png'
+	'manifest.xml'
+	// Note: c1.png, c2.png, logo_black.png are in src/assets/ and bundled with hashes
 ];
 
 expectedStaticFiles.forEach(file => {

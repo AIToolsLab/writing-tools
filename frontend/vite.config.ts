@@ -10,7 +10,7 @@ const backendDev = 'http://0.0.0.0:8000/';
 const idProd = '46d2493d-60db-4522-b2aa-e6f2c08d2508';
 const idDev = '46d2493d-60db-4522-b2aa-e6f2c08d2507';
 
-// Custom plugin to copy and transform manifest.xml
+// Custom plugin to transform manifest.xml
 function manifestPlugin(): Plugin {
 	return {
 		name: 'manifest-plugin',
@@ -19,7 +19,8 @@ function manifestPlugin(): Plugin {
 			const mode = process.env.NODE_ENV || 'development';
 			const isDev = mode === 'development';
 
-			let content = fs.readFileSync('manifest.xml', 'utf-8');
+			// Read from public/manifest.xml (it gets copied to dist by publicDir)
+			let content = fs.readFileSync('dist/manifest.xml', 'utf-8');
 
 			if (!isDev) {
 				content = content
@@ -28,6 +29,7 @@ function manifestPlugin(): Plugin {
 					.replace(new RegExp(urlDev, 'g'), urlProd);
 			}
 
+			// Write back the transformed version
 			fs.writeFileSync('dist/manifest.xml', content);
 		}
 	};

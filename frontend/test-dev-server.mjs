@@ -60,11 +60,11 @@ async function runTests() {
 	await testEndpoint('/longDescription.html');
 	await testEndpoint('/manifest.xml');
 
-	// Test 3: Assets accessibility
+	// Test 3: Assets accessibility (static assets from public/)
 	console.log('\nTest 3: Asset files');
-	await testEndpoint('/assets/logo_black.png');
-	await testEndpoint('/assets/c1.png');
-	await testEndpoint('/assets/c2.png');
+	await testEndpoint('/assets/about.png');
+	await testEndpoint('/assets/sparkle.png');
+	// Note: c1.png, c2.png, logo_black.png are in src/assets/ and served with hashes in dev mode
 
 	// Test 4: Non-existent paths should 404
 	console.log('\nTest 4: Non-existent paths return 404');
