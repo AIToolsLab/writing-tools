@@ -19,11 +19,6 @@ function manifestPlugin(): Plugin {
 			const mode = process.env.NODE_ENV || 'development';
 			const isDev = mode === 'development';
 
-			// Ensure dist directory exists
-			if (!fs.existsSync('dist')) {
-				fs.mkdirSync('dist', { recursive: true });
-			}
-
 			let content = fs.readFileSync('manifest.xml', 'utf-8');
 
 			if (!isDev) {
@@ -34,63 +29,6 @@ function manifestPlugin(): Plugin {
 			}
 
 			fs.writeFileSync('dist/manifest.xml', content);
-		}
-	};
-}
-
-// Custom plugin to copy static assets and move HTML files
-function copyStaticAssets(): Plugin {
-	return {
-		name: 'copy-static-assets',
-		apply: 'build',
-		async closeBundle() {
-			const staticDir = 'src/static';
-			const assetsDir = 'assets';
-
-			// Copy static files
-			if (fs.existsSync(staticDir)) {
-				const files = fs.readdirSync(staticDir);
-				files.forEach(file => {
-					fs.copyFileSync(
-						path.join(staticDir, file),
-						path.join('dist', file)
-					);
-				});
-			}
-
-			// Copy assets directory
-			if (fs.existsSync(assetsDir)) {
-				if (!fs.existsSync('dist/assets')) {
-					fs.mkdirSync('dist/assets', { recursive: true });
-				}
-				const files = fs.readdirSync(assetsDir);
-				files.forEach(file => {
-					fs.copyFileSync(
-						path.join(assetsDir, file),
-						path.join('dist/assets', file)
-					);
-				});
-			}
-
-			// Move HTML files from src subdirectories to dist root
-			const htmlMappings = [
-				{ from: 'dist/src/taskpane.html', to: 'dist/taskpane.html' },
-				{ from: 'dist/src/popup.html', to: 'dist/popup.html' },
-				{ from: 'dist/src/editor/editor.html', to: 'dist/editor.html' },
-				{ from: 'dist/src/logs/logs.html', to: 'dist/logs.html' },
-				{ from: 'dist/src/commands/commands.html', to: 'dist/commands.html' }
-			];
-
-			htmlMappings.forEach(({ from, to }) => {
-				if (fs.existsSync(from)) {
-					fs.copyFileSync(from, to);
-				}
-			});
-
-			// Clean up src directory in dist
-			if (fs.existsSync('dist/src')) {
-				fs.rmSync('dist/src', { recursive: true, force: true });
-			}
 		}
 	};
 }
@@ -116,11 +54,10 @@ export default defineConfig(async ({ mode }) => {
 	return {
 		plugins: [
 			react(),
-			manifestPlugin(),
-			copyStaticAssets()
+			manifestPlugin()
 		],
 		root: '.',
-		publicDir: false, // We handle assets manually
+		publicDir: 'public', // Static assets copied to dist root
 		resolve: {
 			alias: {
 				'@': path.resolve(__dirname, './src')
@@ -141,11 +78,11 @@ export default defineConfig(async ({ mode }) => {
 			sourcemap: true,
 			rollupOptions: {
 				input: {
-					taskpane: path.resolve(__dirname, 'src/taskpane.html'),
-					editor: path.resolve(__dirname, 'src/editor/editor.html'),
-					logs: path.resolve(__dirname, 'src/logs/logs.html'),
-					popup: path.resolve(__dirname, 'src/popup.html'),
-					commands: path.resolve(__dirname, 'src/commands/commands.html')
+					taskpane: path.resolve(__dirname, 'taskpane.html'),
+					editor: path.resolve(__dirname, 'editor.html'),
+					logs: path.resolve(__dirname, 'logs.html'),
+					popup: path.resolve(__dirname, 'popup.html'),
+					commands: path.resolve(__dirname, 'commands.html')
 				},
 				output: {
 					// Code splitting for better caching

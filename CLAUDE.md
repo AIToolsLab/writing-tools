@@ -20,7 +20,7 @@ This is a writing tools application consisting of two main components:
   - Build: `npm run build` (production) or `npm run build:dev` (development)
   - Lint: `npm run lint` or `npm run lint:fix`
   - Format: `npm run format` or `npm run style:fix` (lint + format)
-  - Test: `npm run test`
+  - Test: `npm run test` (Jest) or `npm run test:vite` (Vite build regression tests)
 
 ### Backend (`/backend`)
 - **Use `uv`** - NOT pip
