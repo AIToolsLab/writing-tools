@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Annotated, Any, Dict, List, Literal
 
 import nlp
+import sentry_sdk
 import uvicorn
 from dotenv import load_dotenv
 from fastapi import BackgroundTasks, Body, FastAPI
@@ -19,6 +20,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel
+from sentry_sdk.integrations.fastapi import FastApiIntegration
 from sse_starlette.sse import EventSourceResponse
 
 logging.basicConfig(level=logging.INFO)
@@ -28,6 +30,20 @@ logger = logging.getLogger(__name__)
 
 # Load ENV vars
 load_dotenv()
+
+# Initialize Sentry for error tracking
+SENTRY_DSN = os.getenv("SENTRY_DSN")
+if SENTRY_DSN:
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[FastApiIntegration()],
+        traces_sample_rate=0.1,  # Sample 10% of transactions for performance monitoring
+        profiles_sample_rate=0.1,  # Sample 10% for profiling
+        environment=os.getenv("ENVIRONMENT", "development"),
+    )
+    logger.info("Sentry SDK initialized for error tracking")
+else:
+    logger.info("Sentry DSN not found - error tracking disabled")
 
 LOG_PATH = Path("./logs").absolute()
 

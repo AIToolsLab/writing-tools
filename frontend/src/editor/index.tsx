@@ -1,3 +1,4 @@
+import '@/sentry'; // Initialize Sentry error tracking
 import { useRef, useState, StrictMode, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';

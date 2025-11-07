@@ -1,3 +1,4 @@
+import './sentry'; // Initialize Sentry error tracking
 import { createRoot } from 'react-dom/client';
 import App from './pages/app';
 import { wordEditorAPI } from '@/api/wordEditorAPI';
