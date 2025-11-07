@@ -28,3 +28,6 @@ After cloning this repo:
 Run `./test_generation` script in the `backend` folder to make a test request. However, it runs against the prod server; change the URL to run against a local server (e.g., `http://localhost:8000/api/generation`).
 
 Note: the custom LLM backend has moved to https://github.com/AIToolsLab/writing-prototypes.
+
+# Running visual regression tests
+Run manually via Actions tab. To update baselines after UI changes, re-run with "Update visual snapshots" checked and commit the downloaded artifact as new baseline images.
