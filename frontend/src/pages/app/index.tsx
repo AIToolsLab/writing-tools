@@ -236,7 +236,7 @@ function AppInner() {
 		<div className="h-full flex flex-col">
 			<Navbar />
 			{!noAuthMode && user ? (
-				<div className={classes.container}>
+				<div className={classes.userBox}>
 					<div className={classes.profileContainer}>
 						<div className={classes.userNameContainer}>
 							User: {user.name}
