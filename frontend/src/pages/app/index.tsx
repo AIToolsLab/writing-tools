@@ -235,8 +235,11 @@ function AppInner() {
 	return (
 		<div className="h-full flex flex-col">
 			<Navbar />
+			<div className="flex-1 flex flex-col">
+				{getComponent(page)}
+			</div>
 			{!noAuthMode && user ? (
-				<div className={classes.userBox}>
+				<div className={classes.container}>
 					<div className={classes.profileContainer}>
 						<div className={classes.userNameContainer}>
 							User: {user.name}
@@ -266,7 +269,6 @@ function AppInner() {
 					</Button>
 				</div>
 			) : null}
-			{getComponent(page)}
 		</div>
 	);
 }
