@@ -11,7 +11,7 @@ test('demo page - visual regression', async ({ page }) => {
 
   await page.goto('/');
 
-  page.frameLocator('#editor-frame').locator('body').waitFor()
+  await page.frameLocator('#editor-frame').locator('body').waitFor()
 
   await expect(page.getByRole('banner')).toContainText('Thoughtful');
 
