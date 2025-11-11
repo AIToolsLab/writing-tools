@@ -233,9 +233,9 @@ function AppInner() {
 	}
 
 	return (
-		<div className="h-full flex flex-col">
+		<div className="h-full flex flex-col overflow-hidden">
 			<Navbar />
-			<div className="flex-1 flex flex-col">
+			<div className="flex-1 flex flex-col overflow-y-auto">
 				{getComponent(page)}
 			</div>
 			{!noAuthMode && user ? (

@@ -17,11 +17,14 @@
 	flex: 0 1 28rem;
 	min-width: 14rem;
 	margin: 20px 0px 20px 0px;
-	height: 80vh; /*NEW: Set height to 80vh for the sidebar*/
+	height: 80vh;
 	box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
 	right: 0;
 	background-color: white;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 
 /* Study task description container */
@@ -48,12 +51,15 @@
 /* Sidebar for demo page */
 .demosidebar {
 	margin: 20px;
-	height: 80vh; /* NEW: Set height to 80vh for the demo sidebar */
+	height: 80vh;
 	width: 28rem;
 	min-width: 28rem;
 	box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
 	background-color: white;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
 }
 
 .wordCount {

@@ -93,21 +93,6 @@ hr {
 	padding: 0.3rem;
 }
 
-/* A variant of .container used for the authenticated user box.
-   Stacks content vertically and pins the buttons to the bottom of
-   the box so "User" and "Sign Out" appear at the bottom. */
-.userBox {
-	display: flex;
-	flex-direction: column;
-	justify-content: flex-end;
-	align-items: center;
-    background-color: #fbfbfb;
-    padding: 0.3rem;
-    /* provide a reasonable box height so the internal content
-       can be vertically positioned to the bottom */
-    height: 3.25rem;
-}
-
 .profileContainer {
 	display: flex;
 	flex-direction: row;

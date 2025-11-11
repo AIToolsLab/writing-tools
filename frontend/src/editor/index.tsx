@@ -55,7 +55,7 @@ export function EditorScreen({
 			try {
 				await auth0Client.loginWithPopup();
 			} catch (error) {
-				 
+
 				console.error('auth0Client.loginWithPopup Error:', error);
 			}
 		},
@@ -67,7 +67,7 @@ export function EditorScreen({
 					},
 				});
 			} catch (error) {
-				 
+
 				console.error('auth0Client.logout Error:', error);
 			}
 		},
@@ -81,7 +81,7 @@ export function EditorScreen({
 			const index = selectionChangeHandlers.current.indexOf(handler);
 
 			if (index !== -1) selectionChangeHandlers.current.splice(index, 1);
-			 
+
 			else console.warn('Handler not found');
 		},
 
@@ -159,7 +159,7 @@ export function EditorScreen({
 			</div>
 
 			<div
-				className={`overflow-y-scroll ${isDemo ? classes.demosidebar : classes.sidebar}`}
+				className={isDemo ? classes.demosidebar : classes.sidebar}
 			>
 				<EditorContext.Provider value={editorAPI}>
 					<Sidebar />

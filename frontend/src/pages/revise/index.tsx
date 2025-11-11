@@ -6,10 +6,10 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { useAtomValue } from 'jotai';
 import { useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { Remark } from 'react-remark';
-import { 
-	AiOutlineFileText, 
-	AiOutlineBulb, 
-	AiOutlineProject, 
+import {
+	AiOutlineFileText,
+	AiOutlineBulb,
+	AiOutlineProject,
 	AiOutlineCompass,
 	AiOutlineLink,
 	AiOutlineStar,
@@ -143,7 +143,7 @@ When generating a visualization, it is critical that we remain faithful to the d
 
 function getDocTextAsPrompt(docContext: DocContext, contextChars = 100) {
 	let prompt = ``;
-	
+
 	if (docContext.contextData && docContext.contextData.length > 0) {
 		const contextSections = docContext.contextData.map(section => {
 			return `<context title="${section.title}">\n${section.content}</context>`;
@@ -357,9 +357,9 @@ ${request}
 	}
 
 	return (
-		<div className="flex flex-col h-full">
+		<div className="overflow-y-auto h-full">
 			{/* Categorized prompt buttons */}
-			<div className="p-4 bg-gray-50 border-b border-gray-200 overflow-y-auto">
+			<div className="p-4 bg-gray-50 border-b border-gray-200">
 				{/* Structure Section */}
 				<div className="mb-6">
 					<h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
@@ -440,7 +440,7 @@ ${request}
 			</div>
 
 			{/* Visualization output */}
-			<div className="flex-1 overflow-y-auto p-4 bg-white">
+			<div className="p-4 bg-white">
 				{curVisualization ? (
 					<div className="text-gray-800 prose max-w-none">
 						<Remark
