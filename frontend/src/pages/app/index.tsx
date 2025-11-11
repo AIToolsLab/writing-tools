@@ -21,6 +21,7 @@ import Draft from '../draft';
 import Revise from '../revise';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
+import { PostHogProvider } from 'posthog-js/react';
 
 function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
@@ -273,25 +274,35 @@ export default function App() {
 		: DemoAccessTokenProviderWrapper;
 
 	return (
-		<ChatContextWrapper>
-			<Auth0Provider
-				domain={process.env.AUTH0_DOMAIN!}
-				clientId={process.env.AUTH0_CLIENT_ID!}
-				cacheLocation="localstorage"
-				useRefreshTokens={true}
-				useRefreshTokensFallback={true}
-				authorizationParams={{
-					redirect_uri: `${window.location.origin}/popup.html`,
-					scope: 'openid profile email read:posts',
-					audience: 'textfocals.com',
-					leeway: 10,
-				}}
-			>
-				<AccessTokenProvider>
-					<AppInner />
-				</AccessTokenProvider>
-			</Auth0Provider>
-		</ChatContextWrapper>
+		<PostHogProvider
+			apiKey={process.env.VITE_PUBLIC_POSTHOG_KEY!}
+			options={{
+				api_host: process.env.VITE_PUBLIC_POSTHOG_HOST!,
+				defaults: '2025-05-24',
+				capture_exceptions: true, // This enables capturing exceptions using Error Tracking
+				debug: process.env.MODE === 'development',
+			}}
+		>
+			<ChatContextWrapper>
+				<Auth0Provider
+					domain={process.env.AUTH0_DOMAIN!}
+					clientId={process.env.AUTH0_CLIENT_ID!}
+					cacheLocation="localstorage"
+					useRefreshTokens={true}
+					useRefreshTokensFallback={true}
+					authorizationParams={{
+						redirect_uri: `${window.location.origin}/popup.html`,
+						scope: 'openid profile email read:posts',
+						audience: 'textfocals.com',
+						leeway: 10,
+					}}
+				>
+					<AccessTokenProvider>
+						<AppInner />
+					</AccessTokenProvider>
+				</Auth0Provider>
+			</ChatContextWrapper>
+		</PostHogProvider>
 	);
 }
 

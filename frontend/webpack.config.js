@@ -3,8 +3,12 @@
 import { fileURLToPath } from 'url';
 //import { resolve as _resolve } from 'path';
 import path from 'path';
+import dotenv from 'dotenv';
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url));
+
+// Load .env file
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 import webpack from 'webpack';
 import { getHttpsServerOptions } from 'office-addin-dev-certs';
@@ -27,6 +31,22 @@ async function getHttpsOptions() {
 		key: httpsOptions.key,
 		cert: httpsOptions.cert
 	};
+}
+
+// Extract VITE_PUBLIC_* variables to expose them in the browser
+function getPublicEnvVariables() {
+	const envVars = {};
+	const prefix = 'VITE_PUBLIC_';
+
+	for (const [key, value] of Object.entries(process.env)) {
+		if (key.startsWith(prefix)) {
+			// Make available as process.env.VITE_PUBLIC_* for browser code
+			envVars[`process.env.${key}`] = JSON.stringify(value);
+			console.log(`Exposing env variable to browser: ${key}`);
+		}
+	}
+
+	return envVars;
 }
 
 export default async (env, options) => {
@@ -190,8 +210,10 @@ export default async (env, options) => {
 			}),
 			new webpack.DefinePlugin({
 				'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
-				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr')
-			})
+				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
+				'process.env.MODE': JSON.stringify(options.mode),
+				...getPublicEnvVariables()
+			}),
 		],
 		devServer: {
 			hot: true,
