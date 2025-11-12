@@ -208,4 +208,7 @@ Documents are stored in localStorage with task-specific keys:
 
 ## Testing
 
-Testing is not yet well configured in this repo. When editing code, suggest high-value tests to add but wait for approval.
+Testing frameworks used:
+
+- **Frontend**: Vitest with Testing Library for unit and localized integration tests; Playwright for end-to-end tests and visual regression
+- **Backend**: ad hoc, needs improvement
