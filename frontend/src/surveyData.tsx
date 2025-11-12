@@ -1,6 +1,6 @@
 // From https://github.com/kcarnold/textrec/blob/master/src/frontend/src/SurveyData.js
 
-import { likert, agreeLikert, QuestionType } from "./surveyViews";
+import { likert, QuestionType } from "./surveyViews";
 
 export const otherMid: QuestionType = {
   text:
