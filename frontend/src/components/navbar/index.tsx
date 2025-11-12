@@ -5,8 +5,8 @@ import {
 	pageNameAtom,
 } from '@/contexts/pageContext';
 
-import classes from './styles.module.css';
 import { useAtom, useAtomValue } from 'jotai';
+import { Tabs } from 'reshaped';
 
 /**
  * An array of objects representing the names and titles of pages.
@@ -33,20 +33,20 @@ export default function Navbar() {
 	const isStudyMode = mode === OverallMode.study;
 
 	if (isStudyMode) {
-		return;
+		return null;
 	} else {
 		return (
-			<nav className={classes.nav}>
-				{pageNames.map(({ name: pageName, title: pageTitle }) => (
-					<p
-						key={pageName}
-						onClick={() => changePage(pageName)}
-						className={page === pageName ? classes.active : ''}
-					>
-						{pageTitle}
-					</p>
-				))}
-			</nav>
+			<div className="flex justify-center">
+				<Tabs variant="pills-elevated" name="tabs" value={page} onChange={({ value }: { value: string }) => changePage(value as PageName)}>
+					<Tabs.List>
+						{pageNames.map(({ name: pageName, title: pageTitle }) => (
+							<Tabs.Item key={pageName} value={pageName} data-active={page === pageName ? 'true' : undefined}>
+								{pageTitle}
+							</Tabs.Item>
+						))}
+					</Tabs.List>
+				</Tabs>
+			</div>
 		);
 	}
 }
