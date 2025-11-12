@@ -5,6 +5,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Provider as JotaiProvider, createStore } from 'jotai';
+import { beforeEach, afterEach, describe, it, expect, vi } from 'vitest';
 import Draft from '../index';
 import { EditorContext } from '@/contexts/editorContext';
 import { useAccessToken } from '@/contexts/authTokenContext';
@@ -13,43 +14,43 @@ import { studyDataAtom } from '@/contexts/studyContext';
 import { usernameAtom } from '@/contexts/userContext';
 
 // Mock only the things we need to mock
-jest.mock('@/contexts/authTokenContext');
-jest.mock('@/utilities');
-jest.mock('@/api', () => ({
-	log: jest.fn(),
+vi.mock('@/contexts/authTokenContext');
+vi.mock('@/utilities');
+vi.mock('@/api', () => ({
+	log: vi.fn(),
 	SERVER_URL: 'http://localhost:8000',
 }));
 
 // Mock react-remark to avoid rendering complexity
-jest.mock('react-remark', () => ({
+vi.mock('react-remark', () => ({
 	Remark: ({ children }: { children: string }) => <div>{children}</div>,
 }));
 
 // Mock react-icons
-jest.mock('react-icons/ai', () => ({
+vi.mock('react-icons/ai', () => ({
 	AiOutlineClose: () => <div>Close Icon</div>,
 	AiOutlineReload: () => <div>Reload Icon</div>,
 }));
 
 // Mock iconFunc
-jest.mock('../iconFunc', () => ({
-	iconFunc: jest.fn(() => <div>Icon</div>),
+vi.mock('../iconFunc', () => ({
+	iconFunc: vi.fn(() => <div>Icon</div>),
 }));
 
-const mockUseAccessToken = useAccessToken as jest.MockedFunction<typeof useAccessToken>;
-const mockUseDocContext = useDocContext as jest.MockedFunction<typeof useDocContext>;
+const mockUseAccessToken = useAccessToken as ReturnType<typeof vi.fn>;
+const mockUseDocContext = useDocContext as ReturnType<typeof vi.fn>;
 
 const mockEditorAPI: EditorAPI = {
-	doLogin: jest.fn().mockResolvedValue(undefined),
-	doLogout: jest.fn().mockResolvedValue(undefined),
-	getDocContext: jest.fn().mockResolvedValue({
+	doLogin: vi.fn().mockResolvedValue(undefined),
+	doLogout: vi.fn().mockResolvedValue(undefined),
+	getDocContext: vi.fn().mockResolvedValue({
 		beforeCursor: '',
 		selectedText: '',
 		afterCursor: '',
 	}),
-	addSelectionChangeHandler: jest.fn(),
-	removeSelectionChangeHandler: jest.fn(),
-	selectPhrase: jest.fn().mockResolvedValue(undefined),
+	addSelectionChangeHandler: vi.fn(),
+	removeSelectionChangeHandler: vi.fn(),
+	selectPhrase: vi.fn().mockResolvedValue(undefined),
 };
 
 const mockDocContext = {
@@ -85,19 +86,19 @@ describe('Draft Component', () => {
 	beforeEach(() => {
 		// Setup default mocks
 		mockUseAccessToken.mockReturnValue({
-			getAccessToken: jest.fn().mockResolvedValue('mock-token'),
+			getAccessToken: vi.fn().mockResolvedValue('mock-token'),
 			authErrorType: null,
-			reportAuthError: jest.fn(),
+			reportAuthError: vi.fn(),
 		});
 
 		mockUseDocContext.mockReturnValue(mockDocContext);
 
 		// Mock fetch globally
-		global.fetch = jest.fn();
+		global.fetch = vi.fn();
 	});
 
 	afterEach(() => {
-		jest.clearAllMocks();
+		vi.clearAllMocks();
 	});
 
 	describe('Basic Rendering', () => {
@@ -196,9 +197,9 @@ describe('Draft Component', () => {
 	describe('Error Handling', () => {
 		it('should display reauthorization message when auth error exists', () => {
 			mockUseAccessToken.mockReturnValue({
-				getAccessToken: jest.fn().mockResolvedValue('mock-token'),
+				getAccessToken: vi.fn().mockResolvedValue('mock-token'),
 				authErrorType: 'unauthorized',
-				reportAuthError: jest.fn(),
+				reportAuthError: vi.fn(),
 			});
 
 			renderDraft({
@@ -210,7 +211,7 @@ describe('Draft Component', () => {
 		});
 
 		it('should display error message when suggestion fetch fails', async () => {
-			const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
+			const mockFetch = global.fetch as ReturnType<typeof vi.fn>;
 			mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
 			renderDraft({
@@ -231,7 +232,7 @@ describe('Draft Component', () => {
 
 	describe('Loading State', () => {
 		it('should show loading spinner when fetching suggestion', async () => {
-			const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
+			const mockFetch = global.fetch as ReturnType<typeof vi.fn>;
 			mockFetch.mockImplementation(
 				() =>
 					new Promise((resolve) => {
@@ -263,7 +264,7 @@ describe('Draft Component', () => {
 		});
 
 		it('should disable buttons during loading', async () => {
-			const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
+			const mockFetch = global.fetch as ReturnType<typeof vi.fn>;
 			mockFetch.mockImplementation(
 				() =>
 					new Promise((resolve) => {
@@ -298,7 +299,7 @@ describe('Draft Component', () => {
 
 	describe('Saved Items', () => {
 		it('should display saved suggestions after successful fetch', async () => {
-			const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
+			const mockFetch = global.fetch as ReturnType<typeof vi.fn>;
 			mockFetch.mockResolvedValueOnce({
 				ok: true,
 				json: async () => ({
@@ -323,7 +324,7 @@ describe('Draft Component', () => {
 		});
 
 		it('should allow deleting saved items', async () => {
-			const mockFetch = global.fetch as jest.MockedFunction<typeof fetch>;
+			const mockFetch = global.fetch as ReturnType<typeof vi.fn>;
 			mockFetch.mockResolvedValueOnce({
 				ok: true,
 				json: async () => ({
