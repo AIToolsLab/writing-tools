@@ -21,8 +21,9 @@ Writing tools application:
 
 ### Frontend (Office Add-in)
 - **Office.js APIs** - Microsoft Word integration
+- **Build Tool**: Vite + TypeScript
 - **State Management**: Jotai atoms (see `frontend/src/contexts/`)
-- **Path Alias**: `@/*` maps to `./src/*` (webpack config)
+- **Path Alias**: `@/*` maps to `./src/*` (Vite config)
 - **Entry Points**:
   - `src/taskpane.html` - Word task pane
   - `src/editor/editor.html` - Standalone demo editor and user study
