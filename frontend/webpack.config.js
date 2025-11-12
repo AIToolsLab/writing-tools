@@ -1,16 +1,11 @@
 /* eslint-disable no-undef */
 
-import { fileURLToPath } from 'url';
-//import { resolve as _resolve } from 'path';
-import path from 'path';
-
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-
-import webpack from 'webpack';
-import { getHttpsServerOptions } from 'office-addin-dev-certs';
-
-import CopyWebpackPlugin from 'copy-webpack-plugin';
-import HtmlWebpackPlugin from 'html-webpack-plugin';
+const path = require('path');
+const webpack = require('webpack');
+const { getHttpsServerOptions } = require('office-addin-dev-certs');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 
 const urlDev = 'https://localhost:3000';
 const urlProd = 'https://app.thoughtful-ai.com';
@@ -29,7 +24,7 @@ async function getHttpsOptions() {
 	};
 }
 
-export default async (env, options) => {
+module.exports = async (env = {}, options = {}) => {
 	const dev = options.mode === 'development';
 	const config = {
 		devtool: 'source-map',
@@ -94,47 +89,23 @@ export default async (env, options) => {
 						filename: 'assets/[name].[contenthash][ext][query]'
 					}
 				},
-				// CSS Modules: only for *.module.css
 				{
-					test: /\.module\.css$/,
-					exclude: /node_modules/,
+					test: /\.css$/,
 					use: [
-						{
-							loader: 'style-loader'
+					{
+						loader: MiniCssExtractPlugin.loader,
+						options: {
+						esModule: false,
 						},
-						{
-							loader: 'css-loader',
-							options: {
-								modules: true
-							}
-						},
-						{
-							loader: 'postcss-loader',
-						}
-					]
-				},
-				// Global CSS (including Tailwind): all other .css files
-				{
-					test: /(?<!\.module)\.css$/,
-					exclude: /node_modules/,
-					use: [
-						{
-							loader: 'style-loader'
-						},
-						{
-							loader: 'css-loader',
-							options: {
-								modules: false
-							}
-						},
-						{
-							loader: 'postcss-loader',
-						}
-					]
+					},
+					"css-loader",
+					"postcss-loader",
+					],
 				}
 			]
 		},
 		plugins: [
+			new MiniCssExtractPlugin({ filename: '[name].[contenthash].css' }),
 			new CopyWebpackPlugin({
 				patterns: [
 					{

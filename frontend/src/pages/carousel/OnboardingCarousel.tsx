@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Button } from 'reshaped';
 import classes from './styles.module.css';
 import descriptionImage from '../../../assets/c1.png';
 import functionImage from '../../../assets/logo_black.png';
@@ -76,9 +77,8 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
 							type='button'
 							// biome-ignore lint/suspicious/noArrayIndexKey: it's literally the index
 							key={index}
-							className={`${classes.dot} ${
-								currentSlide === index ? classes.activeDot : ''
-							}`}
+							className={`${classes.dot} ${currentSlide === index ? classes.activeDot : ''
+								}`}
 							onClick={() => setCurrentSlide(index)}
 							aria-label={`Go to slide ${index + 1}`}
 						/>
@@ -87,19 +87,23 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
 
 				<div className={classes.carouselButtons}>
 					{currentSlide !== ONBOARDING_SLIDES.length - 1 && (
-						<button
-							type='button'
-							className={classes.skipButton}
+						<Button
+							variant="ghost"
+							color="neutral"
 							onClick={onComplete}
 						>
 							Skip
-						</button>
+						</Button>
 					)}
-					<button className={classes.nextButton} onClick={nextSlide} type='button'>
+					<Button
+						variant="solid"
+						color="primary"
+						onClick={nextSlide}
+					>
 						{currentSlide === ONBOARDING_SLIDES.length - 1
 							? 'Get Started'
 							: 'Next'}
-					</button>
+					</Button>
 				</div>
 			</div>
 		</div>
