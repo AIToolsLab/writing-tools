@@ -75,7 +75,7 @@ async function runTests() {
 	console.log('\nTest 5: Root path');
 	// Note: Vite dev server root might return directory listing or 404 by default
 	// If we want / to work, we'd need to configure it explicitly
-	const rootResult = await new Promise((resolve) => {
+	await new Promise((resolve) => {
 		http.get(`${BASE_URL}/`, (res) => {
 			if (res.statusCode === 200 || res.statusCode === 404) {
 				console.log(`ℹ️  GET / -> ${res.statusCode} (dev server behavior)`);

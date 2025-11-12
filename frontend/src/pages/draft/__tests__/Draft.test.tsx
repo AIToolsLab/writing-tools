@@ -239,7 +239,7 @@ describe('Draft Component', () => {
 						setTimeout(() => {
 							resolve({
 								ok: true,
-								json: async () => ({
+								json: () => Promise.resolve({
 									generation_type: 'example_sentences',
 									result: '1. Example sentence one\n2. Example sentence two',
 								}),
@@ -271,7 +271,7 @@ describe('Draft Component', () => {
 						setTimeout(() => {
 							resolve({
 								ok: true,
-								json: async () => ({
+								json: () => Promise.resolve({
 									generation_type: 'example_sentences',
 									result: '1. Example sentence',
 								}),
@@ -302,7 +302,7 @@ describe('Draft Component', () => {
 			const mockFetch = global.fetch as ReturnType<typeof vi.fn>;
 			mockFetch.mockResolvedValueOnce({
 				ok: true,
-				json: async () => ({
+				json: () => Promise.resolve({
 					generation_type: 'example_sentences',
 					result: '1. First suggestion\n2. Second suggestion',
 				}),
@@ -327,7 +327,7 @@ describe('Draft Component', () => {
 			const mockFetch = global.fetch as ReturnType<typeof vi.fn>;
 			mockFetch.mockResolvedValueOnce({
 				ok: true,
-				json: async () => ({
+				json: () => Promise.resolve({
 					generation_type: 'example_sentences',
 					result: 'Test suggestion',
 				}),

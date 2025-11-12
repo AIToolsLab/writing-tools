@@ -29,6 +29,21 @@ export default [
       }
     }
   },
+
+  // Node.js test and build scripts
+  {
+    files: ['*.mjs', 'test-*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        console: 'readonly',
+        process: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly'
+      }
+    }
+  },
   
   // JavaScript/JSX files (including config files) - non-type-aware rules only
   {
@@ -128,6 +143,8 @@ export default [
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
       '@typescript-eslint/no-unsafe-return': 'warn',
+      '@typescript-eslint/no-unsafe-call': 'off', // Office.js types can trigger this
+      '@typescript-eslint/no-unsafe-argument': 'off', // Related to Office.js and any types
       
       'no-constant-binary-expression': 'warn',
 

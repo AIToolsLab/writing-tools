@@ -15,7 +15,7 @@ function manifestPlugin(): Plugin {
 	return {
 		name: 'manifest-plugin',
 		apply: 'build',
-		async closeBundle() {
+		closeBundle() {
 			const mode = process.env.NODE_ENV || 'development';
 			const isDev = mode === 'development';
 

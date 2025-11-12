@@ -11,8 +11,8 @@ export const wordEditorAPI: EditorAPI = {
 				| { error: number },
 		) => {
 			if ('error' in args) {
-				 
-				console.error('Error:', args.error);
+
+				console.error('Error:', String(args.error));
 				if (dialog) dialog.close();
 				return;
 			}
@@ -25,16 +25,16 @@ export const wordEditorAPI: EditorAPI = {
 					auth0Client.handleRedirectCallback(
 						messageFromDialog.urlWithAuthInfo as string,
 					);
-				} catch (error) {
-					 
+				} catch (error: unknown) {
+
 					console.error(
 						'auth0Client.handleRedirectCallback Error:',
-						error,
+						error instanceof Error ? error.message : String(error),
 					);
 				}
 			} else {
-				 
-				console.error('Login failed.', messageFromDialog);
+
+				console.error('Login failed.', JSON.stringify(messageFromDialog));
 			}
 		};
 
@@ -62,9 +62,9 @@ export const wordEditorAPI: EditorAPI = {
 							);
 						},
 					);
-				} catch (error) {
-					 
-					console.error('Error opening URL:', error);
+				} catch (error: unknown) {
+
+					console.error('Error opening URL:', error instanceof Error ? error.message : String(error));
 				}
 			},
 		});
@@ -81,8 +81,8 @@ export const wordEditorAPI: EditorAPI = {
 		) => {
 			dialog.close();
 			if ('error' in args) {
-				 
-				console.error('Error:', args.error);
+
+				console.error('Error:', String(args.error));
 				return;
 			}
 			const messageFromDialog = JSON.parse(args.message);
@@ -91,8 +91,8 @@ export const wordEditorAPI: EditorAPI = {
 				// The dialog reported a successful logout.
 				// It seems like we don't need to do anything here, since the auth0 client library has already cleared its cached credentials.
 			} else {
-				 
-				console.error('Logout failed.', messageFromDialog);
+
+				console.error('Logout failed.', JSON.stringify(messageFromDialog));
 			}
 		};
 
@@ -163,7 +163,7 @@ export const wordEditorAPI: EditorAPI = {
 				context.load(beforeCursor, 'text');
 				context.load(afterCursor, 'text');
 				await context.sync();
-				
+
 				docContext.beforeCursor = beforeCursor.text;
 				docContext.selectedText = wordSelection.text;
 				docContext.afterCursor = afterCursor.text;
@@ -182,10 +182,10 @@ export const wordEditorAPI: EditorAPI = {
 					'\n',
 				);
 				resolve(docContext);
-			}).catch((error) => {
-				 
-				console.error('Error getting document context:', error);
-				reject(error as Error);
+			}).catch((error: unknown) => {
+
+				console.error('Error getting document context:', error instanceof Error ? error.message : String(error));
+				reject(error instanceof Error ? error : new Error(String(error)));
 			});
 		});
 	},
