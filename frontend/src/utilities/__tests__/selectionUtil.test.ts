@@ -1,5 +1,5 @@
 import { getBefore, getCurParagraph } from '../selectionUtil';
-import { expect } from '@jest/globals';
+import { describe, it, expect } from '@jest/globals';
 
 describe('selectionUtil', () => {
 	describe('getBefore', () => {
