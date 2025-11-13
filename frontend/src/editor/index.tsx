@@ -150,6 +150,8 @@ export function EditorScreen({
 					updateDocContext={docUpdated}
 					storageKey={getStorageKey()}
 					preamble={editorPreamble}
+					enableAutocomplete={isDemo}
+					username={username}
 				/>
 				{isDemo || isStudy ? (
 					<div className={`${classes.wordCount}`}>
