@@ -11,10 +11,10 @@ If you can't find the Add-ins tab, look instead on the File menu for "Get Add-in
 # Running the add-in
 
 - `cd frontend`
-- `yarn`
-- `yarn run dev-server`
+- `npm install`
+- `npm run dev-server`
 
-Run `yarn lint --fix` to auto-fix (almost) all lint errors.
+Run `npm run lint --fix` to auto-fix (almost) all lint errors.
 
 # Running the backend server
 
@@ -31,7 +31,6 @@ Note: the custom LLM backend has moved to https://github.com/AIToolsLab/writing-
 
 
 # Contributing
-
 We follow specific GitHub conventions to keep our project organized and maintain code quality.
 
 **Quick Start:**
@@ -42,3 +41,6 @@ We follow specific GitHub conventions to keep our project organized and maintain
 5. Get at least one approval before merging
 
 For detailed conventions on branch naming, commit messages, PR process, and issue management, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+# Running visual regression tests
+Run manually via Actions tab. To update baselines after UI changes, re-run with "Update visual snapshots" checked and commit the downloaded artifact as new baseline images.
