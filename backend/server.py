@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Annotated, Any, Dict, List, Literal
 
 import nlp
+import posthog
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Body, FastAPI
+from fastapi import BackgroundTasks, Body, FastAPI, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,6 +37,17 @@ PORT = int(os.getenv("PORT") or 8000)
 
 # The log secret is stored in .env file for local development.
 LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
+
+# Initialize PostHog
+POSTHOG_API_KEY = os.getenv("POSTHOG_API_KEY", "").strip()
+POSTHOG_HOST = os.getenv("POSTHOG_HOST", "https://us.i.posthog.com").strip()
+
+if POSTHOG_API_KEY:
+    posthog.project_api_key = POSTHOG_API_KEY
+    posthog.host = POSTHOG_HOST
+    logger.info(f"PostHog initialized with host: {POSTHOG_HOST}")
+else:
+    logger.warning("PostHog API key not found. Error tracking disabled.")
 
 
 def should_log(username: str) -> bool:
@@ -152,9 +164,49 @@ app.add_middleware(
 )
 
 
+# PostHog Error Tracking Middleware
+@app.middleware("http")
+async def posthog_error_tracking_middleware(request: Request, call_next):
+    try:
+        response = await call_next(request)
+        return response
+    except Exception as exc:
+        # Capture exception to PostHog
+        if POSTHOG_API_KEY:
+            posthog.capture(
+                distinct_id="backend-server",
+                event="$exception",
+                properties={
+                    "exception_type": type(exc).__name__,
+                    "exception_message": str(exc),
+                    "path": request.url.path,
+                    "method": request.method,
+                    "$exception_type": type(exc).__name__,
+                    "$exception_message": str(exc),
+                }
+            )
+            logger.error(f"Exception captured by PostHog: {exc}")
+        # Re-raise the exception so FastAPI can handle it normally
+        raise
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     print(f"The client sent invalid data!: {exc}")
+    # Also capture validation errors to PostHog
+    if POSTHOG_API_KEY:
+        posthog.capture(
+            distinct_id="backend-server",
+            event="$exception",
+            properties={
+                "exception_type": "RequestValidationError",
+                "exception_message": str(exc),
+                "path": request.url.path,
+                "method": request.method,
+                "$exception_type": "RequestValidationError",
+                "$exception_message": str(exc),
+            }
+        )
     return await request_validation_exception_handler(request, exc)
 
 

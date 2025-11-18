@@ -21,7 +21,7 @@ import Draft from '../draft';
 import Revise from '../revise';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
-import { PostHogProvider } from 'posthog-js/react';
+import { PostHogProvider, PostHogErrorBoundary } from '@posthog/react';
 
 function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
@@ -283,25 +283,34 @@ export default function App() {
 				debug: process.env.MODE === 'development',
 			}}
 		>
-			<ChatContextWrapper>
-				<Auth0Provider
-					domain={process.env.AUTH0_DOMAIN!}
-					clientId={process.env.AUTH0_CLIENT_ID!}
-					cacheLocation="localstorage"
-					useRefreshTokens={true}
-					useRefreshTokensFallback={true}
-					authorizationParams={{
-						redirect_uri: `${window.location.origin}/popup.html`,
-						scope: 'openid profile email read:posts',
-						audience: 'textfocals.com',
-						leeway: 10,
-					}}
-				>
-					<AccessTokenProvider>
-						<AppInner />
-					</AccessTokenProvider>
-				</Auth0Provider>
-			</ChatContextWrapper>
+			<PostHogErrorBoundary
+				fallback={
+					<div style={{ padding: '20px', textAlign: 'center' }}>
+						<h2>Something went wrong</h2>
+						<p>An error has been logged. Please refresh the page.</p>
+					</div>
+				}
+			>
+				<ChatContextWrapper>
+					<Auth0Provider
+						domain={process.env.AUTH0_DOMAIN!}
+						clientId={process.env.AUTH0_CLIENT_ID!}
+						cacheLocation="localstorage"
+						useRefreshTokens={true}
+						useRefreshTokensFallback={true}
+						authorizationParams={{
+							redirect_uri: `${window.location.origin}/popup.html`,
+							scope: 'openid profile email read:posts',
+							audience: 'textfocals.com',
+							leeway: 10,
+						}}
+					>
+						<AccessTokenProvider>
+							<AppInner />
+						</AccessTokenProvider>
+					</Auth0Provider>
+				</ChatContextWrapper>
+			</PostHogErrorBoundary>
 		</PostHogProvider>
 	);
 }
