@@ -1,7 +1,5 @@
 # GitHub Conventions Guide
 
-*A quick reference for our team's GitHub workflow. Read time: ~5 minutes*
-
 ---
 
 ## Typical Workflow
