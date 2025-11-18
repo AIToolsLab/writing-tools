@@ -13,64 +13,6 @@ h4 {
 	margin-bottom: 4px;
 }
 
-.optionsContainer {
-	display: flex;
-	flex-direction: row;
-	justify-content: center;
-	margin-top: 0.1rem;
-	margin-bottom: 0.1rem;
-	position: relative;
-}
-
-.optionsContainer:hover .tooltip {
-	opacity: 1;
-	visibility: visible;
-}
-
-.optionsButton,
-.optionsButtonActive {
-	display: flex; /* Fixes centering of icon in suggestion button */
-	background-color: #ffffff;
-	font-size: 1rem;
-	font-weight: 600;
-	width: 52px;
-	height: 52px;
-	justify-content: center;
-	align-items: center;
-	border: 2px solid rgb(178, 176, 176);
-	transition: 0.15s;
-	cursor: pointer;
-	border-radius: 24px;
-	margin: 4px;
-}
-
-.optionsButtonActive {
-	background-color: #d2e0fb;
-	border: 1px solid #d2e0fb;
-}
-
-.optionsButton:disabled {
-	cursor: auto;
-}
-
-.optionsButtonActive:disabled {
-	cursor: auto;
-}
-
-.optionsButton:hover:enabled {
-	background-color: #f0f0f0;
-	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, 0.1);
-	transform: rotate(25deg);
-	transition: 0.3s;
-}
-
-.optionsButtonActive:hover:enabled {
-	background-color: #f0f0f0;
-	border: 1px solid #f0f0f0;
-	box-shadow: -1px 6px 10px 0 rgba(120, 60, 20, 0.1);
-	transform: rotate(20deg);
-}
-
 .tooltip {
 	position: absolute;
 	top: 120%;
@@ -321,12 +263,15 @@ h4 {
 	0% {
 		opacity: 0;
 	}
+
 	10% {
 		opacity: 0.75;
 	}
+
 	50% {
 		opacity: 1;
 	}
+
 	100% {
 		opacity: 0;
 	}
@@ -336,6 +281,7 @@ h4 {
 	0% {
 		opacity: 0;
 	}
+
 	100% {
 		opacity: 1;
 	}
@@ -473,20 +419,6 @@ h4 {
 	align-items: center;
 }
 
-.historyCloseButtonWrapper {
-	align-items: center;
-	align-content: center;
-	justify-content: center;
-	margin-left: auto;
-	margin-bottom: auto;
-	border-radius: 12px;
-	transition: 0.15s;
-	border: none;
-	background: transparent;
-	cursor: pointer;
-	display: flex;
-}
-
 .genTypeIconWrapper {
 	align-items: center;
 	align-content: center;
@@ -510,22 +442,6 @@ h4 {
 	padding-right: 6px;
 }
 
-.historyCloseButtonWrapper:hover {
-	cursor: pointer;
-	background-color: #dedede;
-	border-radius: 12px;
-}
-
-.historyCloseButton {
-	border-radius: 12px;
-	padding: 4px;
-	display: flex;
-	color: #666666;
-	justify-content: right;
-	align-items: center;
-	transition: 0.5s;
-}
-
 .savedTypeIcon {
 	border-radius: 12px;
 	padding: 4px;
@@ -535,11 +451,6 @@ h4 {
 	align-items: center;
 	text-align: center;
 	transition: 0.5s;
-}
-
-.historyCloseButton:hover {
-	color: #333333;
-	transform: rotate(90deg);
 }
 
 .historyEmptyWrapper {

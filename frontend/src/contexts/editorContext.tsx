@@ -1,4 +1,4 @@
-import { type PropsWithChildren, createContext } from 'react';
+import { createContext } from 'react';
 
 // Provides editor API functionality through context
 export const EditorContext = createContext<EditorAPI>({

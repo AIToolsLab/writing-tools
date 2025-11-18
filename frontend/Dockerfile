@@ -3,13 +3,13 @@ FROM node:24-slim AS build
 
 WORKDIR /app
 
-COPY package.json yarn.lock ./
+COPY package.json package-lock.json ./
 
-RUN yarn install --frozen-lockfile
+RUN npm ci
 
 COPY . ./
 
-RUN yarn build && ls -la
+RUN npm run build && ls -la
 
 # Production stage
 FROM nginx:alpine
