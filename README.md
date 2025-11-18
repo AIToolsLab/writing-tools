@@ -31,7 +31,6 @@ Note: the custom LLM backend has moved to https://github.com/AIToolsLab/writing-
 
 
 # Contributing
-
 We follow specific GitHub conventions to keep our project organized and maintain code quality.
 
 **Quick Start:**
