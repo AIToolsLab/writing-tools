@@ -10,9 +10,9 @@
  * 4. Static files from public/ should be accessible
  */
 
-import http from 'http';
+import https from 'https';
 
-const BASE_URL = 'http://localhost:3000';
+const BASE_URL = 'https://localhost:3000';
 let errors = 0;
 
 function error(message) {
@@ -26,7 +26,7 @@ function success(message) {
 
 function testEndpoint(path, expectedStatus = 200) {
 	return new Promise((resolve) => {
-		http.get(`${BASE_URL}${path}`, (res) => {
+		https.get(`${BASE_URL}${path}`, { rejectUnauthorized: false }, (res) => {
 			if (res.statusCode === expectedStatus) {
 				success(`GET ${path} -> ${res.statusCode}`);
 				resolve(true);
@@ -73,22 +73,7 @@ async function runTests() {
 
 	// Test 5: Root path behavior
 	console.log('\nTest 5: Root path');
-	// Note: Vite dev server root might return directory listing or 404 by default
-	// If we want / to work, we'd need to configure it explicitly
-	const rootResult = await new Promise((resolve) => {
-		http.get(`${BASE_URL}/`, (res) => {
-			if (res.statusCode === 200 || res.statusCode === 404) {
-				console.log(`ℹ️  GET / -> ${res.statusCode} (dev server behavior)`);
-				resolve(true);
-			} else {
-				error(`GET / -> ${res.statusCode} (unexpected)`);
-				resolve(false);
-			}
-		}).on('error', (err) => {
-			error(`GET / -> ERROR: ${err.message}`);
-			resolve(false);
-		});
-	});
+	await testEndpoint('/', 200);
 
 	// Final report
 	console.log('\n' + '='.repeat(50));

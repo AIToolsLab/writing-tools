@@ -24,9 +24,13 @@ Writing tools application:
 - **Build Tool**: Vite + TypeScript
 - **State Management**: Jotai atoms (see `frontend/src/contexts/`)
 - **Path Alias**: `@/*` maps to `./src/*` (Vite config)
-- **Entry Points**:
-  - `src/taskpane.html` - Word task pane
-  - `src/editor/editor.html` - Standalone demo editor and user study
+- **Entry Points** (at root level, not in src/):
+  - `index.html` - Root entry point served at `/`
+  - `taskpane.html` - Word task pane
+  - `editor.html` - Standalone demo editor and user study
+  - `logs.html` - Logging viewer
+  - `popup.html` - Add-in popup
+  - `commands.html` - Ribbon commands
 - **Manifest**: `frontend/manifest.xml` for Office Add-in configuration
 
 ### Backend
@@ -37,6 +41,17 @@ Writing tools application:
 ## Non-Obvious Configuration
 
 - **TypeScript**: Path aliases enabled (`@/*` → `./src/*`)
+- **Vite Multi-Entry Setup**: The `vite.config.ts` uses `rollupOptions.input` to define multiple HTML entry points at the root level. Entry point files live at root, not in `src/`.
+- **Root Entry Point**: `index.html` lives at the root level (not in `publicDir`). Vite automatically serves it at `/` without custom configuration.
+
+## Debugging Approach
+
+When encountering issues during development:
+
+1. **Verify assumptions before "fixing"** - Don't accept initial problem statements at face value. Reproduce the issue yourself and understand the root cause.
+2. **Start simple** - Try the simplest solution first (e.g., moving a file to the expected location) before adding complex code (middleware, plugins, etc).
+3. **Test in isolation**, then test integration.
+4. **Document why configurations exist** - Explain non-obvious setups (but avoid documenting the obvious).
 
 ## User Study Mode
 

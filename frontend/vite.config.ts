@@ -54,6 +54,7 @@ export default defineConfig(async ({ mode }) => {
 	}
 
 	return {
+		appType: 'mpa', // Multi-page app: don't fallback to index.html for non-existent paths
 		plugins: [
 			react(),
 			manifestPlugin()
@@ -80,6 +81,7 @@ export default defineConfig(async ({ mode }) => {
 			sourcemap: true,
 			rollupOptions: {
 				input: {
+					index: path.resolve(__dirname, 'index.html'),
 					taskpane: path.resolve(__dirname, 'taskpane.html'),
 					editor: path.resolve(__dirname, 'editor.html'),
 					logs: path.resolve(__dirname, 'logs.html'),
