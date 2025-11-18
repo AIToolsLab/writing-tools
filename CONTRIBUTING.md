@@ -9,12 +9,13 @@
 **Day-to-day process:**
 
 1. **Pick a task** - Look at open issues, assign one to yourself
-2. **Create branch** - `git checkout -b feature/task-name`
-3. **Work and commit** - Make changes, commit with proper messages
-4. **Push and PR** - Push branch, open pull request
-5. **Review** - Get teammate approval
-6. **Merge** - Merge PR, delete branch
-7. **Close issue** - Issue closes automatically if you used `Closes #X`
+2. **Ensure clean state** - Commit or stash any uncommitted changes
+3. **Create branch** - `git checkout -b feature/task-name` (or use VS Code Source Control UI)
+4. **Work and commit** - Make changes, commit with proper messages
+5. **Push and PR** - Publish branch, open pull request
+6. **Review** - Get teammate approval
+7. **Merge** - Merge PR, delete branch
+8. **Close issue** - Issue closes automatically if you used `Closes #X`
 
 **Example:**
 ```bash
@@ -28,7 +29,7 @@ git add .
 git commit -m "feat: add user dashboard layout"
 
 # Push and create PR
-git push origin feat/add-user-dashboard
+git push -u origin feat/add-user-dashboard
 # Then open PR on GitHub linking to issue
 ```
 
@@ -146,6 +147,14 @@ Closes #[number]
 - Ensure tests pass
 - Keep PRs focused (one feature/fix per PR)
 
+**Choosing a Reviewer:**
+- **Frontend changes** → Request review from someone familiar with React/TypeScript
+- **Backend changes** → Request review from someone who works with Python/FastAPI
+- **Full-stack changes** → Consider requesting 2 reviewers (one for each side)
+- **Documentation/config** → Any active team member can review
+- **When unsure** → Ask in team chat or request review from the most active contributor
+- **Small teams** → Rotate reviewers to share knowledge across the team
+
 ---
 
 ## Issues
@@ -225,6 +234,17 @@ Links, screenshots, or relevant context
 - [ ] Tests passing
 - [ ] Feedback addressed
 - [ ] No merge conflicts
+
+---
+
+## Further Reading
+
+This guide covers our team's common patterns. For deeper understanding:
+
+- **Git workflow fundamentals**: [GitHub Flow](https://docs.github.com/en/get-started/quickstart/github-flow)
+- **Branch naming conventions**: [Conventional Branch](https://conventional-branch.github.io/)
+- **Commit message best practices**: [Conventional Commits](https://www.conventionalcommits.org/)
+- **Pull request reviews**: [How to review code](https://google.github.io/eng-practices/review/reviewer/) - Google's engineering practices
 
 ---
 
