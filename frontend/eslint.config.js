@@ -16,7 +16,7 @@ export default [
   
   // Node.js config files
   {
-    files: ['*.config.js', 'jest.config.js', 'tailwind.config.js'],
+    files: ['*.config.js', '*.config.ts', 'tailwind.config.js'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'commonjs',
