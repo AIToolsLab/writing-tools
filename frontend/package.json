@@ -70,6 +70,7 @@
 		"@tailwindcss/cli": "^4.1.8",
 		"@tailwindcss/postcss": "^4.1.8",
 		"@tailwindcss/typography": "^0.5.16",
+		"@types/jest": "^30.0.0",
 		"@types/mocha": "^10.0.6",
 		"@types/office-js": "^1.0.377",
 		"@types/office-runtime": "^1.0.35",
