@@ -145,14 +145,21 @@ export default function Chat() {
 						role={message.role}
 						content={message.content}
 						index={index + 2}
-						refresh={regenMessage}
+						refresh={(index: number) => {
+						void regenMessage(index);
+					}}
 						deleteMessage={() => {}}
 						convertToComment={() => {}}
 					/>
 				))}
 			</div>
 
-			<form className="w-full flex flex-col gap-2" onSubmit={sendMessage}>
+			<form
+			className="w-full flex flex-col gap-2"
+			onSubmit={(e) => {
+				void sendMessage(e);
+			}}
+		>
 				<label className="flex items-center border border-gray-500 justify-between p-[10px]">
 					<textarea
 						disabled={isSendingMessage}

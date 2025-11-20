@@ -178,7 +178,9 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 				</select>
 				<button
 					className="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition duration-150"
-					onClick={handleRegenerateAll}
+					onClick={() => {
+					void handleRegenerateAll();
+				}}
 					disabled={annotatedEntries.length === 0}
 				>
 					Regenerate All
@@ -227,7 +229,8 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 										</div> : null}
 									<button
 										className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-150"
-										onClick={async () => {
+										onClick={() => {
+										void (async () => {
 											setRegenResults((prev) => ({
 												...prev,
 												[i]: null,
@@ -246,7 +249,8 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 												...prev,
 												[i]: result,
 											}));
-										}}
+										})();
+									}}
 										disabled={regenResults[i] === null}
 									>
 										Regenerate
@@ -337,7 +341,9 @@ function App() {
 				// Optionally handle error
 			}
 			if (!stopped) {
-				pollingRef.current = setTimeout(pollLogs, 2000);
+				pollingRef.current = setTimeout(() => {
+				void pollLogs();
+			}, 2000);
 			}
 		}
 		pollLogs();
