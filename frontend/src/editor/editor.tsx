@@ -20,6 +20,7 @@ import {
 } from 'lexical';
 
 import classes from './editor.module.css';
+import InlineAutocompletePlugin from './InlineAutocompletePlugin';
 
 function $getDocContext(): DocContext {
 	// Initialize default empty context
@@ -156,11 +157,15 @@ function LexicalEditor({
 	initialState,
 	storageKey = 'doc',
 	preamble,
+	enableAutocomplete = false,
+	username = '',
 }: {
 	updateDocContext: (docContext: DocContext) => void;
 	initialState: InitialEditorStateType | null;
 	storageKey?: string;
 	preamble?: JSX.Element;
+	enableAutocomplete?: boolean;
+	username?: string;
 }) {
 	return (
 		<LexicalComposer // Main editor component
@@ -209,6 +214,13 @@ function LexicalEditor({
 					<AutoFocusPlugin />
 
 					<HistoryPlugin />
+
+					{enableAutocomplete && (
+						<InlineAutocompletePlugin
+							username={username}
+							enabled={enableAutocomplete}
+						/>
+					)}
 				</div>
 			</div>
 		</LexicalComposer>
