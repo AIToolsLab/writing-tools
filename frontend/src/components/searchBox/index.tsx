@@ -124,18 +124,17 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 				>
 					<hr className="border-gray-200" />
 					{/* Matching past searches */}
-					<ul className="max-h-60 overflow-y-auto">
+					<div className="max-h-60 overflow-y-auto">
 						{/* Only show 3 past searches */}
 						{filteredHistoryList
 							.slice(0, 3)
 							.map((prompt: string, index: number) => {
 								return (
-									// TODO: make it a valid DOM structure (ul should have li as children)
 									<div
 										key={`history-${index}`}
 										className="flex items-center justify-between px-3 py-2 hover:bg-gray-50"
 									>
-										<li
+										<div
 											className="flex items-center flex-1 cursor-pointer"
 											onClick={() => {
 												updateSubmittedPrompt(prompt);
@@ -149,7 +148,7 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 											<div className="text-gray-700">
 												{prompt}
 											</div>
-										</li>
+										</div>
 
 										<div
 											className="flex items-center ml-2 cursor-pointer"
@@ -167,7 +166,7 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 						{filteredNewPromptList.map(
 							(prompt: string, index: number) => {
 								return (
-									<li
+									<div
 										key={`new-${index}`}
 										className="flex items-center px-3 py-2 hover:bg-gray-50 cursor-pointer"
 										onClick={() => {
@@ -188,19 +187,11 @@ export function SearchBox(props: SearchBoxProps): JSX.Element {
 										<div className="text-gray-700">
 											{prompt}
 										</div>
-										{/* <div
-											className={ classes.searchBoxDropdownDeleteIconWrapper }
-											onClick={ () => {
-												handleSuggestionDelete(prompt);
-											} }
-										>
-											<AiOutlineClose className={ classes.dropdownDeleteIcon } />
-										</div> */}
-									</li>
+									</div>
 								);
 							},
 						)}
-					</ul>
+					</div>
 				</div>
 			) : null}
 		</div>

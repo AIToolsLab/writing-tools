@@ -16,4 +16,6 @@
     "terminal.integrated.automationProfile.osx": {
     "path": "/bin/bash"
   },
+  "python-envs.defaultEnvManager": "ms-python.python:system",
+  "python-envs.pythonProjects": [],
 }
