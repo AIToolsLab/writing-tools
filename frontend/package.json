@@ -45,6 +45,7 @@
 		"@auth0/auth0-react": "^2.2.4",
 		"@lexical/react": "^0.16.1",
 		"@microsoft/fetch-event-source": "^2.0.1",
+		"@posthog/react": "^1.4.0",
 		"@react-hook/window-size": "^3.1.1",
 		"@types/node": "^24.6.2",
 		"@types/react-transition-group": "^4.4.12",

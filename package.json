@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@posthog/ai": "^7.1.0",
+    "openai": "^6.9.1",
+    "posthog-node": "^5.11.2"
+  }
+}

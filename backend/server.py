@@ -42,10 +42,14 @@ LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
 POSTHOG_API_KEY = os.getenv("POSTHOG_API_KEY", "").strip()
 POSTHOG_HOST = os.getenv("POSTHOG_HOST", "https://us.i.posthog.com").strip()
 
+posthog_client = None
 if POSTHOG_API_KEY:
-    posthog.project_api_key = POSTHOG_API_KEY
-    posthog.host = POSTHOG_HOST
-    logger.info(f"PostHog initialized with host: {POSTHOG_HOST}")
+    from posthog import Posthog
+    posthog_client = Posthog(
+        project_api_key=POSTHOG_API_KEY,
+        host=POSTHOG_HOST
+    )
+    logger.info(f"PostHog error tracking initialized with host: {POSTHOG_HOST}")
 else:
     logger.warning("PostHog API key not found. Error tracking disabled.")
 
@@ -172,8 +176,8 @@ async def posthog_error_tracking_middleware(request: Request, call_next):
         return response
     except Exception as exc:
         # Capture exception to PostHog
-        if POSTHOG_API_KEY:
-            posthog.capture(
+        if posthog_client:
+            posthog_client.capture(
                 distinct_id="backend-server",
                 event="$exception",
                 properties={
@@ -194,8 +198,8 @@ async def posthog_error_tracking_middleware(request: Request, call_next):
 async def validation_exception_handler(request, exc):
     print(f"The client sent invalid data!: {exc}")
     # Also capture validation errors to PostHog
-    if POSTHOG_API_KEY:
-        posthog.capture(
+    if posthog_client:
+        posthog_client.capture(
             distinct_id="backend-server",
             event="$exception",
             properties={
@@ -221,7 +225,8 @@ async def get_suggestion(payload: SuggestionRequestWithDocContext, background_ta
     allowed_gtypes = list(nlp.prompts.keys())
     if payload.gtype not in allowed_gtypes:
         raise ValueError(f"Invalid generation type: {payload.gtype}")
-    result = await nlp.get_suggestion(payload.gtype, payload.doc_context)
+    # Pass username for PostHog LLM analytics tracking
+    result = await nlp.get_suggestion(payload.gtype, payload.doc_context, username=payload.username)
     end_time = datetime.now()
 
     log_entry = RequestLog(
@@ -247,7 +252,8 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
     should_log_doctext = should_log(payload.username)
 
     start_time = datetime.now()
-    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph)
+    # Pass username for PostHog LLM analytics tracking
+    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph, username=payload.username)
     end_time = datetime.now()
 
     background_tasks.add_task(make_log, RequestLog(
@@ -268,9 +274,11 @@ async def chat(payload: ChatRequestPayload, background_tasks: BackgroundTasks):
     should_log_doctext = should_log(payload.username)
 
     start_time = datetime.now()
+    # Pass username for PostHog LLM analytics tracking
     response = await nlp.chat_stream(
         messages=payload.messages,
         temperature=0.7,
+        username=payload.username,
     )
 
     messages_for_log = json.dumps(payload.messages if should_log_doctext else [{
@@ -332,6 +340,16 @@ class PingResponse(BaseModel):
 @app.get("/api/ping")
 async def ping() -> PingResponse:
     return PingResponse(timestamp=datetime.now())
+
+
+# Test endpoint for PostHog error tracking
+@app.get("/api/test-error")
+async def test_error():
+    """
+    Test endpoint that throws an error to verify PostHog error tracking.
+    This should only be used for testing purposes.
+    """
+    raise Exception("PostHog Backend Test Error - This is intentional for testing error tracking!")
 
 
 # Log viewer endpoint
