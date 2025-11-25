@@ -44,4 +44,4 @@ For detailed conventions on branch naming, commit messages, PR process, and issu
 
 # Running visual regression tests
 
-Playwright visual regression tests capture screenshots and ensure UI consistency of the demo page. See [VISUAL_REGRESSION.md](VISUAL_REGRESSION.md) for detailed instructions on running tests and updating baseline images.
+The visual regression tests capture screenshots and ensure UI consistency of the application. See [VISUAL_REGRESSION.md](VISUAL_REGRESSION.md) for detailed instructions on running tests and updating baseline images.

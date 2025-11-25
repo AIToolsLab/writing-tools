@@ -1,12 +1,12 @@
 # Visual Regression Testing Guide
 
-This project uses Playwright to run visual regression tests that capture screenshots and compare them against baseline images.
+This project uses Playwright to run visual regression tests that capture screenshots and compare them against baseline images. Currently, we have tests set up only for the demo page of the application.
 
 ## Running the tests
 
 1. Navigate to the **Actions** tab in GitHub
 2. Select **Playwright Visual Regression Tests** workflow
-3. Click **Run workflow** button
+3. Click **Run workflow** button and choose the branch you wish to run tests on
 4. The workflow will run tests against all browsers (Chromium, Firefox, WebKit)
 
 ## Understanding test results
