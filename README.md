@@ -30,4 +30,5 @@ Run `./test_generation` script in the `backend` folder to make a test request. H
 Note: the custom LLM backend has moved to https://github.com/AIToolsLab/writing-prototypes.
 
 # Running visual regression tests
-Run manually via Actions tab. To update baselines after UI changes, re-run with "Update visual snapshots" checked and commit the downloaded artifact as new baseline images.
+
+Playwright visual regression tests capture screenshots and ensure UI consistency of the demo page. See [VISUAL_REGRESSION.md](VISUAL_REGRESSION.md) for detailed instructions on running tests and updating baseline images.
