@@ -166,20 +166,16 @@ export default function Chat() {
 						void sendMessage(e);
 					}}
 				>
-					<div className="flex-1">
-						<TextField
-							disabled={isSendingMessage}
-							placeholder="Send a message..."
-							value={message}
-							onChange={(event) => updateMessage(event.value)}
-							multiline
-							inputAttributes={{
-								rows: 3,
-								style: { minHeight: '60px', maxHeight: '150px', resize: 'vertical' }
-							}}
-						/>
-					</div>
-
+				<div className="flex-1">
+					<TextField
+						name="message"
+						disabled={isSendingMessage}
+						placeholder="Send a message..."
+						value={message}
+						onChange={(event) => updateMessage(event.value)}
+						multiline
+					/>
+				</div>
 					<Button
 						type="submit"
 						color="primary"
