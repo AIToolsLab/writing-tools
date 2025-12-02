@@ -173,8 +173,10 @@ export default function Chat() {
 							value={message}
 							onChange={(event) => updateMessage(event.value)}
 							multiline
-							minRows={2}
-							maxRows={6}
+							inputAttributes={{
+								rows: 3,
+								style: { minHeight: '60px', maxHeight: '150px', resize: 'vertical' }
+							}}
 						/>
 					</div>
 
