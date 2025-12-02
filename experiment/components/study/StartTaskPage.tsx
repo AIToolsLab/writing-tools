@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { log, logThenRedirect } from '@/lib/logging';
-import { STUDY_PAGES } from '@/lib/studyConfig';
+import { getNextPage } from '@/lib/studyConfig';
 
 export default function StartTaskPage() {
   const searchParams = useSearchParams();
@@ -10,7 +10,7 @@ export default function StartTaskPage() {
 
   const handleStartTask = async () => {
     const params = new URLSearchParams(searchParams.toString());
-    params.set('page', STUDY_PAGES[4]); // Next page is 'task'
+    params.set('page', getNextPage('start-task')!);
     const nextUrl = `/study?${params.toString()}`;
 
     await logThenRedirect(

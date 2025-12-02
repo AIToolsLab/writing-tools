@@ -35,18 +35,15 @@ export default function TaskPage() {
   };
 
   const handleDocumentUpdate = async (content: string) => {
-    // Log document updates (but not too frequently to avoid spam)
-    // This could be throttled in a real implementation
-    if (content.length % 500 === 0 && content.length > 0) {
-      await log({
-        username,
-        event: 'documentUpdate',
-        extra_data: {
-          wordCount: content.split(/\s+/).length,
-          documentLength: content.length,
-        },
-      });
-    }
+    // Log every document update
+    await log({
+      username,
+      event: 'documentUpdate',
+      extra_data: {
+        wordCount: content.split(/\s+/).length,
+        documentLength: content.length,
+      },
+    });
   };
 
   return (

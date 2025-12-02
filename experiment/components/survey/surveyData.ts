@@ -68,6 +68,27 @@ export const postTaskCommonQuestions: Question[] = [
     required: true,
   },
   {
+    id: 'tlx_physical_demand',
+    text: 'How physically demanding was the task?',
+    type: 'radio',
+    options: effortLikert(),
+    required: true,
+  },
+  {
+    id: 'tlx_effort',
+    text: 'How hard did you have to work to accomplish your level of performance?',
+    type: 'radio',
+    options: effortLikert(),
+    required: true,
+  },
+  {
+    id: 'tlx_frustration',
+    text: 'How insecure, discouraged, irritated, stressed, and annoyed were you?',
+    type: 'radio',
+    options: effortLikert(),
+    required: true,
+  },
+  {
     id: 'other_tools_used',
     text: 'What other tools did you use during the writing task? (Select all that apply)',
     type: 'checkbox',
@@ -153,7 +174,7 @@ export const conditionDebriefs: Record<
   complete_document: {
     title: 'About the AI Draft',
     content:
-      'In this condition, the AI system provided complete draft emails. Some of the information in these drafts was intentionally incorrect to test how carefully you evaluate AI-generated content.',
+      'In this condition, the AI system provided complete draft emails. The information in these drafts may or may not be consistent with the true context from the chat conversation. The chat provides accurate information, while the AI-generated suggestions should be carefully evaluated.',
   },
   example_sentences: {
     title: 'About the AI Suggestions',

@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { log } from '@/lib/logging';
-import { CONSENT_FORM_URL, STUDY_PAGES } from '@/lib/studyConfig';
+import { CONSENT_FORM_URL, getNextPage } from '@/lib/studyConfig';
 
 export default function ConsentPage() {
   const searchParams = useSearchParams();
@@ -16,7 +16,7 @@ export default function ConsentPage() {
 
     // Build redirect URL with study parameters
     const params = new URLSearchParams(searchParams.toString());
-    params.set('page', STUDY_PAGES[1]); // Next page is 'intro'
+    params.set('page', getNextPage('consent')!);
     const redirectUrl = `${window.location.origin}/study?${params.toString()}`;
 
     // Redirect to external consent form with return URL

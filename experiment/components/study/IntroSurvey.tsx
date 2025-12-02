@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { useAtom } from 'jotai';
 import { log, logThenRedirect } from '@/lib/logging';
-import { STUDY_PAGES } from '@/lib/studyConfig';
+import { getNextPage } from '@/lib/studyConfig';
 import { surveyInputAtom } from '@/contexts/StudyContext';
 import Survey from '@/components/survey/Survey';
 import { introSurveyQuestions } from '@/components/survey/surveyData';
@@ -16,7 +16,7 @@ export default function IntroSurvey() {
   const handleSubmit = async () => {
     // Log survey completion
     const params = new URLSearchParams(searchParams.toString());
-    params.set('page', STUDY_PAGES[3]); // Next page is 'start-task'
+    params.set('page', getNextPage('intro-survey')!);
     const nextUrl = `/study?${params.toString()}`;
 
     await logThenRedirect(

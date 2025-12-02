@@ -4,7 +4,7 @@ import { useSearchParams } from 'next/navigation';
 import { useAtom } from 'jotai';
 import { log } from '@/lib/logging';
 import { getBrowserMetadata } from '@/lib/browserMetadata';
-import { STUDY_PAGES } from '@/lib/studyConfig';
+import { getNextPage } from '@/lib/studyConfig';
 import { studyParamsAtom, updateStudyParamsAtom } from '@/contexts/StudyContext';
 
 export default function IntroPage() {
@@ -24,7 +24,7 @@ export default function IntroPage() {
 
     // Update params and navigate
     const params = new URLSearchParams(searchParams.toString());
-    params.set('page', STUDY_PAGES[2]); // Next page is 'intro-survey'
+    params.set('page', getNextPage('intro')!);
     window.location.href = `/study?${params.toString()}`;
   };
 

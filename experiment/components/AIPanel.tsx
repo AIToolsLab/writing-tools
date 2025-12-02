@@ -5,6 +5,7 @@ import type { RefObject } from 'react';
 import type { WritingAreaRef } from '@/components/WritingArea';
 import type { GenerationResult, SavedItem, TextEditorState } from '@/types';
 import { log } from '@/lib/logging';
+import { API_TIMEOUT_MS } from '@/lib/studyConfig';
 import { useAtom } from 'jotai';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import type { ConditionName } from '@/types/study';
@@ -160,7 +161,7 @@ export default function AIPanel({
             editorState,
             context: modeToUse,
           }),
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(API_TIMEOUT_MS),
         });
 
         if (!response.ok) {
