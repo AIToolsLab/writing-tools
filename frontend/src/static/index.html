@@ -1,106 +1,101 @@
 <!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="UTF-8" />
-		<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-		<title>Thoughtful</title>
 
-		<link rel="stylesheet" href="styles.css" />
-		<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-    <link rel="icon" href="./assets/logo_black.png" />
-		<link rel="preconnect" href="https://fonts.googleapis.com">
-		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-		<link
-			href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap"
-			rel="stylesheet">
-	</head>
+<head>
+	<meta charset="UTF-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+	<title>Thoughtful</title>
 
-	<body>
-		<div>
-			<nav class="nav-wrapper">
-				<div class="logo-wrapper">
-					<a href="#" class="brand-logo">
-						<img src="./assets/logo_black.png" alt="Logo" height="64px" />
-					</a>
-					<span>Thoughtful</span>
-				</div>
-				<div class="icon-links-container">
-					<a target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit;" class="msstore-icon"
-						href="https://appsource.microsoft.com/en-us/product/office/WA200008131?tab=Overview">
-						<i class="fa-brands fa-microsoft" style="font-size:32px"></i>
-					</a>
-					<a href="https://aitoolslab.github.io/" target="_blank" ref="noopener noreferrer">
-						<img id="main-page" src="./assets/sparkle.png" alt="GitHub" height="32px" />
-					</a>
-					<a href="./longDescription.html" target="_blank" ref="noopener noreferrer">
-						<img class="ghicon" src="./assets/about.png" alt="About Us" height="32px" />
-					</a>
-				</div>
-			</nav>
+	<link rel="stylesheet" href="styles.css" />
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+	<link rel="icon" href="./assets/logo_black.png" />
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap"
+		rel="stylesheet">
+</head>
+
+<body>
+	<div>
+		<nav class="nav-wrapper">
+			<div class="logo-wrapper">
+				<a href="#" class="brand-logo">
+					<img src="./assets/logo_black.png" alt="Logo" height="64px" />
+				</a>
+				<span>Thoughtful</span>
+			</div>
+			<div class="icon-links-container">
+				<a target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: inherit;" class="msstore-icon"
+					href="https://appsource.microsoft.com/en-us/product/office/WA200008131?tab=Overview">
+					<i class="fa-brands fa-microsoft" style="font-size:32px"></i>
+				</a>
+				<a href="https://aitoolslab.github.io/" target="_blank" ref="noopener noreferrer">
+					<img id="main-page" src="./assets/sparkle.png" alt="GitHub" height="32px" />
+				</a>
+				<a href="./longDescription.html" target="_blank" ref="noopener noreferrer">
+					<img class="ghicon" src="./assets/about.png" alt="About Us" height="32px" />
+				</a>
+			</div>
+		</nav>
+	</div>
+
+	<header>
+		<div class="header-content">
+			<div>
+				<h1><a href="./longDescription.html" style="text-decoration: none; color: inherit;">Thoughtful</a></h1>
+				<p>AI-powered tools for helping you draft and revise your documents</p>
+			</div>
 		</div>
+	</header>
 
-		<header>
-			<div class="header-content">
-				<div>
-					<h1><a href="./longDescription.html" style="text-decoration: none; color: inherit;">Thoughtful</a></h1>
-					<p>AI-powered tools for helping you draft and revise your documents</p>
-				</div>
-			</div>
-		</header>
+	<article id="main-article">
+		<div class="img-container">
+			<!-- TODO: Slideshow including previous works? -->
+			<img class="main-msdoc-img" src="./assets/MSdocui.png" alt="Microsoft Word Add-in" />
+		</div>
+	</article>
 
-		<article id="main-article">
-			<div class="img-container">
-				<!-- TODO: Slideshow including previous works? -->
-				<img class="main-msdoc-img" src="./assets/MSdocui.png" alt="Microsoft Word Add-in" />
-			</div>
-		</article>
+	<!-- Embedded demo -->
+	<article id="editor-demo">
+		<a href="/editor.html" target="_blank" rel="noopener noreferrer">
+			<h1 id="try-text">Try it out!</h1>
+		</a>
+		<iframe id="editor-frame" src="editor.html?page=demo" title="Thoughtful Editor" allowfullscreen
+			allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+			style="border: none; width: 100%; height: 700px; margin: 1rem auto;"></iframe>
+		<a href="https://appsource.microsoft.com/en-us/product/office/WA200008131?tab=Overview" target="_blank"
+			rel="noopener noreferrer">
+			<h1 id="try-text">Or add to Microsoft Word</h1>
+		</a>
+	</article>
 
-		<!-- Embedded demo -->
-		<article id="editor-demo">
-			<a href="/editor.html"
-				target="_blank" rel="noopener noreferrer">
-				<h1 id="try-text">Try it out!</h1>
+	<div class="bottom-signup">
+		<div class="signup-button-container">
+			<a href="https://tinyurl.com/3dfrujnz" target="_blank" rel="noopener noreferrer" class="prevwork-button">
+				Interested? Sign up for our Study!
 			</a>
-			<iframe
-				id="editor-frame"
-				src="editor.html?page=demo"
-				title="Thoughtful Editor"
-				allowfullscreen
-				allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-				style="border: none; width: 100%; height: 700px; margin: 1rem auto;"
-			></iframe>
-			<a href="https://appsource.microsoft.com/en-us/product/office/WA200008131?tab=Overview"
-				target="_blank" rel="noopener noreferrer">
-				<h1 id="try-text">Or add to Microsoft Word</h1>
-			</a>
-		</article>
+		</div>
+	</div>
 
-		<div class="bottom-signup">
-			<div class="signup-button-container">
-				<a href="https://tinyurl.com/3dfrujnz" target="_blank" rel="noopener noreferrer"
-					class="prevwork-button">
-					Interested? Sign up for our Study!
+	<footer>
+		<div class="footer-content">
+			<div class="footer-text">
+				<p>&copy; 2025 Arnold Lab</p>
+			</div>
+			<div class="link-container">
+				<a href="./support.html" target="_blank" rel="noopener noreferrer">
+					Support
+				</a>
+				<a href="./privacypolicy.html">
+					Privacy
+				</a>
+				<a href="https://support.office.com/f1/topic/61994a3b-2c87-41c4-a88d-a6455efa362d" target="_blank"
+					rel="noopener noreferrer">
+					EULA
 				</a>
 			</div>
 		</div>
+	</footer>
+</body>
 
-		<footer>
-			<div class="footer-content">
-				<div class="footer-text">
-					<p>&copy; 2025 Arnold Lab</p>
-				</div>
-				<div class="link-container">
-					<a href="./support.html" target="_blank" rel="noopener noreferrer">
-						Support
-					</a>
-					<a href="./privacypolicy.html">
-						Privacy
-					</a>
-					<a href="https://support.office.com/f1/topic/61994a3b-2c87-41c4-a88d-a6455efa362d" target="_blank" rel="noopener noreferrer">
-						EULA
-					</a>
-				</div>
-			</div>
-		</footer>
-	</body>
 </html>
