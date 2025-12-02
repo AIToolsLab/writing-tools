@@ -1,7 +1,9 @@
 import { useState, useContext, useEffect } from 'react';
+import { useAuth0 } from '@auth0/auth0-react';
 
 import { AiOutlineSend } from 'react-icons/ai';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { Button, TextField } from 'reshaped';
 
 import ChatMessage from '@/components/chatMessage';
 
@@ -20,6 +22,7 @@ export default function Chat() {
 	const username = useAtomValue(usernameAtom);
 	const editorAPI = useContext(EditorContext);
 	const { getAccessToken, authErrorType } = useAccessToken();
+	const { user } = useAuth0();
 
 	const docContext = useDocContext(editorAPI);
 
@@ -137,14 +140,16 @@ export default function Chat() {
 	}
 
 	return (
-		<div className="m-2 flex flex-col gap-4">
-			<div className="flex-col gap-2 max-h-[500px] bottom-0 overflow-y-auto">
+		<div className="h-full flex flex-col p-4 gap-4">
+			<div className="flex-1 flex flex-col gap-3 overflow-y-auto pb-4">
 				{messagesWithCurDocContext.slice(2).map((message, index) => (
 					<ChatMessage
 						key={index + 2}
 						role={message.role}
 						content={message.content}
 						index={index + 2}
+						userName={user?.name}
+						userPicture={user?.picture}
 						refresh={(index: number) => {
 						void regenMessage(index);
 					}}
@@ -154,35 +159,45 @@ export default function Chat() {
 				))}
 			</div>
 
-			<form
-			className="w-full flex flex-col gap-2"
-			onSubmit={(e) => {
-				void sendMessage(e);
-			}}
-		>
-				<label className="flex items-center border border-gray-500 justify-between p-[10px]">
-					<textarea
-						disabled={isSendingMessage}
-						placeholder="Send a message"
-						value={message}
-						onChange={(e) => updateMessage(e.target.value)}
-					/>
+			<div className="flex-shrink-0 flex flex-col gap-2">
+				<form
+					className="w-full flex gap-2 items-end"
+					onSubmit={(e) => {
+						void sendMessage(e);
+					}}
+				>
+					<div className="flex-1">
+						<TextField
+							disabled={isSendingMessage}
+							placeholder="Send a message..."
+							value={message}
+							onChange={(event) => updateMessage(event.value)}
+							multiline
+							minRows={2}
+							maxRows={6}
+						/>
+					</div>
 
-					<button
+					<Button
 						type="submit"
-						className="bg-transparent cursor-pointer border border-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
+						color="primary"
+						variant="solid"
+						disabled={isSendingMessage || !message.trim()}
+						icon={<AiOutlineSend />}
 					>
-						<AiOutlineSend />
-					</button>
-				</label>
-			</form>
+						Send
+					</Button>
+				</form>
 
-			<button
-				onClick={() => updateChatMessages([])}
-				className="bg-transparent cursor-pointer border boder-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
-			>
-				Clear Chat
-			</button>
+				<Button
+					onClick={() => updateChatMessages([])}
+					color="neutral"
+					variant="outline"
+					size="small"
+				>
+					Clear Chat
+				</Button>
+			</div>
 		</div>
 	);
 }
