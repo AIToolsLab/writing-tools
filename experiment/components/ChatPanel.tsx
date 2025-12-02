@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useRef, useState } from 'react';
 
 export default function ChatPanel() {
   const { messages, sendMessage, status, setMessages } = useChat({
@@ -18,9 +18,9 @@ export default function ChatPanel() {
 
   const isLoading = status === 'submitted' || status === 'streaming';
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useEffectEvent(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  });
 
   useEffect(() => {
     scrollToBottom();

@@ -43,7 +43,7 @@ export default function IntroPage() {
         </section>
 
         <section>
-          <h2 className="text-2xl font-semibold mb-3">What You'll Do</h2>
+          <h2 className="text-2xl font-semibold mb-3">What You&rsquo;ll Do</h2>
           <ol className="list-decimal list-inside space-y-2 text-gray-700">
             <li>Complete a brief questionnaire about your background</li>
             <li>Write an email response based on provided context</li>
@@ -72,6 +72,7 @@ export default function IntroPage() {
       </div>
 
       <button
+        type="button"
         onClick={handleStartStudy}
         className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
       >
