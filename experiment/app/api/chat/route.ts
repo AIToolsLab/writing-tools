@@ -1,5 +1,5 @@
 import { openai } from '@ai-sdk/openai';
-import { streamText } from 'ai';
+import { convertToModelMessages, streamText } from 'ai';
 
 export const runtime = 'edge';
 
@@ -42,9 +42,9 @@ export async function POST(req: Request) {
   const result = streamText({
     model: openai('gpt-4o'),
     system: SYSTEM_PROMPT,
-    messages,
+    messages: convertToModelMessages(messages),
     maxOutputTokens: 300,
   });
 
-  return result.toTextStreamResponse();
+  return result.toUIMessageStreamResponse();
 }
