@@ -43,4 +43,5 @@ We follow specific GitHub conventions to keep our project organized and maintain
 For detailed conventions on branch naming, commit messages, PR process, and issue management, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 # Running visual regression tests
-Run manually via Actions tab. To update baselines after UI changes, re-run with "Update visual snapshots" checked and commit the downloaded artifact as new baseline images.
+
+The visual regression tests capture screenshots and ensure UI consistency of the application. See [VISUAL_REGRESSION.md](VISUAL_REGRESSION.md) for detailed instructions on running tests and updating baseline images.
