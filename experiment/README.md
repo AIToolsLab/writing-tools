@@ -127,15 +127,6 @@ Stubbed endpoint for AI writing assistance (to be implemented).
 - The second message from Sarah appears automatically after 8 seconds
 - All API routes use Edge runtime for optimal performance
 
-## Next Steps
-
-To implement the writing support feature:
-
-1. Update `/api/writing-support/route.ts` to call an LLM
-2. Modify the `AIPanel` component to call the writing support API
-3. Add UI for displaying writing suggestions
-4. Integrate text selection events from the `WritingArea` component
-
 ## License
 
 MIT

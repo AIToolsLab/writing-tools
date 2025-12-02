@@ -1,0 +1,81 @@
+'use client';
+
+import { useSearchParams } from 'next/navigation';
+import { log } from '@/lib/logging';
+import { CONSENT_FORM_URL, STUDY_PAGES } from '@/lib/studyConfig';
+
+export default function ConsentPage() {
+  const searchParams = useSearchParams();
+
+  const handleLaunchConsent = async () => {
+    // Log the event
+    await log({
+      username: searchParams.get('username') || 'unknown',
+      event: 'launchConsentForm',
+    });
+
+    // Build redirect URL with study parameters
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('page', STUDY_PAGES[1]); // Next page is 'intro'
+    const redirectUrl = `${window.location.origin}/study?${params.toString()}`;
+
+    // Redirect to external consent form with return URL
+    const consentUrl = new URL(CONSENT_FORM_URL);
+    consentUrl.searchParams.set('ReturnUrl', redirectUrl);
+    window.location.href = consentUrl.toString();
+  };
+
+  return (
+    <div className="max-w-2xl mx-auto p-8">
+      <h1 className="text-3xl font-bold mb-6">Informed Consent Form</h1>
+
+      <div className="bg-gray-50 p-6 rounded-lg space-y-4 mb-8 text-sm text-gray-700">
+        <p>
+          <strong>Purpose:</strong> This study investigates how AI writing
+          assistance affects the writing process.
+        </p>
+
+        <p>
+          <strong>Procedure:</strong> You will write an email response based on
+          the provided context. You may or may not receive AI suggestions
+          depending on the condition you are assigned to.
+        </p>
+
+        <p>
+          <strong>Time Commitment:</strong> Approximately 15-20 minutes.
+        </p>
+
+        <p>
+          <strong>Risks:</strong> Minimal. No sensitive data will be collected.
+        </p>
+
+        <p>
+          <strong>Benefits:</strong> You will receive compensation for your
+          participation.
+        </p>
+
+        <p>
+          <strong>Confidentiality:</strong> Your responses will be anonymized
+          and stored securely.
+        </p>
+
+        <p>
+          <strong>Voluntary Participation:</strong> Your participation is
+          completely voluntary. You can withdraw at any time without penalty.
+        </p>
+      </div>
+
+      <button
+        onClick={handleLaunchConsent}
+        className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+      >
+        View Full Consent Form
+      </button>
+
+      <p className="text-xs text-gray-500 mt-4 text-center">
+        Clicking above will take you to the full consent form. After consenting,
+        you will return here to proceed with the study.
+      </p>
+    </div>
+  );
+}

@@ -112,14 +112,14 @@ export default function ChatPanel() {
   };
 
   return (
-    <div className="bg-white border border-gray-300 rounded flex flex-col h-80 shadow-sm">
+    <div className="bg-white border border-gray-300 rounded flex flex-col overflow-hidden shadow-sm">
       <div className="flex items-center gap-2.5 bg-gray-50 border-b border-gray-300 px-3 py-2.5">
         <div className="w-2 h-2 rounded-full bg-yellow-500" />
         <div className="flex-1">
-          <div className="font-semibold text-sm">Sarah Martinez</div>
+          <div className="font-semibold text-sm text-gray-900">Sarah Martinez</div>
           <div className="text-xs text-gray-600">Events Coordinator</div>
         </div>
-        <div className="text-xs text-gray-500">Busy</div>
+        <div className="text-xs font-medium text-gray-700">Busy</div>
         {showNotification && (
           <span className="bg-red-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">
             1
@@ -142,19 +142,19 @@ export default function ChatPanel() {
               style={{ maxWidth: '85%' }}
             >
               <div
-                className={`px-2.5 py-2 rounded-xl ${
+                className={`px-2.5 py-2 rounded-xl text-gray-900 ${
                   isUser
-                    ? 'bg-blue-100 rounded-br-sm ml-auto'
-                    : 'bg-gray-100 rounded-bl-sm'
+                    ? 'bg-blue-200 rounded-br-sm ml-auto font-medium'
+                    : 'bg-gray-200 rounded-bl-sm'
                 }`}
               >
                 {part}
               </div>
-              <div className="text-[10px] text-gray-400 mt-1">
+              <div className="text-[10px] text-gray-600 mt-1">
                 {formatTime(new Date())}
               </div>
               {isUser && (
-                <div className="text-[10px] text-green-500 mt-0.5">Read</div>
+                <div className="text-[10px] font-semibold text-green-700 mt-0.5">Read</div>
               )}
             </div>
           ));
@@ -171,10 +171,10 @@ export default function ChatPanel() {
         <div ref={messagesEndRef} />
       </div>
 
-      <form onSubmit={onSubmit} className="border-t border-gray-200 p-2 bg-gray-50 flex gap-1.5">
+      <form onSubmit={onSubmit} className="border-t border-gray-300 p-2 bg-gray-50 flex gap-1.5">
         <input
           type="text"
-          className="flex-1 px-2.5 py-2 border border-gray-300 rounded-2xl text-sm outline-none focus:border-green-500"
+          className="flex-1 px-2.5 py-2 border border-gray-400 rounded-2xl text-sm text-gray-900 placeholder-gray-500 bg-white outline-none focus:border-green-600 focus:ring-2 focus:ring-green-200"
           placeholder="Message Sarah..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
@@ -182,7 +182,7 @@ export default function ChatPanel() {
         />
         <button
           type="submit"
-          className="px-4 py-2 bg-green-500 text-white rounded-2xl text-sm font-medium hover:bg-green-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+          className="px-4 py-2 bg-green-600 text-white rounded-2xl text-sm font-semibold hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           disabled={isLoading || !input.trim()}
         >
           Send
