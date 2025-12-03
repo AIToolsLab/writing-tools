@@ -6,9 +6,8 @@ import type { WritingAreaRef } from '@/components/WritingArea';
 import type { GenerationResult, SavedItem, TextEditorState } from '@/types';
 import { log } from '@/lib/logging';
 import { API_TIMEOUT_MS } from '@/lib/studyConfig';
-import { useAtom } from 'jotai';
-import { studyParamsAtom } from '@/contexts/StudyContext';
-import type { ConditionName } from '@/types/study';
+import { useAtomValue } from 'jotai';
+import { studyConditionAtom, studyParamsAtom } from '@/contexts/StudyContext';
 
 const visibleNameForMode = {
   example_sentences: 'Examples of what you could write next:',
@@ -76,22 +75,21 @@ function SavedGenerations({
 
 interface AIPanelProps {
   writingAreaRef?: RefObject<WritingAreaRef | null>;
-  mode?: ConditionName;
-  autoRefreshInterval?: number;
   isStudyMode?: boolean;
 }
 
 export default function AIPanel({
   writingAreaRef,
-  mode,
-  autoRefreshInterval = 15000,
   isStudyMode = false,
 }: AIPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
   const docContextRef = useRef<TextEditorState | null>(null);
-  const [studyParams] = useAtom(studyParamsAtom);
+  const studyParams = useAtomValue(studyParamsAtom);
+  const studyCondition = useAtomValue(studyConditionAtom);
+  const mode = isStudyMode ? studyCondition : undefined;
+  const autoRefreshInterval = studyParams.autoRefreshInterval;
   const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const previousRequestRef = useRef<{ editorState: TextEditorState; mode: string } | null>(null);
 
@@ -145,7 +143,7 @@ export default function AIPanel({
         previousRequestRef.current = { editorState, mode: modeToUse };
 
         // Log AI request in study mode
-        if (isStudyMode && modeToUse) {
+        if (isStudyMode) {
           await log({
             username: studyParams.username,
             event: `aiRequest:${modeToUse}`,

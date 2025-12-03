@@ -11,6 +11,7 @@ export const studyParamsAtom = atom<StudyParams>({
   username: '',
   condition: 'n',
   page: 'consent',
+  autoRefreshInterval: DEFAULT_AUTO_REFRESH_INTERVAL,
 });
 
 /**
@@ -19,14 +20,6 @@ export const studyParamsAtom = atom<StudyParams>({
 export const studyConditionAtom = atom<ConditionName>((get) => {
   const params = get(studyParamsAtom);
   return letterToCondition[params.condition];
-});
-
-/**
- * Study configuration data
- */
-export const studyDataAtom = atom({
-  autoRefreshInterval: DEFAULT_AUTO_REFRESH_INTERVAL,
-  taskContext: '', // Will be set from API
 });
 
 /**

@@ -46,7 +46,7 @@ export interface StudyParams {
   page: string;
   experiment?: 'amount' | 'type';
   isProlific?: boolean;
-  autoRefreshInterval?: number;
+  autoRefreshInterval: number;
 }
 
 export interface BrowserMetadata extends Record<string, unknown> {

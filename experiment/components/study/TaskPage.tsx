@@ -3,6 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { useRef } from 'react';
 import type { WritingAreaRef } from '@/components/WritingArea';
+import type { TextEditorState } from '@/types';
 import AIPanel from '@/components/AIPanel';
 import ChatPanel from '@/components/ChatPanel';
 import WritingArea from '@/components/WritingArea';
@@ -13,7 +14,7 @@ export default function TaskPage() {
   const searchParams = useSearchParams();
   const writingAreaRef = useRef<WritingAreaRef>(null);
   const username = searchParams.get('username') || '';
-  const conditionCode = (searchParams.get('condition') || 'n') as keyof typeof letterToCondition;
+  const conditionCode = (searchParams.get('condition') || 'n') as keyof typeof letterToCondition; // TODO: don't default!
   const condition = letterToCondition[conditionCode];
   const autoRefreshInterval = parseInt(searchParams.get('autoRefreshInterval') || '', 10) || 15000;
 
@@ -34,14 +35,15 @@ export default function TaskPage() {
     window.location.href = `/study?${params.toString()}`;
   };
 
-  const handleDocumentUpdate = async (content: string) => {
-    // Log every document update
+  const handleDocumentUpdate = async (editorState: TextEditorState) => {
+    const fullContent = editorState.beforeCursor + editorState.selectedText + editorState.afterCursor;
     await log({
       username,
       event: 'documentUpdate',
       extra_data: {
-        wordCount: content.split(/\s+/).length,
-        documentLength: content.length,
+        editorState,
+        wordCount: fullContent.split(/\s+/).length,
+        documentLength: fullContent.length,
       },
     });
   };

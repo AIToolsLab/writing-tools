@@ -46,16 +46,15 @@ export default function IntroPage() {
           <h2 className="text-2xl font-semibold mb-3">What You&rsquo;ll Do</h2>
           <ol className="list-decimal list-inside space-y-2 text-gray-700">
             <li>Complete a brief questionnaire about your background</li>
-            <li>Write an email response based on provided context</li>
-            <li>
-              You may receive AI suggestions depending on your assigned
-              condition
+            <li>Write an email response based on provided context.
+              You may or may not receive AI suggestions of different types
             </li>
             <li>Complete a follow-up questionnaire about your experience</li>
           </ol>
         </section>
 
         <section>
+          {/* TODO: Update time estimate if needed */}
           <h2 className="text-2xl font-semibold mb-3">Time Estimate</h2>
           <p className="text-gray-700">
             The entire study should take approximately 15-20 minutes.

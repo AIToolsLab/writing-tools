@@ -5,9 +5,10 @@ import { useSearchParams } from 'next/navigation';
 import { useAtom } from 'jotai';
 import { log } from '@/lib/logging';
 import {
+  DEFAULT_AUTO_REFRESH_INTERVAL,
   STUDY_PAGES,
   VALID_CONDITIONS,
-  letterToCondition,
+  type letterToCondition,
 } from '@/lib/studyConfig';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import ScreenSizeCheck from '@/components/study/ScreenSizeCheck';
@@ -36,7 +37,7 @@ function StudyRouter() {
   // Extract URL parameters
   const page = searchParams.get('page') || 'consent';
   const username = searchParams.get('username') || '';
-  const conditionStr = searchParams.get('condition') || 'n';
+  const conditionStr = searchParams.get('condition') || 'n'; // TODO: don't default!
   const experiment = searchParams.get('experiment');
   const isProlific = searchParams.get('isProlific') === 'true';
   const autoRefreshInterval = searchParams.get('autoRefreshInterval');
@@ -60,7 +61,7 @@ function StudyRouter() {
         isProlific,
         autoRefreshInterval: autoRefreshInterval
           ? parseInt(autoRefreshInterval)
-          : undefined,
+          : DEFAULT_AUTO_REFRESH_INTERVAL,
       });
 
       // Log page view
