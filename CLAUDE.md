@@ -1,3 +1,18 @@
+# CLAUDE.md
+
+Guidance for Claude Code when working with this repository.
+
+## Project Components
+
+This monorepo has two separate applications:
+
+- **Production add-in** (see [frontend/CLAUDE.md](frontend/CLAUDE.md) and [backend/CLAUDE.md](backend/CLAUDE.md))
+  - `frontend`: TypeScript/React Microsoft Office Add-in
+  - `backend`: Python FastAPI server
+
+- **Experiment app** (see [experiment/CLAUDE.md](experiment/CLAUDE.md))
+  - `experiment`: Separate Next.js application (does not use frontend/backend)
+
 <!-- BACKLOG.MD GUIDELINES START -->
 # Instructions for the usage of Backlog.md CLI Tool
 
