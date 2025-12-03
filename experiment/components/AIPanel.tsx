@@ -236,6 +236,14 @@ export default function AIPanel({
         <div className="text-sm font-semibold text-red-900 text-center">{errorMsg}</div>
       </div>
     );
+  } else if (mode !== 'no_ai' && autoRefreshInterval > 0) {
+    alerts = (
+      <div className="p-3">
+        <div className="text-xs font-medium text-gray-700 text-center">
+          Suggestions will refresh every {(autoRefreshInterval / 1000).toFixed(0)} seconds.
+        </div>
+      </div>
+    );
   } else if (savedItems.length === 0) {
     alerts = (
       <div className="p-3 bg-blue-50">
