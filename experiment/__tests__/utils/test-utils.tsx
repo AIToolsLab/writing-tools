@@ -1,5 +1,5 @@
 import { render } from '@testing-library/react';
-import { Provider } from 'jotai';
+import { createStore, Provider } from 'jotai';
 import type { ReactElement } from 'react';
 
 import type { RenderOptions } from '@testing-library/react';
@@ -16,8 +16,16 @@ export function renderWithJotai(
 ) {
   const { initialValues = [], ...renderOptions } = options || {};
 
+  // Create a fresh store for each test
+  const store = createStore();
+
+  // Set initial values on the store
+  initialValues.forEach(([atom, value]: [unknown, unknown]) => {
+    store.set(atom as Parameters<typeof store.set>[0], value);
+  });
+
   return render(
-    <Provider initialValues={initialValues}>{ui}</Provider>,
+    <Provider store={store}>{ui}</Provider>,
     renderOptions
   );
 }
