@@ -3,8 +3,38 @@
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useAtomValue } from 'jotai';
+import { studyParamsAtom } from '@/contexts/StudyContext';
+import { log } from '@/lib/logging';
+
+// Utility function to extract text from message parts
+function getMessageText(message: { parts: Array<{ type: string; text?: string }> }): string {
+  return message.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => part.text || '')
+    .join('');
+}
+
+// Utility function to parse JSON array responses from the assistant
+function parseMessageContent(content: string): string[] {
+  try {
+    // Remove markdown code blocks if present
+    const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+
+    if (Array.isArray(parsed)) {
+      return parsed;
+    }
+    return [content];
+  } catch {
+    return [content];
+  }
+}
 
 export default function ChatPanel() {
+  const studyParams = useAtomValue(studyParamsAtom);
+  const username = studyParams.username || 'demo';
+
   const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
@@ -15,6 +45,7 @@ export default function ChatPanel() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showNotification, setShowNotification] = useState(false);
   const [isInitialMessageSent, setIsInitialMessageSent] = useState(false);
+  const lastLoggedMessageIdRef = useRef<string>('');
 
   const isLoading = status === 'submitted' || status === 'streaming';
 
@@ -74,6 +105,41 @@ export default function ChatPanel() {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  // Track and log new messages
+  useEffect(() => {
+    messages.forEach((message) => {
+      if (message.id && message.id !== lastLoggedMessageIdRef.current) {
+        const messageText = getMessageText(message);
+
+        if (message.role === 'assistant') {
+          // Log assistant messages
+          log({
+            username,
+            event: 'chatMessage:assistant',
+            extra_data: {
+              messageId: message.id,
+              content: messageText,
+              timestamp: new Date().toISOString(),
+            },
+          });
+        } else if (message.role === 'user') {
+          // Log user messages
+          log({
+            username,
+            event: 'chatMessage:user',
+            extra_data: {
+              messageId: message.id,
+              content: messageText,
+              timestamp: new Date().toISOString(),
+            },
+          });
+        }
+
+        lastLoggedMessageIdRef.current = message.id;
+      }
+    });
+  }, [messages, username]);
+
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
@@ -85,30 +151,6 @@ export default function ChatPanel() {
 
     setShowNotification(true);
     setTimeout(() => setShowNotification(false), 5000);
-  };
-
-  // Parse JSON array responses from the assistant
-  const parseMessageContent = (content: string): string[] => {
-    try {
-      // Remove markdown code blocks if present
-      const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-      const parsed = JSON.parse(cleaned);
-
-      if (Array.isArray(parsed)) {
-        return parsed;
-      }
-      return [content];
-    } catch {
-      return [content];
-    }
-  };
-
-  // Extract text from message parts
-  const getMessageText = (message: typeof messages[0]): string => {
-    return message.parts
-      .filter((part) => part.type === 'text')
-      .map((part) => (part as { text: string }).text)
-      .join('');
   };
 
   return (

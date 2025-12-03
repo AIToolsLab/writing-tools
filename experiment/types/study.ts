@@ -16,7 +16,9 @@ export type LogEventType =
   | `aiRequest:${string}`
   | `aiResponse:${string}`
   | 'surveyComplete:intro-survey'
-  | 'surveyComplete:post-task-survey';
+  | 'surveyComplete:post-task-survey'
+  | 'chatMessage:user'
+  | 'chatMessage:assistant';
 
 export interface LogPayload {
   username: string;
