@@ -74,8 +74,6 @@ export default function TaskPage() {
             <div className="flex-1 overflow-hidden">
               <AIPanel
                 writingAreaRef={writingAreaRef}
-                mode={condition}
-                autoRefreshInterval={autoRefreshInterval}
                 isStudyMode={true}
               />
             </div>
