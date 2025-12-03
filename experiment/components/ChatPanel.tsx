@@ -6,6 +6,7 @@ import { useEffect, useEffectEvent, useRef, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import { log } from '@/lib/logging';
+import { calculateTypingDuration, calculateInterMessageDelay } from '@/lib/messageTiming';
 
 // Utility function to extract text from message parts
 function getMessageText(message: { parts: Array<{ type: string; text?: string }> }): string {
@@ -35,7 +36,7 @@ export default function ChatPanel() {
   const studyParams = useAtomValue(studyParamsAtom);
   const username = studyParams.username || 'demo';
 
-  const { messages, sendMessage, status, setMessages } = useChat({
+  const { messages, sendMessage, status } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
     }),
@@ -44,8 +45,10 @@ export default function ChatPanel() {
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showNotification, setShowNotification] = useState(false);
-  const [isInitialMessageSent, setIsInitialMessageSent] = useState(false);
+  const [visibleMessagePartCount, setVisibleMessagePartCount] = useState(0);
+  const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   const lastLoggedMessageIdRef = useRef<string>('');
+  const hasInitializedRef = useRef(false);
 
   const isLoading = status === 'submitted' || status === 'streaming';
 
@@ -57,49 +60,68 @@ export default function ChatPanel() {
     scrollToBottom();
   }, [messages]);
 
-  // Initialize with the first message
+  // Send implicit greeting on mount
   useEffect(() => {
-    if (messages.length === 0) {
-      setMessages([
-        {
-          id: '1',
-          role: 'assistant',
-          parts: [
-            {
-              type: 'text',
-              text: "Hey, remember that panel we're coordinating with Jaden tomorrow?",
-            },
-          ],
-        },
-      ]);
+    if (!hasInitializedRef.current && messages.length === 0) {
+      hasInitializedRef.current = true;
+      sendMessage({ text: '' });
     }
-  }, [messages.length, setMessages]);
+  }, [messages.length, sendMessage]);
 
-  // Send the second message after delay
+  // Sequence message display with delays and typing indicators
   useEffect(() => {
-    if (!isInitialMessageSent && messages.length === 1) {
-      const timer = setTimeout(() => {
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: '2',
-            role: 'assistant',
-            parts: [
-              {
-                type: 'text',
-                text: "Turns out we double-booked the room! 😬 Sophia has already announced to her fans that her panel will be in room 12 at 1pm. And she's the more famous influencer, so we can't back out on her.",
-              },
-            ],
-          },
-        ]);
-        setIsInitialMessageSent(true);
-        setShowNotification(true);
-        setTimeout(() => setShowNotification(false), 5000);
-      }, 8000);
+    if (messages.length === 0) return;
 
-      return () => clearTimeout(timer);
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role !== 'assistant') return;
+
+    const messageText = getMessageText(lastMessage);
+    const parsedMessages = parseMessageContent(messageText);
+
+    if (parsedMessages.length === 0) return;
+
+    // Show all parts if single message or first part of multi-message response
+    setTimeout(() => setVisibleMessagePartCount(1), 0);
+
+    // For multiple messages (array response), add typing indicator and delay between them
+    if (parsedMessages.length > 1) {
+      let currentDelay = 0;
+      const timers: NodeJS.Timeout[] = [];
+
+      parsedMessages.forEach((messagePart, index) => {
+        if (index > 0) {
+          // Calculate delay based on previous message length
+          const previousMessageLength = parsedMessages[index - 1].length;
+          const interDelay = calculateInterMessageDelay(previousMessageLength);
+          currentDelay += interDelay;
+
+          // Calculate typing duration for this message
+          const typingDuration = calculateTypingDuration(messagePart.length);
+
+          // Show typing indicator for the delay duration
+          timers.push(
+            setTimeout(() => {
+              setShowTypingIndicator(true);
+            }, currentDelay)
+          );
+
+          // Show next part and hide typing indicator
+          timers.push(
+            setTimeout(() => {
+              setVisibleMessagePartCount((prev) => prev + 1);
+              setShowTypingIndicator(false);
+            }, currentDelay + typingDuration)
+          );
+        }
+      });
+
+      return () => {
+        timers.forEach((timer) => {
+          clearTimeout(timer);
+        });
+      };
     }
-  }, [isInitialMessageSent, messages.length, setMessages]);
+  }, [messages]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -149,9 +171,23 @@ export default function ChatPanel() {
 
     await sendMessage({ text: userMessage });
 
-    setShowNotification(true);
-    setTimeout(() => setShowNotification(false), 5000);
+    // Reset message part count for next response
+    setVisibleMessagePartCount(0);
   };
+
+  // Show notification when a new assistant message part appears
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage && lastMessage.role === 'assistant' && visibleMessagePartCount > 0) {
+      const showTimer = setTimeout(() => setShowNotification(true), 0);
+      const hideTimer = setTimeout(() => setShowNotification(false), 5000);
+      return () => {
+        clearTimeout(showTimer);
+        clearTimeout(hideTimer);
+      };
+    }
+  }, [messages, visibleMessagePartCount]);
 
   return (
     <div className="bg-white border border-gray-300 rounded flex flex-col overflow-hidden shadow-sm">
@@ -170,12 +206,21 @@ export default function ChatPanel() {
       </div>
 
       <div className="flex-1 p-2.5 overflow-y-auto bg-white">
-        {messages.map((message) => {
+        {messages.map((message, messageIdx) => {
           const isUser = message.role === 'user';
           const messageText = getMessageText(message);
           const messageParts = isUser ? [messageText] : parseMessageContent(messageText);
+          const isLastMessage = messageIdx === messages.length - 1;
 
-          return messageParts.map((part, partIdx) => (
+          // For assistant messages, limit visible parts if it's the last message
+          let partsToShow = messageParts;
+          if (!isUser && isLastMessage && visibleMessagePartCount > 0) {
+            partsToShow = messageParts.slice(0, visibleMessagePartCount);
+          } else if (!isUser && isLastMessage) {
+            partsToShow = [];
+          }
+
+          return partsToShow.map((part, partIdx) => (
             <div
               key={`${message.id}-${partIdx}`}
               className={`mb-3 text-sm leading-snug animate-fadeIn ${
@@ -202,7 +247,7 @@ export default function ChatPanel() {
           ));
         })}
 
-        {isLoading && (
+        {(isLoading || showTypingIndicator) && (
           <div className="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-xl w-fit mb-3">
             <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0s' }} />
             <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0.2s' }} />

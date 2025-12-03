@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Writing Task Prototype - Claude-Powered</title>
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            margin: 0;
+            padding: 0;
+            background: #f5f5f5;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        .container {
+            display: flex;
+            height: 100vh;
+            gap: 10px;
+            padding: 10px;
+        }
+        
+        /* Writing Area */
+        .writing-area {
+            flex: 1;
+            background: white;
+            border: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .email-header {
+            border-bottom: 1px solid #e0e0e0;
+            padding: 15px;
+            background: #fafafa;
+        }
+        
+        .email-field {
+            display: flex;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+        
+        .email-field label {
+            width: 60px;
+            color: #666;
+            font-weight: 500;
+        }
+        
+        .email-field input {
+            flex: 1;
+            border: 1px solid #ddd;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 14px;
+        }
+        
+        .email-body {
+            flex: 1;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .email-body textarea {
+            flex: 1;
+            border: 1px solid #e0e0e0;
+            padding: 10px;
+            resize: none;
+            font-family: inherit;
+            font-size: 14px;
+            border-radius: 3px;
+            line-height: 1.5;
+        }
+        
+        .email-body textarea:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            flex: 0 0 320px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        /* Chat Panel */
+        .chat-panel {
+            background: white;
+            border: 1px solid #ddd;
+            display: flex;
+            flex-direction: column;
+            height: 320px;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .chat-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f5f5f5;
+            border-bottom: 1px solid #ddd;
+            padding: 10px 12px;
+        }
+        
+        .status-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ffc107;
+        }
+        
+        .status-indicator.busy {
+            background: #ffc107;
+        }
+        
+        .colleague-name {
+            font-weight: 600;
+            font-size: 14px;
+            flex: 1;
+        }
+        
+        .colleague-title {
+            font-size: 12px;
+            color: #666;
+        }
+        
+        .status-text {
+            font-size: 11px;
+            color: #888;
+        }
+        
+        .chat-messages {
+            flex: 1;
+            padding: 10px;
+            overflow-y: auto;
+            background: white;
+        }
+        
+        .message {
+            margin-bottom: 12px;
+            font-size: 13px;
+            line-height: 1.4;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.from-colleague {
+            background: #f0f0f0;
+            padding: 8px 10px;
+            border-radius: 12px;
+            border-bottom-left-radius: 4px;
+            max-width: 85%;
+        }
+        
+        .message.from-me {
+            background: #e3f2fd;
+            padding: 8px 10px;
+            border-radius: 12px;
+            border-bottom-right-radius: 4px;
+            margin-left: auto;
+            max-width: 85%;
+        }
+        
+        .message-time {
+            font-size: 10px;
+            color: #999;
+            margin-top: 4px;
+        }
+        
+        .read-indicator {
+            font-size: 10px;
+            color: #4CAF50;
+            margin-top: 2px;
+        }
+        
+        .typing-indicator {
+            display: none;
+            padding: 8px 12px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            width: fit-content;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 12px;
+        }
+        
+        .typing-indicator.visible {
+            display: flex;
+        }
+        
+        .typing-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #999;
+            animation: typingBounce 1.4s infinite;
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typingBounce {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-6px); }
+        }
+        
+        .chat-input-area {
+            border-top: 1px solid #e0e0e0;
+            padding: 8px;
+            background: #fafafa;
+            display: flex;
+            gap: 6px;
+        }
+        
+        .chat-input-area input {
+            flex: 1;
+            padding: 8px 10px;
+            border: 1px solid #ddd;
+            border-radius: 16px;
+            font-size: 13px;
+            outline: none;
+        }
+        
+        .chat-input-area input:focus {
+            border-color: #4CAF50;
+        }
+        
+        .chat-input-area button {
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 16px;
+            font-size: 13px;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .chat-input-area button:hover {
+            background: #45a049;
+        }
+        
+        .chat-input-area button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        /* AI Panel */
+        .ai-panel {
+            flex: 1;
+            background: #e3f2fd;
+            border: 1px solid #90caf9;
+            padding: 15px;
+            font-size: 13px;
+            color: #666;
+            border-radius: 4px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .ai-panel h3 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            color: #1976d2;
+        }
+        
+        .notification-badge {
+            background: #f44336;
+            color: white;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-left: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="writing-area">
+            <div class="email-header">
+                <div class="email-field">
+                    <label>To:</label>
+                    <input type="text" value="Jaden Thompson <jaden.t@example.com>" readonly>
+                </div>
+                <div class="email-field">
+                    <label>From:</label>
+                    <input type="text" value="you@company.com" readonly>
+                </div>
+                <div class="email-field">
+                    <label>Subject:</label>
+                    <input type="text" id="emailSubject" placeholder="Enter subject...">
+                </div>
+            </div>
+            <div class="email-body">
+                <textarea id="emailBody" placeholder="Write your message here..."></textarea>
+            </div>
+        </div>
+        
+        <div class="sidebar">
+            <div class="chat-panel">
+                <div class="chat-header">
+                    <div class="status-indicator busy"></div>
+                    <div style="flex: 1;">
+                        <div class="colleague-name">Sarah Martinez</div>
+                        <div class="colleague-title">Events Coordinator</div>
+                    </div>
+                    <div class="status-text">Busy</div>
+                    <span class="notification-badge" id="notificationBadge" style="display: none;">1</span>
+                </div>
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message from-colleague">
+                        <div>Hey, remember that panel we're coordinating with Jaden tomorrow?</div>
+                        <div class="message-time">Just now</div>
+                    </div>
+                </div>
+                <div class="typing-indicator" id="typingIndicator">
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                    <div class="typing-dot"></div>
+                </div>
+                <div class="chat-input-area">
+                    <input type="text" id="chatInput" placeholder="Message Sarah...">
+                    <button id="sendButton">Send</button>
+                </div>
+            </div>
+            
+            <div class="ai-panel">
+                <h3>✨ AI Writing Assistant</h3>
+                <p style="margin: 5px 0; font-size: 12px;">Placeholder for AI writing tools interface</p>
+                <p style="margin: 10px 0 5px 0; font-size: 11px; color: #999;">
+                    This would contain:<br>
+                    • Suggestion interface (based on condition)<br>
+                    • Context awareness<br>
+                    • Writing support features
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // State management
+        let conversationHistory = [];
+        let waitingForResponse = false;
+        const chatMessages = document.getElementById('chatMessages');
+        const chatInput = document.getElementById('chatInput');
+        const sendButton = document.getElementById('sendButton');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const notificationBadge = document.getElementById('notificationBadge');
+        
+        const SYSTEM_PROMPT = `You are Sarah Martinez, an Events Coordinator at a mid-sized company. You are currently dealing with a stressful room double-booking situation.
+
+SCENARIO CONTEXT:
+- Tomorrow there's a panel discussion with Jaden Thompson (a social media influencer)
+- The panel was originally scheduled for 1pm in Room 12
+- Room 12 was accidentally double-booked with Sophia Chen (a more famous influencer with 500K followers)
+- Sophia already publicly announced her panel at Room 12 at 1pm to her fans, so you can't move her
+- You need to move Jaden's panel to a different room/time
+- Room 14 is available, but the event before it ends at 1pm (so no setup time if scheduled at 1pm)
+- Room 14 would work fine at 1:30pm
+- Mike Chen handles facilities/room bookings
+- The user is a PR/communications person who needs to email Jaden about the change
+
+YOUR ROLE:
+- Answer questions about the facts of the situation
+- You're busy and stressed, typing quick messages on your phone
+- Keep responses SHORT - usually 1-2 sentences, sometimes just a few words
+- You can send multiple short messages in a row if that feels natural
+- You CANNOT and WILL NOT write the email for them or tell them exactly what to say - that's their job
+- You can give them facts, but not draft communications
+- If asked to write/draft anything, politely refuse (you're too busy, or it's their expertise)
+- You can make up reasonable details if needed, but keep them consistent with the scenario
+- Be natural and conversational, use occasional emoji when appropriate
+- Sometimes you might need to check with Mike or look something up - you can say you'll get back to them
+
+RESPONSE FORMAT:
+Respond with a JSON array of messages. Each message is a string. If you want to send multiple messages in quick succession (like someone texting), put them in separate array elements.
+
+Example: ["1pm same room 😅", "can you email him?"]
+Or: ["Room 14 is free", "but the event before ends at 1 so no setup time"]
+
+Just return the JSON array, nothing else.`;
+
+        // Calculate realistic typing duration based on message length
+        // Roughly 40-80 chars per second of "typing"
+        function calculateTypingDuration(messageLength) {
+            const baseTime = 800; // minimum typing time
+            const charsPerSecond = 40 + Math.random() * 40; // 40-80 chars/sec
+            const typingTime = (messageLength / charsPerSecond) * 1000;
+            const variation = (Math.random() - 0.5) * 600; // +/- 300ms random
+            return Math.max(baseTime, typingTime + variation);
+        }
+        
+        // Add message to chat
+        function addMessage(text, sender) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message from-${sender === 'me' ? 'me' : 'colleague'}`;
+            
+            const textDiv = document.createElement('div');
+            textDiv.textContent = text;
+            messageDiv.appendChild(textDiv);
+            
+            const timeDiv = document.createElement('div');
+            timeDiv.className = 'message-time';
+            timeDiv.textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            messageDiv.appendChild(timeDiv);
+            
+            if (sender === 'me') {
+                setTimeout(() => {
+                    const readDiv = document.createElement('div');
+                    readDiv.className = 'read-indicator';
+                    readDiv.textContent = 'Read';
+                    messageDiv.appendChild(readDiv);
+                }, 800 + Math.random() * 400);
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Show typing indicator
+        function showTypingIndicator() {
+            typingIndicator.classList.add('visible');
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+        
+        // Hide typing indicator
+        function hideTypingIndicator() {
+            typingIndicator.classList.remove('visible');
+        }
+        
+        // Show notification badge
+        function showNotification() {
+            notificationBadge.style.display = 'block';
+            setTimeout(() => {
+                notificationBadge.style.display = 'none';
+            }, 5000);
+        }
+        
+        // Display multiple messages sequentially with realistic timing
+        async function displayMessages(messages) {
+            for (let i = 0; i < messages.length; i++) {
+                const message = messages[i];
+                const typingDuration = calculateTypingDuration(message.length);
+                
+                // Show typing indicator
+                showTypingIndicator();
+                
+                // Wait for "typing" duration
+                await new Promise(resolve => setTimeout(resolve, typingDuration));
+                
+                // Hide typing and show message
+                hideTypingIndicator();
+                addMessage(message, 'colleague');
+                showNotification();
+                
+                // Small pause between messages (if more coming)
+                if (i < messages.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, 300 + Math.random() * 400));
+                }
+            }
+        }
+        
+        // Call Claude API
+        async function getClaudeResponse(userMessage) {
+            try {
+                const response = await fetch("https://api.anthropic.com/v1/messages", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+                    body: JSON.stringify({
+                        model: "claude-sonnet-4-20250514",
+                        max_tokens: 300,
+                        system: SYSTEM_PROMPT,
+                        messages: conversationHistory
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`API request failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                let responseText = data.content[0].text.trim();
+                
+                // Try to parse as JSON array
+                try {
+                    // Remove any markdown code block formatting if present
+                    responseText = responseText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+                    const messages = JSON.parse(responseText);
+                    
+                    if (Array.isArray(messages)) {
+                        return messages;
+                    } else {
+                        // If not an array, wrap it
+                        return [messages];
+                    }
+                } catch (e) {
+                    // If parsing fails, treat as single message
+                    console.warn('Failed to parse as JSON, using raw response:', e);
+                    return [responseText];
+                }
+            } catch (error) {
+                console.error('Error calling Claude:', error);
+                return ["sorry something went wrong on my end", "can you try again?"];
+            }
+        }
+        
+        // Send message
+        async function sendMessage() {
+            const message = chatInput.value.trim();
+            if (!message || waitingForResponse) return;
+            
+            // Add user message to UI and history
+            addMessage(message, 'me');
+            conversationHistory.push({
+                role: "user",
+                content: message
+            });
+            
+            chatInput.value = '';
+            chatInput.disabled = true;
+            sendButton.disabled = true;
+            waitingForResponse = true;
+            
+            // Small delay before showing typing (like read receipt time)
+            await new Promise(resolve => setTimeout(resolve, 400 + Math.random() * 400));
+            
+            // Get response from Claude
+            const messages = await getClaudeResponse(message);
+            
+            // Add assistant messages to history (as single turn)
+            conversationHistory.push({
+                role: "assistant",
+                content: JSON.stringify(messages)
+            });
+            
+            // Display messages with realistic timing
+            await displayMessages(messages);
+            
+            // Re-enable input
+            chatInput.disabled = false;
+            sendButton.disabled = false;
+            waitingForResponse = false;
+            chatInput.focus();
+        }
+        
+        // Send initial second message
+        setTimeout(async () => {
+            const initialMessage = "Turns out we double-booked the room! 😬 Sophia has already announced to her fans that her panel will be in room 12 at 1pm. And she's the more famous influencer, so we can't back out on her.";
+            
+            // Add to conversation history
+            conversationHistory.push({
+                role: "assistant",
+                content: initialMessage
+            });
+            
+            await displayMessages([initialMessage]);
+        }, 8000);
+        
+        // Event listeners
+        sendButton.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !waitingForResponse) {
+                sendMessage();
+            }
+        });
+        
+        // Focus on subject line on load
+        setTimeout(() => {
+            document.getElementById('emailSubject').focus();
+        }, 100);
+    </script>
+</body>
+</html>

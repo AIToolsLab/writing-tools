@@ -4,7 +4,7 @@ Guidance for Claude Code when working with this repository.
 
 ## Project Components
 
-This monorepo has two separate applications:
+This monorepo has two separate applications. If it's ambiguous which one to use, **ask the user for clarification**.
 
 - **Production add-in** (see [frontend/CLAUDE.md](frontend/CLAUDE.md) and [backend/CLAUDE.md](backend/CLAUDE.md))
   - `frontend`: TypeScript/React Microsoft Office Add-in
