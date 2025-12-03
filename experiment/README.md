@@ -6,7 +6,7 @@ A Next.js application that simulates a writing task with AI-powered chat support
 
 - **Email Writing Interface**: Compose emails with a realistic email editor
 - **AI Chat Assistant**: Chat with "Sarah Martinez," an AI-powered events coordinator who provides context for your writing task
-- **Writing Support API**: Stubbed endpoint for future AI writing assistance
+- **Writing Support API**: AI writing assistance of various kinds
 - **Streaming Responses**: Real-time streaming chat responses using Vercel AI SDK
 
 ## Tech Stack
@@ -65,7 +65,7 @@ writing-task-app/
 ├── app/
 │   ├── api/
 │   │   ├── chat/route.ts           # Streaming chat endpoint
-│   │   └── writing-support/route.ts # Stubbed writing support endpoint
+│   │   └── writing-support/route.ts # AI writing assistance endpoint
 │   ├── globals.css                  # Global styles with animations
 │   ├── layout.tsx                   # Root layout
 │   └── page.tsx                     # Main application page
@@ -96,7 +96,7 @@ Streaming chat endpoint that simulates a conversation with Sarah Martinez, an ev
 
 ### POST /api/writing-support
 
-Stubbed endpoint for AI writing assistance (to be implemented).
+AI writing assistance endpoint.
 
 **Request:**
 ```json
@@ -113,7 +113,8 @@ Stubbed endpoint for AI writing assistance (to be implemented).
 ```json
 {
   "suggestions": [
-    "Writing support coming soon!"
+    "Consider adding a greeting or asking about their availability.",
+    "You might want to mention the purpose of the meeting."
   ]
 }
 ```
@@ -126,7 +127,3 @@ Stubbed endpoint for AI writing assistance (to be implemented).
 - Messages are displayed with typing indicators and read receipts
 - The second message from Sarah appears automatically after 8 seconds
 - All API routes use Edge runtime for optimal performance
-
-## License
-
-MIT
