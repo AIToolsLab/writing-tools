@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { waitFor, render } from '@testing-library/react';
+import { waitFor } from '@testing-library/react';
 import ChatPanel from '@/components/ChatPanel';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import * as logging from '@/lib/logging';
-import * as jotai from 'jotai';
+import { renderWithJotai } from '../utils/test-utils';
 import { createUserMessage, createAssistantMessage } from '../utils/mock-factories';
 
 // Mock the logging module
@@ -20,16 +20,6 @@ vi.mock('@ai-sdk/react', () => ({
     setMessages: vi.fn(),
   })),
 }));
-
-// Create a mock for useAtomValue
-const mockUseAtomValue = vi.fn();
-vi.doMock('jotai', async () => {
-  const actual = await vi.importActual<typeof jotai>('jotai');
-  return {
-    ...actual,
-    useAtomValue: mockUseAtomValue,
-  };
-});
 
 describe('ChatPanel - Message Logging', () => {
   const mockLog = vi.mocked(logging.log);

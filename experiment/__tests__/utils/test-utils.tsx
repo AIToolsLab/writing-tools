@@ -1,6 +1,8 @@
-import { render, RenderOptions } from '@testing-library/react';
+import { render } from '@testing-library/react';
 import { Provider } from 'jotai';
-import { ReactElement } from 'react';
+import type { ReactElement } from 'react';
+
+import type { RenderOptions } from '@testing-library/react';
 
 /**
  * Custom render that wraps component with Jotai Provider
@@ -9,18 +11,16 @@ import { ReactElement } from 'react';
 export function renderWithJotai(
   ui: ReactElement,
   options?: RenderOptions & {
-    initialValues?: Array<[any, any]>;
+    initialValues?: Array<[unknown, unknown]>;
   }
 ) {
   const { initialValues = [], ...renderOptions } = options || {};
 
-  function Wrapper({ children }: { children: React.ReactNode }) {
-    return <Provider initialValues={initialValues}>{children}</Provider>;
-  }
-
-  return render(ui, { wrapper: Wrapper, ...renderOptions });
+  return render(
+    <Provider initialValues={initialValues}>{ui}</Provider>,
+    renderOptions
+  );
 }
 
 // Re-export everything from testing-library
 export * from '@testing-library/react';
-export { renderWithJotai as render };
