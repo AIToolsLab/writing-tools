@@ -13,7 +13,6 @@ export type LogEventType =
   | 'taskStart'
   | 'taskComplete'
   | 'documentUpdate'
-  | `aiAutoRefresh:${string}`
   | `aiRequest:${string}`
   | `aiResponse:${string}`
   | 'surveyComplete:intro-survey'

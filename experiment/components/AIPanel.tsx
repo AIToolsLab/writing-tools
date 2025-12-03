@@ -109,7 +109,7 @@ export default function AIPanel({
   }, []);
 
   const getSuggestion = useCallback(
-    async (suggestionMode?: string) => {
+    async (suggestionMode?: string, isAutoRefresh = false) => {
       setErrorMsg('');
       setIsLoading(true);
 
@@ -147,6 +147,9 @@ export default function AIPanel({
           await log({
             username: studyParams.username,
             event: `aiRequest:${modeToUse}`,
+            extra_data: {
+              isAutoRefresh,
+            },
           });
         }
 
@@ -215,12 +218,7 @@ export default function AIPanel({
 
     // Set up auto-refresh interval
     autoRefreshIntervalRef.current = setInterval(() => {
-      log({
-        username: studyParams.username,
-        event: `aiAutoRefresh:${mode}`,
-      }).catch((e) => console.error('Failed to log auto-refresh:', e));
-
-      getSuggestion(mode);
+      getSuggestion(mode, true);
     }, autoRefreshInterval);
 
     return () => {
@@ -228,7 +226,7 @@ export default function AIPanel({
         clearInterval(autoRefreshIntervalRef.current);
       }
     };
-  }, [isStudyMode, mode, autoRefreshInterval, getSuggestion, studyParams]);
+  }, [isStudyMode, mode, autoRefreshInterval, getSuggestion]);
 
   let alerts = null;
 
