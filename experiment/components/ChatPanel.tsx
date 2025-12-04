@@ -143,50 +143,69 @@ export default function ChatPanel() {
 
   // Track and log new messages
   useEffect(() => {
-    // Log user messages normally
-    messages.forEach((message) => {
-      if (message.role === 'user' && message.id && message.id !== lastLoggedMessageIdRef.current) {
+    messages.forEach((message, messageIndex) => {
+      if (!message.id) return;
+
+      const isLastMessage = messageIndex === messages.length - 1;
+
+      if (message.role === 'user') {
+        // Log user messages normally
+        if (message.id !== lastLoggedMessageIdRef.current) {
+          const messageText = getMessageText(message);
+          log({
+            username,
+            event: 'chatMessage:user',
+            extra_data: {
+              messageId: message.id,
+              content: messageText,
+              timestamp: new Date().toISOString(),
+            },
+          });
+          lastLoggedMessageIdRef.current = message.id;
+        }
+      } else if (message.role === 'assistant') {
         const messageText = getMessageText(message);
-        log({
-          username,
-          event: 'chatMessage:user',
-          extra_data: {
-            messageId: message.id,
-            content: messageText,
-            timestamp: new Date().toISOString(),
-          },
-        });
-        lastLoggedMessageIdRef.current = message.id;
+        const parsedMessages = parseMessageContent(messageText);
+
+        if (isLastMessage) {
+          // For last message, only log visible parts
+          for (let i = 0; i < visibleMessagePartCount; i++) {
+            const partId = `${message.id}-${i}`;
+            if (!loggedMessagePartsRef.current.has(partId)) {
+              log({
+                username,
+                event: 'chatMessage:assistant',
+                extra_data: {
+                  messageId: message.id,
+                  partIndex: i,
+                  content: parsedMessages[i],
+                  timestamp: new Date().toISOString(),
+                },
+              });
+              loggedMessagePartsRef.current.add(partId);
+            }
+          }
+        } else {
+          // For non-last messages, log all parts
+          parsedMessages.forEach((part, partIndex) => {
+            const partId = `${message.id}-${partIndex}`;
+            if (!loggedMessagePartsRef.current.has(partId)) {
+              log({
+                username,
+                event: 'chatMessage:assistant',
+                extra_data: {
+                  messageId: message.id,
+                  partIndex,
+                  content: part,
+                  timestamp: new Date().toISOString(),
+                },
+              });
+              loggedMessagePartsRef.current.add(partId);
+            }
+          });
+        }
       }
     });
-  }, [messages, username]);
-
-  // Log assistant message parts as they become visible
-  useEffect(() => {
-    if (messages.length === 0) return;
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage.role !== 'assistant') return;
-
-    const messageText = getMessageText(lastMessage);
-    const parsedMessages = parseMessageContent(messageText);
-
-    // Log visible parts that haven't been logged yet
-    for (let i = 0; i < visibleMessagePartCount; i++) {
-      const partId = `${lastMessage.id}-${i}`;
-      if (!loggedMessagePartsRef.current.has(partId)) {
-        log({
-          username,
-          event: 'chatMessage:assistant',
-          extra_data: {
-            messageId: lastMessage.id,
-            partIndex: i,
-            content: parsedMessages[i],
-            timestamp: new Date().toISOString(),
-          },
-        });
-        loggedMessagePartsRef.current.add(partId);
-      }
-    }
   }, [messages, visibleMessagePartCount, username]);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {

@@ -72,7 +72,7 @@ describe('ChatPanel - Message Logging', () => {
   });
 
   // Test 2: Assistant Message Logging
-  it('should log assistant messages with correct event type', async () => {
+  it('should log assistant messages with correct event type and partIndex', async () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
 
@@ -108,6 +108,8 @@ describe('ChatPanel - Message Logging', () => {
           event: 'chatMessage:assistant',
           extra_data: expect.objectContaining({
             messageId: 'assistant-msg-1',
+            partIndex: 0,
+            content: 'How can I help?',
           }),
         })
       );
@@ -220,7 +222,10 @@ describe('ChatPanel - Message Logging', () => {
       2,
       expect.objectContaining({
         event: 'chatMessage:assistant',
-        extra_data: expect.objectContaining({ messageId: 'msg-2' }),
+        extra_data: expect.objectContaining({
+          messageId: 'msg-2',
+          partIndex: 0,
+        }),
       })
     );
 
@@ -487,7 +492,10 @@ describe('ChatPanel - Message Logging', () => {
     expect(assistantCall).toBeDefined();
     expect(assistantCall?.[0]).toMatchObject({
       event: 'chatMessage:assistant',
-      extra_data: expect.objectContaining({ messageId: 'msg-2' }),
+      extra_data: expect.objectContaining({
+        messageId: 'msg-2',
+        partIndex: 0,
+      }),
     });
   });
 
@@ -567,7 +575,7 @@ describe('ChatPanel - Message Logging', () => {
   });
 
   // Test 14: Message Sequencing with Multiple Parts
-  it('should sequence multiple message parts with delays', async () => {
+  it('should log individual message parts as they become visible', async () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
 
@@ -616,17 +624,19 @@ describe('ChatPanel - Message Logging', () => {
 
     rerender(<ChatPanel />);
 
-    // First message should appear and be logged
+    // First part should be logged immediately
     await waitFor(() => {
       expect(mockLog).toHaveBeenCalledTimes(1);
     });
 
-    // The message should be logged with the full JSON content
+    // First part should be logged with partIndex: 0
     expect(mockLog).toHaveBeenCalledWith(
       expect.objectContaining({
         event: 'chatMessage:assistant',
         extra_data: expect.objectContaining({
           messageId: 'multi-msg',
+          partIndex: 0,
+          content: 'First message',
         }),
       })
     );
