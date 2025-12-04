@@ -1,9 +1,10 @@
 ---
 id: task-16
 title: Make sure colleague chat doesn't stream responses
-status: To Do
+status: Done
 assignee: []
 created_date: '2025-12-03 18:12'
+updated_date: '2025-12-04 18:10'
 labels: []
 dependencies: []
 ---
