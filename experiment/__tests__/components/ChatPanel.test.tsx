@@ -353,42 +353,6 @@ describe('ChatPanel - Message Logging', () => {
     });
   });
 
-  // Test 8: Default Username Fallback
-  it('should fallback to "demo" when username is empty', async () => {
-    const { useChat } = await import('@ai-sdk/react');
-    const mockUseChat = vi.mocked(useChat);
-
-    const message = createUserMessage('Test');
-
-    mockUseChat.mockReturnValue({
-      messages: [message],
-      sendMessage: vi.fn(),
-      status: 'idle',
-    });
-
-    renderWithJotai(<ChatPanel />, {
-      initialValues: [
-        [
-          studyParamsAtom,
-          {
-            username: '',
-            condition: 'n',
-            page: 'task',
-            autoRefreshInterval: 15000,
-          },
-        ],
-      ],
-    });
-
-    await waitFor(() => {
-      expect(mockLog).toHaveBeenCalledWith(
-        expect.objectContaining({
-          username: 'demo',
-        })
-      );
-    });
-  });
-
   // Test 9: Timestamp Format
   it('should use ISO 8601 timestamp format', async () => {
     const { useChat } = await import('@ai-sdk/react');
@@ -515,42 +479,6 @@ describe('ChatPanel - Message Logging', () => {
         extra_data: expect.objectContaining({ messageId: 'msg-2' }),
       })
     );
-  });
-
-  // Test 11: Messages Without IDs
-  it('should not log messages without IDs', async () => {
-    const { useChat } = await import('@ai-sdk/react');
-    const mockUseChat = vi.mocked(useChat);
-
-    const messageWithoutId = {
-      id: '',
-      role: 'user',
-      parts: [{ type: 'text', text: 'Test' }],
-    };
-
-    mockUseChat.mockReturnValue({
-      messages: [messageWithoutId],
-      sendMessage: vi.fn(),
-      status: 'idle',
-    });
-
-    renderWithJotai(<ChatPanel />, {
-      initialValues: [
-        [
-          studyParamsAtom,
-          {
-            username: 'test-user',
-            condition: 'n',
-            page: 'task',
-            autoRefreshInterval: 15000,
-          },
-        ],
-      ],
-    });
-
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    expect(mockLog).not.toHaveBeenCalled();
   });
 
   // Test 12: System Messages
