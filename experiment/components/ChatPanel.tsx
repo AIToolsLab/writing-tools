@@ -53,6 +53,7 @@ export default function ChatPanel() {
   const [visibleMessagePartCount, setVisibleMessagePartCount] = useState(0);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   const lastLoggedMessageIdRef = useRef<string>('');
+  const loggedMessagePartsRef = useRef<Set<string>>(new Set());
   const hasInitializedRef = useRef(false);
 
   const isLoading = status === 'submitted' || status === 'streaming';
@@ -84,7 +85,6 @@ export default function ChatPanel() {
   useEffect(() => {
     scrollToBottom();
     if (messages.length === 0) return;
-    console.log('New messages:', messages);
 
     const lastMessage = messages[messages.length - 1];
     if (lastMessage.role !== 'assistant') return;
@@ -143,38 +143,51 @@ export default function ChatPanel() {
 
   // Track and log new messages
   useEffect(() => {
+    // Log user messages normally
     messages.forEach((message) => {
-      if (message.id && message.id !== lastLoggedMessageIdRef.current) {
+      if (message.role === 'user' && message.id && message.id !== lastLoggedMessageIdRef.current) {
         const messageText = getMessageText(message);
-
-        if (message.role === 'assistant') {
-          // Log assistant messages
-          log({
-            username,
-            event: 'chatMessage:assistant',
-            extra_data: {
-              messageId: message.id,
-              content: messageText,
-              timestamp: new Date().toISOString(),
-            },
-          });
-        } else if (message.role === 'user') {
-          // Log user messages
-          log({
-            username,
-            event: 'chatMessage:user',
-            extra_data: {
-              messageId: message.id,
-              content: messageText,
-              timestamp: new Date().toISOString(),
-            },
-          });
-        }
-
+        log({
+          username,
+          event: 'chatMessage:user',
+          extra_data: {
+            messageId: message.id,
+            content: messageText,
+            timestamp: new Date().toISOString(),
+          },
+        });
         lastLoggedMessageIdRef.current = message.id;
       }
     });
   }, [messages, username]);
+
+  // Log assistant message parts as they become visible
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const lastMessage = messages[messages.length - 1];
+    if (lastMessage.role !== 'assistant') return;
+
+    const messageText = getMessageText(lastMessage);
+    const parsedMessages = parseMessageContent(messageText);
+
+    // Log visible parts that haven't been logged yet
+    for (let i = 0; i < visibleMessagePartCount; i++) {
+      const partId = `${lastMessage.id}-${i}`;
+      if (!loggedMessagePartsRef.current.has(partId)) {
+        log({
+          username,
+          event: 'chatMessage:assistant',
+          extra_data: {
+            messageId: lastMessage.id,
+            partIndex: i,
+            content: parsedMessages[i],
+            timestamp: new Date().toISOString(),
+          },
+        });
+        loggedMessagePartsRef.current.add(partId);
+      }
+    }
+  }, [messages, visibleMessagePartCount, username]);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
