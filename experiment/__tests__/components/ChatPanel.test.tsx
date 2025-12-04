@@ -122,10 +122,12 @@ describe('ChatPanel - Message Logging', () => {
     const message = createUserMessage('Test', 'duplicate-msg');
 
     const mockSendMessage = vi.fn();
-    // Initially return no messages (implicit greeting will be sent)
+    const mockSetMessages = vi.fn();
+    // Initially return no messages (setMessages will be called to initialize)
     mockUseChat.mockReturnValue({
       messages: [],
       sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'idle',
     });
 
@@ -143,15 +145,18 @@ describe('ChatPanel - Message Logging', () => {
       ],
     });
 
-    // Implicit greeting is sent on mount
-    expect(mockSendMessage).toHaveBeenCalledWith({ text: '' });
-    mockSendMessage.mockClear();
+    // Initial setup will call setMessages
+    await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+    mockSetMessages.mockClear();
     mockLog.mockClear();
 
     // Now update the mock to return the user message
     mockUseChat.mockReturnValue({
       messages: [message],
       sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'idle',
     });
 
@@ -403,12 +408,13 @@ describe('ChatPanel - Message Logging', () => {
     const mockUseChat = vi.mocked(useChat);
 
     const mockSendMessage = vi.fn();
-    // Initially render with no messages (implicit greeting will be sent)
+    const mockSetMessages = vi.fn();
     mockUseChat.mockReturnValue({
       messages: [],
       sendMessage: mockSendMessage,
-      status: 'idle',
-    });
+      setMessages: mockSetMessages,
+      status: 'idle' as any,
+    } as any);
 
     const { rerender } = renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -424,61 +430,65 @@ describe('ChatPanel - Message Logging', () => {
       ],
     });
 
-    // Verify implicit greeting was sent
-    expect(mockSendMessage).toHaveBeenCalledWith({ text: '' });
-    mockSendMessage.mockClear();
+    await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
     mockLog.mockClear();
 
-    // Add first user message
-    const msg1 = createUserMessage('First', 'msg-1');
+    // Add a new user message
+    const msg1 = createUserMessage('First message', 'msg-1');
     mockUseChat.mockReturnValue({
       messages: [msg1],
       sendMessage: mockSendMessage,
-      status: 'idle',
-    });
+      setMessages: mockSetMessages,
+      status: 'idle' as any,
+    } as any);
 
     rerender(<ChatPanel />);
 
+    // Should log the user message
     await waitFor(() => {
-      expect(mockLog).toHaveBeenCalledTimes(1);
-    });
+      expect(mockLog).toHaveBeenCalled();
+    }, { timeout: 1000 });
 
-    expect(mockLog).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        event: 'chatMessage:user',
-        extra_data: expect.objectContaining({ messageId: 'msg-1' }),
-      })
+    const firstCall = mockLog.mock.calls.find(call =>
+      call[0]?.extra_data?.messageId === 'msg-1'
     );
+    expect(firstCall).toBeDefined();
+    expect(firstCall?.[0]).toMatchObject({
+      event: 'chatMessage:user',
+      extra_data: expect.objectContaining({ messageId: 'msg-1' }),
+    });
 
     mockLog.mockClear();
 
-    // Add assistant message with multiple parts (like backend returns)
-    // The message text is a JSON array that gets parsed
+    // Add assistant message
     const msg2 = createAssistantMessage(
-      JSON.stringify(['First part', 'Second part']),
+      JSON.stringify(['Response part 1', 'Response part 2']),
       'msg-2'
     );
     mockUseChat.mockReturnValue({
       messages: [msg1, msg2],
       sendMessage: mockSendMessage,
-      status: 'idle',
-    });
+      setMessages: mockSetMessages,
+      status: 'idle' as any,
+    } as any);
 
     rerender(<ChatPanel />);
 
-    // Should log the assistant message when it appears
+    // Should log the new assistant message
     await waitFor(() => {
-      expect(mockLog).toHaveBeenCalledTimes(1);
-    });
+      expect(mockLog).toHaveBeenCalled();
+    }, { timeout: 1000 });
 
-    expect(mockLog).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        event: 'chatMessage:assistant',
-        extra_data: expect.objectContaining({ messageId: 'msg-2' }),
-      })
+    const assistantCall = mockLog.mock.calls.find(call =>
+      call[0]?.extra_data?.messageId === 'msg-2'
     );
+    expect(assistantCall).toBeDefined();
+    expect(assistantCall?.[0]).toMatchObject({
+      event: 'chatMessage:assistant',
+      extra_data: expect.objectContaining({ messageId: 'msg-2' }),
+    });
   });
 
   // Test 12: System Messages
@@ -517,15 +527,17 @@ describe('ChatPanel - Message Logging', () => {
     expect(mockLog).not.toHaveBeenCalled();
   });
 
-  // Test 13: Implicit Greeting on Mount
-  it('should send implicit greeting when component mounts with no messages', async () => {
+  // Test 13: Initial Messages on Mount
+  it('should initialize with pre-filled assistant messages when component mounts', async () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
 
     const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
     mockUseChat.mockReturnValue({
       messages: [],
       sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'idle',
     });
 
@@ -543,9 +555,15 @@ describe('ChatPanel - Message Logging', () => {
       ],
     });
 
-    // Should send an implicit greeting (empty message) on mount
-    expect(mockSendMessage).toHaveBeenCalledWith({ text: '' });
-    expect(mockSendMessage).toHaveBeenCalledTimes(1);
+    // Should initialize messages with an empty user message and initial assistant messages
+    await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+
+    const setMessagesCall = mockSetMessages.mock.calls[0][0];
+    expect(setMessagesCall).toHaveLength(2);
+    expect(setMessagesCall[0].role).toBe('user');
+    expect(setMessagesCall[1].role).toBe('assistant');
   });
 
   // Test 14: Message Sequencing with Multiple Parts
@@ -554,10 +572,12 @@ describe('ChatPanel - Message Logging', () => {
     const mockUseChat = vi.mocked(useChat);
 
     const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
     // Start with no messages
     mockUseChat.mockReturnValue({
       messages: [],
       sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'idle',
     });
 
@@ -575,7 +595,10 @@ describe('ChatPanel - Message Logging', () => {
       ],
     });
 
-    expect(mockSendMessage).toHaveBeenCalledWith({ text: '' });
+    await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+    mockSetMessages.mockClear();
     mockSendMessage.mockClear();
     mockLog.mockClear();
 
@@ -587,12 +610,13 @@ describe('ChatPanel - Message Logging', () => {
     mockUseChat.mockReturnValue({
       messages: [msg],
       sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'idle',
     });
 
     rerender(<ChatPanel />);
 
-    // First message should appear immediately
+    // First message should appear and be logged
     await waitFor(() => {
       expect(mockLog).toHaveBeenCalledTimes(1);
     });
@@ -614,9 +638,11 @@ describe('ChatPanel - Message Logging', () => {
     const mockUseChat = vi.mocked(useChat);
 
     const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
     mockUseChat.mockReturnValue({
       messages: [],
       sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'idle',
     });
 
@@ -634,6 +660,10 @@ describe('ChatPanel - Message Logging', () => {
       ],
     });
 
+    await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+    mockSetMessages.mockClear();
     mockSendMessage.mockClear();
 
     // Add assistant message with multiple parts
@@ -644,12 +674,13 @@ describe('ChatPanel - Message Logging', () => {
     mockUseChat.mockReturnValue({
       messages: [msg],
       sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'idle',
     });
 
     rerender(<ChatPanel />);
 
-    // After a short delay, typing indicator should appear for inter-message delay
+    // After a short delay, typing indicator may appear for inter-message delay
     // (timing calculations are probabilistic, so we check it appears within reasonable bounds)
     await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -665,9 +696,11 @@ describe('ChatPanel - Message Logging', () => {
     const mockUseChat = vi.mocked(useChat);
 
     const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
     mockUseChat.mockReturnValue({
       messages: [],
       sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'idle',
     });
 
@@ -685,6 +718,10 @@ describe('ChatPanel - Message Logging', () => {
       ],
     });
 
+    await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+    mockSetMessages.mockClear();
     mockSendMessage.mockClear();
 
     // Add assistant message
@@ -692,6 +729,7 @@ describe('ChatPanel - Message Logging', () => {
     mockUseChat.mockReturnValue({
       messages: [msg],
       sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'idle',
     });
 

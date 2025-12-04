@@ -12,6 +12,13 @@ This is a separate Next.js application for experimentation. It does not depend o
 - **Styling**: Tailwind CSS
 - **AI Integration**: Vercel AI SDK + OpenAI
 
+This is a "measuring thinking" experiment, where the participant has access to a chat where they can ask questions of a simulated colleague. It also provides AI-powered writing support features.
+
+### Timing for the Simulated Colleague
+
+Realistic timing works as follows: Sarah finds a moment to read your message (~400-800ms), takes time to read and think through a response (depends on your message length), types an answer (depends on her response length), then sends it. The thinking/reading delay and typing duration both use the same calculation (40-80 chars/sec ± 300ms variation) but applied to different message lengths—Sarah thinks proportionally to what you wrote, and types proportionally to what she's typing. This creates natural pacing.
+
+
 ## Getting Started
 
 ```bash
