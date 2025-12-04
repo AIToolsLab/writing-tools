@@ -32,11 +32,16 @@ function parseMessageContent(content: string): string[] {
   }
 }
 
+const INITIAL_MESSAGES = [
+  "Hey, remember that panel we're coordinating with Jaden tomorrow?",
+  "Turns out we double-booked the room! 😬 Sophia has already announced to her fans that her panel will be in room 12 at 1pm. And she's the more famous influencer, so we can't back out on her.",
+];
+
 export default function ChatPanel() {
   const studyParams = useAtomValue(studyParamsAtom);
   const username = studyParams.username || 'demo';
 
-  const { messages, sendMessage, status } = useChat({
+  const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
     }),
@@ -56,21 +61,30 @@ export default function ChatPanel() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   });
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
-
-  // Send implicit greeting on mount
+  // Initialize conversation on mount
   useEffect(() => {
     if (!hasInitializedRef.current && messages.length === 0) {
       hasInitializedRef.current = true;
-      sendMessage({ text: '' });
+      setMessages([
+        {
+          id: 'initial-user-message',
+          role: 'user',
+          parts: [{ type: 'text', text: '' }],
+        },
+        {
+          id: 'initial-assistant-message',
+          role: 'assistant',
+          parts: [{ type: 'text', text: JSON.stringify(INITIAL_MESSAGES) }],
+        }
+      ]);
     }
-  }, [messages.length, sendMessage]);
+  }, [messages.length, setMessages]);
 
   // Sequence message display with delays and typing indicators
   useEffect(() => {
+    scrollToBottom();
     if (messages.length === 0) return;
+    console.log('New messages:', messages);
 
     const lastMessage = messages[messages.length - 1];
     if (lastMessage.role !== 'assistant') return;
@@ -209,15 +223,21 @@ export default function ChatPanel() {
         {messages.map((message, messageIdx) => {
           const isUser = message.role === 'user';
           const messageText = getMessageText(message);
+          if (!messageText) return null;
           const messageParts = isUser ? [messageText] : parseMessageContent(messageText);
           const isLastMessage = messageIdx === messages.length - 1;
 
           // For assistant messages, limit visible parts if it's the last message
           let partsToShow = messageParts;
-          if (!isUser && isLastMessage && visibleMessagePartCount > 0) {
-            partsToShow = messageParts.slice(0, visibleMessagePartCount);
-          } else if (!isUser && isLastMessage) {
-            partsToShow = [];
+          if (!isUser && isLastMessage) {
+            // Hide last message while streaming to avoid showing partial JSON
+            if (status === 'streaming') {
+              partsToShow = [];
+            } else if (visibleMessagePartCount > 0) {
+              partsToShow = messageParts.slice(0, visibleMessagePartCount);
+            } else {
+              partsToShow = [];
+            }
           }
 
           return partsToShow.map((part, partIdx) => (

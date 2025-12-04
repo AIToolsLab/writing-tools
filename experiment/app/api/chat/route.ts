@@ -1,5 +1,5 @@
 import { openai } from '@ai-sdk/openai';
-import { convertToModelMessages, generateText } from 'ai';
+import { convertToModelMessages, streamText } from 'ai';
 
 export const runtime = 'edge';
 
@@ -36,44 +36,15 @@ Or: ["Room 14 is free", "but the event before ends at 1 so no setup time"]
 
 Just return the JSON array, nothing else.`;
 
-const INITIAL_MESSAGES = [
-  "Hey, remember that panel we're coordinating with Jaden tomorrow?",
-  "Turns out we double-booked the room! 😬 Sophia has already announced to her fans that her panel will be in room 12 at 1pm. And she's the more famous influencer, so we can't back out on her.",
-];
-
 export async function POST(req: Request) {
   const { messages } = await req.json();
 
-  // Check if this is an implicit greeting (first message, no content)
-  const isImplicitGreeting =
-    messages.length === 1 &&
-    messages[0].role === 'user' &&
-    (!messages[0].content || messages[0].content.trim() === '');
-
-  if (isImplicitGreeting) {
-    // Return initial messages directly without streaming
-    return new Response(JSON.stringify(INITIAL_MESSAGES), {
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  const { text } = await generateText({
+  const result = streamText({
     model: openai('gpt-4o'),
     system: SYSTEM_PROMPT,
     messages: convertToModelMessages(messages),
     maxOutputTokens: 300,
   });
 
-  // Parse the response as JSON array and return it
-  try {
-    const parsed = JSON.parse(text);
-    return new Response(JSON.stringify(Array.isArray(parsed) ? parsed : [text]), {
-      headers: { 'Content-Type': 'application/json' },
-    });
-  } catch {
-    // If parsing fails, return as single message array
-    return new Response(JSON.stringify([text]), {
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
+  return result.toUIMessageStreamResponse();
 }
