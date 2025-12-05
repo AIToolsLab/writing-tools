@@ -236,7 +236,7 @@ export default function ChatPanel() {
   }, [messages, visibleMessagePartCount]);
 
   return (
-    <div className="bg-white border border-gray-300 rounded flex flex-col overflow-hidden shadow-sm">
+    <div className="h-full bg-white border border-gray-300 rounded flex flex-col overflow-hidden shadow-sm">
       <div className="flex items-center gap-2.5 bg-gray-50 border-b border-gray-300 px-3 py-2.5">
         <div className="w-2 h-2 rounded-full bg-yellow-500" />
         <div className="flex-1">
