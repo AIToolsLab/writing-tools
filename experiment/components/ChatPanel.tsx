@@ -2,7 +2,7 @@
 
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { useEffect, useEffectEvent, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import { log } from '@/lib/logging';
@@ -62,6 +62,38 @@ export default function ChatPanel() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   });
 
+  // Derive the messages that are actually displayed to the user
+  const displayedMessages = useMemo(() => {
+    return messages.map((message, messageIdx) => {
+      const isUser = message.role === 'user';
+      const messageText = getMessageText(message);
+      if (!messageText) return { parts: [], isUser, messageId: message.id };
+
+      const messageParts = isUser ? [messageText] : parseMessageContent(messageText);
+      const isLastMessage = messageIdx === messages.length - 1;
+
+      // For assistant messages, limit visible parts if it's the last message
+      let partsToShow = messageParts;
+      if (!isUser && isLastMessage) {
+        // Hide last message while streaming to avoid showing partial JSON
+        if (status === 'streaming') {
+          partsToShow = [];
+        } else if (visibleMessagePartCount > 0) {
+          partsToShow = messageParts.slice(0, visibleMessagePartCount);
+        } else {
+          partsToShow = [];
+        }
+      }
+
+      return { parts: partsToShow, isUser, messageId: message.id };
+    });
+  }, [messages, visibleMessagePartCount, status]);
+
+  // Scroll to bottom whenever displayed messages change
+  useEffect(() => {
+    scrollToBottom();
+  }, [displayedMessages]);
+
   // Initialize conversation on mount
   useEffect(() => {
     if (!hasInitializedRef.current && messages.length === 0) {
@@ -83,7 +115,6 @@ export default function ChatPanel() {
 
   // Sequence message display with delays and typing indicators
   useEffect(() => {
-    scrollToBottom();
     if (messages.length === 0) return;
 
     const lastMessage = messages[messages.length - 1];
@@ -252,37 +283,18 @@ export default function ChatPanel() {
       </div>
 
       <div className="flex-1 p-2.5 overflow-y-auto bg-white">
-        {messages.map((message, messageIdx) => {
-          const isUser = message.role === 'user';
-          const messageText = getMessageText(message);
-          if (!messageText) return null;
-          const messageParts = isUser ? [messageText] : parseMessageContent(messageText);
-          const isLastMessage = messageIdx === messages.length - 1;
-
-          // For assistant messages, limit visible parts if it's the last message
-          let partsToShow = messageParts;
-          if (!isUser && isLastMessage) {
-            // Hide last message while streaming to avoid showing partial JSON
-            if (status === 'streaming') {
-              partsToShow = [];
-            } else if (visibleMessagePartCount > 0) {
-              partsToShow = messageParts.slice(0, visibleMessagePartCount);
-            } else {
-              partsToShow = [];
-            }
-          }
-
-          return partsToShow.map((part, partIdx) => (
+        {displayedMessages.map((displayedMessage) => {
+          return displayedMessage.parts.map((part, partIdx) => (
             <div
-              key={`${message.id}-${partIdx}`}
+              key={`${displayedMessage.messageId}-${partIdx}`}
               className={`mb-3 text-sm leading-snug animate-fadeIn ${
-                isUser ? 'ml-auto' : ''
+                displayedMessage.isUser ? 'ml-auto' : ''
               }`}
               style={{ maxWidth: '85%' }}
             >
               <div
                 className={`px-2.5 py-2 rounded-xl text-gray-900 ${
-                  isUser
+                  displayedMessage.isUser
                     ? 'bg-blue-200 rounded-br-sm ml-auto font-medium'
                     : 'bg-gray-200 rounded-bl-sm'
                 }`}
@@ -292,7 +304,7 @@ export default function ChatPanel() {
               <div className="text-[10px] text-gray-600 mt-1">
                 {formatTime(new Date())}
               </div>
-              {isUser && (
+              {displayedMessage.isUser && (
                 <div className="text-[10px] font-semibold text-green-700 mt-0.5">Read</div>
               )}
             </div>
