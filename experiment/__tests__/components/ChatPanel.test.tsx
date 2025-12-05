@@ -16,7 +16,7 @@ vi.mock('@ai-sdk/react', () => ({
   useChat: vi.fn(() => ({
     messages: [],
     sendMessage: vi.fn(),
-    status: 'idle',
+    status: 'ready',
   })),
 }));
 
@@ -38,7 +38,7 @@ describe('ChatPanel - Message Logging', () => {
     mockUseChat.mockReturnValue({
       messages: [userMessage],
       sendMessage: mockSendMessage,
-      status: 'idle',
+      status: 'ready',
     });
 
     mockSendMessage.mockClear();
@@ -82,7 +82,7 @@ describe('ChatPanel - Message Logging', () => {
     mockUseChat.mockReturnValue({
       messages: [assistantMessage],
       sendMessage: mockSendMessage,
-      status: 'idle',
+      status: 'ready',
     });
 
     mockSendMessage.mockClear();
@@ -130,7 +130,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle',
+      status: 'ready',
     });
 
     const { rerender } = renderWithJotai(<ChatPanel />, {
@@ -159,7 +159,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [message],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle',
+      status: 'ready',
     });
 
     // Wait for the message to be logged
@@ -189,7 +189,7 @@ describe('ChatPanel - Message Logging', () => {
     mockUseChat.mockReturnValue({
       messages: [msg1, msg2, msg3],
       sendMessage: vi.fn(),
-      status: 'idle',
+      status: 'ready',
     });
 
     renderWithJotai(<ChatPanel />, {
@@ -257,7 +257,7 @@ describe('ChatPanel - Message Logging', () => {
     mockUseChat.mockReturnValue({
       messages: [messageWithMultipleParts],
       sendMessage: vi.fn(),
-      status: 'idle',
+      status: 'ready',
     });
 
     renderWithJotai(<ChatPanel />, {
@@ -299,7 +299,7 @@ describe('ChatPanel - Message Logging', () => {
     mockUseChat.mockReturnValue({
       messages: [emptyMessage],
       sendMessage: vi.fn(),
-      status: 'idle',
+      status: 'ready',
     });
 
     renderWithJotai(<ChatPanel />, {
@@ -337,7 +337,7 @@ describe('ChatPanel - Message Logging', () => {
     mockUseChat.mockReturnValue({
       messages: [message],
       sendMessage: vi.fn(),
-      status: 'idle',
+      status: 'ready',
     });
 
     renderWithJotai(<ChatPanel />, {
@@ -373,7 +373,7 @@ describe('ChatPanel - Message Logging', () => {
     mockUseChat.mockReturnValue({
       messages: [message],
       sendMessage: vi.fn(),
-      status: 'idle',
+      status: 'ready',
     });
 
     renderWithJotai(<ChatPanel />, {
@@ -418,7 +418,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle' as any,
+      status: 'ready' as any,
     } as any);
 
     const { rerender } = renderWithJotai(<ChatPanel />, {
@@ -446,7 +446,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [msg1],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle' as any,
+      status: 'ready' as any,
     } as any);
 
     rerender(<ChatPanel />);
@@ -476,7 +476,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [msg1, msg2],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle' as any,
+      status: 'ready' as any,
     } as any);
 
     rerender(<ChatPanel />);
@@ -513,7 +513,7 @@ describe('ChatPanel - Message Logging', () => {
     mockUseChat.mockReturnValue({
       messages: [systemMessage],
       sendMessage: vi.fn(),
-      status: 'idle',
+      status: 'ready',
     });
 
     renderWithJotai(<ChatPanel />, {
@@ -546,7 +546,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle',
+      status: 'ready',
     });
 
     renderWithJotai(<ChatPanel />, {
@@ -586,7 +586,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle',
+      status: 'ready',
     });
 
     const { rerender } = renderWithJotai(<ChatPanel />, {
@@ -619,7 +619,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [msg],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle',
+      status: 'ready',
     });
 
     rerender(<ChatPanel />);
@@ -653,7 +653,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle',
+      status: 'ready',
     });
 
     const { rerender, container } = renderWithJotai(<ChatPanel />, {
@@ -685,7 +685,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [msg],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle',
+      status: 'ready',
     });
 
     rerender(<ChatPanel />);
@@ -711,7 +711,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle',
+      status: 'ready',
     });
 
     const { rerender, container } = renderWithJotai(<ChatPanel />, {
@@ -740,7 +740,7 @@ describe('ChatPanel - Message Logging', () => {
       messages: [msg],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'idle',
+      status: 'ready',
     });
 
     rerender(<ChatPanel />);
