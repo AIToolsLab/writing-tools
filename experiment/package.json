@@ -19,9 +19,9 @@
     "@ai-sdk/react": "^2.0.102",
     "ai": "^5.0.102",
     "jotai": "^2.15.2",
-    "next": "16.0.4",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
+    "next": "^16.0.4",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.0",
     "zod": "^4.1.13"
   },
   "devDependencies": {
