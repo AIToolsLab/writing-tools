@@ -17,6 +17,13 @@ Guidelines:
 - Each output should be *at most one sentence* long.
 - Use ellipses to truncate sentences that are longer than about **10 words**.`,
 
+  complete_document: `You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing. 
+
+Guidelines:
+- Use the text in the document as a starting point, but make any changes needed to make the document complete and polished.
+- Maintain the writer's tone, style, and voice throughout.
+- Polish the text for clarity and coherence.`,
+
   proposal_advice: `You are assisting a writer in drafting a document by providing three directive (but not prescriptive) advice to help them develop their work. Your advice must be tailored to the document's genre. Use your best judgment to offer the most relevant and helpful advice, drawing from the following types of support as appropriate for the context:
 - Support the writer in adhering to their stated writing goals or assignment guidelines.
 - Help the writer think about what they could write next.
