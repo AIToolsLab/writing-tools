@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { Button } from 'reshaped';
 import classes from './styles.module.css';
-import descriptionImage from '../../../assets/c1.png';
-import functionImage from '../../../assets/logo_black.png';
-import benefitsImage from '../../../assets/c2.png';
+import descriptionImage from '@/assets/c1.png';
+import functionImage from '@/assets/logo_black.png';
+import benefitsImage from '@/assets/c2.png';
 
 interface OnboardingCarouselProps {
 	onComplete: () => void;
