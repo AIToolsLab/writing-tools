@@ -11,11 +11,12 @@ import { studyConditionAtom, studyParamsAtom } from '@/contexts/StudyContext';
 
 const visibleNameForMode = {
   example_sentences: 'Examples of what you could write next:',
+  complete_document: 'Completed document suggestion:',
   analysis_readerPerspective: 'Possible questions your reader might have:',
   proposal_advice: 'Advice for your next words:',
 };
 
-const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advice'] as const;
+const modes = ['example_sentences', 'complete_document', 'analysis_readerPerspective', 'proposal_advice'] as const;
 
 function GenerationResultDisplay({ generation }: { generation: GenerationResult }) {
   return (
@@ -281,6 +282,8 @@ export default function AIPanel({
                   ? 'Examples'
                   : mode === 'analysis_readerPerspective'
                     ? 'Reader Q&A'
+                    : mode === 'complete_document'
+                      ? 'Complete Document'
                     : 'Advice'}
               </button>
             </Fragment>
