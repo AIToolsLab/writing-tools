@@ -1,0 +1,71 @@
+nextjs-migration/
+├── src/
+│   ├── app/
+│   │   ├── api/                           # API Routes (replaces Python backend)
+│   │   │   ├── chat/
+│   │   │   │   └── route.ts              # POST - Streaming chat (SSE)
+│   │   │   ├── download_logs/
+│   │   │   │   └── route.ts              # GET - Download logs as ZIP
+│   │   │   ├── get_suggestion/
+│   │   │   │   └── route.ts              # POST - Generate AI suggestions
+│   │   │   ├── log/
+│   │   │   │   └── route.ts              # POST - Log user events
+│   │   │   ├── logs_poll/
+│   │   │   │   └── route.ts              # POST - Poll logs (protected)
+│   │   │   ├── ping/
+│   │   │   │   └── route.ts              # GET - Health check
+│   │   │   └── reflections/
+│   │   │       └── route.ts              # POST - Document analysis
+│   │   ├── commands/
+│   │   │   └── page.tsx                  # Office ribbon command handler
+│   │   ├── editor/
+│   │   │   └── page.tsx                  # Standalone editor (study mode)
+│   │   ├── popup/
+│   │   │   └── page.tsx                  # Auth0 callback handler
+│   │   ├── taskpane/
+│   │   │   ├── layout.tsx                # Office.js initialization
+│   │   │   └── page.tsx                  # Main taskpane (Draft/Chat/Revise)
+│   │   ├── globals.css                   # Global styles + Tailwind
+│   │   ├── layout.tsx                    # Root layout + Jotai Provider
+│   │   └── page.tsx                      # Landing page
+│   └── lib/
+│       ├── contexts/
+│       │   └── editorContext.tsx         # Editor API React context
+│       ├── atoms.ts                      # Jotai state atoms
+│       ├── logger.ts                     # JSONL logging system
+│       ├── openai.ts                     # OpenAI client (replaces nlp.py)
+│       ├── prompts.ts                    # OpenAI prompts (from Python)
+│       ├── types.ts                      # TypeScript types + Zod schemas
+│       └── wordEditorAPI.ts              # Office.js Word API wrapper
+├── public/
+│   └── manifest.xml                      # Office add-in manifest
+├── logs/                                 # User study logs (JSONL)
+├── .dockerignore                         # Docker ignore rules
+├── .env.example                          # Environment variable template
+├── .eslintrc.json                        # ESLint configuration
+├── .gitignore                            # Git ignore rules
+├── ARCHITECTURE.md                       # Architecture deep dive (600+ lines)
+├── COMPARISON.md                         # Python vs Next.js comparison (500+ lines)
+├── Dockerfile                            # Production Docker image
+├── Dockerfile.dev                        # Development Docker image
+├── MIGRATION_GUIDE.md                    # Python → TypeScript guide (300+ lines)
+├── QUICKSTART.md                         # Quick start guide (200+ lines)
+├── README.md                             # Main documentation (400+ lines)
+├── STRUCTURE.txt                         # This file
+├── SUMMARY.md                            # Migration summary (400+ lines)
+├── docker-compose.dev.yml                # Development deployment
+├── docker-compose.yml                    # Production deployment
+├── next.config.js                        # Next.js configuration
+├── package.json                          # Dependencies and scripts
+├── postcss.config.js                     # PostCSS configuration
+├── tailwind.config.js                    # Tailwind CSS configuration
+└── tsconfig.json                         # TypeScript configuration
+
+Summary:
+- 46 files created
+- 7 API routes (replaces Python backend)
+- 6 frontend pages
+- 7 library/utility files
+- 6 documentation files (2,400+ lines)
+- 8 configuration files
+- Full Docker deployment setup
