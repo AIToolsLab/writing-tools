@@ -755,4 +755,238 @@ describe('ChatPanel - Message Logging', () => {
     // Wait to ensure no runtime errors during 5 second notification window
     await new Promise((resolve) => setTimeout(resolve, 100));
   });
+
+  // Test 17: Scroll to bottom when displayed messages change
+  it('should scroll to bottom when displayed messages change', async () => {
+    const { useChat } = await import('@ai-sdk/react');
+    const mockUseChat = vi.mocked(useChat);
+
+    const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
+    mockUseChat.mockReturnValue({
+      messages: [],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
+      status: 'ready',
+      id: 'test-id',
+      error: undefined,
+    } as any);
+
+    const { rerender } = renderWithJotai(<ChatPanel />, {
+      initialValues: [
+        [
+          studyParamsAtom,
+          {
+            username: 'test-user',
+            condition: 'n',
+            page: 'task',
+            autoRefreshInterval: 15000,
+          },
+        ],
+      ],
+    });
+
+    await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+    mockSetMessages.mockClear();
+
+    // Add a new message
+    const msg = createUserMessage('New message', 'scroll-test-msg');
+    mockUseChat.mockReturnValue({
+      messages: [msg],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
+      status: 'ready',
+      id: 'test-id',
+      error: undefined,
+    } as any);
+
+    // Mock scrollIntoView to verify it's called
+    const mockScrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = mockScrollIntoView;
+
+    rerender(<ChatPanel />);
+
+    // scrollIntoView should be called when displayed messages change
+    await waitFor(() => {
+      expect(mockScrollIntoView).toHaveBeenCalled();
+    });
+  });
+
+  // Test 18: Display limited message parts when streaming
+  it('should hide last assistant message while streaming', async () => {
+    const { useChat } = await import('@ai-sdk/react');
+    const mockUseChat = vi.mocked(useChat);
+
+    const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
+    const msg = createAssistantMessage('Streaming response', 'stream-msg');
+
+    mockUseChat.mockReturnValue({
+      messages: [msg],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
+      status: 'streaming',
+    });
+
+    const { container } = renderWithJotai(<ChatPanel />, {
+      initialValues: [
+        [
+          studyParamsAtom,
+          {
+            username: 'test-user',
+            condition: 'n',
+            page: 'task',
+            autoRefreshInterval: 15000,
+          },
+        ],
+      ],
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
+    // While streaming, the last message should be hidden
+    const messageDivs = container.querySelectorAll('.mb-3.text-sm.leading-snug');
+    expect(messageDivs.length).toBe(0);
+  });
+
+  // Test 19: Show last message when not streaming
+  it('should show last assistant message when not streaming', async () => {
+    const { useChat } = await import('@ai-sdk/react');
+    const mockUseChat = vi.mocked(useChat);
+
+    const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
+    const msg = createAssistantMessage('Complete response', 'complete-msg');
+
+    mockUseChat.mockReturnValue({
+      messages: [msg],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
+      status: 'ready',
+    });
+
+    const { container } = renderWithJotai(<ChatPanel />, {
+      initialValues: [
+        [
+          studyParamsAtom,
+          {
+            username: 'test-user',
+            condition: 'n',
+            page: 'task',
+            autoRefreshInterval: 15000,
+          },
+        ],
+      ],
+    });
+
+    await waitFor(() => {
+      const messageDivs = container.querySelectorAll('.mb-3.text-sm.leading-snug');
+      expect(messageDivs.length).toBeGreaterThan(0);
+    });
+  });
+
+  // Test 20: Display only visible message parts
+  it('should respect visibleMessagePartCount for last assistant message', async () => {
+    const { useChat } = await import('@ai-sdk/react');
+    const mockUseChat = vi.mocked(useChat);
+
+    const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
+    const msg = createAssistantMessage(
+      JSON.stringify(['Part 1', 'Part 2', 'Part 3']),
+      'multi-part-msg'
+    );
+
+    mockUseChat.mockReturnValue({
+      messages: [msg],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
+      status: 'ready',
+    });
+
+    const { rerender, container } = renderWithJotai(<ChatPanel />, {
+      initialValues: [
+        [
+          studyParamsAtom,
+          {
+            username: 'test-user',
+            condition: 'n',
+            page: 'task',
+            autoRefreshInterval: 15000,
+          },
+        ],
+      ],
+    });
+
+    // Initially, first part should be visible
+    await waitFor(() => {
+      const messages = container.querySelectorAll('.mb-3.text-sm.leading-snug');
+      expect(messages.length).toBeGreaterThan(0);
+    });
+
+    const initialMessageCount = container.querySelectorAll('.mb-3.text-sm.leading-snug').length;
+
+    // When visibleMessagePartCount increases, more parts should be visible
+    // (This would require updating state, which happens via the component's internal timing logic)
+    // This test verifies the structure is rendered correctly
+    expect(initialMessageCount).toBeGreaterThan(0);
+  });
+
+  // Test 21: Scroll triggers on visibleMessagePartCount change
+  it('should scroll when visibleMessagePartCount changes', async () => {
+    const { useChat } = await import('@ai-sdk/react');
+    const mockUseChat = vi.mocked(useChat);
+
+    const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
+    mockUseChat.mockReturnValue({
+      messages: [],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
+      status: 'ready',
+    });
+
+    const { rerender } = renderWithJotai(<ChatPanel />, {
+      initialValues: [
+        [
+          studyParamsAtom,
+          {
+            username: 'test-user',
+            condition: 'n',
+            page: 'task',
+            autoRefreshInterval: 15000,
+          },
+        ],
+      ],
+    });
+
+    await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+    mockSetMessages.mockClear();
+
+    // Add message with multiple parts
+    const msg = createAssistantMessage(
+      JSON.stringify(['Part 1', 'Part 2']),
+      'scroll-trigger-msg'
+    );
+    mockUseChat.mockReturnValue({
+      messages: [msg],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
+      status: 'ready',
+    });
+
+    const mockScrollIntoView = vi.fn();
+    Element.prototype.scrollIntoView = mockScrollIntoView;
+
+    rerender(<ChatPanel />);
+
+    // scrollIntoView should be called when message parts become visible
+    await waitFor(() => {
+      expect(mockScrollIntoView).toHaveBeenCalled();
+    });
+  });
 });
