@@ -6,7 +6,7 @@ import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import { useAtomValue } from 'jotai';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import { log } from '@/lib/logging';
-import { calculateTypingDuration, calculateInterMessageDelay } from '@/lib/messageTiming';
+import { calculateTypingDuration, calculateInterMessageDelay, calculateThinkingDelay } from '@/lib/messageTiming';
 
 // Utility function to extract text from message parts
 function getMessageText(message: { parts: Array<{ type: string; text?: string }> }): string {
@@ -53,6 +53,10 @@ export default function ChatPanel() {
   const [showNotification, setShowNotification] = useState(false);
   const [visibleMessagePartCount, setVisibleMessagePartCount] = useState(0);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
+  const [deliveredMessageIds, setDeliveredMessageIds] = useState<Set<string>>(new Set());
+  const [readMessageIds, setReadMessageIds] = useState<Set<string>>(new Set());
+  const deliveredTimersRef = useRef<NodeJS.Timeout[]>([]);
+  const readTimersRef = useRef<NodeJS.Timeout[]>([]);
   const lastLoggedMessageIdRef = useRef<string>('');
   const loggedMessagePartsRef = useRef<Set<string>>(new Set());
   const hasInitializedRef = useRef(false);
@@ -126,13 +130,33 @@ export default function ChatPanel() {
 
     if (parsedMessages.length === 0) return;
 
-    // Show all parts if single message or first part of multi-message response
-    setTimeout(() => setVisibleMessagePartCount(1), 0);
+    const timers: NodeJS.Timeout[] = [];
+
+    // Busy/read delay before typing indicator shows up
+    const thinkingDelay = calculateThinkingDelay(parsedMessages[0].length);
+    const busyLag = 1200; // additional lag to feel realistically busy
+    const readingDelay = thinkingDelay + busyLag;
+
+    const firstTypingDuration = calculateTypingDuration(parsedMessages[0].length);
+
+    // Start typing indicator after she has “read” the message
+    timers.push(
+      setTimeout(() => {
+        setShowTypingIndicator(true);
+      }, readingDelay)
+    );
+
+    // Reveal first part after typing duration
+    timers.push(
+      setTimeout(() => {
+        setVisibleMessagePartCount(1);
+        setShowTypingIndicator(false);
+      }, readingDelay + firstTypingDuration)
+    );
 
     // For multiple messages (array response), add typing indicator and delay between them
     if (parsedMessages.length > 1) {
-      let currentDelay = 0;
-      const timers: NodeJS.Timeout[] = [];
+      let currentDelay = readingDelay + firstTypingDuration;
 
       parsedMessages.forEach((messagePart, index) => {
         if (index > 0) {
@@ -158,15 +182,17 @@ export default function ChatPanel() {
               setShowTypingIndicator(false);
             }, currentDelay + typingDuration)
           );
+
+          currentDelay += typingDuration;
         }
       });
-
-      return () => {
-        timers.forEach((timer) => {
-          clearTimeout(timer);
-        });
-      };
     }
+
+    return () => {
+      timers.forEach((timer) => {
+        clearTimeout(timer);
+      });
+    };
   }, [messages]);
 
   const formatTime = (date: Date) => {
@@ -194,6 +220,28 @@ export default function ChatPanel() {
             },
           });
           lastLoggedMessageIdRef.current = message.id;
+
+          // Mark message as delivered after a short delay
+          const deliveredDelay = 500 + Math.random() * 500; // 0.5-1s
+          const deliveredTimer = setTimeout(() => {
+            setDeliveredMessageIds((prev) => {
+              const next = new Set(prev);
+              next.add(message.id);
+              return next;
+            });
+          }, deliveredDelay);
+          deliveredTimersRef.current.push(deliveredTimer);
+
+          // Mark message as read after a short delay to feel more human
+          const readDelay = 3000 + Math.random() * 5000; // 3-8 seconds
+          const readTimer = setTimeout(() => {
+            setReadMessageIds((prev) => {
+              const next = new Set(prev);
+              next.add(message.id);
+              return next;
+            });
+          }, readDelay);
+          readTimersRef.current.push(readTimer);
         }
       } else if (message.role === 'assistant') {
         const messageText = getMessageText(message);
@@ -246,6 +294,7 @@ export default function ChatPanel() {
 
     const userMessage = input;
     setInput('');
+    setShowTypingIndicator(false); // ensure no immediate typing indicator on send
 
     await sendMessage({ text: userMessage });
 
@@ -266,6 +315,14 @@ export default function ChatPanel() {
       };
     }
   }, [messages, visibleMessagePartCount]);
+
+  // Cleanup any pending read timers on unmount
+  useEffect(() => {
+    return () => {
+      deliveredTimersRef.current.forEach((timer) => clearTimeout(timer));
+      readTimersRef.current.forEach((timer) => clearTimeout(timer));
+    };
+  }, []);
 
   return (
     <div className="h-full bg-white border border-gray-300 rounded flex flex-col overflow-hidden shadow-sm">
@@ -306,13 +363,19 @@ export default function ChatPanel() {
                 {formatTime(new Date())}
               </div>
               {displayedMessage.isUser && (
-                <div className="text-[10px] font-semibold text-green-700 mt-0.5">Read</div>
+                <>
+                  {readMessageIds.has(displayedMessage.messageId) ? (
+                    <div className="text-[10px] font-semibold text-green-700 mt-0.5">Read</div>
+                  ) : deliveredMessageIds.has(displayedMessage.messageId) ? (
+                    <div className="text-[10px] font-semibold text-gray-600 mt-0.5">Delivered</div>
+                  ) : null}
+                </>
               )}
             </div>
           ));
         })}
 
-        {(isLoading || showTypingIndicator) && (
+        {showTypingIndicator && (
           <div className="flex items-center gap-1 px-3 py-2 bg-gray-100 rounded-xl w-fit mb-3">
             <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0s' }} />
             <div className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: '0.2s' }} />

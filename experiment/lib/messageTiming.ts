@@ -6,8 +6,8 @@
  * Both use ±300ms variation
  */
 
-const MIN_READING_SPEED = 40; // chars per second
-const MAX_READING_SPEED = 80; // chars per second
+const MIN_READING_SPEED = 30; // chars per second
+const MAX_READING_SPEED = 50; // chars per second
 const READING_VARIATION = 300; // ±ms
 
 /**
@@ -16,7 +16,7 @@ const READING_VARIATION = 300; // ±ms
  * @returns Delay in milliseconds
  */
 export function calculateThinkingDelay(messageLength: number): number {
-  if (messageLength === 0) return 400; // Minimum delay for empty messages
+  if (messageLength === 0) return 600; // Minimum delay for empty messages
 
   // Random speed between MIN and MAX chars/sec
   const speed = MIN_READING_SPEED + Math.random() * (MAX_READING_SPEED - MIN_READING_SPEED);
@@ -27,7 +27,7 @@ export function calculateThinkingDelay(messageLength: number): number {
   // Add variation: ±300ms
   const variation = (Math.random() - 0.5) * 2 * READING_VARIATION;
 
-  return Math.max(400, baseDelay + variation); // Minimum 400ms
+  return Math.max(600, baseDelay + variation); // Minimum 600ms
 }
 
 /**
@@ -36,7 +36,7 @@ export function calculateThinkingDelay(messageLength: number): number {
  * @returns Duration in milliseconds
  */
 export function calculateTypingDuration(messageLength: number): number {
-  if (messageLength === 0) return 300; // Minimum duration
+  if (messageLength === 0) return 600; // Minimum duration
 
   // Random speed between MIN and MAX chars/sec
   const speed = MIN_READING_SPEED + Math.random() * (MAX_READING_SPEED - MIN_READING_SPEED);
@@ -47,7 +47,7 @@ export function calculateTypingDuration(messageLength: number): number {
   // Add variation: ±300ms
   const variation = (Math.random() - 0.5) * 2 * READING_VARIATION;
 
-  return Math.max(300, baseDuration + variation); // Minimum 300ms
+  return Math.max(600, baseDuration + variation); // Minimum 600ms
 }
 
 /**
