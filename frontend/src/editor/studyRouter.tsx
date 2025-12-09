@@ -64,14 +64,14 @@ function SurveyPage({ title, basename, questions, username, redirectURL, childre
 				questions={questions}
 				onAdvance={(surveyData: Record<string, any>) => {
 					logThenRedirect({
-							username: username,
-							event: `surveyComplete:${basename}`,
-							surveyData: surveyData,
-						}, redirectURL);
-					}}
-				/>
-			</ScrollablePage>
-		);
+						username: username,
+						event: `surveyComplete:${basename}`,
+						surveyData: surveyData,
+					}, redirectURL);
+				}}
+			/>
+		</ScrollablePage>
+	);
 
 }
 
@@ -133,10 +133,10 @@ export function StudyRouter({ page }: { page: string }) {
 	}
 
 	const nextPage = studyPageNames[studyPageIndex + 1] || 'study-intro';
-    const nextUrlParams = new URLSearchParams(window.location.search);
-    nextUrlParams.set('page', nextPage);
+	const nextUrlParams = new URLSearchParams(window.location.search);
+	nextUrlParams.set('page', nextPage);
 	const nextPageURL = `${window.location.origin}/editor.html?${nextUrlParams.toString()}`;
-    const isProlific = urlParams.get('isProlific') === 'true';
+	const isProlific = urlParams.get('isProlific') === 'true';
 
 	if (page === 'study-consentForm') {
 		return (
@@ -250,37 +250,40 @@ export function StudyRouter({ page }: { page: string }) {
 		}));
 
 		const editorPreamble = (
-		<>
-			{curTaskContexts.map((section, index) => (
-				// biome-ignore lint/suspicious/noArrayIndexKey: it will actually be mostly stable.
-				<div key={index}>
-					<h3 className="font-bold">{section.title}</h3>
-					<p className="whitespace-pre-line">{section.content}</p>
-				</div>
-			))}
-			<h3 className="mt-4 pt-3 pb-3 font-bold border-t-2">Write Here</h3>
-		</>
-	);
+			<>
+				{curTaskContexts.map((section, index) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: it will actually be mostly stable.
+					<div key={index}>
+						<h3 className="font-bold">{section.title}</h3>
+						<p className="whitespace-pre-line">{section.content}</p>
+					</div>
+				))}
+				<h3 className="mt-4 pt-3 pb-3 font-bold border-t-2">Write Here</h3>
+			</>
+		);
 
 		return (
-			<div>
-				<EditorScreen contextData={curTaskContexts} falseContextData={falseContext} editorPreamble={editorPreamble} />
-
-				<button
-					type="button"
-					onClick={() => {
-						logThenRedirect({
-							username: username,
-							event: 'taskComplete',
-							condition: conditionName,
-							// TODO: add the document text here
-						}, nextPageURL);
-					}}
-					className={classes.doneButton}
-				>
-					I'm Done (I've written about 200 words)
-				</button>
-			</div>
+			<EditorScreen
+				contextData={curTaskContexts}
+				falseContextData={falseContext}
+				editorPreamble={editorPreamble}
+				doneButton={
+					<button
+						type="button"
+						onClick={() => {
+							logThenRedirect({
+								username: username,
+								event: 'taskComplete',
+								condition: conditionName,
+								// TODO: add the document text here
+							}, nextPageURL);
+						}}
+						className={classes.doneButton}
+					>
+						I'm Done (I've written about 200 words)
+					</button>
+				}
+			/>
 		);
 	} else if (page.startsWith('study-postTask')) {
 		const postTaskSurveyQuestions: QuestionType[] = [];
