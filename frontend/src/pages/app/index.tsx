@@ -21,6 +21,7 @@ import Draft from '../draft';
 import Revise from '../revise';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
+import { PostHogProvider, PostHogErrorBoundary } from '@posthog/react';
 import { Reshaped, Button } from 'reshaped';
 import "reshaped/themes/slate/theme.css";
 
@@ -282,10 +283,49 @@ export default function App() {
 		? Auth0AccessTokenProviderWrapper
 		: DemoAccessTokenProviderWrapper;
 
-	return (
+return (
+	<>
+		<PostHogProvider
+			apiKey={process.env.VITE_PUBLIC_POSTHOG_KEY!}
+			options={{
+				api_host: process.env.VITE_PUBLIC_POSTHOG_HOST!,
+				defaults: '2025-05-24',
+				capture_exceptions: true, // This enables capturing exceptions using Error Tracking
+				debug: process.env.MODE === 'development',
+			}}
+		>
+			<PostHogErrorBoundary
+				fallback={
+					<div style={{ padding: '20px', textAlign: 'center' }}>
+						<h2>Something went wrong</h2>
+						<p>An error has been logged. Please refresh the page.</p>
+					</div>
+				}
+			>
+				<ChatContextWrapper>
+					<Auth0Provider
+						domain={process.env.AUTH0_DOMAIN!}
+						clientId={process.env.AUTH0_CLIENT_ID!}
+						cacheLocation="localstorage"
+						useRefreshTokens={true}
+						useRefreshTokensFallback={true}
+						authorizationParams={{
+							redirect_uri: `${window.location.origin}/popup.html`,
+							scope: 'openid profile email read:posts',
+							audience: 'textfocals.com',
+							leeway: 10,
+						}}
+					>
+						<AccessTokenProvider>
+							<AppInner />
+						</AccessTokenProvider>
+					</Auth0Provider>
+				</ChatContextWrapper>
+			</PostHogErrorBoundary>
+		</PostHogProvider>
+
 		<ChatContextWrapper>
 			<Reshaped theme="slate">
-
 				<Auth0Provider
 					domain={process.env.AUTH0_DOMAIN!}
 					clientId={process.env.AUTH0_CLIENT_ID!}
@@ -305,7 +345,8 @@ export default function App() {
 				</Auth0Provider>
 			</Reshaped>
 		</ChatContextWrapper>
-	);
+	</>
+);
 }
 
 function DemoAccessTokenProviderWrapper({
