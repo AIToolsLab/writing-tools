@@ -6,6 +6,22 @@ import { fetchEventSource } from '@microsoft/fetch-event-source';
 import { useAtomValue } from 'jotai';
 import { useCallback, useContext, useMemo, useRef, useState } from 'react';
 import { Remark } from 'react-remark';
+import {
+	AiOutlineFileText,
+	AiOutlineBulb,
+	AiOutlineProject,
+	AiOutlineCompass,
+	AiOutlineLink,
+	AiOutlineStar,
+	AiOutlineBook,
+	AiOutlineMessage,
+	AiOutlineSwap,
+	AiOutlinePlus,
+	AiOutlineThunderbolt,
+	AiOutlineEdit,
+	AiOutlineQuestionCircle
+} from 'react-icons/ai';
+import { Button } from 'reshaped';
 import { SERVER_URL } from '@/api';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
@@ -16,6 +32,8 @@ interface Prompt {
 	keyword: string;
 	prompt: string;
 	isOverall?: boolean;
+	icon?: React.ComponentType;
+	category?: 'structure' | 'content' | 'analysis';
 }
 
 const promptList: Prompt[] = [
@@ -23,58 +41,84 @@ const promptList: Prompt[] = [
 		keyword: 'Hierarchical Outline',
 		prompt: 'Create a hierarchical outline of the document.',
 		isOverall: true,
+		icon: AiOutlineFileText,
+		category: 'structure',
 	},
 	{
 		keyword: 'Inspirational Exemplar',
 		prompt: "Imagine an exemplar document with a similar rhetorical situation to this document (e.g., that might be published in the same venue) but a different specific message. Suppose that the document was written exceptionally well, by a famous author. What would that document look like? Provide a two-level *outline* of that exemplar document. For each outline point, provide (1) a short quote from the imagined exemplar and (2) a reference (in link format) to similar material in the actual writer's current (provided) document. If the writer's document does not yet contain a section that corresponds to the imagined exemplar section, reference a part of the document that it could be added near.",
 		isOverall: true,
+		icon: AiOutlineBulb,
+		category: 'structure',
 	},
 	{
 		keyword: "Possible Structure",
 		prompt: 'Imagine 3 possible overall structures for this document. For each structure, provide a short description of the structure and then a two-level outline of the structure. For each outline point, provide a reference (in link format) to material in the writer\'s current (provided) document that could be used as a starting point for that section.',
 		isOverall: true,
+		icon: AiOutlineProject,
+		category: 'structure',
 	},
 	{
 		keyword: 'Where to Work Next',
 		prompt: 'List 7 places in the document that the writer could direct their attention to next. Respond with a Markdown list, most important first, where each item contains a doctext link to a specific part of the document, followed by a very short description of what aspect of that location could use attention. Include both places that the author has explicitly labeled as needing work (e.g., using TODO, brackets, all-caps, or other markers) and places that were not explicitly labeled but that could use work based on the content.',
 		isOverall: true,
+		icon: AiOutlineCompass,
+		category: 'structure',
 	},
 	{
 		keyword: "Related parts",
 		prompt: "Consider the part of the document near the cursor. List other parts of the document that are related to this part. Organize the list by type of relationship.",
 		isOverall: true,
+		icon: AiOutlineLink,
+		category: 'structure',
 	},
 	{
 		keyword: 'Main Point',
 		prompt: 'List the main points that the writer is making.',
+		icon: AiOutlineStar,
+		category: 'content',
 	},
 	{
 		keyword: 'Important Concepts',
 		prompt: 'List the most important concepts.',
+		icon: AiOutlineBook,
+		category: 'content',
 	},
 	{
 		keyword: 'Claims and Arguments',
 		prompt: 'List the claims or arguments presented.',
+		icon: AiOutlineMessage,
+		category: 'analysis',
 	},
 	{
 		keyword: 'Counterarguments',
 		prompt: 'List potential counterarguments to the claims presented.',
+		icon: AiOutlineSwap,
+		category: 'analysis',
 	},
 	{
 		keyword: 'Further Evidence',
 		prompt: 'List further evidence or examples you would like to see to support the claims presented.',
+		icon: AiOutlinePlus,
+		category: 'analysis',
 	},
 	{
 		keyword: 'Outside the Box',
 		prompt: 'List outside-the-box questions or ideas that are directly related to this text.',
+		icon: AiOutlineThunderbolt,
+		category: 'analysis',
 	},
 	{
 		keyword: 'Questions Addressed by Writer',
 		prompt: 'List questions that the writer seems to be addressing in this text.',
+		icon: AiOutlineEdit,
+		category: 'analysis',
 	},
 	{
 		keyword: 'Questions a Reader Might Have',
 		prompt: 'List questions that a reader might have about this text.',
+		icon: AiOutlineQuestionCircle,
+		category: 'analysis',
 	},
 ];
 
@@ -99,7 +143,7 @@ When generating a visualization, it is critical that we remain faithful to the d
 
 function getDocTextAsPrompt(docContext: DocContext, contextChars = 100) {
 	let prompt = ``;
-	
+
 	if (docContext.contextData && docContext.contextData.length > 0) {
 		const contextSections = docContext.contextData.map(section => {
 			return `<context title="${section.title}">\n${section.content}</context>`;
@@ -313,25 +357,92 @@ ${request}
 	}
 
 	return (
-		<div className="flex flex-col">
-			{/* prompt buttons: row-flowed list of buttons */}
-			<div className="flex flex-row flex-wrap">
-				{promptList.map((prompt) => (
-					<div key={prompt.keyword} className="">
-						<button
-							type="button"
-							onClick={() => {requestVisualization(prompt); }}
-							className="bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium py-2 px-4 rounded-md transition-colors duration-150 shadow-sm border border-gray-200 mr-2 mb-2"
-						>
-							{prompt.keyword}
-						</button>
+		<div className="overflow-y-auto h-full">
+			{/* Categorized prompt buttons */}
+			<div className="p-4 bg-gray-50 border-b border-gray-200">
+				{/* Structure Section */}
+				<div className="mb-6">
+					<h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+						Document Structure
+					</h3>
+					<div className="grid grid-cols-2 gap-2">
+						{promptList
+							.filter((p) => p.category === 'structure')
+							.map((prompt) => (
+								<Button
+									key={prompt.keyword}
+									variant="outline"
+									color="neutral"
+									size="medium"
+									fullWidth
+									onClick={() => {
+										requestVisualization(prompt);
+									}}
+									icon={prompt.icon}
+								>
+									{prompt.keyword}
+								</Button>
+							))}
 					</div>
-				))}
+				</div>
+
+				{/* Content Section */}
+				<div className="mb-6">
+					<h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+						Content Analysis
+					</h3>
+					<div className="grid grid-cols-2 gap-2">
+						{promptList
+							.filter((p) => p.category === 'content')
+							.map((prompt) => (
+								<Button
+									key={prompt.keyword}
+									variant="outline"
+									color="neutral"
+									size="medium"
+									fullWidth
+									onClick={() => {
+										requestVisualization(prompt);
+									}}
+									icon={prompt.icon}
+								>
+									{prompt.keyword}
+								</Button>
+							))}
+					</div>
+				</div>
+
+				{/* Analysis Section */}
+				<div className="mb-2">
+					<h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
+						Critical Analysis
+					</h3>
+					<div className="grid grid-cols-2 gap-2">
+						{promptList
+							.filter((p) => p.category === 'analysis')
+							.map((prompt) => (
+								<Button
+									key={prompt.keyword}
+									variant="outline"
+									color="neutral"
+									size="medium"
+									fullWidth
+									onClick={() => {
+										requestVisualization(prompt);
+									}}
+									icon={prompt.icon}
+								>
+									{prompt.keyword}
+								</Button>
+							))}
+					</div>
+				</div>
 			</div>
-			{/* visualization */}
-			<div className="bg-white p-4 mb-2 rounded-md shadow-sm border border-gray-200">
+
+			{/* Visualization output */}
+			<div className="p-4 bg-white">
 				{curVisualization ? (
-					<div className="text-gray-800 prose">
+					<div className="text-gray-800 prose max-w-none">
 						<Remark
 							rehypeReactOptions={{
 								components: {
@@ -343,7 +454,7 @@ ${request}
 						</Remark>
 					</div>
 				) : (
-					<div className="text-gray-500">
+					<div className="text-center text-gray-500 mt-8">
 						Click a button to generate a visualization.
 					</div>
 				)}

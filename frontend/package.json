@@ -6,7 +6,6 @@
 		"url": "https://github.com/AIToolsLab/writing-tools"
 	},
 	"license": "MIT",
-	"type": "module",
 	"config": {
 		"app_to_debug": "word",
 		"app_type_to_debug": "desktop",
@@ -54,13 +53,15 @@
 		"jotai": "^2.12.5",
 		"lexical": "^0.16.1",
 		"posthog-js": "^1.290.0",
+		"mini-css-extract-plugin": "^2.9.4",
 		"react": "^18.2.0",
 		"react-dom": "^18.2.0",
 		"react-icons": "^5.2.1",
 		"react-remark": "^2.1.0",
 		"react-textarea-autosize": "^8.5.3",
 		"react-transition-group": "^4.4.5",
-		"regenerator-runtime": "^0.14.1"
+		"regenerator-runtime": "^0.14.1",
+		"reshaped": "^3.5.3"
 	},
 	"devDependencies": {
 		"@babel/core": "^7.24.0",
@@ -72,6 +73,7 @@
 		"@tailwindcss/cli": "^4.1.8",
 		"@tailwindcss/postcss": "^4.1.8",
 		"@tailwindcss/typography": "^0.5.16",
+		"@types/jest": "^30.0.0",
 		"@types/mocha": "^10.0.6",
 		"@types/office-js": "^1.0.377",
 		"@types/office-runtime": "^1.0.35",

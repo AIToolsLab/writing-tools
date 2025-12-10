@@ -35,6 +35,7 @@ Office.onReady((info) => {
 	render(App);
 });
 
+// Webpack HMR - no proper types available for webpack hot module replacement API
 if ((module as any).hot)
 	// eslint-disable-next-line @typescript-eslint/no-unsafe-call
 	(module as any).hot.accept('./pages/app', () => {

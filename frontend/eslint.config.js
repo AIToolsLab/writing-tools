@@ -127,8 +127,10 @@ export default [
       '@typescript-eslint/no-explicit-any': 'off', // Temporarily allow explicit any
       '@typescript-eslint/no-unsafe-member-access': 'off',
       '@typescript-eslint/no-unsafe-assignment': 'off',
-      '@typescript-eslint/no-unsafe-return': 'warn',
-      
+      '@typescript-eslint/no-unsafe-return': 'error',
+      '@typescript-eslint/no-unsafe-call': 'error',
+      '@typescript-eslint/no-unsafe-argument': 'error',
+
       'no-constant-binary-expression': 'warn',
 
       // React rules (React 17+ JSX transform)

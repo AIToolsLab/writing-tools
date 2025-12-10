@@ -22,6 +22,8 @@ import Revise from '../revise';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { PostHogProvider, PostHogErrorBoundary } from '@posthog/react';
+import { Reshaped, Button } from 'reshaped';
+import "reshaped/themes/slate/theme.css";
 
 function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
@@ -42,29 +44,29 @@ function AppInner() {
 		if (navigator.userAgent.indexOf('Trident') !== -1) {
 			/*
 				Trident is the webview in use. Do one of the following:
-        1. Provide an alternate add-in experience that doesn't use any of the HTML5
-        features that aren't supported in Trident (Internet Explorer 11).
-        2. Enable the add-in to gracefully fail by adding a message to the UI that
-        says something similar to:
-        "This add-in won't run in your version of Office. Please upgrade either to
-        perpetual Office 2021 (or later) or to a Microsoft 365 account."
-      */
+				1. Provide an alternate add-in experience that doesn't use any of the HTML5
+				features that aren't supported in Trident (Internet Explorer 11).
+				2. Enable the add-in to gracefully fail by adding a message to the UI that
+				says something similar to:
+				"This add-in won't run in your version of Office. Please upgrade either to
+				perpetual Office 2021 (or later) or to a Microsoft 365 account."
+			*/
 			return false;
 		} else if (navigator.userAgent.indexOf('Edge') !== -1) {
 			/*
 				EdgeHTML is the browser in use. Do one of the following:
-        1. Provide an alternate add-in experience that's supported in EdgeHTML (Microsoft Edge Legacy).
-        2. Enable the add-in to gracefully fail by adding a message to the UI that
-        says something similar to:
-        "This add-in won't run in your version of Office. Please upgrade either to
-        perpetual Office 2021 (or later) or to a Microsoft 365 account."
-      */
+				1. Provide an alternate add-in experience that's supported in EdgeHTML (Microsoft Edge Legacy).
+				2. Enable the add-in to gracefully fail by adding a message to the UI that
+				says something similar to:
+				"This add-in won't run in your version of Office. Please upgrade either to
+				perpetual Office 2021 (or later) or to a Microsoft 365 account."
+			*/
 			return false;
 		} else {
 			/*
-        A webview other than Trident or EdgeHTML is in use.
-        Provide a full-featured version of the add-in here.
-      */
+				A webview other than Trident or EdgeHTML is in use.
+				Provide a full-featured version of the add-in here.
+			*/
 			return true;
 		}
 	}
@@ -82,14 +84,15 @@ function AppInner() {
 		return (
 			<div className={classes.container}>
 				<p>Oops... {error.message}</p>
-				<button
-					className={classes.logoutButton}
+				<Button
+					color="neutral"
+					variant="solid"
 					onClick={() => {
 						window.location.reload();
 					}}
 				>
 					Reload
-				</button>
+				</Button>
 			</div>
 		);
 
@@ -109,14 +112,16 @@ function AppInner() {
 				) : (
 					<div className={classes.loginContainer}>
 						<h3>Not logged in yet?</h3>
-						<button
-							className={classes.loginButton}
+						<Button
+							color="primary"
+							variant="solid"
+							size="large"
 							onClick={() => {
 								void editorAPI.doLogin(auth0Client);
 							}}
 						>
-							<p>Login</p>
-						</button>
+							Login
+						</Button>
 
 						<div className={classes.loginInfoContainer}>
 							<p>
@@ -202,15 +207,16 @@ function AppInner() {
 					if you are interested in participating in the study.
 				</p>
 				<hr />
-				<button
-					className={classes.logoutButton}
+				<Button
+					color="neutral"
+					variant="outline"
 					onClick={() => {
 						console.log('origin', window.location.origin);
 						editorAPI.doLogout(auth0Client);
 					}}
 				>
 					Sign Out
-				</button>
+				</Button>
 			</div>
 		);
 	}
@@ -228,8 +234,11 @@ function AppInner() {
 	}
 
 	return (
-		<div className="h-full flex flex-col">
+		<div className="h-full flex flex-col overflow-hidden">
 			<Navbar />
+			<div className="flex-1 flex flex-col overflow-y-auto">
+				{getComponent(page)}
+			</div>
 			{!noAuthMode && user ? (
 				<div className={classes.container}>
 					<div className={classes.profileContainer}>
@@ -238,28 +247,29 @@ function AppInner() {
 						</div>
 					</div>
 					{authErrorType !== null && (
-						<button
-							className={classes.logoutButton}
+						<Button
+							color="primary"
+							variant="solid"
 							onClick={() => {
 								// do login again
 								void editorAPI.doLogin(auth0Client);
 							}}
 						>
 							Reauthorize
-						</button>
+						</Button>
 					)}
-					<button
-						className={classes.logoutButton}
+					<Button
+						color="neutral"
+						variant="outline"
 						onClick={() => {
 							console.log('origin', window.location.origin);
 							editorAPI.doLogout(auth0Client);
 						}}
 					>
 						Sign Out
-					</button>
+					</Button>
 				</div>
 			) : null}
-			{getComponent(page)}
 		</div>
 	);
 }
@@ -312,6 +322,28 @@ export default function App() {
 				</ChatContextWrapper>
 			</PostHogErrorBoundary>
 		</PostHogProvider>
+		<ChatContextWrapper>
+			<Reshaped theme="slate">
+
+				<Auth0Provider
+					domain={process.env.AUTH0_DOMAIN!}
+					clientId={process.env.AUTH0_CLIENT_ID!}
+					cacheLocation="localstorage"
+					useRefreshTokens={true}
+					useRefreshTokensFallback={true}
+					authorizationParams={{
+						redirect_uri: `${window.location.origin}/popup.html`,
+						scope: 'openid profile email read:posts',
+						audience: 'textfocals.com',
+						leeway: 10,
+					}}
+				>
+					<AccessTokenProvider>
+						<AppInner />
+					</AccessTokenProvider>
+				</Auth0Provider>
+			</Reshaped>
+		</ChatContextWrapper>
 	);
 }
 
