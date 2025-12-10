@@ -283,7 +283,8 @@ export default function App() {
 		? Auth0AccessTokenProviderWrapper
 		: DemoAccessTokenProviderWrapper;
 
-	return (
+return (
+	<>
 		<PostHogProvider
 			apiKey={process.env.VITE_PUBLIC_POSTHOG_KEY!}
 			options={{
@@ -322,9 +323,9 @@ export default function App() {
 				</ChatContextWrapper>
 			</PostHogErrorBoundary>
 		</PostHogProvider>
+
 		<ChatContextWrapper>
 			<Reshaped theme="slate">
-
 				<Auth0Provider
 					domain={process.env.AUTH0_DOMAIN!}
 					clientId={process.env.AUTH0_CLIENT_ID!}
@@ -344,7 +345,8 @@ export default function App() {
 				</Auth0Provider>
 			</Reshaped>
 		</ChatContextWrapper>
-	);
+	</>
+);
 }
 
 function DemoAccessTokenProviderWrapper({

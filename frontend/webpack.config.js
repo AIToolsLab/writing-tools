@@ -1,21 +1,7 @@
 /* eslint-disable no-undef */
 
-import { fileURLToPath } from 'url';
-//import { resolve as _resolve } from 'path';
-import path from 'path';
-import dotenv from 'dotenv';
-
-const __dirname = fileURLToPath(new URL('.', import.meta.url));
-
-// Load .env file
-dotenv.config({ path: path.resolve(__dirname, '.env') });
-
-import webpack from 'webpack';
-import { getHttpsServerOptions } from 'office-addin-dev-certs';
-
-import CopyWebpackPlugin from 'copy-webpack-plugin';
-import HtmlWebpackPlugin from 'html-webpack-plugin';
 const path = require('path');
+const dotenv = require('dotenv');
 const webpack = require('webpack');
 const { getHttpsServerOptions } = require('office-addin-dev-certs');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
@@ -30,12 +16,15 @@ const backendDev = 'http://0.0.0.0:8000/';
 const idProd = '46d2493d-60db-4522-b2aa-e6f2c08d2508';
 const idDev = '46d2493d-60db-4522-b2aa-e6f2c08d2507';
 
+// Load .env file
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+
 async function getHttpsOptions() {
 	const httpsOptions = await getHttpsServerOptions();
 	return {
 		ca: httpsOptions.ca,
 		key: httpsOptions.key,
-		cert: httpsOptions.cert
+		cert: httpsOptions.cert,
 	};
 }
 
@@ -55,7 +44,6 @@ function getPublicEnvVariables() {
 	return envVars;
 }
 
-export default async (env, options) => {
 module.exports = async (env = {}, options = {}) => {
 	const dev = options.mode === 'development';
 	const config = {
@@ -65,35 +53,32 @@ module.exports = async (env = {}, options = {}) => {
 			react: ['react', 'react-dom'],
 			taskpane: {
 				import: ['./src/index.tsx', './src/taskpane.html'],
-				dependOn: 'react'
+				dependOn: 'react',
 			},
 			logs: {
 				import: ['./src/logs/index.tsx', './src/logs/logs.html'],
-				dependOn: 'react'
+				dependOn: 'react',
 			},
 			popup: {
-				import: [
-					'./src/popup.tsx',
-					'./src/popup.html'
-				],
-				dependOn: 'react'
+				import: ['./src/popup.tsx', './src/popup.html'],
+				dependOn: 'react',
 			},
 			editor: {
 				import: ['./src/editor/index.tsx', './src/editor/editor.html'],
-				dependOn: 'react'
+				dependOn: 'react',
 			},
-			commands: './src/commands/commands.ts'
+			commands: './src/commands/commands.ts',
 		},
 		output: {
 			clean: true,
 			filename: '[name].[contenthash].js',
-			chunkFilename: '[name].[contenthash].js'
+			chunkFilename: '[name].[contenthash].js',
 		},
 		resolve: {
 			alias: {
-				'@': path.resolve(__dirname, 'src')
+				'@': path.resolve(__dirname, 'src'),
 			},
-			extensions: ['.ts', '.tsx', '.html', '.js', '.css']
+			extensions: ['.ts', '.tsx', '.html', '.js', '.css'],
 		},
 		module: {
 			rules: [
@@ -102,39 +87,39 @@ module.exports = async (env = {}, options = {}) => {
 					exclude: /node_modules/,
 					use: {
 						loader: 'babel-loader',
-					}
+					},
 				},
 				{
 					test: /\.tsx?$/,
 					exclude: /node_modules/,
-					use: ['ts-loader']
+					use: ['ts-loader'],
 				},
 				{
 					test: /\.html$/,
 					exclude: /node_modules/,
-					use: 'html-loader'
+					use: 'html-loader',
 				},
 				{
 					test: /\.(png|jpg|jpeg|ttf|woff|woff2|gif|ico)$/,
 					type: 'asset/resource',
 					generator: {
-						filename: 'assets/[name].[contenthash][ext][query]'
-					}
+						filename: 'assets/[name].[contenthash][ext][query]',
+					},
 				},
 				{
 					test: /\.css$/,
 					use: [
-					{
-						loader: MiniCssExtractPlugin.loader,
-						options: {
-						esModule: false,
+						{
+							loader: MiniCssExtractPlugin.loader,
+							options: {
+								esModule: false,
+							},
 						},
-					},
-					"css-loader",
-					"postcss-loader",
+						'css-loader',
+						'postcss-loader',
 					],
-				}
-			]
+				},
+			],
 		},
 		plugins: [
 			new MiniCssExtractPlugin({ filename: '[name].[contenthash].css' }),
@@ -142,11 +127,11 @@ module.exports = async (env = {}, options = {}) => {
 				patterns: [
 					{
 						from: 'assets/*',
-						to: 'assets/[name][ext][query]'
+						to: 'assets/[name][ext][query]',
 					},
 					{
 						from: 'src/static/*',
-						to: '[name][ext]'
+						to: '[name][ext]',
 					},
 					{
 						from: 'manifest.xml',
@@ -159,67 +144,67 @@ module.exports = async (env = {}, options = {}) => {
 									.replace(/-dev/g, '')
 									.replace(new RegExp(idDev, 'g'), idProd)
 									.replace(new RegExp(urlDev, 'g'), urlProd);
-						}
-					}
-				]
+						},
+					},
+				],
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'taskpane.html',
 				template: './src/taskpane.html',
-				chunks: ['polyfill', 'taskpane', 'react']
+				chunks: ['polyfill', 'taskpane', 'react'],
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'editor.html',
 				template: './src/editor/editor.html',
-				chunks: ['editor', 'react']
+				chunks: ['editor', 'react'],
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'logs.html',
 				template: './src/logs/logs.html',
-				chunks: ['logs', 'react']
+				chunks: ['logs', 'react'],
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'popup.html',
 				template: './src/popup.html',
-				chunks: ['polyfill', 'popup', 'react']
+				chunks: ['polyfill', 'popup', 'react'],
 			}),
 			new HtmlWebpackPlugin({
 				filename: 'commands.html',
 				template: './src/commands/commands.html',
-				chunks: ['polyfill', 'commands']
+				chunks: ['polyfill', 'commands'],
 			}),
 			new webpack.ProvidePlugin({
-				Promise: ['es6-promise', 'Promise']
+				Promise: ['es6-promise', 'Promise'],
 			}),
 			new webpack.DefinePlugin({
 				'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
 				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
 				'process.env.MODE': JSON.stringify(options.mode),
-				...getPublicEnvVariables()
+				...getPublicEnvVariables(),
 			}),
 		],
 		devServer: {
 			hot: true,
 			headers: {
-				'Access-Control-Allow-Origin': '*'
+				'Access-Control-Allow-Origin': '*',
 			},
 			server: {
 				type: 'https',
 				options:
 					env.WEBPACK_BUILD || options.https !== undefined
 						? options.https
-						: await getHttpsOptions()
+						: await getHttpsOptions(),
 			},
 			port: process.env.npm_package_config_dev_server_port || 3000,
 			proxy: [
 				{
 					context: ['/api'],
 					target: backendDev,
-					changeOrigin: true
-				}
+					changeOrigin: true,
+				},
 			],
-			compress: false
-		}
+			compress: false,
+		},
 	};
 
 	return config;
