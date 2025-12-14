@@ -20,7 +20,7 @@ MODEL_PARAMS = {
 }
 DEBUG_PROMPTS = False
 
-# Load .env from backend directory
+# Load .env s
 env_path = Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=env_path)
 openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
@@ -224,6 +224,7 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
     """
     # Update trace with metadata for filtering in Langfuse (v3 pattern)
     langfuse = get_client()
+
     langfuse.update_current_trace(
         name=f"suggestion_{prompt_name}",
         metadata={
@@ -236,8 +237,7 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
         },
         tags=[prompt_name, "suggestion"],
         session_id=prompt_name  # Groups all traces of same type together
-    )
-    
+       )
     # Special handling for complete_document: always use false context only, plain completion
     if prompt_name == "complete_document":
         full_prompt = get_full_prompt(prompt_name, doc_context, use_false_context=True)
