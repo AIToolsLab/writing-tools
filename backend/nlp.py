@@ -17,10 +17,13 @@ from openai import AsyncOpenAI
 
 MODEL_PARAMS = {
     "model": "gpt-4o",
+    # "model": "gpt-5-mini",
+    # "reasoning_effort": "minimal",
+    # "text_verbosity": "medium"
 }
 DEBUG_PROMPTS = False
 
-# Load .env s
+# Load .env 
 env_path = Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=env_path)
 openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
@@ -53,15 +56,20 @@ langfuse = Langfuse(
 
 
 async def warmup_nlp():
+    # Warm up the OpenAI client by making a dummy request
     dummy_client = openai.AsyncOpenAI(
         base_url="https://localhost:8000/v1", api_key="", timeout=0.01, max_retries=0
     )
+    # make a dummy request to make sure everything is imported
     try:
         await dummy_client.chat.completions.create(
             model="gpt-4o",
+            # model="gpt-5-mini",
+            # reasoning_effort="minimal",
             messages=[{"role": "user", "content": "Hello"}],
         )
     except openai.APIConnectionError:
+        # We expect this error because we're connecting to a non-existent server
         pass
 
 
@@ -141,6 +149,7 @@ def get_full_prompt(
 ) -> str:
     prompt = prompts[prompt_name]
 
+    # Choose which context to use based on the flag
     context_data = (
         doc_context.falseContextData if use_false_context else doc_context.contextData
     )
@@ -262,7 +271,7 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
         
         return GenerationResult(generation_type=prompt_name, result=result, extra_data={})
 
-    # If falseContextData is none/empty, use baseline behavior
+    # If falseContextData is None/empty, use baseline behavior
     if not doc_context.falseContextData:
         langfuse.update_current_trace(
             metadata={"execution_mode": "baseline"}
@@ -351,7 +360,7 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
     request_hash = hashlib.sha256(
         json.dumps(request_body, sort_keys=True).encode()
     ).hexdigest()
-    shuffle_seed = int(request_hash[:8], 16)
+    shuffle_seed = int(request_hash[:8], 16)  # Use first 8 hex digits as seed
 
     # Combine and shuffle suggestions
     all_suggestions = []
