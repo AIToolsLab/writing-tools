@@ -33,7 +33,11 @@ function getPublicEnvVariables() {
 	const envVars = {};
 	const prefix = 'VITE_PUBLIC_';
 
-	for (const [key, value] of Object.entries(process.env)) {
+	// Load .env file for build-time access
+	const envConfig = dotenv.config({ path: path.resolve(__dirname, '.env') });
+	const envVarsFromFile = envConfig.parsed || {};
+
+	for (const [key, value] of Object.entries({ ...process.env, ...envVarsFromFile })) {
 		if (key.startsWith(prefix)) {
 			// Make available as process.env.VITE_PUBLIC_* for browser code
 			envVars[`process.env.${key}`] = JSON.stringify(value);

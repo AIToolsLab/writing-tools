@@ -38,21 +38,6 @@ PORT = int(os.getenv("PORT") or 8000)
 # The log secret is stored in .env file for local development.
 LOG_SECRET = os.getenv("LOG_SECRET", "").strip()
 
-# Initialize PostHog
-POSTHOG_API_KEY = os.getenv("POSTHOG_API_KEY", "").strip()
-POSTHOG_HOST = os.getenv("POSTHOG_HOST", "https://us.i.posthog.com").strip()
-
-posthog_client = None
-if POSTHOG_API_KEY:
-    from posthog import Posthog
-    posthog_client = Posthog(
-        project_api_key=POSTHOG_API_KEY,
-        host=POSTHOG_HOST
-    )
-    logger.info(f"PostHog error tracking initialized with host: {POSTHOG_HOST}")
-else:
-    logger.warning("PostHog API key not found. Error tracking disabled.")
-
 
 def should_log(username: str) -> bool:
     """
