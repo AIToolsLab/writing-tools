@@ -10,7 +10,8 @@ from pydantic import BaseModel
 
 import openai
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
-from openai import AsyncOpenAI
+from posthog.ai.openai import AsyncOpenAI
+from posthog import Posthog
 
 MODEL_PARAMS = {
     "model": "gpt-4o",
@@ -22,12 +23,27 @@ DEBUG_PROMPTS = False
 
 load_dotenv()
 openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+posthog_api_key = (os.getenv("POSTHOG_API_KEY") or "").strip()
+posthog_host = (os.getenv("POSTHOG_HOST") or "https://us.i.posthog.com").strip()
 
 if openai_api_key == "":
     raise Exception("OPENAI_API_KEY is not set. Please set it in a .env file.")
 
+# Initialize PostHog for LLM analytics
+posthog_client = None
+if posthog_api_key:
+    posthog_client = Posthog(
+        project_api_key=posthog_api_key,
+        host=posthog_host
+    )
+    print(f"PostHog LLM analytics initialized with host: {posthog_host}")
+else:
+    print("Warning: POSTHOG_API_KEY not set. LLM analytics will be disabled.")
+
+# Use PostHog's OpenAI wrapper for LLM analytics
 openai_client = AsyncOpenAI(
     api_key=openai_api_key,
+    posthog_client=posthog_client  # Pass PostHog client for automatic LLM tracking
 )
 
 
@@ -158,7 +174,11 @@ class ListResponse(BaseModel):
 
 
 async def _get_suggestions_from_context(
-    prompt_name: str, doc_context: DocContext, use_false_context: bool = False
+    prompt_name: str,
+    doc_context: DocContext,
+    use_false_context: bool = False,
+    username: Optional[str] = None,
+    trace_id: Optional[str] = None
 ) -> List[str]:
     """Helper function to get suggestions from a specific context"""
     full_prompt = get_full_prompt(
@@ -167,6 +187,18 @@ async def _get_suggestions_from_context(
     if DEBUG_PROMPTS:
         context_type = "false" if use_false_context else "true"
         print(f"Prompt for {prompt_name} ({context_type} context):\n{full_prompt}\n")
+
+    # Build PostHog tracking kwargs
+    posthog_kwargs = {}
+    if posthog_client and username:
+        posthog_kwargs["posthog_distinct_id"] = username
+    if trace_id:
+        posthog_kwargs["posthog_trace_id"] = trace_id
+    if posthog_client:
+        posthog_kwargs["posthog_properties"] = {
+            "prompt_type": prompt_name,
+            "use_false_context": use_false_context
+        }
 
     completion = await openai_client.chat.completions.parse(
         **MODEL_PARAMS,
@@ -178,6 +210,7 @@ async def _get_suggestions_from_context(
             {"role": "user", "content": full_prompt},
         ],
         response_format=ListResponse,
+        **posthog_kwargs
     )
 
     suggestion_response = completion.choices[0].message.parsed
@@ -187,7 +220,23 @@ async def _get_suggestions_from_context(
     return suggestion_response.responses
 
 
-async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
+async def get_suggestion(
+    prompt_name: str,
+    doc_context: DocContext,
+    username: Optional[str] = None,
+    trace_id: Optional[str] = None
+) -> GenerationResult:
+    # Build PostHog tracking kwargs
+    posthog_kwargs = {}
+    if posthog_client and username:
+        posthog_kwargs["posthog_distinct_id"] = username
+    if trace_id:
+        posthog_kwargs["posthog_trace_id"] = trace_id
+    if posthog_client:
+        posthog_kwargs["posthog_properties"] = {
+            "prompt_type": prompt_name
+        }
+
     # Special handling for complete_document: always use false context only, plain completion
     if prompt_name == "complete_document":
         full_prompt = get_full_prompt(prompt_name, doc_context, use_false_context=True)
@@ -198,7 +247,8 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
             messages=[
                 {"role": "system", "content": "You are a helpful and insightful writing assistant."},
                 {"role": "user", "content": full_prompt}
-            ]
+            ],
+            **posthog_kwargs
         )
 
         result = completion.choices[0].message.content
@@ -221,6 +271,7 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
                 {"role": "user", "content": full_prompt},
             ],
             response_format=ListResponse,
+            **posthog_kwargs
         )
 
         suggestion_response = completion.choices[0].message.parsed
@@ -235,10 +286,10 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
 
     # Study mode: parallel calls with mixing
     true_suggestions_task = _get_suggestions_from_context(
-        prompt_name, doc_context, use_false_context=False
+        prompt_name, doc_context, use_false_context=False, username=username, trace_id=trace_id
     )
     false_suggestions_task = _get_suggestions_from_context(
-        prompt_name, doc_context, use_false_context=True
+        prompt_name, doc_context, use_false_context=True, username=username, trace_id=trace_id
     )
 
     # Execute both calls in parallel
@@ -333,12 +384,26 @@ def obscure(token):
 
 
 async def chat(
-    messages: Iterable[ChatCompletionMessageParam], temperature: float
+    messages: Iterable[ChatCompletionMessageParam],
+    temperature: float,
+    username: Optional[str] = None,
+    trace_id: Optional[str] = None
 ) -> str:
+    # Build PostHog tracking kwargs
+    posthog_kwargs = {}
+    if posthog_client and username:
+        posthog_kwargs["posthog_distinct_id"] = username
+    if trace_id:
+        posthog_kwargs["posthog_trace_id"] = trace_id
+    if posthog_client:
+        posthog_kwargs["posthog_properties"] = {"function": "chat"}
+
     response = await openai_client.chat.completions.create(
         **MODEL_PARAMS,
         messages=messages,
         max_tokens=1024,
+        temperature=temperature,
+        **posthog_kwargs
     )
 
     result = response.choices[0].message.content
@@ -347,16 +412,37 @@ async def chat(
     return result or ""
 
 
-def chat_stream(messages: Iterable[ChatCompletionMessageParam], temperature: float):
+def chat_stream(
+    messages: Iterable[ChatCompletionMessageParam],
+    temperature: float,
+    username: Optional[str] = None,
+    trace_id: Optional[str] = None
+):
+    # Build PostHog tracking kwargs
+    posthog_kwargs = {}
+    if posthog_client and username:
+        posthog_kwargs["posthog_distinct_id"] = username
+    if trace_id:
+        posthog_kwargs["posthog_trace_id"] = trace_id
+    if posthog_client:
+        posthog_kwargs["posthog_properties"] = {"function": "chat_stream"}
+
     return openai_client.chat.completions.create(
         **MODEL_PARAMS,
         messages=messages,
         max_tokens=1024,
+        temperature=temperature,
         stream=True,
+        **posthog_kwargs
     )
 
 
-async def reflection(userDoc: str, paragraph: str) -> GenerationResult:
+async def reflection(
+    userDoc: str,
+    paragraph: str,
+    username: Optional[str] = None,
+    trace_id: Optional[str] = None
+) -> GenerationResult:
     temperature = 1.0
 
     questions = await chat(
@@ -365,6 +451,8 @@ async def reflection(userDoc: str, paragraph: str) -> GenerationResult:
             {"role": "user", "content": paragraph},
         ],
         temperature=temperature,
+        username=username,
+        trace_id=trace_id
     )
 
     return GenerationResult(
