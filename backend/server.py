@@ -10,10 +10,9 @@ from pathlib import Path
 from typing import Annotated, Any, Dict, List, Literal
 
 import nlp
-import posthog
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Body, FastAPI, Request
+from fastapi import BackgroundTasks, Body, FastAPI
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -153,49 +152,9 @@ app.add_middleware(
 )
 
 
-# PostHog Error Tracking Middleware
-@app.middleware("http")
-async def posthog_error_tracking_middleware(request: Request, call_next):
-    try:
-        response = await call_next(request)
-        return response
-    except Exception as exc:
-        # Capture exception to PostHog
-        if posthog_client:
-            posthog_client.capture(
-                distinct_id="backend-server",
-                event="$exception",
-                properties={
-                    "exception_type": type(exc).__name__,
-                    "exception_message": str(exc),
-                    "path": request.url.path,
-                    "method": request.method,
-                    "$exception_type": type(exc).__name__,
-                    "$exception_message": str(exc),
-                }
-            )
-            logger.error(f"Exception captured by PostHog: {exc}")
-        # Re-raise the exception so FastAPI can handle it normally
-        raise
-
-
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request, exc):
     print(f"The client sent invalid data!: {exc}")
-    # Also capture validation errors to PostHog
-    if posthog_client:
-        posthog_client.capture(
-            distinct_id="backend-server",
-            event="$exception",
-            properties={
-                "exception_type": "RequestValidationError",
-                "exception_message": str(exc),
-                "path": request.url.path,
-                "method": request.method,
-                "$exception_type": "RequestValidationError",
-                "$exception_message": str(exc),
-            }
-        )
     return await request_validation_exception_handler(request, exc)
 
 
@@ -210,8 +169,7 @@ async def get_suggestion(payload: SuggestionRequestWithDocContext, background_ta
     allowed_gtypes = list(nlp.prompts.keys())
     if payload.gtype not in allowed_gtypes:
         raise ValueError(f"Invalid generation type: {payload.gtype}")
-    # Pass username for PostHog LLM analytics tracking
-    result = await nlp.get_suggestion(payload.gtype, payload.doc_context, username=payload.username)
+    result = await nlp.get_suggestion(payload.gtype, payload.doc_context)
     end_time = datetime.now()
 
     log_entry = RequestLog(
@@ -237,8 +195,7 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
     should_log_doctext = should_log(payload.username)
 
     start_time = datetime.now()
-    # Pass username for PostHog LLM analytics tracking
-    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph, username=payload.username)
+    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph)
     end_time = datetime.now()
 
     background_tasks.add_task(make_log, RequestLog(
@@ -259,11 +216,9 @@ async def chat(payload: ChatRequestPayload, background_tasks: BackgroundTasks):
     should_log_doctext = should_log(payload.username)
 
     start_time = datetime.now()
-    # Pass username for PostHog LLM analytics tracking
     response = await nlp.chat_stream(
         messages=payload.messages,
         temperature=0.7,
-        username=payload.username,
     )
 
     messages_for_log = json.dumps(payload.messages if should_log_doctext else [{
@@ -325,16 +280,6 @@ class PingResponse(BaseModel):
 @app.get("/api/ping")
 async def ping() -> PingResponse:
     return PingResponse(timestamp=datetime.now())
-
-
-# Test endpoint for PostHog error tracking
-@app.get("/api/test-error")
-async def test_error():
-    """
-    Test endpoint that throws an error to verify PostHog error tracking.
-    This should only be used for testing purposes.
-    """
-    raise Exception("PostHog Backend Test Error - This is intentional for testing error tracking!")
 
 
 # Log viewer endpoint
