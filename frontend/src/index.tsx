@@ -35,12 +35,11 @@ Office.onReady((info) => {
 	render(App);
 });
 
-// Webpack HMR - no proper types available for webpack hot module replacement API
-if ((module as any).hot)
-	// eslint-disable-next-line @typescript-eslint/no-unsafe-call
-	(module as any).hot.accept('./pages/app', () => {
-		// eslint-disable-next-line @typescript-eslint/no-require-imports
-		const NextApp = require('./pages/app').default as typeof App;
-
-		render(NextApp);
+// Vite HMR
+if (import.meta.hot) {
+	import.meta.hot.accept('./pages/app', (newModule) => {
+		if (newModule) {
+			render(newModule.default);
+		}
 	});
+}
