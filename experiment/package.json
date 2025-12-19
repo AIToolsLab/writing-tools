@@ -3,8 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "prebuild": "echo \"NEXT_PUBLIC_GIT_COMMIT=$(git rev-parse HEAD)\" > .env.local",
-    "predev": "echo \"NEXT_PUBLIC_GIT_COMMIT=$(git rev-parse HEAD)\" > .env.local",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",

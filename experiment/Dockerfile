@@ -24,9 +24,6 @@ ARG GIT_COMMIT=unknown
 # Set environment variable for build
 ENV NEXT_PUBLIC_GIT_COMMIT=${GIT_COMMIT}
 
-# Create .env.local with git commit (mimics prebuild script)
-RUN echo "NEXT_PUBLIC_GIT_COMMIT=${GIT_COMMIT}" > .env.local
-
 # Build the Next.js application
 RUN npm run build
 
