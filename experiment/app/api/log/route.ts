@@ -1,8 +1,8 @@
-import { mkdir, appendFile } from 'fs/promises';
-import { join } from 'path';
-import { LogEntry } from '@/types/study';
+import type { LogEntry } from '@/types/study';
+import { appendFile, mkdir, realpath } from 'node:fs/promises';
+import { resolve } from 'node:path';
 
-const LOGS_DIR = join(process.cwd(), 'experiment', 'logs');
+const LOGS_DIR = resolve(process.cwd(), 'experiment', 'logs');
 
 /**
  * Validate username format
@@ -18,9 +18,10 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const entry = body as LogEntry;
+    const username = entry.username;
 
     // Validate username format
-    if (!isValidUsername(entry.username)) {
+    if (!isValidUsername(username)) {
       return Response.json(
         { error: 'Invalid username format' },
         { status: 400 }
@@ -31,12 +32,19 @@ export async function POST(request: Request) {
     try {
       await mkdir(LOGS_DIR, { recursive: true });
     } catch (error) {
-      // Directory might already exist
+      // Should not happen due to recursive: true, but log just in case
       console.error('Error creating logs directory:', error);
     }
 
+    const logFilePath = await realpath(resolve(LOGS_DIR, `${username}.jsonl`));
+    if (!logFilePath.startsWith(LOGS_DIR)) {
+      return Response.json(
+        { error: 'Invalid log file path' },
+        { status: 400 }
+      );
+    }
+
     // Append entry to participant's log file as JSONL
-    const logFilePath = join(LOGS_DIR, `${entry.username}.jsonl`);
     const logLine = JSON.stringify(entry) + '\n';
 
     await appendFile(logFilePath, logLine, 'utf-8');
@@ -48,11 +56,9 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error('Logging error:', error);
 
-    // Don't fail the request - log anyway with what we have
-    // Type checking is for development; don't enforce schema in production
     return Response.json(
-      { success: true, message: 'Log entry processed' },
-      { status: 200 }
+      { success: false, message: 'Internal error logging' },
+      { status: 500 }
     );
   }
 }
