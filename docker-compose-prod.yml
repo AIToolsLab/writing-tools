@@ -14,6 +14,13 @@ services:
     volumes:
       - /opt/thoughtful/logs:/app/backend/logs
 
+  experiment:
+    ports:
+      - "19572:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+
 networks:
   default:
     driver: bridge

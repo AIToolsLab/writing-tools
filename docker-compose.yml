@@ -17,6 +17,16 @@ services:
       - LOG_SECRET=${LOG_SECRET}
     restart: unless-stopped
 
+  experiment:
+    build:
+      context: ./experiment
+      dockerfile: Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    restart: unless-stopped
+
 networks:
   default:
     driver: bridge
