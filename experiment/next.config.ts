@@ -22,8 +22,8 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
 
-  // Enable standalone output for Docker deployment
-  output: 'standalone',
+  // Enable standalone output for Docker deployment only
+  ...(process.env.DOCKER_BUILD === 'true' && { output: 'standalone' }),
 
   // Inline the commit hash so it is available at runtime without writing .env.local
   env: {

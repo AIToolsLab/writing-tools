@@ -21,8 +21,9 @@ COPY . .
 # Build argument for git commit hash
 ARG GIT_COMMIT=unknown
 
-# Set environment variable for build
+# Set environment variables for build
 ENV NEXT_PUBLIC_GIT_COMMIT=${GIT_COMMIT}
+ENV DOCKER_BUILD=true
 
 # Build the Next.js application
 RUN npm run build
