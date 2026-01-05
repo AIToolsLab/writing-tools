@@ -28,16 +28,15 @@ export async function POST(request: Request) {
       );
     }
 
-    // Create logs directory if it doesn't exist
-    try {
-      await mkdir(LOGS_DIR, { recursive: true });
-    } catch (error) {
-      // Should not happen due to recursive: true, but log just in case
-      console.error('Error creating logs directory:', error);
-    }
+    // Create logs directory if it doesn't exist and get its real path
+    await mkdir(LOGS_DIR, { recursive: true });
+    const realLogsDir = await realpath(LOGS_DIR);
 
-    const logFilePath = await realpath(resolve(LOGS_DIR, `${username}.jsonl`));
-    if (!logFilePath.startsWith(LOGS_DIR)) {
+    // Construct log file path using validated username
+    const logFilePath = resolve(realLogsDir, `${username}.jsonl`);
+
+    // Verify the resolved path is within the logs directory (prevent directory traversal)
+    if (!logFilePath.startsWith(`${realLogsDir}/`)) {
       return Response.json(
         { error: 'Invalid log file path' },
         { status: 400 }
