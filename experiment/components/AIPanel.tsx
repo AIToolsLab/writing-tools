@@ -264,7 +264,7 @@ export default function AIPanel({
   }
 
   return (
-    <div className="h-full bg-white border-l border-gray-300 p-4 text-sm text-gray-700 flex flex-col overflow-hidden">
+    <div className="h-full p-4 text-sm text-gray-700 flex flex-col overflow-hidden">
       <h3 className="text-sm font-bold text-gray-900 mb-3">AI Writing Assistant</h3>
 
       {!isStudyMode && (
