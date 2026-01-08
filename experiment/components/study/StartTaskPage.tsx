@@ -32,40 +32,43 @@ export default function StartTaskPage() {
         <div>
           <h3 className="font-semibold mb-2">Scenario:</h3>
           <p>
-            You have received an email from a colleague asking for advice on a
-            project. Please write a thoughtful email response to address their
-            questions and provide helpful feedback.
+            You work as an event coordinator. Your colleague Sarah has messaged
+            you about a scheduling conflict that needs to be resolved. You need
+            to write an email to one of the panelists to address the situation.
+          </p>
+          <p className="mt-2">
+            Sarah is available via chat to answer questions about the details of the situation.
           </p>
         </div>
 
         <div>
           <h3 className="font-semibold mb-2">What to do:</h3>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Read the context carefully</li>
+            <li>Review Sarah&apos;s messages. Her initial message will not give you all the details you need, so <b>you will need to ask follow-up questions</b>.</li>
             <li>
               Compose your email response in the text area provided
             </li>
             <li>
-              Depending on your condition, you may see AI-generated suggestions
+              Depending on your condition, you may see AI-generated suggestions that may or may not be helpful. Feel free to use helpful suggestions, edit them, or ignore them entirely.
             </li>
             <li>
-              Use the suggestions if helpful, or write your own content as you
-              prefer
-            </li>
-            <li>
-              When you're satisfied with your response, click the "Send" button
+              When you&apos;re satisfied with your response, click the
+              &ldquo;Send&rdquo; button
             </li>
           </ol>
         </div>
 
         <div>
-          <h3 className="font-semibold mb-2">Tips:</h3>
+          <h3 className="font-semibold mb-2">Keep in mind:</h3>
           <ul className="list-disc list-inside space-y-1">
-            <li>There's no "perfect" response - write naturally</li>
+            <li>
+              You&apos;re representing the company in this communication.
+              Consider how your message will reflect on the team.
+            </li>
+            <li>There&apos;s no &ldquo;perfect&rdquo; response - write naturally</li>
             <li>Take as much time as you need</li>
             <li>
-              If you encounter any issues, please note them in the final
-              survey
+              If you encounter any issues, please note them in the final survey
             </li>
           </ul>
         </div>

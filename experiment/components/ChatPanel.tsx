@@ -33,12 +33,19 @@ function parseMessageContent(content: string): string[] {
 }
 
 const INITIAL_MESSAGES = [
-  "Hey, remember that panel we're coordinating with Jaden tomorrow?",
-  "Turns out we double-booked the room! 😬 Sophia has already announced to her fans that her panel will be in room 12 at 1pm. And she's the more famous influencer, so we can't back out on her.",
-  "Need you to send him an email sorting this out."
+  "Hey, remember that panel we scheduled with Jaden tomorrow?",
+  "Turns out we double-booked the room! 😬 Sophia already posted that her panel is in room 12 at 1pm. She's more famous, we can't back out on her.",
+  "Need you to send him an email sorting this out. Keep him happy, we can't afford to lose a client!"
 ];
 
-export default function ChatPanel() {
+const FOLLOWUP_MESSAGE = "Let me know if you have any questions!";
+const FOLLOWUP_DELAY_MS = 75000; // 75 seconds (between 60-90s)
+
+interface ChatPanelProps {
+  onNewMessage?: () => void;
+}
+
+export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
   const studyParams = useAtomValue(studyParamsAtom);
   const username = studyParams.username || 'demo';
 
@@ -50,7 +57,7 @@ export default function ChatPanel() {
 
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [showNotification, setShowNotification] = useState(false);
+
   const [visibleMessagePartCount, setVisibleMessagePartCount] = useState(0);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   const [deliveredMessageIds, setDeliveredMessageIds] = useState<Set<string>>(new Set());
@@ -60,6 +67,8 @@ export default function ChatPanel() {
   const lastLoggedMessageIdRef = useRef<string>('');
   const loggedMessagePartsRef = useRef<Set<string>>(new Set());
   const hasInitializedRef = useRef(false);
+  const followupSentRef = useRef(false);
+  const followupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isLoading = status === 'submitted' || status === 'streaming';
 
@@ -118,6 +127,50 @@ export default function ChatPanel() {
     }
   }, [messages.length, setMessages]);
 
+  // Proactive follow-up timer: if user hasn't sent a message after FOLLOWUP_DELAY_MS, Sarah sends a nudge
+  useEffect(() => {
+    // Check if user has sent any real messages (beyond the initial empty one)
+    const userHasSentMessage = messages.some(
+      (m) => m.role === 'user' && m.id !== 'initial-user-message' && getMessageText(m).trim() !== ''
+    );
+
+    // If user has engaged or follow-up already sent, clear any pending timer
+    if (userHasSentMessage || followupSentRef.current) {
+      if (followupTimerRef.current) {
+        clearTimeout(followupTimerRef.current);
+        followupTimerRef.current = null;
+      }
+      return;
+    }
+
+    // Start the follow-up timer if not already running
+    if (!followupTimerRef.current && hasInitializedRef.current) {
+      followupTimerRef.current = setTimeout(() => {
+        if (!followupSentRef.current) {
+          followupSentRef.current = true;
+          // Add follow-up message from Sarah
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: 'followup-message',
+              role: 'assistant',
+              parts: [{ type: 'text', text: JSON.stringify([FOLLOWUP_MESSAGE]) }],
+            },
+          ]);
+          // Reset visible count so it goes through the typing animation
+          setVisibleMessagePartCount(0);
+        }
+      }, FOLLOWUP_DELAY_MS);
+    }
+
+    return () => {
+      if (followupTimerRef.current) {
+        clearTimeout(followupTimerRef.current);
+        followupTimerRef.current = null;
+      }
+    };
+  }, [messages, setMessages]);
+
   // Sequence message display with delays and typing indicators
   useEffect(() => {
     if (messages.length === 0) return;
@@ -134,8 +187,8 @@ export default function ChatPanel() {
 
     // Busy/read delay before typing indicator shows up
     const thinkingDelay = calculateThinkingDelay(parsedMessages[0].length);
-    const busyLag = 1200; // additional lag to feel realistically busy
-    const readingDelay = thinkingDelay + busyLag;
+    const busyLag = messages.length === 2 ? 0 : 1200; // Skip lag for first message (length 2 because of initial empty user message + assistant response)
+    const readingDelay = messages.length === 2 ? 0 : thinkingDelay + busyLag;
 
     const firstTypingDuration = calculateTypingDuration(parsedMessages[0].length);
 
@@ -302,17 +355,20 @@ export default function ChatPanel() {
     setVisibleMessagePartCount(0);
   };
 
+  const notifyNewMessage = useEffectEvent(() => {
+    if (onNewMessage) {
+      onNewMessage();
+    }
+  });
+
+  /* Removed internal notification state as requested */
+
   // Show notification when a new assistant message part appears
   useEffect(() => {
     if (messages.length === 0) return;
     const lastMessage = messages[messages.length - 1];
     if (lastMessage && lastMessage.role === 'assistant' && visibleMessagePartCount > 0) {
-      const showTimer = setTimeout(() => setShowNotification(true), 0);
-      const hideTimer = setTimeout(() => setShowNotification(false), 5000);
-      return () => {
-        clearTimeout(showTimer);
-        clearTimeout(hideTimer);
-      };
+      notifyNewMessage();
     }
   }, [messages, visibleMessagePartCount]);
 
@@ -325,7 +381,7 @@ export default function ChatPanel() {
   }, []);
 
   return (
-    <div className="h-full bg-white border border-gray-300 rounded flex flex-col overflow-hidden shadow-sm">
+    <div className="h-full flex flex-col overflow-hidden">
       <div className="flex items-center gap-2.5 bg-gray-50 border-b border-gray-300 px-3 py-2.5">
         <div className="w-2 h-2 rounded-full bg-yellow-500" />
         <div className="flex-1">
@@ -333,11 +389,7 @@ export default function ChatPanel() {
           <div className="text-xs text-gray-600">Events Coordinator</div>
         </div>
         <div className="text-xs font-medium text-gray-700">Busy</div>
-        {showNotification && (
-          <span className="bg-red-500 text-white rounded-full px-1.5 py-0.5 text-xs font-bold">
-            1
-          </span>
-        )}
+
       </div>
 
       <div className="flex-1 p-2.5 overflow-y-auto bg-white">
