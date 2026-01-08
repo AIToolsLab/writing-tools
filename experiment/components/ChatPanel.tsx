@@ -33,9 +33,9 @@ function parseMessageContent(content: string): string[] {
 }
 
 const INITIAL_MESSAGES = [
-  "Hey, remember that panel we're coordinating with Jaden tomorrow?",
-  "Turns out we double-booked the room! 😬 Sophia has already announced to her fans that her panel will be in room 12 at 1pm. And she's the more famous influencer, so we can't back out on her.",
-  "Need you to send him an email sorting this out."
+  "Hey, remember that panel we scheduled with Jaden tomorrow?",
+  "Turns out we double-booked the room! 😬 Sophia already posted that her panel is in room 12 at 1pm. She's more famous, we can't back out on her.",
+  "Need you to send him an email sorting this out. Keep him happy, we can't afford to lose a client!"
 ];
 
 interface ChatPanelProps {
