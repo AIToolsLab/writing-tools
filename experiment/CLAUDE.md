@@ -60,8 +60,9 @@ Participants play an event coordinator who must write an email to a panelist (Ja
 - `app/api/writing-support/route.ts` - AI writing suggestions
 - `app/api/log/route.ts` - Event logging endpoint
 
-### Standalone Demo
-- `app/page.tsx` - Standalone demo page with collapsible chat (auto-expands on load)
+### Pages (IMPORTANT: Don't confuse these!)
+- `app/page.tsx` - **Standalone demo** for AI writing assistance only (NO chat, NOT used in study)
+- `components/study/TaskPage.tsx` - **Actual study task page** with collapsible chat + AI panel
 
 ### Timing for the Simulated Colleague
 
@@ -120,7 +121,8 @@ npm test            # Run tests
 ## Key Files
 
 - **API Routes**: `app/api/` (chat, writing-support endpoints)
-- **Main App**: `app/page.tsx`
+- **Demo Page**: `app/page.tsx` (standalone AI demo, NO chat)
+- **Study Task Page**: `components/study/TaskPage.tsx` (the actual study with chat)
 - **Components**: `components/` folder
 
 See `README.md` for more details on features and API documentation.
