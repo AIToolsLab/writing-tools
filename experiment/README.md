@@ -1,6 +1,6 @@
 # Writing Task Prototype
 
-A Next.js application that simulates a writing task with AI-powered chat support. This app was built based on a prototype HTML file and uses Vercel's AI SDK for LLM integration.
+A Next.js application that simulates a communicative writing task with AI-powered chat support.
 
 ## Features
 
@@ -15,7 +15,6 @@ A Next.js application that simulates a writing task with AI-powered chat support
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **AI Integration**: Vercel AI SDK with OpenAI
-- **Runtime**: Edge runtime for API routes
 
 ## Getting Started
 
@@ -29,7 +28,7 @@ A Next.js application that simulates a writing task with AI-powered chat support
 1. Navigate to the project directory:
 
 ```bash
-cd writing-task-app
+cd experiment
 ```
 
 2. Install dependencies:
@@ -121,9 +120,5 @@ AI writing assistance endpoint.
 
 ## Development
 
-- The chat interface uses the `useChat` hook from `@ai-sdk/react` for real-time streaming
-- Messages use the UIMessage format with `parts` array for flexible content
-- The `DefaultChatTransport` handles communication with the `/api/chat` endpoint
+- The chat interface uses the `useChat` hook from `@ai-sdk/react`
 - Messages are displayed with typing indicators and read receipts
-- The second message from Sarah appears automatically after 8 seconds
-- All API routes use Edge runtime for optimal performance
