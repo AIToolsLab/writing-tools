@@ -20,6 +20,8 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
+    volumes:
+      - /opt/thoughtful/experiment-logs:/app/experiment/logs
 
 networks:
   default:
