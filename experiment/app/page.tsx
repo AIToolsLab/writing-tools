@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import WritingArea from '@/components/WritingArea';
 import ChatPanel from '@/components/ChatPanel';
 import AIPanel from '@/components/AIPanel';
@@ -28,6 +28,16 @@ export default function Home() {
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   const [hasUnread, setHasUnread] = useState(false);
+
+  // Auto-expand chat after a short delay so participants see Sarah's messages
+  useEffect(() => {
+    const delayTime = 1000; // 1 second
+    const timer = setTimeout(() => {
+      setIsChatOpen(true);
+    }, delayTime);
+
+    return () => clearTimeout(timer);
+  }, []);
 
   return (
     <div className="flex h-screen gap-5 p-10 bg-gray-100 overflow-hidden relative">
