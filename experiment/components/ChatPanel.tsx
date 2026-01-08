@@ -38,6 +38,9 @@ const INITIAL_MESSAGES = [
   "Need you to send him an email sorting this out. Keep him happy, we can't afford to lose a client!"
 ];
 
+const FOLLOWUP_MESSAGE = "Let me know if you have any questions!";
+const FOLLOWUP_DELAY_MS = 75000; // 75 seconds (between 60-90s)
+
 interface ChatPanelProps {
   onNewMessage?: () => void;
 }
@@ -64,6 +67,8 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
   const lastLoggedMessageIdRef = useRef<string>('');
   const loggedMessagePartsRef = useRef<Set<string>>(new Set());
   const hasInitializedRef = useRef(false);
+  const followupSentRef = useRef(false);
+  const followupTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const isLoading = status === 'submitted' || status === 'streaming';
 
@@ -121,6 +126,50 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
       ]);
     }
   }, [messages.length, setMessages]);
+
+  // Proactive follow-up timer: if user hasn't sent a message after FOLLOWUP_DELAY_MS, Sarah sends a nudge
+  useEffect(() => {
+    // Check if user has sent any real messages (beyond the initial empty one)
+    const userHasSentMessage = messages.some(
+      (m) => m.role === 'user' && m.id !== 'initial-user-message' && getMessageText(m).trim() !== ''
+    );
+
+    // If user has engaged or follow-up already sent, clear any pending timer
+    if (userHasSentMessage || followupSentRef.current) {
+      if (followupTimerRef.current) {
+        clearTimeout(followupTimerRef.current);
+        followupTimerRef.current = null;
+      }
+      return;
+    }
+
+    // Start the follow-up timer if not already running
+    if (!followupTimerRef.current && hasInitializedRef.current) {
+      followupTimerRef.current = setTimeout(() => {
+        if (!followupSentRef.current) {
+          followupSentRef.current = true;
+          // Add follow-up message from Sarah
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: 'followup-message',
+              role: 'assistant',
+              parts: [{ type: 'text', text: JSON.stringify([FOLLOWUP_MESSAGE]) }],
+            },
+          ]);
+          // Reset visible count so it goes through the typing animation
+          setVisibleMessagePartCount(0);
+        }
+      }, FOLLOWUP_DELAY_MS);
+    }
+
+    return () => {
+      if (followupTimerRef.current) {
+        clearTimeout(followupTimerRef.current);
+        followupTimerRef.current = null;
+      }
+    };
+  }, [messages, setMessages]);
 
   // Sequence message display with delays and typing indicators
   useEffect(() => {
