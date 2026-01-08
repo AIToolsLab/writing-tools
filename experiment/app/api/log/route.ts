@@ -2,7 +2,7 @@ import type { LogEntry } from '@/types/study';
 import { appendFile, mkdir, realpath } from 'node:fs/promises';
 import { resolve } from 'node:path';
 
-const LOGS_DIR = resolve(process.cwd(), 'experiment', 'logs');
+const LOGS_DIR = resolve(process.cwd(), 'logs');
 
 /**
  * Validate username format
