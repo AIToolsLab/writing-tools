@@ -20,8 +20,6 @@ COPY . .
 
 # Build argument for git commit hash
 ARG GIT_COMMIT=unknown
-# Build argument for group ID (to match host permissions)
-ARG EXP_LOGS_GID=1001
 
 # Set environment variables for build
 ENV NEXT_PUBLIC_GIT_COMMIT=${GIT_COMMIT}
@@ -37,6 +35,9 @@ WORKDIR /app
 
 # Set production environment
 ENV NODE_ENV=production
+
+# Build argument for group ID (to match host permissions)
+ARG EXP_LOGS_GID=1001
 
 # Create non-root user for security
 RUN addgroup --system --gid ${EXP_LOGS_GID} nodejs && \
