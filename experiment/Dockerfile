@@ -40,9 +40,8 @@ ENV NODE_ENV=production
 ARG EXP_LOGS_GID=1001
 
 # Create non-root user for security
-RUN addgroup --system --gid ${EXP_LOGS_GID} appgroup && \
-    adduser --system --uid 1001 nextjs \
-    adduser nextjs appgroup
+RUN addgroup --system --gid ${EXP_LOGS_GID} appgroup \
+  && adduser --system --uid 1001 --ingroup appgroup nextjs
 
 # Copy standalone output from builder
 COPY --from=builder /app/.next/standalone ./
