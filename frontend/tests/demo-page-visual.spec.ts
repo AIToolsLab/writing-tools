@@ -1,13 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { setupMockBackend } from './mockBackend';
 
 test('demo page - visual regression', async ({ page }) => {
-  // Intercept API calls and return mocked responses
-  await page.route('/api/**', async route => {
-    await route.fulfill({
-      status: 200,
-      body: JSON.stringify({ message: 'mocked' })
-    });
-  });
+  // Setup mock backend with actual API structure
+  await setupMockBackend(page);
 
   await page.goto('/');
 

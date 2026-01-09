@@ -1,0 +1,50 @@
+# dependencies
+node_modules
+npm-debug.log*
+.pnp
+.pnp.*
+
+# testing
+coverage
+__tests__
+*.test.ts
+*.test.tsx
+vitest.config.ts
+vitest.setup.ts
+
+# next.js
+.next
+out
+
+# production
+build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+*.log
+
+# env files (will be provided by compose)
+.env*
+!.env.example
+
+# git
+.git
+.gitignore
+
+# IDE
+.vscode
+.idea
+
+# documentation
+README.md
+CLAUDE.md
+backlog
+
+# experiment-specific
+prototype.html
+experiment
+logs
+*.jsonl
