@@ -30,6 +30,7 @@ RUN npm run build
 
 # Stage 3: Production runtime
 FROM node:24-slim AS runner
+# Note: unlike the backend Dockerfile, this container doesn't set WORKDIR to a subfolder of /app
 WORKDIR /app
 
 # Set production environment
