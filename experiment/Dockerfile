@@ -20,6 +20,8 @@ COPY . .
 
 # Build argument for git commit hash
 ARG GIT_COMMIT=unknown
+# Build argument for group ID (to match host permissions)
+ARG EXP_LOGS_GID=1001
 
 # Set environment variables for build
 ENV NEXT_PUBLIC_GIT_COMMIT=${GIT_COMMIT}
@@ -37,7 +39,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 # Create non-root user for security
-RUN addgroup --system --gid 1001 nodejs && \
+RUN addgroup --system --gid ${EXP_LOGS_GID} nodejs && \
     adduser --system --uid 1001 nextjs
 
 # Copy standalone output from builder
