@@ -8,7 +8,7 @@ import AIPanel from '@/components/AIPanel';
 import ChatPanel from '@/components/ChatPanel';
 import WritingArea from '@/components/WritingArea';
 import { log } from '@/lib/logging';
-import { letterToCondition } from '@/lib/studyConfig';
+import { letterToCondition, getScenario } from '@/lib/studyConfig';
 
 export default function TaskPage() {
   const searchParams = useSearchParams();
@@ -16,12 +16,14 @@ export default function TaskPage() {
   const username = searchParams.get('username') || '';
   const conditionCode = (searchParams.get('condition') || 'n') as keyof typeof letterToCondition; // TODO: don't default!
   const condition = letterToCondition[conditionCode];
+  const scenarioId = searchParams.get('scenario') || undefined;
+  const scenario = getScenario(scenarioId);
 
   // Collapsible chat state
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [hasUnread, setHasUnread] = useState(false);
 
-  // Auto-expand chat after a short delay so participants see Sarah's messages
+  // Auto-expand chat after a short delay so participants see the colleague's messages
   useEffect(() => {
     const delayTime = 1000; // 1 second
     const timer = setTimeout(() => {
@@ -88,7 +90,7 @@ export default function TaskPage() {
               {isChatOpen ? (
                 <>
                   <div className="flex items-center gap-2 font-semibold text-gray-700 text-sm">
-                    <span>Chat with Sarah</span>
+                    <span>Chat with {scenario.colleague.firstName}</span>
                   </div>
                   <button
                     type="button"
@@ -109,10 +111,10 @@ export default function TaskPage() {
                     setIsChatOpen(true);
                   }}
                   className="flex-1 flex items-center justify-between hover:bg-gray-50 -mx-4 px-4 h-full cursor-pointer rounded-t-lg"
-                  aria-label="Open chat with Sarah"
+                  aria-label={`Open chat with ${scenario.colleague.firstName}`}
                 >
                   <div className="flex items-center gap-2 font-semibold text-gray-700 text-sm">
-                    <span>Chat with Sarah</span>
+                    <span>Chat with {scenario.colleague.firstName}</span>
                     {hasUnread && (
                       <span className="flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm">
                         1

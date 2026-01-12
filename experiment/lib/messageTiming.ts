@@ -1,8 +1,8 @@
 /**
  * Calculate realistic timing for message delays based on message length.
  *
- * Thinking/Reading: Sarah takes time proportional to what the user wrote (40-80 chars/sec)
- * Typing: Sarah types her response proportional to what she's typing (40-80 chars/sec)
+ * Thinking/Reading: colleague takes time proportional to what the user wrote (40-80 chars/sec)
+ * Typing: colleague types her response proportional to what she's typing (40-80 chars/sec)
  * Both use ±300ms variation
  */
 

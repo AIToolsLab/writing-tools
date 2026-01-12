@@ -125,7 +125,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
     }
   }, [messages.length, setMessages, scenario.chat.initialMessages]);
 
-  // Proactive follow-up timer: if user hasn't sent a message after FOLLOWUP_DELAY_MS, Sarah sends a nudge
+  // Proactive follow-up timer: if user hasn't sent a message after FOLLOWUP_DELAY_MS, colleague sends a nudge
   useEffect(() => {
     // Check if user has sent any real messages (beyond the initial empty one)
     const userHasSentMessage = messages.some(
