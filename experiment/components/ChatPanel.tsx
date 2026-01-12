@@ -7,6 +7,7 @@ import { useAtomValue } from 'jotai';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import { log } from '@/lib/logging';
 import { calculateTypingDuration, calculateInterMessageDelay, calculateThinkingDelay } from '@/lib/messageTiming';
+import { getScenario } from '@/lib/studyConfig';
 
 // Utility function to extract text from message parts
 function getMessageText(message: { parts: Array<{ type: string; text?: string }> }): string {
@@ -32,13 +33,6 @@ function parseMessageContent(content: string): string[] {
   }
 }
 
-const INITIAL_MESSAGES = [
-  "Hey, remember that panel we scheduled with Jaden tomorrow?",
-  "Turns out we double-booked the room! 😬 Sophia already posted that her panel is in room 12 at 1pm. She's more famous, we can't back out on her.",
-  "Need you to send him an email sorting this out. Keep him happy, we can't afford to lose a client!"
-];
-
-const FOLLOWUP_MESSAGE = "Let me know if you have any questions!";
 const FOLLOWUP_DELAY_MS = 75000; // 75 seconds (between 60-90s)
 
 interface ChatPanelProps {
@@ -48,10 +42,14 @@ interface ChatPanelProps {
 export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
   const studyParams = useAtomValue(studyParamsAtom);
   const username = studyParams.username || 'demo';
+  const scenario = getScenario(studyParams.scenario);
 
   const { messages, sendMessage, status, setMessages } = useChat({
     transport: new DefaultChatTransport({
       api: '/api/chat',
+      body: {
+        scenario: studyParams.scenario,
+      },
     }),
   });
 
@@ -121,11 +119,11 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
         {
           id: 'initial-assistant-message',
           role: 'assistant',
-          parts: [{ type: 'text', text: JSON.stringify(INITIAL_MESSAGES) }],
+          parts: [{ type: 'text', text: JSON.stringify(scenario.chat.initialMessages) }],
         }
       ]);
     }
-  }, [messages.length, setMessages]);
+  }, [messages.length, setMessages, scenario.chat.initialMessages]);
 
   // Proactive follow-up timer: if user hasn't sent a message after FOLLOWUP_DELAY_MS, Sarah sends a nudge
   useEffect(() => {
@@ -148,13 +146,13 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
       followupTimerRef.current = setTimeout(() => {
         if (!followupSentRef.current) {
           followupSentRef.current = true;
-          // Add follow-up message from Sarah
+          // Add follow-up message from colleague
           setMessages((prev) => [
             ...prev,
             {
               id: 'followup-message',
               role: 'assistant',
-              parts: [{ type: 'text', text: JSON.stringify([FOLLOWUP_MESSAGE]) }],
+              parts: [{ type: 'text', text: JSON.stringify([scenario.chat.followUpMessage]) }],
             },
           ]);
           // Reset visible count so it goes through the typing animation
@@ -169,7 +167,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
         followupTimerRef.current = null;
       }
     };
-  }, [messages, setMessages]);
+  }, [messages, setMessages, scenario.chat.followUpMessage]);
 
   // Sequence message display with delays and typing indicators
   useEffect(() => {
@@ -385,8 +383,8 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
       <div className="flex items-center gap-2.5 bg-gray-50 border-b border-gray-300 px-3 py-2.5">
         <div className="w-2 h-2 rounded-full bg-yellow-500" />
         <div className="flex-1">
-          <div className="font-semibold text-sm text-gray-900">Sarah Martinez</div>
-          <div className="text-xs text-gray-600">Events Coordinator</div>
+          <div className="font-semibold text-sm text-gray-900">{scenario.colleague.name}</div>
+          <div className="text-xs text-gray-600">{scenario.colleague.role}</div>
         </div>
         <div className="text-xs font-medium text-gray-700">Busy</div>
 
@@ -442,7 +440,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
         <input
           type="text"
           className="flex-1 px-2.5 py-2 border border-gray-400 rounded-2xl text-sm text-gray-900 placeholder-gray-500 bg-white outline-none focus:border-green-600 focus:ring-2 focus:ring-green-200"
-          placeholder="Message Sarah..."
+          placeholder={`Message ${scenario.colleague.firstName}...`}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}

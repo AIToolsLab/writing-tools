@@ -48,6 +48,7 @@ export interface StudyParams {
   experiment?: 'amount' | 'type';
   isProlific?: boolean;
   autoRefreshInterval: number;
+  scenario?: string; // Scenario ID (e.g., 'roomDoubleBooking', 'demoRescheduling')
 }
 
 export interface BrowserMetadata extends Record<string, unknown> {

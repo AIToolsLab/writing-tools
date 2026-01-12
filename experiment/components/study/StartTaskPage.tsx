@@ -2,11 +2,13 @@
 
 import { useSearchParams } from 'next/navigation';
 import { log, logThenRedirect } from '@/lib/logging';
-import { getNextPage } from '@/lib/studyConfig';
+import { getNextPage, getScenario } from '@/lib/studyConfig';
 
 export default function StartTaskPage() {
   const searchParams = useSearchParams();
   const username = searchParams.get('username') || '';
+  const scenarioId = searchParams.get('scenario') || undefined;
+  const scenario = getScenario(scenarioId);
 
   const handleStartTask = async () => {
     const params = new URLSearchParams(searchParams.toString());
@@ -24,7 +26,7 @@ export default function StartTaskPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-8">
-      <h1 className="text-3xl font-bold mb-6">Writing Task</h1>
+      <h1 className="text-3xl font-bold mb-6">{scenario.taskInstructions.title}</h1>
 
       <div className="bg-blue-50 p-6 rounded-lg mb-8 space-y-4 text-gray-800">
         <h2 className="text-xl font-semibold">Task Instructions</h2>
@@ -32,19 +34,17 @@ export default function StartTaskPage() {
         <div>
           <h3 className="font-semibold mb-2">Scenario:</h3>
           <p>
-            You work as an event coordinator. Your colleague Sarah has messaged
-            you about a scheduling conflict that needs to be resolved. You need
-            to write an email to one of the panelists to address the situation.
+            {scenario.taskInstructions.description}
           </p>
           <p className="mt-2">
-            Sarah is available via chat to answer questions about the details of the situation.
+            {scenario.colleague.firstName} is available via chat to answer questions about the details of the situation.
           </p>
         </div>
 
         <div>
           <h3 className="font-semibold mb-2">What to do:</h3>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Review Sarah&apos;s messages. Her initial message will not give you all the details you need, so <b>you will need to ask follow-up questions</b>.</li>
+            <li>Review {scenario.colleague.firstName}&apos;s messages. The initial message will not give you all the details you need, so <b>you will need to ask follow-up questions</b>.</li>
             <li>
               Compose your email response in the text area provided
             </li>
@@ -62,8 +62,7 @@ export default function StartTaskPage() {
           <h3 className="font-semibold mb-2">Keep in mind:</h3>
           <ul className="list-disc list-inside space-y-1">
             <li>
-              You&apos;re representing the company in this communication.
-              Consider how your message will reflect on the team.
+              {scenario.taskInstructions.companyFraming}
             </li>
             <li>There&apos;s no &ldquo;perfect&rdquo; response - write naturally</li>
             <li>Take as much time as you need</li>

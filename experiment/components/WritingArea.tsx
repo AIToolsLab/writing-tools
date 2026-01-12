@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useRef, useImperativeHandle, forwardRef } from 'react';
+import { useAtomValue } from 'jotai';
+import { studyParamsAtom } from '@/contexts/StudyContext';
+import { getScenario } from '@/lib/studyConfig';
 import type { TextEditorState } from '@/types';
 
 export interface WritingAreaRef {
@@ -18,6 +21,9 @@ const WritingArea = forwardRef<WritingAreaRef, WritingAreaProps>(
     { onSend, onUpdate, showSendButton = false },
     ref
   ) {
+    const studyParams = useAtomValue(studyParamsAtom);
+    const scenario = getScenario(studyParams.scenario);
+
     const [subject, setSubject] = useState('');
     const [body, setBody] = useState('');
     const [isSending, setIsSending] = useState(false);
@@ -76,7 +82,7 @@ const WritingArea = forwardRef<WritingAreaRef, WritingAreaProps>(
               id="to-field"
               type="text"
               className="flex-1 border border-gray-300 px-2 py-1 rounded text-sm bg-white text-gray-900"
-              value="Jaden Thompson <jaden.t@example.com>"
+              value={`${scenario.recipient.name} <${scenario.recipient.email}>`}
               readOnly
             />
           </div>

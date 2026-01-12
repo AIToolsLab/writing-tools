@@ -41,6 +41,7 @@ function StudyRouter() {
   const experiment = searchParams.get('experiment');
   const isProlific = searchParams.get('isProlific') === 'true';
   const autoRefreshInterval = searchParams.get('autoRefreshInterval');
+  const scenario = searchParams.get('scenario') || undefined;
 
   // Validate parameters
   const isValidPage = page in pageComponents;
@@ -62,6 +63,7 @@ function StudyRouter() {
         autoRefreshInterval: autoRefreshInterval
           ? parseInt(autoRefreshInterval)
           : DEFAULT_AUTO_REFRESH_INTERVAL,
+        scenario,
       });
 
       // Log page view
@@ -70,7 +72,7 @@ function StudyRouter() {
         event: `view:${page}` as any,
       }).catch((e) => console.error('Failed to log page view:', e));
     }
-  }, [page, username, conditionStr, experiment, isProlific, autoRefreshInterval, isValidUsername, isValidCondition, setStudyParams]);
+  }, [page, username, conditionStr, experiment, isProlific, autoRefreshInterval, scenario, isValidUsername, isValidCondition, setStudyParams]);
 
   // Error states
   if (!isValidUsername) {
@@ -92,10 +94,10 @@ function StudyRouter() {
             <li>page (optional, defaults to consent)</li>
           </ul>
           <code className="text-xs bg-gray-100 p-2 rounded block mb-4">
-            /study?page=consent&username=test&condition=a
+            /study?page=consent&username=test&condition=a&scenario=roomDoubleBooking
           </code>
           <a
-            href="/study?page=consent&username=test&condition=a"
+            href="/study?page=consent&username=test&condition=a&scenario=roomDoubleBooking"
             className="inline-block px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
             Try Test URL
