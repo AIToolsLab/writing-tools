@@ -60,7 +60,7 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 - `lib/logging.ts` - Event logging utilities
 
 ### API Routes
-- `app/api/chat/route.ts` - Chat endpoint (GPT-4o with scenario-specific system prompt)
+- `app/api/chat/route.ts` - Chat endpoint (GPT-5.2 with scenario-specific system prompt)
 - `app/api/writing-support/route.ts` - AI writing suggestions
 - `app/api/log/route.ts` - Event logging endpoint
 

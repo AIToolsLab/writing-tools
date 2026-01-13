@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     }
 
     const result = await generateObject({
-      model: openai('gpt-4o'),
+      model: openai('gpt-5.2'),
       schema: listResponseSchema,
       prompt: fullPrompt,
       system: 'You are a helpful and insightful writing assistant.',
