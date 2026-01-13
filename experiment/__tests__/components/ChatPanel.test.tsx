@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { waitFor, fireEvent, screen } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { waitFor, fireEvent, screen, act } from '@testing-library/react';
 import ChatPanel from '@/components/ChatPanel';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import * as logging from '@/lib/logging';
@@ -18,6 +18,13 @@ vi.mock('@ai-sdk/react', () => ({
     sendMessage: vi.fn(),
     status: 'ready',
   })),
+}));
+
+// Mock timing functions for predictable delays
+vi.mock('@/lib/messageTiming', () => ({
+  calculateThinkingDelay: vi.fn(() => 100),
+  calculateTypingDuration: vi.fn(() => 100),
+  calculateInterMessageDelay: vi.fn(() => 100),
 }));
 
 describe('ChatPanel - Message Logging', () => {
@@ -82,38 +89,47 @@ describe('ChatPanel - Message Logging', () => {
     });
   });
 
-  // Test 2: Assistant Message Logging
+  // Test 2: Assistant Message Logging (via typing animation)
   it('should log assistant messages with correct event type and partIndex', async () => {
-    const { useChat } = await import('@ai-sdk/react');
-    const mockUseChat = vi.mocked(useChat);
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const mockUseChat = vi.mocked(useChat);
 
-    const assistantMessage = createAssistantMessage('How can I help?', 'assistant-msg-1');
+      const mockSendMessage = vi.fn();
+      const mockSetMessages = vi.fn();
 
-    const mockSendMessage = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [assistantMessage],
-      sendMessage: mockSendMessage,
-      status: 'ready',
-    });
+      // Start with initialized state (empty user + assistant message)
+      const emptyUserMessage = createUserMessage('', 'initial-user-message');
+      const assistantMessage = createAssistantMessage('How can I help?', 'assistant-msg-1');
+      mockUseChat.mockReturnValue({
+        messages: [emptyUserMessage, assistantMessage],
+        sendMessage: mockSendMessage,
+        setMessages: mockSetMessages,
+        status: 'ready',
+      });
 
-    mockSendMessage.mockClear();
-    mockLog.mockClear();
-
-    renderWithJotai(<ChatPanel />, {
-      initialValues: [
-        [
-          studyParamsAtom,
-          {
-            username: 'test-user',
-            condition: 'n',
-            page: 'task',
-            autoRefreshInterval: 15000,
-          },
+      renderWithJotai(<ChatPanel />, {
+        initialValues: [
+          [
+            studyParamsAtom,
+            {
+              username: 'test-user',
+              condition: 'n',
+              page: 'task',
+              autoRefreshInterval: 15000,
+            },
+          ],
         ],
-      ],
-    });
+      });
 
-    await waitFor(() => {
+      mockLog.mockClear();
+
+      // Advance timers past the typing duration (100ms mocked) to reveal the message
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+
       expect(mockLog).toHaveBeenCalledWith(
         expect.objectContaining({
           event: 'chatMessage:assistant',
@@ -124,11 +140,13 @@ describe('ChatPanel - Message Logging', () => {
           }),
         })
       );
-    });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  // Test 3: User messages are only logged on form submission, not on re-render
-  it('should not log the same message multiple times', async () => {
+  // Test 3: User messages are only logged on form submission, not via effects (regression test)
+  it('should not duplicate user message logs on re-render', async () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
 
@@ -434,67 +452,62 @@ describe('ChatPanel - Message Logging', () => {
 
   // Test 10: Assistant messages are logged when they appear
   it('should log new messages when added incrementally', async () => {
-    const { useChat } = await import('@ai-sdk/react');
-    const mockUseChat = vi.mocked(useChat);
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const mockUseChat = vi.mocked(useChat);
 
-    const mockSendMessage = vi.fn();
-    const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
-      sendMessage: mockSendMessage,
-      setMessages: mockSetMessages,
-      status: 'ready' as any,
-    } as any);
+      const mockSendMessage = vi.fn();
+      const mockSetMessages = vi.fn();
 
-    const { rerender } = renderWithJotai(<ChatPanel />, {
-      initialValues: [
-        [
-          studyParamsAtom,
-          {
-            username: 'test-user',
-            condition: 'n',
-            page: 'task',
-            autoRefreshInterval: 15000,
-          },
+      // Start with initialized state (empty user + assistant message)
+      const emptyUserMessage = createUserMessage('', 'initial-user-message');
+      const msg1 = createAssistantMessage(
+        JSON.stringify(['Response part 1', 'Response part 2']),
+        'msg-1'
+      );
+      mockUseChat.mockReturnValue({
+        messages: [emptyUserMessage, msg1],
+        sendMessage: mockSendMessage,
+        setMessages: mockSetMessages,
+        status: 'ready' as any,
+      } as any);
+
+      renderWithJotai(<ChatPanel />, {
+        initialValues: [
+          [
+            studyParamsAtom,
+            {
+              username: 'test-user',
+              condition: 'n',
+              page: 'task',
+              autoRefreshInterval: 15000,
+            },
+          ],
         ],
-      ],
-    });
+      });
 
-    await waitFor(() => {
-      expect(mockSetMessages).toHaveBeenCalled();
-    });
-    mockLog.mockClear();
+      mockLog.mockClear();
 
-    // Add assistant message (this is logged via effect when it becomes visible)
-    const msg1 = createAssistantMessage(
-      JSON.stringify(['Response part 1', 'Response part 2']),
-      'msg-1'
-    );
-    mockUseChat.mockReturnValue({
-      messages: [msg1],
-      sendMessage: mockSendMessage,
-      setMessages: mockSetMessages,
-      status: 'ready' as any,
-    } as any);
+      // Advance timers to reveal first part (100ms typing duration)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
 
-    rerender(<ChatPanel />);
-
-    // Should log the assistant message
-    await waitFor(() => {
-      expect(mockLog).toHaveBeenCalled();
-    }, { timeout: 1000 });
-
-    const assistantCall = mockLog.mock.calls.find(call =>
-      call[0]?.extra_data?.messageId === 'msg-1'
-    );
-    expect(assistantCall).toBeDefined();
-    expect(assistantCall?.[0]).toMatchObject({
-      event: 'chatMessage:assistant',
-      extra_data: expect.objectContaining({
-        messageId: 'msg-1',
-        partIndex: 0,
-      }),
-    });
+      const assistantCall = mockLog.mock.calls.find(call =>
+        call[0]?.extra_data?.messageId === 'msg-1'
+      );
+      expect(assistantCall).toBeDefined();
+      expect(assistantCall?.[0]).toMatchObject({
+        event: 'chatMessage:assistant',
+        extra_data: expect.objectContaining({
+          messageId: 'msg-1',
+          partIndex: 0,
+        }),
+      });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // Test 12: System Messages
@@ -574,128 +587,131 @@ describe('ChatPanel - Message Logging', () => {
 
   // Test 14: Message Sequencing with Multiple Parts
   it('should log individual message parts as they become visible', async () => {
-    const { useChat } = await import('@ai-sdk/react');
-    const mockUseChat = vi.mocked(useChat);
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const mockUseChat = vi.mocked(useChat);
 
-    const mockSendMessage = vi.fn();
-    const mockSetMessages = vi.fn();
-    // Start with no messages
-    mockUseChat.mockReturnValue({
-      messages: [],
-      sendMessage: mockSendMessage,
-      setMessages: mockSetMessages,
-      status: 'ready',
-    });
+      const mockSendMessage = vi.fn();
+      const mockSetMessages = vi.fn();
 
-    const { rerender } = renderWithJotai(<ChatPanel />, {
-      initialValues: [
-        [
-          studyParamsAtom,
-          {
-            username: 'test-user',
-            condition: 'n',
-            page: 'task',
-            autoRefreshInterval: 15000,
-          },
+      // Start with initialized state
+      const emptyUserMessage = createUserMessage('', 'initial-user-message');
+      const msg = createAssistantMessage(
+        JSON.stringify(['First message', 'Second message']),
+        'multi-msg'
+      );
+      mockUseChat.mockReturnValue({
+        messages: [emptyUserMessage, msg],
+        sendMessage: mockSendMessage,
+        setMessages: mockSetMessages,
+        status: 'ready',
+      });
+
+      renderWithJotai(<ChatPanel />, {
+        initialValues: [
+          [
+            studyParamsAtom,
+            {
+              username: 'test-user',
+              condition: 'n',
+              page: 'task',
+              autoRefreshInterval: 15000,
+            },
+          ],
         ],
-      ],
-    });
+      });
 
-    await waitFor(() => {
-      expect(mockSetMessages).toHaveBeenCalled();
-    });
-    mockSetMessages.mockClear();
-    mockSendMessage.mockClear();
-    mockLog.mockClear();
+      mockLog.mockClear();
 
-    // Add assistant message with multiple parts
-    const msg = createAssistantMessage(
-      JSON.stringify(['First message', 'Second message']),
-      'multi-msg'
-    );
-    mockUseChat.mockReturnValue({
-      messages: [msg],
-      sendMessage: mockSendMessage,
-      setMessages: mockSetMessages,
-      status: 'ready',
-    });
+      // Advance timers to reveal first part (100ms typing duration)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
 
-    rerender(<ChatPanel />);
+      // First part should be logged with partIndex: 0
+      expect(mockLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'chatMessage:assistant',
+          extra_data: expect.objectContaining({
+            messageId: 'multi-msg',
+            partIndex: 0,
+            content: 'First message',
+          }),
+        })
+      );
 
-    // First part should be logged immediately
-    await waitFor(() => {
-      expect(mockLog).toHaveBeenCalledTimes(1);
-    });
+      mockLog.mockClear();
 
-    // First part should be logged with partIndex: 0
-    expect(mockLog).toHaveBeenCalledWith(
-      expect.objectContaining({
-        event: 'chatMessage:assistant',
-        extra_data: expect.objectContaining({
-          messageId: 'multi-msg',
-          partIndex: 0,
-          content: 'First message',
-        }),
-      })
-    );
+      // Advance timers more to reveal second part (inter-delay + typing = 200ms)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+
+      // Second part should now be logged
+      expect(mockLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'chatMessage:assistant',
+          extra_data: expect.objectContaining({
+            messageId: 'multi-msg',
+            partIndex: 1,
+            content: 'Second message',
+          }),
+        })
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // Test 15: Typing Indicator Display
   it('should display typing indicator during message sequencing', async () => {
-    const { useChat } = await import('@ai-sdk/react');
-    const mockUseChat = vi.mocked(useChat);
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const mockUseChat = vi.mocked(useChat);
 
-    const mockSendMessage = vi.fn();
-    const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
-      sendMessage: mockSendMessage,
-      setMessages: mockSetMessages,
-      status: 'ready',
-    });
+      const mockSendMessage = vi.fn();
+      const mockSetMessages = vi.fn();
 
-    const { rerender, container } = renderWithJotai(<ChatPanel />, {
-      initialValues: [
-        [
-          studyParamsAtom,
-          {
-            username: 'test-user',
-            condition: 'n',
-            page: 'task',
-            autoRefreshInterval: 15000,
-          },
+      // Start with initialized state
+      const emptyUserMessage = createUserMessage('', 'initial-user-message');
+      const msg = createAssistantMessage(
+        JSON.stringify(['First message part', 'Second message part']),
+        'typing-test-msg'
+      );
+      mockUseChat.mockReturnValue({
+        messages: [emptyUserMessage, msg],
+        sendMessage: mockSendMessage,
+        setMessages: mockSetMessages,
+        status: 'ready',
+      });
+
+      const { container } = renderWithJotai(<ChatPanel />, {
+        initialValues: [
+          [
+            studyParamsAtom,
+            {
+              username: 'test-user',
+              condition: 'n',
+              page: 'task',
+              autoRefreshInterval: 15000,
+            },
+          ],
         ],
-      ],
-    });
+      });
 
-    await waitFor(() => {
-      expect(mockSetMessages).toHaveBeenCalled();
-    });
-    mockSetMessages.mockClear();
-    mockSendMessage.mockClear();
+      // Advance timers to reveal first part
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
 
-    // Add assistant message with multiple parts
-    const msg = createAssistantMessage(
-      JSON.stringify(['First message part', 'Second message part']),
-      'typing-test-msg'
-    );
-    mockUseChat.mockReturnValue({
-      messages: [msg],
-      sendMessage: mockSendMessage,
-      setMessages: mockSetMessages,
-      status: 'ready',
-    });
-
-    rerender(<ChatPanel />);
-
-    // After a short delay, typing indicator may appear for inter-message delay
-    // (timing calculations are probabilistic, so we check it appears within reasonable bounds)
-    await new Promise((resolve) => setTimeout(resolve, 100));
-
-    // Check that first message part is visible
-    const messages = container.querySelectorAll('.mb-3.text-sm.leading-snug');
-    // Should have at least one message visible
-    expect(messages.length).toBeGreaterThan(0);
+      // Check that first message part is visible
+      const messages = container.querySelectorAll('.mb-3.text-sm.leading-snug');
+      expect(messages.length).toBeGreaterThan(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // Test 16: Notification Badge Timing
@@ -849,87 +865,109 @@ describe('ChatPanel - Message Logging', () => {
     expect(messageDivs.length).toBe(0);
   });
 
-  // Test 19: Show last message when not streaming
+  // Test 19: Show last message when not streaming (after typing animation)
   it('should show last assistant message when not streaming', async () => {
-    const { useChat } = await import('@ai-sdk/react');
-    const mockUseChat = vi.mocked(useChat);
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const mockUseChat = vi.mocked(useChat);
 
-    const mockSendMessage = vi.fn();
-    const mockSetMessages = vi.fn();
-    const msg = createAssistantMessage('Complete response', 'complete-msg');
+      const mockSendMessage = vi.fn();
+      const mockSetMessages = vi.fn();
+      const emptyUserMessage = createUserMessage('', 'initial-user-message');
+      const msg = createAssistantMessage('Complete response', 'complete-msg');
 
-    mockUseChat.mockReturnValue({
-      messages: [msg],
-      sendMessage: mockSendMessage,
-      setMessages: mockSetMessages,
-      status: 'ready',
-    });
+      mockUseChat.mockReturnValue({
+        messages: [emptyUserMessage, msg],
+        sendMessage: mockSendMessage,
+        setMessages: mockSetMessages,
+        status: 'ready',
+      });
 
-    const { container } = renderWithJotai(<ChatPanel />, {
-      initialValues: [
-        [
-          studyParamsAtom,
-          {
-            username: 'test-user',
-            condition: 'n',
-            page: 'task',
-            autoRefreshInterval: 15000,
-          },
+      const { container } = renderWithJotai(<ChatPanel />, {
+        initialValues: [
+          [
+            studyParamsAtom,
+            {
+              username: 'test-user',
+              condition: 'n',
+              page: 'task',
+              autoRefreshInterval: 15000,
+            },
+          ],
         ],
-      ],
-    });
+      });
 
-    await waitFor(() => {
+      // Advance timers to reveal message (typing animation)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+
       const messageDivs = container.querySelectorAll('.mb-3.text-sm.leading-snug');
       expect(messageDivs.length).toBeGreaterThan(0);
-    });
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  // Test 20: Display only visible message parts
+  // Test 20: Display only visible message parts (controlled by typing animation)
   it('should respect visibleMessagePartCount for last assistant message', async () => {
-    const { useChat } = await import('@ai-sdk/react');
-    const mockUseChat = vi.mocked(useChat);
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const mockUseChat = vi.mocked(useChat);
 
-    const mockSendMessage = vi.fn();
-    const mockSetMessages = vi.fn();
-    const msg = createAssistantMessage(
-      JSON.stringify(['Part 1', 'Part 2', 'Part 3']),
-      'multi-part-msg'
-    );
+      const mockSendMessage = vi.fn();
+      const mockSetMessages = vi.fn();
+      const emptyUserMessage = createUserMessage('', 'initial-user-message');
+      const msg = createAssistantMessage(
+        JSON.stringify(['Part 1', 'Part 2', 'Part 3']),
+        'multi-part-msg'
+      );
 
-    mockUseChat.mockReturnValue({
-      messages: [msg],
-      sendMessage: mockSendMessage,
-      setMessages: mockSetMessages,
-      status: 'ready',
-    });
+      mockUseChat.mockReturnValue({
+        messages: [emptyUserMessage, msg],
+        sendMessage: mockSendMessage,
+        setMessages: mockSetMessages,
+        status: 'ready',
+      });
 
-    const { rerender, container } = renderWithJotai(<ChatPanel />, {
-      initialValues: [
-        [
-          studyParamsAtom,
-          {
-            username: 'test-user',
-            condition: 'n',
-            page: 'task',
-            autoRefreshInterval: 15000,
-          },
+      const { container } = renderWithJotai(<ChatPanel />, {
+        initialValues: [
+          [
+            studyParamsAtom,
+            {
+              username: 'test-user',
+              condition: 'n',
+              page: 'task',
+              autoRefreshInterval: 15000,
+            },
+          ],
         ],
-      ],
-    });
+      });
 
-    // Initially, first part should be visible
-    await waitFor(() => {
-      const messages = container.querySelectorAll('.mb-3.text-sm.leading-snug');
-      expect(messages.length).toBeGreaterThan(0);
-    });
+      // Initially no assistant parts visible (need to wait for typing animation)
+      let messages = container.querySelectorAll('.mb-3.text-sm.leading-snug');
+      expect(messages.length).toBe(0);
 
-    const initialMessageCount = container.querySelectorAll('.mb-3.text-sm.leading-snug').length;
+      // Advance timers to reveal first part
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
 
-    // When visibleMessagePartCount increases, more parts should be visible
-    // (This would require updating state, which happens via the component's internal timing logic)
-    // This test verifies the structure is rendered correctly
-    expect(initialMessageCount).toBeGreaterThan(0);
+      messages = container.querySelectorAll('.mb-3.text-sm.leading-snug');
+      expect(messages.length).toBe(1);
+
+      // Advance timers more to reveal second part
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(300);
+      });
+
+      messages = container.querySelectorAll('.mb-3.text-sm.leading-snug');
+      expect(messages.length).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   // Test 21: Scroll triggers on visibleMessagePartCount change
