@@ -93,6 +93,7 @@ export default function AIPanel({
   const autoRefreshInterval = studyParams.autoRefreshInterval;
   const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const previousRequestRef = useRef<{ editorState: TextEditorState; mode: string } | null>(null);
+  const previousResponseRef = useRef<GenerationResult | null>(null);
 
   const save = useCallback((generation: GenerationResult, document: TextEditorState) => {
     setSavedItems((prev) => [
@@ -180,14 +181,23 @@ export default function AIPanel({
         };
 
         if (result) {
-          save(generation, editorState);
+          // Check if this response is identical to the previous one
+          const isDuplicate =
+            previousResponseRef.current &&
+            previousResponseRef.current.result === generation.result &&
+            previousResponseRef.current.generation_type === generation.generation_type;
 
-          // Log AI response in study mode
-          if (isStudyMode) {
-            await log({
-              username: studyParams.username,
-              event: `aiResponse:${modeToUse}`,
-            });
+          if (!isDuplicate) {
+            save(generation, editorState);
+            previousResponseRef.current = generation;
+
+            // Log AI response in study mode
+            if (isStudyMode) {
+              await log({
+                username: studyParams.username,
+                event: `aiResponse:${modeToUse}`,
+              });
+            }
           }
         } else {
           setErrorMsg('Received empty suggestion.');
