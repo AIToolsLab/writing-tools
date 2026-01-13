@@ -50,6 +50,9 @@ export const VALID_CONDITIONS = Object.keys(letterToCondition) as ConditionCode[
 
 // Scenario configuration types
 export interface ScenarioConfig {
+  sender: {
+    name: string;          // Full name displayed in chat header
+  };
   id: string;
   colleague: {
     name: string;          // Full name displayed in chat header
@@ -80,6 +83,9 @@ export const SCENARIOS: Record<string, ScenarioConfig> = {
       name: 'Sarah Martinez',
       firstName: 'Sarah',
       role: 'Events Coordinator',
+    },
+    sender: {
+      name: "Alex Johnson",
     },
     recipient: {
       name: 'Jaden Thompson',
@@ -137,6 +143,9 @@ Just return the JSON array, nothing else.`,
       name: 'Marcus Chen',
       firstName: 'Marcus',
       role: 'Solutions Engineer',
+    },
+    sender: {
+      name: "Alex Johnson",
     },
     recipient: {
       name: 'Dr. Lisa Patel',

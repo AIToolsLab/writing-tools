@@ -79,6 +79,16 @@ const WritingArea = forwardRef<WritingAreaRef, WritingAreaProps>(
           <div className="flex gap-3 items-start">
             <div className="flex-1 space-y-2">
               <div className="flex text-sm">
+                <label htmlFor="from-field" className="w-16 text-gray-700 font-medium">From:</label>
+                <input
+                  id="from-field"
+                  type="text"
+                  className="flex-1 border border-gray-300 px-2 py-1 rounded text-sm bg-white text-gray-900"
+                  value={`${scenario.sender.name}`}
+                  readOnly
+                />
+              </div>
+              <div className="flex text-sm">
                 <label htmlFor="to-field" className="w-16 text-gray-700 font-medium">To:</label>
                 <input
                   id="to-field"
