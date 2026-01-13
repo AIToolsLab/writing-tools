@@ -60,8 +60,6 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   const [deliveredMessageIds, setDeliveredMessageIds] = useState<Set<string>>(new Set());
   const [readMessageIds, setReadMessageIds] = useState<Set<string>>(new Set());
-  const deliveredTimersRef = useRef<NodeJS.Timeout[]>([]);
-  const readTimersRef = useRef<NodeJS.Timeout[]>([]);
   const loggedMessagePartsRef = useRef<Set<string>>(new Set());
   const hasInitializedRef = useRef(false);
   const followupSentRef = useRef(false);
@@ -254,6 +252,8 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
   // Track user messages for delivered/read status (uses useChat's message IDs for UI)
   const trackedUserMessageIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
+    const deliveredTimers: NodeJS.Timeout[] = [];
+    const readTimers: NodeJS.Timeout[] = [];
     messages.forEach((message) => {
       if (message.role !== 'user' || !message.id || message.id === 'initial-user-message') return;
       if (trackedUserMessageIdsRef.current.has(message.id)) return;
@@ -264,15 +264,21 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
       const deliveredTimer = setTimeout(() => {
         setDeliveredMessageIds((prev) => new Set(prev).add(message.id));
       }, deliveredDelay);
-      deliveredTimersRef.current.push(deliveredTimer);
+      deliveredTimers.push(deliveredTimer);
 
       // Mark message as read after a short delay to feel more human
       const readDelay = 3000 + Math.random() * 5000; // 3-8 seconds
       const readTimer = setTimeout(() => {
         setReadMessageIds((prev) => new Set(prev).add(message.id));
       }, readDelay);
-      readTimersRef.current.push(readTimer);
+      readTimers.push(readTimer);
     });
+
+    // Cleanup the timers on unmount
+    return () => {
+      deliveredTimers.forEach((timer) => void clearTimeout(timer));
+      readTimers.forEach((timer) => void clearTimeout(timer));
+    };
   }, [messages]);
 
   // Log assistant message part event - called when a new part becomes visible
@@ -349,9 +355,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
       onNewMessage();
     }
   });
-
-  /* Removed internal notification state as requested */
-
+  
   // Show notification when a new assistant message part appears
   useEffect(() => {
     if (messages.length === 0) return;
@@ -360,14 +364,6 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
       notifyNewMessage();
     }
   }, [messages, visibleMessagePartCount]);
-
-  // Cleanup any pending read timers on unmount
-  useEffect(() => {
-    return () => {
-      deliveredTimersRef.current.forEach((timer) => clearTimeout(timer));
-      readTimersRef.current.forEach((timer) => clearTimeout(timer));
-    };
-  }, []);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
