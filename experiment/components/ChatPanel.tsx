@@ -62,7 +62,6 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
   const [readMessageIds, setReadMessageIds] = useState<Set<string>>(new Set());
   const deliveredTimersRef = useRef<NodeJS.Timeout[]>([]);
   const readTimersRef = useRef<NodeJS.Timeout[]>([]);
-  const lastLoggedMessageIdRef = useRef<string>('');
   const loggedMessagePartsRef = useRef<Set<string>>(new Set());
   const hasInitializedRef = useRef(false);
   const followupSentRef = useRef(false);
@@ -250,102 +249,92 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Track and log new messages
+  // Track user messages for delivered/read status (uses useChat's message IDs for UI)
+  const trackedUserMessageIdsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    messages.forEach((message, messageIndex) => {
-      if (!message.id) return;
+    messages.forEach((message) => {
+      if (message.role !== 'user' || !message.id || message.id === 'initial-user-message') return;
+      if (trackedUserMessageIdsRef.current.has(message.id)) return;
+      trackedUserMessageIdsRef.current.add(message.id);
 
+      // Mark message as delivered after a short delay
+      const deliveredDelay = 500 + Math.random() * 500; // 0.5-1s
+      const deliveredTimer = setTimeout(() => {
+        setDeliveredMessageIds((prev) => new Set(prev).add(message.id));
+      }, deliveredDelay);
+      deliveredTimersRef.current.push(deliveredTimer);
+
+      // Mark message as read after a short delay to feel more human
+      const readDelay = 3000 + Math.random() * 5000; // 3-8 seconds
+      const readTimer = setTimeout(() => {
+        setReadMessageIds((prev) => new Set(prev).add(message.id));
+      }, readDelay);
+      readTimersRef.current.push(readTimer);
+    });
+  }, [messages]);
+
+  // Log assistant message part event - called when a new part becomes visible
+  const logAssistantMessagePart = useEffectEvent((messageId: string, partIndex: number, content: string) => {
+    const partId = `${messageId}-${partIndex}`;
+    if (!loggedMessagePartsRef.current.has(partId)) {
+      log({
+        username,
+        event: 'chatMessage:assistant',
+        extra_data: {
+          messageId,
+          partIndex,
+          content,
+          timestamp: new Date().toISOString(),
+        },
+      });
+      loggedMessagePartsRef.current.add(partId);
+    }
+  });
+
+  // Track assistant message parts becoming visible and log them
+  useEffect(() => {
+    if (messages.length === 0) return;
+
+    messages.forEach((message, messageIndex) => {
+      if (message.role !== 'assistant' || !message.id) return;
+
+      const messageText = getMessageText(message);
+      const parsedMessages = parseMessageContent(messageText);
       const isLastMessage = messageIndex === messages.length - 1;
 
-      if (message.role === 'user') {
-        // Log user messages normally
-        if (message.id !== lastLoggedMessageIdRef.current) {
-          const messageText = getMessageText(message);
-          log({
-            username,
-            event: 'chatMessage:user',
-            extra_data: {
-              messageId: message.id,
-              content: messageText,
-              timestamp: new Date().toISOString(),
-            },
-          });
-          lastLoggedMessageIdRef.current = message.id;
-
-          // Mark message as delivered after a short delay
-          const deliveredDelay = 500 + Math.random() * 500; // 0.5-1s
-          const deliveredTimer = setTimeout(() => {
-            setDeliveredMessageIds((prev) => {
-              const next = new Set(prev);
-              next.add(message.id);
-              return next;
-            });
-          }, deliveredDelay);
-          deliveredTimersRef.current.push(deliveredTimer);
-
-          // Mark message as read after a short delay to feel more human
-          const readDelay = 3000 + Math.random() * 5000; // 3-8 seconds
-          const readTimer = setTimeout(() => {
-            setReadMessageIds((prev) => {
-              const next = new Set(prev);
-              next.add(message.id);
-              return next;
-            });
-          }, readDelay);
-          readTimersRef.current.push(readTimer);
+      if (isLastMessage) {
+        // For last message, only log visible parts
+        for (let i = 0; i < visibleMessagePartCount; i++) {
+          logAssistantMessagePart(message.id, i, parsedMessages[i]);
         }
-      } else if (message.role === 'assistant') {
-        const messageText = getMessageText(message);
-        const parsedMessages = parseMessageContent(messageText);
-
-        if (isLastMessage) {
-          // For last message, only log visible parts
-          for (let i = 0; i < visibleMessagePartCount; i++) {
-            const partId = `${message.id}-${i}`;
-            if (!loggedMessagePartsRef.current.has(partId)) {
-              log({
-                username,
-                event: 'chatMessage:assistant',
-                extra_data: {
-                  messageId: message.id,
-                  partIndex: i,
-                  content: parsedMessages[i],
-                  timestamp: new Date().toISOString(),
-                },
-              });
-              loggedMessagePartsRef.current.add(partId);
-            }
-          }
-        } else {
-          // For non-last messages, log all parts
-          parsedMessages.forEach((part, partIndex) => {
-            const partId = `${message.id}-${partIndex}`;
-            if (!loggedMessagePartsRef.current.has(partId)) {
-              log({
-                username,
-                event: 'chatMessage:assistant',
-                extra_data: {
-                  messageId: message.id,
-                  partIndex,
-                  content: part,
-                  timestamp: new Date().toISOString(),
-                },
-              });
-              loggedMessagePartsRef.current.add(partId);
-            }
-          });
-        }
+      } else {
+        // For non-last messages, log all parts
+        parsedMessages.forEach((part, partIndex) => {
+          logAssistantMessagePart(message.id, partIndex, part);
+        });
       }
     });
-  }, [messages, visibleMessagePartCount, username]);
+  }, [messages, visibleMessagePartCount]);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
     const userMessage = input;
+    const messageId = `user-${Date.now()}`;
     setInput('');
     setShowTypingIndicator(false); // ensure no immediate typing indicator on send
+
+    // Log the user message event immediately (event-driven, no duplicates)
+    log({
+      username,
+      event: 'chatMessage:user',
+      extra_data: {
+        messageId,
+        content: userMessage,
+        timestamp: new Date().toISOString(),
+      },
+    });
 
     await sendMessage({ text: userMessage });
 

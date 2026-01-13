@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { waitFor } from '@testing-library/react';
+import { waitFor, fireEvent, screen } from '@testing-library/react';
 import ChatPanel from '@/components/ChatPanel';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import * as logging from '@/lib/logging';
@@ -27,21 +27,20 @@ describe('ChatPanel - Message Logging', () => {
     vi.clearAllMocks();
   });
 
-  // Test 1: User Message Logging
+  // Test 1: User Message Logging (via form submission)
   it('should log user messages with correct event type and payload structure', async () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
 
-    const userMessage = createUserMessage('Hello Sarah', 'user-msg-1');
-
     const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
     mockUseChat.mockReturnValue({
-      messages: [userMessage],
+      messages: [],
       sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'ready',
     });
 
-    mockSendMessage.mockClear();
     mockLog.mockClear();
 
     renderWithJotai(<ChatPanel />, {
@@ -58,12 +57,24 @@ describe('ChatPanel - Message Logging', () => {
       ],
     });
 
+    // Wait for initialization
+    await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+    mockLog.mockClear();
+
+    // Type and submit a message
+    const input = screen.getByPlaceholderText(/Message Sarah/i);
+    fireEvent.change(input, { target: { value: 'Hello Sarah' } });
+    fireEvent.submit(input.closest('form')!);
+
+    // Check log was called with correct structure
     await waitFor(() => {
       expect(mockLog).toHaveBeenCalledWith({
         username: 'test-user',
         event: 'chatMessage:user',
         extra_data: {
-          messageId: 'user-msg-1',
+          messageId: expect.stringMatching(/^user-\d+$/),
           content: 'Hello Sarah',
           timestamp: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/),
         },
@@ -116,16 +127,13 @@ describe('ChatPanel - Message Logging', () => {
     });
   });
 
-  // Test 3: Message Deduplication
+  // Test 3: User messages are only logged on form submission, not on re-render
   it('should not log the same message multiple times', async () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
 
-    const message = createUserMessage('Test', 'duplicate-msg');
-
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    // Initially return no messages (setMessages will be called to initialize)
     mockUseChat.mockReturnValue({
       messages: [],
       sendMessage: mockSendMessage,
@@ -147,48 +155,39 @@ describe('ChatPanel - Message Logging', () => {
       ],
     });
 
-    // Initial setup will call setMessages
     await waitFor(() => {
       expect(mockSetMessages).toHaveBeenCalled();
     });
-    mockSetMessages.mockClear();
     mockLog.mockClear();
 
-    // Now update the mock to return the user message
-    mockUseChat.mockReturnValue({
-      messages: [message],
-      sendMessage: mockSendMessage,
-      setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    // Submit a message via form
+    const input = screen.getByPlaceholderText(/Message Sarah/i);
+    fireEvent.change(input, { target: { value: 'Test message' } });
+    fireEvent.submit(input.closest('form')!);
 
-    // Wait for the message to be logged
-    rerender(<ChatPanel />);
     await waitFor(() => {
       expect(mockLog).toHaveBeenCalledTimes(1);
     });
 
-    // Re-render with same message again
+    // Re-render should not log again (user messages are event-driven)
     mockLog.mockClear();
     rerender(<ChatPanel />);
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    // Should not log again on re-render (message hasn't changed)
     expect(mockLog).toHaveBeenCalledTimes(0);
   });
 
-  // Test 4: Multiple Messages
+  // Test 4: Multiple user messages via form submission
   it('should log multiple messages in sequence', async () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
 
-    const msg1 = createUserMessage('First', 'msg-1');
-    const msg2 = createAssistantMessage('Response', 'msg-2');
-    const msg3 = createUserMessage('Follow up', 'msg-3');
-
+    const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
     mockUseChat.mockReturnValue({
-      messages: [msg1, msg2, msg3],
-      sendMessage: vi.fn(),
+      messages: [],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'ready',
     });
 
@@ -207,56 +206,52 @@ describe('ChatPanel - Message Logging', () => {
     });
 
     await waitFor(() => {
-      expect(mockLog).toHaveBeenCalledTimes(3);
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+    mockLog.mockClear();
+
+    const input = screen.getByPlaceholderText(/Message Sarah/i);
+
+    // Send first message
+    fireEvent.change(input, { target: { value: 'First' } });
+    fireEvent.submit(input.closest('form')!);
+
+    // Send second message
+    fireEvent.change(input, { target: { value: 'Second' } });
+    fireEvent.submit(input.closest('form')!);
+
+    await waitFor(() => {
+      expect(mockLog).toHaveBeenCalledTimes(2);
     });
 
     expect(mockLog).toHaveBeenNthCalledWith(
       1,
       expect.objectContaining({
         event: 'chatMessage:user',
-        extra_data: expect.objectContaining({ messageId: 'msg-1' }),
+        extra_data: expect.objectContaining({ content: 'First' }),
       })
     );
 
     expect(mockLog).toHaveBeenNthCalledWith(
       2,
       expect.objectContaining({
-        event: 'chatMessage:assistant',
-        extra_data: expect.objectContaining({
-          messageId: 'msg-2',
-          partIndex: 0,
-        }),
-      })
-    );
-
-    expect(mockLog).toHaveBeenNthCalledWith(
-      3,
-      expect.objectContaining({
         event: 'chatMessage:user',
-        extra_data: expect.objectContaining({ messageId: 'msg-3' }),
+        extra_data: expect.objectContaining({ content: 'Second' }),
       })
     );
   });
 
-  // Test 5: Text Extraction from Multiple Parts
+  // Test 5: User message content is logged exactly as submitted
   it('should correctly extract text from message parts', async () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
 
-    const messageWithMultipleParts = {
-      id: 'multi-part-msg',
-      role: 'user',
-      parts: [
-        { type: 'text', text: 'Part 1 ' },
-        { type: 'text', text: 'Part 2' },
-        { type: 'image', url: 'https://example.com/img.png' },
-        { type: 'text', text: ' Part 3' },
-      ],
-    };
-
+    const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
     mockUseChat.mockReturnValue({
-      messages: [messageWithMultipleParts],
-      sendMessage: vi.fn(),
+      messages: [],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'ready',
     });
 
@@ -273,6 +268,15 @@ describe('ChatPanel - Message Logging', () => {
         ],
       ],
     });
+
+    await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+    mockLog.mockClear();
+
+    const input = screen.getByPlaceholderText(/Message Sarah/i);
+    fireEvent.change(input, { target: { value: 'Part 1 Part 2 Part 3' } });
+    fireEvent.submit(input.closest('form')!);
 
     await waitFor(() => {
       expect(mockLog).toHaveBeenCalledWith(
@@ -285,20 +289,17 @@ describe('ChatPanel - Message Logging', () => {
     });
   });
 
-  // Test 6: Empty/Missing Text
+  // Test 6: Empty messages are not submitted (guard in onSubmit)
   it('should handle messages with empty or missing text', async () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
 
-    const emptyMessage = {
-      id: 'empty-msg',
-      role: 'user',
-      parts: [{ type: 'text', text: '' }, { type: 'text' }],
-    };
-
+    const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
     mockUseChat.mockReturnValue({
-      messages: [emptyMessage],
-      sendMessage: vi.fn(),
+      messages: [],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'ready',
     });
 
@@ -317,14 +318,18 @@ describe('ChatPanel - Message Logging', () => {
     });
 
     await waitFor(() => {
-      expect(mockLog).toHaveBeenCalledWith(
-        expect.objectContaining({
-          extra_data: expect.objectContaining({
-            content: '',
-          }),
-        })
-      );
+      expect(mockSetMessages).toHaveBeenCalled();
     });
+    mockLog.mockClear();
+
+    const input = screen.getByPlaceholderText(/Message Sarah/i);
+    // Try to submit empty message
+    fireEvent.change(input, { target: { value: '' } });
+    fireEvent.submit(input.closest('form')!);
+
+    // Should not log anything for empty message
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(mockLog).not.toHaveBeenCalled();
   });
 
   // Test 7: Username from Atom
@@ -332,11 +337,12 @@ describe('ChatPanel - Message Logging', () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
 
-    const message = createUserMessage('Test');
-
+    const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
     mockUseChat.mockReturnValue({
-      messages: [message],
-      sendMessage: vi.fn(),
+      messages: [],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'ready',
     });
 
@@ -355,6 +361,15 @@ describe('ChatPanel - Message Logging', () => {
     });
 
     await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+    mockLog.mockClear();
+
+    const input = screen.getByPlaceholderText(/Message Sarah/i);
+    fireEvent.change(input, { target: { value: 'Test message' } });
+    fireEvent.submit(input.closest('form')!);
+
+    await waitFor(() => {
       expect(mockLog).toHaveBeenCalledWith(
         expect.objectContaining({
           username: 'custom-username-123',
@@ -368,11 +383,12 @@ describe('ChatPanel - Message Logging', () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
 
-    const message = createUserMessage('Test');
-
+    const mockSendMessage = vi.fn();
+    const mockSetMessages = vi.fn();
     mockUseChat.mockReturnValue({
-      messages: [message],
-      sendMessage: vi.fn(),
+      messages: [],
+      sendMessage: mockSendMessage,
+      setMessages: mockSetMessages,
       status: 'ready',
     });
 
@@ -391,6 +407,15 @@ describe('ChatPanel - Message Logging', () => {
     });
 
     await waitFor(() => {
+      expect(mockSetMessages).toHaveBeenCalled();
+    });
+    mockLog.mockClear();
+
+    const input = screen.getByPlaceholderText(/Message Sarah/i);
+    fireEvent.change(input, { target: { value: 'Test' } });
+    fireEvent.submit(input.closest('form')!);
+
+    await waitFor(() => {
       expect(mockLog).toHaveBeenCalled();
     });
 
@@ -407,7 +432,7 @@ describe('ChatPanel - Message Logging', () => {
     expect(now - timestampMs).toBeLessThan(1000);
   });
 
-  // Test 10: Incremental Messages with Sequencing
+  // Test 10: Assistant messages are logged when they appear
   it('should log new messages when added incrementally', async () => {
     const { useChat } = await import('@ai-sdk/react');
     const mockUseChat = vi.mocked(useChat);
@@ -440,8 +465,11 @@ describe('ChatPanel - Message Logging', () => {
     });
     mockLog.mockClear();
 
-    // Add a new user message
-    const msg1 = createUserMessage('First message', 'msg-1');
+    // Add assistant message (this is logged via effect when it becomes visible)
+    const msg1 = createAssistantMessage(
+      JSON.stringify(['Response part 1', 'Response part 2']),
+      'msg-1'
+    );
     mockUseChat.mockReturnValue({
       messages: [msg1],
       sendMessage: mockSendMessage,
@@ -451,49 +479,19 @@ describe('ChatPanel - Message Logging', () => {
 
     rerender(<ChatPanel />);
 
-    // Should log the user message
-    await waitFor(() => {
-      expect(mockLog).toHaveBeenCalled();
-    }, { timeout: 1000 });
-
-    const firstCall = mockLog.mock.calls.find(call =>
-      call[0]?.extra_data?.messageId === 'msg-1'
-    );
-    expect(firstCall).toBeDefined();
-    expect(firstCall?.[0]).toMatchObject({
-      event: 'chatMessage:user',
-      extra_data: expect.objectContaining({ messageId: 'msg-1' }),
-    });
-
-    mockLog.mockClear();
-
-    // Add assistant message
-    const msg2 = createAssistantMessage(
-      JSON.stringify(['Response part 1', 'Response part 2']),
-      'msg-2'
-    );
-    mockUseChat.mockReturnValue({
-      messages: [msg1, msg2],
-      sendMessage: mockSendMessage,
-      setMessages: mockSetMessages,
-      status: 'ready' as any,
-    } as any);
-
-    rerender(<ChatPanel />);
-
-    // Should log the new assistant message
+    // Should log the assistant message
     await waitFor(() => {
       expect(mockLog).toHaveBeenCalled();
     }, { timeout: 1000 });
 
     const assistantCall = mockLog.mock.calls.find(call =>
-      call[0]?.extra_data?.messageId === 'msg-2'
+      call[0]?.extra_data?.messageId === 'msg-1'
     );
     expect(assistantCall).toBeDefined();
     expect(assistantCall?.[0]).toMatchObject({
       event: 'chatMessage:assistant',
       extra_data: expect.objectContaining({
-        messageId: 'msg-2',
+        messageId: 'msg-1',
         partIndex: 0,
       }),
     });
