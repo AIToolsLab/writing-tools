@@ -193,6 +193,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
     timers.push(
       setTimeout(() => {
         setShowTypingIndicator(true);
+        scrollToBottom();
       }, readingDelay)
     );
 
@@ -222,6 +223,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
           timers.push(
             setTimeout(() => {
               setShowTypingIndicator(true);
+              scrollToBottom();
             }, currentDelay)
           );
 
