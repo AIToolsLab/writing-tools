@@ -92,7 +92,7 @@ export async function POST(req: Request) {
 
     const suggestions = result.object.responses.length > 0
       ? [result.object.responses.map(item => `- ${item}`).join('\n\n')]
-      : ['Unable to generate suggestions at this time.'];
+      : ['Insufficient content to generate suggestions.'];
 
     return NextResponse.json({ suggestions });
   } catch (error) {
