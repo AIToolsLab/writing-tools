@@ -36,17 +36,20 @@ Guidelines:
 - Focus on the area of the document that is closest to the writer's cursor.
 - Keep each piece of advice under 20 words.
 - Express the advice in the form of a directive instruction, not a question.
-- Don't give specific words or phrases for the writer to use.
+- Avoid providing specific words or phrases that the writer could directly copy into their document.
 - Make each piece of advice very specific to the current document, not general advice that could apply to any document.`,
 
-  analysis_readerPerspective: `You are assisting a writer in drafting a document for a specific person. Generate three possible questions the person might have about the document so far.
+  analysis_readerPerspective: `You are assisting a writer in drafting a document for a specific person. Generate three possible reactions (questions, feelings, perspectives, etc.) the person might have about the document.
 
 Guidelines:
-- Avoid suggesting specific words or phrases.
-- Limit each question to under 20 words.
-- Ensure all questions specifically reflect details or qualities from the current document, avoiding broad or generic statements.
-- Each question should be expressed as a perspective describing how the person might feel about the document, not as a directive to the writer.
-- If there is insufficient context to generate genuine questions, return an empty list.`,
+- Limit each perspective to under 20 words.
+- Ensure all perspectives specifically reflect details or qualities from the current document, avoiding broad or generic statements.
+- The three perspectives should be diverse (in emotion, focus, tone, etc.)
+- Each perspective should be expressed in 1st-person ("I like", "I wonder", "I feel", ...)
+- Avoid telling the writer what to do; focus on the reader's viewpoint.
+- The writer may not be finished writing the document; if the last sentence is incomplete, ignore that and focus on the content that is already written.
+- Avoid providing specific words or phrases that the writer could directly copy into their document.
+- If there is insufficient context to generate genuine perspectives, return an empty list.`,
 };
 
 const listResponseSchema = z.object({
