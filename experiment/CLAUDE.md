@@ -21,11 +21,15 @@ This is a "measuring thinking" experiment studying how writers use AI assistance
 2. **Information-Seeking**: Measure whether participants ask questions to gather information needed for their task
 3. **Company Reputation Awareness**: Measure whether participants consider how their writing reflects on the company
 
-### Task Scenario
-Participants play an event coordinator who must write an email to a panelist (Jaden Thompson) about a room double-booking issue. Key design decisions:
-- **Information gap**: Sarah's initial messages explain the problem but don't specify the alternative room/time, encouraging participants to ask questions
-- **Company framing**: Task instructions and Sarah's messages emphasize representing the company professionally
-- **Proactive follow-up**: If participants don't engage with the chat, Sarah sends a follow-up after ~75 seconds
+### Task Scenarios
+The experiment supports multiple configurable scenarios. Each scenario includes a unique colleague, recipient, and situation. Key design decisions:
+- **Information gap**: The colleague's initial messages explain the problem but don't specify all details, encouraging participants to ask questions
+- **Company framing**: Task instructions and colleague messages emphasize representing the company professionally
+- **Proactive follow-up**: If participants don't engage with the chat, the colleague sends a follow-up after ~75 seconds
+
+**Available Scenarios:**
+1. **Room Double-Booking** (`roomDoubleBooking`): Event coordinator Sarah Martinez asks you to email panelist Jaden Thompson about a scheduling conflict
+2. **Demo Rescheduling** (`demoRescheduling`): Solutions Engineer Marcus Chen asks you to email client Dr. Lisa Patel about rescheduling a product demo due to a critical bug
 
 ### Study Conditions
 - `n` = no_ai (baseline - no AI suggestions)
@@ -46,17 +50,17 @@ Participants play an event coordinator who must write an email to a panelist (Ja
 7. `components/study/FinalPage.tsx` - Completion page
 
 ### Core Components
-- `components/ChatPanel.tsx` - Chat with Sarah (simulated colleague)
+- `components/ChatPanel.tsx` - Chat with simulated colleague (persona varies by scenario)
 - `components/WritingArea.tsx` - Email composition area
 - `components/AIPanel.tsx` - AI writing suggestions (varies by condition)
 
 ### Configuration
-- `lib/studyConfig.ts` - Study page order, conditions, timing
+- `lib/studyConfig.ts` - Study page order, conditions, timing, **scenario definitions**
 - `lib/messageTiming.ts` - Realistic chat timing calculations
 - `lib/logging.ts` - Event logging utilities
 
 ### API Routes
-- `app/api/chat/route.ts` - Chat endpoint (GPT-4o for Sarah)
+- `app/api/chat/route.ts` - Chat endpoint (GPT-4o with scenario-specific system prompt)
 - `app/api/writing-support/route.ts` - AI writing suggestions
 - `app/api/log/route.ts` - Event logging endpoint
 
@@ -66,7 +70,17 @@ Participants play an event coordinator who must write an email to a panelist (Ja
 
 ### Timing for the Simulated Colleague
 
-Realistic timing works as follows: Sarah finds a moment to read your message (~400-800ms), takes time to read and think through a response (depends on your message length), types an answer (depends on her response length), then sends it. The thinking/reading delay and typing duration both use the same calculation (40-80 chars/sec ± 300ms variation) but applied to different message lengths—Sarah thinks proportionally to what you wrote, and types proportionally to what she's typing. This creates natural pacing.
+Realistic timing works as follows: The colleague finds a moment to read your message (~400-800ms), takes time to read and think through a response (depends on your message length), types an answer (depends on their response length), then sends it. The thinking/reading delay and typing duration both use the same calculation (40-80 chars/sec ± 300ms variation) but applied to different message lengths—they think proportionally to what you wrote, and type proportionally to what they're typing. This creates natural pacing.
+
+### Adding New Scenarios
+
+To add a new scenario, edit `lib/studyConfig.ts` and add a new entry to the `SCENARIOS` object. Each scenario requires:
+- **colleague**: name, firstName, role
+- **recipient**: name, email
+- **taskInstructions**: title, description, companyFraming
+- **chat**: initialMessages, followUpMessage, systemPrompt
+
+Then pass the scenario ID via URL: `?scenario=yourScenarioId`
 
 
 ## Getting Started

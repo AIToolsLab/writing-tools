@@ -5,9 +5,10 @@ A Next.js application that simulates a communicative writing task with AI-powere
 ## Features
 
 - **Email Writing Interface**: Compose emails with a realistic email editor
-- **AI Chat Assistant**: Chat with "Sarah Martinez," an AI-powered events coordinator who provides context for your writing task
+- **AI Chat Assistant**: Chat with an AI-powered colleague who provides context for your writing task
 - **Writing Support API**: AI writing assistance of various kinds
 - **Streaming Responses**: Real-time streaming chat responses using Vercel AI SDK
+- **Configurable Scenarios**: Multiple writing scenarios (room double-booking, demo rescheduling, etc.)
 
 ## Tech Stack
 
@@ -80,14 +81,15 @@ writing-task-app/
 
 ### POST /api/chat
 
-Streaming chat endpoint that simulates a conversation with Sarah Martinez, an events coordinator.
+Streaming chat endpoint that simulates a conversation with an AI colleague. The colleague's persona and context vary by scenario.
 
 **Request:**
 ```json
 {
   "messages": [
     { "role": "user", "content": "What room is available?" }
-  ]
+  ],
+  "scenario": "roomDoubleBooking"
 }
 ```
 
@@ -101,7 +103,7 @@ AI writing assistance endpoint.
 ```json
 {
   "editorState": {
-    "beforeCursor": "Dear Jaden,\n\nI hope this email finds you well. ",
+    "beforeCursor": "Dear [Recipient],\n\nI hope this email finds you well. ",
     "selectedText": "",
     "afterCursor": ""
   }
