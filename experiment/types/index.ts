@@ -16,7 +16,6 @@ export interface WritingSupportRequest {
 
 export interface WritingSupportResponse {
   suggestions: string[];
-  // To be expanded when implementing actual writing support
 }
 
 export type GenerationType = 'example_sentences' | 'analysis_readerPerspective' | 'proposal_advice';
