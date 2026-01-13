@@ -960,7 +960,7 @@ describe('ChatPanel - Message Logging', () => {
 
       // Advance timers more to reveal second part
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(300);
+        await vi.advanceTimersByTimeAsync(200);
       });
 
       messages = container.querySelectorAll('.mb-3.text-sm.leading-snug');
