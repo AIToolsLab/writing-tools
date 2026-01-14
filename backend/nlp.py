@@ -50,6 +50,17 @@ async def warmup_nlp():
 
 
 prompts = {
+    "inline_autocomplete": """\
+You are providing inline autocomplete suggestions to assist a writer as they type. Generate a short, natural continuation of the text that appears immediately after the cursor position.
+
+Guidelines:
+- Generate only the next few words (typically 3-10 words) that would naturally continue from the cursor position.
+- If the writer is mid-sentence, complete the current thought naturally.
+- If the writer just finished a sentence, suggest the beginning of the next sentence.
+- Match the writer's tone, style, and vocabulary level.
+- Keep suggestions concise and relevant to the immediate context.
+- Return ONLY the suggested text continuation, with no additional formatting, quotation marks, or explanations.
+""",
     "example_sentences": """\
 You are assisting a writer in drafting a document. Generate three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next.
 
