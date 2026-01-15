@@ -534,6 +534,118 @@ describe('ChatPanel - Message Logging', () => {
     }
   });
 
+  // Test 11: Regression - first part of new assistant message should not be logged with stale visibleMessagePartCount
+  it('should not log assistant message parts before they are visible (race condition)', async () => {
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const mockUseChat = vi.mocked(useChat);
+
+      const mockSendMessage = vi.fn();
+      const mockSetMessages = vi.fn();
+
+      // Start with initialized state - initial messages already visible
+      const emptyUserMessage = createUserMessage('', 'initial-user-message');
+      const initialAssistantMessage = createAssistantMessage(
+        JSON.stringify(['Hello!', 'How can I help?']),
+        'initial-assistant'
+      );
+      mockUseChat.mockReturnValue({
+        messages: [emptyUserMessage, initialAssistantMessage],
+        sendMessage: mockSendMessage,
+        setMessages: mockSetMessages,
+        status: 'ready',
+        id: 'test-chat',
+        error: undefined,
+      } as ReturnType<typeof useChat>);
+
+      const { rerender } = renderWithJotai(<ChatPanel />, {
+        initialValues: [
+          [
+            studyParamsAtom,
+            {
+              username: 'test-user',
+              condition: 'n',
+              page: 'task',
+              autoRefreshInterval: 15000,
+            },
+          ],
+        ],
+      });
+
+      // Advance timers to reveal all initial message parts
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+
+      mockLog.mockClear();
+
+      // Now simulate user sending a message and receiving a NEW assistant response
+      // The key bug we're testing: visibleMessagePartCount was high from the previous message
+      // but now with the fix, visibleMessageId prevents logging until parts are actually revealed
+      const userMessage = createUserMessage('What about X?', 'user-msg-1');
+      const newAssistantMessage = createAssistantMessage(
+        JSON.stringify(['New response part 1', 'New response part 2']),
+        'new-assistant'
+      );
+      mockUseChat.mockReturnValue({
+        messages: [emptyUserMessage, initialAssistantMessage, userMessage, newAssistantMessage],
+        sendMessage: mockSendMessage,
+        setMessages: mockSetMessages,
+        status: 'ready',
+        id: 'test-chat',
+        error: undefined,
+      } as any);
+
+      // Force re-render with new messages (simulating the async response arriving)
+      await act(async () => {
+        rerender(<ChatPanel />);
+      });
+
+      // At this point, NO parts of the new message should be logged yet
+      // because visibleMessageId hasn't been set for the new message
+      const prematureCalls = mockLog.mock.calls.filter(
+        (call) => call[0]?.event === 'chatMessage:assistant' && call[0]?.extra_data?.messageId === 'new-assistant'
+      );
+      expect(prematureCalls).toHaveLength(0);
+
+      mockLog.mockClear();
+
+      // Advance timers to reveal first part of NEW message
+      // (needs reading delay + typing duration for non-initial messages)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2000);
+      });
+
+      // The first part should now be logged with actual content
+      const assistantCalls = mockLog.mock.calls.filter(
+        (call) => call[0]?.event === 'chatMessage:assistant' && call[0]?.extra_data?.messageId === 'new-assistant'
+      );
+
+      expect(assistantCalls.length).toBeGreaterThan(0);
+      const firstPartCall = assistantCalls.find((call) => call[0]?.extra_data?.partIndex === 0);
+      expect(firstPartCall).toBeDefined();
+      expect(firstPartCall?.[0]?.extra_data?.content).toBe('New response part 1');
+
+      mockLog.mockClear();
+
+      // Advance more to reveal second part
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(500);
+      });
+
+      const secondPartCalls = mockLog.mock.calls.filter(
+        (call) => call[0]?.event === 'chatMessage:assistant' && call[0]?.extra_data?.messageId === 'new-assistant'
+      );
+
+      const part1Call = secondPartCalls.find((call) => call[0]?.extra_data?.partIndex === 1);
+      expect(part1Call).toBeDefined();
+      expect(part1Call?.[0]?.extra_data?.content).toBe('New response part 2');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   // Test 12: System Messages
   it('should not log system messages', async () => {
     const { useChat } = await import('@ai-sdk/react');

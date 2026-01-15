@@ -57,6 +57,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [visibleMessagePartCount, setVisibleMessagePartCount] = useState(0);
+  const [visibleMessageId, setVisibleMessageId] = useState<string | null>(null);
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   const [deliveredMessageIds, setDeliveredMessageIds] = useState<Set<string>>(new Set());
   const [readMessageIds, setReadMessageIds] = useState<Set<string>>(new Set());
@@ -87,7 +88,8 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
         // Hide last message while streaming to avoid showing partial JSON
         if (status === 'streaming') {
           partsToShow = [];
-        } else if (visibleMessagePartCount > 0) {
+        } else if (visibleMessageId === message.id && visibleMessagePartCount > 0) {
+          // Only use visibleMessagePartCount if it's for THIS message
           partsToShow = messageParts.slice(0, visibleMessagePartCount);
         } else {
           partsToShow = [];
@@ -96,7 +98,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
 
       return { parts: partsToShow, isUser, messageId: message.id };
     });
-  }, [messages, visibleMessagePartCount, status]);
+  }, [messages, visibleMessagePartCount, visibleMessageId, status]);
 
   // Scroll to bottom whenever displayed messages change
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll target position depends on displayed messages rendering.
@@ -188,7 +190,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
 
     const firstTypingDuration = calculateTypingDuration(parsedMessages[0].length);
 
-    // Start typing indicator after she has “read” the message
+    // Start typing indicator after she has "read" the message
     timers.push(
       setTimeout(() => {
         setShowTypingIndicator(true);
@@ -199,6 +201,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
     // Reveal first part after typing duration
     timers.push(
       setTimeout(() => {
+        setVisibleMessageId(lastMessage.id);
         setVisibleMessagePartCount(1);
         setShowTypingIndicator(false);
       }, readingDelay + firstTypingDuration)
@@ -312,10 +315,13 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
       const isLastMessage = messageIndex === messages.length - 1;
 
       if (isLastMessage) {
-        // For last message, only log visible parts
-        for (let i = 0; i < visibleMessagePartCount; i++) {
-          logAssistantMessagePart(message.id, i, parsedMessages[i]);
+        // For last message, only log visible parts if the count is for THIS message
+        if (visibleMessageId === message.id) {
+          for (let i = 0; i < visibleMessagePartCount; i++) {
+            logAssistantMessagePart(message.id, i, parsedMessages[i]);
+          }
         }
+        // Otherwise, don't log anything yet - wait for the sequencing effect to reveal parts
       } else {
         // For non-last messages, log all parts
         parsedMessages.forEach((part, partIndex) => {
@@ -323,7 +329,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
         });
       }
     });
-  }, [messages, visibleMessagePartCount]);
+  }, [messages, visibleMessagePartCount, visibleMessageId]);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -333,6 +339,11 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
     const messageId = `user-${Date.now()}`;
     setInput('');
     setShowTypingIndicator(false); // ensure no immediate typing indicator on send
+
+    // Reset visibility state BEFORE sending - the sequencing effect will set these
+    // for the new response when it arrives
+    setVisibleMessagePartCount(0);
+    setVisibleMessageId(null);
 
     // Log the user message event immediately (event-driven, no duplicates)
     log({
@@ -346,9 +357,6 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
     });
 
     await sendMessage({ text: userMessage });
-
-    // Reset message part count for next response
-    setVisibleMessagePartCount(0);
   };
 
   const notifyNewMessage = useEffectEvent(() => {
