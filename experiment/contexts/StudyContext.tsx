@@ -1,7 +1,7 @@
 'use client';
 
 import { atom } from 'jotai';
-import { StudyParams, ConditionName } from '@/types/study';
+import type { StudyParams, ConditionName } from '@/types/study';
 import { letterToCondition, DEFAULT_AUTO_REFRESH_INTERVAL } from '@/lib/studyConfig';
 
 /**

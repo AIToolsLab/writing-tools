@@ -99,7 +99,8 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
   }, [messages, visibleMessagePartCount, status]);
 
   // Scroll to bottom whenever displayed messages change
-  useEffect(() => {
+  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll target position depends on displayed messages rendering.
+    useEffect(() => {
     scrollToBottom();
   }, [displayedMessages]);
 
@@ -355,7 +356,7 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
       onNewMessage();
     }
   });
-  
+
   // Show notification when a new assistant message part appears
   useEffect(() => {
     if (messages.length === 0) return;
@@ -400,13 +401,11 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
                 {formatTime(new Date())}
               </div>
               {displayedMessage.isUser && (
-                <>
-                  {readMessageIds.has(displayedMessage.messageId) ? (
+                readMessageIds.has(displayedMessage.messageId) ? (
                     <div className="text-[10px] font-semibold text-green-700 mt-0.5">Read</div>
                   ) : deliveredMessageIds.has(displayedMessage.messageId) ? (
                     <div className="text-[10px] font-semibold text-gray-600 mt-0.5">Delivered</div>
-                  ) : null}
-                </>
+                  ) : null
               )}
             </div>
           ));

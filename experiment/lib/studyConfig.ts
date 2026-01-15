@@ -1,4 +1,4 @@
-import { ConditionCode, ConditionName } from '@/types/study';
+import type { ConditionCode, ConditionName } from '@/types/study';
 
 // Study wave identifier
 export const WAVE = 'pilot-1';
