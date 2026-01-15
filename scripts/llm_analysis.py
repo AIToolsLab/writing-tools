@@ -16,63 +16,29 @@ from pathlib import Path
 from openai_utils import get_openai_response
 
 
-# Scenario context for analysis (mirrors experiment/lib/studyConfig.ts)
-SCENARIOS = {
-    'roomDoubleBooking': {
-        'context': '''
-A marketing/events coordinator needs to email a panelist (Jaden Thompson, a social media influencer)
-about a room double-booking situation.
+# Load scenarios from shared JSON file (single source of truth with experiment app)
+_SCENARIOS_JSON_PATH = Path(__file__).parent.parent / 'experiment' / 'lib' / 'scenarios.json'
 
-KEY FACTS:
-- Jaden's panel was originally scheduled for 1pm in Room 12 tomorrow
-- Room 12 was accidentally double-booked with a more famous influencer (Sophia Chen)
-- Sophia already publicly announced her panel, so she can't be moved
-- Jaden's panel needs to be moved to Room 14 at 1:30pm
-- Room 14 would work fine at 1:30pm (event before ends at 1pm, so 1pm wouldn't allow setup time)
-- Mike Chen handles facilities/room bookings
-- The colleague (Sarah Martinez, Events Coordinator) provided these details via chat
 
-RECIPIENT CONTEXT:
-- Jaden Thompson is a paying client / social media influencer
-- He may be frustrated or upset by the last-minute change
-- The company wants to maintain good relations and not lose him as a client
-''',
-        'recipient': 'Jaden Thompson',
-        'key_facts': [
-            'The panel is being moved (not cancelled)',
-            'New location: Room 14',
-            'New time: 1:30pm (or acknowledgment of time change)',
-            'Reason relates to scheduling conflict / double-booking',
-        ],
-    },
-    'demoRescheduling': {
-        'context': '''
-A customer success manager needs to email a potential client (Dr. Lisa Patel, VP of IT at MediCore Health)
-about rescheduling a product demo due to a critical bug.
+def _load_scenarios() -> dict:
+    """Load scenarios from shared JSON file."""
+    with open(_SCENARIOS_JSON_PATH) as f:
+        data = json.load(f)
 
-KEY FACTS:
-- Demo was scheduled for Tuesday at 2pm
-- A critical bug was discovered in the reporting module (incorrect data aggregation)
-- Engineering needs 3-4 business days to fix and test
-- Available reschedule times: Thursday afternoon or Friday morning next week
-- This is a second meeting with MediCore - first was an intro call where she expressed strong interest
-- Dr. Patel has a tight timeline for vendor selection
-- The colleague (Marcus Chen, Solutions Engineer) provided these details via chat
+    # Transform to analysis-focused format
+    scenarios = {}
+    for scenario_id, scenario_data in data.items():
+        analysis = scenario_data.get('analysis', {})
+        scenarios[scenario_id] = {
+            'context': analysis.get('context', ''),
+            'recipient': scenario_data.get('recipient', {}).get('name', ''),
+            'key_facts': analysis.get('keyFacts', []),
+        }
+    return scenarios
 
-RECIPIENT CONTEXT:
-- Dr. Lisa Patel is VP of IT at a potential major client
-- She's busy and has mentioned tight vendor selection timeline
-- The company wants to maintain her confidence despite the delay
-''',
-        'recipient': 'Dr. Lisa Patel',
-        'key_facts': [
-            'The demo is being rescheduled (not cancelled)',
-            'New time proposed (Thursday or Friday next week)',
-            'Reason given (technical issue, ensuring quality)',
-            'Commitment to follow through',
-        ],
-    },
-}
+
+# Load scenarios at module import time
+SCENARIOS = _load_scenarios()
 
 
 def get_scenario_context(scenario_id: str) -> dict:
