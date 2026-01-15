@@ -612,9 +612,13 @@ describe('ChatPanel - Message Logging', () => {
       mockLog.mockClear();
 
       // Advance timers to reveal first part of NEW message
-      // (needs reading delay + typing duration for non-initial messages)
+      // With mocked timing (100ms each) and busyLag (1200ms):
+      // - readingDelay = 100 + 1200 = 1300ms
+      // - part 1 at: 1300 + 100 = 1400ms
+      // - part 2 at: 1400 + 100 + 100 = 1600ms
+      // So advance 1500ms to reveal only part 1
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(2000);
+        await vi.advanceTimersByTimeAsync(1500);
       });
 
       // The first part should now be logged with actual content
@@ -629,9 +633,9 @@ describe('ChatPanel - Message Logging', () => {
 
       mockLog.mockClear();
 
-      // Advance more to reveal second part
+      // Advance 200ms more to reveal second part (need to cross 1600ms threshold)
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(500);
+        await vi.advanceTimersByTimeAsync(200);
       });
 
       const secondPartCalls = mockLog.mock.calls.filter(
