@@ -12,6 +12,9 @@ export const studyParamsAtom = atom<StudyParams>({
   condition: 'n',
   page: 'consent',
   autoRefreshInterval: DEFAULT_AUTO_REFRESH_INTERVAL,
+  experiment: 'type',
+  isProlific: true,
+  scenario: 'roomDoubleBooking',
 });
 
 /**

@@ -11,6 +11,7 @@ function resolveCommit(): string {
       .toString()
       .trim();
     if (commit) return commit;
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   } catch (_) {
     // ignore
   }

@@ -45,10 +45,10 @@ export interface StudyParams {
   username: string;
   condition: ConditionCode;
   page: string;
-  experiment?: 'amount' | 'type';
-  isProlific?: boolean;
+  experiment: 'amount' | 'type';
+  isProlific: boolean;
   autoRefreshInterval: number;
-  scenario?: string; // Scenario ID (e.g., 'roomDoubleBooking', 'demoRescheduling')
+  scenario: string; // Scenario ID (e.g., 'roomDoubleBooking', 'demoRescheduling')
 }
 
 export interface BrowserMetadata extends Record<string, unknown> {
