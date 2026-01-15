@@ -1,7 +1,7 @@
 import type { ConditionCode, ConditionName } from '@/types/study';
 
 // Study wave identifier
-export const WAVE = 'pilot-1';
+export const WAVE = 'pilot-2';
 
 // Git commit - populated at build time
 export const GIT_COMMIT = process.env.NEXT_PUBLIC_GIT_COMMIT || 'unknown';
