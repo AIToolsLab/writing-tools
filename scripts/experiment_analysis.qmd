@@ -1,0 +1,322 @@
+---
+title: "Experiment Log Analysis"
+format:
+  html:
+    code-fold: true
+---
+
+This notebook analyzes log data from the writing experiment, including:
+
+- Email quality metrics (completeness, clarity, actionability, tone)
+- How well emails address recipient feelings
+- Factual verification (questions asked vs. questions needed)
+- AI suggestion influence on final text
+- Survey responses and behavioral metrics
+
+## Setup
+
+```{python}
+from pathlib import Path
+import pandas as pd
+import json
+from collections import defaultdict
+import joblib
+
+from dotenv import load_dotenv
+load_dotenv(Path(__file__).parent.parent / 'backend' / '.env')
+
+# Import our analysis modules
+from extract_experiment_data import extract_all_participants, to_dataframe
+from llm_analysis import (
+    run_full_analysis,
+    get_quality_scores,
+    get_feelings_scores,
+    get_question_coverage_score,
+    get_ai_influence_score,
+)
+
+# Configure paths
+LOGS_DIR = Path('/Volumes/Data-Crypt/2025 FA/logs/')  # Update this path
+CACHE_DIR = LOGS_DIR / 'analysis_cache'
+WAVE = 'pilot-2'  # Current wave to analyze
+
+# Set up caching
+cache = joblib.Memory(location=CACHE_DIR, verbose=0)
+```
+
+## Load Data
+
+```{python}
+# Extract participant data from logs
+participants = extract_all_participants(LOGS_DIR, wave=WAVE)
+df = to_dataframe(participants)
+
+print(f"Loaded {len(df)} participants")
+print(f"\nBy condition:")
+print(df['condition'].value_counts())
+print(f"\nBy scenario:")
+print(df['scenario'].value_counts())
+```
+
+## Basic Metrics
+
+```{python}
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+# Create a summary of behavioral metrics
+metrics_cols = [
+    'final_word_count',
+    'time_spent_writing_seconds',
+    'num_document_updates',
+    'num_chat_messages_sent',
+    'num_ai_suggestions_shown',
+]
+
+# Display summary statistics by condition
+df.groupby('condition')[metrics_cols].describe().round(1)
+```
+
+```{python}
+# Visualize key metrics by condition
+fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+
+# Word count
+sns.boxplot(data=df, x='condition', y='final_word_count', ax=axes[0, 0])
+axes[0, 0].set_title('Final Word Count by Condition')
+
+# Time spent
+sns.boxplot(data=df, x='condition', y='time_spent_writing_seconds', ax=axes[0, 1])
+axes[0, 1].set_title('Time Spent Writing (seconds)')
+
+# Chat messages sent
+sns.boxplot(data=df, x='condition', y='num_chat_messages_sent', ax=axes[1, 0])
+axes[1, 0].set_title('Chat Messages Sent')
+
+# AI suggestions shown (for AI conditions)
+ai_df = df[df['condition'] != 'no_ai']
+if len(ai_df) > 0:
+    sns.boxplot(data=ai_df, x='condition', y='num_ai_suggestions_shown', ax=axes[1, 1])
+    axes[1, 1].set_title('AI Suggestions Shown')
+
+plt.tight_layout()
+plt.show()
+```
+
+## LLM-Based Quality Analysis
+
+```{python}
+#| output: false
+
+# Run LLM analysis on all participants (this may take a while)
+# Results are cached, so subsequent runs will be fast
+
+from tqdm import tqdm
+
+analyses = []
+for idx, row in tqdm(df.iterrows(), total=len(df), desc="Analyzing emails"):
+    # Reconstruct participant data dict for analysis
+    participant_data = {
+        'username': row['username'],
+        'condition': row['condition'],
+        'scenario': row['scenario'],
+        'final_email_text': row['final_email_text'],
+        'chat_messages': row['chat_messages'],
+        'ai_suggestions': row['ai_suggestions'],
+    }
+
+    try:
+        analysis = run_full_analysis(participant_data, cache=cache)
+        analyses.append(analysis)
+    except Exception as e:
+        print(f"Error analyzing {row['username']}: {e}")
+        analyses.append(None)
+
+# Add analysis results to dataframe
+df['analysis'] = analyses
+```
+
+```{python}
+# Extract numeric scores into columns
+for idx, row in df.iterrows():
+    if row['analysis'] is None:
+        continue
+
+    # Quality scores
+    quality_scores = get_quality_scores(row['analysis'])
+    for key, value in quality_scores.items():
+        df.at[idx, f'quality_{key}'] = value
+
+    # Feelings scores
+    feelings_scores = get_feelings_scores(row['analysis'])
+    for key, value in feelings_scores.items():
+        df.at[idx, f'feelings_{key}'] = value
+
+    # Coverage and influence
+    df.at[idx, 'question_coverage'] = get_question_coverage_score(row['analysis'])
+    df.at[idx, 'ai_influence'] = get_ai_influence_score(row['analysis'])
+```
+
+## Quality Analysis Results
+
+```{python}
+quality_cols = [col for col in df.columns if col.startswith('quality_')]
+
+# Summary by condition
+df.groupby('condition')[quality_cols].mean().round(2)
+```
+
+```{python}
+# Visualize quality scores
+fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+axes = axes.flatten()
+
+for i, col in enumerate(quality_cols):
+    if i < len(axes):
+        sns.boxplot(data=df, x='condition', y=col, ax=axes[i])
+        axes[i].set_title(col.replace('quality_', '').replace('_', ' ').title())
+        axes[i].set_ylim(0.5, 5.5)
+
+# Hide unused axes
+for j in range(len(quality_cols), len(axes)):
+    axes[j].set_visible(False)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Recipient Feelings Analysis
+
+```{python}
+feelings_cols = [col for col in df.columns if col.startswith('feelings_')]
+
+# Summary by condition
+df.groupby('condition')[feelings_cols].mean().round(2)
+```
+
+```{python}
+# Visualize feelings scores
+fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+axes = axes.flatten()
+
+for i, col in enumerate(feelings_cols):
+    if i < len(axes):
+        sns.boxplot(data=df, x='condition', y=col, ax=axes[i])
+        axes[i].set_title(col.replace('feelings_', '').replace('_', ' ').title())
+        axes[i].set_ylim(0.5, 5.5)
+
+plt.tight_layout()
+plt.show()
+```
+
+## Factual Question Coverage
+
+How many of the factual questions that should be verified were actually discussed with the colleague?
+
+```{python}
+# Question coverage by condition
+print("Question Coverage Score by Condition:")
+print(df.groupby('condition')['question_coverage'].describe().round(2))
+```
+
+```{python}
+sns.boxplot(data=df, x='condition', y='question_coverage')
+plt.title('Factual Question Coverage by Condition')
+plt.ylabel('Coverage Score (0-1)')
+plt.ylim(-0.05, 1.05)
+plt.show()
+```
+
+## AI Suggestion Influence
+
+For AI conditions, how much did the suggestions influence the final email?
+
+```{python}
+ai_df = df[df['condition'] != 'no_ai'].copy()
+
+if len(ai_df) > 0:
+    print("AI Influence Score by Condition:")
+    print(ai_df.groupby('condition')['ai_influence'].describe().round(2))
+
+    sns.boxplot(data=ai_df, x='condition', y='ai_influence')
+    plt.title('AI Suggestion Influence by Condition')
+    plt.ylabel('Influence Score (0-1)')
+    plt.ylim(-0.05, 1.05)
+    plt.show()
+```
+
+## Correlation Analysis
+
+```{python}
+# Correlation between quality metrics and behavioral metrics
+numeric_cols = (
+    quality_cols +
+    feelings_cols +
+    ['question_coverage', 'ai_influence'] +
+    ['final_word_count', 'time_spent_writing_seconds', 'num_chat_messages_sent']
+)
+
+# Filter to existing columns
+existing_cols = [c for c in numeric_cols if c in df.columns]
+corr_df = df[existing_cols].corr()
+
+plt.figure(figsize=(12, 10))
+sns.heatmap(corr_df, annot=True, cmap='RdBu_r', center=0, fmt='.2f')
+plt.title('Correlation Matrix: Quality and Behavioral Metrics')
+plt.tight_layout()
+plt.show()
+```
+
+## Statistical Tests
+
+```{python}
+from scipy import stats
+
+# Kruskal-Wallis tests for quality metrics across conditions
+print("Kruskal-Wallis Tests (Quality Metrics by Condition)")
+print("=" * 50)
+
+for col in quality_cols:
+    groups = [df[df['condition'] == c][col].dropna() for c in df['condition'].unique()]
+    groups = [g for g in groups if len(g) > 0]
+
+    if len(groups) >= 2:
+        h_stat, p_val = stats.kruskal(*groups)
+        sig = '*' if p_val < 0.05 else ''
+        print(f"{col}: H={h_stat:.2f}, p={p_val:.4f} {sig}")
+```
+
+## Sample Emails
+
+```{python}
+# Display a few sample emails for qualitative review
+print("Sample Emails by Condition")
+print("=" * 60)
+
+for condition in df['condition'].unique():
+    sample = df[df['condition'] == condition].iloc[0]
+    print(f"\n--- {condition.upper()} ---")
+    print(f"Word count: {sample['final_word_count']}")
+    print(f"Quality overall: {sample.get('quality_overall_quality', 'N/A')}")
+    print(f"\nEmail:\n{sample['final_email_text'][:500]}...")
+    print()
+```
+
+## Export Results
+
+```{python}
+# Export analysis results (without raw entries)
+export_cols = [
+    'username', 'condition', 'scenario', 'wave',
+    'final_word_count', 'time_spent_writing_seconds',
+    'num_chat_messages_sent', 'num_ai_suggestions_shown',
+] + quality_cols + feelings_cols + ['question_coverage', 'ai_influence']
+
+export_cols = [c for c in export_cols if c in df.columns]
+export_df = df[export_cols].copy()
+
+# Save to CSV
+output_path = LOGS_DIR / 'analysis_results.csv'
+export_df.to_csv(output_path, index=False)
+print(f"Saved analysis results to {output_path}")
+```

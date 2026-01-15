@@ -1,0 +1,78 @@
+{
+  "roomDoubleBooking": {
+    "id": "roomDoubleBooking",
+    "sender": {
+      "name": "Alex Johnson"
+    },
+    "colleague": {
+      "name": "Sarah Martinez",
+      "firstName": "Sarah",
+      "role": "Events Coordinator"
+    },
+    "recipient": {
+      "name": "Jaden Thompson",
+      "email": "jaden.t@example.com"
+    },
+    "taskInstructions": {
+      "title": "Writing Task",
+      "description": "You work as an event coordinator. Your colleague Sarah has messaged you about a scheduling conflict that needs to be resolved. You need to write an email to one of the panelists to address the situation.",
+      "companyFraming": "You're representing the company in this communication. Consider how your message will reflect on the team."
+    },
+    "chat": {
+      "initialMessages": [
+        "Hey, remember that panel we scheduled with Jaden tomorrow?",
+        "Turns out we double-booked the room! 😬 Sophia already posted that her panel is in room 12 at 1pm. She's more famous, we can't back out on her.",
+        "Need you to send him an email sorting this out. Keep him happy, we can't afford to lose a client!"
+      ],
+      "followUpMessage": "Let me know if you have any questions!",
+      "systemPrompt": "You are Sarah Martinez, an Events Coordinator at a mid-sized company. You are currently dealing with a stressful room double-booking situation.\n\nSCENARIO CONTEXT:\n- Tomorrow there's a panel discussion with Jaden Thompson (a social media influencer)\n- The panel was originally scheduled for 1pm in Room 12\n- Room 12 was accidentally double-booked with Sophia Chen (a more famous influencer with 500K followers)\n- Sophia already publicly announced her panel at Room 12 at 1pm to her fans, so you can't move her\n- You need to move Jaden's panel to a different room/time\n- Room 14 is available, but the event before it ends at 1pm (so no setup time if scheduled at 1pm)\n- Room 14 would work fine at 1:30pm\n- Mike Chen handles facilities/room bookings\n- The user is a PR/communications person who needs to email Jaden about the change\n\nYOUR ROLE:\n- Answer questions about the facts of the situation\n- You're busy and stressed, typing quick messages on your phone\n- Keep responses SHORT - usually 1-2 sentences, sometimes just a few words\n- You can send multiple short messages in a row if that feels natural\n- You CANNOT and WILL NOT write the email for them or tell them exactly what to say - that's their job\n- You can give them facts, but not draft communications\n- If asked to write/draft anything, politely refuse (you're too busy, or it's their expertise)\n- You can make up reasonable details if needed, but keep them consistent with the scenario\n- Be natural and conversational, use occasional emoji when appropriate\n- Sometimes you might need to check with Mike or look something up - you can say you'll get back to them\n\nRESPONSE FORMAT:\nRespond with a JSON array of messages. Each message is a string. If you want to send multiple messages in quick succession (like someone texting), put them in separate array elements.\n\nExample: [\"1pm same room 😅\", \"can you email him?\"]\nOr: [\"Room 14 is free\", \"but the event before ends at 1 so no setup time\"]\n\nJust return the JSON array, nothing else."
+    },
+    "analysis": {
+      "context": "A marketing/events coordinator needs to email a panelist (Jaden Thompson, a social media influencer) about a room double-booking situation.\n\nKEY FACTS:\n- Jaden's panel was originally scheduled for 1pm in Room 12 tomorrow\n- Room 12 was accidentally double-booked with a more famous influencer (Sophia Chen)\n- Sophia already publicly announced her panel, so she can't be moved\n- Jaden's panel needs to be moved to Room 14 at 1:30pm\n- Room 14 would work fine at 1:30pm (event before ends at 1pm, so 1pm wouldn't allow setup time)\n- Mike Chen handles facilities/room bookings\n- The colleague (Sarah Martinez, Events Coordinator) provided these details via chat\n\nRECIPIENT CONTEXT:\n- Jaden Thompson is a paying client / social media influencer\n- He may be frustrated or upset by the last-minute change\n- The company wants to maintain good relations and not lose him as a client",
+      "keyFacts": [
+        "The panel is being moved (not cancelled)",
+        "New location: Room 14",
+        "New time: 1:30pm (or acknowledgment of time change)",
+        "Reason relates to scheduling conflict / double-booking"
+      ]
+    }
+  },
+  "demoRescheduling": {
+    "id": "demoRescheduling",
+    "sender": {
+      "name": "Alex Johnson"
+    },
+    "colleague": {
+      "name": "Marcus Chen",
+      "firstName": "Marcus",
+      "role": "Solutions Engineer"
+    },
+    "recipient": {
+      "name": "Dr. Lisa Patel",
+      "email": "l.patel@medicore.com"
+    },
+    "taskInstructions": {
+      "title": "Writing Task",
+      "description": "You work as a customer success manager. Your colleague Marcus has messaged you about a technical issue that requires rescheduling an important product demo. You need to write an email to the client to address the situation.",
+      "companyFraming": "You're representing the company in this communication. Consider how your message will reflect on our professionalism and reliability."
+    },
+    "chat": {
+      "initialMessages": [
+        "Hey, we have a problem with tomorrow's MediCore demo 😓",
+        "Found a critical bug in the reporting module this morning. Can't show it like this to a VP.",
+        "Can you email Dr. Patel and reschedule? Need to keep her confident in us."
+      ],
+      "followUpMessage": "Let me know if you need any details!",
+      "systemPrompt": "You are Marcus Chen, a Solutions Engineer at a B2B SaaS company. You've discovered a critical bug right before an important product demo.\n\nSCENARIO CONTEXT:\n- Tomorrow (Tuesday) at 2pm you have a scheduled product demo with Dr. Lisa Patel, VP of IT at MediCore Health (a potential major client)\n- This morning you discovered a critical bug in the reporting module that causes incorrect data aggregation\n- The bug makes the product look unreliable and unprofessional - you absolutely cannot demo it in this state\n- Your engineering team needs 3-4 business days to fix and test it properly\n- Thursday afternoon and Friday morning next week are your available slots (you can check your calendar for exact times if asked)\n- This is the second meeting with MediCore - the first was an intro call last week where Dr. Patel expressed strong interest\n- The user is a customer success manager who handles client communications\n- Dr. Patel seems professional but busy - she mentioned having a tight timeline for vendor selection\n\nYOUR ROLE:\n- Answer questions about the technical issue and rescheduling options\n- You're concerned about maintaining client confidence but honest about technical issues\n- Keep responses SHORT - usually 1-2 sentences, sometimes just a few words\n- You can send multiple short messages in a row if that feels natural\n- You CANNOT and WILL NOT write the email for them or tell them exactly what to say - that's their job\n- You can give them facts about the bug, timeline, and available slots, but not draft communications\n- If asked to write/draft anything, politely refuse (it's their expertise in client relations)\n- You can make up reasonable technical details if needed, but keep them consistent\n- Be natural and conversational, use occasional emoji when appropriate\n- You might need to double-check your calendar or with engineering - you can say you'll get back to them\n\nRESPONSE FORMAT:\nRespond with a JSON array of messages. Each message is a string. If you want to send multiple messages in quick succession (like someone texting), put them in separate array elements.\n\nExample: [\"data aggregation bug\", \"makes us look bad\"]\nOr: [\"I have Thursday 2pm free\", \"or Friday morning\"]\n\nJust return the JSON array, nothing else."
+    },
+    "analysis": {
+      "context": "A customer success manager needs to email a potential client (Dr. Lisa Patel, VP of IT at MediCore Health) about rescheduling a product demo due to a critical bug.\n\nKEY FACTS:\n- Demo was scheduled for Tuesday at 2pm\n- A critical bug was discovered in the reporting module (incorrect data aggregation)\n- Engineering needs 3-4 business days to fix and test\n- Available reschedule times: Thursday afternoon or Friday morning next week\n- This is a second meeting with MediCore - first was an intro call where she expressed strong interest\n- Dr. Patel has a tight timeline for vendor selection\n- The colleague (Marcus Chen, Solutions Engineer) provided these details via chat\n\nRECIPIENT CONTEXT:\n- Dr. Lisa Patel is VP of IT at a potential major client\n- She's busy and has mentioned tight vendor selection timeline\n- The company wants to maintain her confidence despite the delay",
+      "keyFacts": [
+        "The demo is being rescheduled (not cancelled)",
+        "New time proposed (Thursday or Friday next week)",
+        "Reason given (technical issue, ensuring quality)",
+        "Commitment to follow through"
+      ]
+    }
+  }
+}
