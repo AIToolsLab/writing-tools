@@ -151,6 +151,7 @@ export default function AIPanel({
             event: `aiRequest:${modeToUse}`,
             extra_data: {
               isAutoRefresh,
+              // Don't log document content right now; we'll log it with the response
             },
           });
         }
@@ -196,6 +197,7 @@ export default function AIPanel({
               await log({
                 username: studyParams.username,
                 event: `aiResponse:${modeToUse}`,
+                extra_data: { isAutoRefresh, generation, editorState },
               });
             }
           }
