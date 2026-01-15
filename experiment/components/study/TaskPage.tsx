@@ -39,6 +39,7 @@ export default function TaskPage() {
       username,
       event: 'taskComplete',
       extra_data: {
+        finalText: content,
         wordCount: content.split(/\s+/).length,
         documentLength: content.length,
       },
