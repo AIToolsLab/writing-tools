@@ -450,7 +450,7 @@ describe('ChatPanel - Message Logging', () => {
     expect(now - timestampMs).toBeLessThan(1000);
   });
 
-  // Test 10: Assistant messages are logged when they appear
+  // Test 10: Assistant messages are logged only when displayed, not before
   it('should log new messages when added incrementally', async () => {
     vi.useFakeTimers();
     try {
@@ -460,10 +460,10 @@ describe('ChatPanel - Message Logging', () => {
       const mockSendMessage = vi.fn();
       const mockSetMessages = vi.fn();
 
-      // Start with initialized state (empty user + assistant message)
+      // Start with initialized state (empty user + assistant message with 2 parts)
       const emptyUserMessage = createUserMessage('', 'initial-user-message');
       const msg1 = createAssistantMessage(
-        JSON.stringify(['Response part 1', 'Response part 2']),
+        JSON.stringify(['First part', 'Second part']),
         'msg-1'
       );
       mockUseChat.mockReturnValue({
@@ -489,22 +489,46 @@ describe('ChatPanel - Message Logging', () => {
 
       mockLog.mockClear();
 
-      // Advance timers to reveal first part (100ms typing duration)
+      // BEFORE any time passes: no messages should be logged yet
+      expect(mockLog).not.toHaveBeenCalled();
+
+      // Advance timers to reveal first part only (100ms typing duration)
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(200);
+        await vi.advanceTimersByTimeAsync(150);
       });
 
-      const assistantCall = mockLog.mock.calls.find(call =>
-        call[0]?.extra_data?.messageId === 'msg-1'
+      // First message should now be logged
+      expect(mockLog).toHaveBeenCalledTimes(1);
+      expect(mockLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'chatMessage:assistant',
+          extra_data: expect.objectContaining({
+            messageId: 'msg-1',
+            partIndex: 0,
+            content: 'First part',
+          }),
+        })
       );
-      expect(assistantCall).toBeDefined();
-      expect(assistantCall?.[0]).toMatchObject({
-        event: 'chatMessage:assistant',
-        extra_data: expect.objectContaining({
-          messageId: 'msg-1',
-          partIndex: 0,
-        }),
+
+      mockLog.mockClear();
+
+      // Advance timers to reveal second part (inter-message delay 100ms + typing 100ms)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(250);
       });
+
+      // Second message should now be logged
+      expect(mockLog).toHaveBeenCalledTimes(1);
+      expect(mockLog).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: 'chatMessage:assistant',
+          extra_data: expect.objectContaining({
+            messageId: 'msg-1',
+            partIndex: 1,
+            content: 'Second part',
+          }),
+        })
+      );
     } finally {
       vi.useRealTimers();
     }
