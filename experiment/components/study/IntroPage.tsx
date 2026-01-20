@@ -1,15 +1,12 @@
 'use client';
 
 import { useSearchParams } from 'next/navigation';
-import { useAtom } from 'jotai';
-import { log } from '@/lib/logging';
 import { getBrowserMetadata } from '@/lib/browserMetadata';
+import { log } from '@/lib/logging';
 import { getNextPage } from '@/lib/studyConfig';
-import { studyParamsAtom, updateStudyParamsAtom } from '@/contexts/StudyContext';
 
 export default function IntroPage() {
   const searchParams = useSearchParams();
-  const [studyParams, updateParams] = useAtom(updateStudyParamsAtom);
 
   const handleStartStudy = async () => {
     const username = searchParams.get('username') || '';
