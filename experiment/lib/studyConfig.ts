@@ -40,7 +40,7 @@ export const letterToCondition: Record<ConditionCode, ConditionName> = {
 };
 
 // Consent form URL (Qualtrics)
-export const CONSENT_FORM_URL = 'https://example.com/consent';
+export const CONSENT_FORM_URL = 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW';
 
 // Minimum screen dimensions
 export const MIN_SCREEN_WIDTH = 600;

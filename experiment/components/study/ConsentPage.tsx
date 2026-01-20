@@ -21,7 +21,7 @@ export default function ConsentPage() {
 
     // Redirect to external consent form with return URL
     const consentUrl = new URL(CONSENT_FORM_URL);
-    consentUrl.searchParams.set('ReturnUrl', redirectUrl);
+    consentUrl.searchParams.set('redirect_url', redirectUrl);
     window.location.href = consentUrl.toString();
   };
 
@@ -36,13 +36,12 @@ export default function ConsentPage() {
         </p>
 
         <p>
-          <strong>Procedure:</strong> You will write an email response based on
-          the provided context. You may or may not receive AI suggestions
+          <strong>Procedure:</strong> Your participation entails performing a writing task using a system that offers AI-generated suggestions. You may or may not receive AI suggestions
           depending on the condition you are assigned to.
         </p>
 
         <p>
-          <strong>Time Commitment:</strong> Approximately 15-20 minutes.
+          <strong>Time Commitment:</strong> Approximately 20-30 minutes.
         </p>
 
         <p>
@@ -50,8 +49,7 @@ export default function ConsentPage() {
         </p>
 
         <p>
-          <strong>Benefits:</strong> You will receive compensation for your
-          participation.
+          <strong>Compensation:</strong> $5 upon study completion.
         </p>
 
         <p>
@@ -66,6 +64,7 @@ export default function ConsentPage() {
       </div>
 
       <button
+        type='button'
         onClick={handleLaunchConsent}
         className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
       >
