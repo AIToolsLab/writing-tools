@@ -1,4 +1,4 @@
-# Writing Task Prototype
+# Controlled Open-Ended Writing Task
 
 A Next.js application that simulates a communicative writing task with AI-powered chat support.
 

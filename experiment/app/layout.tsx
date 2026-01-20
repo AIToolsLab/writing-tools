@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Writing Task Prototype",
+  title: "Writing Task",
   description: "AI-powered writing task with chat support",
 };
 
