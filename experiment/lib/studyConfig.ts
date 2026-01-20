@@ -8,7 +8,7 @@ export const WAVE = 'pilot-2';
 export const GIT_COMMIT = process.env.NEXT_PUBLIC_GIT_COMMIT || 'unknown';
 
 // Prolific completion code
-export const COMPLETION_CODE = 'C1234567';
+export const COMPLETION_CODE = 'C91ZEA7F';
 
 // Default auto-refresh interval (15 seconds)
 export const DEFAULT_AUTO_REFRESH_INTERVAL = 15000;
