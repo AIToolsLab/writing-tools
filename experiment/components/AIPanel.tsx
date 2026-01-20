@@ -17,6 +17,7 @@ const visibleNameForMode = {
 };
 
 const modes = ['example_sentences', 'complete_document', 'analysis_readerPerspective', 'proposal_advice'] as const;
+const MIN_TEXT_LENGTH_FOR_SUGGESTION = 25;
 
 function GenerationResultDisplay({ generation }: { generation: GenerationResult }) {
   return (
@@ -128,6 +129,15 @@ export default function AIPanel({
         const editorState = writingAreaRef?.current?.getEditorState();
         if (!editorState) {
           setErrorMsg('Unable to read editor state');
+          return;
+        }
+
+        // Check if there's not enough text to bother making a request
+        const currentText = editorState.beforeCursor + editorState.selectedText + editorState.afterCursor;
+        if (currentText.trim().length < MIN_TEXT_LENGTH_FOR_SUGGESTION) {
+          // Too little text to generate a suggestion
+          // But suggestions are automatically requested, so just silently skip
+          setIsLoading(false);
           return;
         }
 
