@@ -59,8 +59,8 @@ export default function FinalPage() {
 
         <section className="bg-gray-50 p-4 rounded-lg">
           <p className="text-sm text-gray-600">
-            This research was conducted by [Research Institution]. For questions
-            about this study, please contact [contact information].
+            This research was conducted by the <a href="https://thoughtful-ai.com/">Thoughtful AI Lab</a> at Calvin University. For questions
+            about this study, please contact ken.arnold@calvin.edu.
           </p>
         </section>
       </div>
