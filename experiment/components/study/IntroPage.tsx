@@ -30,8 +30,6 @@ export default function IntroPage() {
 
   return (
     <div className="max-w-2xl mx-auto p-8">
-      <h1 className="text-4xl font-bold mb-6">Welcome to the Study</h1>
-
       <div className="space-y-6 mb-8">
         <section>
           <h2 className="text-2xl font-semibold mb-3">Overview</h2>
@@ -46,27 +44,10 @@ export default function IntroPage() {
           <h2 className="text-2xl font-semibold mb-3">What You&rsquo;ll Do</h2>
           <ol className="list-decimal list-inside space-y-2 text-gray-700">
             <li>Complete a brief questionnaire about your background</li>
-            <li>Write an email response based on provided context.
-              You may or may not receive AI suggestions of different types
+            <li>Write an email message. We&apos;ll walk you through the task step-by-step.
             </li>
             <li>Complete a follow-up questionnaire about your experience</li>
           </ol>
-        </section>
-
-        <section>
-          {/* TODO: Update time estimate if needed */}
-          <h2 className="text-2xl font-semibold mb-3">Time Estimate</h2>
-          <p className="text-gray-700">
-            The entire study should take approximately 15-20 minutes.
-          </p>
-        </section>
-
-        <section>
-          <h2 className="text-2xl font-semibold mb-3">Your Data</h2>
-          <p className="text-gray-700">
-            Your writing and responses will be recorded for research purposes.
-            We will not collect any personally identifying information.
-          </p>
         </section>
       </div>
 
@@ -75,7 +56,7 @@ export default function IntroPage() {
         onClick={handleStartStudy}
         className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
       >
-        Start Study
+        On to the Intro Survey &rarr;
       </button>
     </div>
   );
