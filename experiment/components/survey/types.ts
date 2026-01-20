@@ -1,8 +1,10 @@
+import type { JSX } from "react";
+
 export type QuestionType = 'text' | 'likert' | 'radio' | 'checkbox';
 
 export interface Question {
   id: string;
-  text: string;
+  text: string | JSX.Element;
   type: QuestionType;
   required?: boolean;
   options?: string[]; // For likert, radio, checkbox

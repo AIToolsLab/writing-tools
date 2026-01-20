@@ -118,7 +118,7 @@ export const postTaskCommonQuestions: Question[] = [
 export const postTaskAIQuestions: Question[] = [
   {
     id: 'ai_decision_timing',
-    text: 'When did you decide not to use an AI suggestion?',
+    text: <>When did you decide <b>not</b> to use an AI suggestion?</>,
     type: 'text',
     placeholder: 'Describe when and why you decided not to use a suggestion',
     required: false,
