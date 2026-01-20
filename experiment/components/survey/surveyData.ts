@@ -99,7 +99,7 @@ export const postTaskCommonQuestions: Question[] = [
       'ChatGPT or other AI',
       'Dictionary or thesaurus',
       'None',
-      'Other',
+      'Other (please specify in the next question)',
     ],
     required: false,
   },
@@ -175,22 +175,22 @@ export const conditionDebriefs: Record<
   complete_document: {
     title: 'About the AI Draft',
     content:
-      'In this condition, the AI system provided complete draft emails. The information in these drafts may or may not be consistent with the true context from the chat conversation. The chat provides accurate information, while the AI-generated suggestions should be carefully evaluated.',
+      'In this condition, the AI system provided complete draft emails. The information in these drafts may or may not have been consistent with the true context from the chat conversation. Please reflect on how you used these AI-generated drafts in your writing.',
   },
   example_sentences: {
     title: 'About the AI Suggestions',
     content:
-      'In this condition, the AI system provided example sentences as suggestions. These mixed correct and helpful suggestions with some that were less useful, to test how you use AI assistance.',
+      'In this condition, the AI system provided example sentences as suggestions. The information in these suggestions may or may not have been consistent with the true context from the chat conversation. Please reflect on how you used these AI-generated suggestions in your writing.',
   },
   analysis_readerPerspective: {
     title: 'About the AI Analysis',
     content:
-      'In this condition, the AI system provided analysis from a reader perspective, asking questions to improve your writing. These suggestions were a mix of helpful analysis and less useful questions.',
+      'In this condition, the AI system provided analysis from a reader perspective. Please reflect on how this feedback influenced your writing process.',
   },
   proposal_advice: {
     title: 'About the AI Advice',
     content:
-      'In this condition, the AI system provided writing advice and suggestions. These were a mix of helpful proposals and less useful advice.',
+      'In this condition, the AI system provided writing advice and suggestions. Please reflect on how this advice influenced your writing process.',
   },
 };
 
