@@ -69,11 +69,13 @@ export default function StartTaskPage() {
             <li>
               If you encounter any issues, please note them in the final survey
             </li>
+            <li>For practical purposes, an AI will be playing the role of {scenario.colleague.firstName}. But treat them as if they were from a real person.</li>
           </ul>
         </div>
       </div>
 
       <button
+        type="button"
         onClick={handleStartTask}
         className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
       >
