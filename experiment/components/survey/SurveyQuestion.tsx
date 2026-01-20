@@ -20,6 +20,7 @@ export default function SurveyQuestion({ question }: SurveyQuestionProps) {
         placeholder={question.placeholder}
         options={question.options}
         required={question.required}
+        multiline={question.multiline}
       />
     </div>
   );

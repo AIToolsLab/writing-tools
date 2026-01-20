@@ -7,6 +7,7 @@ export interface Question {
   required?: boolean;
   options?: string[]; // For likert, radio, checkbox
   placeholder?: string; // For text inputs
+  multiline?: boolean; // For text inputs: false = single-line input, true/undefined = textarea
 }
 
 /**

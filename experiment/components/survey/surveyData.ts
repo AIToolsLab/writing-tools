@@ -11,6 +11,7 @@ export const introSurveyQuestions: Question[] = [
     type: 'text',
     placeholder: 'Enter your age',
     required: true,
+    multiline: false,
   },
   {
     id: 'gender',

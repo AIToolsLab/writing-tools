@@ -11,6 +11,7 @@ interface ControlledInputProps {
   options?: string[];
   label?: string;
   required?: boolean;
+  multiline?: boolean;
 }
 
 export default function ControlledInput({
@@ -20,6 +21,7 @@ export default function ControlledInput({
   options = [],
   label,
   required = false,
+  multiline = true,
 }: ControlledInputProps) {
   const [inputs, setInputs] = useAtom(surveyInputAtom);
   const value = inputs[questionId] ?? '';
@@ -32,14 +34,29 @@ export default function ControlledInput({
   };
 
   if (type === 'text') {
+    const baseClassName = "w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500";
+
+    if (multiline) {
+      return (
+        <textarea
+          value={String(value)}
+          onChange={(e) => handleChange(e.target.value)}
+          placeholder={placeholder}
+          required={required}
+          rows={3}
+          className={baseClassName}
+        />
+      );
+    }
+
     return (
-      <textarea
+      <input
+        type="text"
         value={String(value)}
         onChange={(e) => handleChange(e.target.value)}
         placeholder={placeholder}
         required={required}
-        rows={3}
-        className="w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className={baseClassName}
       />
     );
   }
