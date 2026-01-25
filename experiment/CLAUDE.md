@@ -16,6 +16,24 @@ This is a separate Next.js application for experimentation. It does not depend o
 
 This is a "measuring thinking" experiment studying how writers use AI assistance and information-seeking behavior.
 
+### Core Research Question
+
+This experiment investigates **over-reliance on AI writing suggestions**. When people receive AI-generated text, they risk "premature closure"—accepting plausible-sounding output without thinking through what the situation actually requires.
+
+### Measurement Approach
+
+We measure over-reliance through two channels:
+1. **Process**: What questions participants ask the colleague (reveals what they thought to think about)
+2. **Outcome**: Whether the final email reflects genuine understanding (care for recipient, consequences considered) vs. superficially professional but problem-unaware text
+
+### The Colleague Chat as Measurement Instrument
+
+The colleague serves dual purposes:
+- **Realistic information source**: Writers need details to compose a good email
+- **Measurement instrument**: Questions asked reveal cognitive engagement
+
+**Critical constraint**: The colleague must NOT volunteer information proactively. If the LLM dumps all relevant facts without being asked, we can't measure what the participant thought to ask about. The colleague should be reactive, answering questions when asked but not anticipating needs. The system prompt includes "DON'T be proactive" for this reason.
+
 ### Research Goals
 1. **AI Writing Assistance**: Measure how participants use different types of AI suggestions (complete drafts, example sentences, analysis questions, etc.)
 2. **Information-Seeking**: Measure whether participants ask questions to gather information needed for their task
@@ -25,7 +43,7 @@ This is a "measuring thinking" experiment studying how writers use AI assistance
 The experiment supports multiple configurable scenarios. Each scenario includes a unique colleague, recipient, and situation. Key design decisions:
 - **Information gap**: The colleague's initial messages explain the problem but don't specify all details, encouraging participants to ask questions
 - **Company framing**: Task instructions and colleague messages emphasize representing the company professionally
-- **Proactive follow-up**: If participants don't engage with the chat, the colleague sends a follow-up after ~75 seconds
+- **Follow-up nudge**: If participants don't engage with the chat, the colleague sends a brief follow-up after ~75 seconds (e.g., "still here if you need anything")—this is a conversation nudge, NOT an information dump
 
 **Available Scenarios:**
 1. **Room Double-Booking** (`roomDoubleBooking`): Event coordinator Sarah Martinez asks you to email panelist Jaden Thompson about a scheduling conflict
