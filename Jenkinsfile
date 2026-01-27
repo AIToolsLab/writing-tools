@@ -4,7 +4,10 @@ pipeline {
         stage('Build') {
             steps {
                 echo 'Building the application...'
-                sh 'docker compose -f docker-compose.yml -f docker-compose-prod.yml build'
+                sh '''
+                    EXP_LOGS_GID=$(getent group writing-study-irb-approved | cut -d: -f3)
+                    docker compose -f docker-compose.yml -f docker-compose-prod.yml build --build-arg EXP_LOGS_GID=${EXP_LOGS_GID}
+                '''
             }
         }
         // stage('Test') {
