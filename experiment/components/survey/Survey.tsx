@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode } from 'react';
+import { type ReactNode, useState } from 'react';
 import { Question } from './types';
 import SurveyQuestion from './SurveyQuestion';
 
@@ -21,8 +21,12 @@ export default function Survey({
   submitButtonText = 'Submit',
   children,
 }: SurveyProps) {
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     await onSubmit();
   };
 
@@ -41,9 +45,10 @@ export default function Survey({
 
       <button
         type="submit"
-        className="mt-8 px-6 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 transition"
+        disabled={isSubmitting}
+        className="mt-8 px-6 py-2 bg-blue-600 text-white rounded font-medium hover:bg-blue-700 transition disabled:bg-blue-400 disabled:cursor-not-allowed"
       >
-        {submitButtonText}
+        {isSubmitting ? 'Submitting...' : submitButtonText}
       </button>
     </form>
   );
