@@ -105,14 +105,15 @@ Outcome coding via rubric + independent raters (or LLM-assisted with human valid
 
 **Study 1: AI Presence**
 
-- Control: No AI suggestions
-- Treatment: AI suggestions available during composition
+- No-AI: No AI suggestions available
+- Complete Document: the AI suggests a completed document (including both filling in missing text and correcting text as needed)
+- Sentences only: The AI suggests sentence completions (or next sentences, if the current sentence is already complete)
 
 **Study 2: Suggestion Type** (if Study 1 shows effect)
 
-- Full draft suggestions ("Here's what you could write...")
-- Partial/scaffolding suggestions ("Consider mentioning X")
-- Question prompts ("Have you thought about how they'll feel about the timing?")
+- Sentences only
+- Advice / coaching
+- Anticipated readers' reactions
 
 Hypothesis: Suggestions that don't "give the answer" may support thinking rather than supplanting it.
 
