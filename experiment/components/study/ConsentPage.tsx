@@ -1,13 +1,17 @@
 'use client';
 
+import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { log } from '@/lib/logging';
 import { CONSENT_FORM_URL, getNextPage } from '@/lib/studyConfig';
 
 export default function ConsentPage() {
   const searchParams = useSearchParams();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLaunchConsent = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     // Log the event
     await log({
       username: searchParams.get('username') || 'unknown',
@@ -66,9 +70,10 @@ export default function ConsentPage() {
       <button
         type='button'
         onClick={handleLaunchConsent}
-        className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+        disabled={isSubmitting}
+        className="w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition disabled:bg-blue-400 disabled:cursor-not-allowed"
       >
-        View Full Consent Form
+        {isSubmitting ? 'Loading...' : 'View Full Consent Form'}
       </button>
 
       <p className="text-xs text-gray-500 mt-4 text-center">

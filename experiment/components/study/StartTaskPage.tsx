@@ -1,7 +1,8 @@
 'use client';
 
+import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { log, logThenRedirect } from '@/lib/logging';
+import { logThenRedirect } from '@/lib/logging';
 import { getNextPage, getScenario } from '@/lib/studyConfig';
 
 export default function StartTaskPage() {
@@ -9,8 +10,11 @@ export default function StartTaskPage() {
   const username = searchParams.get('username') || '';
   const scenarioId = searchParams.get('scenario') || undefined;
   const scenario = getScenario(scenarioId);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStartTask = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     const params = new URLSearchParams(searchParams.toString());
     params.set('page', getNextPage('start-task')!);
     const nextUrl = `/study?${params.toString()}`;
@@ -77,9 +81,10 @@ export default function StartTaskPage() {
       <button
         type="button"
         onClick={handleStartTask}
-        className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
+        disabled={isSubmitting}
+        className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:bg-green-400 disabled:cursor-not-allowed"
       >
-        Start Writing Task
+        {isSubmitting ? 'Loading...' : 'Start Writing Task'}
       </button>
     </div>
   );

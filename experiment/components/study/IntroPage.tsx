@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getBrowserMetadata } from '@/lib/browserMetadata';
 import { log } from '@/lib/logging';
@@ -7,8 +8,11 @@ import { getNextPage } from '@/lib/studyConfig';
 
 export default function IntroPage() {
   const searchParams = useSearchParams();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStartStudy = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
     const username = searchParams.get('username') || '';
     const browserMetadata = getBrowserMetadata();
 
@@ -51,9 +55,10 @@ export default function IntroPage() {
       <button
         type="button"
         onClick={handleStartStudy}
-        className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition"
+        disabled={isSubmitting}
+        className="w-full px-6 py-3 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition disabled:bg-green-400 disabled:cursor-not-allowed"
       >
-        On to the Intro Survey &rarr;
+        {isSubmitting ? 'Loading...' : 'On to the Intro Survey →'}
       </button>
     </div>
   );
