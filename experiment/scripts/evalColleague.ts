@@ -36,7 +36,7 @@ async function callColleague(
   conversationHistory: Array<{ role: 'user' | 'assistant'; content: string }> = []
 ): Promise<ColleagueResponse> {
   const messages = [
-    ...conversationHistory.map((m) => ({ role: m.role as const, content: m.content })),
+    ...conversationHistory.map((m) => ({ role: m.role, content: m.content })),
     { role: 'user' as const, content: userMessage },
   ];
 
