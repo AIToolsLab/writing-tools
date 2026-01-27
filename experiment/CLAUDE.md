@@ -150,6 +150,10 @@ npm run lint        # Run ESLint
 npm test            # Run tests
 ```
 
+## Linting & Formatting
+
+- **Import sorting** is handled automatically by Biome on save. Don't manually fix import sorting warnings—they resolve automatically.
+
 ## Key Files
 
 - **API Routes**: `app/api/` (chat, writing-support endpoints)
