@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Writing Tools</title>
+  
+  <!-- 
+    This is the sidebar entry point for the Google Docs add-on.
+    
+    In development, it loads the React app from a local dev server.
+    In production, this file should be replaced with a bundled version
+    that includes all the React code inline.
+  -->
+  
+  <style>
+    /* Base styles while loading */
+    body {
+      font-family: 'Google Sans', Roboto, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #fff;
+    }
+    
+    #root {
+      min-height: 100vh;
+    }
+    
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      color: #5f6368;
+    }
+    
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 3px solid #e8eaed;
+      border-top-color: #4285f4;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .loading-text {
+      margin-top: 16px;
+      font-size: 14px;
+    }
+    
+    .error-container {
+      padding: 20px;
+      color: #d93025;
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="loading-container">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading Writing Tools...</div>
+    </div>
+  </div>
+  
+  <script>
+    /**
+     * Google Apps Script bridge.
+     * This wraps google.script.run calls in Promises for easier use.
+     */
+    window.GoogleAppsScript = {
+      /**
+       * Wraps a google.script.run call in a Promise.
+       * @param {string} functionName - The Apps Script function to call
+       * @param {...any} args - Arguments to pass to the function
+       * @returns {Promise} Resolves with the function result
+       */
+      run: function(functionName, ...args) {
+        return new Promise((resolve, reject) => {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            [functionName](...args);
+        });
+      },
+      
+      /**
+       * Gets the document context (before cursor, selection, after cursor).
+       */
+      getDocContext: function() {
+        return this.run('getDocContext');
+      },
+      
+      /**
+       * Selects a phrase in the document.
+       */
+      selectPhrase: function(phrase) {
+        return this.run('selectPhrase', phrase);
+      },
+      
+      /**
+       * Inserts text at the cursor position.
+       */
+      insertTextAtCursor: function(text) {
+        return this.run('insertTextAtCursor', text);
+      },
+      
+      /**
+       * Replaces the current selection with new text.
+       */
+      replaceSelection: function(newText) {
+        return this.run('replaceSelection', newText);
+      },
+      
+      /**
+       * Sends a chat message through the backend.
+       */
+      sendChatMessage: function(messages, docContext, username) {
+        return this.run('sendChatMessage', messages, docContext, username);
+      },
+      
+      /**
+       * Requests text analysis from the backend.
+       */
+      analyzeText: function(docContext, username, options) {
+        return this.run('analyzeText', docContext, username, options);
+      },
+      
+      /**
+       * Logs an event to the backend.
+       */
+      logEvent: function(payload) {
+        return this.run('logEvent', payload);
+      },
+      
+      /**
+       * Gets the current user's email.
+       */
+      getCurrentUserEmail: function() {
+        return this.run('getCurrentUserEmail');
+      },
+      
+      /**
+       * Stores a user property.
+       */
+      setUserProperty: function(key, value) {
+        return this.run('setUserProperty', key, value);
+      },
+      
+      /**
+       * Gets a user property.
+       */
+      getUserProperty: function(key) {
+        return this.run('getUserProperty', key);
+      }
+    };
+    
+    // Flag to indicate we're running in Google Docs
+    window.RUNNING_IN_GOOGLE_DOCS = true;
+  </script>
+  
+  <!-- 
+    DEVELOPMENT: Load from local dev server
+    Comment this out and use the bundled version for production
+  -->
+  <!--
+  <script>
+    // Development mode: load React app from local server
+    // Make sure your webpack dev server is running on port 3000
+    const script = document.createElement('script');
+    script.src = 'https://localhost:3000/bundle.js';
+    script.onerror = function() {
+      document.getElementById('root').innerHTML = `
+        <div class="error-container">
+          <h3>Development server not running</h3>
+          <p>Start the frontend dev server with: <code>npm run dev</code></p>
+          <p>Or deploy the production build to use bundled assets.</p>
+        </div>
+      `;
+    };
+    document.body.appendChild(script);
+  </script>
+  -->
+  
+  <!-- 
+    PRODUCTION: The bundled React app code goes here.
+    Run the build script to generate this:
+    
+    npm run build:google-docs
+    
+    This will inline all JS/CSS into this file.
+  -->
+  <script>
+    // Placeholder for production bundle
+    // The build process will replace this with the actual bundled code
+    
+    // For now, show a message about development setup
+    setTimeout(function() {
+      if (!window.__REACT_APP_LOADED__) {
+        document.getElementById('root').innerHTML = `
+          <div style="padding: 20px; font-family: sans-serif;">
+            <h2>Writing Tools</h2>
+            <p>The app bundle needs to be built and included here.</p>
+            <h3>Development Setup:</h3>
+            <ol>
+              <li>Run <code>npm run dev</code> in the frontend folder</li>
+              <li>Uncomment the development script section above</li>
+              <li>Reload the sidebar</li>
+            </ol>
+            <h3>Production Build:</h3>
+            <ol>
+              <li>Run <code>npm run build:google-docs</code></li>
+              <li>The build script will inline the bundle into this file</li>
+            </ol>
+            <hr>
+            <h3>Test Apps Script Functions:</h3>
+            <button onclick="testGetDocContext()">Test getDocContext()</button>
+            <pre id="test-output" style="background: #f5f5f5; padding: 10px; margin-top: 10px;"></pre>
+          </div>
+        `;
+      }
+    }, 2000);
+    
+    // Test function for development
+    function testGetDocContext() {
+      document.getElementById('test-output').textContent = 'Loading...';
+      window.GoogleAppsScript.getDocContext()
+        .then(function(result) {
+          document.getElementById('test-output').textContent = JSON.stringify(result, null, 2);
+        })
+        .catch(function(error) {
+          document.getElementById('test-output').textContent = 'Error: ' + error;
+        });
+    }
+  </script>
+</body>
+</html>
