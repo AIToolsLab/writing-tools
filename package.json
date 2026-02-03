@@ -1,0 +1,12 @@
+{
+  "name": "writing-tools",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Writing tools monorepo",
+  "scripts": {
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "husky": "^9.0.0"
+  }
+}

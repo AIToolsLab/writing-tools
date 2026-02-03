@@ -1,0 +1,28 @@
+#!/usr/bin/env sh
+
+# Get the remote ref being pushed to
+remote="$1"
+url="$2"
+
+# Read stdin to get local and remote refs
+while read local_ref local_sha remote_ref remote_sha; do
+  # Check if pushing to main branch
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "🔍 Pushing to main - running typecheck for experiment..."
+    
+    # Run typecheck in experiment directory
+    cd experiment && npm run typecheck
+    
+    # Capture exit code
+    TYPECHECK_EXIT=$?
+    
+    if [ $TYPECHECK_EXIT -ne 0 ]; then
+      echo "❌ Type check failed! Fix errors or use --no-verify to skip."
+      exit 1
+    fi
+    
+    echo "✅ Type check passed!"
+  fi
+done
+
+exit 0
