@@ -1,4 +1,5 @@
 import { Auth0Provider, useAuth0 } from '@auth0/auth0-react';
+import { PostHogProvider, PostHogErrorBoundary } from '@posthog/react';
 import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
 import { useContext, useState } from 'react';
@@ -22,7 +23,12 @@ import Revise from '../revise';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
-import "reshaped/themes/slate/theme.css";
+import 'reshaped/themes/slate/theme.css';
+
+// PostHog configuration - error tracking is optional
+const POSTHOG_KEY = process.env.POSTHOG_KEY || '';
+const POSTHOG_HOST = process.env.POSTHOG_HOST || 'https://us.i.posthog.com';
+const POSTHOG_ENABLED = POSTHOG_KEY.length > 0;
 
 function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
@@ -273,6 +279,47 @@ function AppInner() {
 	);
 }
 
+function PostHogErrorFallback() {
+	return (
+		<div style={{ padding: '20px', textAlign: 'center' }}>
+			<h2>Something went wrong</h2>
+			<p>An error has been logged. Please refresh the page.</p>
+			<Button
+				color="primary"
+				variant="solid"
+				onClick={() => window.location.reload()}
+			>
+				Refresh
+			</Button>
+		</div>
+	);
+}
+
+function AppWithProviders({
+	children,
+}: {
+	children: React.ReactNode;
+}): JSX.Element {
+	// Wrap with PostHog if enabled, otherwise just render children
+	if (!POSTHOG_ENABLED) {
+		return <>{children}</>;
+	}
+
+	return (
+		<PostHogProvider
+			apiKey={POSTHOG_KEY}
+			options={{
+				api_host: POSTHOG_HOST,
+				capture_exceptions: true,
+			}}
+		>
+			<PostHogErrorBoundary fallback={<PostHogErrorFallback />}>
+				{children}
+			</PostHogErrorBoundary>
+		</PostHogProvider>
+	);
+}
+
 export default function App() {
 	// If demo mode is enabled, we use a mock access token provider
 	const mode = useAtomValue(overallModeAtom);
@@ -283,28 +330,29 @@ export default function App() {
 		: DemoAccessTokenProviderWrapper;
 
 	return (
-		<ChatContextWrapper>
-			<Reshaped theme="slate">
-
-				<Auth0Provider
-					domain={process.env.AUTH0_DOMAIN!}
-					clientId={process.env.AUTH0_CLIENT_ID!}
-					cacheLocation="localstorage"
-					useRefreshTokens={true}
-					useRefreshTokensFallback={true}
-					authorizationParams={{
-						redirect_uri: `${window.location.origin}/popup.html`,
-						scope: 'openid profile email read:posts',
-						audience: 'textfocals.com',
-						leeway: 10,
-					}}
-				>
-					<AccessTokenProvider>
-						<AppInner />
-					</AccessTokenProvider>
-				</Auth0Provider>
-			</Reshaped>
-		</ChatContextWrapper>
+		<AppWithProviders>
+			<ChatContextWrapper>
+				<Reshaped theme="slate">
+					<Auth0Provider
+						domain={process.env.AUTH0_DOMAIN!}
+						clientId={process.env.AUTH0_CLIENT_ID!}
+						cacheLocation="localstorage"
+						useRefreshTokens={true}
+						useRefreshTokensFallback={true}
+						authorizationParams={{
+							redirect_uri: `${window.location.origin}/popup.html`,
+							scope: 'openid profile email read:posts',
+							audience: 'textfocals.com',
+							leeway: 10,
+						}}
+					>
+						<AccessTokenProvider>
+							<AppInner />
+						</AccessTokenProvider>
+					</Auth0Provider>
+				</Reshaped>
+			</ChatContextWrapper>
+		</AppWithProviders>
 	);
 }
 

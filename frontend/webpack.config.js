@@ -159,7 +159,10 @@ module.exports = async (env = {}, options = {}) => {
 			}),
 			new webpack.DefinePlugin({
 				'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
-				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr')
+				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
+				// PostHog error tracking - TODO: replace with real values for production
+				'process.env.POSTHOG_KEY': JSON.stringify(process.env.POSTHOG_KEY || ''),
+				'process.env.POSTHOG_HOST': JSON.stringify(process.env.POSTHOG_HOST || 'https://us.i.posthog.com'),
 			})
 		],
 		devServer: {

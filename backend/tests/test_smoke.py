@@ -22,6 +22,25 @@ def test_nlp_imports():
     assert hasattr(nlp, "chat_stream")
 
 
+def test_posthog_client_imports():
+    """Verify the posthog_client module can be imported without errors.
+
+    This is critical: the module must import successfully even when
+    POSTHOG_API_KEY is not set.
+    """
+    import posthog_client  # noqa: F401
+
+    # Verify the module has expected functions (they should be no-ops when disabled)
+    assert hasattr(posthog_client, "capture_exception")
+    assert hasattr(posthog_client, "capture_event")
+    assert hasattr(posthog_client, "shutdown")
+
+    # These functions should not raise even when PostHog is disabled
+    posthog_client.capture_exception(Exception("test"))
+    posthog_client.capture_event("test", "test_event")
+    posthog_client.shutdown()
+
+
 def test_server_imports():
     """Verify the server module can be imported without errors."""
     import server  # noqa: F401
@@ -43,3 +62,4 @@ def test_server_routes_registered():
     assert "/api/reflections" in routes
     assert "/api/chat" in routes
     assert "/api/log" in routes
+    assert "/api/test-error" in routes  # PostHog error tracking test endpoint
