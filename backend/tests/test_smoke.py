@@ -6,8 +6,7 @@ This catches issues like:
 - Missing dependencies
 - Import-time exceptions
 - Misconfigured environment variable handling
-
-The PostHog integration crash (Dec 2025) would have been caught by these tests.
+- To run locally: uv run pytest backend/tests/ -v
 """
 
 
