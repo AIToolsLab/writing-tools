@@ -1,6 +1,6 @@
-import { Message } from '@ai-sdk/react';
+import type { UIMessage } from '@ai-sdk/react';
 
-export function createMockMessage(overrides: Partial<Message> = {}): Message {
+export function createMockMessage(overrides: Partial<UIMessage> = {}): UIMessage {
   return {
     id: Math.random().toString(36).substring(7),
     role: 'user',
@@ -9,7 +9,7 @@ export function createMockMessage(overrides: Partial<Message> = {}): Message {
   };
 }
 
-export function createUserMessage(text: string, id?: string): Message {
+export function createUserMessage(text: string, id?: string): UIMessage {
   return createMockMessage({
     id: id || Math.random().toString(36).substring(7),
     role: 'user',
@@ -17,7 +17,7 @@ export function createUserMessage(text: string, id?: string): Message {
   });
 }
 
-export function createAssistantMessage(text: string, id?: string): Message {
+export function createAssistantMessage(text: string, id?: string): UIMessage {
   return createMockMessage({
     id: id || Math.random().toString(36).substring(7),
     role: 'assistant',
