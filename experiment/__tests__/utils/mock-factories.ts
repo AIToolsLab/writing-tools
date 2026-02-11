@@ -1,4 +1,19 @@
-import type { UIMessage } from '@ai-sdk/react';
+import type { UIMessage, UseChatHelpers } from '@ai-sdk/react';
+import { vi } from 'vitest';
+
+type MockChatHelpers = Partial<UseChatHelpers<UIMessage>>;
+
+export function createMockChatHelpers(overrides: MockChatHelpers = {}) {
+  return {
+    id: 'test-chat',
+    messages: [] as UIMessage[],
+    sendMessage: vi.fn(),
+    setMessages: vi.fn(),
+    status: 'ready' as const,
+    error: undefined,
+    ...overrides,
+  } as unknown as UseChatHelpers<UIMessage>;
+}
 
 export function createMockMessage(overrides: Partial<UIMessage> = {}): UIMessage {
   return {

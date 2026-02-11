@@ -4,7 +4,7 @@ import ChatPanel from '@/components/ChatPanel';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import * as logging from '@/lib/logging';
 import { renderWithJotai } from '../utils/test-utils';
-import { createUserMessage, createAssistantMessage } from '../utils/mock-factories';
+import { createUserMessage, createAssistantMessage, createMockChatHelpers } from '../utils/mock-factories';
 
 // Mock the logging module
 vi.mock('@/lib/logging', () => ({
@@ -13,11 +13,7 @@ vi.mock('@/lib/logging', () => ({
 
 // Mock useChat hook
 vi.mock('@ai-sdk/react', () => ({
-  useChat: vi.fn(() => ({
-    messages: [],
-    sendMessage: vi.fn(),
-    status: 'ready',
-  })),
+  useChat: vi.fn(() => createMockChatHelpers()),
 }));
 
 // Mock timing functions for predictable delays
@@ -41,12 +37,10 @@ describe('ChatPanel - Message Logging', () => {
 
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     mockLog.mockClear();
 
@@ -102,12 +96,11 @@ describe('ChatPanel - Message Logging', () => {
       // Start with initialized state (empty user + assistant message)
       const emptyUserMessage = createUserMessage('', 'initial-user-message');
       const assistantMessage = createAssistantMessage('How can I help?', 'assistant-msg-1');
-      mockUseChat.mockReturnValue({
+      mockUseChat.mockReturnValue(createMockChatHelpers({
         messages: [emptyUserMessage, assistantMessage],
         sendMessage: mockSendMessage,
         setMessages: mockSetMessages,
-        status: 'ready',
-      });
+      }));
 
       renderWithJotai(<ChatPanel />, {
         initialValues: [
@@ -152,12 +145,10 @@ describe('ChatPanel - Message Logging', () => {
 
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     const { rerender } = renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -202,12 +193,10 @@ describe('ChatPanel - Message Logging', () => {
 
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -266,12 +255,10 @@ describe('ChatPanel - Message Logging', () => {
 
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -314,12 +301,10 @@ describe('ChatPanel - Message Logging', () => {
 
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -357,12 +342,10 @@ describe('ChatPanel - Message Logging', () => {
 
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -403,12 +386,10 @@ describe('ChatPanel - Message Logging', () => {
 
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -466,12 +447,11 @@ describe('ChatPanel - Message Logging', () => {
         JSON.stringify(['First part', 'Second part']),
         'msg-1'
       );
-      mockUseChat.mockReturnValue({
+      mockUseChat.mockReturnValue(createMockChatHelpers({
         messages: [emptyUserMessage, msg1],
         sendMessage: mockSendMessage,
         setMessages: mockSetMessages,
-        status: 'ready' as any,
-      } as any);
+      }));
 
       renderWithJotai(<ChatPanel />, {
         initialValues: [
@@ -550,14 +530,11 @@ describe('ChatPanel - Message Logging', () => {
         JSON.stringify(['Hello!', 'How can I help?']),
         'initial-assistant'
       );
-      mockUseChat.mockReturnValue({
+      mockUseChat.mockReturnValue(createMockChatHelpers({
         messages: [emptyUserMessage, initialAssistantMessage],
         sendMessage: mockSendMessage,
         setMessages: mockSetMessages,
-        status: 'ready',
-        id: 'test-chat',
-        error: undefined,
-      } as ReturnType<typeof useChat>);
+      }));
 
       const { rerender } = renderWithJotai(<ChatPanel />, {
         initialValues: [
@@ -588,14 +565,11 @@ describe('ChatPanel - Message Logging', () => {
         JSON.stringify(['New response part 1', 'New response part 2']),
         'new-assistant'
       );
-      mockUseChat.mockReturnValue({
+      mockUseChat.mockReturnValue(createMockChatHelpers({
         messages: [emptyUserMessage, initialAssistantMessage, userMessage, newAssistantMessage],
         sendMessage: mockSendMessage,
         setMessages: mockSetMessages,
-        status: 'ready',
-        id: 'test-chat',
-        error: undefined,
-      } as any);
+      }));
 
       // Force re-render with new messages (simulating the async response arriving)
       await act(async () => {
@@ -657,15 +631,13 @@ describe('ChatPanel - Message Logging', () => {
 
     const systemMessage = {
       id: 'system-msg',
-      role: 'system',
-      parts: [{ type: 'text', text: 'System message' }],
+      role: 'system' as const,
+      parts: [{ type: 'text' as const, text: 'System message' }],
     };
 
-    mockUseChat.mockReturnValue({
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       messages: [systemMessage],
-      sendMessage: vi.fn(),
-      status: 'ready',
-    });
+    }));
 
     renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -693,12 +665,10 @@ describe('ChatPanel - Message Logging', () => {
 
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -741,12 +711,11 @@ describe('ChatPanel - Message Logging', () => {
         JSON.stringify(['First message', 'Second message']),
         'multi-msg'
       );
-      mockUseChat.mockReturnValue({
+      mockUseChat.mockReturnValue(createMockChatHelpers({
         messages: [emptyUserMessage, msg],
         sendMessage: mockSendMessage,
         setMessages: mockSetMessages,
-        status: 'ready',
-      });
+      }));
 
       renderWithJotai(<ChatPanel />, {
         initialValues: [
@@ -820,12 +789,11 @@ describe('ChatPanel - Message Logging', () => {
         JSON.stringify(['First message part', 'Second message part']),
         'typing-test-msg'
       );
-      mockUseChat.mockReturnValue({
+      mockUseChat.mockReturnValue(createMockChatHelpers({
         messages: [emptyUserMessage, msg],
         sendMessage: mockSendMessage,
         setMessages: mockSetMessages,
-        status: 'ready',
-      });
+      }));
 
       const { container } = renderWithJotai(<ChatPanel />, {
         initialValues: [
@@ -861,12 +829,10 @@ describe('ChatPanel - Message Logging', () => {
 
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     const { rerender, container } = renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -890,12 +856,11 @@ describe('ChatPanel - Message Logging', () => {
 
     // Add assistant message
     const msg = createAssistantMessage('Test message', 'notif-test-msg');
-    mockUseChat.mockReturnValue({
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       messages: [msg],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     rerender(<ChatPanel />);
 
@@ -917,14 +882,10 @@ describe('ChatPanel - Message Logging', () => {
 
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-      id: 'test-id',
-      error: undefined,
-    } as any);
+    }));
 
     const { rerender } = renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -947,14 +908,11 @@ describe('ChatPanel - Message Logging', () => {
 
     // Add a new message
     const msg = createUserMessage('New message', 'scroll-test-msg');
-    mockUseChat.mockReturnValue({
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       messages: [msg],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-      id: 'test-id',
-      error: undefined,
-    } as any);
+    }));
 
     // Mock scrollIntoView to verify it's called
     const mockScrollIntoView = vi.fn();
@@ -977,12 +935,12 @@ describe('ChatPanel - Message Logging', () => {
     const mockSetMessages = vi.fn();
     const msg = createAssistantMessage('Streaming response', 'stream-msg');
 
-    mockUseChat.mockReturnValue({
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       messages: [msg],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
       status: 'streaming',
-    });
+    }));
 
     const { container } = renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -1017,12 +975,11 @@ describe('ChatPanel - Message Logging', () => {
       const emptyUserMessage = createUserMessage('', 'initial-user-message');
       const msg = createAssistantMessage('Complete response', 'complete-msg');
 
-      mockUseChat.mockReturnValue({
+      mockUseChat.mockReturnValue(createMockChatHelpers({
         messages: [emptyUserMessage, msg],
         sendMessage: mockSendMessage,
         setMessages: mockSetMessages,
-        status: 'ready',
-      });
+      }));
 
       const { container } = renderWithJotai(<ChatPanel />, {
         initialValues: [
@@ -1065,12 +1022,11 @@ describe('ChatPanel - Message Logging', () => {
         'multi-part-msg'
       );
 
-      mockUseChat.mockReturnValue({
+      mockUseChat.mockReturnValue(createMockChatHelpers({
         messages: [emptyUserMessage, msg],
         sendMessage: mockSendMessage,
         setMessages: mockSetMessages,
-        status: 'ready',
-      });
+      }));
 
       const { container } = renderWithJotai(<ChatPanel />, {
         initialValues: [
@@ -1117,12 +1073,10 @@ describe('ChatPanel - Message Logging', () => {
 
     const mockSendMessage = vi.fn();
     const mockSetMessages = vi.fn();
-    mockUseChat.mockReturnValue({
-      messages: [],
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     const { rerender } = renderWithJotai(<ChatPanel />, {
       initialValues: [
@@ -1148,12 +1102,11 @@ describe('ChatPanel - Message Logging', () => {
       JSON.stringify(['Part 1', 'Part 2']),
       'scroll-trigger-msg'
     );
-    mockUseChat.mockReturnValue({
+    mockUseChat.mockReturnValue(createMockChatHelpers({
       messages: [msg],
       sendMessage: mockSendMessage,
       setMessages: mockSetMessages,
-      status: 'ready',
-    });
+    }));
 
     const mockScrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = mockScrollIntoView;
