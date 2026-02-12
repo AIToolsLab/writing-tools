@@ -12,6 +12,7 @@ export interface TextEditorState {
 export interface WritingSupportRequest {
   editorState: TextEditorState;
   context?: string;
+  writingDescription?: string;
 }
 
 export interface WritingSupportResponse {

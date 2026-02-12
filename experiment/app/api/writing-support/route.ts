@@ -69,6 +69,7 @@ export async function POST(req: Request) {
 
   const { beforeCursor, selectedText, afterCursor } = body.editorState;
   const context = (body.context as keyof typeof prompts) || 'proposal_advice';
+  const writingDescription = body.writingDescription;
   const promptTemplate = prompts[context];
 
   try {
@@ -77,6 +78,11 @@ export async function POST(req: Request) {
     const afterCursorTrim = afterCursor.slice(0, 100);
 
     let fullPrompt = promptTemplate;
+
+    if (writingDescription) {
+      fullPrompt += `\n\n# Writer's Intent\n\nThe writer has described what they are trying to write: "${writingDescription}"`;
+    }
+
     fullPrompt += `\n\n# Writer's Document So Far\n\n<document>\n${documentText}</document>\n\n`;
 
     if (selectedText === '') {
