@@ -165,27 +165,25 @@
   </script>
   
   <!-- 
-    DEVELOPMENT: Load from local dev server
-    Comment this out and use the bundled version for production
+    DEVELOPMENT: Load from ngrok tunnel to dev server
   -->
-  <!--
+  <link rel="stylesheet" href="https://candis-unpeevish-glady.ngrok-free.dev/google-docs.css">
   <script>
-    // Development mode: load React app from local server
-    // Make sure your webpack dev server is running on port 3000
+    // Development mode: load React app from ngrok tunnel
     const script = document.createElement('script');
-    script.src = 'https://localhost:3000/bundle.js';
+    script.src = 'https://candis-unpeevish-glady.ngrok-free.dev/google-docs.bundle.js';
     script.onerror = function() {
       document.getElementById('root').innerHTML = `
         <div class="error-container">
           <h3>Development server not running</h3>
-          <p>Start the frontend dev server with: <code>npm run dev</code></p>
-          <p>Or deploy the production build to use bundled assets.</p>
+          <p>Make sure the dev server and ngrok are running:</p>
+          <code>npm run dev-server:google-docs</code><br>
+          <code>ngrok http 3001</code>
         </div>
       `;
     };
     document.body.appendChild(script);
   </script>
-  -->
   
   <!-- 
     PRODUCTION: The bundled React app code goes here.
@@ -195,6 +193,7 @@
     
     This will inline all JS/CSS into this file.
   -->
+  <!--
   <script>
     // Placeholder for production bundle
     // The build process will replace this with the actual bundled code
@@ -238,5 +237,6 @@
         });
     }
   </script>
+  -->
 </body>
 </html>

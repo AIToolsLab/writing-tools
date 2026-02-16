@@ -1,4 +1,4 @@
-export const SERVER_URL = '/api';
+export const SERVER_URL = 'https://app.thoughtful-ai.com/api';
 
 // Re-export editor APIs
 export { wordEditorAPI } from './wordEditorAPI';

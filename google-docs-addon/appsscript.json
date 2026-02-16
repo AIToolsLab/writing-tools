@@ -1,28 +1,7 @@
 {
   "timeZone": "America/New_York",
-  "dependencies": {},
+  "dependencies": {
+  },
   "exceptionLogging": "STACKDRIVER",
-  "runtimeVersion": "V8",
-  "oauthScopes": [
-    "https://www.googleapis.com/auth/documents.currentonly",
-    "https://www.googleapis.com/auth/script.container.ui",
-    "https://www.googleapis.com/auth/script.external_request"
-  ],
-  "addOns": {
-    "common": {
-      "name": "Writing Tools",
-      "logoUrl": "https://www.gstatic.com/images/icons/material/system/1x/edit_black_48dp.png",
-      "layoutProperties": {
-        "primaryColor": "#4285F4"
-      }
-    },
-    "docs": {
-      "homepageTrigger": {
-        "runFunction": "onHomepage"
-      },
-      "onFileScopeGrantedTrigger": {
-        "runFunction": "onFileScopeGranted"
-      }
-    }
-  }
+  "runtimeVersion": "V8"
 }
