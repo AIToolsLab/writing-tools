@@ -1,6 +1,6 @@
 import { useState, useContext, useEffect } from 'react';
 
-import { AiOutlineSend } from 'react-icons/ai';
+import { AiOutlineClear, AiOutlineSend } from 'react-icons/ai';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import ChatMessage from '@/components/chatMessage';
@@ -136,7 +136,7 @@ export default function Chat() {
 	}
 
 	return (
-		<div className="m-2 flex flex-col gap-4 flex-1 overflow-hidden">
+		<div className="m-2 flex flex-col gap-1 flex-1 overflow-hidden">
 			<div className="flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
 				{messagesWithCurDocContext.slice(2).map((message, index) => (
 					<ChatMessage
@@ -171,23 +171,27 @@ export default function Chat() {
 								e.currentTarget.form?.requestSubmit();
 							}
 						}}
-						className='border border-gray-500 p-[10px] pr-[40px] w-full'
+						className='border border-gray-500 p-[10px] pr-[70px] w-full'
 					/>
-					<button
-						type="submit"
-						className="absolute right-[8px] bottom-[8px] bg-transparent cursor-pointer border-none p-[5px] transition duration-150 hover:text-gray-500"
-					>
-						<AiOutlineSend />
-					</button>
+					<div className="absolute right-[8px] bottom-[8px] flex gap-1">
+						<button
+							type="submit"
+							title="Send message"
+							className="bg-transparent cursor-pointer border-none p-[5px] transition duration-150 hover:text-gray-500"
+						>
+							<AiOutlineSend size={18} />
+						</button>
+						<button
+							type="button"
+							title="Clear chat"
+							onClick={() => updateChatMessages([])}
+							className="bg-transparent cursor-pointer border-none p-[5px] text-red-500 transition duration-150 hover:text-red-700"
+						>
+							<AiOutlineClear size={18} />
+						</button>
+					</div>
 				</div>
 			</form>
-
-			<button
-				onClick={() => updateChatMessages([])}
-				className="bg-transparent cursor-pointer border boder-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
-			>
-				Clear Chat
-			</button>
 		</div>
 	);
 }
