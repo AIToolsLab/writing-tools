@@ -137,8 +137,8 @@ export default function Chat() {
 	}
 
 	return (
-		<div className="m-2 flex flex-col gap-4">
-			<div className="flex-col gap-2 max-h-[500px] bottom-0 overflow-y-auto">
+		<div className="m-2 flex flex-col gap-4 flex-1 overflow-hidden">
+			<div className="flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
 				{messagesWithCurDocContext.slice(2).map((message, index) => (
 					<ChatMessage
 						key={index + 2}
