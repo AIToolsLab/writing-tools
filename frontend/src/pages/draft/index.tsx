@@ -30,10 +30,11 @@ const visibleNameForMode = {
 	analysis_readerPerspective: 'Possible questions your reader might have:',
 	proposal_advice: 'Advice for your next words:',
 	complete_document: 'Complete Document',
+	example_rewording: 'Example rewordings of your selected text:',
 	no_ai: 'No AI',
 };
 
-const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advice'];
+const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advice', 'example_rewording'];
 
 interface SuggestionRequest {
 	docContext: DocContext;

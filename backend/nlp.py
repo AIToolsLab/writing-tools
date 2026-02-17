@@ -88,12 +88,22 @@ Guidelines:
 - If there is insufficient context to generate genuine questions, return an empty list.
 """,
     "complete_document": """\
-You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing. 
+You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing.
 
 Guidelines:
 - Use the text in the document as a starting point, but make any changes needed to make the document complete and polished.
 - Maintain the writer's tone, style, and voice throughout.
 - Polish the text for clarity and coherence.
+""",
+    "example_rewording": """\
+You are assisting a writer in drafting a document. Generate three alternative rewordings of the writer's selected text.
+
+Guidelines:
+- Rephrase the selected text in three different ways while preserving the original meaning.
+- Vary the sentence structure, word choice, and tone across the three options.
+- Maintain the writer's overall voice and style.
+- Each rewording should be approximately the same length as the original text.
+- If no text is selected, return an empty list.
 """
 }
 
@@ -188,6 +198,14 @@ async def _get_suggestions_from_context(
 
 
 async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
+    # Early return for example_rewording when no text is selected
+    if prompt_name == "example_rewording" and doc_context.selectedText.strip() == "":
+        return GenerationResult(
+            generation_type=prompt_name,
+            result="Please select some text to get rewording suggestions.",
+            extra_data={},
+        )
+
     # Special handling for complete_document: always use false context only, plain completion
     if prompt_name == "complete_document":
         full_prompt = get_full_prompt(prompt_name, doc_context, use_false_context=True)
