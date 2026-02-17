@@ -77,6 +77,7 @@ export default function Chat() {
 		];
 
 		updateChatMessages(newMessages);
+		updateMessage('');
 
 		const token = await getAccessToken();
 		await fetchEventSource(`${SERVER_URL}/chat`, {
@@ -102,8 +103,6 @@ export default function Chat() {
 		});
 
 		updateSendingMessage(false);
-
-		updateMessage('');
 	}
 
 	async function regenMessage(index: number) {
@@ -155,26 +154,32 @@ export default function Chat() {
 			</div>
 
 			<form
-			className="w-full flex flex-col gap-2"
+			className="w-full flex flex-col"
 			onSubmit={(e) => {
 				void sendMessage(e);
 			}}
 		>
-				<label className="flex items-center border border-gray-500 justify-between p-[10px]">
+				<div className='relative'>
 					<textarea
 						disabled={isSendingMessage}
 						placeholder="Send a message"
 						value={message}
 						onChange={(e) => updateMessage(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter' && !e.shiftKey) {
+								e.preventDefault();
+								e.currentTarget.form?.requestSubmit();
+							}
+						}}
+						className='border border-gray-500 p-[10px] pr-[40px] w-full'
 					/>
-
 					<button
 						type="submit"
-						className="bg-transparent cursor-pointer border border-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
+						className="absolute right-[8px] bottom-[8px] bg-transparent cursor-pointer border-none p-[5px] transition duration-150 hover:text-gray-500"
 					>
 						<AiOutlineSend />
 					</button>
-				</label>
+				</div>
 			</form>
 
 			<button
