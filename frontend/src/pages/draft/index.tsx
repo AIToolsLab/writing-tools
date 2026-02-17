@@ -12,7 +12,7 @@ import {
 	useRef,
 	useState,
 } from 'react';
-import { AiOutlineClose, AiOutlineReload } from 'react-icons/ai';
+import { AiOutlineDelete, AiOutlineReload } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 import { TransitionGroup, CSSTransition } from 'react-transition-group';
 import { Button } from 'reshaped';
@@ -173,16 +173,17 @@ function SavedGenerations({
 										<div className={classes.savedIconsContainer}>
 											<Button
 												variant="ghost"
-												color="critical"
+												color="neutral"
 												size="small"
 												rounded
 												onClick={() =>
 													deleteSavedItem(savedItem.dateSaved)
 												}
 												attributes={{
-													'aria-label': 'Delete saved item'
+													'aria-label': 'Delete suggestion',
+													title: 'Delete suggestion',
 												}}
-												icon={AiOutlineClose}
+												icon={AiOutlineDelete}
 											/>
 										</div>
 									</div>
