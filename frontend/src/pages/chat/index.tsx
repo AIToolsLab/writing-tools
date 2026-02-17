@@ -1,6 +1,6 @@
-import { useState, useContext, useEffect } from 'react';
+import { useState, useContext, useEffect, useRef, useCallback } from 'react';
 
-import { AiOutlineClear, AiOutlineSend } from 'react-icons/ai';
+import { AiOutlineArrowDown, AiOutlineClear, AiOutlineSend } from 'react-icons/ai';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import ChatMessage from '@/components/chatMessage';
@@ -20,6 +20,22 @@ export default function Chat() {
 	const username = useAtomValue(usernameAtom);
 	const editorAPI = useContext(EditorContext);
 	const { getAccessToken, authErrorType } = useAccessToken();
+	const messagesContainerRef = useRef<HTMLDivElement>(null);
+	const [showScrollButton, setShowScrollButton] = useState(false);
+
+	const handleScroll = useCallback(() => {
+		const container = messagesContainerRef.current;
+		if (!container) return;
+		const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+		setShowScrollButton(!isNearBottom);
+	}, []);
+
+	const scrollToBottom = useCallback(() => {
+		const container = messagesContainerRef.current;
+		if (container) {
+			container.scrollTop = container.scrollHeight;
+		}
+	}, []);
 
 	const docContext = useDocContext(editorAPI);
 
@@ -137,20 +153,32 @@ export default function Chat() {
 
 	return (
 		<div className="m-2 flex flex-col gap-1 flex-1 overflow-hidden">
-			<div className="flex-col gap-2 flex-1 min-h-0 overflow-y-auto">
-				{messagesWithCurDocContext.slice(2).map((message, index) => (
-					<ChatMessage
-						key={index + 2}
-						role={message.role}
-						content={message.content}
-						index={index + 2}
-						refresh={(index: number) => {
-						void regenMessage(index);
-					}}
-						deleteMessage={() => {}}
-						convertToComment={() => {}}
-					/>
-				))}
+			<div className="relative flex-1 min-h-0">
+				<div ref={messagesContainerRef} onScroll={handleScroll} className="flex-col gap-2 h-full overflow-y-auto">
+					{messagesWithCurDocContext.slice(2).map((message, index) => (
+						<ChatMessage
+							key={index + 2}
+							role={message.role}
+							content={message.content}
+							index={index + 2}
+							refresh={(index: number) => {
+								void regenMessage(index);
+							}}
+							deleteMessage={() => {}}
+							convertToComment={() => {}}
+						/>
+					))}
+				</div>
+				{showScrollButton ? (
+					<button
+						type="button"
+						title="Scroll to bottom"
+						onClick={scrollToBottom}
+						className="absolute bottom-[8px] left-1/2 -translate-x-1/2 bg-white border border-gray-300 rounded-full p-[6px] cursor-pointer shadow-md transition duration-150 hover:bg-gray-100"
+					>
+						<AiOutlineArrowDown size={16} />
+					</button>
+				) : null}
 			</div>
 
 			<form
