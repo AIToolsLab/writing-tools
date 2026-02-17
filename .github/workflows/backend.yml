@@ -1,0 +1,49 @@
+name: Backend Tests
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/backend.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'backend/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  test:
+    name: Run smoke tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run smoke tests
+        run: uv run pytest backend/tests/ -v
+        env:
+          # Dummy key for CI - allows import-time validation to pass
+          OPENAI_API_KEY: "sk-test-dummy-key-for-ci"
+          # Deliberately NOT setting POSTHOG_API_KEY to test graceful degradation
+
+permissions:
+  contents: read
