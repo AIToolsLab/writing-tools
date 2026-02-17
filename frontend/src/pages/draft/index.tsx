@@ -453,9 +453,9 @@ export default function Draft() {
 		);
 
 	return (
-		<div className="flex flex-col flex-1">
-			<div className="flex flex-col flex-1 gap-2 relative p-2">
-				<div className="flex justify-center gap-1 my-1">
+		<div className="flex flex-col flex-1 overflow-hidden">
+			<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
+				<div className="flex justify-center gap-1 my-1 flex-shrink-0">
 					{/* Generation Option Buttons */}
 					{modesToShow.map((mode) => {
 						return (
@@ -498,10 +498,12 @@ export default function Draft() {
 				</div>
 				{alerts}
 
-				<SavedGenerations
-					savedItems={savedItems}
-					deleteSavedItem={deleteSavedItem}
-				/>
+				<div className="flex-1 overflow-y-auto min-h-0">
+					<SavedGenerations
+						savedItems={savedItems}
+						deleteSavedItem={deleteSavedItem}
+					/>
+				</div>
 			</div>
 
 			<div className={classes.noteTextWrapper}>
