@@ -99,10 +99,10 @@ Guidelines:
 You are assisting a writer in drafting a document. Generate three alternative rewordings of the writer's selected text.
 
 Guidelines:
-- Rephrase the selected text in three different ways while preserving the original meaning.
-- Vary the sentence structure, word choice, and tone across the three options.
+- Rephrase only the selected text in three different ways while preserving the original meaning.
+- Vary the word choice, and tone across the three options.
 - Maintain the writer's overall voice and style.
-- Each rewording should be approximately the same length as the original text.
+- Each rewording should be approximately the same length as the original selected text.
 - If no text is selected, return an empty list.
 """
 }
