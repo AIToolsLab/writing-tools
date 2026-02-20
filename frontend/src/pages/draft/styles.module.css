@@ -412,11 +412,15 @@ h4 {
 	margin: 8px;
 }
 
+.historyText {
+	flex: 1;
+}
+
 .savedIconsContainer {
 	display: flex;
 	flex-direction: column;
-	justify-content: center;
-	align-items: center;
+	justify-content: flex-start;
+	align-items: flex-start;
 }
 
 .genTypeIconWrapper {
