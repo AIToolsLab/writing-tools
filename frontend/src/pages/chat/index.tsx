@@ -23,6 +23,7 @@ export default function Chat() {
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const [showScrollButton, setShowScrollButton] = useState(false);
 
+	// Show the "scroll to bottom" button when the user scrolls up, and hide it when they are near the bottom.
 	const handleScroll = useCallback(() => {
 		const container = messagesContainerRef.current;
 		if (!container) return;
@@ -30,12 +31,24 @@ export default function Chat() {
 		setShowScrollButton(!isNearBottom);
 	}, []);
 
+	// Instantly jumps the chat to the bottom upon user clicking the "scroll to bottom" button.
 	const scrollToBottom = useCallback(() => {
 		const container = messagesContainerRef.current;
 		if (container) {
 			container.scrollTop = container.scrollHeight;
 		}
 	}, []);
+
+	// Auto-scroll when new messages arrive
+	useEffect(() => {
+		if (!showScrollButton) {
+			messagesContainerRef.current?.scrollTo({
+				top: messagesContainerRef.current.scrollHeight,
+				behavior: 'smooth',
+			});
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [chatMessages]);
 
 	const docContext = useDocContext(editorAPI);
 
@@ -93,6 +106,7 @@ export default function Chat() {
 		];
 
 		updateChatMessages(newMessages);
+		setShowScrollButton(false);
 		updateMessage('');
 
 		const token = await getAccessToken();
