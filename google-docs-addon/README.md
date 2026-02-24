@@ -55,29 +55,39 @@ This folder contains the Google Apps Script code for the Writing Tools Google Do
    npm install -g @google/clasp
    ```
 
-2. **Login to clasp with your Google account:**
+2. **Enable Apps Script API for your Google account:**
+   Go to https://script.google.com/home/usersettings and turn on **Google Apps Script API**.
+
+3. **Login to clasp with your Google account:**
    ```bash
    clasp login
    ```
    This opens a browser window — sign in with your Google account.
+   Google will show an authorization screen asking for permissions — click **Allow**.
 
-3. **Create your own Apps Script project (overwrites `.clasp.json`):**
+4. **Create your own Apps Script project (overwrites `.clasp.json`):**
    ```bash
    cd google-docs-addon
    clasp create --type docs --title "Writing Tools"
    ```
+   Google may show another authorization screen — click **Allow**.
    This overwrites `.clasp.json` with your own `scriptId`.
 
-4. **Push the code to your Apps Script project:**
+5. **Push the code to your Apps Script project:**
    ```bash
    clasp push --force
    ```
 
-5. **Set up a Test Deployment:**
+6. **Set up a Test Deployment:**
    ```bash
    clasp open
    ```
    In the browser: **Deploy → Test deployments → + Add test** → select a Google Doc → **Save**
+
+7. **First time opening the sidebar in Google Docs:**
+   Go to **Extensions → Writing Tools → Open Writing Tools**.
+   Google will show an authorization screen — click **Review Permissions** → select your Google account → click **Allow**.
+   This only happens once.
 
 ### Start the Dev Server (every time you test)
 
