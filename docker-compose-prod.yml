@@ -12,7 +12,7 @@ services:
       - DEBUG=False
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - POSTHOG_API_KEY=${POSTHOG_API_KEY:-}
-      - POSTHOG_HOST=${POSTHOG_HOST:-https://us.i.posthog.com}
+      - POSTHOG_HOST=${POSTHOG_HOST:-https://e.thoughtful-ai.com/}
     volumes:
       - /opt/thoughtful/logs:/app/backend/logs
 
