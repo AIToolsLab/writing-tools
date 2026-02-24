@@ -329,14 +329,6 @@ async def ping() -> PingResponse:
     return PingResponse(timestamp=datetime.now())
 
 
-@app.get("/api/test-error")
-async def test_error():
-    """
-    Test endpoint that throws an error to verify PostHog error tracking.
-    Only use for testing purposes.
-    """
-    raise Exception("Test error for PostHog error tracking verification")
-
 
 # Log viewer endpoint
 class LogsPollRequest(BaseModel):
