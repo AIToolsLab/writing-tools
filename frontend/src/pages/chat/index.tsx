@@ -1,6 +1,6 @@
-import { useState, useContext, useEffect } from 'react';
+import { useState, useContext, useEffect, useRef, useCallback } from 'react';
 
-import { AiOutlineSend } from 'react-icons/ai';
+import { AiOutlineArrowDown, AiOutlineClear, AiOutlineSend } from 'react-icons/ai';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
 
 import ChatMessage from '@/components/chatMessage';
@@ -20,6 +20,35 @@ export default function Chat() {
 	const username = useAtomValue(usernameAtom);
 	const editorAPI = useContext(EditorContext);
 	const { getAccessToken, authErrorType } = useAccessToken();
+	const messagesContainerRef = useRef<HTMLDivElement>(null);
+	const [showScrollButton, setShowScrollButton] = useState(false);
+
+	// Show the "scroll to bottom" button when the user scrolls up, and hide it when they are near the bottom.
+	const handleScroll = useCallback(() => {
+		const container = messagesContainerRef.current;
+		if (!container) return;
+		const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+		setShowScrollButton(!isNearBottom);
+	}, []);
+
+	// Instantly jumps the chat to the bottom upon user clicking the "scroll to bottom" button.
+	const scrollToBottom = useCallback(() => {
+		const container = messagesContainerRef.current;
+		if (container) {
+			container.scrollTop = container.scrollHeight;
+		}
+	}, []);
+
+	// Auto-scroll when new messages arrive
+	useEffect(() => {
+		if (!showScrollButton) {
+			messagesContainerRef.current?.scrollTo({
+				top: messagesContainerRef.current.scrollHeight,
+				behavior: 'smooth',
+			});
+		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [chatMessages]);
 
 	const docContext = useDocContext(editorAPI);
 
@@ -77,6 +106,8 @@ export default function Chat() {
 		];
 
 		updateChatMessages(newMessages);
+		setShowScrollButton(false);
+		updateMessage('');
 
 		const token = await getAccessToken();
 		await fetchEventSource(`${SERVER_URL}/chat`, {
@@ -102,8 +133,6 @@ export default function Chat() {
 		});
 
 		updateSendingMessage(false);
-
-		updateMessage('');
 	}
 
 	async function regenMessage(index: number) {
@@ -137,52 +166,74 @@ export default function Chat() {
 	}
 
 	return (
-		<div className="m-2 flex flex-col gap-4">
-			<div className="flex-col gap-2 max-h-[500px] bottom-0 overflow-y-auto">
-				{messagesWithCurDocContext.slice(2).map((message, index) => (
-					<ChatMessage
-						key={index + 2}
-						role={message.role}
-						content={message.content}
-						index={index + 2}
-						refresh={(index: number) => {
-						void regenMessage(index);
-					}}
-						deleteMessage={() => {}}
-						convertToComment={() => {}}
-					/>
-				))}
+		<div className="m-2 flex flex-col gap-1 flex-1 overflow-hidden">
+			<div className="relative flex-1 min-h-0">
+				<div ref={messagesContainerRef} onScroll={handleScroll} className="flex-col gap-2 h-full overflow-y-auto">
+					{messagesWithCurDocContext.slice(2).map((message, index) => (
+						<ChatMessage
+							key={index + 2}
+							role={message.role}
+							content={message.content}
+							index={index + 2}
+							refresh={(index: number) => {
+								void regenMessage(index);
+							}}
+							deleteMessage={() => {}}
+							convertToComment={() => {}}
+						/>
+					))}
+				</div>
+				{showScrollButton ? (
+					<button
+						type="button"
+						title="Scroll to bottom"
+						onClick={scrollToBottom}
+						className="absolute bottom-[8px] left-1/2 -translate-x-1/2 bg-white border border-gray-300 rounded-full p-[6px] cursor-pointer shadow-md transition duration-150 hover:bg-gray-100"
+					>
+						<AiOutlineArrowDown size={16} />
+					</button>
+				) : null}
 			</div>
 
 			<form
-			className="w-full flex flex-col gap-2"
+			className="w-full flex flex-col"
 			onSubmit={(e) => {
 				void sendMessage(e);
 			}}
 		>
-				<label className="flex items-center border border-gray-500 justify-between p-[10px]">
+				<div className='relative'>
 					<textarea
 						disabled={isSendingMessage}
 						placeholder="Send a message"
 						value={message}
 						onChange={(e) => updateMessage(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter' && !e.shiftKey) {
+								e.preventDefault();
+								e.currentTarget.form?.requestSubmit();
+							}
+						}}
+						className='border border-gray-500 p-[10px] pr-[70px] w-full'
 					/>
-
-					<button
-						type="submit"
-						className="bg-transparent cursor-pointer border border-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
-					>
-						<AiOutlineSend />
-					</button>
-				</label>
+					<div className="absolute right-[8px] bottom-[8px] flex gap-1">
+						<button
+							type="submit"
+							title="Send message"
+							className="bg-transparent cursor-pointer border-none p-[5px] transition duration-150 hover:text-gray-500"
+						>
+							<AiOutlineSend size={18} />
+						</button>
+						<button
+							type="button"
+							title="Clear chat"
+							onClick={() => updateChatMessages([])}
+							className="bg-transparent cursor-pointer border-none p-[5px] text-red-500 transition duration-150 hover:text-red-700"
+						>
+							<AiOutlineClear size={18} />
+						</button>
+					</div>
+				</div>
 			</form>
-
-			<button
-				onClick={() => updateChatMessages([])}
-				className="bg-transparent cursor-pointer border boder-black px-[10px] py-[5px] bottom-0 transition duration-150 self-end hover:bg-black hover:text-white"
-			>
-				Clear Chat
-			</button>
 		</div>
 	);
 }
