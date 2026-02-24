@@ -162,7 +162,7 @@ module.exports = async (env = {}, options = {}) => {
 				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
 				// PostHog error tracking - TODO: replace with real values for production
 				'process.env.POSTHOG_KEY': JSON.stringify(process.env.POSTHOG_KEY || ''),
-				'process.env.POSTHOG_HOST': JSON.stringify(process.env.POSTHOG_HOST || 'https://us.i.posthog.com'),
+				'process.env.POSTHOG_HOST': JSON.stringify(process.env.POSTHOG_HOST || 'https://e.thoughtful-ai.com/'),
 			})
 		],
 		devServer: {
