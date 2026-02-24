@@ -165,20 +165,19 @@
   </script>
   
   <!-- 
-    DEVELOPMENT: Load from ngrok tunnel to dev server
+    DEVELOPMENT: Load from local dev server
   -->
-  <link rel="stylesheet" href="https://candis-unpeevish-glady.ngrok-free.dev/google-docs.css">
+  <link rel="stylesheet" href="http://localhost:3001/google-docs.css">
   <script>
-    // Development mode: load React app from ngrok tunnel
+    // Development mode: load React app from local dev server
     const script = document.createElement('script');
-    script.src = 'https://candis-unpeevish-glady.ngrok-free.dev/google-docs.bundle.js';
+    script.src = 'http://localhost:3001/google-docs.bundle.js';
     script.onerror = function() {
       document.getElementById('root').innerHTML = `
         <div class="error-container">
           <h3>Development server not running</h3>
-          <p>Make sure the dev server and ngrok are running:</p>
-          <code>npm run dev-server:google-docs</code><br>
-          <code>ngrok http 3001</code>
+          <p>Make sure the dev server is running:</p>
+          <code>npm run dev-server:google-docs</code>
         </div>
       `;
     };

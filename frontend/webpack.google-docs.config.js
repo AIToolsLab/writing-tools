@@ -77,7 +77,7 @@ module.exports = (env = {}, options = {}) => {
 			},
 			port: 3001,
 			hot: true,
-			allowedHosts: 'all', // Allow ngrok and other external hosts
+			allowedHosts: 'all',
 			headers: {
 				'Access-Control-Allow-Origin': '*'
 			}
