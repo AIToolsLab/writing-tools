@@ -10,7 +10,7 @@ RUN npm ci
 COPY . ./
 
 ARG POSTHOG_KEY=""
-ARG POSTHOG_HOST="https://us.i.posthog.com"
+ARG POSTHOG_HOST="https://e.thoughtful-ai.com/"
 ENV POSTHOG_KEY=$POSTHOG_KEY
 ENV POSTHOG_HOST=$POSTHOG_HOST
 
