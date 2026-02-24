@@ -17,8 +17,6 @@ Usage:
 
 import logging
 import os
-import sys
-import traceback
 from typing import Any, Optional
 
 from dotenv import load_dotenv
@@ -67,28 +65,10 @@ def capture_exception(
         return
 
     try:
-        # Build exception properties
-        exc_type = type(exception).__name__
-        exc_message = str(exception)
-        exc_traceback = "".join(
-            traceback.format_exception(type(exception), exception, exception.__traceback__)
-        )
-
-        error_properties = {
-            "$exception_type": exc_type,
-            "$exception_message": exc_message,
-            "$exception_stack_trace_raw": exc_traceback,
-            "exception_type": exc_type,
-            "exception_message": exc_message,
-        }
-
-        if properties:
-            error_properties.update(properties)
-
-        posthog_client.capture(
+        posthog_client.capture_exception(
+            exception,
             distinct_id=distinct_id,
-            event="$exception",
-            properties=error_properties,
+            properties=properties or {},
         )
     except Exception as e:
         # Never let PostHog errors break the application

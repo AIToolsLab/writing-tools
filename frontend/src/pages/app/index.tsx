@@ -25,10 +25,10 @@ import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
 import 'reshaped/themes/slate/theme.css';
 
-// PostHog configuration - error tracking is optional
-const POSTHOG_KEY = process.env.POSTHOG_KEY || '';
-const POSTHOG_HOST = process.env.POSTHOG_HOST || 'https://us.i.posthog.com';
-const POSTHOG_ENABLED = POSTHOG_KEY.length > 0;
+// PostHog configuration - project token is safe to commit publicly
+const POSTHOG_KEY = 'phc_p3Br0zRnw7PdTVpdNI92vvBTWcBBY0jvkHO8dNvkCTl';
+const POSTHOG_HOST = 'https://e.thoughtful-ai.com/';
+const POSTHOG_ENABLED = true;
 
 function AppInner() {
 	const mode = useAtomValue(overallModeAtom);

@@ -3,9 +3,6 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-      args:
-        POSTHOG_KEY: ${POSTHOG_KEY:-}
-        POSTHOG_HOST: ${POSTHOG_HOST:-https://e.thoughtful-ai.com/}
     depends_on:
       - backend
     restart: unless-stopped
