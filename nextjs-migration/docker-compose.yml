@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      - OPENAI_TEMPERATURE=${OPENAI_TEMPERATURE:-0.7}
+      - LOG_SECRET=${LOG_SECRET}
+      - NEXT_PUBLIC_AUTH0_DOMAIN=${NEXT_PUBLIC_AUTH0_DOMAIN}
+      - NEXT_PUBLIC_AUTH0_CLIENT_ID=${NEXT_PUBLIC_AUTH0_CLIENT_ID}
+      - AUTH0_SECRET=${AUTH0_SECRET}
+    volumes:
+      # Persist logs
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
