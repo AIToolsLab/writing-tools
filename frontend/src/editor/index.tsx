@@ -22,11 +22,13 @@ export function EditorScreen({
 	editorPreamble,
 	contextData,
 	falseContextData,
+	doneButton,
 }: {
 	taskID?: string;
 	editorPreamble?: JSX.Element;
 	contextData?: ContextSection[];
 	falseContextData?: ContextSection[];
+	doneButton?: JSX.Element;
 }) {
 	const mode = useAtomValue(overallModeAtom);
 	const username = useAtomValue(usernameAtom);
@@ -158,12 +160,19 @@ export function EditorScreen({
 				) : null}
 			</div>
 
-			<div
-				className={isDemo ? classes.demosidebar : classes.sidebar}
-			>
-				<EditorContext.Provider value={editorAPI}>
-					<Sidebar />
-				</EditorContext.Provider>
+			<div className="flex flex-col">
+				<div
+					className={isDemo ? classes.demosidebar : classes.sidebar}
+				>
+					<EditorContext.Provider value={editorAPI}>
+						<Sidebar />
+					</EditorContext.Provider>
+				</div>
+				{doneButton ? (
+					<div className="flex justify-center mt-4 mb-8">
+						{doneButton}
+					</div>
+				) : null}
 			</div>
 		</div>
 	);
