@@ -43,69 +43,64 @@ This folder contains the Google Apps Script code for the Writing Tools Google Do
 ### Prerequisites
 
 1. [Google clasp](https://github.com/google/clasp) - CLI tool for Apps Script
-2. A Google Cloud project with Apps Script API enabled
-3. Node.js for building the frontend
+2. Node.js for building the frontend
 
-### Initial Setup
+### Initial Setup (First time on a new machine)
+
+> ⚠️ The `.clasp.json` in this repo is linked to the original developer's Google account.
+> You must create your **own** Apps Script project to overwrite it.
 
 1. **Install clasp globally:**
    ```bash
    npm install -g @google/clasp
    ```
 
-2. **Login to clasp:**
+2. **Login to clasp with your Google account:**
    ```bash
    clasp login
    ```
+   This opens a browser window — sign in with your Google account.
 
-3. **Create a new Apps Script project:**
+3. **Create your own Apps Script project (overwrites `.clasp.json`):**
    ```bash
    cd google-docs-addon
    clasp create --type docs --title "Writing Tools"
    ```
-   This creates a `.clasp.json` file with your script ID.
+   This overwrites `.clasp.json` with your own `scriptId`.
 
-4. **Push the code to Google:**
+4. **Push the code to your Apps Script project:**
    ```bash
-   clasp push
+   clasp push --force
    ```
 
-5. **Open the script in the browser:**
+5. **Set up a Test Deployment:**
    ```bash
    clasp open
    ```
+   In the browser: **Deploy → Test deployments → + Add test** → select a Google Doc → **Save**
 
-### Configure Backend URL
+### Start the Dev Server (every time you test)
 
-In the Apps Script editor or via clasp:
-
-1. Go to Project Settings > Script Properties
-2. Add a property:
-   - Key: `BACKEND_URL`
-   - Value: Your backend URL (e.g., `https://your-backend.com` or `http://localhost:5001` for development)
-
-### Testing the Add-on
-
-1. In the Apps Script editor, click "Deploy" > "Test deployments"
-2. Click "Install" next to "Test Add-on"
-3. Open a Google Doc
-4. Go to Extensions > Writing Tools > Open Writing Tools
-
-### Building the Frontend for Google Docs
-
-The sidebar needs the React app bundled and inlined. Add this build script to `frontend/package.json`:
-
-```json
-{
-  "scripts": {
-    "build:google-docs": "webpack --config webpack.google-docs.config.js"
-  }
-}
+```bash
+cd frontend
+npm install       # only needed first time
+npm run dev-server:google-docs
 ```
 
-Then create `webpack.google-docs.config.js` to:
-1. Bundle all React code into a single JS file
-2. Inline it into `sidebar.html`
+Wait for `webpack compiled successfully`, then open your Google Doc and go to:
+**Extensions → Writing Tools → Open Writing Tools**
+
+
+
+### Building the Frontend for Google Docs (Production)
+
+```bash
+cd frontend
+npm run build:google-docs
+```
+
+This generates `dist-gdocs/sidebar-bundled.html` with the full React app inlined.
+
 
 For now, development uses the standalone test functions in `sidebar.html`.
 
