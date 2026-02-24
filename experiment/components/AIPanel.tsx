@@ -178,6 +178,13 @@ export default function AIPanel({
           signal: AbortSignal.timeout(API_TIMEOUT_MS),
         });
 
+        if (response.status === 429) {
+          const retryAfter = response.headers.get('X-Retry-After');
+          const waitMsg = retryAfter ? ` Try again in ${retryAfter} seconds.` : ' Please wait a minute.';
+          setErrorMsg(`Suggestion limit reached.${waitMsg}`);
+          return;
+        }
+
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
