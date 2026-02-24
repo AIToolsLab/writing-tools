@@ -5,7 +5,7 @@ services:
       dockerfile: Dockerfile
       args:
         POSTHOG_KEY: ${POSTHOG_KEY:-}
-        POSTHOG_HOST: ${POSTHOG_HOST:-https://us.i.posthog.com}
+        POSTHOG_HOST: ${POSTHOG_HOST:-https://e.thoughtful-ai.com/}
     depends_on:
       - backend
     restart: unless-stopped
@@ -19,7 +19,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - LOG_SECRET=${LOG_SECRET}
       - POSTHOG_API_KEY=${POSTHOG_API_KEY:-}
-      - POSTHOG_HOST=${POSTHOG_HOST:-https://us.i.posthog.com}
+      - POSTHOG_HOST=${POSTHOG_HOST:-https://e.thoughtful-ai.com/}
     restart: unless-stopped
 
   experiment:
