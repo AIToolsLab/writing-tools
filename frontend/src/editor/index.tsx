@@ -160,7 +160,7 @@ export function EditorScreen({
 				) : null}
 			</div>
 
-			<div className="flex flex-col">
+			<div className={`flex flex-col overflow-hidden ${isDemo ? 'w-[28rem] min-w-[28rem] flex-shrink-0 mx-5' : 'flex-[0_1_28rem] min-w-[14rem]'}`}>
 				<div
 					className={isDemo ? classes.demosidebar : classes.sidebar}
 				>

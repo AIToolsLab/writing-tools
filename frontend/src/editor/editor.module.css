@@ -9,7 +9,8 @@
 	text-align: left;
 	box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
 	padding: 10px;
-	height: 80vh;
+	flex: 1;
+	min-height: 0;
 }
 
 .placeholder {
