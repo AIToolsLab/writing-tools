@@ -12,7 +12,7 @@ import {
 	useRef,
 	useState,
 } from 'react';
-import { AiOutlineClose, AiOutlineReload } from 'react-icons/ai';
+import { AiOutlineDelete, AiOutlineReload } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 import { TransitionGroup, CSSTransition } from 'react-transition-group';
 import { Button } from 'reshaped';
@@ -30,10 +30,11 @@ const visibleNameForMode = {
 	analysis_readerPerspective: 'Possible questions your reader might have:',
 	proposal_advice: 'Advice for your next words:',
 	complete_document: 'Complete Document',
+	example_rewording: 'Example rewordings of your selected text:',
 	no_ai: 'No AI',
 };
 
-const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advice'];
+const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advice', 'example_rewording'];
 
 interface SuggestionRequest {
 	docContext: DocContext;
@@ -172,16 +173,17 @@ function SavedGenerations({
 										<div className={classes.savedIconsContainer}>
 											<Button
 												variant="ghost"
-												color="critical"
+												color="neutral"
 												size="small"
 												rounded
 												onClick={() =>
 													deleteSavedItem(savedItem.dateSaved)
 												}
 												attributes={{
-													'aria-label': 'Delete saved item'
+													'aria-label': 'Delete suggestion',
+													title: 'Delete suggestion',
 												}}
-												icon={AiOutlineClose}
+												icon={AiOutlineDelete}
 											/>
 										</div>
 									</div>
@@ -451,9 +453,9 @@ export default function Draft() {
 		);
 
 	return (
-		<div className="flex flex-col flex-1">
-			<div className="flex flex-col flex-1 gap-2 relative p-2">
-				<div className="flex justify-center gap-1 my-1">
+		<div className="flex flex-col flex-1 overflow-hidden">
+			<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
+				<div className="flex justify-center gap-1 my-1 flex-shrink-0">
 					{/* Generation Option Buttons */}
 					{modesToShow.map((mode) => {
 						return (
@@ -496,10 +498,12 @@ export default function Draft() {
 				</div>
 				{alerts}
 
-				<SavedGenerations
-					savedItems={savedItems}
-					deleteSavedItem={deleteSavedItem}
-				/>
+				<div className="flex-1 overflow-y-auto min-h-0">
+					<SavedGenerations
+						savedItems={savedItems}
+						deleteSavedItem={deleteSavedItem}
+					/>
+				</div>
 			</div>
 
 			<div className={classes.noteTextWrapper}>
