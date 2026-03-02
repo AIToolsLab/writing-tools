@@ -9,7 +9,7 @@ const webpack = require('webpack');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 
-module.exports = (env = {}, options = {}) => {
+module.exports = (_env = {}, options = {}) => {
 	const dev = options.mode === 'development';
 	
 	return {
