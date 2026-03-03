@@ -33,7 +33,7 @@ pipeline {
                 withCredentials([
                     string(credentialsId: 'OpenAI-API-Key-Thoughtful', variable: 'OPENAI_API_KEY'),
                     string(credentialsId: 'Thoughtful-Study-Log-Secret', variable: 'LOG_SECRET'),
-                    string(credentialsId: 'POSTHOG_SOURCEMAP_KEY', variable: 'POSTHOG_SOURCEMAP_KEY')
+                    string(credentialsId: 'POSTHOG_SOURCEMAP_KEY', variable: 'POSTHOG_SOURCEMAP_KEY'),
                     string(credentialsId: 'POSTHOG_PROJECT_TOKEN', variable: 'POSTHOG_PROJECT_TOKEN')
                 ]) {
                     sh '''
