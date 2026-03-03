@@ -2,9 +2,11 @@ import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { auth } from '@/lib/auth';
 import type { WritingSupportRequest } from '@/types';
 
-export const runtime = 'edge';
+// export const runtime = 'edge'; // Edge runtime is currently disabled since Better Auth
+// rate limiting needs persistent server process for in-memory storage
 
 const prompts = {
   example_sentences: `You are assisting a writer in drafting a document. Generate three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next.
@@ -17,7 +19,7 @@ Guidelines:
 - Each output should be *at most one sentence* long.
 - Use ellipses to truncate sentences that are longer than about **10 words**.`,
 
-  complete_document: `You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing. 
+  complete_document: `You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing.
 
 Guidelines:
 - Use the text in the document as a starting point, but make any changes needed to make the document complete and polished.
@@ -57,6 +59,13 @@ const listResponseSchema = z.object({
 });
 
 export async function POST(req: Request) {
+  // Rate limiting via Better Auth: build a bodyless probe so auth.handler()
+  // can check the IP against the customRule for this path without consuming
+  // the original request body. Returns 429 (with X-Retry-After) if exceeded.
+  const probe = new Request(req.url, { method: req.method, headers: req.headers });
+  const rateLimitResponse = await auth.handler(probe);
+  if (rateLimitResponse.status === 429) return rateLimitResponse;
+
   const body: WritingSupportRequest = await req.json();
 
   // Validate the request body
