@@ -300,6 +300,7 @@ function AppWithProviders({
 }: {
 	children: React.ReactNode;
 }): JSX.Element {
+	console.log('PostHog enabled:', POSTHOG_ENABLED);
 	// Wrap with PostHog if enabled, otherwise just render children
 	if (!POSTHOG_ENABLED) {
 		return <>{children}</>;
