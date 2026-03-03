@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Annotated, Any, Dict, List, Literal
 
 import nlp
+import posthog_client
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Body, FastAPI
+from fastapi import BackgroundTasks, Body, FastAPI, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -137,6 +138,8 @@ class RequestLog(Log):
 async def app_lifespan(app: FastAPI):
     await nlp.warmup_nlp()
     yield
+    # Shutdown PostHog client gracefully
+    posthog_client.shutdown()
 
 app = FastAPI(lifespan=app_lifespan)
 
@@ -152,11 +155,55 @@ app.add_middleware(
 )
 
 
+# PostHog Error Tracking Middleware
+@app.middleware("http")
+async def error_tracking_middleware(request: Request, call_next):
+    """Capture unhandled exceptions to PostHog for error tracking."""
+    try:
+        response = await call_next(request)
+        return response
+    except Exception as exc:
+        posthog_client.capture_exception(
+            exc,
+            properties={
+                "path": request.url.path,
+                "method": request.method,
+                "query_params": str(request.query_params),
+            },
+        )
+        raise
+
+
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request, exc):
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
     print(f"The client sent invalid data!: {exc}")
+    posthog_client.capture_exception(
+        exc,
+        properties={
+            "path": request.url.path,
+            "method": request.method,
+            "error_type": "validation_error",
+        },
+    )
     return await request_validation_exception_handler(request, exc)
 
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Catch-all exception handler for unhandled errors."""
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    posthog_client.capture_exception(
+        exc,
+        properties={
+            "path": request.url.path,
+            "method": request.method,
+            "error_type": "unhandled_exception",
+        },
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
 
 
 # Routes
@@ -280,6 +327,7 @@ class PingResponse(BaseModel):
 @app.get("/api/ping")
 async def ping() -> PingResponse:
     return PingResponse(timestamp=datetime.now())
+
 
 
 # Log viewer endpoint
