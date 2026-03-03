@@ -33,12 +33,14 @@ pipeline {
                 withCredentials([
                     string(credentialsId: 'OpenAI-API-Key-Thoughtful', variable: 'OPENAI_API_KEY'),
                     string(credentialsId: 'Thoughtful-Study-Log-Secret', variable: 'LOG_SECRET'),
-                    string(credentialsId: 'POSTHOG_API_KEY', variable: 'POSTHOG_API_KEY')
+                    string(credentialsId: 'POSTHOG_SOURCEMAP_KEY', variable: 'POSTHOG_SOURCEMAP_KEY')
+                    string(credentialsId: 'POSTHOG_PROJECT_TOKEN', variable: 'POSTHOG_PROJECT_TOKEN')
                 ]) {
                     sh '''
                         OPENAI_API_KEY=${OPENAI_API_KEY} \
                         LOG_SECRET=${LOG_SECRET} \
-                        POSTHOG_API_KEY=${POSTHOG_API_KEY} \
+                        POSTHOG_SOURCEMAP_KEY=${POSTHOG_SOURCEMAP_KEY} \
+                        POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN} \
                         docker compose -f docker-compose.yml -f docker-compose-prod.yml up -d
                     '''
                 }

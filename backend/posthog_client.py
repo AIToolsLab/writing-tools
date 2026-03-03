@@ -1,7 +1,7 @@
 """
 PostHog client initialization for error tracking.
 
-This module provides optional PostHog integration. If POSTHOG_API_KEY
+This module provides optional PostHog integration. If POSTHOG_PROJECT_TOKEN
 is not set, all tracking functions become no-ops and the application
 continues to work normally.
 
@@ -26,18 +26,18 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 # Environment configuration
-POSTHOG_API_KEY = (os.getenv("POSTHOG_API_KEY") or "").strip()
+POSTHOG_PROJECT_TOKEN = (os.getenv("POSTHOG_PROJECT_TOKEN") or "").strip()
 POSTHOG_HOST = (os.getenv("POSTHOG_HOST") or "https://us.i.posthog.com").strip()
 
 # Initialize PostHog client (None if not configured)
 posthog_client: Optional[Any] = None
 
-if POSTHOG_API_KEY:
+if POSTHOG_PROJECT_TOKEN:
     try:
         from posthog import Posthog
 
         posthog_client = Posthog(
-            project_api_key=POSTHOG_API_KEY,
+            project_api_key=POSTHOG_PROJECT_TOKEN,
             host=POSTHOG_HOST,
         )
         logger.info(f"PostHog error tracking initialized (host: {POSTHOG_HOST})")
@@ -45,7 +45,7 @@ if POSTHOG_API_KEY:
         logger.warning(f"Failed to initialize PostHog client: {e}")
         posthog_client = None
 else:
-    logger.info("POSTHOG_API_KEY not set - error tracking disabled")
+    logger.info("POSTHOG_PROJECT_TOKEN not set - error tracking disabled")
 
 
 def capture_exception(
