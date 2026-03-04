@@ -66,12 +66,24 @@ This folder contains the Google Apps Script code for the Writing Tools Google Do
    Google will show an authorization screen asking for permissions — click **Allow**.
 
 4. **Create your own Apps Script project (overwrites `.clasp.json`):**
+
+   The repo includes a `.clasp.json` linked to another developer's account. You need to delete it first, then create your own:
    ```bash
    cd google-docs-addon
+   rm .clasp.json
    clasp create --type docs --title "Writing Tools"
    ```
    Google may show another authorization screen — click **Allow**.
-   This overwrites `.clasp.json` with your own `scriptId`.
+   This creates a new `.clasp.json` with your own `scriptId`.
+
+   > **Alternative (if `clasp create` still gives errors):**
+   > 1. Go to https://script.google.com and click **New project**
+   > 2. Rename it to "Writing Tools"
+   > 3. Copy the script ID from the URL: `https://script.google.com/home/projects/<SCRIPT_ID>/edit`
+   > 4. Create `.clasp.json` manually:
+   >    ```json
+   >    {"scriptId": "YOUR_SCRIPT_ID", "rootDir": "."}
+   >    ```
 
 5. **Push the code to your Apps Script project:**
    ```bash
@@ -82,7 +94,12 @@ This folder contains the Google Apps Script code for the Writing Tools Google Do
    ```bash
    clasp open
    ```
-   In the browser: **Deploy → Test deployments → + Add test** → select a Google Doc → **Save**
+   > **If `clasp open` is not recognized:**
+   > - Make sure clasp is installed globally: `npm install -g @google/clasp`
+   > - On Windows, ensure the global npm bin folder (`%APPDATA%\npm`) is in your PATH
+   > - **Alternative:** Open https://script.google.com directly and find your "Writing Tools" project, or hover over it in the project list and click **Open Document**
+
+   In the Apps Script editor: **Deploy → Test deployments → + Add test** → select a Google Doc → **Save**
 
 7. **First time opening the sidebar in Google Docs:**
    Go to **Extensions → Writing Tools → Open Writing Tools**.
