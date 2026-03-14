@@ -1,5 +1,3 @@
-'use client';
-
 import { Question } from './types';
 import ControlledInput from './ControlledInput';
 

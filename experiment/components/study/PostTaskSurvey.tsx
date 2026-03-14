@@ -1,6 +1,4 @@
-'use client';
-
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams } from '@/lib/useSearchParams';
 import { useAtom } from 'jotai';
 import { log, logThenRedirect } from '@/lib/logging';
 import { getNextPage, letterToCondition } from '@/lib/studyConfig';

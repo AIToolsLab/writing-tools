@@ -1,7 +1,5 @@
-'use client';
-
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams } from '@/lib/useSearchParams';
 import type { WritingAreaRef } from '@/components/WritingArea';
 import type { TextEditorState } from '@/types';
 import AIPanel from '@/components/AIPanel';

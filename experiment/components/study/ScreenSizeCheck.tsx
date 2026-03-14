@@ -1,5 +1,3 @@
-'use client';
-
 import { useEffect, useState } from 'react';
 import { checkScreenSize } from '@/lib/browserMetadata';
 import { MIN_SCREEN_HEIGHT, MIN_SCREEN_WIDTH } from '@/lib/studyConfig';

@@ -1,16 +1,19 @@
-'use client';
-
 /**
  * Standalone demo page for AI writing assistance.
  * This page is NOT used in the study - see components/study/TaskPage.tsx for the study task page.
  */
 
 import { useRef } from 'react';
+import { createFileRoute } from '@tanstack/react-router';
 import AIPanel from '@/components/AIPanel';
 import WritingArea from '@/components/WritingArea';
 import type { WritingAreaRef } from '@/components/WritingArea';
 
-export default function Home() {
+export const Route = createFileRoute('/')({
+  component: Home,
+})
+
+function Home() {
   const writingAreaRef = useRef<WritingAreaRef>(null);
 
   return (

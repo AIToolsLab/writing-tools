@@ -11,7 +11,7 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
-      exclude: ['node_modules/', 'vitest.setup.ts', '**/*.config.*', '.next/'],
+      exclude: ['node_modules/', 'vitest.setup.ts', '**/*.config.*', '.output/'],
     },
   },
   resolve: {

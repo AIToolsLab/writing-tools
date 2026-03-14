@@ -1,5 +1,3 @@
-'use client';
-
 import { useAtom } from 'jotai';
 import { surveyInputAtom } from '@/contexts/StudyContext';
 import { QuestionType } from './types';

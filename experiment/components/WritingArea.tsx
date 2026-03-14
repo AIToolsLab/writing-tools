@@ -1,5 +1,3 @@
-'use client';
-
 import { useState, useRef, useImperativeHandle, forwardRef } from 'react';
 import { useAtomValue } from 'jotai';
 import { studyParamsAtom } from '@/contexts/StudyContext';

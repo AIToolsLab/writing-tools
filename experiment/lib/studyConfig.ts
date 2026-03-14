@@ -5,7 +5,7 @@ import scenariosData from './scenarios.json';
 export const WAVE = 'pilot-3';
 
 // Git commit - populated at build time
-export const GIT_COMMIT = process.env.NEXT_PUBLIC_GIT_COMMIT || 'unknown';
+export const GIT_COMMIT = import.meta.env.VITE_GIT_COMMIT || 'unknown';
 
 // Prolific completion code
 export const COMPLETION_CODE = 'C1MRQXLI';
