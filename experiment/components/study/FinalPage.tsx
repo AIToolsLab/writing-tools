@@ -1,6 +1,4 @@
-'use client';
-
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams } from '@/lib/useSearchParams';
 import { COMPLETION_CODE } from '@/lib/studyConfig';
 
 export default function FinalPage() {

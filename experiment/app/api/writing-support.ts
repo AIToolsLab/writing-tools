@@ -1,10 +1,8 @@
-import { openai } from '@ai-sdk/openai';
-import { generateObject } from 'ai';
-import { NextResponse } from 'next/server';
-import { z } from 'zod';
-import type { WritingSupportRequest } from '@/types';
-
-export const runtime = 'edge';
+import { createFileRoute } from '@tanstack/react-router'
+import { openai } from '@ai-sdk/openai'
+import { generateObject } from 'ai'
+import { z } from 'zod'
+import type { WritingSupportRequest } from '@/types'
 
 const prompts = {
   example_sentences: `You are assisting a writer in drafting a document. Generate three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next.
@@ -17,7 +15,7 @@ Guidelines:
 - Each output should be *at most one sentence* long.
 - Use ellipses to truncate sentences that are longer than about **10 words**.`,
 
-  complete_document: `You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing. 
+  complete_document: `You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing.
 
 Guidelines:
 - Use the text in the document as a starting point, but make any changes needed to make the document complete and polished.
@@ -56,53 +54,59 @@ const listResponseSchema = z.object({
   responses: z.array(z.string()).describe('List of suggestions'),
 });
 
-export async function POST(req: Request) {
-  const body: WritingSupportRequest = await req.json();
+export const Route = createFileRoute('/api/writing-support')({
+  server: {
+    handlers: {
+      POST: async ({ request }) => {
+        const body: WritingSupportRequest = await request.json();
 
-  // Validate the request body
-  if (!body.editorState) {
-    return NextResponse.json(
-      { error: 'Missing editorState in request body' },
-      { status: 400 }
-    );
-  }
+        // Validate the request body
+        if (!body.editorState) {
+          return Response.json(
+            { error: 'Missing editorState in request body' },
+            { status: 400 }
+          );
+        }
 
-  const { beforeCursor, selectedText, afterCursor } = body.editorState;
-  const context = (body.context as keyof typeof prompts) || 'proposal_advice';
-  const promptTemplate = prompts[context];
+        const { beforeCursor, selectedText, afterCursor } = body.editorState;
+        const context = (body.context as keyof typeof prompts) || 'proposal_advice';
+        const promptTemplate = prompts[context];
 
-  try {
-    const documentText = `${beforeCursor}${selectedText}${afterCursor}`;
-    const beforeCursorTrim = beforeCursor.slice(-100);
-    const afterCursorTrim = afterCursor.slice(0, 100);
+        try {
+          const documentText = `${beforeCursor}${selectedText}${afterCursor}`;
+          const beforeCursorTrim = beforeCursor.slice(-100);
+          const afterCursorTrim = afterCursor.slice(0, 100);
 
-    let fullPrompt = promptTemplate;
-    fullPrompt += `\n\n# Writer's Document So Far\n\n<document>\n${documentText}</document>\n\n`;
+          let fullPrompt = promptTemplate;
+          fullPrompt += `\n\n# Writer's Document So Far\n\n<document>\n${documentText}</document>\n\n`;
 
-    if (selectedText === '') {
-      fullPrompt += `## Text Right Before the Cursor\n\n"${beforeCursorTrim}"`;
-    } else {
-      fullPrompt += `## Current Selection\n\n${selectedText}`;
-      fullPrompt += `\n\n## Text Nearby The Selection\n\n"${beforeCursorTrim}${selectedText}${afterCursorTrim}"`;
-    }
+          if (selectedText === '') {
+            fullPrompt += `## Text Right Before the Cursor\n\n"${beforeCursorTrim}"`;
+          } else {
+            fullPrompt += `## Current Selection\n\n${selectedText}`;
+            fullPrompt += `\n\n## Text Nearby The Selection\n\n"${beforeCursorTrim}${selectedText}${afterCursorTrim}"`;
+          }
 
-    const result = await generateObject({
-      model: openai('gpt-5.2'),
-      schema: listResponseSchema,
-      prompt: fullPrompt,
-      system: 'You are a helpful and insightful writing assistant.',
-    });
+          const result = await generateObject({
+            model: openai('gpt-5.2'),
+            schema: listResponseSchema,
+            prompt: fullPrompt,
+            system: 'You are a helpful and insightful writing assistant.',
+          });
 
-    const suggestions = result.object.responses.length > 0
-      ? [result.object.responses.map(item => `- ${item}`).join('\n\n')]
-      : ['Insufficient content to generate suggestions.'];
+          const suggestions = result.object.responses.length > 0
+            ? [result.object.responses.map(item => `- ${item}`).join('\n\n')]
+            : ['Insufficient content to generate suggestions.'];
 
-    return NextResponse.json({ suggestions });
-  } catch (error) {
-    console.error('Error generating suggestion:', error);
-    return NextResponse.json(
-      { error: 'Failed to generate suggestion' },
-      { status: 500 }
-    );
-  }
-}
+          return Response.json({ suggestions });
+        } catch (error) {
+          console.error('Error generating suggestion:', error);
+          return Response.json(
+            { error: 'Failed to generate suggestion' },
+            { status: 500 }
+          );
+        }
+      },
+    },
+  },
+})

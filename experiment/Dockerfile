@@ -22,15 +22,13 @@ COPY . .
 ARG GIT_COMMIT=unknown
 
 # Set environment variables for build
-ENV NEXT_PUBLIC_GIT_COMMIT=${GIT_COMMIT}
-ENV DOCKER_BUILD=true
+ENV VITE_GIT_COMMIT=${GIT_COMMIT}
 
-# Build the Next.js application
+# Build the application
 RUN npm run build
 
 # Stage 3: Production runtime
 FROM node:24-slim AS runner
-# Note: unlike the backend Dockerfile, this container doesn't set WORKDIR to a subfolder of /app
 WORKDIR /app
 
 # Set production environment
@@ -41,19 +39,17 @@ ARG EXP_LOGS_GID=1001
 
 # Create non-root user for security
 RUN addgroup --system --gid ${EXP_LOGS_GID} appgroup \
-  && adduser --system --uid 1001 --ingroup appgroup nextjs
+  && adduser --system --uid 1001 --ingroup appgroup appuser
 
-# Copy standalone output from builder
-COPY --from=builder /app/.next/standalone ./
-# Copy static files (Next.js doesn't include these in standalone by default)
-COPY --from=builder /app/.next/static ./.next/static
+# Copy built output from builder
+COPY --from=builder /app/.output ./.output
 COPY --from=builder /app/public ./public
 
 # Set correct permissions
-RUN chown -R nextjs:appgroup /app
+RUN chown -R appuser:appgroup /app
 
 # Switch to non-root user
-USER nextjs
+USER appuser
 
 # Expose the port
 EXPOSE 3000
@@ -66,4 +62,4 @@ HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
 # Start the application
-CMD ["node", "server.js"]
+CMD ["node", ".output/server/index.mjs"]

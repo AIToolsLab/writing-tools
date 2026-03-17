@@ -1,5 +1,3 @@
-'use client';
-
 import { Fragment, useCallback, useRef, useState, useEffect } from 'react';
 import type { RefObject } from 'react';
 import type { WritingAreaRef } from '@/components/WritingArea';

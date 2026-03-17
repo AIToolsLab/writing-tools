@@ -11,7 +11,7 @@ This monorepo has two separate applications. If it's ambiguous which one to use,
   - `backend`: Python FastAPI server
 
 - **Experiment app** (see [experiment/CLAUDE.md](experiment/CLAUDE.md))
-  - `experiment`: Separate Next.js application (does not use frontend/backend)
+  - `experiment`: Separate TanStack Start application (does not use frontend/backend)
 
 <!-- BACKLOG.MD GUIDELINES START -->
 # Instructions for the usage of Backlog.md CLI Tool

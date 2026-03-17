@@ -13,9 +13,10 @@
 # testing
 /coverage
 
-# next.js
-/.next/
-/out/
+# TanStack Start / Vite
+/.output/
+/dist/
+/routeTree.gen.ts
 
 # production
 /build
@@ -43,4 +44,3 @@ logs/
 
 # typescript
 *.tsbuildinfo
-next-env.d.ts

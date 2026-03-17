@@ -1,7 +1,5 @@
-'use client';
-
-import { Suspense, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useEffect } from 'react';
+import { createFileRoute } from '@tanstack/react-router';
 import { useAtom } from 'jotai';
 import { log } from '@/lib/logging';
 import {
@@ -34,41 +32,45 @@ const pageComponents = {
 type PageKey = keyof typeof pageComponents;
 
 // Returns a StudyParams object or an error string
-function parseStudyParams(searchParams: URLSearchParams): StudyParams | string {
-  const username = searchParams.get('username') || '';
+function parseStudyParams(search: Record<string, string | undefined>): StudyParams | string {
+  const username = search.username || '';
   if (username.length === 0 || !/^[a-zA-Z0-9\-_]+$/.test(username)) {
     return 'Invalid username: must be alphanumeric with dashes/underscores';
   }
 
-  const conditionStr = searchParams.get('condition');
+  const conditionStr = search.condition;
   if (!conditionStr || !(VALID_CONDITIONS as readonly string[]).includes(conditionStr)) {
     return `Invalid condition: "${conditionStr ?? 'missing'}". Valid: ${VALID_CONDITIONS.join(', ')}`;
   }
 
-  const page = searchParams.get('page') || 'consent';
+  const page = search.page || 'consent';
   if (!(page in pageComponents)) {
     return `Invalid page: "${page}". Valid: ${Object.keys(pageComponents).join(', ')}`;
   }
 
-  const experiment = searchParams.get('experiment');
-  const autoRefreshStr = searchParams.get('autoRefreshInterval');
+  const experiment = search.experiment;
+  const autoRefreshStr = search.autoRefreshInterval;
 
   return {
     username,
     condition: conditionStr as keyof typeof letterToCondition,
     page,
     experiment: experiment === 'type' ? 'type' : 'amount',
-    isProlific: searchParams.get('isProlific') === 'true',
+    isProlific: search.isProlific === 'true',
     autoRefreshInterval: autoRefreshStr ? parseInt(autoRefreshStr, 10) : DEFAULT_AUTO_REFRESH_INTERVAL,
-    scenario: searchParams.get('scenario') || DEFAULT_SCENARIO_ID
+    scenario: search.scenario || DEFAULT_SCENARIO_ID
   };
 }
 
-function StudyRouter() {
-  const searchParams = useSearchParams();
+export const Route = createFileRoute('/study')({
+  component: StudyPage,
+})
+
+function StudyPage() {
+  const search: Record<string, string | undefined> = Route.useSearch();
   const [, setStudyParams] = useAtom(studyParamsAtom);
 
-  const paramsOrError = parseStudyParams(searchParams);
+  const paramsOrError = parseStudyParams(search);
 
   // Update study params atom and log page view
   useEffect(() => {
@@ -109,16 +111,5 @@ function StudyRouter() {
     <ScreenSizeCheck>
       <PageComponent />
     </ScreenSizeCheck>
-  );
-}
-
-/**
- * Main study page - wraps router in Suspense boundary for useSearchParams
- */
-export default function StudyPage() {
-  return (
-    <Suspense fallback={<div className="p-8">Loading study...</div>}>
-      <StudyRouter />
-    </Suspense>
   );
 }

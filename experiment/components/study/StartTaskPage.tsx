@@ -1,7 +1,5 @@
-'use client';
-
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams } from '@/lib/useSearchParams';
 import { logThenRedirect } from '@/lib/logging';
 import { getNextPage, getScenario } from '@/lib/studyConfig';
 

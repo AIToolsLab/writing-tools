@@ -2,11 +2,11 @@
 
 **IMPORTANT: You are working in `/experiment`. The code in `/backend` and `/frontend` is NOT relevant to this project.**
 
-This is a separate Next.js application for experimentation. It does not depend on or interact with the main writing-tools app.
+This is a separate TanStack Start application for experimentation. It does not depend on or interact with the main writing-tools app.
 
 ## Quick Facts
 
-- **Framework**: Next.js 15 (App Router)
+- **Framework**: TanStack Start (powered by Vite + TanStack Router)
 - **Language**: TypeScript
 - **Package Manager**: `npm` (NOT `uv`)
 - **Styling**: Tailwind CSS
@@ -78,12 +78,12 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 - `lib/logging.ts` - Event logging utilities
 
 ### API Routes
-- `app/api/chat/route.ts` - Chat endpoint (GPT-5.2 with scenario-specific system prompt)
-- `app/api/writing-support/route.ts` - AI writing suggestions
-- `app/api/log/route.ts` - Event logging endpoint
+- `app/api/chat.ts` - Chat endpoint (GPT-5.2 with scenario-specific system prompt)
+- `app/api/writing-support.ts` - AI writing suggestions
+- `app/api/log.ts` - Event logging endpoint
 
 ### Pages (IMPORTANT: Don't confuse these!)
-- `app/page.tsx` - **Standalone demo** for AI writing assistance only (NO chat, NOT used in study)
+- `app/index.tsx` - **Standalone demo** for AI writing assistance only (NO chat, NOT used in study)
 - `components/study/TaskPage.tsx` - **Actual study task page** with collapsible chat + AI panel
 
 ### Timing for the Simulated Colleague
@@ -108,7 +108,7 @@ cd experiment
 npm install
 ```
 
-Create `.env.local`:
+Create `.env`:
 ```
 OPENAI_API_KEY=sk-...
 ```
@@ -125,9 +125,13 @@ Open http://localhost:3000
 ```
 experiment/
 ├── app/
-│   ├── api/           # API routes (chat, writing-support)
-│   ├── layout.tsx     # Root layout
-│   └── page.tsx       # Main page
+│   ├── __root.tsx     # Root layout (TanStack Start)
+│   ├── index.tsx      # Home page route
+│   ├── study.tsx      # Study page route
+│   ├── api/           # API routes (chat, writing-support, log)
+│   └── globals.css    # Global styles
+├── router.tsx         # TanStack Router configuration
+├── vite.config.ts     # Vite + TanStack Start config
 ├── components/        # React components
 ├── contexts/          # Context providers
 ├── lib/               # Utilities
@@ -156,8 +160,8 @@ npm test            # Run tests
 
 ## Key Files
 
-- **API Routes**: `app/api/` (chat, writing-support endpoints)
-- **Demo Page**: `app/page.tsx` (standalone AI demo, NO chat)
+- **API Routes**: `app/api/` (chat, writing-support, log endpoints)
+- **Demo Page**: `app/index.tsx` (standalone AI demo, NO chat)
 - **Study Task Page**: `components/study/TaskPage.tsx` (the actual study with chat)
 - **Components**: `components/` folder
 
