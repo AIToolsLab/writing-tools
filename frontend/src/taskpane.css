@@ -11,3 +11,15 @@
 		background: white;
 	}
 }
+
+/* Reduce left padding for prose lists - make bullet points closer to left edge */
+.prose ul,
+.prose ol {
+	padding-left: 0.5rem !important;
+	margin-left: 0 !important;
+}
+
+.prose li {
+	margin-left: 0 !important;
+	padding-left: 0.25rem !important;
+}

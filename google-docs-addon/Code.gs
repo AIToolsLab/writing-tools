@@ -102,7 +102,9 @@ function showSidebar() {
 function getDocContext() {
   const doc = DocumentApp.getActiveDocument();
   const body = doc.getBody();
-  const fullText = body.getText();
+  
+  // Extract only text content, ignoring images, tables, etc.
+  const fullText = extractTextOnly(body);
   
   const selection = doc.getSelection();
   const cursor = doc.getCursor();
@@ -170,6 +172,56 @@ function getDocContext() {
     selectedText: selectedText,
     afterCursor: afterCursor
   };
+}
+
+/**
+ * Extracts only text content from a document element, ignoring images, tables, etc.
+ * 
+ * @param {Element} element - The document element to extract text from
+ * @returns {string} Text content only
+ */
+function extractTextOnly(element) {
+  let text = '';
+  
+  // Get child elements
+  const numChildren = element.getNumChildren();
+  for (let i = 0; i < numChildren; i++) {
+    const child = element.getChild(i);
+    const elementType = child.getType();
+    
+    // Only process text-containing elements
+    if (elementType === DocumentApp.ElementType.PARAGRAPH ||
+        elementType === DocumentApp.ElementType.LIST_ITEM ||
+        elementType === DocumentApp.ElementType.TEXT) {
+      // Try to get text
+      try {
+        const childText = child.asText ? child.asText() : null;
+        if (childText) {
+          text += childText.getText();
+        }
+      } catch (e) {
+        // Skip elements that can't be converted to text
+        continue;
+      }
+    } else if (elementType === DocumentApp.ElementType.TABLE) {
+      // Skip tables
+      continue;
+    } else if (elementType === DocumentApp.ElementType.INLINE_IMAGE || 
+               elementType === DocumentApp.ElementType.IMAGE ||
+               elementType === DocumentApp.ElementType.UNSUPPORTED) {
+      // Skip images and unsupported elements
+      continue;
+    } else {
+      // For other container types, recursively extract text
+      try {
+        text += extractTextOnly(child);
+      } catch (e) {
+        continue;
+      }
+    }
+  }
+  
+  return text;
 }
 
 /**
