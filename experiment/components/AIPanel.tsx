@@ -87,6 +87,7 @@ export default function AIPanel({
   const [isLoading, setIsLoading] = useState(false);
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
+  const [writingDescription, setWritingDescription] = useState('');
   const docContextRef = useRef<TextEditorState | null>(null);
   const studyParams = useAtomValue(studyParamsAtom);
   const studyCondition = useAtomValue(studyConditionAtom);
@@ -161,6 +162,7 @@ export default function AIPanel({
             event: `aiRequest:${modeToUse}`,
             extra_data: {
               isAutoRefresh,
+              writingDescription: writingDescription.trim() || undefined,
               // Don't log document content right now; we'll log it with the response
             },
           });
@@ -174,6 +176,7 @@ export default function AIPanel({
           body: JSON.stringify({
             editorState,
             context: modeToUse,
+            ...(writingDescription.trim() && { writingDescription: writingDescription.trim() }),
           }),
           signal: AbortSignal.timeout(API_TIMEOUT_MS),
         });
@@ -207,7 +210,7 @@ export default function AIPanel({
               await log({
                 username: studyParams.username,
                 event: `aiResponse:${modeToUse}`,
-                extra_data: { isAutoRefresh, generation, editorState },
+                extra_data: { isAutoRefresh, generation, editorState, writingDescription: writingDescription.trim() || undefined },
               });
             }
           }
@@ -230,7 +233,7 @@ export default function AIPanel({
         setIsLoading(false);
       }
     },
-    [writingAreaRef, save, mode, isStudyMode, studyParams]
+    [writingAreaRef, save, mode, isStudyMode, studyParams, writingDescription]
   );
 
   // Auto-refresh logic for study mode
@@ -288,6 +291,20 @@ export default function AIPanel({
   return (
     <div className="h-full p-4 text-sm text-gray-700 flex flex-col overflow-hidden">
       <h3 className="text-sm font-bold text-gray-900 mb-3">AI Writing Assistant</h3>
+
+      <div className="mb-3">
+        <label htmlFor="writing-description" className="block text-xs font-semibold text-gray-600 mb-1">
+          What are you trying to write?
+        </label>
+        <textarea
+          id="writing-description"
+          value={writingDescription}
+          onChange={(e) => setWritingDescription(e.target.value)}
+          placeholder='e.g., "telling him we need to move the panel we&#39;d scheduled for tomorrow"'
+          rows={2}
+          className="w-full text-xs text-gray-800 border border-gray-300 rounded px-2 py-1.5 resize-none focus:outline-none focus:ring-1 focus:ring-blue-400 focus:border-blue-400 placeholder:text-gray-400"
+        />
+      </div>
 
       {!isStudyMode && (
         <div className="flex gap-1.5 mb-3 flex-wrap">
