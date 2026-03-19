@@ -8,7 +8,7 @@ import officeAddinsPlugin from 'eslint-plugin-office-addins';
 export default [
   // Global ignores
   {
-    ignores: ['dist/**', 'build/**', 'node_modules/**', 'coverage/**']
+    ignores: ['dist/**', 'dist-gdocs/**', 'build/**', 'node_modules/**', 'coverage/**']
   },
   
   // Base JavaScript configuration for all files
