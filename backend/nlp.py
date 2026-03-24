@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 import openai
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
-from posthog.ai.openai import AsyncOpenAI
+from openai import AsyncOpenAI as _BaseAsyncOpenAI
 from posthog_client import posthog_client as ph_client
 
 MODEL_PARAMS = {
@@ -28,10 +28,11 @@ openai_api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
 if openai_api_key == "":
     raise Exception("OPENAI_API_KEY is not set. Please set it in a .env file.")
 
-openai_client = AsyncOpenAI(
-    api_key=openai_api_key,
-    posthog_client=ph_client,
-)
+if ph_client is not None:
+    from posthog.ai.openai import AsyncOpenAI as _WrappedAsyncOpenAI
+    openai_client = _WrappedAsyncOpenAI(api_key=openai_api_key, posthog_client=ph_client)
+else:
+    openai_client = _BaseAsyncOpenAI(api_key=openai_api_key)
 
 
 async def warmup_nlp():
