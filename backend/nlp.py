@@ -3,6 +3,7 @@ import hashlib
 import json
 import os
 import random
+import uuid
 from typing import Any, Iterable, List, Dict, Optional
 
 from dotenv import load_dotenv
@@ -10,7 +11,8 @@ from pydantic import BaseModel
 
 import openai
 from openai.types.chat.chat_completion_message_param import ChatCompletionMessageParam
-from openai import AsyncOpenAI
+from posthog.ai.openai import AsyncOpenAI
+from posthog_client import posthog_client as ph_client
 
 MODEL_PARAMS = {
     "model": "gpt-4o",
@@ -28,6 +30,7 @@ if openai_api_key == "":
 
 openai_client = AsyncOpenAI(
     api_key=openai_api_key,
+    posthog_client=ph_client,
 )
 
 
@@ -168,7 +171,11 @@ class ListResponse(BaseModel):
 
 
 async def _get_suggestions_from_context(
-    prompt_name: str, doc_context: DocContext, use_false_context: bool = False
+    prompt_name: str,
+    doc_context: DocContext,
+    use_false_context: bool = False,
+    distinct_id: str = "backend-server",
+    trace_id: Optional[str] = None,
 ) -> List[str]:
     """Helper function to get suggestions from a specific context"""
     full_prompt = get_full_prompt(
@@ -177,6 +184,10 @@ async def _get_suggestions_from_context(
     if DEBUG_PROMPTS:
         context_type = "false" if use_false_context else "true"
         print(f"Prompt for {prompt_name} ({context_type} context):\n{full_prompt}\n")
+
+    ph_kwargs: Dict[str, Any] = {"posthog_distinct_id": distinct_id}
+    if trace_id:
+        ph_kwargs["posthog_trace_id"] = trace_id
 
     completion = await openai_client.chat.completions.parse(
         **MODEL_PARAMS,
@@ -188,6 +199,7 @@ async def _get_suggestions_from_context(
             {"role": "user", "content": full_prompt},
         ],
         response_format=ListResponse,
+        **ph_kwargs,
     )
 
     suggestion_response = completion.choices[0].message.parsed
@@ -197,13 +209,19 @@ async def _get_suggestions_from_context(
     return suggestion_response.responses
 
 
-async def get_suggestion(prompt_name: str, doc_context: DocContext) -> GenerationResult:
+async def get_suggestion(
+    prompt_name: str,
+    doc_context: DocContext,
+    distinct_id: str = "backend-server",
+) -> GenerationResult:
+    trace_id = str(uuid.uuid4())
+
     # Early return for example_rewording when no text is selected
     if prompt_name == "example_rewording" and doc_context.selectedText.strip() == "":
         return GenerationResult(
             generation_type=prompt_name,
             result="Please select some text to get rewording suggestions.",
-            extra_data={},
+            extra_data={"trace_id": trace_id},
         )
 
     # Special handling for complete_document: always use false context only, plain completion
@@ -216,13 +234,15 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
             messages=[
                 {"role": "system", "content": "You are a helpful and insightful writing assistant."},
                 {"role": "user", "content": full_prompt}
-            ]
+            ],
+            posthog_distinct_id=distinct_id,
+            posthog_trace_id=trace_id,
         )
 
         result = completion.choices[0].message.content
         if not result:
             raise ValueError("No response found from complete_document.")
-        return GenerationResult(generation_type=prompt_name, result=result, extra_data={})
+        return GenerationResult(generation_type=prompt_name, result=result, extra_data={"trace_id": trace_id})
 
     # If falseContextData is None/empty, use baseline behavior
     if not doc_context.falseContextData:
@@ -239,6 +259,8 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
                 {"role": "user", "content": full_prompt},
             ],
             response_format=ListResponse,
+            posthog_distinct_id=distinct_id,
+            posthog_trace_id=trace_id,
         )
 
         suggestion_response = completion.choices[0].message.parsed
@@ -248,15 +270,17 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
             [f"- {item}" for item in suggestion_response.responses]
         )
         return GenerationResult(
-            generation_type=prompt_name, result=markdown_response, extra_data={}
+            generation_type=prompt_name, result=markdown_response, extra_data={"trace_id": trace_id}
         )
 
     # Study mode: parallel calls with mixing
     true_suggestions_task = _get_suggestions_from_context(
-        prompt_name, doc_context, use_false_context=False
+        prompt_name, doc_context, use_false_context=False,
+        distinct_id=distinct_id, trace_id=trace_id,
     )
     false_suggestions_task = _get_suggestions_from_context(
-        prompt_name, doc_context, use_false_context=True
+        prompt_name, doc_context, use_false_context=True,
+        distinct_id=distinct_id, trace_id=trace_id,
     )
 
     # Execute both calls in parallel
@@ -322,6 +346,7 @@ async def get_suggestion(prompt_name: str, doc_context: DocContext) -> Generatio
 
     # Create metadata for logging
     extra_data = {
+        "trace_id": trace_id,
         "shuffle_seed": shuffle_seed,
         "request_hash": request_hash,
         "suggestion_sources": [
@@ -351,12 +376,15 @@ def obscure(token):
 
 
 async def chat(
-    messages: Iterable[ChatCompletionMessageParam], temperature: float
+    messages: Iterable[ChatCompletionMessageParam],
+    temperature: float,
+    distinct_id: str = "backend-server",
 ) -> str:
     response = await openai_client.chat.completions.create(
         **MODEL_PARAMS,
         messages=messages,
         max_tokens=1024,
+        posthog_distinct_id=distinct_id,
     )
 
     result = response.choices[0].message.content
@@ -365,16 +393,25 @@ async def chat(
     return result or ""
 
 
-def chat_stream(messages: Iterable[ChatCompletionMessageParam], temperature: float):
+def chat_stream(
+    messages: Iterable[ChatCompletionMessageParam],
+    temperature: float,
+    distinct_id: str = "backend-server",
+):
     return openai_client.chat.completions.create(
         **MODEL_PARAMS,
         messages=messages,
         max_tokens=1024,
         stream=True,
+        posthog_distinct_id=distinct_id,
     )
 
 
-async def reflection(userDoc: str, paragraph: str) -> GenerationResult:
+async def reflection(
+    userDoc: str,
+    paragraph: str,
+    distinct_id: str = "backend-server",
+) -> GenerationResult:
     temperature = 1.0
 
     questions = await chat(
@@ -383,6 +420,7 @@ async def reflection(userDoc: str, paragraph: str) -> GenerationResult:
             {"role": "user", "content": paragraph},
         ],
         temperature=temperature,
+        distinct_id=distinct_id,
     )
 
     return GenerationResult(
