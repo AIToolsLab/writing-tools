@@ -186,7 +186,13 @@ async def _get_suggestions_from_context(
         context_type = "false" if use_false_context else "true"
         print(f"Prompt for {prompt_name} ({context_type} context):\n{full_prompt}\n")
 
-    completion = await openai_client.chat.completions.parse(
+    ph_kwargs: Dict[str, Any] = {}
+    if ph_client is not None:
+        ph_kwargs["posthog_distinct_id"] = distinct_id
+        if trace_id:
+            ph_kwargs["posthog_trace_id"] = trace_id
+
+    completion = await openai_client.chat.completions.create(
         **MODEL_PARAMS,
         messages=[
             {
@@ -196,12 +202,13 @@ async def _get_suggestions_from_context(
             {"role": "user", "content": full_prompt},
         ],
         response_format=ListResponse,
+        **ph_kwargs,
     )
 
-    suggestion_response = completion.choices[0].message.parsed
-    if suggestion_response is None:
+    content = completion.choices[0].message.content
+    if not content:
         return []
-
+    suggestion_response = ListResponse.model_validate_json(content)
     return suggestion_response.responses
 
 
@@ -245,7 +252,7 @@ async def get_suggestion(
         full_prompt = get_full_prompt(prompt_name, doc_context)
         if DEBUG_PROMPTS:
             print(f"Prompt for {prompt_name} (baseline):\n{full_prompt}\n")
-        completion = await openai_client.chat.completions.parse(
+        completion = await openai_client.chat.completions.create(
             **MODEL_PARAMS,
             messages=[
                 {
@@ -255,11 +262,13 @@ async def get_suggestion(
                 {"role": "user", "content": full_prompt},
             ],
             response_format=ListResponse,
+            **({"posthog_distinct_id": distinct_id, "posthog_trace_id": trace_id} if ph_client is not None else {}),
         )
 
-        suggestion_response = completion.choices[0].message.parsed
-        if not suggestion_response or not suggestion_response:
+        content = completion.choices[0].message.content
+        if not content:
             raise ValueError("No suggestions found in the response.")
+        suggestion_response = ListResponse.model_validate_json(content)
         markdown_response = "\n\n".join(
             [f"- {item}" for item in suggestion_response.responses]
         )
