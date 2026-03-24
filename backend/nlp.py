@@ -186,10 +186,6 @@ async def _get_suggestions_from_context(
         context_type = "false" if use_false_context else "true"
         print(f"Prompt for {prompt_name} ({context_type} context):\n{full_prompt}\n")
 
-    ph_kwargs: Dict[str, Any] = {"posthog_distinct_id": distinct_id}
-    if trace_id:
-        ph_kwargs["posthog_trace_id"] = trace_id
-
     completion = await openai_client.chat.completions.parse(
         **MODEL_PARAMS,
         messages=[
@@ -200,7 +196,6 @@ async def _get_suggestions_from_context(
             {"role": "user", "content": full_prompt},
         ],
         response_format=ListResponse,
-        **ph_kwargs,
     )
 
     suggestion_response = completion.choices[0].message.parsed
@@ -260,8 +255,6 @@ async def get_suggestion(
                 {"role": "user", "content": full_prompt},
             ],
             response_format=ListResponse,
-            posthog_distinct_id=distinct_id,
-            posthog_trace_id=trace_id,
         )
 
         suggestion_response = completion.choices[0].message.parsed
