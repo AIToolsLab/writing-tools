@@ -19,8 +19,7 @@
 	width: 100%;
 	max-width: 480px;
 	background: var(--surface);
-	border-radius: 14px;
-	border: 1px solid var(--border);
+
 	overflow: hidden;
 	box-shadow: 0 4px 24px rgba(0,0,0,0.07);
 	margin: 0 auto;
@@ -295,6 +294,44 @@
 	position: relative;
 	animation: fadeUp .3s ease both;
 	display: block;
+}
+
+.generationResult {
+	font-size: 13px;
+	line-height: 1.6;
+	color: var(--text-primary);
+}
+
+.generationTitle {
+	font-weight: 500;
+	margin-bottom: 8px;
+	color: var(--accent);
+}
+
+.generationContent :global(ul),
+.generationContent :global(ol) {
+	padding-left: 1.25rem;
+	margin: 0.5rem 0;
+}
+
+.generationContent :global(ul) {
+	list-style: disc;
+}
+
+.generationContent :global(ol) {
+	list-style: decimal;
+}
+
+.generationContent :global(li) {
+	margin: 0.2rem 0;
+}
+
+.generationContent :global(p) {
+	margin: 0;
+}
+
+.generationContent :global(p + p) {
+	margin-top: 0.65rem;
 }
 
 .resultItem:nth-child(1) {

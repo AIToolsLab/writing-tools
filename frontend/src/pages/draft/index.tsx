@@ -105,16 +105,46 @@ class Fetcher {
 	}
 }
 
+function formatDraftSuggestionAsBullets(result: string) {
+	const trimmedResult = result.trim();
+	if (!trimmedResult) return trimmedResult;
+
+	const hasMarkdownList = /^(?:\s*[-*+]\s+|\s*\d+\.\s+)/m.test(trimmedResult);
+	if (hasMarkdownList) return trimmedResult;
+
+	const lines = trimmedResult
+		.split('\n')
+		.map((line) => line.trim())
+		.filter(Boolean);
+
+	const bulletItems =
+		lines.length > 1
+			? lines
+			: trimmedResult
+					.split(/(?<=[.!?])\s+(?=[A-Z0-9"])/)
+					.map((item) => item.trim())
+					.filter(Boolean);
+
+	return bulletItems.map((item) => `- ${item}`).join('\n');
+}
+
 function _GenerationResult({ generation }: { generation: GenerationResult }) {
 	const showTitle = generation.generation_type !== 'complete_document';
+	const formattedResult =
+		generation.generation_type === 'complete_document'
+			? generation.result
+			: formatDraftSuggestionAsBullets(generation.result);
+
 	return (
-		<div style={{ fontSize: '13px', lineHeight: '1.6', color: 'var(--text-primary)' }}>
+		<div className={classes.generationResult}>
 			{showTitle ? (
-				<div style={{ fontWeight: 500, marginBottom: '8px', color: 'var(--accent)' }}>
+				<div className={classes.generationTitle}>
 					{visibleNameForMode[generation.generation_type as keyof typeof visibleNameForMode]}
 				</div>
 			) : null}
-			<Remark>{generation.result}</Remark>
+			<div className={classes.generationContent}>
+				<Remark>{formattedResult}</Remark>
+			</div>
 		</div>
 	);
 }

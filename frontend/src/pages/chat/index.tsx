@@ -1,9 +1,8 @@
 import { useState, useContext, useEffect, useRef, useCallback } from 'react';
+import { Remark } from 'react-remark';
 
-import { AiOutlineArrowDown, AiOutlineClear, AiOutlineSend } from 'react-icons/ai';
+import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-
-import ChatMessage from '@/components/chatMessage';
 
 import { ChatContext } from '@/contexts/chatContext';
 import { usernameAtom } from '@/contexts/userContext';
@@ -14,6 +13,14 @@ import { SERVER_URL } from '@/api';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { useAtomValue } from 'jotai';
 import { useDocContext } from '@/utilities';
+import classes from './styles.module.css';
+
+const suggestionPrompts = [
+	'What is my main argument?',
+	'How can I improve clarity?',
+	'Is my structure logical?',
+	'What am I missing?',
+];
 
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
@@ -21,6 +28,7 @@ export default function Chat() {
 	const editorAPI = useContext(EditorContext);
 	const { getAccessToken, authErrorType } = useAccessToken();
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
+	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [showScrollButton, setShowScrollButton] = useState(false);
 
 	// Show the "scroll to bottom" button when the user scrolls up, and hide it when they are near the bottom.
@@ -92,16 +100,26 @@ export default function Chat() {
 
 	const [message, updateMessage] = useState('');
 
-	async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
-		e.preventDefault();
+	const visibleMessages =
+		messagesWithCurDocContext.length > 3 ? messagesWithCurDocContext.slice(3) : [];
 
-		if (!message) return;
+	const resizeTextarea = useCallback(() => {
+		const textarea = textareaRef.current;
+		if (!textarea) return;
+		textarea.style.height = 'auto';
+		textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
+	}, []);
 
+	useEffect(() => {
+		resizeTextarea();
+	}, [message, resizeTextarea]);
+
+	async function submitMessage(text: string) {
 		updateSendingMessage(true);
 
 		let newMessages = [
 			...messagesWithCurDocContext,
-			{ role: 'user', content: message },
+			{ role: 'user', content: text },
 			{ role: 'assistant', content: '' },
 		];
 
@@ -135,30 +153,18 @@ export default function Chat() {
 		updateSendingMessage(false);
 	}
 
-	async function regenMessage(index: number) {
-		// Resubmit the conversation up until the last message,
-		// so it regenerates the last assistant message.
-		const token = await getAccessToken();
-		const response = await fetch(`${SERVER_URL}/chat`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				Authorization: `Bearer ${token}`,
-			},
-			body: JSON.stringify({
-				messages: chatMessages.slice(0, index),
-			}),
-		});
+	async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
+		e.preventDefault();
 
-		const responseJson = await response.json();
+		const trimmedMessage = message.trim();
+		if (!trimmedMessage) return;
 
-		const newMessages = [...chatMessages];
-		newMessages[index + 1] = {
-			role: 'assistant',
-			content: responseJson,
-		};
+		await submitMessage(trimmedMessage);
+	}
 
-		updateChatMessages(newMessages);
+	async function sendSuggestedMessage(text: string) {
+		updateMessage(text);
+		await submitMessage(text);
 	}
 
 	if (authErrorType !== null) {
@@ -166,29 +172,80 @@ export default function Chat() {
 	}
 
 	return (
-		<div className="m-2 flex flex-col gap-1 flex-1 overflow-hidden">
-			<div className="relative flex-1 min-h-0">
-				<div ref={messagesContainerRef} onScroll={handleScroll} className="flex-col gap-2 h-full overflow-y-auto">
-					{messagesWithCurDocContext.slice(2).map((message, index) => (
-						<ChatMessage
-							key={index + 2}
-							role={message.role}
-							content={message.content}
-							index={index + 2}
-							refresh={(index: number) => {
-								void regenMessage(index);
-							}}
-							deleteMessage={() => {}}
-							convertToComment={() => {}}
-						/>
-					))}
+		<div className={classes.app}>
+			<div className={classes.chatPanel}>
+				<div
+					ref={messagesContainerRef}
+					onScroll={handleScroll}
+					className={classes.chatBody}
+				>
+					{visibleMessages.length === 0 ? (
+						<div className={classes.chatWelcome}>
+							<div className={classes.chatWelcomeIcon}>💬</div>
+							<div className={classes.chatWelcomeTitle}>Ask about your document</div>
+							<div className={classes.chatWelcomeHint}>
+								Ask questions, get explanations, or explore ideas about what you're writing.
+							</div>
+							<div className={classes.chatSuggestions}>
+								{suggestionPrompts.map((prompt) => (
+									<button
+										key={prompt}
+										type="button"
+										onClick={() => {
+											void sendSuggestedMessage(prompt);
+										}}
+										className={classes.chatSuggChip}
+									>
+										{prompt}
+									</button>
+								))}
+							</div>
+						</div>
+					) : (
+						visibleMessages.map((chatMessage, index) => {
+							const isAssistantTyping =
+								chatMessage.role === 'assistant' && chatMessage.content === '' && isSendingMessage;
+
+							return (
+								<div
+									key={index + 3}
+									className={`${classes.chatMsg} ${chatMessage.role === 'user' ? classes.user : classes.ai}`}
+								>
+									{chatMessage.role === 'assistant' ? (
+										<div className={classes.chatMeta}>Assistant</div>
+									) : null}
+
+									{isAssistantTyping ? (
+										<div className={classes.typingIndicator}>
+											<span />
+											<span />
+											<span />
+										</div>
+									) : (
+										<div className={classes.chatBubble}>
+											{chatMessage.role === 'assistant' ? (
+												<Remark>{chatMessage.content}</Remark>
+											) : (
+												chatMessage.content
+											)}
+										</div>
+									)}
+
+									{chatMessage.role === 'user' ? (
+										<div className={classes.chatMeta}>You</div>
+									) : null}
+								</div>
+							);
+						})
+					)}
 				</div>
+
 				{showScrollButton ? (
 					<button
 						type="button"
 						title="Scroll to bottom"
 						onClick={scrollToBottom}
-						className="absolute bottom-[8px] left-1/2 -translate-x-1/2 bg-white border border-gray-300 rounded-full p-[6px] cursor-pointer shadow-md transition duration-150 hover:bg-gray-100"
+						className={classes.scrollButton}
 					>
 						<AiOutlineArrowDown size={16} />
 					</button>
@@ -196,42 +253,37 @@ export default function Chat() {
 			</div>
 
 			<form
-			className="w-full flex flex-col"
-			onSubmit={(e) => {
-				void sendMessage(e);
-			}}
-		>
-				<div className='relative'>
+				className={classes.chatFoot}
+				onSubmit={(e) => {
+					void sendMessage(e);
+				}}
+			>
+				<div className={classes.chatInputRow}>
 					<textarea
+						ref={textareaRef}
 						disabled={isSendingMessage}
-						placeholder="Send a message"
+						placeholder="Ask something about your document..."
 						value={message}
 						onChange={(e) => updateMessage(e.target.value)}
+						onInput={resizeTextarea}
 						onKeyDown={(e) => {
 							if (e.key === 'Enter' && !e.shiftKey) {
 								e.preventDefault();
 								e.currentTarget.form?.requestSubmit();
 							}
 						}}
-						className='border border-gray-500 p-[10px] pr-[70px] w-full'
+						rows={1}
+						className={classes.chatInput}
 					/>
-					<div className="absolute right-[8px] bottom-[8px] flex gap-1">
-						<button
-							type="submit"
-							title="Send message"
-							className="bg-transparent cursor-pointer border-none p-[5px] transition duration-150 hover:text-gray-500"
-						>
-							<AiOutlineSend size={18} />
-						</button>
-						<button
-							type="button"
-							title="Clear chat"
-							onClick={() => updateChatMessages([])}
-							className="bg-transparent cursor-pointer border-none p-[5px] text-red-500 transition duration-150 hover:text-red-700"
-						>
-							<AiOutlineClear size={18} />
-						</button>
-					</div>
+
+					<button
+						type="submit"
+						title="Send message"
+						disabled={isSendingMessage || !message.trim()}
+						className={classes.chatSendBtn}
+					>
+						<AiOutlineSend size={18} />
+					</button>
 				</div>
 			</form>
 		</div>
