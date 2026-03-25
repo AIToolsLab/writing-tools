@@ -403,90 +403,97 @@ export default function Draft() {
 	}
 
 	return (
-		<div className="flex flex-col flex-1 overflow-hidden">
-			<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
-				{/* Instruction */}
-				<div className={classes.instruction}>
-					CLICK A DESIRED BUTTON
+		<div className={classes.app}>
+			<div className={classes.body}>
+					
+				<div className="flex flex-col flex-1 overflow-hidden">
+					<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
+						{/* Instruction */}
+						<div className={classes.instruction}>
+							CLICK A DESIRED BUTTON
+						</div>
+
+						{/* Feature Grid */}
+						<div className={classes.featureGrid}>
+							{modesToShow.map((mode) => {
+								const isActive = activeMode === mode;
+								const Icon = iconFunc(mode);
+								const meta = modeMeta[mode];
+
+								return (
+									<button
+										key={mode}
+										className={`${classes.featureCard} ${isActive ? 'active' : ''}`}
+										onClick={() => {
+											setActiveMode(mode);
+											log({
+												username: username,
+												event: 'request_suggestion',
+												generation_type: mode,
+												docContext: docContextRef.current,
+											});
+											resetAutoRefresh();
+											const request = {
+												docContext: docContextRef.current,
+												type: mode,
+											};
+											getSuggestion(request, true);
+										}}
+										disabled={isLoading}
+										type="button"
+										aria-label={meta?.name}
+										title={meta?.description}
+									>
+										{Icon ? <Icon className={classes.featIcon} /> : null}
+										{meta ? (
+											<>
+												<div className={classes.featName}>{meta.name}</div>
+												<div className={classes.featDesc}>{meta.description}</div>
+											</>
+										) : null}
+										<div className={classes.activeDot}></div>
+									</button>
+								);
+							})}
+						</div>
+						{/* Results Area */}
+						<div className={`${classes.resultsArea} ${savedItems.length > 0 ? classes.hasContent : ''}`}>
+							{errorMsg ? (
+								<div className={classes.errorMessage}>
+									{errorMsg}
+								</div>
+							) : null}
+							{!errorMsg && savedItems.length === 0 && !isLoading ? (
+								<div className={classes.emptyStateContainer}>
+									<div className={classes.emptyTitle}>No suggestions yet</div>
+									<div className={classes.emptyHint}>
+										Click a button above to generate suggestions for your text
+									</div>
+								</div>
+							) : null}
+							{isLoading && savedItems.length === 0 ? (
+								<div className={classes.skeletonContainer}>
+									<div className={classes.skeleton}></div>
+									<div className={classes.skeleton}></div>
+									<div className={classes.skeleton}></div>
+								</div>
+							) : null}
+							{savedItems.length > 0 ? (
+								<SavedGenerations
+									savedItems={savedItems}
+									deleteSavedItem={deleteSavedItem}
+								/>
+							) : null}
+						</div>
+					</div>
+
+					<div className={classes.disclaimer}>
+						Please note that AI suggestions may vary in quality. Always review suggestions carefully before using them.
+					</div>
 				</div>
 
-				{/* Feature Grid */}
-				<div className={classes.featureGrid}>
-					{modesToShow.map((mode) => {
-						const isActive = activeMode === mode;
-						const Icon = iconFunc(mode);
-						const meta = modeMeta[mode];
-
-						return (
-							<button
-								key={mode}
-								className={`${classes.featureCard} ${isActive ? 'active' : ''}`}
-								onClick={() => {
-									setActiveMode(mode);
-									log({
-										username: username,
-										event: 'request_suggestion',
-										generation_type: mode,
-										docContext: docContextRef.current,
-									});
-									resetAutoRefresh();
-									const request = {
-										docContext: docContextRef.current,
-										type: mode,
-									};
-									getSuggestion(request, true);
-								}}
-								disabled={isLoading}
-								type="button"
-								aria-label={meta?.name}
-								title={meta?.description}
-							>
-								{Icon ? <Icon className={classes.featIcon} /> : null}
-								{meta ? (
-									<>
-										<div className={classes.featName}>{meta.name}</div>
-										<div className={classes.featDesc}>{meta.description}</div>
-									</>
-								) : null}
-								<div className={classes.activeDot}></div>
-							</button>
-						);
-					})}
-				</div>
-				{/* Results Area */}
-				<div className={`${classes.resultsArea} ${savedItems.length > 0 ? classes.hasContent : ''}`}>
-					{errorMsg ? (
-						<div className={classes.errorMessage}>
-							{errorMsg}
-						</div>
-					) : null}
-					{!errorMsg && savedItems.length === 0 && !isLoading ? (
-						<div className={classes.emptyStateContainer}>
-							<div className={classes.emptyTitle}>No suggestions yet</div>
-							<div className={classes.emptyHint}>
-								Click a button above to generate suggestions for your text
-							</div>
-						</div>
-					) : null}
-					{isLoading && savedItems.length === 0 ? (
-						<div className={classes.skeletonContainer}>
-							<div className={classes.skeleton}></div>
-							<div className={classes.skeleton}></div>
-							<div className={classes.skeleton}></div>
-						</div>
-					) : null}
-					{savedItems.length > 0 ? (
-						<SavedGenerations
-							savedItems={savedItems}
-							deleteSavedItem={deleteSavedItem}
-						/>
-					) : null}
-				</div>
-			</div>
-
-			<div className={classes.disclaimer}>
-				Please note that AI suggestions may vary in quality. Always review suggestions carefully before using them.
 			</div>
 		</div>
-	);
-}
+			);
+		}
+		
