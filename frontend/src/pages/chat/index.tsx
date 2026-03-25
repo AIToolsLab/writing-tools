@@ -181,11 +181,9 @@ export default function Chat() {
 				>
 					{visibleMessages.length === 0 ? (
 						<div className={classes.chatWelcome}>
-							<div className={classes.chatWelcomeIcon}>💬</div>
-							<div className={classes.chatWelcomeTitle}>Ask about your document</div>
-							<div className={classes.chatWelcomeHint}>
-								Ask questions, get explanations, or explore ideas about what you're writing.
-							</div>
+							
+							<div className={classes.chatWelcomeTitle}>What do you think about your document so far?</div>
+
 							<div className={classes.chatSuggestions}>
 								{suggestionPrompts.map((prompt) => (
 									<button
