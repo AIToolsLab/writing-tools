@@ -23,21 +23,9 @@ type Page = {
 };
 
 const pageNames: Page[] = [
-	{
-		name: PageName.Draft,
-		title: 'Draft',
-		hint: 'Generate suggestions',
-	},
-	{
-		name: PageName.Revise,
-		title: 'Revise',
-		hint: 'Improve your text',
-	},
-	{
-		name: PageName.Chat,
-		title: 'Chat',
-		hint: 'Ask about your doc',
-	},
+	{ name: PageName.Draft, title: 'Draft', hint: 'Generate suggestions' },
+	{ name: PageName.Revise, title: 'Revise', hint: 'Improve your text' },
+	{ name: PageName.Chat, title: 'Chat', hint: 'Ask about your doc' },
 ];
 
 export default function Navbar() {
