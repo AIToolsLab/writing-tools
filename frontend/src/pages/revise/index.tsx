@@ -283,6 +283,13 @@ ${request}
 </request>`,
 				},
 			];
+			const categorySourceMap: Record<string, string> = {
+				structure: 'revise/doc_structure',
+				content: 'revise/content_analysis',
+				analysis: 'revise/critical_analysis',
+			};
+			const source = prompt.category ? categorySourceMap[prompt.category] : 'revise';
+
 			setLoading(true);
 			fetchEventSource(`${SERVER_URL}/chat`, {
 				method: 'POST',
@@ -293,6 +300,7 @@ ${request}
 				body: JSON.stringify({
 					messages: chatMessages,
 					username: username,
+					source: source,
 				}),
 				onmessage(msg) {
 					try {

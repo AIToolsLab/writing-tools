@@ -119,6 +119,7 @@ export default function Chat() {
 			body: JSON.stringify({
 				messages: newMessages.slice(0, -1),
 				username: username,
+				source: 'chat',
 			}),
 			onmessage(msg) {
 				const message = JSON.parse(msg.data);
@@ -147,6 +148,7 @@ export default function Chat() {
 			},
 			body: JSON.stringify({
 				messages: chatMessages.slice(0, index),
+				source: 'chat',
 			}),
 		});
 

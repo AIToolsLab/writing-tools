@@ -117,6 +117,7 @@ class ReflectionResponses(BaseModel):
 class ChatRequestPayload(BaseModel):
     messages: List[nlp.ChatCompletionMessageParam]
     username: ValidatedUsername
+    source: Optional[str] = None
 
 
 class Log(BaseModel):
@@ -216,7 +217,7 @@ async def get_suggestion(payload: SuggestionRequestWithDocContext, background_ta
     allowed_gtypes = list(nlp.prompts.keys())
     if payload.gtype not in allowed_gtypes:
         raise ValueError(f"Invalid generation type: {payload.gtype}")
-    result = await nlp.get_suggestion(payload.gtype, payload.doc_context, distinct_id=payload.username or "backend-server")
+    result = await nlp.get_suggestion(payload.gtype, payload.doc_context, distinct_id=payload.username or "backend-server", source=f"draft/{payload.gtype}")
     end_time = datetime.now()
 
     log_entry = RequestLog(
@@ -242,7 +243,7 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
     should_log_doctext = should_log(payload.username)
 
     start_time = datetime.now()
-    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph, distinct_id=payload.username or "backend-server")
+    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph, distinct_id=payload.username or "backend-server", source="reflections")
     end_time = datetime.now()
 
     background_tasks.add_task(make_log, RequestLog(
@@ -267,6 +268,7 @@ async def chat(payload: ChatRequestPayload, background_tasks: BackgroundTasks):
         messages=payload.messages,
         temperature=0.7,
         distinct_id=payload.username or "backend-server",
+        source=payload.source,
     )
 
     messages_for_log = json.dumps(payload.messages if should_log_doctext else [{

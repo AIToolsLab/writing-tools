@@ -177,6 +177,7 @@ async def _get_suggestions_from_context(
     use_false_context: bool = False,
     distinct_id: str = "backend-server",
     trace_id: Optional[str] = None,
+    source: Optional[str] = None,
 ) -> List[str]:
     """Helper function to get suggestions from a specific context"""
     full_prompt = get_full_prompt(
@@ -191,6 +192,8 @@ async def _get_suggestions_from_context(
         ph_kwargs["posthog_distinct_id"] = distinct_id
         if trace_id:
             ph_kwargs["posthog_trace_id"] = trace_id
+        if source:
+            ph_kwargs["posthog_properties"] = {"source": source}
 
     completion = await openai_client.chat.completions.create(
         **MODEL_PARAMS,
@@ -216,6 +219,7 @@ async def get_suggestion(
     prompt_name: str,
     doc_context: DocContext,
     distinct_id: str = "backend-server",
+    source: Optional[str] = None,
 ) -> GenerationResult:
     trace_id = str(uuid.uuid4())
 
@@ -240,6 +244,7 @@ async def get_suggestion(
             ],
             posthog_distinct_id=distinct_id,
             posthog_trace_id=trace_id,
+            **({"posthog_properties": {"source": source}} if ph_client is not None and source else {}),
         )
 
         result = completion.choices[0].message.content
@@ -262,7 +267,7 @@ async def get_suggestion(
                 {"role": "user", "content": full_prompt},
             ],
             response_format=ListResponse,
-            **({"posthog_distinct_id": distinct_id, "posthog_trace_id": trace_id} if ph_client is not None else {}),
+            **({"posthog_distinct_id": distinct_id, "posthog_trace_id": trace_id, **({"posthog_properties": {"source": source}} if source else {})} if ph_client is not None else {}),
         )
 
         content = completion.choices[0].message.content
@@ -279,11 +284,11 @@ async def get_suggestion(
     # Study mode: parallel calls with mixing
     true_suggestions_task = _get_suggestions_from_context(
         prompt_name, doc_context, use_false_context=False,
-        distinct_id=distinct_id, trace_id=trace_id,
+        distinct_id=distinct_id, trace_id=trace_id, source=source,
     )
     false_suggestions_task = _get_suggestions_from_context(
         prompt_name, doc_context, use_false_context=True,
-        distinct_id=distinct_id, trace_id=trace_id,
+        distinct_id=distinct_id, trace_id=trace_id, source=source,
     )
 
     # Execute both calls in parallel
@@ -382,12 +387,14 @@ async def chat(
     messages: Iterable[ChatCompletionMessageParam],
     temperature: float,
     distinct_id: str = "backend-server",
+    source: Optional[str] = None,
 ) -> str:
     response = await openai_client.chat.completions.create(
         **MODEL_PARAMS,
         messages=messages,
         max_tokens=1024,
         posthog_distinct_id=distinct_id,
+        **({"posthog_properties": {"source": source}} if ph_client is not None and source else {}),
     )
 
     result = response.choices[0].message.content
@@ -400,6 +407,7 @@ def chat_stream(
     messages: Iterable[ChatCompletionMessageParam],
     temperature: float,
     distinct_id: str = "backend-server",
+    source: Optional[str] = None,
 ):
     return openai_client.chat.completions.create(
         **MODEL_PARAMS,
@@ -407,6 +415,7 @@ def chat_stream(
         max_tokens=1024,
         stream=True,
         posthog_distinct_id=distinct_id,
+        **({"posthog_properties": {"source": source}} if ph_client is not None and source else {}),
     )
 
 
@@ -414,6 +423,7 @@ async def reflection(
     userDoc: str,
     paragraph: str,
     distinct_id: str = "backend-server",
+    source: Optional[str] = None,
 ) -> GenerationResult:
     temperature = 1.0
 
@@ -424,6 +434,7 @@ async def reflection(
         ],
         temperature=temperature,
         distinct_id=distinct_id,
+        source=source,
     )
 
     return GenerationResult(
