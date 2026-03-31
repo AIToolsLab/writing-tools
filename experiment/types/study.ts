@@ -41,6 +41,8 @@ export type ConditionName =
   | 'analysis_readerPerspective'
   | 'proposal_advice';
 
+export type ConversationHistoryMode = 'direct' | 'nudge';
+
 export interface StudyParams {
   username: string;
   condition: ConditionCode;
@@ -49,6 +51,8 @@ export interface StudyParams {
   isProlific: boolean;
   autoRefreshInterval: number;
   scenario: string; // Scenario ID (e.g., 'roomDoubleBooking', 'demoRescheduling')
+  conversationHistory: boolean; // Whether AI assistant receives chat transcript (ch=0/1)
+  conversationHistoryMode: ConversationHistoryMode; // How AI uses conversation: 'direct' or 'nudge' (chm=direct/nudge)
 }
 
 export interface BrowserMetadata extends Record<string, unknown> {

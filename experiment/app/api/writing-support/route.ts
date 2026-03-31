@@ -2,9 +2,11 @@ import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import type { WritingSupportRequest } from '@/types';
+import type { ConversationMessage, WritingSupportRequest } from '@/types';
 
 export const runtime = 'edge';
+
+const MAX_CONVERSATION_CHARS = 4000;
 
 const prompts = {
   example_sentences: `You are assisting a writer in drafting a document. Generate three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next.
@@ -56,6 +58,48 @@ const listResponseSchema = z.object({
   responses: z.array(z.string()).describe('List of suggestions'),
 });
 
+// Bridging instructions for when conversation history is provided
+const directBridging: Record<string, string> = {
+  example_sentences: 'The writer gathered information through the conversation below. Use relevant details from this conversation to generate contextually accurate sentence options.',
+  complete_document: 'The writer gathered information through the conversation below. Use relevant details to complete the document accurately.',
+  proposal_advice: 'The writer gathered information through the conversation below. Consider this context when giving advice.',
+  analysis_readerPerspective: 'The writer gathered information through the conversation below. Consider what the reader would think given the facts discussed.',
+};
+
+const nudgeBridging: Record<string, string> = {
+  example_sentences: 'The writer gathered information through the conversation below. Generate sentences with bracketed placeholders (e.g., [room], [time], [name]) where specific facts from the conversation would go. Do NOT fill in the actual details — the writer must recall and insert them.',
+  complete_document: 'The writer gathered information through the conversation below. Complete the document structure but use bracketed placeholders (e.g., [room], [time], [specific detail]) for facts from the conversation. The writer must fill these in themselves.',
+  proposal_advice: 'The writer gathered information through the conversation below. Reference topics from the conversation without revealing specific details. Guide the writer to think about what information matters, without being prescriptive about exact facts.',
+  analysis_readerPerspective: 'The writer gathered information through the conversation below. React to whether the document addresses the reader\'s likely concerns, but do not reveal specific facts from the conversation in your reactions.',
+};
+
+function formatConversationSection(
+  messages: ConversationMessage[],
+  mode: string,
+  historyMode: 'direct' | 'nudge',
+): string {
+  // Truncate to fit within token budget
+  let transcript = '';
+  for (const msg of messages) {
+    const label = msg.role === 'user' ? 'Writer' : 'Colleague';
+    transcript += `${label}: ${msg.content}\n`;
+  }
+  if (transcript.length > MAX_CONVERSATION_CHARS) {
+    transcript = transcript.slice(-MAX_CONVERSATION_CHARS);
+    // Find the first complete line after truncation
+    const firstNewline = transcript.indexOf('\n');
+    if (firstNewline > 0) {
+      transcript = transcript.slice(firstNewline + 1);
+    }
+  }
+
+  const bridging = historyMode === 'nudge'
+    ? (nudgeBridging[mode] || '')
+    : (directBridging[mode] || '');
+
+  return `\n\n# Conversation Between Writer and Colleague\n\n${bridging}\n\n<conversation>\n${transcript.trim()}\n</conversation>\n\n`;
+}
+
 export async function POST(req: Request) {
   const body: WritingSupportRequest = await req.json();
 
@@ -70,6 +114,8 @@ export async function POST(req: Request) {
   const { beforeCursor, selectedText, afterCursor } = body.editorState;
   const context = (body.context as keyof typeof prompts) || 'proposal_advice';
   const promptTemplate = prompts[context];
+  const conversationHistory = body.conversationHistory;
+  const conversationHistoryMode = body.conversationHistoryMode || 'direct';
 
   try {
     const documentText = `${beforeCursor}${selectedText}${afterCursor}`;
@@ -77,6 +123,12 @@ export async function POST(req: Request) {
     const afterCursorTrim = afterCursor.slice(0, 100);
 
     let fullPrompt = promptTemplate;
+
+    // Insert conversation history between the system prompt and document
+    if (conversationHistory && conversationHistory.length > 0) {
+      fullPrompt += formatConversationSection(conversationHistory, context, conversationHistoryMode);
+    }
+
     fullPrompt += `\n\n# Writer's Document So Far\n\n<document>\n${documentText}</document>\n\n`;
 
     if (selectedText === '') {
