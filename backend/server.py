@@ -7,7 +7,7 @@ import zipfile
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Literal
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 import nlp
 import posthog_client
