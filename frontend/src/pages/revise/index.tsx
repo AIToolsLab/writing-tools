@@ -21,12 +21,12 @@ import {
 	AiOutlineEdit,
 	AiOutlineQuestionCircle
 } from 'react-icons/ai';
-import { Button } from 'reshaped';
 import { SERVER_URL } from '@/api';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
+import classes from './styles.module.css';
 
 interface Prompt {
 	keyword: string;
@@ -215,6 +215,12 @@ export default function Revise() {
 		number | null
 	>(null);
 	const [visualizations, setVisualizations] = useState<Visualization[]>([]);
+	const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
+	const [audience, setAudience] = useState('');
+	const [guardrails, setGuardrails] = useState('');
+	const [comments, setComments] = useState('');
+	const [isRunning, setIsRunning] = useState(false);
+	
 	const clickCallbackRef = useRef((href: string) => {
 		if (href.startsWith('doctext:')) {
 			const text = decodeURIComponent(href.slice('doctext:'.length));
@@ -338,10 +344,34 @@ ${request}
 		[docContext, getAccessToken, username],
 	);
 
-	const curVisualization =
-		visualizations.length > 0
-			? visualizations[visualizations.length - 1]
-			: null;
+	const toggleFeature = useCallback((keyword: string) => {
+		setSelectedFeatures(prev => 
+			prev.includes(keyword) 
+				? prev.filter(f => f !== keyword)
+				: [...prev, keyword]
+		);
+	}, []);
+
+	const runSelectedFeatures = useCallback(() => {
+		if (selectedFeatures.length === 0) return;
+		
+		setIsRunning(true);
+		const selectedPrompts = promptList.filter(p => selectedFeatures.includes(p.keyword));
+		
+		// For now, run them sequentially
+		let index = 0;
+		const runNext = async () => {
+			if (index < selectedPrompts.length) {
+				await requestVisualization(selectedPrompts[index]);
+				index++;
+				runNext();
+			} else {
+				setIsRunning(false);
+			}
+		};
+		
+		runNext();
+	}, [selectedFeatures, requestVisualization]);
 
 	if (
 		docContext.beforeCursor.length === 0 &&
@@ -357,107 +387,182 @@ ${request}
 	}
 
 	return (
-		<div className="overflow-y-auto h-full">
-			{/* Categorized prompt buttons */}
-			<div className="p-4 bg-gray-50 border-b border-gray-200">
-				{/* Structure Section */}
-				<div className="mb-6">
-					<h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-						Document Structure
-					</h3>
-					<div className="grid grid-cols-2 gap-2">
-						{promptList
-							.filter((p) => p.category === 'structure')
-							.map((prompt) => (
-								<Button
-									key={prompt.keyword}
-									variant="outline"
-									color="neutral"
-									size="medium"
-									fullWidth
-									onClick={() => {
-										requestVisualization(prompt);
-									}}
-									icon={prompt.icon}
-								>
-									{prompt.keyword}
-								</Button>
-							))}
+		<div className={classes.app}>
+			{/* Tab bar - assuming this is handled at a higher level */}
+			
+			{/* Scrollable body */}
+			<div className={classes.body}>
+				{/* Section 1: Set your to-do */}
+				<div className={classes.todoSection}>
+					<div className={classes.sectionLabel}>
+						<span className={classes.sectionNumber}>1</span>
+						Set your to-do
+					</div>
+
+					<div className={classes.block}>
+						<div className={classes.blockHead}>
+							<div className={classes.blockTitle}>Audience</div>
+							<div className={classes.blockHint}>Who are you writing this for?</div>
+						</div>
+						<textarea 
+							id="audienceInput" 
+							rows={2} 
+							placeholder="e.g. First-year college students with no background in the topic..."
+							value={audience}
+							onChange={(e) => setAudience(e.target.value)}
+						/>
+					</div>
+
+					<div className={classes.block}>
+						<div className={classes.blockHead}>
+							<div className={classes.blockTitle}>Guardrails</div>
+							<div className={classes.blockHint}>What should the AI avoid or preserve?</div>
+						</div>
+						<textarea 
+							id="guardrailInput" 
+							rows={2} 
+							placeholder="e.g. Don't change the opening paragraph, keep it under 400 words..."
+							value={guardrails}
+							onChange={(e) => setGuardrails(e.target.value)}
+						/>
+					</div>
+
+					<div className={classes.block}>
+						<div className={classes.blockHead}>
+							<div className={classes.blockTitle}>Additional comments</div>
+							<div className={classes.blockHint}>Anything else the AI should know before running?</div>
+						</div>
+						<textarea 
+							id="commentsInput" 
+							rows={3} 
+							placeholder="e.g. This is a draft for peer review. The argument isn't finished yet so don't flag gaps as errors..."
+							value={comments}
+							onChange={(e) => setComments(e.target.value)}
+						/>
 					</div>
 				</div>
 
-				{/* Content Section */}
-				<div className="mb-6">
-					<h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-						Content Analysis
-					</h3>
-					<div className="grid grid-cols-2 gap-2">
-						{promptList
-							.filter((p) => p.category === 'content')
-							.map((prompt) => (
-								<Button
-									key={prompt.keyword}
-									variant="outline"
-									color="neutral"
-									size="medium"
-									fullWidth
-									onClick={() => {
-										requestVisualization(prompt);
-									}}
-									icon={prompt.icon}
-								>
-									{prompt.keyword}
-								</Button>
-							))}
+				{/* Section 2: Choose features to run */}
+				<div className={classes.featuresSection}>
+					<div className={classes.sectionLabel}>
+						<span className={classes.sectionNumber}>2</span>
+						Choose features to run
 					</div>
-				</div>
 
-				{/* Analysis Section */}
-				<div className="mb-2">
-					<h3 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">
-						Critical Analysis
-					</h3>
-					<div className="grid grid-cols-2 gap-2">
-						{promptList
-							.filter((p) => p.category === 'analysis')
-							.map((prompt) => (
-								<Button
-									key={prompt.keyword}
-									variant="outline"
-									color="neutral"
-									size="medium"
-									fullWidth
-									onClick={() => {
-										requestVisualization(prompt);
-									}}
-									icon={prompt.icon}
-								>
-									{prompt.keyword}
-								</Button>
-							))}
+					{/* Document structure */}
+					<div className={classes.featGroup}>
+						<div className={classes.featGroupLabel}>Document structure</div>
+						<div className={classes.featGrid}>
+							{promptList
+								.filter((p) => p.category === 'structure')
+								.map((prompt) => (
+									<button
+										key={prompt.keyword}
+										className={`${classes.featBtn} ${selectedFeatures.includes(prompt.keyword) ? classes.on : ''}`}
+										onClick={() => toggleFeature(prompt.keyword)}
+									>
+										<span className={classes.featDot}></span>
+										<span className={classes.featLabel}>{prompt.keyword}</span>
+									</button>
+								))}
+						</div>
+					</div>
+
+					{/* Content analysis */}
+					<div className={classes.featGroup}>
+						<div className={classes.featGroupLabel}>Content analysis</div>
+						<div className={classes.featGrid}>
+							{promptList
+								.filter((p) => p.category === 'content')
+								.map((prompt) => (
+									<button
+										key={prompt.keyword}
+										className={`${classes.featBtn} ${selectedFeatures.includes(prompt.keyword) ? classes.on : ''}`}
+										onClick={() => toggleFeature(prompt.keyword)}
+									>
+										<span className={classes.featDot}></span>
+										<span className={classes.featLabel}>{prompt.keyword}</span>
+									</button>
+								))}
+						</div>
+					</div>
+
+					{/* Critical analysis */}
+					<div className={classes.featGroup}>
+						<div className={classes.featGroupLabel}>Critical analysis</div>
+						<div className={classes.featGrid}>
+							{promptList
+								.filter((p) => p.category === 'analysis')
+								.map((prompt) => (
+									<button
+										key={prompt.keyword}
+										className={`${classes.featBtn} ${selectedFeatures.includes(prompt.keyword) ? classes.on : ''}`}
+										onClick={() => toggleFeature(prompt.keyword)}
+									>
+										<span className={classes.featDot}></span>
+										<span className={classes.featLabel}>{prompt.keyword}</span>
+									</button>
+								))}
+						</div>
+					</div>
+
+					{/* Result panel */}
+					<div className={`${classes.resultPanel} ${visualizations.length > 0 ? classes.visible : ''}`}>
+						{isRunning ? <div className={classes.loadingState}>
+								<div className={classes.loaderDots}>
+									<span></span><span></span><span></span>
+								</div>
+								Running {selectedFeatures.length} feature{selectedFeatures.length > 1 ? 's' : ''}...
+							</div> : null}
+						{visualizations.map((viz, index) => (
+							<div key={viz.id}>
+								{index > 0 && <div style={{ borderTop: '1.5px solid var(--border)' }}></div>}
+								<div className={classes.resultHeader}>
+									<span className={classes.resultTag}>
+										{promptList.find(p => p.prompt === viz.prompt)?.keyword || 'Feature'}
+									</span>
+									<span className={classes.resultMeta}>
+										{viz.response.split('\n').length} result{viz.response.split('\n').length > 1 ? 's' : ''}
+									</span>
+								</div>
+								<div className={classes.resultItem} style={{ animationDelay: `${index * 0.04}s` }}>
+									<Remark
+										rehypeReactOptions={{
+											components: {
+												a: AnchorWithCallback,
+											},
+										}}
+									>
+										{viz.response}
+									</Remark>
+								</div>
+							</div>
+						))}
 					</div>
 				</div>
 			</div>
 
-			{/* Visualization output */}
-			<div className="p-4 bg-white">
-				{curVisualization ? (
-					<div className="text-gray-800 prose max-w-none">
-						<Remark
-							rehypeReactOptions={{
-								components: {
-									a: AnchorWithCallback,
-								},
-							}}
-						>
-							{curVisualization?.response}
-						</Remark>
-					</div>
-				) : (
-					<div className="text-center text-gray-500 mt-8">
-						Click a button to generate a visualization.
-					</div>
-				)}
+			{/* Sticky footer */}
+			<div className={classes.footer}>
+				<div className={classes.summaryRow}>
+					{selectedFeatures.length === 0 ? (
+						'Select features above to get started'
+					) : (
+						selectedFeatures.map(f => (
+							<span key={f} className={classes.selectedTag}>{f}</span>
+						))
+					)}
+				</div>
+				<button 
+					className={classes.runBtn} 
+					disabled={selectedFeatures.length === 0 || isRunning}
+					onClick={runSelectedFeatures}
+				>
+					{selectedFeatures.length > 0 
+						? `Run ${selectedFeatures.length} feature${selectedFeatures.length > 1 ? 's' : ''}`
+						: 'Run selected features'
+					}
+				</button>
 			</div>
 		</div>
 	);

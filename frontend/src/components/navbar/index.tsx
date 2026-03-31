@@ -6,7 +6,7 @@ import {
 } from '@/contexts/pageContext';
 
 import { useAtom, useAtomValue } from 'jotai';
-import { Tabs } from 'reshaped';
+import classes from './styles.module.css';
 
 /**
  * An array of objects representing the names and titles of pages.
@@ -19,12 +19,13 @@ import { Tabs } from 'reshaped';
 type Page = {
 	name: PageName;
 	title: string;
+	hint: string;
 };
 
 const pageNames: Page[] = [
-	{ name: PageName.Draft, title: 'Draft' },
-	{ name: PageName.Revise, title: 'Revise' },
-	{ name: PageName.Chat, title: 'Chat' },
+	{ name: PageName.Draft, title: 'Draft', hint: 'Generate suggestions' },
+	{ name: PageName.Revise, title: 'Revise', hint: 'Improve your text' },
+	{ name: PageName.Chat, title: 'Chat', hint: 'Ask about your doc' },
 ];
 
 export default function Navbar() {
@@ -36,16 +37,18 @@ export default function Navbar() {
 		return null;
 	} else {
 		return (
-			<div className="flex justify-center">
-				<Tabs variant="pills-elevated" name="tabs" value={page} onChange={({ value }: { value: string }) => changePage(value as PageName)}>
-					<Tabs.List>
-						{pageNames.map(({ name: pageName, title: pageTitle }) => (
-							<Tabs.Item key={pageName} value={pageName} data-active={page === pageName ? 'true' : undefined}>
-								{pageTitle}
-							</Tabs.Item>
-						))}
-					</Tabs.List>
-				</Tabs>
+			<div className={classes.tabs}>
+				{pageNames.map(({ name: pageName, title: pageTitle, hint }) => (
+					<button
+						key={pageName}
+						type="button"
+						onClick={() => changePage(pageName)}
+						className={`${classes.tabBtn} ${page === pageName ? classes.active : ''}`}
+					>
+						{pageTitle}
+						<span className={classes.tabHint}>{hint}</span>
+					</button>
+				))}
 			</div>
 		);
 	}
