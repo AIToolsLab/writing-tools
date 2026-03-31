@@ -9,9 +9,16 @@ export interface TextEditorState {
   afterCursor: string;
 }
 
+export interface ConversationMessage {
+  role: 'user' | 'colleague';
+  content: string;
+}
+
 export interface WritingSupportRequest {
   editorState: TextEditorState;
   context?: string;
+  conversationHistory?: ConversationMessage[];
+  conversationHistoryMode?: 'direct' | 'nudge';
 }
 
 export interface WritingSupportResponse {

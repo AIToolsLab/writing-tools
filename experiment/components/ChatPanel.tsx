@@ -8,6 +8,8 @@ import { studyParamsAtom } from '@/contexts/StudyContext';
 import { log } from '@/lib/logging';
 import { calculateTypingDuration, calculateInterMessageDelay, calculateThinkingDelay } from '@/lib/messageTiming';
 import { getScenario } from '@/lib/studyConfig';
+import { parseMessageContent } from '@/lib/chatUtils';
+import type { UIMessage } from '@ai-sdk/react';
 
 // Utility function to extract text from message parts
 function getMessageText(message: { parts: Array<{ type: string; text?: string }> }): string {
@@ -17,29 +19,14 @@ function getMessageText(message: { parts: Array<{ type: string; text?: string }>
     .join('');
 }
 
-// Utility function to parse JSON array responses from the assistant
-function parseMessageContent(content: string): string[] {
-  try {
-    // Remove markdown code blocks if present
-    const cleaned = content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const parsed = JSON.parse(cleaned);
-
-    if (Array.isArray(parsed)) {
-      return parsed;
-    }
-    return [content];
-  } catch {
-    return [content];
-  }
-}
-
 const FOLLOWUP_DELAY_MS = 75000; // 75 seconds (between 60-90s)
 
 interface ChatPanelProps {
   onNewMessage?: () => void;
+  onMessagesChange?: (messages: UIMessage[]) => void;
 }
 
-export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
+export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelProps) {
   const studyParams = useAtomValue(studyParamsAtom);
   const username = studyParams.username || 'demo';
   const scenario = getScenario(studyParams.scenario);
@@ -124,6 +111,17 @@ export default function ChatPanel({ onNewMessage }: ChatPanelProps) {
       ]);
     }
   }, [messages.length, setMessages, scenario.chat.initialMessages]);
+
+  // Notify parent of message changes (for conversation history feature)
+  useEffect(() => {
+    if (onMessagesChange) {
+      // Filter out the initial empty user message
+      const meaningful = messages.filter(
+        (m) => !(m.id === 'initial-user-message' && getMessageText(m).trim() === '')
+      );
+      onMessagesChange(meaningful);
+    }
+  }, [messages, onMessagesChange]);
 
   // Proactive follow-up timer: if user hasn't sent a message after FOLLOWUP_DELAY_MS, colleague sends a nudge
   useEffect(() => {

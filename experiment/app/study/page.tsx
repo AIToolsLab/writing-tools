@@ -52,6 +52,7 @@ function parseStudyParams(searchParams: URLSearchParams): StudyParams | string {
 
   const experiment = searchParams.get('experiment');
   const autoRefreshStr = searchParams.get('autoRefreshInterval');
+  const chm = searchParams.get('chm');
 
   return {
     username,
@@ -60,7 +61,9 @@ function parseStudyParams(searchParams: URLSearchParams): StudyParams | string {
     experiment: experiment === 'type' ? 'type' : 'amount',
     isProlific: searchParams.get('isProlific') === 'true',
     autoRefreshInterval: autoRefreshStr ? parseInt(autoRefreshStr, 10) : DEFAULT_AUTO_REFRESH_INTERVAL,
-    scenario: searchParams.get('scenario') || DEFAULT_SCENARIO_ID
+    scenario: searchParams.get('scenario') || DEFAULT_SCENARIO_ID,
+    conversationHistory: searchParams.get('ch') === '1',
+    conversationHistoryMode: chm === 'nudge' ? 'nudge' : 'direct',
   };
 }
 
