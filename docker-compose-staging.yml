@@ -1,7 +1,7 @@
 services:
   frontend:
     ports:
-      - "19571:80"
+      - "19573:80"
     environment:
       - NODE_ENV=production
 
@@ -14,16 +14,16 @@ services:
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://e.thoughtful-ai.com/}
     volumes:
-      - /opt/thoughtful/logs:/app/backend/logs
+      - /opt/thoughtful/staging-logs:/app/backend/logs
 
   experiment:
     ports:
-      - "19572:3000"
+      - "19574:3000"
     environment:
       - NODE_ENV=production
       - PORT=3000
     volumes:
-      - /opt/thoughtful/experiment-logs:/app/logs
+      - /opt/thoughtful/staging-experiment-logs:/app/logs
 
 networks:
   default:
