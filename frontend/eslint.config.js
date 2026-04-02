@@ -61,6 +61,13 @@ export default [
       }
     },
     rules: {
+      // Allow unused vars/args with _ prefix (matches TypeScript config)
+      'no-unused-vars': ['error', {
+        argsIgnorePattern: '^_',
+        varsIgnorePattern: '^_',
+        caughtErrorsIgnorePattern: '^_'
+      }],
+
       // React rules for JSX files
       'react/jsx-uses-react': 'off',
       'react/react-in-jsx-scope': 'off',

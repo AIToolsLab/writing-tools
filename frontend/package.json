@@ -14,7 +14,10 @@
 	"scripts": {
 		"build": "webpack --mode production",
 		"build:dev": "webpack --mode development",
+		"build:google-docs": "webpack --config webpack.google-docs.config.js --mode production",
+		"build:google-docs:dev": "webpack --config webpack.google-docs.config.js --mode development",
 		"dev-server": "webpack serve --mode development",
+		"dev-server:google-docs": "webpack serve --config webpack.google-docs.config.js --mode development",
 		"prod-server": "http-server ./dist -p 3000",
 		"start": "office-addin-debugging start manifest.xml",
 		"start:desktop": "office-addin-debugging start manifest.xml desktop",
