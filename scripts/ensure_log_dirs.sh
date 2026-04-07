@@ -3,7 +3,7 @@
 set -euo pipefail
 
 group_name=${LOGS_GROUP_NAME:-writing-study-irb-approved}
-dir_mode=${LOGS_DIR_MODE:-0770}
+dir_mode=${LOGS_DIR_MODE:-770}
 fix_mode=${LOGS_FIX_MISMATCHES:-false}
 
 if [ "$#" -eq 0 ]; then
