@@ -23,6 +23,10 @@ const nextConfig: NextConfig = {
   /* config options here */
   reactCompiler: true,
 
+  turbopack: {
+    root: __dirname,
+  },
+
   // Enable standalone output for Docker deployment only
   ...(process.env.DOCKER_BUILD === 'true' && { output: 'standalone' }),
 
