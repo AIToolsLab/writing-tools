@@ -131,9 +131,6 @@ export default function Chat() {
 				newMessages[newMessages.length - 1].content += newContent;
 				updateChatMessages(newMessages);
 			},
-			onerror(err) {
-				throw err;
-			},
 		});
 
 		updateSendingMessage(false);
