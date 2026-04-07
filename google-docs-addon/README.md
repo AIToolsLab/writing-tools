@@ -183,3 +183,13 @@ The add-on requests these scopes (in `appsscript.json`):
 - UrlFetchApp: 20,000 calls/day (consumer), 100,000/day (Workspace)
 - Script runtime: 6 minutes max per execution
 - Consider caching responses where appropriate
+
+
+### Scopes we probably need
+
+| Name | Oauth Scope |
+|---|---|
+| Connect to an external service | https://www.googleapis.com/auth/script.external_request |
+| See, edit, create, and delete all your Google Docs documents | https://www.googleapis.com/auth/documents |
+| Display and run third-party web content in prompts and sidebars inside Google applications | https://www.googleapis.com/auth/script.container.ui |
+| See your primary Google Account email address	| https://www.googleapis.com/auth/userinfo.email |
