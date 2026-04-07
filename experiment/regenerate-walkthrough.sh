@@ -35,8 +35,6 @@ The participant sees an overview of the study structure: three steps (questionna
 
 $SHOWBOAT image "$DOC" 'rodney open "http://localhost:3000/study?username=walkthrough-user&condition=p&scenario=roomDoubleBooking&page=intro" && rodney sleep 2 && rodney screenshot walkthroughs/walkthrough-intro.png'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-intro-bottom.png'
-
 $SHOWBOAT note "$DOC" "The participant clicks \"Begin Study\" to continue."
 
 # Step 3: Intro Survey
