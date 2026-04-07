@@ -25,6 +25,7 @@ services:
       dockerfile: Dockerfile
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        EXP_LOGS_GID: ${EXP_LOGS_GID:-1001}
     environment:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}

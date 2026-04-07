@@ -4,6 +4,7 @@ pipeline {
     environment {
         STAGING_PROJECT = 'thoughtful-staging'
         PROD_PROJECT = 'thoughtful-prod'
+        LOGS_GROUP_NAME = 'writing-study-irb-approved'
     }
 
     stages {
@@ -11,8 +12,14 @@ pipeline {
             steps {
                 echo 'Building the application...'
                 sh '''
-                    EXP_LOGS_GID=$(getent group writing-study-irb-approved | cut -d: -f3)
-                    docker compose -f docker-compose.yml -f docker-compose-prod.yml build --build-arg EXP_LOGS_GID=${EXP_LOGS_GID}
+                    EXP_LOGS_GID=$(getent group ${LOGS_GROUP_NAME} | cut -d: -f3)
+                    export EXP_LOGS_GID
+                    bash scripts/ensure_log_dirs.sh \
+                        /opt/thoughtful/logs \
+                        /opt/thoughtful/experiment-logs \
+                        /opt/thoughtful/staging-logs \
+                        /opt/thoughtful/staging-experiment-logs
+                    docker compose -f docker-compose.yml -f docker-compose-prod.yml build
                 '''
             }
         }
@@ -43,6 +50,11 @@ pipeline {
                     string(credentialsId: 'POSTHOG_PROJECT_TOKEN', variable: 'POSTHOG_PROJECT_TOKEN')
                 ]) {
                     sh '''
+                        EXP_LOGS_GID=$(getent group ${LOGS_GROUP_NAME} | cut -d: -f3)
+                        export EXP_LOGS_GID
+                        bash scripts/ensure_log_dirs.sh \
+                            /opt/thoughtful/staging-logs \
+                            /opt/thoughtful/staging-experiment-logs
                         OPENAI_API_KEY=${OPENAI_API_KEY} \
                         LOG_SECRET=${LOG_SECRET} \
                         POSTHOG_SOURCEMAP_KEY=${POSTHOG_SOURCEMAP_KEY} \
@@ -73,6 +85,11 @@ pipeline {
                     string(credentialsId: 'POSTHOG_PROJECT_TOKEN', variable: 'POSTHOG_PROJECT_TOKEN')
                 ]) {
                     sh '''
+                        EXP_LOGS_GID=$(getent group ${LOGS_GROUP_NAME} | cut -d: -f3)
+                        export EXP_LOGS_GID
+                        bash scripts/ensure_log_dirs.sh \
+                            /opt/thoughtful/logs \
+                            /opt/thoughtful/experiment-logs
                         OPENAI_API_KEY=${OPENAI_API_KEY} \
                         LOG_SECRET=${LOG_SECRET} \
                         POSTHOG_SOURCEMAP_KEY=${POSTHOG_SOURCEMAP_KEY} \
