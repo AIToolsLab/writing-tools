@@ -195,7 +195,7 @@ async def _get_suggestions_from_context(
         if source:
             ph_kwargs["posthog_properties"] = {"source": source}
 
-    completion = await openai_client.chat.completions.create(
+    completion = await openai_client.beta.chat.completions.parse(
         **MODEL_PARAMS,
         messages=[
             {
@@ -208,10 +208,9 @@ async def _get_suggestions_from_context(
         **ph_kwargs,
     )
 
-    content = completion.choices[0].message.content
-    if not content:
+    suggestion_response = completion.choices[0].message.parsed
+    if not suggestion_response:
         return []
-    suggestion_response = ListResponse.model_validate_json(content)
     return suggestion_response.responses
 
 
@@ -257,7 +256,7 @@ async def get_suggestion(
         full_prompt = get_full_prompt(prompt_name, doc_context)
         if DEBUG_PROMPTS:
             print(f"Prompt for {prompt_name} (baseline):\n{full_prompt}\n")
-        completion = await openai_client.chat.completions.create(
+        completion = await openai_client.beta.chat.completions.parse(
             **MODEL_PARAMS,
             messages=[
                 {
@@ -270,10 +269,9 @@ async def get_suggestion(
             **({"posthog_distinct_id": distinct_id, "posthog_trace_id": trace_id, **({"posthog_properties": {"source": source}} if source else {})} if ph_client is not None else {}),
         )
 
-        content = completion.choices[0].message.content
-        if not content:
+        suggestion_response = completion.choices[0].message.parsed
+        if not suggestion_response:
             raise ValueError("No suggestions found in the response.")
-        suggestion_response = ListResponse.model_validate_json(content)
         markdown_response = "\n\n".join(
             [f"- {item}" for item in suggestion_response.responses]
         )
