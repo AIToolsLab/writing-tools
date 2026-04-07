@@ -4,7 +4,6 @@
 
 import { useAtomValue } from 'jotai';
 import {
-	Fragment,
 	useCallback,
 	useContext,
 	useEffect,
@@ -12,10 +11,7 @@ import {
 	useRef,
 	useState,
 } from 'react';
-import { AiOutlineDelete, AiOutlineReload } from 'react-icons/ai';
 import { Remark } from 'react-remark';
-import { TransitionGroup, CSSTransition } from 'react-transition-group';
-import { Button } from 'reshaped';
 import { log, SERVER_URL } from '@/api';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
@@ -32,6 +28,25 @@ const visibleNameForMode = {
 	complete_document: 'Complete Document',
 	example_rewording: 'Example rewordings of your selected text:',
 	no_ai: 'No AI',
+};
+
+const modeMeta: Record<string, { name: string; description: string }> = {
+	example_sentences: {
+		name: 'Examples',
+		description: 'See what you could write next',
+	},
+	analysis_readerPerspective: {
+		name: 'Questions',
+		description: 'Understand reader perspective',
+	},
+	proposal_advice: {
+		name: 'Advice',
+		description: 'Get suggestions for next words',
+	},
+	example_rewording: {
+		name: 'Rewording',
+		description: 'Explore alternative phrasings',
+	},
 };
 
 const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advice', 'example_rewording'];
@@ -90,20 +105,46 @@ class Fetcher {
 	}
 }
 
-function GenerationResult({ generation }: { generation: GenerationResult }) {
+function formatDraftSuggestionAsBullets(result: string) {
+	const trimmedResult = result.trim();
+	if (!trimmedResult) return trimmedResult;
+
+	const hasMarkdownList = /^(?:\s*[-*+]\s+|\s*\d+\.\s+)/m.test(trimmedResult);
+	if (hasMarkdownList) return trimmedResult;
+
+	const lines = trimmedResult
+		.split('\n')
+		.map((line) => line.trim())
+		.filter(Boolean);
+
+	const bulletItems =
+		lines.length > 1
+			? lines
+			: trimmedResult
+					.split(/(?<=[.!?])\s+(?=[A-Z0-9"])/)
+					.map((item) => item.trim())
+					.filter(Boolean);
+
+	return bulletItems.map((item) => `- ${item}`).join('\n');
+}
+
+function _GenerationResult({ generation }: { generation: GenerationResult }) {
 	const showTitle = generation.generation_type !== 'complete_document';
+	const formattedResult =
+		generation.generation_type === 'complete_document'
+			? generation.result
+			: formatDraftSuggestionAsBullets(generation.result);
+
 	return (
-		<div className="prose">
+		<div className={classes.generationResult}>
 			{showTitle ? (
-				<div className="text-bold">
-					{
-						visibleNameForMode[
-						generation.generation_type as keyof typeof visibleNameForMode
-						]
-					}
+				<div className={classes.generationTitle}>
+					{visibleNameForMode[generation.generation_type as keyof typeof visibleNameForMode]}
 				</div>
-			) : null}{' '}
-			<Remark>{generation.result}</Remark>
+			) : null}
+			<div className={classes.generationContent}>
+				<Remark>{formattedResult}</Remark>
+			</div>
 		</div>
 	);
 }
@@ -115,84 +156,48 @@ function SavedGenerations({
 	savedItems: SavedItem[];
 	deleteSavedItem: (dateSaved: Date) => void;
 }) {
-	const nodeRefs = useRef<Map<string, React.RefObject<HTMLDivElement>>>(new Map());
-
-	// Create or get ref for each item
-	const getNodeRef = useCallback((key: string) => {
-		if (!nodeRefs.current.has(key)) {
-			nodeRefs.current.set(key, { current: null });
-		}
-		const ref = nodeRefs.current.get(key);
-		if (!ref) {
-			throw new Error(`Failed to create ref for key: ${key}`);
-		}
-		return ref;
-	}, []);
-
-	// Clean up refs for removed items
-	useEffect(() => {
-		const currentKeys = new Set(savedItems.map(item => item.dateSaved.toString()));
-		for (const [key] of nodeRefs.current) {
-			if (!currentKeys.has(key)) {
-				nodeRefs.current.delete(key);
-			}
-		}
-	}, [savedItems]);
-
 	return (
-		<div className={classes.historyContainer}>
-			<div className={classes.historyItemContainer}>
-				{savedItems.length === 0 ? (
-					<div className={classes.historyEmptyWrapper}>
-						<div className={classes.historyText}>
-							No suggestions...
+		<div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+			{savedItems.map((savedItem, index) => (
+				<div
+					key={savedItem.dateSaved.toString()}
+					className={classes.resultItem}
+					style={{ animationDelay: `${index * 0.05}s` }}
+					onMouseEnter={(e) => {
+						const deleteBtn = e.currentTarget.querySelector('[data-delete]') as HTMLElement;
+						if (deleteBtn) deleteBtn.style.opacity = '1';
+					}}
+					onMouseLeave={(e) => {
+						const deleteBtn = e.currentTarget.querySelector('[data-delete]') as HTMLElement;
+						if (deleteBtn) deleteBtn.style.opacity = '0';
+					}}
+				>
+					<div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', width: '100%' }}>
+						<div style={{ flex: 1, minWidth: 0 }}>
+							<_GenerationResult generation={savedItem.generation} />
 						</div>
+						<button
+							data-delete
+							onClick={() => deleteSavedItem(savedItem.dateSaved)}
+							style={{
+								background: 'transparent',
+								border: 'none',
+								cursor: 'pointer',
+								color: 'var(--text-tertiary)',
+								fontSize: '14px',
+								opacity: 0,
+								transition: 'opacity .15s',
+								padding: '2px',
+								flexShrink: 0,
+							}}
+							aria-label="Delete suggestion"
+							title="Delete suggestion"
+						>
+							✕
+						</button>
 					</div>
-				) : (
-					<TransitionGroup>
-						{savedItems.map((savedItem) => {
-							const key = savedItem.dateSaved.toString();
-							const nodeRef = getNodeRef(key);
-
-							return (
-								<CSSTransition
-									key={key}
-									nodeRef={nodeRef}
-									timeout={300}
-									classNames="saved-item"
-								>
-									<div
-										ref={nodeRef}
-										className={classes.historyItem}
-									>
-										<div className={classes.historyText}>
-											<GenerationResult
-												generation={savedItem.generation}
-											/>
-										</div>
-										<div className={classes.savedIconsContainer}>
-											<Button
-												variant="ghost"
-												color="neutral"
-												size="small"
-												rounded
-												onClick={() =>
-													deleteSavedItem(savedItem.dateSaved)
-												}
-												attributes={{
-													'aria-label': 'Delete suggestion',
-													title: 'Delete suggestion',
-												}}
-												icon={AiOutlineDelete}
-											/>
-										</div>
-									</div>
-								</CSSTransition>
-							);
-						})}
-					</TransitionGroup>
-				)}
-			</div>
+				</div>
+			))}
 		</div>
 	);
 }
@@ -249,6 +254,7 @@ export default function Draft() {
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 	const [errorMsg, updateErrorMsg] = useState('');
+	const [activeMode, setActiveMode] = useState<string | null>(null);
 	const fetcherRef = useRef<Fetcher | null>(null);
 
 	const getFetcher = useCallback((): Fetcher => {
@@ -426,91 +432,98 @@ export default function Draft() {
 		);
 	}
 
-	let alerts = null;
-
-	if (errorMsg !== '')
-		alerts = (
-			<div className="mr-[16px] ml-[16px] p-[16px] duration-150">
-				<div className="text-base text-red-500 text-center">
-					{errorMsg}
-				</div>
-			</div>
-		);
-	else if (savedItems.length === 0)
-		alerts = (
-			<div className="mt-4 ml-4 mr-4 p-0 transition duration-150">
-				<div className="text-sm text-stone-950 text-center transition duration-150">
-					Click the button above to generate a suggestion.
-				</div>
-			</div>
-		);
-
-	if (isLoading)
-		alerts = (
-			<div className={classes.spinnerWrapper}>
-				<div className={classes.loader}></div>
-			</div>
-		);
-
 	return (
-		<div className="flex flex-col flex-1 overflow-hidden">
-			<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
-				<div className="flex justify-center gap-1 my-1 flex-shrink-0">
-					{/* Generation Option Buttons */}
-					{modesToShow.map((mode) => {
-						return (
-							<Fragment key={mode}>
-								<Button
-									type="button"
-									variant="outline"
-									color="neutral"
-									size="medium"
-									rounded
-									disabled={isLoading}
-									attributes={{
-										title: isStudy ? "Refresh" : visibleNameForMode[mode as keyof typeof visibleNameForMode]
-									}}
-									onClick={() => {
-										log({
-											username: username,
-											event: 'request_suggestion',
+		<div className={classes.app}>
+			<div className={classes.body}>
+					
+				<div className="flex flex-col flex-1 overflow-hidden">
+					<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
+						{/* Instruction */}
+						<div className={classes.instruction}>
+							CLICK A DESIRED BUTTON
+						</div>
 
-											generation_type: mode,
-											docContext:
-												docContextRef.current,
-										});
+						{/* Feature Grid */}
+						<div className={classes.featureGrid}>
+							{modesToShow.map((mode) => {
+								const isActive = activeMode === mode;
+								const Icon = iconFunc(mode);
+								const meta = modeMeta[mode];
 
-										resetAutoRefresh();
-										const request = {
-											docContext:
-												docContextRef.current,
-											type: mode,
-										};
-										getSuggestion(request, true);
-									}}
-									icon={isStudy ? AiOutlineReload : iconFunc(mode)}
-								>
-									{isStudy ? "Refresh" : null}
-								</Button>
-							</Fragment>
-						);
-					})}
+								return (
+									<button
+										key={mode}
+										className={`${classes.featureCard} ${isActive ? 'active' : ''}`}
+										onClick={() => {
+											setActiveMode(mode);
+											log({
+												username: username,
+												event: 'request_suggestion',
+												generation_type: mode,
+												docContext: docContextRef.current,
+											});
+											resetAutoRefresh();
+											const request = {
+												docContext: docContextRef.current,
+												type: mode,
+											};
+											getSuggestion(request, true);
+										}}
+										disabled={isLoading}
+										type="button"
+										aria-label={meta?.name}
+										title={meta?.description}
+									>
+										{Icon ? <Icon className={classes.featIcon} /> : null}
+										{meta ? (
+											<>
+												<div className={classes.featName}>{meta.name}</div>
+												<div className={classes.featDesc}>{meta.description}</div>
+											</>
+										) : null}
+										<div className={classes.activeDot}></div>
+									</button>
+								);
+							})}
+						</div>
+						{/* Results Area */}
+						<div className={`${classes.resultsArea} ${savedItems.length > 0 ? classes.hasContent : ''}`}>
+							{errorMsg ? (
+								<div className={classes.errorMessage}>
+									{errorMsg}
+								</div>
+							) : null}
+							{!errorMsg && savedItems.length === 0 && !isLoading ? (
+								<div className={classes.emptyStateContainer}>
+									<div className={classes.emptyTitle}>No suggestions yet</div>
+									<div className={classes.emptyHint}>
+										Click a button above to generate suggestions for your text
+									</div>
+								</div>
+							) : null}
+							{isLoading && savedItems.length === 0 ? (
+								<div className={classes.skeletonContainer}>
+									<div className={classes.skeleton}></div>
+									<div className={classes.skeleton}></div>
+									<div className={classes.skeleton}></div>
+								</div>
+							) : null}
+							{savedItems.length > 0 ? (
+								<SavedGenerations
+									savedItems={savedItems}
+									deleteSavedItem={deleteSavedItem}
+								/>
+							) : null}
+						</div>
+					</div>
+
+					<div className={classes.disclaimer}>
+						Please note that AI suggestions may vary in quality. Always review suggestions carefully before using them.
+					</div>
 				</div>
-				{alerts}
 
-				<div className="flex-1 overflow-y-auto min-h-0">
-					<SavedGenerations
-						savedItems={savedItems}
-						deleteSavedItem={deleteSavedItem}
-					/>
-				</div>
-			</div>
-
-			<div className={classes.noteTextWrapper}>
-				<div className={classes.noteText}>
-					Please note that the quality of AI-generated text may vary
-				</div>
 			</div>
 		</div>
-	);
-}
+			);
+		}
+		
