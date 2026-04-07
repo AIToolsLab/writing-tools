@@ -216,7 +216,7 @@ async def get_suggestion(payload: SuggestionRequestWithDocContext, background_ta
     allowed_gtypes = list(nlp.prompts.keys())
     if payload.gtype not in allowed_gtypes:
         raise ValueError(f"Invalid generation type: {payload.gtype}")
-    result = await nlp.get_suggestion(payload.gtype, payload.doc_context)
+    result = await nlp.get_suggestion(payload.gtype, payload.doc_context, distinct_id=payload.username or "backend-server")
     end_time = datetime.now()
 
     log_entry = RequestLog(
@@ -242,7 +242,7 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
     should_log_doctext = should_log(payload.username)
 
     start_time = datetime.now()
-    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph)
+    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph, distinct_id=payload.username or "backend-server")
     end_time = datetime.now()
 
     background_tasks.add_task(make_log, RequestLog(
@@ -266,6 +266,7 @@ async def chat(payload: ChatRequestPayload, background_tasks: BackgroundTasks):
     response = await nlp.chat_stream(
         messages=payload.messages,
         temperature=0.7,
+        distinct_id=payload.username or "backend-server",
     )
 
     messages_for_log = json.dumps(payload.messages if should_log_doctext else [{
@@ -314,6 +315,19 @@ async def log_from_client(payload: Dict[str, Any], background_tasks: BackgroundT
         event=event,
         extra_data=extra_data
     ))
+
+    # Capture PostHog evaluation event when a user selects a suggestion
+    if event == "suggestion_selected":
+        trace_id = extra_data.get("trace_id")
+        if trace_id:
+            posthog_client.capture_event(
+                distinct_id=username or "backend-server",
+                event="$ai_feedback",
+                properties={
+                    "$ai_trace_id": trace_id,
+                    "$ai_feedback_score": 1,
+                },
+            )
 
     return {"message": "Feedback logged successfully."}
 
