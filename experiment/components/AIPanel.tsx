@@ -318,7 +318,7 @@ export default function AIPanel({
     alerts = (
       <div className="p-3">
         <div className="text-xs font-medium text-gray-700 text-center">
-          Suggestions will refresh every {(autoRefreshInterval / 1000).toFixed(0)} seconds.
+          Suggestions are based on your email draft and may incorporate details from recent chat conversations. They refresh automatically.
         </div>
       </div>
     );

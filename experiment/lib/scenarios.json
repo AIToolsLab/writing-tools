@@ -15,7 +15,7 @@
     },
     "taskInstructions": {
       "title": "Writing Task",
-      "description": "You work as an event coordinator. Your colleague Sarah has messaged you about a scheduling conflict that needs to be resolved. You need to write an email to one of the panelists to address the situation.",
+      "description": "It's your first day as an event coordinator at a new company. Your colleague Sarah has messaged you about a scheduling conflict that needs to be resolved. Since you're just getting started, you'll need to ask Sarah questions to understand the full situation. You need to write an email to one of the panelists to address it.",
       "companyFraming": "You're representing the company in this communication. Consider how your message will reflect on the team."
     },
     "chat": {
@@ -53,7 +53,7 @@
     },
     "taskInstructions": {
       "title": "Writing Task",
-      "description": "You work as a customer success manager. Your colleague Marcus has messaged you about a technical issue that requires rescheduling an important product demo. You need to write an email to the client to address the situation.",
+      "description": "It's your first day as a customer success manager at a new company. Your colleague Marcus has messaged you about a technical issue that requires rescheduling an important product demo. Since you're just getting started, you'll need to ask Marcus questions to understand the full situation. You need to write an email to the client to address it.",
       "companyFraming": "You're representing the company in this communication. Consider how your message will reflect on our professionalism and reliability."
     },
     "chat": {

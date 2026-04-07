@@ -41,19 +41,19 @@ export default function StartTaskPage() {
             {scenario.taskInstructions.description}
           </p>
           <p className="mt-2">
-            {scenario.colleague.firstName} is available via chat to answer questions about the details of the situation.
+            {scenario.colleague.firstName} is available via chat. They have a lot going on but know you need help getting up to speed — don&apos;t hesitate to ask questions, but keep them simple and don&apos;t expect them to write your email for you.
           </p>
         </div>
 
         <div>
           <h3 className="font-semibold mb-2">What to do:</h3>
           <ol className="list-decimal list-inside space-y-1">
-            <li>Review {scenario.colleague.firstName}&apos;s messages. The initial message will not give you all the details you need, so <b>you will need to ask follow-up questions</b>.</li>
+            <li>Review {scenario.colleague.firstName}&apos;s messages. Since it&apos;s your first day, you won&apos;t have all the context — ask {scenario.colleague.firstName} follow-up questions to get the details you need.</li>
             <li>
               Compose your email response in the text area provided
             </li>
             <li>
-              Depending on your condition, you may see AI-generated suggestions that may or may not be helpful. Feel free to use helpful suggestions, edit them, or ignore them entirely.
+              You may see AI-generated writing suggestions on the right side of the screen. If so, feel free to use them, edit them, or ignore them — it&apos;s entirely up to you.
             </li>
             <li>
               When you&apos;re satisfied with your response, click the
@@ -73,7 +73,7 @@ export default function StartTaskPage() {
             <li>
               If you encounter any issues, please note them in the final survey
             </li>
-            <li>For practical purposes, an AI will be playing the role of {scenario.colleague.firstName}. But treat them as if they were from a real person.</li>
+            <li>For practical purposes, an AI will be playing the role of {scenario.colleague.firstName}. Treat them as you would a real colleague.</li>
           </ul>
         </div>
       </div>
