@@ -19,12 +19,31 @@ Guidelines:
 - Each output should be *at most one sentence* long.
 - Use ellipses to truncate sentences that are longer than about **10 words**.`,
 
-  complete_document: `You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing. 
+  example_withblanks: `You are assisting a writer in drafting a document. Generate three possible options for inspiring and fresh possible next sentences that would help the writer think about what they should write next.
+
+Guidelines:
+- Focus on the area of the document that is closest to the writer's cursor.
+- If the writer is in the middle of a sentence, output three possible continuations of that sentence.
+- If the writer is at the end of a paragraph, output three possible sentences that would start the next paragraph.
+- The three sentences should be three different paths that the writer could take, each starting from the current point in the document; they do **NOT** go in sequence.
+- Each output should be *at most one sentence* long.
+- Use ellipses to truncate sentences that are longer than about **10 words**.
+- Where a specific fact or detail from the writer's research would go, use a bracketed placeholder (e.g., [name], [date], [specific detail]) instead of filling in the actual detail. The writer must recall and insert these themselves.`,
+
+  complete_document: `You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing.
 
 Guidelines:
 - Use the text in the document as a starting point, but make any changes needed to make the document complete and polished.
 - Maintain the writer's tone, style, and voice throughout.
 - Polish the text for clarity and coherence.`,
+
+  complete_document_withblanks: `You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing.
+
+Guidelines:
+- Use the text in the document as a starting point, but make any changes needed to make the document complete and polished.
+- Maintain the writer's tone, style, and voice throughout.
+- Polish the text for clarity and coherence.
+- Where specific facts or details from the writer's research would go, use bracketed placeholders (e.g., [name], [date], [specific detail]) instead of filling in the actual information. The writer must recall and insert these themselves.`,
 
   proposal_advice: `You are assisting a writer in drafting a document by providing three directive (but not prescriptive) advice to help them develop their work. Your advice must be tailored to the document's genre. Use your best judgment to offer the most relevant and helpful advice, drawing from the following types of support as appropriate for the context:
 - Support the writer in adhering to their stated writing goals or assignment guidelines.
@@ -33,23 +52,26 @@ Guidelines:
 - Recommend strengthening arguments by adding supporting evidence, specific examples, or clear reasoning.
 - Advise on structuring material to achieve a clear and logical flow.
 - Guide the writer in choosing language that is accessible and engaging for the intended audience.
+- Guide the writer to think about what information is most important for the document, rather than providing the information directly.
 
 Guidelines:
 - Focus on the area of the document that is closest to the writer's cursor.
 - Keep each piece of advice under 20 words.
 - Express the advice in the form of a directive instruction, not a question.
 - Avoid providing specific words or phrases that the writer could directly copy into their document.
-- Make each piece of advice very specific to the current document, not general advice that could apply to any document.`,
+- Make each piece of advice very specific to the current document, not general advice that could apply to any document.
+- The three pieces of advice should be diverse — each offering a distinct direction, perspective, or approach.`,
 
-  analysis_readerPerspective: `You are assisting a writer in drafting a document for a specific person. Generate three possible reactions (questions, feelings, perspectives, etc.) the person might have about the document.
+  analysis_readerPerspective: `You are assisting a writer in drafting a document for a specific person. Think carefully about the recipient's situation, needs, and concerns, then generate three possible reactions (questions, feelings, perspectives, etc.) the person might have upon receiving this message.
 
 Guidelines:
+- Imagine the reader receiving the final version of this message. What would they genuinely think, feel, or wonder about its content and implications?
 - Limit each perspective to under 20 words.
 - Ensure all perspectives specifically reflect details or qualities from the current document, avoiding broad or generic statements.
 - The three perspectives should be diverse (in emotion, focus, tone, etc.)
 - Each perspective should be expressed in 1st-person ("I like", "I wonder", "I feel", ...)
 - Avoid telling the writer what to do; focus on the reader's viewpoint.
-- The writer may not be finished writing the document; if the last sentence is incomplete, ignore that and focus on the content that is already written.
+- Focus on the substance of what's been written so far, not on whether the document appears complete or polished.
 - Avoid providing specific words or phrases that the writer could directly copy into their document.
 - If there is insufficient context to generate genuine perspectives, return an empty list.`,
 };
@@ -58,25 +80,11 @@ const listResponseSchema = z.object({
   responses: z.array(z.string()).describe('List of suggestions'),
 });
 
-// Bridging instructions for when conversation history is provided
-const directBridging: Record<string, string> = {
-  example_sentences: 'The writer gathered information through the conversation below. Use relevant details from this conversation to generate contextually accurate sentence options.',
-  complete_document: 'The writer gathered information through the conversation below. Use relevant details to complete the document accurately.',
-  proposal_advice: 'The writer gathered information through the conversation below. Consider this context when giving advice.',
-  analysis_readerPerspective: 'The writer gathered information through the conversation below. Consider what the reader would think given the facts discussed.',
-};
-
-const nudgeBridging: Record<string, string> = {
-  example_sentences: 'The writer gathered information through the conversation below. Generate sentences with bracketed placeholders (e.g., [room], [time], [name]) where specific facts from the conversation would go. Do NOT fill in the actual details — the writer must recall and insert them.',
-  complete_document: 'The writer gathered information through the conversation below. Complete the document structure but use bracketed placeholders (e.g., [room], [time], [specific detail]) for facts from the conversation. The writer must fill these in themselves.',
-  proposal_advice: 'The writer gathered information through the conversation below. Reference topics from the conversation without revealing specific details. Guide the writer to think about what information matters, without being prescriptive about exact facts.',
-  analysis_readerPerspective: 'The writer gathered information through the conversation below. React to whether the document addresses the reader\'s likely concerns, but do not reveal specific facts from the conversation in your reactions.',
-};
+// Bridging instruction for when conversation history is provided
+const conversationBridge = 'The writer gathered information through a private 1-on-1 conversation with a colleague (shown below). This conversation is not visible to the document\'s reader.';
 
 function formatConversationSection(
   messages: ConversationMessage[],
-  mode: string,
-  historyMode: 'direct' | 'nudge',
 ): string {
   // Truncate to fit within token budget
   let transcript = '';
@@ -93,11 +101,7 @@ function formatConversationSection(
     }
   }
 
-  const bridging = historyMode === 'nudge'
-    ? (nudgeBridging[mode] || '')
-    : (directBridging[mode] || '');
-
-  return `\n\n# Conversation Between Writer and Colleague\n\n${bridging}\n\n<conversation>\n${transcript.trim()}\n</conversation>\n\n`;
+  return `\n\n# Conversation Between Writer and Colleague\n\n${conversationBridge}\n\n<conversation>\n${transcript.trim()}\n</conversation>\n\n`;
 }
 
 export async function POST(req: Request) {
@@ -115,7 +119,6 @@ export async function POST(req: Request) {
   const context = (body.context as keyof typeof prompts) || 'proposal_advice';
   const promptTemplate = prompts[context];
   const conversationHistory = body.conversationHistory;
-  const conversationHistoryMode = body.conversationHistoryMode || 'direct';
 
   try {
     const documentText = `${beforeCursor}${selectedText}${afterCursor}`;
@@ -126,7 +129,7 @@ export async function POST(req: Request) {
 
     // Insert conversation history between the system prompt and document
     if (conversationHistory && conversationHistory.length > 0) {
-      fullPrompt += formatConversationSection(conversationHistory, context, conversationHistoryMode);
+      fullPrompt += formatConversationSection(conversationHistory);
     }
 
     fullPrompt += `\n\n# Writer's Document So Far\n\n<document>\n${documentText}</document>\n\n`;

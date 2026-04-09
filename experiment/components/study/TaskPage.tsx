@@ -163,7 +163,6 @@ export default function TaskPage() {
             writingAreaRef={writingAreaRef}
             isStudyMode={true}
             chatMessages={studyParams.conversationHistory ? chatMessages : undefined}
-            conversationHistoryMode={studyParams.conversationHistory ? studyParams.conversationHistoryMode : undefined}
           />
         </div>
       )}

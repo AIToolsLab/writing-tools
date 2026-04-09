@@ -5,7 +5,6 @@ import type { RefObject } from 'react';
 import type { WritingAreaRef } from '@/components/WritingArea';
 import type { UIMessage } from '@ai-sdk/react';
 import type { ConversationMessage, GenerationResult, SavedItem, TextEditorState } from '@/types';
-import type { ConversationHistoryMode } from '@/types/study';
 import { log } from '@/lib/logging';
 import { API_TIMEOUT_MS } from '@/lib/studyConfig';
 import { parseMessageContent } from '@/lib/chatUtils';
@@ -14,12 +13,14 @@ import { studyConditionAtom, studyParamsAtom } from '@/contexts/StudyContext';
 
 const visibleNameForMode = {
   example_sentences: 'Examples of what you could write next:',
+  example_withblanks: 'Examples with blanks to fill in:',
   complete_document: 'Completed document suggestion:',
+  complete_document_withblanks: 'Completed document with blanks to fill in:',
   analysis_readerPerspective: 'Possible perspectives your reader might have:',
   proposal_advice: 'Advice for your next words:',
 };
 
-const modes = ['example_sentences', 'complete_document', 'analysis_readerPerspective', 'proposal_advice'] as const;
+const modes = ['example_sentences', 'example_withblanks', 'complete_document', 'complete_document_withblanks', 'analysis_readerPerspective', 'proposal_advice'] as const;
 const MIN_TEXT_LENGTH_FOR_SUGGESTION = 25;
 
 function getMessageText(message: UIMessage): string {
@@ -110,14 +111,12 @@ interface AIPanelProps {
   writingAreaRef?: RefObject<WritingAreaRef | null>;
   isStudyMode?: boolean;
   chatMessages?: UIMessage[];
-  conversationHistoryMode?: ConversationHistoryMode;
 }
 
 export default function AIPanel({
   writingAreaRef,
   isStudyMode = false,
   chatMessages,
-  conversationHistoryMode,
 }: AIPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
@@ -204,7 +203,6 @@ export default function AIPanel({
             extra_data: {
               isAutoRefresh,
               conversationHistoryEnabled: !!conversationHistory,
-              conversationHistoryMode: conversationHistoryMode ?? null,
               conversationHistoryMessageCount: chatMessageCount,
             },
           });
@@ -218,10 +216,7 @@ export default function AIPanel({
           body: JSON.stringify({
             editorState,
             context: modeToUse,
-            ...(conversationHistory && {
-              conversationHistory,
-              conversationHistoryMode: conversationHistoryMode ?? 'direct',
-            }),
+            ...(conversationHistory && { conversationHistory }),
           }),
           signal: AbortSignal.timeout(API_TIMEOUT_MS),
         });
@@ -260,7 +255,6 @@ export default function AIPanel({
                   generation,
                   editorState,
                   conversationHistoryEnabled: !!conversationHistory,
-                  conversationHistoryMode: conversationHistoryMode ?? null,
                   conversationHistoryMessageCount: chatMessageCount,
                 },
               });
@@ -285,7 +279,7 @@ export default function AIPanel({
         setIsLoading(false);
       }
     },
-    [writingAreaRef, save, mode, isStudyMode, studyParams, chatMessages, conversationHistoryMode]
+    [writingAreaRef, save, mode, isStudyMode, studyParams, chatMessages]
   );
 
   // Auto-refresh logic for study mode
@@ -357,11 +351,15 @@ export default function AIPanel({
               >
                 {mode === 'example_sentences'
                   ? 'Examples'
-                  : mode === 'analysis_readerPerspective'
-                    ? 'Reader Perspectives'
-                    : mode === 'complete_document'
-                      ? 'Complete Document'
-                    : 'Advice'}
+                  : mode === 'example_withblanks'
+                    ? 'Examples (Blanks)'
+                    : mode === 'analysis_readerPerspective'
+                      ? 'Reader Perspectives'
+                      : mode === 'complete_document'
+                        ? 'Complete Document'
+                        : mode === 'complete_document_withblanks'
+                          ? 'Complete (Blanks)'
+                          : 'Advice'}
               </button>
             </Fragment>
           ))}
