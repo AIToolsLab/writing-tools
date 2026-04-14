@@ -13,9 +13,9 @@ import { studyConditionAtom, studyParamsAtom } from '@/contexts/StudyContext';
 
 const visibleNameForMode = {
   example_sentences: 'Examples of what you could write next:',
-  example_withblanks: 'Examples with blanks to fill in:',
+  example_withblanks: 'Examples of what you could write next:',
   complete_document: 'Completed document suggestion:',
-  complete_document_withblanks: 'Completed document with blanks to fill in:',
+  complete_document_withblanks: 'Completed document suggestion:',
   analysis_readerPerspective: 'Possible perspectives your reader might have:',
   proposal_advice: 'Advice for your next words:',
 };
