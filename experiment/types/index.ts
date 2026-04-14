@@ -16,16 +16,15 @@ export interface ConversationMessage {
 
 export interface WritingSupportRequest {
   editorState: TextEditorState;
-  context?: string;
+  context?: GenerationType;
   conversationHistory?: ConversationMessage[];
-  conversationHistoryMode?: 'direct' | 'nudge';
 }
 
 export interface WritingSupportResponse {
   suggestions: string[];
 }
 
-export type GenerationType = 'example_sentences' | 'analysis_readerPerspective' | 'proposal_advice';
+export type GenerationType = 'example_sentences' | 'example_withblanks' | 'complete_document' | 'complete_document_withblanks' | 'analysis_readerPerspective' | 'proposal_advice';
 
 export interface GenerationResult {
   result: string;

@@ -16,7 +16,6 @@ export const studyParamsAtom = atom<StudyParams>({
   isProlific: true,
   scenario: 'roomDoubleBooking',
   conversationHistory: false,
-  conversationHistoryMode: 'direct',
 });
 
 /**
