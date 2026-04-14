@@ -28,7 +28,7 @@ Guidelines:
 - The three sentences should be three different paths that the writer could take, each starting from the current point in the document; they do **NOT** go in sequence.
 - Each output should be *at most one sentence* long.
 - Use ellipses to truncate sentences that are longer than about **10 words**.
-- Where a specific fact or detail from the writer's research would go, use a bracketed placeholder (e.g., [name], [date], [specific detail]) instead of filling in the actual detail. The writer must recall and insert these themselves.`,
+- Where a specific fact or detail would go, use a bracketed placeholder (e.g., [name], [date], [specific detail]) instead of filling in the actual detail. This applies both to details mentioned in the conversation and to details that could reasonably be asked for later in the conversation. The writer must recall and insert these themselves.`,
 
   complete_document: `You are assisting a writer complete and polish their document. Please provide a completed and polished version of the document that the writer has started writing.
 
@@ -43,7 +43,7 @@ Guidelines:
 - Use the text in the document as a starting point, but make any changes needed to make the document complete and polished.
 - Maintain the writer's tone, style, and voice throughout.
 - Polish the text for clarity and coherence.
-- Where specific facts or details from the writer's research would go, use bracketed placeholders (e.g., [name], [date], [specific detail]) instead of filling in the actual information. The writer must recall and insert these themselves.`,
+- Where a specific fact or detail would go, use a bracketed placeholder (e.g., [name], [date], [specific detail]) instead of filling in the actual detail. This applies both to details mentioned in the conversation and to details that could reasonably be asked for later in the conversation. The writer must recall and insert these themselves.`,
 
   proposal_advice: `You are assisting a writer in drafting a document by providing three directive (but not prescriptive) advice to help them develop their work. Your advice must be tailored to the document's genre. Use your best judgment to offer the most relevant and helpful advice, drawing from the following types of support as appropriate for the context:
 - Support the writer in adhering to their stated writing goals or assignment guidelines.
