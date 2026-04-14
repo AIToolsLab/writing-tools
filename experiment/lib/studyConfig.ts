@@ -82,6 +82,7 @@ export interface ScenarioConfig {
 
 // Available scenarios (imported from JSON, cast to correct type)
 // The JSON includes an 'analysis' field for Python scripts that we exclude from the runtime type
+// The JSON stores systemPromptLines as an array for readability; we join them here
 export const SCENARIOS: Record<string, ScenarioConfig> = Object.fromEntries(
   Object.entries(scenariosData).map(([key, value]) => [
     key,
@@ -91,7 +92,10 @@ export const SCENARIOS: Record<string, ScenarioConfig> = Object.fromEntries(
       colleague: value.colleague,
       recipient: value.recipient,
       taskInstructions: value.taskInstructions,
-      chat: value.chat,
+      chat: {
+        ...value.chat,
+        systemPrompt: value.chat.systemPromptLines.join('\n'),
+      },
     } as ScenarioConfig,
   ])
 );
