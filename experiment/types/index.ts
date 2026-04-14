@@ -16,7 +16,7 @@ export interface ConversationMessage {
 
 export interface WritingSupportRequest {
   editorState: TextEditorState;
-  context?: string;
+  context?: GenerationType;
   conversationHistory?: ConversationMessage[];
 }
 
