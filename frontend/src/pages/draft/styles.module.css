@@ -19,7 +19,6 @@
 	width: 100%;
 	max-width: 480px;
 	background: var(--surface);
-
 	overflow: hidden;
 	box-shadow: 0 4px 24px rgba(0,0,0,0.07);
 	margin: 0 auto;
@@ -431,6 +430,11 @@
 	}
 }
 
+.noteTextWrapper {
+	margin-right: 2px;
+	margin-left: 2px;
+}
+
 /* Results States */
 .errorMessage {
 	color: var(--text-tertiary);
@@ -484,7 +488,7 @@
 	flex-direction: row;
 	justify-content: center;
 	align-items: center;
-	margin-top: 16px;
+	margin-top: 8px;
 	position: relative;
 }
 
@@ -545,7 +549,7 @@
 	flex-direction: column;
 	justify-content: center;
 	align-items: center;
-	margin-top: 8px;
+	margin-top: 4px;
 	transition: 0.15s;
 }
 
@@ -583,7 +587,7 @@
 	background-color: #f8f8f8;
 	border-radius: 16px;
 	transition: 0.15s;
-	margin: 8px;
+	margin: 8px 2px;
 }
 
 .historyText {

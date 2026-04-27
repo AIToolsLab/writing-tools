@@ -31,5 +31,9 @@ venv.bak/
 # Javascript stuff
 node_modules/
 
+# Build outputs
+frontend/dist/
+frontend/dist-gdocs/
+
 # Data
 *.db

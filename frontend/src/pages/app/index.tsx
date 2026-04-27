@@ -20,6 +20,7 @@ import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import Chat from '../chat';
 import Draft from '../draft';
 import Revise from '../revise';
+import TagLinker from '../tag-linker';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
@@ -234,6 +235,8 @@ function AppInner() {
 				return <Chat />;
 			case PageName.Draft:
 				return <Draft />;
+			case PageName.TagLinker:
+				return <TagLinker />;
 		}
 		return null;
 	}

@@ -1,0 +1,6 @@
+# Ignore everything except the Apps Script files
+**/*
+!appsscript.json
+!Code.gs
+!sidebar.html
+!README.md
