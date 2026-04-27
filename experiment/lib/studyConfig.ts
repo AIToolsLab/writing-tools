@@ -37,6 +37,10 @@ export const letterToCondition: Record<ConditionCode, ConditionName> = {
   // Study 2: Type of AI
   a: 'analysis_readerPerspective',
   p: 'proposal_advice',
+
+  // With-blanks variants (placeholder-based suggestions)
+  b: 'example_withblanks',
+  d: 'complete_document_withblanks',
 };
 
 // Consent form URL (Qualtrics)

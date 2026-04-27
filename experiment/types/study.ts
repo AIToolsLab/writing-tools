@@ -32,12 +32,14 @@ export interface LogEntry extends LogPayload {
   gitCommit: string;
 }
 
-export type ConditionCode = 'n' | 'c' | 'e' | 'a' | 'p';
+export type ConditionCode = 'n' | 'c' | 'e' | 'a' | 'p' | 'b' | 'd';
 
 export type ConditionName =
   | 'no_ai'
   | 'complete_document'
   | 'example_sentences'
+  | 'example_withblanks'
+  | 'complete_document_withblanks'
   | 'analysis_readerPerspective'
   | 'proposal_advice';
 
@@ -49,6 +51,7 @@ export interface StudyParams {
   isProlific: boolean;
   autoRefreshInterval: number;
   scenario: string; // Scenario ID (e.g., 'roomDoubleBooking', 'demoRescheduling')
+  conversationHistory: boolean; // Whether AI assistant receives chat transcript (ch=0/1)
 }
 
 export interface BrowserMetadata extends Record<string, unknown> {

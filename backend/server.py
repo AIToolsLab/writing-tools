@@ -10,9 +10,10 @@ from pathlib import Path
 from typing import Annotated, Any, Dict, List, Literal
 
 import nlp
+import posthog_client
 import uvicorn
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Body, FastAPI
+from fastapi import BackgroundTasks, Body, FastAPI, Request
 from fastapi.exception_handlers import request_validation_exception_handler
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -137,6 +138,8 @@ class RequestLog(Log):
 async def app_lifespan(app: FastAPI):
     await nlp.warmup_nlp()
     yield
+    # Shutdown PostHog client gracefully
+    posthog_client.shutdown()
 
 app = FastAPI(lifespan=app_lifespan)
 
@@ -152,11 +155,55 @@ app.add_middleware(
 )
 
 
+# PostHog Error Tracking Middleware
+@app.middleware("http")
+async def error_tracking_middleware(request: Request, call_next):
+    """Capture unhandled exceptions to PostHog for error tracking."""
+    try:
+        response = await call_next(request)
+        return response
+    except Exception as exc:
+        posthog_client.capture_exception(
+            exc,
+            properties={
+                "path": request.url.path,
+                "method": request.method,
+                "query_params": str(request.query_params),
+            },
+        )
+        raise
+
+
 @app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request, exc):
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
     print(f"The client sent invalid data!: {exc}")
+    posthog_client.capture_exception(
+        exc,
+        properties={
+            "path": request.url.path,
+            "method": request.method,
+            "error_type": "validation_error",
+        },
+    )
     return await request_validation_exception_handler(request, exc)
 
+
+@app.exception_handler(Exception)
+async def general_exception_handler(request: Request, exc: Exception):
+    """Catch-all exception handler for unhandled errors."""
+    logger.error(f"Unhandled exception: {exc}", exc_info=True)
+    posthog_client.capture_exception(
+        exc,
+        properties={
+            "path": request.url.path,
+            "method": request.method,
+            "error_type": "unhandled_exception",
+        },
+    )
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
 
 
 # Routes
@@ -169,7 +216,7 @@ async def get_suggestion(payload: SuggestionRequestWithDocContext, background_ta
     allowed_gtypes = list(nlp.prompts.keys())
     if payload.gtype not in allowed_gtypes:
         raise ValueError(f"Invalid generation type: {payload.gtype}")
-    result = await nlp.get_suggestion(payload.gtype, payload.doc_context)
+    result = await nlp.get_suggestion(payload.gtype, payload.doc_context, distinct_id=payload.username or "backend-server")
     end_time = datetime.now()
 
     log_entry = RequestLog(
@@ -195,7 +242,7 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
     should_log_doctext = should_log(payload.username)
 
     start_time = datetime.now()
-    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph)
+    result = await nlp.reflection(userDoc=payload.prompt, paragraph=payload.paragraph, distinct_id=payload.username or "backend-server")
     end_time = datetime.now()
 
     background_tasks.add_task(make_log, RequestLog(
@@ -219,6 +266,7 @@ async def chat(payload: ChatRequestPayload, background_tasks: BackgroundTasks):
     response = await nlp.chat_stream(
         messages=payload.messages,
         temperature=0.7,
+        distinct_id=payload.username or "backend-server",
     )
 
     messages_for_log = json.dumps(payload.messages if should_log_doctext else [{
@@ -268,6 +316,19 @@ async def log_from_client(payload: Dict[str, Any], background_tasks: BackgroundT
         extra_data=extra_data
     ))
 
+    # Capture PostHog evaluation event when a user selects a suggestion
+    if event == "suggestion_selected":
+        trace_id = extra_data.get("trace_id")
+        if trace_id:
+            posthog_client.capture_event(
+                distinct_id=username or "backend-server",
+                event="$ai_feedback",
+                properties={
+                    "$ai_trace_id": trace_id,
+                    "$ai_feedback_score": 1,
+                },
+            )
+
     return {"message": "Feedback logged successfully."}
 
 
@@ -280,6 +341,7 @@ class PingResponse(BaseModel):
 @app.get("/api/ping")
 async def ping() -> PingResponse:
     return PingResponse(timestamp=datetime.now())
+
 
 
 # Log viewer endpoint

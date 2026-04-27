@@ -1,4 +1,7 @@
 
+# Build output
+dist/
+
 # Playwright
 node_modules/
 /test-results/

@@ -3,21 +3,53 @@
 import { Fragment, useCallback, useRef, useState, useEffect } from 'react';
 import type { RefObject } from 'react';
 import type { WritingAreaRef } from '@/components/WritingArea';
-import type { GenerationResult, SavedItem, TextEditorState } from '@/types';
+import type { UIMessage } from '@ai-sdk/react';
+import type { ConversationMessage, GenerationResult, SavedItem, TextEditorState } from '@/types';
 import { log } from '@/lib/logging';
 import { API_TIMEOUT_MS } from '@/lib/studyConfig';
+import { parseMessageContent } from '@/lib/chatUtils';
 import { useAtomValue } from 'jotai';
 import { studyConditionAtom, studyParamsAtom } from '@/contexts/StudyContext';
 
 const visibleNameForMode = {
   example_sentences: 'Examples of what you could write next:',
+  example_withblanks: 'Examples of what you could write next:',
   complete_document: 'Completed document suggestion:',
+  complete_document_withblanks: 'Completed document suggestion:',
   analysis_readerPerspective: 'Possible perspectives your reader might have:',
   proposal_advice: 'Advice for your next words:',
 };
 
-const modes = ['example_sentences', 'complete_document', 'analysis_readerPerspective', 'proposal_advice'] as const;
+const modes = ['example_sentences', 'example_withblanks', 'complete_document', 'complete_document_withblanks', 'analysis_readerPerspective', 'proposal_advice'] as const;
 const MIN_TEXT_LENGTH_FOR_SUGGESTION = 25;
+
+function getMessageText(message: UIMessage): string {
+  return message.parts
+    .filter((part) => part.type === 'text')
+    .map((part) => (part as { type: 'text'; text: string }).text)
+    .join('');
+}
+
+function formatConversationHistory(messages: UIMessage[]): ConversationMessage[] {
+  const result: ConversationMessage[] = [];
+  for (const msg of messages) {
+    const text = getMessageText(msg);
+    if (!text.trim()) continue;
+
+    if (msg.role === 'user') {
+      result.push({ role: 'user', content: text });
+    } else {
+      // Assistant messages may be JSON arrays of multiple messages
+      const parts = parseMessageContent(text);
+      for (const part of parts) {
+        if (part.trim()) {
+          result.push({ role: 'colleague', content: part });
+        }
+      }
+    }
+  }
+  return result;
+}
 
 function GenerationResultDisplay({ generation }: { generation: GenerationResult }) {
   return (
@@ -78,11 +110,13 @@ function SavedGenerations({
 interface AIPanelProps {
   writingAreaRef?: RefObject<WritingAreaRef | null>;
   isStudyMode?: boolean;
+  chatMessages?: UIMessage[];
 }
 
 export default function AIPanel({
   writingAreaRef,
   isStudyMode = false,
+  chatMessages,
 }: AIPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
@@ -93,7 +127,7 @@ export default function AIPanel({
   const mode = isStudyMode ? studyCondition : undefined;
   const autoRefreshInterval = studyParams.autoRefreshInterval;
   const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const previousRequestRef = useRef<{ editorState: TextEditorState; mode: string } | null>(null);
+  const previousRequestRef = useRef<{ editorState: TextEditorState; mode: string; chatMessageCount: number } | null>(null);
   const previousResponseRef = useRef<GenerationResult | null>(null);
 
   const save = useCallback((generation: GenerationResult, document: TextEditorState) => {
@@ -141,18 +175,25 @@ export default function AIPanel({
           return;
         }
 
-        // Check if this is a duplicate request (same content and mode)
+        // Format conversation history if available
+        const conversationHistory = chatMessages?.length
+          ? formatConversationHistory(chatMessages)
+          : undefined;
+        const chatMessageCount = conversationHistory?.length ?? 0;
+
+        // Check if this is a duplicate request (same content, mode, and conversation state)
         if (
           previousRequestRef.current &&
           JSON.stringify(previousRequestRef.current.editorState) === JSON.stringify(editorState) &&
-          previousRequestRef.current.mode === modeToUse
+          previousRequestRef.current.mode === modeToUse &&
+          previousRequestRef.current.chatMessageCount === chatMessageCount
         ) {
           setIsLoading(false);
           return;
         }
 
         docContextRef.current = editorState;
-        previousRequestRef.current = { editorState, mode: modeToUse };
+        previousRequestRef.current = { editorState, mode: modeToUse, chatMessageCount };
 
         // Log AI request in study mode
         if (isStudyMode) {
@@ -161,7 +202,8 @@ export default function AIPanel({
             event: `aiRequest:${modeToUse}`,
             extra_data: {
               isAutoRefresh,
-              // Don't log document content right now; we'll log it with the response
+              conversationHistoryEnabled: !!conversationHistory,
+              conversationHistoryMessageCount: chatMessageCount,
             },
           });
         }
@@ -174,6 +216,7 @@ export default function AIPanel({
           body: JSON.stringify({
             editorState,
             context: modeToUse,
+            ...(conversationHistory && { conversationHistory }),
           }),
           signal: AbortSignal.timeout(API_TIMEOUT_MS),
         });
@@ -207,7 +250,13 @@ export default function AIPanel({
               await log({
                 username: studyParams.username,
                 event: `aiResponse:${modeToUse}`,
-                extra_data: { isAutoRefresh, generation, editorState },
+                extra_data: {
+                  isAutoRefresh,
+                  generation,
+                  editorState,
+                  conversationHistoryEnabled: !!conversationHistory,
+                  conversationHistoryMessageCount: chatMessageCount,
+                },
               });
             }
           }
@@ -230,7 +279,7 @@ export default function AIPanel({
         setIsLoading(false);
       }
     },
-    [writingAreaRef, save, mode, isStudyMode, studyParams]
+    [writingAreaRef, save, mode, isStudyMode, studyParams, chatMessages]
   );
 
   // Auto-refresh logic for study mode
@@ -263,7 +312,7 @@ export default function AIPanel({
     alerts = (
       <div className="p-3">
         <div className="text-xs font-medium text-gray-700 text-center">
-          Suggestions will refresh every {(autoRefreshInterval / 1000).toFixed(0)} seconds.
+          Suggestions are based on your email draft and may incorporate details from recent chat conversations. They refresh automatically.
         </div>
       </div>
     );
@@ -302,11 +351,15 @@ export default function AIPanel({
               >
                 {mode === 'example_sentences'
                   ? 'Examples'
-                  : mode === 'analysis_readerPerspective'
-                    ? 'Reader Perspectives'
-                    : mode === 'complete_document'
-                      ? 'Complete Document'
-                    : 'Advice'}
+                  : mode === 'example_withblanks'
+                    ? 'Examples (Blanks)'
+                    : mode === 'analysis_readerPerspective'
+                      ? 'Reader Perspectives'
+                      : mode === 'complete_document'
+                        ? 'Complete Document'
+                        : mode === 'complete_document_withblanks'
+                          ? 'Complete (Blanks)'
+                          : 'Advice'}
               </button>
             </Fragment>
           ))}

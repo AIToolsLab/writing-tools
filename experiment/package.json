@@ -18,7 +18,7 @@
     "@ai-sdk/react": "^2.0.102",
     "ai": "^5.0.102",
     "jotai": "^2.15.2",
-    "next": "16.1.5",
+    "next": "16.2.3",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "zod": "^4.1.13"
@@ -35,7 +35,7 @@
     "@vitest/coverage-v8": "^4.0.17",
     "@vitest/ui": "^4.0.15",
     "babel-plugin-react-compiler": "1.0.0",
-    "baseline-browser-mapping": "^2.8.32",
+    "baseline-browser-mapping": "^2.10.16",
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "jsdom": "^27.2.0",
