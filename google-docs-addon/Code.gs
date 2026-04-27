@@ -422,3 +422,40 @@ function deleteUserProperty(key) {
 function getCurrentUserEmail() {
   return Session.getActiveUser().getEmail();
 }
+
+/**
+ * Gets the document ID of the active document.
+ *
+ * @returns {string} The document ID
+ */
+function getDocumentId() {
+  return DocumentApp.getActiveDocument().getId();
+}
+
+/**
+ * Gets all tabs in the active document with their text content.
+ * Falls back to a single entry representing the whole document if the
+ * Tabs API is unavailable (older documents / Apps Script environments).
+ *
+ * @returns {Array<{id: string, title: string, text: string}>}
+ */
+function getAllTabs() {
+  var doc = DocumentApp.getActiveDocument();
+  try {
+    var tabs = doc.getTabs();
+    return tabs.map(function(tab) {
+      var text = '';
+      try {
+        text = extractTextOnly(tab.asDocumentTab().getBody());
+      } catch (e) { /* skip */ }
+      return { id: tab.getId(), title: tab.getTitle(), text: text };
+    });
+  } catch (e) {
+    // Document has no tabs API support — return the body as a single tab
+    return [{
+      id: doc.getId(),
+      title: 'Main',
+      text: extractTextOnly(doc.getBody())
+    }];
+  }
+}

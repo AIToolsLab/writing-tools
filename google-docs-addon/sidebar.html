@@ -157,6 +157,20 @@
        */
       getUserProperty: function(key) {
         return this.run('getUserProperty', key);
+      },
+
+      /**
+       * Gets the document ID of the active document.
+       */
+      getDocumentId: function() {
+        return this.run('getDocumentId');
+      },
+
+      /**
+       * Gets all tabs in the document with their text content.
+       */
+      getAllTabs: function() {
+        return this.run('getAllTabs');
       }
     };
     

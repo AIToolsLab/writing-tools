@@ -33,6 +33,8 @@ declare global {
 			getCurrentUserEmail: () => Promise<string>;
 			setUserProperty: (key: string, value: string) => Promise<void>;
 			getUserProperty: (key: string) => Promise<string | null>;
+			getDocumentId: () => Promise<string>;
+			getAllTabs: () => Promise<{ id: string; title: string; text: string }[]>;
 		};
 		RUNNING_IN_GOOGLE_DOCS?: boolean;
 	}

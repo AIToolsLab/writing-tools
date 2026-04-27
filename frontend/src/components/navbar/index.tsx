@@ -25,6 +25,7 @@ const pageNames: Page[] = [
 	{ name: PageName.Draft, title: 'Draft' },
 	{ name: PageName.Revise, title: 'Revise' },
 	{ name: PageName.Chat, title: 'Chat' },
+	{ name: PageName.TagLinker, title: 'Tags' },
 ];
 
 export default function Navbar() {
