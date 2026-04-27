@@ -58,7 +58,7 @@ export default function TagLinker() {
 	const editorAPI = useContext(EditorContext);
 
 	const [tabs, setTabs] = useState<TabEntry[]>([]);
-	const [documentId, setDocumentId] = useState<string>('');
+	const [, setDocumentId] = useState<string>('');
 	const [keyword, setKeyword] = useState<string>('');
 	const [results, setResults] = useState<TabResult[]>([]);
 	const [loadingTabs, setLoadingTabs] = useState<boolean>(true);
@@ -85,7 +85,7 @@ export default function TagLinker() {
 				setTabs(allTabs);
 				tabsRef.current = allTabs;
 				documentIdRef.current = docId;
-			} catch (e) {
+			} catch {
 				setError('Failed to load tabs.');
 			} finally {
 				setLoadingTabs(false);
@@ -185,9 +185,9 @@ export default function TagLinker() {
 						{tabs.length} tab{tabs.length !== 1 ? 's' : ''} in this document
 					</div>
 
-					{searching && <p style={styles.muted}>Searching…</p>}
+					{searching ? <p style={styles.muted}>Searching…</p> : null}
 
-					{!searching && keyword && results.length === 0 && error && (
+					{!searching && !!keyword && results.length === 0 && !!error && (
 						<p style={styles.muted}>{error}</p>
 					)}
 
@@ -199,9 +199,9 @@ export default function TagLinker() {
 							{results.map(tab => (
 								<div key={tab.id} style={styles.card}>
 									<div style={styles.cardTitle}>{tab.title}</div>
-									{tab.snippet && (
+									{tab.snippet ? (
 										<div style={styles.snippet}>"{tab.snippet}"</div>
-									)}
+									) : null}
 									<a
 										href={buildTabUrl(tab.id)}
 										target="_top"
