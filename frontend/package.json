@@ -115,7 +115,7 @@
 		"office-addin-test-helpers": "^1.5.5",
 		"office-addin-test-server": "^1.5.5",
 		"os-browserify": "^0.3.0",
-		"postcss": "^8.5.4",
+		"postcss": "^8.5.13",
 		"postcss-loader": "^8.1.1",
 		"process": "^0.11.10",
 		"source-map-loader": "^5.0.0",
