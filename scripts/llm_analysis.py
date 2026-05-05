@@ -46,7 +46,7 @@ def get_scenario_context(scenario_id: str) -> dict:
     return SCENARIOS.get(scenario_id, SCENARIOS['roomDoubleBooking'])
 
 
-def analyze_email_quality(email_text: str, scenario_id: str, model: str = 'gpt-4o') -> dict:
+def analyze_email_quality(email_text: str, scenario_id: str, model: str = 'gpt-5.4-mini') -> dict:
     """
     Analyze email quality on multiple dimensions.
 
@@ -114,7 +114,7 @@ Return your analysis as JSON:
     return json.loads(response.choices[0].message.content)
 
 
-def analyze_recipient_feelings(email_text: str, scenario_id: str, model: str = 'gpt-4o') -> dict:
+def analyze_recipient_feelings(email_text: str, scenario_id: str, model: str = 'gpt-5.4-mini') -> dict:
     """
     Analyze how well the email addresses the recipient's likely emotions.
 
@@ -174,7 +174,7 @@ Return your analysis as JSON:
     return json.loads(response.choices[0].message.content)
 
 
-def extract_factual_questions(email_text: str, scenario_id: str, model: str = 'gpt-4o') -> list[str]:
+def extract_factual_questions(email_text: str, scenario_id: str, model: str = 'gpt-5.4-mini') -> list[str]:
     """
     Generate a list of factual questions a careful reader would want to verify.
 
@@ -224,7 +224,7 @@ Return as JSON:
 def compare_questions_to_chat(
     questions: list[str],
     chat_messages: list[dict],
-    model: str = 'gpt-4o'
+    model: str = 'gpt-5.4-mini'
 ) -> dict:
     """
     Compare the factual questions that should be asked against
@@ -278,7 +278,7 @@ Return as JSON:
 def analyze_ai_influence(
     email_text: str,
     ai_suggestions: list[dict],
-    model: str = 'gpt-4o'
+    model: str = 'gpt-5.4-mini'
 ) -> dict:
     """
     Analyze how much of the AI suggestions made it into the final email.
@@ -355,7 +355,7 @@ Return as JSON:
 
 def run_full_analysis(
     participant_data: dict,
-    model: str = 'gpt-4o',
+    model: str = 'gpt-5.4-mini',
     cache=None
 ) -> dict:
     """

@@ -49,7 +49,7 @@ export async function evalColleagueResponse(
   testInput: string,
   colleagueResponse: string,
   criterion: EvalCriterion,
-  model: string = 'gpt-4o-mini'
+  model: string = 'gpt-5.4-mini'
 ): Promise<EvalResult> {
   const judgePrompt = `You are evaluating an AI colleague's response in a workplace chat scenario.
 
