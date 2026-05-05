@@ -109,6 +109,7 @@ Return your analysis as JSON:
         model=model,
         messages=[{'role': 'user', 'content': prompt}],
         response_format={'type': 'json_object'},
+        reasoning_effort='low',
     )
 
     return json.loads(response.choices[0].message.content)
@@ -169,6 +170,7 @@ Return your analysis as JSON:
         model=model,
         messages=[{'role': 'user', 'content': prompt}],
         response_format={'type': 'json_object'},
+        reasoning_effort='low',
     )
 
     return json.loads(response.choices[0].message.content)
@@ -215,6 +217,7 @@ Return as JSON:
         model=model,
         messages=[{'role': 'user', 'content': prompt}],
         response_format={'type': 'json_object'},
+        reasoning_effort='low',
     )
 
     result = json.loads(response.choices[0].message.content)
@@ -270,6 +273,7 @@ Return as JSON:
         model=model,
         messages=[{'role': 'user', 'content': prompt}],
         response_format={'type': 'json_object'},
+        reasoning_effort='low',
     )
 
     return json.loads(response.choices[0].message.content)
@@ -345,6 +349,7 @@ Return as JSON:
         model=model,
         messages=[{'role': 'user', 'content': prompt}],
         response_format={'type': 'json_object'},
+        reasoning_effort='low',
     )
 
     result = json.loads(response.choices[0].message.content)

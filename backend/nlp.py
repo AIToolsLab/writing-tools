@@ -16,7 +16,7 @@ from posthog_client import posthog_client as ph_client
 
 MODEL_PARAMS = {
     "model": "gpt-5.4-mini",
-    # "reasoning_effort": "minimal",
+    "reasoning_effort": "low",
     # "text_verbosity": "medium"
 }
 DEBUG_PROMPTS = False

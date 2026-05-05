@@ -62,7 +62,7 @@ Think step by step, then answer with ONLY a JSON object (no markdown, no code bl
 {"answer": "yes" or "no", "reasoning": "brief 1-sentence explanation"}`;
 
   const result = await generateText({
-    model: openai(model),
+    model: openai(model, { reasoningEffort: 'low' }),
     prompt: judgePrompt,
     maxOutputTokens: 150,
   });

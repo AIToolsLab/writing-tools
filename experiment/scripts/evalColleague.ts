@@ -41,7 +41,7 @@ async function callColleague(
   ];
 
   const result = await generateText({
-    model: openai('gpt-5.4-mini'),
+    model: openai('gpt-5.4-mini', { reasoningEffort: 'low' }),
     system: systemPrompt,
     messages,
     maxOutputTokens: 300,
