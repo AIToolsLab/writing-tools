@@ -2,7 +2,7 @@ import { useState, useContext, useEffect, useRef, useCallback } from 'react';
 import { Remark } from 'react-remark';
 
 import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
-import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { createParser, type EventSourceMessage } from 'eventsource-parser';
 
 import { ChatContext } from '@/contexts/chatContext';
 import { usernameAtom } from '@/contexts/userContext';
@@ -127,30 +127,66 @@ export default function Chat() {
 		setShowScrollButton(false);
 		updateMessage('');
 
-		const token = await getAccessToken();
-		await fetchEventSource(`${SERVER_URL}/chat`, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				Authorization: `Bearer ${token}`,
-			},
-			body: JSON.stringify({
-				messages: newMessages.slice(0, -1),
-				username: username,
-			}),
-			onmessage(msg) {
-				const message = JSON.parse(msg.data);
-				const choice = message.choices[0];
-				if (choice.finish_reason === 'stop') return;
-				const newContent = choice.delta.content;
-				// need to make a new "newMessages" object to force React to update :(
-				newMessages = newMessages.slice();
-				newMessages[newMessages.length - 1].content += newContent;
-				updateChatMessages(newMessages);
-			},
-		});
+		try {
+			const token = await getAccessToken();
+			const response = await fetch(`${SERVER_URL}/chat`, {
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: `Bearer ${token}`,
+				},
+				body: JSON.stringify({
+					messages: newMessages.slice(0, -1),
+					username: username,
+				}),
+			});
 
-		updateSendingMessage(false);
+			if (!response.ok || !response.body) {
+				console.error('Chat request failed:', response.status, response.statusText);
+				return;
+			}
+
+			const decoder = new TextDecoder();
+			const reader = response.body.getReader();
+			let shouldStop = false;
+
+			const parser = createParser({
+				onEvent(event: EventSourceMessage) {
+					try {
+						const parsed = JSON.parse(event.data);
+						const choice = parsed.choices?.[0];
+						if (choice?.finish_reason === 'stop') {
+							shouldStop = true;
+							return;
+						}
+
+						const newContent = choice?.delta?.content;
+						if (typeof newContent !== 'string' || newContent.length === 0) {
+							return;
+						}
+
+						// Need to make a new object to force React to update.
+						newMessages = newMessages.slice();
+						newMessages[newMessages.length - 1].content += newContent;
+						updateChatMessages(newMessages);
+					} catch (error) {
+						console.error('Error parsing chat stream message:', error);
+					}
+				},
+			});
+
+			while (!shouldStop) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				parser.feed(decoder.decode(value, { stream: true }));
+			}
+
+			parser.reset({ consume: true });
+		} catch (error) {
+			console.error('Error while streaming chat response:', error);
+		} finally {
+			updateSendingMessage(false);
+		}
 	}
 
 	async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
