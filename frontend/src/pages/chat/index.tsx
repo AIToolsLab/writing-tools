@@ -27,6 +27,7 @@ export default function Chat() {
 	const username = useAtomValue(usernameAtom);
 	const editorAPI = useContext(EditorContext);
 	const { getAccessToken, authErrorType } = useAccessToken();
+	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [showScrollButton, setShowScrollButton] = useState(false);
@@ -114,7 +115,19 @@ export default function Chat() {
 		resizeTextarea();
 	}, [message, resizeTextarea]);
 
+	useEffect(() => {
+		return () => {
+			// Cleanup on unmount: stop any in-flight stream to avoid post-unmount updates.
+			activeRequestControllerRef.current?.abort();
+		};
+	}, []);
+
 	async function submitMessage(text: string) {
+		// Only one active request is allowed; cancel any previous stream first.
+		activeRequestControllerRef.current?.abort();
+		const requestController = new AbortController();
+		activeRequestControllerRef.current = requestController;
+
 		updateSendingMessage(true);
 
 		let newMessages = [
@@ -131,6 +144,7 @@ export default function Chat() {
 			const token = await getAccessToken();
 			const response = await fetch(`${SERVER_URL}/chat`, {
 				method: 'POST',
+				signal: requestController.signal,
 				headers: {
 					'Content-Type': 'application/json',
 					Authorization: `Bearer ${token}`,
@@ -183,9 +197,16 @@ export default function Chat() {
 
 			parser.reset({ consume: true });
 		} catch (error) {
+			if (requestController.signal.aborted) {
+				return;
+			}
 			console.error('Error while streaming chat response:', error);
 		} finally {
-			updateSendingMessage(false);
+			// Ignore stale completions from older requests that were already replaced.
+			if (activeRequestControllerRef.current === requestController) {
+				activeRequestControllerRef.current = null;
+				updateSendingMessage(false);
+			}
 		}
 	}
 
