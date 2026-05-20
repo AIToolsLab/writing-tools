@@ -142,10 +142,11 @@ export async function POST(req: Request) {
     }
 
     const result = await generateObject({
-      model: openai('gpt-5.2'),
+      model: openai('gpt-5.4-mini', { reasoningEffort: 'low' }),
       schema: listResponseSchema,
       prompt: fullPrompt,
       system: 'You are a helpful and insightful writing assistant.',
+      maxOutputTokens: 500,
     });
 
     const suggestions = result.object.responses.length > 0

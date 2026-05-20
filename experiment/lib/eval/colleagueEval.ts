@@ -49,7 +49,7 @@ export async function evalColleagueResponse(
   testInput: string,
   colleagueResponse: string,
   criterion: EvalCriterion,
-  model: string = 'gpt-4o-mini'
+  model: string = 'gpt-5.4-mini'
 ): Promise<EvalResult> {
   const judgePrompt = `You are evaluating an AI colleague's response in a workplace chat scenario.
 
@@ -62,7 +62,7 @@ Think step by step, then answer with ONLY a JSON object (no markdown, no code bl
 {"answer": "yes" or "no", "reasoning": "brief 1-sentence explanation"}`;
 
   const result = await generateText({
-    model: openai(model),
+    model: openai(model, { reasoningEffort: 'low' }),
     prompt: judgePrompt,
     maxOutputTokens: 150,
   });
