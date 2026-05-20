@@ -14,7 +14,7 @@ dependencies = [
     "uvicorn>=0.30.6",
     "pytest>=9.0.3",
     "aiohttp>=3.11.14",
-    "posthog>=3.7.0",
+    "posthog>=7.14",
 ]
 
 [dependency-groups]

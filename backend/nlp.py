@@ -190,7 +190,7 @@ async def _get_suggestions_from_context(
         if trace_id:
             ph_kwargs["posthog_trace_id"] = trace_id
 
-    completion = await openai_client.chat.completions.parse(
+    completion = await openai_client.beta.chat.completions.parse(
         **MODEL_PARAMS,
         messages=[
             {
@@ -249,7 +249,7 @@ async def get_suggestion(
         full_prompt = get_full_prompt(prompt_name, doc_context)
         if DEBUG_PROMPTS:
             print(f"Prompt for {prompt_name} (baseline):\n{full_prompt}\n")
-        completion = await openai_client.chat.completions.parse(
+        completion = await openai_client.beta.chat.completions.parse(
             **MODEL_PARAMS,
             messages=[
                 {

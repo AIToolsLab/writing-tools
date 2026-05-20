@@ -9,6 +9,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Any, Dict, List, Literal
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
 import nlp
 import posthog_client
 import uvicorn
@@ -21,10 +25,6 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel
 from sse_starlette.sse import EventSourceResponse
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 
 
 # Load ENV vars

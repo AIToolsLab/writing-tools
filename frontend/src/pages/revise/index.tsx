@@ -2,9 +2,9 @@
  * @format
  */
 
-import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { createParser, type EventSourceMessage } from 'eventsource-parser';
 import { useAtomValue } from 'jotai';
-import { useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Remark } from 'react-remark';
 import {
 	AiOutlineFileText,
@@ -209,6 +209,7 @@ export default function Revise() {
 	const username = useAtomValue(usernameAtom);
 	const docContext = useDocContext(editorAPI);
 	const { getAccessToken, reportAuthError: _reportAuthError, authErrorType: _authErrorType } = useAccessToken();
+	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const [_loading, setLoading] = useState(false);
 	const [_customPrompts, _setCustomPrompts] = useState<Prompt[]>([]);
 	const [_selectedCustomPrompt, _setSelectedCustomPrompt] = useState<
@@ -256,11 +257,26 @@ export default function Revise() {
 		[],
 	);
 
+	useEffect(() => {
+		return () => {
+			// Cleanup on unmount: stop any in-flight stream to avoid post-unmount updates.
+			activeRequestControllerRef.current?.abort();
+		};
+	}, []);
+
 	const requestVisualization = useCallback(
 		async (prompt: Prompt) => {
+			// Only one active request is allowed; cancel any previous stream first.
+			activeRequestControllerRef.current?.abort();
+			const requestController = new AbortController();
+			activeRequestControllerRef.current = requestController;
+
 			const token = await getAccessToken();
 			if (!token) {
 				console.error('No access token available');
+				if (activeRequestControllerRef.current === requestController) {
+					activeRequestControllerRef.current = null;
+				}
 				return;
 			}
 
@@ -270,7 +286,6 @@ export default function Revise() {
 
 			const newViz = new Visualization(request, docContext);
 			setVisualizations((prev) => [...prev, newViz]);
-			/* Kick off a streaming request to the server to get the visualization response */
 
 			const docTextAsPrompt = getDocTextAsPrompt(docContext);
 
@@ -289,57 +304,92 @@ ${request}
 </request>`,
 				},
 			];
+
 			setLoading(true);
-			fetchEventSource(`${SERVER_URL}/chat`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`,
-				},
-				body: JSON.stringify({
-					messages: chatMessages,
-					username: username,
-				}),
-				onmessage(msg) {
-					try {
-						if (!msg.data) {
-							// I'm not sure why this happens.
-							return;
-						}
-						const message = JSON.parse(msg.data);
-						const choice = message.choices[0];
-						if (choice.finish_reason === 'stop') {
-							setLoading(false);
-							console.log(
-								'Visualization response complete:',
-								newViz.response,
-							);
-							return;
-						}
-						const newContent = choice.delta.content;
-						newViz.response += newContent;
-						setVisualizations((prev) => {
-							// Force React to update by creating a new array
-							const updatedViz = [...prev];
-							const index = updatedViz.findIndex(
-								(v) => v.id === newViz.id,
-							);
-							if (index !== -1) {
-								updatedViz[index] = newViz;
+
+			try {
+				const response = await fetch(`${SERVER_URL}/chat`, {
+					method: 'POST',
+					signal: requestController.signal,
+					headers: {
+						'Content-Type': 'application/json',
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({
+						messages: chatMessages,
+						username: username,
+					}),
+				});
+
+				if (!response.ok || !response.body) {
+					console.error(
+						'Visualization request failed:',
+						response.status,
+						response.statusText,
+					);
+					return;
+				}
+
+				const decoder = new TextDecoder();
+				const reader = response.body.getReader();
+				let shouldStop = false;
+
+				const parser = createParser({
+					onEvent(event: EventSourceMessage) {
+						try {
+							if (!event.data) {
+								return;
 							}
-							return updatedViz;
-						});
-					} catch (error) {
-						console.error('Error parsing message:', error);
-						setLoading(false);
-					}
-				},
-				onerror(err) {
-					console.error('Error fetching visualization:', err);
+
+							const message = JSON.parse(event.data);
+							const choice = message.choices?.[0];
+							if (choice?.finish_reason === 'stop') {
+								shouldStop = true;
+								console.log('Visualization response complete:', newViz.response);
+								return;
+							}
+
+							const newContent = choice?.delta?.content;
+							if (typeof newContent !== 'string' || newContent.length === 0) {
+								return;
+							}
+
+							newViz.response += newContent;
+							setVisualizations((prev) => {
+								// Force React to update by creating a new array
+								const updatedViz = [...prev];
+								const index = updatedViz.findIndex((v) => v.id === newViz.id);
+								if (index !== -1) {
+									updatedViz[index] = newViz;
+								}
+								return updatedViz;
+							});
+						} catch (error) {
+							console.error('Error parsing message:', error);
+						}
+					},
+				});
+
+				while (!shouldStop) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					parser.feed(decoder.decode(value, { stream: true }));
+				}
+
+				parser.reset({ consume: true });
+			} catch (err) {
+				if (requestController.signal.aborted) {
+					return;
+				}
+				console.error('Error fetching visualization:', err);
+				// TODO: maybe auth error?
+			} finally {
+				// Ignore stale completions from older requests that were already replaced.
+				if (activeRequestControllerRef.current === requestController) {
+					activeRequestControllerRef.current = null;
 					setLoading(false);
-					// TODO: maybe auth error?
-				},
-			});
+				}
+			}
 		},
 		[docContext, getAccessToken, username],
 	);

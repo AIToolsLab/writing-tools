@@ -21,8 +21,11 @@ if not openai_api_key.startswith("sk-"):
 
 log_secret = '-'.join(''.join(random.choices(string.ascii_lowercase + string.digits, k=6)) for _ in range(6))
 
+posthog_project_token = input("PostHog project token (from https://us.posthog.com/project/247756/settings/project-details): ").strip()
+
 with open(env_file, "w") as f:
     f.write(f'OPENAI_API_KEY="{openai_api_key}"\n')
     f.write(f'LOG_SECRET="{log_secret}"\n')
+    f.write(f'POSTHOG_PROJECT_TOKEN="{posthog_project_token}"\n')
 
 print(f".env file created at {env_file}")
