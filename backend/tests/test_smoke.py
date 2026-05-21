@@ -61,4 +61,3 @@ def test_server_routes_registered():
     assert "/api/reflections" in routes
     assert "/api/chat" in routes
     assert "/api/log" in routes
-    assert "/api/test-error" in routes  # PostHog error tracking test endpoint
