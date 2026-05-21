@@ -6,13 +6,10 @@ is not set, all tracking functions become no-ops and the application
 continues to work normally.
 
 Usage:
-    from posthog_client import capture_exception, capture_event, posthog_client
+    from posthog_client import capture_exception, posthog_client
 
     # In exception handlers:
-    capture_exception(exc, {"path": "/api/foo", "user_id": "123"})
-
-    # For custom events:
-    capture_event("backend-server", "api_error", {"status_code": 500})
+    capture_exception(exc, {"path": "/api/foo"})
 """
 
 import logging
@@ -53,49 +50,27 @@ else:
 def capture_exception(
     exception: BaseException,
     properties: Optional[dict[str, Any]] = None,
-    distinct_id: str = "backend-server",
 ) -> None:
     """
     Capture an exception to PostHog for error tracking.
 
+    The distinct_id is taken from the active PostHog context (see
+    `user_context`) when one exists; otherwise PostHog attributes it
+    anonymously. We deliberately don't pass an explicit distinct_id, since
+    doing so would override the context.
+
     Args:
         exception: The exception to capture
         properties: Additional properties to include with the error
-        distinct_id: The user/system identifier (defaults to "backend-server")
     """
     try:
         posthog_client.capture_exception(
             exception,
-            distinct_id=distinct_id,
             properties=properties or {},
         )
     except Exception as e:
         # Never let PostHog errors break the application
         logger.warning(f"Failed to capture exception to PostHog: {e}")
-
-
-def capture_event(
-    distinct_id: str,
-    event: str,
-    properties: Optional[dict[str, Any]] = None,
-) -> None:
-    """
-    Capture a custom event to PostHog.
-
-    Args:
-        distinct_id: The user/system identifier
-        event: The event name
-        properties: Additional properties to include with the event
-    """
-    try:
-        posthog_client.capture(
-            distinct_id=distinct_id,
-            event=event,
-            properties=properties or {},
-        )
-    except Exception as e:
-        # Never let PostHog errors break the application
-        logger.warning(f"Failed to capture event to PostHog: {e}")
 
 
 def shutdown() -> None:

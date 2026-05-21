@@ -31,12 +31,10 @@ def test_posthog_client_imports():
 
     # Verify the module has expected functions (they should be no-ops when disabled)
     assert hasattr(posthog_client, "capture_exception")
-    assert hasattr(posthog_client, "capture_event")
     assert hasattr(posthog_client, "shutdown")
 
     # These functions should not raise even when PostHog is disabled
     posthog_client.capture_exception(Exception("test"))
-    posthog_client.capture_event("test", "test_event")
     posthog_client.shutdown()
 
 
