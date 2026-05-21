@@ -268,7 +268,6 @@ async def chat(payload: ChatRequestPayload, background_tasks: BackgroundTasks):
     with posthog_client.user_context(payload.username):
         response = await nlp.chat_stream(
             messages=payload.messages,
-            temperature=0.7,
         )
 
     messages_for_log = json.dumps(payload.messages if should_log_doctext else [{

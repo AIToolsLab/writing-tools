@@ -357,7 +357,6 @@ def obscure(token):
 
 async def chat(
     messages: Iterable[ChatCompletionMessageParam],
-    temperature: float,
 ) -> str:
     response = await openai_client.chat.completions.create(
         **MODEL_PARAMS,
@@ -373,7 +372,6 @@ async def chat(
 
 def chat_stream(
     messages: Iterable[ChatCompletionMessageParam],
-    temperature: float,
 ):
     return openai_client.chat.completions.create(
         **MODEL_PARAMS,
@@ -387,14 +385,12 @@ async def reflection(
     userDoc: str,
     paragraph: str,
 ) -> GenerationResult:
-    temperature = 1.0
 
     questions = await chat(
         messages=[
             {"role": "system", "content": userDoc},
             {"role": "user", "content": paragraph},
         ],
-        temperature=temperature,
     )
 
     return GenerationResult(
@@ -402,6 +398,5 @@ async def reflection(
         result=questions,
         extra_data={
             "prompt": userDoc,
-            "temperature": temperature,
         },
     )
