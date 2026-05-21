@@ -17,6 +17,7 @@ Usage:
 
 import logging
 import os
+from contextlib import contextmanager
 from typing import Any, Optional
 
 from dotenv import load_dotenv
@@ -29,7 +30,7 @@ logger = logging.getLogger(__name__)
 POSTHOG_PROJECT_TOKEN = (os.getenv("POSTHOG_PROJECT_TOKEN") or "").strip()
 POSTHOG_HOST = (os.getenv("POSTHOG_HOST") or "https://us.i.posthog.com").strip()
 
-from posthog import Posthog
+from posthog import Posthog, identify_context, new_context
 
 # PostHog is always instantiated so the rest of the codebase has a single code
 # path with no None checks. When no token is configured it runs in `disabled`
@@ -103,3 +104,16 @@ def shutdown() -> None:
         posthog_client.shutdown()
     except Exception as e:
         logger.warning(f"Error shutting down PostHog client: {e}")
+
+
+@contextmanager
+def user_context(distinct_id: str):
+    """Scope a request to a PostHog distinct_id.
+
+    Events captured within the context - including the OpenAI wrapper's
+    `$ai_generation` events - are attributed to this user automatically, so
+    call sites don't need to thread a distinct_id through to the LLM layer.
+    """
+    with new_context(capture_exceptions=False):
+        identify_context(distinct_id or "backend-server")
+        yield
