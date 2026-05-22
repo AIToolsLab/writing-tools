@@ -34,7 +34,6 @@ Study pages are accessed via URL parameters:
 ### Optional Parameters
 
 - `isProlific=true` - Shows completion code on final page
-- `contextToUse=true|false|mixed` - Controls which context the AI uses (not applicable for no_ai)
 - `autoRefreshInterval=10000` - Interval (ms) for auto-refreshing AI suggestions (disabled for no_ai and complete_document)
 
 ## Study Configuration
@@ -52,9 +51,7 @@ Study-specific state is managed via Jotai atoms:
 - `studyDataAtom` (`frontend/src/contexts/studyContext.tsx`) - Stores:
   - `condition` - Current condition name
   - `trueContext` - Correct task context
-  - `falseContext` - Intentionally incorrect context (for mixed conditions)
   - `autoRefreshInterval` - Refresh interval for AI suggestions
-  - `contextToUse` - Which context to provide to AI
 
 ## Logging
 

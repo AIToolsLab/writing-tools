@@ -6,7 +6,7 @@ import classes from './styles.module.css';
 import { agreeLikert, type QuestionType, Survey } from '@/surveyViews';
 import * as SurveyData from '@/surveyData';
 import { useEffect } from 'react';
-import { letterToCondition, studyPageNames, consentFormURL, wave, prFixTask, prFixTaskFalse, completionCode } from './studyConfig';
+import { letterToCondition, studyPageNames, consentFormURL, wave, prFixTask, completionCode } from './studyConfig';
 
 
 function getBrowserMetadata() {
@@ -228,25 +228,14 @@ export function StudyRouter({ page }: { page: string }) {
 		);
 	} else if (page === 'study-task') {
 		const curTaskContexts = prFixTask;
-		const falseContext = prFixTaskFalse;
-		const contextToUse = urlParams.get('contextToUse') || 'mixed';
-		if (!['true', 'false', 'mixed'].includes(contextToUse)) {
-			return (
-				<div>
-					Invalid contextToUse parameter. Please use one of the following: true, false, mixed
-				</div>
-			);
-		}
 		const autoRefreshInterval = parseInt(urlParams.get('autoRefreshInterval') || '10000');
-		console.log("Auto refresh interval:", autoRefreshInterval, 'contextToUse:', contextToUse);
+		console.log("Auto refresh interval:", autoRefreshInterval);
 
 		setStudyData((prevData) => ({
 			...prevData,
 			condition: conditionName,
 			trueContext: curTaskContexts,
-			falseContext: falseContext,
 			autoRefreshInterval: autoRefreshInterval,
-			contextToUse: contextToUse as 'true' | 'false' | 'mixed',
 		}));
 
 		const editorPreamble = (
@@ -264,7 +253,7 @@ export function StudyRouter({ page }: { page: string }) {
 
 		return (
 			<div>
-				<EditorScreen contextData={curTaskContexts} falseContextData={falseContext} editorPreamble={editorPreamble} />
+				<EditorScreen contextData={curTaskContexts} editorPreamble={editorPreamble} />
 
 				<button
 					type="button"

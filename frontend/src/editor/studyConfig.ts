@@ -44,31 +44,6 @@ Background: follow-up meeting after client feedback
 	}
 ]
 
-const summarizeMeetingNotesTaskFalse = [
-	{
-		title: 'Your Role',
-		content: "You are a Marketing Coordinator leading your first major Q4 campaign. Your manager, David, has been championing your work to senior leadership."
-	},
-	{
-		title: 'Campaign Context',
-		content: "David is scheduled to present your $20k campaign budget to the client next week. Your plan allocates $10k to search and $10k to social to create a “search-to-social” funnel. "
-	},
-	{
-		title: 'The Bad News',
-		content: "A recent meeting with Lisa (Finance Director) revealed a Q4 budget freeze and a significant raise to your campaign budget: it's now $35k (a 30% increase). "
-	},
-	{
-		title: 'Impact',
-		content: "This means 40% more reach than promised. Tom (the Marketing Analyst) is excited for both the client and David. "
-	},
-	{
-		title: 'Your Task',
-		content: `Email David when free to:
-- Inform him of the budget increase and its implications for his client presentation next week.
-- Provide information on what he needs to communicate to the client.
-`
-	}
-];
 
 const prFixTask = [
 	{
@@ -89,24 +64,6 @@ const prFixTask = [
 	}
 ]
 
-const prFixTaskFalse = [
-	{
-		title: 'Your Role',
-		content: "You are a public relations representative coordinating a panel with a famous social media influencer, Jayden, and need to communicate some last-minute logistical changes."
-	},
-	{
-		title: 'Context',
-		content: "Jayden gets to share the same room with another influencer, Sophia. His event with Sophia is supposed to start at 2pm in room 13. "
-	},
-	{
-		title: 'Your Task',
-		content: `
-- Inform Jayden that he'll be in room 23.
-- Time is unchanged.
-- Stay focused on the logistical details without worrying about the feelings of the recipient.
-`
-	}
-];
 
 const letterToCondition = {
 	g: 'example_sentences',
@@ -116,4 +73,4 @@ const letterToCondition = {
 	f: 'complete_document',
 };
 
-export { wave, completionCode, consentFormURL, studyPageNames, summarizeMeetingNotesTask, summarizeMeetingNotesTaskFalse, prFixTask, prFixTaskFalse, letterToCondition };
+export { wave, completionCode, consentFormURL, studyPageNames, summarizeMeetingNotesTask, prFixTask, letterToCondition };

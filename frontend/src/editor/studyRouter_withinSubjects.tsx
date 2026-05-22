@@ -146,11 +146,6 @@ const taskContexts: Record<string, ContextSection[]> = {
 	'3': explainCrisprTask
 };
 
-const falseContexts: Record<string, ContextSection[]> = {
-	'1': unstatedAssumptionsTask,
-	'2': summarizeMeetingNotesTaskFalse,
-	'3': explainCrisprTask
-};
 
 const letterToCondition = {
 	e: 'example_sentences',
@@ -393,7 +388,6 @@ export function StudyRouter({ page }: { page: string }) {
 	} else if (page.startsWith('study-task')) {
 		const taskNumber = page.replace('study-task', '');
 		const curTaskContexts = taskContexts[taskNumber];
-		const falseContext = falseContexts[taskNumber];
 		const conditionConfig = conditionConfigs[taskNumber];
 
 		if (!conditionConfig) {
@@ -410,9 +404,7 @@ export function StudyRouter({ page }: { page: string }) {
 			...prevData,
 			condition: taskCondition,
 			trueContext: curTaskContexts,
-			falseContext: falseContext,
 			autoRefreshInterval: 10000,
-			contextToUse: 'mixed'
 		}));
 
 		const editorPreamble = (
@@ -430,7 +422,7 @@ export function StudyRouter({ page }: { page: string }) {
 
 		return (
 			<div>
-				<EditorScreen taskID={taskID} contextData={falseContext} editorPreamble={editorPreamble} />
+				<EditorScreen taskID={taskID} contextData={curTaskContexts} editorPreamble={editorPreamble} />
 
 				<button
 					type="button"
