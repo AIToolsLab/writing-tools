@@ -1,11 +1,9 @@
 import {
-	OverallMode,
-	overallModeAtom,
 	PageName,
 	pageNameAtom,
 } from '@/contexts/pageContext';
 
-import { useAtom, useAtomValue } from 'jotai';
+import { useAtom } from 'jotai';
 import classes from './styles.module.css';
 
 /**
@@ -30,26 +28,20 @@ const pageNames: Page[] = [
 
 export default function Navbar() {
 	const [page, changePage] = useAtom(pageNameAtom);
-	const mode = useAtomValue(overallModeAtom);
-	const isStudyMode = mode === OverallMode.study;
 
-	if (isStudyMode) {
-		return null;
-	} else {
-		return (
-			<div className={classes.tabs}>
-				{pageNames.map(({ name: pageName, title: pageTitle, hint }) => (
-					<button
-						key={pageName}
-						type="button"
-						onClick={() => changePage(pageName)}
-						className={`${classes.tabBtn} ${page === pageName ? classes.active : ''}`}
-					>
-						{pageTitle}
-						<span className={classes.tabHint}>{hint}</span>
-					</button>
-				))}
-			</div>
+	return (
+		<div className={classes.tabs}>
+			{pageNames.map(({ name: pageName, title: pageTitle, hint }) => (
+				<button
+					key={pageName}
+					type="button"
+					onClick={() => changePage(pageName)}
+					className={`${classes.tabBtn} ${page === pageName ? classes.active : ''}`}
+				>
+					{pageTitle}
+					<span className={classes.tabHint}>{hint}</span>
+				</button>
+			))}
+		</div>
 		);
-	}
 }
