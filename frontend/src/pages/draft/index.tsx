@@ -12,6 +12,7 @@ import {
 } from 'react';
 import { Remark } from 'react-remark';
 import { log, SERVER_URL } from '@/api';
+import { buildMessages } from '@/api/prompts';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
@@ -78,8 +79,7 @@ class Fetcher {
 				body: JSON.stringify({
 					username: username,
 					gtype: request.type,
-
-					doc_context: request.docContext,
+					messages: buildMessages(request.type, request.docContext),
 				}),
 				signal: AbortSignal.timeout(20000),
 			});
@@ -332,6 +332,23 @@ export default function Draft() {
 			if (isUserInitiated) {
 				setIsLoading(true);
 			}
+			// Rewording needs selected text to work — if nothing is selected,
+			// show a message immediately without calling the backend
+			if (
+				suggestionRequest.type === 'example_rewording' &&
+				!suggestionRequest.docContext.selectedText.trim()
+			) {
+				save(
+					{
+						generation_type: 'example_rewording',
+						result: 'Please select some text to get rewording suggestions.',
+						extra_data: {},
+					},
+					suggestionRequest.docContext,
+				);
+				setIsLoading(false);
+				return;
+			}
 			try {
 				const token = await getAccessToken();
 				const suggestion = await getFetcher().fetchSuggestion(
@@ -339,8 +356,11 @@ export default function Draft() {
 					token,
 					username,
 				);
-				// Suggestion text might be empty
-				if (suggestion.result === '') {
+				// The AI sometimes returns "[]" (an empty JSON array) as plain text
+				// when it has nothing to say. Treat that the same as an empty response
+				// so we don't show a useless "[]" bullet to the user.
+				const isEmpty = suggestion.result.trim() === '' || suggestion.result.trim() === '[]';
+				if (isEmpty) {
 					console.warn('Received empty suggestion.');
 				} else {
 					save(suggestion, suggestionRequest.docContext);
