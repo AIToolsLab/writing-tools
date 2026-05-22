@@ -8,9 +8,6 @@ import { useAtomValue, useSetAtom } from 'jotai';
 import LexicalEditor from './editor';
 import './styles.css';
 import classes from './styles.module.css';
-import { log } from '@/api';
-import { usernameAtom } from '@/contexts/userContext';
-import { StudyRouter } from './studyRouter';
 import { EditorContext } from '@/contexts/editorContext';
 
 function Sidebar() {
@@ -27,9 +24,7 @@ export function EditorScreen({
 	contextData?: ContextSection[];
 }) {
 	const mode = useAtomValue(overallModeAtom);
-	const username = useAtomValue(usernameAtom);
 	const isDemo = mode === OverallMode.demo;
-	const isStudy = mode === OverallMode.study;
 
 	// This is a reference to the current document context
 	const docContextRef = useRef<DocContext>({
@@ -96,15 +91,6 @@ export function EditorScreen({
 			docContext.contextData = contextData;
 		}
 
-		// Log the document update only for study purposes
-		if (mode === OverallMode.study && username) {
-			log({
-				username: username,
-				event: 'Document Update',
-				currentDocumentState: docContext,
-			});
-		}
-
 		// Calculate word count
 		const fullText =
 			docContext.beforeCursor +
@@ -146,7 +132,7 @@ export function EditorScreen({
 					storageKey={getStorageKey()}
 					preamble={editorPreamble}
 				/>
-				{isDemo || isStudy ? (
+				{isDemo ? (
 					<div className={`${classes.wordCount}`}>
 						Words: {wordCount}
 					</div>
@@ -172,9 +158,6 @@ function Router({ page }: { page: string }) {
 	} else if (page === 'demo') {
 		setOverallMode(OverallMode.demo);
 		return <EditorScreen />;
-	} else if (page.startsWith('study')) {
-		setOverallMode(OverallMode.study);
-		return <StudyRouter page={page} />;
 	} else {
 		return <div>Page not found</div>;
 	}

@@ -10,7 +10,6 @@ export enum PageName {
 export enum OverallMode {
 	full = 'full',
 	demo = 'demo',
-	study = 'study',
 }
 
 export const pageNameAtom = atom<PageName>(PageName.Draft);
