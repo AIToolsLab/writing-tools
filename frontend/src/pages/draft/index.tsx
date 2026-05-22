@@ -7,7 +7,6 @@ import {
 	useCallback,
 	useContext,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from 'react';
@@ -15,7 +14,6 @@ import { Remark } from 'react-remark';
 import { log, SERVER_URL } from '@/api';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
-import { studyDataAtom } from '@/contexts/studyContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import { iconFunc } from './iconFunc';
@@ -27,7 +25,6 @@ const visibleNameForMode = {
 	proposal_advice: 'Advice for your next words:',
 	complete_document: 'Complete Document',
 	example_rewording: 'Example rewordings of your selected text:',
-	no_ai: 'No AI',
 };
 
 const modeMeta: Record<string, { name: string; description: string }> = {
@@ -249,7 +246,6 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContextSnapshot = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
-	const studyData = useAtomValue(studyDataAtom);
 	const { getAccessToken, authErrorType } = useAccessToken();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
@@ -272,14 +268,8 @@ export default function Draft() {
 	// 	after: docContextSnapshot.afterCursor.slice(0, 50),
 	// });
 
-	const isStudy = studyData !== null;
-	const currentCondition = isStudy ? studyData.condition : null;
-	const isNoAI = currentCondition === 'no_ai';
-	const autoRefreshInterval = isStudy && !isNoAI ? studyData.autoRefreshInterval : 0;
-	const modesToShow = useMemo(
-		() => (isStudy ? [studyData.condition] : modes),
-		[isStudy, studyData],
-	);
+	const autoRefreshInterval = 0;
+	const modesToShow = modes;
 
 	const shouldAutoRefresh = autoRefreshInterval > 0;
 
@@ -417,19 +407,6 @@ export default function Draft() {
 
 	if (authErrorType !== null) {
 		return <div>Please reauthorize.</div>;
-	}
-
-	// Handle no_ai condition with static message
-	if (isNoAI) {
-		return (
-			<div className="flex flex-col flex-1">
-				<div className="flex flex-col flex-1 gap-2 relative p-2">
-					<div className="mt-4 ml-4 mr-4 p-4 text-center text-stone-700">
-						AI suggestions are unavailable for this task. (Please do not use any other AI systems either.)
-					</div>
-				</div>
-			</div>
-		);
 	}
 
 	return (
