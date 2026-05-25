@@ -57,5 +57,5 @@ def test_server_routes_registered():
     assert "/api/ping" in routes
     assert "/api/get_suggestion" in routes
     assert "/api/reflections" in routes
-    assert "/api/chat" in routes
+    assert "/api/openai/chat/completions" in routes
     assert "/api/log" in routes

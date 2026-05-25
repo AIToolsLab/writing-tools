@@ -4,6 +4,8 @@ import json
 import logging
 import os
 import zipfile
+
+import httpx
 from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
@@ -24,7 +26,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import AfterValidator, BaseModel
-from sse_starlette.sse import EventSourceResponse
 
 
 # Load ENV vars
@@ -112,11 +113,6 @@ class ReflectionResponseItem(BaseModel):
 
 class ReflectionResponses(BaseModel):
     reflections: List[ReflectionResponseItem]
-
-
-class ChatRequestPayload(BaseModel):
-    messages: List[nlp.ChatCompletionMessageParam]
-    username: ValidatedUsername
 
 
 class Log(BaseModel):
@@ -260,37 +256,35 @@ async def reflections(payload: ReflectionRequestPayload, background_tasks: Backg
     return result
 
 
-@app.post("/api/chat")
-async def chat(payload: ChatRequestPayload, background_tasks: BackgroundTasks):
-    should_log_doctext = should_log(payload.username)
+@app.post("/api/openai/chat/completions")
+async def openai_chat_completions_proxy(request: Request):
+    body = await request.body()
 
-    start_time = datetime.now()
-    with posthog_client.user_context(payload.username):
-        response = await nlp.chat_stream(
-            messages=payload.messages,
-        )
+    client = httpx.AsyncClient(timeout=None)
+    upstream_req = client.build_request(
+        "POST",
+        "https://api.openai.com/v1/chat/completions",
+        content=body,
+        headers={
+            "Authorization": f"Bearer {nlp.openai_api_key}",
+            "Content-Type": "application/json",
+        },
+    )
+    upstream = await client.send(upstream_req, stream=True)
 
-    messages_for_log = json.dumps(payload.messages if should_log_doctext else [{
-        "role": message.get("role", ""),
-        "content": f"{len(message.get('content', ''))} characters REDACTED" if isinstance(message.get('content'), str) else "[REDACTED]"
-    } for message in payload.messages])
+    async def iter_and_close():
+        try:
+            async for chunk in upstream.aiter_raw():
+                yield chunk
+        finally:
+            await upstream.aclose()
+            await client.aclose()
 
-    background_tasks.add_task(make_log, Log(
-        timestamp=start_time.timestamp(),
-        username=payload.username,
-        event="chat_message",
-        extra_data={
-            "messages": messages_for_log
-        }
-    ))
-
-    # Stream response
-    async def generator():
-        async for chunk in response:
-            # chunk is a ChatCompletionChunk object
-            yield chunk.model_dump_json()
-
-    return EventSourceResponse(generator())
+    return StreamingResponse(
+        iter_and_close(),
+        status_code=upstream.status_code,
+        media_type=upstream.headers.get("content-type", "text/event-stream"),
+    )
 
 
 @app.post("/api/log")

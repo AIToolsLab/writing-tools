@@ -2,8 +2,7 @@
  * @format
  */
 
-import { createParser, type EventSourceMessage } from 'eventsource-parser';
-import { useAtomValue } from 'jotai';
+import { streamText, type ModelMessage } from 'ai';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Remark } from 'react-remark';
 import {
@@ -21,10 +20,8 @@ import {
 	AiOutlineEdit,
 	AiOutlineQuestionCircle
 } from 'react-icons/ai';
-import { SERVER_URL } from '@/api';
-import { useAccessToken } from '@/contexts/authTokenContext';
+import { OPENAI_MODEL, openai } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
-import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import classes from './styles.module.css';
 
@@ -206,9 +203,7 @@ const makeAnchorWithCallback = (
 
 export default function Revise() {
 	const editorAPI = useContext(EditorContext);
-	const username = useAtomValue(usernameAtom);
 	const docContext = useDocContext(editorAPI);
-	const { getAccessToken, reportAuthError: _reportAuthError, authErrorType: _authErrorType } = useAccessToken();
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const [_loading, setLoading] = useState(false);
 	const [_customPrompts, _setCustomPrompts] = useState<Prompt[]>([]);
@@ -271,15 +266,6 @@ export default function Revise() {
 			const requestController = new AbortController();
 			activeRequestControllerRef.current = requestController;
 
-			const token = await getAccessToken();
-			if (!token) {
-				console.error('No access token available');
-				if (activeRequestControllerRef.current === requestController) {
-					activeRequestControllerRef.current = null;
-				}
-				return;
-			}
-
 			const request = prompt.isOverall
 				? prompt.prompt
 				: `Go part-by-part through the document. For each part, please do the following: ${prompt.prompt}`;
@@ -289,15 +275,10 @@ export default function Revise() {
 
 			const docTextAsPrompt = getDocTextAsPrompt(docContext);
 
-			const chatMessages = [
-				{
-					role: 'system',
-					content: systemPrompt,
-				},
+			const messages: ModelMessage[] = [
 				{
 					role: 'user',
-					content: `
-${docTextAsPrompt}
+					content: `${docTextAsPrompt}
 
 <request>
 ${request}
@@ -308,81 +289,32 @@ ${request}
 			setLoading(true);
 
 			try {
-				const response = await fetch(`${SERVER_URL}/chat`, {
-					method: 'POST',
-					signal: requestController.signal,
-					headers: {
-						'Content-Type': 'application/json',
-						Authorization: `Bearer ${token}`,
-					},
-					body: JSON.stringify({
-						messages: chatMessages,
-						username: username,
-					}),
+				const result = streamText({
+					model: openai(OPENAI_MODEL),
+					system: systemPrompt,
+					messages,
+					maxOutputTokens: 1024,
+					abortSignal: requestController.signal,
 				});
 
-				if (!response.ok || !response.body) {
-					console.error(
-						'Visualization request failed:',
-						response.status,
-						response.statusText,
-					);
-					return;
-				}
-
-				const decoder = new TextDecoder();
-				const reader = response.body.getReader();
-				let shouldStop = false;
-
-				const parser = createParser({
-					onEvent(event: EventSourceMessage) {
-						try {
-							if (!event.data) {
-								return;
-							}
-
-							const message = JSON.parse(event.data);
-							const choice = message.choices?.[0];
-							if (choice?.finish_reason === 'stop') {
-								shouldStop = true;
-								console.log('Visualization response complete:', newViz.response);
-								return;
-							}
-
-							const newContent = choice?.delta?.content;
-							if (typeof newContent !== 'string' || newContent.length === 0) {
-								return;
-							}
-
-							newViz.response += newContent;
-							setVisualizations((prev) => {
-								// Force React to update by creating a new array
-								const updatedViz = [...prev];
-								const index = updatedViz.findIndex((v) => v.id === newViz.id);
-								if (index !== -1) {
-									updatedViz[index] = newViz;
-								}
-								return updatedViz;
-							});
-						} catch (error) {
-							console.error('Error parsing message:', error);
+				for await (const delta of result.textStream) {
+					newViz.response += delta;
+					setVisualizations((prev) => {
+						const updated = [...prev];
+						const index = updated.findIndex((v) => v.id === newViz.id);
+						if (index !== -1) {
+							updated[index] = newViz;
 						}
-					},
-				});
-
-				while (!shouldStop) {
-					const { done, value } = await reader.read();
-					if (done) break;
-					parser.feed(decoder.decode(value, { stream: true }));
+						return updated;
+					});
 				}
 
-				parser.reset({ consume: true });
+				console.log('Visualization response complete:', newViz.response);
 			} catch (err) {
 				if (requestController.signal.aborted) {
 					return;
 				}
 				console.error('Error fetching visualization:', err);
-				// TODO: maybe auth error?
 			} finally {
 				// Ignore stale completions from older requests that were already replaced.
 				if (activeRequestControllerRef.current === requestController) {
@@ -391,7 +323,7 @@ ${request}
 				}
 			}
 		},
-		[docContext, getAccessToken, username],
+		[docContext],
 	);
 
 	const toggleFeature = useCallback((keyword: string) => {
