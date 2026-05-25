@@ -64,17 +64,6 @@ ValidatedUsername = Annotated[str, AfterValidator(validate_username)]
 
 
 
-class SuggestionRequest(BaseModel):
-    username: ValidatedUsername
-    gtype: str
-    messages: List[nlp.ChatCompletionMessageParam]
-
-    def sanitized(self):
-        # Replace message content with "[REDACTED]" before writing to the log.
-        # Used for non-study users (empty username) to protect their document privacy.
-        redacted = [{"role": msg.get("role", ""), "content": "[REDACTED]"} for msg in self.messages]  # type: ignore
-        return SuggestionRequest(username=self.username, gtype=self.gtype, messages=redacted)
-
 
 class ReflectionRequestPayload(BaseModel):
     username: ValidatedUsername
@@ -112,7 +101,7 @@ class Log(BaseModel):
 
 class RequestLog(Log):
     request_type: Literal["Generation", "Suggestion", "Reflection"]
-    request: SuggestionRequest | ReflectionRequestPayload
+    request: ReflectionRequestPayload
     result: str
     delay: float
 
@@ -190,29 +179,6 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 
 # Routes
-
-@app.post("/api/get_suggestion")
-async def get_suggestion(payload: SuggestionRequest, background_tasks: BackgroundTasks) -> nlp.GenerationResult:
-    start_time = datetime.now()
-    with posthog_client.user_context(payload.username):
-        result = await nlp.get_suggestion(payload.gtype, payload.messages)
-    end_time = datetime.now()
-
-    log_entry = RequestLog(
-        timestamp=end_time.timestamp(),
-        username=payload.username,
-        event="suggestion_generated",
-        request_type="Suggestion",
-        request=payload if should_log(payload.username) else payload.sanitized(),
-        result=result.result if should_log(payload.username) else f"{len(result.result)} characters REDACTED",
-        delay=(end_time - start_time).total_seconds(),
-    )
-
-    background_tasks.add_task(make_log, log_entry)
-
-    final_end_time = datetime.now()
-    logger.info(f"Total generation request operation took: {(final_end_time - start_time).total_seconds()} seconds")
-    return result
 
 
 @app.post("/api/reflections")

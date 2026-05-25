@@ -1,5 +1,5 @@
 import os
-from typing import Any, Iterable, List, Dict
+from typing import Any, Iterable, Dict
 
 from dotenv import load_dotenv
 from pydantic import BaseModel
@@ -43,13 +43,6 @@ class GenerationResult(BaseModel):
     result: str
     extra_data: Dict[str, Any]
 
-
-async def get_suggestion(
-    gtype: str,
-    messages: List[ChatCompletionMessageParam],
-) -> GenerationResult:
-    result = await chat(messages)
-    return GenerationResult(generation_type=gtype, result=result, extra_data={})
 
 
 async def chat(
