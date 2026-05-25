@@ -46,12 +46,12 @@
 	"dependencies": {
 		"@auth0/auth0-react": "^2.2.4",
 		"@lexical/react": "^0.16.1",
-		"@microsoft/fetch-event-source": "^2.0.1",
 		"@posthog/react": "^1.9.0",
 		"@react-hook/window-size": "^3.1.1",
 		"@types/node": "^24.6.2",
 		"@types/react-transition-group": "^4.4.12",
 		"core-js": "^3.37.1",
+		"eventsource-parser": "^3.0.8",
 		"jotai": "^2.12.5",
 		"lexical": "^0.16.1",
 		"mini-css-extract-plugin": "^2.9.4",
@@ -128,7 +128,7 @@
 		"typescript-eslint": "^8.33.1",
 		"webpack": "^5.105.0",
 		"webpack-cli": "^5.1.4",
-		"webpack-dev-server": "^5.2.1"
+		"webpack-dev-server": "^5.2.4"
 	},
 	"browserslist": [
 		"ie 11"
