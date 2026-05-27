@@ -2,6 +2,7 @@
  * @format
  */
 
+import { streamText, type ModelMessage } from 'ai';
 import { useAtomValue } from 'jotai';
 import {
 	useCallback,
@@ -11,10 +12,9 @@ import {
 	useState,
 } from 'react';
 import { Remark } from 'react-remark';
-import { createParser, type EventSourceMessage } from 'eventsource-parser';
-import { log, SERVER_URL } from '@/api';
+import { log } from '@/api';
+import { OPENAI_MODEL, openai } from '@/api/openai';
 import { buildMessages } from '@/api/prompts';
-import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
@@ -64,63 +64,21 @@ class Fetcher {
 		this.previousRequest = null;
 	}
 
-	async fetchSuggestion(
-		request: SuggestionRequest,
-		accessToken: string,
-		username: string,
-	): Promise<GenerationResult> {
+	async fetchSuggestion(request: SuggestionRequest): Promise<GenerationResult> {
 		this.requestInFlight = request;
 		try {
-			const response = await fetch(`${SERVER_URL}/chat`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${accessToken}`,
-				},
-				body: JSON.stringify({
-					username: username,
-					messages: buildMessages(request.type, request.docContext),
-				}),
-				signal: AbortSignal.timeout(20000),
-			});
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
-			if (!response.body) {
-				throw new Error('No response body');
-			}
+			const messages = buildMessages(
+				request.type,
+				request.docContext,
+			) as ModelMessage[];
 
-			// Read the streaming response and accumulate all chunks into one string
-			let result = '';
-			const decoder = new TextDecoder();
-			const reader = response.body.getReader();
-			let shouldStop = false;
-
-			const parser = createParser({
-				onEvent(event: EventSourceMessage) {
-					try {
-						const parsed = JSON.parse(event.data);
-						const choice = parsed.choices?.[0];
-						if (choice?.finish_reason === 'stop') {
-							shouldStop = true;
-							return;
-						}
-						const newContent = choice?.delta?.content;
-						if (typeof newContent === 'string') {
-							result += newContent;
-						}
-					} catch (error) {
-						console.error('Error parsing stream chunk:', error);
-					}
-				},
+			const stream = streamText({
+				model: openai(OPENAI_MODEL),
+				messages,
+				abortSignal: AbortSignal.timeout(20000),
 			});
 
-			while (!shouldStop) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				parser.feed(decoder.decode(value, { stream: true }));
-			}
-			parser.reset({ consume: true });
+			const result = await stream.text;
 
 			this.previousRequest = request;
 			return { generation_type: request.type, result, extra_data: {} };
@@ -280,7 +238,6 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContextSnapshot = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
-	const { getAccessToken, authErrorType } = useAccessToken();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 	const [errorMsg, updateErrorMsg] = useState('');
@@ -384,12 +341,7 @@ export default function Draft() {
 				return;
 			}
 			try {
-				const token = await getAccessToken();
-				const suggestion = await getFetcher().fetchSuggestion(
-					suggestionRequest,
-					token,
-					username,
-				);
+				const suggestion = await getFetcher().fetchSuggestion(suggestionRequest);
 				// The AI sometimes returns "[]" (an empty JSON array) as plain text
 				// when it has nothing to say. Treat that the same as an empty response
 				// so we don't show a useless "[]" bullet to the user.
@@ -416,7 +368,7 @@ export default function Draft() {
 
 			setIsLoading(false);
 		},
-		[getAccessToken, getFetcher, username, save],
+		[getFetcher, save, username],
 	);
 
 	const autoRefreshCallback = useCallback(() => {
@@ -458,10 +410,6 @@ export default function Draft() {
 		autoRefreshCallback,
 		autoRefreshInterval,
 	);
-
-	if (authErrorType !== null) {
-		return <div>Please reauthorize.</div>;
-	}
 
 	return (
 		<div className={classes.app}>
