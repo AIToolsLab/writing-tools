@@ -2,6 +2,8 @@
 
 Replacement for Auth0 in the writing-tools add-in. Scope was narrowed via conversation in PR #433.
 
+> **Status:** under evaluation alongside `docs/js-backend-plan.md`. That plan proposes rewriting the backend in TypeScript and adopting Better-Auth instead of rolling auth in FastAPI. A Stage 0 POC there will decide which plan we commit to.
+
 ## Goals
 
 - **Identify users** for logging, analytics, and per-user data (saved prompts, settings, history).
