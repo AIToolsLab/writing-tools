@@ -11,7 +11,9 @@ import {
 	useState,
 } from 'react';
 import { Remark } from 'react-remark';
+import { createParser, type EventSourceMessage } from 'eventsource-parser';
 import { log, SERVER_URL } from '@/api';
+import { buildMessages } from '@/api/prompts';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
@@ -69,7 +71,7 @@ class Fetcher {
 	): Promise<GenerationResult> {
 		this.requestInFlight = request;
 		try {
-			const response = await fetch(`${SERVER_URL}/get_suggestion`, {
+			const response = await fetch(`${SERVER_URL}/chat`, {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -77,19 +79,51 @@ class Fetcher {
 				},
 				body: JSON.stringify({
 					username: username,
-					gtype: request.type,
-
-					doc_context: request.docContext,
+					messages: buildMessages(request.type, request.docContext),
 				}),
 				signal: AbortSignal.timeout(20000),
 			});
 			if (!response.ok) {
 				throw new Error(`HTTP error! status: ${response.status}`);
 			}
-			const generated = (await response.json()) as GenerationResult;
-			// Set previousRequest only when the response is successful
+			if (!response.body) {
+				throw new Error('No response body');
+			}
+
+			// Read the streaming response and accumulate all chunks into one string
+			let result = '';
+			const decoder = new TextDecoder();
+			const reader = response.body.getReader();
+			let shouldStop = false;
+
+			const parser = createParser({
+				onEvent(event: EventSourceMessage) {
+					try {
+						const parsed = JSON.parse(event.data);
+						const choice = parsed.choices?.[0];
+						if (choice?.finish_reason === 'stop') {
+							shouldStop = true;
+							return;
+						}
+						const newContent = choice?.delta?.content;
+						if (typeof newContent === 'string') {
+							result += newContent;
+						}
+					} catch (error) {
+						console.error('Error parsing stream chunk:', error);
+					}
+				},
+			});
+
+			while (!shouldStop) {
+				const { done, value } = await reader.read();
+				if (done) break;
+				parser.feed(decoder.decode(value, { stream: true }));
+			}
+			parser.reset({ consume: true });
+
 			this.previousRequest = request;
-			return generated;
+			return { generation_type: request.type, result, extra_data: {} };
 		} catch (err: any) {
 			let errMsg = '';
 			if (err.name === 'AbortError')
@@ -332,6 +366,23 @@ export default function Draft() {
 			if (isUserInitiated) {
 				setIsLoading(true);
 			}
+			// Rewording needs selected text to work — if nothing is selected,
+			// show a message immediately without calling the backend
+			if (
+				suggestionRequest.type === 'example_rewording' &&
+				!suggestionRequest.docContext.selectedText.trim()
+			) {
+				save(
+					{
+						generation_type: 'example_rewording',
+						result: 'Please select some text to get rewording suggestions.',
+						extra_data: {},
+					},
+					suggestionRequest.docContext,
+				);
+				setIsLoading(false);
+				return;
+			}
 			try {
 				const token = await getAccessToken();
 				const suggestion = await getFetcher().fetchSuggestion(
@@ -339,8 +390,11 @@ export default function Draft() {
 					token,
 					username,
 				);
-				// Suggestion text might be empty
-				if (suggestion.result === '') {
+				// The AI sometimes returns "[]" (an empty JSON array) as plain text
+				// when it has nothing to say. Treat that the same as an empty response
+				// so we don't show a useless "[]" bullet to the user.
+				const isEmpty = suggestion.result.trim() === '' || suggestion.result.trim() === '[]';
+				if (isEmpty) {
 					console.warn('Received empty suggestion.');
 				} else {
 					save(suggestion, suggestionRequest.docContext);
