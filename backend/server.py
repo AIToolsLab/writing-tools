@@ -64,34 +64,6 @@ def validate_username(username: str):
 ValidatedUsername = Annotated[str, AfterValidator(validate_username)]
 
 
-class GenerationRequestPayload(BaseModel):
-    username: ValidatedUsername
-    gtype: str
-    prompt: str
-
-    def sanitized(self):
-        return GenerationRequestPayload(
-            username=self.username,
-            gtype=self.gtype,
-            prompt="[REDACTED]"
-        )
-
-
-class SuggestionRequestWithDocContext(BaseModel):
-    username: ValidatedUsername
-    gtype: str
-    doc_context: nlp.DocContext
-
-    def sanitized(self):
-        return SuggestionRequestWithDocContext(
-            username=self.username,
-            gtype=self.gtype,
-            doc_context=nlp.DocContext(
-                beforeCursor="[REDACTED]",
-                afterCursor="[REDACTED]",
-                selectedText=f"({len(self.doc_context.selectedText)} characters)" if self.doc_context.selectedText else "",
-            )
-        )
 
 
 class ReflectionRequestPayload(BaseModel):
@@ -125,7 +97,7 @@ class Log(BaseModel):
 
 class RequestLog(Log):
     request_type: Literal["Generation", "Suggestion", "Reflection"]
-    request: GenerationRequestPayload | SuggestionRequestWithDocContext | ReflectionRequestPayload
+    request: ReflectionRequestPayload
     result: str
     delay: float
 
@@ -203,35 +175,6 @@ async def general_exception_handler(request: Request, exc: Exception):
 
 
 # Routes
-
-@app.post("/api/get_suggestion")
-async def get_suggestion(payload: SuggestionRequestWithDocContext, background_tasks: BackgroundTasks) -> nlp.GenerationResult:
-    should_log_doctext = should_log(payload.username)
-
-    start_time = datetime.now()
-    allowed_gtypes = list(nlp.prompts.keys())
-    if payload.gtype not in allowed_gtypes:
-        raise ValueError(f"Invalid generation type: {payload.gtype}")
-    with posthog_client.user_context(payload.username):
-        result = await nlp.get_suggestion(payload.gtype, payload.doc_context)
-    end_time = datetime.now()
-
-    log_entry = RequestLog(
-        timestamp=end_time.timestamp(),
-        username=payload.username,
-        event="suggestion_generated",
-        request_type="Suggestion",
-        request=payload.sanitized() if not should_log_doctext else payload,
-        result=result.result if should_log_doctext else f"{len(result.result)} characters REDACTED",
-        delay=(end_time - start_time).total_seconds(),
-    )
-
-    background_tasks.add_task(make_log, log_entry)
-
-    final_end_time = datetime.now()
-    log = final_end_time - start_time
-    logger.info(f"Total generation request operation took: {log.total_seconds()} seconds")
-    return result
 
 
 @app.post("/api/reflections")
