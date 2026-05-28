@@ -268,6 +268,7 @@ async def openai_chat_completions_proxy(request: Request):
         headers={
             "Authorization": f"Bearer {nlp.openai_api_key}",
             "Content-Type": "application/json",
+            "Accept-Encoding": "identity",
         },
     )
     upstream = await client.send(upstream_req, stream=True)

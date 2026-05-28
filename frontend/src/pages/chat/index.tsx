@@ -134,7 +134,7 @@ export default function Chat() {
 
 		try {
 			const result = streamText({
-				model: openai(OPENAI_MODEL),
+				model: openai.chat(OPENAI_MODEL),
 				messages: newMessages.slice(0, -1) as ModelMessage[],
 				maxOutputTokens: 1024,
 				abortSignal: requestController.signal,

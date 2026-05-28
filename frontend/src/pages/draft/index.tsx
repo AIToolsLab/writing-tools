@@ -71,7 +71,7 @@ class Fetcher {
 		try {
 			const messages = buildMessages(request.type, request.docContext);
 			const sdkResult = streamText({
-				model: openai(OPENAI_MODEL),
+				model: openai.chat(OPENAI_MODEL),
 				messages: messages as ModelMessage[],
 				maxOutputTokens: 1024,
 			});
