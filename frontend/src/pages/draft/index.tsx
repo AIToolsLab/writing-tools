@@ -11,8 +11,10 @@ import {
 	useState,
 } from 'react';
 import { Remark } from 'react-remark';
-import { log, SERVER_URL } from '@/api';
-import { useAccessToken } from '@/contexts/authTokenContext';
+import { streamText, type ModelMessage } from 'ai';
+import { log } from '@/api';
+import { openai, OPENAI_MODEL } from '@/api/openai';
+import { buildMessages } from '@/api/prompts';
 import { EditorContext } from '@/contexts/editorContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
@@ -64,37 +66,23 @@ class Fetcher {
 
 	async fetchSuggestion(
 		request: SuggestionRequest,
-		accessToken: string,
-		username: string,
 	): Promise<GenerationResult> {
 		this.requestInFlight = request;
 		try {
-			const response = await fetch(`${SERVER_URL}/get_suggestion`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${accessToken}`,
-				},
-				body: JSON.stringify({
-					username: username,
-					gtype: request.type,
-
-					doc_context: request.docContext,
-				}),
-				signal: AbortSignal.timeout(20000),
+			const messages = buildMessages(request.type, request.docContext);
+			const sdkResult = streamText({
+				model: openai(OPENAI_MODEL),
+				messages: messages as ModelMessage[],
+				maxOutputTokens: 1024,
 			});
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
+			let text = '';
+			for await (const delta of sdkResult.textStream) {
+				text += delta;
 			}
-			const generated = (await response.json()) as GenerationResult;
-			// Set previousRequest only when the response is successful
 			this.previousRequest = request;
-			return generated;
+			return { result: text, generation_type: request.type, extra_data: {} };
 		} catch (err: any) {
-			let errMsg = '';
-			if (err.name === 'AbortError')
-				errMsg = `Generating a suggestion took too long, please try again.`;
-			else errMsg = `${err.name}: ${err.message}. Please try again.`;
+			const errMsg = `${err.name}: ${err.message}. Please try again.`;
 			throw new Error(errMsg);
 		} finally {
 			this.requestInFlight = null;
@@ -246,7 +234,6 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContextSnapshot = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
-	const { getAccessToken, authErrorType } = useAccessToken();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 	const [errorMsg, updateErrorMsg] = useState('');
@@ -333,11 +320,8 @@ export default function Draft() {
 				setIsLoading(true);
 			}
 			try {
-				const token = await getAccessToken();
 				const suggestion = await getFetcher().fetchSuggestion(
 					suggestionRequest,
-					token,
-					username,
 				);
 				// Suggestion text might be empty
 				if (suggestion.result === '') {
@@ -362,7 +346,7 @@ export default function Draft() {
 
 			setIsLoading(false);
 		},
-		[getAccessToken, getFetcher, username, save],
+		[getFetcher, username, save],
 	);
 
 	const autoRefreshCallback = useCallback(() => {
@@ -404,10 +388,6 @@ export default function Draft() {
 		autoRefreshCallback,
 		autoRefreshInterval,
 	);
-
-	if (authErrorType !== null) {
-		return <div>Please reauthorize.</div>;
-	}
 
 	return (
 		<div className={classes.app}>
