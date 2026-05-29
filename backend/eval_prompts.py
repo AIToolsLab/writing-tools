@@ -4,28 +4,60 @@ Prompt evaluation script.
 Runs all prompt types against a set of test documents and prints the outputs
 so you can eyeball whether the LLM is giving good results.
 
+When LANGFUSE_PUBLIC_KEY / LANGFUSE_SECRET_KEY/LANGFUSE_BASE_URL are present in .env, every
+run is also logged to Langfuse so you can compare prompt versions in the UI.
+
 Usage (run from the backend/ folder):
+eyeball mode:
     uv run python eval_prompts.py
+
+compare two models side-by-side in terminal:
+    uv run python eval_prompts.py --compare gpt-4o gpt-4o-mini
+
+send results to Langfuse as an experiment (dataset is auto-created if missing)
+    uv run python eval_prompts.py --experiment <name of experiment>
+Example:
+    uv run python eval_prompts.py --model gpt-5.4 --experiment gpt-5.4
 """
 
 import asyncio
+import sys
 import time
-import openai
 import os
 from dataclasses import dataclass
+from datetime import datetime, timezone
+
+import openai
 from dotenv import load_dotenv
 from pydantic import BaseModel
-from typing import List
+
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 load_dotenv()
+
+if os.getenv("LANGFUSE_BASE_URL") and not os.getenv("LANGFUSE_HOST"):
+    os.environ["LANGFUSE_HOST"] = os.environ["LANGFUSE_BASE_URL"]
+
 client = openai.AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 MODEL = "gpt-4o"
+DATASET_NAME = "writing-tools-eval"
 
- 
-# ---------------------------------------------------------------------------
-# Minimal DocContext (mirrors nlp.py — no PostHog dependency)
-# ---------------------------------------------------------------------------
+# Langfuse setup — optional; script works normally when keys are absent
+_langfuse = None
+_pub = os.getenv("LANGFUSE_PUBLIC_KEY", "")
+_sec = os.getenv("LANGFUSE_SECRET_KEY", "")
+_host = os.getenv("LANGFUSE_HOST", "https://cloud.langfuse.com")
+if _pub and _sec and not _pub.startswith("pk-lf-..."):
+    try:
+        from langfuse import Langfuse
+        _langfuse = Langfuse(public_key=_pub, secret_key=_sec, host=_host)
+        print(f"[langfuse] Tracing enabled: {_host}")
+    except Exception as e:
+        print(f"[langfuse] Failed to init: {e} - tracing disabled.")
+else:
+    print("[langfuse] Keys not configured - tracing disabled.")
+
 
 @dataclass
 class DocContext:
@@ -33,10 +65,6 @@ class DocContext:
     selectedText: str
     afterCursor: str
 
-
-# ---------------------------------------------------------------------------
-# Prompts (copied from nlp.py so this script is self-contained)
-# ---------------------------------------------------------------------------
 
 PROMPTS = {
     "example_sentences": """\
@@ -103,12 +131,6 @@ def get_full_prompt(prompt_name: str, doc: DocContext, context_chars: int = 100)
     return prompt
 
 
-# ---------------------------------------------------------------------------
-# Test documents
-# ---------------------------------------------------------------------------
-# Each entry has a short name and a DocContext (beforeCursor, selectedText, afterCursor).
-# These represent different writing situations the tool might encounter.
-
 TEST_DOCS = [
     {
         "name": "Academic essay (mid-paragraph)",
@@ -167,7 +189,7 @@ TEST_DOCS = [
         ),
     },
     {
-        "name": "Rewording — selected text",
+        "name": "Rewording - selected text",
         "doc": DocContext(
             beforeCursor=(
                 "The data clearly demonstrates that students who receive consistent feedback "
@@ -179,109 +201,69 @@ TEST_DOCS = [
     },
 ]
 
-PROMPT_TYPES = [
-    "example_sentences",
-    "proposal_advice",
-    "analysis_readerPerspective",
-    "example_rewording",
-]
-
-
-# ---------------------------------------------------------------------------
-# Structured output format (same as nlp.py)
-# ---------------------------------------------------------------------------
 
 class ListResponse(BaseModel):
-    responses: List[str]
+    responses: list[str]
 
 
-# ---------------------------------------------------------------------------
-# Run one prompt against one document
-# ---------------------------------------------------------------------------
-
-async def run_one(prompt_name: str, doc: DocContext, model: str = MODEL) -> tuple[str, float]:
-    """Returns (output_text, latency_seconds)."""
-    full_prompt = get_full_prompt(prompt_name, doc)
+async def run_one(prompt_name: str, doc: DocContext, model: str = MODEL) -> tuple:
     messages = [
         {"role": "system", "content": "You are a helpful and insightful writing assistant."},
-        {"role": "user", "content": full_prompt},
+        {"role": "user", "content": get_full_prompt(prompt_name, doc)},
     ]
-
-    start = time.perf_counter()
-
-    # complete_document returns free-form text, everything else uses structured output
-    # to match the behaviour of nlp.get_suggestion() in the actual app
-    if prompt_name == "complete_document":
-        response = await client.chat.completions.create(
-            model=model,
-            messages=messages,
-            max_completion_tokens=512,
-        )
-        elapsed = time.perf_counter() - start
-        return (response.choices[0].message.content or "").strip(), elapsed
-
+    start_dt = datetime.now(timezone.utc)
+    t0 = time.perf_counter()
     completion = await client.beta.chat.completions.parse(
         model=model,
         messages=messages,
         response_format=ListResponse,
         max_completion_tokens=512,
     )
-    elapsed = time.perf_counter() - start
+    elapsed = time.perf_counter() - t0
+    end_dt = datetime.now(timezone.utc)
     parsed = completion.choices[0].message.parsed
-    if not parsed or not parsed.responses:
-        return "(empty)", elapsed
-    return "\n".join(f"- {item}" for item in parsed.responses), elapsed
+    result = "(empty)" if not parsed or not parsed.responses else "\n".join(
+        f"- {r}" for r in parsed.responses
+    )
+    return result, elapsed, messages, start_dt, end_dt, completion.usage
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-async def main(model_a: str, model_b: str | None):
+async def eyeball(model_a: str, model_b: str | None = None):
     compare = model_b is not None
-
-    if compare:
-        print(f"Comparing: {model_a}  vs  {model_b}\n")
-    else:
-        print(f"Model: {model_a}\n")
+    print(f"{'Comparing: ' + model_a + '  vs  ' + model_b if compare else 'Model: ' + model_a}\n")
 
     for doc_entry in TEST_DOCS:
-        doc_name = doc_entry["name"]
         doc: DocContext = doc_entry["doc"]
         has_selection = bool(doc.selectedText.strip())
 
         print("=" * 70)
-        print(f"DOCUMENT: {doc_name}")
+        print(f"DOCUMENT: {doc_entry['name']}")
         print("=" * 70)
 
-        for prompt_name in PROMPT_TYPES:
-            # example_rewording only makes sense when text is selected
+        for prompt_name in PROMPTS:
             if prompt_name == "example_rewording" and not has_selection:
                 continue
-            # skip non-rewording prompts on the rewording test doc
             if prompt_name != "example_rewording" and has_selection:
                 continue
 
             if compare:
-                # Run both models at the same time
-                (out_a, lat_a), (out_b, lat_b) = await asyncio.gather(
+                (out_a, lat_a, *_), (out_b, lat_b, *_) = await asyncio.gather(
                     run_one(prompt_name, doc, model_a),
                     run_one(prompt_name, doc, model_b),
                 )
                 col = 34
                 print(f"\n  [{prompt_name}]")
-                print(f"  {'─' * col}  {'─' * col}")
+                print(f"  {'-' * col}  {'-' * col}")
                 print(f"  {model_a + f' ({lat_a:.2f}s)':<{col}}  {model_b} ({lat_b:.2f}s)")
-                print(f"  {'─' * col}  {'─' * col}")
-                lines_a = out_a.splitlines()
-                lines_b = out_b.splitlines()
+                print(f"  {'-' * col}  {'-' * col}")
+                lines_a, lines_b = out_a.splitlines(), out_b.splitlines()
                 for i in range(max(len(lines_a), len(lines_b))):
                     la = lines_a[i] if i < len(lines_a) else ""
                     lb = lines_b[i] if i < len(lines_b) else ""
-                    la = (la[:col - 1] + "…") if len(la) > col else la
+                    la = (la[:col - 1] + "...") if len(la) > col else la
                     print(f"  {la:<{col}}  {lb}")
             else:
-                output, latency = await run_one(prompt_name, doc, model_a)
+                output, latency, *_ = await run_one(prompt_name, doc, model_a)
                 print(f"\n  [{prompt_name}]  {latency:.2f}s")
                 print("  " + "-" * 50)
                 for line in output.splitlines():
@@ -290,16 +272,85 @@ async def main(model_a: str, model_b: str | None):
         print()
 
 
+async def run_experiment(model: str, run_name: str):
+    if _langfuse is None:
+        print("Langfuse not configured. Cannot run experiment.")
+        return
+
+    try:
+        dataset = _langfuse.get_dataset(DATASET_NAME)
+    except Exception:
+        print(f"Dataset '{DATASET_NAME}' not found — creating it...")
+        _langfuse.create_dataset(name=DATASET_NAME)
+        for doc_entry in TEST_DOCS:
+            doc = doc_entry["doc"]
+            has_selection = bool(doc.selectedText.strip())
+            for prompt_name in PROMPTS:
+                if prompt_name == "example_rewording" and not has_selection:
+                    continue
+                if prompt_name != "example_rewording" and has_selection:
+                    continue
+                _langfuse.create_dataset_item(
+                    dataset_name=DATASET_NAME,
+                    input={
+                        "doc_name": doc_entry["name"],
+                        "prompt_name": prompt_name,
+                        "beforeCursor": doc.beforeCursor,
+                        "selectedText": doc.selectedText,
+                        "afterCursor": doc.afterCursor,
+                    },
+                )
+        _langfuse.flush()
+        dataset = _langfuse.get_dataset(DATASET_NAME)
+        print(f"Dataset created with {len(dataset.items)} items.")
+
+    print(f"Experiment: '{run_name}' | model: {model} | items: {len(dataset.items)}\n")
+
+    for item in dataset.items:
+        doc = DocContext(
+            beforeCursor=item.input["beforeCursor"],
+            selectedText=item.input["selectedText"],
+            afterCursor=item.input["afterCursor"],
+        )
+        prompt_name = item.input["prompt_name"]
+
+        output, latency, messages, start_dt, end_dt, usage = await run_one(prompt_name, doc, model)
+
+        trace = _langfuse.trace(name=prompt_name, input=item.input, output=output, timestamp=start_dt)
+        trace.generation(
+            name="openai",
+            model=model,
+            input=messages,
+            output=output,
+            start_time=start_dt,
+            end_time=end_dt,
+            usage={
+                "prompt_tokens": usage.prompt_tokens if usage else 0,
+                "completion_tokens": usage.completion_tokens if usage else 0,
+            },
+        )
+        item.link(trace, run_name=run_name)
+
+        print(f"  [{prompt_name}] {item.input['doc_name']} ({latency:.2f}s)")
+        for line in output.splitlines():
+            print(f"    {line}")
+        print()
+
+    _langfuse.flush()
+    print(f"Done. Check Langfuse -> Datasets -> {DATASET_NAME} -> Experiments")
+
+
 if __name__ == "__main__":
     import argparse
     parser = argparse.ArgumentParser(description="Evaluate writing tool prompts")
-    parser.add_argument("--compare", nargs=2, metavar="MODEL",
-                        help="Compare two models, e.g. --compare gpt-4o gpt-4o-mini")
-    parser.add_argument("--model", default="gpt-4o",
-                        help="Single model to use (default: gpt-4o)")
+    parser.add_argument("--compare", nargs=2, metavar="MODEL", help="Compare two models side by side")
+    parser.add_argument("--model", default="gpt-4o", help="Model to use (default: gpt-4o)")
+    parser.add_argument("--experiment", metavar="NAME", help="Run as a named Langfuse experiment")
     args = parser.parse_args()
 
-    if args.compare:
-        asyncio.run(main(args.compare[0], args.compare[1]))
+    if args.experiment:
+        asyncio.run(run_experiment(args.model, args.experiment))
+    elif args.compare:
+        asyncio.run(eyeball(args.compare[0], args.compare[1]))
     else:
-        asyncio.run(main(args.model, None))
+        asyncio.run(eyeball(args.model))
