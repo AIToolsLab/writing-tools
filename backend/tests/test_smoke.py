@@ -16,7 +16,6 @@ def test_nlp_imports():
 
     # Verify critical attributes exist
     assert hasattr(nlp, "openai_client")
-    assert hasattr(nlp, "get_suggestion")
     assert hasattr(nlp, "reflection")
     assert hasattr(nlp, "chat_stream")
 
@@ -55,7 +54,6 @@ def test_server_routes_registered():
 
     # Core API endpoints should exist
     assert "/api/ping" in routes
-    assert "/api/get_suggestion" in routes
     assert "/api/reflections" in routes
-    assert "/api/chat" in routes
+    assert "/api/openai/chat/completions" in routes
     assert "/api/log" in routes

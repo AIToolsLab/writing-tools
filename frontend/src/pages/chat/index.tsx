@@ -1,17 +1,11 @@
-import { useState, useContext, useEffect, useRef, useCallback } from 'react';
+import { streamText, type ModelMessage } from 'ai';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 
-import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
-import { createParser, type EventSourceMessage } from 'eventsource-parser';
-
+import { OPENAI_MODEL, openai } from '@/api/openai';
 import { ChatContext } from '@/contexts/chatContext';
-import { usernameAtom } from '@/contexts/userContext';
 import { EditorContext } from '@/contexts/editorContext';
-
-import { SERVER_URL } from '@/api';
-
-import { useAccessToken } from '@/contexts/authTokenContext';
-import { useAtomValue } from 'jotai';
 import { useDocContext } from '@/utilities';
 import classes from './styles.module.css';
 
@@ -24,9 +18,7 @@ const suggestionPrompts = [
 
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
-	const username = useAtomValue(usernameAtom);
 	const editorAPI = useContext(EditorContext);
-	const { getAccessToken, authErrorType } = useAccessToken();
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -141,61 +133,19 @@ export default function Chat() {
 		updateMessage('');
 
 		try {
-			const token = await getAccessToken();
-			const response = await fetch(`${SERVER_URL}/chat`, {
-				method: 'POST',
-				signal: requestController.signal,
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${token}`,
-				},
-				body: JSON.stringify({
-					messages: newMessages.slice(0, -1),
-					username: username,
-				}),
+			const result = streamText({
+				model: openai(OPENAI_MODEL),
+				messages: newMessages.slice(0, -1) as ModelMessage[],
+				maxOutputTokens: 1024,
+				abortSignal: requestController.signal,
 			});
 
-			if (!response.ok || !response.body) {
-				console.error('Chat request failed:', response.status, response.statusText);
-				return;
+			for await (const delta of result.textStream) {
+				// Need to make a new object to force React to update.
+				newMessages = newMessages.slice();
+				newMessages[newMessages.length - 1].content += delta;
+				updateChatMessages(newMessages);
 			}
-
-			const decoder = new TextDecoder();
-			const reader = response.body.getReader();
-			let shouldStop = false;
-
-			const parser = createParser({
-				onEvent(event: EventSourceMessage) {
-					try {
-						const parsed = JSON.parse(event.data);
-						const choice = parsed.choices?.[0];
-						if (choice?.finish_reason === 'stop') {
-							shouldStop = true;
-							return;
-						}
-
-						const newContent = choice?.delta?.content;
-						if (typeof newContent !== 'string' || newContent.length === 0) {
-							return;
-						}
-
-						// Need to make a new object to force React to update.
-						newMessages = newMessages.slice();
-						newMessages[newMessages.length - 1].content += newContent;
-						updateChatMessages(newMessages);
-					} catch (error) {
-						console.error('Error parsing chat stream message:', error);
-					}
-				},
-			});
-
-			while (!shouldStop) {
-				const { done, value } = await reader.read();
-				if (done) break;
-				parser.feed(decoder.decode(value, { stream: true }));
-			}
-
-			parser.reset({ consume: true });
 		} catch (error) {
 			if (requestController.signal.aborted) {
 				return;
@@ -222,10 +172,6 @@ export default function Chat() {
 	async function sendSuggestedMessage(text: string) {
 		updateMessage(text);
 		await submitMessage(text);
-	}
-
-	if (authErrorType !== null) {
-		return <div>Please reauthorize.</div>;
 	}
 
 	return (
