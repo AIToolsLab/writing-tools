@@ -61,7 +61,7 @@ Create a sibling app at `backend-next/`:
 
 ### What we are explicitly validating
 
-1. `window.open(login_url, '_blank')` from a Word task pane reliably opens the user's default browser, not a popup that the host blocks. Same from a GDocs sidebar.
+1. We can open the `login_url` as a new tab in the user's main browser, even when the add-in is loaded inside of the Word desktop app. In the GDocs sidebar, we can either open a new tab or pop up a dialog.
 2. Polling completes within a few seconds of Google consent — no weird state where the browser tab finishes but the sidebar never sees the session.
 3. Better-Auth's session cookie is accessible from a server-side handler (`/auth/device/complete`) that runs in the *same* request chain as its callback, so we can stamp the `device_code → session` link without forking Better-Auth's internals.
 4. The streaming response works end-to-end: `streamText` server-side → SSE → ai-sdk client-side, with `Authorization` header preserved across the streaming fetch.

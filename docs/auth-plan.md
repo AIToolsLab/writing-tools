@@ -108,7 +108,7 @@ CREATE TABLE pending_logins (
 1. User clicks **Sign in** in the sidebar.
 2. Sidebar calls `POST /auth/device/start`. Backend creates a `pending_logins` row with a fresh `device_code` and returns `{ device_code, login_url }`.
 3. Sidebar:
-   - Calls `window.open(login_url, '_blank')` (works in standalone, GDocs, and Word's task pane; falls back to a clickable "open in browser" link if blocked).
+   - Launches `login_url` in a new browser window, using the user's main browser even in the Word desktop app (so it'll probably need to use an `<a>` instead of the Office dialog API).
    - Begins polling `GET /auth/device/poll?device_code=…` every ~2 seconds.
 4. The browser tab hits `GET /auth/login?device_code=…`. Backend redirects to Google's OAuth consent with `state=device_code`.
 5. Google redirects back to `GET /auth/callback?code=…&state=…`. Backend:
