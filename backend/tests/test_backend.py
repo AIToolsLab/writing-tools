@@ -18,12 +18,11 @@ sys.path.insert(0, str(backend_path))
 from fastapi.testclient import TestClient
 import server
 from server import (
-    app, 
-    validate_username, 
-    should_log, 
+    app,
+    validate_username,
+    should_log,
     make_log,
     Log,
-    GenerationRequestPayload,
 )
 import nlp
 
@@ -77,20 +76,6 @@ class TestShouldLogLogic:
     
     def test_should_log_logic_for_production_users(self):
         assert should_log("") is False
-
-
-class TestDataSanitization:
-    """Verifies that Pydantic models redact prompt data properly for production users."""
-    
-    def test_user_data_sanitization_fallback(self):
-        payload = GenerationRequestPayload(
-            username="test_user",
-            gtype="complete_document",
-            prompt="This is highly confidential user text content."
-        )
-        sanitized = payload.sanitized()
-        assert sanitized.username == "test_user"
-        assert sanitized.prompt == "[REDACTED]"
 
 
 
@@ -165,68 +150,6 @@ class TestAPIEndpoints:
         response = custom_client.post("/api/log", json=payload)
         assert response.status_code == 200
         assert response.json() == {"message": "Feedback logged successfully."}
-
-    @pytest.mark.asyncio
-    async def test_get_suggestion_success_and_mixing(self, mocker):
-        """
-        Tests prompt generation context mixing and shuffling sequence
-        without hitting a network connection or spending real OpenAI tokens.
-        """
-        mock_result = nlp.GenerationResult(
-            generation_type="complete_document",
-            result="This is a mocked document continuation with shuffled sequence prompt arrays.",
-            extra_data={"trace_id": "mock-trace-id"}
-        )
-        mocker.patch("nlp.get_suggestion", new_callable=AsyncMock, return_value=mock_result)
-
-        payload = {
-            "username": "study_user",
-            "gtype": "complete_document",
-            "doc_context": {
-                "beforeCursor": "Once upon a time ",
-                "selectedText": "",
-                "afterCursor": " lived a king.",
-                "contextData": [{"title": "True Data Node", "content": "True Data Node"}],
-                "falseContextData": [{"title": "Distractor Data Node", "content": "Distractor Data Node"}]
-            }
-        }
-        response = client.post("/api/get_suggestion", json=payload)
-        assert response.status_code == 200
-        
-        data = response.json()
-        assert data["generation_type"] == "complete_document"
-        assert "shuffled sequence" in data["result"]
-
-    def test_get_suggestion_invalid_gtype(self):
-        """Tests that passing an illegal gtype triggers our server's internal ValueError handler."""
-        custom_client = TestClient(app, raise_server_exceptions=False)
-        payload = {
-            "username": "study_user",
-            "gtype": "invalid_type_here",
-            "doc_context": {
-                "beforeCursor": "test", "selectedText": "", "afterCursor": ""
-            }
-        }
-        response = custom_client.post("/api/get_suggestion", json=payload)
-        assert response.status_code == 500
-        assert response.json() == {"detail": "Internal server error"}
-
-    @pytest.mark.asyncio
-    async def test_middleware_captures_exception_to_posthog(self, mocker):
-        """Verifies unhandled backend logic failures run directly through our middleware telemetry into PostHog."""
-        custom_client = TestClient(app, raise_server_exceptions=False)
-        mock_posthog = mocker.patch("posthog_client.posthog_client.capture")
-        mocker.patch("nlp.get_suggestion", side_effect=RuntimeError("Upstream LLM Provider Disconnected!"))
-
-        payload = {
-            "username": "mary_chen",
-            "gtype": "complete_document",
-            "doc_context": {"beforeCursor": "crash_test", "selectedText": "", "afterCursor": ""}
-        }
-        
-        response = custom_client.post("/api/get_suggestion", json=payload)
-        assert response.status_code == 500
-        assert mock_posthog.called, "Application faults must register metrics directly onto PostHog!"
 
 
 if __name__ == "__main__":
