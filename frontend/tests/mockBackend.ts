@@ -1,50 +1,67 @@
-import { Page } from '@playwright/test';
+import { Page, Route } from '@playwright/test';
 
 /**
- * Mock backend API responses that match the actual FastAPI backend structure
+ * Mock the OpenAI-compatible endpoint the frontend now talks to.
+ *
+ * The frontend uses the AI SDK's OpenAI provider (src/api/openai.ts) pointed at
+ * `${SERVER_URL}/openai`, and calls streamText(). So the real wire request is a
+ * POST to `/api/openai/chat/completions` with an OpenAI chat-completions body,
+ * and the response must be an OpenAI-format SSE stream.
  */
 
-export interface GenerationResult {
-  generation_type: string;
-  result: string;
-  extra_data: Record<string, any>;
+const RESULTS = {
+  example_sentences:
+    '- First example suggestion\n\n- Second example suggestion\n\n- Third example suggestion',
+  analysis_readerPerspective:
+    '- First reader perspective\n\n- Second reader perspective\n\n- Third reader perspective',
+  proposal_advice:
+    '- First piece of advice\n\n- Second piece of advice\n\n- Third piece of advice',
+};
+
+// gtype is no longer sent in the request; infer it from distinctive prompt text
+// (see the prompts in src/api/prompts.ts).
+function resultForMessages(messages: { content: string }[]): string {
+  const text = messages.map((m) => m.content).join('\n');
+  if (text.includes('inspiring and fresh possible next sentences'))
+    return RESULTS.example_sentences;
+  if (text.includes('questions the person might have'))
+    return RESULTS.analysis_readerPerspective;
+  if (text.includes('directive (but not prescriptive) advice'))
+    return RESULTS.proposal_advice;
+  return '';
+}
+
+// Frame text as an OpenAI chat-completions SSE stream so the AI SDK can parse it.
+function sseFromText(text: string): string {
+  const base = {
+    id: 'chatcmpl-mock',
+    object: 'chat.completion.chunk',
+    created: 0,
+    model: 'gpt-4o',
+  };
+  const chunk = (delta: object, finish: string | null = null) =>
+    `data: ${JSON.stringify({
+      ...base,
+      choices: [{ index: 0, delta, finish_reason: finish }],
+    })}\n\n`;
+  return chunk({ role: 'assistant', content: text }) + chunk({}, 'stop') + 'data: [DONE]\n\n';
 }
 
 /**
- * Setup mock backend for /api/get_suggestion endpoint
- * Matches the actual backend API structure from server.py and nlp.py
+ * Fulfill an intercepted /openai/chat/completions route with an SSE stream.
+ * Exported so tests that need custom behavior (e.g. an added delay) can reuse it.
  */
+export async function fulfillOpenAI(route: Route, result: string) {
+  await route.fulfill({
+    status: 200,
+    headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+    body: sseFromText(result),
+  });
+}
+
 export async function setupMockBackend(page: Page) {
-  // Mock /api/get_suggestion
-  await page.route('**/api/get_suggestion', async (route) => {
-    const request = route.request();
-    const postData = request.postDataJSON();
-    const gtype = postData?.gtype;
-
-    let result = '';
-
-    switch(gtype) {
-      case 'example_sentences':
-        result = '- First example suggestion\n\n- Second example suggestion\n\n- Third example suggestion';
-        break;
-      case 'analysis_readerPerspective':
-        result = '- First reader perspective\n\n- Second reader perspective\n\n- Third reader perspective';
-        break;
-      case 'proposal_advice':
-        result = '- First piece of advice\n\n- Second piece of advice\n\n- Third piece of advice';
-        break;
-    }
-
-    const response: GenerationResult = {
-      generation_type: gtype || 'unknown',
-      result,
-      extra_data: {},
-    };
-
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(response),
-    });
+  await page.route('**/openai/chat/completions', async (route) => {
+    const messages = route.request().postDataJSON()?.messages ?? [];
+    await fulfillOpenAI(route, resultForMessages(messages));
   });
 }
