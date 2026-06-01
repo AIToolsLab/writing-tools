@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Environment — copy .env.example to .env.local and fill in secrets
+.env.local
+.env
+
+# Database — created by Better Auth on first run
+db/*.db
+db/*.db-shm
+db/*.db-wal
+
+# Next.js build output
+.next/
+out/
+
+# Logs
+*.log
+npm-debug.log*
