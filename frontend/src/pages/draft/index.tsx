@@ -73,7 +73,7 @@ class Fetcher {
 			) as ModelMessage[];
 
 			const stream = streamText({
-				model: openai(OPENAI_MODEL),
+				model: openai.chat(OPENAI_MODEL),
 				messages,
 				abortSignal: AbortSignal.timeout(20000),
 			});

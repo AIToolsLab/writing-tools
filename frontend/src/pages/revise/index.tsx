@@ -290,7 +290,7 @@ ${request}
 
 			try {
 				const result = streamText({
-					model: openai(OPENAI_MODEL),
+					model: openai.chat(OPENAI_MODEL),
 					system: systemPrompt,
 					messages,
 					maxOutputTokens: 1024,
