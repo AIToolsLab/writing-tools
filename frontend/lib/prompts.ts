@@ -85,6 +85,14 @@ Guidelines:
 `,
 };
 
+// Builds the document-context message for the Chat surface: the document text with the
+// cursor position (or selection) marked inline.
+export function buildChatDocContextMessage(docContext: DocContext): string {
+	return docContext.selectedText === ''
+		? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
+		: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
+}
+
 // Builds the messages array that gets sent to the model for the Draft panel.
 export function buildMessages(gtype: string, docContext: DocContext) {
 	const basePrompt = prompts[gtype];

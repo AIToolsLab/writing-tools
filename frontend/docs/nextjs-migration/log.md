@@ -126,3 +126,13 @@ decisions made mid-flight, etc. Newest entries at the bottom.
   its panel's `.app` container (`.app { --bg… }`, `.app *`, `.app textarea`). Chat's CSS
   was already pure.
 - **Validated:** typecheck ✓, lint ✓, build ✓.
+
+- **5c — Chat panel via `useChat`.** Rewired Chat to `@ai-sdk/react`'s `useChat`
+  (`DefaultChatTransport({ api: '/api/chat' })`) instead of the browser `streamText` loop.
+  The current `docContext` is sent fresh with each turn via `sendMessage({ text }, { body:
+  { docContext } })`; `/api/chat` reads it and prepends a doc-context user message (built
+  by the new `buildChatDocContextMessage`) ahead of the conversation. **Cross-tab
+  persistence preserved:** retyped `ChatContext` to hold `UIMessage[]` and seed/persist
+  via guarded effects (seed once when mounted empty; persist only meaningful messages to
+  avoid clobbering with an empty array — the same pattern as `experiment/ChatPanel.tsx`).
+- **Validated:** typecheck ✓, lint ✓, build ✓.
