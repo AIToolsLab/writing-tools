@@ -17,7 +17,7 @@ interesting / unexpected / challenging encountered along the way.
 - [x] 0. Seed living docs (`plan.md`, `log.md`)
 - [x] 1. Scaffold base Next 16 app (mirror `experiment/` conventions)
 - [x] 2. Wire taskpane endpoint (`/taskpane.html` → `/taskpane` rewrite, assets)
-- [ ] 3. AI route handlers (`/api/chat`, `/api/draft`, `/api/revise`) + prompts + tests
+- [x] 3. AI route handlers (`/api/chat`, `/api/draft`, `/api/revise`) + prompts + tests
 - [ ] 4. Shared types, contexts, utilities (drop Auth0 from `EditorAPI`)
 - [ ] 5. Standalone surface `/` (Lexical editor + Draft/Revise/Chat, rewired to AI routes)
 - [ ] 6. Word taskpane surface `/taskpane` (Office.js, onReady gating, wordEditorAPI)

@@ -50,3 +50,28 @@ decisions made mid-flight, etc. Newest entries at the bottom.
   certs) when wiring the real Word surface. Verified here over HTTP only.
 - **Validated:** `build` ✓; dev server: `/taskpane.html` → 200 (serves the taskpane page,
   rewrite works), `/taskpane` → 200, `/assets/logo.png` → 200 `image/png`.
+
+- **Commit 3 — AI route handlers (server-side ai-sdk).** Moved model calls off the
+  browser. `lib/prompts.ts` ports the Draft prompts + `buildMessages` verbatim and adds
+  the Chat and Revise system prompts + `buildRevisionPrompt` (was `getDocTextAsPrompt`).
+  `lib/ai.ts` has three model-agnostic functions (`streamChat`, `generateSuggestion`,
+  `streamRevision`) that take a `LanguageModel`, so tests inject `MockLanguageModelV2`.
+  Routes are thin: `/api/chat` (UIMessage stream via `toUIMessageStreamResponse`),
+  `/api/draft` (one-shot JSON `GenerationResult` — the Draft UI awaits the full text),
+  `/api/revise` (`toTextStreamResponse`, raw text deltas). `lib/models.ts` owns the model
+  id (`gpt-4o`, unchanged) and reads `OPENAI_API_KEY` from the env (no more browser proxy
+  / `apiKey:'unused'`).
+- **Contract for the commit-5 UI rewire:** chat POSTs `{ messages, system? }`
+  (UIMessages); draft POSTs `{ type, docContext }` → `{ generation_type, result,
+  extra_data }`; revise POSTs `{ docContext, request }` → text stream.
+- **Snags:** (1) `ai/test` transitively requires `msw` (an old legacy devDep) — re-added
+  to devDependencies. (2) `LanguageModelV2StreamPart` is exported from `@ai-sdk/provider`
+  (a stable peer of `ai`), not from `ai`; imported the test's stream-part type from there.
+  (3) Putting the system message inside `messages` triggers an AI SDK prompt-injection
+  warning; `generateSuggestion` now passes it via the `system` option instead.
+- **Runtime:** left routes on the default Node runtime (not edge) so future server-side
+  logging/telemetry (e.g. posthog-node) can slot in without an edge rewrite.
+- **Validated:** vitest (3 passed) ✓, typecheck ✓, lint ✓, build ✓ (routes show as
+  dynamic ƒ). Live dev curl with a dummy key: `/api/chat` → 200 (stream opens),
+  `/api/draft` → 500 with `AI_LoadAPIKeyError` (route reached, key read from env),
+  GET `/api/draft` → 405 (route exists, POST-only).
