@@ -1,11 +1,37 @@
-
-# Build output
-dist/
-
-# Playwright
+# dependencies
 node_modules/
+/.pnp
+.pnp.*
+
+# next.js
+/.next/
+/out/
+
+# build output (webpack legacy + next standalone)
+dist/
+/build
+
+# testing / coverage
+/coverage
 /test-results/
 /playwright-report/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
+
+# misc
+.DS_Store
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+.pnpm-debug.log*
+
+# env files
+.env*
+
+# vercel
+.vercel

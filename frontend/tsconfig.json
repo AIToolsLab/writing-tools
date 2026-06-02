@@ -1,45 +1,61 @@
 {
-	"compilerOptions": {
-		"allowUnusedLabels": false,
-		"emitDecoratorMetadata": true,
-		"esModuleInterop": true,
-		"experimentalDecorators": true,
-		"forceConsistentCasingInFileNames": true,
-		"jsx": "react-jsx",
-		"module": "ES2020",
-		"moduleResolution": "node",
-		"noImplicitReturns": true,
-		"noUnusedParameters": true,
-		"outDir": "dist",
-		"removeComments": false,
-		"sourceMap": true,
-		"target": "es5",
-		"lib": ["ES7", "DOM", "ES2021"],
-		"paths": {
-			"*": ["./src/*.d.ts"],
-			"@/*": ["./src/*"]
-		},
-		"allowJs": true,
-		"noEmit": false,
-		"resolveJsonModule": true,
-		"isolatedModules": false,
-		"downlevelIteration": true,
-		"incremental": true,
-		"strict": true,
-		"noImplicitAny": true,
-		"alwaysStrict": true,
-		"skipLibCheck": true,
-		"typeRoots": ["node_modules/@types"],
-		"pretty": true,
-	},
-	"include": ["**/*.ts", "**/*.tsx"],
-	"exclude": ["node_modules"],
-	"compileOnSave": false,
-	"buildOnSave": false,
-	"ts-node": {
-		"compilerOptions": {
-			"module": "commonjs"
-		  },
-		"files": true
-	}
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "types": [
+      "vitest/globals",
+      "@testing-library/jest-dom"
+    ]
+  },
+  "//": "legacy/ and tests/ are excluded during the migration: legacy/ is the old webpack app (ported then deleted), tests/ holds Playwright specs that run under their own config.",
+  "include": [
+    "next-env.d.ts",
+    "next.config.ts",
+    "vitest.config.ts",
+    "vitest.setup.ts",
+    "app/**/*.ts",
+    "app/**/*.tsx",
+    "components/**/*.ts",
+    "components/**/*.tsx",
+    "contexts/**/*.ts",
+    "contexts/**/*.tsx",
+    "lib/**/*.ts",
+    "lib/**/*.tsx",
+    "types/**/*.ts",
+    "types/**/*.d.ts",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "legacy",
+    "tests",
+    "dist",
+    ".next"
+  ]
 }

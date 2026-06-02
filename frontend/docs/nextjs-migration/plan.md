@@ -14,8 +14,8 @@ interesting / unexpected / challenging encountered along the way.
 
 ## Checklist
 
-- [ ] 0. Seed living docs (`plan.md`, `log.md`)
-- [ ] 1. Scaffold base Next 16 app (mirror `experiment/` conventions)
+- [x] 0. Seed living docs (`plan.md`, `log.md`)
+- [x] 1. Scaffold base Next 16 app (mirror `experiment/` conventions)
 - [ ] 2. Wire taskpane endpoint (`/taskpane.html` → `/taskpane` rewrite, assets)
 - [ ] 3. AI route handlers (`/api/chat`, `/api/draft`, `/api/revise`) + prompts + tests
 - [ ] 4. Shared types, contexts, utilities (drop Auth0 from `EditorAPI`)
