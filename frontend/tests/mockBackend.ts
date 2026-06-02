@@ -61,7 +61,9 @@ export async function fulfillOpenAI(route: Route, result: string) {
 
 export async function setupMockBackend(page: Page) {
   await page.route('**/openai/chat/completions', async (route) => {
-    const messages = route.request().postDataJSON()?.messages ?? [];
+    const messages = (route.request().postDataJSON()?.messages ?? []) as {
+      content: string;
+    }[];
     await fulfillOpenAI(route, resultForMessages(messages));
   });
 }
