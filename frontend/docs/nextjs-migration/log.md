@@ -151,3 +151,16 @@ decisions made mid-flight, etc. Newest entries at the bottom.
   component into the `useMemo` so the ref is only read inside the click handler; and
   `react/no-unescaped-entities` flagged a literal apostrophe in JSX text.
 - **Validated:** typecheck ✓, lint ✓, build ✓ (7 routes), vitest 11 passed.
+
+- **Post-5 — runtime verification + standalone smoke test.** A real browser can't be
+  installed here (the network allowlist blocks `cdn.playwright.dev`, so chromium won't
+  download). Verified the standalone surface by mounting the real `<App>` tree (reshaped +
+  jotai + contexts + all three panels) in jsdom and driving tab switches — confirms
+  lexical/reshaped execute under React 19, tabs switch, and the Chat input accepts typing.
+  Kept this as a committed smoke test (`components/standalone.test.tsx`) and added an
+  `Element.prototype.scrollTo` mock to `vitest.setup.ts` (jsdom doesn't implement it; the
+  Chat auto-scroll effect needs it). **Open follow-up:** the AI routes 500 on a malformed
+  body (missing `docContext`) instead of a clean 400 — happy path is safe (the UI always
+  sends a full `docContext`), but a `zod` guard per route would harden them.
+- **Not yet exercised:** pixel/visual layout and the Lexical `contenteditable` typing path
+  (jsdom has no real contenteditable) — needs a human eyeball in a real browser once.

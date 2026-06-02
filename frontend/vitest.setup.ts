@@ -25,8 +25,9 @@ Object.defineProperty(window, 'matchMedia', {
 	})),
 });
 
-// Mock Element.prototype.scrollIntoView
+// Mock Element scroll methods (jsdom implements neither; real browsers do)
 Element.prototype.scrollIntoView = vi.fn();
+Element.prototype.scrollTo = vi.fn();
 
 // Mock window.scrollTo
 window.scrollTo = vi.fn();
