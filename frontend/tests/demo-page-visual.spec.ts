@@ -9,11 +9,13 @@ test('demo page - visual regression', async ({ page }) => {
 
   await expect(page.getByRole('banner')).toContainText('Thoughtful');
 
-  // Allow a small pixel budget so sub-visible rendering noise (font antialiasing,
-  // subpixel shifts) doesn't fail the test. A real layout regression moves far
-  // more than this many pixels.
+  // The baseline is captured on one OS but CI renders on Linux; font
+  // antialiasing/hinting differs across OSes and shifts ~1% of pixels even when
+  // the layout is identical. Allow 2% so that cross-OS rendering noise passes
+  // while a real layout regression (which moves far more, and also changes the
+  // image dimensions) still fails.
   await expect(page).toHaveScreenshot('demo-page.png', {
     fullPage: true,
-    maxDiffPixels: 100,
+    maxDiffPixelRatio: 0.02,
   });
 });
