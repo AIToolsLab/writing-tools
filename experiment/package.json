@@ -32,8 +32,8 @@
     "@types/react": "19.2.8",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
-    "@vitest/coverage-v8": "^4.0.17",
-    "@vitest/ui": "^4.0.15",
+    "@vitest/coverage-v8": "^4.1.8",
+    "@vitest/ui": "^4.1.8",
     "babel-plugin-react-compiler": "1.0.0",
     "baseline-browser-mapping": "^2.10.16",
     "eslint": "^9",
@@ -41,7 +41,7 @@
     "jsdom": "^27.2.0",
     "tailwindcss": "^4",
     "typescript": "^5",
-    "vitest": "^4.0.15"
+    "vitest": "^4.1.8"
   },
   "overrides": {
     "@types/react": "19.2.8",
