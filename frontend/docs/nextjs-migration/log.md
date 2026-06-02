@@ -75,3 +75,20 @@ decisions made mid-flight, etc. Newest entries at the bottom.
   dynamic ƒ). Live dev curl with a dummy key: `/api/chat` → 200 (stream opens),
   `/api/draft` → 500 with `AI_LoadAPIKeyError` (route reached, key read from env),
   GET `/api/draft` → 405 (route exists, POST-only).
+
+- **Commit 4 — shared types, contexts, utilities.** Consolidated domain types as module
+  exports in `lib/types.ts` (no global ambient `.d.ts` like the legacy `types.d.ts`):
+  added `ChatMessage`, `SavedItem`, and `EditorAPI`. **Dropped `doLogin`/`doLogout` from
+  `EditorAPI`** — those took an `Auth0ContextInterface`; auth re-enters later via a
+  separate session seam, not the editor API. Ported `editorContext` (inert default),
+  `chatContext`, `userContext`, a trimmed `pageContext` (`pageNameAtom` + `PageName`;
+  dropped the `OverallMode` full/demo split — app is single anonymous mode),
+  `selectionUtil` (+ its 8 tests, now importing `DocContext` from `@/lib/types` instead of
+  the global), and the `useDocContext` hook.
+- **SSR guards:** `userContext` read `window.location.search` at module load (crashes
+  during SSR); guarded with `typeof window`. Client React files got `'use client'`
+  (`editorContext`, `chatContext`, `useDocContext`); atom-only modules (`pageContext`,
+  `userContext`) stay isomorphic. `getParagraphText` (uses the `Word` global) is deferred
+  to commit 6 with `wordEditorAPI` so we don't pull Office types in yet.
+- **Validated:** vitest 11 passed (8 selectionUtil + 3 ai) ✓, typecheck ✓, lint ✓,
+  build ✓.
