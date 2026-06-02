@@ -81,7 +81,7 @@ const adviceLocator = 'button[title="Get suggestions for next words"]';
     await expect(frame.getByText('First example suggestion')).toBeVisible({ timeout: 5000 });
 
     // Delete example suggestion
-    const deleteButton1 = frame.locator('button[aria-label="Delete saved item"]').first();
+    const deleteButton1 = frame.locator('button[aria-label="Delete suggestion"]').first();
     await deleteButton1.click();
     await expect(frame.getByText('First example suggestion')).not.toBeVisible({ timeout: 2000 });
 
@@ -90,7 +90,7 @@ const adviceLocator = 'button[title="Get suggestions for next words"]';
     await expect(frame.getByText('First reader perspective')).toBeVisible({ timeout: 5000 });
 
     // Delete reader perspective suggestion
-    const deleteButton2 = frame.locator('button[aria-label="Delete saved item"]').first();
+    const deleteButton2 = frame.locator('button[aria-label="Delete suggestion"]').first();
     await deleteButton2.click();
     await expect(frame.getByText('First reader perspective')).not.toBeVisible({ timeout: 2000 });
 
@@ -99,7 +99,7 @@ const adviceLocator = 'button[title="Get suggestions for next words"]';
     await expect(frame.getByText('First piece of advice')).toBeVisible({ timeout: 5000 });
 
     // Delete advice suggestion
-    const deleteButton3 = frame.locator('button[aria-label="Delete saved item"]').first();
+    const deleteButton3 = frame.locator('button[aria-label="Delete suggestion"]').first();
     await deleteButton3.click();
     await expect(frame.getByText('First piece of advice')).not.toBeVisible({ timeout: 2000 });
   });
@@ -140,7 +140,7 @@ const adviceLocator = 'button[title="Get suggestions for next words"]';
     const frame = page.frameLocator('#editor-frame');
 
     // Verify empty state message is shown
-    await expect(frame.getByText('Click the button above to generate a suggestion.')).toBeVisible();
+    await expect(frame.getByText('No suggestions yet')).toBeVisible();
   });
 
 });
