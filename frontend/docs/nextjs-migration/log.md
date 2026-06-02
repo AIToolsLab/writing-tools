@@ -136,3 +136,18 @@ decisions made mid-flight, etc. Newest entries at the bottom.
   via guarded effects (seed once when mounted empty; persist only meaningful messages to
   avoid clobbering with an empty array — the same pattern as `experiment/ChatPanel.tsx`).
 - **Validated:** typecheck ✓, lint ✓, build ✓.
+
+- **5d — Revise panel.** Ported `components/pages/Revise.tsx`, swapping the browser
+  `streamText` loop for a `fetch('/api/revise')` whose `toTextStreamResponse()` body is
+  read via a `ReadableStream` reader + `TextDecoder`, appending deltas to the
+  `Visualization`. The viz system prompt + doc-prompt builder now live server-side
+  (commit 3), so the panel only sends `{ docContext, request }`. Dropped the unused
+  `_loading`/`_customPrompts`/`_selectedCustomPrompt` state. **Preserved a latent legacy
+  quirk:** the Audience/Guardrails/Comments inputs are collected but were never sent to
+  the model in the legacy code — kept as-is (faithful port; wiring them up is a separate
+  feature decision).
+- **More stricter-than-legacy lint:** `react-hooks/refs` flagged passing a ref into a
+  factory during render (`makeAnchorWithCallback(clickCallbackRef)`) — inlined the anchor
+  component into the `useMemo` so the ref is only read inside the click handler; and
+  `react/no-unescaped-entities` flagged a literal apostrophe in JSX text.
+- **Validated:** typecheck ✓, lint ✓, build ✓ (7 routes), vitest 11 passed.

@@ -19,7 +19,7 @@ interesting / unexpected / challenging encountered along the way.
 - [x] 2. Wire taskpane endpoint (`/taskpane.html` → `/taskpane` rewrite, assets)
 - [x] 3. AI route handlers (`/api/chat`, `/api/draft`, `/api/revise`) + prompts + tests
 - [x] 4. Shared types, contexts, utilities (drop Auth0 from `EditorAPI`)
-- [ ] 5. Standalone surface `/` (Lexical editor + Draft/Revise/Chat, rewired to AI routes)
+- [x] 5. Standalone surface `/` (Lexical editor + Draft/Revise/Chat, rewired to AI routes)
 - [ ] 6. Word taskpane surface `/taskpane` (Office.js, onReady gating, wordEditorAPI)
 - [ ] 7. Log viewer `/logs` + logging proxy rewrites to FastAPI
 - [ ] 8. Commands FunctionFile, manifest prod build, deploy wiring, cleanup
