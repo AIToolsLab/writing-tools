@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Provider } from "jotai";
+import Providers from "@/components/Providers";
 
 export const metadata: Metadata = {
   title: "Thoughtful",
@@ -15,7 +16,9 @@ export default function RootLayout({
   return (
     <html lang="en" className="h-full antialiased">
       <body className="min-h-full">
-        <Provider>{children}</Provider>
+        <Provider>
+          <Providers>{children}</Providers>
+        </Provider>
       </body>
     </html>
   );

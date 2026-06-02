@@ -92,3 +92,23 @@ decisions made mid-flight, etc. Newest entries at the bottom.
   to commit 6 with `wordEditorAPI` so we don't pull Office types in yet.
 - **Validated:** vitest 11 passed (8 selectionUtil + 3 ai) ✓, typecheck ✓, lint ✓,
   build ✓.
+
+- **Commit 5 (split into 5a–5d) — standalone surface.** Commit 5 is large (~1900 lines of
+  CSS modules + editor + 4 panels), so it's split into sub-commits, each green.
+- **5a — shell + editor.** The big risk flag (React 19 peer compatibility of `lexical`
+  `^0.16.1`, `reshaped` `^3.5.3`, `@posthog/react`) **resolved cleanly**: npm 10 installs
+  them (peer warnings only, no hard failure) and they build + load under React 19 / Next
+  16 without errors. Ported: `components/Providers.tsx` (PostHog + Reshaped slate theme +
+  ChatContext; wired into the root layout inside Jotai's Provider), `components/Navbar.tsx`,
+  `components/App.tsx` (tab bar + panel switch), `components/editor/LexicalEditor.tsx`
+  (Lexical doc-context extraction, verbatim), `components/editor/StandaloneEditor.tsx`
+  (in-memory `EditorAPI`; **dropped demo mode + Auth0 login/onboarding/calvin gates** — the
+  old `pages/app/index.tsx` was ~90% auth UI). CSS modules copied verbatim; only the
+  global `.editor-scrollbar` utility moved into `app/globals.css` (typography plugin/
+  `prose` weren't actually used, so not installed). The three panels are stubs, filled in
+  5b–5d.
+- **SSR:** `/` ('use client') dynamic-imports `StandaloneEditor` with `{ ssr: false }` so
+  Lexical/localStorage never touch the server.
+- **Validated:** typecheck ✓, lint ✓, build ✓ (7 routes), dev `/` → 200 (client-only
+  loading fallback), no compile/runtime errors in the dev log. Full in-browser interaction
+  check deferred to 5d when the panels are live.

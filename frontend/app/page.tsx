@@ -1,13 +1,13 @@
-// Standalone surface. This placeholder is replaced by the Lexical editor + sidebar
-// (Draft / Revise / Chat) in a later migration commit.
+'use client';
+
+import dynamic from 'next/dynamic';
+
+// The editor uses Lexical and localStorage, so render it client-only (no SSR).
+const StandaloneEditor = dynamic(() => import('@/components/editor/StandaloneEditor'), {
+	ssr: false,
+	loading: () => <div className="p-8 text-sm text-zinc-500">Loading editor…</div>,
+});
+
 export default function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 p-8">
-      <h1 className="text-3xl font-semibold tracking-tight">Thoughtful</h1>
-      <p className="text-zinc-600">
-        Next.js app scaffold. The standalone editor and Word task pane land in
-        subsequent migration commits.
-      </p>
-    </main>
-  );
+	return <StandaloneEditor />;
 }

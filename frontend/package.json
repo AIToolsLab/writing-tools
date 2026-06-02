@@ -20,11 +20,20 @@
   "dependencies": {
     "@ai-sdk/openai": "^2.0.72",
     "@ai-sdk/react": "^2.0.102",
+    "@lexical/react": "^0.16.1",
+    "@posthog/react": "^1.10.0",
+    "@react-hook/window-size": "^3.1.1",
     "ai": "^5.0.102",
     "jotai": "^2.15.2",
+    "lexical": "^0.16.1",
     "next": "16.2.6",
+    "posthog-js": "^1.378.1",
     "react": "19.2.3",
     "react-dom": "19.2.3",
+    "react-icons": "^5.6.0",
+    "react-remark": "^2.1.0",
+    "react-textarea-autosize": "^8.5.9",
+    "reshaped": "^3.10.3",
     "zod": "^4.1.13"
   },
   "devDependencies": {
