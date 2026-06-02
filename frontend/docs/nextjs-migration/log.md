@@ -37,3 +37,16 @@ decisions made mid-flight, etc. Newest entries at the bottom.
   suite stays green until tests arrive in commit 3.
 - **Validated:** `npm run build` ✓, `typecheck` ✓, `lint` ✓, `test` ✓, dev server serves
   `/` (200, title "Thoughtful").
+
+- **Commit 2 — taskpane endpoint.** The manifest hard-codes three URL families against
+  `https://localhost:3000`: `/taskpane.html` (task pane), `/commands/commands.html`
+  (ribbon FunctionFile), and `/assets/logo*.png` (icons). Added a `next.config` rewrite
+  `/taskpane.html` → `/taskpane` and a placeholder `/taskpane` route; moved `assets/` →
+  `public/assets/` so the icon URLs resolve. `/commands/commands.html` is handled in the
+  commit 8 cleanup. **Manifest left untouched** (no re-validation, per scope).
+- **Note for commit 6:** Office sideloading requires **HTTPS** on `localhost:3000` with a
+  trusted cert (the old flow used `office-addin-dev-certs` + webpack-dev-server https).
+  `next dev` is HTTP by default; we'll use `next dev --experimental-https` (or the office
+  certs) when wiring the real Word surface. Verified here over HTTP only.
+- **Validated:** `build` ✓; dev server: `/taskpane.html` → 200 (serves the taskpane page,
+  rewrite works), `/taskpane` → 200, `/assets/logo.png` → 200 `image/png`.

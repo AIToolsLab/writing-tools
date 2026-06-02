@@ -26,6 +26,13 @@ const nextConfig: NextConfig = {
     root: __dirname,
   },
 
+  // The Office manifest hard-codes the task pane URL as `/taskpane.html` and cannot be
+  // changed without re-publishing the add-in. Map that legacy URL onto the `/taskpane`
+  // App Router route so existing installs keep working.
+  async rewrites() {
+    return [{ source: "/taskpane.html", destination: "/taskpane" }];
+  },
+
   // Enable standalone output for Docker deployment only
   ...(process.env.DOCKER_BUILD === "true" && { output: "standalone" }),
 
