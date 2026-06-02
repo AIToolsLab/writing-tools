@@ -1,4 +1,4 @@
-:root {
+.app {
 	--bg: #f0ede6;
 	--surface: #ffffff;
 	--surface-2: #fafaf8;
@@ -143,7 +143,7 @@
 	margin-bottom: 6px;
 }
 
-textarea {
+.app textarea {
 	width: 100%;
 	border: none;
 	outline: none;
@@ -156,7 +156,7 @@ textarea {
 	padding: 8px 14px 14px;
 }
 
-textarea::placeholder { color: #c5bfb8; }
+.app textarea::placeholder { color: #c5bfb8; }
 
 .featuresSection { margin-bottom: 16px; }
 

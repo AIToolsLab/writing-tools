@@ -1,5 +1,5 @@
-/* Design Tokens */
-:root {
+/* Design Tokens (scoped to the Draft panel; each panel has its own palette) */
+.app {
 	--bg: #F7F6F2;
 	--surface: #FFFFFF;
 	--surface-2: #F0EEE9;
@@ -35,7 +35,7 @@
 	padding-bottom: 24px;
 }
 
-* {
+.app * {
 	box-sizing: border-box;
 	margin: 0;
 	padding: 0;

@@ -112,3 +112,17 @@ decisions made mid-flight, etc. Newest entries at the bottom.
 - **Validated:** typecheck ✓, lint ✓, build ✓ (7 routes), dev `/` → 200 (client-only
   loading fallback), no compile/runtime errors in the dev log. Full in-browser interaction
   check deferred to 5d when the panels are live.
+- **5b — Draft panel.** Ported `components/pages/Draft.tsx`, swapping the in-browser
+  `streamText` Fetcher for a `fetch('/api/draft')` POST that returns the
+  `GenerationResult` JSON. Added `lib/log.ts` (`log()` → `/api/log`, proxied to Python in
+  the logging commit). Dropped the dead auto-refresh path (interval was hard-coded to 0).
+- **Two stricter-than-legacy gates surfaced:** (1) the React Compiler's
+  `react-hooks/refs` lint rule rejects the legacy `ref.current = x` during render — moved
+  it into a `useEffect`. (2) **Turbopack's CSS Modules require "pure" selectors** (every
+  selector must contain a local class/id), which the old webpack css-loader didn't
+  enforce. `Draft`/`Revise` had `:root`, `*`, and bare `textarea` selectors. The two
+  `:root` blocks define *different* palettes under the *same* token names, so hoisting
+  them to a global `:root` would clobber per-page colors — instead scoped each palette to
+  its panel's `.app` container (`.app { --bg… }`, `.app *`, `.app textarea`). Chat's CSS
+  was already pure.
+- **Validated:** typecheck ✓, lint ✓, build ✓.
