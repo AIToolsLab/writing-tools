@@ -6,6 +6,7 @@ import { authClient } from "@/lib/auth-client";
 export default function HomeClient() {
   const { data: session, isPending } = authClient.useSession();
   const [protectedResult, setProtectedResult] = useState<string | null>(null);
+  const [jwt, setJwt] = useState<string | null>(null);
 
   if (isPending) {
     return <p style={{ padding: "2rem" }}>Loading...</p>;
@@ -35,6 +36,15 @@ export default function HomeClient() {
     <main style={{ padding: "2rem" }}>
       <h2>Hi, I see you are {session.user.email}</h2>
       <p>Name: {session.user.name}</p>
+      <button
+        onClick={() => {
+          navigator.clipboard.writeText(session.session.token);
+          alert("Token copied to clipboard");
+        }}
+        style={{ padding: "0.25rem 0.75rem", cursor: "pointer", fontSize: "0.8rem" }}
+      >
+        Copy session token
+      </button>
       <hr />
       <p style={{ fontSize: "0.85rem", color: "#555" }}>
         Milestone 1 ✅ — session is working. Next: read the session token and
@@ -67,6 +77,37 @@ export default function HomeClient() {
       {protectedResult && (
         <pre style={{ marginTop: "0.75rem", background: "#f4f4f4", padding: "0.75rem", borderRadius: "4px" }}>
           {protectedResult}
+        </pre>
+      )}
+
+      <hr style={{ margin: "1.5rem 0" }} />
+      <p style={{ fontWeight: "bold" }}>Milestone 3 — JWT (for FastAPI)</p>
+      <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.5rem" }}>
+        <button
+          onClick={async () => {
+            const res = await fetch("/api/auth/token");
+            const data = await res.json();
+            setJwt(data.token ?? null);
+          }}
+          style={{ padding: "0.5rem 1.25rem", cursor: "pointer" }}
+        >
+          Get JWT from Better Auth
+        </button>
+        {jwt && (
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(jwt);
+              alert("JWT copied to clipboard");
+            }}
+            style={{ padding: "0.5rem 1.25rem", cursor: "pointer" }}
+          >
+            Copy JWT
+          </button>
+        )}
+      </div>
+      {jwt && (
+        <pre style={{ marginTop: "0.75rem", background: "#f4f4f4", padding: "0.75rem", borderRadius: "4px", wordBreak: "break-all", whiteSpace: "pre-wrap", fontSize: "0.7rem" }}>
+          {jwt}
         </pre>
       )}
 
