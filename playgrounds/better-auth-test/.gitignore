@@ -17,3 +17,7 @@ out/
 # Logs
 *.log
 npm-debug.log*
+
+# Agent / Claude tooling
+.agents/
+skills-lock.json
