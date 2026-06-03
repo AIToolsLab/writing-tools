@@ -16,10 +16,18 @@ const RESULTS = {
     '- First reader perspective\n\n- Second reader perspective\n\n- Third reader perspective',
   proposal_advice:
     '- First piece of advice\n\n- Second piece of advice\n\n- Third piece of advice',
+  example_rewording:
+    '- First rewording option\n\n- Second rewording option\n\n- Third rewording option',
+  // Revise (visualization): includes a doctext link like the real responses do.
+  revise:
+    '- A mock structural observation about your document.\n\n- [opening line](doctext:Some%20text%20to%20analyze) could be expanded.',
+  // Chat assistant reply.
+  chat: 'This is a mock assistant reply about your document.',
 };
 
-// gtype is no longer sent in the request; infer it from distinctive prompt text
-// (see the prompts in src/api/prompts.ts).
+// gtype is no longer sent in the request; infer it from distinctive prompt text.
+// Draft prompts live in src/api/prompts.ts; Chat and Revise build their own
+// system/user messages in their page components.
 function resultForMessages(messages: { content: string }[]): string {
   const text = messages.map((m) => m.content).join('\n');
   if (text.includes('inspiring and fresh possible next sentences'))
@@ -28,6 +36,13 @@ function resultForMessages(messages: { content: string }[]): string {
     return RESULTS.analysis_readerPerspective;
   if (text.includes('directive (but not prescriptive) advice'))
     return RESULTS.proposal_advice;
+  if (text.includes('three alternative rewordings'))
+    return RESULTS.example_rewording;
+  // Revise wraps the document in <writer-doc-so-far> tags (revise/index.tsx).
+  if (text.includes('<writer-doc-so-far>')) return RESULTS.revise;
+  // Chat is identified by its system prompt (chat/index.tsx).
+  if (text.includes('Encourage the user towards critical thinking'))
+    return RESULTS.chat;
   return '';
 }
 
