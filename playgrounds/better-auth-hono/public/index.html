@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hono + Better Auth POC</title>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; max-width: 600px; }
+    button { padding: 0.5rem 1.25rem; cursor: pointer; margin-right: 0.5rem; margin-top: 0.5rem; }
+    pre { background: #f4f4f4; padding: 0.75rem; border-radius: 4px; white-space: pre-wrap; word-break: break-all; font-size: 0.8rem; }
+    #result { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Hono + Better Auth POC</h1>
+  <p>API-only backend — no React, no SSR.</p>
+
+  <div id="signed-out">
+    <button onclick="signIn()">Sign in with Google</button>
+  </div>
+
+  <div id="signed-in" style="display:none">
+    <p id="user-info"></p>
+    <hr />
+    <p><strong>M3 — Protected route</strong></p>
+    <button onclick="callProtected('cookie')">Call /api/protected (cookie)</button>
+    <button onclick="callProtected('omit')">Call /api/protected (no cookie)</button>
+    <button onclick="callProtected('bearer')">Call /api/protected (Bearer)</button>
+    <hr />
+    <p><strong>M4 — Mock AI proxy</strong></p>
+    <button onclick="callChat()">POST /api/openai/chat/completions</button>
+    <button onclick="signOut()">Sign out</button>
+  </div>
+
+  <div id="result"></div>
+
+  <script>
+    const BASE = "http://localhost:3001";
+    let sessionToken = null;
+
+    async function getSession() {
+      const res = await fetch(`${BASE}/api/auth/get-session`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    }
+
+    async function init() {
+      const session = await getSession();
+      if (session?.user) {
+        sessionToken = session.session?.token ?? null;
+        document.getElementById("signed-out").style.display = "none";
+        document.getElementById("signed-in").style.display = "block";
+        document.getElementById("user-info").textContent =
+          `Signed in as ${session.user.email} (${session.user.name})`;
+      }
+    }
+
+    async function signIn() {
+      // Better Auth social sign-in is a POST that returns a redirect URL.
+      const res = await fetch(`${BASE}/api/auth/sign-in/social`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider: "google", callbackURL: BASE }),
+      });
+      const data = await res.json();
+      if (data?.url) {
+        window.location.href = data.url;
+      } else {
+        show(`Sign-in error: ${JSON.stringify(data)}`);
+      }
+    }
+
+    async function signOut() {
+      await fetch(`${BASE}/api/auth/sign-out`, { method: "POST", credentials: "include" });
+      window.location.reload();
+    }
+
+    async function callProtected(mode) {
+      const opts = { credentials: mode === "omit" ? "omit" : "include" };
+      if (mode === "bearer" && sessionToken) {
+        opts.credentials = "omit";
+        opts.headers = { Authorization: `Bearer ${sessionToken}` };
+      }
+      const res = await fetch(`${BASE}/api/protected`, opts);
+      const data = await res.json();
+      show(`${res.status}: ${JSON.stringify(data)}`);
+    }
+
+    async function callChat() {
+      const res = await fetch(`${BASE}/api/openai/chat/completions`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: [{ role: "user", content: "hello" }] }),
+      });
+      const text = await res.text();
+      show(`${res.status}:\n${text}`);
+    }
+
+    function show(text) {
+      document.getElementById("result").innerHTML = `<pre>${text}</pre>`;
+    }
+
+    init();
+  </script>
+</body>
+</html>
