@@ -67,14 +67,19 @@ export function createApp(): Hono {
 		delete payload.event;
 		Object.assign(extraData, payload);
 
-		// Fire-and-forget to mirror FastAPI's BackgroundTasks (respond immediately).
-		void appendLog({
-			timestamp: Date.now() / 1000,
-			ok: true,
-			username: username || 'unknown',
-			event,
-			extra_data: extraData,
-		}).catch((e) => captureException(e, { path: '/api/log' }));
+		// Await so we can capture write failures.
+		try {
+			await appendLog({
+				timestamp: Date.now() / 1000,
+				ok: true,
+				username: username || 'unknown',
+				event,
+				extra_data: extraData,
+			});
+		} catch (e) {
+			captureException(e, { path: '/api/log' });
+			return c.json({ detail: 'Failed to write log entry' }, 500);
+		}
 
 		return c.json({ message: 'Feedback logged successfully.' });
 	});
