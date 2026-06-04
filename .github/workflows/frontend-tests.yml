@@ -18,6 +18,12 @@ on:
       - '.github/workflows/frontend-tests.yml'
   workflow_dispatch:
 
+# Least privilege: these jobs only need to read the repo to check it out.
+# Artifact upload uses the separate ACTIONS_RUNTIME_TOKEN, not GITHUB_TOKEN,
+# so it keeps working even with everything else scoped to none.
+permissions:
+  contents: read
+
 defaults:
   run:
     working-directory: frontend
