@@ -1,23 +1,22 @@
-FROM python:3.11
-
-WORKDIR /app
-
-# Install uv from the distroless image https://docs.astral.sh/uv/guides/integration/docker/#available-images
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
-
-# Copy pyproject.toml and uv.lock from the parent directory
-COPY ../pyproject.toml ../uv.lock ./
-
-# Install dependencies
-RUN uv sync --locked
-
-# Copy backend files
-COPY backend ./backend
-
+# Build stage
+FROM node:24-slim AS build
 WORKDIR /app/backend
+COPY package.json package-lock.json* ./
+RUN npm install
+COPY tsconfig.json ./
+COPY src ./src
+RUN npm run build
 
-# Expose the port the app runs on
+# Runtime stage
+FROM node:24-slim AS run
+WORKDIR /app/backend
+ENV NODE_ENV=production
+COPY package.json package-lock.json* ./
+RUN npm install --omit=dev
+COPY --from=build /app/backend/dist ./dist
+
+# Study logs are written here; in deployment this path is a mounted volume.
+RUN mkdir -p logs
+
 EXPOSE 5000
-
-# run the server
-CMD ["uv", "run", "gunicorn"]
+CMD ["node", "dist/index.js"]
