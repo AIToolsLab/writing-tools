@@ -83,7 +83,7 @@ export async function pollLogs(
 			if (!line.trim()) continue;
 			try {
 				const entry = JSON.parse(line) as Record<string, unknown>;
-				const key = `${entry.timestamp}|${entry.interaction}|${entry.username}`;
+				const key = `${entry.timestamp}|${entry.username}`;
 				if (!seen.has(key)) {
 					seen.add(key);
 					deduped.push(entry);
