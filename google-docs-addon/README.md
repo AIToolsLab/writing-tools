@@ -21,7 +21,6 @@ This folder contains the Google Apps Script code for the Writing Tools Google Do
 │                                                              │
 │  • getDocContext() → reads doc, returns to sidebar          │
 │  • selectPhrase() → finds and selects text in doc           │
-│  • proxyToBackend() → UrlFetchApp to Python backend         │
 └─────────────────────────────────────────────────────────────┘
                           │
                           │ HTTPS (UrlFetchApp)
@@ -52,7 +51,7 @@ This folder contains the Google Apps Script code for the Writing Tools Google Do
 
 1. **Install clasp globally:**
    ```bash
-   npm install -g @google/clasp
+   npx @google/clasp
    ```
 
 2. **Enable Apps Script API for your Google account:**
@@ -60,7 +59,7 @@ This folder contains the Google Apps Script code for the Writing Tools Google Do
 
 3. **Login to clasp with your Google account:**
    ```bash
-   clasp login
+   npx @google/clasp login
    ```
    This opens a browser window — sign in with your Google account.
    Google will show an authorization screen asking for permissions — click **Allow**.
@@ -137,9 +136,7 @@ For now, development uses the standalone test functions in `sidebar.html`.
 |--------|-------------|-------------------|
 | Document API | Office.js (client-side) | DocumentApp (server-side via Apps Script) |
 | UI Framework | HTML/JS in taskpane | HTML/JS in sidebar |
-| API calls | Direct from browser | Proxied through Apps Script |
 | Selection events | Native Office events | Polling (no native events) |
-| Auth | Auth0 with popup | Google identity or Auth0 popup |
 
 ## OAuth Scopes
 
@@ -147,7 +144,7 @@ The add-on requests these scopes (in `appsscript.json`):
 
 - `documents.currentonly` - Access only the current document
 - `script.container.ui` - Display sidebars and dialogs
-- `script.external_request` - Make HTTP requests to the backend
+- `script.external_request` - Make HTTP requests to the backend (may not be needed)
 
 ## Deployment
 
