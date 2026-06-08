@@ -1,6 +1,6 @@
-cache
+node_modules
+dist
+.env
 logs/*.jsonl
 *.log
-*.db
-*.ipynb
 *.pid
