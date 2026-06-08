@@ -71,10 +71,11 @@ export async function pollLogs(
 	}
 
 	const updates: LogUpdate[] = [];
+	let numFailed = 0;
 	for (const file of files) {
 		if (!file.endsWith('.jsonl')) continue;
 		const username = file.slice(0, -'.jsonl'.length);
-		if (username === '') continue; // skip a bare ".jsonl", as the old backend did
+		if (username === '') continue; // skip a bare ".jsonl"
 
 		const content = await readFile(path.join(dir, file), 'utf8');
 		const seen = new Set<string>();
@@ -89,7 +90,7 @@ export async function pollLogs(
 					deduped.push(entry);
 				}
 			} catch {
-				continue;
+				numFailed++;
 			}
 		}
 
@@ -98,6 +99,9 @@ export async function pollLogs(
 		if (newEntries.length > 0) {
 			updates.push({ username, logs: newEntries });
 		}
+	}
+	if (numFailed > 0) {
+		console.warn(`Failed to parse ${numFailed} lines in log files.`);
 	}
 	return updates;
 }
