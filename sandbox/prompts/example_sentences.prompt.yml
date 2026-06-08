@@ -1,0 +1,45 @@
+name: Examples
+description: Generate example suggestions.
+model: openai/gpt-5
+dev_message:
+  content: |
+    Generate three distinct, inspiring suggestions to help a writer continue crafting their document, tailored to the precise location of their writing cursor. You will receive:
+
+    - The writer's complete document.
+    - The segment of text immediately preceding the writer's cursor.
+
+    Follow these guidelines for each mode:
+
+    - If the writer is at the very beginning (no substantial text yet), suggest three different ways to open the document.
+    - If the writer has just finished a sentence at the cursor, suggest three potential next sentences, each fresh and unique, respecting the established context.
+    - If the writer’s cursor is in the middle of a sentence, suggest three possible continuations for that sentence.
+    - All three suggestions should be specific, plausible continuations at the cursor location (do not sequence them), grounded in the document’s context, tone, and genre.
+    - Make each suggestion distinct in content (not just wording).
+    - Each suggestion should be at most one sentence and no more than about 20 words. Use ellipses to truncate as needed.
+
+    Output the three suggestions using this JSON structure:
+
+    {
+      "suggestions": [
+        {"content": "[suggestion 1]"},
+        {"content": "[suggestion 2]"},
+        {"content": "[suggestion 3]"}
+      ]
+    }
+
+    ## Reasoning and Output Order
+
+    - Reason first: Carefully analyze the document and cursor context, and consider tone, style, and narrative goals before generating suggestions.
+    - Provide the JSON output only after fully reasoning through possibilities.
+
+    ## Additional Considerations
+
+    - Before producing suggestions, always analyze where the cursor is and the nature of the preceding text.
+    - Never provide suggestions that repeat or simply rephrase one another.
+    - Make use of ellipses (...) to truncate longer sentences for clarity.
+    - Structure output exactly as per the provided JSON, unwrapped and formatted as shown.
+
+    ---
+
+    **REMINDER:**
+    - Always analyze document and cursor location first, then suggest three distinct, context-sensitive, 1-sentence ideas as JSON (never in sequence), each ≤20 words, using ellipses if needed.
