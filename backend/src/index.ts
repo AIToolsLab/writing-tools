@@ -12,11 +12,14 @@ const server = serve(
 	(info) => console.log(`Backend listening on ${info.address}:${info.port}`),
 );
 
-async function shutdown(): Promise<void> {
-	await shutdownPosthog();
-	server.close();
-	process.exit(0);
+function shutdown(exitCode = 0): void {
+	server.close(async (err?: Error) => {
+		if (err) console.error('Error closing server:', err);
+		// Flush PostHog after all requests are done so no captures are lost.
+		await shutdownPosthog();
+		process.exit(exitCode);
+	});
 }
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', () => shutdown(0));
+process.on('SIGINT', () => shutdown(0));

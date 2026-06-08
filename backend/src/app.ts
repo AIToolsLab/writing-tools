@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logSecret, openaiApiKey } from './config.js';
 import { appendLog, pollLogs, validateUsername, zipLogs } from './logging.js';
-import { captureException } from './posthog.js';
+import { captureException, posthogMiddleware } from './posthog.js';
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 
@@ -11,9 +11,10 @@ export function createApp(): Hono {
 
 	// CORS stays fully permissive for now (no backend auth yet, same as before).
 	app.use('*', cors());
+	app.use('*', posthogMiddleware);
 
-	app.onError((err, c) => {
-		captureException(err, { path: c.req.path, method: c.req.method });
+	app.onError(async (err, c) => {
+		await captureException(err, { path: c.req.path, method: c.req.method });
 		return c.json({ detail: 'Internal server error' }, 500);
 	});
 
@@ -77,7 +78,7 @@ export function createApp(): Hono {
 				extra_data: extraData,
 			});
 		} catch (e) {
-			captureException(e, { path: '/api/log' });
+			await captureException(e, { path: '/api/log' });
 			return c.json({ detail: 'Failed to write log entry' }, 500);
 		}
 

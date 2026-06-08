@@ -1,19 +1,28 @@
+import { createMiddleware } from 'hono/factory';
 import { PostHog } from 'posthog-node';
 
-// PostHog is optional. When POSTHOG_PROJECT_TOKEN is unset, every helper here is
-// a no-op, matching the disabled-mode behavior of the old Python posthog_client.
 const token = (process.env.POSTHOG_PROJECT_TOKEN ?? '').trim();
 const host = (process.env.POSTHOG_HOST ?? 'https://us.i.posthog.com').trim();
 
-const posthog = token ? new PostHog(token, { host }) : null;
+const posthog = new PostHog(token, { host });
 
-export function captureException(
+export const posthogMiddleware = createMiddleware(async (c, next) => {
+	posthog.capture({
+		distinctId: 'server',
+		event: `${c.req.method} ${c.req.path}`,
+	});
+	await next();
+	await posthog.flush();
+});
+
+export async function captureException(
 	error: unknown,
 	properties?: Record<string, unknown>,
-): void {
+): Promise<void> {
 	try {
 		const err = error instanceof Error ? error : new Error(String(error));
-		posthog?.captureException(err, undefined, properties);
+		posthog.captureException(err, undefined, properties);
+		await posthog.flush();
 	} catch {
 		// Never let error tracking break the request path.
 	}
@@ -21,7 +30,7 @@ export function captureException(
 
 export async function shutdownPosthog(): Promise<void> {
 	try {
-		await posthog?.shutdown();
+		await posthog.shutdown();
 	} catch {
 		// ignore
 	}
