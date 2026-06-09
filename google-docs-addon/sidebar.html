@@ -118,27 +118,6 @@
       },
       
       /**
-       * Sends a chat message through the backend.
-       */
-      sendChatMessage: function(messages, docContext, username) {
-        return this.run('sendChatMessage', messages, docContext, username);
-      },
-      
-      /**
-       * Requests text analysis from the backend.
-       */
-      analyzeText: function(docContext, username, options) {
-        return this.run('analyzeText', docContext, username, options);
-      },
-      
-      /**
-       * Logs an event to the backend.
-       */
-      logEvent: function(payload) {
-        return this.run('logEvent', payload);
-      },
-      
-      /**
        * Gets the current user's email.
        */
       getCurrentUserEmail: function() {
