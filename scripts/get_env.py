@@ -1,11 +1,18 @@
 #!/usr/bin/env python3
 
+"""Interactive helper to create backend/.env for local development.
+
+Writes OPENAI_API_KEY, a freshly generated LOG_SECRET, and POSTHOG_PROJECT_TOKEN
+to backend/.env, which the Hono backend loads via process.loadEnvFile() in dev.
+(In Docker these are injected by docker-compose instead.)
+"""
+
 import random
 import string
 from pathlib import Path
 
-backend_path = Path(__file__).parent
-env_file = backend_path / ".env"
+repo_root = Path(__file__).parent.parent
+env_file = repo_root / "backend" / ".env"
 
 if env_file.exists():
     print(".env file already exists. Exiting...")

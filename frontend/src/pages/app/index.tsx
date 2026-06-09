@@ -162,7 +162,7 @@ function AppInner() {
 								visibility: width < 400 ? 'visible' : 'hidden',
 							}}
 						>
-							For best experience please expand the sidebar by
+							For best experience, please expand the sidebar by
 							dragging the splitter.
 						</div>
 

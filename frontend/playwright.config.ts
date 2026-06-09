@@ -12,6 +12,9 @@ import { defineConfig, devices } from '@playwright/test';
  * See https://playwright.dev/docs/test-configuration.
  */
 export default defineConfig({
+  // Playwright owns tests/ (E2E/visual, *.spec.ts). Vitest owns src/ (unit, *.test.ts)
+  // via its own `include`. Keep these directories disjoint so neither runner globs the
+  // other's files. See frontend/CLAUDE.md "Testing".
   testDir: './tests',
   /* Run tests in files in parallel */
   fullyParallel: true,
@@ -39,15 +42,15 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
 
-    {
-      name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
-    },
+    // {
+    //   name: 'firefox',
+    //   use: { ...devices['Desktop Firefox'] },
+    // },
 
-    {
-      name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
-    },
+    // {
+    //   name: 'webkit',
+    //   use: { ...devices['Desktop Safari'] },
+    // },
 
     /* Test against mobile viewports. */
     // {

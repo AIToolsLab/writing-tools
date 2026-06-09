@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupMockBackend } from './mockBackend';
+import { setupMockBackend, fulfillOpenAI } from './mockBackend';
 
 test.describe('Draft component - Main flows', () => {
   test.beforeEach(async ({ page }) => {
@@ -13,14 +13,18 @@ test.describe('Draft component - Main flows', () => {
     await expect(page.getByRole('banner')).toContainText('Thoughtful');
   });
 
+const exampleLocator = 'button[title="See what you could write next"]';
+const readerLocator = 'button[title="Understand reader perspective"]';
+const adviceLocator = 'button[title="Get suggestions for next words"]';
+
   test('should display three generation option buttons', async ({ page }) => {
     // Locate the draft iframe
     const frame = page.frameLocator('#editor-frame');
 
     // Verify all three generation buttons are present using title attribute
-    const exampleButton = frame.locator('button[title="Examples of what you could write next:"]');
-    const readerButton = frame.locator('button[title="Possible questions your reader might have:"]');
-    const adviceButton = frame.locator('button[title="Advice for your next words:"]');
+    const exampleButton = frame.locator(exampleLocator);
+    const readerButton = frame.locator(readerLocator);
+    const adviceButton = frame.locator(adviceLocator);
 
     await expect(exampleButton).toBeVisible();
     await expect(readerButton).toBeVisible();
@@ -29,7 +33,7 @@ test.describe('Draft component - Main flows', () => {
 
   test('should generate and display example sentences when clicking example button', async ({ page }) => {
     const frame = page.frameLocator('#editor-frame');
-    const exampleButton = frame.locator('button[title="Examples of what you could write next:"]');
+    const exampleButton = frame.locator(exampleLocator);
 
     // Click the example sentences button
     await exampleButton.click();
@@ -42,7 +46,7 @@ test.describe('Draft component - Main flows', () => {
 
   test('should generate and display reader perspective when clicking reader button', async ({ page }) => {
     const frame = page.frameLocator('#editor-frame');
-    const readerButton = frame.locator('button[title="Possible questions your reader might have:"]');
+    const readerButton = frame.locator(readerLocator);
 
     // Click the reader perspective button
     await readerButton.click();
@@ -55,7 +59,7 @@ test.describe('Draft component - Main flows', () => {
 
   test('should generate and display advice when clicking advice button', async ({ page }) => {
     const frame = page.frameLocator('#editor-frame');
-    const adviceButton = frame.locator('button[title="Advice for your next words:"]');
+    const adviceButton = frame.locator(adviceLocator);
 
     // Click the advice button
     await adviceButton.click();
@@ -68,16 +72,16 @@ test.describe('Draft component - Main flows', () => {
 
   test('should delete suggestion when clicking delete button', async ({ page }) => {
     const frame = page.frameLocator('#editor-frame');
-    const exampleButton = frame.locator('button[title="Examples of what you could write next:"]');
-    const readerButton = frame.locator('button[title="Possible questions your reader might have:"]');
-    const adviceButton = frame.locator('button[title="Advice for your next words:"]');
+    const exampleButton = frame.locator(exampleLocator);
+    const readerButton = frame.locator(readerLocator);
+    const adviceButton = frame.locator(adviceLocator);
 
     // Generate example suggestion
     await exampleButton.click();
     await expect(frame.getByText('First example suggestion')).toBeVisible({ timeout: 5000 });
 
     // Delete example suggestion
-    const deleteButton1 = frame.locator('button[aria-label="Delete saved item"]').first();
+    const deleteButton1 = frame.locator('button[aria-label="Delete suggestion"]').first();
     await deleteButton1.click();
     await expect(frame.getByText('First example suggestion')).not.toBeVisible({ timeout: 2000 });
 
@@ -86,7 +90,7 @@ test.describe('Draft component - Main flows', () => {
     await expect(frame.getByText('First reader perspective')).toBeVisible({ timeout: 5000 });
 
     // Delete reader perspective suggestion
-    const deleteButton2 = frame.locator('button[aria-label="Delete saved item"]').first();
+    const deleteButton2 = frame.locator('button[aria-label="Delete suggestion"]').first();
     await deleteButton2.click();
     await expect(frame.getByText('First reader perspective')).not.toBeVisible({ timeout: 2000 });
 
@@ -95,27 +99,24 @@ test.describe('Draft component - Main flows', () => {
     await expect(frame.getByText('First piece of advice')).toBeVisible({ timeout: 5000 });
 
     // Delete advice suggestion
-    const deleteButton3 = frame.locator('button[aria-label="Delete saved item"]').first();
+    const deleteButton3 = frame.locator('button[aria-label="Delete suggestion"]').first();
     await deleteButton3.click();
     await expect(frame.getByText('First piece of advice')).not.toBeVisible({ timeout: 2000 });
   });
 
   test('should disable buttons during loading', async ({ page }) => {
   const frame = page.frameLocator('#editor-frame');
-  const exampleButton = frame.locator('button[title="Examples of what you could write next:"]');
-  const readerButton = frame.locator('button[title="Possible questions your reader might have:"]');
-  const adviceButton = frame.locator('button[title="Advice for your next words:"]');
+  const exampleButton = frame.locator(exampleLocator);
+  const readerButton = frame.locator(readerLocator);
+  const adviceButton = frame.locator(adviceLocator);
 
-  // Mock backend with delay and realistic response
-  await page.route('**/api/get_suggestion*', async (route) => {
+  // Mock backend with delay and realistic streamed response
+  await page.route('**/openai/chat/completions', async (route) => {
     await page.waitForTimeout(1000); // simulate network delay
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        result: '- First example suggestion\n\n- Second example suggestion\n\n- Third example suggestion'
-      }),
-    });
+    await fulfillOpenAI(
+      route,
+      '- First example suggestion\n\n- Second example suggestion\n\n- Third example suggestion'
+    );
   });
 
   // Click the button to trigger request
@@ -139,7 +140,7 @@ test.describe('Draft component - Main flows', () => {
     const frame = page.frameLocator('#editor-frame');
 
     // Verify empty state message is shown
-    await expect(frame.getByText('Click the button above to generate a suggestion.')).toBeVisible();
+    await expect(frame.getByText('No suggestions yet')).toBeVisible();
   });
 
 });

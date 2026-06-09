@@ -10,6 +10,6 @@ test('demo page - visual regression', async ({ page }) => {
   await expect(page.getByRole('banner')).toContainText('Thoughtful');
 
   await expect(page).toHaveScreenshot('demo-page.png', {
-    fullPage: true
+    fullPage: true,
   });
 });

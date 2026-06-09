@@ -2,20 +2,20 @@
  * @format
  */
 
+import { streamText, type ModelMessage } from 'ai';
 import { useAtomValue } from 'jotai';
 import {
 	useCallback,
 	useContext,
 	useEffect,
-	useMemo,
 	useRef,
 	useState,
 } from 'react';
 import { Remark } from 'react-remark';
-import { log, SERVER_URL } from '@/api';
-import { useAccessToken } from '@/contexts/authTokenContext';
+import { log } from '@/api';
+import { OPENAI_MODEL, openai } from '@/api/openai';
+import { buildMessages } from '@/api/prompts';
 import { EditorContext } from '@/contexts/editorContext';
-import { studyDataAtom } from '@/contexts/studyContext';
 import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import { iconFunc } from './iconFunc';
@@ -27,7 +27,6 @@ const visibleNameForMode = {
 	proposal_advice: 'Advice for your next words:',
 	complete_document: 'Complete Document',
 	example_rewording: 'Example rewordings of your selected text:',
-	no_ai: 'No AI',
 };
 
 const modeMeta: Record<string, { name: string; description: string }> = {
@@ -65,34 +64,24 @@ class Fetcher {
 		this.previousRequest = null;
 	}
 
-	async fetchSuggestion(
-		request: SuggestionRequest,
-		accessToken: string,
-		username: string,
-	): Promise<GenerationResult> {
+	async fetchSuggestion(request: SuggestionRequest): Promise<GenerationResult> {
 		this.requestInFlight = request;
 		try {
-			const response = await fetch(`${SERVER_URL}/get_suggestion`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Authorization: `Bearer ${accessToken}`,
-				},
-				body: JSON.stringify({
-					username: username,
-					gtype: request.type,
+			const messages = buildMessages(
+				request.type,
+				request.docContext,
+			) as ModelMessage[];
 
-					doc_context: request.docContext,
-				}),
-				signal: AbortSignal.timeout(20000),
+			const stream = streamText({
+				model: openai.chat(OPENAI_MODEL),
+				messages,
+				abortSignal: AbortSignal.timeout(20000),
 			});
-			if (!response.ok) {
-				throw new Error(`HTTP error! status: ${response.status}`);
-			}
-			const generated = (await response.json()) as GenerationResult;
-			// Set previousRequest only when the response is successful
+
+			const result = await stream.text;
+
 			this.previousRequest = request;
-			return generated;
+			return { generation_type: request.type, result, extra_data: {} };
 		} catch (err: any) {
 			let errMsg = '';
 			if (err.name === 'AbortError')
@@ -249,8 +238,6 @@ export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContextSnapshot = useDocContext(editorAPI);
 	const username = useAtomValue(usernameAtom);
-	const studyData = useAtomValue(studyDataAtom);
-	const { getAccessToken, authErrorType } = useAccessToken();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 	const [errorMsg, updateErrorMsg] = useState('');
@@ -272,14 +259,8 @@ export default function Draft() {
 	// 	after: docContextSnapshot.afterCursor.slice(0, 50),
 	// });
 
-	const isStudy = studyData !== null;
-	const currentCondition = isStudy ? studyData.condition : null;
-	const isNoAI = currentCondition === 'no_ai';
-	const autoRefreshInterval = isStudy && !isNoAI ? studyData.autoRefreshInterval : 0;
-	const modesToShow = useMemo(
-		() => (isStudy ? [studyData.condition] : modes),
-		[isStudy, studyData],
-	);
+	const autoRefreshInterval = 0;
+	const modesToShow = modes;
 
 	const shouldAutoRefresh = autoRefreshInterval > 0;
 
@@ -342,15 +323,30 @@ export default function Draft() {
 			if (isUserInitiated) {
 				setIsLoading(true);
 			}
-			try {
-				const token = await getAccessToken();
-				const suggestion = await getFetcher().fetchSuggestion(
-					suggestionRequest,
-					token,
-					username,
+			// Rewording needs selected text to work — if nothing is selected,
+			// show a message immediately without calling the backend
+			if (
+				suggestionRequest.type === 'example_rewording' &&
+				!suggestionRequest.docContext.selectedText.trim()
+			) {
+				save(
+					{
+						generation_type: 'example_rewording',
+						result: 'Please select some text to get rewording suggestions.',
+						extra_data: {},
+					},
+					suggestionRequest.docContext,
 				);
-				// Suggestion text might be empty
-				if (suggestion.result === '') {
+				setIsLoading(false);
+				return;
+			}
+			try {
+				const suggestion = await getFetcher().fetchSuggestion(suggestionRequest);
+				// The AI sometimes returns "[]" (an empty JSON array) as plain text
+				// when it has nothing to say. Treat that the same as an empty response
+				// so we don't show a useless "[]" bullet to the user.
+				const isEmpty = suggestion.result.trim() === '' || suggestion.result.trim() === '[]';
+				if (isEmpty) {
 					console.warn('Received empty suggestion.');
 				} else {
 					save(suggestion, suggestionRequest.docContext);
@@ -372,7 +368,7 @@ export default function Draft() {
 
 			setIsLoading(false);
 		},
-		[getAccessToken, getFetcher, username, save],
+		[getFetcher, save, username],
 	);
 
 	const autoRefreshCallback = useCallback(() => {
@@ -414,23 +410,6 @@ export default function Draft() {
 		autoRefreshCallback,
 		autoRefreshInterval,
 	);
-
-	if (authErrorType !== null) {
-		return <div>Please reauthorize.</div>;
-	}
-
-	// Handle no_ai condition with static message
-	if (isNoAI) {
-		return (
-			<div className="flex flex-col flex-1">
-				<div className="flex flex-col flex-1 gap-2 relative p-2">
-					<div className="mt-4 ml-4 mr-4 p-4 text-center text-stone-700">
-						AI suggestions are unavailable for this task. (Please do not use any other AI systems either.)
-					</div>
-				</div>
-			</div>
-		);
-	}
 
 	return (
 		<div className={classes.app}>

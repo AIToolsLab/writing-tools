@@ -9,8 +9,8 @@ services:
 
   backend:
     build:
-      context: .
-      dockerfile: backend/Dockerfile
+      context: ./backend
+      dockerfile: Dockerfile
     environment:
       - PORT=5000
       - OPENAI_API_KEY=${OPENAI_API_KEY}
