@@ -1,10 +1,12 @@
 import { createMiddleware } from 'hono/factory';
 import { PostHog } from 'posthog-node';
 
-const token = (process.env.POSTHOG_PROJECT_TOKEN ?? '').trim();
+const token = (process.env.POSTHOG_PROJECT_TOKEN ?? '').trim() || "placeholder-token";
 const host = (process.env.POSTHOG_HOST ?? 'https://us.i.posthog.com').trim();
 
-const posthog = new PostHog(token, { host });
+const shouldDisablePosthog = token === "placeholder-token" || process.env.DISABLE_POSTHOG === '1';
+
+const posthog = new PostHog(token, { host, disabled: shouldDisablePosthog });
 
 export const posthogMiddleware = createMiddleware(async (c, next) => {
 	posthog.capture({
