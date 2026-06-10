@@ -71,8 +71,9 @@ const DEBUG_HTML = `<!DOCTYPE html>
     }
 
     async function signOut() {
-      await fetch(BASE + '/api/auth/sign-out', { method: 'POST', credentials: 'include' });
-      window.location.reload();
+      const res = await fetch(BASE + '/api/auth/sign-out', { method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+      if (res.ok) window.location.reload();
+      else show('Sign-out failed: ' + res.status, true);
     }
 
     async function callProtected(mode) {
