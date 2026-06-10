@@ -7,25 +7,39 @@ interface TabEntry {
 	text: string;
 }
 
-interface TabResult extends TabEntry {
+// One result row = one occurrence of the keyword in a tab.
+interface Occurrence {
+	tabId: string;
+	title: string;
 	snippet: string;
+	occurrenceIndex: number; // 0-based: which occurrence within this tab
 }
 
-function getSnippet(text: string, keyword: string, radius = 80): string {
-	const idx = text.toLowerCase().indexOf(keyword.toLowerCase());
-	if (idx === -1) return text.slice(0, radius * 2).trim();
-	const start = Math.max(0, idx - radius);
-	const end = Math.min(text.length, idx + keyword.length + radius);
-	const raw = text.slice(start, end).replace(/\n/g, ' ').trim();
-	return (start > 0 ? '…' : '') + raw + (end < text.length ? '…' : '');
-}
+// Build one entry per occurrence of the keyword in the tab's text (case-insensitive),
+// each with a snippet of surrounding context. Capped to avoid runaway on common words.
+function getOccurrences(tab: TabEntry, keyword: string, radius = 80): Occurrence[] {
+	const lowerText = tab.text.toLowerCase();
+	const lowerKw = keyword.toLowerCase();
+	if (!lowerKw) return [];
 
-function matchesKeyword(tab: TabEntry, keyword: string): boolean {
-	const kw = keyword.toLowerCase();
-	return (
-		tab.title.toLowerCase().includes(kw) ||
-		tab.text.toLowerCase().includes(kw)
-	);
+	const out: Occurrence[] = [];
+	const MAX = 50;
+	let from = 0;
+	while (out.length < MAX) {
+		const idx = lowerText.indexOf(lowerKw, from);
+		if (idx === -1) break;
+		const start = Math.max(0, idx - radius);
+		const end = Math.min(tab.text.length, idx + keyword.length + radius);
+		const raw = tab.text.slice(start, end).replace(/\n/g, ' ').trim();
+		out.push({
+			tabId: tab.id,
+			title: tab.title,
+			snippet: (start > 0 ? '…' : '') + raw + (end < tab.text.length ? '…' : ''),
+			occurrenceIndex: out.length,
+		});
+		from = idx + lowerKw.length;
+	}
+	return out;
 }
 
 function detectCurrentTab(tabs: TabEntry[], beforeCursor: string, selectedText: string, afterCursor: string): string | null {
@@ -58,9 +72,8 @@ export default function TagLinker() {
 	const editorAPI = useContext(EditorContext);
 
 	const [tabs, setTabs] = useState<TabEntry[]>([]);
-	const [, setDocumentId] = useState<string>('');
 	const [keyword, setKeyword] = useState<string>('');
-	const [results, setResults] = useState<TabResult[]>([]);
+	const [results, setResults] = useState<Occurrence[]>([]);
 	const [loadingTabs, setLoadingTabs] = useState<boolean>(true);
 	const [searching, setSearching] = useState<boolean>(false);
 	const [error, setError] = useState<string | null>(null);
@@ -81,7 +94,6 @@ export default function TagLinker() {
 					window.GoogleAppsScript.getDocumentId(),
 					window.GoogleAppsScript.getAllTabs(),
 				]);
-				setDocumentId(docId);
 				setTabs(allTabs);
 				tabsRef.current = allTabs;
 				documentIdRef.current = docId;
@@ -135,13 +147,20 @@ export default function TagLinker() {
 				context.afterCursor,
 			);
 
-			const matched: TabResult[] = currentTabs
+			const matched: Occurrence[] = currentTabs
 				.filter(tab => tab.id !== detectedTabId)
-				.filter(tab => matchesKeyword(tab, selected))
-				.map(tab => ({
-					...tab,
-					snippet: getSnippet(tab.text, selected),
-				}));
+				.flatMap(tab => {
+					const occ = getOccurrences(tab, selected);
+					// Title-only match (keyword in the tab name but not its body):
+					// still offer one jump to that tab.
+					if (
+						occ.length === 0 &&
+						tab.title.toLowerCase().includes(selected.toLowerCase())
+					) {
+						return [{ tabId: tab.id, title: tab.title, snippet: '', occurrenceIndex: 0 }];
+					}
+					return occ;
+				});
 
 			setResults(matched);
 			setSearching(false);
@@ -159,7 +178,25 @@ export default function TagLinker() {
 	}, [editorAPI]);
 
 	function buildTabUrl(tabId: string) {
-		return `https://docs.google.com/document/d/${documentIdRef.current}/edit#tab=${tabId}`;
+		// Google Docs switches tabs via the ?tab= query param, not a #hash fragment.
+		return `https://docs.google.com/document/d/${documentIdRef.current}/edit?tab=${tabId}`;
+	}
+
+	// Jump to a tab by selecting the keyword there — this switches the tab in the
+	// same window and highlights the match. If the Apps Script select can't reach
+	// across tabs, fall back to opening the tab in a new browser tab.
+	async function jumpToTab(tabId: string, occurrenceIndex: number) {
+		try {
+			const ok = await window.GoogleAppsScript.selectInTab(
+				tabId,
+				keyword,
+				occurrenceIndex,
+			);
+			if (ok) return;
+		} catch {
+			// fall through to the new-tab fallback
+		}
+		window.open(buildTabUrl(tabId), '_blank', 'noopener');
 	}
 
 	if (loadingTabs) {
@@ -194,21 +231,24 @@ export default function TagLinker() {
 					{!searching && results.length > 0 && (
 						<div style={styles.results}>
 							<p style={styles.resultsHeader}>
-								<strong>"{keyword}"</strong> found in:
+								<strong>"{keyword}"</strong> found in {results.length}{' '}
+								place{results.length !== 1 ? 's' : ''}:
 							</p>
-							{results.map(tab => (
-								<div key={tab.id} style={styles.card}>
-									<div style={styles.cardTitle}>{tab.title}</div>
-									{tab.snippet ? (
-										<div style={styles.snippet}>"{tab.snippet}"</div>
+							{results.map((occ, i) => (
+								<div key={`${occ.tabId}-${occ.occurrenceIndex}-${i}`} style={styles.card}>
+									<div style={styles.cardTitle}>{occ.title}</div>
+									{occ.snippet ? (
+										<div style={styles.snippet}>"{occ.snippet}"</div>
 									) : null}
-									<a
-										href={buildTabUrl(tab.id)}
-										target="_top"
+									<button
+										type="button"
+										onClick={() => {
+											void jumpToTab(occ.tabId, occ.occurrenceIndex);
+										}}
 										style={styles.jumpLink}
 									>
 										Jump to tab ↗
-									</a>
+									</button>
 								</div>
 							))}
 						</div>

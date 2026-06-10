@@ -240,17 +240,82 @@ function selectPhrase(phrase) {
     const element = searchResult.getElement();
     const startOffset = searchResult.getStartOffset();
     const endOffset = searchResult.getEndOffsetInclusive();
-    
+
     // Create a range for the found text
     const rangeBuilder = doc.newRange();
     rangeBuilder.addElement(element, startOffset, endOffset);
-    
+
     // Set the selection
     doc.setSelection(rangeBuilder.build());
     return true;
   }
-  
+
   return false;
+}
+
+/**
+ * Finds a phrase inside a specific tab and selects it. Selecting moves the
+ * editor to that tab and highlights the text — all in the same window — which
+ * a URL link can't do (the sidebar sandbox blocks top-frame navigation, and
+ * Docs URLs can't deep-link to text).
+ *
+ * @param {string} tabId - The target tab's id (from getAllTabs)
+ * @param {string} phrase - The text to find and select
+ * @returns {boolean} True if found and selected, false otherwise
+ */
+function selectInTab(tabId, phrase, occurrenceIndex) {
+  occurrenceIndex = occurrenceIndex || 0;
+  const doc = DocumentApp.getActiveDocument();
+
+  // Locate the requested tab object.
+  let targetTab = null;
+  try {
+    const tabs = doc.getTabs();
+    for (let i = 0; i < tabs.length; i++) {
+      if (tabs[i].getId() === tabId) {
+        targetTab = tabs[i];
+        break;
+      }
+    }
+  } catch (e) { /* Tabs API not supported */ }
+
+  // Make the target tab active FIRST. setSelection only works within the active
+  // tab, so switching here is what lets the highlight land in the right tab (and
+  // moves the user there in the same window). setActiveTab takes the tab id.
+  let switched = false;
+  if (targetTab) {
+    doc.setActiveTab(tabId);
+    switched = true;
+  }
+
+  // Highlight the requested occurrence within that tab's body. findText treats
+  // its argument as a regex, so escape the phrase to match it literally and keep
+  // occurrence counting aligned with the frontend's plain-text search.
+  const body = targetTab ? targetTab.asDocumentTab().getBody() : doc.getBody();
+  const pattern = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  let match = body.findText(pattern);
+  for (let n = 0; n < occurrenceIndex && match; n++) {
+    match = body.findText(pattern, match);
+  }
+
+  let selected = false;
+  if (match) {
+    try {
+      const range = doc.newRange()
+        .addElement(
+          match.getElement(),
+          match.getStartOffset(),
+          match.getEndOffsetInclusive(),
+        )
+        .build();
+      doc.setSelection(range);
+      selected = true;
+    } catch (e) { /* cross-tab selection not permitted on this API version */ }
+  }
+
+  // True if we either switched tabs or highlighted — either is an in-window jump.
+  return switched || selected;
 }
 
 /**

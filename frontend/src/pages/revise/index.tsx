@@ -20,9 +20,11 @@ import {
 	AiOutlineEdit,
 	AiOutlineQuestionCircle
 } from 'react-icons/ai';
+import { isRunningInGoogleDocs } from '@/api';
 import { OPENAI_MODEL, openai } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
 import { useDocContext } from '@/utilities';
+import TagLinker from '../tag-linker';
 import classes from './styles.module.css';
 
 interface Prompt {
@@ -374,6 +376,9 @@ ${request}
 			
 			{/* Scrollable body */}
 			<div className={classes.body}>
+				{/* Cross-tab helper — only meaningful in Google Docs, which has tabs */}
+				{isRunningInGoogleDocs() ? <TagLinker /> : null}
+
 				{/* Section 1: Set your to-do */}
 				<div className={classes.todoSection}>
 					<div className={classes.sectionLabel}>

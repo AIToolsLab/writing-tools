@@ -35,6 +35,11 @@ declare global {
 			getUserProperty: (key: string) => Promise<string | null>;
 			getDocumentId: () => Promise<string>;
 			getAllTabs: () => Promise<{ id: string; title: string; text: string }[]>;
+			selectInTab: (
+				tabId: string,
+				phrase: string,
+				occurrenceIndex?: number,
+			) => Promise<boolean>;
 		};
 		RUNNING_IN_GOOGLE_DOCS?: boolean;
 	}
