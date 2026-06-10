@@ -11,8 +11,6 @@ is pre-generated so enabling auth later only requires setting the flag and the G
 credentials.
 """
 
-import base64
-import os
 import random
 import string
 from pathlib import Path
@@ -36,9 +34,10 @@ log_secret = '-'.join(''.join(random.choices(string.ascii_lowercase + string.dig
 
 posthog_project_token = input("PostHog project token (from https://us.posthog.com/project/247756/settings/project-details): ").strip()
 
-# Pre-generate a strong Better Auth secret (>=32 bytes). Auth stays disabled
-# until BETTER_AUTH_ENABLED is set to true and Google credentials are filled in.
-better_auth_secret = base64.b64encode(os.urandom(32)).decode("ascii")
+# Do not persist auth secrets in plaintext .env files.
+# Provide an empty placeholder and require BETTER_AUTH_SECRET to be set
+# externally (for example via shell env, docker-compose env, or a secret manager)
+# before enabling auth.
 
 with open(env_file, "w") as f:
     f.write(f'OPENAI_API_KEY="{openai_api_key}"\n')
@@ -47,8 +46,10 @@ with open(env_file, "w") as f:
     f.write("\n")
     f.write("# Auth — opt-in. Set BETTER_AUTH_ENABLED=true and fill the Google\n")
     f.write("# credentials to enable the Better Auth flow.\n")
+    f.write("# IMPORTANT: Set BETTER_AUTH_SECRET externally; do not store it in this file.\n")
+    f.write("# Example: export BETTER_AUTH_SECRET=\"$(openssl rand -base64 32)\"\n")
     f.write('BETTER_AUTH_ENABLED=false\n')
-    f.write(f'BETTER_AUTH_SECRET="{better_auth_secret}"\n')
+    f.write('BETTER_AUTH_SECRET=\n')
     f.write('BETTER_AUTH_URL=http://localhost:8000\n')
     f.write('BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:8000,https://localhost:3000\n')
     f.write('GOOGLE_CLIENT_ID=\n')
