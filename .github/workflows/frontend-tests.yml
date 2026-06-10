@@ -53,7 +53,7 @@ jobs:
     name: E2E tests (Playwright)
     # Skipped when a dispatch asks for snapshot regeneration instead — running
     # both would fail this job against the stale snapshots being replaced.
-    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs.update-snapshots) }}
+    if: ${{ !(github.event_name == 'workflow_dispatch' && inputs['update-snapshots']) }}
     timeout-minutes: 60
     runs-on: ubuntu-latest
     # Pinned to match the installed @playwright/test version (1.60.0); bump both
@@ -86,7 +86,7 @@ jobs:
   # The job commits the refreshed PNGs back to the triggering branch.
   update-snapshots:
     name: Regenerate visual snapshots
-    if: ${{ github.event_name == 'workflow_dispatch' && inputs.update-snapshots }}
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs['update-snapshots'] }}
     timeout-minutes: 60
     runs-on: ubuntu-latest
     permissions:
