@@ -1,17 +1,30 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import type { Auth } from './auth.js'; // type-only import, no runtime cost
 import { logSecret, openaiApiKey } from './config.js';
 import { appendLog, pollLogs, validateUsername, zipLogs } from './logging.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 
-export function createApp(): Hono {
+export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	const app = new Hono();
 
 	// CORS stays fully permissive for now (no backend auth yet, same as before).
 	app.use('*', cors());
 	app.use('*', posthogMiddleware);
+
+	if (auth) {
+		// Better Auth owns all /api/auth/* — OAuth redirects, callbacks, sessions, sign-out
+		app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw));
+
+		// Permanent diagnostic route — proves cookie + Bearer session verification works
+		app.get('/api/protected', async (c) => {
+			const session = await auth.api.getSession({ headers: c.req.raw.headers });
+			if (!session) return c.json({ error: 'Unauthorized' }, 401);
+			return c.json({ email: session.user.email, name: session.user.name });
+		});
+	}
 
 	app.onError(async (err, c) => {
 		await captureException(err, { path: c.req.path, method: c.req.method });
