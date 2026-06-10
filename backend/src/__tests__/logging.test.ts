@@ -2,7 +2,7 @@ import { mkdtemp, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { unzipSync } from 'fflate';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
 	appendLog,
 	pollLogs,
@@ -79,6 +79,7 @@ describe('appendLog', () => {
 
 describe('pollLogs', () => {
 	it('returns entries past the client position and dedupes by timestamp+username', async () => {
+		const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 		await writeFile(
 			path.join(dir, 'carol.jsonl'),
 			[
@@ -94,6 +95,7 @@ describe('pollLogs', () => {
 		expect(all[0]!.username).toBe('carol');
 		expect(all[0]!.logs).toHaveLength(2); // dup and bad line dropped
 
+		expect(warn).toHaveBeenCalledOnce();
 		const partial = await pollLogs({ carol: 1 });
 		expect(partial[0]!.logs).toHaveLength(1);
 	});
