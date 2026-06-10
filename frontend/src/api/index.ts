@@ -1,4 +1,28 @@
-export const SERVER_URL = '/api';
+/**
+ * Resolves the backend base URL.
+ *
+ * Everywhere except the Google Docs sidebar a relative `/api` works (Word's dev
+ * server and the production web host both serve the API under the same origin).
+ *
+ * The Google Docs sidebar is different: its HTML is served from a Google origin,
+ * so a relative `/api` would hit Google's domain. The React bundle, however, is
+ * loaded from the dev server (e.g. http://localhost:3001), which proxies `/api`
+ * to the Python backend. We derive that origin from this script's own URL, so no
+ * tunnel (ngrok) or hardcoded port is needed.
+ */
+function resolveServerUrl(): string {
+	if (typeof window === 'undefined' || !window.RUNNING_IN_GOOGLE_DOCS) {
+		return '/api';
+	}
+	const script = document.currentScript as HTMLScriptElement | null;
+	if (script?.src) {
+		return `${new URL(script.src).origin}/api`;
+	}
+	// Fallback to the dev server's default origin if currentScript is unavailable.
+	return 'http://localhost:3001/api';
+}
+
+export const SERVER_URL = resolveServerUrl();
 
 // Re-export editor APIs
 export { wordEditorAPI } from './wordEditorAPI';

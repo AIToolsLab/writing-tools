@@ -80,7 +80,18 @@ module.exports = (_env = {}, options = {}) => {
 			allowedHosts: 'all',
 			headers: {
 				'Access-Control-Allow-Origin': '*'
-			}
+			},
+			// The Google Docs sidebar fetches the backend through this dev server
+			// (SERVER_URL points at http://localhost:3001/api), so proxy /api to
+			// the Python backend — same approach as the Word config. This removes
+			// the need for an ngrok tunnel during development.
+			proxy: [
+				{
+					context: ['/api'],
+					target: 'http://0.0.0.0:8000',
+					changeOrigin: true
+				}
+			]
 		}
 	};
 };
