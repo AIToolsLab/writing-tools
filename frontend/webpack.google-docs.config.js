@@ -56,7 +56,14 @@ module.exports = (_env = {}, options = {}) => {
 			new webpack.DefinePlugin({
 				'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
 				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
-				'process.env.NODE_ENV': JSON.stringify(options.mode || 'development')
+				'process.env.NODE_ENV': JSON.stringify(options.mode || 'development'),
+				// Backend origin for the Google Docs sidebar. Empty in dev (the sidebar
+				// reaches the backend through this dev server's /api proxy); in prod the
+				// bundle is inlined into the Apps Script HTML, so bake in the deployed
+				// backend that the sidebar calls directly.
+				'process.env.GDOCS_BACKEND_URL': JSON.stringify(
+					dev ? '' : 'https://app.thoughtful-ai.com'
+				)
 			}),
 			// Generate a standalone HTML file for testing
 			new HtmlWebpackPlugin({
