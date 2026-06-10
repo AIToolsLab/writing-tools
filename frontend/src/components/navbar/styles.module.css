@@ -1,46 +1,100 @@
+.header {
+	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 12px 14px;
+	background: var(--surface);
+	border-bottom: 1px solid var(--border);
+	font-family: var(--font-ui);
+}
+
+.brandRow {
+	display: flex;
+	align-items: baseline;
+	gap: 7px;
+	min-width: 0;
+}
+
+.brandMark {
+	color: var(--accent);
+	font-size: 14px;
+	line-height: 1;
+	align-self: center;
+}
+
+.wordmark {
+	font-family: var(--font-display);
+	font-size: 17px;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	color: var(--text-primary);
+}
+
+.brandTagline {
+	margin-left: auto;
+	font-family: var(--font-mono);
+	font-size: 9px;
+	text-transform: uppercase;
+	letter-spacing: 0.09em;
+	color: var(--text-tertiary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
 .tabs {
 	display: flex;
-	padding: 12px 12px 0;
-	background: #ffffff;
-	border-bottom: 1px solid #e4e0d8;
-	gap: 4px;
-	flex-shrink: 0;
+	gap: 3px;
+	padding: 3px;
+	background: var(--surface-2);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
 }
 
 .tabBtn {
 	flex: 1;
 	display: flex;
-	flex-direction: column;
 	align-items: center;
-	gap: 2px;
-	padding: 8px 10px 10px;
-	border: 1px solid transparent;
-	border-bottom: none;
-	border-radius: 6px 6px 0 0;
+	justify-content: center;
+	gap: 6px;
+	padding: 7px 6px;
+	border: none;
+	border-radius: var(--radius-sm);
 	background: transparent;
-	font-size: 13px;
+	font-family: var(--font-ui);
+	font-size: 12.5px;
 	font-weight: 500;
-	color: #b3aba0;
+	color: var(--text-tertiary);
 	cursor: pointer;
-	font-family: 'DM Sans', sans-serif;
-	transition: all 0.15s;
-	margin-bottom: -1px;
+	transition:
+		color 0.15s,
+		background 0.15s,
+		box-shadow 0.15s;
 }
 
 .tabBtn:hover {
-	color: #6b6b6b;
+	color: var(--text-secondary);
 }
 
-.active {
-	border-color: #e4e0d8;
-	border-bottom-color: #fafaf8;
-	background: #fafaf8;
-	color: #1c1c1c;
+.tabBtn:focus-visible {
+	outline: none;
+	box-shadow: 0 0 0 2px var(--accent-border);
 }
 
-.tabHint {
-	font-size: 10px;
-	font-weight: 400;
-	color: inherit;
-	opacity: 0.7;
+.active,
+.active:hover {
+	background: var(--surface);
+	color: var(--text-primary);
+	box-shadow: var(--shadow-sm);
+}
+
+.tabIcon {
+	width: 14px;
+	height: 14px;
+	flex-shrink: 0;
+}
+
+.active .tabIcon {
+	color: var(--accent);
 }

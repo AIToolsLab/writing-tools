@@ -1,7 +1,7 @@
 /* Container for the editor and sidebar in editor page */
 .container {
 	justify-content: space-evenly;
-	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+	font-family: var(--font-ui, 'Segoe UI', sans-serif);
 	display: flex;
 	flex-direction: row;
 }
@@ -18,8 +18,10 @@
 	min-width: 14rem;
 	margin: 20px 0px 20px 0px;
 	height: 80vh;
-	box-shadow: -2px 0 5px rgba(0, 0, 0, 0.3);
-	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+	border: 1px solid var(--border, #e7e2d6);
+	border-radius: 12px;
+	box-shadow: var(--shadow-md, 0 2px 10px rgba(35, 32, 25, 0.08));
+	font-family: var(--font-ui, 'Segoe UI', sans-serif);
 	right: 0;
 	background-color: white;
 	overflow: hidden;
@@ -32,7 +34,7 @@
 .democontainer {
 	display: flex;
 	justify-content: center;
-	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+	font-family: var(--font-ui, 'Segoe UI', sans-serif);
 }
 
 .demoeditor {
@@ -48,8 +50,10 @@
 	height: 80vh;
 	width: 28rem;
 	min-width: 28rem;
-	box-shadow: -2px 0 5px rgba(0, 0, 0, 0.1);
-	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+	border: 1px solid var(--border, #e7e2d6);
+	border-radius: 12px;
+	box-shadow: var(--shadow-md, 0 2px 10px rgba(35, 32, 25, 0.08));
+	font-family: var(--font-ui, 'Segoe UI', sans-serif);
 	background-color: white;
 	overflow: hidden;
 	display: flex;

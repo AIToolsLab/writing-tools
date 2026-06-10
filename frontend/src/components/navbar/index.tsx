@@ -1,47 +1,73 @@
 import {
-	PageName,
-	pageNameAtom,
-} from '@/contexts/pageContext';
+	AiOutlineAudit,
+	AiOutlineEdit,
+	AiOutlineMessage,
+} from 'react-icons/ai';
+import type { IconType } from 'react-icons';
+
+import { PageName, pageNameAtom } from '@/contexts/pageContext';
 
 import { useAtom } from 'jotai';
 import classes from './styles.module.css';
-
-/**
- * An array of objects representing the names and titles of pages.
- * Each object contains the following properties:
- *
- * @property {PageName} name - The name identifier of the page.
- * @property {string} title - The display title of the page.
- */
 
 type Page = {
 	name: PageName;
 	title: string;
 	hint: string;
+	icon: IconType;
 };
 
 const pageNames: Page[] = [
-	{ name: PageName.Draft, title: 'Draft', hint: 'Generate suggestions' },
-	{ name: PageName.Revise, title: 'Revise', hint: 'Improve your text' },
-	{ name: PageName.Chat, title: 'Chat', hint: 'Ask about your doc' },
+	{
+		name: PageName.Draft,
+		title: 'Draft',
+		hint: 'Generate suggestions',
+		icon: AiOutlineEdit,
+	},
+	{
+		name: PageName.Revise,
+		title: 'Revise',
+		hint: 'Improve your text',
+		icon: AiOutlineAudit,
+	},
+	{
+		name: PageName.Chat,
+		title: 'Chat',
+		hint: 'Ask about your doc',
+		icon: AiOutlineMessage,
+	},
 ];
 
 export default function Navbar() {
 	const [page, changePage] = useAtom(pageNameAtom);
 
 	return (
-		<div className={classes.tabs}>
-			{pageNames.map(({ name: pageName, title: pageTitle, hint }) => (
-				<button
-					key={pageName}
-					type="button"
-					onClick={() => changePage(pageName)}
-					className={`${classes.tabBtn} ${page === pageName ? classes.active : ''}`}
-				>
-					{pageTitle}
-					<span className={classes.tabHint}>{hint}</span>
-				</button>
-			))}
-		</div>
-		);
+		<header className={classes.header}>
+			<div className={classes.brandRow}>
+				<span className={classes.brandMark} aria-hidden="true">
+					✳
+				</span>
+				<span className={classes.wordmark}>Thoughtful</span>
+				<span className={classes.brandTagline}>
+					AI that helps you think
+				</span>
+			</div>
+
+			<nav className={classes.tabs} aria-label="Tool pages">
+				{pageNames.map(({ name, title, hint, icon: Icon }) => (
+					<button
+						key={name}
+						type="button"
+						title={hint}
+						onClick={() => changePage(name)}
+						className={`${classes.tabBtn} ${page === name ? classes.active : ''}`}
+						aria-current={page === name ? 'page' : undefined}
+					>
+						<Icon className={classes.tabIcon} aria-hidden="true" />
+						{title}
+					</button>
+				))}
+			</nav>
+		</header>
+	);
 }

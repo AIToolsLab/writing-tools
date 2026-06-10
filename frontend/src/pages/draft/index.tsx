@@ -146,45 +146,25 @@ function SavedGenerations({
 	deleteSavedItem: (dateSaved: Date) => void;
 }) {
 	return (
-		<div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+		<div className={classes.savedList}>
 			{savedItems.map((savedItem, index) => (
 				<div
 					key={savedItem.dateSaved.toString()}
 					className={classes.resultItem}
 					style={{ animationDelay: `${index * 0.05}s` }}
-					onMouseEnter={(e) => {
-						const deleteBtn = e.currentTarget.querySelector('[data-delete]') as HTMLElement;
-						if (deleteBtn) deleteBtn.style.opacity = '1';
-					}}
-					onMouseLeave={(e) => {
-						const deleteBtn = e.currentTarget.querySelector('[data-delete]') as HTMLElement;
-						if (deleteBtn) deleteBtn.style.opacity = '0';
-					}}
 				>
-					<div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', width: '100%' }}>
-						<div style={{ flex: 1, minWidth: 0 }}>
-							<_GenerationResult generation={savedItem.generation} />
-						</div>
-						<button
-							data-delete
-							onClick={() => deleteSavedItem(savedItem.dateSaved)}
-							style={{
-								background: 'transparent',
-								border: 'none',
-								cursor: 'pointer',
-								color: 'var(--text-tertiary)',
-								fontSize: '14px',
-								opacity: 0,
-								transition: 'opacity .15s',
-								padding: '2px',
-								flexShrink: 0,
-							}}
-							aria-label="Delete suggestion"
-							title="Delete suggestion"
-						>
-							✕
-						</button>
+					<div className={classes.resultItemBody}>
+						<_GenerationResult generation={savedItem.generation} />
 					</div>
+					<button
+						type="button"
+						className={classes.deleteBtn}
+						onClick={() => deleteSavedItem(savedItem.dateSaved)}
+						aria-label="Delete suggestion"
+						title="Delete suggestion"
+					>
+						✕
+					</button>
 				</div>
 			))}
 		</div>
@@ -413,96 +393,88 @@ export default function Draft() {
 
 	return (
 		<div className={classes.app}>
-			<div className={classes.body}>
-					
-				<div className="flex flex-col flex-1 overflow-hidden">
-					<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
-						{/* Instruction */}
-						<div className={classes.instruction}>
-							CLICK A DESIRED BUTTON
-						</div>
+			<div className={classes.sectionLabel}>
+				What would help right now?
+			</div>
 
-						{/* Feature Grid */}
-						<div className={classes.featureGrid}>
-							{modesToShow.map((mode) => {
-								const isActive = activeMode === mode;
-								const Icon = iconFunc(mode);
-								const meta = modeMeta[mode];
+			{/* Feature Grid */}
+			<div className={classes.featureGrid}>
+				{modesToShow.map((mode) => {
+					const isActive = activeMode === mode;
+					const Icon = iconFunc(mode);
+					const meta = modeMeta[mode];
 
-								return (
-									<button
-										key={mode}
-										className={`${classes.featureCard} ${isActive ? 'active' : ''}`}
-										onClick={() => {
-											setActiveMode(mode);
-											log({
-												username: username,
-												event: 'request_suggestion',
-												generation_type: mode,
-												docContext: docContextRef.current,
-											});
-											resetAutoRefresh();
-											const request = {
-												docContext: docContextRef.current,
-												type: mode,
-											};
-											getSuggestion(request, true);
-										}}
-										disabled={isLoading}
-										type="button"
-										aria-label={meta?.name}
-										title={meta?.description}
-									>
-										{Icon ? <Icon className={classes.featIcon} /> : null}
-										{meta ? (
-											<>
-												<div className={classes.featName}>{meta.name}</div>
-												<div className={classes.featDesc}>{meta.description}</div>
-											</>
-										) : null}
-										<div className={classes.activeDot}></div>
-									</button>
-								);
-							})}
-						</div>
-						{/* Results Area */}
-						<div className={`${classes.resultsArea} ${savedItems.length > 0 ? classes.hasContent : ''}`}>
-							{errorMsg ? (
-								<div className={classes.errorMessage}>
-									{errorMsg}
-								</div>
+					return (
+						<button
+							key={mode}
+							className={`${classes.featureCard} ${isActive ? classes.active : ''}`}
+							onClick={() => {
+								setActiveMode(mode);
+								log({
+									username: username,
+									event: 'request_suggestion',
+									generation_type: mode,
+									docContext: docContextRef.current,
+								});
+								resetAutoRefresh();
+								const request = {
+									docContext: docContextRef.current,
+									type: mode,
+								};
+								getSuggestion(request, true);
+							}}
+							disabled={isLoading}
+							type="button"
+							aria-label={meta?.name}
+							title={meta?.description}
+						>
+							{Icon ? <Icon className={classes.featIcon} /> : null}
+							{meta ? (
+								<>
+									<div className={classes.featName}>{meta.name}</div>
+									<div className={classes.featDesc}>{meta.description}</div>
+								</>
 							) : null}
-							{!errorMsg && savedItems.length === 0 && !isLoading ? (
-								<div className={classes.emptyStateContainer}>
-									<div className={classes.emptyTitle}>No suggestions yet</div>
-									<div className={classes.emptyHint}>
-										Click a button above to generate suggestions for your text
-									</div>
-								</div>
-							) : null}
-							{isLoading && savedItems.length === 0 ? (
-								<div className={classes.skeletonContainer}>
-									<div className={classes.skeleton}></div>
-									<div className={classes.skeleton}></div>
-									<div className={classes.skeleton}></div>
-								</div>
-							) : null}
-							{savedItems.length > 0 ? (
-								<SavedGenerations
-									savedItems={savedItems}
-									deleteSavedItem={deleteSavedItem}
-								/>
-							) : null}
+							<div className={classes.activeDot}></div>
+						</button>
+					);
+				})}
+			</div>
+
+			{/* Results Area */}
+			<div className={`${classes.resultsArea} ${savedItems.length > 0 ? classes.hasContent : ''}`}>
+				{errorMsg ? (
+					<div className={classes.errorMessage}>{errorMsg}</div>
+				) : null}
+				{!errorMsg && savedItems.length === 0 && !isLoading ? (
+					<div className={classes.emptyStateContainer}>
+						<div className={classes.emptyTitle}>No suggestions yet</div>
+						<div className={classes.emptyHint}>
+							Pick a card above and Thoughtful will respond to what
+							you have written so far
 						</div>
 					</div>
-
-					<div className={classes.disclaimer}>
-						Please note that AI suggestions may vary in quality. Always review suggestions carefully before using them.
+				) : null}
+				{isLoading && savedItems.length === 0 ? (
+					<div className={classes.skeletonContainer}>
+						<div className={classes.skeleton}></div>
+						<div className={classes.skeleton}></div>
+						<div className={classes.skeleton}></div>
 					</div>
-				</div>
+				) : null}
+				{savedItems.length > 0 ? (
+					<SavedGenerations
+						savedItems={savedItems}
+						deleteSavedItem={deleteSavedItem}
+					/>
+				) : null}
+			</div>
 
+			<div className={classes.disclaimer}>
+				Suggestions are sparks, not answers — the words that matter are
+				yours. Review anything you use.
 			</div>
 		</div>
-			);
-		}
-		
+	);
+}
+

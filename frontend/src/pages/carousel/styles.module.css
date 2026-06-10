@@ -1,3 +1,5 @@
+/* Onboarding carousel — design tokens come from src/theme.css */
+
 * {
 	box-sizing: border-box;
 }
@@ -5,10 +7,14 @@
 .onboardingContainer {
 	max-width: 42rem;
 	width: 100%;
+	height: 100%;
 	margin: 0 auto;
-	background: white;
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	background: var(--bg);
 	padding: 1.5rem;
-	border-radius: 0.5rem;
+	font-family: var(--font-ui);
 }
 
 .carouselWrapper {
@@ -41,10 +47,12 @@
 }
 
 .slideTitle {
-	font-size: 1.5rem;
+	font-family: var(--font-display);
+	font-size: 1.4rem;
 	font-weight: 600;
-	color: #1a1a1a;
-	margin: 0 0 1.5rem 0;
+	letter-spacing: -0.01em;
+	color: var(--text-primary);
+	margin: 0 0 1.25rem 0;
 	text-align: center;
 }
 
@@ -54,22 +62,29 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	margin-bottom: 1.5rem;
+	margin-bottom: 1.25rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	box-shadow: var(--shadow-sm);
+	overflow: hidden;
+	padding: 1rem;
 }
 
 .carouselImage {
-	max-height: 20rem;
-	min-height: 12rem;
+	max-height: 18rem;
+	max-width: 100%;
 	width: auto;
 	object-fit: contain;
 }
 
 .slideDescription {
 	text-align: center;
-	color: #4a4a4a;
+	color: var(--text-secondary);
+	font-size: 0.9rem;
 	max-width: 24rem;
 	margin: 0 auto;
-	line-height: 1.5;
+	line-height: 1.6;
 }
 
 .carouselControls {
@@ -87,20 +102,27 @@
 .dot {
 	width: 0.5rem;
 	height: 0.5rem;
-	border-radius: 50%;
-	background: #e0e0e0;
+	border-radius: 999px;
+	background: var(--border-strong);
 	border: none;
 	padding: 0;
 	cursor: pointer;
-	transition: background-color 0.2s;
+	transition:
+		background-color 0.2s,
+		width 0.2s;
 }
 
 .dot:hover {
-	background: #bdbdbd;
+	background: var(--text-tertiary);
 }
 
 .activeDot {
-	background: #007bff;
+	background: var(--accent);
+	width: 1.25rem;
+}
+
+.activeDot:hover {
+	background: var(--accent);
 }
 
 .carouselButtons {
@@ -114,16 +136,10 @@
 	}
 
 	.slideTitle {
-		font-size: 1.25rem;
+		font-size: 1.2rem;
 	}
 
 	.carouselImage {
 		max-height: 12rem;
-	}
-}
-
-@media (min-width: 640px) {
-	.carouselImage {
-		max-height: 20rem;
 	}
 }
