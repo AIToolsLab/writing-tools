@@ -6,9 +6,9 @@ Writes OPENAI_API_KEY, a freshly generated LOG_SECRET, POSTHOG_PROJECT_TOKEN, an
 the Better Auth keys to backend/.env, which the Hono backend loads via
 process.loadEnvFile() in dev. (In Docker these are injected by docker-compose instead.)
 
-Auth is written disabled by default (BETTER_AUTH_ENABLED=false). A BETTER_AUTH_SECRET
-is pre-generated so enabling auth later only requires setting the flag and the Google
-credentials.
+Auth is written disabled by default (BETTER_AUTH_ENABLED=false). BETTER_AUTH_SECRET is
+left empty — set it externally (e.g. export BETTER_AUTH_SECRET="$(openssl rand -base64 32)")
+before enabling auth.
 """
 
 import random

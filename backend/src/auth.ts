@@ -20,8 +20,8 @@ const dbPath = path.resolve(__dirname, '../data/auth.db');
 
 // Ensure the data directory exists. This runs only when this module is actually
 // executed — i.e. at runtime when auth is enabled, or when the Better Auth CLI
-// imports this file for migration. It creates the directory only, never the DB
-// or any migration; the DB is created by the manual `@better-auth/cli migrate`.
+// imports this file for migration. mkdirSync creates the directory; new Database()
+// creates auth.db if absent; `@better-auth/cli migrate` creates the tables.
 mkdirSync(path.dirname(dbPath), { recursive: true });
 
 // A module-level `auth` singleton (not a factory) so the Better Auth CLI can

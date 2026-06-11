@@ -10,7 +10,7 @@ const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
 export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	const app = new Hono();
 
-	// CORS stays fully permissive for now (no backend auth yet, same as before).
+	// CORS stays fully permissive for now to preserve existing behaviour.
 	app.use('*', cors());
 	app.use('*', posthogMiddleware);
 

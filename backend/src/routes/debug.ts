@@ -2,8 +2,7 @@ import type { Context } from 'hono';
 
 // Minimal diagnostic page for manually verifying Better Auth in the backend.
 // Adapted from the verified playground (playgrounds/better-auth-hono/public/index.html).
-// Registered only when auth is enabled AND DEBUG=true (see index.ts), so it is
-// never present in production or in the test environment.
+// Registered only when auth is enabled AND DEBUG=true (see index.ts).
 const DEBUG_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -92,8 +91,11 @@ const DEBUG_HTML = `<!DOCTYPE html>
     }
 
     function show(text, isErr) {
-      document.getElementById('result').innerHTML =
-        '<pre class="' + (isErr ? 'err' : 'ok') + '">' + text + '</pre>';
+      const pre = document.createElement('pre');
+      pre.className = isErr ? 'err' : 'ok';
+      pre.textContent = text;
+      const result = document.getElementById('result');
+      result.replaceChildren(pre);
     }
 
     init();
