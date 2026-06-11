@@ -10,11 +10,14 @@ import chat from "./routes/chat.js";
 const app = new Hono();
 const PORT = 3001;
 
-// CORS — allow the static test page and future frontend origins.
+// CORS — allow the backend's own static pages (3001) AND the separate
+// task-pane simulator origin (3002). The 3002 origin reproduces the Word
+// task-pane / browser split: it has NO Better Auth cookie and must rely
+// entirely on the bearer token returned by the device flow.
 app.use(
   "*",
   cors({
-    origin: [`http://localhost:${PORT}`],
+    origin: ["http://localhost:3001", "http://localhost:3002"],
     allowHeaders: ["Content-Type", "Authorization"],
     allowMethods: ["GET", "POST", "OPTIONS"],
     credentials: true,

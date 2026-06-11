@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Task-Pane Simulator (Device Flow)</title>
+  <style>
+    body { font-family: sans-serif; max-width: 560px; margin: 2.5rem auto; padding: 0 1.5rem; line-height: 1.5; }
+    h1 { font-size: 1.3rem; }
+    button { padding: 0.6rem 1.5rem; cursor: pointer; font-size: 1rem; border-radius: 6px; border: 1px solid #ccc; margin: 0.25rem 0.5rem 0.25rem 0; }
+    .primary { background: #2563eb; color: white; border-color: #2563eb; }
+    .muted { color: #666; font-size: 0.85rem; }
+    .code { font-family: monospace; font-size: 1.4rem; letter-spacing: 0.15em; background: #f4f4f4; padding: 0.35rem 0.8rem; border-radius: 6px; }
+    pre { background: #f4f4f4; padding: 0.75rem; border-radius: 6px; white-space: pre-wrap; word-break: break-all; font-size: 0.8rem; }
+    .ok { color: #16a34a; font-weight: bold; }
+    .err { color: #dc2626; font-weight: bold; }
+    #log { margin-top: 1rem; }
+    .row { margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Task-Pane Simulator</h1>
+  <p class="muted">
+    Origin <strong>http://localhost:3002</strong> — no Better Auth cookie here.
+    Backend is <strong>http://localhost:3001</strong>. Success depends only on the
+    bearer token from the device flow.
+  </p>
+
+  <div class="row">
+    <button class="primary" id="start">Start device login</button>
+    <button id="check">Call /api/protected with stored token</button>
+    <button id="clear">Clear token</button>
+  </div>
+
+  <div id="status"></div>
+  <div id="log"></div>
+
+  <script>
+    const BACKEND = "http://localhost:3001";
+    const CLIENT_ID = "writing-tools-word-poc"; // must match DEVICE_CLIENT_ID on server
+    const GRANT = "urn:ietf:params:oauth:grant-type:device_code";
+    const TOKEN_KEY = "writing-tools-poc-token";
+
+    const statusEl = document.getElementById("status");
+    const logEl = document.getElementById("log");
+    let polling = false;
+
+    function setStatus(html) { statusEl.innerHTML = html; }
+    function log(html) { logEl.innerHTML = `<pre>${html}</pre>` + logEl.innerHTML; }
+
+    // 1. Ask the backend for a device + user code.
+    async function startFlow() {
+      if (polling) return;
+      setStatus("Requesting device code…");
+      const res = await fetch(`${BACKEND}/api/auth/device/code`, {
+        method: "POST",
+        credentials: "omit",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: CLIENT_ID, scope: "openid profile email" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setStatus(`<span class="err">device/code failed:</span> ${JSON.stringify(data)}`);
+        return;
+      }
+
+      log(`device/code →\n${JSON.stringify(data, null, 2)}`);
+
+      // 2. Show the approval link — user clicks to open in a new tab.
+      //    (Future Word adapter uses Office.context.ui.openBrowserWindow.)
+      setStatus(`
+        User code: <span class="code">${data.user_code}</span><br>
+        <a href="${data.verification_uri_complete}" target="_blank" rel="noopener">Open approval page →</a><br>
+        <span class="muted">Polling every ${data.interval}s once you approve…</span>
+      `);
+
+      // 3. Poll for the token, respecting the interval.
+      pollForToken(data.device_code, data.interval);
+    }
+
+    async function pollForToken(deviceCode, intervalSec) {
+      polling = true;
+      let interval = intervalSec;
+
+      const tick = async () => {
+        if (!polling) return;
+        const res = await fetch(`${BACKEND}/api/auth/device/token`, {
+          method: "POST",
+          credentials: "omit",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            grant_type: GRANT,
+            device_code: deviceCode,
+            client_id: CLIENT_ID,
+          }),
+        });
+        const data = await res.json();
+
+        if (res.ok && data.access_token) {
+          polling = false;
+          localStorage.setItem(TOKEN_KEY, data.access_token);
+          log(`device/token → SUCCESS\n${JSON.stringify(data, null, 2)}`);
+          setStatus(`<span class="ok">Token received and stored.</span> Now click "Call /api/protected".`);
+          return;
+        }
+
+        // RFC 8628 error handling
+        switch (data.error) {
+          case "authorization_pending":
+            setTimeout(tick, interval * 1000);
+            break;
+          case "slow_down":
+            interval += 5; // back off per spec
+            log(`slow_down → backing off to ${interval}s`);
+            setTimeout(tick, interval * 1000);
+            break;
+          case "access_denied":
+            polling = false;
+            setStatus(`<span class="err">Access denied.</span> The user denied the request.`);
+            break;
+          case "expired_token":
+            polling = false;
+            setStatus(`<span class="err">Code expired.</span> Start the flow again.`);
+            break;
+          default:
+            polling = false;
+            setStatus(`<span class="err">Stopped:</span> ${JSON.stringify(data)}`);
+        }
+      };
+
+      setTimeout(tick, interval * 1000);
+    }
+
+    // 4. Prove the stored bearer token authenticates against the backend,
+    //    with NO cookie (credentials: "omit").
+    async function callProtected() {
+      const token = localStorage.getItem(TOKEN_KEY);
+      if (!token) {
+        setStatus(`<span class="err">No stored token.</span> Run the device login first.`);
+        return;
+      }
+      const res = await fetch(`${BACKEND}/api/protected`, {
+        credentials: "omit",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      log(`/api/protected → ${res.status}\n${JSON.stringify(data, null, 2)}`);
+      setStatus(
+        res.ok
+          ? `<span class="ok">${res.status}</span> — authenticated as ${data.email}`
+          : `<span class="err">${res.status}</span> — ${JSON.stringify(data)}`
+      );
+    }
+
+    function clearToken() {
+      localStorage.removeItem(TOKEN_KEY);
+      setStatus("Token cleared. Back to signed-out state.");
+    }
+
+    document.getElementById("start").onclick = startFlow;
+    document.getElementById("check").onclick = callProtected;
+    document.getElementById("clear").onclick = clearToken;
+  </script>
+</body>
+</html>
