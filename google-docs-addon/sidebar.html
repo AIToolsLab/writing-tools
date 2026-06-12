@@ -178,6 +178,14 @@
        */
       getAllTabs: function() {
         return this.run('getAllTabs');
+      },
+
+      /**
+       * Finds the Nth occurrence of a phrase in a specific tab and selects it
+       * (switches tab + highlights).
+       */
+      selectInTab: function(tabId, phrase, occurrenceIndex) {
+        return this.run('selectInTab', tabId, phrase, occurrenceIndex);
       }
     };
     
