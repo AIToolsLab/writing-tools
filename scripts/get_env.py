@@ -54,5 +54,8 @@ with open(env_file, "w") as f:
     f.write('BETTER_AUTH_TRUSTED_ORIGINS=http://localhost:8000,https://localhost:3000\n')
     f.write('GOOGLE_CLIENT_ID=\n')
     f.write('GOOGLE_CLIENT_SECRET=\n')
+    f.write('# Device flow client IDs (comma-separated). Use writing-tools-device-poc for local dev.\n')
+    f.write('# Set to your real client ID(s) externally before enabling in production.\n')
+    f.write('BETTER_AUTH_DEVICE_CLIENT_IDS=writing-tools-device-poc\n')
 
 print(f".env file created at {env_file}")
