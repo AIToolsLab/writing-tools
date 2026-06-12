@@ -32,8 +32,27 @@
     const content = document.getElementById("content");
     const statusEl = document.getElementById("status");
 
-    function show(html) { content.innerHTML = html; }
-    function setStatus(html) { statusEl.innerHTML = html; }
+    // Build helpers — dynamic values always go through textContent, never innerHTML.
+    function el(tag, cls, text) {
+      const e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text !== undefined) e.textContent = text;
+      return e;
+    }
+    function btn(cls, id, label, handler) {
+      const b = el("button", cls);
+      b.id = id;
+      b.textContent = label;
+      b.onclick = handler;
+      return b;
+    }
+
+    function showContent(...nodes) {
+      content.replaceChildren(...nodes);
+    }
+    function setStatus(...nodes) {
+      statusEl.replaceChildren(...nodes);
+    }
 
     async function getSession() {
       const res = await fetch(`${BASE}/api/auth/get-session`, { credentials: "include" });
@@ -42,7 +61,6 @@
       return data?.user ? data : null;
     }
 
-    // Hitting GET /device while signed in "claims" the code for this user.
     async function claimAndGetStatus() {
       const res = await fetch(
         `${BASE}/api/auth/device?user_code=${encodeURIComponent(userCode)}`,
@@ -52,7 +70,6 @@
     }
 
     async function signIn() {
-      // Return to this same device page (with the code) after Google login.
       const callbackURL = window.location.href;
       const res = await fetch(`${BASE}/api/auth/sign-in/social`, {
         method: "POST",
@@ -62,7 +79,7 @@
       });
       const data = await res.json();
       if (data?.url) window.location.href = data.url;
-      else setStatus(`<span class="err">Sign-in error:</span> ${JSON.stringify(data)}`);
+      else setStatus(el("span", "err", "Sign-in error: " + JSON.stringify(data)));
     }
 
     async function approve() {
@@ -74,10 +91,10 @@
       });
       const data = await res.json();
       if (res.ok && data?.success) {
-        show("");
-        setStatus(`<p class="ok">Authorization complete.</p><p>You can close this tab and return to Word.</p>`);
+        showContent();
+        setStatus(el("p", "ok", "Authorization complete. You can close this tab and return to Word."));
       } else {
-        setStatus(`<span class="err">Approve failed:</span> ${JSON.stringify(data)}`);
+        setStatus(el("span", "err", "Approve failed: " + JSON.stringify(data)));
       }
     }
 
@@ -90,51 +107,44 @@
       });
       const data = await res.json();
       if (res.ok && data?.success) {
-        show("");
-        setStatus(`<p class="err">Authorization denied.</p><p>The device will not be granted access.</p>`);
+        showContent();
+        setStatus(el("p", "err", "Authorization denied. The device will not be granted access."));
       } else {
-        setStatus(`<span class="err">Deny failed:</span> ${JSON.stringify(data)}`);
+        setStatus(el("span", "err", "Deny failed: " + JSON.stringify(data)));
       }
     }
 
     async function init() {
       if (!userCode) {
-        show(`<p class="err">No user_code in the URL.</p>`);
+        showContent(el("p", "err", "No user_code in the URL."));
         return;
       }
 
       const session = await getSession();
 
       if (!session) {
-        show(`
-          <p>You are verifying code: <span class="code">${userCode}</span></p>
-          <p>Sign in to continue.</p>
-          <button class="approve" id="signin">Sign in with Google</button>
-        `);
-        document.getElementById("signin").onclick = signIn;
+        const codeSpan = el("span", "code", userCode);
+        const p1 = el("p"); p1.append("You are verifying code: ", codeSpan);
+        showContent(p1, el("p", null, "Sign in to continue."), btn("approve", "signin", "Sign in with Google", signIn));
         return;
       }
 
-      // Signed in — claim the code, then show approve/deny.
       const { ok, data } = await claimAndGetStatus();
       if (!ok) {
-        show(`<p class="err">${data?.error_description ?? "Invalid or expired code."}</p>`);
+        showContent(el("p", "err", data?.error_description ?? "Invalid or expired code."));
         return;
       }
 
       if (data.status !== "pending") {
-        show(`<p>This code has already been <strong>${data.status}</strong>.</p>`);
+        const p = el("p"); p.append("This code has already been "); const s = el("strong", null, data.status); p.append(s, "."); showContent(p);
         return;
       }
 
-      show(`
-        <p>Signed in as <strong>${session.user.email}</strong></p>
-        <p>Approve access for code: <span class="code">${userCode}</span></p>
-        <button class="approve" id="approve">Approve</button>
-        <button class="deny" id="deny">Deny</button>
-      `);
-      document.getElementById("approve").onclick = approve;
-      document.getElementById("deny").onclick = deny;
+      const emailStrong = el("strong", null, session.user.email);
+      const p1 = el("p"); p1.append("Signed in as ", emailStrong);
+      const codeSpan = el("span", "code", userCode);
+      const p2 = el("p"); p2.append("Approve access for code: ", codeSpan);
+      showContent(p1, p2, btn("approve", "approve", "Approve", approve), btn("deny", "deny", "Deny", deny));
     }
 
     init();

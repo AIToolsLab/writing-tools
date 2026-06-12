@@ -45,8 +45,17 @@
     const logEl = document.getElementById("log");
     let polling = false;
 
-    function setStatus(html) { statusEl.innerHTML = html; }
-    function log(html) { logEl.innerHTML = `<pre>${html}</pre>` + logEl.innerHTML; }
+    function setStatus(...nodes) {
+      statusEl.replaceChildren(...nodes.map(n => typeof n === "string" ? document.createTextNode(n) : n));
+    }
+    function statusEl2(tag, cls, text) {
+      const e = document.createElement(tag); if (cls) e.className = cls; e.textContent = text; return e;
+    }
+    function log(text) {
+      const pre = document.createElement("pre");
+      pre.textContent = text;
+      logEl.prepend(pre);
+    }
 
     // 1. Ask the backend for a device + user code.
     async function startFlow() {
@@ -60,7 +69,7 @@
       });
       const data = await res.json();
       if (!res.ok) {
-        setStatus(`<span class="err">device/code failed:</span> ${JSON.stringify(data)}`);
+        setStatus(statusEl2("span", "err", "device/code failed: " + JSON.stringify(data)));
         return;
       }
 
@@ -68,11 +77,14 @@
 
       // 2. Show the approval link — user clicks to open in a new tab.
       //    (Future Word adapter uses Office.context.ui.openBrowserWindow.)
-      setStatus(`
-        User code: <span class="code">${data.user_code}</span><br>
-        <a href="${data.verification_uri_complete}" target="_blank" rel="noopener">Open approval page →</a><br>
-        <span class="muted">Polling every ${data.interval}s once you approve…</span>
-      `);
+      const codeSpan = statusEl2("span", "code", data.user_code);
+      const link = document.createElement("a");
+      link.href = data.verification_uri_complete;
+      link.target = "_blank"; link.rel = "noopener";
+      link.textContent = "Open approval page →";
+      const muted = statusEl2("span", "muted", `Polling every ${data.interval}s once you approve…`);
+      const p1 = document.createElement("span"); p1.append("User code: ", codeSpan);
+      setStatus(p1, document.createElement("br"), link, document.createElement("br"), muted);
 
       // 3. Poll for the token, respecting the interval.
       pollForToken(data.device_code, data.interval);
@@ -100,7 +112,7 @@
           polling = false;
           localStorage.setItem(TOKEN_KEY, data.access_token);
           log(`device/token → SUCCESS\n${JSON.stringify(data, null, 2)}`);
-          setStatus(`<span class="ok">Token received and stored.</span> Now click "Call /api/protected".`);
+          setStatus(statusEl2("span", "ok", "Token received and stored."), " Now click \"Call /api/protected\".");
           return;
         }
 
@@ -110,21 +122,21 @@
             setTimeout(tick, interval * 1000);
             break;
           case "slow_down":
-            interval += 5; // back off per spec
+            interval += 5;
             log(`slow_down → backing off to ${interval}s`);
             setTimeout(tick, interval * 1000);
             break;
           case "access_denied":
             polling = false;
-            setStatus(`<span class="err">Access denied.</span> The user denied the request.`);
+            setStatus(statusEl2("span", "err", "Access denied."), " The user denied the request.");
             break;
           case "expired_token":
             polling = false;
-            setStatus(`<span class="err">Code expired.</span> Start the flow again.`);
+            setStatus(statusEl2("span", "err", "Code expired."), " Start the flow again.");
             break;
           default:
             polling = false;
-            setStatus(`<span class="err">Stopped:</span> ${JSON.stringify(data)}`);
+            setStatus(statusEl2("span", "err", "Stopped: " + JSON.stringify(data)));
         }
       };
 
@@ -136,7 +148,7 @@
     async function callProtected() {
       const token = localStorage.getItem(TOKEN_KEY);
       if (!token) {
-        setStatus(`<span class="err">No stored token.</span> Run the device login first.`);
+        setStatus(statusEl2("span", "err", "No stored token."), " Run the device login first.");
         return;
       }
       const res = await fetch(`${BACKEND}/api/protected`, {
@@ -145,11 +157,11 @@
       });
       const data = await res.json();
       log(`/api/protected → ${res.status}\n${JSON.stringify(data, null, 2)}`);
-      setStatus(
-        res.ok
-          ? `<span class="ok">${res.status}</span> — authenticated as ${data.email}`
-          : `<span class="err">${res.status}</span> — ${JSON.stringify(data)}`
-      );
+      if (res.ok) {
+        setStatus(statusEl2("span", "ok", String(res.status)), " — authenticated as " + data.email);
+      } else {
+        setStatus(statusEl2("span", "err", String(res.status)), " — " + JSON.stringify(data));
+      }
     }
 
     function clearToken() {
