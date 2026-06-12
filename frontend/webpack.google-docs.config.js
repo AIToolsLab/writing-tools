@@ -7,7 +7,6 @@
 const path = require('path');
 const webpack = require('webpack');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = (_env = {}, options = {}) => {
 	const dev = options.mode === 'development';
@@ -59,18 +58,11 @@ module.exports = (_env = {}, options = {}) => {
 				'process.env.NODE_ENV': JSON.stringify(options.mode || 'development'),
 				// Backend origin for the Google Docs sidebar. Empty in dev (the sidebar
 				// reaches the backend through this dev server's /api proxy); in prod the
-				// bundle is inlined into the Apps Script HTML, so bake in the deployed
-				// backend that the sidebar calls directly.
+				// bundle is served from our host and calls the deployed backend directly,
+				// so bake that origin in here.
 				'process.env.GDOCS_BACKEND_URL': JSON.stringify(
 					dev ? '' : 'https://app.thoughtful-ai.com'
 				)
-			}),
-			// Generate a standalone HTML file for testing
-			new HtmlWebpackPlugin({
-				filename: 'sidebar-bundled.html',
-				template: path.resolve(__dirname, '../google-docs-addon/sidebar.html'),
-				inject: 'body',
-				scriptLoading: 'blocking'
 			})
 		],
 		optimization: {
