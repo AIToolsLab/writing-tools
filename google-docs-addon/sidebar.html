@@ -187,23 +187,31 @@
   
   <!--
     Load the React bundle from an EXTERNAL url (Apps Script can't run a huge
-    inline script). Dev vs prod is decided by the DOCUMENT TITLE, so no emails
-    are hard-coded and any team member can develop locally:
+    inline script). The source is chosen by the DOCUMENT TITLE, so no emails are
+    hard-coded:
 
-      - title contains [dev]  -> load from the localhost dev server (live reload)
-      - otherwise             -> load the hosted production bundle
+      - title contains [dev]  -> show a picker (localhost / staging / prod) so a
+                                 developer can choose which build to load
+      - otherwise             -> load the production bundle automatically
 
-    To develop locally: rename your test doc to include [dev], e.g. "Scratch [dev]".
+    To develop, rename your test doc to include [dev], then pick a source:
+    "localhost" needs `npm run dev-server:google-docs` running; "staging" is the
+    latest merge to main; "prod" is the released version.
   -->
   <script>
     (function () {
       var DEV_MARKER = '[dev]';
-      var DEV_BASE = 'http://localhost:3001';
-      // Production bundle, served by the frontend nginx container (see
-      // frontend/Dockerfile, which copies dist-gdocs into /gdocs).
-      var PROD_BASE = 'https://app.thoughtful-ai.com/gdocs';
+      var SOURCES = {
+        localhost: 'http://localhost:3001',
+        staging: 'https://staging.thoughtful-ai.com/gdocs',
+        prod: 'https://app.thoughtful-ai.com/gdocs'
+      };
 
       function loadFrom(base) {
+        document.getElementById('root').innerHTML =
+          '<div class="loading-container"><div class="loading-spinner"></div>' +
+          '<div class="loading-text">Loading Writing Tools…</div></div>';
+
         var link = document.createElement('link');
         link.rel = 'stylesheet';
         link.href = base + '/google-docs.css';
@@ -219,12 +227,32 @@
         document.body.appendChild(s);
       }
 
+      function showPicker() {
+        var root = document.getElementById('root');
+        root.innerHTML =
+          '<div style="padding:20px;color:#202124;">' +
+          '<p style="margin:0 0 12px;font-weight:600;">Dev mode — load Writing Tools from:</p>' +
+          '<div id="srcButtons"></div></div>';
+        var box = document.getElementById('srcButtons');
+        Object.keys(SOURCES).forEach(function (key) {
+          var b = document.createElement('button');
+          b.textContent = key;
+          b.style.cssText =
+            'display:block;width:100%;margin:0 0 8px;padding:10px 12px;text-align:left;' +
+            'border:1px solid #dadce0;border-radius:6px;background:#f8f9fa;cursor:pointer;' +
+            'font-size:14px;color:#1a73e8;';
+          b.onclick = function () { loadFrom(SOURCES[key]); };
+          box.appendChild(b);
+        });
+      }
+
       window.GoogleAppsScript.getDocumentName()
         .then(function (name) {
           var isDev = (name || '').toLowerCase().indexOf(DEV_MARKER) !== -1;
-          loadFrom(isDev ? DEV_BASE : PROD_BASE);
+          if (isDev) showPicker();
+          else loadFrom(SOURCES.prod);
         })
-        .catch(function () { loadFrom(PROD_BASE); });
+        .catch(function () { loadFrom(SOURCES.prod); });
     })();
   </script>
   
