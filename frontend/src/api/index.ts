@@ -7,12 +7,12 @@
  * The Google Docs sidebar is different: its HTML is served from a Google origin,
  * so a relative `/api` would hit Google's domain instead of the backend:
  *
- * - Production: the bundle is inlined into the Apps Script HTML (no script src to
- *   read), so the deployed backend origin is baked in at build time via
- *   `GDOCS_BACKEND_URL`. The sidebar calls that backend directly (it allows CORS).
- * - Development: the bundle is loaded from the dev server (e.g. localhost:3001),
- *   which proxies `/api` to the Python backend. We derive that origin from this
- *   script's own URL, so no tunnel (ngrok) or hardcoded port is needed.
+ * - Production: the bundle is loaded from an external URL (see the Apps Script sidebar). If
+ *   `GDOCS_BACKEND_URL` is provided at build time, use it; otherwise derive the backend origin
+ *   from the bundle script's own URL.
+ * - Development: the bundle is loaded from the dev server (e.g. localhost:3001), which proxies
+ *   `/api` to the Python backend. We derive that origin from this script's own URL, so no
+ *   tunnel (ngrok) or hardcoded port is needed.
  */
 function resolveServerUrl(): string {
 	if (typeof window === 'undefined' || !window.RUNNING_IN_GOOGLE_DOCS) {
