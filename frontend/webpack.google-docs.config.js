@@ -7,7 +7,6 @@
 const path = require('path');
 const webpack = require('webpack');
 const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
 
 module.exports = (_env = {}, options = {}) => {
 	const dev = options.mode === 'development';
@@ -56,14 +55,14 @@ module.exports = (_env = {}, options = {}) => {
 			new webpack.DefinePlugin({
 				'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
 				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
-				'process.env.NODE_ENV': JSON.stringify(options.mode || 'development')
-			}),
-			// Generate a standalone HTML file for testing
-			new HtmlWebpackPlugin({
-				filename: 'sidebar-bundled.html',
-				template: path.resolve(__dirname, '../google-docs-addon/sidebar.html'),
-				inject: 'body',
-				scriptLoading: 'blocking'
+				'process.env.NODE_ENV': JSON.stringify(options.mode || 'development'),
+				// Backend origin for the Google Docs sidebar. Empty in dev (the sidebar
+				// reaches the backend through this dev server's /api proxy); in prod the
+				// bundle is served from our host and calls the deployed backend directly,
+				// so bake that origin in here.
+				'process.env.GDOCS_BACKEND_URL': JSON.stringify(
+					dev ? '' : 'https://app.thoughtful-ai.com'
+				)
 			})
 		],
 		optimization: {

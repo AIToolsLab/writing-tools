@@ -167,6 +167,13 @@
       },
 
       /**
+       * Gets the title of the active document.
+       */
+      getDocumentName: function() {
+        return this.run('getDocumentName');
+      },
+
+      /**
        * Gets all tabs in the document with their text content.
        */
       getAllTabs: function() {
@@ -178,24 +185,75 @@
     window.RUNNING_IN_GOOGLE_DOCS = true;
   </script>
   
-  <!-- 
-    DEVELOPMENT: Load from local dev server
+  <!--
+    Load the React bundle from an EXTERNAL url (Apps Script can't run a huge
+    inline script). The source is chosen by the DOCUMENT TITLE, so no emails are
+    hard-coded:
+
+      - title contains [dev]  -> show a picker (localhost / staging / prod) so a
+                                 developer can choose which build to load
+      - otherwise             -> load the production bundle automatically
+
+    To develop, rename your test doc to include [dev], then pick a source:
+    "localhost" needs `npm run dev-server:google-docs` running; "staging" is the
+    latest merge to main; "prod" is the released version.
   -->
-  <link rel="stylesheet" href="http://localhost:3001/google-docs.css">
   <script>
-    // Development mode: load React app from local dev server
-    const script = document.createElement('script');
-    script.src = 'http://localhost:3001/google-docs.bundle.js';
-    script.onerror = function() {
-      document.getElementById('root').innerHTML = `
-        <div class="error-container">
-          <h3>Development server not running</h3>
-          <p>Make sure the dev server is running:</p>
-          <code>npm run dev-server:google-docs</code>
-        </div>
-      `;
-    };
-    document.body.appendChild(script);
+    (function () {
+      var DEV_MARKER = '[dev]';
+      var SOURCES = {
+        localhost: 'http://localhost:3001',
+        staging: 'https://staging.thoughtful-ai.com/gdocs',
+        prod: 'https://app.thoughtful-ai.com/gdocs'
+      };
+
+      function loadFrom(base) {
+        document.getElementById('root').innerHTML =
+          '<div class="loading-container"><div class="loading-spinner"></div>' +
+          '<div class="loading-text">Loading Writing Tools…</div></div>';
+
+        var link = document.createElement('link');
+        link.rel = 'stylesheet';
+        link.href = base + '/google-docs.css';
+        document.head.appendChild(link);
+
+        var s = document.createElement('script');
+        s.src = base + '/google-docs.bundle.js';
+        s.onerror = function () {
+          document.getElementById('root').innerHTML =
+            '<div class="error-container"><h3>Could not load Writing Tools</h3>' +
+            '<p>Failed to load the app from <code>' + base + '</code>.</p></div>';
+        };
+        document.body.appendChild(s);
+      }
+
+      function showPicker() {
+        var root = document.getElementById('root');
+        root.innerHTML =
+          '<div style="padding:20px;color:#202124;">' +
+          '<p style="margin:0 0 12px;font-weight:600;">Dev mode — load Writing Tools from:</p>' +
+          '<div id="srcButtons"></div></div>';
+        var box = document.getElementById('srcButtons');
+        Object.keys(SOURCES).forEach(function (key) {
+          var b = document.createElement('button');
+          b.textContent = key;
+          b.style.cssText =
+            'display:block;width:100%;margin:0 0 8px;padding:10px 12px;text-align:left;' +
+            'border:1px solid #dadce0;border-radius:6px;background:#f8f9fa;cursor:pointer;' +
+            'font-size:14px;color:#1a73e8;';
+          b.onclick = function () { loadFrom(SOURCES[key]); };
+          box.appendChild(b);
+        });
+      }
+
+      window.GoogleAppsScript.getDocumentName()
+        .then(function (name) {
+          var isDev = (name || '').toLowerCase().indexOf(DEV_MARKER) !== -1;
+          if (isDev) showPicker();
+          else loadFrom(SOURCES.prod);
+        })
+        .catch(function () { loadFrom(SOURCES.prod); });
+    })();
   </script>
   
   <!-- 

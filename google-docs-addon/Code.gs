@@ -433,6 +433,16 @@ function getDocumentId() {
 }
 
 /**
+ * Gets the title of the active document. The sidebar uses this to decide
+ * whether to load the dev bundle (title contains a dev marker) or production.
+ *
+ * @returns {string} The document title
+ */
+function getDocumentName() {
+  return DocumentApp.getActiveDocument().getName();
+}
+
+/**
  * Gets all tabs in the active document with their text content.
  * Falls back to a single entry representing the whole document if the
  * Tabs API is unavailable (older documents / Apps Script environments).
