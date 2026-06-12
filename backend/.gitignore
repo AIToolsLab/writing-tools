@@ -4,3 +4,6 @@ dist
 logs/*.jsonl
 *.log
 *.pid
+data/*.db
+data/*.db-shm
+data/*.db-wal

@@ -15,6 +15,7 @@ services:
       - LOG_SECRET=${LOG_SECRET:-}
     volumes:
       - ./backend/logs:/app/backend/logs
+      - ./backend/data:/app/backend/data
 
   experiment:
     ports:

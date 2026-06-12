@@ -15,6 +15,7 @@ services:
       - POSTHOG_HOST=${POSTHOG_HOST:-https://e.thoughtful-ai.com/}
     volumes:
       - /opt/thoughtful/staging-logs:/app/backend/logs
+      - /opt/thoughtful/staging-auth:/app/backend/data
 
   experiment:
     ports:
