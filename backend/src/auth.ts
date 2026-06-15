@@ -41,7 +41,7 @@ export const auth = betterAuth({
 			verificationUri: '/api/device', // nginx forwards /api/* to Hono
 			expiresIn: '10m',
 			interval: '5s',
-			schema: {}, // required by runtime validation despite optional TS type
+			schema: {}, // workaround for https://github.com/better-auth/better-auth/issues/9422
 			validateClient: (clientId) => deviceClientIds().includes(clientId),
 		}),
 	],
