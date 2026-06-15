@@ -2,12 +2,13 @@ import { mkdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { betterAuth } from 'better-auth';
-import { bearer } from 'better-auth/plugins';
+import { bearer, deviceAuthorization } from 'better-auth/plugins';
 import Database from 'better-sqlite3';
 import {
 	betterAuthSecret,
 	betterAuthTrustedOrigins,
 	betterAuthUrl,
+	deviceClientIds,
 	googleClientId,
 	googleClientSecret,
 } from './config.js';
@@ -34,7 +35,16 @@ export const auth = betterAuth({
 	baseURL: betterAuthUrl(),
 	secret: betterAuthSecret(),
 	trustedOrigins: betterAuthTrustedOrigins(),
-	plugins: [bearer()],
+	plugins: [
+		bearer(),
+		deviceAuthorization({
+			verificationUri: '/api/device', // nginx forwards /api/* to Hono
+			expiresIn: '10m',
+			interval: '5s',
+			schema: {}, // workaround for https://github.com/better-auth/better-auth/issues/9422
+			validateClient: (clientId) => deviceClientIds().includes(clientId),
+		}),
+	],
 	socialProviders: {
 		google: {
 			clientId: googleClientId(),

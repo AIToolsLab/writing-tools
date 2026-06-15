@@ -34,3 +34,10 @@ export const betterAuthTrustedOrigins = (): string[] =>
 export const googleClientId = () => (process.env.GOOGLE_CLIENT_ID ?? '').trim();
 export const googleClientSecret = () =>
 	(process.env.GOOGLE_CLIENT_SECRET ?? '').trim();
+
+// Comma-separated allowed device client IDs. An empty list rejects all requests.
+export const deviceClientIds = (): string[] =>
+	(process.env.BETTER_AUTH_DEVICE_CLIENT_IDS ?? '')
+		.split(',')
+		.map((s) => s.trim())
+		.filter(Boolean);

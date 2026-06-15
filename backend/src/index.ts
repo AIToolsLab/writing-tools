@@ -4,6 +4,7 @@ import {
 	authEnabled,
 	betterAuthSecret,
 	DEBUG,
+	deviceClientIds,
 	googleClientId,
 	googleClientSecret,
 	openaiApiKey,
@@ -29,6 +30,11 @@ if (authEnabled()) {
 		);
 		process.exit(1);
 	}
+	if (deviceClientIds().length === 0) {
+		console.warn(
+			'BETTER_AUTH_DEVICE_CLIENT_IDS is empty — all device code requests will be rejected.',
+		);
+	}
 }
 
 // Import the auth singleton only when enabled. The dynamic import means auth.ts
@@ -36,11 +42,28 @@ if (authEnabled()) {
 const auth = authEnabled() ? (await import('./auth.js')).auth : undefined;
 const app = createApp({ auth });
 
+// if auth is enabled, register the device approval page route. This is separate from the main
+// auth routes since it serves a browser-facing HTML page, and must be on the backend's
+// origin for Google session cookies to be included in requests to Better Auth.
+
+if (auth) {
+	const { devicePageHandler } = await import('./routes/device-approval.js');
+	app.get('/api/device', devicePageHandler);
+}
+
 // Debug UI — only when auth is enabled AND DEBUG=true. Registered here (not in
 // createApp) so it never appears in the test environment.
+
 if (auth && DEBUG) {
 	const { debugAuthHandler } = await import('./routes/debug.js');
 	app.get('/api/debug/auth', debugAuthHandler);
+
+	const debugClientId = deviceClientIds()[0];
+	if (debugClientId) {
+		const { createDebugDeviceHandler } = await import('./routes/device-taskpane.js');
+		app.get('/api/debug/device', createDebugDeviceHandler(debugClientId));
+	}
+
 }
 
 const server = serve(
