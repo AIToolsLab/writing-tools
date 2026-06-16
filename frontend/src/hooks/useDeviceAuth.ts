@@ -157,14 +157,16 @@ export function useDeviceAuth(): UseDeviceAuth {
 		if (mountedRef.current) setState(INITIAL);
 	}, [abortInFlight]);
 
-	useEffect(
-		() => () => {
+	useEffect(() => {
+		// Set on mount (and reset on StrictMode remount) so safeSet isn't permanently
+		// disabled after StrictMode's mount→unmount→remount cycle in development.
+		mountedRef.current = true;
+		return () => {
 			mountedRef.current = false;
 			abortRef.current?.abort();
 			abortRef.current = null;
-		},
-		[],
-	);
+		};
+	}, []);
 
 	return { ...state, start, reset, logout };
 }
