@@ -160,6 +160,11 @@ module.exports = async (env = {}, options = {}) => {
 			new webpack.DefinePlugin({
 				'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
 				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
+				// Device-flow client ID; must match a value in the backend's
+				// BETTER_AUTH_DEVICE_CLIENT_IDS allowlist. Override via env for other envs.
+				'process.env.BETTER_AUTH_DEVICE_CLIENT_ID': JSON.stringify(
+					process.env.BETTER_AUTH_DEVICE_CLIENT_ID || 'writing-tools-editor-dev'
+				),
 			})
 		],
 		devServer: {
