@@ -18,7 +18,7 @@
  * during migration. Once Better Auth becomes the default, this collapses into a single
  * Better Auth-only provider and the selector/adapters can be removed.
  */
-import { type Auth0ContextInterface, useAuth0 } from '@auth0/auth0-react';
+import { useAuth0 } from '@auth0/auth0-react';
 import { useAtomValue } from 'jotai';
 import {
 	createContext,
@@ -80,9 +80,8 @@ function Auth0AuthProvider({ children }: { children: ReactNode }) {
 	const auth0 = useAuth0();
 	const editorAPI = useContext(EditorContext);
 
-	const session = useMemo<AppAuthSession>(() => {
-		const client = auth0 as Auth0ContextInterface;
-		return {
+	const session = useMemo<AppAuthSession>(
+		() => ({
 			provider: 'auth0',
 			isLoading: auth0.isLoading,
 			isAuthorizing: false,
@@ -92,10 +91,11 @@ function Auth0AuthProvider({ children }: { children: ReactNode }) {
 				: undefined,
 			error: auth0.error,
 			getAccessToken: auth0.getAccessTokenSilently,
-			login: () => editorAPI.doLogin(client),
-			logout: () => editorAPI.doLogout(client),
-		};
-	}, [auth0, editorAPI]);
+			login: () => editorAPI.doLogin(auth0),
+			logout: () => editorAPI.doLogout(auth0),
+		}),
+		[auth0, editorAPI],
+	);
 
 	return (
 		<AppAuthContext.Provider value={session}>
@@ -135,11 +135,16 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 			isAuthenticated: device.status === 'success' && !!device.token,
 			user: device.user,
 			authorization,
-			getAccessToken: () =>
-				device.token
-					? Promise.resolve(device.token)
-					: // authTokenContext expects an object with an `error` property.
-						Promise.reject({ error: 'login_required' }),
+			getAccessToken: () => {
+				if (device.token) return Promise.resolve(device.token);
+				// Reject with an Error (lint: prefer-promise-reject-errors) that still
+				// carries the `error` property authTokenContext reads.
+				return Promise.reject(
+					Object.assign(new Error('login_required'), {
+						error: 'login_required',
+					}),
+				);
+			},
 			login: device.start,
 			logout: device.logout,
 		};
