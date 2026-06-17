@@ -8,7 +8,8 @@
 		height: 100%;
 		margin: 0;
 		padding: 0;
-		background: white;
+		/* Warm paper — see src/theme.css for the token definitions */
+		background: var(--bg, #f7f4ed);
 	}
 }
 

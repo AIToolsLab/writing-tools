@@ -1,50 +1,9 @@
-.loginContainer {
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	align-items: center;
-	margin-top: 4rem;
-	gap: 0.5rem;
-}
+/* App shell — design tokens come from src/theme.css */
 
-.loginContainer>h3 {
-	font-size: 1rem;
-	font-weight: 300;
-	margin: 0 0 1rem 0;
-	padding: 0;
-}
-
-hr {
-	width: 80%;
-	margin: 1rem 0;
-	padding: 0;
-	border: 0;
-	border-top: 1px solid #f1f1f1;
-}
-
-.loginContainer>p {
-	font-size: 0.8rem;
-	font-weight: 300;
-}
-
-.loginInfoContainer {
-	display: flex;
-	margin: 1rem 3rem;
-	background-color: #f1f1f1;
-}
-
-.loginInfoContainer>p {
-	font-size: 0.8rem;
-	font-weight: 300;
-	text-align: center;
-	padding: 0.4rem 0.8rem;
-}
-
-.authProviderIconContainer {
-	display: flex;
-	gap: 0.5rem;
-	justify-content: center;
-	align-items: center;
+.shell {
+	background: var(--bg);
+	font-family: var(--font-ui);
+	color: var(--text-primary);
 }
 
 /* Loading */
@@ -53,99 +12,99 @@ hr {
 	flex-direction: column;
 	justify-content: center;
 	align-items: center;
-	margin-top: 4rem;
-	gap: 0.5rem;
+	margin-top: 5rem;
+	gap: 1rem;
+	font-family: var(--font-ui);
 }
 
 .spinnerWrapper {
 	display: flex;
-	z-index: 999;
 	justify-content: center;
 	align-items: center;
 }
 
 .loader {
-	border: 0.25rem solid #80aaff;
-	border-top: 0.25rem solid #fafafa;
+	border: 3px solid var(--accent-bg);
+	border-top: 3px solid var(--accent);
 	border-radius: 50%;
 	width: 2rem;
 	height: 2rem;
 	animation: spin 1s ease-in-out infinite;
 }
 
+.loadingText {
+	font-size: 0.8rem;
+	color: var(--text-tertiary);
+}
+
 @keyframes spin {
 	0% {
 		transform: rotate(0deg);
 	}
-
 	100% {
 		transform: rotate(360deg);
 	}
 }
 
-/* Login Container */
-.container {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	justify-content: space-between;
-	background-color: #fbfbfb;
-	padding: 0.3rem;
-}
-
-.profileContainer {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	justify-content: center;
-	gap: 0.5rem;
-}
-
-.profilePicContainer {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	justify-content: center;
-}
-
-.profilePic {
-	width: 2rem;
-	height: 2rem;
-	border-radius: 50%;
-	object-fit: cover;
-	box-shadow: 0 0 0.3rem 0 rgba(0, 0, 0, 0.2);
-}
-
-.userNameContainer {
+/* Login */
+.loginContainer {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
 	justify-content: center;
-	/* border: 1px solid black; */
-	background-color: white;
-	border-radius: 1rem;
-	padding: 0.2rem 0.4rem;
-	box-shadow: 0 0 0.3rem 0 rgba(0, 0, 0, 0.2);
-}
-
-.widthAlert {
-	max-width: 75%;
+	align-items: center;
+	min-height: 100vh;
+	padding: 2.5rem 1.5rem;
+	gap: 0.75rem;
+	background: var(--bg);
+	font-family: var(--font-ui);
 	text-align: center;
-	font-weight: 300;
-	margin-top: 1rem;
-	background-color: #f1f1f1;
-	padding: 0.5rem 1rem;
-	border-radius: 2rem;
-	transition: all 0.15s;
 }
 
-.versionAlert {
-	font-size: 0.8rem;
-	font-weight: 300;
-	margin-top: 1rem;
-	padding: 1rem 1.5rem;
-	transition: all 0.15s;
-	color: #dc7272;
+.loginBrandMark {
+	color: var(--accent);
+	font-size: 1.75rem;
+	line-height: 1;
+}
+
+.loginTitle {
+	font-family: var(--font-display);
+	font-size: 1.35rem;
+	font-weight: 600;
+	letter-spacing: -0.01em;
+	color: var(--text-primary);
+	margin: 0;
+}
+
+.loginLead {
+	font-size: 0.85rem;
+	line-height: 1.6;
+	color: var(--text-secondary);
+	max-width: 17rem;
+	margin: 0 0 0.75rem;
+}
+
+hr {
+	width: 70%;
+	margin: 1rem 0;
+	padding: 0;
+	border: 0;
+	border-top: 1px solid var(--border);
+}
+
+.loginInfoContainer {
+	display: flex;
+	margin: 0.5rem 1rem 0;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+}
+
+.loginInfoContainer > p {
+	font-size: 0.75rem;
+	color: var(--text-secondary);
+	text-align: center;
+	padding: 0.4rem 0.8rem;
+	margin: 0;
 }
 
 .signupBtnCtnr {
@@ -154,34 +113,131 @@ hr {
 	align-items: center;
 	font-size: 0.75rem;
 	font-weight: 500;
-	color: #686868;
+	color: var(--text-secondary);
 }
 
 .ibtn {
 	text-decoration: none;
 	text-align: center;
-	transition: all 0.2s;
-	color: #809fdb;
-	padding: 0 0.2rem;
+	transition: color 0.2s;
+	color: var(--accent);
+	padding: 0 0.25rem;
 }
 
 .ibtn:hover {
-	color: #6cc7a0;
+	color: var(--accent-strong);
+	text-decoration: underline;
 }
 
+.authProviderLabel {
+	font-family: var(--font-mono);
+	font-size: 0.65rem;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--text-tertiary);
+	margin: 0;
+}
+
+.authProviderIconContainer {
+	display: flex;
+	gap: 0.75rem;
+	justify-content: center;
+	align-items: center;
+}
+
+.authProviderIcon {
+	color: var(--text-tertiary);
+	font-size: 1.1rem;
+}
+
+.widthAlert {
+	max-width: 75%;
+	text-align: center;
+	font-size: 0.8rem;
+	margin-top: 0.5rem;
+	background: var(--surface);
+	border: 1px solid var(--border);
+	color: var(--text-secondary);
+	padding: 0.5rem 1rem;
+	border-radius: 2rem;
+	transition: all 0.15s;
+}
+
+.versionAlert {
+	font-size: 0.8rem;
+	margin-top: 0.5rem;
+	padding: 0.5rem 1.5rem;
+	transition: all 0.15s;
+	color: var(--danger);
+}
+
+/* Access denied */
 .notAllowedContainer {
 	display: flex;
 	flex-direction: column;
 	justify-content: center;
 	align-items: center;
-	padding: 1rem;
+	min-height: 100vh;
+	padding: 1.5rem;
 	gap: 0.5rem;
 	text-align: center;
 	font-size: 0.85rem;
-	background-color: #f1f1f1;
+	line-height: 1.6;
+	color: var(--text-secondary);
+	background: var(--bg);
+	font-family: var(--font-ui);
 }
 
 .notAllowedTitle {
-	font-size: 1rem;
+	font-family: var(--font-display);
+	font-size: 1.1rem;
 	font-weight: 600;
+	color: var(--text-primary);
+}
+
+/* Auth error */
+.errorContainer {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	align-items: center;
+	gap: 0.75rem;
+	padding: 2rem 1.5rem;
+	text-align: center;
+	font-size: 0.85rem;
+	color: var(--text-secondary);
+	font-family: var(--font-ui);
+}
+
+/* Signed-in footer */
+.footerBar {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 0.5rem;
+	background: var(--surface);
+	border-top: 1px solid var(--border);
+	padding: 0.45rem 0.85rem;
+	flex-shrink: 0;
+}
+
+.footerUser {
+	display: flex;
+	align-items: center;
+	gap: 0.45rem;
+	flex: 1;
+	min-width: 0;
+	font-size: 0.75rem;
+	color: var(--text-secondary);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.footerUserDot {
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--positive);
+	flex-shrink: 0;
 }

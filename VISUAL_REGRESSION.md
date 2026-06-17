@@ -2,12 +2,12 @@
 
 This project uses Playwright to run visual regression tests that capture screenshots and compare them against baseline images. Currently, we have tests set up only for the demo page of the application.
 
-## Running the tests
+The tests run as part of the **Frontend Tests** workflow (`.github/workflows/frontend-tests.yml`), in the `e2e` job. Only the Chromium project is enabled in `frontend/playwright.config.ts`, so there is a single baseline:
 
-1. Navigate to the **Actions** tab in GitHub
-2. Select **Playwright Visual Regression Tests** workflow
-3. Click **Run workflow** button and choose the branch you wish to run tests on
-4. The workflow will run tests against all browsers (Chromium, Firefox, WebKit)
+```
+frontend/tests/demo-page-visual.spec.ts-snapshots/
+└── demo-page-chromium-linux.png
+```
 
 ## Understanding test results
 
@@ -28,23 +28,16 @@ When tests fail:
 
 ## Updating baseline images
 
-If the UI changes are **intentional** and you want to update the baselines:
+Baselines are only pixel-stable when rendered in CI's pinned Playwright container, so don't regenerate them on your own machine. If the UI changes are **intentional**, use the regeneration job:
 
-1. From the Playwright report, download the actual images for each browser
-2. Replace the existing baseline images in `frontend/tests/demo-page-visual.spec.ts-snapshots/`
-3. Rename downloaded images to match existing baseline names:
-   - `demo-page-chromium-linux.png`
-   - `demo-page-firefox-linux.png`
-   - `demo-page-webkit-linux.png`
-4. Commit and push the updated baseline images
-5. Re-run the visual regression test to verify it passes
+1. Navigate to the **Actions** tab in GitHub and select the **Frontend Tests** workflow
+2. Click **Run workflow**, choose your branch, and check **Regenerate Playwright visual snapshots**
+3. The `update-snapshots` job re-renders the baselines in the same container the tests use and commits them back to your branch
 
-## Baseline image locations
+Or from the CLI:
 
-Current baseline images are stored in:
+```sh
+gh workflow run frontend-tests.yml --ref <branch> -f update-snapshots=true
 ```
-frontend/tests/demo-page-visual.spec.ts-snapshots/
-├── demo-page-chromium-linux.png
-├── demo-page-firefox-linux.png
-└── demo-page-webkit-linux.png
-```
+
+Alternatively, you can download the actual image from a failed run's playwright-report artifact, rename it to `demo-page-chromium-linux.png`, and commit it in place of the baseline.

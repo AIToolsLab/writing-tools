@@ -24,6 +24,11 @@ import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
 import 'reshaped/themes/slate/theme.css';
+import '@fontsource-variable/dm-sans';
+import '@fontsource/dm-mono/400.css';
+import '@fontsource/dm-mono/500.css';
+import '@fontsource-variable/source-serif-4';
+import '@/theme.css';
 
 // PostHog configuration - project token is safe to commit publicly
 const POSTHOG_KEY = 'phc_p3Br0zRnw7PdTVpdNI92vvBTWcBBY0jvkHO8dNvkCTl';
@@ -79,15 +84,17 @@ function AppInner() {
 	if (isLoading)
 		return (
 			<div className={classes.loadingContainer}>
-				<div>Waiting for authentication</div>
 				<div className={classes.spinnerWrapper}>
 					<div className={classes.loader}></div>
+				</div>
+				<div className={classes.loadingText}>
+					Waiting for authentication…
 				</div>
 			</div>
 		);
 	if (error)
 		return (
-			<div className={classes.container}>
+			<div className={classes.errorContainer}>
 				<p>Oops... {error.message}</p>
 				<Button
 					color="neutral"
@@ -116,7 +123,19 @@ function AppInner() {
 					/>
 				) : (
 					<div className={classes.loginContainer}>
-						<h3>Not logged in yet?</h3>
+						<div
+							className={classes.loginBrandMark}
+							aria-hidden="true"
+						>
+							✳
+						</div>
+						<h3 className={classes.loginTitle}>
+							Keep the thinking yours
+						</h3>
+						<p className={classes.loginLead}>
+							Thoughtful is an AI writing partner that sparks your
+							own ideas instead of writing for you.
+						</p>
 						<Button
 							color="primary"
 							variant="solid"
@@ -149,7 +168,9 @@ function AppInner() {
 
 						<hr />
 
-						<p>Available Auth Providers</p>
+						<p className={classes.authProviderLabel}>
+							Available auth providers
+						</p>
 						<div className={classes.authProviderIconContainer}>
 							<CgGoogle className={classes.authProviderIcon} />
 							<CgMicrosoft className={classes.authProviderIcon} />
@@ -239,22 +260,25 @@ function AppInner() {
 	}
 
 	return (
-		<div className="h-full flex flex-col overflow-hidden">
+		<div className={`h-full flex flex-col overflow-hidden ${classes.shell}`}>
 			<Navbar />
 			<div className="flex-1 flex flex-col overflow-y-auto">
 				{getComponent(page)}
 			</div>
 			{!noAuthMode && user ? (
-				<div className={classes.container}>
-					<div className={classes.profileContainer}>
-						<div className={classes.userNameContainer}>
-							User: {user.name}
-						</div>
+				<div className={classes.footerBar}>
+					<div className={classes.footerUser}>
+						<span
+							className={classes.footerUserDot}
+							aria-hidden="true"
+						></span>
+						{user.name}
 					</div>
 					{authErrorType !== null && (
 						<Button
 							color="primary"
 							variant="solid"
+							size="small"
 							onClick={() => {
 								// do login again
 								void editorAPI.doLogin(auth0Client);
@@ -265,7 +289,8 @@ function AppInner() {
 					)}
 					<Button
 						color="neutral"
-						variant="outline"
+						variant="ghost"
+						size="small"
 						onClick={() => {
 							console.log('origin', window.location.origin);
 							editorAPI.doLogout(auth0Client);

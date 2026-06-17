@@ -14,18 +14,18 @@ const ONBOARDING_SLIDES = [
 		title: 'Welcome to Thoughtful',
 		image: functionImage,
 		description:
-			'Thoughtful helps you write more thoughtfully. Its AI encourages your own thinking.',
+			'AI that helps you think — not AI that writes for you. Thoughtful nudges your own ideas forward while the words stay yours.',
 	},
 	{
-		title: 'Benefits',
+		title: 'Get unstuck, stay in flow',
 		description:
-			'It helps you craft your words on a blank page, and it helps you think about what you want to say.',
+			'When the page goes blank, ask for questions your reader might have, advice for your next move, or examples to react against.',
 		image: descriptionImage,
 	},
 	{
-		title: 'Features of Thoughtful',
+		title: 'Three ways to work',
 		description:
-			'Generate new sentence, address potential reader inquiries, receive recommendations for the next word, phrase, or rhetorical move.',
+			'Draft suggests where your writing could go next. Revise maps the structure of what you have. Chat lets you interrogate your own draft.',
 		image: benefitsImage,
 	},
 ];

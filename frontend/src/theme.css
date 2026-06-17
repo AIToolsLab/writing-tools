@@ -1,0 +1,47 @@
+/*
+ * Thoughtful design system — single source of truth for the sidebar UI.
+ *
+ * Brand: "AI that helps you think" (thoughtful-ai.com). Warm paper surfaces,
+ * ink text, a fountain-pen indigo accent, and a serif display face for the
+ * wordmark and key moments. Every page module consumes these tokens; do not
+ * redeclare them in component CSS.
+ */
+:root {
+	/* Paper & ink */
+	--bg: #f7f4ed;
+	--surface: #ffffff;
+	--surface-2: #f1ede4;
+	--border: #e7e2d6;
+	--border-strong: #d7d1c2;
+	--text-primary: #232019;
+	--text-secondary: #6e6a5f;
+	--text-tertiary: #a39e90;
+
+	/* Accent — fountain-pen indigo */
+	--accent: #4038b8;
+	--accent-strong: #322b96;
+	--accent-bg: #efeefb;
+	--accent-border: #c9c6ef;
+
+	/* Affirmative — selected/enabled states */
+	--positive: #20724f;
+	--positive-bg: #ecf6f0;
+	--positive-border: #bcdfcc;
+
+	--danger: #b4534b;
+
+	--radius: 10px;
+	--radius-sm: 7px;
+
+	--font-ui: 'DM Sans Variable', 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+	--font-display: 'Source Serif 4 Variable', 'Source Serif 4', Georgia, serif;
+	--font-mono: 'DM Mono', ui-monospace, 'Cascadia Mono', monospace;
+
+	--shadow-sm: 0 1px 2px rgba(35, 32, 25, 0.06);
+	--shadow-md: 0 2px 10px rgba(35, 32, 25, 0.08);
+}
+
+::selection {
+	background: var(--accent-bg);
+	color: var(--accent-strong);
+}
