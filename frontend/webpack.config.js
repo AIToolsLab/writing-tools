@@ -37,13 +37,6 @@ module.exports = async (env = {}, options = {}) => {
 				import: ['./src/logs/index.tsx', './src/logs/logs.html'],
 				dependOn: 'react'
 			},
-			popup: {
-				import: [
-					'./src/popup.tsx',
-					'./src/popup.html'
-				],
-				dependOn: 'react'
-			},
 			editor: {
 				import: ['./src/editor/index.tsx', './src/editor/editor.html'],
 				dependOn: 'react'
@@ -145,11 +138,6 @@ module.exports = async (env = {}, options = {}) => {
 				chunks: ['logs', 'react']
 			}),
 			new HtmlWebpackPlugin({
-				filename: 'popup.html',
-				template: './src/popup.html',
-				chunks: ['polyfill', 'popup', 'react']
-			}),
-			new HtmlWebpackPlugin({
 				filename: 'commands.html',
 				template: './src/commands/commands.html',
 				chunks: ['polyfill', 'commands']
@@ -158,8 +146,6 @@ module.exports = async (env = {}, options = {}) => {
 				Promise: ['es6-promise', 'Promise']
 			}),
 			new webpack.DefinePlugin({
-				'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
-				'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
 				// Device-flow client ID; must match a value in the backend's
 				// BETTER_AUTH_DEVICE_CLIENT_IDS allowlist. Override via env for other envs.
 				'process.env.BETTER_AUTH_DEVICE_CLIENT_ID': JSON.stringify(

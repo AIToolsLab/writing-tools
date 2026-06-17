@@ -23,8 +23,12 @@ interface SavedItem {
 }
 
 interface EditorAPI {
-	doLogin(auth0Client: Auth0ContextInterface): Promise<void>;
-	doLogout(auth0Client: Auth0ContextInterface): Promise<void>;
+	/**
+	 * Open a URL in the user's external browser. Surface-specific: Word uses
+	 * Office.context.ui.openBrowserWindow; standalone/Google Docs use window.open.
+	 * Used to open the Better Auth device-flow approval page.
+	 */
+	openExternal(url: string): void;
 	getDocContext(this: void): Promise<DocContext>;
 	addSelectionChangeHandler: (handler: () => void) => void;
 	removeSelectionChangeHandler: (handler: () => void) => void;

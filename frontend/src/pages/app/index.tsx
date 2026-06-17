@@ -1,15 +1,15 @@
-import { Auth0Provider } from '@auth0/auth0-react';
 import { PostHogProvider, PostHogErrorBoundary } from '@posthog/react';
 import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
-import { useState } from 'react';
-import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
+import { useContext, useState } from 'react';
+import { CgGoogle } from 'react-icons/cg';
 import {
 	AppAuthProvider,
 	AppAuthTokenBridge,
 	useAppAuth,
 } from '@/contexts/appAuthContext';
 import { useAccessToken } from '@/contexts/authTokenContext';
+import { EditorContext } from '@/contexts/editorContext';
 import ChatContextWrapper from '@/contexts/chatContext';
 import {
 	OverallMode,
@@ -32,7 +32,8 @@ const POSTHOG_HOST = 'https://e.thoughtful-ai.com/';
 const POSTHOG_ENABLED = true;
 
 // Device-flow status surfaced during Better Auth sign-in. Shows the user code and a
-// user-clicked link that opens the approval page in a new tab (no focus-stealing).
+// button that opens the approval page in the system browser via the surface-specific
+// EditorAPI.openExternal (Word: openBrowserWindow; standalone/GDocs: new tab).
 // Rendered inside the not-logged-in screen, NOT gated by the isLoading "Waiting" screen.
 function DeviceAuthStatus({
 	authorization,
@@ -44,6 +45,8 @@ function DeviceAuthStatus({
 		error?: string;
 	};
 }) {
+	const editorAPI = useContext(EditorContext);
+
 	if (!authorization) return null;
 
 	if (authorization.status === 'error') {
@@ -87,22 +90,15 @@ function DeviceAuthStatus({
 			</p>
 			{authorization.verificationUri ? (
 				<p style={{ margin: '0.25rem 0 0.75rem' }}>
-					<a
-						href={authorization.verificationUri}
-						target="_blank"
-						rel="noopener noreferrer"
-						style={{
-							display: 'inline-block',
-							padding: '0.5rem 1.1rem',
-							borderRadius: '6px',
-							background: '#2563eb',
-							color: '#fff',
-							fontWeight: 600,
-							textDecoration: 'none',
+					<Button
+						color="primary"
+						variant="solid"
+						onClick={() => {
+							editorAPI.openExternal(authorization.verificationUri!);
 						}}
 					>
 						Open approval page →
-					</a>
+					</Button>
 				</p>
 			) : null}
 			<p>Open the approval page and enter the code above to continue.</p>
@@ -232,11 +228,9 @@ function AppInner() {
 
 						<hr />
 
-						<p>Available Auth Providers</p>
+						<p>Sign in with Google</p>
 						<div className={classes.authProviderIconContainer}>
 							<CgGoogle className={classes.authProviderIcon} />
-							<CgMicrosoft className={classes.authProviderIcon} />
-							<CgFacebook className={classes.authProviderIcon} />
 						</div>
 
 						<div
@@ -405,32 +399,18 @@ function AppWithProviders({
 }
 
 export default function App() {
-	// Auth0Provider stays mounted always (harmless when unused). AppAuthProvider selects
-	// the active session adapter (Auth0 / Better Auth / Demo); AppAuthTokenBridge feeds
-	// the chosen session's getAccessToken into the existing token context.
+	// AppAuthProvider selects the active session (Better Auth by default, Demo in demo
+	// mode); AppAuthTokenBridge feeds the chosen session's getAccessToken into the token
+	// context.
 	return (
 		<AppWithProviders>
 			<ChatContextWrapper>
 				<Reshaped theme="slate">
-					<Auth0Provider
-						domain={process.env.AUTH0_DOMAIN!}
-						clientId={process.env.AUTH0_CLIENT_ID!}
-						cacheLocation="localstorage"
-						useRefreshTokens={true}
-						useRefreshTokensFallback={true}
-						authorizationParams={{
-							redirect_uri: `${window.location.origin}/popup.html`,
-							scope: 'openid profile email read:posts',
-							audience: 'textfocals.com',
-							leeway: 10,
-						}}
-					>
-						<AppAuthProvider>
-							<AppAuthTokenBridge>
-								<AppInner />
-							</AppAuthTokenBridge>
-						</AppAuthProvider>
-					</Auth0Provider>
+					<AppAuthProvider>
+						<AppAuthTokenBridge>
+							<AppInner />
+						</AppAuthTokenBridge>
+					</AppAuthProvider>
 				</Reshaped>
 			</ChatContextWrapper>
 		</AppWithProviders>
