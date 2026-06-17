@@ -42,7 +42,8 @@
 		"style:fix": "npm run lint:fix && npm run format",
 		"prepare": "husky",
 		"test": "vitest run",
-		"test:watch": "vitest"
+		"test:watch": "vitest",
+		"test:build": "node test-build-output.mjs"
 	},
 	"dependencies": {
 		"@ai-sdk/openai": "^2.0.0",
