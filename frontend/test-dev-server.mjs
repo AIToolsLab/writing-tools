@@ -13,9 +13,13 @@
  */
 
 import https from 'https';
+import { getHttpsServerOptions } from 'office-addin-dev-certs';
 
 const BASE_URL = 'https://localhost:3000';
 let errors = 0;
+// The dev server uses the office-addin-dev-certs self-signed cert; validate
+// against that CA rather than disabling certificate validation.
+let caCert;
 
 function error(message) {
 	console.error(`❌ ${message}`);
@@ -29,7 +33,7 @@ function success(message) {
 function testEndpoint(path, expectedStatus = 200) {
 	return new Promise((resolve) => {
 		https
-			.get(`${BASE_URL}${path}`, { rejectUnauthorized: false }, (res) => {
+			.get(`${BASE_URL}${path}`, { ca: caCert }, (res) => {
 				if (res.statusCode === expectedStatus) {
 					success(`GET ${path} -> ${res.statusCode}`);
 					resolve(true);
@@ -48,6 +52,8 @@ function testEndpoint(path, expectedStatus = 200) {
 async function runTests() {
 	console.log('\n🔍 Running dev server endpoint regression tests...\n');
 	console.log('⚠️  Make sure dev server is running: npm run dev-server\n');
+
+	caCert = (await getHttpsServerOptions()).ca;
 
 	console.log('Test 1: HTML entry points accessibility');
 	await testEndpoint('/taskpane.html');

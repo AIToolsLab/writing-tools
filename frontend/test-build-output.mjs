@@ -125,8 +125,10 @@ const manifestPath = path.join(distDir, 'manifest.xml');
 if (fs.existsSync(manifestPath)) {
 	success('manifest.xml exists in dist');
 	const content = fs.readFileSync(manifestPath, 'utf-8');
-	if (content.includes('localhost') || content.includes('app.thoughtful-ai.com')) {
-		success('manifest.xml has valid URLs');
+	// Structural check that it's a real Office manifest (avoids URL substring
+	// matching, which is brittle and flagged as unsafe sanitization).
+	if (content.includes('<OfficeApp') && content.includes('<SourceLocation')) {
+		success('manifest.xml looks like a valid Office manifest');
 	} else {
 		error('manifest.xml appears malformed');
 	}
