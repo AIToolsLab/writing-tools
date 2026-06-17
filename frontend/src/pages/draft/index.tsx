@@ -432,7 +432,7 @@ export default function Draft() {
 								return (
 									<button
 										key={mode}
-										className={`${classes.featureCard} ${isActive ? 'active' : ''}`}
+										className={`${classes.featureCard} ${isActive ? classes.active : ''}`}
 										onClick={() => {
 											setActiveMode(mode);
 											log({
