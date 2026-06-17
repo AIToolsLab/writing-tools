@@ -11,30 +11,36 @@ This folder contains the Google Apps Script code for the Writing Tools Google Do
 │  │  HTML/JS Sidebar (React app from frontend/)         │    │
 │  │                                                      │    │
 │  │   google.script.run.getDocContext()  ──────────┐    │    │
-│  │   google.script.run.analyzeText(...)           │    │    │
-│  └────────────────────────────────────────────────│────┘    │
-└───────────────────────────────────────────────────│─────────┘
-                                                    │
-                                                    ▼
+│  │   google.script.run.selectPhrase(...)          │    │    │
+│  │                                                 │    │    │
+│  │   fetch() to Python backend  ───────────────┐  │    │    │
+│  └──────────────────────────────────────────────│──│────┘    │
+└─────────────────────────────────────────────────│──│─────────┘
+                                                   │  │
+       (document operations via google.script.run)│  │ (chat / revise / log
+                                                   │  │  via direct HTTPS fetch)
+                                                   │  ▼
+                                                   │ ┌──────────────────────────┐
+                                                   │ │  Python Backend (backend/)│
+                                                   │ └──────────────────────────┘
+                                                   ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                  Apps Script (Code.gs)                       │
+│                  (document operations only)                  │
 │                                                              │
 │  • getDocContext() → reads doc, returns to sidebar          │
 │  • selectPhrase() → finds and selects text in doc           │
 └─────────────────────────────────────────────────────────────┘
-                          │
-                          │ HTTPS (UrlFetchApp)
-                          ▼
-┌─────────────────────────────────────────────────────────────┐
-│              Python Backend (backend/)                       │
-│                      (unchanged)                             │
-└─────────────────────────────────────────────────────────────┘
 ```
+
+The React sidebar calls Apps Script (`google.script.run`) only for document
+operations. All backend traffic (chat, revise, logging) goes from the React app
+**directly** to the Python backend — Apps Script does not proxy it.
 
 ## Files
 
 - `appsscript.json` - Add-on manifest with OAuth scopes and triggers
-- `Code.gs` - Main Apps Script code (document operations + backend proxy)
+- `Code.gs` - Main Apps Script code (document operations only)
 - `sidebar.html` - HTML entry point that loads the React app
 
 ## Development Setup
@@ -127,8 +133,18 @@ npm run build:google-docs
 
 This generates `dist-gdocs/sidebar-bundled.html` with the full React app inlined.
 
+### Development vs. production sidebar
 
-For now, development uses the standalone test functions in `sidebar.html`.
+There is no runtime dev/prod flag — the two modes are just two versions of
+`sidebar.html`:
+
+- **Development:** the `sidebar.html` checked into this repo loads the React bundle
+  and CSS **directly from the local dev server** at `http://localhost:3001`
+  (started by `npm run dev-server:google-docs`). No tunneling/ngrok is needed — the
+  sidebar points straight at localhost.
+- **Production:** `npm run build:google-docs` produces
+  `dist-gdocs/sidebar-bundled.html` with all JS/CSS inlined; that file is what you
+  `clasp push` for a real deployment.
 
 ## Key Differences from Word Add-in
 
@@ -140,11 +156,15 @@ For now, development uses the standalone test functions in `sidebar.html`.
 
 ## OAuth Scopes
 
-The add-on requests these scopes (in `appsscript.json`):
+The add-on requests these scopes (auto-detected from API usage; no explicit
+`oauthScopes` block in `appsscript.json`):
 
 - `documents.currentonly` - Access only the current document
 - `script.container.ui` - Display sidebars and dialogs
-- `script.external_request` - Make HTTP requests to the backend (may not be needed)
+- `userinfo.email` - Identify the current user
+
+Apps Script no longer makes outbound HTTP calls (the backend is called directly by
+the React app), so `script.external_request` is no longer requested.
 
 ## Deployment
 
@@ -168,25 +188,18 @@ The add-on requests these scopes (in `appsscript.json`):
 - Make sure you pushed the latest code: `clasp push`
 - Check the function name matches exactly
 
-### "Access denied" or CORS errors
-- Backend must allow requests from `https://script.google.com`
-- Check the backend URL is correct in Script Properties
-
 ### Selection polling feels slow
 - The polling interval is set to 1 second in `googleDocsEditorAPI.ts`
 - Can be adjusted but shorter intervals increase Apps Script quota usage
 
 ### Quota limits
-- UrlFetchApp: 20,000 calls/day (consumer), 100,000/day (Workspace)
 - Script runtime: 6 minutes max per execution
-- Consider caching responses where appropriate
 
 
 ### Scopes we probably need
 
 | Name | Oauth Scope |
 |---|---|
-| Connect to an external service | https://www.googleapis.com/auth/script.external_request |
 | See, edit, create, and delete all your Google Docs documents | https://www.googleapis.com/auth/documents |
 | Display and run third-party web content in prompts and sidebars inside Google applications | https://www.googleapis.com/auth/script.container.ui |
 | See your primary Google Account email address	| https://www.googleapis.com/auth/userinfo.email |
