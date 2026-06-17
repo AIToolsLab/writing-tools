@@ -42,7 +42,8 @@
 		"prepare": "husky",
 		"test": "vitest run",
 		"test:watch": "vitest",
-		"test:build": "node test-build-output.mjs"
+		"test:build": "node test-build-output.mjs",
+		"test:dev-server": "node test-dev-server.mjs"
 	},
 	"dependencies": {
 		"@ai-sdk/openai": "^2.0.0",
