@@ -39,7 +39,7 @@ Office.onReady((info) => {
 if (import.meta.hot) {
 	import.meta.hot.accept('./pages/app', (newModule) => {
 		if (newModule) {
-			render(newModule.default);
+			render(newModule.default as typeof App);
 		}
 	});
 }

@@ -4,11 +4,24 @@ import tseslint from 'typescript-eslint';
 import reactPlugin from 'eslint-plugin-react';
 import reactHooksPlugin from 'eslint-plugin-react-hooks';
 import officeAddinsPlugin from 'eslint-plugin-office-addins';
+import globals from 'globals';
 
 export default [
   // Global ignores
   {
     ignores: ['dist/**', 'build/**', 'node_modules/**', 'coverage/**']
+  },
+
+  // Node.js ESM scripts (build/test helpers, e.g. test-build-output.mjs)
+  {
+    files: ['**/*.mjs'],
+    languageOptions: {
+      ecmaVersion: 'latest',
+      sourceType: 'module',
+      globals: {
+        ...globals.node
+      }
+    }
   },
   
   // Base JavaScript configuration for all files
