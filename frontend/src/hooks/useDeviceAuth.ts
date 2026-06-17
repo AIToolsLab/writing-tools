@@ -48,18 +48,16 @@ export function useDeviceAuth(): UseDeviceAuth {
 	const abortRef = useRef<AbortController | null>(null);
 	// Mirror the token in a ref so logout() can read it without a stale closure.
 	const tokenRef = useRef<string | undefined>(undefined);
-	const mountedRef = useRef(true);
-
 	const abortInFlight = useCallback(() => {
 		abortRef.current?.abort();
 		abortRef.current = null;
 	}, []);
 
-	// Only commit state if still mounted and this controller is the active one.
+	// Only commit state if this async attempt has not been aborted.
 	const safeSet = useCallback(
-		(controller: AbortController, next: Partial<DeviceAuthState>) => {
-			if (!mountedRef.current || abortRef.current !== controller) return;
-			setState((prev) => ({ ...prev, ...next }));
+		(controller: AbortController, next: DeviceAuthState) => {
+			if (controller.signal.aborted) return;
+			setState(next);
 		},
 		[],
 	);
@@ -67,7 +65,7 @@ export function useDeviceAuth(): UseDeviceAuth {
 	const reset = useCallback(() => {
 		abortInFlight();
 		tokenRef.current = undefined;
-		if (mountedRef.current) setState(INITIAL);
+		setState(INITIAL);
 	}, [abortInFlight]);
 
 	const start = useCallback(async () => {
@@ -149,20 +147,24 @@ export function useDeviceAuth(): UseDeviceAuth {
 	const logout = useCallback(async () => {
 		const token = tokenRef.current;
 		abortInFlight();
-		if (token) {
-			// Best-effort; server-side invalidation is verified separately.
-			await signOutRequest(token);
+		// Best-effort; server-side invalidation is verified separately.
+		try {
+			if (token) {
+				await signOutRequest(token);
+			}
+		} catch { 
+			// Best-effort, ignore server sign-out failure. Clear local state regardless.
+		} finally {
+			// Clear local state regardless of sign-out success, since the token is the only proof of auth.
+			tokenRef.current = undefined;
+			setState(INITIAL);
 		}
-		tokenRef.current = undefined;
-		if (mountedRef.current) setState(INITIAL);
 	}, [abortInFlight]);
 
 	useEffect(() => {
-		// Set on mount (and reset on StrictMode remount) so safeSet isn't permanently
-		// disabled after StrictMode's mount→unmount→remount cycle in development.
-		mountedRef.current = true;
+		// Abort any in-flight device flow when the component unmounts. 
+		// The signal is the source of truth so no mounted flag is needed.
 		return () => {
-			mountedRef.current = false;
 			abortRef.current?.abort();
 			abortRef.current = null;
 		};
