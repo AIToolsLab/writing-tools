@@ -10,6 +10,7 @@
  *   3. The build emits JS + CSS bundles, and images land in dist/assets/.
  *   4. Static files from the public site are copied to the dist root.
  *   5. manifest.xml is present (and looks transformed).
+ *   6. The Google Docs bundle is emitted as dist/google-docs.bundle.js.
  *
  * Run after a build: `npm run test:build` (assumes `dist/` already exists).
  */
@@ -131,6 +132,15 @@ if (fs.existsSync(manifestPath)) {
 	}
 } else {
 	error('manifest.xml NOT FOUND in dist');
+}
+
+// Test 6: Google Docs bundle must be emitted into dist/.
+console.log('\nTest 6: Google Docs bundle');
+const gdocsBundlePath = path.join(distDir, 'google-docs.bundle.js');
+if (fs.existsSync(gdocsBundlePath)) {
+	success('google-docs.bundle.js exists at dist root');
+} else {
+	error('google-docs.bundle.js NOT FOUND at dist root (run npm run build:google-docs)');
 }
 
 // Final report

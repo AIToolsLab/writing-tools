@@ -17,9 +17,12 @@ module.exports = (_env = {}, options = {}) => {
 			'google-docs': './src/index-gdocs.tsx'
 		},
 		output: {
-			path: path.resolve(__dirname, 'dist-gdocs'),
+			// Emit into the shared dist/ alongside the Word add-in bundles.
+			// clean:false so this build doesn't wipe the main build's output
+			// (run `npm run build` first, then `npm run build:google-docs`).
+			path: path.resolve(__dirname, 'dist'),
 			filename: '[name].bundle.js',
-			clean: true
+			clean: false
 		},
 		resolve: {
 			alias: {
