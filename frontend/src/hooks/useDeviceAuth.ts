@@ -92,7 +92,9 @@ export function useDeviceAuth(): UseDeviceAuth {
 		safeSet(controller, {
 			status: 'polling',
 			userCode: code.user_code,
-			verificationUri: code.verification_uri_complete,
+			// Generic page with NO code in the URL — the user reads the code from here
+			// and types it on the approval page (intent/anti-phishing hardening).
+			verificationUri: code.verification_uri,
 		});
 
 		const result = await pollForToken(

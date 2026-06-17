@@ -90,14 +90,16 @@ function buildDebugDeviceHtml(serializedClientId: string) {
       log('device/code →\\n' + JSON.stringify(data, null, 2));
 
       // Show the approval link — user clicks to open in external browser.
-      // In production Word opens new tab in the external system browser
+      // In production Word opens new tab in the external system browser.
+      // Open the generic verification_uri (no code) so the user must read the code
+      // here and type it on the approval page — matches the manual-entry flow.
       const codeSpan = el('span', 'code', data.user_code);
       const link = document.createElement('a');
-      link.href = data.verification_uri_complete;
+      link.href = data.verification_uri;
       link.target = '_blank';
       link.rel = 'noopener';
       link.textContent = 'Open approval page →';
-      const muted = el('span', 'muted', 'Polling every ' + data.interval + 's once you approve…');
+      const muted = el('span', 'muted', 'Enter the code above on the approval page, then polling continues every ' + data.interval + 's…');
       const p1 = document.createElement('span'); p1.append('User code: ', codeSpan);
       setStatus(p1, document.createElement('br'), link, document.createElement('br'), muted);
 

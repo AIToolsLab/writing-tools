@@ -64,22 +64,48 @@ function DeviceAuthStatus({
 
 	// polling
 	return (
-		<div className={classes.loginInfoContainer}>
-			<p>
-				Your code: <strong>{authorization.userCode}</strong>
+		<div
+			className={classes.loginInfoContainer}
+			style={{
+				display: 'flex',
+				flexDirection: 'column',
+				alignItems: 'center',
+				textAlign: 'center',
+			}}
+		>
+			<p style={{ margin: 0 }}>Your code:</p>
+			<p
+				style={{
+					fontFamily: 'monospace',
+					fontSize: '1.35rem',
+					fontWeight: 700,
+					letterSpacing: '0.12em',
+					margin: '0.25rem 0 0.75rem',
+				}}
+			>
+				{authorization.userCode}
 			</p>
 			{authorization.verificationUri ? (
-				<p>
+				<p style={{ margin: '0.25rem 0 0.75rem' }}>
 					<a
 						href={authorization.verificationUri}
 						target="_blank"
 						rel="noopener noreferrer"
+						style={{
+							display: 'inline-block',
+							padding: '0.5rem 1.1rem',
+							borderRadius: '6px',
+							background: '#2563eb',
+							color: '#fff',
+							fontWeight: 600,
+							textDecoration: 'none',
+						}}
 					>
 						Open approval page →
 					</a>
 				</p>
 			) : null}
-			<p>Waiting for approval…</p>
+			<p>Open the approval page and enter the code above to continue.</p>
 		</div>
 	);
 }
