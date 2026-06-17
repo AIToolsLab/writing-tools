@@ -57,7 +57,7 @@
 		"core-js": "^3.37.1",
 		"jotai": "^2.12.5",
 		"lexical": "^0.16.1",
-		"posthog-js": "^1.290.0",
+		"posthog-js": "^1.388.1",
 		"react": "^18.2.0",
 		"react-dom": "^18.2.0",
 		"react-icons": "^5.2.1",
