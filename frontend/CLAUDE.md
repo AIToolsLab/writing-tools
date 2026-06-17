@@ -8,11 +8,18 @@ TypeScript/React Microsoft Office Add-in for Word + standalone editor
 ### Frontend (Office Add-in)
 - **Office.js APIs** - Microsoft Word integration
 - **State Management**: Jotai atoms (see `frontend/src/contexts/`)
-- **Path Alias**: `@/*` maps to `./src/*` (webpack config)
-- **Entry Points**:
-  - `src/taskpane.html` - Word task pane
-  - `src/editor/editor.html` - Standalone demo editor
-- **Manifest**: `frontend/manifest.xml` for Office Add-in configuration
+- **Build**: Vite (`vite.config.ts`, multi-page app). `npm run build` →
+  `dist/`; `npm run dev-server` for the HTTPS dev server on :3000. The Google
+  Docs bundle builds separately via `vite.google-docs.config.ts`
+  (`npm run build:google-docs`) into `dist/google-docs.bundle.js`.
+- **Path Alias**: `@/*` maps to `./src/*` (vite + tsconfig)
+- **Entry Points** (HTML lives at the frontend root, as Vite build inputs):
+  - `taskpane.html` - Word task pane
+  - `editor.html` - Standalone demo editor
+  - `logs.html`, `popup.html`, `commands.html`, `index.html` (landing page)
+- **Static assets**: `public/` (copied to `dist/` root; includes `manifest.xml`
+  and `public/assets/`). Images imported in code live in `src/assets/`.
+- **Manifest**: `frontend/public/manifest.xml` for Office Add-in configuration
 
 ### Testing
 
