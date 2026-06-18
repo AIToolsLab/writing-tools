@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+
+# Environment
+.env
+.env.local
+
+# Database
+db/*.db
+db/*.db-shm
+db/*.db-wal
+
+# Build
+dist/
+
+# Logs
+*.log
