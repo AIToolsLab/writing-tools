@@ -12,9 +12,10 @@ export default function ConsentPage() {
   const handleLaunchConsent = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
+    const username = searchParams.get('username') || 'unknown';
     // Log the event
     await log({
-      username: searchParams.get('username') || 'unknown',
+      username,
       event: 'launchConsentForm',
     });
 
@@ -26,6 +27,7 @@ export default function ConsentPage() {
     // Redirect to external consent form with return URL
     const consentUrl = new URL(CONSENT_FORM_URL);
     consentUrl.searchParams.set('redirect_url', redirectUrl);
+    consentUrl.searchParams.set('username', username);
     window.location.href = consentUrl.toString();
   };
 
