@@ -8,8 +8,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
 	type DeviceCodeResponse,
-	type ProtectedUser,
-	fetchProtectedUser,
+	type UserInfo,
+	fetchUserInfo,
 	pollForToken,
 	requestDeviceCode,
 	signOut as signOutRequest,
@@ -28,7 +28,7 @@ export interface DeviceAuthState {
 	verificationUri?: string;
 	/** Present only on status==='success'. Held in memory only. */
 	token?: string;
-	user?: ProtectedUser;
+	user?: UserInfo;
 	error?: string;
 }
 
@@ -127,7 +127,7 @@ export function useDeviceAuth(): UseDeviceAuth {
 
 		// Token acquired — verify it and load the user identity.
 		try {
-			const user = await fetchProtectedUser(
+			const user = await fetchUserInfo(
 				result.accessToken,
 				controller.signal,
 			);

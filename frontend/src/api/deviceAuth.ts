@@ -145,7 +145,7 @@ export async function pollForToken(
 }
 
 /** Authenticated user shape returned by GET /api/protected. */
-export interface ProtectedUser {
+export interface UserInfo {
 	email?: string;
 	name?: string;
 }
@@ -154,10 +154,10 @@ export interface ProtectedUser {
  * Verify a Bearer token and fetch the signed-in user. `credentials: 'omit'` keeps this
  * on the token-only path. Throws on non-2xx (e.g. 401 once the session expires).
  */
-export async function fetchProtectedUser(
+export async function fetchUserInfo(
 	accessToken: string,
 	signal?: AbortSignal,
-): Promise<ProtectedUser> {
+): Promise<UserInfo> {
 	const res = await fetch(`${SERVER_URL}/protected`, {
 		credentials: 'omit',
 		headers: { Authorization: `Bearer ${accessToken}` },
@@ -166,7 +166,7 @@ export async function fetchProtectedUser(
 	if (!res.ok) {
 		throw new Error(`protected failed (${res.status})`);
 	}
-	return (await res.json()) as ProtectedUser;
+	return (await res.json()) as UserInfo;
 }
 
 /**

@@ -7,7 +7,7 @@ vi.mock('../index', () => ({ SERVER_URL: '/api' }));
 import {
 	pollForToken,
 	requestDeviceCode,
-	fetchProtectedUser,
+	fetchUserInfo,
 } from '../deviceAuth';
 
 type Json = Record<string, unknown>;
@@ -116,12 +116,12 @@ describe('pollForToken', () => {
 	});
 });
 
-describe('fetchProtectedUser', () => {
+describe('fetchUserInfo', () => {
 	it('returns the user on 200', async () => {
 		fetchMock.mockResolvedValueOnce(
 			resp({ email: 'a@calvin.edu', name: 'A' }, true),
 		);
-		await expect(fetchProtectedUser('tok')).resolves.toEqual({
+		await expect(fetchUserInfo('tok')).resolves.toEqual({
 			email: 'a@calvin.edu',
 			name: 'A',
 		});
@@ -133,6 +133,6 @@ describe('fetchProtectedUser', () => {
 			status: 401,
 			json: () => Promise.resolve({}),
 		} as Response);
-		await expect(fetchProtectedUser('tok')).rejects.toThrow(/protected failed/);
+		await expect(fetchUserInfo('tok')).rejects.toThrow(/protected failed/);
 	});
 });
