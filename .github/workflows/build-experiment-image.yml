@@ -1,0 +1,68 @@
+name: Build experiment image
+
+# Builds the experiment (Next.js study app) image and pushes it to GHCR on every
+# push to main, tagged with the commit SHA. CD (in the Infrastructure_k8s_* repo)
+# pins a deploy by reading main's current SHA and selecting that image tag.
+#
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'experiment/**'
+      - '.github/workflows/build-experiment-image.yml'
+  workflow_dispatch:
+
+# Least privilege: read the repo to check it out, write packages to push to GHCR.
+permissions:
+  contents: read
+  packages: write
+
+# One image per commit on main (CD may pin an intermediate SHA), so don't cancel
+# in-progress builds for the same ref.
+concurrency:
+  group: build-experiment-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build and push to GHCR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Compute tags and labels
+        id: meta
+        uses: docker/metadata-action@v6
+        with:
+          images: ghcr.io/aitoolslab/writing-tools-experiment
+          # Bare SHA tag is what CD pins to; latest is a convenience pointer.
+          tags: |
+            type=raw,value=${{ github.sha }}
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ./experiment
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          # GIT_COMMIT is baked in as NEXT_PUBLIC_GIT_COMMIT so the running app
+          # reports the commit it was built from; EXP_LOGS_GID matches the
+          # chart/compose log-volume GID.
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            EXP_LOGS_GID=1001
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
