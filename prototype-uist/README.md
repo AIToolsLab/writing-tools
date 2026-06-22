@@ -1,39 +1,54 @@
-# UIST 2026 — Reflective Writing Prototype
+# User-Owned Words Writing Coach
 
-A standalone prototype of the project's core idea: **AI must be genuinely useful,
-but never replace the user as the expressive subject.** The AI organizes and
-reflects; it never writes the essay for you.
+A standalone prototype for writing with AI under hard authorship constraints.
+The AI can coach, extract candidate wording from the user's own chat or voice
+messages, and suggest where approved text should go. It cannot write novel
+document prose into the draft.
 
-## Pipeline
+## Core workflow
 
-1. **Voice / text input** (left panel) — talk the way you think; scattered
-   thought is raw material.
-2. **AI organization** — input distilled into bullet points.
-3. **Mindmap** (right panel) — ideas as editable nodes, connections as edges,
-   expansion chips as *branching directions* (not generated content).
-4. **Pros/cons table** — tradeoffs of the selected idea.
-5. **Signature interaction** — when you edit any node, the AI reflects the edit
-   back: it asks *why* and surfaces what the edit gains and loses. It never
-   silently accepts an edit or auto-rewrites.
+1. The user talks or types in the chat panel.
+2. The AI replies as a coach and proposes candidate snippets copied from the
+   latest user message.
+3. Proposed snippets enter the word bank only if the bank guardrail proves they
+   match user-owned wording.
+4. The user approves, rejects, or edits bank items.
+5. The AI suggests a placement target.
+6. The document insert tool writes only the exact approved bank text.
+
+## Guardrails
+
+- AI bank writes must validate against user messages.
+- User manual bank edits count as user-owned text.
+- Document inserts must exactly equal the current approved bank item text.
+- Validation is deterministic string grounding, not semantic similarity.
 
 ## Run
 
-This prototype calls the existing `backend/` OpenAI proxy.
+This prototype uses the existing `backend/` OpenAI proxy.
 
 ```sh
-# 1. Start the backend (from repo root /backend), needs OPENAI_API_KEY in its .env
-cd ../backend && npm run dev        # serves on http://localhost:8000
+# 1. Start the backend from the repo root
+cd backend
+npm run dev
 
-# 2. Start this prototype
-cd ../prototype-uist
+# 2. In another terminal, run the standalone prototype
+cd prototype-uist
 npm install
-npm run dev                         # opens http://localhost:5180
+npm run dev
 ```
 
-Override the backend location with the `VITE_BACKEND_URL` env var (defaults to
-`http://localhost:8000/api`). Voice input uses the Web Speech API — best in
-Chrome/Edge.
+Optional backend override:
 
-## Stack
+```sh
+VITE_BACKEND_URL=http://localhost:8000/api npm run dev
+```
 
-Vite + React + TypeScript + [@xyflow/react](https://reactflow.dev) for the mindmap.
+Voice input uses the browser speech recognition API and works best in Chrome or
+Edge.
+
+## Test
+
+```sh
+npm test
+```

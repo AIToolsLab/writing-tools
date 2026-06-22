@@ -1,36 +1,20 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { coachAndExtractFromUserMessage, suggestInsertionPlacement } from "./api";
 import {
-  Background,
-  Controls,
-  Handle,
-  Position,
-  ReactFlow,
-  type Edge,
-  type Node,
-  type NodeProps,
-  type NodeTypes,
-} from "@xyflow/react";
-import "@xyflow/react/dist/style.css";
-import {
-  elaborateIdea,
-  fitSentence,
-  freshId,
-  locateInDraft,
-  proposeIdeas,
-  reflectOnEdit,
-  reflectPlanVsDraft,
-  syncCheck,
-  type CandidateIdea,
-  type DraftLocation,
-  type EditReflection,
-  type IdeaEdge,
-  type IdeaNode,
-  type NodeStatus,
-  type PlanDraftGap,
-  type Proposal,
-} from "./api";
+  addUserTextToBank,
+  setBankItemStatus,
+  updateBankItem,
+} from "./bank";
+import { describeTarget, insertBankText } from "./document";
+import type {
+  ChatInputType,
+  ChatMessage,
+  InsertionSuggestion,
+  InsertionTarget,
+  InsertionTargetKind,
+  WordBankItem,
+} from "./types";
 
-// ── Voice input (Web Speech API) ───────────────────────────────────────────
 interface SpeechRecognitionEvent extends Event {
   resultIndex: number;
   results: {
@@ -38,1075 +22,988 @@ interface SpeechRecognitionEvent extends Event {
     [i: number]: { 0: { transcript: string }; isFinal: boolean };
   };
 }
+
 interface SpeechRecognition extends EventTarget {
   lang: string;
   continuous: boolean;
   interimResults: boolean;
   start: () => void;
   stop: () => void;
-  onresult: (e: SpeechRecognitionEvent) => void;
+  onresult: (event: SpeechRecognitionEvent) => void;
   onend: () => void;
-  onerror: (e: Event) => void;
+  onerror: () => void;
 }
-type SpeechCtor = new () => SpeechRecognition;
-const speechCtor = (): SpeechCtor | null => {
-  const w = window as unknown as {
-    SpeechRecognition?: SpeechCtor;
-    webkitSpeechRecognition?: SpeechCtor;
-  };
-  return w.SpeechRecognition ?? w.webkitSpeechRecognition ?? null;
+
+type SpeechConstructor = new () => SpeechRecognition;
+
+const STORAGE_KEYS = {
+  draft: "owned-words-draft",
+  messages: "owned-words-messages",
+  bank: "owned-words-bank",
+  suggestions: "owned-words-suggestions",
 };
 
-/** Voice-first dictation; pass "zh-CN" for Mandarin. Returns live transcript. */
-function useSpeech(lang: string) {
-  const supported = speechCtor() !== null;
+function createId(prefix: string): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return `${prefix}-${crypto.randomUUID()}`;
+  }
+  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function getSpeechConstructor(): SpeechConstructor | null {
+  const speechWindow = window as Window & {
+    SpeechRecognition?: SpeechConstructor;
+    webkitSpeechRecognition?: SpeechConstructor;
+  };
+  return speechWindow.SpeechRecognition ?? speechWindow.webkitSpeechRecognition ?? null;
+}
+
+function useLocalStorageState<T>(storageKey: string, initialValue: T) {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const stored = localStorage.getItem(storageKey);
+      return stored ? (JSON.parse(stored) as T) : initialValue;
+    } catch {
+      return initialValue;
+    }
+  });
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(value));
+  }, [storageKey, value]);
+
+  return [value, setValue] as const;
+}
+
+function useSpeechToText(language: string) {
+  const [supported, setSupported] = useState(false);
   const [listening, setListening] = useState(false);
   const [transcript, setTranscript] = useState("");
   const [interim, setInterim] = useState("");
-  const recRef = useRef<SpeechRecognition | null>(null);
-  const finalRef = useRef("");
+  const recognitionRef = useRef<SpeechRecognition | null>(null);
+  const finalTranscriptRef = useRef("");
 
   useEffect(() => {
-    const Ctor = speechCtor();
-    if (!Ctor) return;
-    const rec = new Ctor();
-    rec.lang = lang;
-    rec.continuous = true;
-    rec.interimResults = true;
-    rec.onresult = (e) => {
-      let chunk = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        const r = e.results[i];
-        if (r.isFinal) finalRef.current += r[0].transcript + " ";
-        else chunk += r[0].transcript;
+    const Constructor = getSpeechConstructor();
+    if (!Constructor) {
+      setSupported(false);
+      return undefined;
+    }
+
+    setSupported(true);
+    const recognition = new Constructor();
+    recognition.lang = language;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onresult = (event) => {
+      let nextInterim = "";
+      for (let index = event.resultIndex; index < event.results.length; index += 1) {
+        const result = event.results[index];
+        if (result.isFinal) {
+          finalTranscriptRef.current += `${result[0].transcript} `;
+        } else {
+          nextInterim += result[0].transcript;
+        }
       }
-      setTranscript(finalRef.current);
-      setInterim(chunk);
+      setTranscript(finalTranscriptRef.current.trim());
+      setInterim(nextInterim.trim());
     };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => setListening(false);
-    recRef.current = rec;
-    return () => rec.stop();
-  }, [lang]);
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => setListening(false);
+    recognitionRef.current = recognition;
+
+    return () => {
+      recognition.stop();
+    };
+  }, [language]);
 
   return {
     supported,
     listening,
     transcript,
     interim,
-    start: () => {
-      if (recRef.current && !listening) {
-        setInterim("");
-        recRef.current.start();
-        setListening(true);
+    start() {
+      if (!recognitionRef.current || listening) {
+        return;
       }
+      setInterim("");
+      recognitionRef.current.start();
+      setListening(true);
     },
-    stop: () => {
-      recRef.current?.stop();
+    stop() {
+      recognitionRef.current?.stop();
       setListening(false);
     },
-    reset: () => {
-      finalRef.current = "";
+    reset() {
+      finalTranscriptRef.current = "";
       setTranscript("");
       setInterim("");
     },
   };
 }
 
-// ── Mindmap node ───────────────────────────────────────────────────────────
-interface EditableNodeData {
-  label: string;
-  expansions: string[];
-  status: NodeStatus;
-  selected: boolean;
-  onCommit: (id: string, oldLabel: string, newLabel: string) => void;
-  onSelect: (id: string) => void;
-  onExpand: (id: string, direction: string) => void;
-  onDelete: (id: string) => void;
-  onInsert: (id: string) => void;
-  [key: string]: unknown;
+function getPlaceholderOptions(draft: string): string[] {
+  const matches = draft.match(/\[[^\]]+\]|\{\{[^}]+\}\}|<[^>]+>/g) ?? [];
+  return Array.from(new Set(matches.map((match) => match.trim()))).slice(0, 10);
 }
 
-/** One idea. Click selects; double-click the title edits; editing → reflection. */
-function EditableNode({ id, data }: NodeProps) {
-  const d = data as EditableNodeData;
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState(d.label);
-
-  const commit = () => {
-    setEditing(false);
-    const next = draft.trim();
-    if (next && next !== d.label) d.onCommit(id, d.label, next);
-    else setDraft(d.label);
-  };
-
-  return (
-    <div
-      className={`idea-node ${d.status} ${d.selected ? "sel" : ""}`}
-      onClick={() => d.onSelect(id)}
-    >
-      <Handle type="target" position={Position.Left} />
-      <button
-        className="node-del"
-        title="Delete this idea"
-        onClick={(e) => {
-          e.stopPropagation();
-          d.onDelete(id);
-        }}
-      >
-        ×
-      </button>
-      {editing ? (
-        <input
-          autoFocus
-          className="node-edit"
-          value={draft}
-          onChange={(e) => setDraft(e.target.value)}
-          onBlur={commit}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") commit();
-            if (e.key === "Escape") {
-              setDraft(d.label);
-              setEditing(false);
-            }
-          }}
-        />
-      ) : (
-        <div
-          className="node-label"
-          title="Double-click to edit"
-          onDoubleClick={(e) => {
-            e.stopPropagation();
-            setDraft(d.label);
-            setEditing(true);
-          }}
-        >
-          {d.label}
-        </div>
-      )}
-      {d.expansions.length > 0 && (
-        <div className="node-expansions">
-          {d.expansions.map((ex, i) => (
-            <button
-              key={i}
-              className="exp-chip"
-              title="Branch this direction into a new idea"
-              onClick={(e) => {
-                e.stopPropagation();
-                d.onExpand(id, ex);
-              }}
-            >
-              + {ex}
-            </button>
-          ))}
-        </div>
-      )}
-      {d.status === "new" && (
-        <button
-          className="node-insert"
-          title="Insert this idea into the draft"
-          onClick={(e) => {
-            e.stopPropagation();
-            d.onInsert(id);
-          }}
-        >
-          Insert into draft →
-        </button>
-      )}
-      <Handle type="source" position={Position.Right} />
-    </div>
-  );
+function formatTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
-const nodeTypes: NodeTypes = { idea: EditableNode };
-const layout = (i: number) => ({ x: 60 + (i % 3) * 280, y: 40 + Math.floor(i / 3) * 200 });
 
-// ── App ────────────────────────────────────────────────────────────────────
-interface PendingEdit {
-  oldLabel: string;
-  newLabel: string;
+function buildInsertionTarget(
+  targetKind: InsertionTargetKind,
+  selectionStart: number,
+  selectionEnd: number,
+  placeholderText: string,
+): InsertionTarget {
+  switch (targetKind) {
+    case "selection":
+      return { kind: "selection", start: selectionStart, end: selectionEnd };
+    case "cursor":
+      return { kind: "cursor", start: selectionEnd };
+    case "append":
+      return { kind: "append" };
+    case "placeholder":
+      return { kind: "placeholder", placeholder: placeholderText };
+  }
 }
+
+function buildWordBankText(items: WordBankItem[]): string {
+  return items.map((item) => item.text.trim()).filter(Boolean).join("\n\n");
+}
+
+const starterMessage: ChatMessage = {
+  id: createId("msg"),
+  role: "assistant",
+  text: "Talk me through the part of your draft you want to strengthen. I will coach you and capture only your own wording for the bank.",
+  timestamp: Date.now(),
+};
 
 export default function App() {
-  const [nodes, setNodes] = useState<IdeaNode[]>([]);
-  const [edges, setEdges] = useState<IdeaEdge[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Candidate-selection state (input-stage authorship). `candidates` is null
-  // until the AI has proposed; the writer checks which to keep before any node
-  // is created.
-  const [candidates, setCandidates] = useState<CandidateIdea[] | null>(null);
-  const [propEdges, setPropEdges] = useState<Proposal["edges"]>([]);
-  const [checked, setChecked] = useState<boolean[]>([]);
-  const [other, setOther] = useState("");
-
-  // Signature-interaction state.
-  const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null);
-  const [reflection, setReflection] = useState<EditReflection | null>(null);
-  const [reflectError, setReflectError] = useState<string | null>(null);
-
-  // The essay draft — the destination of all this thinking. Persisted locally so
-  // an existing draft survives reloads.
-  const [draft, setDraft] = useState(
-    () => localStorage.getItem("uist-draft") ?? "",
+  const [draft, setDraft] = useLocalStorageState(STORAGE_KEYS.draft, "");
+  const [messages, setMessages] = useLocalStorageState<ChatMessage[]>(
+    STORAGE_KEYS.messages,
+    [starterMessage],
   );
+  const [bankItems, setBankItems] = useLocalStorageState<WordBankItem[]>(
+    STORAGE_KEYS.bank,
+    [],
+  );
+  const [suggestions, setSuggestions] = useLocalStorageState<InsertionSuggestion[]>(
+    STORAGE_KEYS.suggestions,
+    [],
+  );
+  const [composerText, setComposerText] = useState("");
+  const [composerInputType, setComposerInputType] =
+    useState<ChatInputType>("typed");
+  const [language, setLanguage] = useState("en-US");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [editorSelection, setEditorSelection] = useState({
+    start: 0,
+    end: 0,
+    selectedText: "",
+  });
+  const [targetKind, setTargetKind] =
+    useState<InsertionTargetKind>("append");
+  const [placeholderTarget, setPlaceholderTarget] = useState("");
+  const [bankDrafts, setBankDrafts] = useState<Record<string, string>>({});
+  const [activeSuggestionItemId, setActiveSuggestionItemId] = useState<string | null>(
+    null,
+  );
+  const [placementRequestText, setPlacementRequestText] = useState("");
+  const [showRejectedBankItems, setShowRejectedBankItems] = useState(false);
+  const [wordBankDraft, setWordBankDraft] = useState("");
+  const [selectedWordBankText, setSelectedWordBankText] = useState("");
+
+  const speech = useSpeechToText(language);
+  const draftRef = useRef<HTMLTextAreaElement | null>(null);
+  const chatLogRef = useRef<HTMLDivElement | null>(null);
+  const wordBankRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const groupedBankItems = useMemo(
+    () => ({
+      proposed: bankItems.filter((item) => item.status === "proposed"),
+      approved: bankItems.filter((item) => item.status === "approved"),
+      rejected: bankItems.filter((item) => item.status === "rejected"),
+    }),
+    [bankItems],
+  );
+
+  const placeholderOptions = useMemo(() => getPlaceholderOptions(draft), [draft]);
+  const selectedSuggestion = useMemo(
+    () =>
+      suggestions.find(
+        (suggestion) =>
+          suggestion.bankItemId === activeSuggestionItemId &&
+          suggestion.status === "suggested",
+      ) ?? null,
+    [activeSuggestionItemId, suggestions],
+  );
+
   useEffect(() => {
-    localStorage.setItem("uist-draft", draft);
-  }, [draft]);
-  const draftRef = useRef<HTMLTextAreaElement>(null);
+    if (!speech.transcript && !speech.interim) {
+      return;
+    }
+    const liveTranscript = `${speech.transcript} ${speech.interim}`.trim();
+    setComposerText(liveTranscript);
+    setComposerInputType("voice");
+  }, [speech.interim, speech.transcript]);
 
-  const [syncBusy, setSyncBusy] = useState(false);
-
-  // Mindmap → Draft insertion state.
-  const [insertTarget, setInsertTarget] = useState<IdeaNode | null>(null);
-  const [insertLoc, setInsertLoc] = useState<DraftLocation | null>(null);
-  const [insertMode, setInsertMode] = useState<"verbatim" | "minimal">("verbatim");
-  const [insertBusy, setInsertBusy] = useState(false);
-  // The draft range to highlight (overlay), independent of textarea focus.
-  const [highlightRange, setHighlightRange] = useState<{
-    start: number;
-    end: number;
-  } | null>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-  // A bubble awaiting more detail from the chat before it can be inserted.
-  const [pendingBubble, setPendingBubble] = useState<string | null>(null);
-
-  // Plan-vs-draft reflection state.
-  const [gapOpen, setGapOpen] = useState(false);
-  const [gap, setGap] = useState<PlanDraftGap | null>(null);
-  const [gapBusy, setGapBusy] = useState(false);
-  const [gapError, setGapError] = useState<string | null>(null);
-
-  // Conversational input surface.
-  const [messages, setMessages] = useState<
-    { role: "user" | "assistant"; text: string }[]
-  >([]);
-  const [lang, setLang] = useState("en-US");
-  const speech = useSpeech(lang);
-  const [text, setText] = useState("");
   useEffect(() => {
-    if (speech.transcript) setText(speech.transcript);
-  }, [speech.transcript]);
-  const live = (text + (speech.interim ? " " + speech.interim : "")).trim();
-  const say = (role: "user" | "assistant", t: string) =>
-    setMessages((m) => [...m, { role, text: t }]);
-  const logRef = useRef<HTMLDivElement>(null);
+    chatLogRef.current?.scrollTo({
+      top: chatLogRef.current.scrollHeight,
+      behavior: "smooth",
+    });
+  }, [messages]);
+
   useEffect(() => {
-    logRef.current?.scrollTo(0, logRef.current.scrollHeight);
-  }, [messages, busy]);
+    setWordBankDraft(buildWordBankText(groupedBankItems.approved));
+  }, [groupedBankItems.approved]);
 
-  const essayContext = useMemo(() => nodes.map((n) => n.label).join("; "), [nodes]);
-
-  // Send a chat message. If a bubble is awaiting more detail (from an insert
-  // nudge), the message develops THAT bubble and retries the insert. Otherwise
-  // the AI proposes candidate ideas from the message.
-  const send = async () => {
-    const msg = live.trim();
-    if (!msg || busy) return;
-    say("user", msg);
-    setText("");
-    speech.reset();
-
-    if (pendingBubble) {
-      const targetId = pendingBubble;
-      setPendingBubble(null);
-      const targetNode = nodes.find((n) => n.id === targetId);
-      if (targetNode) {
-        // Fold the new detail into the bubble, then retry the insert with the
-        // updated node (state hasn't flushed yet, so pass it explicitly).
-        const updated: IdeaNode = {
-          ...targetNode,
-          expansions: [...targetNode.expansions, msg],
-        };
-        setNodes((p) => p.map((n) => (n.id === targetId ? updated : n)));
-        say("assistant", "Got it — let me place that for you.");
-        startInsert(targetId, updated);
-      }
+  function syncEditorSelection(currentDraft = draft) {
+    const textarea = draftRef.current;
+    if (!textarea) {
       return;
     }
 
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    setEditorSelection({
+      start,
+      end,
+      selectedText: currentDraft.slice(start, end),
+    });
+  }
+
+  function syncWordBankSelection() {
+    const textarea = wordBankRef.current;
+    if (!textarea) {
+      return;
+    }
+
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    setSelectedWordBankText(wordBankDraft.slice(start, end));
+  }
+
+  function pushMessage(message: ChatMessage) {
+    setMessages((currentMessages) => [...currentMessages, message]);
+  }
+
+  async function handleSend() {
+    const trimmed = composerText.trim();
+    if (!trimmed || busy) {
+      return;
+    }
+
+    const userMessage: ChatMessage = {
+      id: createId("msg"),
+      role: "user",
+      text: trimmed,
+      timestamp: Date.now(),
+      inputType: composerInputType,
+    };
+    pushMessage(userMessage);
+    setComposerText("");
+    setComposerInputType("typed");
+    speech.reset();
     setBusy(true);
-    setError(null);
+    setNotice("");
+
     try {
-      const p = await proposeIdeas(msg);
-      setCandidates(p.ideas);
-      setPropEdges(p.edges);
-      setChecked(p.ideas.map(() => false)); // default unchecked = active choice
-      say(
-        "assistant",
-        p.ideas.length
-          ? `I picked out ${p.ideas.length} possible idea${
-              p.ideas.length > 1 ? "s" : ""
-            } — choose which are truly yours.`
-          : "I couldn't pull distinct ideas from that. Try saying a bit more.",
-      );
-    } catch (e) {
-      const m = e instanceof Error ? e.message : String(e);
-      setError(m);
-      say("assistant", `⚠ ${m}`);
+      const response = await coachAndExtractFromUserMessage({
+        draft,
+        recentMessages: [...messages, userMessage],
+        latestUserMessage: userMessage,
+        bankItems,
+      });
+
+      const extractedItems: WordBankItem[] = [];
+      const guardrailNotes: string[] = [];
+      for (const candidateText of response.candidateTexts) {
+        const result = addUserTextToBank({
+          candidateText,
+          existingItems: [...bankItems, ...extractedItems],
+          messageId: userMessage.id,
+          messages: [userMessage],
+          origin: "ai",
+        });
+
+        if (result.item) {
+          extractedItems.push(result.item);
+        } else {
+          guardrailNotes.push(result.guardrail.message);
+        }
+      }
+
+      if (extractedItems.length > 0) {
+        setBankItems((currentItems) => [...currentItems, ...extractedItems]);
+      }
+      if (guardrailNotes.length > 0) {
+        setNotice(guardrailNotes[0]);
+      }
+
+      pushMessage({
+        id: createId("msg"),
+        role: "assistant",
+        text: response.reply,
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : "The AI request failed.";
+      setNotice(errorMessage);
+      pushMessage({
+        id: createId("msg"),
+        role: "assistant",
+        text: "I hit a snag while processing that. Try sending it again.",
+        timestamp: Date.now(),
+      });
     } finally {
       setBusy(false);
     }
-  };
+  }
 
-  // Append the writer's own idea to the candidate list, pre-checked.
-  const addOther = () => {
-    const label = other.trim();
-    if (!label || !candidates) return;
-    setCandidates([...candidates, { label, expansions: [] }]);
-    setChecked([...checked, true]);
-    setOther("");
-  };
-
-  // Only the checked candidates become real nodes; suggested edges survive only
-  // if both endpoints were kept. Accumulates onto the existing map.
-  const confirmSelection = () => {
-    if (!candidates) return;
-    const idByIndex = new Map<number, string>();
-    const newNodes: IdeaNode[] = [];
-    candidates.forEach((c, i) => {
-      if (!checked[i]) return;
-      const id = freshId("node");
-      idByIndex.set(i, id);
-      newNodes.push({ id, label: c.label, expansions: c.expansions, status: "new" });
-    });
-    const newEdges: IdeaEdge[] = propEdges
-      .filter((e) => idByIndex.has(e.source) && idByIndex.has(e.target))
-      .map((e) => ({
-        id: freshId("edge"),
-        source: idByIndex.get(e.source)!,
-        target: idByIndex.get(e.target)!,
-        label: e.label,
-      }));
-    setNodes((p) => [...p, ...newNodes]);
-    setEdges((p) => [...p, ...newEdges]);
-    if (newNodes.length) setSelectedId(newNodes[newNodes.length - 1].id);
-    say(
-      "assistant",
-      `Added ${newNodes.length} idea${
-        newNodes.length > 1 ? "s" : ""
-      } to your map. Keep going whenever you have more.`,
+  function handleApprove(item: WordBankItem) {
+    setBankItems((currentItems) =>
+      currentItems.map((currentItem) =>
+        currentItem.id === item.id
+          ? setBankItemStatus(currentItem, "approved")
+          : currentItem,
+      ),
     );
-    // Reset for the next round of input.
-    setCandidates(null);
-    setPropEdges([]);
-    setChecked([]);
-  };
+    setNotice("Approved the bank item and moved it into the shared word bank.");
+  }
 
-  const checkedCount = checked.filter(Boolean).length;
+  function handleReject(item: WordBankItem) {
+    setBankItems((currentItems) =>
+      currentItems.map((currentItem) =>
+        currentItem.id === item.id
+          ? setBankItemStatus(currentItem, "rejected")
+          : currentItem,
+      ),
+    );
+    setNotice("Rejected the proposed bank addition.");
+  }
 
-  // The signature interaction: commit the edit, then ask the AI to reflect.
-  const handleCommit = useCallback(
-    async (id: string, oldLabel: string, newLabel: string) => {
-      setNodes((p) => p.map((n) => (n.id === id ? { ...n, label: newLabel } : n)));
-      setPendingEdit({ oldLabel, newLabel });
-      setReflection(null);
-      setReflectError(null);
-      try {
-        setReflection(await reflectOnEdit(oldLabel, newLabel, essayContext));
-      } catch (e) {
-        setReflectError(e instanceof Error ? e.message : String(e));
-      }
-    },
-    [essayContext],
-  );
+  function handleBankDraftChange(itemId: string, value: string) {
+    setBankDrafts((currentDrafts) => ({
+      ...currentDrafts,
+      [itemId]: value,
+    }));
+  }
 
-  // Fill a bare node with AI-suggested directions + tradeoffs so it matches the
-  // depth of proposed ideas. Non-fatal if it fails — the node still exists.
-  const elaborateNode = useCallback(
-    async (id: string, label: string) => {
-      try {
-        const e = await elaborateIdea(label, essayContext);
-        setNodes((p) =>
-          p.map((n) => (n.id === id ? { ...n, expansions: e.expansions } : n)),
-        );
-      } catch {
-        /* keep the bare node */
-      }
-    },
-    [essayContext],
-  );
+  function handleSaveProposedEdit(item: WordBankItem) {
+    const nextText = bankDrafts[item.id] ?? item.text;
+    const result = updateBankItem({
+      candidateText: nextText,
+      currentItem: item,
+      existingItems: bankItems,
+      messages,
+      origin: "user",
+    });
 
-  // Promote a suggested direction into a new child idea node + edge, then fill
-  // it out so it has its own directions and tradeoffs.
-  const handleExpand = useCallback(
-    (parentId: string, direction: string) => {
-      const id = freshId("node");
-      setNodes((p) => [
-        ...p,
-        { id, label: direction, expansions: [], status: "new" },
-      ]);
-      setEdges((p) => [...p, { id: freshId("edge"), source: parentId, target: id }]);
-      setSelectedId(id);
-      elaborateNode(id, direction);
-    },
-    [elaborateNode],
-  );
-
-  // Delete an idea and any connections touching it.
-  const handleDelete = useCallback((id: string) => {
-    setNodes((p) => p.filter((n) => n.id !== id));
-    setEdges((p) => p.filter((e) => e.source !== id && e.target !== id));
-    setSelectedId((cur) => (cur === id ? null : cur));
-  }, []);
-
-  // Recolor every bubble against the draft: synced / new, and (re)create the
-  // draftOnly bubbles for draft points no bubble represents.
-  const runSync = async () => {
-    setSyncBusy(true);
-    setError(null);
-    try {
-      const r = await syncCheck(
-        nodes
-          .filter((n) => n.status !== "draftOnly")
-          .map((n) => ({ id: n.id, label: n.label })),
-        draft,
-      );
-      const synced = new Set(r.syncedIds);
-      setNodes((prev) => {
-        const kept: IdeaNode[] = prev
-          .filter((n) => n.status !== "draftOnly")
-          .map((n) => ({ ...n, status: synced.has(n.id) ? "synced" : "new" }));
-        const draftOnly: IdeaNode[] = r.draftOnly.map((label, k) => ({
-          id: freshId("node") + k,
-          label,
-          expansions: [],
-          status: "draftOnly",
-        }));
-        return [...kept, ...draftOnly];
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSyncBusy(false);
+    if (!result.item) {
+      setNotice(result.guardrail.message);
+      return;
     }
-  };
 
-  // Highlight a draft range via the overlay, and scroll it into view.
-  const showHighlight = (start: number, end: number) => {
-    setHighlightRange(start < end ? { start, end } : null);
-    const ta = draftRef.current;
-    if (!ta) return;
-    // Focusing + selecting scrolls the textarea to the range; the overlay mark
-    // keeps the highlight visible after focus leaves.
-    ta.focus();
-    ta.setSelectionRange(start, end);
+    setBankItems((currentItems) =>
+      currentItems.map((currentItem) =>
+        currentItem.id === item.id ? result.item ?? currentItem : currentItem,
+      ),
+    );
+    setBankDrafts((currentDrafts) => {
+      const nextDrafts = { ...currentDrafts };
+      delete nextDrafts[item.id];
+      return nextDrafts;
+    });
+    setNotice("Saved your edit to the proposed addition.");
+  }
+
+  function handleSaveWordBank() {
+    const nextEntries = wordBankDraft
+      .split(/\n\s*\n/g)
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+
+    const preservedApprovedItems = nextEntries.map((entryText) => {
+      const matchingItem = groupedBankItems.approved.find(
+        (item) => item.text.trim() === entryText,
+      );
+
+      if (matchingItem) {
+        return {
+          ...matchingItem,
+          status: "approved" as const,
+          lastEditedBy: "user" as const,
+          updatedAt: Date.now(),
+        };
+      }
+
+      return {
+        id: createId("bank"),
+        text: entryText,
+        sourceMessageIds: [],
+        status: "approved" as const,
+        createdBy: "user" as const,
+        lastEditedBy: "user" as const,
+        updatedAt: Date.now(),
+      };
+    });
+
+    const approvedIds = new Set(preservedApprovedItems.map((item) => item.id));
+    setBankItems((currentItems) => {
+      const nonApprovedItems = currentItems.filter(
+        (item) => item.status !== "approved",
+      );
+      return [...nonApprovedItems, ...preservedApprovedItems];
+    });
+    setSuggestions((currentSuggestions) =>
+      currentSuggestions.filter((suggestion) => approvedIds.has(suggestion.bankItemId)),
+    );
+    if (activeSuggestionItemId && !approvedIds.has(activeSuggestionItemId)) {
+      setActiveSuggestionItemId(null);
+    }
+    setNotice("Saved the shared word bank.");
+  }
+
+  async function handleSuggestPlacement(item: WordBankItem) {
+    setBusy(true);
+    setNotice("");
+    try {
+      const textarea = draftRef.current;
+      const cursorIndex = textarea?.selectionEnd ?? draft.length;
+      const cursorBefore = draft.slice(Math.max(0, cursorIndex - 120), cursorIndex);
+      const cursorAfter = draft.slice(cursorIndex, cursorIndex + 120);
+      const response = await suggestInsertionPlacement({
+        draft,
+        bankItemText: item.text,
+        selectedText: editorSelection.selectedText,
+        cursorBefore,
+        cursorAfter,
+        placeholderOptions,
+      });
+
+      const suggestion: InsertionSuggestion = {
+        id: createId("suggestion"),
+        bankItemId: item.id,
+        target: response.target,
+        reason: response.reason,
+        status: "suggested",
+        createdAt: Date.now(),
+      };
+
+      setSuggestions((currentSuggestions) => {
+        const remainingSuggestions = currentSuggestions.filter(
+          (currentSuggestion) => currentSuggestion.bankItemId !== item.id,
+        );
+        return [...remainingSuggestions, suggestion];
+      });
+      setActiveSuggestionItemId(item.id);
+      setTargetKind(response.target.kind);
+      if (response.target.kind === "placeholder") {
+        setPlaceholderTarget(response.target.placeholder ?? "");
+      }
+      setNotice("AI suggested a placement target for the chosen bank text.");
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Placement suggestion failed.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function findApprovedBankItemByText(candidateText: string): WordBankItem | null {
+    const trimmedCandidate = candidateText.trim();
+    if (!trimmedCandidate) {
+      return null;
+    }
+
+    return (
+      groupedBankItems.approved.find(
+        (item) => item.text.trim() === trimmedCandidate,
+      ) ?? null
+    );
+  }
+
+  async function handleSuggestPlacementFromBox() {
+    const matchedItem = findApprovedBankItemByText(placementRequestText);
+    if (!matchedItem) {
+      setNotice(
+        "Placement suggestions only work from exact approved bank text. Select text from the word bank or paste it exactly.",
+      );
+      return;
+    }
+
+    await handleSuggestPlacement(matchedItem);
+  }
+
+  function handleDismissPlacementSuggestion() {
+    if (activeSuggestionItemId) {
+      setSuggestions((currentSuggestions) =>
+        currentSuggestions.map((currentSuggestion) =>
+          currentSuggestion.bankItemId === activeSuggestionItemId
+            ? { ...currentSuggestion, status: "dismissed" }
+            : currentSuggestion,
+        ),
+      );
+    }
+    setActiveSuggestionItemId(null);
+    setPlacementRequestText("");
+    setNotice("Cleared the current placement suggestion.");
+  }
+
+  function handleInsertExactText() {
+    const matchedItem = findApprovedBankItemByText(placementRequestText);
+    if (!matchedItem) {
+      setNotice(
+        "The text in the suggest-placement box no longer matches an approved bank entry.",
+      );
+      return;
+    }
+
+    const target = buildInsertionTarget(
+      targetKind,
+      editorSelection.start,
+      editorSelection.end,
+      placeholderTarget,
+    );
+    const result = insertBankText({
+      draft,
+      bankItem: matchedItem,
+      target,
+      textToInsert: matchedItem.text,
+    });
+
+    if (!result.nextDraft || !result.insertedRange) {
+      setNotice(result.guardrail.message);
+      return;
+    }
+
+    setDraft(result.nextDraft);
+    const insertedRange = result.insertedRange;
+    setSuggestions((currentSuggestions) =>
+      currentSuggestions.map((currentSuggestion) =>
+        currentSuggestion.bankItemId === matchedItem.id
+          ? { ...currentSuggestion, status: "accepted" }
+          : currentSuggestion,
+      ),
+    );
+    setActiveSuggestionItemId(matchedItem.id);
+    setNotice(result.guardrail.message);
+
     requestAnimationFrame(() => {
-      if (backdropRef.current) backdropRef.current.scrollTop = ta.scrollTop;
-    });
-  };
-
-  // Mindmap → Draft, step 1: locate where a bubble belongs and highlight it.
-  const startInsert = async (id: string, override?: IdeaNode) => {
-    const node = override ?? nodes.find((n) => n.id === id);
-    if (!node) return;
-    setSelectedId(id);
-    setInsertTarget(node);
-    setInsertLoc(null);
-    setInsertBusy(true);
-    setError(null);
-    try {
-      const loc = await locateInDraft(
-        { label: node.label, expansions: node.expansions },
-        draft,
+      const textarea = draftRef.current;
+      if (!textarea) {
+        return;
+      }
+      textarea.focus();
+      textarea.setSelectionRange(
+        insertedRange.start,
+        insertedRange.end,
       );
-      setInsertLoc(loc);
-      const at = loc.anchor ? draft.indexOf(loc.anchor) : -1;
-      if (at >= 0) showHighlight(at, at + loc.anchor.length);
-      else {
-        // No anchor → it appends at the end; clear highlight and scroll there.
-        setHighlightRange(null);
-        const ta = draftRef.current;
-        if (ta) {
-          ta.focus();
-          ta.setSelectionRange(draft.length, draft.length);
-          ta.scrollTop = ta.scrollHeight;
-        }
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-      setInsertTarget(null);
-    } finally {
-      setInsertBusy(false);
-    }
-  };
-
-  const cancelInsert = () => {
-    setHighlightRange(null);
-    setInsertTarget(null);
-    setInsertLoc(null);
-  };
-
-  // Mindmap → Draft, step 2: drop the bubble's own words into the draft. The
-  // bubble then turns Synced.
-  const applyInsert = async () => {
-    if (!insertTarget || !insertLoc) return;
-    setInsertBusy(true);
-    try {
-      const at = insertLoc.anchor ? draft.indexOf(insertLoc.anchor) : -1;
-      const idx = at >= 0 ? at + insertLoc.anchor.length : draft.length;
-      const before = draft.slice(0, idx);
-      const after = draft.slice(idx);
-      let text = insertTarget.label;
-      if (insertMode === "minimal") {
-        text = await fitSentence(
-          insertTarget.label,
-          before.slice(-160),
-          after.slice(0, 160),
-        );
-      }
-      const needsLead = before.length > 0 && !/\s$/.test(before);
-      const piece = `${needsLead ? " " : ""}${text}${/[.!?]$/.test(text) ? "" : "."}`;
-      const next = before + piece + after;
-      setDraft(next);
-      const tid = insertTarget.id;
-      setNodes((p) => p.map((n) => (n.id === tid ? { ...n, status: "synced" } : n)));
-      setInsertTarget(null);
-      setInsertLoc(null);
-      // Highlight what just landed so the writer sees it.
-      setHighlightRange({ start: before.length, end: before.length + piece.length });
-      requestAnimationFrame(() => {
-        const ta = draftRef.current;
-        if (ta) {
-          ta.focus();
-          ta.setSelectionRange(before.length, before.length + piece.length);
-          if (backdropRef.current) backdropRef.current.scrollTop = ta.scrollTop;
-        }
-      });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setInsertBusy(false);
-    }
-  };
-
-  // Not enough info to insert → route the writer to the chat to develop it.
-  const nudgeToChat = () => {
-    if (!insertTarget) return;
-    setPendingBubble(insertTarget.id);
-    setSelectedId(insertTarget.id);
-    say("assistant", `Tell me a bit more about "${insertTarget.label}" and I'll get it ready to insert.`);
-    cancelInsert();
-  };
-
-  // Reverse-outline reflection: where do the idea map and the draft diverge?
-  const reflectPlan = async () => {
-    setGapOpen(true);
-    setGap(null);
-    setGapError(null);
-    setGapBusy(true);
-    try {
-      setGap(await reflectPlanVsDraft(nodes.map((n) => n.label), draft));
-    } catch (e) {
-      setGapError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setGapBusy(false);
-    }
-  };
-
-  // A planned idea the draft skipped → drop the idea as a stub heading for the
-  // writer to expand. The AI does NOT write the prose.
-  const addIdeaToDraft = (label: string, i: number) => {
-    setDraft((d) => `${d}${d.trim() ? "\n\n" : ""}${label}\n`);
-    setGap((g) =>
-      g ? { ...g, missingFromDraft: g.missingFromDraft.filter((_, j) => j !== i) } : g,
-    );
-  };
-
-  // A draft point missing from the plan → fold it back into the idea map, then
-  // flesh it out with directions and tradeoffs like any other idea.
-  const addPointToMap = (label: string, i: number) => {
-    const id = freshId("node");
-    // It came from the draft, so it's present in both → synced.
-    setNodes((p) => [...p, { id, label, expansions: [], status: "synced" }]);
-    setSelectedId(id);
-    setGap((g) => (g ? { ...g, notInMap: g.notInMap.filter((_, j) => j !== i) } : g));
-    elaborateNode(id, label);
-  };
-
-  const flowNodes = useMemo<Node<EditableNodeData>[]>(
-    () =>
-      nodes.map((n, i) => ({
-        id: n.id,
-        type: "idea",
-        position: layout(i),
-        data: {
-          label: n.label,
-          expansions: n.expansions,
-          status: n.status,
-          selected: n.id === selectedId,
-          onCommit: handleCommit,
-          onSelect: setSelectedId,
-          onExpand: handleExpand,
-          onDelete: handleDelete,
-          onInsert: startInsert,
-        },
-      })),
-    [nodes, selectedId, handleCommit, handleExpand, handleDelete, startInsert],
-  );
-  const flowEdges = useMemo<Edge[]>(
-    () => edges.map((e) => ({ ...e, animated: true })),
-    [edges],
-  );
+      syncEditorSelection(result.nextDraft);
+    });
+  }
 
   return (
-    <div className="app">
-      <header className="app-bar">
-        <strong>UIST 2026</strong>
-        <span className="tagline">
-          AI augments your thinking — it never replaces you as the writer.
-        </span>
+    <div className="app-shell">
+      <header className="topbar">
+        <div>
+          <p className="eyebrow">User-Owned Words Prototype</p>
+          <h1>Writing coach with hard authorship guardrails</h1>
+        </div>
+        <p className="topbar-note">
+          The AI can coach, extract, and suggest placement. Only validated
+          user-owned wording can enter the bank or the draft.
+        </p>
       </header>
 
-      <main className="layout">
-        {/* LEFT: conversational input + the idea list it produces */}
-        <section className="left">
-          <div className="panel chat-panel">
-            <header className="panel-head">
-              <h2>Talk through your scattered thoughts</h2>
-              <p className="hint">
-                Speak or type the way you think. The AI proposes ideas — it never
-                writes for you.
-              </p>
-            </header>
-
-            <div className="chat-log" ref={logRef}>
-              {messages.length === 0 ? (
-                <p className="empty">
-                  Start talking or typing below — your thoughts can be as
-                  scattered as you like.
-                </p>
-              ) : (
-                messages.map((m, i) => (
-                  <div key={i} className={`bubble ${m.role}`}>
-                    {m.text}
-                  </div>
-                ))
-              )}
-              {busy && <div className="bubble assistant typing">…</div>}
+      <main className="workspace">
+        <section className="pane chat-pane">
+          <div className="pane-header">
+            <div>
+              <p className="pane-kicker">Chat + Voice</p>
+              <h2>Think out loud</h2>
             </div>
-
-            <div className="chat-input">
-              <div className="voice-row">
-                {speech.supported && (
-                  <button
-                    type="button"
-                    className={`mic ${speech.listening ? "live" : ""}`}
-                    onClick={speech.listening ? speech.stop : speech.start}
-                  >
-                    {speech.listening ? "■ Stop" : "🎙 Speak"}
-                  </button>
-                )}
-                <select value={lang} onChange={(e) => setLang(e.target.value)} title="Dictation language">
-                  <option value="en-US">English</option>
-                  <option value="zh-CN">中文</option>
-                </select>
-                {speech.listening && <span className="rec-dot" />}
-              </div>
-              <div className="composer">
-                <textarea
-                  rows={2}
-                  value={live}
-                  onChange={(e) => setText(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      send();
-                    }
-                  }}
-                  placeholder={
-                    pendingBubble
-                      ? `Add more about "${
-                          nodes.find((n) => n.id === pendingBubble)?.label ?? ""
-                        }"…`
-                      : "Talk through your essay…  (Enter to send · Shift+Enter for a new line)"
-                  }
-                />
-                <button className="primary send" type="button" disabled={busy || !live} onClick={send}>
-                  {busy ? "…" : "Send"}
-                </button>
-              </div>
-              {error && <div className="error">{error}</div>}
-            </div>
+            <p>
+              Speak or type naturally. The AI replies in text and can only lift
+              exact wording from your submitted message.
+            </p>
           </div>
 
-          <div className="panel idea-panel">
-            <header className="panel-head">
-              <h2>Your idea list</h2>
-              <p className="hint">
-                The ideas you chose to keep — mirrored live as the mindmap on the
-                right.
-              </p>
-            </header>
-            {nodes.length === 0 ? (
-              <p className="empty">
-                No ideas yet. Talk it through and pick the ideas that are yours.
-              </p>
-            ) : (
-              <ul className="idea-list">
-                {nodes.map((n) => (
-                  <li
-                    key={n.id}
-                    className={n.id === selectedId ? "on" : ""}
-                    onClick={() => setSelectedId(n.id)}
-                  >
-                    <span>{n.label}</span>
-                    <button
-                      className="li-del"
-                      title="Remove this idea"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDelete(n.id);
-                      }}
-                    >
-                      ×
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        </section>
-
-        {/* RIGHT: editable mindmap */}
-        <section className="right">
-          <div className="map-bar">
-            <div className="legend">
-              <span className="dot synced" /> Synced
-              <span className="dot new" /> New
-              <span className="dot draftOnly" /> Draft-only
-            </div>
-            <button
-              className="ghost"
-              type="button"
-              disabled={syncBusy || (nodes.length === 0 && !draft.trim())}
-              onClick={runSync}
-            >
-              {syncBusy ? "Syncing…" : "⟳ Sync with draft"}
-            </button>
-          </div>
-          <div className="mindmap">
-            {nodes.length === 0 ? (
-              <p className="empty centered">
-                Your idea map appears here once you keep some ideas.
-              </p>
-            ) : (
-              <ReactFlow
-                nodes={flowNodes}
-                edges={flowEdges}
-                nodeTypes={nodeTypes}
-                fitView
-                proOptions={{ hideAttribution: true }}
+          <div className="chat-log" ref={chatLogRef}>
+            {messages.map((message) => (
+              <article
+                key={message.id}
+                className={`chat-bubble ${message.role === "user" ? "user" : "assistant"}`}
               >
-                <Background gap={20} />
-                <Controls showInteractive={false} />
-              </ReactFlow>
-            )}
+                <div className="bubble-meta">
+                  <span>{message.role === "user" ? "You" : "Coach"}</span>
+                  <span>{formatTime(message.timestamp)}</span>
+                  {message.inputType ? <span>{message.inputType}</span> : null}
+                </div>
+                <p>{message.text}</p>
+              </article>
+            ))}
+            {busy ? (
+              <article className="chat-bubble assistant">
+                <div className="bubble-meta">
+                  <span>Coach</span>
+                  <span>working</span>
+                </div>
+                <p>Thinking through your draft and your latest wording...</p>
+              </article>
+            ) : null}
           </div>
-        </section>
 
-        {/* DRAFT: the essay itself — where the thinking lands as writing. */}
-        <section className="draft-col">
-          <div className="panel draft-panel">
-            <header className="panel-head">
-              <h2>Essay draft</h2>
-              <p className="hint">
-                Paste an existing draft or write here. It stays put while you
-                reshape ideas on the left.
-              </p>
-            </header>
-            <div className="actions">
+          <div className="composer-panel">
+            <div className="voice-controls">
               <button
-                className="ghost"
+                className={`voice-button ${speech.listening ? "live" : ""}`}
                 type="button"
-                disabled={gapBusy || (nodes.length === 0 && !draft.trim())}
-                onClick={reflectPlan}
+                disabled={!speech.supported}
+                onClick={() => {
+                  if (speech.listening) {
+                    speech.stop();
+                  } else {
+                    speech.start();
+                  }
+                }}
               >
-                {gapBusy ? "Comparing…" : "🔍 Reflect: plan vs draft"}
+                {speech.listening ? "Stop dictation" : "Use voice"}
+              </button>
+              <select
+                aria-label="Voice input language"
+                value={language}
+                onChange={(event) => setLanguage(event.target.value)}
+              >
+                <option value="en-US">English</option>
+                <option value="zh-CN">Chinese</option>
+              </select>
+            </div>
+
+            <textarea
+              className="composer"
+              rows={5}
+              value={composerText}
+              onChange={(event) => {
+                setComposerText(event.target.value);
+                if (!speech.listening) {
+                  setComposerInputType("typed");
+                }
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+                  event.preventDefault();
+                  void handleSend();
+                }
+              }}
+              placeholder="Say or type the next thing you want to explore. Ctrl/Cmd + Enter sends it."
+            />
+
+            <div className="composer-footer">
+              <p>
+                Voice fills the composer first so you can confirm the transcript
+                before it becomes user-owned source text.
+              </p>
+              <button
+                className="primary-button"
+                type="button"
+                disabled={busy || !composerText.trim()}
+                onClick={() => {
+                  void handleSend();
+                }}
+              >
+                Send to coach
               </button>
             </div>
+          </div>
+        </section>
 
-            {insertTarget && (
-              <div className="insert-bar">
-                <div className="insert-head">
-                  Insert <strong>"{insertTarget.label}"</strong>
-                  <span className="insert-where">
-                    {insertBusy
-                      ? " · locating…"
-                      : insertLoc?.anchor
-                        ? " · after the highlighted text"
-                        : " · at the end of the draft"}
-                  </span>
+        <section className="pane document-pane">
+          <div className="pane-header">
+            <div>
+              <p className="pane-kicker">Document</p>
+              <h2>Draft editor</h2>
+            </div>
+            <p>
+              Plain-text drafting for v1. AI placement suggestions feed the
+              insertion controls below, but the insert tool only accepts exact
+              approved bank text.
+            </p>
+          </div>
+
+          <div className="target-toolbar">
+            <div className="target-options">
+              {(
+                [
+                  ["selection", "Replace selection"],
+                  ["cursor", "Insert at cursor"],
+                  ["append", "Append to end"],
+                  ["placeholder", "Replace placeholder"],
+                ] as Array<[InsertionTargetKind, string]>
+              ).map(([kind, label]) => (
+                <label
+                  key={kind}
+                  className={targetKind === kind ? "target-chip active" : "target-chip"}
+                >
+                  <input
+                    checked={targetKind === kind}
+                    name="target-kind"
+                    type="radio"
+                    value={kind}
+                    onChange={() => setTargetKind(kind)}
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+
+            {targetKind === "placeholder" ? (
+              <div className="placeholder-row">
+                <input
+                  value={placeholderTarget}
+                  onChange={(event) => setPlaceholderTarget(event.target.value)}
+                  placeholder="[Insert here]"
+                />
+                {placeholderOptions.length > 0 ? (
+                  <select
+                    value={placeholderTarget}
+                    onChange={(event) => setPlaceholderTarget(event.target.value)}
+                  >
+                    <option value="">Choose existing placeholder</option>
+                    {placeholderOptions.map((placeholder) => (
+                      <option key={placeholder} value={placeholder}>
+                        {placeholder}
+                      </option>
+                    ))}
+                  </select>
+                ) : null}
+              </div>
+            ) : null}
+          </div>
+
+          <textarea
+            ref={draftRef}
+            className="draft-editor"
+            value={draft}
+            onChange={(event) => {
+              const nextDraft = event.target.value;
+              setDraft(nextDraft);
+              syncEditorSelection(nextDraft);
+            }}
+            onClick={() => syncEditorSelection()}
+            onKeyUp={() => syncEditorSelection()}
+            onSelect={() => syncEditorSelection()}
+            placeholder="Paste an existing draft here or start writing. Highlight text, place your cursor, or use placeholders to control bank insertions."
+          />
+
+          <div className="editor-meta">
+            <span>
+              Selection: {editorSelection.start}-{editorSelection.end}
+            </span>
+            <span>
+              Characters in selection: {editorSelection.selectedText.length}
+            </span>
+            <span>Draft length: {draft.length}</span>
+          </div>
+        </section>
+
+        <section className="pane bank-pane">
+          <div className="pane-header">
+            <div>
+              <p className="pane-kicker">Word Bank</p>
+              <h2>User-owned text</h2>
+            </div>
+            <p>
+              Proposed text enters only after approval. Approved text lives in
+              one shared bank box so you can read and edit it in one place.
+            </p>
+          </div>
+
+          <div className="bank-columns">
+            <div className="bank-section">
+              <h3>Approve additions before they enter the bank</h3>
+              {groupedBankItems.proposed.length === 0 ? (
+                <p className="empty-state">No proposed snippets yet.</p>
+              ) : (
+                groupedBankItems.proposed.map((item) => (
+                  <article className="bank-card" key={item.id}>
+                    <textarea
+                      rows={4}
+                      value={bankDrafts[item.id] ?? item.text}
+                      onChange={(event) =>
+                        handleBankDraftChange(item.id, event.target.value)
+                      }
+                    />
+                    <div className="bank-meta">
+                      <span>{item.sourceMessageIds.length} source message(s)</span>
+                      <span>added by AI extraction</span>
+                    </div>
+                    <div className="bank-actions">
+                      <button type="button" onClick={() => handleApprove(item)}>
+                        Approve
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleSaveProposedEdit(item)}
+                      >
+                        Save edit
+                      </button>
+                      <button type="button" onClick={() => handleReject(item)}>
+                        Reject
+                      </button>
+                    </div>
+                  </article>
+                ))
+              )}
+            </div>
+
+            <div className="bank-section">
+              <div className="section-row">
+                <h3>Word bank</h3>
+                <span className="section-count">
+                  {groupedBankItems.approved.length} approved item(s)
+                </span>
+              </div>
+              <div className="bank-card approved word-bank-textbox">
+                <textarea
+                  ref={wordBankRef}
+                  rows={12}
+                  value={wordBankDraft}
+                  onChange={(event) => setWordBankDraft(event.target.value)}
+                  onClick={syncWordBankSelection}
+                  onKeyUp={syncWordBankSelection}
+                  onSelect={syncWordBankSelection}
+                  placeholder="Approved user-owned text will live here. Separate entries with a blank line."
+                />
+                <div className="bank-meta">
+                  <span>One shared box for all approved wording</span>
+                  <span>Separate entries with a blank line</span>
+                </div>
+                <div className="bank-actions">
+                  <button type="button" onClick={handleSaveWordBank}>
+                    Save word bank
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!selectedWordBankText.trim()}
+                    onClick={() => setPlacementRequestText(selectedWordBankText.trim())}
+                  >
+                    Use selected text in suggest box
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="bank-section">
+              <div className="section-row">
+                <h3>Suggest placement from the bank</h3>
+                <span className="section-count">One suggestion at a time</span>
+              </div>
+              <div className="bank-card suggestion-workspace">
+                <textarea
+                  rows={5}
+                  value={placementRequestText}
+                  onChange={(event) => setPlacementRequestText(event.target.value)}
+                  placeholder="Paste exact approved bank text here or select text from the word bank and send it here for a placement suggestion."
+                />
+                <div className="bank-actions">
+                  <button
+                    type="button"
+                    disabled={!selectedWordBankText.trim()}
+                    onClick={() => setPlacementRequestText(selectedWordBankText.trim())}
+                  >
+                    Use selected bank text
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || !placementRequestText.trim()}
+                    onClick={() => {
+                      void handleSuggestPlacementFromBox();
+                    }}
+                  >
+                    Ask for suggestion
+                  </button>
                 </div>
 
-                {insertLoc && !insertLoc.enough ? (
-                  <div className="nudge">
-                    ⚠ Need a bit more about this idea before it can go in.
-                    <button className="ghost" type="button" onClick={nudgeToChat}>
-                      Tell me in chat →
-                    </button>
-                  </div>
-                ) : (
-                  <div className="insert-actions">
-                    <div className="mode-toggle">
-                      <label className={insertMode === "verbatim" ? "on" : ""}>
-                        <input
-                          type="radio"
-                          checked={insertMode === "verbatim"}
-                          onChange={() => setInsertMode("verbatim")}
-                        />
-                        Verbatim
-                      </label>
-                      <label className={insertMode === "minimal" ? "on" : ""}>
-                        <input
-                          type="radio"
-                          checked={insertMode === "minimal"}
-                          onChange={() => setInsertMode("minimal")}
-                        />
-                        Minimal edit
-                      </label>
-                    </div>
-                    <div className="actions">
+                {selectedSuggestion ? (
+                  <div className="bank-suggestion-panel">
+                    <p className="suggestion-label">Suggested placement</p>
+                    <strong>
+                      Do you want to insert this text as {describeTarget(selectedSuggestion.target).toLowerCase()}?
+                    </strong>
+                    <p>{selectedSuggestion.reason}</p>
+                    <div className="bank-actions">
                       <button
-                        className="primary"
+                        className="primary-button"
                         type="button"
-                        disabled={insertBusy || !insertLoc}
-                        onClick={applyInsert}
+                        onClick={handleInsertExactText}
                       >
-                        {insertBusy ? "Inserting…" : "Insert"}
+                        Insert exact text
                       </button>
-                      <button className="ghost" type="button" onClick={cancelInsert}>
-                        Cancel
+                      <button
+                        type="button"
+                        onClick={handleDismissPlacementSuggestion}
+                      >
+                        No
                       </button>
                     </div>
                   </div>
-                )}
-              </div>
-            )}
-
-            <div className="draft-wrap">
-              <div className="draft-backdrop" ref={backdropRef} aria-hidden="true">
-                {highlightRange ? (
-                  <>
-                    {draft.slice(0, highlightRange.start)}
-                    <mark>{draft.slice(highlightRange.start, highlightRange.end)}</mark>
-                    {draft.slice(highlightRange.end)}
-                  </>
                 ) : (
-                  draft
+                  <p className="empty-state">
+                    Ask for a suggestion and the AI will propose one placement here,
+                    based on the current chat context and the bank text you chose.
+                  </p>
                 )}
-                {"\n"}
               </div>
-              <textarea
-                ref={draftRef}
-                className="draft-area"
-                value={draft}
-                onChange={(e) => {
-                  setDraft(e.target.value);
-                  if (highlightRange) setHighlightRange(null);
-                }}
-                onScroll={(e) => {
-                  if (backdropRef.current)
-                    backdropRef.current.scrollTop = e.currentTarget.scrollTop;
-                }}
-                placeholder="Paste your existing draft, or start writing your essay here…"
-              />
+            </div>
+
+            <div className="bank-section">
+              <button
+                type="button"
+                className="drawer-toggle"
+                onClick={() => setShowRejectedBankItems((current) => !current)}
+              >
+                {showRejectedBankItems ? "Hide rejected additions" : "View rejected additions"}
+              </button>
+              {showRejectedBankItems ? (
+                groupedBankItems.rejected.length === 0 ? (
+                  <p className="empty-state">No rejected bank additions yet.</p>
+                ) : (
+                  groupedBankItems.rejected.map((item) => (
+                    <article className="bank-card rejected" key={item.id}>
+                      <p className="rejected-text">{item.text}</p>
+                      <div className="bank-actions">
+                        <button type="button" onClick={() => handleApprove(item)}>
+                          Re-approve
+                        </button>
+                      </div>
+                    </article>
+                  ))
+                )
+              ) : null}
             </div>
           </div>
         </section>
       </main>
 
-      {/* Input-stage authorship: choose which proposed ideas are truly yours. */}
-      {candidates && (
-        <div
-          className="modal-backdrop"
-          onClick={() => {
-            setCandidates(null);
-            setChecked([]);
-            setPropEdges([]);
-          }}
-        >
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2 className="reflect-q">Which of these are truly yours?</h2>
-            <p className="hint">
-              The AI only proposes — you decide which enter your idea list. Add
-              anything it missed under "Other".
-            </p>
-            <div className="candidates">
-              {candidates.map((c, i) => (
-                <label key={i} className={`cand ${checked[i] ? "on" : ""}`}>
-                  <input
-                    type="checkbox"
-                    checked={checked[i]}
-                    onChange={() =>
-                      setChecked((cur) => cur.map((v, j) => (j === i ? !v : v)))
-                    }
-                  />
-                  <span>{c.label}</span>
-                </label>
-              ))}
-              <div className="other-row">
-                <input
-                  type="text"
-                  value={other}
-                  placeholder="Other — add an idea in your own words"
-                  onChange={(e) => setOther(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && addOther()}
-                />
-                <button className="ghost" type="button" disabled={!other.trim()} onClick={addOther}>
-                  + Add
-                </button>
-              </div>
-            </div>
-            <div className="actions end">
-              <button
-                className="ghost"
-                type="button"
-                onClick={() => {
-                  setCandidates(null);
-                  setChecked([]);
-                  setPropEdges([]);
-                }}
-              >
-                Discard
-              </button>
-              <button
-                className="primary"
-                type="button"
-                disabled={checkedCount === 0}
-                onClick={confirmSelection}
-              >
-                Add {checkedCount || ""} to my ideas →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reverse-outline reflection: the gap between plan and draft. */}
-      {gapOpen && (
-        <div className="modal-backdrop" onClick={() => setGapOpen(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h2 className="reflect-q">Plan vs draft</h2>
-            {gapBusy ? (
-              <p className="empty">Comparing your idea map with your draft…</p>
-            ) : gapError ? (
-              <div className="error">{gapError}</div>
-            ) : gap ? (
-              <>
-                <section className="gap-block">
-                  <h3>In your idea map, but not yet in your draft</h3>
-                  {gap.missingFromDraft.length === 0 ? (
-                    <p className="hint">Your draft covers everything in your map.</p>
-                  ) : (
-                    <ul className="gap-list">
-                      {gap.missingFromDraft.map((g, i) => (
-                        <li key={i}>
-                          <span>{g}</span>
-                          <button
-                            className="ghost"
-                            type="button"
-                            onClick={() => addIdeaToDraft(g, i)}
-                          >
-                            + Add to draft
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-                <section className="gap-block">
-                  <h3>In your draft, but not in your idea map — intentional?</h3>
-                  {gap.notInMap.length === 0 ? (
-                    <p className="hint">Your draft stays within your plan.</p>
-                  ) : (
-                    <ul className="gap-list">
-                      {gap.notInMap.map((g, i) => (
-                        <li key={i}>
-                          <span>{g}</span>
-                          <button
-                            className="ghost"
-                            type="button"
-                            onClick={() => addPointToMap(g, i)}
-                          >
-                            + Add to idea map
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
-              </>
-            ) : null}
-            <div className="actions end">
-              <button className="primary" type="button" onClick={() => setGapOpen(false)}>
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* The signature interaction: reflect every edit back to the writer. */}
-      {pendingEdit && (
-        <div
-          className="modal-backdrop"
-          onClick={() => {
-            setPendingEdit(null);
-            setReflection(null);
-            setReflectError(null);
-          }}
-        >
-          <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <div className="diff">
-              <span className="was">{pendingEdit.oldLabel}</span>
-              <span className="arrow">→</span>
-              <span className="now">{pendingEdit.newLabel}</span>
-            </div>
-            {reflectError ? (
-              <div className="error">{reflectError}</div>
-            ) : !reflection ? (
-              <p className="empty">Reflecting on your change…</p>
-            ) : (
-              <>
-                <h2 className="reflect-q">{reflection.question}</h2>
-                <div className="pc-grid">
-                  <div className="pc-col pros">
-                    <h3>This edit gains</h3>
-                    <ul>
-                      {reflection.prosCons.pros.map((p, i) => (
-                        <li key={i}>{p}</li>
-                      ))}
-                    </ul>
-                  </div>
-                  <div className="pc-col cons">
-                    <h3>This edit costs</h3>
-                    <ul>
-                      {reflection.prosCons.cons.map((c, i) => (
-                        <li key={i}>{c}</li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </>
-            )}
-            <div className="actions end">
-              <button
-                className="primary"
-                type="button"
-                onClick={() => {
-                  setPendingEdit(null);
-                  setReflection(null);
-                  setReflectError(null);
-                }}
-              >
-                Keep my edit
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <footer className="statusbar">
+        <p>
+          {notice ||
+            "Guardrails are active: AI-origin bank writes must match user messages, and draft insertions must exactly match an approved bank item."}
+        </p>
+      </footer>
     </div>
   );
 }
