@@ -49,6 +49,30 @@ function hasDuplicateText(
   );
 }
 
+function isBankWorthyUserText(candidateText: string): boolean {
+  const trimmed = candidateText.trim();
+  const normalized = normalizeForOwnership(trimmed);
+  const wordCount = normalized.split(" ").filter(Boolean).length;
+  if (wordCount < 4) {
+    return false;
+  }
+
+  if (/[?]\s*$/.test(trimmed)) {
+    return false;
+  }
+
+  const metaPatterns = [
+    /^(let'?s|lets)\b/i,
+    /^(can|could|would|will)\s+you\b/i,
+    /^(which|what)\s+(area|section|part)\b/i,
+    /^(show|tell|help)\s+me\b/i,
+    /^(i\s+(want|need|would like)\s+to)\b/i,
+    /\b(my text|my draft|the draft)\b/i,
+  ];
+
+  return !metaPatterns.some((pattern) => pattern.test(trimmed));
+}
+
 export function addUserTextToBank(request: BankWriteRequest): BankWriteResult {
   const sourceMessage = findMessageById(request.messages, request.messageId);
   if (!sourceMessage || sourceMessage.role !== "user") {
@@ -65,6 +89,15 @@ export function addUserTextToBank(request: BankWriteRequest): BankWriteResult {
   ]);
   if (!validation.ok) {
     return failure(validation);
+  }
+
+  if (request.origin === "ai" && !isBankWorthyUserText(request.candidateText)) {
+    return failure({
+      ok: false,
+      code: "TEXT_NOT_BANK_WORTHY",
+      message:
+        "That wording looks like chat coordination rather than draft language, so it was kept out of the word bank.",
+    });
   }
 
   if (hasDuplicateText(request.candidateText, request.existingItems)) {
@@ -151,5 +184,38 @@ export function setBankItemStatus(
     ...item,
     status,
     updatedAt: Date.now(),
+  };
+}
+
+export function resolveApprovedBankText(
+  candidateText: string,
+  items: WordBankItem[],
+): WordBankItem | null {
+  const trimmedCandidate = candidateText.trim();
+  const normalizedCandidate = normalizeForOwnership(trimmedCandidate);
+  if (!normalizedCandidate) {
+    return null;
+  }
+
+  const approvedItems = items.filter((item) => item.status === "approved");
+  const exactMatch =
+    approvedItems.find(
+      (item) => normalizeForOwnership(item.text) === normalizedCandidate,
+    ) ?? null;
+  if (exactMatch) {
+    return exactMatch;
+  }
+
+  const containingMatch =
+    approvedItems.find((item) =>
+      normalizeForOwnership(item.text).includes(normalizedCandidate),
+    ) ?? null;
+  if (!containingMatch) {
+    return null;
+  }
+
+  return {
+    ...containingMatch,
+    text: trimmedCandidate,
   };
 }

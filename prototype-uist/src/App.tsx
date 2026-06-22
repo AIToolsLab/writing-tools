@@ -2,10 +2,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { coachAndExtractFromUserMessage, suggestInsertionPlacement } from "./api";
 import {
   addUserTextToBank,
+  resolveApprovedBankText,
   setBankItemStatus,
   updateBankItem,
 } from "./bank";
-import { describeTarget, insertBankText } from "./document";
+import {
+  describeTarget,
+  findFocusRangeForAnchor,
+  getFocusRangeForTarget,
+  insertBankText,
+} from "./document";
 import type {
   ChatInputType,
   ChatMessage,
@@ -159,6 +165,7 @@ function buildInsertionTarget(
   selectionStart: number,
   selectionEnd: number,
   placeholderText: string,
+  anchorText?: string,
 ): InsertionTarget {
   switch (targetKind) {
     case "selection":
@@ -169,6 +176,10 @@ function buildInsertionTarget(
       return { kind: "append" };
     case "placeholder":
       return { kind: "placeholder", placeholder: placeholderText };
+    case "before_paragraph":
+      return { kind: "before_paragraph", anchorText };
+    case "after_paragraph":
+      return { kind: "after_paragraph", anchorText };
   }
 }
 
@@ -212,7 +223,7 @@ export default function App() {
     useState<InsertionTargetKind>("append");
   const [placeholderTarget, setPlaceholderTarget] = useState("");
   const [bankDrafts, setBankDrafts] = useState<Record<string, string>>({});
-  const [activeSuggestionItemId, setActiveSuggestionItemId] = useState<string | null>(
+  const [activeSuggestionId, setActiveSuggestionId] = useState<string | null>(
     null,
   );
   const [placementRequestText, setPlacementRequestText] = useState("");
@@ -239,10 +250,10 @@ export default function App() {
     () =>
       suggestions.find(
         (suggestion) =>
-          suggestion.bankItemId === activeSuggestionItemId &&
+          suggestion.id === activeSuggestionId &&
           suggestion.status === "suggested",
       ) ?? null,
-    [activeSuggestionItemId, suggestions],
+    [activeSuggestionId, suggestions],
   );
 
   useEffect(() => {
@@ -291,8 +302,75 @@ export default function App() {
     setSelectedWordBankText(wordBankDraft.slice(start, end));
   }
 
+  function focusDraftRange(start: number, end: number, nextDraft = draft) {
+    requestAnimationFrame(() => {
+      const textarea = draftRef.current;
+      if (!textarea) {
+        return;
+      }
+      textarea.focus();
+      textarea.setSelectionRange(start, end);
+      syncEditorSelection(nextDraft);
+    });
+  }
+
+  function focusDraftQuote(anchorText?: string) {
+    const focusRange = findFocusRangeForAnchor(draft, anchorText);
+    if (!focusRange) {
+      return false;
+    }
+
+    focusDraftRange(focusRange.start, focusRange.end);
+    return true;
+  }
+
+  function resolveInsertionBankItem(candidateText: string): WordBankItem | null {
+    return resolveApprovedBankText(candidateText, groupedBankItems.approved);
+  }
+
   function pushMessage(message: ChatMessage) {
     setMessages((currentMessages) => [...currentMessages, message]);
+  }
+
+  function handleClearContext() {
+    const confirmed = window.confirm(
+      "Clear the current chat context, placement suggestions, and rejected additions?",
+    );
+    if (!confirmed) {
+      return;
+    }
+
+    const clearBankToo = window.confirm(
+      "Also clear the shared word bank and pending additions for a fresh essay?",
+    );
+
+    setMessages([starterMessage]);
+    setSuggestions([]);
+    setComposerText("");
+    setComposerInputType("typed");
+    setNotice(
+      clearBankToo
+        ? "Cleared the context and emptied the word bank for a fresh start."
+        : "Cleared the context and kept only the approved word bank.",
+    );
+    setBankDrafts({});
+    setActiveSuggestionId(null);
+    setPlacementRequestText("");
+    setShowRejectedBankItems(false);
+    setSelectedWordBankText("");
+    setTargetKind("append");
+    setPlaceholderTarget("");
+    speech.reset();
+
+    if (clearBankToo) {
+      setBankItems([]);
+      setWordBankDraft("");
+      return;
+    }
+
+    setBankItems((currentItems) =>
+      currentItems.filter((item) => item.status === "approved"),
+    );
   }
 
   async function handleSend() {
@@ -346,6 +424,10 @@ export default function App() {
       }
       if (guardrailNotes.length > 0) {
         setNotice(guardrailNotes[0]);
+      }
+
+      if (response.focusQuote) {
+        focusDraftQuote(response.focusQuote);
       }
 
       pushMessage({
@@ -467,8 +549,15 @@ export default function App() {
     setSuggestions((currentSuggestions) =>
       currentSuggestions.filter((suggestion) => approvedIds.has(suggestion.bankItemId)),
     );
-    if (activeSuggestionItemId && !approvedIds.has(activeSuggestionItemId)) {
-      setActiveSuggestionItemId(null);
+    if (
+      activeSuggestionId &&
+      !suggestions.some(
+        (suggestion) =>
+          suggestion.id === activeSuggestionId &&
+          approvedIds.has(suggestion.bankItemId),
+      )
+    ) {
+      setActiveSuggestionId(null);
     }
     setNotice("Saved the shared word bank.");
   }
@@ -488,15 +577,27 @@ export default function App() {
         cursorBefore,
         cursorAfter,
         placeholderOptions,
+        recentMessages: messages,
       });
+
+      const concreteTarget = buildInsertionTarget(
+        response.target.kind,
+        editorSelection.start,
+        editorSelection.end,
+        response.target.placeholder ?? "",
+        response.target.anchorText,
+      );
+      const highlightRange = getFocusRangeForTarget(draft, concreteTarget) ?? undefined;
 
       const suggestion: InsertionSuggestion = {
         id: createId("suggestion"),
         bankItemId: item.id,
-        target: response.target,
+        bankText: item.text,
+        target: concreteTarget,
         reason: response.reason,
         status: "suggested",
         createdAt: Date.now(),
+        highlightRange,
       };
 
       setSuggestions((currentSuggestions) => {
@@ -505,10 +606,21 @@ export default function App() {
         );
         return [...remainingSuggestions, suggestion];
       });
-      setActiveSuggestionItemId(item.id);
-      setTargetKind(response.target.kind);
-      if (response.target.kind === "placeholder") {
-        setPlaceholderTarget(response.target.placeholder ?? "");
+      setActiveSuggestionId(suggestion.id);
+      setPlacementRequestText(item.text);
+      if (
+        concreteTarget.kind === "selection" ||
+        concreteTarget.kind === "cursor" ||
+        concreteTarget.kind === "append" ||
+        concreteTarget.kind === "placeholder"
+      ) {
+        setTargetKind(concreteTarget.kind);
+      }
+      if (concreteTarget.kind === "placeholder") {
+        setPlaceholderTarget(concreteTarget.placeholder ?? "");
+      }
+      if (highlightRange) {
+        focusDraftRange(highlightRange.start, highlightRange.end);
       }
       setNotice("AI suggested a placement target for the chosen bank text.");
     } catch (error) {
@@ -522,24 +634,11 @@ export default function App() {
     }
   }
 
-  function findApprovedBankItemByText(candidateText: string): WordBankItem | null {
-    const trimmedCandidate = candidateText.trim();
-    if (!trimmedCandidate) {
-      return null;
-    }
-
-    return (
-      groupedBankItems.approved.find(
-        (item) => item.text.trim() === trimmedCandidate,
-      ) ?? null
-    );
-  }
-
   async function handleSuggestPlacementFromBox() {
-    const matchedItem = findApprovedBankItemByText(placementRequestText);
+    const matchedItem = resolveInsertionBankItem(placementRequestText);
     if (!matchedItem) {
       setNotice(
-        "Placement suggestions only work from exact approved bank text. Select text from the word bank or paste it exactly.",
+        "The suggest-placement box must contain text that already exists inside one approved word-bank entry.",
       );
       return;
     }
@@ -548,39 +647,38 @@ export default function App() {
   }
 
   function handleDismissPlacementSuggestion() {
-    if (activeSuggestionItemId) {
+    if (activeSuggestionId) {
       setSuggestions((currentSuggestions) =>
         currentSuggestions.map((currentSuggestion) =>
-          currentSuggestion.bankItemId === activeSuggestionItemId
+          currentSuggestion.id === activeSuggestionId
             ? { ...currentSuggestion, status: "dismissed" }
             : currentSuggestion,
         ),
       );
     }
-    setActiveSuggestionItemId(null);
+    setActiveSuggestionId(null);
     setPlacementRequestText("");
     setNotice("Cleared the current placement suggestion.");
   }
 
   function handleInsertExactText() {
-    const matchedItem = findApprovedBankItemByText(placementRequestText);
+    if (!selectedSuggestion) {
+      setNotice("Ask for a placement suggestion before inserting.");
+      return;
+    }
+
+    const matchedItem = resolveInsertionBankItem(selectedSuggestion.bankText);
     if (!matchedItem) {
       setNotice(
-        "The text in the suggest-placement box no longer matches an approved bank entry.",
+        "The suggested text no longer exists inside the approved word bank.",
       );
       return;
     }
 
-    const target = buildInsertionTarget(
-      targetKind,
-      editorSelection.start,
-      editorSelection.end,
-      placeholderTarget,
-    );
     const result = insertBankText({
       draft,
       bankItem: matchedItem,
-      target,
+      target: selectedSuggestion.target,
       textToInsert: matchedItem.text,
     });
 
@@ -593,39 +691,32 @@ export default function App() {
     const insertedRange = result.insertedRange;
     setSuggestions((currentSuggestions) =>
       currentSuggestions.map((currentSuggestion) =>
-        currentSuggestion.bankItemId === matchedItem.id
+        currentSuggestion.id === selectedSuggestion.id
           ? { ...currentSuggestion, status: "accepted" }
           : currentSuggestion,
       ),
     );
-    setActiveSuggestionItemId(matchedItem.id);
+    setActiveSuggestionId(selectedSuggestion.id);
     setNotice(result.guardrail.message);
-
-    requestAnimationFrame(() => {
-      const textarea = draftRef.current;
-      if (!textarea) {
-        return;
-      }
-      textarea.focus();
-      textarea.setSelectionRange(
-        insertedRange.start,
-        insertedRange.end,
-      );
-      syncEditorSelection(result.nextDraft);
-    });
+    focusDraftRange(insertedRange.start, insertedRange.end, result.nextDraft);
   }
 
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div>
+        <div className="topbar-copy">
           <p className="eyebrow">User-Owned Words Prototype</p>
           <h1>Writing coach with hard authorship guardrails</h1>
+          <p className="topbar-note">
+            AI can coach, extract, and suggest placement, but only validated
+            user-owned wording can enter the bank or the draft.
+          </p>
         </div>
-        <p className="topbar-note">
-          The AI can coach, extract, and suggest placement. Only validated
-          user-owned wording can enter the bank or the draft.
-        </p>
+        <div className="topbar-actions">
+          <button type="button" onClick={handleClearContext}>
+            Clear context
+          </button>
+        </div>
       </header>
 
       <main className="workspace">
@@ -636,8 +727,8 @@ export default function App() {
               <h2>Think out loud</h2>
             </div>
             <p>
-              Speak or type naturally. The AI replies in text and can only lift
-              exact wording from your submitted message.
+              Speak or type naturally. The AI replies in text and only exact
+              user wording can be lifted into the bank.
             </p>
           </div>
 
@@ -737,9 +828,8 @@ export default function App() {
               <h2>Draft editor</h2>
             </div>
             <p>
-              Plain-text drafting for v1. AI placement suggestions feed the
-              insertion controls below, but the insert tool only accepts exact
-              approved bank text.
+              Plain-text drafting for v1. The coach can point at a paragraph
+              and suggest a placement without writing new prose for you.
             </p>
           </div>
 
@@ -826,16 +916,132 @@ export default function App() {
               <h2>User-owned text</h2>
             </div>
             <p>
-              Proposed text enters only after approval. Approved text lives in
-              one shared bank box so you can read and edit it in one place.
+              Approved text lives in one shared bank box. Proposed additions
+              stay below it so the bank remains the main working surface.
             </p>
           </div>
 
-          <div className="bank-columns">
-            <div className="bank-section">
-              <h3>Approve additions before they enter the bank</h3>
+          <div className="bank-layout">
+            <div className="bank-priority-stack">
+              <div className="bank-section">
+                <div className="section-row">
+                  <h3>Word bank</h3>
+                  <span className="section-count">
+                    {groupedBankItems.approved.length} approved item(s)
+                  </span>
+                </div>
+                <div className="bank-card approved word-bank-textbox">
+                  <textarea
+                    ref={wordBankRef}
+                    rows={12}
+                    value={wordBankDraft}
+                    onChange={(event) => setWordBankDraft(event.target.value)}
+                    onClick={syncWordBankSelection}
+                    onKeyUp={syncWordBankSelection}
+                    onSelect={syncWordBankSelection}
+                    placeholder="Approved user-owned text will live here. Separate entries with a blank line."
+                  />
+                  <div className="bank-meta">
+                    <span>One shared box for approved wording</span>
+                    <span>Select any span and send it into the suggest box</span>
+                  </div>
+                  <div className="bank-actions">
+                    <button type="button" onClick={handleSaveWordBank}>
+                      Save word bank
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!selectedWordBankText.trim()}
+                      onClick={() => setPlacementRequestText(selectedWordBankText.trim())}
+                    >
+                      Use selected text in suggest box
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bank-section">
+                <div className="section-row">
+                  <h3>Suggest placement from the bank</h3>
+                  <span className="section-count">One suggestion at a time</span>
+                </div>
+                <div className="bank-card suggestion-workspace">
+                  <textarea
+                    rows={4}
+                    value={placementRequestText}
+                    onChange={(event) => setPlacementRequestText(event.target.value)}
+                    placeholder="Paste or select user-owned text from the word bank here. The suggestion tool will only use text that already exists inside an approved bank entry."
+                  />
+                  <div className="bank-actions">
+                    <button
+                      type="button"
+                      disabled={!selectedWordBankText.trim()}
+                      onClick={() => setPlacementRequestText(selectedWordBankText.trim())}
+                    >
+                      Use selected bank text
+                    </button>
+                    <button
+                      type="button"
+                      disabled={busy || !placementRequestText.trim()}
+                      onClick={() => {
+                        void handleSuggestPlacementFromBox();
+                      }}
+                    >
+                      Ask for suggestion
+                    </button>
+                  </div>
+
+                  {selectedSuggestion ? (
+                    <div className="bank-suggestion-panel">
+                      <p className="suggestion-label">Suggested placement</p>
+                      <strong>
+                        Do you want to insert this text as {describeTarget(selectedSuggestion.target).toLowerCase()}?
+                      </strong>
+                      <p>{selectedSuggestion.reason}</p>
+                      {selectedSuggestion.highlightRange ? (
+                        <p className="suggestion-highlight-note">
+                          The draft has been narrowed to the region the AI is pointing to.
+                        </p>
+                      ) : null}
+                      <div className="bank-actions">
+                        <button
+                          className="primary-button"
+                          type="button"
+                          onClick={handleInsertExactText}
+                        >
+                          Insert exact text
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleDismissPlacementSuggestion}
+                        >
+                          No
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="empty-state">
+                      Ask for a suggestion and the AI will point to a likely
+                      region in the draft based on the current document and the
+                      recent conversation.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="bank-support-scroll">
+              <div className="section-row">
+                <h3>Approve additions before they enter the bank</h3>
+                <span className="section-count">
+                  {groupedBankItems.proposed.length} pending
+                </span>
+              </div>
               {groupedBankItems.proposed.length === 0 ? (
-                <p className="empty-state">No proposed snippets yet.</p>
+                <p className="empty-state">
+                  No pending additions right now. Meta chat requests are filtered
+                  out before they reach this area.
+                </p>
               ) : (
                 groupedBankItems.proposed.map((item) => (
                   <article className="bank-card" key={item.id}>
@@ -867,132 +1073,32 @@ export default function App() {
                   </article>
                 ))
               )}
-            </div>
 
-            <div className="bank-section">
-              <div className="section-row">
-                <h3>Word bank</h3>
-                <span className="section-count">
-                  {groupedBankItems.approved.length} approved item(s)
-                </span>
+              <div className="bank-section">
+                <button
+                  type="button"
+                  className="drawer-toggle"
+                  onClick={() => setShowRejectedBankItems((current) => !current)}
+                >
+                  {showRejectedBankItems ? "Hide rejected additions" : "View rejected additions"}
+                </button>
+                {showRejectedBankItems ? (
+                  groupedBankItems.rejected.length === 0 ? (
+                    <p className="empty-state">No rejected bank additions yet.</p>
+                  ) : (
+                    groupedBankItems.rejected.map((item) => (
+                      <article className="bank-card rejected" key={item.id}>
+                        <p className="rejected-text">{item.text}</p>
+                        <div className="bank-actions">
+                          <button type="button" onClick={() => handleApprove(item)}>
+                            Re-approve
+                          </button>
+                        </div>
+                      </article>
+                    ))
+                  )
+                ) : null}
               </div>
-              <div className="bank-card approved word-bank-textbox">
-                <textarea
-                  ref={wordBankRef}
-                  rows={12}
-                  value={wordBankDraft}
-                  onChange={(event) => setWordBankDraft(event.target.value)}
-                  onClick={syncWordBankSelection}
-                  onKeyUp={syncWordBankSelection}
-                  onSelect={syncWordBankSelection}
-                  placeholder="Approved user-owned text will live here. Separate entries with a blank line."
-                />
-                <div className="bank-meta">
-                  <span>One shared box for all approved wording</span>
-                  <span>Separate entries with a blank line</span>
-                </div>
-                <div className="bank-actions">
-                  <button type="button" onClick={handleSaveWordBank}>
-                    Save word bank
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!selectedWordBankText.trim()}
-                    onClick={() => setPlacementRequestText(selectedWordBankText.trim())}
-                  >
-                    Use selected text in suggest box
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="bank-section">
-              <div className="section-row">
-                <h3>Suggest placement from the bank</h3>
-                <span className="section-count">One suggestion at a time</span>
-              </div>
-              <div className="bank-card suggestion-workspace">
-                <textarea
-                  rows={5}
-                  value={placementRequestText}
-                  onChange={(event) => setPlacementRequestText(event.target.value)}
-                  placeholder="Paste exact approved bank text here or select text from the word bank and send it here for a placement suggestion."
-                />
-                <div className="bank-actions">
-                  <button
-                    type="button"
-                    disabled={!selectedWordBankText.trim()}
-                    onClick={() => setPlacementRequestText(selectedWordBankText.trim())}
-                  >
-                    Use selected bank text
-                  </button>
-                  <button
-                    type="button"
-                    disabled={busy || !placementRequestText.trim()}
-                    onClick={() => {
-                      void handleSuggestPlacementFromBox();
-                    }}
-                  >
-                    Ask for suggestion
-                  </button>
-                </div>
-
-                {selectedSuggestion ? (
-                  <div className="bank-suggestion-panel">
-                    <p className="suggestion-label">Suggested placement</p>
-                    <strong>
-                      Do you want to insert this text as {describeTarget(selectedSuggestion.target).toLowerCase()}?
-                    </strong>
-                    <p>{selectedSuggestion.reason}</p>
-                    <div className="bank-actions">
-                      <button
-                        className="primary-button"
-                        type="button"
-                        onClick={handleInsertExactText}
-                      >
-                        Insert exact text
-                      </button>
-                      <button
-                        type="button"
-                        onClick={handleDismissPlacementSuggestion}
-                      >
-                        No
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="empty-state">
-                    Ask for a suggestion and the AI will propose one placement here,
-                    based on the current chat context and the bank text you chose.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <div className="bank-section">
-              <button
-                type="button"
-                className="drawer-toggle"
-                onClick={() => setShowRejectedBankItems((current) => !current)}
-              >
-                {showRejectedBankItems ? "Hide rejected additions" : "View rejected additions"}
-              </button>
-              {showRejectedBankItems ? (
-                groupedBankItems.rejected.length === 0 ? (
-                  <p className="empty-state">No rejected bank additions yet.</p>
-                ) : (
-                  groupedBankItems.rejected.map((item) => (
-                    <article className="bank-card rejected" key={item.id}>
-                      <p className="rejected-text">{item.text}</p>
-                      <div className="bank-actions">
-                        <button type="button" onClick={() => handleApprove(item)}>
-                          Re-approve
-                        </button>
-                      </div>
-                    </article>
-                  ))
-                )
-              ) : null}
             </div>
           </div>
         </section>

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { addUserTextToBank, updateBankItem } from "./bank";
+import {
+  addUserTextToBank,
+  resolveApprovedBankText,
+  updateBankItem,
+} from "./bank";
 import type { ChatMessage, WordBankItem } from "./types";
 
 const userMessage: ChatMessage = {
@@ -47,6 +51,25 @@ describe("word bank guardrails", () => {
     expect(result.guardrail.code).toBe("TEXT_NOT_USER_OWNED");
   });
 
+  it("rejects user-owned meta chat language from AI extraction", () => {
+    const result = addUserTextToBank({
+      candidateText: "lets switch to a different area of my text",
+      existingItems: [],
+      messageId: "msg-2",
+      messages: [
+        {
+          ...userMessage,
+          id: "msg-2",
+          text: "lets switch to a different area of my text",
+        },
+      ],
+      origin: "ai",
+    });
+
+    expect(result.guardrail.ok).toBe(false);
+    expect(result.guardrail.code).toBe("TEXT_NOT_BANK_WORTHY");
+  });
+
   it("accepts a user manual edit and marks it approved", () => {
     const result = updateBankItem({
       candidateText: "I walked across Calvin's campus",
@@ -72,5 +95,20 @@ describe("word bank guardrails", () => {
 
     expect(result.guardrail.ok).toBe(false);
     expect(result.guardrail.code).toBe("TEXT_NOT_USER_OWNED");
+  });
+
+  it("resolves a selected substring from an approved bank entry", () => {
+    const result = resolveApprovedBankText(
+      "felt like a new chapter was opening",
+      [
+        {
+          ...baseItem,
+          text: "I walked through Calvin's campus and felt like a new chapter was opening",
+        },
+      ],
+    );
+
+    expect(result?.text).toBe("felt like a new chapter was opening");
+    expect(result?.status).toBe("approved");
   });
 });

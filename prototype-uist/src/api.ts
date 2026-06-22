@@ -81,6 +81,7 @@ export async function coachAndExtractFromUserMessage(input: {
   const result = await chatJSON<{
     reply?: string;
     candidateTexts?: string[];
+    focusQuote?: string;
   }>([
     {
       role: "system",
@@ -89,7 +90,17 @@ export async function coachAndExtractFromUserMessage(input: {
 Return JSON only. The "reply" must be coaching text only: concise, reflective,
 and never drafted essay prose. The "candidateTexts" array must contain exact
 substrings copied verbatim from the latest user message only. No paraphrase. No
-new words. No punctuation cleanup. No combining fragments from separate messages.`,
+new words. No punctuation cleanup. No combining fragments from separate messages.
+Prefer the smallest draft-usable span from the user's wording instead of
+including conversational lead-ins like "I could talk about how" when a tighter
+exact substring would work. "focusQuote" is optional and must be an exact
+snippet copied from the current draft when you want the app to highlight the
+part of the draft your question is about.
+
+Do not extract conversational control language into "candidateTexts". If the
+latest user message is mainly a request like asking where to focus, asking what
+to improve, asking to switch topics, or giving process instructions, return an
+empty candidate list.`,
     },
     {
       role: "user",
@@ -112,7 +123,8 @@ ${input.latestUserMessage.text}
 Return JSON with this exact shape:
 {
   "reply": string,
-  "candidateTexts": string[]
+  "candidateTexts": string[],
+  "focusQuote": string
 }
 
 Rules:
@@ -121,6 +133,13 @@ Rules:
 - Do not write polished document sentences for them.
 - "candidateTexts" should contain 0-3 snippets that look usable in a draft.
 - Every candidate must be copied exactly from the latest user message.
+- Prefer shorter exact snippets when they preserve the user's meaning and sound
+  more draft-ready than the full sentence.
+- Do not extract questions to the coach, requests for help, or topic-switching
+  language into the word bank.
+- "focusQuote" should be empty when you do not need to point at a specific part
+  of the draft.
+- When you use "focusQuote", copy it exactly from the current draft.
 - If there are no clean snippets, return an empty array.`,
     },
   ]);
@@ -132,6 +151,7 @@ Rules:
     candidateTexts: (result.candidateTexts ?? [])
       .map((text) => text.trim())
       .filter(Boolean),
+    focusQuote: result.focusQuote?.trim() || undefined,
   };
 }
 
@@ -142,15 +162,27 @@ export async function suggestInsertionPlacement(input: {
   cursorBefore: string;
   cursorAfter: string;
   placeholderOptions: string[];
+  recentMessages: ChatMessage[];
 }): Promise<PlacementSuggestionResponse> {
   const placeholderList =
     input.placeholderOptions.length > 0
       ? input.placeholderOptions.map((text) => `- ${text}`).join("\n")
       : "(none found)";
+  const recentConversation = input.recentMessages
+    .slice(-8)
+    .map((message) => `${message.role.toUpperCase()}: ${message.text}`)
+    .join("\n");
 
   const result = await chatJSON<{
-    targetKind?: "selection" | "cursor" | "append" | "placeholder";
+    targetKind?:
+      | "selection"
+      | "cursor"
+      | "append"
+      | "placeholder"
+      | "before_paragraph"
+      | "after_paragraph";
     placeholder?: string;
+    anchorText?: string;
     reason?: string;
   }>([
     {
@@ -158,7 +190,13 @@ export async function suggestInsertionPlacement(input: {
       content: `${PHILOSOPHY}
 
 You are suggesting an insertion target, not writing content. Choose exactly one
-of these target kinds: selection, cursor, append, placeholder.`,
+of these target kinds: selection, cursor, append, placeholder,
+before_paragraph, after_paragraph.
+
+Prefer a paragraph-anchored suggestion when the draft gives a clear home for
+the bank text. Use append only as a last resort. Avoid placing text after a
+references, works cited, bibliography, or citation section unless the draft
+itself strongly requires that.`,
     },
     {
       role: "user",
@@ -166,6 +204,9 @@ of these target kinds: selection, cursor, append, placeholder.`,
 """
 ${input.draft || "(empty draft)"}
 """
+
+Recent conversation:
+${recentConversation || "(none yet)"}
 
 Approved bank item:
 "${input.bankItemText}"
@@ -190,8 +231,9 @@ ${placeholderList}
 
 Return JSON:
 {
-  "targetKind": "selection" | "cursor" | "append" | "placeholder",
+  "targetKind": "selection" | "cursor" | "append" | "placeholder" | "before_paragraph" | "after_paragraph",
   "placeholder": string,
+  "anchorText": string,
   "reason": string
 }
 
@@ -199,8 +241,11 @@ Rules:
 - Suggest "selection" only if replacing the current selection makes sense.
 - Suggest "cursor" only if the current cursor context seems right.
 - Suggest "placeholder" only if one of the listed placeholders should be replaced.
-- Suggest "append" when no stronger placement is available.
+- Suggest "before_paragraph" or "after_paragraph" when a nearby paragraph is the best home.
+- Suggest "append" only when no stronger placement is available.
 - "placeholder" must exactly match one listed placeholder when targetKind is placeholder.
+- "anchorText" must be empty unless targetKind is before_paragraph or after_paragraph.
+- When targetKind is before_paragraph or after_paragraph, "anchorText" must be copied exactly from the draft and should be a short snippet from the paragraph you want highlighted.
 - "reason" should be short and explain the placement logic.
 - Do not write the document text itself.`,
     },
@@ -212,6 +257,10 @@ Rules:
       kind: targetKind,
       placeholder:
         targetKind === "placeholder" ? result.placeholder?.trim() : undefined,
+      anchorText:
+        targetKind === "before_paragraph" || targetKind === "after_paragraph"
+          ? result.anchorText?.trim()
+          : undefined,
     },
     reason:
       result.reason?.trim() ||

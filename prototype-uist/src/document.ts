@@ -45,6 +45,133 @@ export function describeTarget(target: InsertionTarget): string {
       return target.placeholder
         ? `Replace placeholder "${target.placeholder}"`
         : "Replace placeholder";
+    case "before_paragraph":
+      return "Place before the highlighted paragraph";
+    case "after_paragraph":
+      return "Place after the highlighted paragraph";
+  }
+}
+
+export function findParagraphRangeForAnchor(
+  draft: string,
+  anchorText?: string,
+): { start: number; end: number } | null {
+  const trimmedAnchor = anchorText?.trim();
+  if (!trimmedAnchor) {
+    return null;
+  }
+
+  const anchorIndex = draft.indexOf(trimmedAnchor);
+  if (anchorIndex < 0) {
+    return null;
+  }
+
+  const paragraphStartIndex = draft.lastIndexOf("\n\n", anchorIndex - 1);
+  const paragraphEndIndex = draft.indexOf("\n\n", anchorIndex + trimmedAnchor.length);
+  const start = paragraphStartIndex < 0 ? 0 : paragraphStartIndex + 2;
+  const end = paragraphEndIndex < 0 ? draft.length : paragraphEndIndex;
+  return { start, end };
+}
+
+function findSentenceBoundaryBefore(text: string, index: number): number {
+  for (let cursor = index; cursor >= 0; cursor -= 1) {
+    const char = text[cursor];
+    if (char === "\n") {
+      return cursor + 1;
+    }
+    if (char === "." || char === "!" || char === "?") {
+      return cursor + 1;
+    }
+  }
+  return 0;
+}
+
+function findSentenceBoundaryAfter(text: string, index: number): number {
+  for (let cursor = index; cursor < text.length; cursor += 1) {
+    const char = text[cursor];
+    if (char === "\n" || char === "." || char === "!" || char === "?") {
+      return cursor + 1;
+    }
+  }
+  return text.length;
+}
+
+export function findFocusRangeForAnchor(
+  draft: string,
+  anchorText?: string,
+  maxLength = 420,
+): { start: number; end: number } | null {
+  const trimmedAnchor = anchorText?.trim();
+  if (!trimmedAnchor) {
+    return null;
+  }
+
+  const anchorIndex = draft.indexOf(trimmedAnchor);
+  if (anchorIndex < 0) {
+    return null;
+  }
+
+  const paragraphRange = findParagraphRangeForAnchor(draft, trimmedAnchor);
+  if (!paragraphRange) {
+    return null;
+  }
+
+  if (paragraphRange.end - paragraphRange.start <= maxLength) {
+    return paragraphRange;
+  }
+
+  const sentenceStart = Math.max(
+    paragraphRange.start,
+    findSentenceBoundaryBefore(draft, anchorIndex),
+  );
+  const sentenceEnd = Math.min(
+    paragraphRange.end,
+    findSentenceBoundaryAfter(draft, anchorIndex + trimmedAnchor.length),
+  );
+  if (sentenceEnd - sentenceStart <= maxLength) {
+    return { start: sentenceStart, end: sentenceEnd };
+  }
+
+  const halfWindow = Math.floor(maxLength / 2);
+  const start = Math.max(paragraphRange.start, anchorIndex - halfWindow);
+  const end = Math.min(
+    paragraphRange.end,
+    anchorIndex + trimmedAnchor.length + halfWindow,
+  );
+  return { start, end };
+}
+
+export function getFocusRangeForTarget(
+  draft: string,
+  target: InsertionTarget,
+): { start: number; end: number } | null {
+  switch (target.kind) {
+    case "selection":
+      if (
+        typeof target.start === "number" &&
+        typeof target.end === "number" &&
+        target.end > target.start
+      ) {
+        return { start: target.start, end: target.end };
+      }
+      return null;
+    case "placeholder": {
+      const placeholder = target.placeholder?.trim();
+      if (!placeholder) {
+        return null;
+      }
+      const start = draft.indexOf(placeholder);
+      if (start < 0) {
+        return null;
+      }
+      return { start, end: start + placeholder.length };
+    }
+    case "before_paragraph":
+    case "after_paragraph":
+      return findFocusRangeForAnchor(draft, target.anchorText);
+    case "cursor":
+    case "append":
+      return null;
   }
 }
 
@@ -56,6 +183,35 @@ function ensureApprovedItem(bankItem: WordBankItem): DocumentInsertResult | null
     );
   }
   return null;
+}
+
+function insertAsParagraph(
+  draft: string,
+  insertionIndex: number,
+  text: string,
+): { nextDraft: string; insertedRange: { start: number; end: number } } {
+  const trimmedText = text.trim();
+  const before = draft.slice(0, insertionIndex);
+  const after = draft.slice(insertionIndex);
+  const prefix =
+    before.length === 0 || before.endsWith("\n\n")
+      ? ""
+      : before.endsWith("\n")
+        ? "\n"
+        : "\n\n";
+  const suffix =
+    after.length === 0 || after.startsWith("\n\n")
+      ? ""
+      : after.startsWith("\n")
+        ? "\n"
+        : "\n\n";
+  const insertedText = `${prefix}${trimmedText}${suffix}`;
+  const nextDraft = `${before}${insertedText}${after}`;
+  const start = before.length + prefix.length;
+  return {
+    nextDraft,
+    insertedRange: { start, end: start + trimmedText.length },
+  };
 }
 
 export function insertBankText(
@@ -108,6 +264,30 @@ export function insertBankText(
         start,
         end: start + text.length,
       });
+    }
+    case "before_paragraph":
+    case "after_paragraph": {
+      const paragraphRange = findParagraphRangeForAnchor(
+        request.draft,
+        request.target.anchorText,
+      );
+      if (!paragraphRange) {
+        return failure(
+          "ANCHOR_NOT_FOUND",
+          "The highlighted paragraph for this suggestion could not be found in the document.",
+        );
+      }
+
+      const insertionIndex =
+        request.target.kind === "before_paragraph"
+          ? paragraphRange.start
+          : paragraphRange.end;
+      const { nextDraft, insertedRange } = insertAsParagraph(
+        request.draft,
+        insertionIndex,
+        text,
+      );
+      return success(nextDraft, insertedRange);
     }
     case "placeholder": {
       const placeholder = request.target.placeholder?.trim();

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { insertBankText } from "./document";
+import {
+  findFocusRangeForAnchor,
+  findParagraphRangeForAnchor,
+  insertBankText,
+} from "./document";
 import type { WordBankItem } from "./types";
 
 const approvedItem: WordBankItem = {
@@ -63,5 +67,39 @@ describe("document insertion guardrails", () => {
     expect(result.nextDraft).toBe(
       "Opening I walked through Calvin's campus closing",
     );
+  });
+
+  it("inserts before the anchored paragraph", () => {
+    const result = insertBankText({
+      draft: "Intro paragraph.\n\nBody paragraph about theology.\n\nReferences",
+      bankItem: approvedItem,
+      target: {
+        kind: "before_paragraph",
+        anchorText: "Body paragraph about theology.",
+      },
+      textToInsert: approvedItem.text,
+    });
+
+    expect(result.guardrail.ok).toBe(true);
+    expect(result.nextDraft).toBe(
+      "Intro paragraph.\n\nI walked through Calvin's campus\n\nBody paragraph about theology.\n\nReferences",
+    );
+  });
+
+  it("finds the paragraph range for an anchor snippet", () => {
+    const range = findParagraphRangeForAnchor(
+      "Intro paragraph.\n\nBody paragraph about theology.\n\nReferences",
+      "theology",
+    );
+
+    expect(range).toEqual({ start: 18, end: 48 });
+  });
+
+  it("limits focus highlighting when the anchored paragraph is very long", () => {
+    const draft = `Heading\n${"A very long body sentence without blank-line breaks ".repeat(30)}anchor phrase continues here and keeps going.`;
+    const range = findFocusRangeForAnchor(draft, "anchor phrase");
+
+    expect(range).not.toBeNull();
+    expect((range?.end ?? 0) - (range?.start ?? 0)).toBeLessThanOrEqual(420);
   });
 });

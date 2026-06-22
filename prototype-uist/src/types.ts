@@ -27,12 +27,14 @@ export type GuardrailCode =
   | "EMPTY_TEXT"
   | "INVALID_SOURCE"
   | "TEXT_NOT_USER_OWNED"
+  | "TEXT_NOT_BANK_WORTHY"
   | "DUPLICATE_BANK_ITEM"
   | "BANK_ITEM_NOT_FOUND"
   | "BANK_ITEM_NOT_APPROVED"
   | "INSERT_TEXT_MISMATCH"
   | "INVALID_SELECTION"
-  | "PLACEHOLDER_NOT_FOUND";
+  | "PLACEHOLDER_NOT_FOUND"
+  | "ANCHOR_NOT_FOUND";
 
 export interface GuardrailResult {
   ok: boolean;
@@ -58,22 +60,30 @@ export type InsertionTargetKind =
   | "selection"
   | "cursor"
   | "append"
-  | "placeholder";
+  | "placeholder"
+  | "before_paragraph"
+  | "after_paragraph";
 
 export interface InsertionTarget {
   kind: InsertionTargetKind;
   start?: number;
   end?: number;
   placeholder?: string;
+  anchorText?: string;
 }
 
 export interface InsertionSuggestion {
   id: string;
   bankItemId: string;
+  bankText: string;
   target: InsertionTarget;
   reason: string;
   status: "suggested" | "accepted" | "dismissed";
   createdAt: number;
+  highlightRange?: {
+    start: number;
+    end: number;
+  };
 }
 
 export interface DocumentInsertRequest {
@@ -103,6 +113,7 @@ export interface OwnershipValidator {
 export interface CoachExtractionResponse {
   reply: string;
   candidateTexts: string[];
+  focusQuote?: string;
 }
 
 export interface PlacementSuggestionResponse {
