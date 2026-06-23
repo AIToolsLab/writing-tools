@@ -416,7 +416,10 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 14px;
-  flex-shrink: 0;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .bank-support-scroll {

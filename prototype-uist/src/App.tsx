@@ -239,6 +239,7 @@ export default function App() {
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
   const chatLogRef = useRef<HTMLDivElement | null>(null);
   const wordBankRef = useRef<HTMLTextAreaElement | null>(null);
+  const lastPrimedTextRef = useRef("");
 
   const groupedBankItems = useMemo(
     () => ({
@@ -360,6 +361,7 @@ export default function App() {
     setBankDrafts({});
     setActiveSuggestionId(null);
     setPlacementRequestText("");
+    lastPrimedTextRef.current = "";
     setShowRejectedBankItems(false);
     setSelectedWordBankText("");
     setEditingBankItemId(null);
@@ -429,25 +431,37 @@ export default function App() {
         setBankItems((currentItems) => [...currentItems, ...extractedItems]);
         setPendingAlert(extractedItems.length);
       }
-      if (guardrailNotes.length > 0) {
-        setNotice(guardrailNotes[0]);
-      }
-
       const primedItem =
         response.coachMode === "placement" && response.placementCandidateText
           ? resolveInsertionBankItem(response.placementCandidateText)
           : null;
 
-      if (primedItem && !activeSuggestionId) {
+      const noticeParts: string[] = [];
+      if (guardrailNotes.length > 0) {
+        noticeParts.push(guardrailNotes[0]);
+      }
+
+      // Only auto-prime when the box is empty or still holds a prior auto-prime.
+      // Never overwrite an active suggestion or text the user typed/edited.
+      const boxIsSafeToPrime =
+        placementRequestText.trim() === "" ||
+        placementRequestText === lastPrimedTextRef.current;
+
+      if (primedItem && !activeSuggestionId && boxIsSafeToPrime) {
         setPlacementRequestText(primedItem.text);
+        lastPrimedTextRef.current = primedItem.text;
         if (response.focusQuote) {
           focusDraftQuote(response.focusQuote);
         }
-        setNotice(
+        noticeParts.push(
           "The coach is pointing at a spot for this — review the suggest box on the right.",
         );
       } else if (response.focusQuote) {
         focusDraftQuote(response.focusQuote);
+      }
+
+      if (noticeParts.length > 0) {
+        setNotice(noticeParts.join(" "));
       }
 
       pushMessage({
