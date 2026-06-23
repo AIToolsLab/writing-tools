@@ -161,6 +161,21 @@ Captured from the latest session; small UX items, not logic bugs:
 
 ---
 
+### Group L — Phase B (expand / box authoring / keep-remove / abandon)
+| ID | Purpose | Result | Notes |
+|----|---------|--------|-------|
+| L1 | Auto-prime after approval | PASS | approved item auto-fills box + re-highlights, no extra chat turn; verbatim preserved |
+| L2 | Placement notification banner | PASS | "1 placement suggestion awaiting review" appears above chat |
+| L3 | Box authoring | PASS | typing directly in the box works; inserts as user-owned text |
+| L4 | Placement card clears after insert | PASS | card no longer lingers post-insertion |
+| L5 | Insertion routing follows anchor | PASS (after fix) | **two bugs fixed in `document.ts` `findParagraphRangeForAnchor`**: (1) only recognized `\n\n` separators; (2) single global separator broke *mixed* drafts (single-newline body + blank line before Works Cited) — caused inserts to append before Works Cited + duplicate. Now uses next single `\n` boundary. Locked by 2 regression tests. |
+| L6 | Keep/remove (tri-state) | NOT YET RE-TESTED | implemented; verify keep/remove/ask + persistence across reload |
+| L7 | Abandon signal | NOT YET RE-TESTED | implemented; verify clears placement on stop/pivot, NOT on a plain reflection turn |
+
+### Phase B follow-ups (non-blocking, for next session)
+1. **Insertion spacing** — placement inserts as standalone paragraph blocks; after multiple inserts the draft accumulates extra blank lines. Decide whether inserted bank text should merge into surrounding prose or stay separate, and match the draft's existing newline style (`insertAsParagraph` in `document.ts`).
+2. **Editor-mode controls audit** — Replace selection / Insert at cursor / Append / Replace placeholder radios may now be effectively dead for the coach-placement flow (insertion follows the coach anchor via `selectedSuggestion.target`, not `targetKind`). Confirm whether they still drive any manual path; if not, repurpose or remove.
+
 ## 5. Screenshot mapping (to fill during documentation pass)
 
 Screenshots live in the user's local screenshot folder. A later pass should map

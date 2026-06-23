@@ -234,12 +234,20 @@ export default function App() {
     null,
   );
   const [pendingAlert, setPendingAlert] = useState(0);
+  const [placementActive, setPlacementActive] = useState(false);
+  const [placementExpandHint, setPlacementExpandHint] = useState("");
+  const [pendingPlacedDecision, setPendingPlacedDecision] =
+    useState<WordBankItem | null>(null);
+  const [placedRefPolicy, setPlacedRefPolicy] = useLocalStorageState<
+    "keep" | "remove" | "ask"
+  >("owned-words-placed-policy", "ask");
 
   const speech = useSpeechToText(language);
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
   const chatLogRef = useRef<HTMLDivElement | null>(null);
   const wordBankRef = useRef<HTMLTextAreaElement | null>(null);
   const lastPrimedTextRef = useRef("");
+  const placementFocusRef = useRef("");
 
   const groupedBankItems = useMemo(
     () => ({
@@ -333,6 +341,48 @@ export default function App() {
     return resolveApprovedBankText(candidateText, groupedBankItems.approved);
   }
 
+  // Box is an authoring surface: if the box text isn't already an approved bank
+  // item, the user owns what they typed, so record it as a user-origin approved
+  // item and return it. Returns null only for empty text.
+  function resolveOrCreateBoxItem(candidateText: string): WordBankItem | null {
+    const trimmed = candidateText.trim();
+    if (!trimmed) {
+      return null;
+    }
+    const existing = resolveInsertionBankItem(trimmed);
+    if (existing) {
+      return existing;
+    }
+    const created: WordBankItem = {
+      id: createId("bank"),
+      text: trimmed,
+      sourceMessageIds: [],
+      status: "approved",
+      createdBy: "user",
+      lastEditedBy: "user",
+      updatedAt: Date.now(),
+    };
+    setBankItems((currentItems) => [...currentItems, created]);
+    return created;
+  }
+
+  function clearPlacementFlow() {
+    setPlacementActive(false);
+    setPlacementExpandHint("");
+    placementFocusRef.current = "";
+  }
+
+  function removeBankItem(itemId: string) {
+    setBankItems((currentItems) =>
+      currentItems.filter((currentItem) => currentItem.id !== itemId),
+    );
+    setSuggestions((currentSuggestions) =>
+      currentSuggestions.filter(
+        (currentSuggestion) => currentSuggestion.bankItemId !== itemId,
+      ),
+    );
+  }
+
   function pushMessage(message: ChatMessage) {
     setMessages((currentMessages) => [...currentMessages, message]);
   }
@@ -366,6 +416,8 @@ export default function App() {
     setSelectedWordBankText("");
     setEditingBankItemId(null);
     setPendingAlert(0);
+    setPendingPlacedDecision(null);
+    clearPlacementFlow();
     setTargetKind("append");
     setPlaceholderTarget("");
     speech.reset();
@@ -431,15 +483,45 @@ export default function App() {
         setBankItems((currentItems) => [...currentItems, ...extractedItems]);
         setPendingAlert(extractedItems.length);
       }
-      const primedItem =
-        response.coachMode === "placement" && response.placementCandidateText
-          ? resolveInsertionBankItem(response.placementCandidateText)
-          : null;
-
+      const isAbandon = response.placementIntent === "abandon";
       const noticeParts: string[] = [];
       if (guardrailNotes.length > 0) {
         noticeParts.push(guardrailNotes[0]);
       }
+
+      if (isAbandon) {
+        // User wants to stop the current placement — clear and resume normally.
+        if (activeSuggestionId) {
+          setSuggestions((currentSuggestions) =>
+            currentSuggestions.map((currentSuggestion) =>
+              currentSuggestion.id === activeSuggestionId
+                ? { ...currentSuggestion, status: "dismissed" }
+                : currentSuggestion,
+            ),
+          );
+        }
+        setActiveSuggestionId(null);
+        setPlacementRequestText("");
+        lastPrimedTextRef.current = "";
+        clearPlacementFlow();
+        noticeParts.push("Cleared the placement — let's keep going.");
+      } else if (response.coachMode === "placement") {
+        // Keep the placement flow active so approving an expanded item primes it.
+        setPlacementActive(true);
+        placementFocusRef.current = response.focusQuote ?? "";
+        setPlacementExpandHint(response.placementExpandHint ?? "");
+      } else {
+        // Non-placement, non-abandon turn: drop the turn-specific expand hint
+        // but keep the flow active so an in-progress expand loop still primes.
+        setPlacementExpandHint("");
+      }
+
+      const primedItem =
+        !isAbandon &&
+        response.coachMode === "placement" &&
+        response.placementCandidateText
+          ? resolveInsertionBankItem(response.placementCandidateText)
+          : null;
 
       // Only auto-prime when the box is empty or still holds a prior auto-prime.
       // Never overwrite an active suggestion or text the user typed/edited.
@@ -456,7 +538,7 @@ export default function App() {
         noticeParts.push(
           "The coach is pointing at a spot for this — review the suggest box on the right.",
         );
-      } else if (response.focusQuote) {
+      } else if (!isAbandon && response.focusQuote) {
         focusDraftQuote(response.focusQuote);
       }
 
@@ -494,6 +576,25 @@ export default function App() {
           : currentItem,
       ),
     );
+
+    // Scoped auto-prime: only inside an active placement flow, and only when the
+    // box is safe to overwrite (no active suggestion, not user-typed text).
+    const boxIsSafeToPrime =
+      placementRequestText.trim() === "" ||
+      placementRequestText === lastPrimedTextRef.current;
+    if (placementActive && !activeSuggestionId && boxIsSafeToPrime) {
+      setPlacementRequestText(item.text);
+      lastPrimedTextRef.current = item.text;
+      setPlacementExpandHint("");
+      if (placementFocusRef.current) {
+        focusDraftQuote(placementFocusRef.current);
+      }
+      setNotice(
+        "Approved and primed for placement — review the suggest box on the right.",
+      );
+      return;
+    }
+
     setNotice("Approved the bank item and moved it into the shared word bank.");
   }
 
@@ -615,13 +716,29 @@ export default function App() {
         recentMessages: messages,
       });
 
-      const concreteTarget = buildInsertionTarget(
+      let concreteTarget = buildInsertionTarget(
         response.target.kind,
         editorSelection.start,
         editorSelection.end,
         response.target.placeholder ?? "",
         response.target.anchorText,
       );
+
+      // Placement must follow the region the coach pointed at — the region the
+      // user actually saw highlighted — not a separate anchor the placement model
+      // chose, stale editor state, or end-of-document. Whenever we have a focus
+      // region from this flow, it is authoritative for BOTH highlight and insert.
+      const focusAnchor = placementFocusRef.current.trim();
+      if (focusAnchor && draft.includes(focusAnchor)) {
+        concreteTarget = {
+          kind:
+            response.target.kind === "before_paragraph"
+              ? "before_paragraph"
+              : "after_paragraph",
+          anchorText: focusAnchor,
+        };
+      }
+
       const highlightRange = getFocusRangeForTarget(draft, concreteTarget) ?? undefined;
 
       const suggestion: InsertionSuggestion = {
@@ -670,11 +787,11 @@ export default function App() {
   }
 
   async function handleSuggestPlacementFromBox() {
-    const matchedItem = resolveInsertionBankItem(placementRequestText);
+    // Box is an authoring surface: existing approved text resolves; new text the
+    // user typed becomes a user-origin approved item before we proceed.
+    const matchedItem = resolveOrCreateBoxItem(placementRequestText);
     if (!matchedItem) {
-      setNotice(
-        "The suggest-placement box must contain text that already exists inside one approved word-bank entry.",
-      );
+      setNotice("Type or select some text in the suggest-placement box first.");
       return;
     }
 
@@ -693,6 +810,8 @@ export default function App() {
     }
     setActiveSuggestionId(null);
     setPlacementRequestText("");
+    lastPrimedTextRef.current = "";
+    clearPlacementFlow();
     setNotice("Cleared the current placement suggestion.");
   }
 
@@ -734,6 +853,23 @@ export default function App() {
     setActiveSuggestionId(selectedSuggestion.id);
     setNotice(result.guardrail.message);
     focusDraftRange(insertedRange.start, insertedRange.end, result.nextDraft);
+
+    // Placement flow is done; apply the keep/remove policy for the placed item.
+    clearPlacementFlow();
+    if (placedRefPolicy === "remove") {
+      removeBankItem(matchedItem.id);
+    } else if (placedRefPolicy === "ask") {
+      setPendingPlacedDecision(matchedItem);
+    }
+  }
+
+  function handlePlacedDecision(choice: "keep" | "remove" | "ask") {
+    const item = pendingPlacedDecision;
+    setPlacedRefPolicy(choice);
+    if (choice === "remove" && item) {
+      removeBankItem(item.id);
+    }
+    setPendingPlacedDecision(null);
   }
 
   return (
@@ -1106,15 +1242,59 @@ export default function App() {
               <div className="bank-section">
                 <div className="section-row sticky-row">
                   <h3>Suggest placement from the bank</h3>
-                  <span className="section-count">One suggestion at a time</span>
+                  <label className="placed-policy">
+                    After placing:
+                    <select
+                      value={placedRefPolicy}
+                      onChange={(event) =>
+                        setPlacedRefPolicy(
+                          event.target.value as "keep" | "remove" | "ask",
+                        )
+                      }
+                    >
+                      <option value="keep">keep in bank</option>
+                      <option value="remove">remove from bank</option>
+                      <option value="ask">ask each time</option>
+                    </select>
+                  </label>
                 </div>
                 <div className="bank-card suggestion-workspace">
                   <textarea
                     rows={4}
                     value={placementRequestText}
                     onChange={(event) => setPlacementRequestText(event.target.value)}
-                    placeholder="Paste or select user-owned text from the word bank here. The suggestion tool will only use text that already exists inside an approved bank entry."
+                    placeholder="Type your own wording here, or select user-owned text from the word bank. Anything you type is treated as your own words and becomes approved bank text when you place it."
                   />
+                  {placementExpandHint ? (
+                    <p className="expand-hint">{placementExpandHint}</p>
+                  ) : null}
+                  {pendingPlacedDecision ? (
+                    <div className="placed-decision">
+                      <p>
+                        Keep this idea in the word bank after placing it?
+                      </p>
+                      <div className="bank-actions">
+                        <button
+                          type="button"
+                          onClick={() => handlePlacedDecision("keep")}
+                        >
+                          Keep
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePlacedDecision("remove")}
+                        >
+                          Remove
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handlePlacedDecision("ask")}
+                        >
+                          Ask every time
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="bank-actions">
                     <button
                       type="button"
@@ -1141,6 +1321,24 @@ export default function App() {
                         Do you want to insert this text as {describeTarget(selectedSuggestion.target).toLowerCase()}?
                       </strong>
                       <p>{selectedSuggestion.reason}</p>
+                      {selectedSuggestion.target.anchorText ? (
+                        <p className="suggestion-anchor-note">
+                          Will insert{" "}
+                          {selectedSuggestion.target.kind === "before_paragraph"
+                            ? "before"
+                            : "after"}{" "}
+                          the paragraph starting near: "
+                          {selectedSuggestion.target.anchorText.slice(0, 80)}
+                          {selectedSuggestion.target.anchorText.length > 80
+                            ? "…"
+                            : ""}
+                          "
+                        </p>
+                      ) : (
+                        <p className="suggestion-anchor-note">
+                          Will insert as: {describeTarget(selectedSuggestion.target).toLowerCase()}.
+                        </p>
+                      )}
                       {selectedSuggestion.highlightRange ? (
                         <p className="suggestion-highlight-note">
                           The draft has been narrowed to the region the AI is pointing to.

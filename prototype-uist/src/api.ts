@@ -85,6 +85,8 @@ export async function coachAndExtractFromUserMessage(input: {
     candidateTexts?: string[];
     focusQuote?: string;
     placementCandidateText?: string;
+    placementIntent?: "prime" | "abandon" | "none";
+    placementExpandHint?: string;
   }>([
     {
       role: "system",
@@ -163,6 +165,25 @@ bank") that you are suggesting be placed. Leave it empty when the mode is not
 placement or when no approved item fits. Never invent text and never copy from
 the draft or the user's latest message here.
 
+PLACEMENT INTENT ("placementIntent"):
+- "abandon": the user signals they want to STOP the current placement, change
+  their mind about placing the idea, or clearly pivots to an unrelated topic
+  (e.g. "I don't want to place that", "never mind that", "let's talk about
+  something else"). Use this so the app can clear the placement workspace.
+- "prime": a normal placement turn where you are pointing at a spot.
+- "none": any non-placement turn. Merely reflecting on the draft is "none", NOT
+  "abandon" — only use "abandon" for a genuine stop/pivot.
+
+EXPAND HINT ("placementExpandHint"):
+In "placement" mode only, when the approved snippet you are pointing at seems too
+thin for the spot (it would need more context, a connective phrase, or a sharper
+version), do TWO things: (a) ask the user in "reply" to say it the way they would
+want it to read there — you ask, you never rewrite it for them — and (b) set
+"placementExpandHint" to a short hint for display next to the suggest box (e.g.
+"This may need more context — say it the way you'd want it to read, or edit it in
+the box."). Leave it empty when the snippet is already enough or mode is not
+placement. Do not nudge on every placement turn — only when genuinely thin.
+
 EXTRACTION ("candidateTexts"):
 The "candidateTexts" array must contain exact substrings copied verbatim from
 the latest user message only. No paraphrase. No new words. No punctuation
@@ -207,7 +228,9 @@ Return JSON with this exact shape:
   "coachMode": "reflection" | "writing" | "placement",
   "candidateTexts": string[],
   "focusQuote": string,
-  "placementCandidateText": string
+  "placementCandidateText": string,
+  "placementIntent": "prime" | "abandon" | "none",
+  "placementExpandHint": string
 }
 
 Rules:
@@ -242,6 +265,10 @@ Rules:
 - Never invent a "focusQuote" that is not in the draft.
 - In "placement" mode, "placementCandidateText" must be an exact substring of an
   approved word-bank item; otherwise leave it empty. Never invent it.
+- "placementIntent" is "abandon" only on a genuine stop/pivot, "prime" on a
+  normal placement turn, otherwise "none". Reflecting on the draft is "none".
+- "placementExpandHint" is set only in placement mode when the snippet is too
+  thin for the spot; otherwise empty. Never rewrite the user's wording.
 - If there are no clean snippets, return an empty array.`,
     },
   ]);
@@ -263,6 +290,14 @@ Rules:
     placementCandidateText:
       coachMode === "placement"
         ? result.placementCandidateText?.trim() || undefined
+        : undefined,
+    placementIntent:
+      result.placementIntent === "abandon" || result.placementIntent === "prime"
+        ? result.placementIntent
+        : "none",
+    placementExpandHint:
+      coachMode === "placement"
+        ? result.placementExpandHint?.trim() || undefined
         : undefined,
   };
 }

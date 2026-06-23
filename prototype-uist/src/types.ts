@@ -112,6 +112,7 @@ export interface OwnershipValidator {
 }
 
 export type CoachMode = "reflection" | "writing" | "placement";
+export type PlacementIntent = "prime" | "abandon" | "none";
 
 export interface CoachExtractionResponse {
   reply: string;
@@ -119,6 +120,8 @@ export interface CoachExtractionResponse {
   candidateTexts: string[];
   focusQuote?: string;
   placementCandidateText?: string;
+  placementIntent: PlacementIntent;
+  placementExpandHint?: string;
 }
 
 export interface PlacementSuggestionResponse {

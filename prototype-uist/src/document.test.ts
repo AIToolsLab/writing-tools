@@ -95,6 +95,54 @@ describe("document insertion guardrails", () => {
     expect(range).toEqual({ start: 18, end: 48 });
   });
 
+  it("inserts after a single-newline-separated paragraph instead of at the document end", () => {
+    const draft =
+      "Intro line.\nBarcelona emerged victorious in the final.\nConclusion line.\nWorks Cited";
+    const result = insertBankText({
+      draft,
+      bankItem: approvedItem,
+      target: {
+        kind: "after_paragraph",
+        anchorText: "Barcelona emerged victorious in the final.",
+      },
+      textToInsert: approvedItem.text,
+    });
+
+    expect(result.guardrail.ok).toBe(true);
+    const insertedAt = result.nextDraft?.indexOf(approvedItem.text) ?? -1;
+    const conclusionAt = result.nextDraft?.indexOf("Conclusion line.") ?? -1;
+    const worksCitedAt = result.nextDraft?.indexOf("Works Cited") ?? -1;
+    // Must land right after the Barcelona line — before the conclusion and Works
+    // Cited — not appended at the very end of the document.
+    expect(insertedAt).toBeGreaterThan(0);
+    expect(insertedAt).toBeLessThan(conclusionAt);
+    expect(insertedAt).toBeLessThan(worksCitedAt);
+  });
+
+  it("inserts after the anchored line in a mixed draft (single-newline body, blank line before Works Cited)", () => {
+    const draft =
+      "Intro.\nBarcelona emerged victorious in the final.\nConclusion line.\n\nWorks Cited";
+    const result = insertBankText({
+      draft,
+      bankItem: approvedItem,
+      target: {
+        kind: "after_paragraph",
+        anchorText: "Barcelona emerged victorious in the final.",
+      },
+      textToInsert: approvedItem.text,
+    });
+
+    expect(result.guardrail.ok).toBe(true);
+    const insertedAt = result.nextDraft?.indexOf(approvedItem.text) ?? -1;
+    const conclusionAt = result.nextDraft?.indexOf("Conclusion line.") ?? -1;
+    const worksCitedAt = result.nextDraft?.indexOf("Works Cited") ?? -1;
+    // Must land right after Barcelona — the lone blank line before Works Cited
+    // must not pull the insertion to the end of the document.
+    expect(insertedAt).toBeGreaterThan(0);
+    expect(insertedAt).toBeLessThan(conclusionAt);
+    expect(insertedAt).toBeLessThan(worksCitedAt);
+  });
+
   it("limits focus highlighting when the anchored paragraph is very long", () => {
     const draft = `Heading\n${"A very long body sentence without blank-line breaks ".repeat(30)}anchor phrase continues here and keeps going.`;
     const range = findFocusRangeForAnchor(draft, "anchor phrase");

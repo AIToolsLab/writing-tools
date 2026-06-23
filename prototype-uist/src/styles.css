@@ -530,6 +530,48 @@ textarea {
   gap: 12px;
 }
 
+.placed-policy {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.placed-policy select {
+  padding: 3px 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.85);
+  font-size: 11px;
+}
+
+.expand-hint {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(178, 74, 42, 0.1);
+  border: 1px solid rgba(178, 74, 42, 0.22);
+  color: var(--accent-deep);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.placed-decision {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(84, 98, 77, 0.28);
+  background: rgba(230, 235, 220, 0.5);
+}
+
+.placed-decision p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .bank-card.rejected {
   border-color: rgba(143, 42, 50, 0.22);
   background: linear-gradient(180deg, rgba(245, 215, 219, 0.45), rgba(255, 255, 255, 0.85));
@@ -602,6 +644,13 @@ textarea {
 .suggestion-highlight-note {
   font-size: 12px;
   color: var(--olive);
+}
+
+.suggestion-anchor-note {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--accent-deep);
+  line-height: 1.4;
 }
 
 .rejected-text {

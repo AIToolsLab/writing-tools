@@ -66,9 +66,17 @@ export function findParagraphRangeForAnchor(
     return null;
   }
 
-  const paragraphStartIndex = draft.lastIndexOf("\n\n", anchorIndex - 1);
-  const paragraphEndIndex = draft.indexOf("\n\n", anchorIndex + trimmedAnchor.length);
-  const start = paragraphStartIndex < 0 ? 0 : paragraphStartIndex + 2;
+  // A paragraph/line ends at the next single newline. This works for both
+  // blank-line-separated drafts (a "\n\n" boundary's first "\n" is at the same
+  // spot) and single-newline drafts. Picking a single global separator breaks
+  // mixed drafts (e.g. single-newline body paragraphs but a blank line before
+  // "Works Cited"), where the next "\n\n" wrongly jumps to the end of the file.
+  const paragraphStartIndex = draft.lastIndexOf("\n", anchorIndex - 1);
+  const paragraphEndIndex = draft.indexOf(
+    "\n",
+    anchorIndex + trimmedAnchor.length,
+  );
+  const start = paragraphStartIndex < 0 ? 0 : paragraphStartIndex + 1;
   const end = paragraphEndIndex < 0 ? draft.length : paragraphEndIndex;
   return { start, end };
 }
