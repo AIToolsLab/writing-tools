@@ -49,6 +49,10 @@ export function describeTarget(target: InsertionTarget): string {
       return "Place before the highlighted paragraph";
     case "after_paragraph":
       return "Place after the highlighted paragraph";
+    case "into_paragraph":
+      return target.paragraphSide === "start"
+        ? "Insert seamlessly at the start of the highlighted paragraph"
+        : "Insert seamlessly into the highlighted paragraph";
   }
 }
 
@@ -176,6 +180,7 @@ export function getFocusRangeForTarget(
     }
     case "before_paragraph":
     case "after_paragraph":
+    case "into_paragraph":
       return findFocusRangeForAnchor(draft, target.anchorText);
     case "cursor":
     case "append":
@@ -201,18 +206,63 @@ function insertAsParagraph(
   const trimmedText = text.trim();
   const before = draft.slice(0, insertionIndex);
   const after = draft.slice(insertionIndex);
+  // Match the separator that already exists *at this boundary*, not a single
+  // dominant style for the whole draft. A global guess is wrong for mixed drafts
+  // (e.g. single-newline body but a blank line before "Works Cited"): one blank
+  // region would force "\n\n" onto single-newline insertions. The local newline
+  // run on whichever side of the insertion point has one tells us the real style.
+  const boundaryRun =
+    (after.match(/^\n+/)?.[0] ?? "") || (before.match(/\n+$/)?.[0] ?? "");
+  const sep = boundaryRun.length >= 2 ? "\n\n" : "\n";
   const prefix =
-    before.length === 0 || before.endsWith("\n\n")
+    before.length === 0 || before.endsWith(sep)
       ? ""
-      : before.endsWith("\n")
+      : sep === "\n\n" && before.endsWith("\n")
         ? "\n"
-        : "\n\n";
+        : sep;
   const suffix =
-    after.length === 0 || after.startsWith("\n\n")
+    after.length === 0 || after.startsWith(sep)
       ? ""
-      : after.startsWith("\n")
+      : sep === "\n\n" && after.startsWith("\n")
         ? "\n"
-        : "\n\n";
+        : sep;
+  const insertedText = `${prefix}${trimmedText}${suffix}`;
+  const nextDraft = `${before}${insertedText}${after}`;
+  const start = before.length + prefix.length;
+  return {
+    nextDraft,
+    insertedRange: { start, end: start + trimmedText.length },
+  };
+}
+
+// Seamless variant of insertAsParagraph: blend the text into the existing
+// paragraph (continuing the prose) instead of creating a new block. We join with
+// a single space rather than a newline, and only when the boundary isn't already
+// whitespace. The space is formatting placed OUTSIDE the exact bank-text span —
+// the same way insertAsParagraph adds newlines — so the authorship guardrail
+// still matches the verbatim text exactly.
+function insertIntoParagraph(
+  draft: string,
+  insertionIndex: number,
+  text: string,
+  side: "start" | "end",
+): { nextDraft: string; insertedRange: { start: number; end: number } } {
+  const trimmedText = text.trim();
+  const before = draft.slice(0, insertionIndex);
+  const after = draft.slice(insertionIndex);
+  const needsSpace = (boundaryChar: string | undefined): boolean =>
+    boundaryChar !== undefined && boundaryChar !== "" && !/\s/.test(boundaryChar);
+
+  let prefix = "";
+  let suffix = "";
+  if (side === "end") {
+    // Append to the paragraph end: space between prose and the text.
+    prefix = needsSpace(before[before.length - 1]) ? " " : "";
+  } else {
+    // Prepend to the paragraph start: space between the text and the prose.
+    suffix = needsSpace(after[0]) ? " " : "";
+  }
+
   const insertedText = `${prefix}${trimmedText}${suffix}`;
   const nextDraft = `${before}${insertedText}${after}`;
   const start = before.length + prefix.length;
@@ -294,6 +344,29 @@ export function insertBankText(
         request.draft,
         insertionIndex,
         text,
+      );
+      return success(nextDraft, insertedRange);
+    }
+    case "into_paragraph": {
+      const paragraphRange = findParagraphRangeForAnchor(
+        request.draft,
+        request.target.anchorText,
+      );
+      if (!paragraphRange) {
+        return failure(
+          "ANCHOR_NOT_FOUND",
+          "The highlighted paragraph for this suggestion could not be found in the document.",
+        );
+      }
+
+      const side = request.target.paragraphSide ?? "end";
+      const insertionIndex =
+        side === "start" ? paragraphRange.start : paragraphRange.end;
+      const { nextDraft, insertedRange } = insertIntoParagraph(
+        request.draft,
+        insertionIndex,
+        text,
+        side,
       );
       return success(nextDraft, insertedRange);
     }

@@ -119,6 +119,74 @@ describe("document insertion guardrails", () => {
     expect(insertedAt).toBeLessThan(worksCitedAt);
   });
 
+  it("matches the draft's single-newline style instead of forcing blank lines", () => {
+    const draft =
+      "Intro line.\nBarcelona emerged victorious in the final.\nConclusion line.\nWorks Cited";
+    const result = insertBankText({
+      draft,
+      bankItem: approvedItem,
+      target: {
+        kind: "after_paragraph",
+        anchorText: "Barcelona emerged victorious in the final.",
+      },
+      textToInsert: approvedItem.text,
+    });
+
+    expect(result.guardrail.ok).toBe(true);
+    // Single-newline draft: the insert is separated by single newlines, not a
+    // blank line, so repeated placement does not accumulate blank lines.
+    expect(result.nextDraft).toBe(
+      "Intro line.\nBarcelona emerged victorious in the final.\nI walked through Calvin's campus\nConclusion line.\nWorks Cited",
+    );
+  });
+
+  it("blends text into the end of the anchored paragraph (seamless, single space)", () => {
+    const draft =
+      "Intro line.\nBarcelona emerged victorious in the final.\nConclusion line.\nWorks Cited";
+    const result = insertBankText({
+      draft,
+      bankItem: approvedItem,
+      target: {
+        kind: "into_paragraph",
+        anchorText: "Barcelona emerged victorious in the final.",
+        paragraphSide: "end",
+      },
+      textToInsert: approvedItem.text,
+    });
+
+    expect(result.guardrail.ok).toBe(true);
+    // Joined into the same paragraph with one space — no new block, no newline.
+    expect(result.nextDraft).toBe(
+      "Intro line.\nBarcelona emerged victorious in the final. I walked through Calvin's campus\nConclusion line.\nWorks Cited",
+    );
+    // The inserted range must cover exactly the verbatim bank text, not the space.
+    const slice = result.nextDraft?.slice(
+      result.insertedRange?.start,
+      result.insertedRange?.end,
+    );
+    expect(slice).toBe(approvedItem.text);
+  });
+
+  it("blends text into the start of the anchored paragraph (seamless, single space)", () => {
+    const draft =
+      "Intro line.\nBarcelona emerged victorious in the final.\nWorks Cited";
+    const result = insertBankText({
+      draft,
+      bankItem: approvedItem,
+      target: {
+        kind: "into_paragraph",
+        anchorText: "Barcelona emerged victorious in the final.",
+        paragraphSide: "start",
+      },
+      textToInsert: approvedItem.text,
+    });
+
+    expect(result.guardrail.ok).toBe(true);
+    expect(result.nextDraft).toBe(
+      "Intro line.\nI walked through Calvin's campus Barcelona emerged victorious in the final.\nWorks Cited",
+    );
+  });
+
   it("inserts after the anchored line in a mixed draft (single-newline body, blank line before Works Cited)", () => {
     const draft =
       "Intro.\nBarcelona emerged victorious in the final.\nConclusion line.\n\nWorks Cited";
@@ -141,6 +209,28 @@ describe("document insertion guardrails", () => {
     expect(insertedAt).toBeGreaterThan(0);
     expect(insertedAt).toBeLessThan(conclusionAt);
     expect(insertedAt).toBeLessThan(worksCitedAt);
+  });
+
+  it("uses the local boundary style in a mixed draft, not a global dominant separator", () => {
+    // The draft has a blank line before "Works Cited" but single-newline body
+    // paragraphs. A whole-draft heuristic would wrongly pick "\n\n" everywhere;
+    // local inference keeps the body insertion single-newline.
+    const draft =
+      "Intro.\nBarcelona emerged victorious in the final.\nConclusion line.\n\nWorks Cited";
+    const result = insertBankText({
+      draft,
+      bankItem: approvedItem,
+      target: {
+        kind: "after_paragraph",
+        anchorText: "Barcelona emerged victorious in the final.",
+      },
+      textToInsert: approvedItem.text,
+    });
+
+    expect(result.guardrail.ok).toBe(true);
+    expect(result.nextDraft).toBe(
+      "Intro.\nBarcelona emerged victorious in the final.\nI walked through Calvin's campus\nConclusion line.\n\nWorks Cited",
+    );
   });
 
   it("limits focus highlighting when the anchored paragraph is very long", () => {

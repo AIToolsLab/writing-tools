@@ -63,7 +63,8 @@ export type InsertionTargetKind =
   | "append"
   | "placeholder"
   | "before_paragraph"
-  | "after_paragraph";
+  | "after_paragraph"
+  | "into_paragraph";
 
 export interface InsertionTarget {
   kind: InsertionTargetKind;
@@ -71,6 +72,9 @@ export interface InsertionTarget {
   end?: number;
   placeholder?: string;
   anchorText?: string;
+  // For "into_paragraph": join the text into the anchored paragraph at its
+  // start or end (a seamless merge) rather than as a standalone block.
+  paragraphSide?: "start" | "end";
 }
 
 export interface InsertionSuggestion {

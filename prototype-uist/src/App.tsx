@@ -180,6 +180,8 @@ function buildInsertionTarget(
       return { kind: "before_paragraph", anchorText };
     case "after_paragraph":
       return { kind: "after_paragraph", anchorText };
+    case "into_paragraph":
+      return { kind: "into_paragraph", anchorText, paragraphSide: "end" };
   }
 }
 
@@ -219,9 +221,6 @@ export default function App() {
     end: 0,
     selectedText: "",
   });
-  const [targetKind, setTargetKind] =
-    useState<InsertionTargetKind>("append");
-  const [placeholderTarget, setPlaceholderTarget] = useState("");
   const [bankDrafts, setBankDrafts] = useState<Record<string, string>>({});
   const [activeSuggestionId, setActiveSuggestionId] = useState<string | null>(
     null,
@@ -418,8 +417,6 @@ export default function App() {
     setPendingAlert(0);
     setPendingPlacedDecision(null);
     clearPlacementFlow();
-    setTargetKind("append");
-    setPlaceholderTarget("");
     speech.reset();
 
     if (clearBankToo) {
@@ -760,17 +757,6 @@ export default function App() {
       });
       setActiveSuggestionId(suggestion.id);
       setPlacementRequestText(item.text);
-      if (
-        concreteTarget.kind === "selection" ||
-        concreteTarget.kind === "cursor" ||
-        concreteTarget.kind === "append" ||
-        concreteTarget.kind === "placeholder"
-      ) {
-        setTargetKind(concreteTarget.kind);
-      }
-      if (concreteTarget.kind === "placeholder") {
-        setPlaceholderTarget(concreteTarget.placeholder ?? "");
-      }
       if (highlightRange) {
         focusDraftRange(highlightRange.start, highlightRange.end);
       }
@@ -815,7 +801,27 @@ export default function App() {
     setNotice("Cleared the current placement suggestion.");
   }
 
-  function handleInsertExactText() {
+  // Derive a seamless "blend into the paragraph" target from a block-placement
+  // suggestion, so the same approved text can flow into the prose instead of
+  // landing as a standalone block. Returns null when the suggestion has no
+  // paragraph anchor to blend into.
+  function seamlessTargetFor(
+    target: InsertionTarget,
+  ): InsertionTarget | null {
+    if (
+      target.kind !== "before_paragraph" &&
+      target.kind !== "after_paragraph"
+    ) {
+      return null;
+    }
+    return {
+      kind: "into_paragraph",
+      anchorText: target.anchorText,
+      paragraphSide: target.kind === "before_paragraph" ? "start" : "end",
+    };
+  }
+
+  function handleInsertExactText(targetOverride?: InsertionTarget) {
     if (!selectedSuggestion) {
       setNotice("Ask for a placement suggestion before inserting.");
       return;
@@ -832,7 +838,7 @@ export default function App() {
     const result = insertBankText({
       draft,
       bankItem: matchedItem,
-      target: selectedSuggestion.target,
+      target: targetOverride ?? selectedSuggestion.target,
       textToInsert: matchedItem.text,
     });
 
@@ -1030,56 +1036,6 @@ export default function App() {
               Plain-text drafting for v1. The coach can point at a paragraph
               and suggest a placement without writing new prose for you.
             </p>
-          </div>
-
-          <div className="target-toolbar">
-            <div className="target-options">
-              {(
-                [
-                  ["selection", "Replace selection"],
-                  ["cursor", "Insert at cursor"],
-                  ["append", "Append to end"],
-                  ["placeholder", "Replace placeholder"],
-                ] as Array<[InsertionTargetKind, string]>
-              ).map(([kind, label]) => (
-                <label
-                  key={kind}
-                  className={targetKind === kind ? "target-chip active" : "target-chip"}
-                >
-                  <input
-                    checked={targetKind === kind}
-                    name="target-kind"
-                    type="radio"
-                    value={kind}
-                    onChange={() => setTargetKind(kind)}
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
-
-            {targetKind === "placeholder" ? (
-              <div className="placeholder-row">
-                <input
-                  value={placeholderTarget}
-                  onChange={(event) => setPlaceholderTarget(event.target.value)}
-                  placeholder="[Insert here]"
-                />
-                {placeholderOptions.length > 0 ? (
-                  <select
-                    value={placeholderTarget}
-                    onChange={(event) => setPlaceholderTarget(event.target.value)}
-                  >
-                    <option value="">Choose existing placeholder</option>
-                    {placeholderOptions.map((placeholder) => (
-                      <option key={placeholder} value={placeholder}>
-                        {placeholder}
-                      </option>
-                    ))}
-                  </select>
-                ) : null}
-              </div>
-            ) : null}
           </div>
 
           <textarea
@@ -1348,10 +1304,23 @@ export default function App() {
                         <button
                           className="primary-button"
                           type="button"
-                          onClick={handleInsertExactText}
+                          onClick={() => handleInsertExactText()}
                         >
-                          Insert exact text
+                          Insert as a block
                         </button>
+                        {seamlessTargetFor(selectedSuggestion.target) ? (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              handleInsertExactText(
+                                seamlessTargetFor(selectedSuggestion.target) ??
+                                  undefined,
+                              )
+                            }
+                          >
+                            Insert seamless
+                          </button>
+                        ) : null}
                         <button
                           type="button"
                           onClick={handleDismissPlacementSuggestion}
