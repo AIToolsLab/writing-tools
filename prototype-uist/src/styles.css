@@ -196,6 +196,14 @@ textarea {
   opacity: 0.78;
 }
 
+.coach-mode-tag {
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(178, 74, 42, 0.14);
+  color: var(--accent);
+  opacity: 1;
+}
+
 .chat-bubble p {
   margin: 0;
   white-space: pre-wrap;
@@ -444,6 +452,53 @@ textarea {
 .section-count {
   color: var(--muted);
   font-size: 12px;
+}
+
+.section-count.pending-badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.pending-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.bank-card.pending-card {
+  padding: 10px 12px;
+  gap: 8px;
+  border-radius: 14px;
+}
+
+.pending-text {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.pending-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(178, 74, 42, 0.1);
+  border: 1px solid rgba(178, 74, 42, 0.24);
+  color: var(--accent);
+  font-size: 13px;
+}
+
+.pending-banner button {
+  flex-shrink: 0;
 }
 
 .bank-card {

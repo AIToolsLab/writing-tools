@@ -230,6 +230,10 @@ export default function App() {
   const [showRejectedBankItems, setShowRejectedBankItems] = useState(false);
   const [wordBankDraft, setWordBankDraft] = useState("");
   const [selectedWordBankText, setSelectedWordBankText] = useState("");
+  const [editingBankItemId, setEditingBankItemId] = useState<string | null>(
+    null,
+  );
+  const [pendingAlert, setPendingAlert] = useState(0);
 
   const speech = useSpeechToText(language);
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
@@ -358,6 +362,8 @@ export default function App() {
     setPlacementRequestText("");
     setShowRejectedBankItems(false);
     setSelectedWordBankText("");
+    setEditingBankItemId(null);
+    setPendingAlert(0);
     setTargetKind("append");
     setPlaceholderTarget("");
     speech.reset();
@@ -421,12 +427,26 @@ export default function App() {
 
       if (extractedItems.length > 0) {
         setBankItems((currentItems) => [...currentItems, ...extractedItems]);
+        setPendingAlert(extractedItems.length);
       }
       if (guardrailNotes.length > 0) {
         setNotice(guardrailNotes[0]);
       }
 
-      if (response.focusQuote) {
+      const primedItem =
+        response.coachMode === "placement" && response.placementCandidateText
+          ? resolveInsertionBankItem(response.placementCandidateText)
+          : null;
+
+      if (primedItem && !activeSuggestionId) {
+        setPlacementRequestText(primedItem.text);
+        if (response.focusQuote) {
+          focusDraftQuote(response.focusQuote);
+        }
+        setNotice(
+          "The coach is pointing at a spot for this — review the suggest box on the right.",
+        );
+      } else if (response.focusQuote) {
         focusDraftQuote(response.focusQuote);
       }
 
@@ -435,6 +455,7 @@ export default function App() {
         role: "assistant",
         text: response.reply,
         timestamp: Date.now(),
+        coachMode: response.coachMode,
       });
     } catch (error) {
       const errorMessage =
@@ -732,6 +753,19 @@ export default function App() {
             </p>
           </div>
 
+          {pendingAlert > 0 && groupedBankItems.proposed.length > 0 ? (
+            <div className="pending-banner" role="status">
+              <span>
+                {groupedBankItems.proposed.length} word-bank suggestion
+                {groupedBankItems.proposed.length === 1 ? "" : "s"} waiting for
+                approval.
+              </span>
+              <button type="button" onClick={() => setPendingAlert(0)}>
+                Dismiss
+              </button>
+            </div>
+          ) : null}
+
           <div className="chat-log" ref={chatLogRef}>
             {messages.map((message) => (
               <article
@@ -742,6 +776,9 @@ export default function App() {
                   <span>{message.role === "user" ? "You" : "Coach"}</span>
                   <span>{formatTime(message.timestamp)}</span>
                   {message.inputType ? <span>{message.inputType}</span> : null}
+                  {message.coachMode ? (
+                    <span className="coach-mode-tag">{message.coachMode}</span>
+                  ) : null}
                 </div>
                 <p>{message.text}</p>
               </article>
@@ -916,8 +953,8 @@ export default function App() {
               <h2>User-owned text</h2>
             </div>
             <p>
-              Approved text lives in one shared bank box. Proposed additions
-              stay below it so the bank remains the main working surface.
+              Approved text lives in one shared bank box. Pending additions sit
+              right beneath it so you can review and approve them quickly.
             </p>
           </div>
 
@@ -957,6 +994,86 @@ export default function App() {
                       Use selected text in suggest box
                     </button>
                   </div>
+                </div>
+              </div>
+
+              <div className="bank-section">
+                <div className="section-row">
+                  <h3>Approve additions before they enter the bank</h3>
+                  <span
+                    className={
+                      groupedBankItems.proposed.length > 0
+                        ? "section-count pending-badge"
+                        : "section-count"
+                    }
+                  >
+                    {groupedBankItems.proposed.length} pending
+                  </span>
+                </div>
+                <div className="pending-list">
+                  {groupedBankItems.proposed.length === 0 ? (
+                    <p className="empty-state">
+                      No pending additions right now. Meta chat requests are
+                      filtered out before they reach this area.
+                    </p>
+                  ) : (
+                    groupedBankItems.proposed.map((item) => (
+                      <article className="bank-card pending-card" key={item.id}>
+                        {editingBankItemId === item.id ? (
+                          <>
+                            <textarea
+                              rows={4}
+                              value={bankDrafts[item.id] ?? item.text}
+                              onChange={(event) =>
+                                handleBankDraftChange(item.id, event.target.value)
+                              }
+                            />
+                            <div className="bank-actions">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleSaveProposedEdit(item);
+                                  setEditingBankItemId(null);
+                                }}
+                              >
+                                Save edit
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingBankItemId(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <p className="pending-text">{item.text}</p>
+                            <div className="bank-actions">
+                              <button
+                                type="button"
+                                onClick={() => handleApprove(item)}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleReject(item)}
+                              >
+                                Reject
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setEditingBankItemId(item.id)}
+                              >
+                                Edit
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </article>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -1031,49 +1148,6 @@ export default function App() {
             </div>
 
             <div className="bank-support-scroll">
-              <div className="section-row">
-                <h3>Approve additions before they enter the bank</h3>
-                <span className="section-count">
-                  {groupedBankItems.proposed.length} pending
-                </span>
-              </div>
-              {groupedBankItems.proposed.length === 0 ? (
-                <p className="empty-state">
-                  No pending additions right now. Meta chat requests are filtered
-                  out before they reach this area.
-                </p>
-              ) : (
-                groupedBankItems.proposed.map((item) => (
-                  <article className="bank-card" key={item.id}>
-                    <textarea
-                      rows={4}
-                      value={bankDrafts[item.id] ?? item.text}
-                      onChange={(event) =>
-                        handleBankDraftChange(item.id, event.target.value)
-                      }
-                    />
-                    <div className="bank-meta">
-                      <span>{item.sourceMessageIds.length} source message(s)</span>
-                      <span>added by AI extraction</span>
-                    </div>
-                    <div className="bank-actions">
-                      <button type="button" onClick={() => handleApprove(item)}>
-                        Approve
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleSaveProposedEdit(item)}
-                      >
-                        Save edit
-                      </button>
-                      <button type="button" onClick={() => handleReject(item)}>
-                        Reject
-                      </button>
-                    </div>
-                  </article>
-                ))
-              )}
-
               <div className="bank-section">
                 <button
                   type="button"

@@ -7,6 +7,7 @@ export interface ChatMessage {
   text: string;
   timestamp: number;
   inputType?: ChatInputType;
+  coachMode?: CoachMode;
 }
 
 export type WordBankStatus = "proposed" | "approved" | "rejected";
@@ -110,10 +111,14 @@ export interface OwnershipValidator {
   ) => GuardrailResult;
 }
 
+export type CoachMode = "reflection" | "writing" | "placement";
+
 export interface CoachExtractionResponse {
   reply: string;
+  coachMode: CoachMode;
   candidateTexts: string[];
   focusQuote?: string;
+  placementCandidateText?: string;
 }
 
 export interface PlacementSuggestionResponse {
