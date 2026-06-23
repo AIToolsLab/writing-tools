@@ -54,9 +54,9 @@ textarea {
 .topbar {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 18px;
-  padding: 16px 22px 12px;
+  padding: 8px 22px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
@@ -78,16 +78,12 @@ textarea {
 .topbar h1 {
   margin: 0;
   font-family: Georgia, "Times New Roman", serif;
-  font-size: clamp(1.35rem, 2.4vw, 2rem);
+  font-size: clamp(1.1rem, 1.8vw, 1.5rem);
   line-height: 1.04;
 }
 
 .topbar-note {
-  max-width: 620px;
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.4;
+  display: none;
 }
 
 .topbar-actions {
@@ -110,7 +106,7 @@ textarea {
   display: grid;
   grid-template-columns: minmax(280px, 0.92fr) minmax(380px, 1.15fr) minmax(320px, 0.95fr);
   gap: 18px;
-  padding: 14px 18px 12px;
+  padding: 10px 18px;
   overflow: hidden;
 }
 
@@ -412,22 +408,17 @@ textarea {
   padding: 12px 14px 14px;
 }
 
-.bank-priority-stack {
+.bank-fixed {
+  flex: 0 0 auto;
+}
+
+.bank-scroll-area {
   display: flex;
   flex-direction: column;
   gap: 14px;
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
-  padding-right: 4px;
-}
-
-.bank-support-scroll {
-  min-height: 0;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
   padding-right: 4px;
 }
 
@@ -442,6 +433,15 @@ textarea {
   justify-content: space-between;
   gap: 12px;
   align-items: center;
+}
+
+.section-row.sticky-row {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 4px 0 6px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
 }
 
 .bank-section h3 {
@@ -502,6 +502,12 @@ textarea {
 
 .pending-banner button {
   flex-shrink: 0;
+}
+
+.pending-banner.placement-banner {
+  background: rgba(84, 98, 77, 0.12);
+  border-color: rgba(84, 98, 77, 0.3);
+  color: var(--olive);
 }
 
 .bank-card {
@@ -633,6 +639,28 @@ textarea {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.35;
+  animation: notice-flash 0.6s ease;
+}
+
+.statusbar p.status-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+@keyframes notice-flash {
+  0% {
+    transform: translateY(3px);
+    box-shadow: 0 0 0 0 rgba(178, 74, 42, 0.4);
+  }
+  40% {
+    box-shadow: 0 0 0 4px rgba(178, 74, 42, 0.18);
+  }
+  100% {
+    transform: translateY(0);
+    box-shadow: 0 0 0 0 rgba(178, 74, 42, 0);
+  }
 }
 
 @media (max-width: 1200px) {

@@ -129,22 +129,35 @@ Status legend: **PASS** / **FAIL** / **NOT TESTED** / **OPEN BUG** /
 ### Group J — Graceful fallback
 | ID | Purpose | Expected | Status | Priority |
 |----|---------|----------|--------|----------|
-| J1 | Placement idea not in approved bank | no auto-fill, no fabricated candidate, coach still responds | **NOT TESTED** | High |
+| J1 | Placement idea not in approved bank | no auto-fill, no fabricated candidate, coach still responds | no auto-fill; no fabricated candidate; coach responded | PASS | _TBD_ |
 
 ### Group K — UI & workflow
 | ID | Purpose | Expected | Actual | Result | Screenshot |
 |----|---------|----------|--------|--------|-----------|
 | K1 | Placement notice shown | notice appears | displayed | PASS | _TBD_ |
 | K2 | "One click closer" UX | coach assists, user inserts | conversation → prime → ask → review → insert | PASS | _TBD_ |
-| K3 | Placement suggestion card rendering | card fully visible/scrollable | **card clipped, bottom controls inaccessible, no scrollbar** | **OPEN BUG** | _TBD_ |
+| K3 | Placement suggestion card rendering | card fully visible/scrollable | fixed: word bank pinned, region below (pending/placement/rejected) scrolls in one area | PASS | _TBD_ |
 
 ---
 
-## 4. Open items
+## 4. Status & open items
 
-- **J1 graceful fallback — NOT TESTED.** Highest-priority remaining verification. Code path: `placementCandidateText` that doesn't resolve via `resolveApprovedBankText` → `primedItem` is null → falls through to plain highlight, no prime, no error. Needs an actual run to confirm.
-- **K3 placement-card clipping — OPEN BUG.** Could block completing a placement. UI-only (not a coaching bug). Suspect overflow/height on the suggestion panel in the bank pane. Worth fixing before any human study.
-- **No-clobber re-test.** I1–I3 are reported PASS, but the no-clobber logic was changed after the original Phase A report; keep these as the regression guard whenever the placement code changes.
+**Phase A is fully verified — all groups PASS** (conversational placement logic,
+priming accuracy, highlighting, no-clobber, graceful fallback J1, and card
+rendering K3). No known conversational-placement blockers.
+
+Resolved since first report:
+- **J1 graceful fallback — PASS.** A placement question for an idea not in the approved bank produced no auto-fill and no fabricated candidate; coach still responded.
+- **K3 placement-card clipping — PASS (fixed).** Right pane restructured: the word bank is pinned (`.bank-fixed`) and the region below it (pending / placement / rejected) scrolls in a single `.bank-scroll-area`, so the suggestion card can no longer be clipped.
+
+Keep as regression guards: no-clobber (I1–I3) whenever placement code changes.
+
+### Post-Phase-A UX backlog (polish, non-blocking)
+Captured from the latest session; small UX items, not logic bugs:
+1. **Placement pending indicator** — chat shows a banner for pending bank items but not for an awaiting placement suggestion; add a parallel "1 placement suggestion awaiting review" cue.
+2. **Reduce vertical space above panes** — title + description push the three working panes down; trim/condense to give chat/draft/bank more room.
+3. **Sticky "Suggest placement from the bank" header** — its section title scrolls away inside the new scroll area; keep the header visible while only its content scrolls.
+4. **Status-bar discoverability** — bottom notices (e.g. "The coach is pointing at a spot…") are easy to miss; strengthen styling/emphasis when a notice changes.
 
 ---
 

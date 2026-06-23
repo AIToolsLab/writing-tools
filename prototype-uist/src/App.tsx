@@ -780,6 +780,18 @@ export default function App() {
             </div>
           ) : null}
 
+          {selectedSuggestion ? (
+            <div className="pending-banner placement-banner" role="status">
+              <span>1 placement suggestion awaiting review on the right.</span>
+              <button
+                type="button"
+                onClick={handleDismissPlacementSuggestion}
+              >
+                Dismiss
+              </button>
+            </div>
+          ) : null}
+
           <div className="chat-log" ref={chatLogRef}>
             {messages.map((message) => (
               <article
@@ -973,8 +985,7 @@ export default function App() {
           </div>
 
           <div className="bank-layout">
-            <div className="bank-priority-stack">
-              <div className="bank-section">
+            <div className="bank-section bank-fixed">
                 <div className="section-row">
                   <h3>Word bank</h3>
                   <span className="section-count">
@@ -1011,6 +1022,7 @@ export default function App() {
                 </div>
               </div>
 
+            <div className="bank-scroll-area">
               <div className="bank-section">
                 <div className="section-row">
                   <h3>Approve additions before they enter the bank</h3>
@@ -1092,7 +1104,7 @@ export default function App() {
               </div>
 
               <div className="bank-section">
-                <div className="section-row">
+                <div className="section-row sticky-row">
                   <h3>Suggest placement from the bank</h3>
                   <span className="section-count">One suggestion at a time</span>
                 </div>
@@ -1159,9 +1171,7 @@ export default function App() {
                   )}
                 </div>
               </div>
-            </div>
 
-            <div className="bank-support-scroll">
               <div className="bank-section">
                 <button
                   type="button"
@@ -1193,7 +1203,7 @@ export default function App() {
       </main>
 
       <footer className="statusbar">
-        <p>
+        <p key={notice} className={notice ? "status-active" : undefined}>
           {notice ||
             "Guardrails are active: AI-origin bank writes must match user messages, and draft insertions must exactly match an approved bank item."}
         </p>
