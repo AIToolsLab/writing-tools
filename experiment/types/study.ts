@@ -51,7 +51,7 @@ export interface StudyParams {
   isProlific: boolean;
   autoRefreshInterval: number;
   scenario: string; // Scenario ID (e.g., 'roomDoubleBooking', 'demoRescheduling')
-  conversationHistory: boolean; // Whether AI assistant receives chat transcript (ch=0/1)
+  conversationHistory: boolean; // Whether AI assistant receives chat transcript (default on; disable with ch=0)
 }
 
 export interface BrowserMetadata extends Record<string, unknown> {
