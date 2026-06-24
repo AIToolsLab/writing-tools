@@ -53,7 +53,6 @@
 		"@react-hook/window-size": "^3.1.1",
 		"@types/node": "^24.6.2",
 		"ai": "^5.0.0",
-		"core-js": "^3.37.1",
 		"jotai": "^2.12.5",
 		"lexical": "^0.16.1",
 		"posthog-js": "^1.388.1",
@@ -61,8 +60,6 @@
 		"react-dom": "^18.2.0",
 		"react-icons": "^5.2.1",
 		"react-remark": "^2.1.0",
-		"react-textarea-autosize": "^8.5.3",
-		"regenerator-runtime": "^0.14.1",
 		"reshaped": "^3.5.3"
 	},
 	"devDependencies": {
@@ -109,9 +106,6 @@
 		"vite": "^6.4.3",
 		"vitest": "^4.1.8"
 	},
-	"browserslist": [
-		"ie 11"
-	],
 	"lint-staged": {
 		"**/*.{js,ts,tsx}": [
 			"eslint --fix",

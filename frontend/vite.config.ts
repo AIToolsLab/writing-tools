@@ -106,7 +106,7 @@ export default defineConfig(async ({ mode }) => {
 			}
 		},
 		optimizeDeps: {
-			include: ['react', 'react-dom', 'core-js', 'regenerator-runtime']
+			include: ['react', 'react-dom']
 		}
 	};
 });
