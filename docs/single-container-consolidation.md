@@ -5,10 +5,9 @@ reverse-proxying `/api/`, and the Hono backend) into **one container** where the
 server serves both the built frontend static files **and** the `/api/*` routes.
 
 This is a deployment/topology change only. It does **not** change app behavior, the
-API, the frontend source, or the local dev workflow. Write it on a branch layered on
-`claude/backend-hono-migration-QE061` (the FastAPI→Hono migration), or after it merges.
+API, the frontend source, or the local dev workflow.
 
-This document is the complete brief. Follow it precisely — the cache-header rules in
+The cache-header rules in
 particular are easy to get subtly wrong and will pin users to stale builds if botched.
 
 ---
