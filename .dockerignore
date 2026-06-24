@@ -1,0 +1,37 @@
+# Build context is the repo root (combined frontend+backend image). Keep it
+# small: only frontend/ and backend/ sources are needed, and their deps are
+# installed inside the image.
+**/node_modules
+**/dist
+**/.venv
+**/.git
+**/.DS_Store
+**/*.log
+
+# Everything unrelated to the single-container build.
+.git
+.github
+.venv
+.husky
+.vscode
+.devcontainer
+docs
+backlog
+experiment
+google-docs-addon
+prototype-uist
+own-words
+sandbox
+scripts
+__pycache__
+*.pyc
+
+# Backend runtime data must never be baked into the image (mounted at runtime).
+backend/logs
+backend/data
+backend/.env
+
+# Frontend dev/test artifacts not needed for the production build.
+frontend/playwright-report
+frontend/test-results
+frontend/tests

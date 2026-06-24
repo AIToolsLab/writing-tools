@@ -16,6 +16,12 @@ export default defineConfig(({ mode }) => {
 
 	return {
 		plugins: [react()],
+		// This lib build runs after `vite build` into the same dist/ (emptyOutDir
+		// is false). Disable publicDir copying so it does NOT re-copy public/ over
+		// the main build's output — in particular the prod-transformed
+		// dist/manifest.xml, which would otherwise be clobbered with the raw dev
+		// manifest (localhost:3000 / -dev id).
+		publicDir: false,
 		resolve: {
 			alias: {
 				'@': path.resolve(__dirname, './src')
