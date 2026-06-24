@@ -44,8 +44,6 @@ logs/
 # typescript
 *.tsbuildinfo
 next-env.d.ts
-# next-agents-md
-.next-docs/
 
 # Scenario design outputs
 scripts/scenario_design/outputs/
