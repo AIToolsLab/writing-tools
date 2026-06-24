@@ -126,7 +126,6 @@ export function EditorScreen({
 		<div className={isDemo ? classes.democontainer : classes.container}>
 			<div className={isDemo ? classes.demoeditor : classes.editor}>
 				<LexicalEditor
-					// @ts-expect-error initialState needs to actually be `undefined`, not null, see see https://github.com/facebook/lexical/issues/5079
 					initialState={getInitialState()}
 					updateDocContext={docUpdated}
 					storageKey={getStorageKey()}
