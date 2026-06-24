@@ -39,7 +39,9 @@ export const auth = betterAuth({
 		bearer(),
 		deviceAuthorization({
 			verificationUri: '/api/device', // nginx forwards /api/* to Hono
-			expiresIn: '10m',
+			// Short expiry shrinks the brute-force window for the manually-entered
+			// user code (default length 8). No per-code attempt lockout yet.
+			expiresIn: '4m',
 			interval: '5s',
 			schema: {}, // workaround for https://github.com/better-auth/better-auth/issues/9422
 			validateClient: (clientId) => deviceClientIds().includes(clientId),
@@ -49,6 +51,9 @@ export const auth = betterAuth({
 		google: {
 			clientId: googleClientId(),
 			clientSecret: googleClientSecret(),
+			// Always show Google's account chooser so the user consciously picks which
+			// account authorizes the device (avoids silently reusing a wrong session).
+			prompt: 'select_account',
 		},
 	},
 });

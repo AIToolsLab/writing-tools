@@ -1,239 +1,433 @@
 # Auth Plan
 
-Replacement for Auth0 in the writing-tools add-in. Scope was narrowed via conversation in PR #433.
+Plan for replacing Auth0 in the writing-tools add-in.
 
-> **Status:** under evaluation alongside `docs/js-backend-plan.md`. That plan proposes rewriting the backend in TypeScript and adopting Better-Auth instead of rolling auth in FastAPI. A Stage 0 POC there will decide which plan we commit to.
+> **Status:** The production backend is now TypeScript/Hono after PR #448.
+> Auth0 is still active in the frontend. Better Auth has been proven in an
+> isolated Hono playground, but it is not yet integrated into production.
+> The next implementation step is backend-first and must not change current
+> Chat, Draft, or Revise behavior.
+
+## Current State
+
+The production application currently has two separate auth-related realities:
+
+- The frontend uses Auth0 for login, logout, session caching, and access-token
+  retrieval.
+- The Hono backend does not validate those Auth0 tokens or require any other
+  authentication.
+
+Relevant files:
+
+- `frontend/src/pages/app/index.tsx`
+  - Mounts `Auth0Provider`.
+  - Controls authenticated and unauthenticated UI state.
+  - Provides Auth0's `getAccessTokenSilently` through the existing token
+    context.
+- `frontend/src/contexts/authTokenContext.tsx`
+  - Defines the current token-provider interface.
+  - Does not own or persist the Auth0 session.
+- `frontend/src/api/wordEditorAPI.ts`
+  - Implements the current Word-specific Auth0 login and logout flow.
+- `frontend/src/api/googleDocsEditorAPI.ts`
+  - Contains incomplete Google Docs authentication behavior.
+- `frontend/src/api/openai.ts`
+  - Configures the AI SDK client.
+  - Does not currently attach an Auth0 or Better Auth token.
+- `backend/src/app.ts`
+  - Hosts the Hono API, OpenAI proxy, logging routes, and PostHog middleware.
+  - Uses permissive CORS because backend authentication is not implemented.
+  - Currently allows unauthenticated calls to
+    `/api/openai/chat/completions`.
+
+The isolated Hono + Better Auth playground established that:
+
+- Better Auth can mount inside a Hono server at `/api/auth/*`.
+- Google OAuth can complete and create a Better Auth session.
+- `auth.api.getSession({ headers })` can validate cookie and Bearer sessions.
+- A protected Hono route can return `401` without authentication.
+- A Bearer-authenticated request can identify the signed-in user.
+- An auth guard can run before an OpenAI-compatible streaming response.
+
+The playground did not prove the complete device-authorization flow inside the
+real Word or Google Docs surfaces.
 
 ## Goals
 
-- **Identify users** for logging, analytics, and per-user data (saved prompts, settings, history).
-- **Tag study participants** distinctly from production users.
-- **Allow limited anonymous use** so first-time visitors can try the tool before being asked to sign in.
-- **Work uniformly across all three surfaces**: Word task pane, Google Docs sidebar, standalone editor.
-- **Sign in once per device**, stay signed in for at least 30 days, silent refresh.
+- Identify authenticated users for logging, analytics, and future per-user
+  features.
+- Support a backend-issued token that embedded clients can send as
+  `Authorization: Bearer <token>`.
+- Use one backend auth implementation for Word, Google Docs, and standalone
+  surfaces where practical.
+- Open Google sign-in in the user's normal browser instead of embedding Google
+  OAuth inside a taskpane or iframe.
+- Ensure the taskpane that begins login receives the token for that same device
+  authorization request.
+- Keep existing AI and study workflows working while auth is introduced.
+- Preserve the ability to revoke sessions.
+- Keep Auth0 operational until its replacement works end to end.
 
-## Non-Goals (MVP)
+## Non-Goals For The First Integration
 
-- Multiple sign-in providers. Google OAuth only for v1. Microsoft, magic link, and email/password are deferred.
-- Self-service study cohort assignment. Manual DB flag is acceptable for the MVP; UI/invite-code flows are future work.
-- Migration of existing Auth0 users. Treat as a clean start; current test users re-sign-in.
-- Account linking when the same person signs in with different providers. Deferred until a second provider exists.
+- Removing Auth0.
+- Rewriting the production login UI.
+- Protecting `/api/openai/chat/completions` before the frontend sends Better
+  Auth tokens.
+- Requiring authentication for logging or researcher routes before their
+  intended policies are decided.
+- Supporting multiple OAuth providers.
+- Migrating existing Auth0 users.
+- Implementing account deletion, export, study cohorts, or anonymous-use
+  limits in the first backend PR.
+- Solving Word desktop and Google Docs integration before the standalone and
+  Word web flows are proven.
 
-## Decisions
+## Proposed Direction
 
-| Question | Decision | Rationale |
+| Question | Current direction | Notes |
 |---|---|---|
-| Flow shape | Device-code / login-link, opens browser tab | Avoids OAuth-in-iframe pain across Word and GDocs with a single implementation |
-| Identity model | Single shared identity, merged by verified email | Same person on Word and GDocs is the same user |
-| Provider (MVP) | Google OAuth | Covers GDocs users natively, works fine for Word users with a Gmail account |
-| Database | SQLite, on the existing persistent volume | Already have a volume for study logs; SQLite is zero-ops and upgradable later |
-| Session token storage | `localStorage` on each surface | Simplest; per-iframe-origin scoping is fine |
-| Session lifetime | 30 days, silent refresh | Matches VS Code / Claude Code expectations |
-| Token format | Opaque session ID, validated against DB | We have a DB; enables instant revoke without JWT rotation complexity |
-| Anonymous use | Allowed up to a per-device limit, tracked client-side in `localStorage` | No anon user records, no DB write per anon request |
-| Account deletion / data export | In MVP | Good for IRB approval and future-proofs us against GDPR-style requests |
+| Backend | Existing TypeScript/Hono backend | PR #448 is merged; no new backend service is needed |
+| Auth library | Better Auth | Avoids maintaining custom OAuth and session implementations |
+| Initial provider | Google OAuth | Microsoft and other providers remain future work |
+| Embedded login | Better Auth Device Authorization plugin | Implements OAuth 2.0 Device Authorization Grant behavior |
+| API authentication | Better Auth Bearer plugin | Allows taskpanes and scripts to use `Authorization: Bearer` |
+| Initial persistence | SQLite | Deployment persistence and native addon support must be verified |
+| Migration order | Backend first, frontend second | Keep production behavior unchanged during backend setup |
+| AI route enforcement | Last | Only after every supported frontend can attach a valid token |
 
-## Architecture Overview
+This direction uses Better Auth's documented Device Authorization plugin rather
+than building custom `pending_logins` and polling tables from scratch.
 
-```
-┌────────────────────┐     1. open login URL    ┌──────────────────┐
-│  Sidebar (Word /   │ ───────────────────────▶ │ Browser tab on   │
-│  GDocs / standalone│                          │ backend domain   │
-│  )                 │                          └────────┬─────────┘
-│                    │                                   │ 2. Google OAuth
-│  - device_code     │                                   ▼
-│  - poll session    │                          ┌──────────────────┐
-└────────┬───────────┘                          │ Google           │
-         │                                      └────────┬─────────┘
-         │ 3. GET /auth/poll?code=…                      │ callback
-         │                                               ▼
-         │                                      ┌──────────────────┐
-         └─────────────────────────────────────▶│  FastAPI backend │
-                                                │  + SQLite        │
-                                                └──────────────────┘
-```
+References:
 
-The sidebar never embeds Google's consent screen. All OAuth happens in a normal browser tab on our own domain. The sidebar only ever talks to our backend.
+- <https://better-auth.com/docs/integrations/hono>
+- <https://better-auth.com/docs/plugins/device-authorization>
+- <https://better-auth.com/docs/plugins/bearer>
 
-## Data Model (SQLite)
+## Device Authorization Model
 
-```sql
--- A person. Created on first successful sign-in.
-CREATE TABLE users (
-  id              TEXT PRIMARY KEY,         -- ULID/UUID
-  email           TEXT NOT NULL UNIQUE,
-  email_verified  INTEGER NOT NULL DEFAULT 0,
-  display_name    TEXT,
-  created_at      INTEGER NOT NULL,         -- unix seconds
-  is_study_user   INTEGER NOT NULL DEFAULT 0,
-  study_cohort    TEXT,                     -- nullable; arbitrary string
-  deleted_at      INTEGER                   -- soft delete; null = active
-);
+The Better Auth Device Authorization plugin returns separate values with
+different security roles:
 
--- One row per OAuth identity linked to a user. Future-proofs for multiple providers.
-CREATE TABLE oauth_identities (
-  provider         TEXT NOT NULL,           -- 'google'
-  provider_user_id TEXT NOT NULL,           -- 'sub' claim
-  user_id          TEXT NOT NULL REFERENCES users(id),
-  linked_at        INTEGER NOT NULL,
-  PRIMARY KEY (provider, provider_user_id)
-);
+- `device_code`
+  - Private credential retained by the taskpane.
+  - Used when polling for the resulting access token.
+  - Must not be placed in the browser URL or exposed to the user.
+- `user_code`
+  - Short code intended for browser verification and user confirmation.
+- `verification_uri`
+  - Generic browser page where a user can enter a code.
+- `verification_uri_complete`
+  - Browser URL with the safe `user_code` already included.
+- `interval`
+  - Minimum polling interval the taskpane must respect.
 
--- One row per signed-in device. Opaque session_id is what the client stores.
-CREATE TABLE sessions (
-  id              TEXT PRIMARY KEY,         -- random 32+ bytes, base64url
-  user_id         TEXT NOT NULL REFERENCES users(id),
-  created_at      INTEGER NOT NULL,
-  last_used_at    INTEGER NOT NULL,
-  expires_at      INTEGER NOT NULL,         -- created_at + 30d, slid forward on use
-  user_agent      TEXT,                     -- for the user's "active devices" list
-  revoked_at      INTEGER
-);
+Intended flow:
 
--- Short-lived rows used during the device-code handshake.
-CREATE TABLE pending_logins (
-  device_code     TEXT PRIMARY KEY,         -- random; what the sidebar polls with
-  created_at      INTEGER NOT NULL,
-  expires_at      INTEGER NOT NULL,         -- ~10 minutes
-  session_id      TEXT REFERENCES sessions(id)  -- null until OAuth completes
-);
+```text
+Taskpane                    Hono + Better Auth              Browser / Google
+    |                               |                               |
+    | request device authorization |                               |
+    |------------------------------>|                               |
+    | device_code, user_code,       |                               |
+    | verification_uri_complete     |                               |
+    |<------------------------------|                               |
+    |                               |                               |
+    | open verification_uri_complete ------------------------------>|
+    | retain private device_code    |                    Google login|
+    |                               |<------------------------------>|
+    |                               | authenticated browser session |
+    |                               |<-------------------------------|
+    |                               | verify and approve user_code   |
+    |                               |<-------------------------------|
+    |                               |                               |
+    | poll using private device_code|                               |
+    |------------------------------>|                               |
+    | authorization_pending         |                               |
+    |<------------------------------|                               |
+    |                               |                               |
+    | poll again at allowed interval|                               |
+    |------------------------------>|                               |
+    | access token                  |                               |
+    |<------------------------------|                               |
+    |                               |                               |
+    | Authorization: Bearer token   |                               |
+    |------------------------------>|                               |
+    | protected response            |                               |
+    |<------------------------------|                               |
 ```
 
-`oauth_identities` is overkill for a one-provider MVP but keeps the migration to two providers trivial.
+The plugin's `deviceCode` table owns the mapping between the pending device
+request, its approval state, and the authenticated user. A separate custom
+`device_code -> session_token` table should only be introduced if the official
+plugin cannot satisfy the application flow.
 
-## Flows
+Completing Google login does not automatically imply device approval. The
+browser session must verify and approve the `user_code`, unless the team makes
+an explicit and carefully reviewed decision to auto-approve.
 
-### First-time sign-in (device-code)
+## Backend Phase 1: Better Auth Foundation
 
-1. User clicks **Sign in** in the sidebar.
-2. Sidebar calls `POST /auth/device/start`. Backend creates a `pending_logins` row with a fresh `device_code` and returns `{ device_code, login_url }`.
-3. Sidebar:
-   - Launches `login_url` in a new browser window, using the user's main browser even in the Word desktop app (so it'll probably need to use an `<a>` instead of the Office dialog API).
-   - Begins polling `GET /auth/device/poll?device_code=…` every ~2 seconds.
-4. The browser tab hits `GET /auth/login?device_code=…`. Backend redirects to Google's OAuth consent with `state=device_code`.
-5. Google redirects back to `GET /auth/callback?code=…&state=…`. Backend:
-   - Exchanges the code for tokens.
-   - Looks up `oauth_identities` by `(google, sub)`. If missing, finds-or-creates a `users` row by verified email and inserts an `oauth_identities` row.
-   - Creates a `sessions` row.
-   - Sets `pending_logins.session_id`.
-   - Renders a "You can close this tab" page.
-6. The next sidebar poll sees `session_id` populated, gets `{ session_id, expires_at, user: { id, email, display_name } }`, stores it in `localStorage`, and stops polling.
+Create a feature branch from current `main`.
 
-### Authenticated request
+Add Better Auth to the existing `backend/` service:
 
-- Sidebar adds `Authorization: Bearer <session_id>` to every `/api/*` request.
-- Backend middleware looks up the session, checks `expires_at` and `revoked_at`, slides `last_used_at` forward, and attaches the user to the request context.
+1. Add and pin Better Auth and the selected SQLite adapter dependencies.
+2. Add `backend/src/auth.ts` with:
+   - SQLite database connection.
+   - Google social provider.
+   - Better Auth secret and base URL.
+   - Bearer plugin.
+3. Mount Better Auth before the existing API routes:
 
-### Silent refresh
+   ```ts
+   app.on(["POST", "GET"], "/api/auth/*", (c) =>
+     auth.handler(c.req.raw),
+   );
+   ```
 
-- On every authenticated request, the backend extends `expires_at` to `now + 30 days`. No separate refresh token. (This is the "rolling session" pattern; simpler than refresh-token rotation and fine for this risk level.)
-- If the client sees a `401` from any `/api/*` call, it clears its local session and reverts to the anonymous-limit state.
+4. Add a temporary or explicitly diagnostic `GET /api/protected` route:
 
-### Sign-out
+   ```ts
+   const session = await auth.api.getSession({
+     headers: c.req.raw.headers,
+   });
+   ```
 
-- `POST /auth/logout` with the bearer token sets `revoked_at` on the session row.
-- Client clears `localStorage`.
+5. Add tests proving:
+   - No auth returns `401`.
+   - A valid browser session is accepted.
+   - A valid Bearer session is accepted.
+   - The response identifies the expected user.
+6. Keep all existing production routes, including the OpenAI proxy,
+   behaviorally unchanged.
 
-### Anonymous use + limit
+Phase 1 is successful when Better Auth and the current backend can run together
+without changing frontend behavior.
 
-- All `/api/*` endpoints accept requests without a bearer token.
-- Client tracks `anon_usage_count` in `localStorage`. On reaching the limit (proposal: **5 LLM-backed requests per device**, tunable), the UI swaps the action buttons for a sign-in prompt.
-- The backend does **not** enforce the limit — we explicitly trust the client for anon throttling, since the cost of a determined evader clearing `localStorage` is low and we avoid maintaining anon records.
-- When a user signs in, anon counters are not migrated; they're simply ignored from that point on.
+## Backend Phase 2: Device Authorization
 
-### Account deletion
+After the foundation works:
 
-- `DELETE /auth/account` with bearer token. Backend:
-  - Sets `users.deleted_at = now`.
-  - Revokes all sessions.
-  - Erases `email`, `display_name`, and `oauth_identities` rows for the user (so they can re-sign-up cleanly).
-  - Leaves the `users.id` in place so foreign keys in logs/saved data don't dangle. Future work: a background job that scrubs PII from log rows older than the deletion timestamp.
+1. Add Better Auth's Device Authorization plugin.
+2. Configure a verification page URI owned by the Hono backend.
+3. Validate known device-flow client IDs, beginning with a dedicated
+   writing-tools test client.
+4. Run the Better Auth migration that adds the required `deviceCode` table.
+5. Add a minimal browser verification and approval page.
+6. Add a standalone test client that:
+   - requests device authorization,
+   - opens `verification_uri_complete`,
+   - retains the private `device_code`,
+   - polls at the returned interval,
+   - receives an access token,
+   - calls `/api/protected` with that token.
+7. Test the required error cases:
+   - `authorization_pending`,
+   - `slow_down`,
+   - `access_denied`,
+   - `expired_token`,
+   - invalid device code,
+   - invalid client ID.
 
-### Data export
+Phase 2 is successful when the backend can securely deliver a token to the
+same client that initiated the device request without custom Better Auth
+internals.
 
-- `GET /auth/account/export` returns a JSON blob with:
-  - The user row (minus `id`)
-  - All saved per-user data
-  - All log rows tagged with this user
-- Streamed as a download. No third-party service involvement.
+## Frontend Phase 1: Word Web
 
-## API Surface (new endpoints)
+After the backend device flow passes independently:
 
-| Method | Path | Purpose |
-|---|---|---|
-| `POST` | `/auth/device/start` | Begin device-code flow; returns `{ device_code, login_url }` |
-| `GET`  | `/auth/device/poll`  | Sidebar polls; returns session once OAuth completes |
-| `GET`  | `/auth/login`        | Browser-tab entry point; redirects to Google |
-| `GET`  | `/auth/callback`     | Google OAuth callback; completes the handshake |
-| `GET`  | `/auth/me`           | Current user info (for the sidebar to display) |
-| `POST` | `/auth/logout`       | Revoke current session |
-| `DELETE` | `/auth/account`    | Soft-delete account + scrub PII |
-| `GET`  | `/auth/account/export` | Export the user's data as JSON |
+1. Add a frontend session interface without removing the existing Auth0
+   implementation.
+2. Let the Word web taskpane request a device authorization.
+3. Retain the private `device_code` in taskpane memory while login is pending.
+4. Open `verification_uri_complete` in the user's normal browser.
+5. Poll according to the server-provided interval and error responses.
+6. Store the returned token temporarily for the first integration.
+7. Use the token to call `/api/protected`.
+8. Verify sign-out and expired-session behavior.
 
-All under the same FastAPI app, same domain as `/api/*`. No new infra.
+Longer-term storage may use `localStorage`, but that decision requires a
+security review for each surface. The first integration should avoid assuming
+that every embedded environment has identical storage isolation.
 
-## Frontend Integration
+## Frontend Phase 2: Protected AI Requests
 
-- Replace `@auth0/auth0-react` and the `useAccessToken` context with a small Jotai atom (`sessionAtom`) plus a `useSession()` hook that:
-  - Hydrates from `localStorage` on mount.
-  - Exposes `{ user, signIn(), signOut(), isAuthed }`.
-- `signIn()` runs the device-code flow described above.
-- The AI SDK `openai` client in `frontend/src/api/openai.ts` gets a custom `fetch` wrapper that injects `Authorization: Bearer <session_id>` when a session exists.
-- A small `<SignInGate>` component watches `anon_usage_count` and the session, and switches between "use the tool" and "sign in to continue" UI.
+Only after the taskpane can reliably obtain and use a Better Auth token:
 
-## Provider Setup
+1. Add a token-aware AI SDK client or custom `fetch` boundary in
+   `frontend/src/api/openai.ts`.
+2. Attach `Authorization: Bearer <token>` to AI SDK requests.
+3. Confirm streaming still works with the authorization header.
+4. Add the Better Auth session guard to
+   `/api/openai/chat/completions`.
+5. Update backend tests to cover:
+   - `401` without authentication,
+   - successful authenticated proxy requests,
+   - upstream OpenAI errors,
+   - streaming responses.
+6. Decide whether anonymous AI requests remain supported and where any usage
+   limit is enforced.
 
-- **Google Cloud Console**: register a single OAuth 2.0 Web client.
-  - Authorized JavaScript origins: production + staging domains.
-  - Authorized redirect URIs: `https://<backend-domain>/auth/callback` for each environment.
-- Scopes: `openid email profile` only. No Drive/Gmail scopes — we never call Google APIs on the user's behalf.
+The OpenAI route must not be protected before this frontend phase is ready,
+because current Chat, Draft, and Revise requests do not send Better Auth
+credentials.
 
-## Migration from Auth0
+## Additional Surface Phases
 
-- Remove `@auth0/auth0-react` and the `useAccessToken` / `useAuth0` call sites.
-- Delete `Auth0Provider` wrappers in `frontend/src/pages/app/index.tsx` and the editor entry points.
-- Backend: the JWT validation middleware (if any beyond what we already saw) is removed in favor of the session-lookup middleware.
-- Existing Auth0 test users are not migrated. Document this in the release notes for the rollout.
+### Word Desktop
 
-## Phases
+- Test whether an ordinary external link reliably opens the default browser.
+- Confirm the browser can return to the verification/approval page without
+  relying on Office dialog cookies.
+- Keep the device flow independent of taskpane browser-cookie behavior.
+- Retain Auth0 until the replacement flow is proven in supported desktop
+  environments.
 
-**Phase 1 — Backend skeleton**
-- SQLite schema + SQLAlchemy models
-- `/auth/device/*`, `/auth/login`, `/auth/callback`, `/auth/me`, `/auth/logout`
-- Session middleware
-- Google OAuth via Authlib
+### Google Docs
 
-**Phase 2 — Frontend integration**
-- `useSession()` hook + Jotai atom
-- Sign-in / sign-out UI in the sidebar
-- AI SDK `fetch` wrapper injecting the bearer token
-- `<SignInGate>` for the anon limit
+- Treat the sidebar as a frontend client of the Hono backend.
+- Test external-browser opening, polling, and local token storage directly.
+- Avoid assuming that the older Apps Script proxy remains part of the final AI
+  request path.
+- Confirm Google Docs origin, iframe, and storage behavior before declaring the
+  Word implementation reusable without changes.
 
-**Phase 3 — Account management**
-- `/auth/account` deletion
-- `/auth/account/export`
-- Tiny "Account" panel in the sidebar showing email + sign-out + delete
+### Standalone
 
-**Phase 4 — Study tooling**
-- Admin CLI (or SQL snippets) to flip `is_study_user` and set `study_cohort`
-- Logging integration: every log row carries `user_id` when available
+- A normal cookie-based Better Auth flow may be simpler than device
+  authorization.
+- The team should decide whether consistency across surfaces is worth using the
+  device flow where it is not technically required.
 
-## Future Work / Deferred
+## Database And Deployment
 
-- **Additional providers** — Microsoft OAuth (probable next), magic link (for users without Google accounts).
-- **Account linking UX** — when the second provider lands, let users link both to one account.
-- **Self-service study enrollment** options to evaluate later:
-  - Invite code at signup
-  - Pre-seeded email allowlist
-  - Admin flag after signup *(MVP)*
-  - Separate `/study/signin` route encoding the cohort
-- **Refresh-token rotation** instead of rolling sessions, if we ever care about stolen-token blast radius.
-- **Background PII scrub** for logs after account deletion.
-- **Active devices view** — list of sessions per user with per-session revoke.
-- **Server-side anon rate limiting** if client-side trust proves abusable.
+Better Auth should own its standard auth schema rather than duplicating it in
+hand-written SQL. Expected core data includes users, accounts, sessions,
+verification data, and device authorization records.
+
+Application-specific study metadata may require a separate table or supported
+Better Auth user fields, for example:
+
+```text
+user_id
+is_study_user
+study_cohort
+```
+
+Before production deployment:
+
+- Decide whether SQLite is sufficient for the expected concurrency and hosting
+  model.
+- Persist the database outside the container filesystem.
+- Verify the chosen SQLite Node package builds in the backend's Node slim
+  Docker image.
+- Back up and migrate the database explicitly.
+- Keep auth secrets out of source control.
+- Confirm session expiration, revocation, and cleanup behavior.
+
+## CORS, Cookies, And Origins
+
+The current backend uses permissive CORS because it has no backend auth.
+Better Auth integration requires an explicit origin and cookie strategy.
+
+Questions to resolve:
+
+- Whether production requests are same-origin through nginx.
+- The exact local Word origin, currently HTTPS on localhost.
+- The deployed Word add-in origin.
+- Google Docs sidebar and iframe origins.
+- Whether browser verification pages and auth APIs share a domain.
+- Which routes need cookie credentials versus Bearer authentication.
+- Which origins belong in Better Auth's trusted origin configuration.
+
+Hono CORS middleware must run before Better Auth routes when cross-origin
+cookie requests are supported. Do not copy the playground's localhost CORS
+configuration directly into production.
+
+## Route Protection Policy
+
+Authentication should be added route by route rather than globally.
+
+Initial policy:
+
+| Route | Initial auth policy |
+|---|---|
+| `/api/auth/*` | Managed by Better Auth |
+| `/api/protected` | Always authenticated; diagnostic during integration |
+| `/api/openai/chat/completions` | Remains open until frontend token support is ready |
+| `/api/log` | Separate study/privacy decision |
+| `/api/logs_poll` | Continue using `LOG_SECRET` initially |
+| `/api/download_logs` | Continue using `LOG_SECRET` initially |
+| `/api/ping` | Public |
+
+This prevents an incomplete auth migration from breaking the production add-in
+or researcher tooling.
+
+## Migration From Auth0
+
+Auth0 removal is a final migration step, not part of the backend foundation.
+
+Before removal:
+
+- Better Auth works on every supported surface.
+- Login, logout, session restoration, and expiry are tested.
+- Protected AI requests work reliably.
+- Demo and anonymous behavior is explicitly decided.
+- Current allowed-user and onboarding behavior has a replacement.
+- Existing Auth0 test users have been informed that they must sign in again.
+- Privacy documentation is updated.
+
+Only then should the team remove:
+
+- `@auth0/auth0-react`,
+- `Auth0Provider`,
+- `useAuth0` call sites,
+- Auth0 environment variables,
+- Auth0-specific Word popup/callback code that is no longer needed.
+
+## Deferred Work
+
+- Microsoft OAuth and other providers.
+- Account linking.
+- Account deletion and data export.
+- Self-service study enrollment.
+- Study cohort administration.
+- Anonymous-use limits.
+- Active-device management.
+- Per-session revocation UI.
+- Server-side anonymous rate limiting.
+- Migration of existing Auth0 users.
 
 ## Open Questions
 
-- The exact anon-usage limit (5? 10? per session or per day?) — tune during QA.
-- Backend domain in production needs to be settled before the Google OAuth client can be configured.
-- Whether the standalone editor should *also* show a sign-in prompt or stay demo-mode-forever. Current plan: same `<SignInGate>` everywhere; demo mode is just "haven't hit the anon limit yet."
+- Is explicit device approval required, or is auto-approval acceptable after a
+  user deliberately opens `verification_uri_complete` and signs in?
+- Should standalone users use the device flow or a normal cookie session?
+- Is Google OAuth sufficient for early Word users?
+- How long should Better Auth sessions live?
+- Where should taskpane tokens be stored on each surface?
+- Which routes must require login during research studies?
+- Should logging accept anonymous events?
+- Is SQLite sufficient for production, or only for the initial deployment?
+- What are the production backend and verification-page domains?
+- Does the Word desktop default-browser link work reliably across supported
+  Office versions and operating systems?
+- Does the Google Docs sidebar support the same polling and token-storage model
+  without special handling?
+
+## Implementation Order
+
+1. Better Auth foundation in the existing Hono backend.
+2. Diagnostic protected route and backend tests.
+3. Official Device Authorization plugin and migrations.
+4. Browser verification/approval page.
+5. Standalone device-flow test client.
+6. Word web taskpane integration.
+7. Word desktop and Google Docs surface validation.
+8. Token-aware AI SDK requests.
+9. Protect the OpenAI proxy and update tests.
+10. Decide anonymous/study policies.
+11. Remove Auth0 only after full replacement validation.

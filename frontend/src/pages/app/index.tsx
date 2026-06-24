@@ -1,15 +1,16 @@
-import { Auth0Provider, useAuth0 } from '@auth0/auth0-react';
+import { Auth0Provider } from '@auth0/auth0-react';
 import { PostHogProvider, PostHogErrorBoundary } from '@posthog/react';
 import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
-import { useContext, useState } from 'react';
+import { useState } from 'react';
 import { CgFacebook, CgGoogle, CgMicrosoft } from 'react-icons/cg';
 import {
-	AccessTokenProvider,
-	useAccessToken,
-} from '@/contexts/authTokenContext';
+	AppAuthProvider,
+	AppAuthTokenBridge,
+	useAppAuth,
+} from '@/contexts/appAuthContext';
+import { useAccessToken } from '@/contexts/authTokenContext';
 import ChatContextWrapper from '@/contexts/chatContext';
-import { EditorContext } from '@/contexts/editorContext';
 import {
 	OverallMode,
 	overallModeAtom,
@@ -30,14 +31,93 @@ const POSTHOG_KEY = 'phc_p3Br0zRnw7PdTVpdNI92vvBTWcBBY0jvkHO8dNvkCTl';
 const POSTHOG_HOST = 'https://e.thoughtful-ai.com/';
 const POSTHOG_ENABLED = true;
 
+// Device-flow status surfaced during Better Auth sign-in. Shows the user code and a
+// user-clicked link that opens the approval page in a new tab (no focus-stealing).
+// Rendered inside the not-logged-in screen, NOT gated by the isLoading "Waiting" screen.
+function DeviceAuthStatus({
+	authorization,
+}: {
+	authorization?: {
+		status: 'pending' | 'polling' | 'error';
+		userCode?: string;
+		verificationUri?: string;
+		error?: string;
+	};
+}) {
+	if (!authorization) return null;
+
+	if (authorization.status === 'error') {
+		return (
+			<div className={classes.loginInfoContainer}>
+				<p>Sign-in failed: {authorization.error}</p>
+			</div>
+		);
+	}
+
+	if (authorization.status === 'pending') {
+		return (
+			<div className={classes.loginInfoContainer}>
+				<p>Requesting device code…</p>
+			</div>
+		);
+	}
+
+	// polling
+	return (
+		<div
+			className={classes.loginInfoContainer}
+			style={{
+				display: 'flex',
+				flexDirection: 'column',
+				alignItems: 'center',
+				textAlign: 'center',
+			}}
+		>
+			<p style={{ margin: 0 }}>Your code:</p>
+			<p
+				style={{
+					fontFamily: 'monospace',
+					fontSize: '1.35rem',
+					fontWeight: 700,
+					letterSpacing: '0.12em',
+					margin: '0.25rem 0 0.75rem',
+				}}
+			>
+				{authorization.userCode}
+			</p>
+			{authorization.verificationUri ? (
+				<p style={{ margin: '0.25rem 0 0.75rem' }}>
+					<a
+						href={authorization.verificationUri}
+						target="_blank"
+						rel="noopener noreferrer"
+						style={{
+							display: 'inline-block',
+							padding: '0.5rem 1.1rem',
+							borderRadius: '6px',
+							background: '#2563eb',
+							color: '#fff',
+							fontWeight: 600,
+							textDecoration: 'none',
+						}}
+					>
+						Open approval page →
+					</a>
+				</p>
+			) : null}
+			<p>Open the approval page and enter the code above to continue.</p>
+		</div>
+	);
+}
+
 function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
 	const noAuthMode = mode !== OverallMode.full;
-	const auth0Client = useAuth0();
-	const { isLoading, error, isAuthenticated, user } = auth0Client;
+	const session = useAppAuth();
+	const { isLoading, isAuthorizing, error, isAuthenticated, user, authorization } =
+		session;
 	const [width, _height] = useWindowSize();
 	const page = useAtomValue(pageNameAtom);
-	const editorAPI = useContext(EditorContext);
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
 		return localStorage.getItem('hasCompletedOnboarding') === 'true';
 	});
@@ -121,12 +201,15 @@ function AppInner() {
 							color="primary"
 							variant="solid"
 							size="large"
+							loading={isAuthorizing}
 							onClick={() => {
-								void editorAPI.doLogin(auth0Client);
+								void session.login();
 							}}
 						>
 							Login
 						</Button>
+
+						<DeviceAuthStatus authorization={authorization} />
 
 						<div className={classes.loginInfoContainer}>
 							<p>
@@ -217,7 +300,7 @@ function AppInner() {
 					variant="outline"
 					onClick={() => {
 						console.log('origin', window.location.origin);
-						editorAPI.doLogout(auth0Client);
+						void session.logout();
 					}}
 				>
 					Sign Out
@@ -257,7 +340,7 @@ function AppInner() {
 							variant="solid"
 							onClick={() => {
 								// do login again
-								void editorAPI.doLogin(auth0Client);
+								void session.login();
 							}}
 						>
 							Reauthorize
@@ -268,7 +351,7 @@ function AppInner() {
 						variant="outline"
 						onClick={() => {
 							console.log('origin', window.location.origin);
-							editorAPI.doLogout(auth0Client);
+							void session.logout();
 						}}
 					>
 						Sign Out
@@ -322,14 +405,9 @@ function AppWithProviders({
 }
 
 export default function App() {
-	// If demo mode is enabled, we use a mock access token provider
-	const mode = useAtomValue(overallModeAtom);
-	const needAuth = mode === OverallMode.full;
-
-	const AccessTokenProvider = needAuth
-		? Auth0AccessTokenProviderWrapper
-		: DemoAccessTokenProviderWrapper;
-
+	// Auth0Provider stays mounted always (harmless when unused). AppAuthProvider selects
+	// the active session adapter (Auth0 / Better Auth / Demo); AppAuthTokenBridge feeds
+	// the chosen session's getAccessToken into the existing token context.
 	return (
 		<AppWithProviders>
 			<ChatContextWrapper>
@@ -347,41 +425,14 @@ export default function App() {
 							leeway: 10,
 						}}
 					>
-						<AccessTokenProvider>
-							<AppInner />
-						</AccessTokenProvider>
+						<AppAuthProvider>
+							<AppAuthTokenBridge>
+								<AppInner />
+							</AppAuthTokenBridge>
+						</AppAuthProvider>
 					</Auth0Provider>
 				</Reshaped>
 			</ChatContextWrapper>
 		</AppWithProviders>
-	);
-}
-
-function DemoAccessTokenProviderWrapper({
-	children,
-}: {
-	children: React.ReactNode;
-}) {
-	const getAccessTokenSilently = () => {
-		// Simulate a token retrieval for demo purposes
-		return Promise.resolve('demo-access-token');
-	};
-	return (
-		<AccessTokenProvider getAccessTokenSilently={getAccessTokenSilently}>
-			{children}
-		</AccessTokenProvider>
-	);
-}
-
-function Auth0AccessTokenProviderWrapper({
-	children,
-}: {
-	children: React.ReactNode;
-}) {
-	const { getAccessTokenSilently } = useAuth0();
-	return (
-		<AccessTokenProvider getAccessTokenSilently={getAccessTokenSilently}>
-			{children}
-		</AccessTokenProvider>
 	);
 }
