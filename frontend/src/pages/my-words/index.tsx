@@ -15,7 +15,7 @@ import classes from './styles.module.css';
 
 const SYSTEM_PROMPT = `You are a writing tutor helping a writer develop their OWN writing. Two things define your role.
 
-1) You never contribute words. Every word you place in the document must come from the writer's own corpus — the document, their scratchpad, and their messages to you — joined only by punctuation and a small closed set of glue words (a, an, the, and, or, of, to, in, on, ...). The harness enforces this: any edit whose text is not lifted from the corpus is REJECTED. Your edits only ever rearrange, tighten, or connect the writer's existing words; the ideas and the language stay theirs.
+1) You never contribute words. Every word you place in the document must come from the writer's own corpus — the document, their scratchpad, and their messages to you — joined only by punctuation and a small closed set of glue words (a, an, the, and, or, of, to, in, on, ...). Treat all three as a single word bank you may quote from freely: every line of the scratchpad, and everything the writer has typed or said to you in this conversation, is fair game to lift, exactly like the document text itself. (Their messages are a source of words, not just instructions.) The harness enforces this: any edit whose text is not lifted from the corpus is REJECTED. Your edits only ever rearrange, tighten, or connect the writer's existing words; the ideas and the language stay theirs.
 
 2) You are non-directive. Lead with curiosity, like a good tutor in a writing conference. Ask open questions about what the writer means, what they most want to say, how two ideas connect, what matters most here. Reflect their own words back to them. Draw out their thinking instead of prescribing a direction, and never impose your own thesis or opinion.
 
@@ -38,7 +38,9 @@ function buildActivityNote(opts: {
 }): string | null {
 	const parts: string[] = [];
 	if (opts.scratchpadChanged && opts.scratchpad.trim().length > 0) {
-		parts.push(`The writer's scratchpad now reads:\n"""\n${opts.scratchpad}\n"""`);
+		parts.push(
+			`Source words — the writer's scratchpad now reads (you may quote any of this):\n"""\n${opts.scratchpad}\n"""`,
+		);
 	}
 	if (opts.selectedText.trim().length > 0) {
 		parts.push(`The writer has selected this passage: "${opts.selectedText}"`);
@@ -128,16 +130,23 @@ export default function MyWords() {
 		const tools = {
 			view: tool({
 				description:
-					'Read the document. Each paragraph is prefixed with its 1-based number, e.g. [3], which you can target with the `insert` tool.',
+					"Read the document (paragraphs numbered like [3], which you can target with `insert`) together with the writer's scratchpad of source words. Paragraph numbers refer to the document only.",
 				inputSchema: z.object({}),
 				execute: async () => {
 					const paragraphs = await editorAPI.getParagraphs();
-					if (!paragraphs.some((p) => p.trim().length > 0)) {
-						return '(the document is empty)';
-					}
-					return paragraphs
-						.map((p, i) => `[${i + 1}] ${p}`)
-						.join('\n');
+					const docPart = paragraphs.some(
+						(p) => p.trim().length > 0,
+					)
+						? paragraphs
+								.map((p, i) => `[${i + 1}] ${p}`)
+								.join('\n')
+						: '(the document is empty)';
+					const scratch = scratchpadNow.trim();
+					const scratchPart =
+						scratch.length > 0
+							? `\n\n--- The writer's scratchpad (source words you may quote; not part of the document, so no paragraph numbers) ---\n${scratch}`
+							: '';
+					return `${docPart}${scratchPart}`;
 				},
 			}),
 			str_replace: tool({
@@ -158,7 +167,7 @@ export default function MyWords() {
 				execute: async ({ old_str, new_str }) => {
 					const check = validateText(new_str, await makeCorpus());
 					if (!check.ok) {
-						return `REJECTED: "${check.offending}" is not in the writer's words. Use only their phrases (plus glue words/punctuation), or ask them for the words you need.`;
+						return `REJECTED: "${check.offending}" is not in the writer's words. You may lift from anywhere in their word bank — the document, the scratchpad, or anything they've typed to you — plus glue words/punctuation. If the words you need aren't there, ask the writer for them.`;
 					}
 					try {
 						await editorAPI.applyEdit({
@@ -204,7 +213,7 @@ export default function MyWords() {
 				execute: async ({ text, after, paragraph, position }) => {
 					const check = validateText(text, await makeCorpus());
 					if (!check.ok) {
-						return `REJECTED: "${check.offending}" is not in the writer's words. Use only their phrases (plus glue words/punctuation), or ask them for the words you need.`;
+						return `REJECTED: "${check.offending}" is not in the writer's words. You may lift from anywhere in their word bank — the document, the scratchpad, or anything they've typed to you — plus glue words/punctuation. If the words you need aren't there, ask the writer for them.`;
 					}
 					try {
 						await editorAPI.applyEdit({
