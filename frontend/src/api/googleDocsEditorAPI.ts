@@ -238,6 +238,13 @@ export const googleDocsEditorAPI: EditorAPI = {
 		return `${ctx.beforeCursor || ''}${ctx.selectedText || ''}${ctx.afterCursor || ''}`;
 	},
 
+	/** Paragraphs in order — the coordinate system for `view` and inserts. */
+	async getParagraphs(): Promise<string[]> {
+		const ctx = await window.GoogleAppsScript.getDocContext();
+		const text = `${ctx.beforeCursor || ''}${ctx.selectedText || ''}${ctx.afterCursor || ''}`;
+		return text.split('\n');
+	},
+
 	// TODO(my-words): bridge to Apps Script (selectPhrase + replaceSelection for
 	// str_replace; insertTextAtCursor for insert). The GDocs multi-tab corpus
 	// (getAllTabs) is the exciting follow-up. Deferred — v1 targets standalone.

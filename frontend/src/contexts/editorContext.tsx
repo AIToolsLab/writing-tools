@@ -19,6 +19,7 @@ export const EditorContext = createContext<EditorAPI>({
 		return new Promise<void>((resolve) => resolve());
 	},
 	getDocText: () => Promise.resolve(''),
+	getParagraphs: () => Promise.resolve([]),
 	applyEdit: () => {
 		console.warn('applyEdit is not implemented yet');
 		return Promise.resolve();

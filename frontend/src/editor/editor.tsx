@@ -36,6 +36,8 @@ import classes from './editor.module.css';
  */
 export interface EditorControls {
 	getText: () => string;
+	/** Top-level paragraphs in order — the coordinate system for `view`. */
+	getParagraphs: () => string[];
 	/** Replace the whole document with plain text (paragraphs split on \n). */
 	setText: (text: string) => void;
 	/** Select the first occurrence of `phrase` within a single paragraph. */
@@ -61,6 +63,15 @@ function ControlsPlugin({
 				editor
 					.getEditorState()
 					.read(() => $getRoot().getTextContent()),
+
+			getParagraphs: () =>
+				editor
+					.getEditorState()
+					.read(() =>
+						$getRoot()
+							.getChildren()
+							.map((node) => node.getTextContent()),
+					),
 
 			setText: (text: string) => {
 				editor.update(() => {

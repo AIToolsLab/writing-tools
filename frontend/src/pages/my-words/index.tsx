@@ -18,8 +18,9 @@ const SYSTEM_PROMPT = `You are a writing collaborator working under one strict r
 Every word you place in the document must come from the writer's own corpus — the document, their scratchpad, and their messages to you — joined only by punctuation and a small closed set of glue words (a, an, the, and, or, of, to, in, on, ...). The harness enforces this: any str_replace or insert whose text is not lifted from the corpus is REJECTED and returned to you with an explanation.
 
 How to work:
-- Use \`view\` to read the current document before editing.
+- Use \`view\` to read the current document before editing. It numbers each paragraph like [3].
 - Use \`str_replace\` and \`insert\` to weave the writer's existing phrases into clearer prose. Reuse their exact wording; only add punctuation and glue words.
+- To add a new paragraph, prefer \`insert\` with a \`paragraph\` number (from \`view\`) and \`position\` — it is more reliable than anchoring on \`after\` text. Keep each edit to about a sentence.
 - When you need words you don't have, do NOT invent them. Ask the writer a short question, or use \`highlight\` to point at the passage you're asking about.
 - Take short turns. Your spoken replies must be one or two sentences — the writer sees them as fleeting captions, not a chat log.
 
@@ -99,15 +100,20 @@ export default function MyWords() {
 		const tools = {
 			view: tool({
 				description:
-					'Read the current full text of the document being edited.',
+					'Read the document. Each paragraph is prefixed with its 1-based number, e.g. [3], which you can target with the `insert` tool.',
 				inputSchema: jsonSchema<Record<string, never>>({
 					type: 'object',
 					properties: {},
 					additionalProperties: false,
 				}),
 				execute: async () => {
-					const text = await editorAPI.getDocText();
-					return text.trim().length > 0 ? text : '(the document is empty)';
+					const paragraphs = await editorAPI.getParagraphs();
+					if (!paragraphs.some((p) => p.trim().length > 0)) {
+						return '(the document is empty)';
+					}
+					return paragraphs
+						.map((p, i) => `[${i + 1}] ${p}`)
+						.join('\n');
 				},
 			}),
 			str_replace: tool({
@@ -148,31 +154,53 @@ export default function MyWords() {
 			}),
 			insert: tool({
 				description:
-					"Insert text. If `after` is given, insert it right after that existing text; otherwise insert at the cursor. The text must be lifted from the writer's corpus (plus glue words/punctuation).",
-				inputSchema: jsonSchema<{ after?: string; text: string }>({
+					"Insert text, drawn from the writer's corpus (plus glue words/punctuation). To place a new paragraph reliably, pass `paragraph` (a number from `view`) and `position`. To add within an existing paragraph, pass `after` (existing text). With none of these, it inserts at the cursor.",
+				inputSchema: jsonSchema<{
+					text: string;
+					after?: string;
+					paragraph?: number;
+					position?: 'before' | 'after';
+				}>({
 					type: 'object',
 					properties: {
-						after: {
-							type: 'string',
-							description:
-								'Existing text to insert after (optional).',
-						},
 						text: {
 							type: 'string',
 							description:
 								"Text to insert, drawn from the writer's words.",
 						},
+						after: {
+							type: 'string',
+							description:
+								'Existing text to insert right after (within a paragraph).',
+						},
+						paragraph: {
+							type: 'number',
+							description:
+								'1-based paragraph number from `view` to place a new paragraph relative to.',
+						},
+						position: {
+							type: 'string',
+							enum: ['before', 'after'],
+							description:
+								"Where to place it relative to `paragraph`. Defaults to 'after'.",
+						},
 					},
 					required: ['text'],
 					additionalProperties: false,
 				}),
-				execute: async ({ after, text }) => {
+				execute: async ({ text, after, paragraph, position }) => {
 					const check = validateText(text, await makeCorpus());
 					if (!check.ok) {
 						return `REJECTED: "${check.offending}" is not in the writer's words. Use only their phrases (plus glue words/punctuation), or ask them for the words you need.`;
 					}
 					try {
-						await editorAPI.applyEdit({ type: 'insert', after, text });
+						await editorAPI.applyEdit({
+							type: 'insert',
+							text,
+							after,
+							paragraph,
+							position,
+						});
 						return 'Applied.';
 					} catch (e) {
 						return `Could not apply: ${(e as Error).message}`;

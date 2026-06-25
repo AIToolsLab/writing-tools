@@ -93,6 +93,9 @@ export function EditorScreen({
 		getDocText: (): Promise<string> => {
 			return Promise.resolve(controlsRef.current?.getText() ?? '');
 		},
+		getParagraphs: (): Promise<string[]> => {
+			return Promise.resolve(controlsRef.current?.getParagraphs() ?? []);
+		},
 		applyEdit: (edit: DocEdit): Promise<void> => {
 			const controls = controlsRef.current;
 			if (!controls) {
@@ -112,6 +115,19 @@ export function EditorScreen({
 					current.slice(0, idx) +
 					edit.newStr +
 					current.slice(idx + edit.oldStr.length);
+			} else if (edit.paragraph !== undefined) {
+				const paras = controls.getParagraphs();
+				if (edit.paragraph < 1 || edit.paragraph > paras.length) {
+					throw new Error(
+						`Paragraph ${edit.paragraph} is out of range (1–${paras.length}).`,
+					);
+				}
+				const spliceAt =
+					edit.position === 'before'
+						? edit.paragraph - 1
+						: edit.paragraph;
+				paras.splice(spliceAt, 0, edit.text);
+				next = paras.join('\n');
 			} else if (edit.after !== undefined && edit.after !== '') {
 				const idx = current.indexOf(edit.after);
 				if (idx === -1) {

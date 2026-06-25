@@ -223,6 +223,16 @@ export const wordEditorAPI: EditorAPI = {
 		});
 	},
 
+	/** Paragraphs in order — the coordinate system for `view` and inserts. */
+	async getParagraphs(): Promise<string[]> {
+		return Word.run(async (context: Word.RequestContext) => {
+			const paragraphs = context.document.body.paragraphs;
+			context.load(paragraphs, 'items/text');
+			await context.sync();
+			return paragraphs.items.map((p) => p.text.replace(/\r/g, '\n'));
+		});
+	},
+
 	/**
 	 * Apply a validated edit to the Word document. If the user has Track Changes
 	 * on (Review ribbon → changeTrackingMode = TrackAll), these edits are
@@ -259,7 +269,30 @@ export const wordEditorAPI: EditorAPI = {
 				return;
 			}
 
-			// insert
+			// insert — by paragraph number (robust; avoids the search limit)
+			if (edit.paragraph !== undefined) {
+				const paragraphs = body.paragraphs;
+				context.load(paragraphs, 'items');
+				await context.sync();
+				if (
+					edit.paragraph < 1 ||
+					edit.paragraph > paragraphs.items.length
+				) {
+					throw new Error(
+						`Paragraph ${edit.paragraph} is out of range (1–${paragraphs.items.length}).`,
+					);
+				}
+				paragraphs.items[edit.paragraph - 1].insertParagraph(
+					edit.text,
+					edit.position === 'before'
+						? Word.InsertLocation.before
+						: Word.InsertLocation.after,
+				);
+				await context.sync();
+				return;
+			}
+
+			// insert — after an anchor string (within a paragraph)
 			if (edit.after !== undefined && edit.after !== '') {
 				const results = body.search(edit.after, searchOptions);
 				context.load(results, 'items');
