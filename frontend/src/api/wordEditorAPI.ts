@@ -223,12 +223,63 @@ export const wordEditorAPI: EditorAPI = {
 		});
 	},
 
-	// TODO(my-words): implement for Word via Office.js body.search + replace
-	// (str_replace) and range.insertText (insert). Deferred — v1 targets the
-	// standalone editor only.
-	applyEdit(_edit: DocEdit): Promise<void> {
-		return Promise.reject(
-			new Error('applyEdit is not implemented for Word yet'),
-		);
+	/**
+	 * Apply a validated edit to the Word document. If the user has Track Changes
+	 * on (Review ribbon → changeTrackingMode = TrackAll), these edits are
+	 * recorded as revisions they can accept or reject — no extra work here.
+	 *
+	 * Note: Word's body.search() is limited to ~255 characters and does not match
+	 * across paragraph breaks, so this supports sentence/phrase-level edits (how
+	 * the AI already works), not multi-paragraph spans.
+	 */
+	applyEdit(edit: DocEdit): Promise<void> {
+		return Word.run(async (context: Word.RequestContext) => {
+			const body = context.document.body;
+			const searchOptions: Word.SearchOptions | object = {
+				matchCase: false,
+				matchWildcards: false,
+				ignorePunct: false,
+				ignoreSpace: false,
+			};
+
+			if (edit.type === 'str_replace') {
+				const results = body.search(edit.oldStr, searchOptions);
+				context.load(results, 'items');
+				await context.sync();
+				if (results.items.length === 0) {
+					throw new Error(
+						`Could not find the text to replace: "${edit.oldStr}"`,
+					);
+				}
+				results.items[0].insertText(
+					edit.newStr,
+					Word.InsertLocation.replace,
+				);
+				await context.sync();
+				return;
+			}
+
+			// insert
+			if (edit.after !== undefined && edit.after !== '') {
+				const results = body.search(edit.after, searchOptions);
+				context.load(results, 'items');
+				await context.sync();
+				if (results.items.length === 0) {
+					throw new Error(
+						`Could not find the anchor text: "${edit.after}"`,
+					);
+				}
+				results.items[0].insertText(
+					edit.text,
+					Word.InsertLocation.after,
+				);
+			} else {
+				// No anchor: insert at the current cursor / replace the selection.
+				context.document
+					.getSelection()
+					.insertText(edit.text, Word.InsertLocation.replace);
+			}
+			await context.sync();
+		});
 	},
 };
