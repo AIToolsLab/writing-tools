@@ -4,7 +4,7 @@
  * Unlike the Word add-in (index.tsx), this doesn't require Office.onReady.
  * It initializes immediately when loaded in the Google Docs sidebar.
  * 
- * Uses demo mode to bypass Auth0 since users are already authenticated with Google.
+ * Uses demo mode (no interactive sign-in) since users are already authenticated with Google.
  */
 import { createRoot } from 'react-dom/client';
 import { StrictMode } from 'react';
@@ -26,7 +26,7 @@ declare global {
 	}
 }
 
-// Create a Jotai store with demo mode pre-set to bypass Auth0
+// Create a Jotai store with demo mode pre-set (no interactive sign-in)
 const store = createStore();
 store.set(overallModeAtom, OverallMode.demo);
 

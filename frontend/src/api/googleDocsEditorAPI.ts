@@ -8,8 +8,6 @@
  * all document operations here go through Apps Script on Google's servers.
  */
 
-import type { Auth0ContextInterface } from '@auth0/auth0-react';
-
 // Declare the global GoogleAppsScript bridge (defined in sidebar.html)
 declare global {
 	interface Window {
@@ -111,85 +109,6 @@ function stopPolling() {
  */
 export const googleDocsEditorAPI: EditorAPI = {
 	/**
-	 * Handles login for Google Docs.
-	 * Since users are already authenticated with Google, we use their Google identity.
-	 * For Auth0 integration, we could implement a popup flow similar to Word.
-	 */
-	async doLogin(auth0Client: Auth0ContextInterface): Promise<void> {
-		// Option 1: Use Google identity directly (simpler)
-		// The user is already logged into Google, so we can use their email
-		// as the identifier and skip Auth0 entirely for Google Docs.
-
-		// Option 2: Implement Auth0 popup flow (for consistency with Word)
-		// This would require opening a popup window and handling the OAuth flow.
-
-		// For now, we'll use a simplified approach that works with Google identity
-		console.log(
-			'Google Docs login: Using Google identity. Auth0 integration pending.',
-		);
-
-		// If Auth0 is required, we could implement a similar popup flow:
-		// 1. Open a popup to Auth0 login URL
-		// 2. Have the popup redirect back with tokens
-		// 3. Store tokens via Apps Script user properties
-
-		// Placeholder: trigger Auth0 login if needed
-		try {
-			await auth0Client.loginWithRedirect({
-				openUrl: (url: string) => {
-					// Open in a new window since we can't do redirects in an iframe
-					const popup = window.open(
-						url,
-						'auth0-login',
-						'width=500,height=600',
-					);
-
-					// Poll for completion (the popup should post a message when done)
-					const pollTimer = setInterval(() => {
-						if (popup?.closed) {
-							clearInterval(pollTimer);
-							// Check if we're now logged in
-							auth0Client.getAccessTokenSilently().catch(() => {
-								console.log('Auth0 login was cancelled or failed');
-							});
-						}
-					}, 500);
-				},
-			});
-		} catch (error) {
-			console.error('Auth0 login error:', error);
-		}
-	},
-
-	/**
-	 * Handles logout for Google Docs.
-	 */
-	async doLogout(auth0Client: Auth0ContextInterface): Promise<void> {
-		try {
-			await auth0Client.logout({
-				openUrl: (url: string) => {
-					// Open logout URL in a popup
-					const popup = window.open(
-						url,
-						'auth0-logout',
-						'width=500,height=400',
-					);
-
-					// Close popup after a brief delay
-					setTimeout(() => {
-						popup?.close();
-					}, 2000);
-				},
-				logoutParams: {
-					returnTo: window.location.origin,
-				},
-			});
-		} catch (error) {
-			console.error('Auth0 logout error:', error);
-		}
-	},
-
-	/**
 	 * Adds a handler for selection changes.
 	 * Uses polling since Google Docs doesn't provide native selection events.
 	 */
@@ -268,7 +187,7 @@ export function isRunningInGoogleDocs(): boolean {
 
 /**
  * Gets the current user's email from Google.
- * This can be used as a fallback identifier if Auth0 is not configured.
+ * Used as the identifier for the Google Docs surface (which runs in demo mode).
  */
 export async function getGoogleUserEmail(): Promise<string | null> {
 	if (!isRunningInGoogleDocs()) {
