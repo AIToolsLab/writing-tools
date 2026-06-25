@@ -158,7 +158,7 @@ function LexicalEditor({
 	preamble,
 }: {
 	updateDocContext: (docContext: DocContext) => void;
-	initialState: InitialEditorStateType | null;
+	initialState?: InitialEditorStateType | undefined;
 	storageKey?: string;
 	preamble?: JSX.Element;
 }) {
