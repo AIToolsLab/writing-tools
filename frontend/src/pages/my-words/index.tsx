@@ -70,7 +70,9 @@ export default function MyWords() {
 	const sentMessagesRef = useRef<string[]>(sentMessages);
 	sentMessagesRef.current = sentMessages;
 
-	// Running model transcript (assistant turns + tool calls/results).
+	// Durable conversation transcript: the writer's turns and the assistant's
+	// captions only. Intermediate tool steps (view dumps, edit confirmations)
+	// are deliberately NOT retained across turns — see runTurn.
 	const modelMessagesRef = useRef<ModelMessage[]>([]);
 	// What we last told the model, so signals stay lightweight (only deltas).
 	const lastSentScratchpadRef = useRef('');
@@ -277,11 +279,18 @@ export default function MyWords() {
 					}
 				},
 			});
+			// Persist only the conversation: the writer's turn is already in the
+			// transcript, so add the assistant's caption. We deliberately DROP the
+			// turn's tool calls/results — view dumps, paragraph-window confirmations,
+			// rejections — so stale full-document/scratchpad snapshots don't
+			// accumulate in the context window. The document is the source of truth;
+			// the model re-reads it with `view` when it needs current state.
+			const utterance = result.text.trim() || 'Done — take a look.';
 			modelMessagesRef.current = [
 				...modelMessagesRef.current,
-				...result.response.messages,
+				{ role: 'assistant', content: utterance },
 			];
-			setAiUtterance(result.text.trim() || 'Done — take a look.');
+			setAiUtterance(utterance);
 		} catch (e) {
 			// Surface the full error for diagnosis; the caption only shows the
 			// message. Tool-argument/schema errors from the SDK land here too.
