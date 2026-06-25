@@ -239,6 +239,25 @@ export default function MyWords() {
 				messages: modelMessagesRef.current,
 				tools,
 				stopWhen: stepCountIs(8),
+				// Visibility: log every tool call + its result as each step
+				// resolves. Tool failures (REJECTED / "Could not apply…" /
+				// search misses) are returned to the model as strings, so they
+				// never throw — without this they'd be invisible here.
+				onStepFinish: (step) => {
+					for (const call of step.toolCalls) {
+						const res = step.toolResults.find(
+							(r) => r.toolCallId === call.toolCallId,
+						);
+						const output = res?.output;
+						const failed =
+							typeof output === 'string' &&
+							/^(REJECTED|Could not)/.test(output);
+						console[failed ? 'warn' : 'debug'](
+							`[my-words] ${call.toolName}`,
+							{ input: call.input, output },
+						);
+					}
+				},
 			});
 			modelMessagesRef.current = [
 				...modelMessagesRef.current,
@@ -246,6 +265,9 @@ export default function MyWords() {
 			];
 			setAiUtterance(result.text.trim() || 'Done — take a look.');
 		} catch (e) {
+			// Surface the full error for diagnosis; the caption only shows the
+			// message. Tool-argument/schema errors from the SDK land here too.
+			console.error('[my-words] turn failed', e);
 			setAiUtterance(`⚠️ ${(e as Error).message}`);
 		} finally {
 			setIsThinking(false);
