@@ -23,12 +23,6 @@ interface SavedItem {
 }
 
 interface EditorAPI {
-	/**
-	 * Open a URL in the user's external browser. Surface-specific: Word uses
-	 * Office.context.ui.openBrowserWindow; standalone/Google Docs use window.open.
-	 * Used to open the Better Auth device-flow approval page.
-	 */
-	openExternal(url: string): void;
 	getDocContext(this: void): Promise<DocContext>;
 	addSelectionChangeHandler: (handler: () => void) => void;
 	removeSelectionChangeHandler: (handler: () => void) => void;

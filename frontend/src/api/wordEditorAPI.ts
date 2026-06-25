@@ -1,15 +1,4 @@
 export const wordEditorAPI: EditorAPI = {
-	// Open the device-flow approval page in the system browser. Guarded so an Office
-	// host that doesn't expose openBrowserWindow fails explainably rather than silently.
-	openExternal(url: string): void {
-		if (Office?.context?.ui?.openBrowserWindow) {
-			Office.context.ui.openBrowserWindow(url);
-		} else {
-			throw new Error(
-				'External browser login is not supported in this Office host.',
-			);
-		}
-	},
 
 	addSelectionChangeHandler: (handler: () => void) => {
 		Office.context.document.addHandlerAsync(

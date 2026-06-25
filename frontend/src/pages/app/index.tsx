@@ -32,8 +32,7 @@ const POSTHOG_HOST = 'https://e.thoughtful-ai.com/';
 const POSTHOG_ENABLED = true;
 
 // Device-flow status surfaced during Better Auth sign-in. Shows the user code and a
-// button that opens the approval page in the system browser via the surface-specific
-// EditorAPI.openExternal (Word: openBrowserWindow; standalone/GDocs: new tab).
+// button that opens the approval page in a new window/tab.
 // Rendered inside the not-logged-in screen, NOT gated by the isLoading "Waiting" screen.
 function DeviceAuthStatus({
 	authorization,
@@ -90,15 +89,7 @@ function DeviceAuthStatus({
 			</p>
 			{authorization.verificationUri ? (
 				<p style={{ margin: '0.25rem 0 0.75rem' }}>
-					<Button
-						color="primary"
-						variant="solid"
-						onClick={() => {
-							editorAPI.openExternal(authorization.verificationUri!);
-						}}
-					>
-						Open approval page →
-					</Button>
+					<a href={authorization.verificationUri!} target="_blank">Open approval page</a>
 				</p>
 			) : null}
 			<p>Open the approval page and enter the code above to continue.</p>

@@ -109,14 +109,6 @@ function stopPolling() {
  */
 export const googleDocsEditorAPI: EditorAPI = {
 	/**
-	 * Open a URL in a new browser tab. Google Docs runs in demo mode, so this is only
-	 * used if the device-flow approval page is ever surfaced here.
-	 */
-	openExternal(url: string): void {
-		window.open(url, '_blank', 'noopener');
-	},
-
-	/**
 	 * Adds a handler for selection changes.
 	 * Uses polling since Google Docs doesn't provide native selection events.
 	 */

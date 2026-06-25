@@ -43,9 +43,6 @@ export function EditorScreen({
 	};
 
 	const editorAPI: EditorAPI = useMemo(() => ({
-		openExternal: (url: string) => {
-			window.open(url, '_blank', 'noopener');
-		},
 		getDocContext: async (): Promise<DocContext> => {
 			return Promise.resolve(docContextRef.current);
 		},
