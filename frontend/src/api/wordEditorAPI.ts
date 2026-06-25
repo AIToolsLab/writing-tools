@@ -212,4 +212,23 @@ export const wordEditorAPI: EditorAPI = {
 			}
 		});
 	},
+
+	/** Full document text, used for the corpus and the `view` tool. */
+	async getDocText(): Promise<string> {
+		return Word.run(async (context: Word.RequestContext) => {
+			const body = context.document.body;
+			context.load(body, 'text');
+			await context.sync();
+			return body.text.replace(/\r/g, '\n');
+		});
+	},
+
+	// TODO(my-words): implement for Word via Office.js body.search + replace
+	// (str_replace) and range.insertText (insert). Deferred — v1 targets the
+	// standalone editor only.
+	applyEdit(_edit: DocEdit): Promise<void> {
+		return Promise.reject(
+			new Error('applyEdit is not implemented for Word yet'),
+		);
+	},
 };

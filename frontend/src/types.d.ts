@@ -22,6 +22,14 @@ interface SavedItem {
 	dateSaved: Date;
 }
 
+/**
+ * A document edit the AI proposes through the "My Words" tools. The harness
+ * validates the inserted text against the writer's corpus before applying.
+ */
+type DocEdit =
+	| { type: 'str_replace'; oldStr: string; newStr: string }
+	| { type: 'insert'; after?: string; text: string };
+
 interface EditorAPI {
 	doLogin(auth0Client: Auth0ContextInterface): Promise<void>;
 	doLogout(auth0Client: Auth0ContextInterface): Promise<void>;
@@ -29,6 +37,10 @@ interface EditorAPI {
 	addSelectionChangeHandler: (handler: () => void) => void;
 	removeSelectionChangeHandler: (handler: () => void) => void;
 	selectPhrase: (text: string) => Promise<void>;
+	/** Full document text. Host-agnostic accessor for the corpus + `view` tool. */
+	getDocText(this: void): Promise<string>;
+	/** Apply a validated edit to the document. */
+	applyEdit(this: void, edit: DocEdit): Promise<void>;
 }
 
 interface ReflectionResponseItem {

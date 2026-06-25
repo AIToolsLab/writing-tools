@@ -20,6 +20,7 @@ import {
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import Chat from '../chat';
 import Draft from '../draft';
+import MyWords from '../my-words';
 import Revise from '../revise';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
@@ -317,6 +318,8 @@ function AppInner() {
 				return <Chat />;
 			case PageName.Draft:
 				return <Draft />;
+			case PageName.MyWords:
+				return <MyWords />;
 		}
 		return null;
 	}

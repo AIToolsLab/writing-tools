@@ -231,6 +231,21 @@ export const googleDocsEditorAPI: EditorAPI = {
 			throw new Error('Phrase not found');
 		}
 	},
+
+	/** Full document text, used for the corpus and the `view` tool. */
+	async getDocText(): Promise<string> {
+		const ctx = await window.GoogleAppsScript.getDocContext();
+		return `${ctx.beforeCursor || ''}${ctx.selectedText || ''}${ctx.afterCursor || ''}`;
+	},
+
+	// TODO(my-words): bridge to Apps Script (selectPhrase + replaceSelection for
+	// str_replace; insertTextAtCursor for insert). The GDocs multi-tab corpus
+	// (getAllTabs) is the exciting follow-up. Deferred — v1 targets standalone.
+	applyEdit(_edit: DocEdit): Promise<void> {
+		return Promise.reject(
+			new Error('applyEdit is not implemented for Google Docs yet'),
+		);
+	},
 };
 
 /**

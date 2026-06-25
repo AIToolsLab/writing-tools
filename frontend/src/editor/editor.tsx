@@ -6,20 +6,121 @@ import {
 	type InitialEditorStateType,
 	LexicalComposer,
 } from '@lexical/react/LexicalComposer';
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import {
+	$createParagraphNode,
+	$createRangeSelection,
+	$createTextNode,
 	$getRoot,
 	$getSelection,
 	$isRangeSelection,
+	$isTextNode,
+	$setSelection,
 	type ElementNode,
 	type LexicalNode,
+	type TextNode,
 } from 'lexical';
+import { useEffect } from 'react';
 
 import classes from './editor.module.css';
+
+/**
+ * Imperative handle the "My Words" page uses to read and edit the standalone
+ * Lexical document. Mirrors the host-agnostic operations on EditorAPI; Word and
+ * Google Docs implement the same shape with their native APIs.
+ */
+export interface EditorControls {
+	getText: () => string;
+	/** Replace the whole document with plain text (paragraphs split on \n). */
+	setText: (text: string) => void;
+	/** Select the first occurrence of `phrase` within a single paragraph. */
+	selectPhrase: (phrase: string) => boolean;
+}
+
+/**
+ * Lives inside LexicalComposer so it can grab the editor instance and hand a
+ * small imperative control surface back up to the EditorScreen.
+ */
+function ControlsPlugin({
+	onReady,
+}: {
+	onReady?: (controls: EditorControls) => void;
+}) {
+	const [editor] = useLexicalComposerContext();
+
+	useEffect(() => {
+		if (!onReady) return;
+
+		const controls: EditorControls = {
+			getText: () =>
+				editor
+					.getEditorState()
+					.read(() => $getRoot().getTextContent()),
+
+			setText: (text: string) => {
+				editor.update(() => {
+					const root = $getRoot();
+					root.clear();
+					for (const line of text.split('\n')) {
+						const paragraph = $createParagraphNode();
+						if (line.length > 0) {
+							paragraph.append($createTextNode(line));
+						}
+						root.append(paragraph);
+					}
+				});
+			},
+
+			selectPhrase: (phrase: string) => {
+				let found = false;
+				editor.update(() => {
+					const textNodes: TextNode[] = [];
+					const collect = (node: LexicalNode) => {
+						if ($isTextNode(node)) {
+							textNodes.push(node);
+						} else if ('getChildren' in node) {
+							for (const child of (
+								node as ElementNode
+							).getChildren()) {
+								collect(child);
+							}
+						}
+					};
+					collect($getRoot());
+
+					const needle = phrase.toLowerCase();
+					for (const node of textNodes) {
+						const idx = node
+							.getTextContent()
+							.toLowerCase()
+							.indexOf(needle);
+						if (idx === -1) continue;
+						const selection = $createRangeSelection();
+						selection.anchor.set(node.getKey(), idx, 'text');
+						selection.focus.set(
+							node.getKey(),
+							idx + phrase.length,
+							'text',
+						);
+						$setSelection(selection);
+						found = true;
+						return;
+					}
+				});
+				return found;
+			},
+		};
+
+		onReady(controls);
+	}, [editor, onReady]);
+
+	return null;
+}
 
 function $getDocContext(): DocContext {
 	// Initialize default empty context
@@ -156,11 +257,13 @@ function LexicalEditor({
 	initialState,
 	storageKey = 'doc',
 	preamble,
+	onReady,
 }: {
 	updateDocContext: (docContext: DocContext) => void;
 	initialState: InitialEditorStateType | null;
 	storageKey?: string;
 	preamble?: JSX.Element;
+	onReady?: (controls: EditorControls) => void;
 }) {
 	return (
 		<LexicalComposer // Main editor component
@@ -209,6 +312,8 @@ function LexicalEditor({
 					<AutoFocusPlugin />
 
 					<HistoryPlugin />
+
+					<ControlsPlugin onReady={onReady} />
 				</div>
 			</div>
 		</LexicalComposer>

@@ -1,11 +1,11 @@
-import { useRef, useState, StrictMode, useMemo } from 'react';
+import { useCallback, useRef, useState, StrictMode, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 
 import * as SidebarInner from '@/pages/app';
 import type { Auth0ContextInterface } from '@auth0/auth0-react';
 import { useAtomValue, useSetAtom } from 'jotai';
-import LexicalEditor from './editor';
+import LexicalEditor, { type EditorControls } from './editor';
 import './styles.css';
 import classes from './styles.module.css';
 import { EditorContext } from '@/contexts/editorContext';
@@ -32,6 +32,12 @@ export function EditorScreen({
 		selectedText: '',
 		afterCursor: '',
 	});
+
+	// Imperative handle into the Lexical document, populated once it mounts.
+	const controlsRef = useRef<EditorControls | null>(null);
+	const handleEditorReady = useCallback((controls: EditorControls) => {
+		controlsRef.current = controls;
+	}, []);
 
 	// Since this is a list, a useState would have worked as well
 	const selectionChangeHandlers = useRef<(() => void)[]>([]);
@@ -78,9 +84,52 @@ export function EditorScreen({
 			else console.warn('Handler not found');
 		},
 
-		selectPhrase(_text) {
-			console.warn('selectPhrase is not implemented yet');
-			return new Promise<void>((resolve) => resolve());
+		selectPhrase(text) {
+			const found = controlsRef.current?.selectPhrase(text) ?? false;
+			return found
+				? Promise.resolve()
+				: Promise.reject(new Error('Phrase not found'));
+		},
+		getDocText: (): Promise<string> => {
+			return Promise.resolve(controlsRef.current?.getText() ?? '');
+		},
+		applyEdit: (edit: DocEdit): Promise<void> => {
+			const controls = controlsRef.current;
+			if (!controls) {
+				return Promise.reject(new Error('Editor is not ready yet'));
+			}
+			const current = controls.getText();
+
+			let next: string;
+			if (edit.type === 'str_replace') {
+				const idx = current.indexOf(edit.oldStr);
+				if (idx === -1) {
+					throw new Error(
+						`Could not find the text to replace: "${edit.oldStr}"`,
+					);
+				}
+				next =
+					current.slice(0, idx) +
+					edit.newStr +
+					current.slice(idx + edit.oldStr.length);
+			} else if (edit.after !== undefined && edit.after !== '') {
+				const idx = current.indexOf(edit.after);
+				if (idx === -1) {
+					throw new Error(
+						`Could not find the anchor text: "${edit.after}"`,
+					);
+				}
+				const at = idx + edit.after.length;
+				next = current.slice(0, at) + edit.text + current.slice(at);
+			} else {
+				// No anchor: insert at the current cursor / after the selection.
+				const { beforeCursor, selectedText, afterCursor } =
+					docContextRef.current;
+				next = beforeCursor + selectedText + edit.text + afterCursor;
+			}
+
+			controls.setText(next);
+			return Promise.resolve();
 		},
 	}), []);
 
@@ -131,6 +180,7 @@ export function EditorScreen({
 					updateDocContext={docUpdated}
 					storageKey={getStorageKey()}
 					preamble={editorPreamble}
+					onReady={handleEditorReady}
 				/>
 				{isDemo ? (
 					<div className={`${classes.wordCount}`}>
