@@ -9,10 +9,13 @@ export async function POST(req: Request) {
   const scenario = getScenario(scenarioId);
 
   const result = streamText({
-    model: openai('gpt-5.2'),
+    model: openai(scenario.chat.model),
     system: scenario.chat.systemPrompt,
     messages: convertToModelMessages(messages),
     maxOutputTokens: 300,
+    providerOptions: {
+      openai: { reasoningEffort: scenario.chat.reasoningEffort },
+    },
   });
 
   return result.toUIMessageStreamResponse();

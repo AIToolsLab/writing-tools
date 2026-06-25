@@ -78,7 +78,7 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 - `lib/logging.ts` - Event logging utilities
 
 ### API Routes
-- `app/api/chat/route.ts` - Chat endpoint (GPT-5.2 with scenario-specific system prompt)
+- `app/api/chat/route.ts` - Chat endpoint (colleague model + reasoning effort come from the scenario config, with scenario-specific system prompt)
 - `app/api/writing-support/route.ts` - AI writing suggestions
 - `app/api/log/route.ts` - Event logging endpoint
 
@@ -93,13 +93,23 @@ Realistic timing works as follows: The colleague finds a moment to read your mes
 
 ### Adding New Scenarios
 
-To add a new scenario, edit `lib/studyConfig.ts` and add a new entry to the `SCENARIOS` object. Each scenario requires:
+To add a new scenario, edit `lib/scenarios.json` and add a new entry (`lib/studyConfig.ts` derives the typed `SCENARIOS` object from it). Each scenario requires:
 - **colleague**: name, firstName, role
 - **recipient**: name, email
 - **taskInstructions**: title, description, companyFraming
-- **chat**: initialMessages, followUpMessage, systemPrompt
+- **chat**: model, reasoningEffort, initialMessages, followUpMessage, systemPromptLines (joined into `systemPrompt` at runtime)
+- **analysis** (eval-only): context, keyFacts; optionally **chat.probes** (eval-only single-turn probes)
+
+The colleague **model and reasoning effort come from `chat.model` / `chat.reasoningEffort`** (read by both `app/api/chat/route.ts` and the validation pipeline — not hardcoded).
 
 Then pass the scenario ID via URL: `?scenario=yourScenarioId`
+
+### Scenario design & validation pipeline
+
+`scripts/scenario_design/` validates that a scenario's system prompt keeps the colleague in character
+(answers when asked, never volunteers info or drafts the email). `criteria.md` is the single source of
+truth for the behavioral criteria. See `scripts/scenario_design/README.md` for the phases
+(generate → simulate → judge → probe). These scripts make billable OpenAI calls.
 
 
 ## Getting Started
