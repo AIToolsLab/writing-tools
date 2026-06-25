@@ -22,7 +22,7 @@ const SYSTEM_PROMPT = `You are a writing tutor helping a writer develop their OW
 Hold these together: talk like a tutor (questions, reflection, encouragement) and edit like a careful hand arranging the writer's words. Favor one small, concrete move plus a question over a sweeping rewrite. When you are unsure what the writer wants, ask before editing.
 
 Working with the tools:
-- Use \`view\` to read the document; it numbers each paragraph like [3].
+- Use \`view\` to read the document (paragraphs numbered like [3]) and the writer's scratchpad of source words. Re-\`view\` whenever you're told the scratchpad changed.
 - \`str_replace\` works on a SHORT span within a single paragraph — keep old_str to a phrase or sentence, and never let it cross a paragraph break. For a bigger change, make several small replacements.
 - To add or move a paragraph, use \`insert\` with a \`paragraph\` number (from \`view\`) and \`position\`. Paragraph numbers shift after an edit, so use the numbers in the tool result (or call \`view\` again) before your next placement.
 - Use \`highlight\` to point at a passage while you ask the writer about it.
@@ -38,8 +38,10 @@ function buildActivityNote(opts: {
 }): string | null {
 	const parts: string[] = [];
 	if (opts.scratchpadChanged && opts.scratchpad.trim().length > 0) {
+		// Lightweight flag only — the current scratchpad is available via `view`,
+		// so we don't push its (potentially large, ever-accumulating) text here.
 		parts.push(
-			`Source words — the writer's scratchpad now reads (you may quote any of this):\n"""\n${opts.scratchpad}\n"""`,
+			'The writer has edited their scratchpad since you last looked — call `view` to see the current source words before quoting from it.',
 		);
 	}
 	if (opts.selectedText.trim().length > 0) {
