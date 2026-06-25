@@ -1,30 +1,34 @@
 import {
 	generateText,
-	jsonSchema,
 	type ModelMessage,
 	isStepCount,
 	tool,
 } from 'ai';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AiOutlineSend } from 'react-icons/ai';
+import { z } from 'zod';
 
 import { OPENAI_MODEL, openai } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
 import { buildCorpus, validateText } from './corpus';
 import classes from './styles.module.css';
 
-const SYSTEM_PROMPT = `You are a writing collaborator working under one strict rule: you may edit the writer's document, but you may NEVER introduce your own words or phrases.
+const SYSTEM_PROMPT = `You are a writing tutor helping a writer develop their OWN writing. Two things define your role.
 
-Every word you place in the document must come from the writer's own corpus — the document, their scratchpad, and their messages to you — joined only by punctuation and a small closed set of glue words (a, an, the, and, or, of, to, in, on, ...). The harness enforces this: any str_replace or insert whose text is not lifted from the corpus is REJECTED and returned to you with an explanation.
+1) You never contribute words. Every word you place in the document must come from the writer's own corpus — the document, their scratchpad, and their messages to you — joined only by punctuation and a small closed set of glue words (a, an, the, and, or, of, to, in, on, ...). The harness enforces this: any edit whose text is not lifted from the corpus is REJECTED. Your edits only ever rearrange, tighten, or connect the writer's existing words; the ideas and the language stay theirs.
 
-How to work:
-- Use \`view\` to read the current document before editing. It numbers each paragraph like [3].
-- Use \`str_replace\` and \`insert\` to weave the writer's existing phrases into clearer prose. Reuse their exact wording; only add punctuation and glue words.
-- To add a new paragraph, prefer \`insert\` with a \`paragraph\` number (from \`view\`) and \`position\` — it is more reliable than anchoring on \`after\` text. Keep each edit to about a sentence.
-- When you need words you don't have, do NOT invent them. Ask the writer a short question, or use \`highlight\` to point at the passage you're asking about.
-- Take short turns. Your spoken replies must be one or two sentences — the writer sees them as fleeting captions, not a chat log.
+2) You are non-directive. Lead with curiosity, like a good tutor in a writing conference. Ask open questions about what the writer means, what they most want to say, how two ideas connect, what matters most here. Reflect their own words back to them. Draw out their thinking instead of prescribing a direction, and never impose your own thesis or opinion.
 
-Prefer asking the writer for their words over guessing. Never pad your replies.`;
+Hold these together: talk like a tutor (questions, reflection, encouragement) and edit like a careful hand arranging the writer's words. Favor one small, concrete move plus a question over a sweeping rewrite. When you are unsure what the writer wants, ask before editing.
+
+Working with the tools:
+- Use \`view\` to read the document; it numbers each paragraph like [3].
+- \`str_replace\` works on a SHORT span within a single paragraph — keep old_str to a phrase or sentence, and never let it cross a paragraph break. For a bigger change, make several small replacements.
+- To add or move a paragraph, use \`insert\` with a \`paragraph\` number (from \`view\`) and \`position\`. Paragraph numbers shift after an edit, so use the numbers in the tool result (or call \`view\` again) before your next placement.
+- Use \`highlight\` to point at a passage while you ask the writer about it.
+- When you need words you don't have, do NOT invent them — ask the writer for them.
+
+Take short turns. Your spoken replies are one or two sentences shown to the writer as fleeting captions, not a chat log. Never pad them.`;
 
 /** A turn's worth of lightweight signals about what the writer just did. */
 function buildActivityNote(opts: {
@@ -97,15 +101,35 @@ export default function MyWords() {
 				userMessages: messagesNow,
 			});
 
+		// Report what the document looks like right after an edit so the model
+		// can track paragraph-number shifts. Lightweight: total count + a 3-line
+		// window around the change, each line clipped.
+		const describeChange = async (probe: string): Promise<string> => {
+			const paragraphs = await editorAPI.getParagraphs();
+			const total = paragraphs.length;
+			const fragment = probe.trim().slice(0, 40);
+			const k = fragment
+				? paragraphs.findIndex((p) => p.includes(fragment))
+				: -1;
+			if (k === -1) {
+				return `Applied. The document now has ${total} paragraph(s).`;
+			}
+			const clip = (s: string) =>
+				s.length > 120 ? `${s.slice(0, 117)}…` : s;
+			const lo = Math.max(0, k - 1);
+			const hi = Math.min(total - 1, k + 1);
+			const window = paragraphs
+				.slice(lo, hi + 1)
+				.map((p, i) => `[${lo + i + 1}] ${clip(p)}`)
+				.join('\n');
+			return `Applied. The document now has ${total} paragraph(s); numbers may have shifted. Around your edit:\n${window}`;
+		};
+
 		const tools = {
 			view: tool({
 				description:
 					'Read the document. Each paragraph is prefixed with its 1-based number, e.g. [3], which you can target with the `insert` tool.',
-				inputSchema: jsonSchema<Record<string, never>>({
-					type: 'object',
-					properties: {},
-					additionalProperties: false,
-				}),
+				inputSchema: z.object({}),
 				execute: async () => {
 					const paragraphs = await editorAPI.getParagraphs();
 					if (!paragraphs.some((p) => p.trim().length > 0)) {
@@ -118,22 +142,18 @@ export default function MyWords() {
 			}),
 			str_replace: tool({
 				description:
-					"Replace the first occurrence of old_str with new_str. new_str must be lifted from the writer's corpus (plus glue words/punctuation).",
-				inputSchema: jsonSchema<{ old_str: string; new_str: string }>({
-					type: 'object',
-					properties: {
-						old_str: {
-							type: 'string',
-							description: 'Exact existing text to replace.',
-						},
-						new_str: {
-							type: 'string',
-							description:
-								"Replacement text, drawn from the writer's words.",
-						},
-					},
-					required: ['old_str', 'new_str'],
-					additionalProperties: false,
+					"Replace the first occurrence of old_str with new_str. old_str must be a SHORT span within a single paragraph (a phrase or sentence) and must not cross a paragraph break. new_str must be lifted from the writer's corpus (plus glue words/punctuation).",
+				inputSchema: z.object({
+					old_str: z
+						.string()
+						.describe(
+							'A short existing span to replace — a phrase or sentence within ONE paragraph. Must not span a paragraph break.',
+						),
+					new_str: z
+						.string()
+						.describe(
+							"Replacement text, drawn only from the writer's words plus glue/punctuation.",
+						),
 				}),
 				execute: async ({ old_str, new_str }) => {
 					const check = validateText(new_str, await makeCorpus());
@@ -146,47 +166,40 @@ export default function MyWords() {
 							oldStr: old_str,
 							newStr: new_str,
 						});
-						return 'Applied.';
+						return await describeChange(new_str);
 					} catch (e) {
-						return `Could not apply: ${(e as Error).message}`;
+						return `Could not apply: ${(e as Error).message} Keep old_str to a short span inside one paragraph (it cannot cross a paragraph break), or make the change as several smaller replacements.`;
 					}
 				},
 			}),
 			insert: tool({
 				description:
 					"Insert text, drawn from the writer's corpus (plus glue words/punctuation). To place a new paragraph reliably, pass `paragraph` (a number from `view`) and `position`. To add within an existing paragraph, pass `after` (existing text). With none of these, it inserts at the cursor.",
-				inputSchema: jsonSchema<{
-					text: string;
-					after?: string;
-					paragraph?: number;
-					position?: 'before' | 'after';
-				}>({
-					type: 'object',
-					properties: {
-						text: {
-							type: 'string',
-							description:
-								"Text to insert, drawn from the writer's words.",
-						},
-						after: {
-							type: 'string',
-							description:
-								'Existing text to insert right after (within a paragraph).',
-						},
-						paragraph: {
-							type: 'number',
-							description:
-								'1-based paragraph number from `view` to place a new paragraph relative to.',
-						},
-						position: {
-							type: 'string',
-							enum: ['before', 'after'],
-							description:
-								"Where to place it relative to `paragraph`. Defaults to 'after'.",
-						},
-					},
-					required: ['text'],
-					additionalProperties: false,
+				inputSchema: z.object({
+					text: z
+						.string()
+						.describe(
+							"Text to insert, drawn only from the writer's words plus glue/punctuation.",
+						),
+					after: z
+						.string()
+						.optional()
+						.describe(
+							'Existing text to insert right after (within a paragraph).',
+						),
+					paragraph: z
+						.number()
+						.int()
+						.optional()
+						.describe(
+							'1-based paragraph number from `view` to place a new paragraph relative to.',
+						),
+					position: z
+						.enum(['before', 'after'])
+						.optional()
+						.describe(
+							"Where to place it relative to `paragraph`. Defaults to 'after'.",
+						),
 				}),
 				execute: async ({ text, after, paragraph, position }) => {
 					const check = validateText(text, await makeCorpus());
@@ -201,7 +214,7 @@ export default function MyWords() {
 							paragraph,
 							position,
 						});
-						return 'Applied.';
+						return await describeChange(text);
 					} catch (e) {
 						return `Could not apply: ${(e as Error).message}`;
 					}
@@ -210,16 +223,10 @@ export default function MyWords() {
 			highlight: tool({
 				description:
 					'Select a passage in the document to point at it while asking the writer about it.',
-				inputSchema: jsonSchema<{ phrase: string }>({
-					type: 'object',
-					properties: {
-						phrase: {
-							type: 'string',
-							description: 'Existing text to highlight.',
-						},
-					},
-					required: ['phrase'],
-					additionalProperties: false,
+				inputSchema: z.object({
+					phrase: z
+						.string()
+						.describe('Existing text to highlight.'),
 				}),
 				execute: async ({ phrase }) => {
 					try {
