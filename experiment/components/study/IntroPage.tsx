@@ -33,12 +33,11 @@ export default function IntroPage() {
     <div className="max-w-2xl mx-auto p-8">
       <div className="space-y-6 mb-8">
         <section>
-          <h2 className="text-2xl font-semibold mb-3">Overview</h2>
-          <p className="text-gray-700 mb-4">
-            Thank you for participating in this research study about AI writing
-            assistance. Your contributions will help us understand how writers
-            interact with AI tools.
-          </p>
+          <h2 className="text-2xl font-semibold mb-3">Hi!</h2>
+				<p>We&apos;re a group of students and one professor at Calvin University, a small mostly-undergrad school in Grand Rapids, Michigan.</p>
+				<p>We&apos;ve been interested in how different kinds of AI affect what&mdash;and how&mdash;people write.</p>
+				<p>In this study, we will explore how AI writing tools influence your writing process and outcomes.</p>
+				<p>Thank you for helping us out!</p>
         </section>
 
         <section>
@@ -50,6 +49,12 @@ export default function IntroPage() {
             <li>Complete a follow-up questionnaire about your experience</li>
           </ol>
         </section>
+          <p className="text-gray-700 mb-4">
+            Thank you for participating in this research study about AI writing
+            assistance. Your contributions will help us understand how writers
+            interact with AI tools.
+          </p>
+				<p>Ready?</p>
       </div>
 
       <button
