@@ -83,7 +83,8 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 - `app/api/log/route.ts` - Event logging endpoint
 
 ### Pages (IMPORTANT: Don't confuse these!)
-- `app/page.tsx` - **Standalone demo** for AI writing assistance only (NO chat, NOT used in study)
+- `app/page.tsx` - **Landing/index page** (dev navigation only; links to the study and the demo)
+- `app/demo/page.tsx` - **Standalone demo** for AI writing assistance only (NO chat, NOT used in study)
 - `components/study/TaskPage.tsx` - **Actual study task page** with collapsible chat + AI panel
 
 ### Timing for the Simulated Colleague
@@ -118,7 +119,7 @@ Run dev server:
 npm run dev
 ```
 
-Open http://localhost:3000
+Open http://localhost:3000 (landing page; the study is at `/study?...`, the demo at `/demo`)
 
 ## Project Structure
 
@@ -126,8 +127,10 @@ Open http://localhost:3000
 experiment/
 ├── app/
 │   ├── api/           # API routes (chat, writing-support)
+│   ├── demo/          # Standalone AI-suggestions demo (no chat)
+│   ├── study/         # The actual study flow (consent → task → surveys)
 │   ├── layout.tsx     # Root layout
-│   └── page.tsx       # Main page
+│   └── page.tsx       # Landing/index page (links to study + demo)
 ├── components/        # React components
 ├── contexts/          # Context providers
 ├── lib/               # Utilities
@@ -157,7 +160,8 @@ npm test            # Run tests
 ## Key Files
 
 - **API Routes**: `app/api/` (chat, writing-support endpoints)
-- **Demo Page**: `app/page.tsx` (standalone AI demo, NO chat)
+- **Landing Page**: `app/page.tsx` (dev index; links to study + demo)
+- **Demo Page**: `app/demo/page.tsx` (standalone AI demo, NO chat)
 - **Study Task Page**: `components/study/TaskPage.tsx` (the actual study with chat)
 - **Components**: `components/` folder
 
