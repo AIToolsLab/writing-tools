@@ -1,7 +1,7 @@
 import { PostHogProvider, PostHogErrorBoundary } from '@posthog/react';
 import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
-import { useContext, useState } from 'react';
+import { useState } from 'react';
 import { CgGoogle } from 'react-icons/cg';
 import {
 	AppAuthProvider,
@@ -9,7 +9,6 @@ import {
 	useAppAuth,
 } from '@/contexts/appAuthContext';
 import { useAccessToken } from '@/contexts/authTokenContext';
-import { EditorContext } from '@/contexts/editorContext';
 import ChatContextWrapper from '@/contexts/chatContext';
 import {
 	OverallMode,
@@ -44,8 +43,6 @@ function DeviceAuthStatus({
 		error?: string;
 	};
 }) {
-	const editorAPI = useContext(EditorContext);
-
 	if (!authorization) return null;
 
 	if (authorization.status === 'error') {
@@ -89,7 +86,7 @@ function DeviceAuthStatus({
 			</p>
 			{authorization.verificationUri ? (
 				<p style={{ margin: '0.25rem 0 0.75rem' }}>
-					<a href={authorization.verificationUri!} target="_blank">Open approval page</a>
+					<a href={authorization.verificationUri} target="_blank" rel="noopener">Open approval page</a>
 				</p>
 			) : null}
 			<p>Open the approval page and enter the code above to continue.</p>
