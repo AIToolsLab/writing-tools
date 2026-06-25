@@ -2,7 +2,7 @@ import {
 	generateText,
 	jsonSchema,
 	type ModelMessage,
-	stepCountIs,
+	isStepCount,
 	tool,
 } from 'ai';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
@@ -235,15 +235,15 @@ export default function MyWords() {
 		try {
 			const result = await generateText({
 				model: openai.chat(OPENAI_MODEL),
-				system: SYSTEM_PROMPT,
+				instructions: SYSTEM_PROMPT,
 				messages: modelMessagesRef.current,
 				tools,
-				stopWhen: stepCountIs(8),
+				stopWhen: isStepCount(8),
 				// Visibility: log every tool call + its result as each step
 				// resolves. Tool failures (REJECTED / "Could not apply…" /
 				// search misses) are returned to the model as strings, so they
 				// never throw — without this they'd be invisible here.
-				onStepFinish: (step) => {
+				onStepEnd: (step) => {
 					for (const call of step.toolCalls) {
 						const res = step.toolResults.find(
 							(r) => r.toolCallId === call.toolCallId,
