@@ -1,4 +1,4 @@
-import { useCallback, useContext, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 import { OPENAI_MODEL, openai } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
@@ -29,6 +29,30 @@ export default function MyWords() {
 	// The writer's scratchpad persists across a strategy switch; the session
 	// (conversation + caption) resets, via the keyed <LiveSession> below.
 	const [scratchpad, setScratchpad] = useState('');
+
+	// Load the persisted scratchpad once, then debounce-save on change so it
+	// survives the frequent dev reloads (and, in Word, travels with the file).
+	const [loaded, setLoaded] = useState(false);
+	useEffect(() => {
+		let active = true;
+		editor
+			.loadScratchpad()
+			.then((text) => {
+				if (active) setScratchpad(text);
+			})
+			.catch(() => {})
+			.finally(() => {
+				if (active) setLoaded(true);
+			});
+		return () => {
+			active = false;
+		};
+	}, [editor]);
+	useEffect(() => {
+		if (!loaded) return;
+		const id = setTimeout(() => void editor.saveScratchpad(scratchpad), 800);
+		return () => clearTimeout(id);
+	}, [scratchpad, loaded, editor]);
 
 	return (
 		<div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>

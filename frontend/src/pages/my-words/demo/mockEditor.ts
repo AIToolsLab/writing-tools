@@ -59,6 +59,10 @@ export class MockEditor implements EditorAPI {
 		this.emit();
 	};
 
+	// The demo seeds the scratchpad from its scenario; no persistence.
+	loadScratchpad = async () => '';
+	saveScratchpad = async () => {};
+
 	/** Subscribe to document/selection changes; returns an unsubscribe. */
 	subscribe = (cb: () => void): (() => void) => {
 		this.listeners.add(cb);

@@ -245,4 +245,25 @@ export const wordEditorAPI: EditorAPI = {
 			await context.sync();
 		});
 	},
+
+	/**
+	 * Persist the scratchpad in the document's add-in settings, so it travels
+	 * with the .docx and survives reloads. Plain text is well within the size
+	 * settings comfortably hold.
+	 */
+	async loadScratchpad(): Promise<string> {
+		const v = Office.context.document.settings.get('mywords-scratchpad');
+		return typeof v === 'string' ? v : '';
+	},
+
+	saveScratchpad(text: string): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			const settings = Office.context.document.settings;
+			settings.set('mywords-scratchpad', text);
+			settings.saveAsync((res) => {
+				if (res.status === Office.AsyncResultStatus.Succeeded) resolve();
+				else reject(res.error);
+			});
+		});
+	},
 };

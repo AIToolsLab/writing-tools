@@ -8,6 +8,7 @@ import LexicalEditor, { type EditorControls } from './editor';
 import './styles.css';
 import classes from './styles.module.css';
 import { EditorContext } from '@/contexts/editorContext';
+import { loadScratchpadLocal, saveScratchpadLocal } from '@/api/scratchpadStore';
 
 function Sidebar() {
 	return <SidebarInner.default />;
@@ -143,6 +144,8 @@ export function EditorScreen({
 			controls.setText(next);
 			return Promise.resolve();
 		},
+		loadScratchpad: () => loadScratchpadLocal(),
+		saveScratchpad: (text: string) => saveScratchpadLocal(text),
 	}), []);
 
 	const docUpdated = (docContext: DocContext) => {

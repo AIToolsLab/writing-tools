@@ -1,5 +1,7 @@
 import { createContext } from 'react';
 
+import { loadScratchpadLocal, saveScratchpadLocal } from '@/api/scratchpadStore';
+
 // Provides editor API functionality through context
 export const EditorContext = createContext<EditorAPI>({
 	getDocContext: () =>
@@ -22,4 +24,6 @@ export const EditorContext = createContext<EditorAPI>({
 		console.warn('applyEdit is not implemented yet');
 		return Promise.resolve();
 	},
+	loadScratchpad: () => loadScratchpadLocal(),
+	saveScratchpad: (text: string) => saveScratchpadLocal(text),
 });

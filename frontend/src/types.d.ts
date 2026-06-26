@@ -67,6 +67,14 @@ interface EditorAPI {
 	getParagraphs(this: void): Promise<string[]>;
 	/** Apply a validated edit to the document. */
 	applyEdit(this: void, edit: DocEdit): Promise<void>;
+	/**
+	 * Load the persisted "My Words" scratchpad, or '' if none. Each host picks
+	 * its own store — Word uses document.settings (travels with the file), other
+	 * hosts use localStorage. Survives add-in reloads.
+	 */
+	loadScratchpad(this: void): Promise<string>;
+	/** Persist the scratchpad text. Callers should debounce. */
+	saveScratchpad(this: void, text: string): Promise<void>;
 }
 
 interface ReflectionResponseItem {
