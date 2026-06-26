@@ -13,8 +13,7 @@
  */
 
 import { applyEditOp } from '../editor';
-import { describeOp } from '../ops';
-import { advanceToDecision, validateOp } from '../shared';
+import { advanceToDecision, locateProposal, validateOp } from '../shared';
 import type { InteractionStrategy, PendingProposal } from '../types';
 
 export function createProposeStrategy(): InteractionStrategy {
@@ -73,9 +72,20 @@ export function createProposeStrategy(): InteractionStrategy {
 					continue;
 				}
 
-				// Stage without applying. Leave the tool call open: the writer's
-				// next decision becomes its result.
-				const summary = describeOp(action.op);
+				// Stage without applying. Point at the spot in the document so the
+				// writer can see *where* before deciding, and leave the tool call
+				// open: the writer's next decision becomes its result.
+				const { highlight, summary } = await locateProposal(
+					ctx.editor,
+					action.op,
+				);
+				if (highlight) {
+					try {
+						await ctx.editor.selectPhrase(highlight);
+					} catch {
+						/* best-effort: the doc may not contain it verbatim */
+					}
+				}
 				pending = { op: action.op, summary, say: move.say ?? summary };
 				return {
 					caption: pending.say,

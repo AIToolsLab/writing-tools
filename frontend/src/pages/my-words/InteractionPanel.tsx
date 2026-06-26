@@ -85,7 +85,13 @@ export function InteractionPanel(props: InteractionPanelProps) {
 
 			{awaiting === 'decision' && pending ? (
 				<div className={classes.proposal}>
-					<div className={classes.proposalSummary}>{pending.summary}</div>
+					<div className={classes.proposalSay}>{pending.say}</div>
+					<div className={classes.proposalSummary}>
+						{pending.summary}
+						<span className={classes.proposalWhere}>
+							{' '}— highlighted in your document
+						</span>
+					</div>
 					<div className={classes.proposalActions}>
 						<button
 							type="button"

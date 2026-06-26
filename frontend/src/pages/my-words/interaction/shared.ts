@@ -8,7 +8,56 @@
  */
 
 import { validateText, type Corpus } from '../corpus';
+import { describeOp } from './ops';
 import type { AssistantMove, EditOp, Responder, StrategyContext } from './types';
+
+const clip = (s: string, n = 40) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+
+/**
+ * For a staged edit, decide what to point at in the document and how to describe
+ * the change so the writer can see *where* before deciding. We highlight one end
+ * (the change site, or the destination for inserts/moves) and name the other end
+ * in the summary, so source and destination are both concrete.
+ */
+export async function locateProposal(
+	editor: EditorAPI,
+	op: EditOp,
+): Promise<{ highlight?: string; summary: string }> {
+	if (op.kind === 'str_replace') {
+		// The site IS the source span — point there; the summary shows old → new.
+		return { highlight: op.oldStr, summary: describeOp(op) };
+	}
+
+	const where = (op.position ?? 'after') === 'before' ? 'before' : 'after';
+
+	if (op.kind === 'insert') {
+		if (op.after !== undefined) {
+			return {
+				highlight: op.after,
+				summary: `Add “${clip(op.text)}” after “${clip(op.after)}”`,
+			};
+		}
+		if (op.paragraph !== undefined) {
+			const target = (await editor.getParagraphs())[op.paragraph - 1] ?? '';
+			return {
+				highlight: target || undefined,
+				summary: target
+					? `Add “${clip(op.text)}” ${where} “${clip(target)}”`
+					: `Add “${clip(op.text)}”`,
+			};
+		}
+		return { summary: `Add “${clip(op.text)}” at the end` };
+	}
+
+	// move: point at the destination (the "new spot"); name the source phrase.
+	const target = (await editor.getParagraphs())[op.paragraph - 1] ?? '';
+	return {
+		highlight: target || undefined,
+		summary: target
+			? `Move “${clip(op.phrase)}” ${where} “${clip(target)}”`
+			: `Move “${clip(op.phrase)}”`,
+	};
+}
 
 /** Render the document for the `view` tool: paragraphs numbered [1], [2], … */
 export async function viewText(editor: EditorAPI): Promise<string> {

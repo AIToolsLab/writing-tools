@@ -125,9 +125,21 @@
 	border-radius: 8px;
 	background: #eef2ff;
 }
+.proposalSay {
+	font-size: 0.9rem;
+	color: #1e1b4b;
+	line-height: 1.35;
+}
 .proposalSummary {
-	font-size: 0.85rem;
-	color: #312e81;
+	font-size: 0.8rem;
+	color: #4338ca;
+	background: #e0e7ff;
+	padding: 0.3rem 0.45rem;
+	border-radius: 6px;
+}
+.proposalWhere {
+	color: #6366f1;
+	font-style: italic;
 }
 .proposalActions {
 	display: flex;
