@@ -93,6 +93,72 @@
 	font-size: 0.85rem;
 }
 
+/* Inline thinking pulse next to the caption (feedthrough while acting). */
+.captionDots {
+	display: inline-flex;
+	gap: 4px;
+	margin-left: 8px;
+}
+.captionDots span {
+	width: 5px;
+	height: 5px;
+	border-radius: 50%;
+	background: #9ca3af;
+	animation: blink 1.4s infinite both;
+}
+.captionDots span:nth-child(2) {
+	animation-delay: 0.2s;
+}
+.captionDots span:nth-child(3) {
+	animation-delay: 0.4s;
+}
+
+/* A staged edit awaiting the writer's consent (Propose). */
+.proposal {
+	flex: 0 0 auto;
+	display: flex;
+	flex-direction: column;
+	gap: 0.5rem;
+	padding: 0.6rem 0.75rem;
+	border: 1px solid #c7d2fe;
+	border-left: 3px solid #6366f1;
+	border-radius: 8px;
+	background: #eef2ff;
+}
+.proposalSummary {
+	font-size: 0.85rem;
+	color: #312e81;
+}
+.proposalActions {
+	display: flex;
+	gap: 0.5rem;
+}
+.accept,
+.reject {
+	flex: 1 1 auto;
+	padding: 0.4rem 0.6rem;
+	border: none;
+	border-radius: 6px;
+	font-size: 0.85rem;
+	cursor: pointer;
+}
+.accept {
+	background: #4f46e5;
+	color: #fff;
+}
+.reject {
+	background: #e5e7eb;
+	color: #374151;
+}
+
+/* The "press Enter to carry out the next move" affordance (Walkthrough). */
+.continueHint {
+	flex: 0 0 auto;
+	font-size: 0.78rem;
+	color: #4f46e5;
+	padding: 0 0.25rem;
+}
+
 .inputRow {
 	flex: 0 0 auto;
 	display: flex;

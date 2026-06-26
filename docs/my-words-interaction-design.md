@@ -182,6 +182,32 @@ once means we won't know which fixed it, and the loop is the bigger lever.
   `buildActivityNote` / `describeChange` and the dropped-tool-results bookkeeping.
 - Trim `SYSTEM_PROMPT` to stance, not rules.
 
+## 5b. Prototype (built)
+
+This direction is implemented as two comparable interaction models behind a
+shared seam, plus a self-playing demo that records side-by-side video.
+
+- **Seam.** `frontend/src/pages/my-words/interaction/` — `types.ts` defines the
+  `Responder` (where moves come from) and `InteractionStrategy` (what we do with
+  them) seams; `liveResponder.ts` drives the model one step at a time with
+  manual, no-`execute` tools so the *strategy* — not the SDK — owns commitment;
+  `useInteraction.ts` is the React glue; `ops.ts` holds the pure paragraph ops
+  (incl. `move`) shared by apply and preview.
+- **The two models** occupy opposite ends of the *commitment* axis (not step
+  count): `strategies/walkthrough.ts` (optimistic — edits land, the writer
+  steers, the next move is pre-named for a one-tap continuer) and
+  `strategies/propose.ts` (pessimistic — each edit is staged behind an
+  accept/decline gate; the writer's verdict becomes the model's tool result).
+- **Try it live.** The My Words page (`index.tsx`) has a Walkthrough/Propose
+  toggle; `view` is document-only and the scratchpad reaches the model as text.
+- **Playback/video.** `demo/` mounts the *real* panel + strategy against an
+  in-memory editor and a scripted responder, playing one scenario authored for
+  both models (`demo/scenarios.ts`). `npm run build` then
+  `npx playwright test mywords-demo` writes `frontend/mywords-videos/{walkthrough,propose}.webm`.
+  The scenario is the same text and the same three moves; under Propose the
+  writer *declines* the last one, so the documents — and the videos — visibly
+  diverge.
+
 ## 6. Open questions
 
 - How eager should next-move pre-loading be (stated-in-words vs. background

@@ -104,7 +104,8 @@ export default defineConfig(async ({ mode }) => {
 					taskpane: path.resolve(__dirname, 'taskpane.html'),
 					editor: path.resolve(__dirname, 'editor.html'),
 					logs: path.resolve(__dirname, 'logs.html'),
-					commands: path.resolve(__dirname, 'commands.html')
+					commands: path.resolve(__dirname, 'commands.html'),
+					'mywords-demo': path.resolve(__dirname, 'mywords-demo.html')
 				},
 				output: {
 					manualChunks: {
