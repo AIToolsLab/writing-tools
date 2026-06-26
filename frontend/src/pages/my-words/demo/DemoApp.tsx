@@ -64,18 +64,18 @@ export default function DemoApp() {
 	);
 	const strategy = useMemo(() => scenario.strategy(), [scenario]);
 
-	const [sentMessages, setSentMessages] = useState<string[]>([]);
-	const messagesRef = useRef(sentMessages);
-	messagesRef.current = sentMessages;
+	// Sent messages are appended to the scratchpad (the writer's word bank).
+	const [scratchpad, setScratchpad] = useState(scenario.scratchpad);
+	const scratchpadRef = useRef(scratchpad);
+	scratchpadRef.current = scratchpad;
 
 	const corpus = useCallback(
 		async () =>
 			buildCorpus({
 				docText: await editor.getDocText(),
-				scratchpad: scenario.scratchpad,
-				userMessages: messagesRef.current,
+				scratchpad: scratchpadRef.current,
 			}),
-		[editor, scenario],
+		[editor],
 	);
 
 	const { caption, awaiting, pending, isThinking, submit } = useInteraction({
@@ -99,7 +99,11 @@ export default function DemoApp() {
 				if (cancelled) return;
 				if (act.input.type === 'message') {
 					const line = act.display ?? act.input.text;
-					setSentMessages((prev) => [...prev, line]);
+					const next = scratchpadRef.current
+						? `${scratchpadRef.current}\n${line}`
+						: line;
+					scratchpadRef.current = next;
+					setScratchpad(next);
 				}
 				await submit(act.input);
 			}
@@ -128,9 +132,8 @@ export default function DemoApp() {
 						isThinking={isThinking}
 						awaiting={awaiting}
 						pending={pending}
-						scratchpad={scenario.scratchpad}
+						scratchpad={scratchpad}
 						onScratchpadChange={() => {}}
-						sentMessages={sentMessages}
 						input=""
 						onInputChange={() => {}}
 						onSend={() => {}}

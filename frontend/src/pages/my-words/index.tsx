@@ -80,14 +80,12 @@ function LiveSession(props: {
 	onScratchpadChange: (v: string) => void;
 }) {
 	const { strategyKey, editor, scratchpad, onScratchpadChange } = props;
-	const [sentMessages, setSentMessages] = useState<string[]>([]);
 	const [input, setInput] = useState('');
 
-	// Latest values for the corpus builder and scratchpad-delta note.
+	// Latest scratchpad for the corpus builder. The writer's sent messages are
+	// appended to the scratchpad (see onSend), so it is the whole word bank.
 	const scratchpadRef = useRef(scratchpad);
 	scratchpadRef.current = scratchpad;
-	const messagesRef = useRef(sentMessages);
-	messagesRef.current = sentMessages;
 	const lastSentScratchpad = useRef('');
 
 	const corpus = useCallback(
@@ -95,7 +93,6 @@ function LiveSession(props: {
 			buildCorpus({
 				docText: await editor.getDocText(),
 				scratchpad: scratchpadRef.current,
-				userMessages: messagesRef.current,
 			}),
 		[editor],
 	);
@@ -126,18 +123,24 @@ function LiveSession(props: {
 	const onSend = useCallback(() => {
 		const text = input.trim();
 		if (!text) return;
+		// The writer's message is part of their words: append it to the
+		// scratchpad. Keep the ref in sync now so the corpus sees it this turn.
+		const newScratch = scratchpadRef.current
+			? `${scratchpadRef.current}\n${text}`
+			: text;
+		scratchpadRef.current = newScratch;
+		onScratchpadChange(newScratch);
+		setInput('');
 		// Surface the scratchpad to the model as text when it has changed —
-		// `view` is document-only now, so this is how its words reach the model.
-		const scratch = scratchpadRef.current.trim();
+		// `view` is document-only, so this is how its words reach the model.
+		const scratch = newScratch.trim();
 		const note =
 			scratch && scratch !== lastSentScratchpad.current
-				? `(My scratchpad now reads:\n${scratch}\n)\n\n`
+				? `(My words so far:\n${scratch}\n)\n\n`
 				: '';
 		lastSentScratchpad.current = scratch;
-		setSentMessages((prev) => [...prev, text]);
-		setInput('');
 		void submit({ type: 'message', text: `${note}${text}` });
-	}, [input, submit]);
+	}, [input, submit, onScratchpadChange]);
 
 	return (
 		<InteractionPanel
@@ -147,7 +150,6 @@ function LiveSession(props: {
 			pending={pending}
 			scratchpad={scratchpad}
 			onScratchpadChange={onScratchpadChange}
-			sentMessages={sentMessages}
 			input={input}
 			onInputChange={setInput}
 			onSend={onSend}

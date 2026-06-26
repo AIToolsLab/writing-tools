@@ -1,8 +1,14 @@
 /**
- * Presentational panel for the My Words interaction — caption, scratchpad,
- * the writer's sent lines, a staged proposal's accept/decline, the continuer
- * affordance, and the input row. Pure props in, callbacks out, so the live page
- * and the demo harness render the exact same surface.
+ * Presentational panel for the My Words interaction.
+ *
+ * Layout: the writer's words (scratchpad) fill the top and grow; everything
+ * conversational lives in one zone at the bottom, next to where they reply — the
+ * model's fleeting utterance (or a staged proposal) just above the input.
+ *
+ * The model's speech is rendered non-selectable: it contributes no words to the
+ * document, so the writer shouldn't be able to lift its phrasing. Sent messages
+ * aren't shown separately — the page appends them to the scratchpad, since they
+ * are part of the writer's word bank too.
  */
 
 import { AiOutlineSend } from 'react-icons/ai';
@@ -17,7 +23,6 @@ export interface InteractionPanelProps {
 	pending: PendingProposal | null;
 	scratchpad: string;
 	onScratchpadChange: (v: string) => void;
-	sentMessages: string[];
 	input: string;
 	onInputChange: (v: string) => void;
 	onSend: () => void;
@@ -36,7 +41,6 @@ export function InteractionPanel(props: InteractionPanelProps) {
 		pending,
 		scratchpad,
 		onScratchpadChange,
-		sentMessages,
 		input,
 		onInputChange,
 		onSend,
@@ -47,20 +51,10 @@ export function InteractionPanel(props: InteractionPanelProps) {
 	} = props;
 
 	const blocked = disabled || isThinking;
+	const showProposal = awaiting === 'decision' && pending;
 
 	return (
 		<div className={classes.page}>
-			<div className={classes.aiCaption} aria-live="polite">
-				<span>{caption}</span>
-				{isThinking ? (
-					<span className={classes.captionDots} aria-hidden>
-						<span />
-						<span />
-						<span />
-					</span>
-				) : null}
-			</div>
-
 			<label className={classes.scratchLabel} htmlFor="mywords-scratchpad">
 				Your words — scratchpad
 			</label>
@@ -73,88 +67,97 @@ export function InteractionPanel(props: InteractionPanelProps) {
 				onChange={(e) => onScratchpadChange(e.target.value)}
 			/>
 
-			{sentMessages.length > 0 ? (
-				<div className={classes.saidList}>
-					{sentMessages.map((m, i) => (
-						<div key={i} className={classes.said}>
-							{m}
+			<div className={classes.exchange}>
+				{/* The model's speech: fleeting and non-selectable. When a proposal
+				    is staged the card below carries its words instead. */}
+				{!showProposal ? (
+					<div className={classes.aiUtterance} aria-live="polite">
+						<span className={classes.aiUtteranceText}>{caption}</span>
+						{isThinking ? (
+							<span className={classes.captionDots} aria-hidden>
+								<span />
+								<span />
+								<span />
+							</span>
+						) : null}
+					</div>
+				) : null}
+
+				{showProposal ? (
+					<div className={classes.proposal}>
+						<div className={classes.proposalSay}>{pending.say}</div>
+						<div className={classes.proposalSummary}>
+							{pending.summary}
+							<span className={classes.proposalWhere}>
+								{' '}— highlighted in your document
+							</span>
 						</div>
-					))}
-				</div>
-			) : null}
-
-			{awaiting === 'decision' && pending ? (
-				<div className={classes.proposal}>
-					<div className={classes.proposalSay}>{pending.say}</div>
-					<div className={classes.proposalSummary}>
-						{pending.summary}
-						<span className={classes.proposalWhere}>
-							{' '}— highlighted in your document
-						</span>
+						<div className={classes.proposalActions}>
+							<button
+								type="button"
+								className={classes.accept}
+								disabled={blocked}
+								onClick={onAccept}
+							>
+								Accept
+							</button>
+							<button
+								type="button"
+								className={classes.reject}
+								disabled={blocked}
+								onClick={onReject}
+							>
+								Not yet
+							</button>
+						</div>
 					</div>
-					<div className={classes.proposalActions}>
-						<button
-							type="button"
-							className={classes.accept}
-							disabled={blocked}
-							onClick={onAccept}
-						>
-							Accept
-						</button>
-						<button
-							type="button"
-							className={classes.reject}
-							disabled={blocked}
-							onClick={onReject}
-						>
-							Not yet
-						</button>
+				) : null}
+
+				{awaiting === 'continue' ? (
+					<div className={classes.continueHint}>
+						Press Enter to let it make the next move — or type to steer.
 					</div>
-				</div>
-			) : null}
+				) : null}
 
-			{awaiting === 'continue' ? (
-				<div className={classes.continueHint}>
-					Press Enter to let it make the next move — or type to steer.
-				</div>
-			) : null}
-
-			<form
-				className={classes.inputRow}
-				onSubmit={(e) => {
-					e.preventDefault();
-					if (blocked) return;
-					if (input.trim()) onSend();
-					else if (awaiting === 'continue') onContinue();
-				}}
-			>
-				<textarea
-					className={classes.input}
-					placeholder={
-						awaiting === 'continue'
-							? 'Enter to continue, or say what to do instead…'
-							: 'Say what you want to do…'
-					}
-					value={input}
-					rows={1}
-					disabled={blocked}
-					onChange={(e) => onInputChange(e.target.value)}
-					onKeyDown={(e) => {
-						if (e.key === 'Enter' && !e.shiftKey) {
-							e.preventDefault();
-							e.currentTarget.form?.requestSubmit();
-						}
+				<form
+					className={classes.inputRow}
+					onSubmit={(e) => {
+						e.preventDefault();
+						if (blocked) return;
+						if (input.trim()) onSend();
+						else if (awaiting === 'continue') onContinue();
 					}}
-				/>
-				<button
-					type="submit"
-					className={classes.sendBtn}
-					title="Send"
-					disabled={blocked || (!input.trim() && awaiting !== 'continue')}
 				>
-					<AiOutlineSend size={18} />
-				</button>
-			</form>
+					<textarea
+						className={classes.input}
+						placeholder={
+							awaiting === 'continue'
+								? 'Enter to continue, or say what to do instead…'
+								: 'Say what you want to do…'
+						}
+						value={input}
+						rows={1}
+						disabled={blocked}
+						onChange={(e) => onInputChange(e.target.value)}
+						onKeyDown={(e) => {
+							if (e.key === 'Enter' && !e.shiftKey) {
+								e.preventDefault();
+								e.currentTarget.form?.requestSubmit();
+							}
+						}}
+					/>
+					<button
+						type="submit"
+						className={classes.sendBtn}
+						title="Send"
+						disabled={
+							blocked || (!input.trim() && awaiting !== 'continue')
+						}
+					>
+						<AiOutlineSend size={18} />
+					</button>
+				</form>
+			</div>
 		</div>
 	);
 }
