@@ -21,7 +21,7 @@ const BASE_PROMPT = `You help a writer shape their OWN words. You never contribu
 
 Work like a tutor in a writing conference: curious, reflective, non-directive. Make ONE small, concrete move at a time — a single edit, or a short spoken question — then hand the floor back. Prefer moving and tightening the writer's existing words over piling on new material. Spoken replies are one or two sentences, shown as fleeting captions — never pad them.
 
-Tools: \`view\` (read the numbered document), \`str_replace\`/\`insert\`/\`move\` (small edits, drawn from the writer's words), \`highlight\` (point at a passage). Re-\`view\` before an edit when paragraph numbers may have shifted.`;
+Tools: \`view\` (read the numbered document), \`str_replace\`/\`insert\`/\`move\` (small edits, drawn from the writer's words), \`highlight\` (point at a passage). Re-\`view\` before an edit when paragraph numbers may have shifted. Those bracketed numbers like [2] are an internal coordinate for your tools only — never say them to the writer; refer to a passage by quoting its words or by \`highlight\`ing it.`;
 
 const tools = {
 	view: tool({
@@ -114,7 +114,9 @@ export interface LiveResponderOptions {
 export function createLiveResponder(opts: LiveResponderOptions): Responder {
 	const system = `${BASE_PROMPT}\n\n${opts.modePrompt}`;
 	const messages: ModelMessage[] = [];
-	let pending: { toolCallId: string; toolName: string } | null = null;
+	// Every tool call in a step needs a result before the next step, or the API
+	// rejects the conversation. We act on the first and acknowledge the rest.
+	let pending: { toolCallId: string; toolName: string }[] = [];
 
 	return {
 		pushWriter(text: string) {
@@ -128,34 +130,50 @@ export function createLiveResponder(opts: LiveResponderOptions): Responder {
 				messages,
 				tools,
 				stopWhen: isStepCount(1),
+				// One move at a time: don't let the model fan out parallel calls.
+				providerOptions: { openai: { parallelToolCalls: false } },
 			});
 			messages.push(...result.response.messages);
 
-			const call = result.toolCalls[0];
+			const calls = result.toolCalls;
 			const say = result.text.trim() || undefined;
-			if (!call) {
-				pending = null;
+			if (calls.length === 0) {
+				pending = [];
 				return { say };
 			}
-			pending = { toolCallId: call.toolCallId, toolName: call.toolName };
-			const action = toAction(call.toolName, call.input) ?? undefined;
+			pending = calls.map((c) => ({
+				toolCallId: c.toolCallId,
+				toolName: c.toolName,
+			}));
+			const primary = calls[0];
+			const action = toAction(primary.toolName, primary.input) ?? undefined;
 			return { say, action };
 		},
 
 		recordToolResult(text: string) {
-			if (!pending) return;
-			messages.push({
-				role: 'tool',
-				content: [
-					{
-						type: 'tool-result',
-						toolCallId: pending.toolCallId,
-						toolName: pending.toolName,
-						output: { type: 'text', value: text },
-					},
-				],
+			// Close out the primary call with the real outcome, and every extra
+			// call (a model that fanned out anyway) with a filler, so the message
+			// history stays valid.
+			pending.forEach((p, i) => {
+				messages.push({
+					role: 'tool',
+					content: [
+						{
+							type: 'tool-result',
+							toolCallId: p.toolCallId,
+							toolName: p.toolName,
+							output: {
+								type: 'text',
+								value:
+									i === 0
+										? text
+										: 'Skipped — one move at a time.',
+							},
+						},
+					],
+				});
 			});
-			pending = null;
+			pending = [];
 		},
 	};
 }

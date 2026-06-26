@@ -15,7 +15,13 @@ export async function viewText(editor: EditorAPI): Promise<string> {
 	const paragraphs = await editor.getParagraphs();
 	if (!paragraphs.some((p) => p.trim().length > 0))
 		return '(the document is empty)';
-	return paragraphs.map((p, i) => `[${i + 1}] ${p}`).join('\n');
+	// Skip blank paragraphs (they burn tokens), but keep each kept paragraph's
+	// real 1-based number so `insert`/`move` targeting still lines up.
+	return paragraphs
+		.map((p, i) => ({ n: i + 1, text: p }))
+		.filter((x) => x.text.trim().length > 0)
+		.map((x) => `[${x.n}] ${x.text}`)
+		.join('\n');
 }
 
 /** A brief, post-edit confirmation the model can use to track the doc. */

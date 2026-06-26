@@ -104,7 +104,7 @@ export function describeOp(op: EditOp): string {
 		case 'insert':
 			return `Add “${clip(op.text)}”`;
 		case 'move':
-			return `Move “${clip(op.phrase)}” to paragraph ${op.paragraph}`;
+			return `Move “${clip(op.phrase)}” to a new spot`;
 	}
 }
 
