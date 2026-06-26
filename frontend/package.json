@@ -47,7 +47,6 @@
 	},
 	"dependencies": {
 		"@ai-sdk/openai": "^2.0.0",
-		"@auth0/auth0-react": "^2.2.4",
 		"@lexical/react": "^0.16.1",
 		"@posthog/react": "^1.9.0",
 		"@react-hook/window-size": "^3.1.1",
