@@ -12,13 +12,8 @@
  * docs/my-words-interaction-design.md.
  */
 
-import { applyEditOp } from '../editor';
 import { describeOp } from '../ops';
-import {
-	advanceToDecision,
-	describeChange,
-	validateOp,
-} from '../shared';
+import { advanceToDecision, applyOpAndReport, validateOp } from '../shared';
 import type { InteractionStrategy } from '../types';
 
 export function createWalkthroughStrategy(): InteractionStrategy {
@@ -32,9 +27,9 @@ export function createWalkthroughStrategy(): InteractionStrategy {
 				input.type === 'message' ? input.text : 'ok — go on.',
 			);
 
-			// Up to two attempts to land a *valid* edit; a rejection is fed back so
-			// the model can rephrase using the writer's words.
-			for (let attempt = 0; attempt < 2; attempt++) {
+			// A few attempts to land a *valid* edit; a rejection or a failed apply
+			// (e.g. stale paragraph number) is fed back so the model can re-orient.
+			for (let attempt = 0; attempt < 3; attempt++) {
 				const move = await advanceToDecision(ctx);
 				const action = move.action;
 
@@ -50,8 +45,9 @@ export function createWalkthroughStrategy(): InteractionStrategy {
 					continue;
 				}
 
-				await applyEditOp(ctx.editor, action.op);
-				ctx.responder.recordToolResult(await describeChange(ctx.editor));
+				const result = await applyOpAndReport(ctx, action.op);
+				ctx.responder.recordToolResult(result.report);
+				if (!result.ok) continue;
 				return {
 					caption: move.say ?? describeOp(action.op),
 					awaiting: 'continue',

@@ -8,6 +8,7 @@
  */
 
 import { validateText, type Corpus } from '../corpus';
+import { applyEditOp } from './editor';
 import { describeOp } from './ops';
 import type { AssistantMove, EditOp, Responder, StrategyContext } from './types';
 
@@ -73,10 +74,74 @@ export async function viewText(editor: EditorAPI): Promise<string> {
 		.join('\n');
 }
 
-/** A brief, post-edit confirmation the model can use to track the doc. */
-export async function describeChange(editor: EditorAPI): Promise<string> {
-	const n = (await editor.getParagraphs()).length;
-	return `Applied. The document now has ${n} paragraph(s); numbers may have shifted — \`view\` before your next placement.`;
+/**
+ * A numbered window of paragraphs (each clipped) around a center paragraph, or
+ * the whole short document if no center is given. Used to re-orient the model
+ * after an edit lands or fails — cheaper than a full `view`.
+ */
+async function numberedWindow(
+	editor: EditorAPI,
+	center?: number,
+	radius = 1,
+	clipLen = 80,
+): Promise<string> {
+	const paragraphs = await editor.getParagraphs();
+	const total = paragraphs.length;
+	let lo = 0;
+	let hi = total - 1;
+	if (center !== undefined) {
+		lo = Math.max(0, center - 1 - radius);
+		hi = Math.min(total - 1, center - 1 + radius);
+	}
+	return paragraphs
+		.slice(lo, hi + 1)
+		.map((p, i) => `[${lo + i + 1}] ${clip(p, clipLen)}`)
+		.join('\n');
+}
+
+/** The text an op introduces, used to locate where the change landed. */
+function probeFor(op: EditOp): string {
+	if (op.kind === 'str_replace') return op.newStr;
+	if (op.kind === 'insert') return op.text;
+	return op.phrase;
+}
+
+/** The paragraph an op targets, if it carries one. */
+function targetParagraph(op: EditOp): number | undefined {
+	if (op.kind === 'str_replace') return op.paragraph;
+	return 'paragraph' in op ? op.paragraph : undefined;
+}
+
+/**
+ * Apply an edit and report back to the model. On success, a brief confirmation
+ * plus a window around where it landed (so it can track number shifts). On
+ * failure — e.g. the writer moved a paragraph and the cached number is stale —
+ * the error plus a window of the current nearby paragraphs, so the model can
+ * re-orient and retry instead of flying blind.
+ */
+export async function applyOpAndReport(
+	ctx: StrategyContext,
+	op: EditOp,
+): Promise<{ ok: boolean; report: string }> {
+	try {
+		await applyEditOp(ctx.editor, op);
+		const probe = probeFor(op).trim().slice(0, 40);
+		const paras = await ctx.editor.getParagraphs();
+		const center =
+			paras.findIndex((p) => probe && p.includes(probe)) + 1 || undefined;
+		const total = paras.length;
+		const window = await numberedWindow(ctx.editor, center);
+		return {
+			ok: true,
+			report: `Applied. The document now has ${total} paragraph(s); numbers may have shifted. Around the change:\n${window}`,
+		};
+	} catch (e) {
+		const window = await numberedWindow(ctx.editor, targetParagraph(op), 2);
+		return {
+			ok: false,
+			report: `Could not apply that: ${(e as Error).message} The document may have changed since you last looked. Current paragraphs near there:\n${window}\nRe-check the numbers (or \`view\`) and try again.`,
+		};
+	}
 }
 
 /** Is the text an edit would introduce drawn entirely from the writer's words? */

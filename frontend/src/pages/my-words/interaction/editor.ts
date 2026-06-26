@@ -19,6 +19,7 @@ export async function applyEditOp(
 				type: 'str_replace',
 				oldStr: op.oldStr,
 				newStr: op.newStr,
+				paragraph: op.paragraph,
 			});
 			return;
 		case 'insert':

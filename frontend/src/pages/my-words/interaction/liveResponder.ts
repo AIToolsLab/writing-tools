@@ -31,10 +31,15 @@ const tools = {
 	}),
 	str_replace: tool({
 		description:
-			'Replace a SHORT span (a phrase or sentence within one paragraph) with text lifted from the writer’s words.',
+			'Replace a SHORT span (a phrase or sentence within one paragraph) with text lifted from the writer’s words. Pass `paragraph` (the [n] from `view`) so the replace is scoped there — more reliable than a bare search.',
 		inputSchema: z.object({
 			old_str: z.string(),
 			new_str: z.string(),
+			paragraph: z
+				.number()
+				.int()
+				.optional()
+				.describe('1-based paragraph number from `view` to scope to.'),
 		}),
 	}),
 	insert: tool({
@@ -76,6 +81,7 @@ function toAction(toolName: string, input: unknown): Action | null {
 					kind: 'str_replace',
 					oldStr: String(a.old_str),
 					newStr: String(a.new_str),
+					paragraph: a.paragraph as number | undefined,
 				},
 			};
 		case 'insert':

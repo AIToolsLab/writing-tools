@@ -12,8 +12,12 @@
  * which applies first and lets the writer react.
  */
 
-import { applyEditOp } from '../editor';
-import { advanceToDecision, locateProposal, validateOp } from '../shared';
+import {
+	advanceToDecision,
+	applyOpAndReport,
+	locateProposal,
+	validateOp,
+} from '../shared';
 import type { InteractionStrategy, PendingProposal } from '../types';
 
 export function createProposeStrategy(): InteractionStrategy {
@@ -30,9 +34,11 @@ export function createProposeStrategy(): InteractionStrategy {
 			// as the open edit's tool result, so the model can react to it.
 			if (pending) {
 				if (input.type === 'accept') {
-					await applyEditOp(ctx.editor, pending.op);
+					const result = await applyOpAndReport(ctx, pending.op);
 					ctx.responder.recordToolResult(
-						`The writer ACCEPTED. Applied: ${pending.summary}.`,
+						result.ok
+							? `The writer ACCEPTED. ${result.report}`
+							: `The writer accepted, but ${result.report}`,
 					);
 				} else if (input.type === 'reject') {
 					ctx.responder.recordToolResult(

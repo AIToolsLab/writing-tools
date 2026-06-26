@@ -164,12 +164,31 @@ export const wordEditorAPI: EditorAPI = {
 			};
 
 			if (edit.type === 'str_replace') {
-				const results = body.search(edit.oldStr, searchOptions);
+				// Scope the search to one paragraph when given — disambiguates
+				// repeated text and dodges the body-search length limit.
+				let scope: Word.Body | Word.Range = body;
+				if (edit.paragraph !== undefined) {
+					const paragraphs = body.paragraphs;
+					context.load(paragraphs, 'items');
+					await context.sync();
+					if (
+						edit.paragraph < 1 ||
+						edit.paragraph > paragraphs.items.length
+					) {
+						throw new Error(
+							`Paragraph ${edit.paragraph} is out of range (1–${paragraphs.items.length}).`,
+						);
+					}
+					scope = paragraphs.items[edit.paragraph - 1].getRange();
+				}
+				const results = scope.search(edit.oldStr, searchOptions);
 				context.load(results, 'items');
 				await context.sync();
 				if (results.items.length === 0) {
 					throw new Error(
-						`Could not find the text to replace: "${edit.oldStr}"`,
+						edit.paragraph !== undefined
+							? `Could not find "${edit.oldStr}" in paragraph ${edit.paragraph}.`
+							: `Could not find the text to replace: "${edit.oldStr}"`,
 					);
 				}
 				results.items[0].insertText(

@@ -57,6 +57,28 @@ describe('applyOp', () => {
 			applyOp(['a'], { kind: 'str_replace', oldStr: 'z', newStr: 'y' }),
 		).toThrow();
 	});
+
+	it('str_replace scoped to a paragraph only touches that paragraph', () => {
+		expect(
+			applyOp(['the cat', 'the cat'], {
+				kind: 'str_replace',
+				oldStr: 'cat',
+				newStr: 'dog',
+				paragraph: 2,
+			}),
+		).toEqual(['the cat', 'the dog']);
+	});
+
+	it('scoped str_replace throws when the text is not in that paragraph', () => {
+		expect(() =>
+			applyOp(['the cat', 'the dog'], {
+				kind: 'str_replace',
+				oldStr: 'cat',
+				newStr: 'lion',
+				paragraph: 2,
+			}),
+		).toThrow(/paragraph 2/);
+	});
 });
 
 describe('previewOp', () => {

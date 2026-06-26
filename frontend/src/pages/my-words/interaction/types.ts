@@ -17,7 +17,13 @@
 
 /** A single document operation. `move` relocates the writer's own words. */
 export type EditOp =
-	| { kind: 'str_replace'; oldStr: string; newStr: string }
+	| {
+			kind: 'str_replace';
+			oldStr: string;
+			newStr: string;
+			/** Optional 1-based paragraph (from `view`) to scope the search to. */
+			paragraph?: number;
+	  }
 	| {
 			kind: 'insert';
 			text: string;

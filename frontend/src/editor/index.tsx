@@ -84,16 +84,33 @@ export function EditorScreen({
 
 			let next: string;
 			if (edit.type === 'str_replace') {
-				const idx = current.indexOf(edit.oldStr);
-				if (idx === -1) {
-					throw new Error(
-						`Could not find the text to replace: "${edit.oldStr}"`,
-					);
+				// Scope to one paragraph when given (matches the Word host).
+				if (edit.paragraph !== undefined) {
+					const paras = controls.getParagraphs();
+					const i = edit.paragraph - 1;
+					const at = paras[i]?.indexOf(edit.oldStr) ?? -1;
+					if (at === -1) {
+						throw new Error(
+							`Could not find "${edit.oldStr}" in paragraph ${edit.paragraph}.`,
+						);
+					}
+					paras[i] =
+						paras[i].slice(0, at) +
+						edit.newStr +
+						paras[i].slice(at + edit.oldStr.length);
+					next = paras.join('\n');
+				} else {
+					const idx = current.indexOf(edit.oldStr);
+					if (idx === -1) {
+						throw new Error(
+							`Could not find the text to replace: "${edit.oldStr}"`,
+						);
+					}
+					next =
+						current.slice(0, idx) +
+						edit.newStr +
+						current.slice(idx + edit.oldStr.length);
 				}
-				next =
-					current.slice(0, idx) +
-					edit.newStr +
-					current.slice(idx + edit.oldStr.length);
 			} else if (edit.paragraph !== undefined) {
 				const paras = controls.getParagraphs();
 				if (edit.paragraph < 1 || edit.paragraph > paras.length) {

@@ -27,7 +27,18 @@ interface SavedItem {
  * validates the inserted text against the writer's corpus before applying.
  */
 type DocEdit =
-	| { type: 'str_replace'; oldStr: string; newStr: string }
+	| {
+			type: 'str_replace';
+			oldStr: string;
+			newStr: string;
+			/**
+			 * Optional 1-based paragraph number (from `view`) to scope the search
+			 * to. Far less fragile than searching the whole body — it disambiguates
+			 * repeated text and dodges the host search-length limit. If oldStr isn't
+			 * in that paragraph (e.g. numbers shifted), the edit fails loudly.
+			 */
+			paragraph?: number;
+	  }
 	| {
 			type: 'insert';
 			text: string;

@@ -17,8 +17,20 @@ function replaceFirst(
 	paragraphs: string[],
 	oldStr: string,
 	newStr: string,
+	paragraph?: number,
 ): string[] {
 	const next = [...paragraphs];
+	// Scoped to one paragraph: only that one is eligible.
+	if (paragraph !== undefined) {
+		const i = paragraph - 1;
+		const at = next[i]?.indexOf(oldStr) ?? -1;
+		if (at === -1) {
+			throw new Error(`"${oldStr}" not found in paragraph ${paragraph}.`);
+		}
+		next[i] =
+			next[i].slice(0, at) + newStr + next[i].slice(at + oldStr.length);
+		return next;
+	}
 	for (let i = 0; i < next.length; i++) {
 		const at = next[i].indexOf(oldStr);
 		if (at !== -1) {
@@ -65,7 +77,7 @@ function insertAfterText(
 export function applyOp(paragraphs: string[], op: EditOp): string[] {
 	switch (op.kind) {
 		case 'str_replace':
-			return replaceFirst(paragraphs, op.oldStr, op.newStr);
+			return replaceFirst(paragraphs, op.oldStr, op.newStr, op.paragraph);
 		case 'insert':
 			if (op.after !== undefined)
 				return insertAfterText(paragraphs, op.text, op.after);
