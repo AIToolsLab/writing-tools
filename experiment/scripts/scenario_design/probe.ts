@@ -91,18 +91,20 @@ async function runProbe(
   const messages: Message[] = (chat.initialMessages as string[]).map((content) => ({
     role: 'assistant' as const,
     content,
+    // Seed messages are scripted; the live app delivers them as a JSON-stringified array.
+    raw: JSON.stringify([content]),
   }));
   messages.push({ role: 'user', content: probe.input });
 
   const colleague = await callColleague(systemPrompt, messages, modelConfig);
   const response = colleague.messages.join(' | ');
-  messages.push({ role: 'assistant', content: response });
+  messages.push({ role: 'assistant', content: response, raw: colleague.raw });
 
   const log: ConversationLog = {
     scenarioId,
     archetypeId: 'probe',
     archetypeName: `Probe: ${probe.name}`,
-    messages: messages.map((m) => ({ role: m.role, content: m.content })),
+    messages: messages.map((m) => ({ role: m.role, content: m.content, raw: m.raw })),
   };
 
   const verdicts: Verdict[] = [];
@@ -116,7 +118,11 @@ async function runProbe(
   }
 
   const latencyPass = colleague.latencyMs <= API_TIMEOUT_MS;
-  const pass = latencyPass && verdicts.every((v) => v.pass);
+  // Require every targeted criterion to have actually been judged. Otherwise a probe whose
+  // slugs don't resolve (e.g. criteria.md failed to parse) would pass vacuously on an empty
+  // verdict list and silently hide a broken pipeline.
+  const allCriteriaResolved = verdicts.length === probe.criteria.length;
+  const pass = latencyPass && allCriteriaResolved && verdicts.every((v) => v.pass);
 
   return {
     name: probe.name,
