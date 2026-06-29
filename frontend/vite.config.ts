@@ -1,12 +1,13 @@
-import { defineConfig, Plugin } from 'vite';
+import { defineConfig, Plugin, type ProxyOptions } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
 import { getHttpsServerOptions } from 'office-addin-dev-certs';
+import http from 'node:http';
 
 const urlDev = 'https://localhost:3000';
 const urlProd = 'https://app.thoughtful-ai.com';
-const backendDev = 'http://0.0.0.0:8000/';
+const backendDev = 'http://127.0.0.1:8000/';
 const idProd = '46d2493d-60db-4522-b2aa-e6f2c08d2508';
 const idDev = '46d2493d-60db-4522-b2aa-e6f2c08d2507';
 
@@ -49,6 +50,31 @@ export default defineConfig(async ({ mode }) => {
 			console.warn('Failed to get HTTPS options, using HTTP:', error);
 		}
 	}
+
+	// Annotated so the `configure` callback params get contextual types
+	// (the inline `proxy: { ... }` record types them as `string | ProxyOptions`,
+	// which defeats inference and leaves the callback args as implicit `any`).
+	const apiProxy: ProxyOptions = {
+		target: backendDev,
+		changeOrigin: true,
+		secure: false,
+		// Don't reuse keep-alive sockets to the dev backend. Node's http server
+		// closes idle sockets after ~5s; if http-proxy reuses one mid-close we get
+		// a silent empty response (Content-Length: 0). A fresh socket per request
+		// avoids that race. Dev-only.
+		agent: new http.Agent({ keepAlive: false }),
+		configure: (proxy) => {
+			proxy.on('error', (err, _req, res) => {
+				console.error('[vite proxy] /api error:', err.message);
+				if ('writeHead' in res && !res.headersSent) {
+					res.writeHead(502, { 'Content-Type': 'application/json' });
+					res.end(
+						JSON.stringify({ detail: 'Proxy error', message: err.message }),
+					);
+				}
+			});
+		}
+	};
 
 	return {
 		// Multi-page app: don't fall back to index.html for unknown paths.
@@ -95,11 +121,7 @@ export default defineConfig(async ({ mode }) => {
 				'Access-Control-Allow-Origin': '*'
 			},
 			proxy: {
-				'/api': {
-					target: backendDev,
-					changeOrigin: true,
-					secure: false
-				}
+				'/api': apiProxy
 			}
 		},
 		optimizeDeps: {

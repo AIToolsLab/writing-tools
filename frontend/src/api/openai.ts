@@ -6,4 +6,4 @@ export const openai = createOpenAI({
 	apiKey: "unused",
 });
 
-export const OPENAI_MODEL = "gpt-4o";
+export const OPENAI_MODEL = "gpt-5.5";
