@@ -32,7 +32,11 @@ export interface Criterion {
 
 // Criteria loaded from markdown — parsed into id/description pairs
 export function loadCriteria(): Criterion[] {
-  const raw = readFileSync(resolve(import.meta.dirname, 'criteria.md'), 'utf-8');
+  // Normalize CRLF → LF so the line-anchored regexes below work on Windows checkouts.
+  // Without this, header lines keep a trailing "\r", the title regex fails to match,
+  // and loadCriteria() silently returns zero criteria (every judgment/probe then passes
+  // vacuously).
+  const raw = readFileSync(resolve(import.meta.dirname, 'criteria.md'), 'utf-8').replace(/\r\n/g, '\n');
   const criteria: Criterion[] = [];
 
   // Parse "## N. Title\n\nDescription..." sections
@@ -69,7 +73,10 @@ export interface ConversationLog {
   scenarioId: string;
   archetypeId: string;
   archetypeName: string;
-  messages: Array<{ role: string; content: string }>;
+  // `raw` is the colleague's verbatim model output (the JSON array string). When present it is
+  // what the judge sees for colleague turns, so format criteria (e.g. Response Format Compliance)
+  // can be evaluated against the actual output instead of the harness's joined-plaintext version.
+  messages: Array<{ role: string; content: string; raw?: string }>;
 }
 
 export async function judgeConversation(
@@ -77,7 +84,11 @@ export async function judgeConversation(
   criterion: Criterion,
 ): Promise<Verdict> {
   const transcript = log.messages
-    .map((m) => `${m.role === 'user' ? 'Participant' : 'Colleague'}: ${m.content}`)
+    .map((m) =>
+      m.role === 'user'
+        ? `Participant: ${m.content}`
+        : `Colleague: ${m.raw ?? m.content}`,
+    )
     .join('\n');
 
   const { object } = await generateObject({
@@ -117,9 +128,17 @@ async function main() {
   const criteria = loadCriteria();
   console.log(`Loaded ${criteria.length} criteria from criteria.md`);
 
-  // Find conversation logs
+  // Find conversation logs. Exclude this pipeline's own result files (`_judgments.json`,
+  // `_probes.json`) — they share the `${scenarioId}_` prefix but are not ConversationLogs,
+  // and parsing them as logs crashes the judge (their `.messages` is undefined).
   const logFiles = readdirSync(OUTPUTS_DIR)
-    .filter((f) => f.startsWith(`${scenarioId}_`) && f.endsWith('.json') && !f.includes('judgment'))
+    .filter(
+      (f) =>
+        f.startsWith(`${scenarioId}_`) &&
+        f.endsWith('.json') &&
+        !f.includes('judgment') &&
+        !f.includes('probes'),
+    )
     .filter((f) => !archetypeFilter || f.includes(`_${archetypeFilter}.json`));
 
   if (logFiles.length === 0) {
@@ -131,6 +150,10 @@ async function main() {
 
   for (const file of logFiles) {
     const log: ConversationLog = JSON.parse(readFileSync(resolve(OUTPUTS_DIR, file), 'utf-8'));
+    if (!Array.isArray(log.messages)) {
+      console.warn(`  ! Skipping ${file}: not a conversation log (no messages array)`);
+      continue;
+    }
     console.log(`\nJudging: ${log.archetypeName} (${log.archetypeId})`);
 
     const verdicts: Verdict[] = [];

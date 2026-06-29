@@ -34,6 +34,7 @@ const DEFAULT_REASONING_EFFORT = 'low';
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
+  raw?: string;             // colleague's verbatim model output (the JSON array string)
   latencyMs?: number;       // wall-clock time for this colleague turn
   reasoningTokens?: number; // reasoning tokens reported by the provider
 }
@@ -45,6 +46,7 @@ export interface ColleagueModelConfig {
 
 export interface ColleagueResult {
   messages: string[];
+  raw: string; // verbatim model output before JSON parsing/joining
   latencyMs: number;
   reasoningTokens?: number;
 }
@@ -120,7 +122,7 @@ export async function callColleague(
     if (Array.isArray(parsed)) messages = parsed;
   } catch { /* fall through */ }
 
-  return { messages, latencyMs, reasoningTokens };
+  return { messages, raw, latencyMs, reasoningTokens };
 }
 
 async function callParticipant(
@@ -165,7 +167,9 @@ async function simulateConversation(
   // Seed with initial messages from the colleague
   const messages: Message[] = [];
   for (const msg of chat.initialMessages as string[]) {
-    messages.push({ role: 'assistant', content: msg });
+    // Seed messages are scripted scenario content; the live app delivers them as a
+    // JSON-stringified array, so record their raw form that way for format judging.
+    messages.push({ role: 'assistant', content: msg, raw: JSON.stringify([msg]) });
   }
 
   console.log(`\n--- ${archetype.name} ---`);
@@ -189,6 +193,7 @@ async function simulateConversation(
     messages.push({
       role: 'assistant',
       content: joined,
+      raw: colleague.raw,
       latencyMs: colleague.latencyMs,
       reasoningTokens: colleague.reasoningTokens,
     });
