@@ -29,6 +29,15 @@ function trailingNumber(value: string | undefined): number {
   return match ? Number(match[1]) : 0;
 }
 
+/**
+ * Human-facing card reference (e.g. "#3"), derived from the id's trailing
+ * counter. The counter is globally unique and monotonic, so the number is a
+ * stable, collision-free handle the user and the AI can both cite in chat.
+ */
+export function cardRef(id: string): string {
+  return `#${trailingNumber(id)}`;
+}
+
 export function primeIdCounters(ids: string[], turnIds: string[] = []): void {
   for (const id of ids) {
     _nextId = Math.max(_nextId, trailingNumber(id));

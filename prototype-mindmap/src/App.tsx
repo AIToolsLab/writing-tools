@@ -48,6 +48,7 @@ const DRAFT_MARGIN = 12;
 const DRAFT_HEADER_HEIGHT = 40;
 const DRAFT_MIN_VISIBLE_WIDTH = 220;
 const DRAFT_MIN_VISIBLE_HEIGHT = 120;
+const DRAFT_CHIP_SIZE = 64;
 const SESSION_STORAGE_KEY = "prototype-mindmap-session-v1";
 
 interface PendingMirror {
@@ -481,9 +482,40 @@ const css = `
   .map-card.role-subnode { border-left: 4px solid #1a6fa3; }
   .map-card.role-connection_label { border-left: 4px solid #7a5b99; }
 
+  /* Live drop-target highlight while another card is dragged over this one.
+     ReactFlow applies the node className to the .react-flow__node wrapper, so the
+     highlight must reach the inner .map-card from there. */
+  .react-flow__node.drop-target .map-card {
+    border-color: #1a6fa3;
+    box-shadow: 0 0 0 3px rgba(26, 111, 163, 0.35), 0 10px 26px rgba(26, 111, 163, 0.22);
+    background: #f1f7fb;
+  }
+
+  .map-card-close {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 6;
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    line-height: 1;
+    border: 1px solid #e2ded5;
+    border-radius: 5px;
+    background: #fafaf8;
+    color: #8a8578;
+    cursor: pointer;
+    font-size: 12px;
+  }
+  .map-card-close:hover {
+    background: #f5d9d4;
+    border-color: #d99b8f;
+    color: #9a3b2a;
+  }
+
   .map-card-drag {
     min-height: 30px;
-    padding: 7px 9px;
+    padding: 7px 28px 7px 9px;
     background: #fafaf8;
     border-bottom: 1px solid #e9e6df;
     cursor: grab;
@@ -532,8 +564,8 @@ const css = `
   }
 
   .map-card-actions {
-    min-height: 30px;
-    padding: 5px 8px 7px;
+    min-height: 22px;
+    padding: 3px 8px 4px;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -541,6 +573,7 @@ const css = `
 
   .map-card-actions button,
   .map-undo,
+  .map-clean,
   .connection-panel button {
     border: 1px solid #d8d5ce;
     border-radius: 6px;
@@ -811,7 +844,8 @@ const css = `
   .map-label-toggle:hover { background: #f3f1ec; }
   .map-label-toggle.active:hover { background: #dcf4e6; }
 
-  .map-undo {
+  .map-undo,
+  .map-clean {
     font-size: 12px;
     padding: 5px 10px;
   }
@@ -828,17 +862,32 @@ const css = `
   }
 
   /* ---- nested (embedded) cards ---- */
+  /* A card with children grows to fit them (height:auto in JS), so it must not
+     clip its content the way a fixed-size childless card does. */
   .map-card.has-children {
     background: #f6f4ef;
     border-color: #cfc9be;
+    overflow: visible;
+  }
+  /* Parent (title) cards don't need the tall typing area or the spacer action
+     row a standalone card has. Drop the action row entirely so the only
+     separation between the parent's text and its members is the members'
+     container border. */
+  .map-card.has-children .map-card-editor {
+    min-height: 34px;
+  }
+  .map-card.has-children .map-card-actions {
+    display: none;
   }
   .map-card-children {
     display: flex;
     flex-direction: column;
     gap: 6px;
-    margin-top: 8px;
-    padding: 8px;
+    margin-top: 0;
+    padding: 14px 8px 8px 18px;
     border-top: 1px solid #ded8cc;
+    border-left: 2px solid #ded8cc;
+    margin-left: 8px;
     background: #fbfaf7;
   }
   .map-embed {
@@ -847,7 +896,7 @@ const css = `
     border-left: 3px solid #9e9586;
     border-radius: 5px;
     background: #fff;
-    padding: 7px 8px;
+    padding: 5px 8px;
   }
   .map-embed.role-subnode { border-left-color: #1a6fa3; }
   .map-embed-editor {
@@ -863,8 +912,15 @@ const css = `
   }
   .map-embed-actions {
     display: flex;
+    align-items: center;
     gap: 6px;
     margin-top: 6px;
+  }
+  .map-embed-ref {
+    font-size: 10px;
+    font-weight: 700;
+    color: #918d85;
+    margin-right: auto;
   }
   .map-embed-actions button {
     font-size: 10px;
@@ -881,11 +937,19 @@ const css = `
     flex-direction: column;
     gap: 6px;
     margin-top: 7px;
-    padding-left: 12px;
+    padding-left: 22px;
     border-left: 2px solid #ded8cc;
   }
   .map-embed-children .map-embed {
     background: #fbfaf7;
+  }
+  /* Deepen the indent and dim the rail per nesting level so depth reads clearly. */
+  .map-embed-children .map-embed-children {
+    padding-left: 24px;
+    border-left-color: #e4dfd4;
+  }
+  .map-embed-children .map-embed-children .map-embed-children {
+    border-left-color: #ebe7de;
   }
   .connection-panel button:disabled {
     opacity: 0.4;
@@ -973,6 +1037,41 @@ const css = `
     min-height: 60px;
     z-index: 100;
     overflow: hidden;
+  }
+
+  /* Collapsed draft: a distinct amber square so it reads as "draft", not a map
+     card. Drag to move, click to expand. */
+  .draft-chip {
+    position: fixed;
+    z-index: 100;
+    width: 64px;
+    height: 64px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 0;
+    border: 1px solid #d6a955;
+    border-radius: 12px;
+    background: #f6e8c8;
+    color: #7a5a16;
+    box-shadow: 0 6px 18px rgba(122, 90, 22, 0.22);
+    cursor: grab;
+    user-select: none;
+  }
+  .draft-chip:active { cursor: grabbing; }
+  .draft-chip:hover { background: #f3dfb4; border-color: #c79740; }
+  .draft-chip-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+  .draft-chip-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #1a6fa3;
   }
 
   .draft-panel-header {
@@ -1106,6 +1205,19 @@ function clampDraftPosition(pos: DraftPanelPos, size: DraftPanelSize): DraftPane
   const visibleW = Math.min(size.w, window.innerWidth - DRAFT_MARGIN * 2);
   const maxX = Math.max(DRAFT_MARGIN, window.innerWidth - visibleW - DRAFT_MARGIN);
   const maxY = Math.max(DRAFT_MARGIN, window.innerHeight - DRAFT_HEADER_HEIGHT - DRAFT_MARGIN);
+  return {
+    x: Math.min(Math.max(DRAFT_MARGIN, pos.x), maxX),
+    y: Math.min(Math.max(DRAFT_MARGIN, pos.y), maxY),
+  };
+}
+
+// Clamp so the *entire* box (w x h) stays within the viewport. Used for the
+// collapsed chip (so it can reach the right/bottom edges) and for choosing an
+// expand position that keeps the whole panel on-screen.
+function clampBoxPosition(pos: DraftPanelPos, w: number, h: number): DraftPanelPos {
+  if (typeof window === "undefined") return pos;
+  const maxX = Math.max(DRAFT_MARGIN, window.innerWidth - w - DRAFT_MARGIN);
+  const maxY = Math.max(DRAFT_MARGIN, window.innerHeight - h - DRAFT_MARGIN);
   return {
     x: Math.min(Math.max(DRAFT_MARGIN, pos.x), maxX),
     y: Math.min(Math.max(DRAFT_MARGIN, pos.y), maxY),
@@ -1275,6 +1387,9 @@ export default function App() {
   const [draftCollapsed, setDraftCollapsed] = useState(initialDraftCollapsed);
   const [draftPos, setDraftPos] = useState<DraftPanelPos>(initialDraftPos);
   const [draftSize, setDraftSize] = useState<DraftPanelSize>(initialDraftSize);
+  // Where the collapsed chip sat before it was expanded, so collapsing returns
+  // it there instead of leaving it at the (shifted) panel position.
+  const preExpandChipPosRef = useRef<DraftPanelPos | null>(null);
   const draftPanelRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLTextAreaElement>(null);
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -1326,6 +1441,42 @@ export default function App() {
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, [draftPos, draftSize]);
+
+  // Collapsed draft chip: drag to move, click (no drag) to expand. A small
+  // movement threshold separates a deliberate drag from a click.
+  const onChipMouseDown = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    const startX = e.clientX - draftPos.x;
+    const startY = e.clientY - draftPos.y;
+    const downX = e.clientX;
+    const downY = e.clientY;
+    let moved = false;
+    const onMove = (ev: MouseEvent) => {
+      if (Math.abs(ev.clientX - downX) > 4 || Math.abs(ev.clientY - downY) > 4) moved = true;
+      // Clamp to the chip's own footprint so it can reach every edge/corner.
+      setDraftPos(clampBoxPosition(
+        { x: ev.clientX - startX, y: ev.clientY - startY },
+        DRAFT_CHIP_SIZE,
+        DRAFT_CHIP_SIZE,
+      ));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      if (!moved) {
+        // Expand into available space: keep the whole panel on-screen, shifting
+        // up/left when the chip sits near a bottom/right edge. Remember the
+        // chip's spot so collapsing can return it here.
+        setDraftPos((prev) => {
+          preExpandChipPosRef.current = prev;
+          return clampBoxPosition(prev, draftSize.w, draftSize.h);
+        });
+        setDraftCollapsed(false);
+      }
     };
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
@@ -1679,7 +1830,19 @@ export default function App() {
           </div>
         </div>
 
-        {/* Draft panel — floating, draggable, resizable */}
+        {/* Draft — a distinct square chip when collapsed, full panel when open. */}
+        {draftCollapsed ? (
+          <button
+            type="button"
+            className="draft-chip"
+            style={{ left: draftPos.x, top: draftPos.y }}
+            onMouseDown={onChipMouseDown}
+            title="Open draft — drag to move, click to expand"
+          >
+            <span className="draft-chip-label">DRAFT</span>
+            {activeAnchor && <span className="draft-chip-dot" aria-label="anchored" />}
+          </button>
+        ) : (
         <div
           ref={draftPanelRef}
           className="draft-panel"
@@ -1687,20 +1850,24 @@ export default function App() {
             left: draftPos.x,
             top: draftPos.y,
             width: draftSize.w,
-            height: draftCollapsed ? "auto" : draftSize.h,
+            height: draftSize.h,
           }}
         >
           <div className="draft-panel-header" onMouseDown={onDragStart}>
             <span className="draft-panel-title">Draft</span>
-            {activeAnchor && !draftCollapsed && (
+            {activeAnchor && (
               <span style={{ fontSize: 10, color: "#1a6fa3", fontWeight: 600 }}>● anchored</span>
             )}
             <button
               className="draft-panel-btn"
-              onClick={() => setDraftCollapsed((c) => !c)}
-              title={draftCollapsed ? "Expand" : "Collapse"}
+              onClick={() => {
+                const back = preExpandChipPosRef.current;
+                if (back) setDraftPos(clampBoxPosition(back, DRAFT_CHIP_SIZE, DRAFT_CHIP_SIZE));
+                setDraftCollapsed(true);
+              }}
+              title="Collapse to icon"
             >
-              {draftCollapsed ? "▲" : "▼"}
+              ▾
             </button>
           </div>
 
@@ -1736,6 +1903,7 @@ export default function App() {
             </div>
           )}
         </div>
+        )}
 
         <ThoughtMap
           store={mapStoreRef.current}

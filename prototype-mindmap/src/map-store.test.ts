@@ -235,4 +235,37 @@ describe("ThoughtUnitStore", () => {
 
     expect(restored.getSize("a")).toEqual({ w: 360, h: 210 });
   });
+
+  it("clamps runaway card sizes on write", () => {
+    const store = new ThoughtUnitStore();
+    store.add(unit("a", "card"));
+    // The old auto-expand bug wrote scrollHeights in the ~173,000px range.
+    store.setSize("a", { w: 173833, h: 173833 });
+
+    expect(store.getSize("a")).toEqual({ w: 1200, h: 1200 });
+  });
+
+  it("sanitizes oversized and invalid sizes when loading a snapshot", () => {
+    const store = new ThoughtUnitStore();
+    store.add(unit("a", "huge"));
+    store.add(unit("b", "tiny"));
+    store.add(unit("c", "bad"));
+
+    // Hand-build a corrupt snapshot the way a stale localStorage session would.
+    const corrupt = {
+      ...store.snapshot(),
+      sizes: {
+        a: { w: 99999, h: 173914 },
+        b: { w: 5, h: 5 },
+        c: { w: Number.NaN, h: Number.NaN },
+      },
+    };
+
+    const restored = new ThoughtUnitStore();
+    restored.loadSnapshot(corrupt);
+
+    expect(restored.getSize("a")).toEqual({ w: 1200, h: 1200 });
+    expect(restored.getSize("b")).toEqual({ w: 120, h: 60 });
+    expect(restored.getSize("c")).toEqual({ w: 120, h: 60 });
+  });
 });

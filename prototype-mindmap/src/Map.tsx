@@ -23,6 +23,7 @@ import {
 import "@xyflow/react/dist/style.css";
 import type { ThoughtUnitStore, XYPosition, XYSize } from "./map-store";
 import type { SourceBank } from "./store";
+import { cardRef } from "./store";
 import type { ConfirmedReflection, ThoughtUnit } from "./types";
 
 const CARD_WIDTH = 260;
@@ -181,11 +182,13 @@ function connectionMidpoint(store: ThoughtUnitStore, sourceId: string, targetId:
 }
 
 function roleLabel(unit: ThoughtUnit, childCount: number): string {
+  // The reference number replaces the generic "card" word so the user and the
+  // AI can cite the same handle. Title cards keep the word plus the ref.
   if (unit.role === "connection_label") return "connection";
-  if (childCount > 0) return "title";
-  if (unit.role === "subnode") return "subnode";
-  if (unit.role === "content") return "member";
-  return "card";
+  const ref = cardRef(unit.id);
+  if (childCount > 0) return `title · ${ref}`;
+  if (unit.role === "subnode") return `subnode · ${ref}`;
+  return ref;
 }
 
 function anchorHandleId(id: string | null | undefined): string | undefined {
@@ -238,7 +241,7 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
   return (
     <div className={`map-embed role-${unit.role}`}>
       <textarea
-        className="map-embed-editor nodrag"
+        className="map-embed-editor nodrag nowheel"
         value={draft}
         rows={2}
         placeholder="(empty)"
@@ -249,6 +252,7 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
         onMouseDown={(event) => event.stopPropagation()}
       />
       <div className="map-embed-actions nodrag">
+        <span className="map-embed-ref" title="Card reference">{cardRef(unit.id)}</span>
         <button type="button" onClick={() => actions.onPromote(unit.id)} title="Make this the title">
           Title
         </button>
@@ -284,12 +288,21 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
     if (draft !== unit.text) actions.onCommitText(unit.id, draft);
   }, [actions, draft, unit.id, unit.text]);
 
+  // Auto-expand: a card with nested children grows to fit them (stored height
+  // becomes a min-height) so a newly nested child is never clipped and the user
+  // doesn't hand-resize. Childless cards keep their exact stored size.
+  const hasChildren = children.length > 0;
+
   return (
     <div
       className={`map-card ${selected ? "selected" : ""} role-${unit.role} ${
-        children.length > 0 ? "has-children" : ""
+        hasChildren ? "has-children" : ""
       }`}
-      style={{ width: size.w, height: size.h }}
+      style={
+        hasChildren
+          ? { width: size.w, minHeight: size.h, height: "auto" }
+          : { width: size.w, height: size.h }
+      }
       title={data.sourceLabel}
     >
       <ConnectionHandles />
@@ -326,12 +339,21 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
         onMouseDown={(event) => actions.onResizeStart(unit.id, { bottom: true, left: true }, event)}
       />
 
+      <button
+        type="button"
+        className="map-card-close nodrag"
+        onClick={() => actions.onDelete(unit.id)}
+        title="Delete card"
+      >
+        ✕
+      </button>
+
       <div className="map-card-drag">
         <span className="map-role-chip">{roleLabel(unit, children.length)}</span>
       </div>
 
       <textarea
-        className="map-card-editor nodrag"
+        className="map-card-editor nodrag nowheel"
         value={draft}
         placeholder="(empty card — type your idea)"
         onChange={(event) => setDraft(event.target.value)}
@@ -346,9 +368,6 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
       />
 
       <div className="map-card-actions nodrag">
-        <button type="button" onClick={() => actions.onDelete(unit.id)} title="Delete card">
-          ✕
-        </button>
         <span className="map-source-dot" aria-label={data.sourceLabel} />
       </div>
 
@@ -501,6 +520,155 @@ function ThoughtMapInner({
     [onBeforeMapChange, onStoreChange, store],
   );
 
+  // Auto-clean: tidy scattered cards using direction-aware placement. Only root
+  // cards are canvas nodes; nested cards travel with their parent. Each card is
+  // placed on the side its connection actually attaches to (a card linked from
+  // another's left lands to its left, etc.), so the arrangement matches the
+  // connectors' geometry and edges stay short and straight.
+  const autoClean = useCallback(() => {
+    const roots = store
+      .getAll()
+      .filter((unit) => !unit.parentId && unit.role !== "connection_label");
+    if (roots.length === 0) return;
+
+    const rootIds = new Set(roots.map((u) => u.id));
+    // Resolve any card id to its top-level (canvas) ancestor.
+    const rootOf = (id: string): string | undefined => {
+      let cur = store.get(id);
+      const seen = new Set<string>();
+      while (cur?.parentId && !seen.has(cur.id)) {
+        seen.add(cur.id);
+        cur = store.get(cur.parentId);
+      }
+      return cur?.id;
+    };
+
+    // The side a connection leaves a card from tells us where its neighbor
+    // belongs. Handle ids are bare anchor ids like "left" / "bottom-right".
+    type Side = "top" | "right" | "bottom" | "left";
+    const DELTA: Record<Side, { dx: number; dy: number }> = {
+      top: { dx: 0, dy: -1 },
+      bottom: { dx: 0, dy: 1 },
+      left: { dx: -1, dy: 0 },
+      right: { dx: 1, dy: 0 },
+    };
+    const sideOf = (handleId?: string): Side | undefined => {
+      const base = handleId?.replace(/^(source|target)-/, "").split("-")[0];
+      return base === "top" || base === "right" || base === "bottom" || base === "left"
+        ? base
+        : undefined;
+    };
+
+    // Directional adjacency: from each endpoint, which way does its neighbor sit?
+    type Link = { to: string; dir: { dx: number; dy: number } };
+    const adj = new Map<string, Link[]>();
+    roots.forEach((u) => adj.set(u.id, []));
+    for (const c of store.getConnections()) {
+      const a = rootOf(c.sourceId);
+      const b = rootOf(c.targetId);
+      if (!a || !b || a === b || !rootIds.has(a) || !rootIds.has(b)) continue;
+      const sa = sideOf(c.sourceHandleId) ?? "bottom";
+      const sb = sideOf(c.targetHandleId) ?? "top";
+      adj.get(a)!.push({ to: b, dir: DELTA[sa] });
+      adj.get(b)!.push({ to: a, dir: DELTA[sb] });
+    }
+
+    const size = (id: string) => store.getSize(id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
+
+    // Topmost-first seeds preserve the user's sense of where the "top" is.
+    const seeds = [...roots].sort((a, b) => {
+      const pa = store.getPosition(a.id) ?? { x: 0, y: 0 };
+      const pb = store.getPosition(b.id) ?? { x: 0, y: 0 };
+      return pa.y - pb.y || pa.x - pb.x;
+    });
+
+    const GAP_X = 60;
+    const GAP_Y = 80;
+    const ORIGIN_X = 80;
+    let cursorY = 80; // connected components stack downward
+
+    const visited = new Set<string>();
+
+    onBeforeMapChange();
+
+    for (const seed of seeds) {
+      if (visited.has(seed.id)) continue;
+
+      // Greedy direction-aware placement on an integer grid: each neighbor goes
+      // in its connection's direction, stepping further out if a cell is taken.
+      const cell = new Map<string, { cx: number; cy: number }>();
+      const occupied = new Set<string>();
+      const key = (cx: number, cy: number) => `${cx},${cy}`;
+      cell.set(seed.id, { cx: 0, cy: 0 });
+      occupied.add(key(0, 0));
+      visited.add(seed.id);
+      const queue: string[] = [seed.id];
+      while (queue.length > 0) {
+        const id = queue.shift()!;
+        const pc = cell.get(id)!;
+        for (const link of adj.get(id) ?? []) {
+          if (visited.has(link.to)) continue;
+          const { dx, dy } = link.dir;
+          let cx = pc.cx + dx;
+          let cy = pc.cy + dy;
+          let steps = 0;
+          while (occupied.has(key(cx, cy)) && steps < 64) {
+            cx += dx;
+            cy += dy;
+            steps += 1;
+          }
+          // Fallback if the direction is somehow blocked solid: drop downward.
+          if (occupied.has(key(cx, cy))) {
+            cx = pc.cx;
+            cy = pc.cy + 1;
+            while (occupied.has(key(cx, cy))) cy += 1;
+          }
+          cell.set(link.to, { cx, cy });
+          occupied.add(key(cx, cy));
+          visited.add(link.to);
+          queue.push(link.to);
+        }
+      }
+
+      // Convert integer cells to pixels using per-column widths and per-row
+      // heights so tall/wide cards don't force big gaps elsewhere.
+      const ids = [...cell.keys()];
+      const colW = new Map<number, number>();
+      const rowH = new Map<number, number>();
+      for (const id of ids) {
+        const { cx, cy } = cell.get(id)!;
+        const s = size(id);
+        colW.set(cx, Math.max(colW.get(cx) ?? 0, s.w));
+        rowH.set(cy, Math.max(rowH.get(cy) ?? 0, s.h));
+      }
+      const cols = [...colW.keys()].sort((a, b) => a - b);
+      const rows = [...rowH.keys()].sort((a, b) => a - b);
+      const colX = new Map<number, number>();
+      let accX = ORIGIN_X;
+      for (const cx of cols) {
+        colX.set(cx, accX);
+        accX += (colW.get(cx) ?? CARD_WIDTH) + GAP_X;
+      }
+      const rowY = new Map<number, number>();
+      let accY = cursorY;
+      for (const cy of rows) {
+        rowY.set(cy, accY);
+        accY += (rowH.get(cy) ?? CARD_HEIGHT) + GAP_Y;
+      }
+
+      for (const id of ids) {
+        const { cx, cy } = cell.get(id)!;
+        store.setPosition(id, { x: colX.get(cx)!, y: rowY.get(cy)! });
+      }
+      cursorY = accY + GAP_Y; // breathing room before the next component
+    }
+
+    onStoreChange();
+
+    // Re-frame the tidied map after the nodes re-render.
+    setTimeout(() => flow.fitView({ padding: 0.2 }), 0);
+  }, [flow, onBeforeMapChange, onStoreChange, store]);
+
   const resizeStart = useCallback(
     (
       id: string,
@@ -594,21 +762,28 @@ function ThoughtMapInner({
       .getAll()
       .filter((unit) => !unit.parentId && unit.role !== "connection_label");
 
-    return roots.map((unit) => ({
-      id: unit.id,
-      type: "thought",
-      position: store.getPosition(unit.id) ?? { x: 80, y: 80 },
-      data: {
-        unit,
-        actions,
-        sourceLabel: sourceLabel(unit),
-        size: store.getSize(unit.id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT },
-      },
-      style: store.getSize(unit.id)
-        ? { width: store.getSize(unit.id)?.w, height: store.getSize(unit.id)?.h }
-        : { width: CARD_WIDTH, height: CARD_HEIGHT },
-      dragHandle: ".map-card-drag",
-    }));
+    const allUnits = store.getAll();
+    return roots.map((unit) => {
+      const size = store.getSize(unit.id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
+      const hasChildren = allUnits.some((u) => u.parentId === unit.id);
+      return {
+        id: unit.id,
+        type: "thought",
+        position: store.getPosition(unit.id) ?? { x: 80, y: 80 },
+        data: {
+          unit,
+          actions,
+          sourceLabel: sourceLabel(unit),
+          size,
+        },
+        // Has-children cards grow with their content, so let the node wrapper
+        // size to the card (height auto) instead of pinning it.
+        style: hasChildren
+          ? { width: size.w }
+          : { width: size.w, height: size.h },
+        dragHandle: ".map-card-drag",
+      };
+    });
   }, [actions, revision, store]);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<ThoughtFlowNode>(flowNodes);
@@ -651,8 +826,45 @@ function ThoughtMapInner({
     return pendingEdge ? [...confirmedEdges, pendingEdge] : confirmedEdges;
   }, [confirmedEdges, pendingConnection]);
 
+  const [dropTargetId, setDropTargetId] = useState<string | undefined>(undefined);
+
+  // Apply the drop-target class without disturbing node state — derived per render.
+  const displayNodes = useMemo<ThoughtFlowNode[]>(
+    () =>
+      dropTargetId
+        ? nodes.map((node) =>
+            node.id === dropTargetId
+              ? { ...node, className: `${node.className ?? ""} drop-target`.trim() }
+              : node,
+          )
+        : nodes,
+    [nodes, dropTargetId],
+  );
+
+  // Live drop-target highlight: while a card is dragged, mark the card it would
+  // nest into so the user sees the target before releasing. No commit happens
+  // until drag stop — this is pure visual feedback over the existing behavior.
+  const onNodeDrag = useCallback(
+    (_event: MouseEvent | TouchEvent, node: ThoughtFlowNode) => {
+      const dragged = store.get(node.id);
+      if (!dragged || dragged.role === "connection_label") {
+        setDropTargetId(undefined);
+        return;
+      }
+      const target = findDropTarget(node, nodes);
+      const targetUnit = target ? store.get(target.id) : undefined;
+      const valid =
+        targetUnit &&
+        targetUnit.role !== "connection_label" &&
+        !store.wouldCycle(dragged.id, targetUnit.id);
+      setDropTargetId(valid && targetUnit ? targetUnit.id : undefined);
+    },
+    [nodes, store],
+  );
+
   const onNodeDragStop = useCallback(
     (_event: MouseEvent | TouchEvent, node: ThoughtFlowNode) => {
+      setDropTargetId(undefined);
       onBeforeMapChange();
       store.setPosition(node.id, node.position);
 
@@ -792,6 +1004,10 @@ function ThoughtMapInner({
           Label {requireConnectionLabel ? "on" : "off"}
         </button>
 
+        <button type="button" className="map-clean" onClick={autoClean} title="Tidy the map: pack cards into a compact grid and shorten long connectors">
+          Auto-clean
+        </button>
+
         <button type="button" className="map-undo" onClick={onUndo} disabled={!canUndo} title="Undo map change">
           Undo
         </button>
@@ -809,11 +1025,12 @@ function ThoughtMapInner({
       <div className="map-canvas">
         {store.getAll().length === 0 && <div className="map-empty">No cards yet</div>}
         <ReactFlow
-          nodes={nodes}
+          nodes={displayNodes}
           edges={edges}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
+          onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
           onConnect={onConnect}
           onReconnect={onReconnect}

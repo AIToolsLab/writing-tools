@@ -12,6 +12,7 @@
 
 import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
+import { cardRef } from "./store";
 import type {
   LLMContext,
   LLMMapContext,
@@ -126,11 +127,11 @@ function renderMap(map: LLMMapContext): string {
     const provenance = unit.source.reflectionId
       ? ` reflection=${unit.source.reflectionId}`
       : " user-created";
-    return `card=${unit.id} role=${unit.role}${parentText}${provenance} text="${unit.text}"`;
+    return `card=${unit.id} ref=${cardRef(unit.id)} role=${unit.role}${parentText}${provenance} text="${unit.text}"`;
   });
 
   const connectionLines = connections.map((connection) =>
-    `connection=${connection.id} "${connection.sourceText}" -> "${connection.targetText}" label="${connection.labelText}"`,
+    `connection=${connection.id} ${cardRef(connection.sourceId)} "${connection.sourceText}" -> ${cardRef(connection.targetId)} "${connection.targetText}" label="${connection.labelText}"`,
   );
 
   return [...unitLines, ...connectionLines].join("\n");
@@ -413,6 +414,11 @@ If the user is not giving much: narrow the choice without blaming them.
 When using the CURRENT CONCEPT MAP, refer only to cards or connections the user
 has already authored. Ask for their relationship; do not supply a candidate
 relationship, grouping, title, or label for them to approve.
+Each card line carries a short reference like ref=#3. When you mention a specific
+card in chat, you MAY cite it by that reference (e.g. "#3") so the user knows
+exactly which card you mean. Use the reference exactly as given; never invent a
+reference or renumber cards. Citing a card this way is still only awareness — it
+does not authorize you to draw, rename, group, or connect anything.
 
 ===== MIRROR MODE RULES =====
 A mirror claim describes ONE structural relationship. It is NOT a bullet from the transcript.

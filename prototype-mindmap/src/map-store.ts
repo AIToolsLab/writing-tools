@@ -18,6 +18,25 @@ export interface XYSize {
   h: number;
 }
 
+// Card-size sanity bounds. A prior auto-expand implementation measured runaway
+// scrollHeights and persisted them (~173,000px), which bricked the canvas with
+// full-height blank columns. Even though that code is gone, sizes are persisted
+// to localStorage, so we clamp on every write and on load so a bad value can
+// never survive into a render again.
+const MIN_CARD_W = 120;
+const MIN_CARD_H = 60;
+const MAX_CARD_W = 1200;
+const MAX_CARD_H = 1200;
+
+function clampCardSize(size: XYSize): XYSize {
+  const w = Number.isFinite(size.w) ? size.w : MIN_CARD_W;
+  const h = Number.isFinite(size.h) ? size.h : MIN_CARD_H;
+  return {
+    w: Math.min(MAX_CARD_W, Math.max(MIN_CARD_W, w)),
+    h: Math.min(MAX_CARD_H, Math.max(MIN_CARD_H, h)),
+  };
+}
+
 export interface ThoughtConnection {
   id: string;
   sourceId: string;
@@ -370,7 +389,7 @@ export class ThoughtUnitStore {
   }
 
   setSize(id: string, size: XYSize): void {
-    this._sizes.set(id, size);
+    this._sizes.set(id, clampCardSize(size));
   }
 
   getSize(id: string): XYSize | undefined {
@@ -393,7 +412,9 @@ export class ThoughtUnitStore {
   loadSnapshot(snapshot: ThoughtUnitStoreSnapshot): void {
     this._units = new Map(snapshot.units.map((unit) => [unit.id, unit]));
     this._positions = new Map(Object.entries(snapshot.positions));
-    this._sizes = new Map(Object.entries(snapshot.sizes ?? {}));
+    this._sizes = new Map(
+      Object.entries(snapshot.sizes ?? {}).map(([id, size]) => [id, clampCardSize(size)]),
+    );
     this._connections = new Map(snapshot.connections.map((connection) => [connection.id, connection]));
     primeIdCounters(
       [
