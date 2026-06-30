@@ -21,12 +21,34 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { ThoughtUnitStore, XYPosition } from "./map-store";
+import type { ThoughtUnitStore, XYPosition, XYSize } from "./map-store";
 import type { SourceBank } from "./store";
 import type { ConfirmedReflection, ThoughtUnit } from "./types";
 
 const CARD_WIDTH = 260;
 const CARD_HEIGHT = 140;
+const CARD_MIN_WIDTH = 180;
+const CARD_MIN_HEIGHT = 110;
+
+const CONNECTION_ANCHORS: Array<{
+  id: string;
+  position: Position;
+  className: string;
+  style?: React.CSSProperties;
+}> = [
+  { id: "top-left", position: Position.Top, className: "map-handle-top map-handle-corner", style: { left: 24 } },
+  { id: "top", position: Position.Top, className: "map-handle-top" },
+  { id: "top-right", position: Position.Top, className: "map-handle-top map-handle-corner", style: { left: "calc(100% - 24px)" } },
+  { id: "right-top", position: Position.Right, className: "map-handle-right map-handle-corner", style: { top: 24 } },
+  { id: "right", position: Position.Right, className: "map-handle-right" },
+  { id: "right-bottom", position: Position.Right, className: "map-handle-right map-handle-corner", style: { top: "calc(100% - 24px)" } },
+  { id: "bottom-right", position: Position.Bottom, className: "map-handle-bottom map-handle-corner", style: { left: "calc(100% - 24px)" } },
+  { id: "bottom", position: Position.Bottom, className: "map-handle-bottom" },
+  { id: "bottom-left", position: Position.Bottom, className: "map-handle-bottom map-handle-corner", style: { left: 24 } },
+  { id: "left-bottom", position: Position.Left, className: "map-handle-left map-handle-corner", style: { top: "calc(100% - 24px)" } },
+  { id: "left", position: Position.Left, className: "map-handle-left" },
+  { id: "left-top", position: Position.Left, className: "map-handle-left map-handle-corner", style: { top: 24 } },
+];
 
 interface PendingConnection {
   sourceId: string;
@@ -42,6 +64,11 @@ interface CardActions {
   onPullOut: (id: string) => void;
   onPromote: (id: string) => void;
   onDelete: (id: string) => void;
+  onResizeStart: (
+    id: string,
+    edges: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean },
+    event: React.MouseEvent,
+  ) => void;
   getChildren: (id: string) => ThoughtUnit[];
 }
 
@@ -49,6 +76,7 @@ type ThoughtNodeData = {
   unit: ThoughtUnit;
   actions: CardActions;
   sourceLabel: string;
+  size: XYSize;
 } & Record<string, unknown>;
 
 type ThoughtFlowNode = Node<ThoughtNodeData, "thought">;
@@ -61,6 +89,8 @@ interface ThoughtMapProps {
   revision: number;
   questionBias: number;
   onQuestionBiasChange: (value: number) => void;
+  requireConnectionLabel: boolean;
+  onRequireConnectionLabelChange: (value: boolean) => void;
   canUndo: boolean;
   onUndo: () => void;
   onBeforeMapChange: () => void;
@@ -97,6 +127,10 @@ export interface CoachDebugInfo {
   }>;
   acceleratedCandidateIds?: string[];
   readinessNotes?: string[];
+  commandDebug?: Array<{
+    reason: string;
+    detail: string;
+  }>;
 }
 
 function scoreText(score: number, threshold: number): string {
@@ -154,13 +188,39 @@ function roleLabel(unit: ThoughtUnit, childCount: number): string {
   return "card";
 }
 
+function anchorHandleId(id: string | null | undefined): string | undefined {
+  if (!id) return undefined;
+  return id.replace(/^(source|target)-/, "");
+}
+
+function renderHandleId(type: "source" | "target", id: string | undefined): string | undefined {
+  const anchorId = anchorHandleId(id);
+  return anchorId ? `${type}-${anchorId}` : undefined;
+}
+
 function ConnectionHandles() {
   return (
     <>
-      <Handle type="source" id="top" position={Position.Top} className="map-handle map-handle-top" />
-      <Handle type="source" id="right" position={Position.Right} className="map-handle map-handle-right" />
-      <Handle type="source" id="bottom" position={Position.Bottom} className="map-handle map-handle-bottom" />
-      <Handle type="source" id="left" position={Position.Left} className="map-handle map-handle-left" />
+      {CONNECTION_ANCHORS.map((anchor) => (
+        <Handle
+          key={`source-${anchor.id}`}
+          type="source"
+          id={`source-${anchor.id}`}
+          position={anchor.position}
+          className={`map-handle map-handle-source ${anchor.className}`}
+          style={anchor.style}
+        />
+      ))}
+      {CONNECTION_ANCHORS.map((anchor) => (
+        <Handle
+          key={`target-${anchor.id}`}
+          type="target"
+          id={`target-${anchor.id}`}
+          position={anchor.position}
+          className={`map-handle map-handle-target ${anchor.className}`}
+          style={anchor.style}
+        />
+      ))}
     </>
   );
 }
@@ -211,7 +271,7 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
 }
 
 function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
-  const { unit, actions } = data;
+  const { unit, actions, size } = data;
   const [draft, setDraft] = useState(unit.text);
 
   useEffect(() => {
@@ -229,9 +289,42 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
       className={`map-card ${selected ? "selected" : ""} role-${unit.role} ${
         children.length > 0 ? "has-children" : ""
       }`}
+      style={{ width: size.w, height: size.h }}
       title={data.sourceLabel}
     >
       <ConnectionHandles />
+      <div
+        className="map-resize-edge map-resize-n nodrag"
+        onMouseDown={(event) => actions.onResizeStart(unit.id, { top: true }, event)}
+      />
+      <div
+        className="map-resize-edge map-resize-e nodrag"
+        onMouseDown={(event) => actions.onResizeStart(unit.id, { right: true }, event)}
+      />
+      <div
+        className="map-resize-edge map-resize-s nodrag"
+        onMouseDown={(event) => actions.onResizeStart(unit.id, { bottom: true }, event)}
+      />
+      <div
+        className="map-resize-edge map-resize-w nodrag"
+        onMouseDown={(event) => actions.onResizeStart(unit.id, { left: true }, event)}
+      />
+      <div
+        className="map-resize-corner map-resize-nw nodrag"
+        onMouseDown={(event) => actions.onResizeStart(unit.id, { top: true, left: true }, event)}
+      />
+      <div
+        className="map-resize-corner map-resize-ne nodrag"
+        onMouseDown={(event) => actions.onResizeStart(unit.id, { top: true, right: true }, event)}
+      />
+      <div
+        className="map-resize-corner map-resize-se nodrag"
+        onMouseDown={(event) => actions.onResizeStart(unit.id, { bottom: true, right: true }, event)}
+      />
+      <div
+        className="map-resize-corner map-resize-sw nodrag"
+        onMouseDown={(event) => actions.onResizeStart(unit.id, { bottom: true, left: true }, event)}
+      />
 
       <div className="map-card-drag">
         <span className="map-role-chip">{roleLabel(unit, children.length)}</span>
@@ -317,6 +410,7 @@ function ConnectionEdge({
           {open && (
             <div className="edge-popover">
               {label && <div className="edge-popover-text">{label}</div>}
+              <div className="edge-move-hint">Drag a line end to move it; drag a card dot for a new connection.</div>
               {onDelete && (
                 <button type="button" className="edge-delete" onClick={() => onDelete(id)}>
                   Delete connection
@@ -350,6 +444,8 @@ function ThoughtMapInner({
   revision,
   questionBias,
   onQuestionBiasChange,
+  requireConnectionLabel,
+  onRequireConnectionLabelChange,
   canUndo,
   onUndo,
   onBeforeMapChange,
@@ -358,6 +454,7 @@ function ThoughtMapInner({
   const flow = useReactFlow();
   const [showDebug, setShowDebug] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
+  const [connectionPanelKey, setConnectionPanelKey] = useState(0);
 
   const commitText = useCallback(
     (id: string, text: string) => {
@@ -404,6 +501,62 @@ function ThoughtMapInner({
     [onBeforeMapChange, onStoreChange, store],
   );
 
+  const resizeStart = useCallback(
+    (
+      id: string,
+      edges: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean },
+      event: React.MouseEvent,
+    ) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const startPosition = store.getPosition(id) ?? { x: 80, y: 80 };
+      const startSize = store.getSize(id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const zoom = flow.getZoom() || 1;
+
+      onBeforeMapChange();
+
+      const onMove = (moveEvent: MouseEvent) => {
+        const dx = (moveEvent.clientX - startX) / zoom;
+        const dy = (moveEvent.clientY - startY) / zoom;
+        let nextX = startPosition.x;
+        let nextY = startPosition.y;
+        let nextW = startSize.w;
+        let nextH = startSize.h;
+
+        if (edges.right) {
+          nextW = Math.max(CARD_MIN_WIDTH, startSize.w + dx);
+        }
+        if (edges.bottom) {
+          nextH = Math.max(CARD_MIN_HEIGHT, startSize.h + dy);
+        }
+        if (edges.left) {
+          nextW = Math.max(CARD_MIN_WIDTH, startSize.w - dx);
+          nextX = startPosition.x + (startSize.w - nextW);
+        }
+        if (edges.top) {
+          nextH = Math.max(CARD_MIN_HEIGHT, startSize.h - dy);
+          nextY = startPosition.y + (startSize.h - nextH);
+        }
+
+        store.setPosition(id, { x: nextX, y: nextY });
+        store.setSize(id, { w: nextW, h: nextH });
+        onStoreChange();
+      };
+
+      const onUp = () => {
+        window.removeEventListener("mousemove", onMove);
+        window.removeEventListener("mouseup", onUp);
+      };
+
+      window.addEventListener("mousemove", onMove);
+      window.addEventListener("mouseup", onUp);
+    },
+    [flow, onBeforeMapChange, onStoreChange, store],
+  );
+
   const getChildren = useCallback(
     (id: string) =>
       store.getAll().filter((u) => u.parentId === id && u.role !== "connection_label"),
@@ -417,9 +570,10 @@ function ThoughtMapInner({
       onPullOut: pullOut,
       onPromote: promote,
       onDelete: deleteCard,
+      onResizeStart: resizeStart,
       getChildren,
     }),
-    [commitText, deleteCard, getChildren, promote, pullOut],
+    [commitText, deleteCard, getChildren, promote, pullOut, resizeStart],
   );
 
   const addCard = useCallback(() => {
@@ -448,7 +602,11 @@ function ThoughtMapInner({
         unit,
         actions,
         sourceLabel: sourceLabel(unit),
+        size: store.getSize(unit.id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT },
       },
+      style: store.getSize(unit.id)
+        ? { width: store.getSize(unit.id)?.w, height: store.getSize(unit.id)?.h }
+        : { width: CARD_WIDTH, height: CARD_HEIGHT },
       dragHandle: ".map-card-drag",
     }));
   }, [actions, revision, store]);
@@ -466,8 +624,8 @@ function ThoughtMapInner({
         id: connection.id,
         source: connection.sourceId,
         target: connection.targetId,
-        sourceHandle: connection.sourceHandleId,
-        targetHandle: connection.targetHandleId,
+        sourceHandle: renderHandleId("source", connection.sourceHandleId),
+        targetHandle: renderHandleId("target", connection.targetHandleId),
         type: "connection",
         reconnectable: true,
         data: { label: label?.text ?? "", onDelete: deleteConnection },
@@ -482,6 +640,8 @@ function ThoughtMapInner({
           id: "pending-connection",
           source: pendingConnection.sourceId,
           target: pendingConnection.targetId,
+          sourceHandle: renderHandleId("source", pendingConnection.sourceHandleId ?? undefined),
+          targetHandle: renderHandleId("target", pendingConnection.targetHandleId ?? undefined),
           animated: true,
           label: pendingConnection.text,
           type: "smoothstep",
@@ -527,15 +687,30 @@ function ThoughtMapInner({
       const target = store.get(connection.target);
       if (!source || !target) return;
       if (source.role === "connection_label" || target.role === "connection_label") return;
+      if (!requireConnectionLabel) {
+        onBeforeMapChange();
+        store.registerConnection({
+          sourceId: connection.source,
+          targetId: connection.target,
+          text: "",
+          bank,
+          sourceHandleId: anchorHandleId(connection.sourceHandle),
+          targetHandleId: anchorHandleId(connection.targetHandle),
+          position: connectionMidpoint(store, connection.source, connection.target),
+        });
+        onStoreChange();
+        return;
+      }
       setPendingConnection({
         sourceId: connection.source,
         targetId: connection.target,
-        sourceHandleId: connection.sourceHandle,
-        targetHandleId: connection.targetHandle,
+        sourceHandleId: anchorHandleId(connection.sourceHandle),
+        targetHandleId: anchorHandleId(connection.targetHandle),
         text: "",
       });
+      setConnectionPanelKey((key) => key + 1);
     },
-    [store],
+    [bank, onBeforeMapChange, onStoreChange, requireConnectionLabel, store],
   );
 
   const onReconnect = useCallback<OnReconnect<Edge>>(
@@ -550,8 +725,8 @@ function ThoughtMapInner({
         oldEdge.id,
         connection.source,
         connection.target,
-        connection.sourceHandle,
-        connection.targetHandle,
+        anchorHandleId(connection.sourceHandle),
+        anchorHandleId(connection.targetHandle),
       );
       onStoreChange();
     },
@@ -566,6 +741,7 @@ function ThoughtMapInner({
   // to the bank (registerConnection handles that).
   const confirmConnection = useCallback(() => {
     if (!pendingConnection) return;
+    onBeforeMapChange();
     store.registerConnection({
       sourceId: pendingConnection.sourceId,
       targetId: pendingConnection.targetId,
@@ -577,7 +753,7 @@ function ThoughtMapInner({
     });
     setPendingConnection(null);
     onStoreChange();
-  }, [bank, onStoreChange, pendingConnection, store]);
+  }, [bank, onBeforeMapChange, onStoreChange, pendingConnection, store]);
 
   const sourceUnit = pendingConnection ? store.get(pendingConnection.sourceId) : undefined;
   const targetUnit = pendingConnection ? store.get(pendingConnection.targetId) : undefined;
@@ -607,6 +783,15 @@ function ThoughtMapInner({
           + New card
         </button>
 
+        <button
+          type="button"
+          className={`map-label-toggle ${requireConnectionLabel ? "active" : ""}`}
+          onClick={() => onRequireConnectionLabelChange(!requireConnectionLabel)}
+          title={requireConnectionLabel ? "Ask for relationship wording on new connections" : "Create unlabeled connections immediately"}
+        >
+          Label {requireConnectionLabel ? "on" : "off"}
+        </button>
+
         <button type="button" className="map-undo" onClick={onUndo} disabled={!canUndo} title="Undo map change">
           Undo
         </button>
@@ -618,7 +803,7 @@ function ThoughtMapInner({
 
       <p className="map-hint">
         Drag a card onto another to nest it inside · use "Out" to separate ·
-        drag from a card's edge to connect
+        drag a card dot to connect · drag a line end to move a connector
       </p>
 
       <div className="map-canvas">
@@ -634,6 +819,7 @@ function ThoughtMapInner({
           onReconnect={onReconnect}
           connectionMode={ConnectionMode.Loose}
           edgesReconnectable
+          reconnectRadius={14}
           fitView
           fitViewOptions={{ padding: 0.2 }}
         >
@@ -643,7 +829,7 @@ function ThoughtMapInner({
         </ReactFlow>
 
         {pendingConnection && (
-          <div className="connection-panel">
+          <div key={connectionPanelKey} className="connection-panel blink">
             <div className="connection-panel-meta">
               <span>{sourceUnit?.text ?? "source"}</span>
               <span>to</span>
@@ -682,6 +868,11 @@ function ThoughtMapInner({
                 )}
                 {coachDebug.readinessNotes?.map((note) => (
                   <span key={note}>{note}</span>
+                ))}
+                {coachDebug.commandDebug?.map((note, index) => (
+                  <span key={`${note.reason}-${index}`}>
+                    command {note.reason}: {note.detail}
+                  </span>
                 ))}
                 {coachDebug.validationDebug?.map((claim) => (
                   <div key={claim.claimId} className="map-debug-validation">

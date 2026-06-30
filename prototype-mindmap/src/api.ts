@@ -288,10 +288,18 @@ DIRECT MAP COMMANDS:
   that control thing"), do not emit a command; ask what words should go on the
   card.
 - Emit "nest_card" only for imperative nesting commands ("put X under Y", "make
-  X a subpoint of Y"). "childText" and "parentText" must be the user's words.
+  X a subpoint of Y", "I want X to come under Y", "X should go under Y", "nest X
+  inside Y"). A first-person "I want X under Y" is a placement command, not a
+  mirror — do not route it to the mirror path. "childText" and "parentText" must
+  be the user's words.
 - Emit "connect_cards" only for imperative connection commands ("connect X to
   Y", "link X and Y"). If the user supplies label wording, copy it into
   "labelText"; otherwise omit it. Never invent a connection label.
+- If the user uses a shortened visible-card reference ("connect control to
+  authorship" when the map has "human control"), copy the user's reference
+  exactly. The controller will either resolve exact matches, ask a "did you mean
+  X?" confirmation for a unique near match, or ask which card if ambiguous. Do
+  not silently rewrite partial references to the full card text.
 - If a reference is unclear, tentative, or declarative, do not emit a command;
   ask which card or what wording the user wants.
 

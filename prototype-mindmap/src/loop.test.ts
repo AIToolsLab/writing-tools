@@ -508,6 +508,148 @@ describe("question mode", () => {
 
     expect(out.mapCommands).toBeUndefined();
   });
+
+  it("asks for confirmation instead of creating a duplicate when a connection endpoint is a unique near match", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("source", "human control"), mapUnit("target", "authorship")],
+      connections: [],
+    };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "control",
+          targetText: "authorship",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "connect control to authorship",
+      llm,
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain('"control" -> "human control"');
+    expect(out.commandDebug?.some((note) => note.reason === "near_match_pending")).toBe(true);
+  });
+
+  it("executes a pending near-match command after the user confirms it", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("source", "human control"), mapUnit("target", "authorship")],
+      connections: [],
+    };
+    const firstLLM = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "control",
+          targetText: "authorship",
+        },
+      ],
+    });
+
+    await processTurn(state, "connect control to authorship", firstLLM, defaultConfig, "chat", map);
+
+    let called = false;
+    const secondLLM = (_ctx: LLMContext): LLMTurn => {
+      called = true;
+      return { mode: "question", text: "should not be called" };
+    };
+    const out = await processTurn(state, "yes", secondLLM, defaultConfig, "chat", map);
+
+    expect(called).toBe(false);
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "source" },
+        target: { id: "target" },
+      },
+    ]);
+    expect(out.commandDebug).toEqual([
+      {
+        reason: "near_match_confirmed",
+        detail: 'near_match_pending: "control" -> "human control" for connection',
+      },
+    ]);
+  });
+
+  it("asks which card when a command reference has multiple near matches", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "control",
+          targetText: "authorship",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "connect control to authorship",
+      llm,
+      defaultConfig,
+      "chat",
+      {
+        thoughtUnits: [
+          mapUnit("source1", "human control"),
+          mapUnit("source2", "control of wording"),
+          mapUnit("target", "authorship"),
+        ],
+        connections: [],
+      },
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain('more than one card that could match "control"');
+    expect(out.commandDebug?.some((note) => note.reason === "ambiguous_reference")).toBe(true);
+  });
+
+  it("asks for confirmation before nesting under a unique near-match parent", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("parent", "human authorship")],
+      connections: [],
+    };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [
+        {
+          kind: "nest_card",
+          childText: "human control",
+          parentText: "authorship",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "put human control under authorship",
+      llm,
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain('existing card called "human authorship"');
+    expect(out.commandDebug?.some((note) => note.reason === "near_match_pending")).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

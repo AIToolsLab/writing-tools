@@ -49,9 +49,8 @@ export interface MapCommandSourceSpan {
 
 /**
  * Direct user map commands are side effects, orthogonal to the chat mode. The
- * controller currently executes only `create_card`; structure commands are in
- * the contract so prompts/tests can distinguish imperatives from declaratives
- * before reference-resolution support lands.
+ * controller executes them only after exact wording/reference checks or an
+ * explicit user confirmation of a near-match reference.
  */
 export interface MapCommand {
   kind: MapCommandKind;

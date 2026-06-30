@@ -224,4 +224,15 @@ describe("ThoughtUnitStore", () => {
       }),
     );
   });
+
+  it("persists card sizes through snapshots", () => {
+    const store = new ThoughtUnitStore();
+    store.add(unit("a", "resizable card"));
+    store.setSize("a", { w: 360, h: 210 });
+
+    const restored = new ThoughtUnitStore();
+    restored.loadSnapshot(store.snapshot());
+
+    expect(restored.getSize("a")).toEqual({ w: 360, h: 210 });
+  });
 });

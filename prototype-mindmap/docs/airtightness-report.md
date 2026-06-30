@@ -3,7 +3,7 @@
 Current enforcement appendix for `prototype-mindmap`. `DESIGN.md` is the
 canonical product/design source. This report tracks which philosophical
 constraints are enforced in code, which are prompt-level, and where the residual
-soft spots are. Current verification: `92/92` tests passing.
+soft spots are. Current verification: `96/96` tests passing.
 
 ## Central Principle
 
@@ -29,8 +29,8 @@ AI reflections only; direct user map actions are never blocked by validation.
 | Malformed model output is contained | `api.ts` | Unknown modes coerce to question; malformed claims/spans are filtered. |
 | Source Bank is ground truth | `store.ts` | User chat, declarations, and map edits are append-only source utterances. |
 | Direct card commands use exact user words | `controller.ts`, `map-commands.ts` | `create_card` requires exact current-turn phrase and matching cited id; referential/declarative/tentative cases are blocked. |
-| Direct nesting commands do not guess references | `controller.ts`, `map-commands.ts`, `map-store.ts` | `nest_card` requires unique exact normalized parent resolution; child is existing unique card or exact current-turn phrase; `setParent` cycle guard applies. |
-| Direct connection commands do not guess endpoints | `controller.ts`, `map-commands.ts`, `map-store.ts` | `connect_cards` requires unique exact normalized endpoints or exact current-turn new-card spans; same-card edges are dropped. |
+| Direct nesting commands do not guess references | `controller.ts`, `map-commands.ts`, `map-store.ts` | `nest_card` executes on exact references; unique near matches become pending confirmations; ambiguous near matches ask which card; `setParent` cycle guard applies. |
+| Direct connection commands do not guess endpoints | `controller.ts`, `map-commands.ts`, `map-store.ts` | `connect_cards` executes on exact references; unique near matches become pending confirmations; ambiguous near matches ask which card; same-card edges are dropped. |
 | AI cannot invent command labels | `controller.ts`, `map-commands.ts` | Labels must be exact current-turn phrases. Ungrounded labels are stripped; the edge remains unlabeled. |
 | User map actions are undoable | `App.tsx`, `map-store.ts`, `map-commands.ts` | Command batches, edits, nesting, and connections go through map/bank snapshots. |
 | Shared-bank integration is enforced by tests | `App.tsx`, `map-commands.test.ts`, `map-store.test.ts` | Map/command writes use the same `SourceBank` instance the loop reads. |
@@ -64,14 +64,17 @@ density only. Validation and user confirmation remain unchanged.
 `mapCommands` are side effects, orthogonal to chat `mode`.
 
 - `create_card`: exact current-turn card phrase; no mirror or confirmation.
-- `nest_card`: exact/unique parent reference; child is existing exact match or
-  exact current-turn phrase.
-- `connect_cards`: exact/unique endpoints; optional label must be exact
-  current-turn wording.
+- `nest_card`: exact/unique parent reference, or a unique near-match reference
+  after the user confirms it; child is existing exact/confirmed card or exact
+  current-turn phrase.
+- `connect_cards`: exact/unique endpoints, or unique near-match endpoints after
+  the user confirms them; optional label must be exact current-turn wording.
 
 The controller trusts the LLM to interpret speech acts, then code fences the
 consequential act. Declaratives such as "X supports Y" are blocked from command
-execution and stay on the mirror/question path.
+execution and stay on the mirror/question path. Fuzzy structure references never
+auto-execute: unique near matches ask "did you mean X?", and ambiguous matches
+ask the user which card.
 
 ### Diagnostics
 
@@ -102,11 +105,11 @@ where the act would become consequential.
 - Stemming/normalization is simple.
 - Candidate grouping is LLM-interpreted. Bad grouping is bounded by readiness,
   validation, and confirmation, but can slow the conversation.
-- Direct structure command references are exact-only. This prevents silent wrong
-  structure but can create duplicates on partial references.
 - Command speech-act interpretation is LLM-owned. Code blocks obvious
   declarative/tentative/referential mistakes, exact-span violations, stale ids,
-  ambiguous references, and ungrounded labels.
+  ambiguous references, unconfirmed near matches, and ungrounded labels.
+- Near-match scoring is intentionally simple substring/token containment. It is
+  used only to ask the user, never to execute structure without confirmation.
 
 ## File Responsibility Summary
 

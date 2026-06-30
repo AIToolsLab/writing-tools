@@ -1,7 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { makeLLM, type ConversationMessage } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
-import { createState, processTurn, type AcceptedMapCommand, type ControllerMode, type SuppressionReason } from "./controller";
+import {
+  createState,
+  processTurn,
+  type AcceptedMapCommand,
+  type ControllerMode,
+  type PendingMapCommandConfirmation,
+  type SuppressionReason,
+} from "./controller";
 import type { LoopState } from "./controller";
 import type { MockLLM, QuestionStance } from "./llm-contract";
 import { ThoughtMap, type CoachDebugInfo } from "./Map";
@@ -65,6 +72,7 @@ interface PersistedSession {
   lastCoachDebug?: CoachDebugInfo | null;
   mapRevision: number;
   questionBias: number;
+  requireConnectionLabel?: boolean;
   draftText: string;
   draftCollapsed: boolean;
   draftPos: DraftPanelPos;
@@ -75,6 +83,7 @@ interface PersistedSession {
     clarifyTarget?: SourceSpan;
     lastAiText: string;
     draft: string;
+    pendingMapCommand?: PendingMapCommandConfirmation;
   };
   bank: LoopState["bank"] extends { getAll(): infer T } ? T : never;
   candidates: LoopState["candidates"] extends { getAll(): infer T } ? T : never;
@@ -460,6 +469,7 @@ const css = `
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    position: relative;
   }
 
   .map-card.selected {
@@ -555,6 +565,12 @@ const css = `
     height: 9px;
     background: #1a6fa3;
     border: 2px solid #fff;
+    opacity: 0;
+    transition: opacity 0.12s, transform 0.12s;
+  }
+  .map-card:hover .map-handle,
+  .map-card.selected .map-handle {
+    opacity: 1;
   }
   .map-handle-top,
   .map-handle-bottom {
@@ -564,10 +580,84 @@ const css = `
   .map-handle-right {
     background: #1a6fa3;
   }
+  .map-handle-source {
+    z-index: 7;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.9);
+  }
+  .map-handle-target {
+    z-index: 6;
+    width: 15px;
+    height: 15px;
+    background: transparent;
+    border: 1px dashed rgba(26, 111, 163, 0.55);
+  }
+  .map-handle-source:hover {
+    transform: scale(1.35);
+  }
+  .map-handle-corner {
+    width: 8px;
+    height: 8px;
+  }
+
+  .map-resize-edge,
+  .map-resize-corner {
+    position: absolute;
+    z-index: 5;
+    opacity: 0;
+    background: rgba(26, 111, 163, 0.14);
+    transition: opacity 0.12s;
+  }
+  .map-card:hover .map-resize-edge,
+  .map-card:hover .map-resize-corner,
+  .map-card.selected .map-resize-edge,
+  .map-card.selected .map-resize-corner {
+    opacity: 1;
+  }
+  .map-resize-n,
+  .map-resize-s {
+    left: 12px;
+    right: 12px;
+    height: 6px;
+    cursor: ns-resize;
+  }
+  .map-resize-n { top: 0; }
+  .map-resize-s { bottom: 0; }
+  .map-resize-e,
+  .map-resize-w {
+    top: 12px;
+    bottom: 12px;
+    width: 6px;
+    cursor: ew-resize;
+  }
+  .map-resize-e { right: 0; }
+  .map-resize-w { left: 0; }
+  .map-resize-corner {
+    width: 12px;
+    height: 12px;
+  }
+  .map-resize-nw { top: 0; left: 0; cursor: nwse-resize; }
+  .map-resize-ne { top: 0; right: 0; cursor: nesw-resize; }
+  .map-resize-se { right: 0; bottom: 0; cursor: nwse-resize; }
+  .map-resize-sw { left: 0; bottom: 0; cursor: nesw-resize; }
 
   .map-edge path {
     stroke: #4f6d7a;
     stroke-width: 2;
+  }
+  .react-flow__edgeupdater {
+    fill: rgba(79, 109, 122, 0.22);
+    stroke: rgba(255, 255, 255, 0.95);
+    stroke-width: 2;
+    opacity: 0;
+    transition: opacity 0.12s;
+    cursor: grab;
+  }
+  .react-flow__edge:hover .react-flow__edgeupdater,
+  .react-flow__edge.selected .react-flow__edgeupdater {
+    opacity: 1;
+  }
+  .react-flow__edgeupdater:active {
+    cursor: grabbing;
   }
   .map-edge.pending path {
     stroke-dasharray: 6 5;
@@ -591,6 +681,14 @@ const css = `
     display: flex;
     flex-direction: column;
     gap: 9px;
+  }
+  @keyframes connection-panel-pulse {
+    0% { box-shadow: 0 0 0 0 rgba(26, 111, 163, 0.38), 0 12px 30px rgba(30, 30, 30, 0.12); }
+    40% { box-shadow: 0 0 0 6px rgba(26, 111, 163, 0.18), 0 12px 30px rgba(30, 30, 30, 0.16); }
+    100% { box-shadow: 0 0 0 0 rgba(26, 111, 163, 0), 0 12px 30px rgba(30, 30, 30, 0.12); }
+  }
+  .connection-panel.blink {
+    animation: connection-panel-pulse 0.9s ease-out 1;
   }
 
   .connection-panel-meta {
@@ -653,6 +751,10 @@ const css = `
     justify-content: center;
   }
   .edge-badge:hover { background: #f3f1ec; }
+  .edge-move-hint {
+    font-size: 11px;
+    color: #d9d6ce;
+  }
   .edge-popover {
     display: flex;
     flex-direction: column;
@@ -690,6 +792,24 @@ const css = `
     cursor: pointer;
   }
   .map-add-card:hover { background: #dcf4e6; }
+
+  .map-label-toggle {
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid #d8d5ce;
+    background: #fff;
+    color: #5f5b54;
+    cursor: pointer;
+  }
+  .map-label-toggle.active {
+    border-color: #b5dfc5;
+    background: #eafaf0;
+    color: #1a7a3c;
+  }
+  .map-label-toggle:hover { background: #f3f1ec; }
+  .map-label-toggle.active:hover { background: #dcf4e6; }
 
   .map-undo {
     font-size: 12px;
@@ -1058,6 +1178,7 @@ export default function App() {
     state.clarifyTarget = persistedSession.controller.clarifyTarget;
     state.lastAiText = persistedSession.controller.lastAiText;
     state.draft = persistedSession.controller.draft;
+    state.pendingMapCommand = persistedSession.controller.pendingMapCommand;
     return state;
   }, [persistedSession]);
 
@@ -1078,6 +1199,7 @@ export default function App() {
   const initialCoachDebug = persistedSession?.lastCoachDebug ?? null;
   const initialMapRevision = persistedSession?.mapRevision ?? 0;
   const initialQuestionBias = persistedSession?.questionBias ?? 35;
+  const initialRequireConnectionLabel = persistedSession?.requireConnectionLabel ?? true;
   const initialDraftText = persistedSession?.draftText ?? "";
   const initialDraftCollapsed = persistedSession?.draftCollapsed ?? false;
   const initialDraftSize = persistedSession
@@ -1099,6 +1221,7 @@ export default function App() {
   const [lastCoachDebug, setLastCoachDebug] = useState<CoachDebugInfo | null>(initialCoachDebug);
   const [mapRevision, setMapRevision] = useState(initialMapRevision);
   const [questionBias, setQuestionBias] = useState(initialQuestionBias);
+  const [requireConnectionLabel, setRequireConnectionLabel] = useState(initialRequireConnectionLabel);
   const [canUndoMap, setCanUndoMap] = useState(false);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
@@ -1291,6 +1414,7 @@ export default function App() {
       lastCoachDebug,
       mapRevision,
       questionBias,
+      requireConnectionLabel,
       draftText,
       draftCollapsed,
       draftPos,
@@ -1301,6 +1425,7 @@ export default function App() {
         clarifyTarget: stateRef.current.clarifyTarget,
         lastAiText: stateRef.current.lastAiText,
         draft: stateRef.current.draft,
+        pendingMapCommand: stateRef.current.pendingMapCommand,
       },
       bank: stateRef.current.bank.getAll(),
       candidates: stateRef.current.candidates.getAll(),
@@ -1318,6 +1443,7 @@ export default function App() {
     msgs,
     pendingMirrors,
     questionBias,
+    requireConnectionLabel,
   ]);
 
   async function send() {
@@ -1350,6 +1476,7 @@ export default function App() {
         validationDebug: out.validationDebug,
         acceleratedCandidateIds: out.acceleratedCandidateIds,
         readinessNotes: out.readinessNotes,
+        commandDebug: out.commandDebug,
       });
 
       applyMapCommands(out.mapCommands ?? []);
@@ -1472,6 +1599,7 @@ export default function App() {
     setError(null);
     setInput("");
     setDraftText("");
+    setRequireConnectionLabel(true);
     setDraftCollapsed(false);
     const size = clampDraftSize({ w: 440, h: 340 });
     setDraftSize(size);
@@ -1617,6 +1745,8 @@ export default function App() {
           revision={mapRevision}
           questionBias={questionBias}
           onQuestionBiasChange={setQuestionBias}
+          requireConnectionLabel={requireConnectionLabel}
+          onRequireConnectionLabelChange={setRequireConnectionLabel}
           canUndo={canUndoMap}
           onUndo={undoMapChange}
           onBeforeMapChange={captureMapUndo}

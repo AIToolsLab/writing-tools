@@ -13,6 +13,11 @@ export interface XYPosition {
   y: number;
 }
 
+export interface XYSize {
+  w: number;
+  h: number;
+}
+
 export interface ThoughtConnection {
   id: string;
   sourceId: string;
@@ -36,6 +41,7 @@ export interface RegisteredConnection {
 export interface ThoughtUnitStoreSnapshot {
   units: ThoughtUnit[];
   positions: Record<string, XYPosition>;
+  sizes?: Record<string, XYSize>;
   connections: ThoughtConnection[];
 }
 
@@ -53,6 +59,7 @@ function defaultPosition(index: number): XYPosition {
 export class ThoughtUnitStore {
   private _units: Map<string, ThoughtUnit> = new Map();
   private _positions: Map<string, XYPosition> = new Map();
+  private _sizes: Map<string, XYSize> = new Map();
   private _connections: Map<string, ThoughtConnection> = new Map();
 
   add(unit: ThoughtUnit, position: XYPosition = defaultPosition(this._units.size)): ThoughtUnit {
@@ -153,6 +160,7 @@ export class ThoughtUnitStore {
   delete(id: string): void {
     this._units.delete(id);
     this._positions.delete(id);
+    this._sizes.delete(id);
 
     for (const unit of this.getAll()) {
       if (unit.parentId === id) {
@@ -322,6 +330,7 @@ export class ThoughtUnitStore {
     if (!connection) return;
     this._units.delete(connection.labelUnitId);
     this._positions.delete(connection.labelUnitId);
+    this._sizes.delete(connection.labelUnitId);
     this._connections.delete(id);
   }
 
@@ -360,10 +369,23 @@ export class ThoughtUnitStore {
     return Object.fromEntries(this._positions.entries());
   }
 
+  setSize(id: string, size: XYSize): void {
+    this._sizes.set(id, size);
+  }
+
+  getSize(id: string): XYSize | undefined {
+    return this._sizes.get(id);
+  }
+
+  getSizes(): Record<string, XYSize> {
+    return Object.fromEntries(this._sizes.entries());
+  }
+
   snapshot(): ThoughtUnitStoreSnapshot {
     return {
       units: this.getAll(),
       positions: this.getPositions(),
+      sizes: this.getSizes(),
       connections: this.getConnections(),
     };
   }
@@ -371,6 +393,7 @@ export class ThoughtUnitStore {
   loadSnapshot(snapshot: ThoughtUnitStoreSnapshot): void {
     this._units = new Map(snapshot.units.map((unit) => [unit.id, unit]));
     this._positions = new Map(Object.entries(snapshot.positions));
+    this._sizes = new Map(Object.entries(snapshot.sizes ?? {}));
     this._connections = new Map(snapshot.connections.map((connection) => [connection.id, connection]));
     primeIdCounters(
       [

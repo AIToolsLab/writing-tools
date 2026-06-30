@@ -75,7 +75,9 @@ Direct map commands are user actions, not AI reflections.
 These commands do not go through mirror validation or confirmation. Declaratives
 such as "X is a main idea" or "X supports Y" are not commands; they go through
 the mirror/question path. Vague references such as "put my main point on the map"
-ask for exact wording. Ambiguous structure references ask rather than guess.
+ask for exact wording. Exact structure references execute immediately. Unique
+near matches ask for user confirmation ("did you mean this existing card?")
+before executing. Ambiguous structure references ask rather than guess.
 
 ### No Harvesting
 
@@ -114,7 +116,7 @@ validation payloads, accelerated candidates, and readiness notes. This turns
 | Validation | `validator.ts` | Lexical grounding + span/relationship grounding |
 | Confirmation | `App.tsx` | Per-claim confirm/decline creates cards only on confirm |
 | Carry-forward | `llm-contract.ts`, `controller.ts`, `readiness.ts` | `carryForwardCandidateIds`, idea-only density acceleration |
-| Direct commands | `llm-contract.ts`, `controller.ts`, `map-commands.ts` | `mapCommands`, exact current-turn spans, unique exact reference resolution |
+| Direct commands | `llm-contract.ts`, `controller.ts`, `map-commands.ts` | `mapCommands`, exact current-turn spans, exact reference resolution, user-confirmed near matches |
 | Map | `map-store.ts`, `Map.tsx` | One primitive: `ThoughtUnit` card; nesting is `parentId`; connections have label cards |
 | Draft anchoring | `App.tsx`, `api.ts` | Read-only draft + verbatim `questionAnchor` highlight |
 | Slider | `config.ts` | `withQuestionIntentBias` changes pacing thresholds only |
@@ -147,10 +149,10 @@ through that instance.
 - **Map-command labels are never invented.** Ungrounded labels are stripped;
   the user-commanded connection remains unlabeled.
 
-- **Exact structure resolution for now.** Existing card references must resolve
-  to exactly one normalized card. This avoids silent wrong structure, but can
-  create duplicates on partial references. Future work can add "did you mean X?"
-  disambiguation.
+- **Near-match disambiguation asks first.** Exact existing-card references
+  execute. A unique near match becomes a pending "did you mean X?" command that
+  executes only after the user confirms. Multiple near matches ask which card.
+  Fuzzy matching never silently resolves structure.
 
 - **Nested cards render as embedded DOM, not xyflow subflows.** This keeps the
   card as the one primitive and makes nesting visually literal.
@@ -177,7 +179,8 @@ Built and tested:
 - Think-to-Map slider
 - diagnostics
 - direct map commands: `create_card`, `nest_card`, `connect_cards`
+- direct command disambiguation for unique/ambiguous near matches
 
-Known tradeoff: command structure resolution is exact and conservative. It fails
-away from wrong structure, but can require the user to use the exact visible card
-text or create a duplicate from a partial reference.
+Known tradeoff: command speech-act interpretation still begins with the LLM. The
+controller fences the consequential act with exact spans, declarative/tentative
+blocks, exact reference resolution, and confirm-before-execute near matches.
