@@ -1,239 +1,183 @@
-# Reflective Mind-Map — Design
+# Reflective Mind-Map Design
 
-The canonical design document. It has three layers, written at different
-durabilities:
+This is the canonical design document for `prototype-mindmap`. The companion
+`airtightness-report.md` is the enforcement appendix. Older implementation
+briefs were removed after they became stale.
 
-1. **Aim & philosophy** — why the tool exists and the invariants everything
-   hangs off. Stable; change rarely.
-2. **What the app must do** — the behaviors required to honor the philosophy,
-   described without code. This doubles as the eval rubric.
-3. **How it's implemented** — thin pointers to where each behavior lives in the
-   code. Expected to drift; kept to file/function references, not copied code.
+## Aim
 
-Then a **decisions & rejected alternatives** log — the *why-nots*, which is where
-the philosophy actually bites.
+This is a writing-thinking tool, not a writing-production tool. The user
+externalizes their own thinking into a concept map. The AI helps by questioning,
+reflecting the user's own words, noticing when clarification is needed, and
+capturing confirmed structure. It never authors ideas, names relationships, or
+decides what belongs where.
 
-The existing briefs (`map-build-brief.md`, `airtightness-report.md`,
-`mirror-fixes-brief.md`) are appendices this document links, not content it
-repeats.
+The central bet is that constrained dialogue plus a user-grounded external map
+helps a person construct and recognize their own thinking more deeply than
+freeform chat or AI-generated prose.
 
----
-
-## 1. Aim & philosophy
-
-### What it is
-
-A **writing-thinking tool, not a writing-production tool.** The user externalizes
-their *own* thinking into a concept map. The AI helps them think — it questions,
-reflects their own words back, notices when clarification is needed, and captures
-*confirmed* structure onto a canvas. It never authors ideas, names relationships,
-or decides what belongs where.
-
-The central bet: **constrained dialogue plus a user-grounded external map helps a
-person construct and recognize their own thinking more deeply than either
-freeform chat or AI-generated prose** — and the grounding constraints create
-productive friction rather than parroting or busywork.
-
-### The invariant spine
-
-Every behavior and every implementation choice hangs off these. To check whether
-a feature belongs, check it against the spine.
+## Invariants
 
 1. **The user authors every idea, label, hierarchy, role, and connection.**
-2. **The AI never authors *ungrounded* structure.** It questions and reflects the
+2. **The AI never authors ungrounded structure.** It questions and reflects the
    user's own words; it does not invent ideas or relationships.
 3. **Validation gates the AI, never the user.** The map is the user's sovereign
-   workspace — no gate ever blocks a user action on it.
-4. **Selection is authorship.** The AI never decides *which* ideas become cards.
-   The user selects (explicitly, or by confirming a grounded reflection).
-5. **The slider moves eagerness, never the authorship gate.** Pacing changes with
-   the Think↔Map slider; grounding and confirmation never do.
-6. **Enforcement in code, calibration in config.** The non-negotiable
-   constraints are enforced deterministically; the tunable numbers live in one
-   config surface.
+   workspace.
+4. **Selection is authorship.** The AI never decides which ideas become cards.
+5. **The slider moves eagerness, never the authorship gate.**
+6. **Enforcement lives in code; calibration lives in config.**
 
-A useful corollary that resolves most edge cases: **the AI may *interpret*
-freely, but the *consequential* act (what becomes structure) is always fenced by
-grounding + user confirmation, or is a direct user action.** Interpretation is
-where the model is strong; authorship is where the code stays strict.
+Useful corollary: the AI may interpret freely, but the consequential act that
+creates structure is either fenced by grounding plus user confirmation, or is a
+direct user action.
 
----
+## Required Behavior
 
-## 2. What the app must do (behavior, no code)
+### Capture
 
-Each item states the behavior and which invariant it serves.
+A large voice/text turn is split into sentence-level units. Each unit is recorded
+verbatim in the Source Bank. Nothing the AI says is ever treated as the user's
+words.
 
-### 2.1 Capture the user's words faithfully
-A big voice/text turn is split into sentence-level units, each recorded verbatim
-as the ground truth. Nothing the AI says is ever treated as the user's words.
-*(Serves 1, 2 — grounding has something real to check against.)*
+### Questioning
 
-### 2.2 Ask questions that make the user think
 The coach makes one move per turn: at most a short grounding clause followed by a
-single question, and the turn ends on that question. It reads the user's state
-and chooses how hard to push (**settle / narrow / deepen / organize /
-challenge**). It never re-asks a settled point, never validates-as-the-whole-
-reply, and advances at the smallest useful step. When the user is confused, it
-re-angles rather than repeating. *(Serves the thinking-first aim.)*
+single question, ending on that question. It chooses stance (`settle`, `narrow`,
+`deepen`, `organize`, `challenge`) based on the user's state. It does not re-ask
+settled points, validate as the whole reply, or offer inferred structure for the
+user to approve.
 
-### 2.3 Reflect structure back — only when grounded and ready
-A **mirror** restates the *structure* the coach heard (what is bigger, what sits
-under what, what connects what) **in the user's own words**. It is offered only
-when an idea is *ready* (the user has grounded it) and only after it passes
-validation (the words trace to the user; relationships come from a single user
-utterance). A failed mirror becomes a clarifying question, never leaked prose.
-*(Serves 2 — the AI reflects, never authors.)*
+### Mirroring
 
-### 2.4 Let the user confirm or revise before anything becomes structure
-A mirror is a set of **confirmable chunks**. Only a chunk the user confirms
-becomes a card. The user can decline or revise. *(Serves 1, 4.)*
+A mirror restates structure in the user's own words. It is offered only when a
+candidate is ready and only after validator checks pass. Failed mirrors become
+clarifying questions. A mirror is split into confirmable chunks; only confirmed
+chunks become cards.
 
-### 2.5 Recognize explicit commitment and fast-track it
+### Carry-Forward
+
 When the user explicitly commits an idea ("the main idea I want to carry forward
-is X"), a single clear, grounded statement can be mirrored immediately rather than
-forced through repeated questioning — still validated, still confirmed. This is
-the purest authorship signal, so it is honored at **any** slider position.
-*(Serves 1, 4, 5.)*
+is X"), a single clear, grounded statement can mirror immediately. It still must
+validate and still requires confirmation. This fast-track is honored at any
+slider position.
 
-### 2.6 Treat direct map commands as user actions
-"Put X on the map," "make a card for X" is a **direct user action**, not an AI
-reflection. It places a card from the user's verbatim words, with no mirror, no
-validation gate, and no confirmation. Declaratives ("X is a main idea") are *not*
-commands — they go to the mirror path. Vague references ("put my main point on
-the map") prompt for the exact wording. *(Serves 3 — the map is sovereign;
-commands are user actions.)*
+### Direct Map Commands
 
-### 2.7 Never harvest or select for the user
-For a long/exploratory turn, the coach does **not** extract N cards. It mirrors
-only what the user explicitly declared or clearly grounded by returning to it;
-otherwise it asks one focusing question that hands selection back to the user. The
-longer and richer the input, the *more* careful the coach is about selecting
-structure. *(Serves 4 — selection is authorship.)*
+Direct map commands are user actions, not AI reflections.
 
-### 2.8 A sovereign, manipulable map
-Confirmed reflections appear as cards. The user freely drags, titles, groups
-(nesting renders a card *inside* its parent), pulls out, connects (user-labeled
-or unlabeled — the AI never invents a label), deletes, and undoes. No map action
-is ever blocked by validation. *(Serves 1, 3.)*
+- "Put X on the map" creates a user-authored card from the user's exact words.
+- "Put X under Y" nests a card under an existing uniquely resolved card.
+- "Connect X to Y" creates a user-authored connection.
+- "Connect X to Y with 'label'" uses the user-supplied label only if that label
+  is grounded in the current turn. If the label is ungrounded, the edge is kept
+  unlabeled.
 
-### 2.9 A draft the AI can see but never edit
-The user's draft is a read-only reference the AI can anchor questions to
-(highlighting the region) but never rewrites. *(Serves 1, 2.)*
+These commands do not go through mirror validation or confirmation. Declaratives
+such as "X is a main idea" or "X supports Y" are not commands; they go through
+the mirror/question path. Vague references such as "put my main point on the map"
+ask for exact wording. Ambiguous structure references ask rather than guess.
 
-### 2.10 A slider that controls eagerness, not authorship
-Think↔Map continuously changes how eagerly the coach moves toward mirroring
-*non-declared* ideas (pacing). It never changes grounding, confirmation, or
-whether an explicit declaration fast-tracks. At full Map the coach builds
-structure quickly *once the user chooses* — it never starts choosing. *(Serves 5.)*
+### No Harvesting
 
-### 2.11 Stay grounded as the user edits the map
-Every user action that introduces wording on the map (a new card, a connection
-phrase, an edit) is written back into the shared word store, so the AI stays aware
-of everything the user authored on the canvas. *(Serves 2 — the AI's later
-reflections remain grounded in the larger set of user words.)*
+For long/exploratory turns, the coach must not extract a fixed number of cards.
+It mirrors only what the user explicitly selected or grounded clearly enough;
+otherwise it asks one focusing question that hands selection back to the user.
+The longer and richer the input, the more careful the coach must be about
+selecting structure for the user.
 
-### 2.12 Be diagnosable
-Every coach decision is inspectable: the mode, the suppression reason (cooldown /
-missing-payload / not-ready / batch / validation-failed) with the failing check
-and its score/threshold, the full validation payload (claim text, span phrase,
-cited utterance ids *and* text), and the success-side carry-forward notes
-(which candidate was accelerated, and why). *(Operational, not philosophical —
-but it is what keeps the other behaviors verifiable, and it is what turns
-"felt wrong" eval reports into "span_grounding 0.62/0.75".)*
+### Sovereign Map
 
----
+The user can freely create, edit, drag, nest, connect, delete, and undo. No map
+action is blocked by validator/readiness gates. User-introduced wording writes
+back to the shared Source Bank so later AI turns stay grounded in the user's
+canvas work.
 
-## 3. How it's implemented (thin pointers)
+### Slider
 
-| Behavior | Where | Key mechanism |
+The Think-to-Map slider changes eagerness and pacing for non-declared ideas. It
+never changes grounding, confirmation, or whether explicit declarations and
+direct commands are honored.
+
+### Diagnostics
+
+The Debug panel exposes mode, suppression reason, validation check scores,
+validation payloads, accelerated candidates, and readiness notes. This turns
+"felt wrong" reports into concrete gate diagnoses.
+
+## Implementation Map
+
+| Behavior | Where | Mechanism |
 | --- | --- | --- |
-| 2.1 Capture | `store.ts` (`SourceBank.addSegmented`), `normalize.ts` (`segment`) | Split on `.!?`/newlines into per-unit utterances sharing a turn id |
-| 2.2 Questioning | `api.ts` (`systemPrompt` QUESTION MODE + stance rules), `llm-contract.ts` (`questionStance`), `controller.ts` (anti-repeat guard, stuck override) | Stance emitted + surfaced; verbatim-repeat de-escalates in code |
-| 2.3 Mirror + readiness + validation | `readiness.ts` (`evaluateReadiness`), `validator.ts` (lexical + span grounding), `controller.ts` (mirror branch) | Readiness gates *attempt*; validator gates *grounding*; fail → clarify |
-| 2.4 Confirmation | `controller.ts` (`validatedMirror`), `App.tsx` (`decideClaim`) | Per-chunk confirm; card created only on confirm |
-| 2.5 Carry-forward | `llm-contract.ts` (`carryForwardCandidateIds`), `controller.ts` (idea-only, this-turn, substantive, source-spanned filter), `readiness.ts` (`acceleratedIdeaIds`) | Accelerates *density only*, idea-only, validation + confirmation intact |
-| 2.6 Map commands | `llm-contract.ts` (`mapCommands`), `controller.ts` (`acceptedMapCommands`, blockers), `map-commands.ts` (`applyAcceptedMapCommands`) | Hard guards: verbatim this-turn span + cited-id match (fail-closed). Soft guard: declarative/tentative/referential blocklist trusting the LLM |
-| 2.7 No-harvest | `api.ts` (large-turn / block-type prompt rules) | Mirror declared/grounded only; otherwise one focusing question |
-| 2.8 Sovereign map | `map-store.ts` (`ThoughtUnitStore`), `Map.tsx` (embedded nesting, edges, edge badge, delete, undo) | One primitive (the card); nesting = re-parent rendered as DOM embedding |
-| 2.9 Draft anchoring | `App.tsx` (draft panel + backdrop highlight), `api.ts` (`questionAnchor`) | Read-only draft; verbatim anchor highlighted |
-| 2.10 Slider | `config.ts` (`withQuestionIntentBias`, `mapPressure`) | Continuous shift of pacing thresholds only |
-| 2.11 Map writeback | `map-store.ts` (`editText`, `registerConnection`, `addFromUserUtterance`), `App.tsx` (passes `stateRef.current.bank`) | Map writes `node_edit`/`declaration` utterances into the **shared** bank |
-| 2.12 Diagnostics | `controller.ts` (`suppressionReason`, `validationDebug`), `Map.tsx` Debug panel | Reason + failing check/score surfaced |
+| Capture | `store.ts`, `normalize.ts` | `SourceBank.addSegmented`, sentence/newline segmentation |
+| Questioning | `api.ts`, `controller.ts`, `llm-contract.ts` | Prompt stance + anti-repeat and stuck overrides |
+| Readiness | `readiness.ts`, `signals.ts`, `controller.ts` | Code-derived relation signals, spontaneous hierarchy rule |
+| Validation | `validator.ts` | Lexical grounding + span/relationship grounding |
+| Confirmation | `App.tsx` | Per-claim confirm/decline creates cards only on confirm |
+| Carry-forward | `llm-contract.ts`, `controller.ts`, `readiness.ts` | `carryForwardCandidateIds`, idea-only density acceleration |
+| Direct commands | `llm-contract.ts`, `controller.ts`, `map-commands.ts` | `mapCommands`, exact current-turn spans, unique exact reference resolution |
+| Map | `map-store.ts`, `Map.tsx` | One primitive: `ThoughtUnit` card; nesting is `parentId`; connections have label cards |
+| Draft anchoring | `App.tsx`, `api.ts` | Read-only draft + verbatim `questionAnchor` highlight |
+| Slider | `config.ts` | `withQuestionIntentBias` changes pacing thresholds only |
+| Diagnostics | `controller.ts`, `Map.tsx` | `suppressionReason`, `validationDebug`, readiness notes |
 
-**The one integration that must never break:** the map and the chat loop share a
-**single `SourceBank` instance** (`stateRef.current.bank`). If a second bank ever
-exists, map edits silently never reach the AI and grounding drifts with no error.
-All map writes and undo restores go through that one instance.
+The integration that must never break: the map and the chat loop share the same
+`SourceBank` instance (`stateRef.current.bank`). Map writes and undo restores go
+through that instance.
 
----
+## Decisions and Rejected Alternatives
 
-## 4. Decisions & rejected alternatives
+- **LLM interpretation, code fences.** Coaching stance, commitment recognition,
+  and command speech acts are LLM-interpreted. Consequential gates remain
+  code-enforced: validator checks, hierarchy spontaneity, exact current-turn
+  command spans, and unique reference resolution.
 
-The *why-nots*. Re-introducing any of these would violate the spine.
+- **No controller trim for mirror chunk count.** A hard cap would silently drop
+  user-grounded claims and move selection into code. If many ideas are ready,
+  ask a focusing question; do not trim.
 
-- **Deterministic phrase lists vs LLM interpretation.** *Coaching register*
-  (stance), *commitment* recognition, and *map-command* speech acts are
-  **LLM-interpreted** — phrase lists are brittle and miss phrasings. But the
-  *consequential* gates — mirror validation, hierarchy spontaneity, command
-  verbatim/this-turn checks — stay **code-only**, because there the model's
-  judgment could fabricate authorship. Split rule: model interprets, code fences
-  the act.
+- **Declaration recognition is not slider-gated.** Explicit user intent is
+  honored at any position. The slider only tunes pacing for non-declared ideas.
 
-- **No `softMaxMirrorChunks` trim in the controller.** *Rejected.* A code-level
-  cap would silently drop *user-grounded* claims — moving AI-selection into the
-  enforcement layer, the opposite of invariant 4. If many ideas are ready, that's
-  a signal the turn was a dump → ask a focusing question (2.7), never trim.
+- **Carry-forward is idea-only.** It accelerates density only. It never satisfies
+  relationship clarity, hierarchy spontaneity, or connection grounding.
 
-- **Declaration recognition is not slider-gated.** An earlier version gated
-  "carry-forward pressure" on `mapPressure ≥ 0.75`. *Removed* — explicit intent
-  must be honored at any position (invariant 5). The slider's only job is
-  continuous pacing for *non-declared* ideas.
+- **Direct commands bypass mirror validation.** They are user actions. The code
+  checks exact words and references, not whether the user's action is "ready."
 
-- **Carry-forward is fenced to `idea` targets.** It accelerates *density only*.
-  It must never satisfy relationship clarity, hierarchy spontaneity, or
-  connection grounding — those are real structure the user must author. An idea
-  is just the user's own validated concept.
+- **Map-command labels are never invented.** Ungrounded labels are stripped;
+  the user-commanded connection remains unlabeled.
 
-- **Map commands: blocklist + hard verbatim guard, not a whitelist.** An earlier
-  whitelist of placement phrasings failed *closed* on valid-but-unusual commands.
-  Inverted: trust the LLM's `create_card`, but keep the **verbatim this-turn span
-  + cited-id** guards fail-closed (a card is always the user's literal current
-  words) and block obvious declaratives/tentatives/referentials. A residual
-  false-positive is low-harm: a deletable, undoable card of the user's own words.
+- **Exact structure resolution for now.** Existing card references must resolve
+  to exactly one normalized card. This avoids silent wrong structure, but can
+  create duplicates on partial references. Future work can add "did you mean X?"
+  disambiguation.
 
-- **Nesting renders as DOM embedding, not xyflow subflows.** *Chosen* so a nested
-  card sits visually *inside* its parent (matching the user's mental model) with
-  one primitive (the card) rather than a separate container object.
+- **Nested cards render as embedded DOM, not xyflow subflows.** This keeps the
+  card as the one primitive and makes nesting visually literal.
 
-- **Connection labels are optional; the AI never invents one.** A user-drawn edge
-  with no wording is a valid user-authored relationship; the AI naming it would be
-  authoring structure.
+- **Model remains `gpt-5.4-mini`.** Observed failures have been coordination
+  failures, not model-judgment failures. Upgrade only if judgment failures
+  become persistent.
 
-- **Validation never blocks a user map action.** The map is sovereign (invariant
-  3). Direct commands bypass mirror/validation entirely; map edits write back to
-  the bank rather than being checked.
+- **Eval rubric: mirror within about one productive turn.** One useful follow-up
+  on a compound idea is a pass; forcing immediate mirroring everywhere would
+  make the tool an extractor.
 
-- **Model: `gpt-5.4-mini` is sufficient.** Every observed failure has been
-  *coordination* (wrong utterance id, claim drift, missing flag) — a
-  prompt/controller concern — not *judgment*. **Upgrade trip-wire:** revisit the
-  model only if failures become judgment-shaped (mirrors a compound idea badly,
-  or fails to mirror after the user clearly answers, or over-narrows).
+## Current Status
 
-- **Eval rubric: "mirror within ~1 productive turn," not "immediately."** One
-  focusing question on a compound/contrastive idea before mirroring is a *pass*,
-  not a miss — forcing immediate mirroring everywhere would make the tool an
-  extractor, against the thinking-first aim.
+Built and tested:
 
----
+- capture/segmentation
+- question stance and anti-repeat behavior
+- readiness and validation
+- per-chunk mirror confirmation
+- carry-forward acceleration
+- concept map cards, nesting, connections, delete, undo
+- draft anchoring
+- Think-to-Map slider
+- diagnostics
+- direct map commands: `create_card`, `nest_card`, `connect_cards`
 
-## Status (as of this writing)
-
-Built and tested: capture/segmentation, question mode + stance, readiness +
-validation, per-chunk confirmation, carry-forward, the sovereign map (cards,
-embedded nesting, connections, delete, undo), draft anchoring, the slider,
-diagnostics, and **Phase 1 of direct map commands (`create_card`)**.
-
-Not yet built: direct **structure** commands (`nest_card`, `connect_cards`) —
-they need confident reference resolution, ambiguity handling, and undo coverage
-for relationship changes, carried with the same "ask-when-unsure + undo-as-net +
-tested-negatives" discipline.
+Known tradeoff: command structure resolution is exact and conservative. It fails
+away from wrong structure, but can require the user to use the exact visible card
+text or create a duplicate from a partial reference.

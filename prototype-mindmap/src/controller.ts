@@ -15,7 +15,7 @@
 import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
 import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MockLLM, QuestionStance } from "./llm-contract";
-import { contentTokens } from "./normalize";
+import { contentTokens, normalize } from "./normalize";
 import { evaluateReadiness, readyCandidates } from "./readiness";
 import { detectSignals } from "./signals";
 import { CandidateStore, SourceBank } from "./store";
@@ -37,11 +37,28 @@ export type SuppressionReason =
   | "batch_preference"
   | "validation_failed";
 
-export interface AcceptedMapCommand {
-  kind: "create_card";
-  text: string;
-  sourceUtteranceIds: string[];
-}
+export type AcceptedMapCommandCardRef =
+  | { id: string }
+  | { text: string; sourceUtteranceIds: string[] };
+
+export type AcceptedMapCommand =
+  | {
+      kind: "create_card";
+      text: string;
+      sourceUtteranceIds: string[];
+    }
+  | {
+      kind: "nest_card";
+      child: AcceptedMapCommandCardRef;
+      parentId: string;
+    }
+  | {
+      kind: "connect_cards";
+      source: AcceptedMapCommandCardRef;
+      target: AcceptedMapCommandCardRef;
+      labelText?: string;
+      labelSourceUtteranceIds?: string[];
+    };
 
 /**
  * Fixed user-facing preamble for a passing mirror. The actual reflection is the
@@ -128,9 +145,40 @@ function isBlockedCreateCardInterpretation(unitText: string, cardText: string): 
   return false;
 }
 
+function currentTurnSourceIdsForPhrase(
+  phrase: string | undefined,
+  units: SourceUtterance[],
+): string[] {
+  const trimmed = phrase?.trim();
+  if (!trimmed || isReferentialCardText(trimmed)) return [];
+  return units.filter((unit) => unit.text.includes(trimmed)).map((unit) => unit.id);
+}
+
+function resolveExistingCardId(text: string | undefined, map: LLMMapContext): string | undefined {
+  const target = normalize(text ?? "");
+  if (!target) return undefined;
+  const matches = map.thoughtUnits.filter(
+    (unit) => unit.role !== "connection_label" && normalize(unit.text) === target,
+  );
+  return matches.length === 1 ? matches[0].id : undefined;
+}
+
+function resolveCommandCardRef(
+  text: string | undefined,
+  units: SourceUtterance[],
+  map: LLMMapContext,
+): AcceptedMapCommandCardRef | undefined {
+  const existingId = resolveExistingCardId(text, map);
+  if (existingId) return { id: existingId };
+  const sourceUtteranceIds = currentTurnSourceIdsForPhrase(text, units);
+  if (sourceUtteranceIds.length === 0 || !text?.trim()) return undefined;
+  return { text: text.trim(), sourceUtteranceIds };
+}
+
 function acceptedMapCommands(
   commands: MapCommand[] | undefined,
   units: SourceUtterance[],
+  map: LLMMapContext,
 ): AcceptedMapCommand[] {
   const accepted: AcceptedMapCommand[] = [];
   const seen = new Set<string>();
@@ -159,6 +207,58 @@ function acceptedMapCommands(
       kind: "create_card",
       text: phrase,
       sourceUtteranceIds: eligibleUnits.map((unit) => unit.id),
+    });
+  }
+
+  for (const command of commands ?? []) {
+    if (command.kind !== "nest_card") continue;
+    const childText = command.childText?.trim();
+    const parentId = resolveExistingCardId(command.parentText, map);
+    if (!childText || !parentId) continue;
+    const relevantUnits = units.filter((unit) => unit.text.includes(childText));
+    if (relevantUnits.length === 0) continue;
+    if (relevantUnits.every((unit) => isBlockedCreateCardInterpretation(unit.text, childText))) continue;
+    const child = resolveCommandCardRef(childText, units, map);
+    if (!child) continue;
+    const key = `nest:${"id" in child ? child.id : child.text}->${parentId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    accepted.push({ kind: "nest_card", child, parentId });
+  }
+
+  for (const command of commands ?? []) {
+    if (command.kind !== "connect_cards") continue;
+    const sourceText = command.sourceText?.trim();
+    const targetText = command.targetText?.trim();
+    if (!sourceText || !targetText) continue;
+    const relevantUnits = units.filter(
+      (unit) => unit.text.includes(sourceText) || unit.text.includes(targetText),
+    );
+    if (relevantUnits.length === 0) continue;
+    if (relevantUnits.every((unit) => isBlockedCreateCardInterpretation(unit.text, sourceText) || isBlockedCreateCardInterpretation(unit.text, targetText))) continue;
+    const source = resolveCommandCardRef(sourceText, units, map);
+    const target = resolveCommandCardRef(targetText, units, map);
+    if (!source || !target) continue;
+    if ("id" in source && "id" in target && source.id === target.id) continue;
+    const labelText = command.labelText?.trim() || undefined;
+    const groundedLabelSourceIds = labelText
+      ? currentTurnSourceIdsForPhrase(labelText, units)
+      : undefined;
+    const groundedLabelText =
+      labelText && groundedLabelSourceIds && groundedLabelSourceIds.length > 0
+        ? labelText
+        : undefined;
+    const sourceKey = "id" in source ? source.id : source.text;
+    const targetKey = "id" in target ? target.id : target.text;
+    const key = `connect:${sourceKey}->${targetKey}:${groundedLabelText ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    accepted.push({
+      kind: "connect_cards",
+      source,
+      target,
+      labelText: groundedLabelText,
+      labelSourceUtteranceIds: groundedLabelText ? groundedLabelSourceIds : undefined,
     });
   }
 
@@ -328,7 +428,7 @@ export async function processTurn(
     map,
   };
   const turn = await llm(ctx);
-  const acceptedCommands = acceptedMapCommands(turn.mapCommands, units);
+  const acceptedCommands = acceptedMapCommands(turn.mapCommands, units, map);
 
   // 5. Apply candidate updates from the LLM, then recompute readiness for gating.
   //    The LLM proposes grouping (gist/target/evidence) only. Relation signals

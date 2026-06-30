@@ -254,11 +254,11 @@ ${renderMap(ctx.map)}
         "utteranceIds": ["<id from this turn>"],
         "userPhrase": "<exact substring from this turn>"
       },
-      "childText": "<future nest_card only>",
-      "parentText": "<future nest_card only>",
-      "sourceText": "<future connect_cards only>",
-      "targetText": "<future connect_cards only>",
-      "labelText": "<future connect_cards only; omit if user supplied no label>"
+      "childText": "<nest_card only: exact child card text/reference>",
+      "parentText": "<nest_card only: exact existing parent card text/reference>",
+      "sourceText": "<connect_cards only: exact source card text/reference>",
+      "targetText": "<connect_cards only: exact target card text/reference>",
+      "labelText": "<connect_cards only; exact user-supplied label wording, omit if none>"
     }
   ],
   "carryForwardCandidateIds": ["<idea candidate id the user explicitly committed to carrying forward this turn>"]
@@ -287,9 +287,13 @@ DIRECT MAP COMMANDS:
 - If the user gestures without wording ("put my main point on the map", "add
   that control thing"), do not emit a command; ask what words should go on the
   card.
-- "nest_card" and "connect_cards" are reserved for future support. For now, do
-  not emit them; ask a reference-resolution question instead if the user gives a
-  structure command you cannot safely execute.
+- Emit "nest_card" only for imperative nesting commands ("put X under Y", "make
+  X a subpoint of Y"). "childText" and "parentText" must be the user's words.
+- Emit "connect_cards" only for imperative connection commands ("connect X to
+  Y", "link X and Y"). If the user supplies label wording, copy it into
+  "labelText"; otherwise omit it. Never invent a connection label.
+- If a reference is unclear, tentative, or declarative, do not emit a command;
+  ask which card or what wording the user wants.
 
 Worked same-turn carry-forward example:
 If SOURCE BANK contains u_7 = "The part to carry forward is: human control means

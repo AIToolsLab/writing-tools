@@ -10,7 +10,7 @@ import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./con
 import { createState, MIRROR_PREAMBLE, processTurn } from "./controller";
 import type { LLMContext, LLMTurn } from "./llm-contract";
 import { resetIdCounter } from "./store";
-import type { MirrorClaim, MirrorReflection, SourceSpan } from "./types";
+import type { MirrorClaim, MirrorReflection, SourceSpan, ThoughtUnit } from "./types";
 
 beforeEach(() => {
   resetIdCounter();
@@ -86,6 +86,16 @@ function noReadinessCfg(extra?: Partial<MindmapConfig["pacing"]>): MindmapConfig
       minReadyCandidatesToBatch: 1,
       ...extra,
     },
+  };
+}
+
+function mapUnit(id: string, text: string): ThoughtUnit {
+  return {
+    id,
+    text,
+    role: "node",
+    source: { utteranceIds: [`u_${id}`], createdBy: "user" },
+    roleHistory: [{ role: "node", changedBy: "user", at: 1 }],
   };
 }
 
@@ -315,7 +325,7 @@ describe("question mode", () => {
     expect(out.mapCommands).toBeUndefined();
   });
 
-  it("does not execute future structure commands in the create-card phase", async () => {
+  it("does not execute structure commands when references cannot resolve", async () => {
     const state = createState();
     const llm = (_ctx: LLMContext): LLMTurn => ({
       mode: "question",
@@ -330,6 +340,171 @@ describe("question mode", () => {
     });
 
     const out = await processTurn(state, "put human control under authorship", llm);
+
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("accepts imperative nesting commands when the parent resolves uniquely", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [
+        {
+          kind: "nest_card",
+          childText: "human control",
+          parentText: "authorship",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "put human control under authorship",
+      llm,
+      defaultConfig,
+      "chat",
+      { thoughtUnits: [mapUnit("parent", "authorship")], connections: [] },
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "nest_card",
+        child: { text: "human control", sourceUtteranceIds: ["u_1"] },
+        parentId: "parent",
+      },
+    ]);
+  });
+
+  it("does not execute nesting commands when the parent reference is ambiguous", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Which authorship card should it go under?",
+      mapCommands: [
+        {
+          kind: "nest_card",
+          childText: "human control",
+          parentText: "authorship",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "put human control under authorship",
+      llm,
+      defaultConfig,
+      "chat",
+      {
+        thoughtUnits: [mapUnit("parent1", "authorship"), mapUnit("parent2", "authorship")],
+        connections: [],
+      },
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("accepts imperative unlabeled connection commands with unique references", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "human control",
+          targetText: "authorship",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "connect human control to authorship",
+      llm,
+      defaultConfig,
+      "chat",
+      {
+        thoughtUnits: [mapUnit("source", "human control"), mapUnit("target", "authorship")],
+        connections: [],
+      },
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "source" },
+        target: { id: "target" },
+        labelText: undefined,
+        labelSourceUtteranceIds: undefined,
+      },
+    ]);
+  });
+
+  it("keeps an imperative connection command when an emitted label is ungrounded", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "human control",
+          targetText: "authorship",
+          labelText: "preserves",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "connect human control to authorship",
+      llm,
+      defaultConfig,
+      "chat",
+      {
+        thoughtUnits: [mapUnit("source", "human control"), mapUnit("target", "authorship")],
+        connections: [],
+      },
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "source" },
+        target: { id: "target" },
+        labelText: undefined,
+        labelSourceUtteranceIds: undefined,
+      },
+    ]);
+  });
+
+  it("does not execute declarative relationship statements as connection commands", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "How do those relate in your words?",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "human control",
+          targetText: "authorship",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "human control supports authorship",
+      llm,
+      defaultConfig,
+      "chat",
+      {
+        thoughtUnits: [mapUnit("source", "human control"), mapUnit("target", "authorship")],
+        connections: [],
+      },
+    );
 
     expect(out.mapCommands).toBeUndefined();
   });
