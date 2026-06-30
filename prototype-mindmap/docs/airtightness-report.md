@@ -3,7 +3,7 @@
 Current enforcement appendix for `prototype-mindmap`. `DESIGN.md` is the
 canonical product/design source. This report tracks which philosophical
 constraints are enforced in code, which are prompt-level, and where the residual
-soft spots are. Current verification: `126/126` tests passing.
+soft spots are. Current verification: `127/127` tests passing.
 
 ## Central Principle
 

@@ -19,7 +19,7 @@ import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MockLLM, QuestionS
 import { contentTokens, normalize } from "./normalize";
 import { evaluateReadiness, readyCandidates } from "./readiness";
 import { detectSignals } from "./signals";
-import { CandidateStore, SourceBank } from "./store";
+import { CandidateStore, SourceBank, cardRef } from "./store";
 import { detectTurnShape } from "./turn-shape";
 import type {
   ClaimValidation,
@@ -194,6 +194,14 @@ function isBlockedCreateCardInterpretation(unitText: string, cardText: string): 
   return false;
 }
 
+function isConnectCommandText(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    /\b(?:connect|link|join)\b/.test(lower) ||
+    /\b(?:draw|make|create|add|put)\b.{0,80}\b(?:line|connection|link|edge)\b/.test(lower)
+  );
+}
+
 function currentTurnSourceIdsForPhrase(
   phrase: string | undefined,
   units: SourceUtterance[],
@@ -201,6 +209,21 @@ function currentTurnSourceIdsForPhrase(
   const trimmed = phrase?.trim();
   if (!trimmed || isReferentialCardText(trimmed)) return [];
   return units.filter((unit) => unit.text.includes(trimmed)).map((unit) => unit.id);
+}
+
+/**
+ * Resolve a card reference like "#59" (the human-visible ref the AI and user
+ * cite) back to an existing card id. The ref is `#` + the id's trailing number,
+ * which is globally unique, so a bare "#N" maps to exactly one card.
+ */
+function resolveCardRefNumber(text: string | undefined, map: LLMMapContext): string | undefined {
+  const match = text?.trim().match(/^#?(\d+)$/);
+  if (!match) return undefined;
+  const wanted = `#${match[1]}`;
+  const matches = map.thoughtUnits.filter(
+    (unit) => unit.role !== "connection_label" && cardRef(unit.id) === wanted,
+  );
+  return matches.length === 1 ? matches[0].id : undefined;
 }
 
 function resolveExistingCardId(text: string | undefined, map: LLMMapContext): string | undefined {
@@ -254,6 +277,8 @@ function resolveCommandCardRefDetailed(
   map: LLMMapContext,
 ): ResolvedCommandCardRef {
   const requested = text?.trim() ?? "";
+  const refId = resolveCardRefNumber(text, map);
+  if (refId) return { kind: "resolved", ref: { id: refId } };
   const existingId = resolveExistingCardId(text, map);
   if (existingId) return { kind: "resolved", ref: { id: existingId } };
   const nearMatches = nearReferenceMatches(text, map);
@@ -462,19 +487,34 @@ function acceptedMapCommands(
     const sourceText = command.sourceText?.trim();
     const targetText = command.targetText?.trim();
     if (!sourceText || !targetText) continue;
-    const relevantUnits = units.filter(
-      (unit) => unit.text.includes(sourceText) || unit.text.includes(targetText),
-    );
-    if (relevantUnits.length === 0) {
-      notes.push({ reason: "not_current_turn_span", detail: "Blocked connection; neither endpoint was current-turn wording." });
-      continue;
-    }
-    if (relevantUnits.every((unit) => isBlockedCreateCardInterpretation(unit.text, sourceText) || isBlockedCreateCardInterpretation(unit.text, targetText))) {
-      notes.push({ reason: "blocked_interpretation", detail: `Blocked declarative/tentative connection "${sourceText}" -> "${targetText}".` });
-      continue;
-    }
     const sourceResolved = resolveCommandCardRefDetailed(sourceText, units, map);
     const targetResolved = resolveCommandCardRefDetailed(targetText, units, map);
+    // The current-turn grounding gate exists only to stop NEW card text from
+    // being minted ungrounded. When both endpoints are existing cards (resolved
+    // by #ref or exact text), there is no new structure to ground, so skip it —
+    // otherwise an existing-card connection is mis-blocked (e.g. the user's own
+    // label wording like "supports" trips the declarative detector).
+    const bothExisting =
+      sourceResolved.kind === "resolved" && "id" in sourceResolved.ref &&
+      targetResolved.kind === "resolved" && "id" in targetResolved.ref;
+    if (bothExisting) {
+      if (!units.some((unit) => isConnectCommandText(unit.text))) {
+        notes.push({ reason: "blocked_interpretation", detail: `Blocked declarative/tentative connection "${sourceText}" -> "${targetText}".` });
+        continue;
+      }
+    } else {
+      const relevantUnits = units.filter(
+        (unit) => unit.text.includes(sourceText) || unit.text.includes(targetText),
+      );
+      if (relevantUnits.length === 0) {
+        notes.push({ reason: "not_current_turn_span", detail: "Blocked connection; neither endpoint was current-turn wording." });
+        continue;
+      }
+      if (relevantUnits.every((unit) => isBlockedCreateCardInterpretation(unit.text, sourceText) || isBlockedCreateCardInterpretation(unit.text, targetText))) {
+        notes.push({ reason: "blocked_interpretation", detail: `Blocked declarative/tentative connection "${sourceText}" -> "${targetText}".` });
+        continue;
+      }
+    }
     if (sourceResolved.kind === "near" || targetResolved.kind === "near") {
       const nearPending = acceptedCommandFromNearMatch(command, units, map);
       if (!pending && nearPending) pending = nearPending;

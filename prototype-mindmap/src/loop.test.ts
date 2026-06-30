@@ -442,6 +442,45 @@ describe("question mode", () => {
     ]);
   });
 
+  it("resolves #ref endpoints to existing cards even when the label trips the declarative detector", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "#59",
+          targetText: "#44",
+          labelText: "supports human control",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      'Connect #59 to #44 with the label "supports human control"',
+      llm,
+      defaultConfig,
+      "chat",
+      {
+        thoughtUnits: [
+          mapUnit("tu_59", "mind maps let the user hold multiple possible relationships"),
+          mapUnit("tu_44", "human control"),
+        ],
+        connections: [],
+      },
+    );
+
+    // The endpoints must resolve to the existing cards by their #refs; the
+    // label word "supports" must NOT cause a declarative/tentative block.
+    expect(out.mapCommands?.[0]).toMatchObject({
+      kind: "connect_cards",
+      source: { id: "tu_59" },
+      target: { id: "tu_44" },
+    });
+  });
+
   it("keeps an imperative connection command when an emitted label is ungrounded", async () => {
     const state = createState();
     const llm = (_ctx: LLMContext): LLMTurn => ({
