@@ -34,6 +34,33 @@ export interface MirrorThresholds {
    * toward Map. Below this, ask what would make the claim firmer.
    */
   tentativeMirrorMapPressureMin: number;
+  /** Tentative wording that must be handled carefully by mirror validation. */
+  tentativeEvidencePattern: string;
+}
+
+export interface TurnShapeConfig {
+  largeUnitCount: number;
+  largeContentTokens: number;
+  largeChars: number;
+  explicitSelectionPattern: string;
+  directMapCommandPattern: string;
+}
+
+export interface DraftDeclarationConfig {
+  declarationPatterns: Array<{ kind: "main_idea" | "thesis" | "argument"; pattern: string }>;
+  tentativeBeforePattern: string;
+  tentativeBodyPattern: string;
+  maxTentativeLookbackChars: number;
+  minContentTokens: number;
+  maxDeclarationChars: number;
+  maxRepeatedFocusChars: number;
+  repeatedFocusMinOccurrences: number;
+}
+
+export interface DraftRedundancyConfig {
+  declaredFocusPattern: string;
+  restateQuestionPattern: string;
+  deepenQuestionPattern: string;
 }
 
 export interface ReadinessThresholds {
@@ -88,6 +115,9 @@ export interface MindmapConfig {
   mirror: MirrorThresholds;
   readiness: ReadinessThresholds;
   pacing: PacingConfig;
+  turnShape: TurnShapeConfig;
+  draftDeclarations: DraftDeclarationConfig;
+  draftRedundancy: DraftRedundancyConfig;
 }
 
 function clampInt(value: number, min: number, max: number): number {
@@ -150,6 +180,8 @@ export const defaultConfig: MindmapConfig = {
     lexicalAdditionsMax: 0.15,
     spanGroundingMin: 0.75,
     tentativeMirrorMapPressureMin: 0.75,
+    tentativeEvidencePattern:
+      "\\b(?:maybe|perhaps|possibly|might|may|could|not sure|not fully sure|unsure|i think|i guess|i suppose|leaning toward|tentatively)\\b",
   },
   readiness: {
     sourceDensityMin: 0.7,
@@ -166,5 +198,49 @@ export const defaultConfig: MindmapConfig = {
     softMaxMirrorChunks: 4,
     organizeIntentCandidateThreshold: 3,
     organizeIntentReadyThreshold: 2,
+  },
+  turnShape: {
+    largeUnitCount: 4,
+    largeContentTokens: 45,
+    largeChars: 500,
+    explicitSelectionPattern:
+      "\\b(?:the|my)\\s+(?:main|central|core|primary)\\s+(?:idea|point|claim|argument)\\s*(?:is|:)\\b|\\b(?:my\\s+thesis|the\\s+thesis)\\s*(?:is|:)\\b|\\bi\\s*(?:am|'m)\\s+arguing\\s+that\\b|\\bi\\s+want\\s+to\\s+carry\\s+forward\\b",
+    directMapCommandPattern:
+      "\\b(?:put|add|create)\\b.{1,120}\\b(?:on|to)\\s+(?:the\\s+)?map\\b|\\bconnect\\b.{1,120}\\bto\\b",
+  },
+  draftDeclarations: {
+    declarationPatterns: [
+      {
+        kind: "main_idea",
+        pattern:
+          "\\b(?:my|the)\\s+(?:main|central|core|primary)\\s+(?:idea|point|claim|argument)(?:\\s+i\\s+want\\s+to\\s+carry\\s+forward)?\\s*(?:is|:)\\s*",
+      },
+      {
+        kind: "thesis",
+        pattern: "\\b(?:my\\s+thesis|the\\s+thesis)\\s*(?:is|:)\\s*",
+      },
+      {
+        kind: "argument",
+        pattern:
+          "\\b(?:i\\s*(?:am|'m)\\s+arguing\\s+that|i\\s+want\\s+to\\s+argue\\s+that|the\\s+argument\\s+is\\s+that)\\s*",
+      },
+    ],
+    tentativeBeforePattern:
+      "\\b(?:maybe|perhaps|possibly|not sure|i wonder|i'm wondering|i am wondering|i think|i guess|i suppose|i'm leaning toward|i am leaning toward|leaning toward|tentatively|for now|at this point|seems like|it seems like)[\\s,;:\\u2013\\u2014-]*$",
+    tentativeBodyPattern:
+      "^\\s*(?:(?:it|that|this)\\s+)?(?:might|may|could|can maybe|might maybe|may maybe)\\s+(?:be|mean|show|suggest|point to)\\b",
+    maxTentativeLookbackChars: 80,
+    minContentTokens: 3,
+    maxDeclarationChars: 240,
+    maxRepeatedFocusChars: 180,
+    repeatedFocusMinOccurrences: 3,
+  },
+  draftRedundancy: {
+    declaredFocusPattern:
+      "\\b(?:main|central|core|primary)\\s+(?:idea|point|claim|argument)\\b|\\b(?:thesis|argument)\\b",
+    restateQuestionPattern:
+      "\\b(?:what|which|what's|state|say|name|tell|clarify|explain|identify|summarize)\\b",
+    deepenQuestionPattern:
+      "\\b(?:tension|consequence|assumption|weak(?:est)?|part|piece|how|why|depend(?:s|ed|ing)?|rely(?:ing|ies|ied)?|example|counterexample|trade-?off|effect|implication|relationship|difference|support|challenge|pressure|cost|benefit|risk|cause|reason|matter)\\b",
   },
 };

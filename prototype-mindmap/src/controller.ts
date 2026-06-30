@@ -125,19 +125,12 @@ function isSuggestiveStructuralQuestion(text: string): boolean {
   );
 }
 
-const DECLARED_DRAFT_FOCUS_RE =
-  /\b(?:main|central|core|primary)\s+(?:idea|point|claim|argument)\b|\b(?:thesis|argument)\b/i;
-const RESTATE_QUESTION_RE =
-  /\b(?:what|which|what's|state|say|name|tell|clarify|explain|identify|summarize)\b/i;
-const DEEPEN_QUESTION_RE =
-  /\b(?:tension|consequence|assumption|weak(?:est)?|part|piece|how|why|depend(?:s|ed|ing)?|rely(?:ing|ies|ied)?|example|counterexample|trade-?off|effect|implication|relationship|difference|support|challenge|pressure|cost|benefit|risk|cause|reason|matter)\b/i;
-
-function isRedundantDraftDeclarationQuestion(text: string): boolean {
+function isRedundantDraftDeclarationQuestion(text: string, config: MindmapConfig): boolean {
   const trimmed = text.trim();
   if (!trimmed.endsWith("?")) return false;
-  if (!DECLARED_DRAFT_FOCUS_RE.test(trimmed)) return false;
-  if (!RESTATE_QUESTION_RE.test(trimmed)) return false;
-  if (DEEPEN_QUESTION_RE.test(trimmed)) return false;
+  if (!new RegExp(config.draftRedundancy.declaredFocusPattern, "i").test(trimmed)) return false;
+  if (!new RegExp(config.draftRedundancy.restateQuestionPattern, "i").test(trimmed)) return false;
+  if (new RegExp(config.draftRedundancy.deepenQuestionPattern, "i").test(trimmed)) return false;
   return true;
 }
 
@@ -737,7 +730,7 @@ export async function processTurn(
   const detectedSignals = units.flatMap((u) =>
     detectSignals(u.id, u.text, state.lastAiText),
   );
-  const initialTurnShape = detectTurnShape(userText, units);
+  const initialTurnShape = detectTurnShape(userText, units, { config: config.turnShape });
 
   // 3. Pre-turn ready candidates — passed in LLM context so it knows what it
   //    may mirror. (Computed before candidate updates so it reflects prior state.)
@@ -749,7 +742,7 @@ export async function processTurn(
 
   // 4. Build context snapshot and call the LLM.
   const userIsStuck = isStuck(userText);
-  const draftDeclarations = detectDraftDeclarations(state.draft);
+  const draftDeclarations = detectDraftDeclarations(state.draft, config.draftDeclarations);
   const ctx: LLMContext = {
     bank: state.bank.getAll(),
     candidates: state.candidates.getAll(),
@@ -769,7 +762,7 @@ export async function processTurn(
   const commandResult = acceptedMapCommands(turn.mapCommands, units, map);
   const acceptedCommands = commandResult.accepted;
   const turnShape = acceptedCommands.length > 0
-    ? detectTurnShape(userText, units, { hasAcceptedMapCommand: true })
+    ? detectTurnShape(userText, units, { hasAcceptedMapCommand: true, config: config.turnShape })
     : initialTurnShape;
   const turnDebugNotes: CommandDebugNote[] = [...commandResult.notes];
 
@@ -921,7 +914,7 @@ export async function processTurn(
     if (
       (out.mode === "question" || out.mode === "clarify") &&
       draftDeclarations.length > 0 &&
-      isRedundantDraftDeclarationQuestion(out.text)
+      isRedundantDraftDeclarationQuestion(out.text, config)
     ) {
       const targeted = targetedDraftDeclarationQuestion(draftDeclarations);
       if (targeted) {

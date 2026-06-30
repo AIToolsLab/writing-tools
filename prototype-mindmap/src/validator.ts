@@ -127,13 +127,15 @@ function spanGroundedInSingleUtterance(
  * AND be grounded in a single utterance. This blocks the evasion of citing each
  * entity separately while the *relationship* between them is the AI's invention.
  */
-const TENTATIVE_EVIDENCE_RE =
-  /\b(?:maybe|perhaps|possibly|might|may|could|not sure|not fully sure|unsure|i think|i guess|i suppose|leaning toward|tentatively)\b/i;
+function tentativeEvidenceRe(cfg: MindmapConfig): RegExp {
+  return new RegExp(cfg.mirror.tentativeEvidencePattern, "i");
+}
 
-function hasTentativeEvidence(claim: MirrorClaim, bank: Map<string, SourceUtterance>): boolean {
+function hasTentativeEvidence(claim: MirrorClaim, bank: Map<string, SourceUtterance>, cfg: MindmapConfig): boolean {
+  const re = tentativeEvidenceRe(cfg);
   return claim.sourceSpans.some((span) => {
-    if (TENTATIVE_EVIDENCE_RE.test(span.userPhrase)) return true;
-    return citedTexts(span, bank).some((text) => TENTATIVE_EVIDENCE_RE.test(text));
+    if (re.test(span.userPhrase)) return true;
+    return citedTexts(span, bank).some((text) => re.test(text));
   });
 }
 
@@ -142,7 +144,7 @@ function checkTentativeUncertainty(
   bank: Map<string, SourceUtterance>,
   cfg: MindmapConfig,
 ): MirrorCheckResult {
-  if (!hasTentativeEvidence(claim, bank)) {
+  if (!hasTentativeEvidence(claim, bank, cfg)) {
     return {
       check: "tentative_uncertainty",
       ok: true,
@@ -152,7 +154,7 @@ function checkTentativeUncertainty(
   }
 
   const mapOk = cfg.pacing.mapPressure >= cfg.mirror.tentativeMirrorMapPressureMin;
-  const preservesUncertainty = TENTATIVE_EVIDENCE_RE.test(claim.text);
+  const preservesUncertainty = tentativeEvidenceRe(cfg).test(claim.text);
   return {
     check: "tentative_uncertainty",
     ok: mapOk && preservesUncertainty,
