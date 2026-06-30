@@ -3,7 +3,7 @@
 Current enforcement appendix for `prototype-mindmap`. `DESIGN.md` is the
 canonical product/design source. This report tracks which philosophical
 constraints are enforced in code, which are prompt-level, and where the residual
-soft spots are. Current verification: `127/127` tests passing.
+soft spots are. Current verification: `132/132` tests passing.
 
 ## Central Principle
 
@@ -22,6 +22,8 @@ AI reflections only; direct user map actions are never blocked by validation.
 | AI cannot commit mirror structure | `controller.ts`, `App.tsx` | Passing mirrors become confirmable chunks; only user-confirmed chunks become cards. |
 | LLM mirror prose cannot leak | `controller.ts` | Passing mirror text is a fixed preamble; only validated claims are shown for confirmation. |
 | Failed mirrors fail closed | `controller.ts` | Validation failure routes to clarify with `weakestSpan`; no model retry/rephrase is shown. |
+| Tentative mirrors preserve uncertainty | `validator.ts`, `config.ts` | Tentative source evidence mirrors only near the Map side of the slider, and accepted claims must retain uncertainty wording. |
+| Rejected mirrors have a repair path | `App.tsx` | Declining a mirror chunk appends a repair question instead of leaving the user hanging. |
 | Stuck users are not mirrored | `controller.ts` | `isStuck` forces clarify and clears the stale clarify pin. |
 | Pacing is enforced | `controller.ts`, `config.ts` | Too-soon mirrors are downgraded to questions. |
 | Only ready candidates can mirror | `controller.ts`, `readiness.ts` | Mirror claims are filtered to post-update ready candidate ids before validation. |
@@ -34,6 +36,7 @@ AI reflections only; direct user map actions are never blocked by validation.
 | Direct nesting commands do not guess references | `controller.ts`, `map-commands.ts`, `map-store.ts` | `nest_card` executes on exact references; unique near matches become pending confirmations; ambiguous near matches ask which card; `setParent` cycle guard applies. |
 | Direct connection commands do not guess endpoints | `controller.ts`, `map-commands.ts`, `map-store.ts` | `connect_cards` executes on exact references; unique near matches become pending confirmations; ambiguous near matches ask which card; same-card edges are dropped. |
 | AI cannot invent command labels | `controller.ts`, `map-commands.ts` | Labels must be exact current-turn phrases. Ungrounded labels are stripped; the edge remains unlabeled. |
+| Commands take precedence after gates pass | `controller.ts`, `App.tsx` | Accepted direct commands execute even in mixed turns, and same-turn mirrors are suppressed to avoid duplicate structure. |
 | User map actions are undoable | `App.tsx`, `map-store.ts`, `map-commands.ts` | Command batches, edits, nesting, and connections go through map/bank snapshots. |
 | Shared-bank integration is enforced by tests | `App.tsx`, `map-commands.test.ts`, `map-store.test.ts` | Map/command writes use the same `SourceBank` instance the loop reads. |
 | Card sizes cannot brick the canvas | `map-store.ts` | `clampCardSize` bounds every `setSize` write and every `loadSnapshot` size to `120-1200` x `60-1200`, so a runaway/invalid persisted height can never render a full-canvas card. |

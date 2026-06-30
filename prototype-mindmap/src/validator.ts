@@ -127,6 +127,54 @@ function spanGroundedInSingleUtterance(
  * AND be grounded in a single utterance. This blocks the evasion of citing each
  * entity separately while the *relationship* between them is the AI's invention.
  */
+const TENTATIVE_EVIDENCE_RE =
+  /\b(?:maybe|perhaps|possibly|might|may|could|not sure|not fully sure|unsure|i think|i guess|i suppose|leaning toward|tentatively)\b/i;
+
+function hasTentativeEvidence(claim: MirrorClaim, bank: Map<string, SourceUtterance>): boolean {
+  return claim.sourceSpans.some((span) => {
+    if (TENTATIVE_EVIDENCE_RE.test(span.userPhrase)) return true;
+    return citedTexts(span, bank).some((text) => TENTATIVE_EVIDENCE_RE.test(text));
+  });
+}
+
+function checkTentativeUncertainty(
+  claim: MirrorClaim,
+  bank: Map<string, SourceUtterance>,
+  cfg: MindmapConfig,
+): MirrorCheckResult {
+  if (!hasTentativeEvidence(claim, bank)) {
+    return {
+      check: "tentative_uncertainty",
+      ok: true,
+      score: 1,
+      threshold: cfg.mirror.tentativeMirrorMapPressureMin,
+    };
+  }
+
+  const mapOk = cfg.pacing.mapPressure >= cfg.mirror.tentativeMirrorMapPressureMin;
+  const preservesUncertainty = TENTATIVE_EVIDENCE_RE.test(claim.text);
+  return {
+    check: "tentative_uncertainty",
+    ok: mapOk && preservesUncertainty,
+    score: cfg.pacing.mapPressure,
+    threshold: cfg.mirror.tentativeMirrorMapPressureMin,
+    parts: [
+      {
+        name: "map_pressure",
+        ok: mapOk,
+        score: cfg.pacing.mapPressure,
+        threshold: cfg.mirror.tentativeMirrorMapPressureMin,
+      },
+      {
+        name: "uncertainty_preserved",
+        ok: preservesUncertainty,
+        score: preservesUncertainty ? 1 : 0,
+        threshold: 1,
+      },
+    ],
+  };
+}
+
 function checkSpanGrounding(
   claim: MirrorClaim,
   bank: Map<string, SourceUtterance>,
@@ -195,8 +243,9 @@ function validateClaim(
     cfg.mirror.lexicalAdditionsMax,
   );
   const grounding = checkSpanGrounding(claim, bank, cfg.mirror.spanGroundingMin);
+  const tentative = checkTentativeUncertainty(claim, bank, cfg);
 
-  const checks = [lexical, grounding.result];
+  const checks = [lexical, grounding.result, tentative];
   const ok = checks.every((c) => c.ok);
 
   // The Clarify-Mode hint comes from the weakest span when grounding failed;

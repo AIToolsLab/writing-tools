@@ -87,7 +87,7 @@ export interface MirrorReflection {
   claims: MirrorClaim[];
 }
 
-export type MirrorCheckName = "lexical_grounding" | "span_grounding";
+export type MirrorCheckName = "lexical_grounding" | "span_grounding" | "tentative_uncertainty";
 
 /** A sub-part of a check, reported for transparency/calibration. */
 export interface MirrorCheckPart {

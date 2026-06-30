@@ -1735,9 +1735,9 @@ export default function App() {
     const pm = pendingMirrors.get(mirrorId);
     if (!pm || pm.decisions[claimId] !== "pending") return;
 
+    const claim = pm.reflection.claims.find((c) => c.id === claimId);
     let confirmedReflection: ConfirmedReflection | undefined;
     if (decision === "confirmed") {
-      const claim = pm.reflection.claims.find((c) => c.id === claimId);
       if (claim) {
         confirmedReflection = {
           id: `cr_${Date.now()}_${claimId}`,
@@ -1774,6 +1774,17 @@ export default function App() {
       mapStoreRef.current.addFromReflection(confirmedReflection);
       setConfirmed((prev) => [...prev, confirmedReflection]);
       markUserMapChanged();
+    }
+
+    if (decision === "declined" && claim) {
+      const text = `What wording should change before I carry "${claim.text}" forward?`;
+      stateRef.current.mode = "clarify";
+      stateRef.current.turnsSinceLastMirror++;
+      stateRef.current.lastAiText = text;
+      setMsgs((prev) => [
+        ...prev,
+        { id: ++msgId, role: "assistant", text, mode: "clarify", questionStance: "narrow" },
+      ]);
     }
   }
 

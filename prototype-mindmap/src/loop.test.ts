@@ -209,6 +209,81 @@ describe("question mode", () => {
     ]);
   });
 
+  it("keeps an accepted command and suppresses a same-turn mirror", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0 });
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "ready",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "human control",
+          sourceSpan: { utteranceIds: ["u_1"], userPhrase: "human control" },
+        },
+      ],
+      candidateUpserts: [
+        {
+          id: "cand1",
+          target: "idea",
+          gist: "human control",
+          addEvidenceIds: ["u_1"],
+        },
+      ],
+      carryForwardCandidateIds: ["cand1"],
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            text: "human control",
+            candidateId: "cand1",
+            target: "idea",
+            sourceSpans: [
+              { claimText: "human control", utteranceIds: ["u_1"], userPhrase: "human control" },
+            ],
+          },
+        ],
+      },
+    });
+
+    const out = await processTurn(state, "put human control on the map", llm, cfg);
+
+    expect(out.mode).toBe("question");
+    expect(out.mapCommands).toEqual([
+      { kind: "create_card", text: "human control", sourceUtteranceIds: ["u_1"] },
+    ]);
+    expect(out.validatedMirror).toBeUndefined();
+    expect(out.suppressionReason).toBe("command_precedence");
+  });
+
+  it("keeps a command turn question after executing an accepted command", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "How should this connect to the rest of the map?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "human control",
+          sourceSpan: { utteranceIds: ["u_1"], userPhrase: "human control" },
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "Make a card for human control. I'm not sure how it connects yet.",
+      llm,
+    );
+
+    expect(out.mode).toBe("clarify");
+    expect(out.text).toBe("How should this connect to the rest of the map?");
+    expect(out.mapCommands).toEqual([
+      { kind: "create_card", text: "human control", sourceUtteranceIds: ["u_1"] },
+    ]);
+    expect(out.validatedMirror).toBeUndefined();
+  });
+
   it("trusts LLM placement interpretation for varied create-card phrasing", async () => {
     const state = createState();
     const llm = (_ctx: LLMContext): LLMTurn => ({
@@ -1170,6 +1245,114 @@ describe("pacing", () => {
       ],
     });
     expect(out.validationDebug?.[0]?.checks.some((check) => check.check === "lexical_grounding")).toBe(true);
+    expect(out.validatedMirror).toBeUndefined();
+  });
+
+  it("blocks tentative mirrors toward Think and asks what would firm them up", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0, mapPressure: 0 });
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "ready",
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            text: "I'm not fully sure yet human control matters",
+            candidateId: "cand1",
+            target: "idea",
+            sourceSpans: [
+              {
+                claimText: "I'm not fully sure yet human control matters",
+                utteranceIds: ["u_1"],
+                userPhrase: "I'm not fully sure yet human control matters",
+              },
+            ],
+          },
+        ],
+      },
+      candidateUpserts: [
+        { id: "cand1", target: "idea", gist: "not sure human control matters", addEvidenceIds: ["u_1"] },
+      ],
+      carryForwardCandidateIds: ["cand1"],
+    });
+
+    const out = await processTurn(state, "I'm not fully sure yet human control matters", llm, cfg);
+
+    expect(out.mode).toBe("clarify");
+    expect(out.text).toBe("What would make that feel firm enough to carry forward?");
+    expect(out.suppressionDetail).toContain("tentative_uncertainty");
+    expect(out.validatedMirror).toBeUndefined();
+  });
+
+  it("allows tentative mirrors toward Map when the uncertainty wording is preserved", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0, mapPressure: 1 });
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "ready",
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            text: "I'm not fully sure yet human control matters",
+            candidateId: "cand1",
+            target: "idea",
+            sourceSpans: [
+              {
+                claimText: "I'm not fully sure yet human control matters",
+                utteranceIds: ["u_1"],
+                userPhrase: "I'm not fully sure yet human control matters",
+              },
+            ],
+          },
+        ],
+      },
+      candidateUpserts: [
+        { id: "cand1", target: "idea", gist: "not sure human control matters", addEvidenceIds: ["u_1"] },
+      ],
+      carryForwardCandidateIds: ["cand1"],
+    });
+
+    const out = await processTurn(state, "I'm not fully sure yet human control matters", llm, cfg);
+
+    expect(out.mode).toBe("mirror");
+    expect(out.validatedMirror?.reflection.claims[0].text).toBe("I'm not fully sure yet human control matters");
+  });
+
+  it("blocks tentative mirrors toward Map when uncertainty wording is dropped", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0, mapPressure: 1 });
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "ready",
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            text: "human control matters",
+            candidateId: "cand1",
+            target: "idea",
+            sourceSpans: [
+              {
+                claimText: "human control matters",
+                utteranceIds: ["u_1"],
+                userPhrase: "human control matters",
+              },
+            ],
+          },
+        ],
+      },
+      candidateUpserts: [
+        { id: "cand1", target: "idea", gist: "not sure human control matters", addEvidenceIds: ["u_1"] },
+      ],
+      carryForwardCandidateIds: ["cand1"],
+    });
+
+    const out = await processTurn(state, "I'm not fully sure yet human control matters", llm, cfg);
+
+    expect(out.mode).toBe("clarify");
+    expect(out.suppressionDetail).toContain("tentative_uncertainty");
     expect(out.validatedMirror).toBeUndefined();
   });
 

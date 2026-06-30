@@ -29,6 +29,11 @@ export interface MirrorThresholds {
    * The independent check: relationships must come from the user.
    */
   spanGroundingMin: number;
+  /**
+   * Tentative user claims may mirror only when the Think/Map slider is this far
+   * toward Map. Below this, ask what would make the claim firmer.
+   */
+  tentativeMirrorMapPressureMin: number;
 }
 
 export interface ReadinessThresholds {
@@ -144,6 +149,7 @@ export const defaultConfig: MindmapConfig = {
     lexicalBroadMin: 0.8,
     lexicalAdditionsMax: 0.15,
     spanGroundingMin: 0.75,
+    tentativeMirrorMapPressureMin: 0.75,
   },
   readiness: {
     sourceDensityMin: 0.7,

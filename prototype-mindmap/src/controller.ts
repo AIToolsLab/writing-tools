@@ -39,6 +39,7 @@ export type SuppressionReason =
   | "batch_preference"
   | "already_on_map"
   | "large_exploratory_turn"
+  | "command_precedence"
   | "validation_failed";
 
 export type AcceptedMapCommandCardRef =
@@ -980,6 +981,20 @@ export async function processTurn(
   }
 
   // 6. Route based on LLM's intended mode.
+  if (acceptedCommands.length > 0 && turn.mode === "mirror") {
+    state.turnsSinceLastMirror++;
+    state.mode = "question";
+    return finish({
+      mode: "question",
+      text: "What should we clarify about where it fits?",
+      llmTurn: turn,
+      pacingSuppressed: true,
+      suppressionReason: "command_precedence",
+      suppressionDetail: "Accepted direct map command; same-turn mirror suppressed.",
+      questionStance: "organize",
+    });
+  }
+
   if (turn.mode === "mirror") {
     if (turnShape.kind === "large_exploratory") {
       state.turnsSinceLastMirror++;
@@ -1095,13 +1110,18 @@ export async function processTurn(
     const weakestSpan = failingClaims
       .map((c) => c.weakestSpan)
       .find((s): s is SourceSpan => s !== undefined);
+    const tentativeBlocked = failingClaims.some((claim) =>
+      claim.checks.some((check) => check.check === "tentative_uncertainty" && !check.ok),
+    );
 
     state.mode = "clarify";
     state.clarifyTarget = weakestSpan;
     state.turnsSinceLastMirror++;
 
     const clarifyText =
-      weakestSpan != null
+      tentativeBlocked
+        ? "What would make that feel firm enough to carry forward?"
+        : weakestSpan != null
         ? `I want to make sure I understand — when you said "${weakestSpan.userPhrase}", what did you mean by that?`
         : "I want to make sure I understood that correctly — can you say more?";
 
