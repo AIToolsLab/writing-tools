@@ -16,6 +16,7 @@ import type {
   LLMContext,
   LLMMapContext,
   LLMTurn,
+  MapCommand,
   MockLLM,
   QuestionStance,
 } from "./llm-contract";
@@ -179,13 +180,15 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
     ? `\nQUESTION INTENT: Use "organize" - the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask the user to author the relationship between already-named thoughts in their own words. Do NOT offer possible structures such as bigger/smaller, under/alongside, claim/software idea, cause/effect, or any pair of labels for them to choose between unless the user already supplied those exact alternatives. Do NOT open new topics.`
     : intentNote;
 
-  const mapPressureNote = mapPressure >= 0.75
-    ? `\nMAP PRESSURE: High. Avoid repeated narrowing on the same idea. If the user has just supplied clear wording for what should be carried forward, attempt a grounded mirror rather than asking another deepening or narrowing question.
-DECLARATION PRESSURE: Phrases like "the main idea is", "a second idea is", "another idea is", "the next point is", or "I also want to show" are carry-forward pressure for an idea candidate, not commands. If the declared idea is compact and source-groundable, upsert it, set "carryForwardCandidateIds", and mirror it. If it is compound, contrastive, or not yet source-groundable, ask one focused question that helps the user state the idea in their own words, then mirror on the next clear answer.`
-    : "";
+  // Declaration / carry-forward recognition is ALWAYS on — explicit user
+  // commitment is honored at any slider position. The slider controls eagerness
+  // for *non-declared* ideas continuously (via the pacing thresholds), not
+  // whether an explicit declaration fast-tracks. So this note is not gated on
+  // map pressure, and "avoid repeated narrowing" is folded in as always-true.
+  const declarationNote = `\nDECLARATION PRESSURE: Phrases like "the main idea is", "a second idea is", "another idea is", "the next point is", or "I also want to show" are carry-forward pressure for an idea candidate, not commands. If the declared idea is compact and source-groundable, upsert it, set "carryForwardCandidateIds", and mirror it. If it is compound, contrastive, or not yet source-groundable, ask one focused question that helps the user state the idea in their own words, then mirror on the next clear answer. Do not keep narrowing the same idea across turns.`;
 
   return `${PHILOSOPHY}
-${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${mapPressureNote}${mapNote}
+${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}
 
 CURRENT DRAFT (user's document — read-only reference for anchoring):
 """
@@ -243,6 +246,21 @@ ${renderMap(ctx.map)}
     }
   ],
   "candidateDeletes": ["<id>"],
+  "mapCommands": [
+    {
+      "kind": "create_card" | "nest_card" | "connect_cards",
+      "text": "<create_card only: exact user words to place on the card>",
+      "sourceSpan": {
+        "utteranceIds": ["<id from this turn>"],
+        "userPhrase": "<exact substring from this turn>"
+      },
+      "childText": "<future nest_card only>",
+      "parentText": "<future nest_card only>",
+      "sourceText": "<future connect_cards only>",
+      "targetText": "<future connect_cards only>",
+      "labelText": "<future connect_cards only; omit if user supplied no label>"
+    }
+  ],
   "carryForwardCandidateIds": ["<idea candidate id the user explicitly committed to carrying forward this turn>"]
 }
 
@@ -256,6 +274,22 @@ Use "carryForwardCandidateIds" only when the user explicitly identifies,
 chooses, emphasizes, or restates a specific idea as something to carry forward.
 Do not use it for vague agreement, low-information replies, relationships,
 hierarchy, or ideas inferred only from the draft.
+
+DIRECT MAP COMMANDS:
+- "mapCommands" are side effects, not a chat mode. You may emit mapCommands
+  while mode is "question", "mirror", or "clarify".
+- Emit "create_card" only for imperative placement commands, e.g. "put X on the
+  map", "make a card for X", "add X to the map". The command text/sourceSpan
+  must be exact user words from this turn. Never paraphrase.
+- Do NOT emit a mapCommand for declarative salience or relationship statements:
+  "X is a main idea", "X supports Y", "I think X relates to Y" stay on the
+  mirror/question path.
+- If the user gestures without wording ("put my main point on the map", "add
+  that control thing"), do not emit a command; ask what words should go on the
+  card.
+- "nest_card" and "connect_cards" are reserved for future support. For now, do
+  not emit them; ask a reference-resolution question instead if the user gives a
+  structure command you cannot safely execute.
 
 Worked same-turn carry-forward example:
 If SOURCE BANK contains u_7 = "The part to carry forward is: human control means
@@ -452,6 +486,19 @@ interface RawLLMResponse {
     addEvidenceIds?: string[];
   }>;
   candidateDeletes?: string[];
+  mapCommands?: Array<{
+    kind?: string;
+    text?: string;
+    sourceSpan?: {
+      utteranceIds?: string[];
+      userPhrase?: string;
+    };
+    childText?: string;
+    parentText?: string;
+    sourceText?: string;
+    targetText?: string;
+    labelText?: string;
+  }>;
   carryForwardCandidateIds?: string[];
 }
 
@@ -504,6 +551,29 @@ function parseQuestionStance(raw: string | undefined): QuestionStance | undefine
   return undefined;
 }
 
+function parseMapCommands(raw: RawLLMResponse["mapCommands"]): MapCommand[] {
+  return (raw ?? [])
+    .filter((command) => command.kind)
+    .map((command) => ({
+      kind:
+        command.kind === "nest_card" || command.kind === "connect_cards"
+          ? command.kind
+          : "create_card",
+      text: command.text,
+      sourceSpan: command.sourceSpan?.userPhrase
+        ? {
+            utteranceIds: command.sourceSpan.utteranceIds,
+            userPhrase: command.sourceSpan.userPhrase,
+          }
+        : undefined,
+      childText: command.childText,
+      parentText: command.parentText,
+      sourceText: command.sourceText,
+      targetText: command.targetText,
+      labelText: command.labelText,
+    }));
+}
+
 function parseTurn(raw: RawLLMResponse): LLMTurn {
   const mode: LLMTurn["mode"] =
     raw.mode === "mirror" || raw.mode === "clarify" ? raw.mode : "question";
@@ -547,6 +617,7 @@ function parseTurn(raw: RawLLMResponse): LLMTurn {
     }));
 
   turn.candidateDeletes = raw.candidateDeletes ?? [];
+  turn.mapCommands = parseMapCommands(raw.mapCommands);
   turn.carryForwardCandidateIds = raw.carryForwardCandidateIds ?? [];
 
   return turn;

@@ -14,7 +14,7 @@
 
 import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
-import type { LLMContext, LLMMapContext, LLMTurn, MockLLM, QuestionStance } from "./llm-contract";
+import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MockLLM, QuestionStance } from "./llm-contract";
 import { contentTokens } from "./normalize";
 import { evaluateReadiness, readyCandidates } from "./readiness";
 import { detectSignals } from "./signals";
@@ -24,6 +24,7 @@ import type {
   MirrorReflection,
   RelationSignal,
   SourceSpan,
+  SourceUtterance,
   UtteranceOrigin,
 } from "./types";
 import { validateMirror } from "./validator";
@@ -35,6 +36,12 @@ export type SuppressionReason =
   | "not_ready"
   | "batch_preference"
   | "validation_failed";
+
+export interface AcceptedMapCommand {
+  kind: "create_card";
+  text: string;
+  sourceUtteranceIds: string[];
+}
 
 /**
  * Fixed user-facing preamble for a passing mirror. The actual reflection is the
@@ -89,6 +96,73 @@ function intersects(a: Iterable<string>, b: ReadonlySet<string>): boolean {
     if (b.has(item)) return true;
   }
   return false;
+}
+
+function isReferentialCardText(text: string): boolean {
+  const lower = text.trim().toLowerCase();
+  return (
+    /^(my|that|this|it|the|those|these)\s+/.test(lower) &&
+    /\b(main point|point|thing|idea|part|piece|concept|notion|argument|claim|framework|theme|thread|bit)\b/.test(lower)
+  );
+}
+
+function isBlockedCreateCardInterpretation(unitText: string, cardText: string): boolean {
+  const lower = unitText.toLowerCase();
+  const phrase = cardText.trim().toLowerCase();
+  const phraseIndex = lower.indexOf(phrase);
+  const afterPhrase = phraseIndex >= 0 ? lower.slice(phraseIndex + phrase.length, phraseIndex + phrase.length + 90) : lower;
+  const beforePhrase = phraseIndex >= 0 ? lower.slice(Math.max(0, phraseIndex - 90), phraseIndex) : lower;
+
+  if (/\b(maybe|perhaps|possibly|i wonder|i'm wondering|im wondering|i am wondering|not sure|unsure)\b/.test(lower)) {
+    return true;
+  }
+
+  if (/\b(is|are|was|were|feels?|seems?|matters?|means?|supports?|relates?|connects?|belongs?)\b/.test(afterPhrase)) {
+    return true;
+  }
+
+  if (/\b(i think|i feel|i guess|i mean|i'm thinking|im thinking|i am thinking)\b/.test(beforePhrase)) {
+    return true;
+  }
+
+  return false;
+}
+
+function acceptedMapCommands(
+  commands: MapCommand[] | undefined,
+  units: SourceUtterance[],
+): AcceptedMapCommand[] {
+  const accepted: AcceptedMapCommand[] = [];
+  const seen = new Set<string>();
+
+  for (const command of commands ?? []) {
+    if (command.kind !== "create_card") continue;
+    const phrase = (command.sourceSpan?.userPhrase ?? command.text ?? "").trim();
+    if (!phrase) continue;
+    if (isReferentialCardText(phrase)) continue;
+
+    const sourceUnits = units.filter((unit) => unit.text.includes(phrase));
+    if (sourceUnits.length === 0) continue;
+    const citedIds = new Set(command.sourceSpan?.utteranceIds ?? []);
+    const currentSourceUnits = citedIds.size > 0
+      ? sourceUnits.filter((unit) => citedIds.has(unit.id))
+      : sourceUnits;
+    if (currentSourceUnits.length === 0) continue;
+    const eligibleUnits = currentSourceUnits.filter(
+      (unit) => !isBlockedCreateCardInterpretation(unit.text, phrase),
+    );
+    if (eligibleUnits.length === 0) continue;
+    if (seen.has(phrase)) continue;
+
+    seen.add(phrase);
+    accepted.push({
+      kind: "create_card",
+      text: phrase,
+      sourceUtteranceIds: eligibleUnits.map((unit) => unit.id),
+    });
+  }
+
+  return accepted;
 }
 
 function formatRatio(value: number): string {
@@ -189,6 +263,8 @@ export interface TurnOutput {
   suppressionDetail?: string;
   /** Full failed validation payload for tester/debug inspection. */
   validationDebug?: ValidationDebugClaim[];
+  /** Direct user map commands accepted by controller checks. */
+  mapCommands?: AcceptedMapCommand[];
   /** Debug visibility for candidates whose idea density was accelerated. */
   acceleratedCandidateIds?: string[];
   readinessNotes?: string[];
@@ -252,6 +328,7 @@ export async function processTurn(
     map,
   };
   const turn = await llm(ctx);
+  const acceptedCommands = acceptedMapCommands(turn.mapCommands, units);
 
   // 5. Apply candidate updates from the LLM, then recompute readiness for gating.
   //    The LLM proposes grouping (gist/target/evidence) only. Relation signals
@@ -335,6 +412,10 @@ export async function processTurn(
   const normalizeText = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
   function finish(out: TurnOutput): TurnOutput {
+    if (acceptedCommands.length > 0) {
+      out = { ...out, mapCommands: acceptedCommands };
+    }
+
     if (
       (out.mode === "question" || out.mode === "clarify") &&
       (turn.questionIntent === "organize" || turn.questionStance === "organize") &&

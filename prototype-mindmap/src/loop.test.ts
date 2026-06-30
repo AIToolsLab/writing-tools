@@ -176,6 +176,163 @@ describe("question mode", () => {
     await processTurn(state, "second", questionLLM("Q2"));
     expect(state.turnsSinceLastMirror).toBe(2);
   });
+
+  it("accepts direct create-card map commands alongside a normal question", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "human control",
+          sourceSpan: { utteranceIds: ["u_1"], userPhrase: "human control" },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "put human control on the map", llm);
+
+    expect(out.mode).toBe("question");
+    expect(out.mapCommands).toEqual([
+      { kind: "create_card", text: "human control", sourceUtteranceIds: ["u_1"] },
+    ]);
+  });
+
+  it("trusts LLM placement interpretation for varied create-card phrasing", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "human control",
+          sourceSpan: { utteranceIds: ["u_1"], userPhrase: "human control" },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "I'd like human control as a card", llm);
+
+    expect(out.mapCommands).toEqual([
+      { kind: "create_card", text: "human control", sourceUtteranceIds: ["u_1"] },
+    ]);
+  });
+
+  it("does not execute a create-card command for declarative salience", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What part should we develop first?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "human control",
+          sourceSpan: { utteranceIds: ["u_1"], userPhrase: "human control" },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "human control is a main idea", llm);
+
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("does not execute a create-card command when the text is not an exact current-turn span", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What words should go on the card?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "human authorship control",
+          sourceSpan: { utteranceIds: ["u_1"], userPhrase: "human authorship control" },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "put human control on the map", llm);
+
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("does not execute a create-card command when the cited source id is stale", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "human control",
+          sourceSpan: { utteranceIds: ["u_999"], userPhrase: "human control" },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "drop human control on the canvas", llm);
+
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("does not execute a create-card command for referential wording", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What words should go on the card?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "my main point",
+          sourceSpan: { utteranceIds: ["u_1"], userPhrase: "my main point" },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "put my main point on the map", llm);
+
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("does not execute a create-card command for expanded referential wording", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What words should go on the card?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "that concept",
+          sourceSpan: { utteranceIds: ["u_1"], userPhrase: "that concept" },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "drop that concept on the canvas", llm);
+
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("does not execute future structure commands in the create-card phase", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Which card should it go under?",
+      mapCommands: [
+        {
+          kind: "nest_card",
+          childText: "human control",
+          parentText: "authorship",
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "put human control under authorship", llm);
+
+    expect(out.mapCommands).toBeUndefined();
+  });
 });
 
 // ---------------------------------------------------------------------------

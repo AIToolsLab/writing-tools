@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { makeLLM, type ConversationMessage } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
-import { createState, processTurn, type ControllerMode, type SuppressionReason } from "./controller";
+import { createState, processTurn, type AcceptedMapCommand, type ControllerMode, type SuppressionReason } from "./controller";
 import type { LoopState } from "./controller";
 import type { MockLLM, QuestionStance } from "./llm-contract";
 import { ThoughtMap, type CoachDebugInfo } from "./Map";
+import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
 import type { SourceSpan } from "./types";
 import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
@@ -1136,6 +1137,16 @@ export default function App() {
     markMapChanged();
   }, [markMapChanged]);
 
+  const applyMapCommands = useCallback(
+    (commands: AcceptedMapCommand[]) => {
+      if (commands.length === 0) return;
+      captureMapUndo();
+      applyAcceptedMapCommands(commands, mapStoreRef.current, stateRef.current.bank);
+      markMapChanged();
+    },
+    [captureMapUndo, markMapChanged],
+  );
+
   // Draft panel state
   const [draftText, setDraftText] = useState(initialDraftText);
   const [draftCollapsed, setDraftCollapsed] = useState(initialDraftCollapsed);
@@ -1340,6 +1351,8 @@ export default function App() {
         acceleratedCandidateIds: out.acceleratedCandidateIds,
         readinessNotes: out.readinessNotes,
       });
+
+      applyMapCommands(out.mapCommands ?? []);
 
       const newMsg: ChatMsg = {
         id: ++msgId,

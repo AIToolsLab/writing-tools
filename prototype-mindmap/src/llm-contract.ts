@@ -40,6 +40,30 @@ export interface CandidateUpsert {
   addEvidenceIds: string[];
 }
 
+export type MapCommandKind = "create_card" | "nest_card" | "connect_cards";
+
+export interface MapCommandSourceSpan {
+  utteranceIds?: string[];
+  userPhrase: string;
+}
+
+/**
+ * Direct user map commands are side effects, orthogonal to the chat mode. The
+ * controller currently executes only `create_card`; structure commands are in
+ * the contract so prompts/tests can distinguish imperatives from declaratives
+ * before reference-resolution support lands.
+ */
+export interface MapCommand {
+  kind: MapCommandKind;
+  text?: string;
+  sourceSpan?: MapCommandSourceSpan;
+  childText?: string;
+  parentText?: string;
+  sourceText?: string;
+  targetText?: string;
+  labelText?: string;
+}
+
 /**
  * One structured turn from the LLM (or deterministic mock).
  *
@@ -60,6 +84,11 @@ export interface LLMTurn {
   clarifySpan?: SourceSpan;
   candidateUpserts?: CandidateUpsert[];
   candidateDeletes?: string[];
+  /**
+   * Direct map commands the user issued this turn. These are not mirrors and do
+   * not need user confirmation when accepted by controller checks.
+   */
+  mapCommands?: MapCommand[];
   /**
    * Candidate ids the user explicitly committed to carrying forward this turn.
    * The controller treats this only as an interpretation signal: it may speed
