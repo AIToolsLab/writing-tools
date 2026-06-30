@@ -12,6 +12,7 @@
 
 import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
+import type { DraftDeclaration } from "./draft-declarations";
 import { cardRef } from "./store";
 import type {
   LLMContext,
@@ -137,6 +138,13 @@ function renderMap(map: LLMMapContext): string {
   return [...unitLines, ...connectionLines].join("\n");
 }
 
+function renderDraftDeclarations(declarations: DraftDeclaration[]): string {
+  if (declarations.length === 0) return "(none detected)";
+  return declarations
+    .map((d) => `${d.kind} text="${d.text}" phrase="${d.userPhrase}"`)
+    .join("\n");
+}
+
 function systemPrompt(ctx: LLMContext, cfg: MindmapConfig): string {
   // Pacing constraint
   const tooSoon = ctx.turnsSinceLastMirror < cfg.pacing.minQuestionTurnsBetweenMirrors;
@@ -173,6 +181,15 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
     ctx.readyCandidateIds.length >= cfg.pacing.organizeIntentReadyThreshold;
   const mapNote =
     `\nMAP AWARENESS: The canvas below is user-authored structure. You may reference it to ask sharper questions, especially in organize mode, but you must never draw, place, rename, group, connect, or propose map structure. No dashed proposals, no "approve this structure", no suggested edge labels. Ask questions that make the user articulate relationships in their own words.`;
+  const draftDeclarationNote = ctx.draftDeclarations.length > 0
+    ? `\nDRAFT DECLARATIONS: The system detected explicit declarations or high-confidence repeated focus already written in the draft. These are read-only and suppression-only: they are NOT Source Bank evidence, NOT candidates, NOT mirror-ready, and NOT permission to put anything on the map. Do not ask the user to restate these declared ideas. Instead, ask about a consequence, tension, assumption, relationship, priority, or whether they want to carry exact wording forward.`
+    : "";
+  const largeTurnNote =
+    ctx.turnShape.kind === "large_exploratory"
+      ? `\nLARGE TURN: The latest user turn is a long/exploratory dump (${ctx.turnShape.reasons.join(", ")}). Treat it as material to help the user select from, not as permission to harvest structure. Use mode "question"; ask one focusing question about selection, priority, tension, or which exact piece to carry forward. Do NOT produce a list of cards, mirror multiple ideas, or upsert broad candidates from the whole dump.`
+      : ctx.turnShape.kind === "large_selected"
+      ? `\nLARGE TURN: The latest user turn is large but contains explicit selected wording. You may work only with that user-selected wording, and only through the existing carry-forward, validation, confirmation, and command gates. Do not harvest the rest of the turn.`
+      : "";
   const intentNote = shouldOrganize
     ? `\nQUESTION INTENT: Use "organize" — the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask structural/relational questions: what is bigger, what connects what, how two named concepts relate. Do NOT open new topics.`
     : `\nQUESTION INTENT: Use "deepen" — dig into one concept. Ask what it is, what it does, what assumption it rests on, or what would change it. Surface real tensions before moving on.`;
@@ -189,12 +206,15 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const declarationNote = `\nDECLARATION PRESSURE: Phrases like "the main idea is", "a second idea is", "another idea is", "the next point is", or "I also want to show" are carry-forward pressure for an idea candidate, not commands. If the declared idea is compact and source-groundable, upsert it, set "carryForwardCandidateIds", and mirror it. If it is compound, contrastive, or not yet source-groundable, ask one focused question that helps the user state the idea in their own words, then mirror on the next clear answer. Do not keep narrowing the same idea across turns.`;
 
   return `${PHILOSOPHY}
-${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}
+${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}
 
 CURRENT DRAFT (user's document — read-only reference for anchoring):
 """
 ${ctx.draft || "(no draft provided)"}
 """
+
+DRAFT DECLARATIONS ALREADY STATED (suppression-only, never structure):
+${renderDraftDeclarations(ctx.draftDeclarations)}
 
 SOURCE BANK (utterance ID → user's exact words):
 ${renderBank(ctx.bank)}

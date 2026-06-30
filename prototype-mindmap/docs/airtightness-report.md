@@ -3,7 +3,7 @@
 Current enforcement appendix for `prototype-mindmap`. `DESIGN.md` is the
 canonical product/design source. This report tracks which philosophical
 constraints are enforced in code, which are prompt-level, and where the residual
-soft spots are. Current verification: `99/99` tests passing.
+soft spots are. Current verification: `126/126` tests passing.
 
 ## Central Principle
 
@@ -27,6 +27,7 @@ AI reflections only; direct user map actions are never blocked by validation.
 | Only ready candidates can mirror | `controller.ts`, `readiness.ts` | Mirror claims are filtered to post-update ready candidate ids before validation. |
 | AI cannot re-mirror placed structure | `controller.ts` | `claimAlreadyOnMap` drops claims whose normalized text matches an existing card; if all claims are already placed the turn downgrades to a question (`already_on_map` suppression), preventing duplicate cards. |
 | Carry-forward is fenced | `controller.ts`, `readiness.ts` | `carryForwardCandidateIds` accelerates density only for idea candidates grounded in this turn. |
+| Large exploratory turns are not harvested | `controller.ts`, `turn-shape.ts` | Code classifies long turns; exploratory mirror attempts downgrade to a focusing question, and broad multi-idea upserts are dropped. |
 | Malformed model output is contained | `api.ts` | Unknown modes coerce to question; malformed claims/spans are filtered. |
 | Source Bank is ground truth | `store.ts` | User chat, declarations, and map edits are append-only source utterances. |
 | Direct card commands use exact user words | `controller.ts`, `map-commands.ts` | `create_card` requires exact current-turn phrase and matching cited id; referential/declarative/tentative cases are blocked. |
@@ -60,6 +61,14 @@ LLM grouped the corresponding utterance into a candidate.
 The model may mark `carryForwardCandidateIds`, but code filters them to idea
 candidates with substantive evidence from this turn. Acceleration satisfies
 density only. Validation and user confirmation remain unchanged.
+
+### Large Turns
+
+`turn-shape.ts` classifies the latest segmented user turn as compact, large
+exploratory, or large selected. Large exploratory turns are treated as material
+for selection: mirror attempts are downgraded to a focusing question, and broad
+multi-idea candidate upserts are filtered. Large selected turns may proceed only
+through existing carry-forward, validation, confirmation, and command gates.
 
 ### Direct Map Commands
 
@@ -120,6 +129,7 @@ where the act would become consequential.
 | `validator.ts` | Lexical and span/relationship grounding for mirrors. |
 | `readiness.ts` | Candidate readiness and hierarchy hard rule. |
 | `signals.ts` | Deterministic relation/containment detection. |
+| `turn-shape.ts` | Deterministic large-turn classification for no-harvest behavior. |
 | `controller.ts` | Orchestration, code-derived signals, mirror gates, carry-forward filtering, command acceptance, diagnostics. |
 | `store.ts` | Source Bank and Candidate Store. |
 | `map-store.ts` | Thought units, parent/child nesting, connections, positions, snapshots. |

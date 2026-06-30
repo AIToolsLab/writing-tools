@@ -37,7 +37,9 @@ direct user action.
 
 A large voice/text turn is split into sentence-level units. Each unit is recorded
 verbatim in the Source Bank. Nothing the AI says is ever treated as the user's
-words.
+words. The controller also classifies the latest turn shape so long exploratory
+dumps can be handled as selection/focusing moments rather than harvested as
+structure.
 
 ### Questioning
 
@@ -85,7 +87,10 @@ For long/exploratory turns, the coach must not extract a fixed number of cards.
 It mirrors only what the user explicitly selected or grounded clearly enough;
 otherwise it asks one focusing question that hands selection back to the user.
 The longer and richer the input, the more careful the coach must be about
-selecting structure for the user.
+selecting structure for the user. Code downgrades mirror attempts from large
+exploratory turns to a focusing question and filters broad multi-candidate idea
+upserts from those turns; explicit carry-forward wording and direct commands
+still go through their existing gates.
 
 ### Sovereign Map
 

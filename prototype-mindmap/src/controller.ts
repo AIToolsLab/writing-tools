@@ -14,11 +14,13 @@
 
 import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
+import { detectDraftDeclarations, type DraftDeclaration } from "./draft-declarations";
 import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MockLLM, QuestionStance } from "./llm-contract";
 import { contentTokens, normalize } from "./normalize";
 import { evaluateReadiness, readyCandidates } from "./readiness";
 import { detectSignals } from "./signals";
 import { CandidateStore, SourceBank } from "./store";
+import { detectTurnShape } from "./turn-shape";
 import type {
   ClaimValidation,
   MirrorReflection,
@@ -36,6 +38,7 @@ export type SuppressionReason =
   | "not_ready"
   | "batch_preference"
   | "already_on_map"
+  | "large_exploratory_turn"
   | "validation_failed";
 
 export type AcceptedMapCommandCardRef =
@@ -119,6 +122,39 @@ function isSuggestiveStructuralQuestion(text: string): boolean {
     /\b(under|inside|alongside|bigger|broader|smaller|claim|category|cause|effect|principle|belongs|sits)\b/.test(lower) ||
     /\b(software idea|authorship claim|offering ideas|contributing ideas|giving ideas|suggesting ideas)\b/.test(lower)
   );
+}
+
+const DECLARED_DRAFT_FOCUS_RE =
+  /\b(?:main|central|core|primary)\s+(?:idea|point|claim|argument)\b|\b(?:thesis|argument)\b/i;
+const RESTATE_QUESTION_RE =
+  /\b(?:what|which|what's|state|say|name|tell|clarify|explain|identify|summarize)\b/i;
+const DEEPEN_QUESTION_RE =
+  /\b(?:tension|consequence|assumption|weak(?:est)?|part|piece|how|why|depend(?:s|ed|ing)?|rely(?:ing|ies|ied)?|example|counterexample|trade-?off|effect|implication|relationship|difference|support|challenge|pressure|cost|benefit|risk|cause|reason|matter)\b/i;
+
+function isRedundantDraftDeclarationQuestion(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed.endsWith("?")) return false;
+  if (!DECLARED_DRAFT_FOCUS_RE.test(trimmed)) return false;
+  if (!RESTATE_QUESTION_RE.test(trimmed)) return false;
+  if (DEEPEN_QUESTION_RE.test(trimmed)) return false;
+  return true;
+}
+
+function shortenDraftDeclaration(text: string): string {
+  const compact = text.trim().replace(/\s+/g, " ");
+  return compact.length <= 90 ? compact : `${compact.slice(0, 87).trim()}...`;
+}
+
+function targetedDraftDeclarationQuestion(declarations: DraftDeclaration[]): Partial<TurnOutput> | undefined {
+  const declaration = declarations[0];
+  if (!declaration) return undefined;
+  const quote = shortenDraftDeclaration(declaration.text);
+  return {
+    mode: "question",
+    text: `What tension or consequence in "${quote}" feels most important to examine next?`,
+    questionAnchor: declaration.userPhrase,
+    questionStance: "deepen",
+  };
 }
 
 function intersects(a: Iterable<string>, b: ReadonlySet<string>): boolean {
@@ -660,6 +696,7 @@ export async function processTurn(
   const detectedSignals = units.flatMap((u) =>
     detectSignals(u.id, u.text, state.lastAiText),
   );
+  const initialTurnShape = detectTurnShape(userText, units);
 
   // 3. Pre-turn ready candidates — passed in LLM context so it knows what it
   //    may mirror. (Computed before candidate updates so it reflects prior state.)
@@ -671,6 +708,7 @@ export async function processTurn(
 
   // 4. Build context snapshot and call the LLM.
   const userIsStuck = isStuck(userText);
+  const draftDeclarations = detectDraftDeclarations(state.draft);
   const ctx: LLMContext = {
     bank: state.bank.getAll(),
     candidates: state.candidates.getAll(),
@@ -681,12 +719,18 @@ export async function processTurn(
     userIsStuck,
     lastAiText: state.lastAiText,
     turnText: userText,
+    turnShape: initialTurnShape,
     draft: state.draft || undefined,
+    draftDeclarations,
     map,
   };
   const turn = await llm(ctx);
   const commandResult = acceptedMapCommands(turn.mapCommands, units, map);
   const acceptedCommands = commandResult.accepted;
+  const turnShape = acceptedCommands.length > 0
+    ? detectTurnShape(userText, units, { hasAcceptedMapCommand: true })
+    : initialTurnShape;
+  const turnDebugNotes: CommandDebugNote[] = [...commandResult.notes];
 
   // 5. Apply candidate updates from the LLM, then recompute readiness for gating.
   //    The LLM proposes grouping (gist/target/evidence) only. Relation signals
@@ -703,7 +747,22 @@ export async function processTurn(
     arr.push(rs);
     signalsByUtt.set(s.utteranceId, arr);
   }
-  for (const u of turn.candidateUpserts ?? []) {
+  let candidateUpserts = turn.candidateUpserts ?? [];
+  if (turnShape.kind === "large_exploratory") {
+    const ideaUpserts = candidateUpserts.filter((u) => u.target === "idea");
+    if (ideaUpserts.length > 1) {
+      candidateUpserts = candidateUpserts.filter((u) => u.target !== "idea");
+      const dropped = ideaUpserts.length;
+      if (dropped > 0) {
+        turnDebugNotes.push({
+          reason: "large_turn_candidate_filter",
+          detail: `dropped ${dropped} broad idea candidate(s) from exploratory turn`,
+        });
+      }
+    }
+  }
+
+  for (const u of candidateUpserts) {
     // Evidence ids must reference real utterances in the bank.
     const validEvidence = u.addEvidenceIds.filter(
       (id) => state.bank.get(id) !== undefined,
@@ -774,7 +833,9 @@ export async function processTurn(
       out = { ...out, mapCommands: acceptedCommands };
     }
     if (commandResult.notes.length > 0) {
-      out = { ...out, commandDebug: commandResult.notes };
+      out = { ...out, commandDebug: turnDebugNotes };
+    } else if (turnDebugNotes.length > 0) {
+      out = { ...out, commandDebug: turnDebugNotes };
     }
     if (commandResult.pending) {
       state.pendingMapCommand = commandResult.pending;
@@ -814,6 +875,20 @@ export async function processTurn(
         questionAnchor: undefined,
         questionStance: "organize",
       };
+    }
+
+    if (
+      (out.mode === "question" || out.mode === "clarify") &&
+      draftDeclarations.length > 0 &&
+      isRedundantDraftDeclarationQuestion(out.text)
+    ) {
+      const targeted = targetedDraftDeclarationQuestion(draftDeclarations);
+      if (targeted) {
+        out = {
+          ...out,
+          ...targeted,
+        };
+      }
     }
 
     // Anti-repeat guard: if a question/clarify turn would say verbatim what we
@@ -866,6 +941,20 @@ export async function processTurn(
 
   // 6. Route based on LLM's intended mode.
   if (turn.mode === "mirror") {
+    if (turnShape.kind === "large_exploratory") {
+      state.turnsSinceLastMirror++;
+      state.mode = "question";
+      return finish({
+        mode: "question",
+        text: "Which one piece of that should we stay with first?",
+        llmTurn: turn,
+        pacingSuppressed: true,
+        suppressionReason: "large_exploratory_turn",
+        suppressionDetail: turnShape.reasons.join(", "),
+        questionStance: "narrow",
+      });
+    }
+
     // 6a. Pacing check — too soon?
     if (
       state.turnsSinceLastMirror <

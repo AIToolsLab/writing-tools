@@ -9,6 +9,8 @@
  */
 
 import type { DetectedSignal } from "./signals";
+import type { DraftDeclaration } from "./draft-declarations";
+import type { TurnShape } from "./turn-shape";
 import type {
   CandidateTarget,
   CandidateThought,
@@ -149,8 +151,19 @@ export interface LLMContext {
   lastAiText: string;
   /** The full raw user input for this turn (before segmentation). */
   turnText: string;
+  /**
+   * Code-derived shape of the latest turn. Advisory/suppression-only: it never
+   * authorizes candidates, mirrors, commands, or map writes.
+   */
+  turnShape: TurnShape;
   /** The user's current draft text, if provided. Used for anchoring questions to draft regions. */
   draft?: string;
+  /**
+   * Explicit declarations or high-confidence repeated focus detected in the
+   * draft. Suppression-only: these are never candidates, never mirror evidence,
+   * and never map commands.
+   */
+  draftDeclarations: DraftDeclaration[];
   /** User-authored concept map state. The model may ask about it, never place structure. */
   map: LLMMapContext;
 }

@@ -1134,6 +1134,148 @@ describe("pacing", () => {
     expect(out.validatedMirror).toBeUndefined();
   });
 
+  it("downgrades mirror attempts from large exploratory turns to a focusing question", async () => {
+    const state = createState();
+    const userText =
+      "The opening is about control. The middle is about authorship. The ending needs a contrast. I am still exploring what matters most.";
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "ready",
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            text: "control matters",
+            candidateId: "cand1",
+            target: "idea",
+            sourceSpans: [{ claimText: "control matters", utteranceIds: ["u_1"], userPhrase: "control" }],
+          },
+        ],
+      },
+    });
+
+    const out = await processTurn(state, userText, llm);
+
+    expect(out.mode).toBe("question");
+    expect(out.text).toBe("Which one piece of that should we stay with first?");
+    expect(out.suppressionReason).toBe("large_exploratory_turn");
+    expect(out.validatedMirror).toBeUndefined();
+  });
+
+  it("drops many broad idea upserts from large exploratory turns", async () => {
+    const state = createState();
+    const userText =
+      "The opening is about control. The middle is about authorship. The ending needs a contrast. I am still exploring what matters most.";
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Which one piece should we stay with first?",
+      candidateUpserts: [
+        { id: "cand1", target: "idea", gist: "control", addEvidenceIds: ["u_1"] },
+        { id: "cand2", target: "idea", gist: "authorship", addEvidenceIds: ["u_2"] },
+        { id: "cand3", target: "idea", gist: "contrast", addEvidenceIds: ["u_3"] },
+      ],
+    });
+
+    const out = await processTurn(state, userText, llm);
+
+    expect(state.candidates.getAll()).toHaveLength(0);
+    expect(out.commandDebug).toEqual([
+      {
+        reason: "large_turn_candidate_filter",
+        detail: "dropped 3 broad idea candidate(s) from exploratory turn",
+      },
+    ]);
+  });
+
+  it("keeps a single idea upsert from a large exploratory turn as non-structural evidence", async () => {
+    const state = createState();
+    const userText =
+      "The opening is about control. The middle is about authorship. The ending needs a contrast. I am still exploring what matters most.";
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Which one piece should we stay with first?",
+      candidateUpserts: [
+        { id: "cand1", target: "idea", gist: "control", addEvidenceIds: ["u_1"] },
+      ],
+    });
+
+    const out = await processTurn(state, userText, llm);
+
+    expect(state.candidates.getAll()).toEqual([
+      expect.objectContaining({
+        id: "cand1",
+        target: "idea",
+        evidenceUtteranceIds: ["u_1"],
+      }),
+    ]);
+    expect(out.commandDebug).toBeUndefined();
+    expect(out.validatedMirror).toBeUndefined();
+  });
+
+  it("allows large selected turns to use existing carry-forward validation", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0 });
+    const userText =
+      "I am walking through context. The main idea is human control decides what enters the draft. I still need examples. The conclusion can come later.";
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "ready",
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            text: "human control decides what enters the draft",
+            candidateId: "cand1",
+            target: "idea",
+            sourceSpans: [
+              {
+                claimText: "human control decides what enters the draft",
+                utteranceIds: ["u_2"],
+                userPhrase: "human control decides what enters the draft",
+              },
+            ],
+          },
+        ],
+      },
+      candidateUpserts: [
+        {
+          id: "cand1",
+          target: "idea",
+          gist: "human control decides what enters the draft",
+          addEvidenceIds: ["u_2"],
+        },
+      ],
+      carryForwardCandidateIds: ["cand1"],
+    });
+
+    const out = await processTurn(state, userText, llm, cfg);
+
+    expect(out.mode).toBe("mirror");
+    expect(out.validatedMirror?.reflection.claims[0].text).toBe("human control decides what enters the draft");
+  });
+
+  it("still requires exact current-turn wording for direct commands inside large turns", async () => {
+    const state = createState();
+    const userText =
+      "There is a lot here. Put human control on the map. The ending needs more pressure. I may still change the frame.";
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Which card should we place?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "AI control",
+          sourceSpan: { utteranceIds: ["u_2"], userPhrase: "AI control" },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, userText, llm);
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandDebug?.some((note) => note.reason === "not_current_turn_span")).toBe(true);
+  });
+
   it("still blocks a first-turn mirror even at high map pressure", async () => {
     const state = createState();
     const cfg = withQuestionIntentBias(defaultConfig, 100);
@@ -1379,6 +1521,140 @@ describe("LLM context", () => {
     await processTurn(state, "first utterance", questionLLM("Q1"));
     await processTurn(state, "second utterance", captureLLM);
     expect(capturedCtx!.bank).toHaveLength(2);
+  });
+
+  it("passes draft declarations as suppression-only context", async () => {
+    const state = createState();
+    state.draft = "The main idea is human control decides what enters the draft.";
+    let capturedCtx: LLMContext | undefined;
+    const captureLLM = (ctx: LLMContext): LLMTurn => {
+      capturedCtx = ctx;
+      return { mode: "question", text: "What tension does that create?" };
+    };
+
+    await processTurn(state, "what should I do next?", captureLLM);
+
+    expect(capturedCtx?.draftDeclarations).toEqual([
+      expect.objectContaining({
+        kind: "main_idea",
+        text: "human control decides what enters the draft",
+      }),
+    ]);
+    expect(state.candidates.getAll()).toHaveLength(0);
+    expect(state.bank.getAll()).toHaveLength(1);
+    expect(state.bank.getAll()[0].text).toBe("what should I do next?");
+  });
+
+  it("does not let draft declarations become mirror evidence", async () => {
+    const state = createState();
+    state.draft = "The main idea is human control decides what enters the draft.";
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0 });
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "ready",
+      candidateUpserts: [
+        {
+          id: "draft_claim",
+          target: "idea",
+          gist: "human control decides what enters the draft",
+          addEvidenceIds: ["u_1"],
+        },
+      ],
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            candidateId: "draft_claim",
+            target: "idea",
+            text: "human control decides what enters the draft",
+            sourceSpans: [
+              {
+                claimText: "human control decides what enters the draft",
+                utteranceIds: ["u_1"],
+                userPhrase: "human control decides what enters the draft",
+              },
+            ],
+          },
+        ],
+      },
+    });
+
+    const out = await processTurn(state, "what should I do next?", llm, cfg);
+
+    expect(out.mode).toBe("clarify");
+    expect(out.validatedMirror).toBeUndefined();
+    expect(out.mapCommands).toBeUndefined();
+    expect(state.bank.getAll()).toHaveLength(1);
+    expect(state.bank.getAll()[0].text).toBe("what should I do next?");
+  });
+
+  it("re-angles redundant main-idea questions when the draft already declares one", async () => {
+    const state = createState();
+    state.draft = "The main idea is human control decides what enters the draft.";
+
+    const out = await processTurn(
+      state,
+      "what should I do next?",
+      questionLLM("What is the main idea?"),
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.text).toBe(
+      'What tension or consequence in "human control decides what enters the draft" feels most important to examine next?',
+    );
+    expect(out.questionAnchor).toBe("The main idea is human control decides what enters the draft");
+    expect(out.questionStance).toBe("deepen");
+    expect(state.candidates.getAll()).toHaveLength(0);
+    expect(state.bank.getAll()).toHaveLength(1);
+  });
+
+  it("re-angles redundant main-idea questions for clearly repeated draft focus", async () => {
+    const state = createState();
+    state.draft =
+      "Human control decides what enters the draft. A scene follows. Human control decides what enters the draft. Another note. Human control decides what enters the draft.";
+
+    const out = await processTurn(
+      state,
+      "what should I do next?",
+      questionLLM("What's the central idea?"),
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.text).toContain("What tension or consequence");
+    expect(out.text).toContain("Human control decides what enters the draft");
+    expect(out.questionAnchor).toBe("Human control decides what enters the draft.");
+    expect(state.candidates.getAll()).toHaveLength(0);
+    expect(state.bank.getAll()).toHaveLength(1);
+  });
+
+  it("leaves a sharp deepen question alone even when the draft has a declared focus", async () => {
+    const state = createState();
+    state.draft = "The main idea is human control decides what enters the draft.";
+
+    const out = await processTurn(
+      state,
+      "what should I do next?",
+      questionLLM("What part of your main argument is weakest?"),
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.text).toBe("What part of your main argument is weakest?");
+    expect(out.questionAnchor).toBeUndefined();
+  });
+
+  it("leaves main-idea questions alone when the draft has no declared focus", async () => {
+    const state = createState();
+    state.draft = "A loose opening paragraph about control and writing tools.";
+
+    const out = await processTurn(
+      state,
+      "what should I do next?",
+      questionLLM("What is the main idea?"),
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.text).toBe("What is the main idea?");
+    expect(out.questionAnchor).toBeUndefined();
   });
 
   it("passes turnsSinceLastMirror in context", async () => {

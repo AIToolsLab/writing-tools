@@ -942,6 +942,14 @@ const css = `
     border-radius: 5px;
     background: #fff;
     padding: 5px 8px;
+    cursor: grab;
+  }
+  .map-embed:active {
+    cursor: grabbing;
+  }
+  .map-embed.dragging {
+    opacity: 0.55;
+    border-style: dashed;
   }
   .map-embed.role-subnode { border-left-color: #1a6fa3; }
   .map-embed-editor {
@@ -954,6 +962,7 @@ const css = `
     font-size: 12px;
     line-height: 1.4;
     color: #1a1a1a;
+    cursor: text;
   }
   .map-embed-actions {
     display: flex;

@@ -30,6 +30,7 @@ const CARD_WIDTH = 260;
 const CARD_HEIGHT = 140;
 const CARD_MIN_WIDTH = 180;
 const CARD_MIN_HEIGHT = 110;
+const EMBEDDED_CARD_DRAG_TYPE = "application/x-prototype-mindmap-card";
 
 const CONNECTION_ANCHORS: Array<{
   id: string;
@@ -240,11 +241,31 @@ function ConnectionHandles() {
  */
 function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActions }) {
   const [draft, setDraft] = useState(unit.text);
+  const [dragging, setDragging] = useState(false);
   useEffect(() => setDraft(unit.text), [unit.id, unit.text]);
   const children = actions.getChildren(unit.id);
 
   return (
-    <div className={`map-embed role-${unit.role}`}>
+    <div
+      className={`map-embed role-${unit.role} ${dragging ? "dragging" : ""}`}
+      draggable
+      title="Drag to the canvas to pull this card out"
+      onDragStart={(event) => {
+        event.stopPropagation();
+        if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLButtonElement) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.effectAllowed = "move";
+        event.dataTransfer.setData(EMBEDDED_CARD_DRAG_TYPE, unit.id);
+        event.dataTransfer.setData("text/plain", unit.text);
+        setDragging(true);
+      }}
+      onDragEnd={(event) => {
+        event.stopPropagation();
+        setDragging(false);
+      }}
+    >
       <textarea
         className="map-embed-editor nodrag nowheel"
         value={draft}
@@ -762,6 +783,29 @@ function ThoughtMapInner({
     onStoreChange();
   }, [flow, onBeforeMapChange, onStoreChange, store]);
 
+  const onPaneDragOver = useCallback((event: React.DragEvent) => {
+    if (!event.dataTransfer.types.includes(EMBEDDED_CARD_DRAG_TYPE)) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }, []);
+
+  const onPaneDrop = useCallback(
+    (event: React.DragEvent) => {
+      const id = event.dataTransfer.getData(EMBEDDED_CARD_DRAG_TYPE);
+      if (!id) return;
+      const unit = store.get(id);
+      if (!unit?.parentId || unit.role === "connection_label") return;
+
+      event.preventDefault();
+      const position = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      onBeforeMapChange();
+      store.setParent(id, undefined, "node");
+      store.setPosition(id, position);
+      onStoreChange();
+    },
+    [flow, onBeforeMapChange, onStoreChange, store],
+  );
+
   const flowNodes = useMemo<ThoughtFlowNode[]>(() => {
     // Only ROOT cards are canvas nodes; nested cards render inside their parent.
     const roots = store
@@ -1047,6 +1091,8 @@ function ThoughtMapInner({
           onNodesChange={onNodesChange}
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
+          onDragOver={onPaneDragOver}
+          onDrop={onPaneDrop}
           onConnect={onConnect}
           onReconnect={onReconnect}
           connectionMode={ConnectionMode.Loose}
