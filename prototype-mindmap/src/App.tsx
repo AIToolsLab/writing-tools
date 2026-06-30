@@ -11,7 +11,7 @@ import {
 } from "./controller";
 import type { LoopState } from "./controller";
 import type { MockLLM, QuestionStance } from "./llm-contract";
-import { ThoughtMap, type CoachDebugInfo } from "./Map";
+import { ThoughtMap, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
 import type { SourceSpan } from "./types";
@@ -89,6 +89,14 @@ interface PersistedSession {
   bank: LoopState["bank"] extends { getAll(): infer T } ? T : never;
   candidates: LoopState["candidates"] extends { getAll(): infer T } ? T : never;
   map: ThoughtUnitStoreSnapshot;
+}
+
+function commandAckText(commands: AcceptedMapCommand[]): string {
+  if (commands.length !== 1) return `${commands.length} map changes applied.`;
+  const command = commands[0];
+  if (command.kind === "create_card") return `Card added: "${command.text}".`;
+  if (command.kind === "nest_card") return "Card nested.";
+  return command.labelText ? "Cards connected with your label." : "Cards connected.";
 }
 
 // ---------------------------------------------------------------------------
@@ -441,6 +449,43 @@ const css = `
     background: #fff;
     color: #666;
     cursor: pointer;
+  }
+
+  .map-command-ack {
+    min-width: 0;
+    max-width: 280px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 7px 5px 10px;
+    border: 1px solid #cfded2;
+    border-radius: 7px;
+    background: #f1f8f2;
+    color: #315d3b;
+    font-size: 12px;
+    font-weight: 650;
+    box-shadow: 0 1px 0 rgba(49, 93, 59, 0.06);
+  }
+  .map-command-ack span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .map-command-ack button {
+    flex-shrink: 0;
+    border: 1px solid #b9d2be;
+    border-radius: 5px;
+    background: #fff;
+    color: #315d3b;
+    cursor: pointer;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 7px;
+  }
+  .map-command-ack button:disabled {
+    opacity: 0.45;
+    cursor: default;
   }
 
   .map-canvas {
@@ -1335,6 +1380,7 @@ export default function App() {
   const [questionBias, setQuestionBias] = useState(initialQuestionBias);
   const [requireConnectionLabel, setRequireConnectionLabel] = useState(initialRequireConnectionLabel);
   const [canUndoMap, setCanUndoMap] = useState(false);
+  const [commandAck, setCommandAck] = useState<MapCommandAcknowledgement | null>(null);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -1363,12 +1409,18 @@ export default function App() {
     setMapRevision((v) => v + 1);
   }, []);
 
+  const markUserMapChanged = useCallback(() => {
+    setCommandAck(null);
+    markMapChanged();
+  }, [markMapChanged]);
+
   const undoMapChange = useCallback(() => {
     const previous = undoStackRef.current.pop();
     if (!previous) return;
     mapStoreRef.current.loadSnapshot(previous.map);
     stateRef.current.bank.replaceAll(previous.bank);
     setCanUndoMap(undoStackRef.current.length > 0);
+    setCommandAck(null);
     markMapChanged();
   }, [markMapChanged]);
 
@@ -1377,6 +1429,7 @@ export default function App() {
       if (commands.length === 0) return;
       captureMapUndo();
       applyAcceptedMapCommands(commands, mapStoreRef.current, stateRef.current.bank);
+      setCommandAck({ text: commandAckText(commands) });
       markMapChanged();
     },
     [captureMapUndo, markMapChanged],
@@ -1711,7 +1764,7 @@ export default function App() {
       captureMapUndo();
       mapStoreRef.current.addFromReflection(confirmedReflection);
       setConfirmed((prev) => [...prev, confirmedReflection]);
-      markMapChanged();
+      markUserMapChanged();
     }
   }
 
@@ -1737,6 +1790,7 @@ export default function App() {
     mapStoreRef.current = new ThoughtUnitStore();
     undoStackRef.current = [];
     setCanUndoMap(false);
+    setCommandAck(null);
     setMsgs([
       {
         id: ++msgId,
@@ -1910,6 +1964,7 @@ export default function App() {
           bank={stateRef.current.bank}
           confirmed={confirmed}
           coachDebug={lastCoachDebug}
+          commandAck={commandAck}
           revision={mapRevision}
           questionBias={questionBias}
           onQuestionBiasChange={setQuestionBias}
@@ -1918,7 +1973,7 @@ export default function App() {
           canUndo={canUndoMap}
           onUndo={undoMapChange}
           onBeforeMapChange={captureMapUndo}
-          onStoreChange={markMapChanged}
+          onStoreChange={markUserMapChanged}
         />
       </div>
     </>

@@ -87,6 +87,7 @@ interface ThoughtMapProps {
   bank: SourceBank;
   confirmed: ConfirmedReflection[];
   coachDebug?: CoachDebugInfo | null;
+  commandAck?: MapCommandAcknowledgement | null;
   revision: number;
   questionBias: number;
   onQuestionBiasChange: (value: number) => void;
@@ -96,6 +97,10 @@ interface ThoughtMapProps {
   onUndo: () => void;
   onBeforeMapChange: () => void;
   onStoreChange: () => void;
+}
+
+export interface MapCommandAcknowledgement {
+  text: string;
 }
 
 export interface CoachDebugInfo {
@@ -460,6 +465,7 @@ function ThoughtMapInner({
   bank,
   confirmed,
   coachDebug,
+  commandAck,
   revision,
   questionBias,
   onQuestionBiasChange,
@@ -977,6 +983,15 @@ function ThoughtMapInner({
           <h2>Concept map</h2>
           <span className="map-count">{store.getAll().length} cards</span>
         </div>
+
+        {commandAck && (
+          <div className="map-command-ack" role="status">
+            <span>{commandAck.text}</span>
+            <button type="button" onClick={onUndo} disabled={!canUndo} title="Undo this map command">
+              Undo
+            </button>
+          </div>
+        )}
 
         <label className="question-bias">
           <span>Think</span>
