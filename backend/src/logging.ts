@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { zipSync } from 'fflate';
 
@@ -48,6 +48,16 @@ export async function appendLog(entry: LogEntry): Promise<void> {
 	const dir = logDir();
 	await mkdir(dir, { recursive: true });
 	await appendFile(logFilePath(entry.username), `${JSON.stringify(entry)}\n`);
+}
+
+/**
+ * Delete a user's entire log file. Backs the "delete my data" request — the
+ * caller passes the same identity (Better Auth user id) used as the log key.
+ * No-op if the file doesn't exist. `logFilePath` applies the path-traversal
+ * guard, so an unexpected id can't escape the log directory.
+ */
+export async function deleteUserLogs(username: string): Promise<void> {
+	await rm(logFilePath(username), { force: true });
 }
 
 export interface LogUpdate {

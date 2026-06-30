@@ -59,24 +59,6 @@ export function detectPlatform(): 'word' | 'google-docs' | 'standalone' {
 	return 'standalone';
 }
 
-// Define a type for payload. Includes at least: eventType and username
-export interface LogPayload {
-	username: string;
-	event: string;
-	// biome-ignore lint/suspicious/noExplicitAny: Logs should be able to hold anything serializable
-	[key: string]: any;
-}
-
-export function log(payload: LogPayload) {
-	const payloadWithTimestamp = {
-		...payload,
-		timestamp: Date.now() / 1000,
-	};
-	return fetch(`${SERVER_URL}/log`, {
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/json',
-		},
-		body: JSON.stringify(payloadWithTimestamp),
-	});
-}
+// Event logging moved to the consent-aware, authenticated `useLog` hook
+// (@/hooks/useLog) — the server now derives identity from the session and
+// requires a Bearer token, so logging must run inside the auth context.

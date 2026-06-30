@@ -12,6 +12,7 @@ import {
 	googleClientId,
 	googleClientSecret,
 } from './config.js';
+import { deleteUserLogs } from './logging.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -35,6 +36,36 @@ export const auth = betterAuth({
 	baseURL: betterAuthUrl(),
 	secret: betterAuthSecret(),
 	trustedOrigins: betterAuthTrustedOrigins(),
+	// Logging-consent level lives on the user record so it's available on every
+	// session. Server-controlled (`input: false`): set only via auth.api.updateUser
+	// from our /api/me/consent route, never accepted from sign-up input. The enum
+	// mirrors CONSENT_LEVELS in consent.ts. New users default to 'usage'
+	// (content-free); content logging (ai_output/document) requires opting up.
+	user: {
+		additionalFields: {
+			loggingConsent: {
+				type: ['none', 'usage', 'ai_output', 'document'],
+				defaultValue: 'usage',
+				required: false,
+				input: false,
+			},
+			consentUpdatedAt: {
+				type: 'date',
+				required: false,
+				input: false,
+			},
+		},
+		// Enables auth.api.deleteUser for the authenticated user (off by default).
+		// beforeDelete purges the user's study logs so "delete my account" also
+		// removes their data. Google-only accounts have no password, so deletion
+		// proceeds from the session alone (no verification flow configured).
+		deleteUser: {
+			enabled: true,
+			beforeDelete: async (user) => {
+				await deleteUserLogs(user.id);
+			},
+		},
+	},
 	plugins: [
 		bearer(),
 		deviceAuthorization({

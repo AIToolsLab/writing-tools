@@ -19,6 +19,7 @@ import {
 	useMemo,
 	type ReactNode,
 } from 'react';
+import { type ConsentLevel, DEFAULT_CONSENT_LEVEL } from '@/consent';
 import { AccessTokenProvider } from '@/contexts/authTokenContext';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 import { useDeviceAuth } from '@/hooks/useDeviceAuth';
@@ -28,7 +29,14 @@ export interface AppAuthSession {
 	isLoading: boolean; // initial session/provider loading (incl. token hydration)
 	isAuthorizing: boolean; // device polling in progress (NOT isLoading)
 	isAuthenticated: boolean; // token present AND user loaded
-	user?: { name?: string; email?: string };
+	user?: {
+		id?: string;
+		name?: string;
+		email?: string;
+		loggingConsent?: ConsentLevel;
+	};
+	/** Resolved consent level (defaults applied) — gate analytics/logging on this. */
+	loggingConsent: ConsentLevel;
 	error?: Error; // provider-level error
 	authorization?: {
 		status: 'pending' | 'polling' | 'error';
@@ -46,6 +54,7 @@ const DEFAULT_SESSION: AppAuthSession = {
 	isLoading: false,
 	isAuthorizing: false,
 	isAuthenticated: false,
+	loggingConsent: DEFAULT_CONSENT_LEVEL,
 	getAccessToken: () => {
 		console.warn('getAccessToken called before AppAuthProvider initialized');
 		return Promise.resolve('');
@@ -90,6 +99,7 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 			isAuthorizing,
 			isAuthenticated: device.status === 'success' && !!device.token,
 			user: device.user,
+			loggingConsent: device.user?.loggingConsent ?? DEFAULT_CONSENT_LEVEL,
 			authorization,
 			getAccessToken: () => {
 				if (device.token) return Promise.resolve(device.token);
@@ -122,6 +132,7 @@ function DemoAuthProvider({ children }: { children: ReactNode }) {
 			isLoading: false,
 			isAuthorizing: false,
 			isAuthenticated: true,
+			loggingConsent: DEFAULT_CONSENT_LEVEL,
 			getAccessToken: () => Promise.resolve('demo-access-token'),
 			login: () => Promise.resolve(),
 			logout: () => Promise.resolve(),
