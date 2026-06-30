@@ -28,8 +28,6 @@ export default defineConfig(({ mode }) => {
 			}
 		},
 		define: {
-			'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
-			'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
 			'process.env.NODE_ENV': JSON.stringify(isDev ? 'development' : 'production'),
 			// Backend origin for the sidebar: empty in dev (reaches the backend via
 			// the dev server's /api proxy); the deployed origin in prod.

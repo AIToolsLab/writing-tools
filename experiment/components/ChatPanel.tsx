@@ -93,6 +93,29 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
     scrollToBottom();
   }, [displayedMessages]);
 
+  // Freeze a timestamp for each message part the first time it becomes visible.
+  // Without this, the render path calls new Date() for every bubble on every render,
+  // so all messages display the current time and jump forward together.
+  const [partTimestamps, setPartTimestamps] = useState<Map<string, Date>>(new Map());
+  const stampVisibleParts = useEffectEvent(() => {
+    setPartTimestamps((prev) => {
+      let next: Map<string, Date> | null = null;
+      for (const dm of displayedMessages) {
+        for (let partIdx = 0; partIdx < dm.parts.length; partIdx++) {
+          const key = `${dm.messageId}-${partIdx}`;
+          if (!prev.has(key)) {
+            if (!next) next = new Map(prev);
+            next.set(key, new Date());
+          }
+        }
+      }
+      return next ?? prev;
+    });
+  });
+  useEffect(() => {
+    stampVisibleParts();
+  }, [displayedMessages]);
+
   // Initialize conversation on mount
   useEffect(() => {
     if (!hasInitializedRef.current && messages.length === 0) {
@@ -404,7 +427,7 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
                 {part}
               </div>
               <div className="text-[10px] text-gray-600 mt-1">
-                {formatTime(new Date())}
+                {formatTime(partTimestamps.get(`${displayedMessage.messageId}-${partIdx}`) ?? new Date())}
               </div>
               {displayedMessage.isUser && (
                 readMessageIds.has(displayedMessage.messageId) ? (

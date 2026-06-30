@@ -61,7 +61,8 @@ function parseStudyParams(searchParams: URLSearchParams): StudyParams | string {
     isProlific: searchParams.get('isProlific') === 'true',
     autoRefreshInterval: autoRefreshStr ? parseInt(autoRefreshStr, 10) : DEFAULT_AUTO_REFRESH_INTERVAL,
     scenario: searchParams.get('scenario') || DEFAULT_SCENARIO_ID,
-    conversationHistory: searchParams.get('ch') === '1',
+    // Default ON: the AI assistant receives the chat transcript unless explicitly disabled with ch=0
+    conversationHistory: searchParams.get('ch') !== '0',
   };
 }
 

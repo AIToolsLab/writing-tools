@@ -62,8 +62,6 @@ export default defineConfig(async ({ mode }) => {
 			}
 		},
 		define: {
-			'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
-			'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
 			// Device-flow client ID; must match a value in the backend's
 			// BETTER_AUTH_DEVICE_CLIENT_IDS allowlist. Override via env for other envs.
 			'process.env.BETTER_AUTH_DEVICE_CLIENT_ID': JSON.stringify(
@@ -80,7 +78,6 @@ export default defineConfig(async ({ mode }) => {
 					taskpane: path.resolve(__dirname, 'taskpane.html'),
 					editor: path.resolve(__dirname, 'editor.html'),
 					logs: path.resolve(__dirname, 'logs.html'),
-					popup: path.resolve(__dirname, 'popup.html'),
 					commands: path.resolve(__dirname, 'commands.html')
 				},
 				output: {
