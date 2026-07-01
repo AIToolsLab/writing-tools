@@ -374,6 +374,19 @@ function readinessPreamble(reason: string | undefined): string | undefined {
   return undefined;
 }
 
+function hasInstructionalCardScaffolding(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    /\bthis should be\b/.test(lower) ||
+    /\bshould go under\b/.test(lower) ||
+    /\bone of the main\b/.test(lower) ||
+    /\bmain idea\b/.test(lower) ||
+    /\bunder\s+[a-z#]/.test(lower) ||
+    /\bsubpoint\b/.test(lower) ||
+    /\bsmall idea\b/.test(lower)
+  );
+}
+
 function isBlockedCreateCardInterpretation(unitText: string, cardText: string): boolean {
   const lower = unitText.toLowerCase();
   const phrase = cardText.trim().toLowerCase();
@@ -1259,9 +1272,11 @@ export async function processTurn(
       .map((u) => u.id),
   );
   const acceleratedEvidenceByCandidate = new Map<string, Set<string>>();
+  const focusedCarryForwardIdeaIds = new Set<string>();
   for (const candidateId of turn.carryForwardCandidateIds ?? []) {
     const candidate = state.candidates.get(candidateId);
     if (!candidate || candidate.target !== "idea") continue;
+    focusedCarryForwardIdeaIds.add(candidateId);
     const thisTurnEvidence = candidate.evidenceUtteranceIds.filter(
       (id) => thisTurnUtteranceIds.has(id) && substantiveThisTurnUtteranceIds.has(id),
     );
@@ -1282,6 +1297,7 @@ export async function processTurn(
     if (responsiveIdeaUpserts.length === 1) {
       const candidate = state.candidates.get(responsiveIdeaUpserts[0].id);
       if (candidate) {
+        focusedCarryForwardIdeaIds.add(candidate.id);
         const responsiveEvidence = candidate.evidenceUtteranceIds.filter(
           (id) =>
             (thisTurnUtteranceIds.has(id) && substantiveThisTurnUtteranceIds.has(id)) ||
@@ -1627,6 +1643,13 @@ export async function processTurn(
       return c.sourceSpans.some((span) => intersects(span.utteranceIds, acceleratedEvidence));
     });
 
+    if (state.activeElicitation && focusedCarryForwardIdeaIds.size > 0) {
+      const focusedClaims = gatedClaims.filter((claim) => focusedCarryForwardIdeaIds.has(claim.candidateId));
+      if (focusedClaims.length > 0) {
+        gatedClaims = focusedClaims;
+      }
+    }
+
     if (gatedClaims.length === 0) {
       // LLM tried to mirror but no candidate was ready — downgrade to question.
       const firstClaim = turn.mirror.claims[0];
@@ -1659,6 +1682,38 @@ export async function processTurn(
       });
     }
     gatedClaims = freshClaims;
+
+    if (state.activeElicitation && focusedCarryForwardIdeaIds.size > 0) {
+      const focusedFreshClaims = gatedClaims.filter((claim) => focusedCarryForwardIdeaIds.has(claim.candidateId));
+      if (focusedFreshClaims.length > 1) {
+        state.turnsSinceLastMirror++;
+        state.mode = "clarify";
+        state.clarifyTarget = undefined;
+        return finish({
+          mode: "clarify",
+          text: "I think you're pointing at one card here, but I'm hearing more than one claim in that answer. What exact wording do you want on the card itself?",
+          llmTurn: turn,
+          suppressionReason: "not_ready",
+          suppressionDetail: `multiple focused claims: ${focusedFreshClaims.map((claim) => claim.text).join(" | ")}`,
+          questionStance: "narrow",
+        });
+      }
+
+      const instructionalClaim = focusedFreshClaims.find((claim) => hasInstructionalCardScaffolding(claim.text));
+      if (instructionalClaim) {
+        state.turnsSinceLastMirror++;
+        state.mode = "clarify";
+        state.clarifyTarget = undefined;
+        return finish({
+          mode: "clarify",
+          text: "I can hear the card wording inside that, but the rest sounds like instructions about where it fits. What exact wording should the card itself carry?",
+          llmTurn: turn,
+          suppressionReason: "not_ready",
+          suppressionDetail: `instructional card scaffolding: ${instructionalClaim.text}`,
+          questionStance: "narrow",
+        });
+      }
+    }
 
     const hasAcceleratedGatedClaim = gatedClaims.some((claim) =>
       acceleratedIdeaIds.has(claim.candidateId),

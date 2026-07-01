@@ -1411,6 +1411,98 @@ describe("pacing", () => {
     expect(second.validatedMirror?.reflection.claims[0].text).toBe("every AI edit needs human confirmation");
   });
 
+  it("limits active-elicitation fast-path mirrors to the newly answered card instead of minting extra claims", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0, minReadyCandidatesToBatch: 1 });
+    state.activeElicitation = { kind: "sparse_map_next_card" };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "ready",
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            text: "No silent commit",
+            candidateId: "cand1",
+            target: "idea",
+            sourceSpans: [
+              { claimText: "No silent commit", utteranceIds: ["u_1"], userPhrase: "No silent commit" },
+            ],
+          },
+          {
+            id: "c2",
+            text: "Constraint No silent commit",
+            candidateId: "cand2",
+            target: "idea",
+            sourceSpans: [
+              { claimText: "Constraint No silent commit", utteranceIds: ["u_2"], userPhrase: "Constraint No silent commit" },
+            ],
+          },
+        ],
+      },
+      candidateUpserts: [
+        { id: "cand1", target: "idea", gist: "No silent commit", addEvidenceIds: ["u_1"] },
+        { id: "cand2", target: "idea", gist: "Constraint No silent commit", addEvidenceIds: ["u_2"] },
+      ],
+      carryForwardCandidateIds: ["cand1"],
+    });
+
+    const out = await processTurn(state, "No silent commit", llm, cfg);
+
+    expect(out.mode).toBe("mirror");
+    expect(out.validatedMirror?.reflection.claims).toHaveLength(1);
+    expect(out.validatedMirror?.reflection.claims[0].text).toBe("No silent commit");
+  });
+
+  it("does not turn structural instruction wording into card text during active elicitation", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0, minReadyCandidatesToBatch: 1 });
+    state.activeElicitation = { kind: "carry_forward" };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "ready",
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            text: "No silent commit - this should be one of the main idea under Constraint",
+            candidateId: "cand1",
+            target: "idea",
+            sourceSpans: [
+              {
+                claimText: "No silent commit - this should be one of the main idea under Constraint",
+                utteranceIds: ["u_1"],
+                userPhrase: "No silent commit - this should be one of the main idea under Constraint",
+              },
+            ],
+          },
+        ],
+      },
+      candidateUpserts: [
+        {
+          id: "cand1",
+          target: "idea",
+          gist: "No silent commit - this should be one of the main idea under Constraint",
+          addEvidenceIds: ["u_1"],
+        },
+      ],
+      carryForwardCandidateIds: ["cand1"],
+    });
+
+    const out = await processTurn(
+      state,
+      "No silent commit-this should be one of the main idea under Constraint",
+      llm,
+      cfg,
+    );
+
+    expect(out.mode).toBe("clarify");
+    expect(out.text).toBe(
+      "I can hear the card wording inside that, but the rest sounds like instructions about where it fits. What exact wording should the card itself carry?",
+    );
+    expect(out.validatedMirror).toBeUndefined();
+  });
+
   it("breaks a repeated exact-wording loop with an explicit carry-forward clarify", async () => {
     const state = createState();
     const repeat = organizeQuestionLLM("What exact wording do you want the map to carry forward from that?");
