@@ -90,6 +90,8 @@ interface ThoughtMapProps {
   confirmed: ConfirmedReflection[];
   coachDebug?: CoachDebugInfo | null;
   commandAck?: MapCommandAcknowledgement | null;
+  /** Card ids the current coach turn refers to (by #ref) — highlighted on the canvas. */
+  highlightedCardIds?: ReadonlySet<string>;
   revision: number;
   questionBias: number;
   onQuestionBiasChange: (value: number) => void;
@@ -488,6 +490,7 @@ function ThoughtMapInner({
   confirmed,
   coachDebug,
   commandAck,
+  highlightedCardIds,
   revision,
   questionBias,
   onQuestionBiasChange,
@@ -875,17 +878,18 @@ function ThoughtMapInner({
 
   const [dropTargetId, setDropTargetId] = useState<string | undefined>(undefined);
 
-  // Apply the drop-target class without disturbing node state — derived per render.
+  // Apply drop-target and coach-reference highlight classes without disturbing
+  // node state — derived per render.
   const displayNodes = useMemo<ThoughtFlowNode[]>(
     () =>
-      dropTargetId
-        ? nodes.map((node) =>
-            node.id === dropTargetId
-              ? { ...node, className: `${node.className ?? ""} drop-target`.trim() }
-              : node,
-          )
-        : nodes,
-    [nodes, dropTargetId],
+      nodes.map((node) => {
+        const extra: string[] = [];
+        if (node.id === dropTargetId) extra.push("drop-target");
+        if (highlightedCardIds?.has(node.id)) extra.push("referenced");
+        if (extra.length === 0) return node;
+        return { ...node, className: `${node.className ?? ""} ${extra.join(" ")}`.trim() };
+      }),
+    [nodes, dropTargetId, highlightedCardIds],
   );
 
   // Live drop-target highlight: while a card is dragged, mark the card it would

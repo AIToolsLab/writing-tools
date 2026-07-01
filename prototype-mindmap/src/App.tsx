@@ -15,6 +15,7 @@ import type { MockLLM, QuestionStance } from "./llm-contract";
 import { ThoughtMap, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
+import { cardRef } from "./store";
 import type { SourceSpan } from "./types";
 import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
 
@@ -563,6 +564,12 @@ const css = `
     border-color: #1a6fa3;
     box-shadow: 0 0 0 3px rgba(26, 111, 163, 0.35), 0 10px 26px rgba(26, 111, 163, 0.22);
     background: #f1f7fb;
+  }
+
+  /* Highlight for cards the current coach turn refers to by #ref. */
+  .react-flow__node.referenced .map-card {
+    border-color: #b58f3a;
+    box-shadow: 0 0 0 3px rgba(181, 143, 58, 0.4), 0 10px 26px rgba(181, 143, 58, 0.22);
   }
 
   .map-card-close {
@@ -1602,15 +1609,25 @@ export default function App() {
     window.addEventListener("mouseup", onUp);
   }, [draftPos, draftSize]);
 
-  // Active anchor: from the most recent AI question/clarify message
+  // Active anchor: from the most recent AI question/clarify message.
   const activeAnchor = [...msgs].reverse().find(
     (m) => m.role === "assistant" && m.questionAnchor
   )?.questionAnchor;
 
-  // When a new anchor lands, scroll the draft so the highlight is visible —
-  // without stealing focus from wherever the user is typing.
+  // The draft highlight persists until the user clicks inside the draft to
+  // dismiss it (clicks elsewhere never clear it). A new anchor re-shows it and
+  // opens the draft if it was minimized.
+  const [highlightAnchor, setHighlightAnchor] = useState<string | undefined>(undefined);
   useEffect(() => {
     if (!activeAnchor) return;
+    setHighlightAnchor(activeAnchor);
+    setDraftCollapsed(false);
+  }, [activeAnchor]);
+
+  // When the highlight lands, scroll the draft so it is visible — without
+  // stealing focus from wherever the user is typing.
+  useEffect(() => {
+    if (!highlightAnchor) return;
     const mark = backdropRef.current?.querySelector("mark");
     const ta = draftRef.current;
     if (mark instanceof HTMLElement && ta) {
@@ -1618,7 +1635,19 @@ export default function App() {
       ta.scrollTop = target;
       syncBackdropScroll();
     }
-  }, [activeAnchor, syncBackdropScroll]);
+  }, [highlightAnchor, syncBackdropScroll]);
+
+  // Cards the current coach turn refers to (by #ref) — highlighted on the map.
+  const referencedCardIds = useMemo(() => {
+    const last = [...msgs].reverse().find((m) => m.role === "assistant");
+    const refs = new Set(last?.text.match(/#\d+/g) ?? []);
+    if (refs.size === 0) return undefined;
+    const ids = new Set<string>();
+    for (const unit of mapStoreRef.current.getAll()) {
+      if (refs.has(cardRef(unit.id))) ids.add(unit.id);
+    }
+    return ids.size > 0 ? ids : undefined;
+  }, [msgs, mapRevision]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -1974,7 +2003,7 @@ export default function App() {
             title="Open draft — drag to move, click to expand"
           >
             <span className="draft-chip-label">DRAFT</span>
-            {activeAnchor && <span className="draft-chip-dot" aria-label="anchored" />}
+            {highlightAnchor && <span className="draft-chip-dot" aria-label="anchored" />}
           </button>
         ) : (
         <div
@@ -1986,10 +2015,12 @@ export default function App() {
             width: draftSize.w,
             height: draftSize.h,
           }}
+          // Clicking anywhere inside the draft dismisses the anchor highlight.
+          onMouseDown={() => setHighlightAnchor(undefined)}
         >
           <div className="draft-panel-header" onMouseDown={onDragStart}>
             <span className="draft-panel-title">Draft</span>
-            {activeAnchor && (
+            {highlightAnchor && (
               <span style={{ fontSize: 10, color: "#1a6fa3", fontWeight: 600 }}>● anchored</span>
             )}
             <button
@@ -2023,7 +2054,7 @@ export default function App() {
             <div className="draft-body">
               <div className="draft-editor-wrap">
                 <div className="draft-backdrop" ref={backdropRef} aria-hidden="true">
-                  {renderBackdrop(draftText, activeAnchor)}
+                  {renderBackdrop(draftText, highlightAnchor)}
                 </div>
                 <textarea
                   ref={draftRef}
@@ -2045,6 +2076,7 @@ export default function App() {
           confirmed={confirmed}
           coachDebug={lastCoachDebug}
           commandAck={commandAck}
+          highlightedCardIds={referencedCardIds}
           revision={mapRevision}
           questionBias={questionBias}
           onQuestionBiasChange={setQuestionBias}
