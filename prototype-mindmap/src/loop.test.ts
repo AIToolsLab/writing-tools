@@ -422,6 +422,104 @@ describe("question mode", () => {
     expect(state.organizeFocus?.declineCount).toBe(0);
   });
 
+  it("reflects a compact relationship answer for confirmation instead of pivoting to card capture", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_448", "support information"),
+        mapUnit("tu_451", "main claim"),
+        mapUnit("tu_452", "constraint"),
+      ],
+      connections: [],
+    };
+
+    await processTurn(
+      state,
+      "let's relate these",
+      organizeQuestionLLM("How would you describe the relationship between #448 and #451 in your own words?"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    const called = { value: false };
+    const out = await processTurn(
+      state,
+      "support detail",
+      () => {
+        called.value = true;
+        return organizeQuestionLLM("What part of that feels most important to carry forward on the map?")({} as LLMContext);
+      },
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(called.value).toBe(false);
+    expect(out.text).toBe(
+      "It sounds like you want the relationship wording to be 'support detail' between #448 and #451. Is that right?",
+    );
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandConfirmation?.kind).toBe("relationship_confirmation");
+  });
+
+  it("creates the labeled connection after the user confirms compact relationship wording", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_448", "support information"),
+        mapUnit("tu_451", "main claim"),
+        mapUnit("tu_452", "constraint"),
+      ],
+      connections: [],
+    };
+    await processTurn(
+      state,
+      "set focus",
+      organizeQuestionLLM("How would you describe the relationship between #448 and #451 in your own words?"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+    await processTurn(state, "support detail", questionLLM("ignored"), defaultConfig, "chat", map);
+
+    const out = await processTurn(state, "yes", questionLLM("ignored"), defaultConfig, "chat", map);
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "tu_448" },
+        target: { id: "tu_451" },
+        labelText: "support detail",
+        labelSourceUtteranceIds: ["u_2"],
+      },
+    ]);
+    expect(out.text).toBe("Done. What would you like to do next?");
+  });
+
+  it("does not let sparse-map fallback override a compact relationship answer for an active pair", async () => {
+    const state = createState();
+    const sparseMap = {
+      thoughtUnits: [mapUnit("tu_448", "support information"), mapUnit("tu_451", "main claim")],
+      connections: [],
+    };
+    state.organizeFocus = { refs: ["#448", "#451"], key: "#448|#451", declineCount: 0 };
+
+    const out = await processTurn(
+      state,
+      "support detail",
+      organizeQuestionLLM("What exact wording do you want to carry forward as the next card?"),
+      defaultConfig,
+      "chat",
+      sparseMap,
+    );
+
+    expect(out.text).toBe(
+      "It sounds like you want the relationship wording to be 'support detail' between #448 and #451. Is that right?",
+    );
+    expect(out.text).not.toContain("What exact wording do you want to carry forward as the next card?");
+  });
+
   it("trusts LLM placement interpretation for varied create-card phrasing", async () => {
     const state = createState();
     const llm = (_ctx: LLMContext): LLMTurn => ({

@@ -81,7 +81,18 @@ export interface PendingConnectionLabelCommand {
   debug: string;
 }
 
-export type PendingMapCommand = PendingMapCommandConfirmation | PendingConnectionLabelCommand;
+export interface PendingRelationshipConfirmationCommand {
+  kind: "relationship_confirmation";
+  prompt: string;
+  command: Extract<AcceptedMapCommand, { kind: "connect_cards" }>;
+  labelText: string;
+  debug: string;
+}
+
+export type PendingMapCommand =
+  | PendingMapCommandConfirmation
+  | PendingConnectionLabelCommand
+  | PendingRelationshipConfirmationCommand;
 
 export interface CommandDebugNote {
   reason: string;
@@ -177,6 +188,16 @@ function cardPairKey(refs: [string, string]): string {
   return `${refs[0]}|${refs[1]}`;
 }
 
+function resolveOrganizePair(
+  refs: [string, string],
+  map: LLMMapContext,
+): [AcceptedMapCommandCardRef, AcceptedMapCommandCardRef] | undefined {
+  const sourceId = resolveCardRefNumber(refs[0], map);
+  const targetId = resolveCardRefNumber(refs[1], map);
+  if (!sourceId || !targetId || sourceId === targetId) return undefined;
+  return [{ id: sourceId }, { id: targetId }];
+}
+
 function nextStepQuestion(draft: string, userText = ""): string {
   if (/\bdraft\b/i.test(userText) && draft.trim()) {
     return "In the draft, which part feels easiest to think through next?";
@@ -210,6 +231,16 @@ function isStableCardLikeAnswer(text: string): boolean {
   if (/\b(?:carry forward|exact wording|on the map|map to carry)\b/i.test(text)) return false;
   const tokens = contentTokens(text);
   return tokens.length >= STABLE_CARD_MIN_CONTENT_TOKENS && tokens.length <= 18;
+}
+
+function isCompactRelationshipAnswer(text: string): boolean {
+  if (answersSiblingFraming(text)) return false;
+  const trimmed = text.trim();
+  if (!trimmed || /#\d+/.test(trimmed)) return false;
+  if (/^(no|none|nope|not sure|i don't know|i dont know)\b/i.test(trimmed)) return false;
+  if (/\b(?:carry forward|exact wording|on the map|map to carry)\b/i.test(trimmed)) return false;
+  const tokens = contentTokens(trimmed);
+  return tokens.length > 0 && tokens.length <= 6;
 }
 
 function answersSiblingFraming(text: string): boolean {
@@ -1190,6 +1221,44 @@ export async function processTurn(
     };
   }
 
+  if (state.pendingMapCommand?.kind === "relationship_confirmation" && isAffirmative(userText)) {
+    const pending = state.pendingMapCommand;
+    state.pendingMapCommand = undefined;
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.turnsSinceLastMirror++;
+    const text = "Done. What would you like to do next?";
+    state.lastAiText = text;
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      mapCommands: [pending.command],
+      commandConfirmation: pending,
+      commandDebug: [{ reason: "relationship_confirmed", detail: pending.debug }],
+      questionStance: "organize",
+    };
+  }
+
+  if (state.pendingMapCommand?.kind === "relationship_confirmation" && isNegative(userText)) {
+    const pending = state.pendingMapCommand;
+    state.pendingMapCommand = undefined;
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.turnsSinceLastMirror++;
+    const text = "Okay - what relationship wording would you use instead?";
+    state.lastAiText = text;
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      commandDebug: [{ reason: "relationship_rejected", detail: pending.debug }],
+      questionStance: "organize",
+    };
+  }
+
   if (state.pendingMapCommand) {
     state.pendingMapCommand = undefined;
   }
@@ -1246,6 +1315,41 @@ export async function processTurn(
         ...state.organizeFocus,
         declineCount: nextDeclines,
       };
+    }
+
+    if (state.organizeFocus && isCompactRelationshipAnswer(userText)) {
+      const pair = resolveOrganizePair(state.organizeFocus.refs, map);
+      if (pair) {
+        const labelText = userText.trim();
+        const labelSourceUtteranceIds = units.map((unit) => unit.id);
+        state.bank.markCommandOnly(labelSourceUtteranceIds);
+        state.pendingMapCommand = {
+          kind: "relationship_confirmation",
+          labelText,
+          command: {
+            kind: "connect_cards",
+            source: pair[0],
+            target: pair[1],
+            labelText,
+            labelSourceUtteranceIds,
+          },
+          prompt: `It sounds like you want the relationship wording to be '${labelText}' between ${state.organizeFocus.refs[0]} and ${state.organizeFocus.refs[1]}. Is that right?`,
+          debug: `relationship_confirmation_pending: ${state.organizeFocus.refs[0]} -> ${state.organizeFocus.refs[1]} label "${labelText}"`,
+        };
+        state.mode = "question";
+        state.activeElicitation = undefined;
+        state.pendingCardWording = undefined;
+        state.turnsSinceLastMirror++;
+        state.lastAiText = state.pendingMapCommand.prompt;
+        return {
+          mode: "question",
+          text: state.pendingMapCommand.prompt,
+          llmTurn: { mode: "question", text: state.pendingMapCommand.prompt },
+          commandConfirmation: state.pendingMapCommand,
+          commandDebug: [{ reason: "relationship_confirmation_pending", detail: state.pendingMapCommand.debug }],
+          questionStance: "organize",
+        };
+      }
     }
   }
 
