@@ -550,6 +550,22 @@ function explicitRefCommandClarification(
   return undefined;
 }
 
+function explicitRefNestCommand(
+  userText: string,
+  map: LLMMapContext,
+): Extract<AcceptedMapCommand, { kind: "nest_card" }> | undefined {
+  const match = userText.match(/\b(?:put|nest|move)\s+(#\d+)\s+(?:in|into|inside|under)\s+(#\d+)\b/i);
+  if (!match) return undefined;
+  const childId = resolveCardRefNumber(match[1], map);
+  const parentId = resolveCardRefNumber(match[2], map);
+  if (!childId || !parentId || childId === parentId) return undefined;
+  return {
+    kind: "nest_card",
+    child: { id: childId },
+    parentId,
+  };
+}
+
 function currentTurnSourceIdsForPhrase(
   phrase: string | undefined,
   units: SourceUtterance[],
@@ -1309,6 +1325,26 @@ export async function processTurn(
 
   if (state.pendingMapCommand) {
     state.pendingMapCommand = undefined;
+  }
+
+  const directExplicitRefNest = explicitRefNestCommand(userText, map);
+  if (directExplicitRefNest) {
+    state.bank.markCommandOnly(units.map((unit) => unit.id));
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.pendingChildPlacement = undefined;
+    state.turnsSinceLastMirror++;
+    const text = "Done. What would you like to do next?";
+    state.lastAiText = text;
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      mapCommands: [directExplicitRefNest],
+      commandDebug: [{ reason: "explicit_ref_nest", detail: `Executed direct nesting command ${userText.trim()}` }],
+      questionStance: "organize",
+    };
   }
 
   const explicitMoveOn = wantsToMoveOn(userText, config);

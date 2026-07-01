@@ -1395,6 +1395,63 @@ describe("question mode", () => {
     expect(out.text).not.toContain("carry forward");
   });
 
+  it("executes explicit #ref put-in nesting commands directly", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_635", "child"), mapUnit("tu_649", "parent")],
+      connections: [],
+    };
+
+    const called = { value: false };
+    const out = await processTurn(
+      state,
+      "put #635 in #649",
+      () => {
+        called.value = true;
+        return organizeQuestionLLM("What words do you want to use for the relationship between #649 and #635?")({} as LLMContext);
+      },
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(called.value).toBe(false);
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "nest_card",
+        child: { id: "tu_635" },
+        parentId: "tu_649",
+      },
+    ]);
+    expect(out.text).toBe("Done. What would you like to do next?");
+  });
+
+  it("executes explicit #ref into nesting commands directly", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_635", "child"), mapUnit("tu_649", "parent")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "put #649 into #635",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "nest_card",
+        child: { id: "tu_649" },
+        parentId: "tu_635",
+      },
+    ]);
+    expect(out.text).toBe("Done. What would you like to do next?");
+  });
+
   it("does not fall into carry-forward when a #ref relationship phrase uses authored wording", async () => {
     const state = createState();
     const map = {
