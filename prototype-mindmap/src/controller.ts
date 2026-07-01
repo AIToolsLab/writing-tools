@@ -1080,9 +1080,12 @@ export async function processTurn(
     // just said, the model is stuck in a loop (e.g. re-asking the same pinned
     // clarify span). Swap in a de-escalating question and drop the pin so the
     // next turn is free to re-angle. Mirror turns are exempt — their fixed
-    // preamble repeats legitimately and the validated claims differ.
+    // preamble repeats legitimately. Command hand-backs ("Done. What would you
+    // like to do next?") are exempt too: back-to-back commands repeat it
+    // legitimately and it is not a stuck loop.
     if (
       (out.mode === "question" || out.mode === "clarify") &&
+      out.suppressionReason !== "command_precedence" &&
       state.lastAiText &&
       normalizeText(out.text) === normalizeText(state.lastAiText)
     ) {
@@ -1125,36 +1128,40 @@ export async function processTurn(
   }
 
   // 6. Route based on LLM's intended mode.
-  if (acceptedCommands.length > 0 && turn.mode === "mirror") {
-    state.turnsSinceLastMirror++;
-    state.mode = "question";
-    return finish({
-      mode: "question",
-      text: "What should we clarify about where it fits?",
-      llmTurn: turn,
-      pacingSuppressed: true,
-      suppressionReason: "command_precedence",
-      suppressionDetail: "Accepted direct map command; same-turn mirror suppressed.",
-      questionStance: "organize",
-    });
-  }
+  if (acceptedCommands.length > 0) {
+    // A complete command with no uncertainty is terminal: execute it, confirm,
+    // and hand control back to the user (they decide what to do next) — never
+    // fall through to a mirror or a reflective probe about the same content.
+    if (!hasCommandUncertainty(userText, config)) {
+      state.turnsSinceLastMirror++;
+      state.mode = "question";
+      return finish({
+        mode: "question",
+        text: "Done. What would you like to do next?",
+        llmTurn: turn,
+        pacingSuppressed: true,
+        suppressionReason: "command_precedence",
+        suppressionDetail: "Accepted complete direct map command; handed control back to the user.",
+        questionStance: "organize",
+      });
+    }
 
-  if (
-    acceptedCommands.length > 0 &&
-    (turn.mode === "question" || turn.mode === "clarify") &&
-    !hasCommandUncertainty(userText, config)
-  ) {
-    state.turnsSinceLastMirror++;
-    state.mode = "question";
-    return finish({
-      mode: "question",
-      text: "Done.",
-      llmTurn: turn,
-      pacingSuppressed: true,
-      suppressionReason: "command_precedence",
-      suppressionDetail: "Accepted complete direct map command; same-turn coach follow-up suppressed.",
-      questionStance: "organize",
-    });
+    // Command plus uncertainty about a different aspect: if the model tried to
+    // mirror, suppress that mirror and ask about the uncertain part instead. If
+    // it already chose question/clarify, let that follow-up proceed below.
+    if (turn.mode === "mirror") {
+      state.turnsSinceLastMirror++;
+      state.mode = "question";
+      return finish({
+        mode: "question",
+        text: "What should we clarify about where it fits?",
+        llmTurn: turn,
+        pacingSuppressed: true,
+        suppressionReason: "command_precedence",
+        suppressionDetail: "Accepted direct map command; same-turn mirror suppressed for the uncertain part.",
+        questionStance: "organize",
+      });
+    }
   }
 
   if (turn.mode === "mirror") {

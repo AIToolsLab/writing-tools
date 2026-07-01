@@ -209,6 +209,43 @@ describe("question mode", () => {
     ]);
   });
 
+  it("hands control back after a complete card command and stays clean on back-to-back commands", async () => {
+    const state = createState();
+    const cardLLM = (text: string, uttId: string) => (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "some coach question the command should override",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text,
+          sourceSpan: { utteranceIds: [uttId], userPhrase: text },
+        },
+      ],
+    });
+
+    const first = await processTurn(
+      state,
+      "put human control on the map",
+      cardLLM("human control", "u_1"),
+    );
+    expect(first.text).toBe("Done. What would you like to do next?");
+    expect(first.mapCommands).toEqual([
+      { kind: "create_card", text: "human control", sourceUtteranceIds: ["u_1"] },
+    ]);
+
+    // A second complete command must NOT trip the anti-repeat guard into the
+    // mirror-suppressed constant — the hand-back repeats legitimately.
+    const second = await processTurn(
+      state,
+      "put ai suggestion on the map",
+      cardLLM("ai suggestion", "u_2"),
+    );
+    expect(second.text).toBe("Done. What would you like to do next?");
+    expect(second.mapCommands).toEqual([
+      { kind: "create_card", text: "ai suggestion", sourceUtteranceIds: ["u_2"] },
+    ]);
+  });
+
   it("keeps an accepted command and suppresses a same-turn mirror", async () => {
     const state = createState();
     const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0 });
@@ -313,7 +350,7 @@ describe("question mode", () => {
     );
 
     expect(out.mode).toBe("question");
-    expect(out.text).toBe("Done.");
+    expect(out.text).toBe("Done. What would you like to do next?");
     expect(out.mapCommands).toEqual([
       {
         kind: "connect_cards",
