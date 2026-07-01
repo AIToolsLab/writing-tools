@@ -1556,6 +1556,43 @@ describe("pacing", () => {
     expect(second.validatedMirror?.reflection.claims[0].text).toBe("every AI edit needs human confirmation");
   });
 
+  it("does not repeat sparse-map exact-wording after the user gives stable card wording", async () => {
+    const state = createState();
+    const cfg = withQuestionIntentBias(defaultConfig, 100);
+    const sparseMap = { thoughtUnits: [mapUnit("n_1", "Constraint")], connections: [] };
+    state.activeElicitation = { kind: "sparse_map_next_card" };
+
+    const out = await processTurn(
+      state,
+      "No AI words",
+      organizeQuestionLLM("What exact wording do you want to carry forward as the next card?"),
+      cfg,
+      "chat",
+      sparseMap,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.questionStance).toBe("deepen");
+    expect(out.text).toBe(
+      "I'm holding off on organizing this yet because the map is still too sparse. I can use 'No AI words' as the card wording. What part of that should we unpack first?",
+    );
+  });
+
+  it("does not repeat exact-wording when the model asks it without organize metadata", async () => {
+    const state = createState();
+    state.activeElicitation = { kind: "sparse_map_next_card" };
+
+    const out = await processTurn(
+      state,
+      "No AI words",
+      questionLLM("What exact wording do you want to carry forward as the next card?"),
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.questionStance).toBe("deepen");
+    expect(out.text).toBe("I can use 'No AI words' as the card wording. What part of that should we unpack first?");
+  });
+
   it("limits active-elicitation fast-path mirrors to the newly answered card instead of minting extra claims", async () => {
     const state = createState();
     const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0, minReadyCandidatesToBatch: 1 });
@@ -1597,6 +1634,41 @@ describe("pacing", () => {
     expect(out.mode).toBe("mirror");
     expect(out.validatedMirror?.reflection.claims).toHaveLength(1);
     expect(out.validatedMirror?.reflection.claims[0].text).toBe("No silent commit");
+  });
+
+  it("asks separate-or-edit when a focused carry-forward mirror wraps an existing card", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0, minReadyCandidatesToBatch: 1 });
+    const sparseMap = { thoughtUnits: [mapUnit("n_1", "No AI words")], connections: [] };
+    state.activeElicitation = { kind: "sparse_map_next_card" };
+    const userText = "No AI words-AI can only use writer's own word(chat input) to generate";
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "ready",
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            text: userText,
+            candidateId: "cand1",
+            target: "idea",
+            sourceSpans: [{ claimText: userText, utteranceIds: ["u_1"], userPhrase: userText }],
+          },
+        ],
+      },
+      candidateUpserts: [
+        { id: "cand1", target: "idea", gist: userText, addEvidenceIds: ["u_1"] },
+      ],
+      carryForwardCandidateIds: ["cand1"],
+    });
+
+    const out = await processTurn(state, userText, llm, cfg, "chat", sparseMap);
+
+    expect(out.mode).toBe("clarify");
+    expect(out.text).toBe(
+      "That seems close to n_1. Do you want this as a separate card, or should n_1 be edited/reworded?",
+    );
+    expect(out.validatedMirror).toBeUndefined();
   });
 
   it("does not turn structural instruction wording into card text during active elicitation", async () => {

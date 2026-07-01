@@ -23,6 +23,7 @@ import { CandidateStore, SourceBank, cardRef } from "./store";
 import { detectTurnShape } from "./turn-shape";
 import type {
   ClaimValidation,
+  MirrorClaim,
   MirrorReflection,
   RelationSignal,
   SourceSpan,
@@ -123,6 +124,13 @@ export interface LoopState {
     selectedUtteranceIds: string[];
     selectedText?: string;
   };
+  pendingCardWording?: {
+    text: string;
+    normalizedText: string;
+    utteranceIds: string[];
+    source: "carry_forward" | "sparse_map_next_card";
+    attemptCount: number;
+  };
   captureLoop?: {
     lastAnswerNorm?: string;
     repeatCount: number;
@@ -184,6 +192,10 @@ function nextCardQuestion(): string {
   return "What exact wording do you want to carry forward as the next card?";
 }
 
+function pendingCardWordingFollowup(text: string): string {
+  return `I can use '${text}' as the card wording. What part of that should we unpack first?`;
+}
+
 function normalizeComparableText(text: string): string {
   return text
     .trim()
@@ -194,6 +206,8 @@ function normalizeComparableText(text: string): string {
 
 function isStableCardLikeAnswer(text: string): boolean {
   if (answersSiblingFraming(text)) return false;
+  if (hasInstructionalCardScaffolding(text)) return false;
+  if (/\b(?:carry forward|exact wording|on the map|map to carry)\b/i.test(text)) return false;
   const tokens = contentTokens(text);
   return tokens.length >= STABLE_CARD_MIN_CONTENT_TOKENS && tokens.length <= 18;
 }
@@ -519,6 +533,36 @@ function claimAlreadyOnMap(claimText: string, map: LLMMapContext): boolean {
   return map.thoughtUnits.some(
     (unit) => unit.role !== "connection_label" && normalize(unit.text) === target,
   );
+}
+
+function nearExistingCardMatch(
+  claimText: string,
+  map: LLMMapContext,
+): { id: string; text: string } | undefined {
+  const target = normalize(claimText);
+  if (!target) return undefined;
+  const targetTokens = contentTokens(target);
+  if (targetTokens.length < 2) return undefined;
+
+  for (const unit of map.thoughtUnits) {
+    if (unit.role === "connection_label") continue;
+    const unitText = normalize(unit.text);
+    if (!unitText || unitText === target) continue;
+    const unitTokens = contentTokens(unitText);
+    if (unitTokens.length < 2) continue;
+
+    const shorter = targetTokens.length <= unitTokens.length ? targetTokens : unitTokens;
+    const longer = new Set(targetTokens.length <= unitTokens.length ? unitTokens : targetTokens);
+    const overlap = shorter.filter((token) => longer.has(token)).length;
+    const containment = target.includes(unitText) || unitText.includes(target);
+    const nearSubset = overlap >= Math.max(2, Math.ceil(shorter.length * 0.8));
+
+    if (containment && nearSubset) {
+      return { id: unit.id, text: unit.text };
+    }
+  }
+
+  return undefined;
 }
 
 function nearReferenceMatches(text: string | undefined, map: LLMMapContext): Array<{ id: string; text: string }> {
@@ -1018,6 +1062,7 @@ export function createState(_config?: MindmapConfig): LoopState {
     organizeFocus: undefined,
     activeElicitation: undefined,
     activeSelectionContext: undefined,
+    pendingCardWording: undefined,
     captureLoop: undefined,
   };
 }
@@ -1052,11 +1097,21 @@ export async function processTurn(
         lastAnswerNorm: normalized,
         repeatCount: previous === normalized ? (state.captureLoop?.repeatCount ?? 0) + 1 : 1,
       };
+      state.pendingCardWording = {
+        text: userText.trim(),
+        normalizedText: normalized,
+        utteranceIds: units.map((unit) => unit.id),
+        source: state.activeElicitation.kind,
+        attemptCount: state.pendingCardWording?.normalizedText === normalized
+          ? state.pendingCardWording.attemptCount + 1
+          : 1,
+      };
     } else if (
       !state.activeElicitation ||
       (state.activeElicitation.kind !== "carry_forward" && state.activeElicitation.kind !== "sparse_map_next_card")
     ) {
       state.captureLoop = undefined;
+      state.pendingCardWording = undefined;
     }
   }
 
@@ -1065,6 +1120,7 @@ export async function processTurn(
     state.pendingMapCommand = undefined;
     state.mode = "question";
     state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     const text = "Done - what should we place next?";
     state.lastAiText = text;
@@ -1083,6 +1139,7 @@ export async function processTurn(
     state.pendingMapCommand = undefined;
     state.mode = "question";
     state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     const text = "Okay - which exact card did you mean?";
     state.lastAiText = text;
@@ -1100,6 +1157,7 @@ export async function processTurn(
     state.pendingMapCommand = undefined;
     state.mode = "question";
     state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     if (isNegative(userText)) {
       const text = "Okay - I won't create that connection.";
@@ -1461,11 +1519,12 @@ export async function processTurn(
       out.suppressionReason !== "command_precedence" &&
       (out.questionStance === "organize" || turn.questionIntent === "organize" || turn.questionStance === "organize")
     ) {
+      const pendingWording = state.pendingCardWording;
       out = {
         ...out,
-        text: nextCardQuestion(),
+        text: pendingWording ? pendingCardWordingFollowup(pendingWording.text) : nextCardQuestion(),
         questionAnchor: undefined,
-        questionStance: "organize",
+        questionStance: pendingWording ? "deepen" : "organize",
       };
       sparseMapRewritten = true;
     }
@@ -1497,6 +1556,21 @@ export async function processTurn(
       }
     } else if (out.mode === "question" || out.mode === "clarify") {
       state.organizeFocus = undefined;
+    }
+
+    if (
+      out.mode === "question" &&
+      !commandPromptActive &&
+      state.pendingCardWording &&
+      (state.captureLoop?.repeatCount ?? 0) < 2 &&
+      isCarryForwardQuestion(out.text, map)
+    ) {
+      out = {
+        ...out,
+        text: pendingCardWordingFollowup(state.pendingCardWording.text),
+        questionAnchor: undefined,
+        questionStance: "deepen",
+      };
     }
 
     if (
@@ -1574,16 +1648,23 @@ export async function processTurn(
     if (out.mode === "mirror") {
       state.activeElicitation = undefined;
       state.captureLoop = undefined;
+      state.pendingCardWording = undefined;
     } else if (out.mode === "clarify" && out.suppressionReason === "validation_failed") {
       setActiveElicitation(state, "clarify_after_failed_mirror", state.clarifyTarget?.userPhrase);
     } else if (out.mode === "question" && (out.text === nextCardQuestion() || out.text.endsWith(` ${nextCardQuestion()}`))) {
       setActiveElicitation(state, "sparse_map_next_card");
+    } else if (
+      out.mode === "question" &&
+      out.text.includes("as the card wording. What part of that should we unpack first?")
+    ) {
+      setActiveElicitation(state, "carry_forward", state.pendingCardWording?.text);
     } else if (out.mode === "question" && isCarryForwardQuestion(out.text, map)) {
       setActiveElicitation(state, "carry_forward");
     } else if (out.mode === "clarify" && state.clarifyTarget) {
       setActiveElicitation(state, "clarify_after_failed_mirror", state.clarifyTarget.userPhrase);
     } else {
       state.activeElicitation = undefined;
+      state.pendingCardWording = undefined;
     }
     if (
       out.mode === "question" &&
@@ -1749,6 +1830,23 @@ export async function processTurn(
           llmTurn: turn,
           suppressionReason: "not_ready",
           suppressionDetail: `multiple focused claims: ${focusedFreshClaims.map((claim) => claim.text).join(" | ")}`,
+          questionStance: "narrow",
+        });
+      }
+
+      const nearExistingClaim = focusedFreshClaims
+        .map((claim) => ({ claim, match: nearExistingCardMatch(claim.text, map) }))
+        .find((entry): entry is { claim: MirrorClaim; match: { id: string; text: string } } => entry.match !== undefined);
+      if (nearExistingClaim) {
+        state.turnsSinceLastMirror++;
+        state.mode = "clarify";
+        state.clarifyTarget = undefined;
+        return finish({
+          mode: "clarify",
+          text: `That seems close to ${nearExistingClaim.match.id}. Do you want this as a separate card, or should ${nearExistingClaim.match.id} be edited/reworded?`,
+          llmTurn: turn,
+          suppressionReason: "not_ready",
+          suppressionDetail: `near existing card ${nearExistingClaim.match.id}: ${nearExistingClaim.match.text}`,
           questionStance: "narrow",
         });
       }
