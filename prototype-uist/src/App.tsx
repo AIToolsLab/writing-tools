@@ -1198,24 +1198,27 @@ export default function App() {
               <div className="bank-section">
                 <div className="section-row sticky-row">
                   <h3>Suggest placement from the bank</h3>
-                  <label className="placed-policy">
-                    After placing:
-                    <select
-                      value={placedRefPolicy}
-                      onChange={(event) =>
-                        setPlacedRefPolicy(
-                          event.target.value as "keep" | "remove" | "ask",
-                        )
-                      }
-                    >
-                      <option value="keep">keep in bank</option>
-                      <option value="remove">remove from bank</option>
-                      <option value="ask">ask each time</option>
-                    </select>
-                  </label>
+                  <div className="placement-header-controls">
+                    <label className="placed-policy">
+                      After placing:
+                      <select
+                        value={placedRefPolicy}
+                        onChange={(event) =>
+                          setPlacedRefPolicy(
+                            event.target.value as "keep" | "remove" | "ask",
+                          )
+                        }
+                      >
+                        <option value="keep">keep in bank</option>
+                        <option value="remove">remove from bank</option>
+                        <option value="ask">ask each time</option>
+                      </select>
+                    </label>
+                  </div>
                 </div>
                 <div className="bank-card suggestion-workspace">
                   <textarea
+                    className="placement-request-box"
                     rows={4}
                     value={placementRequestText}
                     onChange={(event) => setPlacementRequestText(event.target.value)}

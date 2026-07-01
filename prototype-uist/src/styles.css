@@ -422,6 +422,14 @@ textarea {
   padding-right: 4px;
 }
 
+.bank-scroll-area > .bank-section:nth-child(1) {
+  order: 2;
+}
+
+.bank-scroll-area > .bank-section:nth-child(2) {
+  order: 1;
+}
+
 .bank-section {
   display: flex;
   flex-direction: column;
@@ -433,6 +441,7 @@ textarea {
   justify-content: space-between;
   gap: 12px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .section-row.sticky-row {
@@ -530,6 +539,13 @@ textarea {
   gap: 12px;
 }
 
+.placement-header-controls {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  margin-left: auto;
+}
+
 .placed-policy {
   display: inline-flex;
   align-items: center;
@@ -538,6 +554,7 @@ textarea {
   color: var(--muted);
   text-transform: none;
   letter-spacing: 0;
+  flex-wrap: wrap;
 }
 
 .placed-policy select {
@@ -546,6 +563,7 @@ textarea {
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.85);
   font-size: 11px;
+  min-width: 132px;
 }
 
 .expand-hint {
@@ -587,6 +605,11 @@ textarea {
   line-height: 1.55;
 }
 
+.placement-request-box {
+  min-height: 72px;
+  max-height: 104px;
+}
+
 .bank-meta {
   display: flex;
   flex-wrap: wrap;
@@ -619,24 +642,26 @@ textarea {
 }
 
 .word-bank-textbox textarea {
-  min-height: 210px;
+  min-height: 140px;
+  max-height: 170px;
 }
 
 .bank-suggestion-panel {
-  padding: 12px 14px;
+  padding: 10px 12px;
   border-radius: 16px;
   border: 1px solid rgba(84, 98, 77, 0.24);
   background: rgba(230, 235, 220, 0.55);
+  overflow-wrap: anywhere;
 }
 
 .bank-suggestion-panel strong {
   display: block;
-  margin-bottom: 4px;
-  line-height: 1.45;
+  margin-bottom: 6px;
+  line-height: 1.4;
 }
 
 .bank-suggestion-panel p {
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   color: var(--muted);
   line-height: 1.5;
 }
@@ -651,6 +676,11 @@ textarea {
   font-size: 12px;
   color: var(--accent-deep);
   line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.suggestion-workspace .bank-actions {
+  row-gap: 6px;
 }
 
 .rejected-text {
@@ -722,6 +752,12 @@ textarea {
   .document-pane,
   .bank-pane {
     min-height: 420px;
+  }
+
+  .placement-header-controls {
+    width: 100%;
+    justify-content: flex-start;
+    margin-left: 0;
   }
 }
 

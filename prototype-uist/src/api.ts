@@ -11,7 +11,7 @@ import type {
 const BACKEND_URL =
   (import.meta.env.VITE_BACKEND_URL as string | undefined) ??
   "http://localhost:8000/api";
-const MODEL = "gpt-4o";
+const MODEL = "gpt-5.4-mini";
 
 interface OpenAIChatMessage {
   role: "system" | "user" | "assistant";
