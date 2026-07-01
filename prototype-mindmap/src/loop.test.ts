@@ -1426,6 +1426,31 @@ describe("question mode", () => {
     expect(out.text).toBe("Done. What would you like to do next?");
   });
 
+  it("does not execute question-shaped explicit placement as a command", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_635", "child"), mapUnit("tu_649", "parent")],
+      connections: [],
+    };
+    const called = { value: false };
+
+    const out = await processTurn(
+      state,
+      "should I put #635 in #649?",
+      () => {
+        called.value = true;
+        return questionLLM("Do you want that placement?")({} as LLMContext);
+      },
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(called.value).toBe(true);
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toBe("Do you want that placement?");
+  });
+
   it("executes explicit #ref into nesting commands directly", async () => {
     const state = createState();
     const map = {
@@ -1474,6 +1499,139 @@ describe("question mode", () => {
 
     expect(out.text).not.toContain("carry forward");
     expect(out.text).not.toContain("What exact wording do you want the map to carry forward");
+  });
+
+  it("asks before adding another connection between the same unordered pair", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
+      connections: [
+        {
+          id: "edge_1",
+          sourceId: "tu_451",
+          targetId: "tu_448",
+          labelUnitId: "tu_label",
+          labelText: "supports",
+          sourceText: "main claim",
+          targetText: "support detail",
+          utteranceIds: [],
+        },
+      ],
+    };
+
+    const out = await processTurn(
+      state,
+      "#448 should link to #451",
+      () => ({
+        mode: "question",
+        text: "ignored",
+        mapCommands: [
+          {
+            kind: "connect_cards",
+            sourceText: "#448",
+            targetText: "#451",
+            labelText: "link",
+          },
+        ],
+      }),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandConfirmation?.kind).toBe("duplicate_connection_confirmation");
+    expect(out.text).toContain("There is already a connection");
+
+    const confirmed = await processTurn(
+      state,
+      "yes",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(confirmed.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "tu_448" },
+        target: { id: "tu_451" },
+        labelText: "link",
+        labelSourceUtteranceIds: [state.bank.getAll()[0].id],
+      },
+    ]);
+  });
+
+  it("blocks existing-card connections when the model uses endpoints the user did not name", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_448", "support detail"),
+        mapUnit("tu_451", "main claim"),
+        mapUnit("tu_452", "unmentioned"),
+      ],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "#448 should link to #451",
+      () => ({
+        mode: "question",
+        text: "Done.",
+        mapCommands: [
+          {
+            kind: "connect_cards",
+            sourceText: "#448",
+            targetText: "#452",
+            labelText: "link",
+          },
+        ],
+      }),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandDebug?.some((note) => note.reason === "ungrounded_existing_endpoint")).toBe(true);
+  });
+
+  it("treats No-prefixed relationship correction as wording, not rejection", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "relationship_confirmation",
+      labelText: "support detail",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_448" },
+        target: { id: "tu_451" },
+        labelText: "support detail",
+        labelSourceUtteranceIds: [],
+      },
+      prompt: "It sounds like you want support detail. Is that right?",
+      debug: "relationship_confirmation_pending",
+    };
+
+    const out = await processTurn(
+      state,
+      "No AI words",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandConfirmation?.kind).toBe("relationship_confirmation");
+    expect(out.text).toContain("'No AI words'");
+    expect(state.pendingMapCommand?.kind).toBe("relationship_confirmation");
+    expect(state.pendingMapCommand?.kind === "relationship_confirmation" ? state.pendingMapCommand.labelText : "").toBe("No AI words");
   });
 });
 

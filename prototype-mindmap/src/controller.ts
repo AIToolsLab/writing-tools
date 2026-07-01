@@ -89,10 +89,18 @@ export interface PendingRelationshipConfirmationCommand {
   debug: string;
 }
 
+export interface PendingDuplicateConnectionCommand {
+  kind: "duplicate_connection_confirmation";
+  prompt: string;
+  command: Extract<AcceptedMapCommand, { kind: "connect_cards" }>;
+  debug: string;
+}
+
 export type PendingMapCommand =
   | PendingMapCommandConfirmation
   | PendingConnectionLabelCommand
-  | PendingRelationshipConfirmationCommand;
+  | PendingRelationshipConfirmationCommand
+  | PendingDuplicateConnectionCommand;
 
 export interface CommandDebugNote {
   reason: string;
@@ -554,6 +562,7 @@ function explicitRefNestCommand(
   userText: string,
   map: LLMMapContext,
 ): Extract<AcceptedMapCommand, { kind: "nest_card" }> | undefined {
+  if (isUncertainExplicitPlacement(userText)) return undefined;
   const match = userText.match(/\b(?:put|nest|move)\s+(#\d+)\s+(?:in|into|inside|under)\s+(#\d+)\b/i);
   if (!match) return undefined;
   const childId = resolveCardRefNumber(match[1], map);
@@ -564,6 +573,14 @@ function explicitRefNestCommand(
     child: { id: childId },
     parentId,
   };
+}
+
+function isUncertainExplicitPlacement(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    /\?/.test(trimmed) ||
+    /^(should|could|would|can|do you think|maybe|perhaps|not sure|i wonder)\b/i.test(trimmed)
+  );
 }
 
 function currentTurnSourceIdsForPhrase(
@@ -700,6 +717,35 @@ function resolveCommandCardRefDetailed(
 
 function cardRefKey(ref: AcceptedMapCommandCardRef): string {
   return "id" in ref ? ref.id : ref.text;
+}
+
+function unorderedCardPairKey(a: string, b: string): string {
+  return [a, b].sort().join("<->");
+}
+
+function existingCardRefGroundedInTurn(
+  ref: AcceptedMapCommandCardRef,
+  userText: string,
+  map: LLMMapContext,
+): boolean {
+  if (!("id" in ref)) return true;
+  const unit = map.thoughtUnits.find((thoughtUnit) => thoughtUnit.id === ref.id);
+  const normalizedTurn = normalize(userText);
+  return (
+    normalizedTurn.includes(normalize(cardRef(ref.id))) ||
+    (unit ? normalizedTurn.includes(normalize(unit.text)) : false)
+  );
+}
+
+function existingConnectionBetween(
+  map: LLMMapContext,
+  command: Extract<AcceptedMapCommand, { kind: "connect_cards" }>,
+): boolean {
+  if (!("id" in command.source) || !("id" in command.target)) return false;
+  const key = unorderedCardPairKey(command.source.id, command.target.id);
+  return map.connections.some((connection) =>
+    unorderedCardPairKey(connection.sourceId, connection.targetId) === key,
+  );
 }
 
 function describeCardRef(ref: AcceptedMapCommandCardRef, map: LLMMapContext): string {
@@ -915,6 +961,13 @@ function acceptedMapCommands(
       sourceResolved.kind === "resolved" && "id" in sourceResolved.ref &&
       targetResolved.kind === "resolved" && "id" in targetResolved.ref;
     if (bothExisting) {
+      if (
+        !existingCardRefGroundedInTurn(sourceResolved.ref, userText, map) ||
+        !existingCardRefGroundedInTurn(targetResolved.ref, userText, map)
+      ) {
+        notes.push({ reason: "ungrounded_existing_endpoint", detail: `Blocked connection because both existing card endpoints were not named in this turn.` });
+        continue;
+      }
       if (!units.some((unit) => isConnectCommandText(unit.text))) {
         notes.push({ reason: "blocked_interpretation", detail: `Blocked declarative/tentative connection "${sourceText}" -> "${targetText}".` });
         continue;
@@ -970,15 +1023,31 @@ function acceptedMapCommands(
       });
       continue;
     }
-    const key = `connect:${cardRefKey(source)}->${cardRefKey(target)}:${label.labelText ?? ""}`;
+    const key = `connect:${unorderedCardPairKey(cardRefKey(source), cardRefKey(target))}:${label.labelText ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    accepted.push({
+    const acceptedCommand: Extract<AcceptedMapCommand, { kind: "connect_cards" }> = {
       kind: "connect_cards",
       source,
       target,
       ...label,
-    });
+    };
+    if (existingConnectionBetween(map, acceptedCommand)) {
+      if (!pending) {
+        pending = {
+          kind: "duplicate_connection_confirmation",
+          command: acceptedCommand,
+          prompt: `There is already a connection between "${describeCardRef(source, map)}" and "${describeCardRef(target, map)}". Do you want to add another relationship between the same two cards?`,
+          debug: `duplicate_connection_pending: ${describeCardRef(source, map)} <-> ${describeCardRef(target, map)}`,
+        };
+      }
+      notes.push({
+        reason: "duplicate_connection_pending",
+        detail: `Held duplicate connection between "${describeCardRef(source, map)}" and "${describeCardRef(target, map)}" for confirmation.`,
+      });
+      continue;
+    }
+    accepted.push(acceptedCommand);
   }
 
   if (!pending && accepted.length === 0 && !clarificationPrompt) {
@@ -1000,7 +1069,16 @@ function isAffirmative(text: string): boolean {
 }
 
 function isNegative(text: string): boolean {
-  return /^(no|nope|not that|wrong|cancel|never mind|nevermind)\b/i.test(text.trim());
+  const normalized = text.trim().toLowerCase().replace(/[.!?;]+$/g, "").replace(/\s+/g, " ");
+  return (
+    normalized === "no" ||
+    normalized === "nope" ||
+    normalized === "wrong" ||
+    normalized === "cancel" ||
+    normalized === "never mind" ||
+    normalized === "nevermind" ||
+    normalized === "not that"
+  );
 }
 
 function formatRatio(value: number): string {
@@ -1247,14 +1325,32 @@ export async function processTurn(
     };
   }
 
+  if (state.pendingMapCommand?.kind === "reference_confirmation") {
+    const pending = state.pendingMapCommand;
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.turnsSinceLastMirror++;
+    const text = "I still have that possible card match pending. Say yes, no, or name the exact card you meant.";
+    state.lastAiText = text;
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      commandConfirmation: pending,
+      commandDebug: [{ reason: "near_match_still_pending", detail: pending.debug }],
+      questionStance: "organize",
+    };
+  }
+
   if (state.pendingMapCommand?.kind === "connection_label") {
     const pending = state.pendingMapCommand;
-    state.pendingMapCommand = undefined;
     state.mode = "question";
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     if (isNegative(userText)) {
+      state.pendingMapCommand = undefined;
       const text = "Okay - I won't create that connection.";
       state.lastAiText = text;
       return {
@@ -1265,20 +1361,51 @@ export async function processTurn(
         questionStance: "organize",
       };
     }
+    if (isStuck(userText) || userText.trim().endsWith("?")) {
+      const text = "I still need your exact relationship label before I create that connection. What wording should go on it?";
+      state.lastAiText = text;
+      return {
+        mode: "question",
+        text,
+        llmTurn: { mode: "question", text },
+        commandConfirmation: pending,
+        commandDebug: [{ reason: "connection_label_still_pending", detail: pending.debug }],
+        questionStance: "organize",
+      };
+    }
 
     const labelText = userText.trim();
+    const command: Extract<AcceptedMapCommand, { kind: "connect_cards" }> = {
+      ...pending.command,
+      labelText,
+      labelSourceUtteranceIds: units.map((unit) => unit.id),
+    };
     state.bank.markCommandOnly(units.map((unit) => unit.id));
+    if (existingConnectionBetween(map, command)) {
+      state.pendingMapCommand = {
+        kind: "duplicate_connection_confirmation",
+        command,
+        prompt: `There is already a connection between "${describeCardRef(command.source, map)}" and "${describeCardRef(command.target, map)}". Do you want to add another relationship between the same two cards?`,
+        debug: `duplicate_connection_pending: ${describeCardRef(command.source, map)} <-> ${describeCardRef(command.target, map)}`,
+      };
+      state.lastAiText = state.pendingMapCommand.prompt;
+      return {
+        mode: "question",
+        text: state.pendingMapCommand.prompt,
+        llmTurn: { mode: "question", text: state.pendingMapCommand.prompt },
+        commandConfirmation: state.pendingMapCommand,
+        commandDebug: [{ reason: "duplicate_connection_pending", detail: state.pendingMapCommand.debug }],
+        questionStance: "organize",
+      };
+    }
+    state.pendingMapCommand = undefined;
     state.lastAiText = "Done.";
     return {
       mode: "question",
       text: "Done.",
       llmTurn: { mode: "question", text: "Done." },
       mapCommands: [
-        {
-          ...pending.command,
-          labelText,
-          labelSourceUtteranceIds: units.map((unit) => unit.id),
-        },
+        command,
       ],
       commandDebug: [{ reason: "connection_label_completed", detail: pending.debug }],
       questionStance: "organize",
@@ -1287,7 +1414,29 @@ export async function processTurn(
 
   if (state.pendingMapCommand?.kind === "relationship_confirmation" && isAffirmative(userText)) {
     const pending = state.pendingMapCommand;
+    if (existingConnectionBetween(map, pending.command)) {
+      state.pendingMapCommand = {
+        kind: "duplicate_connection_confirmation",
+        command: pending.command,
+        prompt: `There is already a connection between "${describeCardRef(pending.command.source, map)}" and "${describeCardRef(pending.command.target, map)}". Do you want to add another relationship between the same two cards?`,
+        debug: `duplicate_connection_pending: ${describeCardRef(pending.command.source, map)} <-> ${describeCardRef(pending.command.target, map)}`,
+      };
+      state.mode = "question";
+      state.activeElicitation = undefined;
+      state.pendingCardWording = undefined;
+      state.turnsSinceLastMirror++;
+      state.lastAiText = state.pendingMapCommand.prompt;
+      return {
+        mode: "question",
+        text: state.pendingMapCommand.prompt,
+        llmTurn: { mode: "question", text: state.pendingMapCommand.prompt },
+        commandConfirmation: state.pendingMapCommand,
+        commandDebug: [{ reason: "duplicate_connection_pending", detail: state.pendingMapCommand.debug }],
+        questionStance: "organize",
+      };
+    }
     state.pendingMapCommand = undefined;
+    state.organizeFocus = undefined;
     state.mode = "question";
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;
@@ -1307,7 +1456,6 @@ export async function processTurn(
 
   if (state.pendingMapCommand?.kind === "relationship_confirmation" && isNegative(userText)) {
     const pending = state.pendingMapCommand;
-    state.pendingMapCommand = undefined;
     state.mode = "question";
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;
@@ -1318,13 +1466,111 @@ export async function processTurn(
       mode: "question",
       text,
       llmTurn: { mode: "question", text },
+      commandConfirmation: pending,
       commandDebug: [{ reason: "relationship_rejected", detail: pending.debug }],
       questionStance: "organize",
     };
   }
 
-  if (state.pendingMapCommand) {
+  if (state.pendingMapCommand?.kind === "relationship_confirmation") {
+    const pending = state.pendingMapCommand;
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.turnsSinceLastMirror++;
+    const labelText = userText.trim();
+    if (!labelText || isStuck(labelText) || labelText.endsWith("?")) {
+      const text = "I still have that relationship pending. What exact relationship wording should I use?";
+      state.lastAiText = text;
+      return {
+        mode: "question",
+        text,
+        llmTurn: { mode: "question", text },
+        commandConfirmation: pending,
+        commandDebug: [{ reason: "relationship_still_pending", detail: pending.debug }],
+        questionStance: "organize",
+      };
+    }
+    const labelSourceUtteranceIds = units.map((unit) => unit.id);
+    state.bank.markCommandOnly(labelSourceUtteranceIds);
+    state.pendingMapCommand = {
+      ...pending,
+      labelText,
+      command: {
+        ...pending.command,
+        labelText,
+        labelSourceUtteranceIds,
+      },
+      prompt: `It sounds like you want the relationship wording to be '${labelText}' between ${describeCardRef(pending.command.source, map)} and ${describeCardRef(pending.command.target, map)}. Is that right?`,
+      debug: `relationship_confirmation_corrected: ${describeCardRef(pending.command.source, map)} -> ${describeCardRef(pending.command.target, map)} label "${labelText}"`,
+    };
+    state.lastAiText = state.pendingMapCommand.prompt;
+    return {
+      mode: "question",
+      text: state.pendingMapCommand.prompt,
+      llmTurn: { mode: "question", text: state.pendingMapCommand.prompt },
+      commandConfirmation: state.pendingMapCommand,
+      commandDebug: [{ reason: "relationship_corrected", detail: state.pendingMapCommand.debug }],
+      questionStance: "organize",
+    };
+  }
+
+  if (state.pendingMapCommand?.kind === "duplicate_connection_confirmation" && isAffirmative(userText)) {
+    const pending = state.pendingMapCommand;
     state.pendingMapCommand = undefined;
+    state.organizeFocus = undefined;
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.turnsSinceLastMirror++;
+    const text = "Done. What would you like to do next?";
+    state.lastAiText = text;
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      mapCommands: [pending.command],
+      commandConfirmation: pending,
+      commandDebug: [{ reason: "duplicate_connection_confirmed", detail: pending.debug }],
+      questionStance: "organize",
+    };
+  }
+
+  if (state.pendingMapCommand?.kind === "duplicate_connection_confirmation" && isNegative(userText)) {
+    const pending = state.pendingMapCommand;
+    state.pendingMapCommand = undefined;
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.turnsSinceLastMirror++;
+    const text = "Okay - I won't add another connection between those cards.";
+    state.lastAiText = text;
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      commandConfirmation: pending,
+      commandDebug: [{ reason: "duplicate_connection_rejected", detail: pending.debug }],
+      questionStance: "organize",
+    };
+  }
+
+  if (state.pendingMapCommand?.kind === "duplicate_connection_confirmation") {
+    const pending = state.pendingMapCommand;
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.turnsSinceLastMirror++;
+    const text = "I still have that duplicate connection pending. Say yes to add another relationship, or no to leave the existing connection.";
+    state.lastAiText = text;
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      commandConfirmation: pending,
+      commandDebug: [{ reason: "duplicate_connection_still_pending", detail: pending.debug }],
+      questionStance: "organize",
+    };
   }
 
   const directExplicitRefNest = explicitRefNestCommand(userText, map);

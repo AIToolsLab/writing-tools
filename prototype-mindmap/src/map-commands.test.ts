@@ -143,6 +143,37 @@ describe("applyAcceptedMapCommands", () => {
     expect(children[0]).toMatchObject({ parentId: "parent", role: "content" });
   });
 
+  it("does not reuse a different card merely because it came from the same utterance", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    const chatUtterance = bank.add("No silent commit and No AI words", "chat");
+    store.add(unit("parent", "Mechanism 1 to prevent authorship: Constrain"));
+
+    applyAcceptedMapCommands(
+      [
+        {
+          kind: "create_card",
+          text: "No silent commit",
+          sourceUtteranceIds: [chatUtterance.id],
+        },
+        {
+          kind: "nest_card",
+          child: {
+            text: "No AI words",
+            sourceUtteranceIds: [chatUtterance.id],
+          },
+          parentId: "parent",
+        },
+      ],
+      store,
+      bank,
+    );
+
+    expect(store.getAll().some((storeUnit) => storeUnit.text === "No silent commit")).toBe(true);
+    const child = store.getAll().find((storeUnit) => storeUnit.text === "No AI words");
+    expect(child).toMatchObject({ parentId: "parent", role: "content" });
+  });
+
   it("registers an unlabeled user-commanded connection", () => {
     const store = new ThoughtUnitStore();
     const bank = new SourceBank();

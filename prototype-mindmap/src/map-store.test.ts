@@ -180,6 +180,40 @@ describe("ThoughtUnitStore", () => {
     expect(store.get(labelUnit.id)).toBeUndefined();
   });
 
+  it("deletes attached connection label units when deleting a connected card", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+    const { labelUnit } = store.registerConnection({
+      sourceId: "a",
+      targetId: "b",
+      text: "keeps it honest",
+      bank,
+    });
+
+    store.delete("a");
+
+    expect(store.getConnections()).toHaveLength(0);
+    expect(store.get(labelUnit.id)).toBeUndefined();
+  });
+
+  it("places duplicate connections between the same two cards on different handles", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+
+    const first = store.registerConnection({ sourceId: "a", targetId: "b", text: "supports", bank });
+    const second = store.registerConnection({ sourceId: "b", targetId: "a", text: "qualifies", bank });
+
+    expect(store.getConnections()).toHaveLength(2);
+    expect(first.connection.sourceHandleId).toBeUndefined();
+    expect(first.connection.targetHandleId).toBeUndefined();
+    expect(second.connection.sourceHandleId).toBe("right");
+    expect(second.connection.targetHandleId).toBe("left");
+  });
+
   it("reconnects a connection and preserves chosen card-side handles", () => {
     const store = new ThoughtUnitStore();
     const bank = new SourceBank();

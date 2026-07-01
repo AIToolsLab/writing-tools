@@ -1365,11 +1365,6 @@ function loadPersistedSession(): PersistedSession | null {
   }
 }
 
-function clearPersistedSession(): void {
-  if (typeof window === "undefined") return;
-  window.localStorage.removeItem(SESSION_STORAGE_KEY);
-}
-
 function buildConversationHistory(msgs: ChatMsg[]): ConversationMessage[] {
   return msgs
     .filter((msg) => msg.role === "user" || msg.role === "assistant")
@@ -1454,6 +1449,7 @@ export default function App() {
   const [confirmed, setConfirmed] = useState<ConfirmedReflection[]>(initialConfirmed);
   const [lastCoachDebug, setLastCoachDebug] = useState<CoachDebugInfo | null>(initialCoachDebug);
   const [mapRevision, setMapRevision] = useState(initialMapRevision);
+  const [mapMountKey, setMapMountKey] = useState(0);
   const [questionBias, setQuestionBias] = useState(initialQuestionBias);
   const [requireConnectionLabel, setRequireConnectionLabel] = useState(initialRequireConnectionLabel);
   const [canUndoMap, setCanUndoMap] = useState(false);
@@ -1933,35 +1929,48 @@ export default function App() {
     setDraftPos(defaultDraftPosition(size));
   }
 
-  function reset() {
-    clearPersistedSession();
-    stateRef.current = createState();
-    configRef.current = runtimeConfig;
-    llmRef.current = makeLLM(() => configRef.current);
+  function clearMapOnly() {
     mapStoreRef.current = new ThoughtUnitStore();
     undoStackRef.current = [];
     setCanUndoMap(false);
     setCommandAck(null);
+    setPendingMirrors(new Map());
+    setConfirmed([]);
+    stateRef.current.pendingMapCommand = undefined;
+    stateRef.current.organizeFocus = undefined;
+    stateRef.current.pendingChildPlacement = undefined;
+    stateRef.current.activeElicitation = undefined;
+    stateRef.current.pendingCardWording = undefined;
+    stateRef.current.captureLoop = undefined;
+    setMapMountKey((key) => key + 1);
+    markMapChanged();
+  }
+
+  function clearDraftOnly() {
+    setDraftText("");
+    setHighlightAnchor(undefined);
+    stateRef.current.draft = "";
+  }
+
+  function clearChatOnly() {
+    const draft = draftText;
+    stateRef.current = createState();
+    stateRef.current.draft = draft;
+    llmRef.current = makeLLM(() => configRef.current);
     setMsgs([
       {
         id: ++msgId,
         role: "assistant",
-        text: "What are you trying to think through? Just start anywhere — there's no wrong place to begin.",
+        text: "What are you trying to think through? Just start anywhere - there's no wrong place to begin.",
         mode: "question",
       },
     ]);
     setPendingMirrors(new Map());
-    setConfirmed([]);
+    setLastCoachDebug(null);
     setError(null);
     setInput("");
+    speech.stop();
     speech.reset();
-    setDraftText("");
-    setRequireConnectionLabel(true);
-    setDraftCollapsed(false);
-    const size = clampDraftSize({ w: 440, h: 340 });
-    setDraftSize(size);
-    setDraftPos(defaultDraftPosition(size));
-    markMapChanged();
   }
 
   const currentMode = stateRef.current.mode;
@@ -1981,8 +1990,14 @@ export default function App() {
               <button className="reset-btn" onClick={bringDraftIntoView} title="Bring draft back into view">
                 Draft
               </button>
-              <button className="reset-btn" onClick={reset} title="Start over">
-                ↺ New map
+              <button className="reset-btn" onClick={clearChatOnly} title="Clear the chat conversation only">
+                Clear chat
+              </button>
+              <button className="reset-btn" onClick={clearDraftOnly} title="Clear the draft only">
+                Clear draft
+              </button>
+              <button className="reset-btn" onClick={clearMapOnly} title="Clear the map only">
+                Clear map
               </button>
             </div>
           </div>
@@ -2143,6 +2158,7 @@ export default function App() {
         )}
 
         <ThoughtMap
+          key={mapMountKey}
           store={mapStoreRef.current}
           bank={stateRef.current.bank}
           confirmed={confirmed}

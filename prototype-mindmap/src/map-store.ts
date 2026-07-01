@@ -75,8 +75,34 @@ function roleEntry(role: ThoughtUnitRole, changedBy: "user" | "ai_proposed_user_
   return { role, changedBy, at: Date.now() };
 }
 
+function unorderedPairKey(a: string, b: string): string {
+  return [a, b].sort().join("<->");
+}
+
+function normalizedConnectionPlacement(
+  sourceId: string,
+  targetId: string,
+  sourceHandleId?: string,
+  targetHandleId?: string,
+): string {
+  if (sourceId <= targetId) {
+    return `${sourceHandleId ?? ""}->${targetHandleId ?? ""}`;
+  }
+  return `${targetHandleId ?? ""}->${sourceHandleId ?? ""}`;
+}
+
 const DEFAULT_CARD_W = 260;
 const DEFAULT_CARD_H = 140;
+const DUPLICATE_CONNECTION_HANDLE_PAIRS: Array<[string, string]> = [
+  ["right", "left"],
+  ["bottom", "top"],
+  ["left", "right"],
+  ["top", "bottom"],
+  ["right-top", "left-top"],
+  ["right-bottom", "left-bottom"],
+  ["bottom-right", "top-right"],
+  ["bottom-left", "top-left"],
+];
 
 function defaultPosition(index: number): XYPosition {
   return {
@@ -272,7 +298,7 @@ export class ThoughtUnitStore {
         connection.targetId === id ||
         connection.labelUnitId === id
       ) {
-        this._connections.delete(connection.id);
+        this.deleteConnection(connection.id);
       }
     }
   }
@@ -387,6 +413,7 @@ export class ThoughtUnitStore {
     targetHandleId?: string | null;
     position?: XYPosition;
   }): RegisteredConnection {
+    const handles = this.connectionHandlesFor(sourceId, targetId, sourceHandleId, targetHandleId);
     const trimmed = text.trim();
     // Wording is optional. Only write to the bank when there is actually wording.
     const utterance = trimmed
@@ -411,8 +438,8 @@ export class ThoughtUnitStore {
       id: nextId("edge"),
       sourceId,
       targetId,
-      sourceHandleId: sourceHandleId ?? undefined,
-      targetHandleId: targetHandleId ?? undefined,
+      sourceHandleId: handles.sourceHandleId,
+      targetHandleId: handles.targetHandleId,
       labelUnitId: labelUnit.id,
       labelUtteranceId: utterance?.id,
       confirmedAt: Date.now(),
@@ -453,6 +480,45 @@ export class ThoughtUnitStore {
 
   getConnections(): ThoughtConnection[] {
     return Array.from(this._connections.values());
+  }
+
+  private connectionHandlesFor(
+    sourceId: string,
+    targetId: string,
+    requestedSourceHandleId?: string | null,
+    requestedTargetHandleId?: string | null,
+  ): { sourceHandleId?: string; targetHandleId?: string } {
+    const sourceHandleId = requestedSourceHandleId ?? undefined;
+    const targetHandleId = requestedTargetHandleId ?? undefined;
+    const pairKey = unorderedPairKey(sourceId, targetId);
+    const existing = this.getConnections().filter((connection) =>
+      unorderedPairKey(connection.sourceId, connection.targetId) === pairKey,
+    );
+    if (existing.length === 0) {
+      return { sourceHandleId, targetHandleId };
+    }
+
+    const used = new Set(existing.map((connection) =>
+      normalizedConnectionPlacement(
+        connection.sourceId,
+        connection.targetId,
+        connection.sourceHandleId,
+        connection.targetHandleId,
+      ),
+    ));
+    const requestedPlacement = normalizedConnectionPlacement(sourceId, targetId, sourceHandleId, targetHandleId);
+    if (!used.has(requestedPlacement) && (sourceHandleId || targetHandleId)) {
+      return { sourceHandleId, targetHandleId };
+    }
+
+    for (const [nextSourceHandleId, nextTargetHandleId] of DUPLICATE_CONNECTION_HANDLE_PAIRS) {
+      const placement = normalizedConnectionPlacement(sourceId, targetId, nextSourceHandleId, nextTargetHandleId);
+      if (!used.has(placement)) {
+        return { sourceHandleId: nextSourceHandleId, targetHandleId: nextTargetHandleId };
+      }
+    }
+
+    return { sourceHandleId, targetHandleId };
   }
 
   setPosition(id: string, position: XYPosition): void {

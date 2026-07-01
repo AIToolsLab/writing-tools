@@ -1025,6 +1025,12 @@ function ThoughtMapInner({
   // to the bank (registerConnection handles that).
   const confirmConnection = useCallback(() => {
     if (!pendingConnection) return;
+    const source = store.get(pendingConnection.sourceId);
+    const target = store.get(pendingConnection.targetId);
+    if (!source || !target || source.role === "connection_label" || target.role === "connection_label") {
+      setPendingConnection(null);
+      return;
+    }
     onBeforeMapChange();
     store.registerConnection({
       sourceId: pendingConnection.sourceId,
