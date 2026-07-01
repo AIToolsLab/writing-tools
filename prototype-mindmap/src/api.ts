@@ -63,9 +63,22 @@ async function postChat(messages: OpenAIMessage[]): Promise<string> {
     throw new Error(`Backend ${res.status}: ${body.slice(0, 300)}`);
   }
 
-  const data = (await res.json()) as {
+  const raw = await res.text().catch(() => "");
+  if (!raw.trim()) {
+    throw new Error("Backend returned an empty response body.");
+  }
+
+  let data: {
     choices?: Array<{ message?: { content?: string } }>;
   };
+  try {
+    data = JSON.parse(raw) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+  } catch {
+    throw new Error(`Backend returned invalid JSON: ${raw.slice(0, 300)}`);
+  }
+
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("Backend returned an empty model response.");
   return content;

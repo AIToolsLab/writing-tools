@@ -7,7 +7,14 @@ function jsonResponse(content: string): Response {
   return {
     ok: true,
     json: async () => ({ choices: [{ message: { content } }] }),
-    text: async () => "",
+    text: async () => JSON.stringify({ choices: [{ message: { content } }] }),
+  } as unknown as Response;
+}
+
+function textResponse(body: string): Response {
+  return {
+    ok: true,
+    text: async () => body,
   } as unknown as Response;
 }
 
@@ -55,5 +62,21 @@ describe("makeLLM JSON resilience", () => {
 
     await expect(makeLLM()(ctx)).rejects.toThrow(/invalid JSON/i);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("surfaces an empty backend body with a clear error", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(textResponse(""));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(makeLLM()(ctx)).rejects.toThrow(/empty response body/i);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("surfaces truncated backend JSON with a clear error", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(textResponse('{"choices":'));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(makeLLM()(ctx)).rejects.toThrow(/backend returned invalid json/i);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
