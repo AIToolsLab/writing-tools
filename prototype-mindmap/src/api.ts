@@ -34,7 +34,7 @@ const BACKEND_URL =
   (import.meta.env.VITE_BACKEND_URL as string | undefined) ??
   "http://localhost:8000/api";
 
-const MODEL = "gpt-5.4-mini";
+const MODEL = "gpt-5.4";
 
 interface OpenAIMessage {
   role: "system" | "user" | "assistant";
