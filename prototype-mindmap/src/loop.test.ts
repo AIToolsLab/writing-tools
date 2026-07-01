@@ -1209,6 +1209,7 @@ describe("mirror -- validation fails -> clarify fallback", () => {
     const out = await processTurn(state, "sure", driftingMirrorLLM(uid), cfg);
 
     expect(out.text).toContain("running fast");
+    expect(out.text).toContain("can't ground the wording cleanly enough yet");
   });
 
   it("stores the clarifyTarget on state for the next LLM context", async () => {
@@ -1230,6 +1231,39 @@ describe("mirror -- validation fails -> clarify fallback", () => {
     const out = await processTurn(state, "sure", driftingMirrorLLM(uid), cfg);
 
     expect(out.validatedMirror).toBeUndefined();
+  });
+
+  it("uses a relationship-clarity preamble when relational grounding is missing", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg();
+    await processTurn(state, "writing supports editing. editing matters.", questionLLM("Q"), cfg);
+    const out = await processTurn(state, "sure", (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "Here is what I heard:",
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            text: "writing supports editing",
+            candidateId: "cand1",
+            target: "connection",
+            sourceSpans: [
+              {
+                claimText: "writing supports editing",
+                utteranceIds: ["u_2"],
+                userPhrase: "supports",
+              },
+            ],
+          },
+        ],
+      },
+      candidateUpserts: [
+        { id: "cand1", target: "connection", gist: "writing supports editing", addEvidenceIds: ["u_1", "u_2"] },
+      ],
+    }), cfg);
+
+    expect(out.mode).toBe("clarify");
+    expect(out.text).toContain("I can see the pieces you're naming, but I don't yet have your wording for the relationship itself.");
   });
 });
 
@@ -1302,7 +1336,9 @@ describe("pacing", () => {
     );
 
     expect(out.mode).toBe("question");
-    expect(out.text).toBe("What exact wording do you want to carry forward as the next card?");
+    expect(out.text).toBe(
+      "I'm holding off on organizing this yet because the map is still too sparse. What exact wording do you want to carry forward as the next card?",
+    );
     expect(state.activeElicitation).toEqual({ kind: "sparse_map_next_card", targetPhrase: undefined });
   });
 
@@ -1331,6 +1367,24 @@ describe("pacing", () => {
     expect(out.text).toBe("Between #2 and #3, what relationship do you want to state?");
   });
 
+  it("passes selected-strand context into the next LLM call after a large exploratory selection", async () => {
+    const state = createState();
+    const bigTurn =
+      "Mechanism 1 matters. No silent commit stops authorship loss. No AI words keeps the language user-authored. Multiple choice removes the default path.";
+    await processTurn(state, bigTurn, questionLLM("Which exact piece do you want to carry forward first?"));
+
+    let capturedCtx: LLMContext | undefined;
+    const capturingLLM = (ctx: LLMContext): LLMTurn => {
+      capturedCtx = ctx;
+      return { mode: "question", text: "What exact wording do you want the map to carry forward from that?" };
+    };
+
+    await processTurn(state, "No AI words", capturingLLM);
+
+    expect(capturedCtx?.activeSelectionContext?.selectedText).toBe("No AI words");
+    expect(capturedCtx?.activeSelectionContext?.sourceUtteranceIds.length).toBeGreaterThan(0);
+  });
+
   it("uses active elicitation to mirror a substantive answer without explicit carry-forward wording", async () => {
     const state = createState();
     const cfg: MindmapConfig = {
@@ -1355,6 +1409,20 @@ describe("pacing", () => {
 
     expect(second.mode).toBe("mirror");
     expect(second.validatedMirror?.reflection.claims[0].text).toBe("every AI edit needs human confirmation");
+  });
+
+  it("breaks a repeated exact-wording loop with an explicit carry-forward clarify", async () => {
+    const state = createState();
+    const repeat = organizeQuestionLLM("What exact wording do you want the map to carry forward from that?");
+
+    state.activeElicitation = { kind: "carry_forward" };
+    await processTurn(state, "No silent commit", repeat);
+    const out = await processTurn(state, "No silent commit", repeat);
+
+    expect(out.mode).toBe("clarify");
+    expect(out.suppressionReason).toBe("capture_loop");
+    expect(out.text).toContain("I think you're pointing at something to carry forward");
+    expect(out.text).not.toContain("What exact wording do you want the map to carry forward from that?");
   });
 
   it("allows mirror after enough question turns", async () => {
@@ -1741,7 +1809,9 @@ describe("pacing", () => {
     );
 
     expect(out.mode).toBe("question");
-    expect(out.text).toBe("What exact wording do you want to carry forward as the next card?");
+    expect(out.text).toBe(
+      "I'm holding off on organizing this yet because the map is still too sparse. What exact wording do you want to carry forward as the next card?",
+    );
     expect(state.organizeFocus).toBeUndefined();
   });
 
@@ -1839,7 +1909,9 @@ describe("pacing", () => {
     const out = await processTurn(state, userText, llm);
 
     expect(out.mode).toBe("question");
-    expect(out.text).toBe("Which one piece of that should we stay with first?");
+    expect(out.text).toBe(
+      "I'm treating that as a big exploratory dump, so I want to help you choose one piece rather than harvest it. Which one piece of that should we stay with first?",
+    );
     expect(out.suppressionReason).toBe("large_exploratory_turn");
     expect(out.validatedMirror).toBeUndefined();
   });

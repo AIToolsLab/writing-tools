@@ -163,6 +163,15 @@ export interface LLMContext {
     kind: "carry_forward" | "clarify_after_failed_mirror" | "sparse_map_next_card";
     targetPhrase?: string;
   };
+  /**
+   * Bounded source-bank slice from an earlier large exploratory turn that the
+   * user has now selected or is elaborating. Advisory only: it narrows support
+   * to a chosen strand; it never authorizes harvesting the whole turn.
+   */
+  activeSelectionContext?: {
+    selectedText?: string;
+    sourceUtteranceIds: string[];
+  };
   /** Current organize focus, if the coach recently asked about a specific card pair. */
   organizeFocus?: {
     refs: string[];

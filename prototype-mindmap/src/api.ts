@@ -242,6 +242,11 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const activeElicitationNote = ctx.activeElicitation
     ? `\nACTIVE ELICITATION: The last coach turn was asking the user for ${ctx.activeElicitation.kind === "clarify_after_failed_mirror" ? "cleaner wording to carry something forward" : "the next wording to carry forward"}. If the latest answer is now substantive and source-groundable, do NOT ask another generic 'which part' or organize question. Prefer one same-turn idea mirror by upserting a single idea candidate, setting "carryForwardCandidateIds" to it, and grounding the mirror in this turn's utterance ids.`
     : "";
+  const activeSelectionNote = ctx.activeSelectionContext?.sourceUtteranceIds.length
+    ? `\nSELECTED STRAND: The user is now working inside a previously selected strand from a large exploratory turn.${ctx.activeSelectionContext.selectedText ? ` Selected wording: "${ctx.activeSelectionContext.selectedText}".` : ""} You may use only these source-bank ids as bounded supporting context for that strand: [${ctx.activeSelectionContext.sourceUtteranceIds.join(", ")}]. Do NOT ask for support that is already present inside this bounded strand, and do NOT treat the rest of the earlier large turn as available for harvesting.`
+    : "";
+  const legibilityNote =
+    `\nLEGIBILITY: If the system has already blocked a move for grounding, readiness, or sparse-map reasons, the next question may carry one short explanatory preamble. Let the user feel the effort before the question; do not sound like you ignored their answer.`;
   const intentNote = shouldOrganize
     ? `\nQUESTION INTENT: Use "organize" — the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask structural/relational questions: what is bigger, what connects what, how two named concepts relate. Do NOT open new topics.`
     : `\nQUESTION INTENT: Use "deepen" — dig into one concept. Ask what it is, what it does, what assumption it rests on, or what would change it. Surface real tensions before moving on.`;
@@ -258,7 +263,7 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const declarationNote = `\nDECLARATION PRESSURE: Phrases like "the main idea is", "a second idea is", "another idea is", "the next point is", or "I also want to show" are carry-forward pressure for an idea candidate, not commands. If the declared idea is compact and source-groundable, upsert it, set "carryForwardCandidateIds", and mirror it. If it is compound, contrastive, or not yet source-groundable, ask one focused question that helps the user state the idea in their own words, then mirror on the next clear answer. Do not keep narrowing the same idea across turns.`;
 
   return `${PHILOSOPHY}
-${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}
+${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${legibilityNote}
 
 CURRENT DRAFT (user's document — read-only reference for anchoring):
 """

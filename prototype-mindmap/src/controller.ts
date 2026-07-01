@@ -39,6 +39,7 @@ export type SuppressionReason =
   | "batch_preference"
   | "already_on_map"
   | "large_exploratory_turn"
+  | "capture_loop"
   | "command_precedence"
   | "validation_failed";
 
@@ -114,6 +115,16 @@ export interface LoopState {
     kind: "carry_forward" | "clarify_after_failed_mirror" | "sparse_map_next_card";
     targetPhrase?: string;
   };
+  activeSelectionContext?: {
+    sourceTurnId: string;
+    sourceUtteranceIds: string[];
+    selectedUtteranceIds: string[];
+    selectedText?: string;
+  };
+  captureLoop?: {
+    lastAnswerNorm?: string;
+    repeatCount: number;
+  };
 }
 
 export interface ProcessTurnOptions {
@@ -133,6 +144,7 @@ const STUCK_PHRASES = [
   "i don't follow", "i dont follow", "no idea",
 ];
 const CARRY_FORWARD_MIN_CONTENT_TOKENS = 3;
+const STABLE_CARD_MIN_CONTENT_TOKENS = 2;
 
 function isStuck(text: string): boolean {
   const lower = text.toLowerCase();
@@ -170,8 +182,18 @@ function nextCardQuestion(): string {
   return "What exact wording do you want to carry forward as the next card?";
 }
 
-function isSubstantiveTurn(units: SourceUtterance[]): boolean {
-  return units.some((unit) => contentTokens(unit.text).length >= CARRY_FORWARD_MIN_CONTENT_TOKENS);
+function normalizeComparableText(text: string): string {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[“”"'.,!?;:()[\]{}]/g, " ")
+    .replace(/\s+/g, " ");
+}
+
+function isStableCardLikeAnswer(text: string): boolean {
+  if (answersSiblingFraming(text)) return false;
+  const tokens = contentTokens(text);
+  return tokens.length >= STABLE_CARD_MIN_CONTENT_TOKENS && tokens.length <= 18;
 }
 
 function answersSiblingFraming(text: string): boolean {
@@ -189,6 +211,15 @@ function carryForwardQuestionForMap(map: LLMMapContext): string {
   return sparseMapBlocksOrganize(map)
     ? nextCardQuestion()
     : "What part of that feels most important to carry forward on the map?";
+}
+
+function isCarryForwardQuestion(text: string, map: LLMMapContext): boolean {
+  return text === nextCardQuestion() ||
+    text.endsWith(` ${nextCardQuestion()}`) ||
+    text === "What exact wording do you want the map to carry forward from that?" ||
+    text.endsWith(" What exact wording do you want the map to carry forward from that?") ||
+    text === carryForwardQuestionForMap(map) ||
+    text.endsWith(` ${carryForwardQuestionForMap(map)}`);
 }
 
 function setActiveElicitation(
@@ -253,6 +284,94 @@ function isReferentialCardText(text: string): boolean {
     /^(my|that|this|it|the|those|these)\s+/.test(lower) &&
     /\b(main point|point|thing|idea|part|piece|concept|notion|argument|claim|framework|theme|thread|bit)\b/.test(lower)
   );
+}
+
+function overlapsSelectedStrand(sourceText: string, selectionText: string): boolean {
+  const selectionNorm = normalizeComparableText(selectionText);
+  const sourceNorm = normalizeComparableText(sourceText);
+  if (!selectionNorm || !sourceNorm) return false;
+  if (sourceNorm.includes(selectionNorm) || selectionNorm.includes(sourceNorm)) return true;
+  const selectedTokens = new Set(contentTokens(selectionText).map((token) => token.toLowerCase()));
+  if (selectedTokens.size === 0) return false;
+  const overlapCount = contentTokens(sourceText)
+    .map((token) => token.toLowerCase())
+    .filter((token) => selectedTokens.has(token)).length;
+  return overlapCount > 0;
+}
+
+function updateSelectionContext(
+  state: LoopState,
+  userText: string,
+): void {
+  const ctx = state.activeSelectionContext;
+  if (!ctx) return;
+  const bank = state.bank.getAll();
+  const sourceTurnUtterances = bank.filter((utterance) => utterance.turnId === ctx.sourceTurnId);
+  if (sourceTurnUtterances.length === 0) {
+    state.activeSelectionContext = undefined;
+    return;
+  }
+
+  const matched = sourceTurnUtterances
+    .filter((utterance) => overlapsSelectedStrand(utterance.text, userText))
+    .map((utterance) => utterance.id);
+  if (matched.length === 0) return;
+
+  const nextSelectedIds = Array.from(new Set([...ctx.selectedUtteranceIds, ...matched]));
+  state.activeSelectionContext = {
+    ...ctx,
+    selectedUtteranceIds: nextSelectedIds,
+    selectedText: ctx.selectedText ?? userText.trim(),
+  };
+}
+
+function selectionContextSourceIds(state: LoopState): string[] {
+  const ctx = state.activeSelectionContext;
+  if (!ctx) return [];
+  return ctx.selectedUtteranceIds.length > 0 ? ctx.selectedUtteranceIds : ctx.sourceUtteranceIds;
+}
+
+function selectedStrandSnapshot(state: LoopState): { selectedText?: string; sourceUtteranceIds: string[] } | undefined {
+  const ids = selectionContextSourceIds(state);
+  if (ids.length === 0) return undefined;
+  return {
+    selectedText: state.activeSelectionContext?.selectedText,
+    sourceUtteranceIds: ids,
+  };
+}
+
+function validationPreamble(claims: ClaimValidation[]): string | undefined {
+  const failedChecks = claims.flatMap((claim) =>
+    claim.checks.filter((check) => !check.ok).map((check) => ({ claim, check })),
+  );
+  if (failedChecks.some(({ check }) => check.check === "tentative_uncertainty")) {
+    return undefined;
+  }
+  if (failedChecks.some(({ check }) => check.check === "span_grounding") &&
+    failedChecks.every(({ check }) => check.check !== "lexical_grounding")) {
+    return "I can see the pieces you're naming, but I don't yet have your wording for the relationship itself.";
+  }
+  if (failedChecks.some(({ check }) => check.check === "lexical_grounding")) {
+    return "I think you're pointing at something to carry forward, but I can't ground the wording cleanly enough yet.";
+  }
+  if (failedChecks.some(({ check }) => check.check === "span_grounding")) {
+    return "I think you're pointing at something to carry forward, but I can't place it cleanly yet.";
+  }
+  return undefined;
+}
+
+function readinessPreamble(reason: string | undefined): string | undefined {
+  if (!reason) return undefined;
+  if (/relationship/i.test(reason)) {
+    return "I can see the pieces you're naming, but I don't yet have your wording for the relationship itself.";
+  }
+  if (/non-user words/i.test(reason)) {
+    return "I think you're pointing at something to carry forward, but I can't ground the wording cleanly enough yet.";
+  }
+  if (/grounding/i.test(reason)) {
+    return "I think you're pointing at something worth carrying forward, but I don't have enough grounded wording yet.";
+  }
+  return undefined;
 }
 
 function isBlockedCreateCardInterpretation(unitText: string, cardText: string): boolean {
@@ -832,6 +951,8 @@ export function createState(_config?: MindmapConfig): LoopState {
     pendingMapCommand: undefined,
     organizeFocus: undefined,
     activeElicitation: undefined,
+    activeSelectionContext: undefined,
+    captureLoop: undefined,
   };
 }
 
@@ -851,6 +972,27 @@ export async function processTurn(
   //    voice chunk becomes several grounded units rather than one opaque blob.
   const units = ingestUser ? state.bank.addSegmented(userText, origin) : [];
   const mapIsSparse = sparseMapBlocksOrganize(map);
+
+  if (ingestUser) {
+    updateSelectionContext(state, userText);
+    if (
+      state.activeElicitation &&
+      (state.activeElicitation.kind === "carry_forward" || state.activeElicitation.kind === "sparse_map_next_card") &&
+      isStableCardLikeAnswer(userText)
+    ) {
+      const normalized = normalizeComparableText(userText);
+      const previous = state.captureLoop?.lastAnswerNorm;
+      state.captureLoop = {
+        lastAnswerNorm: normalized,
+        repeatCount: previous === normalized ? (state.captureLoop?.repeatCount ?? 0) + 1 : 1,
+      };
+    } else if (
+      !state.activeElicitation ||
+      (state.activeElicitation.kind !== "carry_forward" && state.activeElicitation.kind !== "sparse_map_next_card")
+    ) {
+      state.captureLoop = undefined;
+    }
+  }
 
   if (state.pendingMapCommand?.kind === "reference_confirmation" && isAffirmative(userText)) {
     const pending = state.pendingMapCommand;
@@ -934,7 +1076,7 @@ export async function processTurn(
       state.organizeFocus = undefined;
       state.mode = "question";
       state.turnsSinceLastMirror++;
-      const text = nextCardQuestion();
+      const text = "I'm holding off on organizing this yet because the map is still too sparse. What exact wording do you want to carry forward as the next card?";
       state.lastAiText = text;
       setActiveElicitation(state, "sparse_map_next_card");
       return {
@@ -1016,6 +1158,7 @@ export async function processTurn(
     turnShape: initialTurnShape,
     continuationFocus,
     activeElicitation: state.activeElicitation,
+    activeSelectionContext: selectedStrandSnapshot(state),
     organizeFocus: state.organizeFocus
       ? {
           refs: state.organizeFocus.refs,
@@ -1109,6 +1252,7 @@ export async function processTurn(
 
   // Post-update readiness — this is what actually gates the mirror.
   const thisTurnUtteranceIds = new Set(units.map((u) => u.id));
+  const selectedContextIds = new Set(selectionContextSourceIds(state));
   const substantiveThisTurnUtteranceIds = new Set(
     units
       .filter((u) => contentTokens(u.text).length >= CARRY_FORWARD_MIN_CONTENT_TOKENS)
@@ -1122,11 +1266,11 @@ export async function processTurn(
       (id) => thisTurnUtteranceIds.has(id) && substantiveThisTurnUtteranceIds.has(id),
     );
     if (thisTurnEvidence.length === 0) continue;
-      acceleratedEvidenceByCandidate.set(candidateId, new Set(thisTurnEvidence));
+    acceleratedEvidenceByCandidate.set(candidateId, new Set(thisTurnEvidence));
   }
   if (
     state.activeElicitation &&
-    isSubstantiveTurn(units) &&
+    isStableCardLikeAnswer(userText) &&
     turnShape.kind !== "large_exploratory"
   ) {
     const responsiveIdeaUpserts = candidateUpserts.filter((candidate) =>
@@ -1138,11 +1282,13 @@ export async function processTurn(
     if (responsiveIdeaUpserts.length === 1) {
       const candidate = state.candidates.get(responsiveIdeaUpserts[0].id);
       if (candidate) {
-        const thisTurnEvidence = candidate.evidenceUtteranceIds.filter(
-          (id) => thisTurnUtteranceIds.has(id) && substantiveThisTurnUtteranceIds.has(id),
+        const responsiveEvidence = candidate.evidenceUtteranceIds.filter(
+          (id) =>
+            (thisTurnUtteranceIds.has(id) && substantiveThisTurnUtteranceIds.has(id)) ||
+            selectedContextIds.has(id),
         );
-        if (thisTurnEvidence.length > 0) {
-          acceleratedEvidenceByCandidate.set(candidate.id, new Set(thisTurnEvidence));
+        if (responsiveEvidence.length > 0) {
+          acceleratedEvidenceByCandidate.set(candidate.id, new Set(responsiveEvidence));
         }
       }
     }
@@ -1175,6 +1321,8 @@ export async function processTurn(
   function finish(out: TurnOutput): TurnOutput {
     const commandClarification = commandResult.notes.find((note) => note.reason === "command_clarification");
     const commandPromptActive = Boolean(commandResult.pending || commandClarification);
+    let sparseMapRewritten = false;
+    let repeatedCaptureBlocked = false;
     if (acceptedCommands.length > 0) {
       out = { ...out, mapCommands: acceptedCommands };
     }
@@ -1249,6 +1397,7 @@ export async function processTurn(
         questionAnchor: undefined,
         questionStance: "organize",
       };
+      sparseMapRewritten = true;
     }
 
     const organizePair =
@@ -1278,6 +1427,25 @@ export async function processTurn(
       }
     } else if (out.mode === "question" || out.mode === "clarify") {
       state.organizeFocus = undefined;
+    }
+
+    if (
+      out.mode === "question" &&
+      !commandPromptActive &&
+      isCarryForwardQuestion(out.text, map) &&
+      (state.captureLoop?.repeatCount ?? 0) >= 2
+    ) {
+      repeatedCaptureBlocked = true;
+      out = {
+        ...out,
+        mode: "clarify",
+        text: "I think you're pointing at something to carry forward, but I still can't place it cleanly from that wording alone. What part of that wording matters most to keep exactly as-is?",
+        suppressionReason: "capture_loop",
+        suppressionDetail: `Repeated capture answer: ${state.captureLoop?.lastAnswerNorm ?? ""}`,
+        questionAnchor: undefined,
+        questionStance: "deepen",
+      };
+      state.clarifyTarget = undefined;
     }
 
     // Anti-repeat guard: if a question/clarify turn would say verbatim what we
@@ -1312,21 +1480,53 @@ export async function processTurn(
       out = { ...out, questionStance: turn.questionStance };
     }
 
+    if (!commandPromptActive && (out.mode === "question" || out.mode === "clarify")) {
+      let preamble: string | undefined;
+      if (out.suppressionReason === "large_exploratory_turn") {
+        preamble = "I'm treating that as a big exploratory dump, so I want to help you choose one piece rather than harvest it.";
+      } else if (sparseMapRewritten) {
+        preamble = "I'm holding off on organizing this yet because the map is still too sparse.";
+      } else if (repeatedCaptureBlocked) {
+        preamble = undefined;
+      } else if (out.suppressionReason === "validation_failed" && out.blockedClaims) {
+        preamble = validationPreamble(out.blockedClaims);
+      } else if (out.suppressionReason === "not_ready") {
+        preamble = readinessPreamble(out.suppressionDetail);
+      }
+      if (preamble && !out.text.startsWith(preamble)) {
+        out = {
+          ...out,
+          text: `${preamble} ${out.text}`,
+        };
+      }
+    }
+
     if (out.mode === "mirror") {
       state.activeElicitation = undefined;
+      state.captureLoop = undefined;
     } else if (out.mode === "clarify" && out.suppressionReason === "validation_failed") {
       setActiveElicitation(state, "clarify_after_failed_mirror", state.clarifyTarget?.userPhrase);
-    } else if (out.mode === "question" && out.text === nextCardQuestion()) {
+    } else if (out.mode === "question" && (out.text === nextCardQuestion() || out.text.endsWith(` ${nextCardQuestion()}`))) {
       setActiveElicitation(state, "sparse_map_next_card");
-    } else if (
-      out.mode === "question" &&
-      (out.text === carryForwardQuestionForMap(map) || out.text === MIRROR_SUPPRESSED_REPEAT_QUESTION)
-    ) {
+    } else if (out.mode === "question" && isCarryForwardQuestion(out.text, map)) {
       setActiveElicitation(state, "carry_forward");
     } else if (out.mode === "clarify" && state.clarifyTarget) {
       setActiveElicitation(state, "clarify_after_failed_mirror", state.clarifyTarget.userPhrase);
     } else {
       state.activeElicitation = undefined;
+    }
+    if (
+      out.mode === "question" &&
+      initialTurnShape.kind === "large_exploratory" &&
+      units.length > 0
+    ) {
+      state.activeSelectionContext = {
+        sourceTurnId: units[0].turnId ?? "",
+        sourceUtteranceIds: units.map((unit) => unit.id),
+        selectedUtteranceIds: [],
+      };
+    } else if (out.mode === "mirror") {
+      state.activeSelectionContext = undefined;
     }
     state.lastAiText = out.text;
     return out;
@@ -1508,12 +1708,13 @@ export async function processTurn(
     state.clarifyTarget = weakestSpan;
     state.turnsSinceLastMirror++;
 
+    const failurePreamble = validationPreamble(failingClaims);
     const clarifyText =
       tentativeBlocked
         ? "I think this may be something to carry forward, but it still sounds tentative - what would make it feel firm enough?"
         : weakestSpan != null
-        ? `I think you're pointing at something to carry forward, but I can't place it cleanly yet - when you said "${weakestSpan.userPhrase}", what did you mean by that?`
-        : "I think you're pointing at something to carry forward, but I can't place it cleanly yet - can you say a little more?";
+        ? `${failurePreamble ?? "I think you're pointing at something to carry forward, but I can't place it cleanly yet."} when you said "${weakestSpan.userPhrase}", what did you mean by that?`
+        : `${failurePreamble ?? "I think you're pointing at something to carry forward, but I can't place it cleanly yet."} can you say a little more?`;
 
     return finish({
       mode: "clarify",
