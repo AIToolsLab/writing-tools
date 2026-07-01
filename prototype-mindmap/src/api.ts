@@ -237,7 +237,6 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
 
   return `${PHILOSOPHY}
 ${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${continuationNote}${organizeFocusNote}
-${organizeFocusNote}
 
 CURRENT DRAFT (user's document — read-only reference for anchoring):
 """
