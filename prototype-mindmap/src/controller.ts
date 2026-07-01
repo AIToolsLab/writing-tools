@@ -125,6 +125,11 @@ export interface LoopState {
     key: string;
     declineCount: number;
   };
+  pendingChildPlacement?: {
+    parentId: string;
+    parentText: string;
+    remaining: number;
+  };
   activeElicitation?: {
     kind: "carry_forward" | "clarify_after_failed_mirror" | "sparse_map_next_card";
     targetPhrase?: string;
@@ -205,6 +210,16 @@ function nextStepQuestion(draft: string, userText = ""): string {
   return "What would you like to do next?";
 }
 
+function childPlacementQuestion(
+  parentText: string,
+  remaining: number,
+): string {
+  if (remaining <= 1) {
+    return `What exact words do you want on the other smaller card under ${parentText}?`;
+  }
+  return `What exact words should go on the ${remaining} smaller cards under ${parentText}?`;
+}
+
 function sparseMapBlocksOrganize(map: LLMMapContext): boolean {
   return map.thoughtUnits.length > 0 && map.thoughtUnits.length < 3 && map.connections.length === 0;
 }
@@ -233,6 +248,18 @@ function isStableCardLikeAnswer(text: string): boolean {
   return tokens.length >= STABLE_CARD_MIN_CONTENT_TOKENS && tokens.length <= 18;
 }
 
+function isChildCardWording(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (isStuck(trimmed)) return false;
+  if (answersSiblingFraming(trimmed)) return false;
+  return contentTokens(trimmed).length > 0;
+}
+
+function cancelsChildPlacement(text: string): boolean {
+  return /^(no|nope|cancel|never mind|nevermind)$/i.test(text.trim());
+}
+
 function isCompactRelationshipAnswer(text: string): boolean {
   if (answersSiblingFraming(text)) return false;
   const trimmed = text.trim();
@@ -258,6 +285,26 @@ function carryForwardQuestionForMap(map: LLMMapContext): string {
   return sparseMapBlocksOrganize(map)
     ? nextCardQuestion()
     : "What part of that feels most important to carry forward on the map?";
+}
+
+function childPlacementRequest(
+  questionText: string,
+  map: LLMMapContext,
+): { parentId: string; parentText: string; remaining: number } | undefined {
+  const lower = questionText.toLowerCase();
+  if (!/\b(?:smaller|child|sub)\s+cards?\b/.test(lower)) return undefined;
+  if (!/\b(?:exact words|exact wording|words should go|words do you want)\b/.test(lower)) return undefined;
+
+  const explicitParent = map.thoughtUnits
+    .filter((unit) => unit.role !== "connection_label")
+    .sort((a, b) => b.text.length - a.text.length)
+    .find((unit) => normalize(questionText).includes(normalize(unit.text)));
+  const roots = map.thoughtUnits.filter((unit) => !unit.parentId && unit.role !== "connection_label");
+  const parent = explicitParent ?? roots[roots.length - 1];
+  if (!parent) return undefined;
+
+  const remaining = /\b(?:2|two)\b/.test(lower) && !/\bother\b/.test(lower) ? 2 : 1;
+  return { parentId: parent.id, parentText: parent.text, remaining };
 }
 
 function isCarryForwardQuestion(text: string, map: LLMMapContext): boolean {
@@ -1091,6 +1138,7 @@ export function createState(_config?: MindmapConfig): LoopState {
     draft: "",
     pendingMapCommand: undefined,
     organizeFocus: undefined,
+    pendingChildPlacement: undefined,
     activeElicitation: undefined,
     activeSelectionContext: undefined,
     pendingCardWording: undefined,
@@ -1264,6 +1312,46 @@ export async function processTurn(
   }
 
   const explicitMoveOn = wantsToMoveOn(userText, config);
+  if (state.pendingChildPlacement) {
+    if (explicitMoveOn || cancelsChildPlacement(userText)) {
+      state.pendingChildPlacement = undefined;
+    } else if (ingestUser && isChildCardWording(userText)) {
+      const pending = state.pendingChildPlacement;
+      const remaining = Math.max(0, pending.remaining - 1);
+      state.pendingChildPlacement = remaining > 0
+        ? { ...pending, remaining }
+        : undefined;
+      state.activeElicitation = undefined;
+      state.pendingCardWording = undefined;
+      state.bank.markCommandOnly(units.map((unit) => unit.id));
+      state.mode = "question";
+      state.turnsSinceLastMirror++;
+      const text = remaining > 0
+        ? childPlacementQuestion(pending.parentText, remaining)
+        : "Done. What would you like to do next?";
+      state.lastAiText = text;
+      return {
+        mode: "question",
+        text,
+        llmTurn: { mode: "question", text },
+        mapCommands: [
+          {
+            kind: "nest_card",
+            child: { text: userText.trim(), sourceUtteranceIds: units.map((unit) => unit.id) },
+            parentId: pending.parentId,
+          },
+        ],
+        commandDebug: [
+          {
+            reason: "pending_child_placement",
+            detail: `Nested exact child wording under "${pending.parentText}".`,
+          },
+        ],
+        questionStance: "narrow",
+      };
+    }
+  }
+
   if (state.organizeFocus) {
     if (mapIsSparse && answersSiblingFraming(userText)) {
       state.organizeFocus = undefined;
@@ -1753,6 +1841,7 @@ export async function processTurn(
       state.activeElicitation = undefined;
       state.captureLoop = undefined;
       state.pendingCardWording = undefined;
+      state.pendingChildPlacement = undefined;
     } else if (out.mode === "clarify" && out.suppressionReason === "validation_failed") {
       setActiveElicitation(state, "clarify_after_failed_mirror", state.clarifyTarget?.userPhrase);
     } else if (out.mode === "question" && (out.text === nextCardQuestion() || out.text.endsWith(` ${nextCardQuestion()}`))) {
@@ -1769,6 +1858,14 @@ export async function processTurn(
     } else {
       state.activeElicitation = undefined;
       state.pendingCardWording = undefined;
+    }
+    if (out.mode === "question") {
+      const pendingChildPlacement = childPlacementRequest(out.text, map);
+      if (pendingChildPlacement) {
+        state.pendingChildPlacement = pendingChildPlacement;
+      }
+    } else if (out.mode === "mirror" || out.mode === "clarify") {
+      state.pendingChildPlacement = undefined;
     }
     if (
       out.mode === "question" &&

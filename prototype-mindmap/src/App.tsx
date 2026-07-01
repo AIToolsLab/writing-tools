@@ -116,6 +116,7 @@ interface PersistedSession {
     lastAiText: string;
     draft: string;
     pendingMapCommand?: PendingMapCommand;
+    pendingChildPlacement?: LoopState["pendingChildPlacement"];
   };
   bank: LoopState["bank"] extends { getAll(): infer T } ? T : never;
   candidates: LoopState["candidates"] extends { getAll(): infer T } ? T : never;
@@ -1411,6 +1412,7 @@ export default function App() {
     state.lastAiText = persistedSession.controller.lastAiText;
     state.draft = persistedSession.controller.draft;
     state.pendingMapCommand = persistedSession.controller.pendingMapCommand;
+    state.pendingChildPlacement = persistedSession.controller.pendingChildPlacement;
     return state;
   }, [persistedSession]);
 
@@ -1778,6 +1780,7 @@ export default function App() {
         lastAiText: stateRef.current.lastAiText,
         draft: stateRef.current.draft,
         pendingMapCommand: stateRef.current.pendingMapCommand,
+        pendingChildPlacement: stateRef.current.pendingChildPlacement,
       },
       bank: stateRef.current.bank.getAll(),
       candidates: stateRef.current.candidates.getAll(),

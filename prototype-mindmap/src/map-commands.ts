@@ -1,5 +1,6 @@
 import type { AcceptedMapCommand } from "./controller";
 import type { ThoughtUnitStore } from "./map-store";
+import { normalize } from "./normalize";
 import type { SourceBank } from "./store";
 import type { ThoughtUnit } from "./types";
 
@@ -9,6 +10,18 @@ function ensureCard(
   bank: SourceBank,
 ): ThoughtUnit | undefined {
   if ("id" in ref) return store.get(ref.id);
+  const existingBySource = store.getAll().find((unit) =>
+    unit.role !== "connection_label" &&
+    ref.sourceUtteranceIds.some((id) => unit.source.utteranceIds.includes(id)),
+  );
+  if (existingBySource) return existingBySource;
+
+  const normalizedText = normalize(ref.text);
+  const existingByText = store.getAll().find((unit) =>
+    unit.role !== "connection_label" && normalize(unit.text) === normalizedText,
+  );
+  if (existingByText) return existingByText;
+
   const utterance = bank.add(ref.text, "declaration");
   const unit = store.addFromUserUtterance(utterance);
   return store.update(unit.id, {

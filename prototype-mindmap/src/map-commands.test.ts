@@ -110,6 +110,39 @@ describe("applyAcceptedMapCommands", () => {
     expect(bank.getAll().some((u) => u.origin === "declaration" && u.text === "human control")).toBe(true);
   });
 
+  it("reuses one card when create and nest commands cite the same child wording", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    const chatUtterance = bank.add("No AI words-AI is only allowed to use grammatical function words", "chat");
+    store.add(unit("parent", "Mechanism 1 to prevent authorship: Constrain"));
+
+    applyAcceptedMapCommands(
+      [
+        {
+          kind: "create_card",
+          text: "No AI words-AI is only allowed to use grammatical function words",
+          sourceUtteranceIds: [chatUtterance.id],
+        },
+        {
+          kind: "nest_card",
+          child: {
+            text: "No AI words-AI is only allowed to use grammatical function words",
+            sourceUtteranceIds: [chatUtterance.id],
+          },
+          parentId: "parent",
+        },
+      ],
+      store,
+      bank,
+    );
+
+    const children = store.getAll().filter((unit) =>
+      unit.text === "No AI words-AI is only allowed to use grammatical function words",
+    );
+    expect(children).toHaveLength(1);
+    expect(children[0]).toMatchObject({ parentId: "parent", role: "content" });
+  });
+
   it("registers an unlabeled user-commanded connection", () => {
     const store = new ThoughtUnitStore();
     const bank = new SourceBank();

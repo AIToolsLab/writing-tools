@@ -687,6 +687,93 @@ describe("question mode", () => {
     ]);
   });
 
+  it("collects requested smaller-card wording under the remembered parent", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_577", "Mechanism 1 to prevent authorship: Constrain")],
+      connections: [],
+    };
+
+    const first = await processTurn(
+      state,
+      "the 2 smaller card",
+      questionLLM("Which exact words should go on the 2 smaller card?"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(first.text).toBe("Which exact words should go on the 2 smaller card?");
+    expect(state.pendingChildPlacement).toEqual({
+      parentId: "tu_577",
+      parentText: "Mechanism 1 to prevent authorship: Constrain",
+      remaining: 2,
+    });
+
+    const called = { value: false };
+    const second = await processTurn(
+      state,
+      "No silent commit-Solve by No-silent-commit and multiple choice confirmation gate",
+      () => {
+        called.value = true;
+        return questionLLM("ignored")({} as LLMContext);
+      },
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(called.value).toBe(false);
+    expect(second.mapCommands).toEqual([
+      {
+        kind: "nest_card",
+        child: {
+          text: "No silent commit-Solve by No-silent-commit and multiple choice confirmation gate",
+          sourceUtteranceIds: ["u_2"],
+        },
+        parentId: "tu_577",
+      },
+    ]);
+    expect(second.text).toBe(
+      "What exact words do you want on the other smaller card under Mechanism 1 to prevent authorship: Constrain?",
+    );
+  });
+
+  it("finishes the pending smaller-card flow after the final child wording", async () => {
+    const state = createState();
+    state.pendingChildPlacement = {
+      parentId: "tu_577",
+      parentText: "Mechanism 1 to prevent authorship: Constrain",
+      remaining: 1,
+    };
+    const map = {
+      thoughtUnits: [mapUnit("tu_577", "Mechanism 1 to prevent authorship: Constrain")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "No AI words-AI is only allowed to use grammatical function words",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "nest_card",
+        child: {
+          text: "No AI words-AI is only allowed to use grammatical function words",
+          sourceUtteranceIds: ["u_1"],
+        },
+        parentId: "tu_577",
+      },
+    ]);
+    expect(out.text).toBe("Done. What would you like to do next?");
+    expect(state.pendingChildPlacement).toBeUndefined();
+  });
+
   it("does not execute nesting commands when the parent reference is ambiguous", async () => {
     const state = createState();
     const llm = (_ctx: LLMContext): LLMTurn => ({
