@@ -1789,6 +1789,32 @@ describe("LLM context", () => {
     expect(capturedCtx!.bank).toHaveLength(2);
   });
 
+  it("can continue the coach turn without growing the source bank", async () => {
+    const state = createState();
+    await processTurn(state, "first utterance", questionLLM("Q1"));
+    const before = state.bank.getAll();
+    let capturedCtx: LLMContext | undefined;
+    const captureLLM = (ctx: LLMContext): LLMTurn => {
+      capturedCtx = ctx;
+      return { mode: "question", text: "Q2" };
+    };
+
+    await processTurn(
+      state,
+      "",
+      captureLLM,
+      defaultConfig,
+      "chat",
+      { thoughtUnits: [], connections: [] },
+      { ingestUser: false },
+    );
+
+    expect(state.bank.getAll()).toEqual(before);
+    expect(capturedCtx?.bank).toEqual(before);
+    expect(capturedCtx?.turnText).toBe("");
+    expect(capturedCtx?.turnShape.kind).toBe("compact");
+  });
+
   it("passes draft declarations as suppression-only context", async () => {
     const state = createState();
     state.draft = "The main idea is human control decides what enters the draft.";

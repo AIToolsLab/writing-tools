@@ -97,6 +97,10 @@ export interface LoopState {
   pendingMapCommand?: PendingMapCommandConfirmation;
 }
 
+export interface ProcessTurnOptions {
+  ingestUser?: boolean;
+}
+
 const STUCK_PHRASES = [
   "i'm not sure", "im not sure", "i am not sure",
   "i don't know", "i dont know", "not sure",
@@ -686,10 +690,12 @@ export async function processTurn(
   config: MindmapConfig = defaultConfig,
   origin: UtteranceOrigin = "chat",
   map: LLMMapContext = { thoughtUnits: [], connections: [] },
+  options: ProcessTurnOptions = {},
 ): Promise<TurnOutput> {
+  const ingestUser = options.ingestUser ?? true;
   // 1. Record the user's words, segmented into sentence-level units so a big
   //    voice chunk becomes several grounded units rather than one opaque blob.
-  const units = state.bank.addSegmented(userText, origin);
+  const units = ingestUser ? state.bank.addSegmented(userText, origin) : [];
 
   if (state.pendingMapCommand && isAffirmative(userText)) {
     const pending = state.pendingMapCommand;

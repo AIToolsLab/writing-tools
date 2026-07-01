@@ -45,6 +45,34 @@ interface MapUndoSnapshot {
 
 type ClaimDecision = "pending" | "confirmed" | "declined";
 
+export interface MirrorDecisionResolution {
+  nextDecisions: Record<string, ClaimDecision>;
+  allDecided: boolean;
+  anyConfirmed: boolean;
+  anyDeclined: boolean;
+  shouldContinue: boolean;
+}
+
+export function resolveMirrorDecision(
+  decisions: Record<string, ClaimDecision>,
+  claimId: string,
+  decision: "confirmed" | "declined",
+): MirrorDecisionResolution {
+  const nextDecisions = { ...decisions, [claimId]: decision };
+  const nextValues = Object.values(nextDecisions);
+  const allDecided = nextValues.every((d) => d !== "pending");
+  const anyConfirmed = nextValues.some((d) => d === "confirmed");
+  const anyDeclined = nextValues.some((d) => d === "declined");
+
+  return {
+    nextDecisions,
+    allDecided,
+    anyConfirmed,
+    anyDeclined,
+    shouldContinue: allDecided && anyConfirmed && !anyDeclined,
+  };
+}
+
 const DRAFT_MARGIN = 12;
 const DRAFT_HEADER_HEIGHT = 40;
 const DRAFT_MIN_VISIBLE_WIDTH = 220;
@@ -1740,6 +1768,7 @@ export default function App() {
     if (loading) return;
     const pm = pendingMirrors.get(mirrorId);
     if (!pm || pm.decisions[claimId] !== "pending") return;
+    const resolution = resolveMirrorDecision(pm.decisions, claimId, decision);
 
     const claim = pm.reflection.claims.find((c) => c.id === claimId);
     let confirmedReflection: ConfirmedReflection | undefined;
@@ -1764,13 +1793,12 @@ export default function App() {
       const next = new Map(prev);
       const updated: PendingMirror = {
         ...pm,
-        decisions: { ...pm.decisions, [claimId]: decision },
+        decisions: resolution.nextDecisions,
       };
       next.set(mirrorId, updated);
 
       // Remove the mirror card once all claims are decided.
-      const allDecided = Object.values(updated.decisions).every((d) => d !== "pending");
-      if (allDecided) next.delete(mirrorId);
+      if (resolution.allDecided) next.delete(mirrorId);
 
       return next;
     });
@@ -1780,24 +1808,6 @@ export default function App() {
       mapStoreRef.current.addFromReflection(confirmedReflection);
       setConfirmed((prev) => [...prev, confirmedReflection]);
       markUserMapChanged();
-
-      setLoading(true);
-      try {
-        const out = await processTurn(
-          stateRef.current,
-          "I confirmed that mirror chunk.",
-          llmRef.current,
-          configRef.current,
-          "chat",
-          mapStoreRef.current.toLLMContext(),
-        );
-        appendCoachOutput(out);
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : String(e);
-        setError(msg);
-      } finally {
-        setLoading(false);
-      }
     }
 
     if (decision === "declined" && claim) {
@@ -1809,6 +1819,28 @@ export default function App() {
         ...prev,
         { id: ++msgId, role: "assistant", text, mode: "clarify", questionStance: "narrow" },
       ]);
+      return;
+    }
+
+    if (resolution.shouldContinue) {
+      setLoading(true);
+      try {
+        const out = await processTurn(
+          stateRef.current,
+          "",
+          llmRef.current,
+          configRef.current,
+          "chat",
+          mapStoreRef.current.toLLMContext(),
+          { ingestUser: false },
+        );
+        appendCoachOutput(out);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+      } finally {
+        setLoading(false);
+      }
     }
   }
 
