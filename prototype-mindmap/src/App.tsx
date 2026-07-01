@@ -18,6 +18,7 @@ import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
 import { cardRef } from "./store";
 import type { SourceSpan } from "./types";
 import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
+import { useSpeechToText } from "./useSpeechToText";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -377,6 +378,35 @@ const css = `
     display: flex;
     gap: 8px;
     align-items: flex-end;
+  }
+
+  .mic-btn {
+    width: 38px;
+    height: 38px;
+    flex: 0 0 38px;
+    border: 1px solid #d8d3c8;
+    border-radius: 8px;
+    background: #fff;
+    color: #666;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    cursor: pointer;
+    transition: opacity 0.15s, border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .mic-btn:hover:not(:disabled) {
+    border-color: #1a6fa3;
+    color: #1a6fa3;
+    background: #f3f8fb;
+  }
+  .mic-btn:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
+  .mic-btn.live {
+    border-color: #c8652f;
+    color: #c8652f;
+    background: #fff2ea;
   }
 
   textarea {
@@ -1651,6 +1681,7 @@ export default function App() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const speech = useSpeechToText();
 
   // Scroll to bottom on new messages.
   useEffect(() => {
@@ -1661,6 +1692,12 @@ export default function App() {
     const maxSeen = msgs.reduce((max, msg) => Math.max(max, msg.id), 0);
     msgId = Math.max(msgId, maxSeen);
   }, [msgs]);
+
+  useEffect(() => {
+    if (!speech.transcript && !speech.interim) return;
+    const liveTranscript = `${speech.transcript} ${speech.interim}`.trim();
+    setInput(liveTranscript);
+  }, [speech.interim, speech.transcript]);
 
   // Seed with opening question only for a fresh session.
   useEffect(() => {
@@ -1765,8 +1802,10 @@ export default function App() {
     const text = input.trim();
     if (!text || loading) return;
 
+    speech.stop();
     setInput("");
     setError(null);
+    speech.reset();
 
     setMsgs((prev) => [
       ...prev,
@@ -1912,6 +1951,7 @@ export default function App() {
     setConfirmed([]);
     setError(null);
     setInput("");
+    speech.reset();
     setDraftText("");
     setRequireConnectionLabel(true);
     setDraftCollapsed(false);
@@ -1976,6 +2016,35 @@ export default function App() {
           <div className="input-area">
             {error && <div className="error-banner">{error}</div>}
             <div className="input-row">
+              <button
+                className={`mic-btn ${speech.listening ? "live" : ""}`}
+                type="button"
+                title={
+                  speech.supported
+                    ? speech.listening
+                      ? "Stop voice dictation"
+                      : "Start voice dictation"
+                    : "Voice dictation is unavailable in this browser"
+                }
+                aria-label={
+                  speech.supported
+                    ? speech.listening
+                      ? "Stop voice dictation"
+                      : "Start voice dictation"
+                    : "Voice dictation is unavailable in this browser"
+                }
+                aria-pressed={speech.listening}
+                disabled={!speech.supported || loading}
+                onClick={() => {
+                  if (speech.listening) {
+                    speech.stop();
+                    return;
+                  }
+                  speech.start(input);
+                }}
+              >
+                Mic
+              </button>
               <textarea
                 ref={textareaRef}
                 rows={2}

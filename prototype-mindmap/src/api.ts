@@ -201,8 +201,11 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
 
   // Question intent
   const shouldOrganize =
-    ctx.candidates.length >= cfg.pacing.organizeIntentCandidateThreshold ||
-    ctx.readyCandidateIds.length >= cfg.pacing.organizeIntentReadyThreshold;
+    !ctx.sparseMapBlocksOrganize &&
+    (
+      ctx.candidates.length >= cfg.pacing.organizeIntentCandidateThreshold ||
+      ctx.readyCandidateIds.length >= cfg.pacing.organizeIntentReadyThreshold
+    );
   const mapNote =
     `\nMAP AWARENESS: The canvas below is user-authored structure. You may reference it to ask sharper questions, especially in organize mode, but you must never draw, place, rename, group, connect, or propose map structure. No dashed proposals, no "approve this structure", no suggested edge labels. Ask questions that make the user articulate relationships in their own words.`;
   const draftDeclarationNote = ctx.draftDeclarations.length > 0
@@ -214,11 +217,17 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
       : ctx.turnShape.kind === "large_selected"
       ? `\nLARGE TURN: The latest user turn is large but contains explicit selected wording. You may work only with that user-selected wording, and only through the existing carry-forward, validation, confirmation, and command gates. Do not harvest the rest of the turn.`
       : "";
+  const sparseMapNote = ctx.sparseMapBlocksOrganize
+    ? `\nSPARSE MAP: The visible map is still too thin for relationship-first organizing. Stay in carry-forward/deepen mode. If the user's latest answer supplies substantive wording for the next card, prefer a same-turn idea mirror or a single direct carry-forward question. Do NOT ask card-to-card relationship questions yet.`
+    : "";
   const continuationNote = ctx.continuationFocus?.length
     ? `\nCONTINUATION FOCUS: The user just confirmed these map items: ${ctx.continuationFocus.join("; ")}. Advance from these confirmed items — ask the next useful question about them before reopening older material. Refer to them by a short paraphrase or their #ref, NOT by quoting their full wording, and do not mirror command phrasing or stale bank content.`
     : "";
   const organizeFocusNote = ctx.organizeFocus
     ? `\nCURRENT ORGANIZE FOCUS: The coach recently asked about ${ctx.organizeFocus.refs.join(" and ")}. If the user declines to state a relationship, says it is fine as-is, says they want to move on, or seems unsure again after already demurring once (declines so far: ${ctx.organizeFocus.declineCount}), do NOT re-ask about the same cards. Pivot to a different card, a draft region, or an open hand-back question instead.`
+    : "";
+  const activeElicitationNote = ctx.activeElicitation
+    ? `\nACTIVE ELICITATION: The last coach turn was asking the user for ${ctx.activeElicitation.kind === "clarify_after_failed_mirror" ? "cleaner wording to carry something forward" : "the next wording to carry forward"}. If the latest answer is now substantive and source-groundable, do NOT ask another generic 'which part' or organize question. Prefer one same-turn idea mirror by upserting a single idea candidate, setting "carryForwardCandidateIds" to it, and grounding the mirror in this turn's utterance ids.`
     : "";
   const intentNote = shouldOrganize
     ? `\nQUESTION INTENT: Use "organize" — the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask structural/relational questions: what is bigger, what connects what, how two named concepts relate. Do NOT open new topics.`
@@ -236,7 +245,7 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const declarationNote = `\nDECLARATION PRESSURE: Phrases like "the main idea is", "a second idea is", "another idea is", "the next point is", or "I also want to show" are carry-forward pressure for an idea candidate, not commands. If the declared idea is compact and source-groundable, upsert it, set "carryForwardCandidateIds", and mirror it. If it is compound, contrastive, or not yet source-groundable, ask one focused question that helps the user state the idea in their own words, then mirror on the next clear answer. Do not keep narrowing the same idea across turns.`;
 
   return `${PHILOSOPHY}
-${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${continuationNote}${organizeFocusNote}
+${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}
 
 CURRENT DRAFT (user's document — read-only reference for anchoring):
 """

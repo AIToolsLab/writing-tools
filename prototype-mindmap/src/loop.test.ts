@@ -1287,6 +1287,76 @@ describe("pacing", () => {
     expect(second.questionStance).toBe("organize");
   });
 
+  it("uses a next-card carry-forward question instead of organize when the map is sparse", async () => {
+    const state = createState();
+    const cfg = withQuestionIntentBias(defaultConfig, 100);
+    const sparseMap = { thoughtUnits: [mapUnit("n_1", "Constraint")], connections: [] };
+
+    const out = await processTurn(
+      state,
+      "No silent commit matters here",
+      organizeQuestionLLM("Between #1 and #2, what relationship do you want to state?"),
+      cfg,
+      "chat",
+      sparseMap,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.text).toBe("What exact wording do you want to carry forward as the next card?");
+    expect(state.activeElicitation).toEqual({ kind: "sparse_map_next_card", targetPhrase: undefined });
+  });
+
+  it("still allows organize questions once the map has enough visible structure", async () => {
+    const state = createState();
+    const cfg = withQuestionIntentBias(defaultConfig, 100);
+    const structuredMap = {
+      thoughtUnits: [
+        mapUnit("n_1", "Constraint"),
+        mapUnit("n_2", "No silent commit"),
+        mapUnit("n_3", "No AI words"),
+      ],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "Thinking about the relationship now",
+      organizeQuestionLLM("Between #2 and #3, what relationship do you want to state?"),
+      cfg,
+      "chat",
+      structuredMap,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.text).toBe("Between #2 and #3, what relationship do you want to state?");
+  });
+
+  it("uses active elicitation to mirror a substantive answer without explicit carry-forward wording", async () => {
+    const state = createState();
+    const cfg: MindmapConfig = {
+      ...defaultConfig,
+      pacing: {
+        ...defaultConfig.pacing,
+        minQuestionTurnsBetweenMirrors: 0,
+        minReadyCandidatesToBatch: 1,
+      },
+    };
+    const sparseMap = { thoughtUnits: [mapUnit("n_1", "Constraint")], connections: [] };
+    state.activeElicitation = { kind: "sparse_map_next_card" };
+
+    const second = await processTurn(
+      state,
+      "every AI edit needs human confirmation",
+      groundedMirrorLLM("every AI edit needs human confirmation", "u_1"),
+      cfg,
+      "chat",
+      sparseMap,
+    );
+
+    expect(second.mode).toBe("mirror");
+    expect(second.validatedMirror?.reflection.claims[0].text).toBe("every AI edit needs human confirmation");
+  });
+
   it("allows mirror after enough question turns", async () => {
     const state = createState();
     const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 2 });
@@ -1558,6 +1628,7 @@ describe("pacing", () => {
     expect(out.mode).toBe("clarify");
     expect(out.suppressionReason).toBe("validation_failed");
     expect(out.suppressionDetail).toContain("lexical_grounding");
+    expect(out.text).toContain("pointing at something to carry forward");
     expect(out.validationDebug?.[0]).toMatchObject({
       claimId: "c1",
       claimText: "human control decides draft wording is fundamentally central to agency",
@@ -1605,9 +1676,73 @@ describe("pacing", () => {
     const out = await processTurn(state, "I'm not fully sure yet human control matters", llm, cfg);
 
     expect(out.mode).toBe("clarify");
-    expect(out.text).toBe("What would make that feel firm enough to carry forward?");
+    expect(out.text).toBe(
+      "I think this may be something to carry forward, but it still sounds tentative - what would make it feel firm enough?",
+    );
     expect(out.suppressionDetail).toContain("tentative_uncertainty");
     expect(out.validatedMirror).toBeUndefined();
+  });
+
+  it("does not re-grill a direct answer after a failed mirror clarify", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0 });
+    const drifting = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "ready",
+      mirror: {
+        claims: [
+          {
+            id: "c1",
+            text: "human control decides draft wording is fundamentally central to agency",
+            candidateId: "cand1",
+            target: "idea",
+            sourceSpans: [
+              {
+                claimText: "human control decides draft wording is fundamentally central to agency",
+                utteranceIds: ["u_1"],
+                userPhrase: "human control decides draft wording",
+              },
+            ],
+          },
+        ],
+      },
+      candidateUpserts: [
+        { id: "cand1", target: "idea", gist: "human control decides draft wording", addEvidenceIds: ["u_1"] },
+      ],
+      carryForwardCandidateIds: ["cand1"],
+    });
+
+    const first = await processTurn(state, "human control decides draft wording", drifting, cfg);
+    expect(first.mode).toBe("clarify");
+
+    const second = await processTurn(
+      state,
+      "human control decides draft wording",
+      groundedMirrorLLM("human control decides draft wording", "u_2"),
+      cfg,
+    );
+
+    expect(second.mode).toBe("mirror");
+    expect(second.text).toBe(MIRROR_PREAMBLE);
+  });
+
+  it("returns to next-card capture when a sparse-map organize answer already supplied sibling framing", async () => {
+    const state = createState();
+    state.organizeFocus = { refs: ["#1", "#2"], key: "#1|#2", declineCount: 0 };
+    const sparseMap = { thoughtUnits: [mapUnit("n_1", "Constraint")], connections: [] };
+
+    const out = await processTurn(
+      state,
+      "there are no relationship between them, but they are both small idea under the big idea: Constraint",
+      organizeQuestionLLM("Between #1 and #2, what relationship do you want to state?"),
+      withQuestionIntentBias(defaultConfig, 100),
+      "chat",
+      sparseMap,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.text).toBe("What exact wording do you want to carry forward as the next card?");
+    expect(state.organizeFocus).toBeUndefined();
   });
 
   it("allows tentative mirrors toward Map when the uncertainty wording is preserved", async () => {

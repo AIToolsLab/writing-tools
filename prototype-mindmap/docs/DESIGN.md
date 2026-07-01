@@ -79,7 +79,9 @@ such as "X is a main idea" or "X supports Y" are not commands; they go through
 the mirror/question path. Vague references such as "put my main point on the map"
 ask for exact wording. Exact structure references execute immediately. Unique
 near matches ask for user confirmation ("did you mean this existing card?")
-before executing. Ambiguous structure references ask rather than guess.
+before executing. Ambiguous structure references ask rather than guess. When
+connection labels are required and the user omits one, the controller holds the
+resolved endpoints and asks only for the label on the next turn.
 
 ### No Harvesting
 
@@ -91,6 +93,15 @@ selecting structure for the user. Code downgrades mirror attempts from large
 exploratory turns to a focusing question and filters broad multi-candidate idea
 upserts from those turns; explicit carry-forward wording and direct commands
 still go through their existing gates.
+
+### Sparse-Map Pacing
+
+When the visible map is still sparse, the coach should keep helping the user
+capture ideas rather than prematurely asking them to organize relationships.
+Visible candidate richness alone is not enough to justify organize-mode
+questioning. Until the map has enough structure to compare or connect, the
+controller keeps the coach in carry-forward / clarify mode and rewrites stray
+organize questions back into explicit capture prompts.
 
 ### Sovereign Map
 
@@ -122,8 +133,10 @@ validation payloads, accelerated candidates, and readiness notes. This turns
 | Confirmation | `App.tsx` | Per-claim confirm/decline creates cards only on confirm; confirm triggers the next gated coach turn |
 | Carry-forward | `llm-contract.ts`, `controller.ts`, `readiness.ts` | `carryForwardCandidateIds`, idea-only density acceleration |
 | Direct commands | `llm-contract.ts`, `controller.ts`, `map-commands.ts` | `mapCommands`, exact current-turn spans, exact reference resolution, user-confirmed near matches, command precedence |
+| Command-only provenance | `controller.ts`, `store.ts`, `api.ts` | Command utterances stay in the Source Bank but are flagged `commandOnly` and excluded from mirror/candidate context |
 | Map | `map-store.ts`, `Map.tsx` | One primitive: `ThoughtUnit` card; nesting is `parentId`; connections have label cards |
 | Draft anchoring | `App.tsx`, `api.ts` | Read-only draft + verbatim `questionAnchor` highlight |
+| Voice dictation | `App.tsx`, `useSpeechToText.ts` | Browser speech recognition fills the composer for manual review before send |
 | Slider | `config.ts` | `withQuestionIntentBias` changes pacing thresholds only |
 | Diagnostics | `controller.ts`, `Map.tsx` | `suppressionReason`, `validationDebug`, readiness notes |
 
@@ -152,7 +165,13 @@ through that instance.
   checks exact words and references, not whether the user's action is "ready."
 
 - **Map-command labels are never invented.** Ungrounded labels are stripped;
-  the user-commanded connection remains unlabeled.
+  the user-commanded connection remains unlabeled when label-free connections
+  are allowed; otherwise the controller asks for the missing user wording and
+  completes the edge only after the user supplies it.
+
+- **Command text stays as provenance, not mirror fuel.** Command wording remains
+  in the Source Bank, but command-consumed utterances are marked `commandOnly`
+  and excluded from later mirror/candidate context.
 
 - **Near-match disambiguation asks first.** Exact existing-card references
   execute. A unique near match becomes a pending "did you mean X?" command that
@@ -162,9 +181,9 @@ through that instance.
 - **Nested cards render as embedded DOM, not xyflow subflows.** This keeps the
   card as the one primitive and makes nesting visually literal.
 
-- **Model remains `gpt-5.4-mini`.** Observed failures have been coordination
-  failures, not model-judgment failures. Upgrade only if judgment failures
-  become persistent.
+- **Model is `gpt-5.4`.** The current loop depends on stricter command
+  recognition and continuation behavior than the smaller model was reliably
+  delivering.
 
 - **Eval rubric: mirror within about one productive turn.** One useful follow-up
   on a compound idea is a pass; forcing immediate mirroring everywhere would
@@ -185,6 +204,10 @@ Built and tested:
 - diagnostics
 - direct map commands: `create_card`, `nest_card`, `connect_cards`
 - direct command disambiguation for unique/ambiguous near matches
+- browser voice dictation into the chat composer with manual review before send
+- sparse-map organize delay and explicit carry-forward fallback
+- active-elicitation follow-through to reduce "already answered" re-grilling
+- command-only exclusion from mirror eligibility
 
 Known tradeoff: command speech-act interpretation still begins with the LLM. The
 controller fences the consequential act with exact spans, declarative/tentative

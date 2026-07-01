@@ -110,6 +110,10 @@ export interface LoopState {
     key: string;
     declineCount: number;
   };
+  activeElicitation?: {
+    kind: "carry_forward" | "clarify_after_failed_mirror" | "sparse_map_next_card";
+    targetPhrase?: string;
+  };
 }
 
 export interface ProcessTurnOptions {
@@ -156,6 +160,43 @@ function nextStepQuestion(draft: string, userText = ""): string {
     return "In the draft, which part feels easiest to think through next?";
   }
   return "What would you like to do next?";
+}
+
+function sparseMapBlocksOrganize(map: LLMMapContext): boolean {
+  return map.thoughtUnits.length > 0 && map.thoughtUnits.length < 3 && map.connections.length === 0;
+}
+
+function nextCardQuestion(): string {
+  return "What exact wording do you want to carry forward as the next card?";
+}
+
+function isSubstantiveTurn(units: SourceUtterance[]): boolean {
+  return units.some((unit) => contentTokens(unit.text).length >= CARRY_FORWARD_MIN_CONTENT_TOKENS);
+}
+
+function answersSiblingFraming(text: string): boolean {
+  const lower = text.toLowerCase();
+  const deniesDirectRelation =
+    /\b(?:no|not any)\s+(?:relationship|connection)\b/.test(lower) ||
+    /\b(?:there (?:is|are)|they(?:'re| are))\s+no\s+(?:relationship|connection)\b/.test(lower);
+  const framesSharedParent =
+    /\bboth\b/.test(lower) &&
+    /\b(?:under|small idea|subpoint|child|same parent|big idea)\b/.test(lower);
+  return deniesDirectRelation && framesSharedParent;
+}
+
+function carryForwardQuestionForMap(map: LLMMapContext): string {
+  return sparseMapBlocksOrganize(map)
+    ? nextCardQuestion()
+    : "What part of that feels most important to carry forward on the map?";
+}
+
+function setActiveElicitation(
+  state: LoopState,
+  kind: "carry_forward" | "clarify_after_failed_mirror" | "sparse_map_next_card",
+  targetPhrase?: string,
+): void {
+  state.activeElicitation = { kind, targetPhrase };
 }
 
 function isSuggestiveStructuralQuestion(text: string): boolean {
@@ -790,6 +831,7 @@ export function createState(_config?: MindmapConfig): LoopState {
     draft: "",
     pendingMapCommand: undefined,
     organizeFocus: undefined,
+    activeElicitation: undefined,
   };
 }
 
@@ -808,11 +850,13 @@ export async function processTurn(
   // 1. Record the user's words, segmented into sentence-level units so a big
   //    voice chunk becomes several grounded units rather than one opaque blob.
   const units = ingestUser ? state.bank.addSegmented(userText, origin) : [];
+  const mapIsSparse = sparseMapBlocksOrganize(map);
 
   if (state.pendingMapCommand?.kind === "reference_confirmation" && isAffirmative(userText)) {
     const pending = state.pendingMapCommand;
     state.pendingMapCommand = undefined;
     state.mode = "question";
+    state.activeElicitation = undefined;
     state.turnsSinceLastMirror++;
     const text = "Done - what should we place next?";
     state.lastAiText = text;
@@ -830,6 +874,7 @@ export async function processTurn(
     const pending = state.pendingMapCommand;
     state.pendingMapCommand = undefined;
     state.mode = "question";
+    state.activeElicitation = undefined;
     state.turnsSinceLastMirror++;
     const text = "Okay - which exact card did you mean?";
     state.lastAiText = text;
@@ -846,6 +891,7 @@ export async function processTurn(
     const pending = state.pendingMapCommand;
     state.pendingMapCommand = undefined;
     state.mode = "question";
+    state.activeElicitation = undefined;
     state.turnsSinceLastMirror++;
     if (isNegative(userText)) {
       const text = "Okay - I won't create that connection.";
@@ -884,8 +930,24 @@ export async function processTurn(
 
   const explicitMoveOn = wantsToMoveOn(userText, config);
   if (state.organizeFocus) {
+    if (mapIsSparse && answersSiblingFraming(userText)) {
+      state.organizeFocus = undefined;
+      state.mode = "question";
+      state.turnsSinceLastMirror++;
+      const text = nextCardQuestion();
+      state.lastAiText = text;
+      setActiveElicitation(state, "sparse_map_next_card");
+      return {
+        mode: "question",
+        text,
+        llmTurn: { mode: "question", text },
+        questionStance: "organize",
+      };
+    }
+
     if (explicitMoveOn) {
       state.organizeFocus = undefined;
+      state.activeElicitation = undefined;
       state.mode = "question";
       state.turnsSinceLastMirror++;
       const text = nextStepQuestion(state.draft, userText);
@@ -902,6 +964,7 @@ export async function processTurn(
       const nextDeclines = state.organizeFocus.declineCount + 1;
       if (nextDeclines >= config.coaching.organizePairDeclineLimit) {
         state.organizeFocus = undefined;
+        state.activeElicitation = undefined;
         state.mode = "question";
         state.turnsSinceLastMirror++;
         const text = nextStepQuestion(state.draft, userText);
@@ -952,12 +1015,14 @@ export async function processTurn(
     turnText: userText,
     turnShape: initialTurnShape,
     continuationFocus,
+    activeElicitation: state.activeElicitation,
     organizeFocus: state.organizeFocus
       ? {
           refs: state.organizeFocus.refs,
           declineCount: state.organizeFocus.declineCount,
         }
       : undefined,
+    sparseMapBlocksOrganize: mapIsSparse,
     draft: state.draft || undefined,
     draftDeclarations,
     map,
@@ -1057,7 +1122,30 @@ export async function processTurn(
       (id) => thisTurnUtteranceIds.has(id) && substantiveThisTurnUtteranceIds.has(id),
     );
     if (thisTurnEvidence.length === 0) continue;
-    acceleratedEvidenceByCandidate.set(candidateId, new Set(thisTurnEvidence));
+      acceleratedEvidenceByCandidate.set(candidateId, new Set(thisTurnEvidence));
+  }
+  if (
+    state.activeElicitation &&
+    isSubstantiveTurn(units) &&
+    turnShape.kind !== "large_exploratory"
+  ) {
+    const responsiveIdeaUpserts = candidateUpserts.filter((candidate) =>
+      candidate.target === "idea" &&
+      candidate.addEvidenceIds.some(
+        (id) => thisTurnUtteranceIds.has(id) && substantiveThisTurnUtteranceIds.has(id),
+      ),
+    );
+    if (responsiveIdeaUpserts.length === 1) {
+      const candidate = state.candidates.get(responsiveIdeaUpserts[0].id);
+      if (candidate) {
+        const thisTurnEvidence = candidate.evidenceUtteranceIds.filter(
+          (id) => thisTurnUtteranceIds.has(id) && substantiveThisTurnUtteranceIds.has(id),
+        );
+        if (thisTurnEvidence.length > 0) {
+          acceleratedEvidenceByCandidate.set(candidate.id, new Set(thisTurnEvidence));
+        }
+      }
+    }
   }
   const acceleratedIdeaIds = new Set(acceleratedEvidenceByCandidate.keys());
   const postUpdateBank = mirrorEligibleBank(state.bank.getAll());
@@ -1080,13 +1168,13 @@ export async function processTurn(
   // De-escalation used to break a verbatim-repeat loop (see finish()).
   const DE_ESCALATE =
     "Let's zoom out a little — what's one small piece of this you feel sure about?";
-  const MIRROR_SUPPRESSED_QUESTION =
-    "What part of that feels most important to carry forward on the map?";
   const MIRROR_SUPPRESSED_REPEAT_QUESTION =
     "What exact wording do you want the map to carry forward from that?";
   const normalizeText = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
   function finish(out: TurnOutput): TurnOutput {
+    const commandClarification = commandResult.notes.find((note) => note.reason === "command_clarification");
+    const commandPromptActive = Boolean(commandResult.pending || commandClarification);
     if (acceptedCommands.length > 0) {
       out = { ...out, mapCommands: acceptedCommands };
     }
@@ -1108,7 +1196,6 @@ export async function processTurn(
         questionStance: "organize",
       };
     } else {
-      const commandClarification = commandResult.notes.find((note) => note.reason === "command_clarification");
       if (commandClarification) {
         state.mode = "question";
         out = {
@@ -1147,6 +1234,21 @@ export async function processTurn(
           ...targeted,
         };
       }
+    }
+
+    if (
+      mapIsSparse &&
+      !commandPromptActive &&
+      out.mode === "question" &&
+      out.suppressionReason !== "command_precedence" &&
+      (out.questionStance === "organize" || turn.questionIntent === "organize" || turn.questionStance === "organize")
+    ) {
+      out = {
+        ...out,
+        text: nextCardQuestion(),
+        questionAnchor: undefined,
+        questionStance: "organize",
+      };
     }
 
     const organizePair =
@@ -1208,6 +1310,23 @@ export async function processTurn(
       out.questionStance === undefined
     ) {
       out = { ...out, questionStance: turn.questionStance };
+    }
+
+    if (out.mode === "mirror") {
+      state.activeElicitation = undefined;
+    } else if (out.mode === "clarify" && out.suppressionReason === "validation_failed") {
+      setActiveElicitation(state, "clarify_after_failed_mirror", state.clarifyTarget?.userPhrase);
+    } else if (out.mode === "question" && out.text === nextCardQuestion()) {
+      setActiveElicitation(state, "sparse_map_next_card");
+    } else if (
+      out.mode === "question" &&
+      (out.text === carryForwardQuestionForMap(map) || out.text === MIRROR_SUPPRESSED_REPEAT_QUESTION)
+    ) {
+      setActiveElicitation(state, "carry_forward");
+    } else if (out.mode === "clarify" && state.clarifyTarget) {
+      setActiveElicitation(state, "clarify_after_failed_mirror", state.clarifyTarget.userPhrase);
+    } else {
+      state.activeElicitation = undefined;
     }
     state.lastAiText = out.text;
     return out;
@@ -1288,13 +1407,13 @@ export async function processTurn(
     ) {
       state.turnsSinceLastMirror++;
       state.mode = "question";
-      return finish({ mode: "question", text: MIRROR_SUPPRESSED_QUESTION, llmTurn: turn, pacingSuppressed: true, suppressionReason: "cooldown", questionStance: "organize" });
+      return finish({ mode: "question", text: carryForwardQuestionForMap(map), llmTurn: turn, pacingSuppressed: true, suppressionReason: "cooldown", questionStance: "organize" });
     }
 
     if (!turn.mirror) {
       state.turnsSinceLastMirror++;
       state.mode = "question";
-      return finish({ mode: "question", text: MIRROR_SUPPRESSED_QUESTION, llmTurn: turn, pacingSuppressed: true, suppressionReason: "missing_mirror_payload", questionStance: "organize" });
+      return finish({ mode: "question", text: carryForwardQuestionForMap(map), llmTurn: turn, pacingSuppressed: true, suppressionReason: "missing_mirror_payload", questionStance: "organize" });
     }
 
     // 6b. Readiness gate — only claims for post-update ready candidates pass.
@@ -1318,7 +1437,7 @@ export async function processTurn(
           : candidateReadiness?.reason ?? "No mirror claim targeted a ready candidate.";
       state.turnsSinceLastMirror++;
       state.mode = "question";
-      return finish({ mode: "question", text: MIRROR_SUPPRESSED_QUESTION, llmTurn: turn, pacingSuppressed: true, suppressionReason: "not_ready", suppressionDetail, questionStance: "organize" });
+      return finish({ mode: "question", text: carryForwardQuestionForMap(map), llmTurn: turn, pacingSuppressed: true, suppressionReason: "not_ready", suppressionDetail, questionStance: "organize" });
     }
 
     // Drop any claim already placed on the map. Re-mirroring a card is noise and
@@ -1331,7 +1450,7 @@ export async function processTurn(
       state.mode = "question";
       return finish({
         mode: "question",
-        text: MIRROR_SUPPRESSED_QUESTION,
+        text: carryForwardQuestionForMap(map),
         llmTurn: turn,
         pacingSuppressed: true,
         suppressionReason: "already_on_map",
@@ -1350,7 +1469,7 @@ export async function processTurn(
     ) {
       state.turnsSinceLastMirror++;
       state.mode = "question";
-      return finish({ mode: "question", text: MIRROR_SUPPRESSED_QUESTION, llmTurn: turn, pacingSuppressed: true, suppressionReason: "batch_preference", suppressionDetail: `${postUpdateReadyIds.length}/${config.pacing.minReadyCandidatesToBatch} ready candidates`, questionStance: "organize" });
+      return finish({ mode: "question", text: carryForwardQuestionForMap(map), llmTurn: turn, pacingSuppressed: true, suppressionReason: "batch_preference", suppressionDetail: `${postUpdateReadyIds.length}/${config.pacing.minReadyCandidatesToBatch} ready candidates`, questionStance: "organize" });
     }
 
     const gatedMirror = { claims: gatedClaims };
@@ -1391,10 +1510,10 @@ export async function processTurn(
 
     const clarifyText =
       tentativeBlocked
-        ? "What would make that feel firm enough to carry forward?"
+        ? "I think this may be something to carry forward, but it still sounds tentative - what would make it feel firm enough?"
         : weakestSpan != null
-        ? `I want to make sure I understand — when you said "${weakestSpan.userPhrase}", what did you mean by that?`
-        : "I want to make sure I understood that correctly — can you say more?";
+        ? `I think you're pointing at something to carry forward, but I can't place it cleanly yet - when you said "${weakestSpan.userPhrase}", what did you mean by that?`
+        : "I think you're pointing at something to carry forward, but I can't place it cleanly yet - can you say a little more?";
 
     return finish({
       mode: "clarify",
@@ -1419,3 +1538,4 @@ export async function processTurn(
   state.turnsSinceLastMirror++;
   return finish({ mode: "question", text: turn.text, llmTurn: turn, questionAnchor: turn.questionAnchor });
 }
+

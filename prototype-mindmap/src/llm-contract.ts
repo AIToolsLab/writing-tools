@@ -158,11 +158,18 @@ export interface LLMContext {
   turnShape: TurnShape;
   /** Newly-confirmed user-authored structure the next coach turn should build on. */
   continuationFocus?: string[];
+  /** Current coach ask the user is responding to, if the controller is tracking one. */
+  activeElicitation?: {
+    kind: "carry_forward" | "clarify_after_failed_mirror" | "sparse_map_next_card";
+    targetPhrase?: string;
+  };
   /** Current organize focus, if the coach recently asked about a specific card pair. */
   organizeFocus?: {
     refs: string[];
     declineCount: number;
   };
+  /** True when the map is still too sparse for relational organize questions. */
+  sparseMapBlocksOrganize?: boolean;
   /** The user's current draft text, if provided. Used for anchoring questions to draft regions. */
   draft?: string;
   /**
