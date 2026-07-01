@@ -68,6 +68,9 @@ function roleEntry(role: ThoughtUnitRole, changedBy: "user" | "ai_proposed_user_
   return { role, changedBy, at: Date.now() };
 }
 
+const DEFAULT_CARD_W = 260;
+const DEFAULT_CARD_H = 140;
+
 function defaultPosition(index: number): XYPosition {
   return {
     x: 80 + (index % 4) * 280,
@@ -81,24 +84,39 @@ export class ThoughtUnitStore {
   private _sizes: Map<string, XYSize> = new Map();
   private _connections: Map<string, ThoughtConnection> = new Map();
 
-  private nextRootPosition(): XYPosition {
-    const occupied = new Set(
-      this.getAll()
-        .filter((unit) => !unit.parentId && unit.role !== "connection_label")
-        .map((unit) => {
-          const pos = this._positions.get(unit.id);
-          return pos ? `${pos.x}:${pos.y}` : "";
-        })
-        .filter(Boolean),
-    );
+  /**
+   * A canvas position for a new root card that does not overlap any existing
+   * card rectangle. Shared by every add path (blank card, reflection, command)
+   * so "new cards never overlap old ones" holds everywhere. Scans the default
+   * grid for a free slot; if the grid is full, drops to the right of all cards.
+   */
+  nextRootPosition(): XYPosition {
+    const PAD = 32;
+    const rects = this.getAll()
+      .filter((unit) => !unit.parentId && unit.role !== "connection_label")
+      .map((unit) => {
+        const pos = this._positions.get(unit.id) ?? defaultPosition(0);
+        const size = this._sizes.get(unit.id) ?? { w: DEFAULT_CARD_W, h: DEFAULT_CARD_H };
+        return { x: pos.x, y: pos.y, w: size.w, h: size.h };
+      });
 
-    for (let index = 0; index < Math.max(12, occupied.size + 6); index++) {
+    const overlapsExisting = (x: number, y: number): boolean =>
+      rects.some(
+        (r) =>
+          x < r.x + r.w + PAD &&
+          x + DEFAULT_CARD_W + PAD > r.x &&
+          y < r.y + r.h + PAD &&
+          y + DEFAULT_CARD_H + PAD > r.y,
+      );
+
+    const limit = Math.max(24, rects.length + 12);
+    for (let index = 0; index < limit; index++) {
       const pos = defaultPosition(index);
-      const key = `${pos.x}:${pos.y}`;
-      if (!occupied.has(key)) return pos;
+      if (!overlapsExisting(pos.x, pos.y)) return pos;
     }
 
-    return defaultPosition(occupied.size);
+    const maxRight = rects.reduce((m, r) => Math.max(m, r.x + r.w), 0);
+    return { x: maxRight + PAD + 40, y: 80 };
   }
 
   add(unit: ThoughtUnit, position: XYPosition = defaultPosition(this._units.size)): ThoughtUnit {

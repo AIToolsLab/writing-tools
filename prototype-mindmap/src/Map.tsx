@@ -21,6 +21,7 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import dagre from "@dagrejs/dagre";
 import type { ThoughtUnitStore, XYPosition, XYSize } from "./map-store";
 import type { SourceBank } from "./store";
 import { cardRef } from "./store";
@@ -570,125 +571,109 @@ function ThoughtMapInner({
       }
       return cur?.id;
     };
+    const size = (id: string) => store.getSize(id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
 
-    // The side a connection leaves a card from tells us where its neighbor
-    // belongs. Handle ids are bare anchor ids like "left" / "bottom-right".
-    type Side = "top" | "right" | "bottom" | "left";
-    const DELTA: Record<Side, { dx: number; dy: number }> = {
-      top: { dx: 0, dy: -1 },
-      bottom: { dx: 0, dy: 1 },
-      left: { dx: -1, dy: 0 },
-      right: { dx: 1, dy: 0 },
-    };
-    const sideOf = (handleId?: string): Side | undefined => {
-      const base = handleId?.replace(/^(source|target)-/, "").split("-")[0];
-      return base === "top" || base === "right" || base === "bottom" || base === "left"
-        ? base
-        : undefined;
-    };
-
-    // Directional adjacency: from each endpoint, which way does its neighbor sit?
-    type Link = { to: string; dir: { dx: number; dy: number } };
-    const adj = new Map<string, Link[]>();
-    roots.forEach((u) => adj.set(u.id, []));
+    // Undirected adjacency (for components) + directed edges (for dagre flow).
+    const adj = new Map<string, Set<string>>();
+    roots.forEach((u) => adj.set(u.id, new Set()));
+    const edges: Array<{ from: string; to: string }> = [];
     for (const c of store.getConnections()) {
       const a = rootOf(c.sourceId);
       const b = rootOf(c.targetId);
       if (!a || !b || a === b || !rootIds.has(a) || !rootIds.has(b)) continue;
-      const sa = sideOf(c.sourceHandleId) ?? "bottom";
-      const sb = sideOf(c.targetHandleId) ?? "top";
-      adj.get(a)!.push({ to: b, dir: DELTA[sa] });
-      adj.get(b)!.push({ to: a, dir: DELTA[sb] });
+      adj.get(a)!.add(b);
+      adj.get(b)!.add(a);
+      edges.push({ from: a, to: b });
     }
 
-    const size = (id: string) => store.getSize(id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
-
-    // Topmost-first seeds preserve the user's sense of where the "top" is.
-    const seeds = [...roots].sort((a, b) => {
-      const pa = store.getPosition(a.id) ?? { x: 0, y: 0 };
-      const pb = store.getPosition(b.id) ?? { x: 0, y: 0 };
-      return pa.y - pb.y || pa.x - pb.x;
+    // Connected components, seeded in the user's rough reading order so the
+    // tidied layout keeps a familiar left-to-right / top-to-bottom sense.
+    const orderedRoots = [...roots].sort((x, y) => {
+      const px = store.getPosition(x.id) ?? { x: 0, y: 0 };
+      const py = store.getPosition(y.id) ?? { x: 0, y: 0 };
+      return px.y - py.y || px.x - py.x;
     });
+    const seen = new Set<string>();
+    const components: string[][] = [];
+    for (const r of orderedRoots) {
+      if (seen.has(r.id)) continue;
+      const comp: string[] = [];
+      const q = [r.id];
+      seen.add(r.id);
+      while (q.length > 0) {
+        const id = q.shift()!;
+        comp.push(id);
+        for (const nb of adj.get(id) ?? []) {
+          if (!seen.has(nb)) {
+            seen.add(nb);
+            q.push(nb);
+          }
+        }
+      }
+      components.push(comp);
+    }
 
-    const GAP_X = 60;
-    const GAP_Y = 80;
+    // Lay each component out top-down with dagre (clean rank flow, minimal
+    // crossings), then pack components left-to-right and wrap to a new row past
+    // a max width — so unconnected cards spread across the canvas instead of
+    // stacking, while connected trees stay compact.
+    const GAP = 120;
     const ORIGIN_X = 80;
-    let cursorY = 80; // connected components stack downward
-
-    const visited = new Set<string>();
+    const ORIGIN_Y = 80;
+    const MAX_ROW_WIDTH = 2400;
 
     onBeforeMapChange();
 
-    for (const seed of seeds) {
-      if (visited.has(seed.id)) continue;
-
-      // Greedy direction-aware placement on an integer grid: each neighbor goes
-      // in its connection's direction, stepping further out if a cell is taken.
-      const cell = new Map<string, { cx: number; cy: number }>();
-      const occupied = new Set<string>();
-      const key = (cx: number, cy: number) => `${cx},${cy}`;
-      cell.set(seed.id, { cx: 0, cy: 0 });
-      occupied.add(key(0, 0));
-      visited.add(seed.id);
-      const queue: string[] = [seed.id];
-      while (queue.length > 0) {
-        const id = queue.shift()!;
-        const pc = cell.get(id)!;
-        for (const link of adj.get(id) ?? []) {
-          if (visited.has(link.to)) continue;
-          const { dx, dy } = link.dir;
-          let cx = pc.cx + dx;
-          let cy = pc.cy + dy;
-          let steps = 0;
-          while (occupied.has(key(cx, cy)) && steps < 64) {
-            cx += dx;
-            cy += dy;
-            steps += 1;
-          }
-          // Fallback if the direction is somehow blocked solid: drop downward.
-          if (occupied.has(key(cx, cy))) {
-            cx = pc.cx;
-            cy = pc.cy + 1;
-            while (occupied.has(key(cx, cy))) cy += 1;
-          }
-          cell.set(link.to, { cx, cy });
-          occupied.add(key(cx, cy));
-          visited.add(link.to);
-          queue.push(link.to);
-        }
-      }
-
-      // Convert integer cells to pixels using per-column widths and per-row
-      // heights so tall/wide cards don't force big gaps elsewhere.
-      const ids = [...cell.keys()];
-      const colW = new Map<number, number>();
-      const rowH = new Map<number, number>();
-      for (const id of ids) {
-        const { cx, cy } = cell.get(id)!;
+    let cursorX = ORIGIN_X;
+    let cursorY = ORIGIN_Y;
+    let rowHeight = 0;
+    for (const comp of components) {
+      const compSet = new Set(comp);
+      const g = new dagre.graphlib.Graph();
+      g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 90, marginx: 0, marginy: 0 });
+      g.setDefaultEdgeLabel(() => ({}));
+      for (const id of comp) {
         const s = size(id);
-        colW.set(cx, Math.max(colW.get(cx) ?? 0, s.w));
-        rowH.set(cy, Math.max(rowH.get(cy) ?? 0, s.h));
+        g.setNode(id, { width: s.w, height: s.h });
       }
-      const cols = [...colW.keys()].sort((a, b) => a - b);
-      const rows = [...rowH.keys()].sort((a, b) => a - b);
-      const colX = new Map<number, number>();
-      let accX = ORIGIN_X;
-      for (const cx of cols) {
-        colX.set(cx, accX);
-        accX += (colW.get(cx) ?? CARD_WIDTH) + GAP_X;
+      for (const e of edges) {
+        if (compSet.has(e.from) && compSet.has(e.to)) g.setEdge(e.from, e.to);
       }
-      const rowY = new Map<number, number>();
-      let accY = cursorY;
-      for (const cy of rows) {
-        rowY.set(cy, accY);
-        accY += (rowH.get(cy) ?? CARD_HEIGHT) + GAP_Y;
+      dagre.layout(g);
+
+      // dagre reports node centers; normalize to the component's top-left.
+      let minX = Infinity;
+      let minY = Infinity;
+      let maxX = -Infinity;
+      let maxY = -Infinity;
+      for (const id of comp) {
+        const n = g.node(id);
+        const s = size(id);
+        minX = Math.min(minX, n.x - s.w / 2);
+        minY = Math.min(minY, n.y - s.h / 2);
+        maxX = Math.max(maxX, n.x + s.w / 2);
+        maxY = Math.max(maxY, n.y + s.h / 2);
+      }
+      const compW = maxX - minX;
+      const compH = maxY - minY;
+
+      // Wrap to a new row if this component would overflow the row width.
+      if (cursorX > ORIGIN_X && cursorX + compW > ORIGIN_X + MAX_ROW_WIDTH) {
+        cursorX = ORIGIN_X;
+        cursorY += rowHeight + GAP;
+        rowHeight = 0;
       }
 
-      for (const id of ids) {
-        const { cx, cy } = cell.get(id)!;
-        store.setPosition(id, { x: colX.get(cx)!, y: rowY.get(cy)! });
+      for (const id of comp) {
+        const n = g.node(id);
+        const s = size(id);
+        store.setPosition(id, {
+          x: cursorX + (n.x - s.w / 2 - minX),
+          y: cursorY + (n.y - s.h / 2 - minY),
+        });
       }
-      cursorY = accY + GAP_Y; // breathing room before the next component
+      cursorX += compW + GAP;
+      rowHeight = Math.max(rowHeight, compH);
     }
 
     onStoreChange();
@@ -773,21 +758,26 @@ function ThoughtMapInner({
   );
 
   const addCard = useCallback(() => {
-    // Drop the new card near the center of the visible canvas, with a small
-    // cascade offset so repeated clicks do not stack cards exactly on top of
-    // one another.
-    const rootCount = store
-      .getAll()
-      .filter((unit) => !unit.parentId && unit.role !== "connection_label")
-      .length;
-    const stagger = (rootCount % 6) * 28;
-    const pos = flow.screenToFlowPosition({
-      x: window.innerWidth * 0.6 + stagger,
-      y: window.innerHeight * 0.45 + stagger,
-    });
     onBeforeMapChange();
-    store.addBlankUserCard(pos);
+    // Shared non-overlap placement (never stacks on an existing card).
+    const unit = store.addBlankUserCard();
     onStoreChange();
+
+    // If the free slot fell outside the current view (canvas is cluttered),
+    // zoom out so the new card and the space around it become visible.
+    const pos = store.getPosition(unit.id);
+    if (!pos) return;
+    const size = store.getSize(unit.id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
+    const topLeft = flow.screenToFlowPosition({ x: 0, y: 0 });
+    const bottomRight = flow.screenToFlowPosition({ x: window.innerWidth, y: window.innerHeight });
+    const fullyVisible =
+      pos.x >= topLeft.x &&
+      pos.y >= topLeft.y &&
+      pos.x + size.w <= bottomRight.x &&
+      pos.y + size.h <= bottomRight.y;
+    if (!fullyVisible) {
+      setTimeout(() => flow.fitView({ padding: 0.2 }), 0);
+    }
   }, [flow, onBeforeMapChange, onStoreChange, store]);
 
   const onPaneDragOver = useCallback((event: React.DragEvent) => {
@@ -1070,7 +1060,7 @@ function ThoughtMapInner({
           Label {requireConnectionLabel ? "on" : "off"}
         </button>
 
-        <button type="button" className="map-clean" onClick={autoClean} title="Tidy the map: pack cards into a compact grid and shorten long connectors">
+        <button type="button" className="map-clean" onClick={autoClean} title="Tidy the map: lay connected cards into clean trees and spread the rest across the canvas">
           Auto-clean
         </button>
 

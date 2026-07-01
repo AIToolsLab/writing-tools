@@ -268,4 +268,24 @@ describe("ThoughtUnitStore", () => {
     expect(restored.getSize("b")).toEqual({ w: 120, h: 60 });
     expect(restored.getSize("c")).toEqual({ w: 120, h: 60 });
   });
+
+  it("places new root cards without overlapping existing ones", () => {
+    const store = new ThoughtUnitStore();
+    const rects: Array<{ x: number; y: number; w: number; h: number }> = [];
+    for (let i = 0; i < 12; i++) {
+      const unit = store.addBlankUserCard();
+      const pos = store.getPosition(unit.id)!;
+      const size = store.getSize(unit.id) ?? { w: 260, h: 140 };
+      rects.push({ x: pos.x, y: pos.y, w: size.w, h: size.h });
+    }
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        const a = rects[i];
+        const b = rects[j];
+        const overlap =
+          a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+        expect(overlap).toBe(false);
+      }
+    }
+  });
 });
