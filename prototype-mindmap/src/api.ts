@@ -45,7 +45,7 @@ interface OpenAIMessage {
 // Wire-level helper
 // ---------------------------------------------------------------------------
 
-async function chatJSON<T>(messages: OpenAIMessage[]): Promise<T> {
+async function postChat(messages: OpenAIMessage[]): Promise<string> {
   const res = await fetch(`${BACKEND_URL}/openai/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -68,11 +68,34 @@ async function chatJSON<T>(messages: OpenAIMessage[]): Promise<T> {
   };
   const content = data.choices?.[0]?.message?.content;
   if (!content) throw new Error("Backend returned an empty model response.");
+  return content;
+}
 
+async function chatJSON<T>(messages: OpenAIMessage[]): Promise<T> {
+  const content = await postChat(messages);
   try {
     return JSON.parse(content) as T;
   } catch {
-    throw new Error(`Model returned invalid JSON: ${content.slice(0, 200)}`);
+    // The model occasionally emits invalid JSON (e.g. an unescaped double quote
+    // inside a string value when it quotes the user's wording). One malformed
+    // response must not hard-break the flow, so retry once with a strict
+    // reminder before surfacing the error. Structured-output mode is not a
+    // reliable guarantee through the proxy, so this is the safety net.
+    const retryMessages: OpenAIMessage[] = [
+      ...messages,
+      { role: "assistant", content },
+      {
+        role: "user",
+        content:
+          "That was not valid JSON. Return ONLY one valid JSON object, nothing else. Every double quote inside a string value must be escaped; do not wrap phrases in raw double quotes inside string values — use a single quote or a #ref instead.",
+      },
+    ];
+    const retryContent = await postChat(retryMessages);
+    try {
+      return JSON.parse(retryContent) as T;
+    } catch {
+      throw new Error(`Model returned invalid JSON: ${retryContent.slice(0, 200)}`);
+    }
   }
 }
 
@@ -192,7 +215,7 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
       ? `\nLARGE TURN: The latest user turn is large but contains explicit selected wording. You may work only with that user-selected wording, and only through the existing carry-forward, validation, confirmation, and command gates. Do not harvest the rest of the turn.`
       : "";
   const continuationNote = ctx.continuationFocus?.length
-    ? `\nCONTINUATION FOCUS: The user just confirmed these map items: ${ctx.continuationFocus.map((text) => `"${text}"`).join(", ")}. Advance from these confirmed items. Ask the next useful question about them before reopening older material, and do not mirror command phrasing or stale bank content.`
+    ? `\nCONTINUATION FOCUS: The user just confirmed these map items: ${ctx.continuationFocus.join("; ")}. Advance from these confirmed items — ask the next useful question about them before reopening older material. Refer to them by a short paraphrase or their #ref, NOT by quoting their full wording, and do not mirror command phrasing or stale bank content.`
     : "";
   const intentNote = shouldOrganize
     ? `\nQUESTION INTENT: Use "organize" — the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask structural/relational questions: what is bigger, what connects what, how two named concepts relate. Do NOT open new topics.`
@@ -288,6 +311,12 @@ ${renderMap(ctx.map)}
   ],
   "carryForwardCandidateIds": ["<idea candidate id the user explicitly committed to carrying forward this turn>"]
 }
+
+OUTPUT FORMAT: Respond with exactly one valid JSON object and nothing else.
+Inside string values (especially "text"), do NOT wrap phrases in raw double
+quotes — refer to a card by its #ref or paraphrase it. If you must show a
+quotation mark in prose, use a single quote. An unescaped double quote inside a
+string value will break the response.
 
 NOTE: You do NOT supply relation signals or spontaneity. The system detects the
 user's containment/relation language deterministically and attaches it to the
