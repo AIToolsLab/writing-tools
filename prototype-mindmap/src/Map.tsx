@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BaseEdge,
@@ -22,7 +22,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import dagre from "@dagrejs/dagre";
-import type { ThoughtUnitStore, XYPosition, XYSize } from "./map-store";
+import type { ThoughtUnitStore, XYBounds, XYPosition, XYSize } from "./map-store";
 import type { SourceBank } from "./store";
 import { cardRef } from "./store";
 import type { ConfirmedReflection, ThoughtUnit } from "./types";
@@ -187,6 +187,23 @@ function connectionMidpoint(store: ThoughtUnitStore, sourceId: string, targetId:
   return {
     x: (source.x + target.x) / 2 + 28,
     y: (source.y + target.y) / 2 + 44,
+  };
+}
+
+function visibleFlowBounds(
+  flow: ReturnType<typeof useReactFlow>,
+  element: HTMLElement | null,
+): XYBounds | undefined {
+  const rect = element?.getBoundingClientRect();
+  if (!rect) return undefined;
+  const inset = 24;
+  const topLeft = flow.screenToFlowPosition({ x: rect.left + inset, y: rect.top + inset });
+  const bottomRight = flow.screenToFlowPosition({ x: rect.right - inset, y: rect.bottom - inset });
+  return {
+    left: Math.min(topLeft.x, bottomRight.x),
+    top: Math.min(topLeft.y, bottomRight.y),
+    right: Math.max(topLeft.x, bottomRight.x),
+    bottom: Math.max(topLeft.y, bottomRight.y),
   };
 }
 
@@ -502,6 +519,7 @@ function ThoughtMapInner({
   onStoreChange,
 }: ThoughtMapProps) {
   const flow = useReactFlow();
+  const canvasRef = useRef<HTMLDivElement | null>(null);
   const visibleCardCount = store.getAll().filter((unit) => unit.role !== "connection_label").length;
   const [showDebug, setShowDebug] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
@@ -762,8 +780,11 @@ function ThoughtMapInner({
 
   const addCard = useCallback(() => {
     onBeforeMapChange();
-    // Shared non-overlap placement (never stacks on an existing card).
-    const unit = store.addBlankUserCard();
+    const viewportBounds = visibleFlowBounds(flow, canvasRef.current);
+    const visibleSlot = viewportBounds ? store.nextRootPositionWithin(viewportBounds) : undefined;
+    // Prefer a free slot inside the visible canvas before falling back to the
+    // wider map placement search.
+    const unit = store.addBlankUserCard(visibleSlot);
     onStoreChange();
 
     // If the free slot fell outside the current view (canvas is cluttered),
@@ -1082,7 +1103,7 @@ function ThoughtMapInner({
         drag a card dot to connect · drag a line end to move a connector
       </p>
 
-      <div className="map-canvas">
+      <div className="map-canvas" ref={canvasRef}>
         {visibleCardCount === 0 && <div className="map-empty">No cards yet</div>}
         <ReactFlow
           nodes={displayNodes}

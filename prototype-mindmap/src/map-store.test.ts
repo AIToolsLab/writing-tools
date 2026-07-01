@@ -288,4 +288,21 @@ describe("ThoughtUnitStore", () => {
       }
     }
   });
+
+  it("finds a visible non-overlapping root slot when the viewport still has room", () => {
+    const store = new ThoughtUnitStore();
+    store.addBlankUserCard({ x: 80, y: 80 });
+    store.addBlankUserCard({ x: 360, y: 80 });
+    store.addBlankUserCard({ x: 640, y: 80 });
+
+    const pos = store.nextRootPositionWithin({
+      left: 60,
+      top: 60,
+      right: 980,
+      bottom: 620,
+    });
+
+    expect(pos).toBeDefined();
+    expect(pos).toEqual({ x: 60, y: 420 });
+  });
 });

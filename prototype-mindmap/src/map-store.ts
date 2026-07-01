@@ -18,6 +18,13 @@ export interface XYSize {
   h: number;
 }
 
+export interface XYBounds {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
 // Card-size sanity bounds. A prior auto-expand implementation measured runaway
 // scrollHeights and persisted them (~173,000px), which bricked the canvas with
 // full-height blank columns. Even though that code is gone, sizes are persisted
@@ -84,6 +91,16 @@ export class ThoughtUnitStore {
   private _sizes: Map<string, XYSize> = new Map();
   private _connections: Map<string, ThoughtConnection> = new Map();
 
+  private rootRects() {
+    return this.getAll()
+      .filter((unit) => !unit.parentId && unit.role !== "connection_label")
+      .map((unit) => {
+        const pos = this._positions.get(unit.id) ?? defaultPosition(0);
+        const size = this._sizes.get(unit.id) ?? { w: DEFAULT_CARD_W, h: DEFAULT_CARD_H };
+        return { x: pos.x, y: pos.y, w: size.w, h: size.h };
+      });
+  }
+
   /**
    * A canvas position for a new root card that does not overlap any existing
    * card rectangle. Shared by every add path (blank card, reflection, command)
@@ -92,13 +109,7 @@ export class ThoughtUnitStore {
    */
   nextRootPosition(): XYPosition {
     const PAD = 32;
-    const rects = this.getAll()
-      .filter((unit) => !unit.parentId && unit.role !== "connection_label")
-      .map((unit) => {
-        const pos = this._positions.get(unit.id) ?? defaultPosition(0);
-        const size = this._sizes.get(unit.id) ?? { w: DEFAULT_CARD_W, h: DEFAULT_CARD_H };
-        return { x: pos.x, y: pos.y, w: size.w, h: size.h };
-      });
+    const rects = this.rootRects();
 
     const overlapsExisting = (x: number, y: number): boolean =>
       rects.some(
@@ -117,6 +128,36 @@ export class ThoughtUnitStore {
 
     const maxRight = rects.reduce((m, r) => Math.max(m, r.x + r.w), 0);
     return { x: maxRight + PAD + 40, y: 80 };
+  }
+
+  nextRootPositionWithin(bounds: XYBounds): XYPosition | undefined {
+    const PAD = 32;
+    const STEP_X = 280;
+    const STEP_Y = 180;
+    const rects = this.rootRects();
+
+    const overlapsExisting = (x: number, y: number): boolean =>
+      rects.some(
+        (r) =>
+          x < r.x + r.w + PAD &&
+          x + DEFAULT_CARD_W + PAD > r.x &&
+          y < r.y + r.h + PAD &&
+          y + DEFAULT_CARD_H + PAD > r.y,
+      );
+
+    const minX = Math.ceil(bounds.left);
+    const minY = Math.ceil(bounds.top);
+    const maxX = Math.floor(bounds.right - DEFAULT_CARD_W);
+    const maxY = Math.floor(bounds.bottom - DEFAULT_CARD_H);
+    if (maxX < minX || maxY < minY) return undefined;
+
+    for (let y = minY; y <= maxY; y += STEP_Y) {
+      for (let x = minX; x <= maxX; x += STEP_X) {
+        if (!overlapsExisting(x, y)) return { x, y };
+      }
+    }
+
+    return undefined;
   }
 
   add(unit: ThoughtUnit, position: XYPosition = defaultPosition(this._units.size)): ThoughtUnit {
