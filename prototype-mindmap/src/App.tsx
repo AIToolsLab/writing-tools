@@ -8,6 +8,7 @@ import {
   type ControllerMode,
   type PendingMapCommandConfirmation,
   type SuppressionReason,
+  type TurnOutput,
 } from "./controller";
 import type { LoopState } from "./controller";
 import type { MockLLM, QuestionStance } from "./llm-contract";
@@ -1617,6 +1618,50 @@ export default function App() {
     ]);
   }, [initialMsgs.length, persistedSession]);
 
+  function appendCoachOutput(out: TurnOutput) {
+    setLastCoachDebug({
+      mode: out.mode,
+      suppressionReason: out.suppressionReason as SuppressionReason | undefined,
+      suppressionDetail: out.suppressionDetail,
+      validationDebug: out.validationDebug,
+      acceleratedCandidateIds: out.acceleratedCandidateIds,
+      readinessNotes: out.readinessNotes,
+      commandDebug: out.commandDebug,
+    });
+
+    applyMapCommands(out.mapCommands ?? []);
+
+    const newMsg: ChatMsg = {
+      id: ++msgId,
+      role: "assistant",
+      text: out.text,
+      mode: out.mode,
+      questionAnchor: out.questionAnchor,
+      questionStance: out.questionStance,
+    };
+
+    if (out.validatedMirror) {
+      const mirrorId = `m_${Date.now()}_${newMsg.id}`;
+      newMsg.mirrorId = mirrorId;
+      const initialDecisions: Record<string, ClaimDecision> = {};
+      for (const c of out.validatedMirror.claims) {
+        initialDecisions[c.claimId] = "pending";
+      }
+      setPendingMirrors((prev) => {
+        const next = new Map(prev);
+        next.set(mirrorId, {
+          id: mirrorId,
+          reflection: out.validatedMirror!.reflection,
+          claims: out.validatedMirror!.claims,
+          decisions: initialDecisions,
+        });
+        return next;
+      });
+    }
+
+    setMsgs((prev) => [...prev, newMsg]);
+  }
+
   useEffect(() => {
     if (typeof window === "undefined" || msgs.length === 0) return;
     const snapshot: PersistedSession = {
@@ -1682,47 +1727,7 @@ export default function App() {
         mapStoreRef.current.toLLMContext(),
       );
 
-      setLastCoachDebug({
-        mode: out.mode,
-        suppressionReason: out.suppressionReason as SuppressionReason | undefined,
-        suppressionDetail: out.suppressionDetail,
-        validationDebug: out.validationDebug,
-        acceleratedCandidateIds: out.acceleratedCandidateIds,
-        readinessNotes: out.readinessNotes,
-        commandDebug: out.commandDebug,
-      });
-
-      applyMapCommands(out.mapCommands ?? []);
-
-      const newMsg: ChatMsg = {
-        id: ++msgId,
-        role: "assistant",
-        text: out.text,
-        mode: out.mode,
-        questionAnchor: out.questionAnchor,
-        questionStance: out.questionStance,
-      };
-
-      if (out.validatedMirror) {
-        const mirrorId = `m_${Date.now()}`;
-        newMsg.mirrorId = mirrorId;
-        const initialDecisions: Record<string, ClaimDecision> = {};
-        for (const c of out.validatedMirror.claims) {
-          initialDecisions[c.claimId] = "pending";
-        }
-        setPendingMirrors((prev) => {
-          const next = new Map(prev);
-          next.set(mirrorId, {
-            id: mirrorId,
-            reflection: out.validatedMirror!.reflection,
-            claims: out.validatedMirror!.claims,
-            decisions: initialDecisions,
-          });
-          return next;
-        });
-      }
-
-      setMsgs((prev) => [...prev, newMsg]);
+      appendCoachOutput(out);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
@@ -1731,7 +1736,8 @@ export default function App() {
     }
   }
 
-  function decideClaim(mirrorId: string, claimId: string, decision: "confirmed" | "declined") {
+  async function decideClaim(mirrorId: string, claimId: string, decision: "confirmed" | "declined") {
+    if (loading) return;
     const pm = pendingMirrors.get(mirrorId);
     if (!pm || pm.decisions[claimId] !== "pending") return;
 
@@ -1774,6 +1780,24 @@ export default function App() {
       mapStoreRef.current.addFromReflection(confirmedReflection);
       setConfirmed((prev) => [...prev, confirmedReflection]);
       markUserMapChanged();
+
+      setLoading(true);
+      try {
+        const out = await processTurn(
+          stateRef.current,
+          "I confirmed that mirror chunk.",
+          llmRef.current,
+          configRef.current,
+          "chat",
+          mapStoreRef.current.toLLMContext(),
+        );
+        appendCoachOutput(out);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        setError(msg);
+      } finally {
+        setLoading(false);
+      }
     }
 
     if (decision === "declined" && claim) {

@@ -134,6 +134,10 @@ function isRedundantDraftDeclarationQuestion(text: string, config: MindmapConfig
   return true;
 }
 
+function hasCommandUncertainty(text: string, config: MindmapConfig): boolean {
+  return new RegExp(config.mirror.tentativeEvidencePattern, "i").test(text);
+}
+
 function shortenDraftDeclaration(text: string): string {
   const compact = text.trim().replace(/\s+/g, " ");
   return compact.length <= 90 ? compact : `${compact.slice(0, 87).trim()}...`;
@@ -984,6 +988,24 @@ export async function processTurn(
       pacingSuppressed: true,
       suppressionReason: "command_precedence",
       suppressionDetail: "Accepted direct map command; same-turn mirror suppressed.",
+      questionStance: "organize",
+    });
+  }
+
+  if (
+    acceptedCommands.length > 0 &&
+    (turn.mode === "question" || turn.mode === "clarify") &&
+    !hasCommandUncertainty(userText, config)
+  ) {
+    state.turnsSinceLastMirror++;
+    state.mode = "question";
+    return finish({
+      mode: "question",
+      text: "Done.",
+      llmTurn: turn,
+      pacingSuppressed: true,
+      suppressionReason: "command_precedence",
+      suppressionDetail: "Accepted complete direct map command; same-turn coach follow-up suppressed.",
       questionStance: "organize",
     });
   }

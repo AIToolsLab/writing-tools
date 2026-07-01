@@ -102,8 +102,8 @@ canvas work.
 ### Slider
 
 The Think-to-Map slider changes eagerness and pacing for non-declared ideas. It
-never changes grounding, confirmation, or whether explicit declarations and
-direct commands are honored.
+shortens mirror cooldown toward Map, but never changes grounding, confirmation,
+or whether explicit declarations and direct commands are honored.
 
 ### Diagnostics
 
@@ -119,9 +119,9 @@ validation payloads, accelerated candidates, and readiness notes. This turns
 | Questioning | `api.ts`, `controller.ts`, `llm-contract.ts` | Prompt stance + anti-repeat and stuck overrides |
 | Readiness | `readiness.ts`, `signals.ts`, `controller.ts` | Code-derived relation signals, spontaneous hierarchy rule |
 | Validation | `validator.ts` | Lexical grounding + span/relationship grounding |
-| Confirmation | `App.tsx` | Per-claim confirm/decline creates cards only on confirm |
+| Confirmation | `App.tsx` | Per-claim confirm/decline creates cards only on confirm; confirm triggers the next gated coach turn |
 | Carry-forward | `llm-contract.ts`, `controller.ts`, `readiness.ts` | `carryForwardCandidateIds`, idea-only density acceleration |
-| Direct commands | `llm-contract.ts`, `controller.ts`, `map-commands.ts` | `mapCommands`, exact current-turn spans, exact reference resolution, user-confirmed near matches |
+| Direct commands | `llm-contract.ts`, `controller.ts`, `map-commands.ts` | `mapCommands`, exact current-turn spans, exact reference resolution, user-confirmed near matches, command precedence |
 | Map | `map-store.ts`, `Map.tsx` | One primitive: `ThoughtUnit` card; nesting is `parentId`; connections have label cards |
 | Draft anchoring | `App.tsx`, `api.ts` | Read-only draft + verbatim `questionAnchor` highlight |
 | Slider | `config.ts` | `withQuestionIntentBias` changes pacing thresholds only |

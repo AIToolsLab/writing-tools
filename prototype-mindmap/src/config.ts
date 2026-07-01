@@ -137,7 +137,7 @@ export function withQuestionIntentBias(
   const mapLean = Math.max(0, normalized - 50) / 50;
   const candidateShift = thinkLean * 2 - mapLean;
   const readyShift = thinkLean - mapLean;
-  const mirrorTurnShift = thinkLean * 2 - mapLean * 2;
+  const mirrorTurnShift = thinkLean * 2 - mapLean * 3;
   const batchShift = thinkLean - mapLean;
 
   return {
@@ -149,7 +149,7 @@ export function withQuestionIntentBias(
       mapPressure: mapLean,
       minQuestionTurnsBetweenMirrors: clampInt(
         config.pacing.minQuestionTurnsBetweenMirrors + mirrorTurnShift,
-        1,
+        0,
         7,
       ),
       minReadyCandidatesToBatch: clampInt(

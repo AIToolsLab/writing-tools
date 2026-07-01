@@ -299,6 +299,11 @@ hierarchy, or ideas inferred only from the draft.
 DIRECT MAP COMMANDS:
 - "mapCommands" are side effects, not a chat mode. You may emit mapCommands
   while mode is "question", "mirror", or "clarify".
+- If a turn contains both an imperative map command and uncertainty about a
+  different aspect ("make a card for X; I'm not sure how it connects"), still
+  emit the command when its wording/references are exact. Use the
+  question/clarify text only for the uncertainty. If the uncertainty is about
+  whether to perform the command itself, ask instead of emitting a command.
 - Emit "create_card" only for imperative placement commands, e.g. "put X on the
   map", "make a card for X", "add X to the map". The command text/sourceSpan
   must be exact user words from this turn. Never paraphrase.
@@ -317,9 +322,12 @@ DIRECT MAP COMMANDS:
   inside Y"). A first-person "I want X under Y" is a placement command, not a
   mirror — do not route it to the mirror path. "childText" and "parentText" must
   be the user's words.
-- Emit "connect_cards" only for imperative connection commands ("connect X to
-  Y", "link X and Y"). If the user supplies label wording, copy it into
-  "labelText"; otherwise omit it. Never invent a connection label.
+- Treat connection commands as first-class direct map commands, especially when
+  the endpoints are visible #refs: "connect A to B", "link A and B", "draw a
+  connection from A to B", and "connect A to B with the label X" should emit
+  "connect_cards". This is a command, not a relationship statement to mirror.
+  If the user supplies label wording, copy it into "labelText"; otherwise omit
+  it. Never invent a connection label.
 - If the user uses a shortened visible-card reference ("connect control to
   authorship" when the map has "human control"), copy the user's reference
   exactly. The controller will either resolve exact matches, ask a "did you mean

@@ -284,6 +284,48 @@ describe("question mode", () => {
     expect(out.validatedMirror).toBeUndefined();
   });
 
+  it("suppresses a redundant follow-up after a complete accepted command", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_90", "AI suggestion"), mapUnit("tu_86", "human control")],
+      connections: [],
+    };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What makes supports human control the right link?",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "#90",
+          targetText: "#86",
+          labelText: "supports human control",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "Connect #90 to #86 with the label 'supports human control.' Do not ask a follow-up.",
+      llm,
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.text).toBe("Done.");
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "tu_90" },
+        target: { id: "tu_86" },
+        labelText: "supports human control",
+        labelSourceUtteranceIds: ["u_1"],
+      },
+    ]);
+    expect(out.suppressionReason).toBe("command_precedence");
+  });
+
   it("trusts LLM placement interpretation for varied create-card phrasing", async () => {
     const state = createState();
     const llm = (_ctx: LLMContext): LLMTurn => ({
@@ -994,6 +1036,7 @@ describe("pacing", () => {
   it("lets high map pressure mirror a newly-ready candidate after the user's answer", async () => {
     const state = createState();
     const cfg = withQuestionIntentBias(defaultConfig, 100);
+    expect(cfg.pacing.minQuestionTurnsBetweenMirrors).toBe(0);
     await processTurn(state, "I am working through the draft", questionLLM("What part feels live?"), cfg);
 
     const llm = (_ctx: LLMContext): LLMTurn => ({
@@ -1498,9 +1541,10 @@ describe("pacing", () => {
     expect(out.commandDebug?.some((note) => note.reason === "not_current_turn_span")).toBe(true);
   });
 
-  it("still blocks a first-turn mirror even at high map pressure", async () => {
+  it("lets full map pressure remove the first-turn cooldown without bypassing other gates", async () => {
     const state = createState();
     const cfg = withQuestionIntentBias(defaultConfig, 100);
+    expect(cfg.pacing.minQuestionTurnsBetweenMirrors).toBe(0);
     const llm = (_ctx: LLMContext): LLMTurn => ({
       mode: "mirror",
       text: "too soon",
@@ -1534,7 +1578,7 @@ describe("pacing", () => {
     const out = await processTurn(state, "writing clears my head", llm, cfg);
 
     expect(out.mode).toBe("question");
-    expect(out.pacingSuppressed).toBe(true);
+    expect(out.suppressionReason).not.toBe("cooldown");
   });
 });
 
