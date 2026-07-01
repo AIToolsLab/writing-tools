@@ -158,6 +158,11 @@ export interface LLMContext {
   turnShape: TurnShape;
   /** Newly-confirmed user-authored structure the next coach turn should build on. */
   continuationFocus?: string[];
+  /** Current organize focus, if the coach recently asked about a specific card pair. */
+  organizeFocus?: {
+    refs: string[];
+    declineCount: number;
+  };
   /** The user's current draft text, if provided. Used for anchoring questions to draft regions. */
   draft?: string;
   /**

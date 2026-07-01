@@ -105,6 +105,11 @@ export interface LoopState {
   /** Current draft text — passed to LLM for context and anchor highlighting. */
   draft: string;
   pendingMapCommand?: PendingMapCommand;
+  organizeFocus?: {
+    refs: [string, string];
+    key: string;
+    declineCount: number;
+  };
 }
 
 export interface ProcessTurnOptions {
@@ -128,6 +133,29 @@ const CARRY_FORWARD_MIN_CONTENT_TOKENS = 3;
 function isStuck(text: string): boolean {
   const lower = text.toLowerCase();
   return STUCK_PHRASES.some((p) => lower.includes(p));
+}
+
+function wantsToMoveOn(text: string, config: MindmapConfig): boolean {
+  return new RegExp(config.coaching.moveOnPattern, "i").test(text);
+}
+
+function extractCardPairRefs(text: string): [string, string] | undefined {
+  const refs = Array.from(text.matchAll(/#\d+/g)).map((match) => match[0]);
+  const unique = Array.from(new Set(refs));
+  if (unique.length < 2) return undefined;
+  const pair = unique.slice(0, 2).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)));
+  return [pair[0], pair[1]];
+}
+
+function cardPairKey(refs: [string, string]): string {
+  return `${refs[0]}|${refs[1]}`;
+}
+
+function nextStepQuestion(draft: string, userText = ""): string {
+  if (/\bdraft\b/i.test(userText) && draft.trim()) {
+    return "In the draft, which part feels easiest to think through next?";
+  }
+  return "What would you like to do next?";
 }
 
 function isSuggestiveStructuralQuestion(text: string): boolean {
@@ -761,6 +789,7 @@ export function createState(_config?: MindmapConfig): LoopState {
     lastAiText: "",
     draft: "",
     pendingMapCommand: undefined,
+    organizeFocus: undefined,
   };
 }
 
@@ -853,6 +882,44 @@ export async function processTurn(
     state.pendingMapCommand = undefined;
   }
 
+  const explicitMoveOn = wantsToMoveOn(userText, config);
+  if (state.organizeFocus) {
+    if (explicitMoveOn) {
+      state.organizeFocus = undefined;
+      state.mode = "question";
+      state.turnsSinceLastMirror++;
+      const text = nextStepQuestion(state.draft, userText);
+      state.lastAiText = text;
+      return {
+        mode: "question",
+        text,
+        llmTurn: { mode: "question", text },
+        questionStance: state.draft.trim() ? "deepen" : "organize",
+      };
+    }
+
+    if (isStuck(userText)) {
+      const nextDeclines = state.organizeFocus.declineCount + 1;
+      if (nextDeclines >= config.coaching.organizePairDeclineLimit) {
+        state.organizeFocus = undefined;
+        state.mode = "question";
+        state.turnsSinceLastMirror++;
+        const text = nextStepQuestion(state.draft, userText);
+        state.lastAiText = text;
+        return {
+          mode: "question",
+          text,
+          llmTurn: { mode: "question", text },
+          questionStance: state.draft.trim() ? "deepen" : "organize",
+        };
+      }
+      state.organizeFocus = {
+        ...state.organizeFocus,
+        declineCount: nextDeclines,
+      };
+    }
+  }
+
   // 2. Deterministic structural-signal detection PER UNIT (spontaneity scored
   //    against the AI's previous turn so the LLM can't game it). Per-unit means
   //    a relationship signal is tied to the specific sentence that carries it.
@@ -885,6 +952,12 @@ export async function processTurn(
     turnText: userText,
     turnShape: initialTurnShape,
     continuationFocus,
+    organizeFocus: state.organizeFocus
+      ? {
+          refs: state.organizeFocus.refs,
+          declineCount: state.organizeFocus.declineCount,
+        }
+      : undefined,
     draft: state.draft || undefined,
     draftDeclarations,
     map,
@@ -1074,6 +1147,35 @@ export async function processTurn(
           ...targeted,
         };
       }
+    }
+
+    const organizePair =
+      (out.mode === "question" || out.mode === "clarify") &&
+      (out.questionStance === "organize" || turn.questionIntent === "organize" || turn.questionStance === "organize")
+        ? extractCardPairRefs(out.text)
+        : undefined;
+
+    if (organizePair) {
+      const key = cardPairKey(organizePair);
+      const isSamePair = state.organizeFocus?.key === key;
+      if (isSamePair && (state.organizeFocus?.declineCount ?? 0) >= config.coaching.organizePairDeclineLimit) {
+        out = {
+          ...out,
+          mode: "question",
+          text: nextStepQuestion(state.draft),
+          questionAnchor: undefined,
+          questionStance: state.draft.trim() ? "deepen" : "organize",
+        };
+        state.organizeFocus = undefined;
+      } else {
+        state.organizeFocus = {
+          refs: organizePair,
+          key,
+          declineCount: isSamePair ? state.organizeFocus?.declineCount ?? 0 : 0,
+        };
+      }
+    } else if (out.mode === "question" || out.mode === "clarify") {
+      state.organizeFocus = undefined;
     }
 
     // Anti-repeat guard: if a question/clarify turn would say verbatim what we

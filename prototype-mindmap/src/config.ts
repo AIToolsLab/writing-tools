@@ -111,10 +111,16 @@ export interface PacingConfig {
   organizeIntentReadyThreshold: number;
 }
 
+export interface CoachingConfig {
+  moveOnPattern: string;
+  organizePairDeclineLimit: number;
+}
+
 export interface MindmapConfig {
   mirror: MirrorThresholds;
   readiness: ReadinessThresholds;
   pacing: PacingConfig;
+  coaching: CoachingConfig;
   turnShape: TurnShapeConfig;
   draftDeclarations: DraftDeclarationConfig;
   draftRedundancy: DraftRedundancyConfig;
@@ -144,6 +150,7 @@ export function withQuestionIntentBias(
     ...config,
     mirror: { ...config.mirror },
     readiness: { ...config.readiness },
+    coaching: { ...config.coaching },
     pacing: {
       ...config.pacing,
       mapPressure: mapLean,
@@ -198,6 +205,11 @@ export const defaultConfig: MindmapConfig = {
     softMaxMirrorChunks: 4,
     organizeIntentCandidateThreshold: 3,
     organizeIntentReadyThreshold: 2,
+  },
+  coaching: {
+    moveOnPattern:
+      "\\b(?:move\\s+on|pivot|fine\\s+as\\s+is|leave\\s+(?:it|this)|what\\s+next|something\\s+else|focus\\s+on\\s+some\\s+part\\s+of\\s+the\\s+draft)\\b",
+    organizePairDeclineLimit: 2,
   },
   turnShape: {
     largeUnitCount: 4,

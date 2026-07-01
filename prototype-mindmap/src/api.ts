@@ -217,12 +217,15 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const continuationNote = ctx.continuationFocus?.length
     ? `\nCONTINUATION FOCUS: The user just confirmed these map items: ${ctx.continuationFocus.join("; ")}. Advance from these confirmed items — ask the next useful question about them before reopening older material. Refer to them by a short paraphrase or their #ref, NOT by quoting their full wording, and do not mirror command phrasing or stale bank content.`
     : "";
+  const organizeFocusNote = ctx.organizeFocus
+    ? `\nCURRENT ORGANIZE FOCUS: The coach recently asked about ${ctx.organizeFocus.refs.join(" and ")}. If the user declines to state a relationship, says it is fine as-is, says they want to move on, or seems unsure again after already demurring once (declines so far: ${ctx.organizeFocus.declineCount}), do NOT re-ask about the same cards. Pivot to a different card, a draft region, or an open hand-back question instead.`
+    : "";
   const intentNote = shouldOrganize
     ? `\nQUESTION INTENT: Use "organize" — the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask structural/relational questions: what is bigger, what connects what, how two named concepts relate. Do NOT open new topics.`
     : `\nQUESTION INTENT: Use "deepen" — dig into one concept. Ask what it is, what it does, what assumption it rests on, or what would change it. Surface real tensions before moving on.`;
 
   const relationshipSafeIntentNote = shouldOrganize
-    ? `\nQUESTION INTENT: Use "organize" - the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask the user to author the relationship between already-named thoughts in their own words. Do NOT offer possible structures such as bigger/smaller, under/alongside, claim/software idea, cause/effect, or any pair of labels for them to choose between unless the user already supplied those exact alternatives. Do NOT open new topics.`
+    ? `\nQUESTION INTENT: Use "organize" - the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask the user to author the relationship between already-named thoughts in their own words. Do NOT offer possible structures such as bigger/smaller, under/alongside, claim/software idea, cause/effect, or any pair of labels for them to choose between unless the user already supplied those exact alternatives. If the user declines to state a relationship, says it is fine as-is, says they want to move on, or keeps demurring, do NOT re-ask about the same cards; pivot to a different card, a draft region, or an open hand-back question instead. Do NOT open new topics.`
     : intentNote;
 
   // Declaration / carry-forward recognition is ALWAYS on — explicit user
@@ -233,7 +236,8 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const declarationNote = `\nDECLARATION PRESSURE: Phrases like "the main idea is", "a second idea is", "another idea is", "the next point is", or "I also want to show" are carry-forward pressure for an idea candidate, not commands. If the declared idea is compact and source-groundable, upsert it, set "carryForwardCandidateIds", and mirror it. If it is compound, contrastive, or not yet source-groundable, ask one focused question that helps the user state the idea in their own words, then mirror on the next clear answer. Do not keep narrowing the same idea across turns.`;
 
   return `${PHILOSOPHY}
-${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${continuationNote}
+${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${continuationNote}${organizeFocusNote}
+${organizeFocusNote}
 
 CURRENT DRAFT (user's document — read-only reference for anchoring):
 """

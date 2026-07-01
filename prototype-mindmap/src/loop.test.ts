@@ -363,6 +363,65 @@ describe("question mode", () => {
     expect(out.suppressionReason).toBe("command_precedence");
   });
 
+  it("pivots away when the user wants to move on from an organized card pair", async () => {
+    const state = createState();
+    await processTurn(
+      state,
+      "set up candidates",
+      organizeQuestionLLM("Staying with #231 and #235, what relationship do you want there?"),
+    );
+
+    const called: { value: boolean } = { value: false };
+    const llm = (_ctx: LLMContext): LLMTurn => {
+      called.value = true;
+      return {
+        mode: "question",
+        text: "Staying with #231 and #235, which one feels easier?",
+        questionIntent: "organize",
+        questionStance: "organize",
+      };
+    };
+
+    const out = await processTurn(
+      state,
+      "I want to move from #231 and #235 and focus on some part of the draft",
+      llm,
+    );
+
+    expect(called.value).toBe(false);
+    expect(out.text).toBe("What would you like to do next?");
+    expect(state.organizeFocus).toBeUndefined();
+  });
+
+  it("drops the same organize pair after two declines", async () => {
+    const state = createState();
+    const llm = organizeQuestionLLM("Staying with #205 and #191, what relationship do you want there?");
+
+    await processTurn(state, "set up", llm);
+    expect(state.organizeFocus?.refs).toEqual(["#191", "#205"]);
+
+    const first = await processTurn(state, "not sure", llm);
+    expect(first.mode).toBe("clarify");
+    expect(state.organizeFocus?.declineCount).toBe(1);
+
+    const second = await processTurn(state, "not sure", llm);
+    expect(second.text).toBe("What would you like to do next?");
+    expect(state.organizeFocus).toBeUndefined();
+  });
+
+  it("still allows organize questions when the user has not disengaged", async () => {
+    const state = createState();
+    const out = await processTurn(
+      state,
+      "let's compare those",
+      organizeQuestionLLM("How do #205 and #191 relate in your words?"),
+    );
+
+    expect(out.text).toBe("How do #205 and #191 relate in your words?");
+    expect(state.organizeFocus?.refs).toEqual(["#191", "#205"]);
+    expect(state.organizeFocus?.declineCount).toBe(0);
+  });
+
   it("trusts LLM placement interpretation for varied create-card phrasing", async () => {
     const state = createState();
     const llm = (_ctx: LLMContext): LLMTurn => ({
