@@ -87,6 +87,8 @@ export interface CommandDebugNote {
   detail: string;
 }
 
+type StructuralVerbIntent = "connect" | "nest" | "ambiguous_join";
+
 /**
  * Fixed user-facing preamble for a passing mirror. The actual reflection is the
  * set of validated, confirmable claims — never free LLM prose, which could
@@ -417,6 +419,45 @@ function isConnectCommandText(text: string): boolean {
   );
 }
 
+function detectStructuralVerbIntent(text: string): StructuralVerbIntent | undefined {
+  const lower = text.toLowerCase();
+  if (/\b(?:nest|under|inside|subpoint|child)\b/.test(lower)) return "nest";
+  if (/\b(?:connect|link)\b/.test(lower)) return "connect";
+  if (/\b(?:join|combine|merge)\b/.test(lower)) return "ambiguous_join";
+  return undefined;
+}
+
+function extractExplicitRefPair(text: string): [string, string] | undefined {
+  const refs = Array.from(text.matchAll(/#\d+/g)).map((match) => match[0]);
+  const unique = Array.from(new Set(refs));
+  return unique.length >= 2 ? [unique[0], unique[1]] : undefined;
+}
+
+function explicitRefCommandClarification(
+  userText: string,
+): { prompt: string; debug: string } | undefined {
+  const refs = extractExplicitRefPair(userText);
+  if (!refs) return undefined;
+  const intent = detectStructuralVerbIntent(userText);
+  if (!intent) return undefined;
+
+  if (intent === "ambiguous_join") {
+    return {
+      prompt: `I'm not sure what you mean by join here - do you want to connect ${refs[0]} and ${refs[1]}, or nest one under the other?`,
+      debug: `explicit_ref_command_clarification: ambiguous join/combine for ${refs[0]} and ${refs[1]}`,
+    };
+  }
+
+  if (intent === "nest" && /\bnest\s+to\b/i.test(userText)) {
+    return {
+      prompt: `Do you want to nest one of those cards under the other? If so, which one should go under which: ${refs[0]} or ${refs[1]}?`,
+      debug: `explicit_ref_command_clarification: awkward nest phrasing for ${refs[0]} and ${refs[1]}`,
+    };
+  }
+
+  return undefined;
+}
+
 function currentTurnSourceIdsForPhrase(
   phrase: string | undefined,
   units: SourceUtterance[],
@@ -619,9 +660,10 @@ function acceptedMapCommands(
   commands: MapCommand[] | undefined,
   units: SourceUtterance[],
   map: LLMMapContext,
-  options: { requireConnectionLabel?: boolean } = {},
+  options: { requireConnectionLabel?: boolean; userText?: string } = {},
 ): { accepted: AcceptedMapCommand[]; pending?: PendingMapCommand; notes: CommandDebugNote[] } {
   const requireConnectionLabel = options.requireConnectionLabel ?? false;
+  const userText = options.userText ?? "";
   const accepted: AcceptedMapCommand[] = [];
   let pending: PendingMapCommand | undefined;
   let clarificationPrompt: string | undefined;
@@ -799,6 +841,17 @@ function acceptedMapCommands(
       target,
       ...label,
     });
+  }
+
+  if (!pending && accepted.length === 0 && !clarificationPrompt) {
+    const explicitRefClarification = explicitRefCommandClarification(userText);
+    if (explicitRefClarification) {
+      clarificationPrompt = explicitRefClarification.prompt;
+      notes.push({
+        reason: "command_clarification",
+        detail: explicitRefClarification.debug,
+      });
+    }
   }
 
   return { accepted, pending, notes: clarificationPrompt ? [{ reason: "command_clarification", detail: clarificationPrompt }, ...notes] : notes };
@@ -1186,6 +1239,7 @@ export async function processTurn(
   const turn = await llm(ctx);
   const commandResult = acceptedMapCommands(turn.mapCommands, units, map, {
     requireConnectionLabel,
+    userText,
   });
   const acceptedCommands = commandResult.accepted;
   const turnShape = acceptedCommands.length > 0

@@ -1088,6 +1088,151 @@ describe("question mode", () => {
     expect(out.text).toContain('existing card called "human authorship"');
     expect(out.commandDebug?.some((note) => note.reason === "near_match_pending")).toBe(true);
   });
+
+  it("treats explicit #ref link phrasing as command intent and does not fall into carry-forward", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
+      connections: [],
+    };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What part of that feels most important to carry forward on the map?",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "#448",
+          targetText: "#451",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "#448 should link to #451",
+      llm,
+      defaultConfig,
+      "chat",
+      map,
+      { requireConnectionLabel: false },
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "tu_448" },
+        target: { id: "tu_451" },
+        labelText: undefined,
+        labelSourceUtteranceIds: undefined,
+      },
+    ]);
+    expect(out.text).toBe("Done. What would you like to do next?");
+  });
+
+  it("keeps explicit #ref join phrasing on the command path with connect-vs-nest clarification", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
+      connections: [],
+    };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What part of that feels most important to carry forward on the map?",
+    });
+
+    const out = await processTurn(
+      state,
+      "#448 should join #451",
+      llm,
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toBe(
+      "I'm not sure what you mean by join here - do you want to connect #448 and #451, or nest one under the other?",
+    );
+    expect(out.text).not.toContain("carry forward");
+  });
+
+  it("keeps explicit #ref combine phrasing on the command path with connect-vs-nest clarification", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
+      connections: [],
+    };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What exact wording do you want the map to carry forward from that?",
+    });
+
+    const out = await processTurn(
+      state,
+      "#448 should combine to #451",
+      llm,
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toBe(
+      "I'm not sure what you mean by join here - do you want to connect #448 and #451, or nest one under the other?",
+    );
+    expect(out.text).not.toContain("carry forward");
+  });
+
+  it("keeps awkward explicit #ref nest phrasing on the command path with nesting clarification", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
+      connections: [],
+    };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What part feels most important to carry forward on the map?",
+    });
+
+    const out = await processTurn(
+      state,
+      "#448 should nest to #451",
+      llm,
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toBe(
+      "Do you want to nest one of those cards under the other? If so, which one should go under which: #448 or #451?",
+    );
+    expect(out.text).not.toContain("carry forward");
+  });
+
+  it("does not fall into carry-forward when a #ref relationship phrase uses authored wording", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
+      connections: [],
+    };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What relationship, if any, do you want between #451 and #448 in your own words?",
+    });
+
+    const out = await processTurn(
+      state,
+      "#448 is a support information of #451",
+      llm,
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.text).not.toContain("carry forward");
+    expect(out.text).not.toContain("What exact wording do you want the map to carry forward");
+  });
 });
 
 // ---------------------------------------------------------------------------

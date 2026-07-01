@@ -393,6 +393,12 @@ DIRECT MAP COMMANDS:
   the label wording itself into "labelText" (not the quotes). If the user
   supplies label wording, include it in "labelText"; otherwise omit it. Never
   invent a connection label.
+- If the user uses explicit #refs with an awkward structural verb, still treat
+  it as command intent. "link" should favor "connect_cards". "nest to" should
+  favor a nesting clarification if direction is unclear. "join", "combine", and
+  "merge" do NOT authorize a new merge operation; if you are unsure whether the
+  user means connect or nest, ask that command-style clarification instead of
+  switching to mirror or carry-forward.
 - If the user uses a shortened visible-card reference ("connect control to
   authorship" when the map has "human control"), copy the user's reference
   exactly. The controller will either resolve exact matches, ask a "did you mean
