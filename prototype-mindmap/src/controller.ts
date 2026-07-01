@@ -66,10 +66,20 @@ export type AcceptedMapCommand =
     };
 
 export interface PendingMapCommandConfirmation {
+  kind: "reference_confirmation";
   prompt: string;
   command: AcceptedMapCommand;
   debug: string;
 }
+
+export interface PendingConnectionLabelCommand {
+  kind: "connection_label";
+  prompt: string;
+  command: Extract<AcceptedMapCommand, { kind: "connect_cards" }>;
+  debug: string;
+}
+
+export type PendingMapCommand = PendingMapCommandConfirmation | PendingConnectionLabelCommand;
 
 export interface CommandDebugNote {
   reason: string;
@@ -94,11 +104,12 @@ export interface LoopState {
   lastAiText: string;
   /** Current draft text — passed to LLM for context and anchor highlighting. */
   draft: string;
-  pendingMapCommand?: PendingMapCommandConfirmation;
+  pendingMapCommand?: PendingMapCommand;
 }
 
 export interface ProcessTurnOptions {
   ingestUser?: boolean;
+  requireConnectionLabel?: boolean;
 }
 
 const STUCK_PHRASES = [
@@ -213,6 +224,22 @@ function currentTurnSourceIdsForPhrase(
   return units.filter((unit) => unit.text.includes(trimmed)).map((unit) => unit.id);
 }
 
+function extractNaturalConnectionLabel(units: SourceUtterance[]): string | undefined {
+  for (const unit of units) {
+    const quoted =
+      unit.text.match(/\bwith the label\b\s*["“'‘]([^"”'’]+?)["”'’]/i) ??
+      unit.text.match(/\blabeled\b\s*["“'‘]([^"”'’]+?)["”'’]/i);
+    const fallback =
+      unit.text.match(/\bwith the label\b\s+(.+?)(?:[.!?]|$)/i) ??
+      unit.text.match(/\blabeled\b\s+(.+?)(?:[.!?]|$)/i);
+    const raw = quoted?.[1] ?? fallback?.[1];
+    if (!raw) continue;
+    const trimmed = raw.trim().replace(/[.!?]+$/, "").trim();
+    if (trimmed) return trimmed;
+  }
+  return undefined;
+}
+
 /**
  * Resolve a card reference like "#59" (the human-visible ref the AI and user
  * cite) back to an existing card id. The ref is `#` + the id's trailing number,
@@ -303,7 +330,9 @@ function groundedLabel(command: MapCommand, units: SourceUtterance[]): {
   labelText?: string;
   labelSourceUtteranceIds?: string[];
 } {
-  const labelText = command.labelText?.trim() || undefined;
+  const labelText =
+    command.labelText?.trim() ||
+    (command.kind === "connect_cards" ? extractNaturalConnectionLabel(units) : undefined);
   const sourceIds = labelText ? currentTurnSourceIdsForPhrase(labelText, units) : undefined;
   if (!labelText || !sourceIds || sourceIds.length === 0) return {};
   return { labelText, labelSourceUtteranceIds: sourceIds };
@@ -325,6 +354,7 @@ function acceptedCommandFromNearMatch(
       parent.kind === "near" ? near.matches[0].id : parent.kind === "resolved" && "id" in parent.ref ? parent.ref.id : undefined;
     if (!childRef || !parentId) return undefined;
     return {
+      kind: "reference_confirmation",
       command: { kind: "nest_card", child: childRef, parentId },
       prompt: `I found an existing card called "${near.matches[0].text}" for "${near.requested}". Did you mean that one?`,
       debug: `near_match_pending: "${near.requested}" -> "${near.matches[0].text}" for nesting ${describeCardRef(childRef, map)} under ${map.thoughtUnits.find((unit) => unit.id === parentId)?.text ?? parentId}`,
@@ -346,6 +376,7 @@ function acceptedCommandFromNearMatch(
     if ("id" in sourceRef && "id" in targetRef && sourceRef.id === targetRef.id) return undefined;
     const readableMatches = nearRefs.map((ref) => `"${ref.requested}" -> "${ref.matches[0].text}"`).join(" and ");
     return {
+      kind: "reference_confirmation",
       command: {
         kind: "connect_cards",
         source: sourceRef,
@@ -386,9 +417,11 @@ function acceptedMapCommands(
   commands: MapCommand[] | undefined,
   units: SourceUtterance[],
   map: LLMMapContext,
-): { accepted: AcceptedMapCommand[]; pending?: PendingMapCommandConfirmation; notes: CommandDebugNote[] } {
+  options: { requireConnectionLabel?: boolean } = {},
+): { accepted: AcceptedMapCommand[]; pending?: PendingMapCommand; notes: CommandDebugNote[] } {
+  const requireConnectionLabel = options.requireConnectionLabel ?? false;
   const accepted: AcceptedMapCommand[] = [];
-  let pending: PendingMapCommandConfirmation | undefined;
+  let pending: PendingMapCommand | undefined;
   let clarificationPrompt: string | undefined;
   const notes: CommandDebugNote[] = [];
   const seen = new Set<string>();
@@ -536,6 +569,25 @@ function acceptedMapCommands(
     const target = targetResolved.ref;
     if ("id" in source && "id" in target && source.id === target.id) continue;
     const label = groundedLabel(command, units);
+    if (requireConnectionLabel && !label.labelText) {
+      if (!pending) {
+        pending = {
+          kind: "connection_label",
+          command: {
+            kind: "connect_cards",
+            source,
+            target,
+          },
+          prompt: `What should the label be between "${describeCardRef(source, map)}" and "${describeCardRef(target, map)}"?`,
+          debug: `connection_label_pending: awaiting label for ${describeCardRef(source, map)} -> ${describeCardRef(target, map)}`,
+        };
+      }
+      notes.push({
+        reason: "missing_connection_label",
+        detail: `Held connection "${describeCardRef(source, map)}" -> "${describeCardRef(target, map)}" until the user supplies a label.`,
+      });
+      continue;
+    }
     const key = `connect:${cardRefKey(source)}->${cardRefKey(target)}:${label.labelText ?? ""}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -660,8 +712,8 @@ export interface TurnOutput {
   mapCommands?: AcceptedMapCommand[];
   /** Command acceptance/blocking notes for tester/debug inspection. */
   commandDebug?: CommandDebugNote[];
-  /** Set when a direct command is waiting for a simple user confirmation. */
-  commandConfirmation?: PendingMapCommandConfirmation;
+  /** Set when a direct command is waiting for a follow-up confirmation or label. */
+  commandConfirmation?: PendingMapCommand;
   /** Debug visibility for candidates whose idea density was accelerated. */
   acceleratedCandidateIds?: string[];
   readinessNotes?: string[];
@@ -693,11 +745,12 @@ export async function processTurn(
   options: ProcessTurnOptions = {},
 ): Promise<TurnOutput> {
   const ingestUser = options.ingestUser ?? true;
+  const requireConnectionLabel = options.requireConnectionLabel ?? false;
   // 1. Record the user's words, segmented into sentence-level units so a big
   //    voice chunk becomes several grounded units rather than one opaque blob.
   const units = ingestUser ? state.bank.addSegmented(userText, origin) : [];
 
-  if (state.pendingMapCommand && isAffirmative(userText)) {
+  if (state.pendingMapCommand?.kind === "reference_confirmation" && isAffirmative(userText)) {
     const pending = state.pendingMapCommand;
     state.pendingMapCommand = undefined;
     state.mode = "question";
@@ -714,7 +767,7 @@ export async function processTurn(
     };
   }
 
-  if (state.pendingMapCommand && isNegative(userText)) {
+  if (state.pendingMapCommand?.kind === "reference_confirmation" && isNegative(userText)) {
     const pending = state.pendingMapCommand;
     state.pendingMapCommand = undefined;
     state.mode = "question";
@@ -726,6 +779,41 @@ export async function processTurn(
       text,
       llmTurn: { mode: "question", text },
       commandDebug: [{ reason: "near_match_rejected", detail: pending.debug }],
+      questionStance: "organize",
+    };
+  }
+
+  if (state.pendingMapCommand?.kind === "connection_label") {
+    const pending = state.pendingMapCommand;
+    state.pendingMapCommand = undefined;
+    state.mode = "question";
+    state.turnsSinceLastMirror++;
+    if (isNegative(userText)) {
+      const text = "Okay - I won't create that connection.";
+      state.lastAiText = text;
+      return {
+        mode: "question",
+        text,
+        llmTurn: { mode: "question", text },
+        commandDebug: [{ reason: "connection_label_cancelled", detail: pending.debug }],
+        questionStance: "organize",
+      };
+    }
+
+    const labelText = userText.trim();
+    state.lastAiText = "Done.";
+    return {
+      mode: "question",
+      text: "Done.",
+      llmTurn: { mode: "question", text: "Done." },
+      mapCommands: [
+        {
+          ...pending.command,
+          labelText,
+          labelSourceUtteranceIds: units.map((unit) => unit.id),
+        },
+      ],
+      commandDebug: [{ reason: "connection_label_completed", detail: pending.debug }],
       questionStance: "organize",
     };
   }
@@ -769,7 +857,9 @@ export async function processTurn(
     map,
   };
   const turn = await llm(ctx);
-  const commandResult = acceptedMapCommands(turn.mapCommands, units, map);
+  const commandResult = acceptedMapCommands(turn.mapCommands, units, map, {
+    requireConnectionLabel,
+  });
   const acceptedCommands = commandResult.accepted;
   const turnShape = acceptedCommands.length > 0
     ? detectTurnShape(userText, units, { hasAcceptedMapCommand: true, config: config.turnShape })

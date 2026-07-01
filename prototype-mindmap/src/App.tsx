@@ -6,7 +6,7 @@ import {
   processTurn,
   type AcceptedMapCommand,
   type ControllerMode,
-  type PendingMapCommandConfirmation,
+  type PendingMapCommand,
   type SuppressionReason,
   type TurnOutput,
 } from "./controller";
@@ -113,7 +113,7 @@ interface PersistedSession {
     clarifyTarget?: SourceSpan;
     lastAiText: string;
     draft: string;
-    pendingMapCommand?: PendingMapCommandConfirmation;
+    pendingMapCommand?: PendingMapCommand;
   };
   bank: LoopState["bank"] extends { getAll(): infer T } ? T : never;
   candidates: LoopState["candidates"] extends { getAll(): infer T } ? T : never;
@@ -1753,6 +1753,7 @@ export default function App() {
         configRef.current,
         "chat",
         mapStoreRef.current.toLLMContext(),
+        { requireConnectionLabel },
       );
 
       appendCoachOutput(out);
@@ -1832,7 +1833,7 @@ export default function App() {
           configRef.current,
           "chat",
           mapStoreRef.current.toLLMContext(),
-          { ingestUser: false },
+          { ingestUser: false, requireConnectionLabel },
         );
         appendCoachOutput(out);
       } catch (e) {

@@ -772,11 +772,17 @@ function ThoughtMapInner({
   );
 
   const addCard = useCallback(() => {
-    // Drop the new card near the center of the visible canvas, not at a fixed
-    // grid slot that can march offscreen.
+    // Drop the new card near the center of the visible canvas, with a small
+    // cascade offset so repeated clicks do not stack cards exactly on top of
+    // one another.
+    const rootCount = store
+      .getAll()
+      .filter((unit) => !unit.parentId && unit.role !== "connection_label")
+      .length;
+    const stagger = (rootCount % 6) * 28;
     const pos = flow.screenToFlowPosition({
-      x: window.innerWidth * 0.6,
-      y: window.innerHeight * 0.45,
+      x: window.innerWidth * 0.6 + stagger,
+      y: window.innerHeight * 0.45 + stagger,
     });
     onBeforeMapChange();
     store.addBlankUserCard(pos);

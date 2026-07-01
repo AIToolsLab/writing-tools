@@ -522,7 +522,66 @@ describe("question mode", () => {
     expect(out.mapCommands).toBeUndefined();
   });
 
-  it("accepts imperative unlabeled connection commands with unique references", async () => {
+  it("holds an unlabeled imperative connection command until the user supplies a label", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("source", "human control"), mapUnit("target", "authorship")],
+      connections: [],
+    };
+    const firstLLM = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should the label be?",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "human control",
+          targetText: "authorship",
+        },
+      ],
+    });
+
+    const first = await processTurn(
+      state,
+      "connect human control to authorship",
+      firstLLM,
+      defaultConfig,
+      "chat",
+      map,
+      { requireConnectionLabel: true },
+    );
+
+    expect(first.mapCommands).toBeUndefined();
+    expect(first.text).toBe('What should the label be between "human control" and "authorship"?');
+
+    let called = false;
+    const secondLLM = (_ctx: LLMContext): LLMTurn => {
+      called = true;
+      return { mode: "question", text: "should not be called" };
+    };
+    const second = await processTurn(
+      state,
+      "supports human control",
+      secondLLM,
+      defaultConfig,
+      "chat",
+      map,
+      { requireConnectionLabel: true },
+    );
+
+    expect(called).toBe(false);
+    expect(second.validatedMirror).toBeUndefined();
+    expect(second.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "source" },
+        target: { id: "target" },
+        labelText: "supports human control",
+        labelSourceUtteranceIds: ["u_2"],
+      },
+    ]);
+  });
+
+  it("accepts imperative unlabeled connection commands directly when label mode is off", async () => {
     const state = createState();
     const llm = (_ctx: LLMContext): LLMTurn => ({
       mode: "question",
@@ -546,6 +605,7 @@ describe("question mode", () => {
         thoughtUnits: [mapUnit("source", "human control"), mapUnit("target", "authorship")],
         connections: [],
       },
+      { requireConnectionLabel: false },
     );
 
     expect(out.mapCommands).toEqual([
@@ -598,6 +658,47 @@ describe("question mode", () => {
     });
   });
 
+  it("extracts a quoted natural-form label even when the command omits labelText", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Done.",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "#59",
+          targetText: "#44",
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "Connect #59 to #44 with the label \u201csupports human control.\u201d",
+      llm,
+      defaultConfig,
+      "chat",
+      {
+        thoughtUnits: [
+          mapUnit("tu_59", "mind maps let the user hold multiple possible relationships"),
+          mapUnit("tu_44", "human control"),
+        ],
+        connections: [],
+      },
+      { requireConnectionLabel: true },
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "tu_59" },
+        target: { id: "tu_44" },
+        labelText: "supports human control",
+        labelSourceUtteranceIds: ["u_1"],
+      },
+    ]);
+  });
+
   it("keeps an imperative connection command when an emitted label is ungrounded", async () => {
     const state = createState();
     const llm = (_ctx: LLMContext): LLMTurn => ({
@@ -623,6 +724,7 @@ describe("question mode", () => {
         thoughtUnits: [mapUnit("source", "human control"), mapUnit("target", "authorship")],
         connections: [],
       },
+      { requireConnectionLabel: false },
     );
 
     expect(out.mapCommands).toEqual([

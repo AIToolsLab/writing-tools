@@ -326,8 +326,10 @@ DIRECT MAP COMMANDS:
   the endpoints are visible #refs: "connect A to B", "link A and B", "draw a
   connection from A to B", and "connect A to B with the label X" should emit
   "connect_cards". This is a command, not a relationship statement to mirror.
-  If the user supplies label wording, copy it into "labelText"; otherwise omit
-  it. Never invent a connection label.
+  Treat straight or curly quotes around the label as equivalent, and copy only
+  the label wording itself into "labelText" (not the quotes). If the user
+  supplies label wording, include it in "labelText"; otherwise omit it. Never
+  invent a connection label.
 - If the user uses a shortened visible-card reference ("connect control to
   authorship" when the map has "human control"), copy the user's reference
   exactly. The controller will either resolve exact matches, ask a "did you mean
