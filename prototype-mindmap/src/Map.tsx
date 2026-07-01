@@ -498,6 +498,7 @@ function ThoughtMapInner({
   onStoreChange,
 }: ThoughtMapProps) {
   const flow = useReactFlow();
+  const visibleCardCount = store.getAll().filter((unit) => unit.role !== "connection_label").length;
   const [showDebug, setShowDebug] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [connectionPanelKey, setConnectionPanelKey] = useState(0);
@@ -1031,7 +1032,7 @@ function ThoughtMapInner({
       <div className="map-header">
         <div>
           <h2>Concept map</h2>
-          <span className="map-count">{store.getAll().length} cards</span>
+          <span className="map-count">{visibleCardCount} cards</span>
         </div>
 
         {commandAck && (
@@ -1088,7 +1089,7 @@ function ThoughtMapInner({
       </p>
 
       <div className="map-canvas">
-        {store.getAll().length === 0 && <div className="map-empty">No cards yet</div>}
+        {visibleCardCount === 0 && <div className="map-empty">No cards yet</div>}
         <ReactFlow
           nodes={displayNodes}
           edges={edges}

@@ -21,6 +21,8 @@ export interface SourceUtterance {
   origin: UtteranceOrigin;
   /** Groups sentence-level units that came from one input (one turn / paste). */
   turnId?: string;
+  /** Ground-truth command wording kept for provenance, but excluded from mirrors. */
+  commandOnly?: boolean;
 }
 
 // ---------------------------------------------------------------------------

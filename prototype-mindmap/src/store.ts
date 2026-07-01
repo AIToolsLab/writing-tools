@@ -95,6 +95,17 @@ export class SourceBank {
     return Array.from(this._utterances.values());
   }
 
+  markCommandOnly(ids: Iterable<string>): void {
+    for (const id of ids) {
+      const utterance = this._utterances.get(id);
+      if (!utterance || utterance.commandOnly) continue;
+      this._utterances.set(id, {
+        ...utterance,
+        commandOnly: true,
+      });
+    }
+  }
+
   replaceAll(utterances: SourceUtterance[]): void {
     this._utterances = new Map(utterances.map((u) => [u.id, u]));
     primeIdCounters(

@@ -81,6 +81,26 @@ export class ThoughtUnitStore {
   private _sizes: Map<string, XYSize> = new Map();
   private _connections: Map<string, ThoughtConnection> = new Map();
 
+  private nextRootPosition(): XYPosition {
+    const occupied = new Set(
+      this.getAll()
+        .filter((unit) => !unit.parentId && unit.role !== "connection_label")
+        .map((unit) => {
+          const pos = this._positions.get(unit.id);
+          return pos ? `${pos.x}:${pos.y}` : "";
+        })
+        .filter(Boolean),
+    );
+
+    for (let index = 0; index < Math.max(12, occupied.size + 6); index++) {
+      const pos = defaultPosition(index);
+      const key = `${pos.x}:${pos.y}`;
+      if (!occupied.has(key)) return pos;
+    }
+
+    return defaultPosition(occupied.size);
+  }
+
   add(unit: ThoughtUnit, position: XYPosition = defaultPosition(this._units.size)): ThoughtUnit {
     this._units.set(unit.id, unit);
     this._positions.set(unit.id, position);
@@ -89,7 +109,7 @@ export class ThoughtUnitStore {
 
   addFromReflection(
     reflection: ConfirmedReflection,
-    position: XYPosition = defaultPosition(this._units.size),
+    position: XYPosition = this.nextRootPosition(),
   ): ThoughtUnit {
     const existing = this.getByReflectionId(reflection.id);
     if (existing) return existing;
@@ -110,7 +130,7 @@ export class ThoughtUnitStore {
 
   addFromUserUtterance(
     utterance: SourceUtterance,
-    position: XYPosition = defaultPosition(this._units.size),
+    position: XYPosition = this.nextRootPosition(),
   ): ThoughtUnit {
     const existing = this.getByUtteranceId(utterance.id);
     if (existing) return existing;
@@ -144,7 +164,7 @@ export class ThoughtUnitStore {
       },
       roleHistory: [roleEntry("node", "user")],
     };
-    return this.add(unit, position ?? defaultPosition(this._units.size));
+    return this.add(unit, position ?? this.nextRootPosition());
   }
 
   get(id: string): ThoughtUnit | undefined {

@@ -699,6 +699,90 @@ describe("question mode", () => {
     ]);
   });
 
+  it("keeps command-only connection wording out of continuation mirror context", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_109", "AI suggestion"),
+        mapUnit("tu_111", "human control"),
+      ],
+      connections: [],
+    };
+    const firstLLM = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Done.",
+      mapCommands: [
+        {
+          kind: "connect_cards",
+          sourceText: "#109",
+          targetText: "#111",
+          labelText: "supports human control",
+        },
+      ],
+      candidateUpserts: [
+        {
+          id: "cmd_idea",
+          target: "idea",
+          gist: 'Connect #109 to #111 with the label "supports human control."',
+          addEvidenceIds: ["u_1"],
+        },
+      ],
+    });
+
+    const first = await processTurn(
+      state,
+      'Connect #109 to #111 with the label "supports human control."',
+      firstLLM,
+      defaultConfig,
+      "chat",
+      map,
+      { requireConnectionLabel: true },
+    );
+
+    expect(first.mapCommands?.[0]).toMatchObject({
+      kind: "connect_cards",
+      source: { id: "tu_109" },
+      target: { id: "tu_111" },
+      labelText: "supports human control",
+    });
+    expect(state.bank.getAll()).toEqual([
+      expect.objectContaining({
+        id: "u_1",
+        text: 'Connect #109 to #111 with the label "supports human control."',
+        commandOnly: true,
+      }),
+    ]);
+    expect(state.candidates.get("cmd_idea")).toBeUndefined();
+
+    let sawCommandInBank = false;
+    const secondLLM = (ctx: LLMContext): LLMTurn => {
+      sawCommandInBank = ctx.bank.some((utterance) =>
+        utterance.text.includes('Connect #109 to #111 with the label "supports human control."'),
+      );
+      return sawCommandInBank
+        ? groundedMirrorLLM(
+            'Connect #109 to #111 with the label "supports human control."',
+            "u_1",
+          )(ctx)
+        : { mode: "question", text: "What does that connection change?" };
+    };
+
+    const second = await processTurn(
+      state,
+      "",
+      secondLLM,
+      defaultConfig,
+      "chat",
+      map,
+      { ingestUser: false, continuationFocus: ["supports human control"] },
+    );
+
+    expect(sawCommandInBank).toBe(false);
+    expect(second.mode).toBe("question");
+    expect(second.validatedMirror).toBeUndefined();
+    expect(second.text).toBe("What does that connection change?");
+  });
+
   it("keeps an imperative connection command when an emitted label is ungrounded", async () => {
     const state = createState();
     const llm = (_ctx: LLMContext): LLMTurn => ({

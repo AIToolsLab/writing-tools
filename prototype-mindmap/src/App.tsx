@@ -1824,6 +1824,9 @@ export default function App() {
     }
 
     if (resolution.shouldContinue) {
+      const continuationFocus = pm.reflection.claims
+        .filter((pendingClaim) => resolution.nextDecisions[pendingClaim.id] === "confirmed")
+        .map((pendingClaim) => pendingClaim.text);
       setLoading(true);
       try {
         const out = await processTurn(
@@ -1833,7 +1836,7 @@ export default function App() {
           configRef.current,
           "chat",
           mapStoreRef.current.toLLMContext(),
-          { ingestUser: false, requireConnectionLabel },
+          { ingestUser: false, requireConnectionLabel, continuationFocus },
         );
         appendCoachOutput(out);
       } catch (e) {

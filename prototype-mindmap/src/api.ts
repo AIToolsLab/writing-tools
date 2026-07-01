@@ -98,8 +98,9 @@ NON-NEGOTIABLE RULES:
    concrete version — break it into something they can point at. Never move on.`;
 
 function renderBank(bank: SourceUtterance[]): string {
-  if (bank.length === 0) return "(nothing yet)";
-  return bank.map((u) => `[${u.id}] ${u.text}`).join("\n");
+  const visible = bank.filter((u) => !u.commandOnly);
+  if (visible.length === 0) return "(nothing yet)";
+  return visible.map((u) => `[${u.id}] ${u.text}`).join("\n");
 }
 
 function renderCandidates(candidates: CandidateThought[], readyIds: string[]): string {
@@ -190,6 +191,9 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
       : ctx.turnShape.kind === "large_selected"
       ? `\nLARGE TURN: The latest user turn is large but contains explicit selected wording. You may work only with that user-selected wording, and only through the existing carry-forward, validation, confirmation, and command gates. Do not harvest the rest of the turn.`
       : "";
+  const continuationNote = ctx.continuationFocus?.length
+    ? `\nCONTINUATION FOCUS: The user just confirmed these map items: ${ctx.continuationFocus.map((text) => `"${text}"`).join(", ")}. Advance from these confirmed items. Ask the next useful question about them before reopening older material, and do not mirror command phrasing or stale bank content.`
+    : "";
   const intentNote = shouldOrganize
     ? `\nQUESTION INTENT: Use "organize" — the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask structural/relational questions: what is bigger, what connects what, how two named concepts relate. Do NOT open new topics.`
     : `\nQUESTION INTENT: Use "deepen" — dig into one concept. Ask what it is, what it does, what assumption it rests on, or what would change it. Surface real tensions before moving on.`;
@@ -206,7 +210,7 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const declarationNote = `\nDECLARATION PRESSURE: Phrases like "the main idea is", "a second idea is", "another idea is", "the next point is", or "I also want to show" are carry-forward pressure for an idea candidate, not commands. If the declared idea is compact and source-groundable, upsert it, set "carryForwardCandidateIds", and mirror it. If it is compound, contrastive, or not yet source-groundable, ask one focused question that helps the user state the idea in their own words, then mirror on the next clear answer. Do not keep narrowing the same idea across turns.`;
 
   return `${PHILOSOPHY}
-${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}
+${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${continuationNote}
 
 CURRENT DRAFT (user's document — read-only reference for anchoring):
 """

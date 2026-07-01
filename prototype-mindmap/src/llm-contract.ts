@@ -156,6 +156,8 @@ export interface LLMContext {
    * authorizes candidates, mirrors, commands, or map writes.
    */
   turnShape: TurnShape;
+  /** Newly-confirmed user-authored structure the next coach turn should build on. */
+  continuationFocus?: string[];
   /** The user's current draft text, if provided. Used for anchoring questions to draft regions. */
   draft?: string;
   /**

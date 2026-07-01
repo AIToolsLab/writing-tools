@@ -110,6 +110,7 @@ export interface LoopState {
 export interface ProcessTurnOptions {
   ingestUser?: boolean;
   requireConnectionLabel?: boolean;
+  continuationFocus?: string[];
 }
 
 const STUCK_PHRASES = [
@@ -625,6 +626,34 @@ function validationDetail(claims: ClaimValidation[]): string {
   return parts ? `${score}; ${parts}` : score;
 }
 
+function mirrorEligibleBank(bank: SourceUtterance[]): SourceUtterance[] {
+  return bank.filter((utterance) => !utterance.commandOnly);
+}
+
+function commandConsumedUtteranceIds(commands: AcceptedMapCommand[]): Set<string> {
+  const ids = new Set<string>();
+  for (const command of commands) {
+    if (command.kind === "create_card") {
+      for (const id of command.sourceUtteranceIds) ids.add(id);
+      continue;
+    }
+    if (command.kind === "nest_card") {
+      if (!("id" in command.child)) {
+        for (const id of command.child.sourceUtteranceIds) ids.add(id);
+      }
+      continue;
+    }
+    if (!("id" in command.source)) {
+      for (const id of command.source.sourceUtteranceIds) ids.add(id);
+    }
+    if (!("id" in command.target)) {
+      for (const id of command.target.sourceUtteranceIds) ids.add(id);
+    }
+    for (const id of command.labelSourceUtteranceIds ?? []) ids.add(id);
+  }
+  return ids;
+}
+
 function buildValidationDebug(
   mirror: MirrorReflection,
   failingClaims: ClaimValidation[],
@@ -746,6 +775,7 @@ export async function processTurn(
 ): Promise<TurnOutput> {
   const ingestUser = options.ingestUser ?? true;
   const requireConnectionLabel = options.requireConnectionLabel ?? false;
+  const continuationFocus = options.continuationFocus ?? [];
   // 1. Record the user's words, segmented into sentence-level units so a big
   //    voice chunk becomes several grounded units rather than one opaque blob.
   const units = ingestUser ? state.bank.addSegmented(userText, origin) : [];
@@ -801,6 +831,7 @@ export async function processTurn(
     }
 
     const labelText = userText.trim();
+    state.bank.markCommandOnly(units.map((unit) => unit.id));
     state.lastAiText = "Done.";
     return {
       mode: "question",
@@ -832,9 +863,10 @@ export async function processTurn(
 
   // 3. Pre-turn ready candidates — passed in LLM context so it knows what it
   //    may mirror. (Computed before candidate updates so it reflects prior state.)
+  const bankForMirrors = mirrorEligibleBank(state.bank.getAll());
   const preTurnReadyIds = readyCandidates(
     state.candidates.getAll(),
-    state.bank.getAll(),
+    bankForMirrors,
     config,
   ).map((s) => s.candidateId);
 
@@ -842,7 +874,7 @@ export async function processTurn(
   const userIsStuck = isStuck(userText);
   const draftDeclarations = detectDraftDeclarations(state.draft, config.draftDeclarations);
   const ctx: LLMContext = {
-    bank: state.bank.getAll(),
+    bank: bankForMirrors,
     candidates: state.candidates.getAll(),
     turnsSinceLastMirror: state.turnsSinceLastMirror,
     clarifyTarget: state.clarifyTarget,
@@ -852,6 +884,7 @@ export async function processTurn(
     lastAiText: state.lastAiText,
     turnText: userText,
     turnShape: initialTurnShape,
+    continuationFocus,
     draft: state.draft || undefined,
     draftDeclarations,
     map,
@@ -865,6 +898,22 @@ export async function processTurn(
     ? detectTurnShape(userText, units, { hasAcceptedMapCommand: true, config: config.turnShape })
     : initialTurnShape;
   const turnDebugNotes: CommandDebugNote[] = [...commandResult.notes];
+  const commandConsumedIds = commandConsumedUtteranceIds(acceptedCommands);
+  const ideaEvidenceIds = new Set(
+    (turn.candidateUpserts ?? [])
+      .filter((candidate) => candidate.target === "idea")
+      .flatMap((candidate) => candidate.addEvidenceIds),
+  );
+  const commandOnlyIds = units
+    .filter((unit) =>
+      acceptedCommands.length > 0 &&
+      (commandConsumedIds.has(unit.id) || !ideaEvidenceIds.has(unit.id)),
+    )
+    .map((unit) => unit.id);
+  if (commandOnlyIds.length > 0) {
+    state.bank.markCommandOnly(commandOnlyIds);
+  }
+  const eligibleBankIds = new Set(mirrorEligibleBank(state.bank.getAll()).map((utterance) => utterance.id));
 
   // 5. Apply candidate updates from the LLM, then recompute readiness for gating.
   //    The LLM proposes grouping (gist/target/evidence) only. Relation signals
@@ -899,8 +948,9 @@ export async function processTurn(
   for (const u of candidateUpserts) {
     // Evidence ids must reference real utterances in the bank.
     const validEvidence = u.addEvidenceIds.filter(
-      (id) => state.bank.get(id) !== undefined,
+      (id) => state.bank.get(id) !== undefined && eligibleBankIds.has(id),
     );
+    if (acceptedCommands.length > 0 && validEvidence.length === 0) continue;
     // Attach only signals the detector actually found on this turn's utterance,
     // to candidates the LLM says that utterance supports.
     const derivedSignals: RelationSignal[] = [];
@@ -937,20 +987,21 @@ export async function processTurn(
     acceleratedEvidenceByCandidate.set(candidateId, new Set(thisTurnEvidence));
   }
   const acceleratedIdeaIds = new Set(acceleratedEvidenceByCandidate.keys());
+  const postUpdateBank = mirrorEligibleBank(state.bank.getAll());
   const normalPostUpdateReadyIds = readyCandidates(
     state.candidates.getAll(),
-    state.bank.getAll(),
+    postUpdateBank,
     config,
   ).map((s) => s.candidateId);
   const postUpdateReadyIds = readyCandidates(
     state.candidates.getAll(),
-    state.bank.getAll(),
+    postUpdateBank,
     config,
     acceleratedIdeaIds,
   ).map((s) => s.candidateId);
   const postUpdateReadiness = state.candidates
     .getAll()
-    .map((candidate) => evaluateReadiness(candidate, state.bank.getAll(), config, acceleratedIdeaIds));
+    .map((candidate) => evaluateReadiness(candidate, postUpdateBank, config, acceleratedIdeaIds));
   const readinessByCandidate = new Map(postUpdateReadiness.map((signal) => [signal.candidateId, signal]));
 
   // De-escalation used to break a verbatim-repeat loop (see finish()).
@@ -1196,7 +1247,7 @@ export async function processTurn(
     const gatedMirror = { claims: gatedClaims };
 
     // 6c. Validation check.
-    const result = validateMirror(gatedMirror, state.bank.getAll(), config);
+    const result = validateMirror(gatedMirror, postUpdateBank, config);
 
     if (result.ok) {
       const usedAcceleratedIds = [...acceleratedIdeaIds].filter((id) =>
