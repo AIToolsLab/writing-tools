@@ -2472,6 +2472,120 @@ describe("question mode", () => {
     ]);
   });
 
+  it("keeps a near-match pending command after rejection so the user can name the corrected card", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_448", "human control"),
+        mapUnit("tu_451", "authorship"),
+        mapUnit("tu_452", "agency"),
+      ],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "reference_confirmation",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_448" },
+        target: { id: "tu_451" },
+        labelText: "supports",
+        labelSourceUtteranceIds: ["u_label"],
+      },
+      prompt: 'I found an existing card called "human control" for "control". Did you mean that one?',
+      debug: "near_match_pending",
+      correctionSlots: ["source"],
+    };
+
+    // Turn 1: reject the suggested near-match — the command must stay pending.
+    const rejected = await processTurn(state, "no", questionLLM("ignored"), defaultConfig, "chat", map);
+    expect(rejected.mapCommands).toBeUndefined();
+    expect(state.pendingMapCommand?.kind).toBe("reference_confirmation");
+    expect(rejected.text).toContain("which exact card");
+
+    // Turn 2: name the corrected card — updates the correction slot.
+    const corrected = await processTurn(state, "agency", questionLLM("ignored"), defaultConfig, "chat", map);
+    expect(corrected.commandConfirmation?.kind).toBe("reference_confirmation");
+    expect(corrected.text).toContain("agency");
+
+    // Turn 3: confirm — executes the corrected command, no stale ref.
+    const confirmed = await processTurn(state, "yes", questionLLM("ignored"), defaultConfig, "chat", map);
+    expect(confirmed.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "tu_452" },
+        target: { id: "tu_451" },
+        labelText: "supports",
+        labelSourceUtteranceIds: ["u_label"],
+      },
+    ]);
+  });
+
+  it("does not re-accept a rejected near-match if the user then says yes", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "human control"), mapUnit("tu_451", "authorship")],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "reference_confirmation",
+      command: { kind: "connect_cards", source: { id: "tu_448" }, target: { id: "tu_451" } },
+      prompt: 'I found an existing card called "human control" for "control". Did you mean that one?',
+      debug: "near_match_pending",
+      correctionSlots: ["source"],
+    };
+
+    await processTurn(state, "no", questionLLM("ignored"), defaultConfig, "chat", map);
+    const out = await processTurn(state, "yes", questionLLM("ignored"), defaultConfig, "chat", map);
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(state.pendingMapCommand?.kind).toBe("reference_confirmation");
+  });
+
+  it("cancels a near-match pending command on 'never mind' instead of asking for a correction", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "human control"), mapUnit("tu_451", "authorship")],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "reference_confirmation",
+      command: { kind: "connect_cards", source: { id: "tu_448" }, target: { id: "tu_451" } },
+      prompt: 'I found an existing card called "human control" for "control". Did you mean that one?',
+      debug: "near_match_pending",
+      correctionSlots: ["source"],
+    };
+
+    const out = await processTurn(state, "never mind", questionLLM("ignored"), defaultConfig, "chat", map);
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(out.commandDebug?.[0]?.reason).toBe("near_match_cancelled");
+  });
+
+  it("does not ask for a correction it cannot apply when a multi-slot near-match is rejected", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "human control"), mapUnit("tu_451", "authorship")],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "reference_confirmation",
+      command: { kind: "connect_cards", source: { id: "tu_448" }, target: { id: "tu_451" } },
+      prompt: 'I found existing card matches for this connection. Did you mean those?',
+      debug: "near_match_pending",
+      correctionSlots: ["source", "target"],
+    };
+
+    const out = await processTurn(state, "no", questionLLM("ignored"), defaultConfig, "chat", map);
+
+    // Both endpoints were ambiguous, so there is no single slot to correct: drop
+    // the command and ask the user to restate — never "which exact card?" with
+    // the state already gone.
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(out.text).not.toContain("which exact card");
+    expect(out.commandDebug?.[0]?.reason).toBe("near_match_rejected");
+  });
+
   it("blocks existing-card connections when the model uses endpoints the user did not name", async () => {
     const state = createState();
     const map = {

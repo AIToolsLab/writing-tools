@@ -73,6 +73,13 @@ export interface PendingMapCommandConfirmation {
   command: AcceptedMapCommand;
   debug: string;
   correctionSlots?: Array<"child" | "parent" | "source" | "target">;
+  /**
+   * Set once the user has rejected the suggested near-match ("no") but not yet
+   * named the corrected card. The command is retained so the next card name can
+   * correct it; an affirmative in this state must NOT re-accept the rejected
+   * match.
+   */
+  awaitingCorrection?: boolean;
 }
 
 export interface PendingConnectionLabelCommand {
@@ -1238,6 +1245,7 @@ function withCorrectedReference(
   return {
     ...pending,
     command,
+    awaitingCorrection: false,
     prompt: `Okay, use "${corrected.text}" for that reference instead?`,
     debug: `${pending.debug}; corrected ${slot} -> "${corrected.text}"`,
   };
@@ -1842,7 +1850,11 @@ export async function processTurn(
     }
   }
 
-  if (state.pendingMapCommand?.kind === "reference_confirmation" && isAffirmative(userText)) {
+  if (
+    state.pendingMapCommand?.kind === "reference_confirmation" &&
+    !state.pendingMapCommand.awaitingCorrection &&
+    isAffirmative(userText)
+  ) {
     const pending = state.pendingMapCommand;
     if (
       pending.command.kind === "connect_cards" &&
@@ -1914,17 +1926,41 @@ export async function processTurn(
 
   if (state.pendingMapCommand?.kind === "reference_confirmation" && isNegative(userText)) {
     const pending = state.pendingMapCommand;
-    state.pendingMapCommand = undefined;
     state.mode = "question";
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
+    // "cancel" / "never mind" abandons the command; a plain "no" only rejects the
+    // suggested near-match, so keep the command pending and let the next card
+    // name correct it (a corrected slot is needed for that to be possible).
+    if (isCancel(userText) || pending.correctionSlots?.length !== 1) {
+      // Either an explicit cancel, or a near-match we can't slot-correct (zero or
+      // multiple ambiguous references). Drop the command, and do NOT promise a
+      // "which card?" correction we no longer have the state to apply — ask the
+      // user to restate the whole command instead.
+      state.pendingMapCommand = undefined;
+      const text = isCancel(userText)
+        ? "Okay - I won't change the map."
+        : "Okay - I won't use those matches. Tell me the exact cards you meant and I'll try that command again.";
+      setLastAiText(state, text);
+      return {
+        mode: "question",
+        text,
+        llmTurn: { mode: "question", text },
+        commandDebug: [
+          { reason: isCancel(userText) ? "near_match_cancelled" : "near_match_rejected", detail: pending.debug },
+        ],
+        questionStance: "organize",
+      };
+    }
+    state.pendingMapCommand = { ...pending, awaitingCorrection: true };
     const text = "Okay - which exact card did you mean?";
     setLastAiText(state, text);
     return {
       mode: "question",
       text,
       llmTurn: { mode: "question", text },
+      commandConfirmation: state.pendingMapCommand,
       commandDebug: [{ reason: "near_match_rejected", detail: pending.debug }],
       questionStance: "organize",
     };
