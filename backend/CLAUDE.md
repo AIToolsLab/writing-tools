@@ -16,6 +16,12 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   same shape/location the Python backend used. `validateUsername` is the
   path-traversal guard. Log-viewer endpoints (`/api/logs_poll`, `/api/download_logs`)
   are gated by `LOG_SECRET`.
+- **Frontend serving** (`src/static.ts`): in the production single-container image
+  the backend also serves the built frontend (`frontend/dist`, copied to `./public`
+  by the repo-root `Dockerfile`). `serveFrontend` registers a catch-all GET *after*
+  every `/api/*` route so the API always wins; it's a no-op in local dev, where the
+  static root doesn't exist. Cache rules: `no-store` for `.html`/`manifest.xml`
+  (they reference content-hashed bundles by name), `immutable` for hashed assets.
 - **Telemetry** (`src/posthog.ts`): optional PostHog error capture; a no-op when
   `POSTHOG_PROJECT_TOKEN` is unset.
 - **Auth**: none in the backend (unchanged from before). Auth0 still lives in the
