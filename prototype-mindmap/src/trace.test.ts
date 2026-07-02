@@ -91,6 +91,44 @@ describe("dominant-reason precedence", () => {
     expect(ev.level).toBe("notice");
   });
 
+  it("mirror-pressure bridge surfaces as ready to reflect without raw ids in compact copy", () => {
+    const ev = deriveTraceEvent(
+      out({
+        mode: "question",
+        suppressionReason: "mirror_pressure_bridge",
+        suppressionDetail: "readyCandidateIds=cand1,cand2; threshold=2; turnsSinceLastMirror=5",
+      }),
+      "t",
+    );
+
+    expect(ev.reason).toBe("mirror_pressure_bridge");
+    expect(ev.title).toBe("Ready to reflect");
+    expect(ev.explanation).toBe(
+      "Enough user-owned wording had accumulated, so I asked whether to mirror before continuing.",
+    );
+    expect(`${ev.title} ${ev.explanation} ${ev.detail ?? ""}`).not.toContain("cand1");
+    expect(String(ev.technical?.mirrorPressure)).toContain("cand1");
+  });
+
+  it("draft-salience bridge surfaces as friendly salience copy without raw detail", () => {
+    const ev = deriveTraceEvent(
+      out({
+        mode: "question",
+        suppressionReason: "draft_salience_bridge",
+        suppressionDetail: "explicit list under #86: visualization | monitoring | control",
+      }),
+      "t",
+    );
+
+    expect(ev.reason).toBe("draft_salience_bridge");
+    expect(ev.title).toBe("I noticed a draft-backed idea");
+    expect(ev.explanation).toBe(
+      "This idea appeared in your draft or repeated wording, so I asked whether to carry it toward the map.",
+    );
+    expect(`${ev.title} ${ev.explanation} ${ev.detail ?? ""}`).not.toContain("visualization");
+    expect(String(ev.technical?.draftSalience)).toContain("visualization");
+  });
+
   it("an unknown command reason degrades to the stance rather than inventing copy", () => {
     const ev = deriveTraceEvent(
       out({ questionStance: "settle", commandDebug: [{ reason: "some_future_reason", detail: "d" }] }),

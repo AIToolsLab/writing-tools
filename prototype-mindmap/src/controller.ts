@@ -41,6 +41,8 @@ export type SuppressionReason =
   | "already_on_map"
   | "large_exploratory_turn"
   | "capture_loop"
+  | "mirror_pressure_bridge"
+  | "draft_salience_bridge"
   | "command_precedence"
   | "validation_failed";
 
@@ -200,6 +202,7 @@ const STUCK_PHRASES = [
 ];
 const CARRY_FORWARD_MIN_CONTENT_TOKENS = 3;
 const STABLE_CARD_MIN_CONTENT_TOKENS = 2;
+const MIRROR_PRESSURE_LONG_RUN_EXTRA_TURNS = 3;
 
 function isStuck(text: string): boolean {
   const lower = text.toLowerCase();
@@ -342,6 +345,129 @@ function groundedFocusOptionsQuestion(map: LLMMapContext, state: LoopState): str
     return `The most developed thread so far is ${anchors[0]} — do you want to build on that, or point me to another piece you'd rather pursue?`;
   }
   return "I don't want to pick your direction for you, so tell me which piece of your draft you want to pull from and I'll lay out a couple of options from it — what's one part that stands out to you?";
+}
+
+function explicitUserMentionedCardRef(text: string, map: LLMMapContext): string | undefined {
+  const hashRef = text.match(/#(\d+)\b/)?.[1];
+  if (hashRef) {
+    const id = resolveCardRefNumber(hashRef, map);
+    if (id) return cardRef(id);
+  }
+
+  const contextualNumber = text.match(
+    /\b(?:under|in|inside|within|on|onto|to|from|near|beside|around|with|card)\s+#?(\d+)\b/i,
+  )?.[1];
+  if (!contextualNumber) return undefined;
+  const id = resolveCardRefNumber(contextualNumber, map);
+  return id ? cardRef(id) : undefined;
+}
+
+function mirrorPressureBridgeQuestion(userText: string, map: LLMMapContext): string {
+  const ref = explicitUserMentionedCardRef(userText, map);
+  if (ref) {
+    return `I think there may be enough here to reflect how this connects to ${ref}. Do you want me to mirror that structure now, or keep unpacking it?`;
+  }
+  return "I think there may be enough here to reflect back. Do you want me to mirror the structure I'm hearing, or keep unpacking it?";
+}
+
+type DraftSalienceBridge = {
+  text: string;
+  detail: string;
+  anchor?: string;
+  stance: QuestionStance;
+};
+
+function formatInlineList(items: string[]): string {
+  if (items.length <= 1) return items[0] ?? "";
+  if (items.length === 2) return `${items[0]} and ${items[1]}`;
+  return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function countWord(count: number): string {
+  return count === 2 ? "two" : count === 3 ? "three" : count === 4 ? "four" : String(count);
+}
+
+function cleanListItem(text: string): string {
+  return text
+    .replace(/^[\s:;,'"“”‘’]+|[\s:;,'"“”‘’]+$/g, "")
+    .replace(/\b(?:as|into)\s+(?:separate\s+)?cards?\b/gi, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractExplicitSalienceItems(text: string): string[] {
+  const normalized = text.replace(/\s+/g, " ").trim();
+  const afterColon = normalized.match(/(?:have in mind|thinking about|ideas? (?:are|include)|points? (?:are|include)|things? (?:are|include))\s*:\s*(.+)$/i)?.[1];
+  const rawList = (afterColon ?? normalized)
+    .split(/\b(?:i am|i'm|i was|i'm considering|i am considering|considering|to make|under|inside|within)\b/i)[0]
+    .replace(/\band\b/gi, ",");
+  const items = rawList
+    .split(",")
+    .map(cleanListItem)
+    .filter((item) => {
+      const tokens = contentTokens(item);
+      return tokens.length > 0 && tokens.length <= 5 && !/^(?:maybe|possibly|and|or)$/i.test(item);
+    });
+  return Array.from(new Set(items.map((item) => item.toLowerCase()))).map((lower) => items.find((item) => item.toLowerCase() === lower)!);
+}
+
+function explicitListMapBridge(userText: string, map: LLMMapContext): DraftSalienceBridge | undefined {
+  if (!/\b(?:cards?|map)\b/i.test(userText)) return undefined;
+  if (!/\b(?:under|inside|within|in)\s+(?:the\s+)?#?\d+\b/i.test(userText)) return undefined;
+  const ref = explicitUserMentionedCardRef(userText, map);
+  if (!ref) return undefined;
+  const items = extractExplicitSalienceItems(userText).filter((item) => !/^#?\d+$/.test(item));
+  if (items.length < 2 || items.length > 5) return undefined;
+  return {
+    text: `I hear ${countWord(items.length)} possible cards under ${ref}: ${formatInlineList(items)}. Do you want to place those as separate cards, or unpack one first?`,
+    detail: `explicit list under ${ref}: ${items.join(" | ")}`,
+    stance: "organize",
+  };
+}
+
+function bestDraftSalienceMatch(
+  userText: string,
+  declarations: DraftDeclaration[],
+): DraftDeclaration | undefined {
+  const userTokens = new Set(contentTokens(userText).map((token) => token.toLowerCase()));
+  if (userTokens.size < 2) return undefined;
+  let best: { declaration: DraftDeclaration; score: number; overlap: number } | undefined;
+
+  for (const declaration of declarations) {
+    const draftTokens = Array.from(new Set(contentTokens(declaration.text).map((token) => token.toLowerCase())));
+    if (draftTokens.length < 3) continue;
+    const overlap = draftTokens.filter((token) => userTokens.has(token)).length;
+    const score = overlap / Math.min(draftTokens.length, userTokens.size);
+    if (overlap >= 2 && score >= 0.45 && (!best || score > best.score || overlap > best.overlap)) {
+      best = { declaration, score, overlap };
+    }
+  }
+
+  return best?.declaration;
+}
+
+function draftSalienceBridge(
+  userText: string,
+  declarations: DraftDeclaration[],
+  config: MindmapConfig,
+): DraftSalienceBridge | undefined {
+  const declaration = bestDraftSalienceMatch(userText, declarations);
+  if (!declaration) return undefined;
+  const quote = shortenDraftDeclaration(declaration.text);
+  if (config.pacing.mapPressure >= 0.5) {
+    return {
+      text: `This seems connected to the draft idea "${quote}". Do you want to carry that toward the map, or keep refining it first?`,
+      anchor: declaration.userPhrase,
+      detail: `draft-backed map bridge: ${declaration.kind}`,
+      stance: "organize",
+    };
+  }
+  return {
+    text: `What part of "${quote}" feels most important to unpack first?`,
+    anchor: declaration.userPhrase,
+    detail: `draft-backed deepen prompt: ${declaration.kind}`,
+    stance: "deepen",
+  };
 }
 
 function resolveOrganizePair(
@@ -2768,6 +2894,27 @@ export async function processTurn(
     .getAll()
     .map((candidate) => evaluateReadiness(candidate, postUpdateBank, config, acceleratedIdeaIds));
   const readinessByCandidate = new Map(postUpdateReadiness.map((signal) => [signal.candidateId, signal]));
+  const mirrorCooldownSatisfied =
+    state.turnsSinceLastMirror >= config.pacing.minQuestionTurnsBetweenMirrors;
+  const mirrorPressureBatchReady =
+    postUpdateReadyIds.length >= config.pacing.minReadyCandidatesToBatch;
+  const mirrorPressureLongRunReady =
+    postUpdateReadyIds.length >= 1 &&
+    state.turnsSinceLastMirror >=
+      config.pacing.minQuestionTurnsBetweenMirrors + MIRROR_PRESSURE_LONG_RUN_EXTRA_TURNS;
+  const mirrorPressureHigh =
+    acceptedCommands.length === 0 &&
+    !commandResult.pending &&
+    !userIsStuck &&
+    turnShape.kind !== "large_exploratory" &&
+    mirrorCooldownSatisfied &&
+    (mirrorPressureBatchReady || mirrorPressureLongRunReady);
+  const explicitMapSalienceBridge = explicitListMapBridge(userText, map);
+  const draftBackedSalienceBridge =
+    (explicitMapSalienceBridge || turnShape.kind === "large_exploratory")
+      ? undefined
+      : draftSalienceBridge(userText, draftDeclarations, config);
+  const salienceBridge = explicitMapSalienceBridge ?? draftBackedSalienceBridge;
 
   // De-escalation used to break a verbatim-repeat loop (see finish()).
   const DE_ESCALATE =
@@ -2922,6 +3069,46 @@ export async function processTurn(
         questionStance: "deepen",
       };
       state.clarifyTarget = undefined;
+    }
+
+    if (
+      salienceBridge &&
+      !commandPromptActive &&
+      acceptedCommands.length === 0 &&
+      !userIsStuck &&
+      (out.mode === "question" || out.mode === "clarify") &&
+      out.suppressionReason === undefined
+    ) {
+      state.mode = "question";
+      state.clarifyTarget = undefined;
+      out = {
+        ...out,
+        mode: "question",
+        text: salienceBridge.text,
+        suppressionReason: "draft_salience_bridge",
+        suppressionDetail: salienceBridge.detail,
+        questionAnchor: salienceBridge.anchor,
+        questionStance: salienceBridge.stance,
+      };
+    }
+
+    if (
+      mirrorPressureHigh &&
+      !commandPromptActive &&
+      (out.mode === "question" || out.mode === "clarify") &&
+      out.suppressionReason === undefined
+    ) {
+      state.mode = "question";
+      state.clarifyTarget = undefined;
+      out = {
+        ...out,
+        mode: "question",
+        text: mirrorPressureBridgeQuestion(userText, map),
+        suppressionReason: "mirror_pressure_bridge",
+        suppressionDetail: `readyCandidateIds=${postUpdateReadyIds.join(",")}; threshold=${config.pacing.minReadyCandidatesToBatch}; turnsSinceLastMirror=${state.turnsSinceLastMirror}`,
+        questionAnchor: undefined,
+        questionStance: "organize",
+      };
     }
 
     // Anti-repeat guard: if a question/clarify turn would say verbatim what we

@@ -89,6 +89,23 @@ function noReadinessCfg(extra?: Partial<MindmapConfig["pacing"]>): MindmapConfig
   };
 }
 
+function mirrorPressureQuestionLLM(question = "What does control actually mean here?") {
+  return (ctx: LLMContext): LLMTurn => {
+    const latest = ctx.bank.slice(-2);
+    return {
+      mode: "question",
+      text: question,
+      questionStance: "deepen",
+      candidateUpserts: latest.map((unit, index) => ({
+        id: `ready_${index + 1}`,
+        target: "idea",
+        gist: unit.text,
+        addEvidenceIds: [unit.id],
+      })),
+    };
+  };
+}
+
 function mapUnit(id: string, text: string): ThoughtUnit {
   return {
     id,
@@ -3526,6 +3543,177 @@ describe("pacing", () => {
     expect(out.validatedMirror?.reflection.claims[0].text).toBe("writing clears my head");
   });
 
+  it("bridges to a mirror prompt when the LLM keeps deepening despite ready candidates", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 2,
+    });
+
+    const out = await processTurn(
+      state,
+      "control means key decisions. visual state means layout choices.",
+      mirrorPressureQuestionLLM(),
+      cfg,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.suppressionReason).toBe("mirror_pressure_bridge");
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toBe(
+      "I think there may be enough here to reflect back. Do you want me to mirror the structure I'm hearing, or keep unpacking it?",
+    );
+  });
+
+  it("uses an explicitly mentioned bare card ref in the mirror-pressure bridge", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 2,
+    });
+    const map = { thoughtUnits: [mapUnit("tu_86", "Monitoring")], connections: [] };
+
+    const out = await processTurn(
+      state,
+      "maybe monitoring in 86. control means key decisions.",
+      mirrorPressureQuestionLLM(),
+      cfg,
+      "chat",
+      map,
+    );
+
+    expect(out.suppressionReason).toBe("mirror_pressure_bridge");
+    expect(out.text).toBe(
+      "I think there may be enough here to reflect how this connects to #86. Do you want me to mirror that structure now, or keep unpacking it?",
+    );
+  });
+
+  it("does not invent a card ref for the mirror-pressure bridge", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 2,
+    });
+    const map = { thoughtUnits: [mapUnit("tu_86", "Monitoring")], connections: [] };
+
+    const out = await processTurn(
+      state,
+      "control means key decisions. visual state means layout choices.",
+      mirrorPressureQuestionLLM(),
+      cfg,
+      "chat",
+      map,
+    );
+
+    expect(out.suppressionReason).toBe("mirror_pressure_bridge");
+    expect(out.text).not.toContain("#86");
+  });
+
+  it("bridges a lone ready candidate only after a long no-mirror run", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 3,
+      minReadyCandidatesToBatch: 2,
+    });
+    state.turnsSinceLastMirror = 6;
+
+    const out = await processTurn(
+      state,
+      "control means key decisions",
+      mirrorPressureQuestionLLM(),
+      cfg,
+    );
+
+    expect(out.suppressionReason).toBe("mirror_pressure_bridge");
+  });
+
+  it("does not bridge when the user is stuck", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 2,
+    });
+
+    const out = await processTurn(
+      state,
+      "not sure. control means key decisions.",
+      mirrorPressureQuestionLLM("Which part feels easiest to point at right now?"),
+      cfg,
+    );
+
+    expect(out.suppressionReason).not.toBe("mirror_pressure_bridge");
+    expect(out.mode).toBe("clarify");
+  });
+
+  it("does not bridge on a large exploratory turn", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 1,
+    });
+
+    const out = await processTurn(
+      state,
+      "control matters. monitoring matters. visualization matters. authorship matters.",
+      mirrorPressureQuestionLLM("Which one piece should we stay with first?"),
+      cfg,
+    );
+
+    expect(out.suppressionReason).not.toBe("mirror_pressure_bridge");
+    expect(out.text).toBe("Which one piece should we stay with first?");
+  });
+
+  it("lets command precedence win over mirror pressure", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 1,
+    });
+
+    const out = await processTurn(
+      state,
+      "Create a card with exactly this text: human control",
+      mirrorPressureQuestionLLM(),
+      cfg,
+    );
+
+    expect(out.suppressionReason).toBe("command_precedence");
+    expect(out.mapCommands).toEqual([
+      { kind: "create_card", text: "human control", sourceUtteranceIds: ["u_1"] },
+    ]);
+  });
+
+  it("lets a valid mirror win over mirror pressure", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 1,
+    });
+
+    const out = await processTurn(
+      state,
+      "control means key decisions",
+      groundedMirrorLLM("control means key decisions", "u_1"),
+      cfg,
+    );
+
+    expect(out.mode).toBe("mirror");
+    expect(out.suppressionReason).toBeUndefined();
+  });
+
+  it("lets a failed mirror validation win over mirror pressure", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 1,
+    });
+
+    const out = await processTurn(state, "running fast", driftingMirrorLLM("u_1"), cfg);
+
+    expect(out.mode).toBe("clarify");
+    expect(out.suppressionReason).toBe("validation_failed");
+  });
+
   it("uses carry-forward intent to mirror one substantive idea without map-pressure coupling", async () => {
     const state = createState();
     await processTurn(state, "setup one", questionLLM("Q1"));
@@ -4398,6 +4586,114 @@ describe("LLM context", () => {
     expect(out.mapCommands).toBeUndefined();
     expect(state.bank.getAll()).toHaveLength(1);
     expect(state.bank.getAll()[0].text).toBe("what should I do next?");
+  });
+
+  it("bridges an explicit list of possible cards under a user-named card", async () => {
+    const state = createState();
+    const map = { thoughtUnits: [mapUnit("tu_86", "Monitoring")], connections: [] };
+
+    const out = await processTurn(
+      state,
+      [
+        "maybe monitoring in 86",
+        "I am thinking about control I have in mind:",
+        "visualization, monitoring and control,",
+        "I am considering making the three into cards under the 86 card",
+      ].join("\n"),
+      questionLLM("When you say control, what does control actually mean here?"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.suppressionReason).toBe("draft_salience_bridge");
+    expect(out.text).toBe(
+      "I hear three possible cards under #86: visualization, monitoring, and control. Do you want to place those as separate cards, or unpack one first?",
+    );
+    expect(out.questionStance).toBe("organize");
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("uses draft-backed salience as a map-carry bridge when map pressure is high", async () => {
+    const state = createState();
+    state.draft = "The main idea is human control decides what enters the draft.";
+    const cfg = withQuestionIntentBias(defaultConfig, 100);
+
+    const out = await processTurn(
+      state,
+      "human control is about deciding what enters the draft",
+      questionLLM("What does human control mean here?"),
+      cfg,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.suppressionReason).toBe("draft_salience_bridge");
+    expect(out.text).toBe(
+      'This seems connected to the draft idea "human control decides what enters the draft". Do you want to carry that toward the map, or keep refining it first?',
+    );
+    expect(out.questionAnchor).toBe("The main idea is human control decides what enters the draft");
+    expect(out.questionStance).toBe("organize");
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("uses draft-backed salience as a sharpening question when map pressure is low", async () => {
+    const state = createState();
+    state.draft = "The main idea is human control decides what enters the draft.";
+    const cfg = withQuestionIntentBias(defaultConfig, 0);
+
+    const out = await processTurn(
+      state,
+      "human control is about deciding what enters the draft",
+      questionLLM("What does human control mean here?"),
+      cfg,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.suppressionReason).toBe("draft_salience_bridge");
+    expect(out.text).toBe(
+      'What part of "human control decides what enters the draft" feels most important to unpack first?',
+    );
+    expect(out.questionAnchor).toBe("The main idea is human control decides what enters the draft");
+    expect(out.questionStance).toBe("deepen");
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("does not use weak draft overlap as salience", async () => {
+    const state = createState();
+    state.draft = "The main idea is human control decides what enters the draft.";
+    const cfg = withQuestionIntentBias(defaultConfig, 100);
+
+    const out = await processTurn(
+      state,
+      "what should I do next?",
+      questionLLM("Which part feels most important next?"),
+      cfg,
+    );
+
+    expect(out.suppressionReason).not.toBe("draft_salience_bridge");
+    expect(out.text).toBe("Which part feels most important next?");
+  });
+
+  it("lets direct map commands win over draft-backed salience", async () => {
+    const state = createState();
+    state.draft = "The main idea is human control decides what enters the draft.";
+    const cfg = withQuestionIntentBias(defaultConfig, 100);
+
+    const out = await processTurn(
+      state,
+      "make a card called human control decides what enters the draft",
+      questionLLM("What does human control mean here?"),
+      cfg,
+    );
+
+    expect(out.suppressionReason).toBe("command_precedence");
+    expect(out.mapCommands).toEqual([
+      expect.objectContaining({
+        kind: "create_card",
+        text: "human control decides what enters the draft",
+      }),
+    ]);
   });
 
   it("re-angles redundant main-idea questions when the draft already declares one", async () => {

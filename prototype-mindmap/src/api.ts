@@ -191,7 +191,7 @@ function systemPrompt(ctx: LLMContext, cfg: MindmapConfig): string {
     : ctx.readyCandidateIds.length === 0
     ? `\nREADINESS: No previously-ready candidates. Use mode "question" by default. If map pressure is high (${mapPressure.toFixed(2)}) and the user's latest answer is itself compact, substantive, and mirrorable, prefer one same-turn mirror by also upserting the idea candidate, setting "carryForwardCandidateIds" to that same candidate id, and grounding both the candidate's addEvidenceIds and the mirror claim's sourceSpans in this turn's Source Bank utterance ids. This carry-forward id is required for the system to accept a same-turn idea mirror. This is especially appropriate when the user just answered a map-eliciting question like what to carry forward. Do not do this for low-information answers, first-pass exploration, relationships, hierarchy, or material the user has not just authored in chat.`
     : ctx.readyCandidateIds.length >= cfg.pacing.minReadyCandidatesToBatch
-    ? `\nREADINESS: Candidates ready to mirror: [${ctx.readyCandidateIds.join(", ")}]. Map pressure is ${mapPressure.toFixed(2)}. Prefer mode "mirror" when a concise validated reflection would help the user commit structure, but do not mirror more than ${cfg.pacing.softMaxMirrorChunks} claims and do not mirror just because the slider is high.`
+    ? `\nREADINESS: Candidates ready to mirror: [${ctx.readyCandidateIds.join(", ")}]. Map pressure is ${mapPressure.toFixed(2)}. Prefer mode "mirror" when a concise validated reflection would help the user commit structure. At this point, another generic deepen/narrow question is usually wrong unless it targets a specific missing relationship or grounding problem. Do not mirror more than ${cfg.pacing.softMaxMirrorChunks} claims and do not mirror just because the slider is high.`
     : `\nREADINESS: Candidates ready to mirror: [${ctx.readyCandidateIds.join(", ")}], below the current batch preference (${ctx.readyCandidateIds.length}/${cfg.pacing.minReadyCandidatesToBatch}). Usually keep asking unless this latest answer adds enough user-authored grounding for a stronger mirror.`;
 
   // Clarify override
@@ -225,9 +225,9 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
       ctx.readyCandidateIds.length >= cfg.pacing.organizeIntentReadyThreshold
     );
   const mapNote =
-    `\nMAP AWARENESS: The canvas below is user-authored structure. You may reference it to ask sharper questions, especially in organize mode, but you must never initiate, draw, place, rename, group, connect, or propose map structure on your own. When the user explicitly commands a map change with exact wording or exact refs, emit mapCommands as side effects; otherwise no dashed proposals, no "approve this structure", no suggested edge labels. Ask questions that make the user articulate relationships in their own words.`;
+    `\nMAP AWARENESS: The canvas below is user-authored structure. You may reference it to ask sharper questions, especially in organize mode, but you must never initiate, draw, place, rename, group, connect, or propose map structure on your own. Mention a map ref like #86 only when the user selected, named, or explicitly referred to that exact card/ref; do not infer destination cards by similarity. When the user explicitly commands a map change with exact wording or exact refs, emit mapCommands as side effects; otherwise no dashed proposals, no "approve this structure", no suggested edge labels. Ask questions that make the user articulate relationships in their own words.`;
   const draftDeclarationNote = ctx.draftDeclarations.length > 0
-    ? `\nDRAFT DECLARATIONS: The system detected explicit declarations or high-confidence repeated focus already written in the draft. These are read-only and suppression-only: they are NOT Source Bank evidence, NOT candidates, NOT mirror-ready, and NOT permission to put anything on the map. Do not ask the user to restate these declared ideas. Instead, ask about a consequence, tension, assumption, relationship, priority, or whether they want to carry exact wording forward.`
+    ? `\nDRAFT DECLARATIONS: The system detected explicit declarations or high-confidence repeated focus already written in the draft. These are user-authored salience signals: they are NOT Source Bank evidence by themselves, NOT automatic candidates, NOT mirror-ready on their own, and NOT permission to put anything on the map. Use them to avoid blind probing and to ask sharper draft-backed questions. When the user's chat wording overlaps one of these ideas, especially when Map pressure is high, prefer a grounded mirror using chat Source Bank spans or a bridge asking whether to carry the idea toward the map. Do not ask the user to restate these declared ideas; ask about a consequence, tension, assumption, relationship, priority, or whether they want to carry exact wording forward.`
     : "";
   const largeTurnNote =
     ctx.turnShape.kind === "large_exploratory"
@@ -252,6 +252,8 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
     : "";
   const legibilityNote =
     `\nLEGIBILITY: If the system has already blocked a move for grounding, readiness, or sparse-map reasons, the next question may carry one short explanatory preamble. Let the user feel the effort before the question; do not sound like you ignored their answer.`;
+  const mirrorPressureNote =
+    `\nMIRROR PRESSURE: If the user has answered several focused questions on the same live concept and ready candidates exist, stop re-unearthing the same idea. Use mode "mirror" with grounded sourceSpans, or ask a bridge question about whether to mirror/carry the settled structure forward. Do not keep asking "what does X mean", "what makes X different", or another generic deepen question once the user's own wording has settled.`;
   const intentNote = shouldOrganize
     ? `\nQUESTION INTENT: Use "organize" — the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask structural/relational questions: what is bigger, what connects what, how two named concepts relate. Do NOT open new topics.`
     : `\nQUESTION INTENT: Use "deepen" — dig into one concept. Ask what it is, what it does, what assumption it rests on, or what would change it. Surface real tensions before moving on.`;
@@ -268,14 +270,14 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const declarationNote = `\nDECLARATION PRESSURE: Phrases like "the main idea is", "a second idea is", "another idea is", "the next point is", or "I also want to show" are carry-forward pressure for an idea candidate, not commands. If the declared idea is compact and source-groundable, upsert it, set "carryForwardCandidateIds", and mirror it. If it is compound, contrastive, or not yet source-groundable, ask one focused question that helps the user state the idea in their own words, then mirror on the next clear answer. Do not keep narrowing the same idea across turns.`;
 
   return `${PHILOSOPHY}
-${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${legibilityNote}
+${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${mirrorPressureNote}${legibilityNote}
 
 CURRENT DRAFT (user's document — read-only reference for anchoring):
 """
 ${ctx.draft || "(no draft provided)"}
 """
 
-DRAFT DECLARATIONS ALREADY STATED (suppression-only, never structure):
+DRAFT DECLARATIONS ALREADY STATED (salience only, never automatic structure):
 ${renderDraftDeclarations(ctx.draftDeclarations)}
 
 SOURCE BANK (utterance ID → user's exact words):

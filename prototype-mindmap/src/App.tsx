@@ -88,6 +88,7 @@ interface PendingMirror {
   reflection: MirrorReflection;
   claims: ClaimValidation[];
   decisions: Record<string, ClaimDecision>;
+  editedTexts: Record<string, string>;
 }
 
 interface PersistedPendingMirror {
@@ -95,6 +96,7 @@ interface PersistedPendingMirror {
   reflection: MirrorReflection;
   claims: ClaimValidation[];
   decisions: Record<string, ClaimDecision>;
+  editedTexts?: Record<string, string>;
 }
 
 interface PersistedSession {
@@ -294,12 +296,13 @@ const css = `
     border: 1.5px solid #b5dfc5;
     border-radius: 12px;
     background: #f4fcf7;
-    padding: 14px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    align-self: flex-start;
-    max-width: 96%;
+    gap: 8px;
+    align-self: stretch;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .mirror-card-label {
@@ -314,16 +317,44 @@ const css = `
 
   .claim-row {
     display: flex;
+    flex-direction: column;
     align-items: flex-start;
-    justify-content: space-between;
-    gap: 10px;
+    gap: 8px;
     font-size: 13px;
     line-height: 1.4;
   }
 
-  .claim-text { flex: 1; }
+  .claim-text {
+    flex: 1;
+    width: 100%;
+    box-sizing: border-box;
+  }
 
-  .claim-btns { display: flex; gap: 6px; flex-shrink: 0; }
+  .claim-editor {
+    min-height: 132px;
+    resize: vertical;
+    border: 1px solid #cfe8d7;
+    border-radius: 8px;
+    background: #fff;
+    color: #1f2d24;
+    padding: 8px 10px;
+    font: inherit;
+    line-height: 1.4;
+    outline: none;
+    box-shadow: inset 0 1px 2px rgba(31, 45, 36, 0.04);
+  }
+
+  .claim-editor:focus {
+    border-color: #2a8a50;
+    box-shadow: 0 0 0 2px rgba(42, 138, 80, 0.14);
+  }
+
+  .claim-btns {
+    display: flex;
+    gap: 6px;
+    flex-shrink: 0;
+    align-self: flex-end;
+  }
 
   .claim-badge {
     font-size: 11px;
@@ -1519,7 +1550,13 @@ export default function App() {
 
   const initialMsgs = persistedSession?.msgs ?? [];
   const initialPendingMirrors = useMemo(
-    () => new Map((persistedSession?.pendingMirrors ?? []).map((pm) => [pm.id, pm])),
+    () =>
+      new Map(
+        (persistedSession?.pendingMirrors ?? []).map((pm) => [
+          pm.id,
+          { ...pm, editedTexts: pm.editedTexts ?? {} },
+        ]),
+      ),
     [persistedSession],
   );
   const initialConfirmed = persistedSession?.confirmed ?? [];
@@ -1848,8 +1885,12 @@ export default function App() {
       const mirrorId = `m_${Date.now()}_${newMsg.id}`;
       newMsg.mirrorId = mirrorId;
       const initialDecisions: Record<string, ClaimDecision> = {};
+      const initialEditedTexts: Record<string, string> = {};
       for (const c of out.validatedMirror.claims) {
         initialDecisions[c.claimId] = "pending";
+      }
+      for (const c of out.validatedMirror.reflection.claims) {
+        initialEditedTexts[c.id] = c.text;
       }
       setPendingMirrors((prev) => {
         const next = new Map(prev);
@@ -1858,6 +1899,7 @@ export default function App() {
           reflection: out.validatedMirror!.reflection,
           claims: out.validatedMirror!.claims,
           decisions: initialDecisions,
+          editedTexts: initialEditedTexts,
         });
         return next;
       });
@@ -1970,12 +2012,14 @@ export default function App() {
     const resolution = resolveMirrorDecision(pm.decisions, claimId, decision);
 
     const claim = pm.reflection.claims.find((c) => c.id === claimId);
+    const editedText = (pm.editedTexts[claimId] ?? claim?.text ?? "").trim();
+    const finalText = editedText || claim?.text;
     let confirmedReflection: ConfirmedReflection | undefined;
     if (decision === "confirmed") {
-      if (claim) {
+      if (claim && finalText) {
         confirmedReflection = {
           id: `cr_${Date.now()}_${claimId}`,
-          text: claim.text,
+          text: finalText,
           candidateId: claim.candidateId,
           target: claim.target,
           sourceUtteranceIds: Array.from(
@@ -2010,7 +2054,7 @@ export default function App() {
     }
 
     if (decision === "declined" && claim) {
-      const text = `What wording should change before I carry "${claim.text}" forward?`;
+      const text = `What wording should change before I carry "${finalText ?? claim.text}" forward?`;
       stateRef.current.mode = "clarify";
       stateRef.current.turnsSinceLastMirror++;
       stateRef.current.lastAiText = text;
@@ -2025,7 +2069,7 @@ export default function App() {
       const nonce = ++turnNonceRef.current;
       const continuationFocus = pm.reflection.claims
         .filter((pendingClaim) => resolution.nextDecisions[pendingClaim.id] === "confirmed")
-        .map((pendingClaim) => pendingClaim.text);
+        .map((pendingClaim) => (pm.editedTexts[pendingClaim.id] ?? pendingClaim.text).trim() || pendingClaim.text);
       setLoading(true);
       try {
         const workingState = cloneLoopState(stateRef.current);
@@ -2050,6 +2094,22 @@ export default function App() {
         if (nonce === turnNonceRef.current) setLoading(false);
       }
     }
+  }
+
+  function editMirrorClaim(mirrorId: string, claimId: string, text: string) {
+    setPendingMirrors((prev) => {
+      const pm = prev.get(mirrorId);
+      if (!pm || pm.decisions[claimId] !== "pending") return prev;
+      const next = new Map(prev);
+      next.set(mirrorId, {
+        ...pm,
+        editedTexts: {
+          ...pm.editedTexts,
+          [claimId]: text,
+        },
+      });
+      return next;
+    });
   }
 
   function onKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -2167,6 +2227,7 @@ export default function App() {
                   <MirrorCard
                     pm={pendingMirrors.get(m.mirrorId)!}
                     onDecide={(claimId, d) => decideClaim(m.mirrorId!, claimId, d)}
+                    onEdit={(claimId, text) => editMirrorClaim(m.mirrorId!, claimId, text)}
                   />
                 )}
               </div>
@@ -2340,23 +2401,37 @@ export default function App() {
 function MirrorCard({
   pm,
   onDecide,
+  onEdit,
 }: {
   pm: PendingMirror;
   onDecide: (claimId: string, decision: "confirmed" | "declined") => void;
+  onEdit: (claimId: string, text: string) => void;
 }) {
   return (
     <div className="mirror-card">
-      <span className="mirror-card-label">Does this match your thinking?</span>
+      <span className="mirror-card-label">Edit if needed, then confirm</span>
       <div className="mirror-claims">
         {pm.reflection.claims.map((claim) => {
           const decision = pm.decisions[claim.id] ?? "pending";
+          const text = pm.editedTexts[claim.id] ?? claim.text;
           return (
             <div key={claim.id} className="claim-row">
-              <span className="claim-text">{claim.text}</span>
+              {decision === "pending" ? (
+                <textarea
+                  className="claim-text claim-editor"
+                  value={text}
+                  rows={Math.max(5, Math.min(10, text.split(/\n/).length + Math.ceil(text.length / 42)))}
+                  onChange={(event) => onEdit(claim.id, event.target.value)}
+                  aria-label="Editable mirrored wording"
+                />
+              ) : (
+                <span className="claim-text">{text}</span>
+              )}
               {decision === "pending" ? (
                 <div className="claim-btns">
                   <button
                     className="btn btn-confirm-sm"
+                    disabled={!text.trim()}
                     onClick={() => onDecide(claim.id, "confirmed")}
                   >
                     Yes

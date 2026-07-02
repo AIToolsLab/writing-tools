@@ -106,6 +106,20 @@ const SUPPRESSION_CATALOG: Record<SuppressionReason, CatalogEntry> = {
     title: "Trying a different angle",
     explanation: "We circled the same wording, so I changed the question instead of repeating it.",
   },
+  mirror_pressure_bridge: {
+    level: "notice",
+    icon: "reflect",
+    title: "Ready to reflect",
+    explanation:
+      "Enough user-owned wording had accumulated, so I asked whether to mirror before continuing.",
+  },
+  draft_salience_bridge: {
+    level: "notice",
+    icon: "compass",
+    title: "I noticed a draft-backed idea",
+    explanation:
+      "This idea appeared in your draft or repeated wording, so I asked whether to carry it toward the map.",
+  },
   missing_mirror_payload: {
     level: "quiet",
     icon: "chat",
@@ -398,6 +412,12 @@ export function deriveTraceEvent(out: TurnOutput, turnId: string): TraceEvent {
     const grounding = groundingDetail(out);
     detail = grounding.detail;
     if (grounding.technical) technical = { ...technical, ...grounding.technical };
+  }
+  if (reason === "mirror_pressure_bridge" && out.suppressionDetail) {
+    technical.mirrorPressure = out.suppressionDetail;
+  }
+  if (reason === "draft_salience_bridge" && out.suppressionDetail) {
+    technical.draftSalience = out.suppressionDetail;
   }
 
   return {
