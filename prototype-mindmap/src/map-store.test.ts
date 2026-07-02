@@ -137,6 +137,7 @@ describe("ThoughtUnitStore", () => {
     expect(bank.getAll()[0]).toMatchObject({
       text: "keeps it honest",
       origin: "declaration",
+      commandOnly: true,
     });
     expect(registered.labelUnit.role).toBe("connection_label");
     expect(registered.labelUnit.source.utteranceIds).toEqual([registered.utterance?.id]);
@@ -212,6 +213,44 @@ describe("ThoughtUnitStore", () => {
     expect(first.connection.targetHandleId).toBeUndefined();
     expect(second.connection.sourceHandleId).toBe("right");
     expect(second.connection.targetHandleId).toBe("left");
+  });
+
+  it("moves reconnected duplicate edges away from already-used handles", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+    store.add(unit("c", "control"));
+    const first = store.registerConnection({
+      sourceId: "a",
+      targetId: "b",
+      sourceHandleId: "right",
+      targetHandleId: "left",
+      text: "supports",
+      bank,
+    });
+    const second = store.registerConnection({
+      sourceId: "a",
+      targetId: "c",
+      sourceHandleId: "right",
+      targetHandleId: "left",
+      text: "qualifies",
+      bank,
+    });
+
+    store.reconnect(second.connection.id, "a", "b", "right", "left");
+
+    const connections = store.getConnections();
+    expect(connections.find((connection) => connection.id === first.connection.id)).toMatchObject({
+      sourceHandleId: "right",
+      targetHandleId: "left",
+    });
+    expect(connections.find((connection) => connection.id === second.connection.id)).toMatchObject({
+      sourceId: "a",
+      targetId: "b",
+      sourceHandleId: "bottom",
+      targetHandleId: "top",
+    });
   });
 
   it("reconnects a connection and preserves chosen card-side handles", () => {

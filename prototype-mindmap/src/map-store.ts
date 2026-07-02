@@ -93,7 +93,21 @@ function normalizedConnectionPlacement(
 
 const DEFAULT_CARD_W = 260;
 const DEFAULT_CARD_H = 140;
-const DUPLICATE_CONNECTION_HANDLE_PAIRS: Array<[string, string]> = [
+const CONNECTION_HANDLE_IDS = [
+  "right",
+  "left",
+  "bottom",
+  "top",
+  "right-top",
+  "right-bottom",
+  "left-top",
+  "left-bottom",
+  "bottom-right",
+  "bottom-left",
+  "top-right",
+  "top-left",
+];
+const PREFERRED_DUPLICATE_CONNECTION_HANDLE_PAIRS: Array<[string, string]> = [
   ["right", "left"],
   ["bottom", "top"],
   ["left", "right"],
@@ -102,6 +116,12 @@ const DUPLICATE_CONNECTION_HANDLE_PAIRS: Array<[string, string]> = [
   ["right-bottom", "left-bottom"],
   ["bottom-right", "top-right"],
   ["bottom-left", "top-left"],
+];
+const DUPLICATE_CONNECTION_HANDLE_PAIRS: Array<[string, string]> = [
+  ...PREFERRED_DUPLICATE_CONNECTION_HANDLE_PAIRS,
+  ...CONNECTION_HANDLE_IDS.flatMap((source) =>
+    CONNECTION_HANDLE_IDS.map((target): [string, string] => [source, target]),
+  ),
 ];
 
 function defaultPosition(index: number): XYPosition {
@@ -421,6 +441,7 @@ export class ThoughtUnitStore {
         ? bank.get(labelUtteranceId) ?? bank.add(trimmed, "declaration")
         : bank.add(trimmed, "declaration")
       : undefined;
+    if (utterance) bank.markCommandOnly([utterance.id]);
 
     const labelUnit: ThoughtUnit = {
       id: nextId("tu"),
@@ -469,12 +490,13 @@ export class ThoughtUnitStore {
   ): void {
     const connection = this._connections.get(id);
     if (!connection || sourceId === targetId) return;
+    const handles = this.connectionHandlesFor(sourceId, targetId, sourceHandleId, targetHandleId, id);
     this._connections.set(id, {
       ...connection,
       sourceId,
       targetId,
-      sourceHandleId: sourceHandleId ?? undefined,
-      targetHandleId: targetHandleId ?? undefined,
+      sourceHandleId: handles.sourceHandleId,
+      targetHandleId: handles.targetHandleId,
     });
   }
 
@@ -487,11 +509,13 @@ export class ThoughtUnitStore {
     targetId: string,
     requestedSourceHandleId?: string | null,
     requestedTargetHandleId?: string | null,
+    excludeConnectionId?: string,
   ): { sourceHandleId?: string; targetHandleId?: string } {
     const sourceHandleId = requestedSourceHandleId ?? undefined;
     const targetHandleId = requestedTargetHandleId ?? undefined;
     const pairKey = unorderedPairKey(sourceId, targetId);
     const existing = this.getConnections().filter((connection) =>
+      connection.id !== excludeConnectionId &&
       unorderedPairKey(connection.sourceId, connection.targetId) === pairKey,
     );
     if (existing.length === 0) {

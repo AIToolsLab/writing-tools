@@ -1451,6 +1451,51 @@ describe("question mode", () => {
     expect(out.text).toBe("Do you want that placement?");
   });
 
+  it("does not execute uncertain explicit placement when uncertainty appears before the command", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_635", "child"), mapUnit("tu_649", "parent")],
+      connections: [],
+    };
+    const called = { value: false };
+
+    const out = await processTurn(
+      state,
+      "I'm not sure, put #635 in #649",
+      () => {
+        called.value = true;
+        return questionLLM("Do you want that placement?")({} as LLMContext);
+      },
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(called.value).toBe(true);
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toBe("Do you want that placement?");
+  });
+
+  it("does not execute uncertain explicit placement when uncertainty trails the command", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_635", "child"), mapUnit("tu_649", "parent")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "put #635 in #649 maybe",
+      questionLLM("Do you want that placement?"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toBe("Do you want that placement?");
+  });
+
   it("executes explicit #ref into nesting commands directly", async () => {
     const state = createState();
     const map = {
@@ -1563,6 +1608,106 @@ describe("question mode", () => {
     ]);
   });
 
+  it("requires a label after confirming a near-match connection when label mode is on", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "human control"), mapUnit("tu_451", "authorship")],
+      connections: [],
+    };
+
+    const pending = await processTurn(
+      state,
+      "connect control to #451",
+      () => ({
+        mode: "question",
+        text: "ignored",
+        mapCommands: [
+          {
+            kind: "connect_cards",
+            sourceText: "control",
+            targetText: "#451",
+          },
+        ],
+      }),
+      defaultConfig,
+      "chat",
+      map,
+      { requireConnectionLabel: true },
+    );
+
+    expect(pending.commandConfirmation?.kind).toBe("reference_confirmation");
+
+    const confirmed = await processTurn(
+      state,
+      "yes",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+      { requireConnectionLabel: true },
+    );
+
+    expect(confirmed.mapCommands).toBeUndefined();
+    expect(confirmed.commandConfirmation?.kind).toBe("connection_label");
+    expect(confirmed.text).toContain("What should the label be");
+  });
+
+  it("updates a near-match pending command when the user names a corrected card", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_448", "human control"),
+        mapUnit("tu_451", "authorship"),
+        mapUnit("tu_452", "agency"),
+      ],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "reference_confirmation",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_448" },
+        target: { id: "tu_451" },
+        labelText: "supports",
+        labelSourceUtteranceIds: ["u_label"],
+      },
+      prompt: "I found an existing card called \"human control\" for \"control\". Did you mean that one?",
+      debug: "near_match_pending",
+      correctionSlots: ["source"],
+    };
+
+    const corrected = await processTurn(
+      state,
+      "agency",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(corrected.commandConfirmation?.kind).toBe("reference_confirmation");
+    expect(corrected.text).toContain("agency");
+
+    const confirmed = await processTurn(
+      state,
+      "yes",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(confirmed.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "tu_452" },
+        target: { id: "tu_451" },
+        labelText: "supports",
+        labelSourceUtteranceIds: ["u_label"],
+      },
+    ]);
+  });
+
   it("blocks existing-card connections when the model uses endpoints the user did not name", async () => {
     const state = createState();
     const map = {
@@ -1632,6 +1777,45 @@ describe("question mode", () => {
     expect(out.text).toContain("'No AI words'");
     expect(state.pendingMapCommand?.kind).toBe("relationship_confirmation");
     expect(state.pendingMapCommand?.kind === "relationship_confirmation" ? state.pendingMapCommand.labelText : "").toBe("No AI words");
+    expect(state.pendingMapCommand?.kind === "relationship_confirmation" ? state.pendingMapCommand.command.labelText : "").toBe("No AI words");
+    expect(state.pendingMapCommand?.kind === "relationship_confirmation" ? state.pendingMapCommand.command.labelSourceUtteranceIds : []).toEqual(
+      state.bank.getAll().map((unit) => unit.id),
+    );
+  });
+
+  it("clears organize focus when a duplicate connection is rejected", async () => {
+    const state = createState();
+    state.organizeFocus = {
+      refs: ["#448", "#451"],
+      key: "#448|#451",
+      declineCount: 0,
+    };
+    state.pendingMapCommand = {
+      kind: "duplicate_connection_confirmation",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_448" },
+        target: { id: "tu_451" },
+        labelText: "supports",
+        labelSourceUtteranceIds: ["u_label"],
+      },
+      prompt: "There is already a connection. Do you want to add another?",
+      debug: "duplicate_connection_pending",
+    };
+
+    await processTurn(
+      state,
+      "no",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      {
+        thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
+        connections: [],
+      },
+    );
+
+    expect(state.organizeFocus).toBeUndefined();
   });
 });
 

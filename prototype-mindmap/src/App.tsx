@@ -426,6 +426,14 @@ const css = `
     overflow-y: auto;
   }
   textarea:focus { border-color: #1a6fa3; }
+  .composer-textarea {
+    min-height: 42px;
+    max-height: 220px;
+    overflow-y: hidden;
+  }
+  .composer-textarea.composer-scroll {
+    overflow-y: auto;
+  }
 
   .send-btn {
     flex-shrink: 0;
@@ -1031,6 +1039,10 @@ const css = `
     color: #1a1a1a;
     cursor: text;
   }
+  .map-embed.expanded .map-embed-editor {
+    max-height: none;
+    overflow: hidden;
+  }
   .map-embed-actions {
     display: flex;
     align-items: center;
@@ -1374,6 +1386,25 @@ function buildConversationHistory(msgs: ChatMsg[]): ConversationMessage[] {
     }));
 }
 
+function cloneLoopState(state: LoopState): LoopState {
+  const cloned = createState();
+  cloned.bank.replaceAll(state.bank.getAll());
+  cloned.candidates.replaceAll(state.candidates.getAll());
+  cloned.mode = state.mode;
+  cloned.turnsSinceLastMirror = state.turnsSinceLastMirror;
+  cloned.clarifyTarget = state.clarifyTarget;
+  cloned.lastAiText = state.lastAiText;
+  cloned.draft = state.draft;
+  cloned.pendingMapCommand = state.pendingMapCommand;
+  cloned.organizeFocus = state.organizeFocus;
+  cloned.pendingChildPlacement = state.pendingChildPlacement;
+  cloned.activeElicitation = state.activeElicitation;
+  cloned.activeSelectionContext = state.activeSelectionContext;
+  cloned.pendingCardWording = state.pendingCardWording;
+  cloned.captureLoop = state.captureLoop;
+  return cloned;
+}
+
 /**
  * Backdrop content for the draft highlight overlay. Renders the draft text with
  * the anchor substring wrapped in <mark>. A trailing space keeps the backdrop's
@@ -1456,6 +1487,7 @@ export default function App() {
   const [commandAck, setCommandAck] = useState<MapCommandAcknowledgement | null>(null);
   const [loading, setLoading] = useState(false);
   const [input, setInput] = useState("");
+  const [composerScrollable, setComposerScrollable] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const runtimeConfig = useMemo(
@@ -1679,6 +1711,7 @@ export default function App() {
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const turnNonceRef = useRef(0);
   const speech = useSpeechToText();
 
   // Scroll to bottom on new messages.
@@ -1696,6 +1729,16 @@ export default function App() {
     const liveTranscript = `${speech.transcript} ${speech.interim}`.trim();
     setInput(liveTranscript);
   }, [speech.interim, speech.transcript]);
+
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (!textarea) return;
+    const maxHeight = 220;
+    textarea.style.height = "auto";
+    const nextHeight = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${nextHeight}px`;
+    setComposerScrollable(textarea.scrollHeight > maxHeight);
+  }, [input]);
 
   // Seed with opening question only for a fresh session.
   useEffect(() => {
@@ -1800,6 +1843,7 @@ export default function App() {
   async function send() {
     const text = input.trim();
     if (!text || loading) return;
+    const nonce = ++turnNonceRef.current;
 
     speech.stop();
     setInput("");
@@ -1813,8 +1857,9 @@ export default function App() {
 
     setLoading(true);
     try {
+      const workingState = cloneLoopState(stateRef.current);
       const out = await processTurn(
-        stateRef.current,
+        workingState,
         text,
         llmRef.current,
         configRef.current,
@@ -1823,12 +1868,15 @@ export default function App() {
         { requireConnectionLabel },
       );
 
+      if (nonce !== turnNonceRef.current) return;
+      stateRef.current = workingState;
       appendCoachOutput(out);
     } catch (e) {
+      if (nonce !== turnNonceRef.current) return;
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
     } finally {
-      setLoading(false);
+      if (nonce === turnNonceRef.current) setLoading(false);
     }
   }
 
@@ -1891,13 +1939,15 @@ export default function App() {
     }
 
     if (resolution.shouldContinue) {
+      const nonce = ++turnNonceRef.current;
       const continuationFocus = pm.reflection.claims
         .filter((pendingClaim) => resolution.nextDecisions[pendingClaim.id] === "confirmed")
         .map((pendingClaim) => pendingClaim.text);
       setLoading(true);
       try {
+        const workingState = cloneLoopState(stateRef.current);
         const out = await processTurn(
-          stateRef.current,
+          workingState,
           "",
           llmRef.current,
           configRef.current,
@@ -1905,12 +1955,15 @@ export default function App() {
           mapStoreRef.current.toLLMContext(),
           { ingestUser: false, requireConnectionLabel, continuationFocus },
         );
+        if (nonce !== turnNonceRef.current) return;
+        stateRef.current = workingState;
         appendCoachOutput(out);
       } catch (e) {
+        if (nonce !== turnNonceRef.current) return;
         const msg = e instanceof Error ? e.message : String(e);
         setError(msg);
       } finally {
-        setLoading(false);
+        if (nonce === turnNonceRef.current) setLoading(false);
       }
     }
   }
@@ -1930,6 +1983,8 @@ export default function App() {
   }
 
   function clearMapOnly() {
+    turnNonceRef.current++;
+    setLoading(false);
     mapStoreRef.current = new ThoughtUnitStore();
     undoStackRef.current = [];
     setCanUndoMap(false);
@@ -1947,12 +2002,16 @@ export default function App() {
   }
 
   function clearDraftOnly() {
+    turnNonceRef.current++;
+    setLoading(false);
     setDraftText("");
     setHighlightAnchor(undefined);
     stateRef.current.draft = "";
   }
 
   function clearChatOnly() {
+    turnNonceRef.current++;
+    setLoading(false);
     const draft = draftText;
     stateRef.current = createState();
     stateRef.current.draft = draft;
@@ -1967,6 +2026,7 @@ export default function App() {
     ]);
     setPendingMirrors(new Map());
     setLastCoachDebug(null);
+    setHighlightAnchor(undefined);
     setError(null);
     setInput("");
     speech.stop();
@@ -2065,6 +2125,7 @@ export default function App() {
               </button>
               <textarea
                 ref={textareaRef}
+                className={`composer-textarea ${composerScrollable ? "composer-scroll" : ""}`}
                 rows={2}
                 placeholder="Say what's on your mind…"
                 value={input}

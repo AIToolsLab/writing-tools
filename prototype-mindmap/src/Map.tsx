@@ -262,12 +262,14 @@ function ConnectionHandles() {
 function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActions }) {
   const [draft, setDraft] = useState(unit.text);
   const [dragging, setDragging] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   useEffect(() => setDraft(unit.text), [unit.id, unit.text]);
   const children = actions.getChildren(unit.id);
+  const rows = expanded ? embeddedTextareaRows(draft) : 2;
 
   return (
     <div
-      className={`map-embed role-${unit.role} ${dragging ? "dragging" : ""}`}
+      className={`map-embed role-${unit.role} ${dragging ? "dragging" : ""} ${expanded ? "expanded" : ""}`}
       draggable
       title="Drag to the canvas to pull this card out"
       onDragStart={(event) => {
@@ -289,7 +291,7 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
       <textarea
         className="map-embed-editor nodrag nowheel"
         value={draft}
-        rows={2}
+        rows={rows}
         placeholder="(empty)"
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => {
@@ -299,6 +301,9 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
       />
       <div className="map-embed-actions nodrag">
         <span className="map-embed-ref" title="Card reference">{cardRef(unit.id)}</span>
+        <button type="button" onClick={() => setExpanded((value) => !value)} title={expanded ? "Collapse card text" : "Expand card text"}>
+          {expanded ? "Less" : "More"}
+        </button>
         <button type="button" onClick={() => actions.onPromote(unit.id)} title="Make this the title">
           Title
         </button>
@@ -318,6 +323,14 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
       )}
     </div>
   );
+}
+
+function embeddedTextareaRows(text: string): number {
+  const normalized = text || "";
+  const visualLines = normalized
+    .split(/\n/)
+    .reduce((total, line) => total + Math.max(1, Math.ceil(line.length / 42)), 0);
+  return Math.max(3, visualLines + 1);
 }
 
 function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {

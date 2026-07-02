@@ -48,6 +48,7 @@ describe("applyAcceptedMapCommands", () => {
     const declarations = bank.getAll().filter((u) => u.origin === "declaration");
     expect(declarations).toHaveLength(1);
     expect(declarations[0].text).toBe("human control");
+    expect(declarations[0].commandOnly).toBe(true);
     expect(store.getAll()[0].source.utteranceIds).toContain(declarations[0].id);
   });
 
@@ -108,6 +109,7 @@ describe("applyAcceptedMapCommands", () => {
     });
     expect(child?.source.utteranceIds).toContain(chatUtterance.id);
     expect(bank.getAll().some((u) => u.origin === "declaration" && u.text === "human control")).toBe(true);
+    expect(bank.getAll().find((u) => u.origin === "declaration" && u.text === "human control")?.commandOnly).toBe(true);
   });
 
   it("reuses one card when create and nest commands cite the same child wording", () => {
@@ -228,5 +230,6 @@ describe("applyAcceptedMapCommands", () => {
     expect(label?.text).toBe("preserves");
     expect(label?.source.utteranceIds).toContain(chatUtterance.id);
     expect(bank.getAll().some((u) => u.origin === "declaration" && u.text === "preserves")).toBe(true);
+    expect(bank.getAll().find((u) => u.origin === "declaration" && u.text === "preserves")?.commandOnly).toBe(true);
   });
 });

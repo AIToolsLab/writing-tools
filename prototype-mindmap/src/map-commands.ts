@@ -24,6 +24,7 @@ function ensureCard(
   if (existingBySameSourceAndText) return existingBySameSourceAndText;
 
   const utterance = bank.add(ref.text, "declaration");
+  bank.markCommandOnly([utterance.id]);
   const unit = store.addFromUserUtterance(utterance);
   return store.update(unit.id, {
     source: {

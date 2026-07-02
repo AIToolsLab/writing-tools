@@ -72,6 +72,7 @@ export interface PendingMapCommandConfirmation {
   prompt: string;
   command: AcceptedMapCommand;
   debug: string;
+  correctionSlots?: Array<"child" | "parent" | "source" | "target">;
 }
 
 export interface PendingConnectionLabelCommand {
@@ -561,8 +562,9 @@ function explicitRefCommandClarification(
 function explicitRefNestCommand(
   userText: string,
   map: LLMMapContext,
+  config: MindmapConfig,
 ): Extract<AcceptedMapCommand, { kind: "nest_card" }> | undefined {
-  if (isUncertainExplicitPlacement(userText)) return undefined;
+  if (isUncertainExplicitPlacement(userText, config)) return undefined;
   const match = userText.match(/\b(?:put|nest|move)\s+(#\d+)\s+(?:in|into|inside|under)\s+(#\d+)\b/i);
   if (!match) return undefined;
   const childId = resolveCardRefNumber(match[1], map);
@@ -575,11 +577,12 @@ function explicitRefNestCommand(
   };
 }
 
-function isUncertainExplicitPlacement(text: string): boolean {
+function isUncertainExplicitPlacement(text: string, config: MindmapConfig): boolean {
   const trimmed = text.trim();
   return (
     /\?/.test(trimmed) ||
-    /^(should|could|would|can|do you think|maybe|perhaps|not sure|i wonder)\b/i.test(trimmed)
+    /^(should|would|can|do you think|i wonder)\b/i.test(trimmed) ||
+    hasCommandUncertainty(trimmed, config)
   );
 }
 
@@ -748,6 +751,41 @@ function existingConnectionBetween(
   );
 }
 
+function withCorrectedReference(
+  pending: PendingMapCommandConfirmation,
+  userText: string,
+  map: LLMMapContext,
+): PendingMapCommandConfirmation | undefined {
+  const slots = pending.correctionSlots ?? [];
+  if (slots.length !== 1) return undefined;
+  const correctedId = resolveCardRefNumber(userText, map) ?? resolveExistingCardId(userText, map);
+  if (!correctedId) return undefined;
+  const corrected = map.thoughtUnits.find((unit) => unit.id === correctedId);
+  if (!corrected) return undefined;
+  const slot = slots[0];
+  let command: AcceptedMapCommand | undefined;
+  if (pending.command.kind === "nest_card") {
+    if (slot === "child") {
+      command = { ...pending.command, child: { id: correctedId } };
+    } else if (slot === "parent") {
+      command = { ...pending.command, parentId: correctedId };
+    }
+  } else if (pending.command.kind === "connect_cards") {
+    if (slot === "source") {
+      command = { ...pending.command, source: { id: correctedId } };
+    } else if (slot === "target") {
+      command = { ...pending.command, target: { id: correctedId } };
+    }
+  }
+  if (!command) return undefined;
+  return {
+    ...pending,
+    command,
+    prompt: `Okay, use "${corrected.text}" for that reference instead?`,
+    debug: `${pending.debug}; corrected ${slot} -> "${corrected.text}"`,
+  };
+}
+
 function describeCardRef(ref: AcceptedMapCommandCardRef, map: LLMMapContext): string {
   if (!("id" in ref)) return ref.text;
   return map.thoughtUnits.find((unit) => unit.id === ref.id)?.text ?? ref.id;
@@ -785,6 +823,7 @@ function acceptedCommandFromNearMatch(
       command: { kind: "nest_card", child: childRef, parentId },
       prompt: `I found an existing card called "${near.matches[0].text}" for "${near.requested}". Did you mean that one?`,
       debug: `near_match_pending: "${near.requested}" -> "${near.matches[0].text}" for nesting ${describeCardRef(childRef, map)} under ${map.thoughtUnits.find((unit) => unit.id === parentId)?.text ?? parentId}`,
+      correctionSlots: child.kind === "near" ? ["child"] : ["parent"],
     };
   }
 
@@ -812,6 +851,10 @@ function acceptedCommandFromNearMatch(
       },
       prompt: `I found existing card matches for this connection: ${readableMatches}. Did you mean those?`,
       debug: `near_match_pending: ${readableMatches} for connection`,
+      correctionSlots: [
+        ...(source.kind === "near" ? ["source" as const] : []),
+        ...(target.kind === "near" ? ["target" as const] : []),
+      ],
     };
   }
 
@@ -1290,6 +1333,56 @@ export async function processTurn(
 
   if (state.pendingMapCommand?.kind === "reference_confirmation" && isAffirmative(userText)) {
     const pending = state.pendingMapCommand;
+    if (
+      pending.command.kind === "connect_cards" &&
+      requireConnectionLabel &&
+      !pending.command.labelText
+    ) {
+      state.pendingMapCommand = {
+        kind: "connection_label",
+        command: pending.command,
+        prompt: `What should the label be between "${describeCardRef(pending.command.source, map)}" and "${describeCardRef(pending.command.target, map)}"?`,
+        debug: `connection_label_pending_after_near_match: awaiting label for ${describeCardRef(pending.command.source, map)} -> ${describeCardRef(pending.command.target, map)}`,
+      };
+      state.mode = "question";
+      state.activeElicitation = undefined;
+      state.pendingCardWording = undefined;
+      state.turnsSinceLastMirror++;
+      state.lastAiText = state.pendingMapCommand.prompt;
+      return {
+        mode: "question",
+        text: state.pendingMapCommand.prompt,
+        llmTurn: { mode: "question", text: state.pendingMapCommand.prompt },
+        commandConfirmation: state.pendingMapCommand,
+        commandDebug: [{ reason: "connection_label_pending", detail: state.pendingMapCommand.debug }],
+        questionStance: "organize",
+      };
+    }
+    if (
+      pending.command.kind === "connect_cards" &&
+      existingConnectionBetween(map, pending.command)
+    ) {
+      state.pendingMapCommand = {
+        kind: "duplicate_connection_confirmation",
+        command: pending.command,
+        prompt: `There is already a connection between "${describeCardRef(pending.command.source, map)}" and "${describeCardRef(pending.command.target, map)}". Do you want to add another relationship between the same two cards?`,
+        debug: `duplicate_connection_pending_after_near_match: ${describeCardRef(pending.command.source, map)} <-> ${describeCardRef(pending.command.target, map)}`,
+      };
+      state.organizeFocus = undefined;
+      state.mode = "question";
+      state.activeElicitation = undefined;
+      state.pendingCardWording = undefined;
+      state.turnsSinceLastMirror++;
+      state.lastAiText = state.pendingMapCommand.prompt;
+      return {
+        mode: "question",
+        text: state.pendingMapCommand.prompt,
+        llmTurn: { mode: "question", text: state.pendingMapCommand.prompt },
+        commandConfirmation: state.pendingMapCommand,
+        commandDebug: [{ reason: "duplicate_connection_pending", detail: state.pendingMapCommand.debug }],
+        questionStance: "organize",
+      };
+    }
     state.pendingMapCommand = undefined;
     state.mode = "question";
     state.activeElicitation = undefined;
@@ -1327,6 +1420,23 @@ export async function processTurn(
 
   if (state.pendingMapCommand?.kind === "reference_confirmation") {
     const pending = state.pendingMapCommand;
+    const corrected = withCorrectedReference(pending, userText, map);
+    if (corrected) {
+      state.pendingMapCommand = corrected;
+      state.mode = "question";
+      state.activeElicitation = undefined;
+      state.pendingCardWording = undefined;
+      state.turnsSinceLastMirror++;
+      state.lastAiText = corrected.prompt;
+      return {
+        mode: "question",
+        text: corrected.prompt,
+        llmTurn: { mode: "question", text: corrected.prompt },
+        commandConfirmation: corrected,
+        commandDebug: [{ reason: "near_match_corrected", detail: corrected.debug }],
+        questionStance: "organize",
+      };
+    }
     state.mode = "question";
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;
@@ -1388,6 +1498,7 @@ export async function processTurn(
         prompt: `There is already a connection between "${describeCardRef(command.source, map)}" and "${describeCardRef(command.target, map)}". Do you want to add another relationship between the same two cards?`,
         debug: `duplicate_connection_pending: ${describeCardRef(command.source, map)} <-> ${describeCardRef(command.target, map)}`,
       };
+      state.organizeFocus = undefined;
       state.lastAiText = state.pendingMapCommand.prompt;
       return {
         mode: "question",
@@ -1421,6 +1532,7 @@ export async function processTurn(
         prompt: `There is already a connection between "${describeCardRef(pending.command.source, map)}" and "${describeCardRef(pending.command.target, map)}". Do you want to add another relationship between the same two cards?`,
         debug: `duplicate_connection_pending: ${describeCardRef(pending.command.source, map)} <-> ${describeCardRef(pending.command.target, map)}`,
       };
+      state.organizeFocus = undefined;
       state.mode = "question";
       state.activeElicitation = undefined;
       state.pendingCardWording = undefined;
@@ -1539,6 +1651,7 @@ export async function processTurn(
   if (state.pendingMapCommand?.kind === "duplicate_connection_confirmation" && isNegative(userText)) {
     const pending = state.pendingMapCommand;
     state.pendingMapCommand = undefined;
+    state.organizeFocus = undefined;
     state.mode = "question";
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;
@@ -1573,7 +1686,7 @@ export async function processTurn(
     };
   }
 
-  const directExplicitRefNest = explicitRefNestCommand(userText, map);
+  const directExplicitRefNest = explicitRefNestCommand(userText, map, config);
   if (directExplicitRefNest) {
     state.bank.markCommandOnly(units.map((unit) => unit.id));
     state.mode = "question";
