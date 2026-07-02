@@ -804,10 +804,13 @@ function explicitExactTextCardCommand(
   for (const re of EXACT_TEXT_MARKERS) {
     const match = re.exec(trimmed);
     if (match) {
-      // Question/hedge framing BEFORE the marker ("Should I create a card with
-      // exactly this text: ...?") means the user is asking, not commanding. The
-      // payload after the marker is never inspected, so it may itself be a
-      // question or contain hedge words.
+      // Negated imperative framing BEFORE the marker ("Do not create a card
+      // with exactly this text: ...") means the user is forbidding the command,
+      // so mirror the per-unit path and refuse. Question/hedge framing
+      // ("Should I create a card with exactly this text: ...?") means the user
+      // is asking, not commanding. The payload after the marker is never
+      // inspected, so it may itself be a question or contain hedge words.
+      if (isNegatedImperativePrefix(trimmed, match.index)) return undefined;
       if (hasUncertainCommandFrame(trimmed, match.index)) return undefined;
       payload = cleanExplicitCardText(match[1], { preserveTerminalPunctuation: true });
       break;

@@ -424,6 +424,19 @@ describe("question mode", () => {
     expect(out.mapCommands).toBeUndefined();
   });
 
+  it.each([
+    "Do not create a card with exactly this text: AI is risky. It removes agency.",
+    "Don't make a card with this exact text: AI is risky. It removes agency.",
+  ])("does not execute a negated multi-segment exact-text command: %s", async (userText) => {
+    const state = createState();
+
+    const out = await processTurn(state, userText, questionLLM("What would help you decide?"));
+
+    expect(out.mode).toBe("question");
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toBe("What would help you decide?");
+  });
+
   it("still allows a question mark inside an exact-text payload", async () => {
     const state = createState();
 
