@@ -1,145 +1,50 @@
 import { useState } from "react";
-import type { TurnOutput } from "./controller";
+// The real trace contract lives in ./trace (owned by coder 1). Re-export it so
+// App.tsx's `import { deriveTraceEvent, type TraceEvent } from "./CoachTrace"`
+// keeps resolving after the swap from the earlier local mock.
+import { deriveTraceEvent, type TraceEvent, type TraceLevel } from "./trace";
 
-// ===========================================================================
-// TEMPORARY LOCAL MOCK of the trace contract.
-//
-// Coder 1 owns the real implementation in `./trace`. This block mirrors the
-// FROZEN contract exactly so the panel can be built and wired ahead of that
-// landing. AT INTEGRATION: delete this block (the types + deriveTraceEvent) and
-// instead import them from the real module:
-//
-//   import { deriveTraceEvent, type TraceEvent, type TraceLevel } from "./trace";
-//
-// Everything below the mock (the CoachTrace component + styles) is permanent.
-// ===========================================================================
-export type TraceLevel = "quiet" | "notice" | "held";
-
-export interface TraceEvent {
-  id: string;
-  turnId: string;
-  reason: string; // internal key — NEVER render this in the default view
-  level: TraceLevel;
-  icon: string; // Tabler-style key or emoji key, catalog-provided
-  title: string; // short label, no trailing period
-  explanation: string; // one calm sentence
-  detail?: string; // expanded, plain-English (may include a score)
-  technical?: Record<string, unknown>; // behind "Show technical detail" only
-}
-
-/**
- * MOCK derivation. Picks a level and calm catalog strings from the turn output
- * so the panel can be exercised end-to-end before `./trace` exists. The real
- * impl (coder 1) will be richer; this keeps the same shape and honors the
- * user-facing rules (system-subject copy, no model prose, no raw keys in copy).
- */
-export function deriveTraceEvent(out: TurnOutput, turnId: string): TraceEvent {
-  const base = { id: `trace_${turnId}`, turnId };
-
-  // A suppressed turn (that isn't a plain command hand-back) is the coach
-  // *choosing* to hold a reflection — calm, system as subject.
-  const heldReason =
-    out.suppressionReason && out.suppressionReason !== "command_precedence"
-      ? out.suppressionReason
-      : undefined;
-  if (heldReason) {
-    return {
-      ...base,
-      reason: String(heldReason),
-      level: "held",
-      icon: "pause",
-      title: "I held back a reflection",
-      explanation: "I didn't have enough of your own words to mirror this cleanly yet.",
-      detail:
-        out.suppressionDetail ??
-        "The reflection didn't clear the grounding bar, so I asked a question instead of putting words in your mouth.",
-      technical: {
-        suppressionReason: out.suppressionReason,
-        suppressionDetail: out.suppressionDetail,
-        validationDebug: out.validationDebug,
-        readinessNotes: out.readinessNotes,
-      },
-    };
-  }
-
-  if (out.mapCommands && out.mapCommands.length > 0) {
-    const count = out.mapCommands.length;
-    return {
-      ...base,
-      reason: "map_command_executed",
-      level: "notice",
-      icon: "check",
-      title: count === 1 ? "Made a change on your map" : `Made ${count} changes on your map`,
-      explanation: "I did the map action you asked for, using your exact words.",
-      detail: "This only ran because your turn was a direct command with wording or references I could resolve.",
-      technical: { mapCommands: out.mapCommands, commandDebug: out.commandDebug },
-    };
-  }
-
-  if (out.validatedMirror) {
-    return {
-      ...base,
-      reason: "mirror_shown",
-      level: "notice",
-      icon: "mirror",
-      title: "Reflected your structure back",
-      explanation: "I showed you the shape I heard, in your own words, for you to confirm.",
-      detail: "A reflection only appears once enough of your wording supports it. You decide whether it holds.",
-      technical: { validationDebug: out.validationDebug },
-    };
-  }
-
-  if (out.mode === "clarify") {
-    return {
-      ...base,
-      reason: "clarify",
-      level: "notice",
-      icon: "message",
-      title: "Asked a clarifying question",
-      explanation: "I zoomed in on one phrase so we stay grounded in what you meant.",
-      technical: out.commandDebug ? { commandDebug: out.commandDebug } : undefined,
-    };
-  }
-
-  return {
-    ...base,
-    reason: "question",
-    level: "quiet",
-    icon: "ear",
-    title: "Kept listening",
-    explanation: "I asked a question to help you take the next small step.",
-    technical: undefined,
-  };
-}
-// ===========================================================================
-// END mock block.
-// ===========================================================================
+export { deriveTraceEvent };
+export type { TraceEvent, TraceLevel };
 
 type ChipKind = "executed" | "reflected" | "clarifying" | "neutral" | "held" | "quiet";
 
 function chipKind(event: TraceEvent): ChipKind {
+  // Level wins first, so a held/quiet event keeps its calm tint regardless of
+  // which icon the catalog picked (e.g. pause/sprout under a held reflection).
   if (event.level === "held") return "held";
   if (event.level === "quiet") return "quiet";
   switch (event.icon) {
     case "check":
       return "executed";
-    case "mirror":
+    case "reflect":
       return "reflected";
-    case "message":
+    case "help":
+    case "link":
       return "clarifying";
     default:
       return "neutral";
   }
 }
 
-// Monochrome glyphs that inherit the chip's text color, so the level tint reads
-// cleanly. Falls back to the catalog key itself (which may already be an emoji).
+// Monochrome glyphs that inherit the chip's text color so the level tint reads
+// cleanly. Covers every icon key the real catalog can emit (trace.ts) — the
+// `?? icon` fallback below must never fire for a real event.
 const ICON_GLYPH: Record<string, string> = {
   check: "✓",
-  mirror: "◑",
-  message: "?",
+  reflect: "◑",
   pause: "❙❙",
-  ear: "·",
+  sprout: "☘",
+  pace: "◷",
+  pin: "⊙",
+  compass: "✦",
+  refresh: "↻",
+  chat: "…",
+  help: "?",
+  link: "↔",
+  pencil: "✎",
+  x: "✕",
+  target: "◎",
 };
 
 function glyphFor(icon: string): string {
@@ -443,7 +348,7 @@ export function CoachTrace({ events, defaultOpen = true }: CoachTraceProps) {
                           </button>
                           {showTechnical && (
                             <pre className="ct-technical">
-                              {JSON.stringify({ reason: event.reason, ...event.technical }, null, 2)}
+                              {JSON.stringify(event.technical, null, 2)}
                             </pre>
                           )}
                         </>
