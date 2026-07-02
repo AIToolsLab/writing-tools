@@ -457,6 +457,85 @@ describe("question mode", () => {
     expect(out.suppressionReason).toBe("command_precedence");
   });
 
+  describe("card-coverage questions", () => {
+    const coverageMap = {
+      thoughtUnits: [
+        mapUnit("tu_46", "Different style of AI use that enables user to be in more control."),
+      ],
+      connections: [],
+    };
+    const STALE_SETTLE =
+      "Let's zoom out a little — what's one small piece of this you feel sure about?";
+    const STALE_FOCUS_QUESTION =
+      "Which focused point for this section feels easiest to name first?";
+
+    it("anchors a coverage question to the card instead of settling", async () => {
+      const state = createState();
+
+      const out = await processTurn(
+        state,
+        "is there any major point in this the current card (#46) doesnt cover? Or at least that I need to think about",
+        questionLLM(STALE_FOCUS_QUESTION),
+        defaultConfig,
+        "chat",
+        coverageMap,
+      );
+
+      expect(out.mapCommands).toBeUndefined();
+      expect(out.validatedMirror).toBeUndefined();
+      expect(out.mode).toBe("question");
+      expect(out.text).toContain("#46");
+      expect(out.text).toMatch(/draft|section|least represented|checking/i);
+    });
+
+    it("does not repeat the stale previous focus question", async () => {
+      const state = createState();
+      // Prior AI turn was the generic focus question.
+      await processTurn(state, "make this a card", questionLLM(STALE_FOCUS_QUESTION), defaultConfig, "chat", coverageMap);
+
+      const out = await processTurn(
+        state,
+        "does #46 cover the main point?",
+        questionLLM(STALE_FOCUS_QUESTION),
+        defaultConfig,
+        "chat",
+        coverageMap,
+      );
+
+      expect(out.text).not.toBe(STALE_FOCUS_QUESTION);
+      expect(out.text).toContain("#46");
+    });
+
+    it("keeps a follow-up 'not sure' anchored to the coverage concern", async () => {
+      const state = createState();
+      await processTurn(
+        state,
+        "is there any major point in this the current card (#46) doesnt cover? Or at least that I need to think about",
+        questionLLM(STALE_FOCUS_QUESTION),
+        defaultConfig,
+        "chat",
+        coverageMap,
+      );
+
+      const out = await processTurn(state, "not sure", questionLLM(STALE_SETTLE), defaultConfig, "chat", coverageMap);
+
+      expect(out.mode).toBe("clarify");
+      expect(out.mapCommands).toBeUndefined();
+      expect(out.validatedMirror).toBeUndefined();
+      expect(out.text).not.toBe(STALE_SETTLE);
+      expect(out.text).toMatch(/#46|draft|section|sentence|checking|represented/i);
+    });
+
+    it("does not treat a plain 'not sure' as coverage when no focus is active", async () => {
+      const state = createState();
+
+      const out = await processTurn(state, "not sure", questionLLM(STALE_SETTLE), defaultConfig, "chat", coverageMap);
+
+      // Without an active coverage focus, the coverage path must not fire.
+      expect(out.text).not.toMatch(/checking .* against first/i);
+    });
+  });
+
   it("hands control back after a complete card command and stays clean on back-to-back commands", async () => {
     const state = createState();
     const cardLLM = (text: string, uttId: string) => (_ctx: LLMContext): LLMTurn => ({

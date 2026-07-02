@@ -20,6 +20,7 @@ Recently landed fixes:
 - stale two-cycle question guard
 - multi-sentence exact-text create-card payloads
 - **block negated exact-text card commands** (fixed — see below)
+- **anchor card-coverage questions instead of stale settle wording** (fixed — see below)
 
 ---
 
@@ -213,6 +214,204 @@ Keep broader "earlier X idea" behavior on the clarification path.
 
 ---
 
+## Bug 3: Card-Coverage Question Gets Stale Generic Response — FIXED
+
+Status: **Fixed** on `feat/uist`. Deterministic coverage-focus path added to the
+controller with four regression tests. Details below describe the shipped fix.
+
+Priority: **High for demo feel.** This is a stale-question / ignored-user-intent
+bug, not a map-corruption bug, but it is very visible.
+
+### Symptom
+
+After a card is created, the user asks:
+
+```
+is there any major point in this the current card (46) doesnt cover? Or at least that I need to think about
+```
+
+Actual coach response:
+
+```
+Which focused point for this section feels easiest to name first?
+```
+
+Then the user says:
+
+```
+not sure
+```
+
+Actual coach response:
+
+```
+Let's zoom out a little — what's one small piece of this you feel sure about?
+```
+
+### Why this is buggy
+
+The user is no longer asking "which focused point should I name first?" They are
+asking a map/draft **coverage** question:
+
+- Does card #46 cover the major point?
+- Is anything missing?
+- What should they think about next relative to this card and draft section?
+
+The coach repeated stale generic "settle" wording instead of staying anchored to
+the active concern.
+
+This is **not** covered by the prior stale-question fix, which catches a narrow
+two-cycle of exact carry-forward phrasings. This case is different: the
+model/controller falls back to stale settle wording even though the user
+introduced a **new map-evaluation intent**.
+
+### Required fix direction
+
+Add a narrow recognition path for card coverage / missing-point questions.
+
+Detect when the user asks whether an existing card covers the section / draft /
+point, especially with card refs. Examples:
+
+```
+does #46 cover the main point?
+is there anything this card doesn't cover?
+is there any major point in the current card (#46) doesn't cover?
+what am I missing from this card?
+does this card cover this section?
+what else do I need to think about for #46?
+```
+
+Expected coach behavior:
+
+- Do not create a card.
+- Do not mirror.
+- Do not repeat old carry-forward / settle question.
+- Ask a coverage-anchored question about the card and draft section.
+
+Acceptable responses:
+
+```
+What part of the draft section feels least represented by #46?
+```
+
+or:
+
+```
+Looking at #46, which part feels least covered: the interface/product point, the authorship/control point, or something else?
+```
+
+Be careful with the second example: **do not invent options** unless they are
+grounded in visible draft/card context. Safer default is the first form.
+
+### Handling `not sure`
+
+If the user then says `not sure` while the active concern is coverage /
+missing-point evaluation, the coach should stay anchored to that concern.
+
+Bad:
+
+```
+Let's zoom out a little — what's one small piece of this you feel sure about?
+```
+
+Better:
+
+```
+What phrase or sentence in the draft feels least connected to #46?
+```
+
+or:
+
+```
+Which part of the draft are you checking #46 against first?
+```
+
+### Implementation suggestion
+
+Keep this narrow and deterministic.
+
+- Add a lightweight detector for coverage/evaluation intent:
+  - card refs: `#\d+`
+  - words like `cover`, `missing`, `doesn't cover`, `major point`,
+    `current card`, `this card`, `need to think about`
+  - optionally `section`, `draft`, `point`
+- Store a small active state, e.g.:
+
+  ```ts
+  coverageFocus?: {
+    cardRef?: string;
+  }
+  ```
+
+  or reuse an existing focus mechanism if one already fits.
+- When coverage intent is detected, return a question like:
+  `What part of the draft section feels least represented by #46?`
+- If `coverageFocus` is active and the user says `not sure`, ask:
+  `Which sentence in the draft are you checking #46 against first?`
+- Clear `coverageFocus` when:
+  - the user issues a direct map command
+  - the user moves on
+  - the user answers with a substantive card/draft comparison
+  - clear-chat / clear-map paths reset controller state
+
+### Tests to add (loop/controller tests)
+
+**Test 1 — coverage question with card ref.** Setup map with one card:
+`#46 — Different style of AI use that enables user to be in more control.`
+
+User:
+
+```
+is there any major point in this the current card (#46) doesnt cover? Or at least that I need to think about
+```
+
+```ts
+expect(out.mapCommands).toBeUndefined();
+expect(out.mode).toBe("question");
+expect(out.text).toContain("#46");
+expect(out.text).toMatch(/draft|section|least represented|checking/i);
+```
+
+Do not assert exact text too tightly unless needed.
+
+**Test 2 — does not repeat stale previous question.** Before the coverage
+question, set the prior AI text to
+`Which focused point for this section feels easiest to name first?`, then ask
+the coverage question.
+
+```ts
+expect(out.text).not.toBe("Which focused point for this section feels easiest to name first?");
+```
+
+**Test 3 — `not sure` stays anchored to coverage.** After Test 1 establishes
+coverage focus, user says `not sure`.
+
+```ts
+expect(out.mode).toBe("clarify"); // or "question"
+expect(out.text).toMatch(/#46|draft|section|sentence|checking|represented/i);
+expect(out.text).not.toBe("Let's zoom out a little — what's one small piece of this you feel sure about?");
+```
+
+**Test 4 — no card/mirror mutation.** For the coverage question and the
+`not sure` follow-up:
+
+```ts
+expect(out.mapCommands).toBeUndefined();
+expect(out.validatedMirror).toBeUndefined();
+```
+
+### Non-goals
+
+- Do not build a broad "draft evaluator."
+- Do not have the AI answer the coverage question by inventing missing points.
+- Do not harvest draft content into cards.
+- Do not create multiple suggested cards.
+- Do not make broad philosophical changes to whether the app should evaluate the
+  draft. The safe behavior is to ask a grounded comparison question, not answer
+  for the user.
+
+---
+
 ## Verification
 
 Run from `prototype-mindmap/`:
@@ -233,8 +432,9 @@ npm.cmd run build
 
 After green verification, commit and push to `feat/uist`.
 
-Suggested commit message for Bug 2:
+Suggested commit messages:
 
 ```
 mindmap: resolve same-turn "this" card commands
+mindmap: anchor coverage questions instead of stale settle wording
 ```

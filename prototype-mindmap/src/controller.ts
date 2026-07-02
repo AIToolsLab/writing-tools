@@ -137,6 +137,16 @@ export interface LoopState {
     key: string;
     declineCount: number;
   };
+  /**
+   * Active card-coverage concern: the user asked whether an existing card
+   * already covers the draft section / a major point. While set, a follow-up
+   * "not sure" stays anchored to that comparison instead of drifting to the
+   * generic settle question. Cleared on a direct command, a move-on, a
+   * substantive pivot, or a clear-chat/clear-map reset.
+   */
+  coverageFocus?: {
+    cardRef?: string;
+  };
   pendingChildPlacement?: {
     parentId: string;
     parentText: string;
@@ -203,6 +213,37 @@ function extractCardPairRefs(text: string): [string, string] | undefined {
 
 function cardPairKey(refs: [string, string]): string {
   return `${refs[0]}|${refs[1]}`;
+}
+
+// A card-coverage / missing-point question ("does #46 cover the main point?",
+// "is there anything this card doesn't cover?"). Deterministic and narrow: it
+// requires BOTH a coverage word and a card anchor (an explicit #ref or
+// "this/that/current card"), and must read as a question — never an imperative
+// placement command. Detection only classifies intent; it never mutates the map.
+const COVERAGE_WORD =
+  /\b(?:cover|covers|covered|covering|miss|misses|missing|missed|leaves? out|left out|address(?:es|ed|ing)?|major point|main point|key point|need to think about|think about|doesn'?t cover|does not cover|don'?t cover)\b/i;
+const COVERAGE_CARD_ANCHOR = /#\d+|\b(?:this|that|the current|current) card\b/i;
+const COVERAGE_EVALUATIVE_LEAD = /^(?:is there|is|are|does|do|what|which|any|anything|should)\b/i;
+
+function detectCoverageIntent(text: string): { cardRef?: string } | undefined {
+  const trimmed = text.trim();
+  if (!trimmed) return undefined;
+  if (!COVERAGE_WORD.test(trimmed) || !COVERAGE_CARD_ANCHOR.test(trimmed)) return undefined;
+  // Must read as a question/evaluation, not a statement or an imperative
+  // ("make this card cover X" is a command and stays with the command paths).
+  if (!/\?/.test(trimmed) && !COVERAGE_EVALUATIVE_LEAD.test(trimmed)) return undefined;
+  const cardRef = trimmed.match(/#\d+/)?.[0];
+  return { cardRef };
+}
+
+function coverageAnchorQuestion(cardRef: string | undefined): string {
+  const ref = cardRef ?? "that card";
+  return `What part of the draft section feels least represented by ${ref}?`;
+}
+
+function coverageNotSureQuestion(cardRef: string | undefined): string {
+  const ref = cardRef ?? "that card";
+  return `Which sentence in the draft are you checking ${ref} against first?`;
 }
 
 function resolveOrganizePair(
@@ -1556,6 +1597,7 @@ export function createState(_config?: MindmapConfig): LoopState {
     draft: "",
     pendingMapCommand: undefined,
     organizeFocus: undefined,
+    coverageFocus: undefined,
     pendingChildPlacement: undefined,
     activeElicitation: undefined,
     activeSelectionContext: undefined,
@@ -2205,6 +2247,54 @@ export async function processTurn(
     }
   }
 
+  // 1b. Card-coverage / missing-point evaluation. This is a distinct user
+  //     intent ("does #46 cover the major point?") that must not be answered
+  //     with stale carry-forward/settle wording. It never mutates the map or
+  //     mirror — it only re-anchors the coaching question to the card/draft
+  //     comparison, then holds that focus so a follow-up "not sure" stays on it.
+  if (state.coverageFocus && isStuck(userText)) {
+    // Keep the coverage concern anchored instead of drifting to the generic
+    // "zoom out" settle question. The focus (and its card ref) is preserved so
+    // repeated uncertainty keeps pointing at the same comparison.
+    state.mode = "clarify";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.turnsSinceLastMirror++;
+    const text = coverageNotSureQuestion(state.coverageFocus.cardRef);
+    setLastAiText(state, text);
+    return {
+      mode: "clarify",
+      text,
+      llmTurn: { mode: "clarify", text },
+      commandDebug: [{ reason: "coverage_focus_hold", detail: `Held coverage focus on ${state.coverageFocus.cardRef ?? "current card"} through an uncertain reply.` }],
+      questionStance: "narrow",
+    };
+  }
+  const coverageIntent = detectCoverageIntent(userText);
+  if (coverageIntent) {
+    state.coverageFocus = { cardRef: coverageIntent.cardRef };
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.organizeFocus = undefined;
+    state.turnsSinceLastMirror++;
+    const text = coverageAnchorQuestion(coverageIntent.cardRef);
+    setLastAiText(state, text);
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      commandDebug: [{ reason: "coverage_intent", detail: `Anchored coverage question to ${coverageIntent.cardRef ?? "current card"}.` }],
+      questionStance: "narrow",
+    };
+  }
+  // A substantive, non-uncertain turn that reached this point is a pivot away
+  // from the coverage concern — drop the focus so a later "not sure" is not
+  // wrongly anchored to a stale card comparison.
+  if (state.coverageFocus && !isStuck(userText)) {
+    state.coverageFocus = undefined;
+  }
+
   // 2. Deterministic structural-signal detection PER UNIT (spontaneity scored
   //    against the AI's previous turn so the LLM can't game it). Per-unit means
   //    a relationship signal is tied to the specific sentence that carries it.
@@ -2415,6 +2505,8 @@ export async function processTurn(
     let repeatedCaptureBlocked = false;
     if (acceptedCommands.length > 0) {
       out = { ...out, mapCommands: acceptedCommands };
+      // A direct map command supersedes any lingering coverage concern.
+      state.coverageFocus = undefined;
     }
     if (commandResult.notes.length > 0) {
       out = { ...out, commandDebug: turnDebugNotes };

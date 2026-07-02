@@ -2017,6 +2017,7 @@ export default function App() {
     setConfirmed([]);
     stateRef.current.pendingMapCommand = undefined;
     stateRef.current.organizeFocus = undefined;
+    stateRef.current.coverageFocus = undefined;
     stateRef.current.pendingChildPlacement = undefined;
     stateRef.current.activeElicitation = undefined;
     stateRef.current.pendingCardWording = undefined;
