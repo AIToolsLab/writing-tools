@@ -9,6 +9,7 @@
  * browser at `verification_uri_complete`, which Better Auth builds from the backend's
  * BETTER_AUTH_URL. This module only requests the code and polls for the token.
  */
+import type { ConsentLevel } from '@/consent';
 import { SERVER_URL } from './index';
 
 // Supplied at build time via webpack DefinePlugin; must match a value in the backend's
@@ -146,8 +147,12 @@ export async function pollForToken(
 
 /** Authenticated user shape returned by GET /api/protected. */
 export interface UserInfo {
+	/** Better Auth user id — stable identity for analytics + log keying. */
+	id?: string;
 	email?: string;
 	name?: string;
+	/** Logging-consent level; gates analytics + event logging on the client. */
+	loggingConsent?: ConsentLevel;
 }
 
 /**

@@ -30,6 +30,42 @@ export async function captureException(
 	}
 }
 
+/**
+ * Best-effort deletion of a user's PostHog person + events, for "delete my data".
+ *
+ * The capture token can't delete data; this needs the management API (a personal
+ * API key + project id). When those aren't configured we no-op with a warning so
+ * self-hosted/dev deletion requests still succeed for the parts we control (the
+ * JSONL logs). NOTE: verify the endpoint shape against your PostHog version before
+ * relying on it in production.
+ */
+export async function deletePosthogPerson(distinctId: string): Promise<void> {
+	const personalKey = (process.env.POSTHOG_PERSONAL_API_KEY ?? '').trim();
+	const projectId = (process.env.POSTHOG_PROJECT_ID ?? '').trim();
+	if (!personalKey || !projectId) {
+		console.warn(
+			'PostHog person deletion skipped (POSTHOG_PERSONAL_API_KEY / POSTHOG_PROJECT_ID unset); delete manually if needed.',
+		);
+		return;
+	}
+	try {
+		const res = await fetch(
+			`${host}/api/projects/${projectId}/persons/?distinct_id=${encodeURIComponent(distinctId)}&delete_events=true`,
+			{ method: 'DELETE', headers: { Authorization: `Bearer ${personalKey}` } },
+		);
+		// fetch only rejects on network errors — surface 4xx/5xx so a failed
+		// deletion isn't silently treated as success.
+		if (!res.ok) {
+			await captureException(
+				new Error(`PostHog person deletion failed (${res.status})`),
+				{ context: 'deletePosthogPerson' },
+			);
+		}
+	} catch (e) {
+		await captureException(e, { context: 'deletePosthogPerson' });
+	}
+}
+
 export async function shutdownPosthog(): Promise<void> {
 	try {
 		await posthog.shutdown();

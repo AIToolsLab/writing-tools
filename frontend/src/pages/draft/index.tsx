@@ -3,7 +3,6 @@
  */
 
 import { streamText, type ModelMessage } from 'ai';
-import { useAtomValue } from 'jotai';
 import {
 	useCallback,
 	useContext,
@@ -12,11 +11,10 @@ import {
 	useState,
 } from 'react';
 import { Remark } from 'react-remark';
-import { log } from '@/api';
 import { OPENAI_MODEL, openai } from '@/api/openai';
 import { buildMessages } from '@/api/prompts';
 import { EditorContext } from '@/contexts/editorContext';
-import { usernameAtom } from '@/contexts/userContext';
+import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
@@ -237,7 +235,7 @@ function useResettableInterval(callback: () => void, interval: number) {
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContextSnapshot = useDocContext(editorAPI);
-	const username = useAtomValue(usernameAtom);
+	const log = useLog();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 	const [errorMsg, updateErrorMsg] = useState('');
@@ -267,7 +265,6 @@ export default function Draft() {
 	const save = useCallback(
 		(generation: GenerationResult, document: DocContext) => {
 			log({
-				username: username,
 				event: 'ShowSuggestion',
 				prompt: document,
 				result: generation,
@@ -281,7 +278,7 @@ export default function Draft() {
 				...savedItems,
 			]);
 		},
-		[username],
+		[log],
 	);
 
 	function deleteSavedItem(dateSaved: Date) {
@@ -304,7 +301,6 @@ export default function Draft() {
 			);
 
 			log({
-				username: username,
 				event: 'Delete',
 				prompt: savedItems[savedItemIdx].document,
 				result: savedItems[savedItemIdx].generation,
@@ -356,9 +352,7 @@ export default function Draft() {
 					err.message ||
 					'An error occurred while generating the suggestion.';
 				log({
-					username: username,
 					event: 'generation_error',
-
 					generation_type: suggestionRequest.type,
 					docContext: suggestionRequest.docContext,
 					result: errMsg,
@@ -368,7 +362,7 @@ export default function Draft() {
 
 			setIsLoading(false);
 		},
-		[getFetcher, save, username],
+		[getFetcher, save, log],
 	);
 
 	const autoRefreshCallback = useCallback(() => {
@@ -397,14 +391,12 @@ export default function Draft() {
 			return;
 		}
 		log({
-			username: username,
 			event: 'auto_refresh',
-
 			generation_type: modesToShow[0],
 			docContext: docContextRef.current,
 		});
 		getSuggestion(request, false);
-	}, [getFetcher, getSuggestion, modesToShow, shouldAutoRefresh, username]);
+	}, [getFetcher, getSuggestion, shouldAutoRefresh, log]);
 
 	const resetAutoRefresh = useResettableInterval(
 		autoRefreshCallback,
@@ -436,7 +428,6 @@ export default function Draft() {
 										onClick={() => {
 											setActiveMode(mode);
 											log({
-												username: username,
 												event: 'request_suggestion',
 												generation_type: mode,
 												docContext: docContextRef.current,
