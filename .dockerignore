@@ -1,37 +1,43 @@
-# Build context is the repo root (combined frontend+backend image). Keep it
-# small: only frontend/ and backend/ sources are needed, and their deps are
-# installed inside the image.
+# Build context is the repo root (combined frontend+backend image). The
+# Dockerfile only ever COPYs from frontend/ and backend/, so use an allowlist:
+# ignore everything, then re-include just those two trees. New top-level files
+# or dirs are excluded by default and can't accidentally bloat or leak into the
+# image.
+#
+# NOTE: .dockerignore is independent of .gitignore — Docker never consults git.
+# Anything present on disk is sent to the build unless excluded HERE, so the
+# junk patterns below must be spelled out even though git already ignores them.
+*
+
+# The only two trees the image build reads.
+!frontend
+!backend
+
+# Deps and build/test artifacts — reinstalled/regenerated inside the image.
 **/node_modules
 **/dist
-**/.venv
-**/.git
+**/dist-gdocs
+**/tests
+**/test-results
+**/playwright-report
+
+# Language/tool caches (gitignored, but Docker doesn't know that).
+**/__pycache__
+**/*.pyc
+**/.mypy_cache
+**/.ruff_cache
+**/.pytest_cache
+
+# Secrets and local env files must never be baked into a layer.
+**/.env
+**/.env.*
+**/.env-*
+
+# Misc junk and dev-only tooling.
 **/.DS_Store
 **/*.log
-
-# Everything unrelated to the single-container build.
-.git
-.github
-.venv
-.husky
-.vscode
-.devcontainer
-docs
-backlog
-experiment
-google-docs-addon
-prototype-uist
-own-words
-sandbox
-scripts
-__pycache__
-*.pyc
+**/.husky
 
 # Backend runtime data must never be baked into the image (mounted at runtime).
 backend/logs
 backend/data
-backend/.env
-
-# Frontend dev/test artifacts not needed for the production build.
-frontend/playwright-report
-frontend/test-results
-frontend/tests
