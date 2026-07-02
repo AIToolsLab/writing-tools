@@ -201,12 +201,214 @@ describe("question mode", () => {
       ],
     });
 
-    const out = await processTurn(state, "put human control on the map", llm);
+    const out = await processTurn(state, "I'd like human control as a card", llm);
 
     expect(out.mode).toBe("question");
     expect(out.mapCommands).toEqual([
       { kind: "create_card", text: "human control", sourceUtteranceIds: ["u_1"] },
     ]);
+  });
+
+  it("recognizes exact create-card commands when the LLM stays in question mode", async () => {
+    const state = createState();
+    const llm = questionLLM("some coach question the command should override");
+
+    await processTurn(
+      state,
+      "I don't want to make a card yet.",
+      questionLLM("What exact wording do you want to carry forward as the next card?"),
+    );
+
+    const out = await processTurn(
+      state,
+      "Okay, now make a card with this exact text: AI becomes risky when it makes choices that should belong to the writer.",
+      llm,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.text).toBe("Done. What would you like to do next?");
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "AI becomes risky when it makes choices that should belong to the writer.",
+        sourceUtteranceIds: ["u_2"],
+      },
+    ]);
+    expect(out.suppressionReason).toBe("command_precedence");
+  });
+
+  it.each([
+    [
+      "Create a card with exactly this text: AI becomes risky when it makes choices that should belong to the writer.",
+      "AI becomes risky when it makes choices that should belong to the writer.",
+    ],
+    [
+      "Create a card for this, AI becomes risky when it makes choices that should belong to the writer.",
+      "AI becomes risky when it makes choices that should belong to the writer.",
+    ],
+    ["Put No AI words on the map", "No AI words"],
+    ["Turn No AI words into a card", "No AI words"],
+  ])("deterministically accepts explicit create-card phrasing: %s", async (userText, expectedText) => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      userText,
+      questionLLM("some coach question the command should override"),
+    );
+
+    expect(out.text).toBe("Done. What would you like to do next?");
+    expect(out.mapCommands).toEqual([
+      { kind: "create_card", text: expectedText, sourceUtteranceIds: ["u_1"] },
+    ]);
+    expect(out.suppressionReason).toBe("command_precedence");
+  });
+
+  it.each([
+    "Okay, put human control on the map",
+    "Now add human control to the map",
+    "Let's put human control on the map",
+    "Alright, drop human control on the canvas",
+  ])("still accepts natural imperative placement after a filler lead-in: %s", async (userText) => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      userText,
+      questionLLM("some coach question the command should override"),
+    );
+
+    expect(out.text).toBe("Done. What would you like to do next?");
+    expect(out.mapCommands).toEqual([
+      { kind: "create_card", text: "human control", sourceUtteranceIds: ["u_1"] },
+    ]);
+    expect(out.suppressionReason).toBe("command_precedence");
+  });
+
+  it.each([
+    "I already put human control on the map earlier.",
+    "This made me want to turn my anger into a card game.",
+    "I keep meaning to put human control on the map.",
+  ])("does not mint a card when a placement phrase is embedded in prose: %s", async (userText) => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      userText,
+      questionLLM("What part of that feels most alive right now?"),
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("asks rather than executes when a placement is phrased as an uncertain question", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "Can you put human control on the map?",
+      questionLLM("What exact words should go on that card?"),
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it.each([
+    "Create a card with exactly this text: AI is risky. It removes agency.",
+    "Okay, now make a card with this exact text: AI is risky. It removes agency.",
+  ])("keeps a full multi-sentence exact-text payload across segmentation: %s", async (userText) => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      userText,
+      questionLLM("some coach question the command should override"),
+    );
+
+    expect(out.text).toBe("Done. What would you like to do next?");
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "AI is risky. It removes agency.",
+        sourceUtteranceIds: ["u_1", "u_2"],
+      },
+    ]);
+    expect(out.suppressionReason).toBe("command_precedence");
+  });
+
+  it("does not pull draft text into a multi-segment exact-text card", async () => {
+    const state = createState();
+    state.draft = "The draft says agency matters. And control matters too.";
+
+    const out = await processTurn(
+      state,
+      "Create a card with exactly this text: AI is risky. It removes agency.",
+      questionLLM("q"),
+      defaultConfig,
+      "chat",
+      { thoughtUnits: [], connections: [] },
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "AI is risky. It removes agency.",
+        sourceUtteranceIds: ["u_1", "u_2"],
+      },
+    ]);
+  });
+
+  it("does not pull a prior turn's sentence into a multi-segment exact-text card", async () => {
+    const state = createState();
+    await processTurn(state, "I was thinking about authorship earlier.", questionLLM("q"));
+
+    const out = await processTurn(
+      state,
+      "Create a card with exactly this text: AI is risky. It removes agency.",
+      questionLLM("q2"),
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "AI is risky. It removes agency.",
+        sourceUtteranceIds: ["u_2", "u_3"],
+      },
+    ]);
+  });
+
+  it("still blocks a referential/anaphoric payload even in exact-text form", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "Create a card with exactly this text: that idea. It matters.",
+      questionLLM("What exact words should go on the card?"),
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("leaves single-segment exact-text commands on the existing per-unit path", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "Create a card with exactly this text: AI becomes risky when it makes choices.",
+      questionLLM("some coach question the command should override"),
+    );
+
+    expect(out.text).toBe("Done. What would you like to do next?");
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "AI becomes risky when it makes choices.",
+        sourceUtteranceIds: ["u_1"],
+      },
+    ]);
+    expect(out.commandDebug).toBeUndefined();
   });
 
   it("hands control back after a complete card command and stays clean on back-to-back commands", async () => {
@@ -574,7 +776,7 @@ describe("question mode", () => {
       ],
     });
 
-    const out = await processTurn(state, "put human control on the map", llm);
+    const out = await processTurn(state, "I'd like human control as a card", llm);
 
     expect(out.mapCommands).toBeUndefined();
   });
@@ -593,7 +795,7 @@ describe("question mode", () => {
       ],
     });
 
-    const out = await processTurn(state, "drop human control on the canvas", llm);
+    const out = await processTurn(state, "I'd like human control as a card", llm);
 
     expect(out.mapCommands).toBeUndefined();
   });
@@ -634,6 +836,35 @@ describe("question mode", () => {
     const out = await processTurn(state, "drop that concept on the canvas", llm);
 
     expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("does not execute a create-card command for a vague anaphoric placeholder", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What exact wording should go on that card?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "authorial choices idea",
+          sourceSpan: { utteranceIds: ["u_1"], userPhrase: "authorial choices idea" },
+        },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "Actually make the earlier authorial choices idea into one card too, but keep it broad.",
+      llm,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandDebug).toEqual([
+      {
+        reason: "vague_anaphoric_card_text",
+        detail: 'Blocked vague anaphoric card text "authorial choices idea".',
+      },
+    ]);
   });
 
   it("does not execute structure commands when references cannot resolve", async () => {
@@ -857,6 +1088,93 @@ describe("question mode", () => {
         source: { id: "source" },
         target: { id: "target" },
         labelText: "supports human control",
+        labelSourceUtteranceIds: ["u_2"],
+      },
+    ]);
+  });
+
+  it.each(["no label", "skip label", "skip", "none", "leave it unlabeled"])(
+    "creates an unlabeled connection when the user declines the label with %s",
+    async (declineText) => {
+      const state = createState();
+      const map = {
+        thoughtUnits: [mapUnit("source", "human control"), mapUnit("target", "authorship")],
+        connections: [],
+      };
+      const firstLLM = (_ctx: LLMContext): LLMTurn => ({
+        mode: "question",
+        text: "What should the label be?",
+        mapCommands: [{ kind: "connect_cards", sourceText: "human control", targetText: "authorship" }],
+      });
+
+      const first = await processTurn(
+        state,
+        "connect human control to authorship",
+        firstLLM,
+        defaultConfig,
+        "chat",
+        map,
+        { requireConnectionLabel: true },
+      );
+      expect(first.mapCommands).toBeUndefined();
+      expect(first.commandConfirmation?.kind).toBe("connection_label");
+
+      let called = false;
+      const secondLLM = (_ctx: LLMContext): LLMTurn => {
+        called = true;
+        return { mode: "question", text: "should not be called" };
+      };
+      const second = await processTurn(
+        state,
+        declineText,
+        secondLLM,
+        defaultConfig,
+        "chat",
+        map,
+        { requireConnectionLabel: true },
+      );
+
+      expect(called).toBe(false);
+      expect(second.mapCommands).toEqual([
+        { kind: "connect_cards", source: { id: "source" }, target: { id: "target" } },
+      ]);
+      expect(second.commandDebug?.[0]?.reason).toBe("connection_label_skipped");
+      // The decline itself must not leak into the mirror/bank as content.
+      expect(state.bank.get("u_2")?.commandOnly).toBe(true);
+    },
+  );
+
+  it("treats a multi-word phrase that merely contains a decline word as a real label", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("source", "human control"), mapUnit("target", "authorship")],
+      connections: [],
+    };
+    const firstLLM = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should the label be?",
+      mapCommands: [{ kind: "connect_cards", sourceText: "human control", targetText: "authorship" }],
+    });
+    await processTurn(state, "connect human control to authorship", firstLLM, defaultConfig, "chat", map, {
+      requireConnectionLabel: true,
+    });
+
+    const second = await processTurn(
+      state,
+      "none of it works without human control",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+      { requireConnectionLabel: true },
+    );
+
+    expect(second.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "source" },
+        target: { id: "target" },
+        labelText: "none of it works without human control",
         labelSourceUtteranceIds: ["u_2"],
       },
     ]);
@@ -1314,6 +1632,63 @@ describe("question mode", () => {
     expect(out.text).toBe("Done. What would you like to do next?");
   });
 
+  it("executes explicit #ref connection commands when the LLM stays in question mode", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_109", "AI suggestion"), mapUnit("tu_111", "human control")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "Connect #109 to #111.",
+      questionLLM("some coach question the command should override"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.text).toBe("Done. What would you like to do next?");
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "tu_109" },
+        target: { id: "tu_111" },
+        labelText: undefined,
+        labelSourceUtteranceIds: undefined,
+      },
+    ]);
+    expect(out.suppressionReason).toBe("command_precedence");
+  });
+
+  it("holds deterministic #ref connection commands for a label when label mode is on", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_109", "AI suggestion"), mapUnit("tu_111", "human control")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "Connect #109 to #111.",
+      questionLLM("some coach question the command should override"),
+      defaultConfig,
+      "chat",
+      map,
+      { requireConnectionLabel: true },
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandConfirmation).toMatchObject({
+      kind: "connection_label",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_109" },
+        target: { id: "tu_111" },
+      },
+    });
+  });
+
   it("keeps explicit #ref join phrasing on the command path with connect-vs-nest clarification", async () => {
     const state = createState();
     const map = {
@@ -1566,7 +1941,7 @@ describe("question mode", () => {
 
     const out = await processTurn(
       state,
-      "#448 should link to #451",
+      'Connect #448 to #451 with the label "link".',
       () => ({
         mode: "question",
         text: "ignored",
@@ -1744,7 +2119,7 @@ describe("question mode", () => {
 
     const out = await processTurn(
       state,
-      "#448 should link to #451",
+      "Connect something to #448.",
       () => ({
         mode: "question",
         text: "Done.",
@@ -2158,6 +2533,27 @@ describe("pacing", () => {
     expect(first.text).toBe("What part of that feels most important to carry forward on the map?");
     expect(second.text).toBe("What exact wording do you want the map to carry forward from that?");
     expect(second.questionStance).toBe("organize");
+  });
+
+  it("breaks a 2-cycle of alternating carry-forward phrasings with a settle move", async () => {
+    const state = createState();
+    const map = { thoughtUnits: [], connections: [] };
+    const mirrorAttemptLLM = (_ctx: LLMContext): LLMTurn => ({
+      mode: "mirror",
+      text: "here's a structure",
+    });
+
+    const first = await processTurn(state, "it depends", mirrorAttemptLLM, defaultConfig, "chat", map);
+    const second = await processTurn(state, "it depends", mirrorAttemptLLM, defaultConfig, "chat", map);
+    const third = await processTurn(state, "it depends", mirrorAttemptLLM, defaultConfig, "chat", map);
+
+    // Turn 1 suppresses to the carry-forward question; turn 2 rewords it; turn 3
+    // would repeat turn 1's phrasing (a 2-cycle a last-turn-only guard misses),
+    // so it is forced into a distinct settle move instead.
+    expect(first.text).toBe("What part of that feels most important to carry forward on the map?");
+    expect(second.text).toBe("What exact wording do you want the map to carry forward from that?");
+    expect(third.text).toBe("Let's zoom out a little — what's one small piece of this you feel sure about?");
+    expect(third.questionStance).toBe("settle");
   });
 
   it("uses a next-card carry-forward question instead of organize when the map is sparse", async () => {
@@ -3011,10 +3407,10 @@ describe("pacing", () => {
     expect(out.validatedMirror?.reflection.claims[0].text).toBe("human control decides what enters the draft");
   });
 
-  it("still requires exact current-turn wording for direct commands inside large turns", async () => {
+  it("still requires exact current-turn wording for LLM commands inside large turns", async () => {
     const state = createState();
     const userText =
-      "There is a lot here. Put human control on the map. The ending needs more pressure. I may still change the frame.";
+      "There is a lot here. I'd like human control as a card. The ending needs more pressure. I may still change the frame.";
     const llm = (_ctx: LLMContext): LLMTurn => ({
       mode: "question",
       text: "Which card should we place?",

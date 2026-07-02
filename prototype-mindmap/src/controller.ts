@@ -127,6 +127,8 @@ export interface LoopState {
   clarifyTarget?: SourceSpan;
   /** Text of the last AI turn — passed to detectSignals for spontaneity scoring. */
   lastAiText: string;
+  /** Text of the AI turn before {@link lastAiText}, used to catch 2-cycle loops. */
+  prevAiText?: string;
   /** Current draft text — passed to LLM for context and anchor highlighting. */
   draft: string;
   pendingMapCommand?: PendingMapCommand;
@@ -390,6 +392,18 @@ function isReferentialCardText(text: string): boolean {
   );
 }
 
+function isVagueAnaphoricCardText(text: string, userText: string): boolean {
+  const phrase = text.trim().toLowerCase();
+  const turn = userText.toLowerCase();
+  if (!/\b(?:main point|point|thing|idea|part|piece|concept|notion|framework|theme|thread|bit)\s*$/.test(phrase)) {
+    return false;
+  }
+  if (!/\b(?:earlier|previous|above|that|this|same|too|broad|keep it|one card)\b/.test(turn)) {
+    return false;
+  }
+  return contentTokens(text).length <= 4;
+}
+
 function overlapsSelectedStrand(sourceText: string, selectionText: string): boolean {
   const selectionNorm = normalizeComparableText(selectionText);
   const sourceNorm = normalizeComparableText(sourceText);
@@ -578,6 +592,25 @@ function explicitRefNestCommand(
   };
 }
 
+function explicitRefConnectCommand(
+  userText: string,
+  map: LLMMapContext,
+  config: MindmapConfig,
+): MapCommand | undefined {
+  if (isUncertainExplicitPlacement(userText, config)) return undefined;
+  if (detectStructuralVerbIntent(userText) !== "connect") return undefined;
+  const pair = extractExplicitRefPair(userText);
+  if (!pair) return undefined;
+  const sourceId = resolveCardRefNumber(pair[0], map);
+  const targetId = resolveCardRefNumber(pair[1], map);
+  if (!sourceId || !targetId || sourceId === targetId) return undefined;
+  return {
+    kind: "connect_cards",
+    sourceText: pair[0],
+    targetText: pair[1],
+  };
+}
+
 function isUncertainExplicitPlacement(text: string, config: MindmapConfig): boolean {
   const trimmed = text.trim();
   return (
@@ -594,6 +627,173 @@ function currentTurnSourceIdsForPhrase(
   const trimmed = phrase?.trim();
   if (!trimmed || isReferentialCardText(trimmed)) return [];
   return units.filter((unit) => unit.text.includes(trimmed)).map((unit) => unit.id);
+}
+
+function cleanExplicitCardText(
+  raw: string | undefined,
+  options: { preserveTerminalPunctuation?: boolean } = {},
+): string | undefined {
+  let text = raw?.trim();
+  if (!text) return undefined;
+  text = text
+    .replace(/^[`"']+/, "")
+    .replace(/[`"']+$/, "")
+    .trim()
+    .replace(/\s+/g, " ");
+  if (!options.preserveTerminalPunctuation) {
+    text = text.replace(/[.!?]+$/, "").trim();
+  }
+  if (!text || isReferentialCardText(text)) return undefined;
+  if (contentTokens(text).length === 0) return undefined;
+  return text;
+}
+
+function isNegatedImperativePrefix(text: string, matchIndex: number): boolean {
+  const prefix = text.slice(Math.max(0, matchIndex - 60), matchIndex).toLowerCase();
+  return /\b(?:do not|don't|dont|never|won't|wont)\b.{0,45}$/.test(prefix);
+}
+
+// Only short conversational fillers may precede a weakly-signaled imperative
+// ("okay, put X on the map", "now add X to the map"). A real subject before the
+// verb ("I already put X on the map", "this turns X into a card game") means the
+// sentence is prose describing something, not a command — do not mint a card.
+const IMPERATIVE_LEAD_FILLER =
+  /^(?:\s*(?:okay|ok|alright|alrighty|now|so|then|please|and|well|yes|yeah|sure|let'?s)\b[\s,]*)*$/i;
+
+function isImperativeLeading(text: string, matchIndex: number): boolean {
+  return IMPERATIVE_LEAD_FILLER.test(text.slice(0, matchIndex));
+}
+
+function extractExplicitCreateCardText(text: string): string | undefined {
+  const trimmed = text.trim();
+  if (!trimmed) return undefined;
+  if (/\?/.test(trimmed) || /^(?:should|would|can|do you think|i wonder)\b/i.test(trimmed)) {
+    return undefined;
+  }
+
+  const patterns: Array<{
+    re: RegExp;
+    preserveTerminalPunctuation?: boolean;
+    imperativeLeading?: boolean;
+  }> = [
+    {
+      re: /\b(?:create|make|add)\s+(?:a\s+)?card\s+with\s+(?:exactly\s+this|this\s+exact)\s+(?:text|wording)\s*:\s*(.+)$/i,
+      preserveTerminalPunctuation: true,
+    },
+    {
+      re: /\b(?:create|make|add)\s+(?:a\s+)?card\s+with\s+exact\s+(?:text|wording)\s*:\s*(.+)$/i,
+      preserveTerminalPunctuation: true,
+    },
+    {
+      re: /\b(?:create|make|add)\s+(?:a\s+)?card\s+(?:for|from)\s+this(?:\s+idea)?\s*[:,]\s*(.+)$/i,
+      preserveTerminalPunctuation: true,
+    },
+    {
+      re: /\b(?:create|make|add)\s+(?:a\s+)?card\s+(?:called|named)\s+(.+)$/i,
+    },
+    {
+      re: /\b(?:create|make|add)\s+(?:a\s+)?card\s+for\s+(.+)$/i,
+    },
+    // Weakly-signaled shapes: "turn X into a card", "put X on the map". These are
+    // easy to trip inside ordinary prose, so they only count as commands when the
+    // imperative leads the sentence (optionally after a short filler).
+    {
+      re: /\bturn\s+(.+?)\s+into\s+(?:a\s+)?card\b/i,
+      imperativeLeading: true,
+    },
+    {
+      re: /\b(?:put|add|drop)\s+(.+?)\s+(?:on|onto|to|in)\s+(?:the\s+)?(?:map|canvas)\b/i,
+      imperativeLeading: true,
+    },
+  ];
+
+  for (const pattern of patterns) {
+    const match = pattern.re.exec(trimmed);
+    if (!match || isNegatedImperativePrefix(trimmed, match.index)) continue;
+    if (pattern.imperativeLeading && !isImperativeLeading(trimmed, match.index)) continue;
+    const cardText = cleanExplicitCardText(match[1], {
+      preserveTerminalPunctuation: pattern.preserveTerminalPunctuation,
+    });
+    if (cardText) return cardText;
+  }
+  return undefined;
+}
+
+function deterministicCreateCardCommands(
+  userText: string,
+  units: SourceUtterance[],
+): MapCommand[] {
+  const sourceTexts = units.length > 0 ? units.map((unit) => unit.text) : [userText];
+  const commands: MapCommand[] = [];
+  const seen = new Set<string>();
+
+  for (const sourceText of sourceTexts) {
+    const cardText = extractExplicitCreateCardText(sourceText);
+    if (!cardText || seen.has(cardText)) continue;
+    seen.add(cardText);
+    commands.push({
+      kind: "create_card",
+      text: cardText,
+      sourceSpan: {
+        userPhrase: cardText,
+        utteranceIds: currentTurnSourceIdsForPhrase(cardText, units),
+      },
+    });
+  }
+
+  return commands;
+}
+
+// Explicit "use exactly this text: ..." markers. Full-turn (dotAll) captures so
+// the verbatim payload can span multiple sentences; only the literal "exact
+// text/wording" forms qualify (the strongest verbatim signal).
+const EXACT_TEXT_MARKERS: RegExp[] = [
+  /\b(?:create|make|add)\s+(?:a\s+)?card\s+with\s+(?:exactly\s+this|this\s+exact)\s+(?:text|wording)\s*:\s*(.+)$/is,
+  /\b(?:create|make|add)\s+(?:a\s+)?card\s+with\s+exact\s+(?:text|wording)\s*:\s*(.+)$/is,
+];
+
+/**
+ * A verbatim "exactly this text:" card whose payload spans MORE THAN ONE
+ * current-turn segment. Segmentation splits the turn on sentence terminators, so
+ * the per-unit deterministic path would truncate `A. B.` to `A.`; this narrow
+ * path recovers the full payload and cites every current-turn utterance it is
+ * composed of.
+ *
+ * Deliberately narrow, to avoid weakening the general grounding contract:
+ *   - only the explicit "exact text/wording:" markers qualify;
+ *   - single-segment payloads return undefined so the existing per-unit path
+ *     (with all its gates) still owns them, byte-for-byte unchanged;
+ *   - the payload is extracted from THIS turn's raw text only — never the draft,
+ *     never a prior turn — and citation is restricted to this turn's units, so
+ *     no stale or out-of-turn context can be pulled in;
+ *   - referential/anaphoric payloads are still blocked via cleanExplicitCardText.
+ */
+function explicitExactTextCardCommand(
+  userText: string,
+  units: SourceUtterance[],
+): Extract<AcceptedMapCommand, { kind: "create_card" }> | undefined {
+  const trimmed = userText.trim();
+  let payload: string | undefined;
+  for (const re of EXACT_TEXT_MARKERS) {
+    const match = re.exec(trimmed);
+    if (match) {
+      payload = cleanExplicitCardText(match[1], { preserveTerminalPunctuation: true });
+      break;
+    }
+  }
+  if (!payload || units.length < 2) return undefined;
+  // A single current-turn segment already holds the whole payload — leave it to
+  // the existing per-unit path so its gates and behavior are untouched. When no
+  // single unit contains it and the turn produced multiple units, the payload
+  // spans segment boundaries (a sentence break, an abbreviation, or a newline)
+  // that the per-unit path would truncate. The marker sits at the very start of
+  // the turn, so every unit is marker-or-payload and all are this-turn wording.
+  if (units.some((unit) => unit.text.includes(payload!))) return undefined;
+  return {
+    kind: "create_card",
+    text: payload,
+    sourceUtteranceIds: units.map((unit) => unit.id),
+  };
 }
 
 function extractNaturalConnectionLabel(units: SourceUtterance[]): string | undefined {
@@ -920,6 +1120,10 @@ function acceptedMapCommands(
       notes.push({ reason: "referential_card_text", detail: `Blocked referential card text "${phrase}".` });
       continue;
     }
+    if (isVagueAnaphoricCardText(phrase, userText)) {
+      notes.push({ reason: "vague_anaphoric_card_text", detail: `Blocked vague anaphoric card text "${phrase}".` });
+      continue;
+    }
 
     const sourceUnits = units.filter((unit) => unit.text.includes(phrase));
     if (sourceUnits.length === 0) {
@@ -1133,6 +1337,36 @@ function isNegative(text: string): boolean {
     normalized === "never mind" ||
     normalized === "nevermind" ||
     normalized === "not that"
+  );
+}
+
+/**
+ * Explicit "I want the connection but no label" answers. Anchored full-string
+ * matches only, so a genuine (if unusual) label like "no label because it
+ * frames the rest" is not misread as a decline. Declining the label is NOT the
+ * same as declining the connection: the label toggle only *asks* for wording
+ * (Map.tsx: "on" = ask, "off" = create unlabeled immediately), so a decline
+ * falls back to the unlabeled connection the user already commanded — it must
+ * never become a literal label reading "no label"/"skip".
+ */
+function isLabelDecline(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/[.!?;,]+$/g, "").replace(/\s+/g, " ");
+  return (
+    normalized === "no label" ||
+    normalized === "no label needed" ||
+    normalized === "no label please" ||
+    normalized === "no label thanks" ||
+    normalized === "skip" ||
+    normalized === "skip label" ||
+    normalized === "skip the label" ||
+    normalized === "skip it" ||
+    normalized === "none" ||
+    normalized === "unlabeled" ||
+    normalized === "leave it unlabeled" ||
+    normalized === "leave unlabeled" ||
+    normalized === "leave it blank" ||
+    normalized === "without a label" ||
+    normalized === "without label"
   );
 }
 
@@ -1483,6 +1717,46 @@ export async function processTurn(
         questionStance: "organize",
       };
     }
+    if (isLabelDecline(userText)) {
+      // The user wants the connection they commanded, just without a label —
+      // create it unlabeled rather than letting "no label"/"skip" become the
+      // literal label text.
+      const command: Extract<AcceptedMapCommand, { kind: "connect_cards" }> = {
+        kind: "connect_cards",
+        source: pending.command.source,
+        target: pending.command.target,
+      };
+      state.bank.markCommandOnly(units.map((unit) => unit.id));
+      if (existingConnectionBetween(map, command)) {
+        state.pendingMapCommand = {
+          kind: "duplicate_connection_confirmation",
+          command,
+          prompt: `There is already a connection between "${describeCardRef(command.source, map)}" and "${describeCardRef(command.target, map)}". Do you want to add another relationship between the same two cards?`,
+          debug: `duplicate_connection_pending: ${describeCardRef(command.source, map)} <-> ${describeCardRef(command.target, map)}`,
+        };
+        state.organizeFocus = undefined;
+        state.lastAiText = state.pendingMapCommand.prompt;
+        return {
+          mode: "question",
+          text: state.pendingMapCommand.prompt,
+          llmTurn: { mode: "question", text: state.pendingMapCommand.prompt },
+          commandConfirmation: state.pendingMapCommand,
+          commandDebug: [{ reason: "duplicate_connection_pending", detail: state.pendingMapCommand.debug }],
+          questionStance: "organize",
+        };
+      }
+      state.pendingMapCommand = undefined;
+      const text = "Done - I'll leave that connection unlabeled.";
+      state.lastAiText = text;
+      return {
+        mode: "question",
+        text,
+        llmTurn: { mode: "question", text },
+        mapCommands: [command],
+        commandDebug: [{ reason: "connection_label_skipped", detail: pending.debug }],
+        questionStance: "organize",
+      };
+    }
     if (isStuck(userText) || userText.trim().endsWith("?")) {
       const text = "I still need your exact relationship label before I create that connection. What wording should go on it?";
       state.lastAiText = text;
@@ -1739,6 +2013,33 @@ export async function processTurn(
     };
   }
 
+  const directExactTextCard = explicitExactTextCardCommand(userText, units);
+  if (directExactTextCard) {
+    // The whole turn is a verbatim placement command; keep all of it out of the
+    // mirror bank and hand control back like any other complete command.
+    state.bank.markCommandOnly(units.map((unit) => unit.id));
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.pendingChildPlacement = undefined;
+    state.turnsSinceLastMirror++;
+    const text = "Done. What would you like to do next?";
+    state.lastAiText = text;
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      mapCommands: [directExactTextCard],
+      pacingSuppressed: true,
+      suppressionReason: "command_precedence",
+      suppressionDetail: "Accepted verbatim exact-text card spanning multiple current-turn segments.",
+      commandDebug: [
+        { reason: "exact_text_multisegment", detail: `Placed verbatim card across segments: "${directExactTextCard.text}"` },
+      ],
+      questionStance: "organize",
+    };
+  }
+
   const explicitMoveOn = wantsToMoveOn(userText, config);
   if (state.pendingChildPlacement) {
     if (explicitMoveOn || cancelsChildPlacement(userText)) {
@@ -1915,7 +2216,12 @@ export async function processTurn(
     map,
   };
   const turn = await llm(ctx);
-  const commandResult = acceptedMapCommands(turn.mapCommands, units, map, {
+  const directExplicitRefConnect = explicitRefConnectCommand(userText, map, config);
+  const deterministicMapCommands = [
+    ...deterministicCreateCardCommands(userText, units),
+    ...(directExplicitRefConnect ? [directExplicitRefConnect] : []),
+  ];
+  const commandResult = acceptedMapCommands([...deterministicMapCommands, ...(turn.mapCommands ?? [])], units, map, {
     requireConnectionLabel,
     userText,
     blockStructuralCommands: isUncertainExplicitPlacement(userText, config),
@@ -2220,11 +2526,15 @@ export async function processTurn(
     // preamble repeats legitimately. Command hand-backs ("Done. What would you
     // like to do next?") are exempt too: back-to-back commands repeat it
     // legitimately and it is not a stuck loop.
+    const normalizedOutText = normalizeText(out.text);
+    const repeatsLastAiText =
+      Boolean(state.lastAiText) && normalizedOutText === normalizeText(state.lastAiText);
+    const repeatsTwoTurnsAgo =
+      Boolean(state.prevAiText) && normalizedOutText === normalizeText(state.prevAiText ?? "");
     if (
       (out.mode === "question" || out.mode === "clarify") &&
       out.suppressionReason !== "command_precedence" &&
-      state.lastAiText &&
-      normalizeText(out.text) === normalizeText(state.lastAiText)
+      repeatsLastAiText
     ) {
       if (out.pacingSuppressed) {
         out = {
@@ -2238,6 +2548,18 @@ export async function processTurn(
         out = { ...out, text: DE_ESCALATE, questionAnchor: undefined, questionStance: "settle" };
         state.clarifyTarget = undefined;
       }
+    } else if (
+      (out.mode === "question" || out.mode === "clarify") &&
+      out.suppressionReason !== "command_precedence" &&
+      repeatsTwoTurnsAgo
+    ) {
+      // 2-cycle: out.text differs from the previous turn but repeats the one
+      // before it. When a mirror keeps getting suppressed the coach can otherwise
+      // oscillate forever between two carry-forward phrasings, each different from
+      // the turn right before it — a last-turn-only check never trips. Break it
+      // with a settle move distinct from both oscillating phrasings.
+      out = { ...out, text: DE_ESCALATE, questionAnchor: undefined, questionStance: "settle" };
+      state.clarifyTarget = undefined;
     } else if (
       (out.mode === "question" || out.mode === "clarify") &&
       out.questionStance === undefined
@@ -2309,6 +2631,7 @@ export async function processTurn(
     } else if (out.mode === "mirror") {
       state.activeSelectionContext = undefined;
     }
+    state.prevAiText = state.lastAiText;
     state.lastAiText = out.text;
     return out;
   }
