@@ -221,7 +221,7 @@ function cardPairKey(refs: [string, string]): string {
 // "this/that/current card"), and must read as a question — never an imperative
 // placement command. Detection only classifies intent; it never mutates the map.
 const COVERAGE_WORD =
-  /\b(?:cover|covers|covered|covering|miss|misses|missing|missed|leaves? out|left out|address(?:es|ed|ing)?|major point|main point|key point|need to think about|think about|doesn'?t cover|does not cover|don'?t cover)\b/i;
+  /\b(?:cover|covers|covered|covering|miss|misses|missing|missed|leaves? out|left out|address(?:es|ed|ing)?|major point|main point|key point|need to think about|doesn'?t cover|does not cover|don'?t cover)\b/i;
 const COVERAGE_CARD_ANCHOR = /#\d+|\b(?:this|that|the current|current) card\b/i;
 const COVERAGE_EVALUATIVE_LEAD = /^(?:is there|is|are|does|do|what|which|any|anything|should)\b/i;
 
@@ -386,6 +386,10 @@ function setActiveElicitation(
 function setLastAiText(state: LoopState, text: string): void {
   state.prevAiText = state.lastAiText;
   state.lastAiText = text;
+}
+
+function clearCoverageFocusForMapCommand(state: LoopState): void {
+  state.coverageFocus = undefined;
 }
 
 function isSuggestiveStructuralQuestion(text: string): boolean {
@@ -795,6 +799,12 @@ function deterministicCreateCardCommands(
   const commands: MapCommand[] = [];
   const seen = new Set<string>();
 
+  const sameTurnAnaphor = sameTurnAnaphoricCreateCardCommand(units);
+  if (sameTurnAnaphor) {
+    commands.push(sameTurnAnaphor);
+    seen.add(sameTurnAnaphor.sourceSpan?.userPhrase ?? sameTurnAnaphor.text ?? "");
+  }
+
   for (const sourceText of sourceTexts) {
     const cardText = extractExplicitCreateCardText(sourceText);
     if (!cardText || seen.has(cardText)) continue;
@@ -810,6 +820,31 @@ function deterministicCreateCardCommands(
   }
 
   return commands;
+}
+
+const STANDALONE_THIS_CARD_COMMAND =
+  /^(?:please\s+)?(?:(?:make|create|add)\s+this\s+(?:(?:as|into)\s+)?(?:a\s+)?card|turn\s+this\s+into\s+(?:a\s+)?card|(?:make|create|add)\s+(?:a\s+)?card\s+(?:from|for)\s+this|add\s+this\s+(?:to|onto|on)\s+(?:the\s+)?(?:map|canvas))[.!]*$/i;
+
+function sameTurnAnaphoricCreateCardCommand(units: SourceUtterance[]): MapCommand | undefined {
+  if (units.length < 2) return undefined;
+  const commandUnit = units[units.length - 1];
+  const commandText = commandUnit.text.trim();
+  if (!STANDALONE_THIS_CARD_COMMAND.test(commandText)) return undefined;
+  if (hasUncertainCommandFrame(commandText, 0) || /\?/.test(commandText)) return undefined;
+
+  const payloadUnit = units[units.length - 2];
+  if (STANDALONE_THIS_CARD_COMMAND.test(payloadUnit.text.trim())) return undefined;
+  const payload = cleanExplicitCardText(payloadUnit?.text, { preserveTerminalPunctuation: true });
+  if (!payload || !payloadUnit) return undefined;
+
+  return {
+    kind: "create_card",
+    text: payload,
+    sourceSpan: {
+      userPhrase: payload,
+      utteranceIds: [payloadUnit.id],
+    },
+  };
 }
 
 // Explicit "use exactly this text: ..." markers. Full-turn (dotAll) captures so
@@ -1713,6 +1748,7 @@ export async function processTurn(
     state.turnsSinceLastMirror++;
     const text = "Done - what should we place next?";
     setLastAiText(state, text);
+    clearCoverageFocusForMapCommand(state);
     return {
       mode: "question",
       text,
@@ -1825,6 +1861,7 @@ export async function processTurn(
       state.pendingMapCommand = undefined;
       const text = "Done - I'll leave that connection unlabeled.";
       setLastAiText(state, text);
+      clearCoverageFocusForMapCommand(state);
       return {
         mode: "question",
         text,
@@ -1874,6 +1911,7 @@ export async function processTurn(
     }
     state.pendingMapCommand = undefined;
     setLastAiText(state, "Done.");
+    clearCoverageFocusForMapCommand(state);
     return {
       mode: "question",
       text: "Done.",
@@ -1922,6 +1960,7 @@ export async function processTurn(
     state.turnsSinceLastMirror++;
     const text = "Done. What would you like to do next?";
     setLastAiText(state, text);
+    clearCoverageFocusForMapCommand(state);
     return {
       mode: "question",
       text,
@@ -2021,6 +2060,7 @@ export async function processTurn(
     state.turnsSinceLastMirror++;
     const text = "Done. What would you like to do next?";
     setLastAiText(state, text);
+    clearCoverageFocusForMapCommand(state);
     return {
       mode: "question",
       text,
@@ -2080,6 +2120,7 @@ export async function processTurn(
     state.turnsSinceLastMirror++;
     const text = "Done. What would you like to do next?";
     setLastAiText(state, text);
+    clearCoverageFocusForMapCommand(state);
     return {
       mode: "question",
       text,
@@ -2102,6 +2143,7 @@ export async function processTurn(
     state.turnsSinceLastMirror++;
     const text = "Done. What would you like to do next?";
     setLastAiText(state, text);
+    clearCoverageFocusForMapCommand(state);
     return {
       mode: "question",
       text,
@@ -2136,6 +2178,7 @@ export async function processTurn(
         ? childPlacementQuestion(pending.parentText, remaining)
         : "Done. What would you like to do next?";
       setLastAiText(state, text);
+      clearCoverageFocusForMapCommand(state);
       return {
         mode: "question",
         text,
@@ -2506,7 +2549,7 @@ export async function processTurn(
     if (acceptedCommands.length > 0) {
       out = { ...out, mapCommands: acceptedCommands };
       // A direct map command supersedes any lingering coverage concern.
-      state.coverageFocus = undefined;
+      clearCoverageFocusForMapCommand(state);
     }
     if (commandResult.notes.length > 0) {
       out = { ...out, commandDebug: turnDebugNotes };

@@ -457,6 +457,38 @@ describe("question mode", () => {
     expect(out.suppressionReason).toBe("command_precedence");
   });
 
+  it("creates a card from the immediately preceding same-turn text when the user says make this a card", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "Different style of AI use that enables user to be in more control.\n\nmake this a card",
+      questionLLM("some coach question the command should override"),
+    );
+
+    expect(out.text).toBe("Done. What would you like to do next?");
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "Different style of AI use that enables user to be in more control.",
+        sourceUtteranceIds: ["u_1"],
+      },
+    ]);
+  });
+
+  it("does not create a card from same-turn this when there is no same-turn payload", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "make this a card",
+      questionLLM("What exact wording should go on the card?"),
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toBe("What exact wording should go on the card?");
+  });
+
   describe("card-coverage questions", () => {
     const coverageMap = {
       thoughtUnits: [
@@ -533,6 +565,54 @@ describe("question mode", () => {
 
       // Without an active coverage focus, the coverage path must not fire.
       expect(out.text).not.toMatch(/checking .* against first/i);
+    });
+
+    it("clears coverage focus after an early-return direct map command", async () => {
+      const state = createState();
+      await processTurn(
+        state,
+        "does #46 cover the main point?",
+        questionLLM(STALE_FOCUS_QUESTION),
+        defaultConfig,
+        "chat",
+        coverageMap,
+      );
+
+      const commandOut = await processTurn(
+        state,
+        "Create a card with exactly this text: AI is risky. It removes agency.",
+        questionLLM("some coach question the command should override"),
+        defaultConfig,
+        "chat",
+        coverageMap,
+      );
+      expect(commandOut.mapCommands).toEqual([
+        {
+          kind: "create_card",
+          text: "AI is risky. It removes agency.",
+          sourceUtteranceIds: ["u_2", "u_3"],
+        },
+      ]);
+
+      const out = await processTurn(state, "not sure", questionLLM(STALE_SETTLE), defaultConfig, "chat", coverageMap);
+
+      expect(out.text).not.toMatch(/checking .*#46|#46.*checking|represented by #46/i);
+    });
+
+    it("does not classify a priority question as coverage just because it says think about", async () => {
+      const state = createState();
+
+      const out = await processTurn(
+        state,
+        "Should this card be the one I think about next?",
+        questionLLM("Which card feels most useful to work on next?"),
+        defaultConfig,
+        "chat",
+        coverageMap,
+      );
+
+      expect(out.text).toBe("Which card feels most useful to work on next?");
+      expect(out.commandDebug?.some((note) => note.reason === "coverage_intent")).not.toBe(true);
     });
   });
 
