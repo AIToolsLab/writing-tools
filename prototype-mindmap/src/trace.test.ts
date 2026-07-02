@@ -107,7 +107,12 @@ describe("dominant-reason precedence", () => {
       "Enough user-owned wording had accumulated, so I asked whether to mirror before continuing.",
     );
     expect(`${ev.title} ${ev.explanation} ${ev.detail ?? ""}`).not.toContain("cand1");
-    expect(String(ev.technical?.mirrorPressure)).toContain("cand1");
+    expect(JSON.stringify(ev.technical?.mirrorPressure)).not.toContain("cand1");
+    expect(ev.technical?.mirrorPressure).toEqual({
+      readyCandidateCount: 2,
+      threshold: 2,
+      turnsSinceLastMirror: 5,
+    });
   });
 
   it("draft-salience bridge surfaces as friendly salience copy without raw detail", () => {
@@ -126,7 +131,12 @@ describe("dominant-reason precedence", () => {
       "This idea appeared in your draft or repeated wording, so I asked whether to carry it toward the map.",
     );
     expect(`${ev.title} ${ev.explanation} ${ev.detail ?? ""}`).not.toContain("visualization");
-    expect(String(ev.technical?.draftSalience)).toContain("visualization");
+    expect(JSON.stringify(ev.technical?.draftSalience)).not.toContain("visualization");
+    expect(ev.technical?.draftSalience).toEqual({
+      bridgeType: "explicit_list",
+      cardRef: "#86",
+      itemCount: 3,
+    });
   });
 
   it("an unknown command reason degrades to the stance rather than inventing copy", () => {

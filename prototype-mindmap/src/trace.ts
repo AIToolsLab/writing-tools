@@ -359,6 +359,41 @@ function groundingDetail(out: TurnOutput): { detail?: string; technical?: Record
   };
 }
 
+function mirrorPressureTechnical(detail: string): Record<string, unknown> {
+  const readyIds = detail.match(/readyCandidateIds=([^;]*)/)?.[1]
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean) ?? [];
+  const threshold = Number(detail.match(/threshold=(\d+)/)?.[1]);
+  const turnsSinceLastMirror = Number(detail.match(/turnsSinceLastMirror=(\d+)/)?.[1]);
+  return {
+    readyCandidateCount: readyIds.length,
+    ...(Number.isFinite(threshold) ? { threshold } : {}),
+    ...(Number.isFinite(turnsSinceLastMirror) ? { turnsSinceLastMirror } : {}),
+  };
+}
+
+function draftSalienceTechnical(detail: string): Record<string, unknown> {
+  const explicit = detail.match(/^explicit list under (#\d+):\s*(.*)$/);
+  if (explicit) {
+    const itemCount = explicit[2]
+      .split("|")
+      .map((item) => item.trim())
+      .filter(Boolean).length;
+    return { bridgeType: "explicit_list", cardRef: explicit[1], itemCount };
+  }
+
+  const draftBacked = detail.match(/^draft-backed (map bridge|deepen prompt):\s*(\w+)/);
+  if (draftBacked) {
+    return {
+      bridgeType: draftBacked[1] === "map bridge" ? "draft_map_bridge" : "draft_deepen_prompt",
+      declarationKind: draftBacked[2],
+    };
+  }
+
+  return { bridgeType: "draft_salience" };
+}
+
 function resolveEntry(key: string, out: TurnOutput): { entry: CatalogEntry; storyKey: string } {
   if (key.startsWith("pending:")) {
     const kind = key.slice("pending:".length) as PendingMapCommand["kind"];
@@ -414,10 +449,10 @@ export function deriveTraceEvent(out: TurnOutput, turnId: string): TraceEvent {
     if (grounding.technical) technical = { ...technical, ...grounding.technical };
   }
   if (reason === "mirror_pressure_bridge" && out.suppressionDetail) {
-    technical.mirrorPressure = out.suppressionDetail;
+    technical.mirrorPressure = mirrorPressureTechnical(out.suppressionDetail);
   }
   if (reason === "draft_salience_bridge" && out.suppressionDetail) {
-    technical.draftSalience = out.suppressionDetail;
+    technical.draftSalience = draftSalienceTechnical(out.suppressionDetail);
   }
 
   return {

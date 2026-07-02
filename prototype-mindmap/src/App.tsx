@@ -2012,8 +2012,15 @@ export default function App() {
     const resolution = resolveMirrorDecision(pm.decisions, claimId, decision);
 
     const claim = pm.reflection.claims.find((c) => c.id === claimId);
+    const declinedClaim =
+      decision === "declined"
+        ? claim
+        : pm.reflection.claims.find((c) => resolution.nextDecisions[c.id] === "declined");
     const editedText = (pm.editedTexts[claimId] ?? claim?.text ?? "").trim();
     const finalText = editedText || claim?.text;
+    const declinedText = declinedClaim
+      ? (pm.editedTexts[declinedClaim.id] ?? declinedClaim.text).trim() || declinedClaim.text
+      : undefined;
     let confirmedReflection: ConfirmedReflection | undefined;
     if (decision === "confirmed") {
       if (claim && finalText) {
@@ -2053,15 +2060,27 @@ export default function App() {
       markUserMapChanged();
     }
 
-    if (decision === "declined" && claim) {
-      const text = `What wording should change before I carry "${finalText ?? claim.text}" forward?`;
+    if (resolution.allDecided && resolution.anyDeclined && declinedClaim) {
+      const text = `What wording should change before I carry "${declinedText ?? declinedClaim.text}" forward?`;
       stateRef.current.mode = "clarify";
       stateRef.current.turnsSinceLastMirror++;
+      stateRef.current.activeElicitation = {
+        kind: "clarify_after_failed_mirror",
+        targetPhrase: declinedText ?? declinedClaim.text,
+      };
       stateRef.current.prevAiText = stateRef.current.lastAiText;
       stateRef.current.lastAiText = text;
+      const msgIdForTrace = ++msgId;
       setMsgs((prev) => [
         ...prev,
-        { id: ++msgId, role: "assistant", text, mode: "clarify", questionStance: "narrow" },
+        { id: msgIdForTrace, role: "assistant", text, mode: "clarify", questionStance: "narrow" },
+      ]);
+      setTraceLog((prev) => [
+        ...prev,
+        deriveTraceEvent(
+          { mode: "clarify", text, llmTurn: { mode: "clarify", text }, questionStance: "narrow" },
+          String(msgIdForTrace),
+        ),
       ]);
       return;
     }
@@ -2412,9 +2431,10 @@ function MirrorCard({
     <div className="mirror-card">
       <span className="mirror-card-label">Edit if needed, then confirm</span>
       <div className="mirror-claims">
-        {pm.reflection.claims.map((claim) => {
+        {pm.reflection.claims.map((claim, index) => {
           const decision = pm.decisions[claim.id] ?? "pending";
           const text = pm.editedTexts[claim.id] ?? claim.text;
+          const claimNumber = index + 1;
           return (
             <div key={claim.id} className="claim-row">
               {decision === "pending" ? (
@@ -2423,7 +2443,7 @@ function MirrorCard({
                   value={text}
                   rows={Math.max(5, Math.min(10, text.split(/\n/).length + Math.ceil(text.length / 42)))}
                   onChange={(event) => onEdit(claim.id, event.target.value)}
-                  aria-label="Editable mirrored wording"
+                  aria-label={`Editable mirrored wording ${claimNumber}`}
                 />
               ) : (
                 <span className="claim-text">{text}</span>
@@ -2434,12 +2454,14 @@ function MirrorCard({
                     className="btn btn-confirm-sm"
                     disabled={!text.trim()}
                     onClick={() => onDecide(claim.id, "confirmed")}
+                    aria-label={`Confirm mirrored wording ${claimNumber}`}
                   >
                     Yes
                   </button>
                   <button
                     className="btn btn-decline-sm"
                     onClick={() => onDecide(claim.id, "declined")}
+                    aria-label={`Reject mirrored wording ${claimNumber}`}
                   >
                     Not quite
                   </button>

@@ -106,6 +106,23 @@ function mirrorPressureQuestionLLM(question = "What does control actually mean h
   };
 }
 
+function mirrorPressureClarifyLLM(question = "What wording should change here?") {
+  return (ctx: LLMContext): LLMTurn => {
+    const latest = ctx.bank.slice(-2);
+    return {
+      mode: "clarify",
+      text: question,
+      questionStance: "narrow",
+      candidateUpserts: latest.map((unit, index) => ({
+        id: `ready_${index + 1}`,
+        target: "idea",
+        gist: unit.text,
+        addEvidenceIds: [unit.id],
+      })),
+    };
+  };
+}
+
 function mapUnit(id: string, text: string): ThoughtUnit {
   return {
     id,
@@ -3714,6 +3731,75 @@ describe("pacing", () => {
     expect(out.suppressionReason).toBe("validation_failed");
   });
 
+  it("does not bridge over an active failed-mirror repair clarify", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 2,
+    });
+    state.mode = "clarify";
+    state.clarifyTarget = {
+      claimText: "control",
+      utteranceIds: ["u_seed"],
+      userPhrase: "control",
+    };
+
+    const out = await processTurn(
+      state,
+      "control means key decisions. visual state means layout choices.",
+      mirrorPressureClarifyLLM("What wording should change here?"),
+      cfg,
+    );
+
+    expect(out.mode).toBe("clarify");
+    expect(out.text).toBe("What wording should change here?");
+    expect(out.suppressionReason).toBeUndefined();
+    expect(state.activeElicitation).toEqual({
+      kind: "clarify_after_failed_mirror",
+      targetPhrase: "control",
+    });
+  });
+
+  it("does not bridge over a blocked map command", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 2,
+    });
+    const llm = (ctx: LLMContext): LLMTurn => {
+      const latest = ctx.bank.slice(-2);
+      return {
+        mode: "question",
+        text: "What does control actually mean here?",
+        questionStance: "deepen",
+        candidateUpserts: latest.map((unit, index) => ({
+          id: `ready_${index + 1}`,
+          target: "idea",
+          gist: unit.text,
+          addEvidenceIds: [unit.id],
+        })),
+        mapCommands: [
+          {
+            kind: "nest_card",
+            childText: "human control",
+            parentText: "missing parent",
+          },
+        ],
+      };
+    };
+
+    const out = await processTurn(
+      state,
+      "control means key decisions. visual state means layout choices.",
+      llm,
+      cfg,
+    );
+
+    expect(out.suppressionReason).not.toBe("mirror_pressure_bridge");
+    expect(out.text).toBe("What does control actually mean here?");
+    expect(out.commandDebug?.some((note) => note.reason === "unresolved_reference")).toBe(true);
+  });
+
   it("uses carry-forward intent to mirror one substantive idea without map-pressure coupling", async () => {
     const state = createState();
     await processTurn(state, "setup one", questionLLM("Q1"));
@@ -4633,6 +4719,24 @@ describe("LLM context", () => {
     expect(out.text).toBe(
       "I hear three possible cards under #86: visualization, monitoring, and control. Do you want to place those as separate cards, or unpack one first?",
     );
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("does not bridge a negated explicit list placement", async () => {
+    const state = createState();
+    const map = { thoughtUnits: [mapUnit("tu_86", "Monitoring")], connections: [] };
+
+    const out = await processTurn(
+      state,
+      "I do not want visualization, monitoring, and control as cards under the 86 card.",
+      questionLLM("What should we leave out?"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.suppressionReason).not.toBe("draft_salience_bridge");
+    expect(out.text).toBe("What should we leave out?");
     expect(out.mapCommands).toBeUndefined();
   });
 

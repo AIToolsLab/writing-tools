@@ -415,6 +415,7 @@ function extractExplicitSalienceItems(text: string): string[] {
 function explicitListMapBridge(userText: string, map: LLMMapContext): DraftSalienceBridge | undefined {
   if (!/\b(?:cards?|map)\b/i.test(userText)) return undefined;
   if (!/\b(?:under|inside|within|in)\s+(?:the\s+)?#?\d+\b/i.test(userText)) return undefined;
+  if (hasStructuralNegation(userText)) return undefined;
   const ref = explicitUserMentionedCardRef(userText, map);
   if (!ref) return undefined;
   const items = extractExplicitSalienceItems(userText).filter((item) => !/^#?\d+$/.test(item));
@@ -2907,6 +2908,7 @@ export async function processTurn(
     acceptedCommands.length === 0 &&
     !commandResult.pending &&
     !userIsStuck &&
+    commandResult.notes.length === 0 &&
     turnShape.kind !== "large_exploratory" &&
     mirrorCooldownSatisfied &&
     (mirrorPressureBatchReady || mirrorPressureLongRunReady);
@@ -2916,6 +2918,9 @@ export async function processTurn(
       ? undefined
       : draftSalienceBridge(userText, draftDeclarations, config);
   const salienceBridge = explicitMapSalienceBridge ?? draftBackedSalienceBridge;
+  const repairClarifyWasActive = Boolean(
+    state.clarifyTarget || state.activeElicitation?.kind === "clarify_after_failed_mirror",
+  );
 
   // De-escalation used to break a verbatim-repeat loop (see finish()).
   const DE_ESCALATE =
@@ -2927,6 +2932,12 @@ export async function processTurn(
   function finish(out: TurnOutput): TurnOutput {
     const commandClarification = commandResult.notes.find((note) => note.reason === "command_clarification");
     const commandPromptActive = Boolean(commandResult.pending || commandClarification);
+    const commandBlockedActive = commandResult.notes.length > 0;
+    const repairClarifyActive = Boolean(
+      repairClarifyWasActive ||
+      state.clarifyTarget ||
+      state.activeElicitation?.kind === "clarify_after_failed_mirror",
+    );
     let sparseMapRewritten = false;
     let repeatedCaptureBlocked = false;
     if (acceptedCommands.length > 0) {
@@ -3075,6 +3086,8 @@ export async function processTurn(
     if (
       salienceBridge &&
       !commandPromptActive &&
+      !commandBlockedActive &&
+      !repairClarifyActive &&
       acceptedCommands.length === 0 &&
       !userIsStuck &&
       (out.mode === "question" || out.mode === "clarify") &&
@@ -3096,6 +3109,8 @@ export async function processTurn(
     if (
       mirrorPressureHigh &&
       !commandPromptActive &&
+      !commandBlockedActive &&
+      !repairClarifyActive &&
       (out.mode === "question" || out.mode === "clarify") &&
       out.suppressionReason === undefined
     ) {
@@ -3501,7 +3516,7 @@ export async function processTurn(
 
   if (turn.mode === "clarify") {
     state.mode = "clarify";
-    state.clarifyTarget = turn.clarifySpan;
+    state.clarifyTarget = turn.clarifySpan ?? state.clarifyTarget;
     state.turnsSinceLastMirror++;
     return finish({ mode: "clarify", text: turn.text, llmTurn: turn, questionAnchor: turn.questionAnchor });
   }
