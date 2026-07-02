@@ -411,6 +411,39 @@ describe("question mode", () => {
     expect(out.commandDebug).toBeUndefined();
   });
 
+  it.each([
+    "Should I create a card with exactly this text: AI is risky. It removes agency?",
+    "Hmm, should I make a card with this exact text: AI is risky. It removes agency?",
+    "Hmm, maybe make a card with this exact text: AI is risky.",
+  ])("does not execute an exact-text command framed as a question or hedge: %s", async (userText) => {
+    const state = createState();
+
+    const out = await processTurn(state, userText, questionLLM("What would help you decide?"));
+
+    expect(out.mode).toBe("question");
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("still allows a question mark inside an exact-text payload", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "Create a card with exactly this text: Is AI risky? It removes agency.",
+      questionLLM("some coach question the command should override"),
+    );
+
+    expect(out.text).toBe("Done. What would you like to do next?");
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "Is AI risky? It removes agency.",
+        sourceUtteranceIds: ["u_1", "u_2"],
+      },
+    ]);
+    expect(out.suppressionReason).toBe("command_precedence");
+  });
+
   it("hands control back after a complete card command and stays clean on back-to-back commands", async () => {
     const state = createState();
     const cardLLM = (text: string, uttId: string) => (_ctx: LLMContext): LLMTurn => ({
@@ -2554,6 +2587,25 @@ describe("pacing", () => {
     expect(second.text).toBe("What exact wording do you want the map to carry forward from that?");
     expect(third.text).toBe("Let's zoom out a little — what's one small piece of this you feel sure about?");
     expect(third.questionStance).toBe("settle");
+  });
+
+  it("keeps the two-turn window correct across a command early-return", async () => {
+    const state = createState();
+    // Two plain question turns establish the window.
+    await processTurn(state, "first", questionLLM("Question A"));
+    await processTurn(state, "second", questionLLM("Question B"));
+    // A command that returns via an early path (not finish()) — with the old
+    // finish()-only tracking this left prevAiText pointing at "Question A".
+    const cmd = await processTurn(
+      state,
+      "Create a card with exactly this text: alpha idea. beta idea.",
+      questionLLM("ignored"),
+    );
+    expect(cmd.mapCommands).toBeDefined();
+    // "Question A" is now three turns back, not two, so it must NOT be treated
+    // as a 2-cycle and de-escalated.
+    const out = await processTurn(state, "third", questionLLM("Question A"));
+    expect(out.text).toBe("Question A");
   });
 
   it("uses a next-card carry-forward question instead of organize when the map is sparse", async () => {

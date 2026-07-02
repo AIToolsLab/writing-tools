@@ -336,6 +336,17 @@ function setActiveElicitation(
   state.activeElicitation = { kind, targetPhrase };
 }
 
+/**
+ * Record the AI turn's text, keeping the previous value in {@link LoopState.prevAiText}
+ * so the anti-repeat guard can see two turns back. Use this everywhere lastAiText
+ * is set — including the command/confirmation early returns — so the two-turn
+ * window never goes stale across a command interlude.
+ */
+function setLastAiText(state: LoopState, text: string): void {
+  state.prevAiText = state.lastAiText;
+  state.lastAiText = text;
+}
+
 function isSuggestiveStructuralQuestion(text: string): boolean {
   const lower = text.toLowerCase();
   const offersChoice = /\b(or|instead of)\b/.test(lower);
@@ -664,6 +675,18 @@ function isImperativeLeading(text: string, matchIndex: number): boolean {
   return IMPERATIVE_LEAD_FILLER.test(text.slice(0, matchIndex));
 }
 
+// Question/hedge framing that turns an otherwise-imperative command into a
+// tentative one ("should I ...", "maybe ...", "do you think ..."). Only the
+// text BEFORE the command marker is inspected, never the payload — so verbatim
+// card text may itself be a question or contain hedge words.
+const UNCERTAIN_COMMAND_FRAME =
+  /\b(?:should|would|could|can|do you think|i wonder|maybe|perhaps|possibly|might|not sure|unsure|i think|i guess|i suppose)\b/i;
+
+function hasUncertainCommandFrame(text: string, markerIndex: number): boolean {
+  const prefix = text.slice(0, markerIndex);
+  return /\?/.test(prefix) || UNCERTAIN_COMMAND_FRAME.test(prefix);
+}
+
 function extractExplicitCreateCardText(text: string): string | undefined {
   const trimmed = text.trim();
   if (!trimmed) return undefined;
@@ -711,6 +734,10 @@ function extractExplicitCreateCardText(text: string): string | undefined {
     const match = pattern.re.exec(trimmed);
     if (!match || isNegatedImperativePrefix(trimmed, match.index)) continue;
     if (pattern.imperativeLeading && !isImperativeLeading(trimmed, match.index)) continue;
+    // A question/hedge frame before the marker ("Hmm, should I make a card
+    // with...") means the user is asking, not commanding — the leading `^should`
+    // guard above only catches it at the very start of the turn.
+    if (hasUncertainCommandFrame(trimmed, match.index)) continue;
     const cardText = cleanExplicitCardText(match[1], {
       preserveTerminalPunctuation: pattern.preserveTerminalPunctuation,
     });
@@ -777,6 +804,11 @@ function explicitExactTextCardCommand(
   for (const re of EXACT_TEXT_MARKERS) {
     const match = re.exec(trimmed);
     if (match) {
+      // Question/hedge framing BEFORE the marker ("Should I create a card with
+      // exactly this text: ...?") means the user is asking, not commanding. The
+      // payload after the marker is never inspected, so it may itself be a
+      // question or contain hedge words.
+      if (hasUncertainCommandFrame(trimmed, match.index)) return undefined;
       payload = cleanExplicitCardText(match[1], { preserveTerminalPunctuation: true });
       break;
     }
@@ -1594,7 +1626,7 @@ export async function processTurn(
       state.activeElicitation = undefined;
       state.pendingCardWording = undefined;
       state.turnsSinceLastMirror++;
-      state.lastAiText = state.pendingMapCommand.prompt;
+      setLastAiText(state, state.pendingMapCommand.prompt);
       return {
         mode: "question",
         text: state.pendingMapCommand.prompt,
@@ -1619,7 +1651,7 @@ export async function processTurn(
       state.activeElicitation = undefined;
       state.pendingCardWording = undefined;
       state.turnsSinceLastMirror++;
-      state.lastAiText = state.pendingMapCommand.prompt;
+      setLastAiText(state, state.pendingMapCommand.prompt);
       return {
         mode: "question",
         text: state.pendingMapCommand.prompt,
@@ -1635,7 +1667,7 @@ export async function processTurn(
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     const text = "Done - what should we place next?";
-    state.lastAiText = text;
+    setLastAiText(state, text);
     return {
       mode: "question",
       text,
@@ -1654,7 +1686,7 @@ export async function processTurn(
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     const text = "Okay - which exact card did you mean?";
-    state.lastAiText = text;
+    setLastAiText(state, text);
     return {
       mode: "question",
       text,
@@ -1673,7 +1705,7 @@ export async function processTurn(
       state.activeElicitation = undefined;
       state.pendingCardWording = undefined;
       state.turnsSinceLastMirror++;
-      state.lastAiText = corrected.prompt;
+      setLastAiText(state, corrected.prompt);
       return {
         mode: "question",
         text: corrected.prompt,
@@ -1688,7 +1720,7 @@ export async function processTurn(
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     const text = "I still have that possible card match pending. Say yes, no, or name the exact card you meant.";
-    state.lastAiText = text;
+    setLastAiText(state, text);
     return {
       mode: "question",
       text,
@@ -1708,7 +1740,7 @@ export async function processTurn(
     if (isNegative(userText)) {
       state.pendingMapCommand = undefined;
       const text = "Okay - I won't create that connection.";
-      state.lastAiText = text;
+      setLastAiText(state, text);
       return {
         mode: "question",
         text,
@@ -1735,7 +1767,7 @@ export async function processTurn(
           debug: `duplicate_connection_pending: ${describeCardRef(command.source, map)} <-> ${describeCardRef(command.target, map)}`,
         };
         state.organizeFocus = undefined;
-        state.lastAiText = state.pendingMapCommand.prompt;
+        setLastAiText(state, state.pendingMapCommand.prompt);
         return {
           mode: "question",
           text: state.pendingMapCommand.prompt,
@@ -1747,7 +1779,7 @@ export async function processTurn(
       }
       state.pendingMapCommand = undefined;
       const text = "Done - I'll leave that connection unlabeled.";
-      state.lastAiText = text;
+      setLastAiText(state, text);
       return {
         mode: "question",
         text,
@@ -1759,7 +1791,7 @@ export async function processTurn(
     }
     if (isStuck(userText) || userText.trim().endsWith("?")) {
       const text = "I still need your exact relationship label before I create that connection. What wording should go on it?";
-      state.lastAiText = text;
+      setLastAiText(state, text);
       return {
         mode: "question",
         text,
@@ -1785,7 +1817,7 @@ export async function processTurn(
         debug: `duplicate_connection_pending: ${describeCardRef(command.source, map)} <-> ${describeCardRef(command.target, map)}`,
       };
       state.organizeFocus = undefined;
-      state.lastAiText = state.pendingMapCommand.prompt;
+      setLastAiText(state, state.pendingMapCommand.prompt);
       return {
         mode: "question",
         text: state.pendingMapCommand.prompt,
@@ -1796,7 +1828,7 @@ export async function processTurn(
       };
     }
     state.pendingMapCommand = undefined;
-    state.lastAiText = "Done.";
+    setLastAiText(state, "Done.");
     return {
       mode: "question",
       text: "Done.",
@@ -1827,7 +1859,7 @@ export async function processTurn(
       state.activeElicitation = undefined;
       state.pendingCardWording = undefined;
       state.turnsSinceLastMirror++;
-      state.lastAiText = state.pendingMapCommand.prompt;
+      setLastAiText(state, state.pendingMapCommand.prompt);
       return {
         mode: "question",
         text: state.pendingMapCommand.prompt,
@@ -1844,7 +1876,7 @@ export async function processTurn(
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     const text = "Done. What would you like to do next?";
-    state.lastAiText = text;
+    setLastAiText(state, text);
     return {
       mode: "question",
       text,
@@ -1867,7 +1899,7 @@ export async function processTurn(
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     const text = "Okay - what relationship wording would you use instead?";
-    state.lastAiText = text;
+    setLastAiText(state, text);
     return {
       mode: "question",
       text,
@@ -1886,7 +1918,7 @@ export async function processTurn(
     state.turnsSinceLastMirror++;
     if (pending.awaitingCorrection && isAffirmative(userText)) {
       const text = "I still need the replacement relationship wording before I can create that connection. What exact wording should I use?";
-      state.lastAiText = text;
+      setLastAiText(state, text);
       return {
         mode: "question",
         text,
@@ -1899,7 +1931,7 @@ export async function processTurn(
     const labelText = userText.trim();
     if (!labelText || isStuck(labelText) || labelText.endsWith("?")) {
       const text = "I still have that relationship pending. What exact relationship wording should I use?";
-      state.lastAiText = text;
+      setLastAiText(state, text);
       return {
         mode: "question",
         text,
@@ -1923,7 +1955,7 @@ export async function processTurn(
       prompt: `It sounds like you want the relationship wording to be '${labelText}' between ${describeCardRef(pending.command.source, map)} and ${describeCardRef(pending.command.target, map)}. Is that right?`,
       debug: `relationship_confirmation_corrected: ${describeCardRef(pending.command.source, map)} -> ${describeCardRef(pending.command.target, map)} label "${labelText}"`,
     };
-    state.lastAiText = state.pendingMapCommand.prompt;
+    setLastAiText(state, state.pendingMapCommand.prompt);
     return {
       mode: "question",
       text: state.pendingMapCommand.prompt,
@@ -1943,7 +1975,7 @@ export async function processTurn(
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     const text = "Done. What would you like to do next?";
-    state.lastAiText = text;
+    setLastAiText(state, text);
     return {
       mode: "question",
       text,
@@ -1964,7 +1996,7 @@ export async function processTurn(
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     const text = "Okay - I won't add another connection between those cards.";
-    state.lastAiText = text;
+    setLastAiText(state, text);
     return {
       mode: "question",
       text,
@@ -1982,7 +2014,7 @@ export async function processTurn(
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     const text = "I still have that duplicate connection pending. Say yes to add another relationship, or no to leave the existing connection.";
-    state.lastAiText = text;
+    setLastAiText(state, text);
     return {
       mode: "question",
       text,
@@ -2002,7 +2034,7 @@ export async function processTurn(
     state.pendingChildPlacement = undefined;
     state.turnsSinceLastMirror++;
     const text = "Done. What would you like to do next?";
-    state.lastAiText = text;
+    setLastAiText(state, text);
     return {
       mode: "question",
       text,
@@ -2024,7 +2056,7 @@ export async function processTurn(
     state.pendingChildPlacement = undefined;
     state.turnsSinceLastMirror++;
     const text = "Done. What would you like to do next?";
-    state.lastAiText = text;
+    setLastAiText(state, text);
     return {
       mode: "question",
       text,
@@ -2058,7 +2090,7 @@ export async function processTurn(
       const text = remaining > 0
         ? childPlacementQuestion(pending.parentText, remaining)
         : "Done. What would you like to do next?";
-      state.lastAiText = text;
+      setLastAiText(state, text);
       return {
         mode: "question",
         text,
@@ -2087,7 +2119,7 @@ export async function processTurn(
       state.mode = "question";
       state.turnsSinceLastMirror++;
       const text = "I'm holding off on organizing this yet because the map is still too sparse. What exact wording do you want to carry forward as the next card?";
-      state.lastAiText = text;
+      setLastAiText(state, text);
       setActiveElicitation(state, "sparse_map_next_card");
       return {
         mode: "question",
@@ -2103,7 +2135,7 @@ export async function processTurn(
       state.mode = "question";
       state.turnsSinceLastMirror++;
       const text = nextStepQuestion(state.draft, userText);
-      state.lastAiText = text;
+      setLastAiText(state, text);
       return {
         mode: "question",
         text,
@@ -2120,7 +2152,7 @@ export async function processTurn(
         state.mode = "question";
         state.turnsSinceLastMirror++;
         const text = nextStepQuestion(state.draft, userText);
-        state.lastAiText = text;
+        setLastAiText(state, text);
         return {
           mode: "question",
           text,
@@ -2157,7 +2189,7 @@ export async function processTurn(
         state.activeElicitation = undefined;
         state.pendingCardWording = undefined;
         state.turnsSinceLastMirror++;
-        state.lastAiText = state.pendingMapCommand.prompt;
+        setLastAiText(state, state.pendingMapCommand.prompt);
         return {
           mode: "question",
           text: state.pendingMapCommand.prompt,
@@ -2631,8 +2663,7 @@ export async function processTurn(
     } else if (out.mode === "mirror") {
       state.activeSelectionContext = undefined;
     }
-    state.prevAiText = state.lastAiText;
-    state.lastAiText = out.text;
+    setLastAiText(state, out.text);
     return out;
   }
 
