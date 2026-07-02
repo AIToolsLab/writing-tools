@@ -116,9 +116,16 @@ interface PersistedSession {
     turnsSinceLastMirror: number;
     clarifyTarget?: SourceSpan;
     lastAiText: string;
+    prevAiText?: LoopState["prevAiText"];
+    coverageFocus?: LoopState["coverageFocus"];
     draft: string;
     pendingMapCommand?: PendingMapCommand;
+    organizeFocus?: LoopState["organizeFocus"];
     pendingChildPlacement?: LoopState["pendingChildPlacement"];
+    activeElicitation?: LoopState["activeElicitation"];
+    activeSelectionContext?: LoopState["activeSelectionContext"];
+    pendingCardWording?: LoopState["pendingCardWording"];
+    captureLoop?: LoopState["captureLoop"];
   };
   bank: LoopState["bank"] extends { getAll(): infer T } ? T : never;
   candidates: LoopState["candidates"] extends { getAll(): infer T } ? T : never;
@@ -479,7 +486,13 @@ const css = `
     flex-shrink: 0;
     display: flex;
     align-items: center;
-    gap: 18px;
+    flex-wrap: wrap;
+    column-gap: 14px;
+    row-gap: 8px;
+  }
+
+  .map-heading {
+    flex: 0 0 auto;
   }
   .map-header h2 {
     font-size: 13px;
@@ -498,8 +511,9 @@ const css = `
 
   .question-bias {
     margin-left: auto;
+    flex: 0 0 auto;
     display: grid;
-    grid-template-columns: auto minmax(160px, 220px) auto;
+    grid-template-columns: auto minmax(130px, 220px) auto;
     align-items: center;
     gap: 8px;
     font-size: 11px;
@@ -524,6 +538,7 @@ const css = `
 
   .map-command-ack {
     min-width: 0;
+    flex: 0 1 280px;
     max-width: 280px;
     display: flex;
     align-items: center;
@@ -557,6 +572,22 @@ const css = `
   .map-command-ack button:disabled {
     opacity: 0.45;
     cursor: default;
+  }
+
+  @media (max-width: 1180px) {
+    .map-header {
+      column-gap: 10px;
+    }
+
+    .question-bias {
+      grid-template-columns: auto minmax(96px, 160px) auto;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .question-bias {
+      margin-left: 0;
+    }
   }
 
   .map-canvas {
@@ -1465,9 +1496,16 @@ export default function App() {
     state.turnsSinceLastMirror = persistedSession.controller.turnsSinceLastMirror;
     state.clarifyTarget = persistedSession.controller.clarifyTarget;
     state.lastAiText = persistedSession.controller.lastAiText;
+    state.prevAiText = persistedSession.controller.prevAiText;
+    state.coverageFocus = persistedSession.controller.coverageFocus;
     state.draft = persistedSession.controller.draft;
     state.pendingMapCommand = persistedSession.controller.pendingMapCommand;
+    state.organizeFocus = persistedSession.controller.organizeFocus;
     state.pendingChildPlacement = persistedSession.controller.pendingChildPlacement;
+    state.activeElicitation = persistedSession.controller.activeElicitation;
+    state.activeSelectionContext = persistedSession.controller.activeSelectionContext;
+    state.pendingCardWording = persistedSession.controller.pendingCardWording;
+    state.captureLoop = persistedSession.controller.captureLoop;
     return state;
   }, [persistedSession]);
 
@@ -1853,9 +1891,16 @@ export default function App() {
         turnsSinceLastMirror: stateRef.current.turnsSinceLastMirror,
         clarifyTarget: stateRef.current.clarifyTarget,
         lastAiText: stateRef.current.lastAiText,
+        prevAiText: stateRef.current.prevAiText,
+        coverageFocus: stateRef.current.coverageFocus,
         draft: stateRef.current.draft,
         pendingMapCommand: stateRef.current.pendingMapCommand,
+        organizeFocus: stateRef.current.organizeFocus,
         pendingChildPlacement: stateRef.current.pendingChildPlacement,
+        activeElicitation: stateRef.current.activeElicitation,
+        activeSelectionContext: stateRef.current.activeSelectionContext,
+        pendingCardWording: stateRef.current.pendingCardWording,
+        captureLoop: stateRef.current.captureLoop,
       },
       bank: stateRef.current.bank.getAll(),
       candidates: stateRef.current.candidates.getAll(),

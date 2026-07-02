@@ -113,6 +113,7 @@ describe("CoachTraceStatus", () => {
 
     const statusBtn = container.querySelector("button.coach-trace-status");
     expect(statusBtn?.className).toContain("level-held");
+    expect(statusBtn?.className).toContain("kind-held");
     expect(statusBtn?.querySelector(".ct-chip")?.className).toContain("kind-held");
   });
 

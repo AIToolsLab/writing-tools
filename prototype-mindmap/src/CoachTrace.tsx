@@ -45,6 +45,11 @@ const ICON_GLYPH: Record<string, string> = {
   pencil: "✎",
   x: "✕",
   target: "◎",
+  // Back-compat aliases: trace entries persisted by the pre-integration mock
+  // used these icon keys. Kept so restored old sessions don't render raw words.
+  mirror: "◑",
+  message: "?",
+  ear: "…",
 };
 
 function glyphFor(icon: string): string {
@@ -75,19 +80,23 @@ const COACH_TRACE_CSS = `
     position: relative;
     display: flex;
     min-width: 0;
-    flex: 0 1 auto;
+    flex: 1 1 340px;
+    max-width: 460px;
+    align-self: stretch;
   }
 
   /* ---- compact live status pill ---- */
   .coach-trace-status {
     display: flex;
     align-items: center;
-    gap: 8px;
-    max-width: 320px;
+    gap: 10px;
+    width: 100%;
+    min-height: 44px;
     min-width: 0;
-    padding: 5px 9px;
+    padding: 7px 12px;
     border-radius: 8px;
     border: 1px solid var(--ct-border);
+    border-left-width: 4px;
     background: var(--ct-bg);
     color: var(--ct-text);
     cursor: pointer;
@@ -96,9 +105,12 @@ const COACH_TRACE_CSS = `
   }
   button.coach-trace-status:hover { border-color: var(--ct-text-secondary); }
   .coach-trace-status.placeholder { cursor: default; opacity: 0.7; }
-  .coach-trace-status.level-held    { background: var(--ct-held-bg);       border-color: color-mix(in srgb, var(--ct-held-fg) 30%, var(--ct-border)); }
-  .coach-trace-status.level-notice  { background: var(--ct-bg); }
-  .coach-trace-status.level-quiet   { background: var(--ct-bg); opacity: 0.85; }
+  .coach-trace-status.kind-executed   { background: color-mix(in srgb, var(--ct-executed-bg) 58%, var(--ct-bg));   border-color: color-mix(in srgb, var(--ct-executed-fg) 34%, var(--ct-border));   border-left-color: var(--ct-executed-fg); }
+  .coach-trace-status.kind-reflected  { background: color-mix(in srgb, var(--ct-reflected-bg) 58%, var(--ct-bg));  border-color: color-mix(in srgb, var(--ct-reflected-fg) 34%, var(--ct-border));  border-left-color: var(--ct-reflected-fg); }
+  .coach-trace-status.kind-clarifying { background: color-mix(in srgb, var(--ct-clarifying-bg) 58%, var(--ct-bg)); border-color: color-mix(in srgb, var(--ct-clarifying-fg) 34%, var(--ct-border)); border-left-color: var(--ct-clarifying-fg); }
+  .coach-trace-status.kind-held       { background: color-mix(in srgb, var(--ct-held-bg) 76%, var(--ct-bg));       border-color: color-mix(in srgb, var(--ct-held-fg) 34%, var(--ct-border));       border-left-color: var(--ct-held-fg); }
+  .coach-trace-status.level-held      { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ct-held-fg) 10%, transparent); }
+  .coach-trace-status.level-quiet     { opacity: 0.9; }
 
   .ct-status-copy {
     display: flex;
@@ -137,13 +149,13 @@ const COACH_TRACE_CSS = `
   /* ---- shared chip ---- */
   .ct-chip {
     flex-shrink: 0;
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     border-radius: 7px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     line-height: 1;
     background: var(--ct-chip-neutral-bg);
@@ -296,6 +308,24 @@ const COACH_TRACE_CSS = `
       --ct-technical-fg: #d8d4cc;
     }
   }
+
+  @media (max-width: 1180px) {
+    .coach-trace-status-wrap {
+      flex-basis: 260px;
+      max-width: 360px;
+    }
+    .ct-status-explanation {
+      display: none;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .coach-trace-status-wrap {
+      order: 10;
+      flex-basis: 100%;
+      max-width: none;
+    }
+  }
 `;
 
 /**
@@ -410,7 +440,7 @@ export function CoachTraceStatus({ events }: { events: TraceEvent[] }) {
       {latest ? (
         <button
           type="button"
-          className={`coach-trace-status level-${latest.level}`}
+          className={`coach-trace-status kind-${chipKind(latest)} level-${latest.level}`}
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
           aria-haspopup="dialog"

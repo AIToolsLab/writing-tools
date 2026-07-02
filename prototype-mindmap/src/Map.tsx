@@ -1067,7 +1067,7 @@ function ThoughtMapInner({
   return (
     <section className="map-panel">
       <div className="map-header">
-        <div>
+        <div className="map-heading">
           <h2>Concept map</h2>
           <span className="map-count">{visibleCardCount} cards</span>
         </div>
