@@ -3,13 +3,13 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { CoachTrace, type TraceEvent } from "./CoachTrace";
+import { CoachTraceStatus, type TraceEvent } from "./CoachTrace";
 
 // The derive-layer assertions live in trace.test.ts (coder 1 owns the catalog).
 // These UI tests use hand-built events so they never depend on catalog copy.
 
 // Every icon key the real catalog (trace.ts) can emit. Each must map to a real
-// glyph in the panel — the raw-key fallback must never show to a user.
+// glyph — the raw-key fallback must never show to a user.
 const CONTRACT_ICONS = [
   "check",
   "reflect",
@@ -27,7 +27,34 @@ const CONTRACT_ICONS = [
   "target",
 ];
 
-describe("CoachTrace panel", () => {
+function event(overrides: Partial<TraceEvent> & Pick<TraceEvent, "id">): TraceEvent {
+  return {
+    turnId: overrides.id,
+    reason: "stance:deepen",
+    level: "quiet",
+    icon: "chat",
+    title: "Some title",
+    explanation: "Some explanation.",
+    ...overrides,
+  };
+}
+
+const threeEvents: TraceEvent[] = [
+  event({ id: "e1", title: "First decision", explanation: "The oldest one." }),
+  event({ id: "e2", title: "Second decision", explanation: "The middle one." }),
+  event({
+    id: "e3",
+    title: "I held back a reflection",
+    explanation: "Latest — held back this turn.",
+    level: "held",
+    icon: "pause",
+    reason: "validation_failed",
+    detail: "Grounding 0.42, needed 0.60.",
+    technical: { reason: "validation_failed", score: 0.42, threshold: 0.6 },
+  }),
+];
+
+describe("CoachTraceStatus", () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -44,106 +71,109 @@ describe("CoachTrace panel", () => {
     delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT;
   });
 
-  const events: TraceEvent[] = [
-    {
-      id: "trace-1",
-      turnId: "1",
-      reason: "stance:deepen",
-      level: "quiet",
-      icon: "chat",
-      title: "Going deeper on one idea",
-      explanation: "Looking more closely at what you just said, rather than moving on.",
-      technical: { reason: "stance:deepen" },
-    },
-    {
-      id: "trace-2",
-      turnId: "2",
-      reason: "validation_failed",
-      level: "held",
-      icon: "pause",
-      title: "I held back a reflection",
-      explanation: "I started to reflect, but the wording drifted too far from yours.",
-      detail: "The draft reflection didn't match your source text closely enough. Grounding 0.42, needed 0.60.",
-      technical: { reason: "validation_failed", check: "lexical_grounding", score: 0.42, threshold: 0.6 },
-    },
-  ];
+  function openHistory() {
+    const statusBtn = container.querySelector<HTMLButtonElement>("button.coach-trace-status");
+    act(() => statusBtn!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  }
 
-  it("renders catalog copy but never the reason or raw JSON by default", () => {
-    act(() => root.render(<CoachTrace events={events} defaultOpen />));
+  it("shows only the latest event by default, not older history", () => {
+    act(() => root.render(<CoachTraceStatus events={threeEvents} />));
 
-    const list = container.querySelector(".coach-trace-list");
-    expect(list).not.toBeNull();
-    const listText = list!.textContent ?? "";
-
-    expect(listText).toContain("I held back a reflection");
-    expect(listText).toContain("Going deeper on one idea");
-    // Neither the internal reason key nor the raw JSON shows collapsed.
-    expect(listText).not.toContain("validation_failed");
-    expect(container.querySelector(".ct-technical")).toBeNull();
+    const wrapText = container.textContent ?? "";
+    expect(wrapText).toContain("I held back a reflection");
+    expect(wrapText).not.toContain("First decision");
+    expect(wrapText).not.toContain("Second decision");
+    // No history popover until the status is clicked.
+    expect(container.querySelector(".coach-trace-popover")).toBeNull();
   });
 
-  it("styles a held event calm (never an error) via the held chip", () => {
-    act(() => root.render(<CoachTrace events={events} defaultOpen />));
+  it("renders title and explanation as separate block elements (not jammed inline)", () => {
+    act(() => root.render(<CoachTraceStatus events={threeEvents} />));
 
-    const heldRow = Array.from(container.querySelectorAll<HTMLButtonElement>(".ct-row")).find((row) =>
-      row.textContent?.includes("I held back a reflection"),
-    );
-    expect(heldRow?.className).toContain("level-held");
-    expect(heldRow?.querySelector(".ct-chip")?.className).toContain("kind-held");
+    const title = container.querySelector(".ct-status-title");
+    const explanation = container.querySelector(".ct-status-explanation");
+    expect(title).not.toBeNull();
+    expect(explanation).not.toBeNull();
+    expect(title).not.toBe(explanation);
+    // The title node holds only the title — explanation copy is not fused into it.
+    expect(title!.textContent).toBe("I held back a reflection");
+    expect(title!.textContent).not.toContain("held back this turn");
   });
 
-  it("reveals the score on expand and raw keys only behind the technical toggle", () => {
-    act(() => root.render(<CoachTrace events={events} defaultOpen />));
+  it("keeps the compact status free of raw reason keys and JSON", () => {
+    act(() => root.render(<CoachTraceStatus events={threeEvents} />));
 
-    const heldRow = Array.from(container.querySelectorAll<HTMLButtonElement>(".ct-row")).find((row) =>
-      row.textContent?.includes("I held back a reflection"),
-    );
+    const wrapText = container.textContent ?? "";
+    expect(wrapText).not.toContain("validation_failed");
+    expect(wrapText).not.toContain("threshold");
+  });
+
+  it("styles a held latest event calm (never an error)", () => {
+    act(() => root.render(<CoachTraceStatus events={threeEvents} />));
+
+    const statusBtn = container.querySelector("button.coach-trace-status");
+    expect(statusBtn?.className).toContain("level-held");
+    expect(statusBtn?.querySelector(".ct-chip")?.className).toContain("kind-held");
+  });
+
+  it("opens the history on click, revealing older events", () => {
+    act(() => root.render(<CoachTraceStatus events={threeEvents} />));
+    openHistory();
+
+    const popover = container.querySelector(".coach-trace-popover");
+    expect(popover).not.toBeNull();
+    const popoverText = popover!.textContent ?? "";
+    expect(popoverText).toContain("First decision");
+    expect(popoverText).toContain("Second decision");
+    expect(popoverText).toContain("I held back a reflection");
+  });
+
+  it("keeps technical detail hidden in history until toggled", () => {
+    act(() => root.render(<CoachTraceStatus events={threeEvents} />));
+    openHistory();
+
+    const heldRow = Array.from(
+      container.querySelectorAll<HTMLButtonElement>(".coach-trace-popover .ct-row"),
+    ).find((row) => row.textContent?.includes("I held back a reflection"));
     expect(heldRow).toBeDefined();
 
     act(() => heldRow!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    // The grounding score (detail) is now visible; the reason key still is not.
+    // Detail (the score) is now visible; raw keys still are not.
     expect(container.querySelector(".ct-detail")?.textContent).toContain("0.42");
     expect(container.querySelector(".ct-technical")).toBeNull();
 
     const toggle = container.querySelector<HTMLButtonElement>(".ct-technical-toggle");
-    expect(toggle).not.toBeNull();
-
     act(() => toggle!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     const technical = container.querySelector(".ct-technical");
     expect(technical).not.toBeNull();
-    // Raw keys appear ONLY here, on demand.
     expect(technical!.textContent).toContain("validation_failed");
     expect(technical!.textContent).toContain("threshold");
   });
 
-  it("maps every contract icon to a real glyph (never a raw key)", () => {
-    const iconEvents: TraceEvent[] = CONTRACT_ICONS.map((icon, i) => ({
-      id: `trace-icon-${i}`,
-      turnId: String(i),
-      reason: "test",
-      level: "notice",
-      icon,
-      title: `event ${icon}`,
-      explanation: "why",
-    }));
+  it("maps every contract icon to a real glyph in the history (never a raw key)", () => {
+    const iconEvents: TraceEvent[] = CONTRACT_ICONS.map((icon, i) =>
+      event({ id: `icon-${i}`, icon, level: "notice", title: `event ${icon}` }),
+    );
+    act(() => root.render(<CoachTraceStatus events={iconEvents} />));
+    openHistory();
 
-    act(() => root.render(<CoachTrace events={iconEvents} defaultOpen />));
-
-    const chips = Array.from(container.querySelectorAll(".ct-chip"));
+    const chips = Array.from(container.querySelectorAll(".coach-trace-popover .ct-chip"));
     expect(chips).toHaveLength(CONTRACT_ICONS.length);
+    // Popover renders newest-first, so reverse to line glyphs up with icon keys.
+    const reversed = [...CONTRACT_ICONS].reverse();
     chips.forEach((chip, i) => {
       const glyph = chip.textContent ?? "";
       expect(glyph.length).toBeGreaterThan(0);
-      // The raw catalog key must never reach the user as the glyph.
-      expect(glyph).not.toBe(CONTRACT_ICONS[i]);
+      expect(glyph).not.toBe(reversed[i]);
     });
   });
 
-  it("shows an empty-state hint when there are no events", () => {
-    act(() => root.render(<CoachTrace events={[]} defaultOpen />));
+  it("shows a quiet placeholder and no button when there are no events", () => {
+    act(() => root.render(<CoachTraceStatus events={[]} />));
 
-    expect(container.querySelector(".coach-trace-empty")).not.toBeNull();
+    expect(container.querySelector(".coach-trace-status.placeholder")).not.toBeNull();
+    expect(container.querySelector("button.coach-trace-status")).toBeNull();
+    expect(container.textContent).toContain("will appear here");
   });
 });

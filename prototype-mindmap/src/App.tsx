@@ -12,7 +12,7 @@ import {
 } from "./controller";
 import type { LoopState } from "./controller";
 import type { MockLLM, QuestionStance } from "./llm-contract";
-import { CoachTrace, deriveTraceEvent, type TraceEvent } from "./CoachTrace";
+import { CoachTraceStatus, deriveTraceEvent, type TraceEvent } from "./CoachTrace";
 import { ThoughtMap, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
@@ -2137,8 +2137,6 @@ export default function App() {
             <div ref={messagesEndRef} />
           </div>
 
-          <CoachTrace events={traceLog} />
-
           <div className="input-area">
             {error && <div className="error-banner">{error}</div>}
             <div className="input-row">
@@ -2272,6 +2270,7 @@ export default function App() {
           bank={stateRef.current.bank}
           confirmed={confirmed}
           coachDebug={lastCoachDebug}
+          coachStatus={<CoachTraceStatus events={traceLog} />}
           commandAck={commandAck}
           highlightedCardIds={referencedCardIds}
           revision={mapRevision}

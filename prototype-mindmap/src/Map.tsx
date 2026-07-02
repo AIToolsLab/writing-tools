@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   Background,
   BaseEdge,
@@ -89,6 +89,8 @@ interface ThoughtMapProps {
   bank: SourceBank;
   confirmed: ConfirmedReflection[];
   coachDebug?: CoachDebugInfo | null;
+  /** Compact live coach-trace status chip, rendered in the map header. */
+  coachStatus?: ReactNode;
   commandAck?: MapCommandAcknowledgement | null;
   /** Card ids the current coach turn refers to (by #ref) — highlighted on the canvas. */
   highlightedCardIds?: ReadonlySet<string>;
@@ -519,6 +521,7 @@ function ThoughtMapInner({
   bank,
   confirmed,
   coachDebug,
+  coachStatus,
   commandAck,
   highlightedCardIds,
   revision,
@@ -1068,6 +1071,8 @@ function ThoughtMapInner({
           <h2>Concept map</h2>
           <span className="map-count">{visibleCardCount} cards</span>
         </div>
+
+        {coachStatus}
 
         {commandAck && (
           <div className="map-command-ack" role="status">
