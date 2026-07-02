@@ -51,6 +51,12 @@ jobs:
             type=raw,value=${{ github.sha }}
             type=raw,value=latest,enable={{is_default_branch}}
 
+      # Fail before pushing if .dockerignore lets secrets or junk into the
+      # context. Scans Docker's real view of the context, so it can't drift
+      # from the build below.
+      - name: Audit build context
+        run: ./scripts/audit-build-context.sh ./experiment
+
       - name: Build and push
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
