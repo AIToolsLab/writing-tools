@@ -1650,6 +1650,29 @@ describe("question mode", () => {
     expect(confirmed.mapCommands).toBeUndefined();
     expect(confirmed.commandConfirmation?.kind).toBe("connection_label");
     expect(confirmed.text).toContain("What should the label be");
+
+    const labeled = await processTurn(
+      state,
+      "supports authorship",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+      { requireConnectionLabel: true },
+    );
+
+    const bankAfterLabel = state.bank.getAll();
+    const labelSourceId = bankAfterLabel[bankAfterLabel.length - 1]?.id;
+    expect(labeled.mapCommands).toEqual([
+      {
+        kind: "connect_cards",
+        source: { id: "tu_448" },
+        target: { id: "tu_451" },
+        labelText: "supports authorship",
+        labelSourceUtteranceIds: [labelSourceId],
+      },
+    ]);
+    expect(labeled.commandDebug?.[0]?.reason).toBe("connection_label_completed");
   });
 
   it("updates a near-match pending command when the user names a corrected card", async () => {
@@ -1743,6 +1766,41 @@ describe("question mode", () => {
     expect(out.commandDebug?.some((note) => note.reason === "ungrounded_existing_endpoint")).toBe(true);
   });
 
+  it("blocks model-emitted structural commands when the user's #ref placement is uncertain", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_635", "No AI words"), mapUnit("tu_649", "Mechanism")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "should I put #635 in #649?",
+      () => ({
+        mode: "question",
+        text: "Done.",
+        mapCommands: [
+          {
+            kind: "nest_card",
+            childText: "#635",
+            parentText: "#649",
+          },
+        ],
+      }),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandDebug).toEqual([
+      {
+        reason: "command_uncertainty",
+        detail: "Blocked map command because the user phrased the structural action as uncertain/question-shaped.",
+      },
+    ]);
+  });
+
   it("treats No-prefixed relationship correction as wording, not rejection", async () => {
     const state = createState();
     const map = {
@@ -1781,6 +1839,58 @@ describe("question mode", () => {
     expect(state.pendingMapCommand?.kind === "relationship_confirmation" ? state.pendingMapCommand.command.labelSourceUtteranceIds : []).toEqual(
       state.bank.getAll().map((unit) => unit.id),
     );
+  });
+
+  it("does not execute a rejected relationship confirmation on a later yes", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "relationship_confirmation",
+      labelText: "support detail",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_448" },
+        target: { id: "tu_451" },
+        labelText: "support detail",
+        labelSourceUtteranceIds: ["u_label"],
+      },
+      prompt: "It sounds like you want support detail. Is that right?",
+      debug: "relationship_confirmation_pending",
+    };
+
+    const rejected = await processTurn(
+      state,
+      "no",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(rejected.mapCommands).toBeUndefined();
+    expect(rejected.commandConfirmation?.kind).toBe("relationship_confirmation");
+    expect(state.pendingMapCommand?.kind === "relationship_confirmation" ? state.pendingMapCommand.awaitingCorrection : false).toBe(true);
+
+    const yes = await processTurn(
+      state,
+      "yes",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(yes.mapCommands).toBeUndefined();
+    expect(yes.text).toContain("replacement relationship wording");
+    expect(yes.commandDebug).toEqual([
+      {
+        reason: "relationship_correction_still_pending",
+        detail: "relationship_confirmation_pending",
+      },
+    ]);
   });
 
   it("clears organize focus when a duplicate connection is rejected", async () => {

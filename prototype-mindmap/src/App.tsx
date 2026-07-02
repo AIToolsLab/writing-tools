@@ -16,7 +16,7 @@ import { ThoughtMap, type CoachDebugInfo, type MapCommandAcknowledgement } from 
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
 import { cardRef } from "./store";
-import type { SourceSpan } from "./types";
+import type { SourceSpan, SourceUtterance } from "./types";
 import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
 import { useSpeechToText } from "./useSpeechToText";
 
@@ -1046,14 +1046,16 @@ const css = `
   .map-embed-actions {
     display: flex;
     align-items: center;
+    flex-wrap: wrap;
     gap: 6px;
+    row-gap: 4px;
     margin-top: 6px;
   }
   .map-embed-ref {
+    flex: 1 1 64px;
     font-size: 10px;
     font-weight: 700;
     color: #918d85;
-    margin-right: auto;
   }
   .map-embed-actions button {
     font-size: 10px;
@@ -1403,6 +1405,25 @@ function cloneLoopState(state: LoopState): LoopState {
   cloned.pendingCardWording = state.pendingCardWording;
   cloned.captureLoop = state.captureLoop;
   return cloned;
+}
+
+function mergeLiveBankIntoWorkingState(workingState: LoopState, liveState: LoopState) {
+  const mergedById = new Map<string, SourceUtterance>();
+  for (const unit of workingState.bank.getAll()) {
+    mergedById.set(unit.id, unit);
+  }
+  for (const liveUnit of liveState.bank.getAll()) {
+    const current = mergedById.get(liveUnit.id);
+    if (current) {
+      mergedById.set(liveUnit.id, {
+        ...current,
+        commandOnly: Boolean(current.commandOnly || liveUnit.commandOnly),
+      });
+    } else {
+      mergedById.set(liveUnit.id, liveUnit);
+    }
+  }
+  workingState.bank.replaceAll(Array.from(mergedById.values()));
 }
 
 /**
@@ -1869,6 +1890,7 @@ export default function App() {
       );
 
       if (nonce !== turnNonceRef.current) return;
+      mergeLiveBankIntoWorkingState(workingState, stateRef.current);
       stateRef.current = workingState;
       appendCoachOutput(out);
     } catch (e) {
@@ -1956,6 +1978,7 @@ export default function App() {
           { ingestUser: false, requireConnectionLabel, continuationFocus },
         );
         if (nonce !== turnNonceRef.current) return;
+        mergeLiveBankIntoWorkingState(workingState, stateRef.current);
         stateRef.current = workingState;
         appendCoachOutput(out);
       } catch (e) {
@@ -1985,6 +2008,7 @@ export default function App() {
   function clearMapOnly() {
     turnNonceRef.current++;
     setLoading(false);
+    llmRef.current = makeLLM(() => configRef.current, buildConversationHistory(msgs));
     mapStoreRef.current = new ThoughtUnitStore();
     undoStackRef.current = [];
     setCanUndoMap(false);
@@ -2004,6 +2028,7 @@ export default function App() {
   function clearDraftOnly() {
     turnNonceRef.current++;
     setLoading(false);
+    llmRef.current = makeLLM(() => configRef.current, buildConversationHistory(msgs));
     setDraftText("");
     setHighlightAnchor(undefined);
     stateRef.current.draft = "";
@@ -2027,6 +2052,9 @@ export default function App() {
     setPendingMirrors(new Map());
     setLastCoachDebug(null);
     setHighlightAnchor(undefined);
+    undoStackRef.current = [];
+    setCanUndoMap(false);
+    setCommandAck(null);
     setError(null);
     setInput("");
     speech.stop();

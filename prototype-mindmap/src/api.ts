@@ -779,23 +779,18 @@ export async function callLLM(
  * Factory that returns a stateful MockLLM closure with its own history buffer.
  * Pass the returned function directly to `processTurn`.
  *
- * The closure appends the latest user utterance and the assistant's reply to
- * history on each call, giving the LLM conversation context without the caller
- * needing to manage it.
+ * User wording reaches the model through the controller-owned current turn and
+ * Source Bank context, where command-only utterances can be filtered. Keep this
+ * private history assistant-only so direct commands do not leak back into later
+ * mirror/candidate prompts as raw chat history.
  */
 export function makeLLM(
   cfg: MindmapConfig | (() => MindmapConfig) = defaultConfig,
   initialHistory: ConversationMessage[] = [],
 ): MockLLM {
-  const history: ConversationMessage[] = [...initialHistory];
+  const history: ConversationMessage[] = initialHistory.filter((m) => m.role === "assistant");
 
   return async (ctx: LLMContext): Promise<LLMTurn> => {
-    // Use the full raw turn (not just the last segmented sentence) for history,
-    // so the model sees everything the user said this turn.
-    if (ctx.turnText) {
-      history.push({ role: "user", content: ctx.turnText });
-    }
-
     const currentConfig = typeof cfg === "function" ? cfg() : cfg;
     const turn = await callLLM(ctx, history, currentConfig);
 

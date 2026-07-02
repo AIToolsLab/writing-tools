@@ -88,6 +88,7 @@ export interface PendingRelationshipConfirmationCommand {
   command: Extract<AcceptedMapCommand, { kind: "connect_cards" }>;
   labelText: string;
   debug: string;
+  awaitingCorrection?: boolean;
 }
 
 export interface PendingDuplicateConnectionCommand {
@@ -887,7 +888,7 @@ function acceptedMapCommands(
   commands: MapCommand[] | undefined,
   units: SourceUtterance[],
   map: LLMMapContext,
-  options: { requireConnectionLabel?: boolean; userText?: string } = {},
+  options: { requireConnectionLabel?: boolean; userText?: string; blockStructuralCommands?: boolean } = {},
 ): { accepted: AcceptedMapCommand[]; pending?: PendingMapCommand; notes: CommandDebugNote[] } {
   const requireConnectionLabel = options.requireConnectionLabel ?? false;
   const userText = options.userText ?? "";
@@ -896,8 +897,19 @@ function acceptedMapCommands(
   let clarificationPrompt: string | undefined;
   const notes: CommandDebugNote[] = [];
   const seen = new Set<string>();
+  const incomingCommands = commands ?? [];
+  const processableCommands = options.blockStructuralCommands
+    ? incomingCommands.filter((command) => command.kind === "create_card")
+    : incomingCommands;
 
-  for (const command of commands ?? []) {
+  if (options.blockStructuralCommands && incomingCommands.some((command) => command.kind !== "create_card")) {
+    notes.push({
+      reason: "command_uncertainty",
+      detail: "Blocked map command because the user phrased the structural action as uncertain/question-shaped.",
+    });
+  }
+
+  for (const command of processableCommands) {
     if (command.kind !== "create_card") continue;
     const phrase = (command.sourceSpan?.userPhrase ?? command.text ?? "").trim();
     if (!phrase) {
@@ -939,7 +951,7 @@ function acceptedMapCommands(
     });
   }
 
-  for (const command of commands ?? []) {
+  for (const command of processableCommands) {
     if (command.kind !== "nest_card") continue;
     const childText = command.childText?.trim();
     const parentId = resolveExistingCardId(command.parentText, map);
@@ -988,7 +1000,7 @@ function acceptedMapCommands(
     accepted.push({ kind: "nest_card", child, parentId });
   }
 
-  for (const command of commands ?? []) {
+  for (const command of processableCommands) {
     if (command.kind !== "connect_cards") continue;
     const sourceText = command.sourceText?.trim();
     const targetText = command.targetText?.trim();
@@ -1523,7 +1535,11 @@ export async function processTurn(
     };
   }
 
-  if (state.pendingMapCommand?.kind === "relationship_confirmation" && isAffirmative(userText)) {
+  if (
+    state.pendingMapCommand?.kind === "relationship_confirmation" &&
+    !state.pendingMapCommand.awaitingCorrection &&
+    isAffirmative(userText)
+  ) {
     const pending = state.pendingMapCommand;
     if (existingConnectionBetween(map, pending.command)) {
       state.pendingMapCommand = {
@@ -1568,6 +1584,10 @@ export async function processTurn(
 
   if (state.pendingMapCommand?.kind === "relationship_confirmation" && isNegative(userText)) {
     const pending = state.pendingMapCommand;
+    state.pendingMapCommand = {
+      ...pending,
+      awaitingCorrection: true,
+    };
     state.mode = "question";
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;
@@ -1578,7 +1598,7 @@ export async function processTurn(
       mode: "question",
       text,
       llmTurn: { mode: "question", text },
-      commandConfirmation: pending,
+      commandConfirmation: state.pendingMapCommand,
       commandDebug: [{ reason: "relationship_rejected", detail: pending.debug }],
       questionStance: "organize",
     };
@@ -1590,6 +1610,18 @@ export async function processTurn(
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
+    if (pending.awaitingCorrection && isAffirmative(userText)) {
+      const text = "I still need the replacement relationship wording before I can create that connection. What exact wording should I use?";
+      state.lastAiText = text;
+      return {
+        mode: "question",
+        text,
+        llmTurn: { mode: "question", text },
+        commandConfirmation: pending,
+        commandDebug: [{ reason: "relationship_correction_still_pending", detail: pending.debug }],
+        questionStance: "organize",
+      };
+    }
     const labelText = userText.trim();
     if (!labelText || isStuck(labelText) || labelText.endsWith("?")) {
       const text = "I still have that relationship pending. What exact relationship wording should I use?";
@@ -1607,6 +1639,7 @@ export async function processTurn(
     state.bank.markCommandOnly(labelSourceUtteranceIds);
     state.pendingMapCommand = {
       ...pending,
+      awaitingCorrection: false,
       labelText,
       command: {
         ...pending.command,
@@ -1885,6 +1918,7 @@ export async function processTurn(
   const commandResult = acceptedMapCommands(turn.mapCommands, units, map, {
     requireConnectionLabel,
     userText,
+    blockStructuralCommands: isUncertainExplicitPlacement(userText, config),
   });
   const acceptedCommands = commandResult.accepted;
   const turnShape = acceptedCommands.length > 0
