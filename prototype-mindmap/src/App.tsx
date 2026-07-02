@@ -2057,6 +2057,7 @@ export default function App() {
       const text = `What wording should change before I carry "${finalText ?? claim.text}" forward?`;
       stateRef.current.mode = "clarify";
       stateRef.current.turnsSinceLastMirror++;
+      stateRef.current.prevAiText = stateRef.current.lastAiText;
       stateRef.current.lastAiText = text;
       setMsgs((prev) => [
         ...prev,

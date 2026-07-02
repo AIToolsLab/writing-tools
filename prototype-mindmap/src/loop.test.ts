@@ -4615,6 +4615,27 @@ describe("LLM context", () => {
     expect(out.mapCommands).toBeUndefined();
   });
 
+  it("bridges an explicit list when the only ref phrasing is under the numbered card", async () => {
+    const state = createState();
+    const map = { thoughtUnits: [mapUnit("tu_86", "Monitoring")], connections: [] };
+
+    const out = await processTurn(
+      state,
+      "I have in mind: visualization, monitoring and control. I am considering making the three into cards under the 86 card.",
+      questionLLM("When you say control, what does control actually mean here?"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.suppressionReason).toBe("draft_salience_bridge");
+    expect(out.text).toBe(
+      "I hear three possible cards under #86: visualization, monitoring, and control. Do you want to place those as separate cards, or unpack one first?",
+    );
+    expect(out.mapCommands).toBeUndefined();
+  });
+
   it("uses draft-backed salience as a map-carry bridge when map pressure is high", async () => {
     const state = createState();
     state.draft = "The main idea is human control decides what enters the draft.";

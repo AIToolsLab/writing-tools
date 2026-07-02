@@ -354,9 +354,10 @@ function explicitUserMentionedCardRef(text: string, map: LLMMapContext): string 
     if (id) return cardRef(id);
   }
 
-  const contextualNumber = text.match(
-    /\b(?:under|in|inside|within|on|onto|to|from|near|beside|around|with|card)\s+#?(\d+)\b/i,
-  )?.[1];
+  const contextualNumber =
+    text.match(
+      /\b(?:under|in|inside|within|on|onto|to|from|near|beside|around|with)\s+(?:the\s+)?#?(\d+)(?:\s+card)?\b/i,
+    )?.[1] ?? text.match(/\bcard\s+#?(\d+)\b/i)?.[1];
   if (!contextualNumber) return undefined;
   const id = resolveCardRefNumber(contextualNumber, map);
   return id ? cardRef(id) : undefined;
@@ -389,7 +390,7 @@ function countWord(count: number): string {
 
 function cleanListItem(text: string): string {
   return text
-    .replace(/^[\s:;,'"“”‘’]+|[\s:;,'"“”‘’]+$/g, "")
+    .replace(/^[\s:;,.!?'"“”‘’]+|[\s:;,.!?'"“”‘’]+$/g, "")
     .replace(/\b(?:as|into)\s+(?:separate\s+)?cards?\b/gi, "")
     .replace(/\s+/g, " ")
     .trim();
