@@ -38,7 +38,7 @@ export const CONSENT_LEVEL_LABELS: Record<
 	none: {
 		title: 'No logging',
 		description:
-			'No usage analytics or event logging. Only anonymous crash reports, to keep the app working.',
+			'No usage analytics or event logging at all — nothing about your activity is sent to our servers.',
 	},
 	usage: {
 		title: 'Usage only',

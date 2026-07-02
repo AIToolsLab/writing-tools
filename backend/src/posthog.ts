@@ -49,10 +49,18 @@ export async function deletePosthogPerson(distinctId: string): Promise<void> {
 		return;
 	}
 	try {
-		await fetch(
+		const res = await fetch(
 			`${host}/api/projects/${projectId}/persons/?distinct_id=${encodeURIComponent(distinctId)}&delete_events=true`,
 			{ method: 'DELETE', headers: { Authorization: `Bearer ${personalKey}` } },
 		);
+		// fetch only rejects on network errors — surface 4xx/5xx so a failed
+		// deletion isn't silently treated as success.
+		if (!res.ok) {
+			await captureException(
+				new Error(`PostHog person deletion failed (${res.status})`),
+				{ context: 'deletePosthogPerson' },
+			);
+		}
 	} catch (e) {
 		await captureException(e, { context: 'deletePosthogPerson' });
 	}

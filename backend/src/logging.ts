@@ -56,8 +56,8 @@ export async function appendLog(entry: LogEntry): Promise<void> {
  * No-op if the file doesn't exist. `logFilePath` applies the path-traversal
  * guard, so an unexpected id can't escape the log directory.
  */
-export async function deleteUserLogs(username: string): Promise<void> {
-	await rm(logFilePath(username), { force: true });
+export async function deleteUserLogs(userId: string): Promise<void> {
+	await rm(logFilePath(userId), { force: true });
 }
 
 export interface LogUpdate {

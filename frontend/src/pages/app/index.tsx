@@ -413,8 +413,10 @@ function PostHogConsentBridge(): null {
 		const analyticsAllowed =
 			isAuthenticated && consentRank(loggingConsent) >= consentRank('usage');
 
-		if (analyticsAllowed) {
-			if (user?.id) posthog.identify(user.id);
+		// Require a stable id before opting in, so we never capture untethered
+		// anonymous events that can't be tied to a deletable account identity.
+		if (analyticsAllowed && user?.id) {
+			posthog.identify(user.id);
 			posthog.opt_in_capturing();
 		} else {
 			posthog.opt_out_capturing();
