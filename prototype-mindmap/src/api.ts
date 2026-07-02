@@ -207,6 +207,11 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
     ? `\nSTUCK: The user just said they're not sure. Do NOT move on. Use mode "clarify" or "question" to ask a tighter, more concrete version of what they're stuck on.`
     : "";
 
+  // Focus-help override — the user explicitly asked for direction/recommendation.
+  const focusHelpNote = ctx.focusHelpIntent
+    ? `\nFOCUS HELP: The user explicitly asked you to help them focus, recommend a direction, or name possible directions. This is one of the few times you MAY offer options: lay out 2-3 GROUNDED lenses/directions drawn only from existing cards (cite by #ref), the draft, or the user's own Source Bank wording, then ask which one they want to pursue. You may say which you would start with and briefly why, but you must ask the user to choose — never decide for them, never author a thesis or structure, and never emit mapCommands. Do NOT fall back to a generic settle question ("which part feels easiest", "one small piece you feel sure about"); that ignores their request.`
+    : "";
+
   // Detected signals
   const signalNote = ctx.detectedSignals.length > 0
     ? `\nDETECTED SIGNALS in latest turn (auto-attached by the system to the candidate whose addEvidenceIds include this utterance): ${ctx.detectedSignals.map((s) => `"${s.phrase}" (${s.kind}, ${s.spontaneous ? "spontaneous" : "prompted"})`).join(", ")}\nMake sure this turn's utterance id is in addEvidenceIds of the right candidate so these signals land where they belong.`
@@ -263,7 +268,7 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const declarationNote = `\nDECLARATION PRESSURE: Phrases like "the main idea is", "a second idea is", "another idea is", "the next point is", or "I also want to show" are carry-forward pressure for an idea candidate, not commands. If the declared idea is compact and source-groundable, upsert it, set "carryForwardCandidateIds", and mirror it. If it is compound, contrastive, or not yet source-groundable, ask one focused question that helps the user state the idea in their own words, then mirror on the next clear answer. Do not keep narrowing the same idea across turns.`;
 
   return `${PHILOSOPHY}
-${pacingNote}${clarifyNote}${stuckNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${legibilityNote}
+${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${legibilityNote}
 
 CURRENT DRAFT (user's document — read-only reference for anchoring):
 """

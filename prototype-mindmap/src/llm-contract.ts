@@ -147,6 +147,13 @@ export interface LLMContext {
   readyCandidateIds: string[];
   /** True when the user's message contains stuck language ("I'm not sure" etc.). */
   userIsStuck: boolean;
+  /**
+   * True when the user explicitly asked the coach for help focusing, a
+   * recommendation, or possible directions ("where could we go from here?",
+   * "any recommendation?"). The coach MAY offer grounded options/lenses and ask
+   * the user to choose — but must still never author structure or mutate the map.
+   */
+  focusHelpIntent?: boolean;
   /** The AI's previous turn text, for reference in prompt construction. */
   lastAiText: string;
   /** The full raw user input for this turn (before segmentation). */

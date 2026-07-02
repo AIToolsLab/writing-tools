@@ -246,6 +246,97 @@ function coverageNotSureQuestion(cardRef: string | undefined): string {
   return `Which sentence in the draft are you checking ${ref} against first?`;
 }
 
+// The user is explicitly asking the coach for help focusing, a recommendation, or
+// possible directions ("where could we go from here?", "any recommendation?",
+// "what is interesting that I could talk about"). This is allowed: the coach may
+// offer grounded options/lenses and ask the user to choose. It is NOT permission
+// to author structure or mutate the map. Distinct from plain stuck language,
+// which asks for a smaller settle handle rather than a menu of directions.
+const FOCUS_HELP_PATTERNS: RegExp[] = [
+  /\bwhere (?:could|can|should|do|would) we (?:go|start|begin)\b/i,
+  /\bwhere (?:should|could|do|would) (?:i|we) (?:start|begin|go)\b/i,
+  /\bwhat should i focus on\b/i,
+  /\bhelp me think(?:\s+(?:this\s+)?through)?\b/i,
+  /\bany (?:recommendation|recommendations|suggestion|suggestions|direction|directions|ideas?)\b/i,
+  /\bwhat(?:'s| is) interesting\b/i,
+  /\bwhat (?:could|can|should) i (?:talk|write) about\b/i,
+  /\bwhat (?:could|can) we (?:talk about|explore|do)\b/i,
+  /\b(?:give me|need|got) (?:a |any )?(?:recommendation|suggestion|direction|options?)\b/i,
+  /\bwhich (?:direction|way) should (?:i|we)\b/i,
+  /\bwhat (?:are|would be) (?:some|the) (?:options|directions)\b/i,
+];
+
+function detectFocusHelpIntent(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  return FOCUS_HELP_PATTERNS.some((re) => re.test(trimmed));
+}
+
+// Stale settle/focus-family question wording. When the user has explicitly asked
+// for help choosing a direction, re-asking one of these ("which part feels
+// easiest", "one small piece you feel sure about") ignores the request. This is
+// a NARROW lexical family guard, not general semantic similarity.
+const STALE_FOCUS_FAMILY: RegExp[] = [
+  /\bfeels? easiest\b/i,
+  /\bfeel(?:s|ing)? (?:sure|surest|least unsure)\b/i,
+  /\bone small piece\b/i,
+  /\bwhich focused point\b/i,
+  /\bwhich part feels\b/i,
+  /\bfeels? most unfinished\b/i,
+  /\bzoom out\b/i,
+  /\bmake it smaller\b/i,
+  /\bsmallest (?:handle|piece)\b/i,
+];
+
+function isStaleFocusFamilyQuestion(text: string): boolean {
+  return STALE_FOCUS_FAMILY.some((re) => re.test(text));
+}
+
+function shortFocusLabel(text: string): string {
+  const compact = text.trim().replace(/\s+/g, " ");
+  return compact.length <= 48 ? compact : `${compact.slice(0, 45).trim()}...`;
+}
+
+// Grounded anchors the coach can offer as directions: existing map cards first
+// (cited by #ref), then the user's own recent bank wording. Never invented.
+function collectGroundedFocusAnchors(map: LLMMapContext, state: LoopState): string[] {
+  const anchors: string[] = [];
+  const roots = map.thoughtUnits.filter(
+    (unit) => !unit.parentId && unit.role !== "connection_label",
+  );
+  for (const unit of roots.slice(0, 3)) {
+    anchors.push(`${cardRef(unit.id)} (${shortFocusLabel(unit.text)})`);
+  }
+  if (anchors.length >= 2) return anchors.slice(0, 3);
+  const visibleBank = state.bank.getAll().filter((unit) => !unit.commandOnly);
+  for (const unit of visibleBank.slice(-3).reverse()) {
+    const label = shortFocusLabel(unit.text);
+    if (label && !anchors.some((existing) => existing.includes(label))) {
+      anchors.push(label);
+    }
+    if (anchors.length >= 3) break;
+  }
+  return anchors.slice(0, 3);
+}
+
+// Deterministic grounded-options reply for a focus-help request. Offers options
+// drawn from existing map/bank material and asks the user to choose — it never
+// picks for them and never mutates the map.
+function groundedFocusOptionsQuestion(map: LLMMapContext, state: LoopState): string {
+  const anchors = collectGroundedFocusAnchors(map, state);
+  if (anchors.length >= 2) {
+    const list =
+      anchors.length === 2
+        ? `${anchors[0]} or ${anchors[1]}`
+        : `${anchors.slice(0, -1).join(", ")}, or ${anchors[anchors.length - 1]}`;
+    return `We could go a few ways from what's already here — ${list}. Which one do you want to start with?`;
+  }
+  if (anchors.length === 1) {
+    return `The most developed thread so far is ${anchors[0]} — do you want to build on that, or point me to another piece you'd rather pursue?`;
+  }
+  return "I don't want to pick your direction for you, so tell me which piece of your draft you want to pull from and I'll lay out a couple of options from it — what's one part that stands out to you?";
+}
+
 function resolveOrganizePair(
   refs: [string, string],
   map: LLMMapContext,
@@ -305,8 +396,22 @@ function isChildCardWording(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
   if (isStuck(trimmed)) return false;
+  // A question or a request for help/an example ("Can you give me an example?")
+  // is not literal card wording — it must not be captured as a child card.
+  if (isQuestionOrHelpRequest(trimmed)) return false;
   if (answersSiblingFraming(trimmed)) return false;
   return contentTokens(trimmed).length > 0;
+}
+
+// A turn that asks the coach a question or requests help/examples/recommendations
+// rather than supplying content. Used to keep such turns out of wording-capture
+// paths (child cards, etc.) that would otherwise treat them as literal text.
+function isQuestionOrHelpRequest(text: string): boolean {
+  const trimmed = text.trim();
+  if (/\?/.test(trimmed)) return true;
+  return /\b(?:can you|could you|would you|help me|give me (?:an )?example|for example|recommend|suggest|any (?:idea|ideas|recommendation|recommendations|suggestion|suggestions)|what should i|what do you think)\b/i.test(
+    trimmed,
+  );
 }
 
 function cancelsChildPlacement(text: string): boolean {
@@ -672,8 +777,31 @@ function isUncertainExplicitPlacement(text: string, config: MindmapConfig): bool
   return (
     /\?/.test(trimmed) ||
     /^(should|would|can|do you think|i wonder)\b/i.test(trimmed) ||
+    hasStructuralNegation(trimmed) ||
     hasCommandUncertainty(trimmed, config)
   );
+}
+
+// A turn that reads as a question about WHETHER to act ("Should this be a card:
+// human control?", "Can you make this a card?") rather than a command. Used to
+// keep LLM-emitted create_card commands from firing off an interrogative turn,
+// even when the card phrase is grounded in the question text itself.
+function isQuestionShapedCommandTurn(text: string): boolean {
+  const trimmed = text.trim();
+  return (
+    /\?/.test(trimmed) ||
+    /^(?:should|would|could|can|shall|do you think|i wonder|is this|does this|is that|does that)\b/i.test(trimmed)
+  );
+}
+
+// A negated structural command ("do not put #635 in #649", "don't connect #448
+// to #451") forbids the action — it must never mutate the map. The negation is
+// checked only in the text BEFORE the first #ref so a card's own wording after
+// the refs can't trip it.
+function hasStructuralNegation(text: string): boolean {
+  const firstRef = text.search(/#\d+/);
+  const scope = (firstRef === -1 ? text : text.slice(0, firstRef)).toLowerCase();
+  return /\b(?:do not|don'?t|never|won'?t|would\s+not|cannot|can'?t|no longer)\b/.test(scope);
 }
 
 function currentTurnSourceIdsForPhrase(
@@ -735,7 +863,9 @@ function hasUncertainCommandFrame(text: string, markerIndex: number): boolean {
 function extractExplicitCreateCardText(text: string): string | undefined {
   const trimmed = text.trim();
   if (!trimmed) return undefined;
-  if (/\?/.test(trimmed) || /^(?:should|would|can|do you think|i wonder)\b/i.test(trimmed)) {
+  // A leading interrogative frame ("should I ...", "would you ...") makes the
+  // whole turn a question about whether to act — never a command.
+  if (/^(?:should|would|can|do you think|i wonder)\b/i.test(trimmed)) {
     return undefined;
   }
 
@@ -743,14 +873,20 @@ function extractExplicitCreateCardText(text: string): string | undefined {
     re: RegExp;
     preserveTerminalPunctuation?: boolean;
     imperativeLeading?: boolean;
+    // Exact-text markers isolate the command frame to the text BEFORE the marker,
+    // so their verbatim payload may itself be a question ("...exactly this text:
+    // Is AI risky?"). A trailing '?' in the whole turn must not block them.
+    exactTextPayload?: boolean;
   }> = [
     {
       re: /\b(?:create|make|add)\s+(?:a\s+)?card\s+with\s+(?:exactly\s+this|this\s+exact)\s+(?:text|wording)\s*:\s*(.+)$/i,
       preserveTerminalPunctuation: true,
+      exactTextPayload: true,
     },
     {
       re: /\b(?:create|make|add)\s+(?:a\s+)?card\s+with\s+exact\s+(?:text|wording)\s*:\s*(.+)$/i,
       preserveTerminalPunctuation: true,
+      exactTextPayload: true,
     },
     {
       re: /\b(?:create|make|add)\s+(?:a\s+)?card\s+(?:for|from)\s+this(?:\s+idea)?\s*[:,]\s*(.+)$/i,
@@ -779,6 +915,11 @@ function extractExplicitCreateCardText(text: string): string | undefined {
     const match = pattern.re.exec(trimmed);
     if (!match || isNegatedImperativePrefix(trimmed, match.index)) continue;
     if (pattern.imperativeLeading && !isImperativeLeading(trimmed, match.index)) continue;
+    // For the looser (non-exact-text) shapes, a '?' anywhere still reads as a
+    // tentative/asking turn ("create a card for authorship?") — reject it. The
+    // exact-text markers instead scope uncertainty to the prefix (below), so
+    // their verbatim payload may contain a '?'.
+    if (!pattern.exactTextPayload && /\?/.test(trimmed)) continue;
     // A question/hedge frame before the marker ("Hmm, should I make a card
     // with...") means the user is asking, not commanding — the leading `^should`
     // guard above only catches it at the very start of the turn.
@@ -822,8 +963,12 @@ function deterministicCreateCardCommands(
   return commands;
 }
 
+// Anaphoric placement commands whose payload is the immediately-preceding
+// same-turn wording. The anaphor may be "this", "that", or "it" ("make that a
+// card", "turn it into a card") — all point at the payload the user just typed
+// in the same turn, never at prior turns.
 const STANDALONE_THIS_CARD_COMMAND =
-  /^(?:please\s+)?(?:(?:make|create|add)\s+this\s+(?:(?:as|into)\s+)?(?:a\s+)?card|turn\s+this\s+into\s+(?:a\s+)?card|(?:make|create|add)\s+(?:a\s+)?card\s+(?:from|for)\s+this|add\s+this\s+(?:to|onto|on)\s+(?:the\s+)?(?:map|canvas))[.!]*$/i;
+  /^(?:please\s+)?(?:(?:make|create|add)\s+(?:this|that|it)\s+(?:(?:as|into)\s+)?(?:a\s+)?card|turn\s+(?:this|that|it)\s+into\s+(?:a\s+)?card|(?:make|create|add)\s+(?:a\s+)?card\s+(?:from|for)\s+(?:this|that|it)|add\s+(?:this|that|it)\s+(?:to|onto|on)\s+(?:the\s+)?(?:map|canvas))[.!]*$/i;
 
 function sameTurnAnaphoricCreateCardCommand(units: SourceUtterance[]): MapCommand | undefined {
   if (units.length < 2) return undefined;
@@ -1451,6 +1596,14 @@ function isNegative(text: string): boolean {
   );
 }
 
+// "cancel" / "never mind" abandon a pending confirmation outright — the user
+// wants no action, not a correction. Distinct from the "no, that's wrong"
+// negatives above, which ask for replacement wording.
+function isCancel(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/[.!?;]+$/g, "").replace(/\s+/g, " ");
+  return normalized === "cancel" || normalized === "never mind" || normalized === "nevermind";
+}
+
 /**
  * Explicit "I want the connection but no label" answers. Anchored full-string
  * matches only, so a genuine (if unusual) label like "no label because it
@@ -1972,6 +2125,25 @@ export async function processTurn(
     };
   }
 
+  if (state.pendingMapCommand?.kind === "relationship_confirmation" && isCancel(userText)) {
+    const pending = state.pendingMapCommand;
+    state.pendingMapCommand = undefined;
+    state.organizeFocus = undefined;
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.turnsSinceLastMirror++;
+    const text = "Okay - I won't create that connection. What would you like to do next?";
+    setLastAiText(state, text);
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      commandDebug: [{ reason: "relationship_cancelled", detail: pending.debug }],
+      questionStance: "organize",
+    };
+  }
+
   if (state.pendingMapCommand?.kind === "relationship_confirmation" && isNegative(userText)) {
     const pending = state.pendingMapCommand;
     state.pendingMapCommand = {
@@ -2356,7 +2528,11 @@ export async function processTurn(
   ).map((s) => s.candidateId);
 
   // 4. Build context snapshot and call the LLM.
-  const userIsStuck = isStuck(userText);
+  // A focus-help request ("where could we go from here?", "any recommendation?")
+  // takes precedence over plain stuck handling even when it also contains "not
+  // sure": the user wants grounded options, not a smaller settle handle.
+  const focusHelpIntent = detectFocusHelpIntent(userText);
+  const userIsStuck = isStuck(userText) && !focusHelpIntent;
   const draftDeclarations = detectDraftDeclarations(state.draft, config.draftDeclarations);
   const ctx: LLMContext = {
     bank: bankForMirrors,
@@ -2366,6 +2542,7 @@ export async function processTurn(
     detectedSignals,
     readyCandidateIds: preTurnReadyIds,
     userIsStuck,
+    focusHelpIntent,
     lastAiText: state.lastAiText,
     turnText: userText,
     turnShape: initialTurnShape,
@@ -2389,16 +2566,38 @@ export async function processTurn(
     ...deterministicCreateCardCommands(userText, units),
     ...(directExplicitRefConnect ? [directExplicitRefConnect] : []),
   ];
-  const commandResult = acceptedMapCommands([...deterministicMapCommands, ...(turn.mapCommands ?? [])], units, map, {
+  const uncertainTurn = isUncertainExplicitPlacement(userText, config);
+  // A question-shaped turn ("Should this be a card: human control?") is asking
+  // WHETHER to act, not commanding. Structural LLM commands are already blocked by
+  // blockStructuralCommands; also drop LLM-emitted create_card here so a grounded
+  // phrase carried inside the question ("human control") can't be minted into a
+  // card. Deterministic commands are untouched — their imperative-only paths
+  // already reject question framing, and an exact-text card whose *payload* is a
+  // question ("...exactly this text: Is AI risky?") must still land.
+  const questionShapedTurn = isQuestionShapedCommandTurn(userText);
+  const llmCommands = turn.mapCommands ?? [];
+  const droppedLlmCreateCards = questionShapedTurn
+    ? llmCommands.filter((command) => command.kind === "create_card")
+    : [];
+  const llmMapCommands = questionShapedTurn
+    ? llmCommands.filter((command) => command.kind !== "create_card")
+    : llmCommands;
+  const commandResult = acceptedMapCommands([...deterministicMapCommands, ...llmMapCommands], units, map, {
     requireConnectionLabel,
     userText,
-    blockStructuralCommands: isUncertainExplicitPlacement(userText, config),
+    blockStructuralCommands: uncertainTurn,
   });
   const acceptedCommands = commandResult.accepted;
   const turnShape = acceptedCommands.length > 0
     ? detectTurnShape(userText, units, { hasAcceptedMapCommand: true, config: config.turnShape })
     : initialTurnShape;
   const turnDebugNotes: CommandDebugNote[] = [...commandResult.notes];
+  if (droppedLlmCreateCards.length > 0) {
+    turnDebugNotes.push({
+      reason: "command_uncertainty",
+      detail: "Dropped LLM-emitted create_card because the user's turn was phrased as a question.",
+    });
+  }
   const commandConsumedIds = commandConsumedUtteranceIds(acceptedCommands);
   const ideaEvidenceIds = new Set(
     (turn.candidateUpserts ?? [])
@@ -2735,6 +2934,26 @@ export async function processTurn(
       out.questionStance === undefined
     ) {
       out = { ...out, questionStance: turn.questionStance };
+    }
+
+    // Focus-help guard: when the user explicitly asked for direction/recommendation,
+    // a stale settle/focus-family question (including any DE_ESCALATE swap above)
+    // ignores that ask. Replace it with grounded options drawn from existing
+    // map/bank material and a choice question. Never mutates the map.
+    if (
+      focusHelpIntent &&
+      (out.mode === "question" || out.mode === "clarify") &&
+      out.suppressionReason !== "command_precedence" &&
+      isStaleFocusFamilyQuestion(out.text)
+    ) {
+      out = {
+        ...out,
+        mode: "question",
+        text: groundedFocusOptionsQuestion(map, state),
+        questionAnchor: undefined,
+        questionStance: "narrow",
+      };
+      state.clarifyTarget = undefined;
     }
 
     if (!commandPromptActive && (out.mode === "question" || out.mode === "clarify")) {

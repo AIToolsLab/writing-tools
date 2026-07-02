@@ -457,6 +457,100 @@ describe("question mode", () => {
     expect(out.suppressionReason).toBe("command_precedence");
   });
 
+  it("creates a card from a single-segment exact-text payload that is itself a question", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "Create a card with exactly this text: Is AI risky?",
+      questionLLM("some coach question the command should override"),
+    );
+
+    expect(out.text).toBe("Done. What would you like to do next?");
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "Is AI risky?",
+        sourceUtteranceIds: ["u_1"],
+      },
+    ]);
+  });
+
+  it("creates a card from same-turn text when the user says make that a card", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "Different style of AI use that enables user to be in more control.\n\nmake that a card",
+      questionLLM("some coach question the command should override"),
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "Different style of AI use that enables user to be in more control.",
+        sourceUtteranceIds: ["u_1"],
+      },
+    ]);
+  });
+
+  it("creates a card from same-turn text when the user says turn it into a card", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "Different style of AI use that enables user to be in more control.\n\nturn it into a card",
+      questionLLM("some coach question the command should override"),
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "Different style of AI use that enables user to be in more control.",
+        sourceUtteranceIds: ["u_1"],
+      },
+    ]);
+  });
+
+  it("does not create a card when the user asks whether something should be a card", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What would make human control worth its own card for you?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "human control",
+          sourceSpan: { utteranceIds: ["u_1"], userPhrase: "human control" },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "Should this be a card: human control?", llm);
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.mode).toBe("question");
+  });
+
+  it("does not create a card when the user asks can you make this a card", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What words would you want on it?",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "human control",
+          sourceSpan: { utteranceIds: ["u_1"], userPhrase: "human control" },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "Can you make this a card: human control?", llm);
+
+    expect(out.mapCommands).toBeUndefined();
+  });
+
   it("creates a card from the immediately preceding same-turn text when the user says make this a card", async () => {
     const state = createState();
 
@@ -1208,6 +1302,35 @@ describe("question mode", () => {
     ]);
     expect(out.text).toBe("Done. What would you like to do next?");
     expect(state.pendingChildPlacement).toBeUndefined();
+  });
+
+  it("does not nest a question asked while a child placement is pending", async () => {
+    const state = createState();
+    state.pendingChildPlacement = {
+      parentId: "tu_577",
+      parentText: "Mechanism 1 to prevent authorship: Constrain",
+      remaining: 2,
+    };
+    const map = {
+      thoughtUnits: [mapUnit("tu_577", "Mechanism 1 to prevent authorship: Constrain")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "Can you give me an example?",
+      questionLLM("Here's one shape it could take — what would you write?"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(state.pendingChildPlacement).toEqual({
+      parentId: "tu_577",
+      parentText: "Mechanism 1 to prevent authorship: Constrain",
+      remaining: 2,
+    });
   });
 
   it("does not execute nesting commands when the parent reference is ambiguous", async () => {
@@ -2006,6 +2129,44 @@ describe("question mode", () => {
     expect(out.text).toBe("Done. What would you like to do next?");
   });
 
+  it("does not nest when the user negates an explicit #ref placement command", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_635", "child"), mapUnit("tu_649", "parent")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "Do not put #635 in #649.",
+      questionLLM("What relationship, if any, do you want between them?"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("does not connect when the user negates an explicit #ref connect command", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "Don't connect #448 to #451.",
+      questionLLM("How would you describe the relationship between them?"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+  });
+
   it("does not execute question-shaped explicit placement as a command", async () => {
     const state = createState();
     const map = {
@@ -2421,6 +2582,40 @@ describe("question mode", () => {
     );
   });
 
+  it("clears a pending relationship confirmation on cancel without awaiting correction", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "relationship_confirmation",
+      labelText: "support detail",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_448" },
+        target: { id: "tu_451" },
+        labelText: "support detail",
+        labelSourceUtteranceIds: ["u_label"],
+      },
+      prompt: "It sounds like you want support detail. Is that right?",
+      debug: "relationship_confirmation_pending",
+    };
+
+    const out = await processTurn(
+      state,
+      "cancel",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(out.commandDebug?.some((note) => note.reason === "relationship_cancelled")).toBe(true);
+  });
+
   it("does not execute a rejected relationship confirmation on a later yes", async () => {
     const state = createState();
     const map = {
@@ -2506,6 +2701,105 @@ describe("question mode", () => {
     );
 
     expect(state.organizeFocus).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Focus-help intent (grounded options instead of stale settle wording)
+// ---------------------------------------------------------------------------
+
+describe("focus-help intent", () => {
+  const focusMap = {
+    thoughtUnits: [
+      mapUnit("tu_1", "monitoring the AI"),
+      mapUnit("tu_2", "user control over wording"),
+      mapUnit("tu_3", "authorship boundary"),
+    ],
+    connections: [],
+  };
+
+  it("replaces a stale focus question with grounded options for 'where could we go from here?'", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "where could we go from here?",
+      questionLLM("Which focused point for this section feels easiest to name first?"),
+      defaultConfig,
+      "chat",
+      focusMap,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).not.toMatch(/feels? easiest|feel sure|one small piece|focused point/i);
+    expect(out.text).toMatch(/#1|#2|#3/);
+    expect(out.text).toMatch(/which one|start with|pursue|build on/i);
+  });
+
+  it("does not settle for 'not sure help me think through'", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "not sure help me think through",
+      questionLLM("Let's zoom out a little — what's one small piece of this you feel sure about?"),
+      defaultConfig,
+      "chat",
+      focusMap,
+    );
+
+    expect(out.text).not.toMatch(/zoom out|one small piece|feel sure/i);
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("offers a grounded direction for 'any recommendation?'", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "any recommendation?",
+      questionLLM("Which part feels easiest to point at right now?"),
+      defaultConfig,
+      "chat",
+      focusMap,
+    );
+
+    expect(out.text).toMatch(/#1|#2|#3/);
+    expect(out.text).not.toMatch(/feels? easiest|feel sure/i);
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("does not ask which card feels unfinished for 'what is interesting that I could talk about'", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "what is interesting that I could talk about",
+      questionLLM("Which existing card feels most unfinished right now?"),
+      defaultConfig,
+      "chat",
+      focusMap,
+    );
+
+    expect(out.text).not.toMatch(/feels? most unfinished/i);
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("passes a grounded options reply through untouched", async () => {
+    const state = createState();
+    const grounded =
+      "We could look at #1, #2, or #3. Which one do you want to start with?";
+
+    const out = await processTurn(
+      state,
+      "where should I start?",
+      questionLLM(grounded),
+      defaultConfig,
+      "chat",
+      focusMap,
+    );
+
+    expect(out.text).toBe(grounded);
   });
 });
 

@@ -1396,6 +1396,12 @@ function cloneLoopState(state: LoopState): LoopState {
   cloned.turnsSinceLastMirror = state.turnsSinceLastMirror;
   cloned.clarifyTarget = state.clarifyTarget;
   cloned.lastAiText = state.lastAiText;
+  // prevAiText and coverageFocus are stateful across turns: the anti-repeat
+  // 2-cycle guard reads prevAiText, and a live card-coverage concern must
+  // survive the working-state clone or the browser falls back to generic
+  // settle/focus wording on a follow-up "not sure".
+  cloned.prevAiText = state.prevAiText;
+  cloned.coverageFocus = state.coverageFocus;
   cloned.draft = state.draft;
   cloned.pendingMapCommand = state.pendingMapCommand;
   cloned.organizeFocus = state.organizeFocus;
