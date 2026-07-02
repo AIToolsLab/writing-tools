@@ -12,6 +12,7 @@ import {
 } from "./controller";
 import type { LoopState } from "./controller";
 import type { MockLLM, QuestionStance } from "./llm-contract";
+import { CoachTrace, deriveTraceEvent, type TraceEvent } from "./CoachTrace";
 import { ThoughtMap, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
@@ -102,6 +103,7 @@ interface PersistedSession {
   pendingMirrors: PersistedPendingMirror[];
   confirmed: ConfirmedReflection[];
   lastCoachDebug?: CoachDebugInfo | null;
+  traceLog?: TraceEvent[];
   mapRevision: number;
   questionBias: number;
   requireConnectionLabel?: boolean;
@@ -1484,6 +1486,7 @@ export default function App() {
   );
   const initialConfirmed = persistedSession?.confirmed ?? [];
   const initialCoachDebug = persistedSession?.lastCoachDebug ?? null;
+  const initialTraceLog = persistedSession?.traceLog ?? [];
   const initialMapRevision = persistedSession?.mapRevision ?? 0;
   const initialQuestionBias = persistedSession?.questionBias ?? 35;
   const initialRequireConnectionLabel = persistedSession?.requireConnectionLabel ?? true;
@@ -1506,6 +1509,7 @@ export default function App() {
   const [pendingMirrors, setPendingMirrors] = useState<Map<string, PendingMirror>>(initialPendingMirrors);
   const [confirmed, setConfirmed] = useState<ConfirmedReflection[]>(initialConfirmed);
   const [lastCoachDebug, setLastCoachDebug] = useState<CoachDebugInfo | null>(initialCoachDebug);
+  const [traceLog, setTraceLog] = useState<TraceEvent[]>(initialTraceLog);
   const [mapRevision, setMapRevision] = useState(initialMapRevision);
   const [mapMountKey, setMapMountKey] = useState(0);
   const [questionBias, setQuestionBias] = useState(initialQuestionBias);
@@ -1822,6 +1826,10 @@ export default function App() {
     }
 
     setMsgs((prev) => [...prev, newMsg]);
+
+    // User-facing decision trace — a catalog-derived summary of this turn, keyed
+    // to the assistant message so keys stay stable across reloads.
+    setTraceLog((prev) => [...prev, deriveTraceEvent(out, String(newMsg.id))]);
   }
 
   useEffect(() => {
@@ -1832,6 +1840,7 @@ export default function App() {
       pendingMirrors: Array.from(pendingMirrors.values()),
       confirmed,
       lastCoachDebug,
+      traceLog,
       mapRevision,
       questionBias,
       requireConnectionLabel,
@@ -1860,6 +1869,7 @@ export default function App() {
     draftSize,
     draftText,
     lastCoachDebug,
+    traceLog,
     mapRevision,
     msgs,
     pendingMirrors,
@@ -2058,6 +2068,7 @@ export default function App() {
     ]);
     setPendingMirrors(new Map());
     setLastCoachDebug(null);
+    setTraceLog([]);
     setHighlightAnchor(undefined);
     undoStackRef.current = [];
     setCanUndoMap(false);
@@ -2125,6 +2136,8 @@ export default function App() {
             )}
             <div ref={messagesEndRef} />
           </div>
+
+          <CoachTrace events={traceLog} />
 
           <div className="input-area">
             {error && <div className="error-banner">{error}</div>}
