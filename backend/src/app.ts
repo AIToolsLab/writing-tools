@@ -13,7 +13,7 @@ const OPENAI_REALTIME_SESSION_URL =
 	'https://api.openai.com/v1/realtime/client_secrets';
 // The realtime-capable model the ephemeral session is bound to. Override via env
 // as OpenAI ships new ids (gpt-realtime, gpt-realtime-2, …).
-const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime';
+const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2';
 
 export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	const app = new Hono();
