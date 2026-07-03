@@ -26,6 +26,13 @@ build
 # debug
 *.log
 
+# language/tool caches
+__pycache__
+*.pyc
+.mypy_cache
+.ruff_cache
+.pytest_cache
+
 # env files (will be provided by compose)
 .env*
 !.env.example

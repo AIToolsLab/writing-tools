@@ -1,16 +1,23 @@
-name: Build experiment image
+name: Build add-in image
 
-# Builds the experiment (Next.js study app) image and pushes it to GHCR on every
-# push to main, tagged with the commit SHA. CD (in the Infrastructure_k8s_* repo)
-# pins a deploy by reading main's current SHA and selecting that image tag.
+# Builds the single-container production add-in image (Hono backend serving the
+# built frontend + /api/*, from the repo-root Dockerfile) and pushes it to GHCR
+# on every push to main, tagged with the commit SHA. CD (in the
+# Infrastructure_k8s_* repo) pins a deploy by reading main's current SHA and
+# selecting that image tag — same pattern as build-experiment-image.yml.
 #
+# This runs in parallel with the existing Jenkins docker-compose build during
+# the deployment migration; either path produces a working image.
 on:
   push:
     branches:
       - main
     paths:
-      - 'experiment/**'
-      - '.github/workflows/build-experiment-image.yml'
+      - 'frontend/**'
+      - 'backend/**'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - '.github/workflows/build-addin-image.yml'
   workflow_dispatch:
 
 # Least privilege: read the repo to check it out, write packages to push to GHCR.
@@ -21,7 +28,7 @@ permissions:
 # One image per commit on main (CD may pin an intermediate SHA), so don't cancel
 # in-progress builds for the same ref.
 concurrency:
-  group: build-experiment-${{ github.ref }}
+  group: build-addin-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -45,7 +52,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
-          images: ghcr.io/aitoolslab/writing-tools-experiment
+          images: ghcr.io/aitoolslab/writing-tools-addin
           # Bare SHA tag is what CD pins to; latest is a convenience pointer.
           tags: |
             type=raw,value=${{ github.sha }}
@@ -55,21 +62,17 @@ jobs:
       # context. Scans Docker's real view of the context, so it can't drift
       # from the build below.
       - name: Audit build context
-        run: ./scripts/audit-build-context.sh ./experiment
+        run: ./scripts/audit-build-context.sh .
 
       - name: Build and push
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
-          context: ./experiment
+          # Repo root: the combined image needs both frontend/ and backend/.
+          context: .
+          file: Dockerfile
           platforms: linux/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          # GIT_COMMIT is baked in as NEXT_PUBLIC_GIT_COMMIT so the running app
-          # reports the commit it was built from; EXP_LOGS_GID matches the
-          # chart/compose log-volume GID.
-          build-args: |
-            GIT_COMMIT=${{ github.sha }}
-            EXP_LOGS_GID=1001
           cache-from: type=gha
           cache-to: type=gha,mode=max
