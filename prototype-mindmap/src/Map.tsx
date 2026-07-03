@@ -106,8 +106,6 @@ interface ThoughtMapProps {
   bank: SourceBank;
   confirmed: ConfirmedReflection[];
   coachDebug?: CoachDebugInfo | null;
-  /** Compact live coach-trace status chip, rendered in the map header. */
-  coachStatus?: ReactNode;
   /** Docked-draft affordance, rendered in the map header when the draft is docked. */
   draftDock?: ReactNode;
   /** True while the floating draft chip is hovering over the header dock zone. */
@@ -576,7 +574,6 @@ function ThoughtMapInner({
   bank,
   confirmed,
   coachDebug,
-  coachStatus,
   draftDock,
   draftDockActive,
   commandAck,
@@ -1163,7 +1160,6 @@ function ThoughtMapInner({
           <span className="map-count">{visibleCardCount} cards</span>
         </div>
 
-        {coachStatus}
         {draftDock}
 
         {commandAck && (

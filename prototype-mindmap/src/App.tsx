@@ -13,7 +13,6 @@ import {
 import type { LoopState } from "./controller";
 import { detectDraftDeclarations } from "./draft-declarations";
 import type { MockLLM, QuestionStance } from "./llm-contract";
-import { deriveTraceEvent, type TraceEvent } from "./CoachTrace";
 import { ThoughtMap, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
@@ -119,7 +118,6 @@ interface PersistedSession {
   pendingMirrors: PersistedPendingMirror[];
   confirmed: ConfirmedReflection[];
   lastCoachDebug?: CoachDebugInfo | null;
-  traceLog?: TraceEvent[];
   understandingSnapshot?: UnderstandingSnapshot | null;
   mapRevision: number;
   questionBias: number;
@@ -231,14 +229,6 @@ const css = `
     text-transform: uppercase;
   }
 
-  .mode-chip {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 8px;
-    border-radius: 99px;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
   .stance-chip {
     margin-left: 6px;
     font-size: 9px;
@@ -255,11 +245,6 @@ const css = `
   .stance-chip.stance-deepen    { background: #eef7f0; color: #2f8a52; }
   .stance-chip.stance-organize  { background: #f0eefb; color: #6a55b0; }
   .stance-chip.stance-challenge { background: #fdeeee; color: #b0463f; }
-
-  .mode-chip.question  { background: #e8f4fd; color: #1a6fa3; }
-  .mode-chip.mirror    { background: #e8f8ed; color: #1a7a3c; }
-  .mode-chip.clarify   { background: #fff3e0; color: #a05a00; }
-  .mode-chip.loading   { background: #f0f0f0; color: #888; }
 
   .messages {
     flex: 1;
@@ -2279,7 +2264,6 @@ export default function App() {
   );
   const initialConfirmed = persistedSession?.confirmed ?? [];
   const initialCoachDebug = persistedSession?.lastCoachDebug ?? null;
-  const initialTraceLog = persistedSession?.traceLog ?? [];
   const initialUnderstandingSnapshot = persistedSession?.understandingSnapshot ?? null;
   const initialMapRevision = persistedSession?.mapRevision ?? 0;
   const initialQuestionBias = snapQuestionBias(persistedSession?.questionBias ?? 35);
@@ -2304,7 +2288,6 @@ export default function App() {
   const [pendingMirrors, setPendingMirrors] = useState<Map<string, PendingMirror>>(initialPendingMirrors);
   const [confirmed, setConfirmed] = useState<ConfirmedReflection[]>(initialConfirmed);
   const [lastCoachDebug, setLastCoachDebug] = useState<CoachDebugInfo | null>(initialCoachDebug);
-  const [traceLog, setTraceLog] = useState<TraceEvent[]>(initialTraceLog);
   const [understandingSnapshot, setUnderstandingSnapshot] = useState<UnderstandingSnapshot | null>(initialUnderstandingSnapshot);
   const [mapRevision, setMapRevision] = useState(initialMapRevision);
   const [mapMountKey, setMapMountKey] = useState(0);
@@ -2489,7 +2472,7 @@ export default function App() {
     window.addEventListener("mouseup", onUp);
   }, [draftPos, draftSize]);
 
-  // Resize logic — edge flags control which edges are active
+  // Drag-out of the docked-draft pill: press-and-drag lifts it off the toolbar.
   const onDockedDraftMouseDown = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
@@ -2745,10 +2728,6 @@ export default function App() {
     }
 
     setMsgs((prev) => [...prev, newMsg]);
-
-    // User-facing decision trace — a catalog-derived summary of this turn, keyed
-    // to the assistant message so keys stay stable across reloads.
-    setTraceLog((prev) => [...prev, deriveTraceEvent(out, String(newMsg.id))]);
     setUnderstandingSnapshot(understanding);
   }
 
@@ -2760,7 +2739,6 @@ export default function App() {
       pendingMirrors: Array.from(pendingMirrors.values()),
       confirmed,
       lastCoachDebug,
-      traceLog,
       understandingSnapshot,
       mapRevision,
       questionBias,
@@ -2799,7 +2777,6 @@ export default function App() {
     draftSize,
     draftText,
     lastCoachDebug,
-    traceLog,
     understandingSnapshot,
     mapRevision,
     msgs,
@@ -2925,10 +2902,6 @@ export default function App() {
         ...prev,
         { id: msgIdForTrace, role: "assistant", text, mode: repairOut.mode, questionStance: repairOut.questionStance },
       ]);
-      setTraceLog((prev) => [
-        ...prev,
-        deriveTraceEvent(repairOut, String(msgIdForTrace)),
-      ]);
       setUnderstandingSnapshot(buildUnderstandingForOutput(repairOut));
       return;
     }
@@ -3040,7 +3013,6 @@ export default function App() {
     ]);
     setPendingMirrors(new Map());
     setLastCoachDebug(null);
-    setTraceLog([]);
     setUnderstandingSnapshot(null);
     setHighlightAnchor(undefined);
     undoStackRef.current = [];
