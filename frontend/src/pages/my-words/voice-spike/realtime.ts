@@ -39,7 +39,7 @@ export interface RealtimeSession {
 }
 
 const REALTIME_CALLS_URL = 'https://api.openai.com/v1/realtime/calls';
-const DEFAULT_MODEL = 'gpt-realtime';
+const DEFAULT_MODEL = 'gpt-realtime-2';
 
 /** Mint an ephemeral client secret from our backend. */
 async function mintEphemeralKey(): Promise<string> {
