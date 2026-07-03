@@ -19,15 +19,34 @@ import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { resolve } from 'path';
+import { fileURLToPath } from 'node:url';
 import { ARCHETYPES } from './archetypes';
 import scenariosData from '../../lib/scenarios.json';
+import { API_TIMEOUT_MS } from '../../lib/studyConfig';
 
 const OUTPUTS_DIR = resolve(import.meta.dirname, 'outputs');
 const MAX_TURNS = 8;
 
-interface Message {
+// Defaults if a (possibly generated) scenario omits the colleague model config.
+const DEFAULT_MODEL = 'gpt-5.5';
+const DEFAULT_REASONING_EFFORT = 'low';
+
+export interface Message {
   role: 'user' | 'assistant';
   content: string;
+  latencyMs?: number;       // wall-clock time for this colleague turn
+  reasoningTokens?: number; // reasoning tokens reported by the provider
+}
+
+export interface ColleagueModelConfig {
+  model: string;
+  reasoningEffort: string;
+}
+
+export interface ColleagueResult {
+  messages: string[];
+  latencyMs: number;
+  reasoningTokens?: number;
 }
 
 interface ConversationLog {
@@ -37,7 +56,7 @@ interface ConversationLog {
   messages: Message[];
 }
 
-function loadScenario(scenarioId: string) {
+export function loadScenario(scenarioId: string) {
   // Try outputs/ first (generated scenario), then fall back to scenarios.json
   const generatedPath = resolve(OUTPUTS_DIR, `${scenarioId}.json`);
   if (existsSync(generatedPath)) {
@@ -54,7 +73,7 @@ function loadScenario(scenarioId: string) {
   throw new Error(`Scenario "${scenarioId}" not found in outputs/ or scenarios.json`);
 }
 
-function getSystemPrompt(scenario: Record<string, unknown>): string {
+export function getSystemPrompt(scenario: Record<string, unknown>): string {
   const chat = scenario.chat as Record<string, unknown>;
   if (Array.isArray(chat.systemPromptLines)) {
     return (chat.systemPromptLines as string[]).join('\n');
@@ -65,23 +84,43 @@ function getSystemPrompt(scenario: Record<string, unknown>): string {
   throw new Error('Scenario has neither systemPromptLines nor systemPrompt');
 }
 
-async function callColleague(
+// Read the colleague model + reasoning effort from the scenario, falling back to
+// defaults for older/generated scenarios that predate these fields.
+export function getColleagueModelConfig(scenario: Record<string, unknown>): ColleagueModelConfig {
+  const chat = (scenario.chat ?? {}) as Record<string, unknown>;
+  return {
+    model: typeof chat.model === 'string' ? chat.model : DEFAULT_MODEL,
+    reasoningEffort:
+      typeof chat.reasoningEffort === 'string' ? chat.reasoningEffort : DEFAULT_REASONING_EFFORT,
+  };
+}
+
+export async function callColleague(
   systemPrompt: string,
   history: Message[],
-): Promise<string[]> {
+  modelConfig: ColleagueModelConfig,
+): Promise<ColleagueResult> {
+  const start = Date.now();
   const result = await generateText({
-    model: openai('gpt-5.2'),
+    model: openai(modelConfig.model),
     system: systemPrompt,
     messages: history.map((m) => ({ role: m.role, content: m.content })),
     maxOutputTokens: 300,
+    providerOptions: {
+      openai: { reasoningEffort: modelConfig.reasoningEffort },
+    },
   });
+  const latencyMs = Date.now() - start;
+  const reasoningTokens = result.providerMetadata?.openai?.reasoningTokens as number | undefined;
 
   const raw = result.text.trim();
+  let messages: string[] = [raw];
   try {
     const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) return parsed;
+    if (Array.isArray(parsed)) messages = parsed;
   } catch { /* fall through */ }
-  return [raw];
+
+  return { messages, latencyMs, reasoningTokens };
 }
 
 async function callParticipant(
@@ -119,6 +158,7 @@ async function simulateConversation(
   archetype: typeof ARCHETYPES[number],
 ): Promise<ConversationLog> {
   const systemPrompt = getSystemPrompt(scenario);
+  const modelConfig = getColleagueModelConfig(scenario);
   const chat = scenario.chat as Record<string, unknown>;
   const taskInstructions = scenario.taskInstructions as Record<string, string>;
 
@@ -144,10 +184,16 @@ async function simulateConversation(
     console.log(`  Participant: ${participantMsg}`);
 
     // Colleague responds
-    const colleagueMessages = await callColleague(systemPrompt, messages);
-    const joined = colleagueMessages.join(' | ');
-    messages.push({ role: 'assistant', content: joined });
-    console.log(`  Colleague: ${joined}`);
+    const colleague = await callColleague(systemPrompt, messages, modelConfig);
+    const joined = colleague.messages.join(' | ');
+    messages.push({
+      role: 'assistant',
+      content: joined,
+      latencyMs: colleague.latencyMs,
+      reasoningTokens: colleague.reasoningTokens,
+    });
+    const slow = colleague.latencyMs > API_TIMEOUT_MS ? ' ⚠️ over budget' : '';
+    console.log(`  Colleague (${colleague.latencyMs}ms${slow}): ${joined}`);
   }
 
   return {
@@ -193,7 +239,10 @@ async function main() {
   console.log('\nDone. Run judge.ts to evaluate the conversations.');
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only run when executed directly, not when imported (e.g. by probe.ts).
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

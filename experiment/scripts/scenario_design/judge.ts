@@ -20,13 +20,20 @@ import { generateObject } from 'ai';
 import { z } from 'zod';
 import { readFileSync, writeFileSync, readdirSync } from 'fs';
 import { resolve } from 'path';
+import { fileURLToPath } from 'node:url';
 
 const OUTPUTS_DIR = resolve(import.meta.dirname, 'outputs');
 
+export interface Criterion {
+  id: string;
+  title: string;
+  description: string;
+}
+
 // Criteria loaded from markdown — parsed into id/description pairs
-function loadCriteria(): Array<{ id: string; title: string; description: string }> {
+export function loadCriteria(): Criterion[] {
   const raw = readFileSync(resolve(import.meta.dirname, 'criteria.md'), 'utf-8');
-  const criteria: Array<{ id: string; title: string; description: string }> = [];
+  const criteria: Criterion[] = [];
 
   // Parse "## N. Title\n\nDescription..." sections
   const sections = raw.split(/^## /m).slice(1);
@@ -50,7 +57,7 @@ const verdictSchema = z.object({
   concern: z.string().describe('If fail: what went wrong. If pass: empty string.'),
 });
 
-interface Verdict {
+export interface Verdict {
   criterionId: string;
   criterionTitle: string;
   pass: boolean;
@@ -58,16 +65,16 @@ interface Verdict {
   concern: string;
 }
 
-interface ConversationLog {
+export interface ConversationLog {
   scenarioId: string;
   archetypeId: string;
   archetypeName: string;
   messages: Array<{ role: string; content: string }>;
 }
 
-async function judgeConversation(
+export async function judgeConversation(
   log: ConversationLog,
-  criterion: { id: string; title: string; description: string },
+  criterion: Criterion,
 ): Promise<Verdict> {
   const transcript = log.messages
     .map((m) => `${m.role === 'user' ? 'Participant' : 'Colleague'}: ${m.content}`)
@@ -169,13 +176,19 @@ async function main() {
   console.log(`Detailed results: ${outPath}`);
 
   if (totalFailures > 0) {
-    console.log('\nRun fix.ts to analyze failures and propose systemPrompt changes.');
+    console.log(
+      `\nTo fix: point a coding agent at ${outPath} (each failure has evidence + concern) ` +
+        'and have it revise the scenario systemPromptLines. Instruct it to come up with testable hypotheses about what went wrong and how to fix it.',
+    );
   }
 
   process.exit(totalFailures > 0 ? 1 : 0);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// Only run when executed directly, not when imported (e.g. by probe.ts).
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}

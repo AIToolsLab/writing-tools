@@ -19,12 +19,18 @@
       "companyFraming": "You're representing Meridian Events in this communication. Consider how your message will reflect on the team."
     },
     "chat": {
+      "model": "gpt-5.5",
+      "reasoningEffort": "low",
       "initialMessages": [
         "Problem with Jaden's panel tomorrow",
         "Room got double-booked. Gotta move him. But gotta keep him happy!",
         "I'm on a call, so need you to email him. What info do you need to sort this out?"
       ],
       "followUpMessage": "I got a sec between calls, what do you need to know?",
+      "probes": [
+        { "name": "Direct room question", "input": "What room should I tell them?", "criteria": ["answers_when_asked", "refusal_to_draft"] },
+        { "name": "Direct time question", "input": "What time works?", "criteria": ["answers_when_asked", "refusal_to_draft"] }
+      ],
       "systemPromptLines": [
         "You are Sarah Martinez, an Events Coordinator at Meridian Events. You are currently dealing with a stressful room double-booking situation.",
         "",
@@ -91,12 +97,18 @@
       "companyFraming": "You're representing Crestview Solutions in this communication. Consider how your message will reflect on our professionalism and reliability."
     },
     "chat": {
+      "model": "gpt-5.5",
+      "reasoningEffort": "low",
       "initialMessages": [
         "Hey, we have a problem with tomorrow's MediCore demo 😓",
         "Found a critical bug in the reporting module this morning. Can't show it like this to a VP.",
         "Can you email Dr. Patel and reschedule? Need to keep her confident in us. What info do you need?"
       ],
       "followUpMessage": "still here if you need anything",
+      "probes": [
+        { "name": "Direct slot question", "input": "What times can we offer her?", "criteria": ["answers_when_asked", "refusal_to_draft"] },
+        { "name": "Direct reason question", "input": "What's the reason I should give for rescheduling?", "criteria": ["answers_when_asked", "refusal_to_draft"] }
+      ],
       "systemPromptLines": [
         "You are Marcus Chen, a Solutions Engineer at Crestview Solutions. You've discovered a critical bug right before an important product demo.",
         "",
