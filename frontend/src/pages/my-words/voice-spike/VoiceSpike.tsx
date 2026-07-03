@@ -147,7 +147,12 @@ export default function VoiceSpike() {
 				tools: buildTools(),
 				onEvent: (evt) => {
 					// Surface transcripts and errors; ignore the firehose otherwise.
-					if (evt.type === 'response.audio_transcript.done') {
+					// GA renamed the assistant transcript event with an `output_`
+					// prefix; accept both so the log works across API versions.
+					if (
+						evt.type === 'response.audio_transcript.done' ||
+						evt.type === 'response.output_audio_transcript.done'
+					) {
 						pushLog({ kind: 'partner', text: str(evt.transcript) });
 					} else if (
 						evt.type === 'conversation.item.input_audio_transcription.completed'

@@ -86,6 +86,9 @@ export async function startRealtimeSession(
 		send({
 			type: 'session.update',
 			session: {
+				// GA Realtime requires `type` on the session, and moved all audio
+				// config (turn detection, input transcription) under `audio`.
+				type: 'realtime',
 				instructions: opts.instructions,
 				tools: opts.tools.map((t) => ({
 					type: 'function',
@@ -94,7 +97,14 @@ export async function startRealtimeSession(
 					parameters: t.parameters,
 				})),
 				tool_choice: 'auto',
-				turn_detection: { type: 'semantic_vad' },
+				audio: {
+					input: {
+						// Semantic end-of-turn so a thinking pause doesn't cut the writer off.
+						turn_detection: { type: 'semantic_vad' },
+						// Transcribe the writer's speech so their turns show in the log.
+						transcription: { model: 'gpt-4o-mini-transcribe' },
+					},
+				},
 			},
 		});
 		// Nudge the model to greet so there's immediate audio confirming the pipe.
