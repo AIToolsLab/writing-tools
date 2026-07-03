@@ -163,4 +163,31 @@ describe("UnderTheHoodPanel", () => {
     expect(container.textContent).toContain("ready");
     window.matchMedia = original;
   });
+
+  it("renders older persisted events that do not have a stage field", () => {
+    const legacy = snapshot();
+    legacy.activeEvents = [
+      {
+        id: "legacy",
+        kind: "question_chosen",
+        title: "Question chosen",
+        detail: "Older saved event.",
+        state: "chosen",
+        stateLabel: "deepen",
+      } as UnderstandingSnapshot["activeEvents"][number],
+    ];
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true });
+    act(() =>
+      root.render(createElement(UnderTheHoodPanel, { snapshot: legacy, onDraftAnchor: vi.fn() })),
+    );
+
+    const tab = container.querySelector<HTMLButtonElement>(".underhood-tab");
+    act(() => tab!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(container.textContent).toContain("Question chosen");
+    expect(container.textContent).toContain("chosen");
+    expect(container.textContent).not.toContain("undefined");
+    window.matchMedia = original;
+  });
 });

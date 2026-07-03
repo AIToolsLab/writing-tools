@@ -2087,6 +2087,15 @@ function eventStageMark(stage: UnderhoodEvent["stage"]): string {
   }[stage];
 }
 
+function eventStage(event: UnderhoodEvent): UnderhoodEvent["stage"] {
+  const stage = event.stage as UnderhoodEvent["stage"] | undefined;
+  if (stage) return stage;
+  if (event.state === "held") return "held";
+  if (event.state === "chosen") return "chosen";
+  if (event.state === "passed") return "checked";
+  return "noticed";
+}
+
 function underhoodTabLabel(snapshot: UnderstandingSnapshot | null): string {
   if (!snapshot) return "Under the hood";
   return snapshot.activeEvents[0]?.title ?? snapshot.latest.title ?? "Under the hood";
@@ -2209,14 +2218,15 @@ export function UnderTheHoodPanel({
                 const active = index === activeEvent;
                 const expanded = expandedEvents.has(event.id);
                 const hasDetail = Boolean(event.technicalDetail?.length);
+                const stage = eventStage(event);
                 return (
                   <div
                     key={event.id}
-                    className={`event-row ${event.state} stage-${event.stage} ${revealed ? "revealed" : ""} ${active ? "active" : ""}`}
+                    className={`event-row ${event.state} stage-${stage} ${revealed ? "revealed" : ""} ${active ? "active" : ""}`}
                   >
-                    <span className="event-dot">{revealed ? eventStageMark(event.stage) : ""}</span>
+                    <span className="event-dot">{revealed ? eventStageMark(stage) : ""}</span>
                     <span className="event-copy">
-                      <span className="event-stage">{event.stage}</span>
+                      <span className="event-stage">{stage}</span>
                       <span className="event-title">{event.title}</span>
                       <span className="event-detail">{event.detail}</span>
                       {event.evidence && <span className="event-evidence">{event.evidence}</span>}
