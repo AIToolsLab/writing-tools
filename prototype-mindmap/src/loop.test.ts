@@ -1032,6 +1032,46 @@ describe("question mode", () => {
     expect(out.text).toBe("Done. What would you like to do next?");
   });
 
+  it("captures a medium-length relational answer under organize focus instead of re-asking", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_86", "monitoring"),
+        mapUnit("tu_166", "control"),
+        mapUnit("tu_9", "draft"),
+      ],
+      connections: [],
+    };
+    state.organizeFocus = { refs: ["#86", "#166"], key: "#86|#166", declineCount: 0 };
+    const answer =
+      "Control is one part of monitoring, and monitoring is not only seeing the thinking process but also deciding which ideas become part of that process.";
+
+    const called = { value: false };
+    const out = await processTurn(
+      state,
+      answer,
+      () => {
+        called.value = true;
+        return organizeQuestionLLM("How do #86 and #166 relate?")({} as LLMContext);
+      },
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    // Early relationship capture returns before the LLM is consulted — proving it
+    // routed to confirmation rather than re-asking the relationship question.
+    expect(called.value).toBe(false);
+    expect(out.commandConfirmation?.kind).toBe("relationship_confirmation");
+    expect(state.pendingMapCommand?.kind).toBe("relationship_confirmation");
+    expect(
+      state.pendingMapCommand?.kind === "relationship_confirmation"
+        ? state.pendingMapCommand.labelText
+        : "",
+    ).toBe(answer);
+    expect(out.mapCommands).toBeUndefined();
+  });
+
   it("does not let sparse-map fallback override a compact relationship answer for an active pair", async () => {
     const state = createState();
     const sparseMap = {
@@ -3516,6 +3556,27 @@ describe("pacing", () => {
 
     expect(out.mode).toBe("question");
     expect(out.pacingSuppressed).toBe(true);
+  });
+
+  it("lets a lone ready mirror attempt through batching when map pressure is high", async () => {
+    // Same setup as the batch-preference test above, but with the slider leaning
+    // on the map. A single ready candidate should reach the validator instead of
+    // waiting for a second one to batch — validation, not batching, decides the
+    // outcome. Guards the map-lean single-mirror relaxation in the batch gate.
+    const state = createState();
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 2,
+      mapPressure: 0.5,
+    });
+    await processTurn(state, "I enjoy writing", questionLLM("Q"), cfg);
+    const uid = state.bank.getAll()[0].id;
+
+    const out = await processTurn(state, "yes", groundedMirrorLLM("I enjoy writing", uid), cfg);
+
+    expect(out.mode).toBe("mirror");
+    expect(out.pacingSuppressed).toBeUndefined();
+    expect(out.suppressionReason).not.toBe("batch_preference");
   });
 
   it("lets high map pressure mirror a newly-ready candidate after the user's answer", async () => {

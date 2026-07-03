@@ -11,14 +11,17 @@ import {
   type TurnOutput,
 } from "./controller";
 import type { LoopState } from "./controller";
+import { detectDraftDeclarations } from "./draft-declarations";
 import type { MockLLM, QuestionStance } from "./llm-contract";
 import { CoachTraceStatus, deriveTraceEvent, type TraceEvent } from "./CoachTrace";
 import { ThoughtMap, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
+import { evaluateReadiness } from "./readiness";
 import { cardRef } from "./store";
 import type { SourceSpan, SourceUtterance } from "./types";
 import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
+import { buildUnderstanding, type SafetyCheck, type TrackedIdea, type UnderhoodEvent, type UnderstandingSnapshot } from "./understanding";
 import { useSpeechToText } from "./useSpeechToText";
 
 // ---------------------------------------------------------------------------
@@ -106,6 +109,7 @@ interface PersistedSession {
   confirmed: ConfirmedReflection[];
   lastCoachDebug?: CoachDebugInfo | null;
   traceLog?: TraceEvent[];
+  understandingSnapshot?: UnderstandingSnapshot | null;
   mapRevision: number;
   questionBias: number;
   requireConnectionLabel?: boolean;
@@ -1381,6 +1385,389 @@ const css = `
     font-style: italic;
     pointer-events: none;
   }
+
+  .map-shell {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    min-height: 0;
+  }
+
+  .underhood-tab {
+    position: absolute;
+    top: 96px;
+    right: 0;
+    z-index: 130;
+    writing-mode: vertical-rl;
+    transform: rotate(180deg);
+    padding: 12px 7px;
+    border: 1px solid #d9d5cc;
+    border-right: none;
+    border-radius: 0 8px 8px 0;
+    background: #fbfaf7;
+    color: #55514a;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    box-shadow: -4px 6px 18px rgba(0,0,0,0.08);
+    cursor: pointer;
+  }
+  .underhood-tab.live {
+    color: #1a6fa3;
+    border-color: #bcd9ee;
+    background: #eef7fd;
+  }
+
+  .underhood-panel {
+    position: absolute;
+    top: 72px;
+    right: 14px;
+    bottom: 22px;
+    z-index: 131;
+    width: min(380px, calc(100% - 36px));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #d8d4ca;
+    border-radius: 12px;
+    background: rgba(255, 255, 252, 0.96);
+    box-shadow: 0 18px 48px rgba(35, 31, 24, 0.18);
+    backdrop-filter: blur(8px);
+  }
+
+  .underhood-head {
+    flex-shrink: 0;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 13px 14px 11px;
+    border-bottom: 1px solid #e7e2d8;
+    background: linear-gradient(135deg, #fffdf6, #f5fbff);
+  }
+  .underhood-title {
+    flex: 1;
+    min-width: 0;
+  }
+  .underhood-title strong {
+    display: block;
+    font-size: 13px;
+    color: #24221e;
+  }
+  .underhood-title span {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: #6f6a61;
+  }
+  .underhood-close {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: 1px solid #d8d4ca;
+    border-radius: 7px;
+    background: #fff;
+    color: #645f57;
+    font-size: 17px;
+    cursor: pointer;
+  }
+
+  .underhood-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .underhood-empty {
+    margin: auto;
+    max-width: 260px;
+    text-align: center;
+    color: #777169;
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .underhood-section {
+    border: 1px solid #e5e1d8;
+    border-radius: 10px;
+    background: #fff;
+    overflow: hidden;
+  }
+  .underhood-section-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 9px 10px;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #726c63;
+    background: #f7f5ef;
+    border-bottom: 1px solid #ece8df;
+  }
+
+  .underhood-latest {
+    padding: 10px;
+    display: flex;
+    gap: 9px;
+    align-items: flex-start;
+  }
+  .underhood-orb {
+    width: 26px;
+    height: 26px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    font-weight: 800;
+    color: #fff;
+    background: #6d6a62;
+  }
+  .underhood-orb.notice { background: #2d7fb0; }
+  .underhood-orb.quiet { background: #8f8a80; }
+  .underhood-orb.held { background: #b37a18; }
+  .underhood-latest-text strong {
+    display: block;
+    font-size: 13px;
+    color: #2b2924;
+  }
+  .underhood-latest-text span {
+    display: block;
+    margin-top: 3px;
+    font-size: 12px;
+    line-height: 1.38;
+    color: #706b62;
+  }
+
+  .event-list {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+  }
+  .event-row {
+    display: grid;
+    grid-template-columns: 24px 1fr auto;
+    gap: 8px;
+    align-items: start;
+    padding: 9px 9px;
+    border-radius: 9px;
+    background: #f7f6f2;
+    color: #5f5a52;
+    opacity: 0.56;
+    transition: opacity 0.2s, transform 0.2s, background 0.2s, border-color 0.2s;
+    border: 1px solid transparent;
+  }
+  .event-row.revealed { opacity: 1; }
+  .event-row.active {
+    transform: translateX(-2px);
+    background: #eef7fd;
+    border-color: #bcd9ee;
+  }
+  .event-dot {
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    border-radius: 7px;
+    border: 2px solid currentColor;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: 900;
+  }
+  .event-row.passed { color: #20804a; background: #edf8f0; }
+  .event-row.chosen { color: #266f9e; background: #eef7fd; }
+  .event-row.watching { color: #6f5f25; background: #fff8e8; }
+  .event-row.held { color: #9a6810; background: #fff3da; }
+  .event-copy {
+    min-width: 0;
+  }
+  .event-title {
+    display: block;
+    font-size: 12px;
+    font-weight: 800;
+    color: #2f2c27;
+  }
+  .event-detail {
+    display: block;
+    margin-top: 3px;
+    font-size: 11px;
+    line-height: 1.35;
+    color: #6d675f;
+  }
+  .event-evidence {
+    display: inline-block;
+    max-width: 100%;
+    margin-top: 6px;
+    padding: 3px 6px;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.72);
+    border: 1px solid rgba(85, 78, 65, 0.14);
+    color: #3f3a32;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .event-state {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding-top: 2px;
+  }
+
+  .idea-list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 10px;
+  }
+  .idea-card {
+    border: 1px solid #ebe6dc;
+    border-radius: 9px;
+    padding: 9px;
+    background: #fffdf8;
+  }
+  .idea-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    align-items: flex-start;
+  }
+  .idea-label {
+    font-size: 13px;
+    line-height: 1.35;
+    color: #25231f;
+    font-weight: 650;
+  }
+  .idea-status {
+    flex-shrink: 0;
+    border-radius: 99px;
+    padding: 2px 7px;
+    font-size: 10px;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: #eeeae1;
+    color: #655f55;
+  }
+  .idea-status.ready { background: #dff3e7; color: #1e7b46; }
+  .idea-status.needs_your_wording { background: #fcebd1; color: #9a6810; }
+  .idea-status.needs_relationship { background: #e5f0fb; color: #286fa4; }
+  .idea-status.too_early { background: #eeeae1; color: #655f55; }
+  .meter-group {
+    margin-top: 9px;
+    display: grid;
+    gap: 6px;
+  }
+  .meter-row {
+    display: grid;
+    grid-template-columns: 72px 1fr;
+    gap: 8px;
+    align-items: center;
+    font-size: 10px;
+    font-weight: 700;
+    color: #716b61;
+  }
+  .meter-track {
+    height: 7px;
+    border-radius: 99px;
+    background: #ebe7dd;
+    overflow: hidden;
+  }
+  .meter-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #2d7fb0, #2da66b);
+  }
+
+  .waiting-card {
+    margin: 10px;
+    padding: 10px;
+    border-radius: 9px;
+    background: #fff6e5;
+    color: #5f4720;
+    font-size: 13px;
+    line-height: 1.4;
+    border: 1px solid #efd6a6;
+  }
+
+  .safety-list,
+  .anchor-list {
+    display: grid;
+    gap: 7px;
+    padding: 10px;
+  }
+  .safety-row {
+    display: grid;
+    grid-template-columns: 18px 1fr auto;
+    gap: 8px;
+    align-items: start;
+    font-size: 12px;
+    line-height: 1.35;
+    color: #514d46;
+  }
+  .safety-mark {
+    width: 16px;
+    height: 16px;
+    border-radius: 5px;
+    background: #e8e4dc;
+  }
+  .safety-row.ok .safety-mark { background: #98d6ad; }
+  .safety-row.info .safety-mark { background: #a8d0ee; }
+  .safety-row.held .safety-mark { background: #e7bf73; }
+  .safety-state {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #7b746a;
+  }
+
+  .anchor-button {
+    width: 100%;
+    border: 1px solid #e3ded4;
+    border-radius: 8px;
+    background: #fbfaf7;
+    padding: 8px;
+    text-align: left;
+    color: #302d28;
+    cursor: pointer;
+  }
+  .anchor-button:hover { background: #fff5d5; border-color: #e1be65; }
+  .anchor-kind {
+    display: block;
+    margin-top: 4px;
+    color: #877f72;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .event-row {
+      transition: none;
+      transform: none !important;
+    }
+  }
+
+  @media (max-width: 900px) {
+    .underhood-panel {
+      left: 14px;
+      right: 14px;
+      top: auto;
+      height: min(70vh, 560px);
+    }
+  }
 `;
 
 // ---------------------------------------------------------------------------
@@ -1515,6 +1902,233 @@ function renderBackdrop(text: string, anchor?: string) {
   );
 }
 
+function statusLabel(status: TrackedIdea["status"]): string {
+  switch (status) {
+    case "ready":
+      return "ready";
+    case "needs_your_wording":
+      return "needs words";
+    case "needs_relationship":
+      return "needs relation";
+    case "too_early":
+      return "too early";
+  }
+}
+
+function targetLabel(target: TrackedIdea["target"]): string {
+  return target === "idea" ? "idea" : target === "hierarchy" ? "nesting" : "connection";
+}
+
+function eventStateMark(state: UnderhoodEvent["state"]): string {
+  return {
+    passed: "ok",
+    held: "!",
+    chosen: ">",
+    watching: "...",
+  }[state];
+}
+function Meter({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="meter-row">
+      <span>{label}</span>
+      <span className="meter-track" aria-label={`${label} ${Math.round(value * 100)} percent`}>
+        <span className="meter-fill" style={{ width: `${Math.round(value * 100)}%` }} />
+      </span>
+    </div>
+  );
+}
+
+export function UnderTheHoodPanel({
+  snapshot,
+  onDraftAnchor,
+}: {
+  snapshot: UnderstandingSnapshot | null;
+  onDraftAnchor: (anchor: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activeEvent, setActiveEvent] = useState(0);
+  const events = snapshot?.activeEvents ?? [];
+
+  useEffect(() => {
+    if (!snapshot || !open) {
+      setActiveEvent(0);
+      return;
+    }
+    const reduceMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      setActiveEvent(events.length);
+      return;
+    }
+    setActiveEvent(0);
+    const timers = events.map((_, index) =>
+      window.setTimeout(() => setActiveEvent(index + 1), 220 + index * 260),
+    );
+    return () => timers.forEach((timer) => window.clearTimeout(timer));
+  }, [events, open, snapshot]);
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        className={`underhood-tab ${snapshot ? "live" : ""}`}
+        onClick={() => setOpen(true)}
+        aria-label="Open under the hood panel"
+      >
+        Under the hood
+      </button>
+    );
+  }
+
+  return (
+    <aside className="underhood-panel" aria-label="Under the hood">
+      <div className="underhood-head">
+        <div className="underhood-title">
+          <strong>Under the hood</strong>
+          <span>{snapshot?.banner ?? "This will show what the coach is considering as we talk."}</span>
+        </div>
+        <button
+          type="button"
+          className="underhood-close"
+          onClick={() => setOpen(false)}
+          aria-label="Close under the hood panel"
+        >
+          ×
+        </button>
+      </div>
+
+      {!snapshot ? (
+        <div className="underhood-empty">
+          Start a turn and I’ll show the read-only checks, tracked ideas, and safety gates here.
+        </div>
+      ) : (
+        <div className="underhood-body">
+          <section className="underhood-section">
+            <div className="underhood-section-title">
+              <span>Latest move</span>
+            </div>
+            <div className="underhood-latest">
+              <span className={`underhood-orb ${snapshot.latest.level}`} aria-hidden="true">
+                {snapshot.latest.level === "held" ? "!" : snapshot.latest.level === "notice" ? "•" : "…"}
+              </span>
+              <div className="underhood-latest-text">
+                <strong>{snapshot.latest.title}</strong>
+                <span>{snapshot.latest.explanation}</span>
+              </div>
+            </div>
+          </section>
+
+          <section className="underhood-section">
+            <div className="underhood-section-title">
+              <span>What mattered this turn</span>
+              <span>{Math.min(activeEvent, events.length)}/{events.length}</span>
+            </div>
+            <div className="event-list">
+              {events.map((event, index) => {
+                const revealed = index < activeEvent;
+                const active = index === activeEvent;
+                return (
+                  <div
+                    key={event.id}
+                    className={`event-row ${event.state} ${revealed ? "revealed" : ""} ${active ? "active" : ""}`}
+                  >
+                    <span className="event-dot">{revealed ? eventStateMark(event.state) : ""}</span>
+                    <span className="event-copy">
+                      <span className="event-title">{event.title}</span>
+                      <span className="event-detail">{event.detail}</span>
+                      {event.evidence && <span className="event-evidence">{event.evidence}</span>}
+                    </span>
+                    <span className="event-state">{revealed ? event.stateLabel : "checking"}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="underhood-section">
+            <div className="underhood-section-title">
+              <span>Ideas I’m tracking</span>
+              <span>{snapshot.trackedIdeas.length}</span>
+            </div>
+            {snapshot.trackedIdeas.length === 0 ? (
+              <div className="waiting-card">No tracked idea is settled enough to display yet.</div>
+            ) : (
+              <div className="idea-list">
+                {snapshot.trackedIdeas.map((idea) => (
+                  <div key={idea.id} className="idea-card">
+                    <div className="idea-top">
+                      <div>
+                        <div className="idea-label">{idea.label}</div>
+                        <span className="anchor-kind">{targetLabel(idea.target)}</span>
+                      </div>
+                      <span className={`idea-status ${idea.status}`}>{statusLabel(idea.status)}</span>
+                    </div>
+                    <div className="meter-group">
+                      <Meter label="Grounded" value={idea.meters.grounded} />
+                      <Meter label="Specific" value={idea.meters.specific} />
+                      {idea.showRelated && <Meter label="Related" value={idea.meters.related} />}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {snapshot.waitingFor && (
+            <section className="underhood-section">
+              <div className="underhood-section-title">
+                <span>Waiting for</span>
+              </div>
+              <div className="waiting-card">{snapshot.waitingFor}</div>
+            </section>
+          )}
+
+          <section className="underhood-section">
+            <div className="underhood-section-title">
+              <span>Safety checks</span>
+            </div>
+            <div className="safety-list">
+              {snapshot.safetyChecks.map((check: SafetyCheck) => (
+                <div
+                  key={check.id}
+                  className={`safety-row ${check.state}`}
+                  aria-label={`${check.state}: ${check.label}`}
+                >
+                  <span className="safety-mark" />
+                  <span>{check.label}</span>
+                  <span className="safety-state">{check.state}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {snapshot.draftAnchors.length > 0 && (
+            <section className="underhood-section">
+              <div className="underhood-section-title">
+                <span>Draft anchors</span>
+              </div>
+              <div className="anchor-list">
+                {snapshot.draftAnchors.map((anchor) => (
+                  <button
+                    key={anchor.anchor}
+                    type="button"
+                    className="anchor-button"
+                    onClick={() => onDraftAnchor(anchor.anchor)}
+                  >
+                    {anchor.label}
+                    <span className="anchor-kind">{anchor.kind.replace(/_/g, " ")}</span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )}
+    </aside>
+  );
+}
+
 export default function App() {
   const persistedSession = useMemo(() => loadPersistedSession(), []);
 
@@ -1562,6 +2176,7 @@ export default function App() {
   const initialConfirmed = persistedSession?.confirmed ?? [];
   const initialCoachDebug = persistedSession?.lastCoachDebug ?? null;
   const initialTraceLog = persistedSession?.traceLog ?? [];
+  const initialUnderstandingSnapshot = persistedSession?.understandingSnapshot ?? null;
   const initialMapRevision = persistedSession?.mapRevision ?? 0;
   const initialQuestionBias = persistedSession?.questionBias ?? 35;
   const initialRequireConnectionLabel = persistedSession?.requireConnectionLabel ?? true;
@@ -1585,6 +2200,7 @@ export default function App() {
   const [confirmed, setConfirmed] = useState<ConfirmedReflection[]>(initialConfirmed);
   const [lastCoachDebug, setLastCoachDebug] = useState<CoachDebugInfo | null>(initialCoachDebug);
   const [traceLog, setTraceLog] = useState<TraceEvent[]>(initialTraceLog);
+  const [understandingSnapshot, setUnderstandingSnapshot] = useState<UnderstandingSnapshot | null>(initialUnderstandingSnapshot);
   const [mapRevision, setMapRevision] = useState(initialMapRevision);
   const [mapMountKey, setMapMountKey] = useState(0);
   const [questionBias, setQuestionBias] = useState(initialQuestionBias);
@@ -1859,7 +2475,31 @@ export default function App() {
     ]);
   }, [initialMsgs.length, persistedSession]);
 
+  function buildUnderstandingForOutput(out: TurnOutput): UnderstandingSnapshot {
+    const stateForUnderstanding = stateRef.current;
+    const configForUnderstanding = configRef.current;
+    const mirrorEligibleBank = stateForUnderstanding.bank.getAll().filter((u) => !u.commandOnly);
+    return out.understanding ??
+      buildUnderstanding({
+        out,
+        candidates: stateForUnderstanding.candidates.getAll(),
+        readiness: stateForUnderstanding.candidates
+          .getAll()
+          .map((candidate) => evaluateReadiness(candidate, mirrorEligibleBank, configForUnderstanding)),
+        bank: stateForUnderstanding.bank,
+        draftDeclarations: detectDraftDeclarations(
+          stateForUnderstanding.draft,
+          configForUnderstanding.draftDeclarations,
+        ),
+        clarifyTarget: stateForUnderstanding.clarifyTarget,
+        activeElicitation: stateForUnderstanding.activeElicitation,
+        pendingMapCommand: stateForUnderstanding.pendingMapCommand,
+        config: configForUnderstanding,
+      });
+  }
+
   function appendCoachOutput(out: TurnOutput) {
+    const understanding = buildUnderstandingForOutput(out);
     setLastCoachDebug({
       mode: out.mode,
       suppressionReason: out.suppressionReason as SuppressionReason | undefined,
@@ -1910,6 +2550,7 @@ export default function App() {
     // User-facing decision trace — a catalog-derived summary of this turn, keyed
     // to the assistant message so keys stay stable across reloads.
     setTraceLog((prev) => [...prev, deriveTraceEvent(out, String(newMsg.id))]);
+    setUnderstandingSnapshot(understanding);
   }
 
   useEffect(() => {
@@ -1921,6 +2562,7 @@ export default function App() {
       confirmed,
       lastCoachDebug,
       traceLog,
+      understandingSnapshot,
       mapRevision,
       questionBias,
       requireConnectionLabel,
@@ -1957,6 +2599,7 @@ export default function App() {
     draftText,
     lastCoachDebug,
     traceLog,
+    understandingSnapshot,
     mapRevision,
     msgs,
     pendingMirrors,
@@ -2062,6 +2705,12 @@ export default function App() {
 
     if (resolution.allDecided && resolution.anyDeclined && declinedClaim) {
       const text = `What wording should change before I carry "${declinedText ?? declinedClaim.text}" forward?`;
+      const repairOut: TurnOutput = {
+        mode: "clarify",
+        text,
+        llmTurn: { mode: "clarify", text },
+        questionStance: "narrow",
+      };
       stateRef.current.mode = "clarify";
       stateRef.current.turnsSinceLastMirror++;
       stateRef.current.activeElicitation = {
@@ -2073,15 +2722,13 @@ export default function App() {
       const msgIdForTrace = ++msgId;
       setMsgs((prev) => [
         ...prev,
-        { id: msgIdForTrace, role: "assistant", text, mode: "clarify", questionStance: "narrow" },
+        { id: msgIdForTrace, role: "assistant", text, mode: repairOut.mode, questionStance: repairOut.questionStance },
       ]);
       setTraceLog((prev) => [
         ...prev,
-        deriveTraceEvent(
-          { mode: "clarify", text, llmTurn: { mode: "clarify", text }, questionStance: "narrow" },
-          String(msgIdForTrace),
-        ),
+        deriveTraceEvent(repairOut, String(msgIdForTrace)),
       ]);
+      setUnderstandingSnapshot(buildUnderstandingForOutput(repairOut));
       return;
     }
 
@@ -2146,6 +2793,11 @@ export default function App() {
     setDraftPos(defaultDraftPosition(size));
   }
 
+  function revealDraftAnchor(anchor: string) {
+    setHighlightAnchor(anchor);
+    setDraftCollapsed(false);
+  }
+
   function clearMapOnly() {
     turnNonceRef.current++;
     setLoading(false);
@@ -2194,6 +2846,7 @@ export default function App() {
     setPendingMirrors(new Map());
     setLastCoachDebug(null);
     setTraceLog([]);
+    setUnderstandingSnapshot(null);
     setHighlightAnchor(undefined);
     undoStackRef.current = [];
     setCanUndoMap(false);
@@ -2390,25 +3043,31 @@ export default function App() {
         </div>
         )}
 
-        <ThoughtMap
-          key={mapMountKey}
-          store={mapStoreRef.current}
-          bank={stateRef.current.bank}
-          confirmed={confirmed}
-          coachDebug={lastCoachDebug}
-          coachStatus={<CoachTraceStatus events={traceLog} />}
-          commandAck={commandAck}
-          highlightedCardIds={referencedCardIds}
-          revision={mapRevision}
-          questionBias={questionBias}
-          onQuestionBiasChange={setQuestionBias}
-          requireConnectionLabel={requireConnectionLabel}
-          onRequireConnectionLabelChange={setRequireConnectionLabel}
-          canUndo={canUndoMap}
-          onUndo={undoMapChange}
-          onBeforeMapChange={captureMapUndo}
-          onStoreChange={markUserMapChanged}
-        />
+        <div className="map-shell">
+          <ThoughtMap
+            key={mapMountKey}
+            store={mapStoreRef.current}
+            bank={stateRef.current.bank}
+            confirmed={confirmed}
+            coachDebug={lastCoachDebug}
+            coachStatus={<CoachTraceStatus events={traceLog} />}
+            commandAck={commandAck}
+            highlightedCardIds={referencedCardIds}
+            revision={mapRevision}
+            questionBias={questionBias}
+            onQuestionBiasChange={setQuestionBias}
+            requireConnectionLabel={requireConnectionLabel}
+            onRequireConnectionLabelChange={setRequireConnectionLabel}
+            canUndo={canUndoMap}
+            onUndo={undoMapChange}
+            onBeforeMapChange={captureMapUndo}
+            onStoreChange={markUserMapChanged}
+          />
+          <UnderTheHoodPanel
+            snapshot={understandingSnapshot}
+            onDraftAnchor={revealDraftAnchor}
+          />
+        </div>
       </div>
     </>
   );

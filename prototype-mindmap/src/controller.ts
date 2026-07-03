@@ -21,6 +21,7 @@ import { evaluateReadiness, readyCandidates } from "./readiness";
 import { detectSignals } from "./signals";
 import { CandidateStore, SourceBank, cardRef } from "./store";
 import { detectTurnShape } from "./turn-shape";
+import { buildUnderstanding, type UnderstandingSnapshot } from "./understanding";
 import type {
   ClaimValidation,
   MirrorClaim,
@@ -553,6 +554,19 @@ function cancelsChildPlacement(text: string): boolean {
   return /^(no|nope|cancel|never mind|nevermind)$/i.test(text.trim());
 }
 
+// Explicit relational language a user reaches for when stating how two thoughts
+// relate. Used ONLY to widen relationship capture while an organize focus is
+// active — never to infer a relationship the user didn't state.
+const RELATIONAL_LANGUAGE =
+  /\b(?:part of|includes?|consists? of|made up of|depends? on|relies? on|shapes?|drives?|leads? to|results? in|causes?|because|since|enables?|supports?|underlies?|is different from|differs? from|contrasts? with|versus|vs\.?|is a (?:kind|type) of|is an? example of|falls under|belongs? (?:to|under)|sits? (?:under|inside|within)|one part of|not only\b[\s\S]*\bbut also)\b/i;
+
+// Does this turn read as the user's own wording for a relationship between the
+// two organize-focus cards? A short answer is taken directly; a longer one counts
+// only when it carries explicit relational language, so a clearly-stated
+// relationship ("control is one part of monitoring, which decides ...") routes to
+// the confirmation step instead of being re-asked. Bounded in length so a whole
+// exploratory dump isn't turned into an edge label — and the user still confirms
+// or corrects the wording before any connection is created.
 function isCompactRelationshipAnswer(text: string): boolean {
   if (answersSiblingFraming(text)) return false;
   const trimmed = text.trim();
@@ -560,7 +574,9 @@ function isCompactRelationshipAnswer(text: string): boolean {
   if (/^(no|none|nope|not sure|i don't know|i dont know)\b/i.test(trimmed)) return false;
   if (/\b(?:carry forward|exact wording|on the map|map to carry)\b/i.test(trimmed)) return false;
   const tokens = contentTokens(trimmed);
-  return tokens.length > 0 && tokens.length <= 6;
+  if (tokens.length === 0) return false;
+  if (tokens.length <= 6) return true;
+  return tokens.length <= 40 && RELATIONAL_LANGUAGE.test(trimmed);
 }
 
 function answersSiblingFraming(text: string): boolean {
@@ -1909,6 +1925,16 @@ export interface TurnOutput {
   questionAnchor?: string;
   /** The coaching stance the AI chose for this question/clarify turn, if any. */
   questionStance?: QuestionStance;
+  /**
+   * Read-only "under the hood" snapshot: what the AI is considering this turn
+   * (tracked ideas + readiness, what it's waiting for, safety checks, draft
+   * anchors). Pure observability — built entirely from existing state, never
+   * consulted by the controller, and the panel that renders it emits ZERO map
+   * commands. Present only on turns that pass through finish() (the main
+   * reflective path); transient command-confirmation interludes leave it unset
+   * and the UI keeps the last snapshot.
+   */
+  understanding?: UnderstandingSnapshot;
 }
 
 export function createState(_config?: MindmapConfig): LoopState {
@@ -2283,7 +2309,6 @@ export async function processTurn(
       text,
       llmTurn: { mode: "question", text },
       mapCommands: [pending.command],
-      commandConfirmation: pending,
       commandDebug: [{ reason: "relationship_confirmed", detail: pending.debug }],
       questionStance: "organize",
     };
@@ -2402,7 +2427,6 @@ export async function processTurn(
       text,
       llmTurn: { mode: "question", text },
       mapCommands: [pending.command],
-      commandConfirmation: pending,
       commandDebug: [{ reason: "duplicate_connection_confirmed", detail: pending.debug }],
       questionStance: "organize",
     };
@@ -2422,7 +2446,6 @@ export async function processTurn(
       mode: "question",
       text,
       llmTurn: { mode: "question", text },
-      commandConfirmation: pending,
       commandDebug: [{ reason: "duplicate_connection_rejected", detail: pending.debug }],
       questionStance: "organize",
     };
@@ -3260,6 +3283,20 @@ export async function processTurn(
       state.activeSelectionContext = undefined;
     }
     setLastAiText(state, out.text);
+    out = {
+      ...out,
+      understanding: buildUnderstanding({
+        out,
+        candidates: state.candidates.getAll(),
+        readiness: postUpdateReadiness,
+        bank: state.bank,
+        draftDeclarations,
+        clarifyTarget: state.clarifyTarget,
+        activeElicitation: state.activeElicitation,
+        pendingMapCommand: state.pendingMapCommand,
+        config,
+      }),
+    };
     return out;
   }
 
@@ -3450,9 +3487,18 @@ export async function processTurn(
     const hasAcceleratedGatedClaim = gatedClaims.some((claim) =>
       acceleratedIdeaIds.has(claim.candidateId),
     );
+    // When the user is leaning on the map, a single ready candidate should be
+    // allowed to ATTEMPT a mirror rather than waiting for a second ready one to
+    // batch. This relaxes only the pacing/batching preference — the readiness gate
+    // (6b) has already passed and validation (6c) below still decides whether the
+    // attempt is shown or held, so the grounding bar is unchanged. Accelerated
+    // carry-forward claims already bypass batching regardless of lean; the 0.5
+    // threshold mirrors the map-lean boundary used elsewhere (draft salience).
+    const mapLeanAllowsSingleMirror = config.pacing.mapPressure >= 0.5;
     if (
       postUpdateReadyIds.length < config.pacing.minReadyCandidatesToBatch &&
-      !hasAcceleratedGatedClaim
+      !hasAcceleratedGatedClaim &&
+      !mapLeanAllowsSingleMirror
     ) {
       state.turnsSinceLastMirror++;
       state.mode = "question";
