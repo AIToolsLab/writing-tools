@@ -23,8 +23,11 @@
 import type { MindmapConfig } from "./config";
 import type { PendingMapCommand, SuppressionReason, TurnOutput } from "./controller";
 import type { DraftDeclaration, DraftDeclarationKind } from "./draft-declarations";
+import type { MapQuestionAnchor, QuestionStance } from "./llm-contract";
+import type { DetectedSignal } from "./signals";
 import { cardRef, type SourceBank } from "./store";
 import { deriveTraceEvent, type TraceEvent } from "./trace";
+import type { TurnShape } from "./turn-shape";
 import type {
   CandidateTarget,
   CandidateThought,
@@ -100,16 +103,21 @@ export type UnderhoodEventKind =
   | "question_chosen";
 
 export type UnderhoodEventState = "passed" | "held" | "watching" | "chosen";
+export type UnderhoodEventStage = "noticed" | "tracked" | "checked" | "held" | "chosen";
 
 export interface UnderhoodEvent {
   id: string;
   kind: UnderhoodEventKind;
+  /** Where this event sits in the causal path for the turn. */
+  stage: UnderhoodEventStage;
   title: string;
   detail: string;
   /** Optional user/draft wording or safe map refs only. Never model prose. */
   evidence?: string;
   state: UnderhoodEventState;
   stateLabel: string;
+  /** Safe, expandable machine detail. No raw LLM prose or candidate ids. */
+  technicalDetail?: string[];
 }
 
 export interface UnderstandingSnapshot {
@@ -142,6 +150,12 @@ export interface UnderstandingInputs {
     targetPhrase?: string;
   };
   pendingMapCommand?: PendingMapCommand;
+  turnShape?: TurnShape;
+  questionStance?: QuestionStance;
+  mapQuestionContext?: MapQuestionAnchor[];
+  userAnsweredLastQuestion?: boolean;
+  mapIsSparse?: boolean;
+  detectedSignals?: DetectedSignal[];
   config: MindmapConfig;
 }
 
@@ -466,6 +480,249 @@ function validationEvidence(out: TurnOutput): string | undefined {
   return phrase ? shorten(phrase, 82) : undefined;
 }
 
+function percent(n: number): string {
+  return `${Math.round(clamp01(n) * 100)}%`;
+}
+
+function trackedIdeaTechnical(idea: TrackedIdea): string[] {
+  const detail = [
+    `grounded:${percent(idea.meters.grounded)}`,
+    `specific:${percent(idea.meters.specific)}`,
+  ];
+  if (idea.showRelated) detail.push(`related:${percent(idea.meters.related)}`);
+  return detail;
+}
+
+function mapAnchorSummary(anchors: MapQuestionAnchor[] | undefined): string | undefined {
+  if (!anchors || anchors.length === 0) return undefined;
+  return anchors
+    .slice(0, 3)
+    .map((anchor) => `${anchor.ref} ${shorten(anchor.text, 34)}`)
+    .join(" · ");
+}
+
+function signalEvidence(signals: DetectedSignal[] | undefined): string | undefined {
+  const phrases = Array.from(new Set((signals ?? []).map((signal) => signal.phrase.trim()).filter(Boolean)));
+  if (phrases.length === 0) return undefined;
+  return shorten(phrases.slice(0, 3).join(" · "), 82);
+}
+
+function questionChoiceTitle(stance: QuestionStance | undefined, mode: TurnOutput["mode"]): string {
+  if (mode === "clarify") return "Clarification chosen";
+  if (stance === "deepen") return "Deepening chosen";
+  if (stance === "narrow") return "Narrowing chosen";
+  if (stance === "organize") return "Map-aware question chosen";
+  if (stance === "settle") return "Settling question chosen";
+  if (stance === "challenge") return "Challenge question chosen";
+  return "Question chosen";
+}
+
+function questionChoiceDetail(stance: QuestionStance | undefined, mode: TurnOutput["mode"]): string {
+  if (mode === "clarify") return "The coach asked for a smaller piece instead of guessing.";
+  if (stance === "deepen") return "The coach deepened to firm up the wording before reflecting.";
+  if (stance === "narrow") return "The coach narrowed to one part so the next move stays grounded.";
+  if (stance === "organize") return "The coach asked how this relates to the map without changing it.";
+  if (stance === "settle") return "The coach made the next step smaller instead of pressing forward.";
+  if (stance === "challenge") return "The coach tested the idea with a focused question.";
+  return "The coach stayed in conversation rather than changing the map.";
+}
+
+function addQuestionCausalEvents(
+  input: UnderstandingInputs,
+  trackedIdeas: TrackedIdea[],
+  events: UnderhoodEvent[],
+  seen: Set<string>,
+): void {
+  const { out } = input;
+  if (out.mapCommands?.length || out.commandConfirmation || out.suppressionReason) return;
+  if (out.mode !== "question" && out.mode !== "clarify") return;
+
+  if (input.userAnsweredLastQuestion) {
+    addEvent(
+      events,
+      {
+        id: "answer-detected",
+        kind: "question_chosen",
+        stage: "noticed",
+        title: "Answer received",
+        detail: "The latest turn read as a substantive response to the coach's previous question.",
+        state: "watching",
+        stateLabel: "noticed",
+        technicalDetail: ["answer transition:active"],
+      },
+      seen,
+    );
+    addEvent(
+      events,
+      {
+        id: "stale-reask-checked",
+        kind: "question_chosen",
+        stage: "checked",
+        title: "Stale re-ask avoided",
+        detail: "The system checked for a reworded repeat before accepting the next question.",
+        state: "passed",
+        stateLabel: "checked",
+        technicalDetail: ["repeat guard:semantic overlap"],
+      },
+      seen,
+    );
+  }
+
+  const signalText = signalEvidence(input.detectedSignals);
+  if (signalText) {
+    addEvent(
+      events,
+      {
+        id: "signal-noticed",
+        kind: "idea_tracked",
+        stage: "noticed",
+        title: "Relationship wording noticed",
+        detail: "The turn included language that may matter for structure later.",
+        evidence: signalText,
+        state: "watching",
+        stateLabel: "noticed",
+        technicalDetail: [`signals:${input.detectedSignals?.length ?? 0}`],
+      },
+      seen,
+    );
+  }
+
+  const leadingIdea = trackedIdeas.find((idea) =>
+    idea.status === "too_early" ||
+    idea.status === "needs_relationship" ||
+    idea.status === "needs_your_wording",
+  );
+  if (leadingIdea) {
+    addEvent(
+      events,
+      {
+        id: `tracked-${leadingIdea.status}`,
+        kind: "idea_tracked",
+        stage: "tracked",
+        title: "Idea being tracked",
+        detail: "A candidate idea is visible from your own wording, but it is not map-ready yet.",
+        evidence: leadingIdea.label,
+        state: "watching",
+        stateLabel: "tracked",
+        technicalDetail: trackedIdeaTechnical(leadingIdea),
+      },
+      seen,
+    );
+    if (leadingIdea.status === "too_early") {
+      addEvent(
+        events,
+        {
+          id: "grounding-thin",
+          kind: "readiness_changed",
+          stage: "checked",
+          title: "Grounding still thin",
+          detail: "There is not enough settled user-owned wording for a clean reflection yet.",
+          evidence: leadingIdea.label,
+          state: "held",
+          stateLabel: "forming",
+          technicalDetail: trackedIdeaTechnical(leadingIdea),
+        },
+        seen,
+      );
+    } else if (leadingIdea.status === "needs_relationship") {
+      addEvent(
+        events,
+        {
+          id: "relationship-missing",
+          kind: "readiness_changed",
+          stage: "checked",
+          title: "Relationship still missing",
+          detail: "The idea is visible, but the system still needs user-authored relationship wording.",
+          evidence: leadingIdea.label,
+          state: "held",
+          stateLabel: "needs relation",
+          technicalDetail: trackedIdeaTechnical(leadingIdea),
+        },
+        seen,
+      );
+    } else {
+      addEvent(
+        events,
+        {
+          id: "wording-risk",
+          kind: "readiness_changed",
+          stage: "checked",
+          title: "Wording drift checked",
+          detail: "A reflection would still need words that are not safely grounded in yours.",
+          evidence: leadingIdea.label,
+          state: "held",
+          stateLabel: "needs words",
+          technicalDetail: trackedIdeaTechnical(leadingIdea),
+        },
+        seen,
+      );
+    }
+  }
+
+  const mapEvidence = mapAnchorSummary(input.mapQuestionContext);
+  if (mapEvidence && input.config.pacing.mapPressure >= 0.5 && !input.mapIsSparse) {
+    addEvent(
+      events,
+      {
+        id: "map-context-available",
+        kind: "reference_checked",
+        stage: "tracked",
+        title: "Map context available",
+        detail: "Existing cards were available as read-only anchors for the question.",
+        evidence: mapEvidence,
+        state: "watching",
+        stateLabel: "context",
+        technicalDetail: [`map anchors:${input.mapQuestionContext?.length ?? 0}`],
+      },
+      seen,
+    );
+    addEvent(
+      events,
+      {
+        id: "read-only-map-check",
+        kind: "map_write_guard",
+        stage: "checked",
+        title: "Map write guard checked",
+        detail: "Referencing a card in conversation did not authorize a map edit.",
+        state: "passed",
+        stateLabel: "safe",
+        technicalDetail: ["mapCommands:0"],
+      },
+      seen,
+    );
+  }
+
+  if (events.length > 0) {
+    addEvent(
+      events,
+      {
+        id: "causal-question-choice",
+        kind: "question_chosen",
+        stage: "chosen",
+        title: questionChoiceTitle(input.questionStance ?? out.questionStance, out.mode),
+        detail: questionChoiceDetail(input.questionStance ?? out.questionStance, out.mode),
+        state: "chosen",
+        stateLabel: input.questionStance ?? out.questionStance ?? out.mode,
+        technicalDetail: [
+          `mode:${out.mode}`,
+          `stance:${input.questionStance ?? out.questionStance ?? "none"}`,
+          `turn:${input.turnShape?.kind ?? "unknown"}`,
+        ],
+      },
+      seen,
+    );
+  }
+}
+
+function limitEvents(events: UnderhoodEvent[]): UnderhoodEvent[] {
+  if (events.length <= 5) return events;
+  const last = events[events.length - 1];
+  if (last?.stage === "chosen") {
+    return [...events.slice(0, 4), last];
+  }
+  return events.slice(0, 5);
+}
+
 function buildActiveEvents(
   input: UnderstandingInputs,
   trackedIdeas: TrackedIdea[],
@@ -481,11 +738,13 @@ function buildActiveEvents(
       {
         id: "map-command",
         kind: "command_detected",
+        stage: "noticed",
         title: "Map instruction detected",
         detail: "A direct map instruction took precedence over coaching.",
         evidence: commandSummary(out.mapCommands, input.bank),
         state: "chosen",
         stateLabel: "executed",
+        technicalDetail: [`commands:${out.mapCommands.length}`],
       },
       seen,
     );
@@ -494,10 +753,12 @@ function buildActiveEvents(
       {
         id: "map-write-guard",
         kind: "map_write_guard",
+        stage: "checked",
         title: "Map write limited",
         detail: "Only the accepted requested change was sent to the map.",
         state: "passed",
         stateLabel: "safe",
+        technicalDetail: ["map writes limited to accepted commands"],
       },
       seen,
     );
@@ -512,6 +773,7 @@ function buildActiveEvents(
           out.commandConfirmation.kind === "duplicate_connection_confirmation"
             ? "duplicate_avoided"
             : "reference_checked",
+        stage: "held",
         title:
           out.commandConfirmation.kind === "duplicate_connection_confirmation"
             ? "Existing connection noticed"
@@ -519,6 +781,7 @@ function buildActiveEvents(
         detail: pendingKindLabel(out.commandConfirmation.kind),
         state: "held",
         stateLabel: "confirm",
+        technicalDetail: [`pending:${out.commandConfirmation.kind}`],
       },
       seen,
     );
@@ -535,10 +798,12 @@ function buildActiveEvents(
       {
         id: "reference-check",
         kind: "reference_checked",
+        stage: "checked",
         title: "Card reference needed checking",
         detail: "I did not guess which existing card you meant.",
         state: "held",
         stateLabel: "paused",
+        technicalDetail: ["reference gate held the map write"],
       },
       seen,
     );
@@ -553,10 +818,12 @@ function buildActiveEvents(
       {
         id: "duplicate-check",
         kind: "duplicate_avoided",
+        stage: "checked",
         title: "Duplicate connection checked",
         detail: "The map already had a relationship there, so I did not add another silently.",
         state: "held",
         stateLabel: "checked",
+        technicalDetail: ["duplicate connection gate active"],
       },
       seen,
     );
@@ -568,10 +835,12 @@ function buildActiveEvents(
       {
         id: "mirror-passed",
         kind: "mirror_attempted",
+        stage: "checked",
         title: "Reflection passed grounding",
         detail: "The mirror was close enough to your wording to ask for your confirmation.",
         state: "passed",
         stateLabel: "passed",
+        technicalDetail: ["mirror validation passed"],
       },
       seen,
     );
@@ -583,11 +852,13 @@ function buildActiveEvents(
       {
         id: "mirror-attempted",
         kind: "mirror_attempted",
+        stage: "checked",
         title: "Reflection attempted",
         detail: "The system tried to mirror, then checked whether the wording stayed grounded.",
         evidence: validationEvidence(out),
         state: "watching",
         stateLabel: "checked",
+        technicalDetail: ["mirror validation ran"],
       },
       seen,
     );
@@ -596,10 +867,12 @@ function buildActiveEvents(
       {
         id: "mirror-blocked",
         kind: "mirror_blocked",
+        stage: "held",
         title: "Reflection held back",
         detail: "The draft reflection drifted too far, so the coach asked for clearer wording instead.",
         state: "held",
         stateLabel: "held",
+        technicalDetail: ["suppression:validation_failed"],
       },
       seen,
     );
@@ -610,11 +883,13 @@ function buildActiveEvents(
       {
         id: "mirror-pressure",
         kind: "readiness_changed",
+        stage: "chosen",
         title: "Ready to reflect",
         detail: "Enough material had accumulated, so I asked whether to mirror before continuing.",
         evidence: ready?.label,
         state: "chosen",
         stateLabel: "ready",
+        technicalDetail: ["mirror pressure bridge chosen"],
       },
       seen,
     );
@@ -624,11 +899,13 @@ function buildActiveEvents(
       {
         id: "draft-salience",
         kind: "draft_anchor_seen",
+        stage: "tracked",
         title: "Draft-backed idea noticed",
         detail: "A main idea from your draft or repeated wording was strong enough to bring toward the map.",
         evidence: draftAnchors[0]?.label,
         state: "chosen",
         stateLabel: "noticed",
+        technicalDetail: [`draft anchors:${draftAnchors.length}`],
       },
       seen,
     );
@@ -638,11 +915,13 @@ function buildActiveEvents(
       {
         id: "not-ready",
         kind: "readiness_changed",
+        stage: "held",
         title: "Not ready to reflect yet",
         detail: "The system stayed with questioning because the available wording was still too thin.",
         evidence: trackedIdeas[0]?.label,
         state: "watching",
         stateLabel: "forming",
+        technicalDetail: ["suppression:not_ready"],
       },
       seen,
     );
@@ -652,10 +931,12 @@ function buildActiveEvents(
       {
         id: "large-turn",
         kind: "question_chosen",
+        stage: "chosen",
         title: "Large turn narrowed",
         detail: "Rather than harvesting the whole turn, the coach asked you to choose one piece.",
         state: "chosen",
         stateLabel: "narrowed",
+        technicalDetail: input.turnShape?.reasons.slice(0, 3),
       },
       seen,
     );
@@ -665,14 +946,18 @@ function buildActiveEvents(
       {
         id: "already-on-map",
         kind: "map_write_guard",
+        stage: "checked",
         title: "Duplicate card avoided",
         detail: "The idea already appeared on the map, so it was not offered again.",
         state: "passed",
         stateLabel: "safe",
+        technicalDetail: ["suppression:already_on_map"],
       },
       seen,
     );
   }
+
+  addQuestionCausalEvents(input, trackedIdeas, events, seen);
 
   if (events.length === 0) {
     addEvent(
@@ -680,18 +965,20 @@ function buildActiveEvents(
       {
         id: "question-chosen",
         kind: "question_chosen",
+        stage: "chosen",
         title: out.mode === "clarify" ? "Clarifying one piece" : "Question chosen",
         detail: out.mode === "clarify"
           ? "The coach asked for a smaller piece instead of guessing."
           : "The coach stayed in conversation rather than changing the map.",
         state: "chosen",
         stateLabel: out.questionStance ?? out.mode,
+        technicalDetail: [`mode:${out.mode}`, `stance:${out.questionStance ?? "none"}`],
       },
       seen,
     );
   }
 
-  return events.slice(0, 5);
+  return limitEvents(events);
 }
 
 // ---------------------------------------------------------------------------

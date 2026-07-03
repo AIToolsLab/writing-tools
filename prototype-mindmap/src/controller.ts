@@ -3492,6 +3492,12 @@ export async function processTurn(
         clarifyTarget: state.clarifyTarget,
         activeElicitation: state.activeElicitation,
         pendingMapCommand: state.pendingMapCommand,
+        turnShape,
+        questionStance: out.questionStance,
+        mapQuestionContext,
+        userAnsweredLastQuestion,
+        mapIsSparse,
+        detectedSignals,
         config,
       }),
     };

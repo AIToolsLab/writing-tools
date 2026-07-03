@@ -80,11 +80,13 @@ describe("UnderTheHoodPanel", () => {
         {
           id: "ready",
           kind: "readiness_changed",
+          stage: "checked",
           title: "Idea is ready to reflect",
           detail: "Enough user-owned wording has accumulated for a safe reflection.",
           evidence: "human control decides the final draft",
           state: "chosen",
           stateLabel: "ready",
+          technicalDetail: ["grounded:100%"],
         },
       ],
       trackedIdeas: [
@@ -105,6 +107,8 @@ describe("UnderTheHoodPanel", () => {
 
   it("opens as a read-only under-the-hood rail and highlights draft anchors", () => {
     const onDraftAnchor = vi.fn();
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true });
     act(() =>
       root.render(createElement(UnderTheHoodPanel, { snapshot: snapshot(), onDraftAnchor })),
     );
@@ -119,12 +123,44 @@ describe("UnderTheHoodPanel", () => {
     expect(container.textContent).toContain("Nothing here is on your map");
     expect(container.textContent).toContain("What mattered this turn");
     expect(container.textContent).toContain("Idea is ready to reflect");
+    expect(container.textContent).toContain("checked");
     expect(container.textContent).toContain("human control decides the final draft");
     expect(container.textContent).toContain("ok");
     expect(container.querySelector(".anchor-button")).not.toBeNull();
 
+    const detailButton = Array.from(container.querySelectorAll<HTMLButtonElement>(".event-detail-toggle"))
+      .find((button) => button.textContent === "Show detail");
+    expect(detailButton).toBeTruthy();
+    act(() => detailButton!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(container.textContent).toContain("grounded:100%");
+
     const anchor = container.querySelector<HTMLButtonElement>(".anchor-button");
     act(() => anchor!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(onDraftAnchor).toHaveBeenCalledWith("human control");
+    window.matchMedia = original;
+  });
+
+  it("uses the latest causal event as the closed tab label", () => {
+    act(() =>
+      root.render(createElement(UnderTheHoodPanel, { snapshot: snapshot(), onDraftAnchor: vi.fn() })),
+    );
+
+    const tab = container.querySelector<HTMLButtonElement>(".underhood-tab");
+    expect(tab?.textContent).toContain("Idea is ready to reflect");
+  });
+
+  it("reveals path steps immediately when reduced motion is preferred", () => {
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true });
+    act(() =>
+      root.render(createElement(UnderTheHoodPanel, { snapshot: snapshot(), onDraftAnchor: vi.fn() })),
+    );
+
+    const tab = container.querySelector<HTMLButtonElement>(".underhood-tab");
+    act(() => tab!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(container.querySelector(".event-row.revealed")).not.toBeNull();
+    expect(container.textContent).toContain("ready");
+    window.matchMedia = original;
   });
 });

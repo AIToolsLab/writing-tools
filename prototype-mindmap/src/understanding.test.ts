@@ -274,6 +274,217 @@ describe("buildUnderstanding", () => {
     expect(snapshot.activeEvents[0].title).toBe("Question chosen");
   });
 
+  it("turns a too-early deepen turn into a causal path", () => {
+    const bank = new SourceBank();
+    const source = bank.add("control means making key decisions");
+    const candidate: CandidateThought = {
+      id: "candidate_secret",
+      target: "idea",
+      evidenceUtteranceIds: [source.id],
+      relationSignals: [],
+      gist: "AI-generated gist",
+    };
+    const readiness: ReadinessSignal = {
+      candidateId: candidate.id,
+      target: "idea",
+      sourceDensity: 0.2,
+      relationClarity: 1,
+      unsupportedRisk: 0,
+      decision: "ask_clarifying_question",
+      reason: "Not enough repeated user grounding yet.",
+    };
+
+    const snapshot = buildUnderstanding({
+      out: out({ questionStance: "deepen" }),
+      candidates: [candidate],
+      readiness: [readiness],
+      bank,
+      draftDeclarations: [],
+      turnShape: { kind: "compact", reasons: [], selected: false },
+      questionStance: "deepen",
+      config: defaultConfig,
+    });
+
+    expect(snapshot.activeEvents.map((event) => event.stage)).toEqual(["tracked", "checked", "chosen"]);
+    expect(snapshot.activeEvents.map((event) => event.title)).toEqual([
+      "Idea being tracked",
+      "Grounding still thin",
+      "Deepening chosen",
+    ]);
+    expect(JSON.stringify(snapshot.activeEvents)).not.toContain("candidate_secret");
+    expect(JSON.stringify(snapshot.activeEvents)).not.toContain("AI-generated");
+  });
+
+  it("explains missing relationship before a follow-up question", () => {
+    const bank = new SourceBank();
+    const source = bank.add("control sits under authorship");
+    const candidate: CandidateThought = {
+      id: "candidate_secret",
+      target: "connection",
+      evidenceUtteranceIds: [source.id],
+      relationSignals: [],
+      gist: "AI relationship gist",
+    };
+    const readiness: ReadinessSignal = {
+      candidateId: candidate.id,
+      target: "connection",
+      sourceDensity: 1,
+      relationClarity: 0,
+      unsupportedRisk: 0,
+      decision: "ask_clarifying_question",
+      reason: "Needs relationship clarity.",
+    };
+
+    const snapshot = buildUnderstanding({
+      out: out({ questionStance: "narrow" }),
+      candidates: [candidate],
+      readiness: [readiness],
+      bank,
+      draftDeclarations: [],
+      questionStance: "narrow",
+      config: defaultConfig,
+    });
+
+    expect(snapshot.activeEvents.map((event) => event.title)).toContain("Relationship still missing");
+    expect(snapshot.activeEvents[snapshot.activeEvents.length - 1]?.title).toBe("Narrowing chosen");
+  });
+
+  it("shows read-only map context when a map-aware question is chosen", () => {
+    const bank = new SourceBank();
+    const snapshot = buildUnderstanding({
+      out: out({ questionStance: "organize" }),
+      candidates: [],
+      readiness: [],
+      bank,
+      draftDeclarations: [],
+      mapQuestionContext: [
+        { ref: "#86", text: "monitoring", neighbors: [{ ref: "#166", text: "control" }] },
+      ],
+      mapIsSparse: false,
+      questionStance: "organize",
+      config: { ...defaultConfig, pacing: { ...defaultConfig.pacing, mapPressure: 1 } },
+    });
+
+    expect(snapshot.activeEvents.map((event) => event.title)).toEqual([
+      "Map context available",
+      "Map write guard checked",
+      "Map-aware question chosen",
+    ]);
+    expect(snapshot.activeEvents[0].evidence).toContain("#86");
+    expect(snapshot.activeEvents[1].technicalDetail).toContain("mapCommands:0");
+  });
+
+  it("shows answer transition and stale re-ask guard when the user answered", () => {
+    const bank = new SourceBank();
+    const snapshot = buildUnderstanding({
+      out: out({ questionStance: "deepen" }),
+      candidates: [],
+      readiness: [],
+      bank,
+      draftDeclarations: [],
+      userAnsweredLastQuestion: true,
+      questionStance: "deepen",
+      config: defaultConfig,
+    });
+
+    expect(snapshot.activeEvents.map((event) => event.title)).toEqual([
+      "Answer received",
+      "Stale re-ask avoided",
+      "Deepening chosen",
+    ]);
+  });
+
+  it("keeps the chosen step visible when many causal details exist", () => {
+    const bank = new SourceBank();
+    const source = bank.add("control depends on monitoring because users decide");
+    const candidate: CandidateThought = {
+      id: "candidate_secret",
+      target: "connection",
+      evidenceUtteranceIds: [source.id],
+      relationSignals: [{ phrase: "depends on", utteranceId: source.id, spontaneous: true }],
+      gist: "AI relationship gist",
+    };
+    const readiness: ReadinessSignal = {
+      candidateId: candidate.id,
+      target: "connection",
+      sourceDensity: 0.3,
+      relationClarity: 0,
+      unsupportedRisk: 0,
+      decision: "ask_clarifying_question",
+      reason: "Needs relationship clarity.",
+    };
+
+    const snapshot = buildUnderstanding({
+      out: out({ questionStance: "organize" }),
+      candidates: [candidate],
+      readiness: [readiness],
+      bank,
+      draftDeclarations: [],
+      userAnsweredLastQuestion: true,
+      detectedSignals: [
+        { phrase: "depends on", utteranceId: source.id, spontaneous: true, kind: "relation", term: "depends on" },
+      ],
+      mapQuestionContext: [{ ref: "#86", text: "monitoring", neighbors: [] }],
+      mapIsSparse: false,
+      questionStance: "organize",
+      config: { ...defaultConfig, pacing: { ...defaultConfig.pacing, mapPressure: 1 } },
+    });
+
+    expect(snapshot.activeEvents).toHaveLength(5);
+    expect(snapshot.activeEvents[snapshot.activeEvents.length - 1]?.stage).toBe("chosen");
+    expect(snapshot.activeEvents[snapshot.activeEvents.length - 1]?.title).toBe("Map-aware question chosen");
+  });
+
+  it("shows attempted then held for a failed mirror validation", () => {
+    const bank = new SourceBank();
+    const source = bank.add("control means user decisions");
+    const snapshot = buildUnderstanding({
+      out: out({
+        suppressionReason: "validation_failed",
+        suppressionDetail: "raw debug should not show",
+        validationDebug: [
+          {
+            claimId: "claim_secret",
+            claimText: "AI-generated claim",
+            target: "idea",
+            message: "failed",
+            checks: [
+              {
+                check: "lexical_grounding",
+                ok: false,
+                score: 0.2,
+                threshold: 0.75,
+              },
+            ],
+            sourceSpans: [
+              {
+                claimText: "AI-generated claim",
+                userPhrase: "control means user decisions",
+                utteranceIds: [source.id],
+                citedUtterances: [{ id: source.id, text: source.text }],
+              },
+            ],
+          },
+        ],
+      }),
+      candidates: [],
+      readiness: [],
+      bank,
+      draftDeclarations: [],
+      config: defaultConfig,
+    });
+
+    expect(snapshot.activeEvents.map((event) => event.title)).toEqual([
+      "Reflection attempted",
+      "Reflection held back",
+    ]);
+    const visible = JSON.stringify(snapshot.activeEvents);
+    expect(visible).toContain("control means user decisions");
+    expect(visible).not.toContain("raw debug should not show");
+    expect(visible).not.toContain("claim_secret");
+    expect(visible).not.toContain("AI-generated");
+  });
+
   it("labels density as the blocker before relationship clarity", () => {
     const bank = new SourceBank();
     const source = bank.add("control under authorship");

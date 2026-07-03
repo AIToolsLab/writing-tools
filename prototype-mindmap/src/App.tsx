@@ -1501,6 +1501,9 @@ const css = `
     font-weight: 800;
     letter-spacing: 0.05em;
     text-transform: uppercase;
+    max-height: 220px;
+    overflow: hidden;
+    text-overflow: ellipsis;
     box-shadow: -4px 6px 18px rgba(0,0,0,0.08);
     cursor: pointer;
   }
@@ -1640,46 +1643,77 @@ const css = `
 
   .event-list {
     display: grid;
-    gap: 8px;
-    padding: 10px;
+    gap: 0;
+    padding: 10px 10px 10px 12px;
   }
   .event-row {
+    position: relative;
     display: grid;
     grid-template-columns: 24px 1fr auto;
     gap: 8px;
     align-items: start;
-    padding: 9px 9px;
+    padding: 9px 9px 9px 0;
     border-radius: 9px;
-    background: #f7f6f2;
+    background: transparent;
     color: #5f5a52;
     opacity: 0.56;
     transition: opacity 0.2s, transform 0.2s, background 0.2s, border-color 0.2s;
     border: 1px solid transparent;
   }
+  .event-row:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 9px;
+    top: 31px;
+    bottom: -5px;
+    width: 2px;
+    border-radius: 99px;
+    background: #ded9cf;
+  }
   .event-row.revealed { opacity: 1; }
   .event-row.active {
     transform: translateX(-2px);
-    background: #eef7fd;
-    border-color: #bcd9ee;
+    background: linear-gradient(90deg, rgba(238,247,253,0.95), rgba(255,255,255,0.2));
+    border-color: transparent;
   }
   .event-dot {
+    position: relative;
+    z-index: 1;
     width: 20px;
     height: 20px;
     margin-top: 1px;
-    border-radius: 7px;
+    border-radius: 50%;
     border: 2px solid currentColor;
+    background: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 9px;
     font-weight: 900;
   }
-  .event-row.passed { color: #20804a; background: #edf8f0; }
-  .event-row.chosen { color: #266f9e; background: #eef7fd; }
-  .event-row.watching { color: #6f5f25; background: #fff8e8; }
-  .event-row.held { color: #9a6810; background: #fff3da; }
+  .event-row.stage-noticed { color: #7d5f1c; }
+  .event-row.stage-tracked { color: #286fa4; }
+  .event-row.stage-checked { color: #6d6a62; }
+  .event-row.stage-held { color: #9a6810; }
+  .event-row.stage-chosen { color: #20804a; }
+  .event-row.passed .event-dot { background: #edf8f0; }
+  .event-row.chosen .event-dot { background: #eef7fd; }
+  .event-row.watching .event-dot { background: #fff8e8; }
+  .event-row.held .event-dot { background: #fff3da; }
   .event-copy {
     min-width: 0;
+  }
+  .event-stage {
+    display: inline-block;
+    margin-bottom: 3px;
+    padding: 2px 5px;
+    border-radius: 99px;
+    background: rgba(0,0,0,0.05);
+    color: #766f64;
+    font-size: 9px;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
   .event-title {
     display: block;
@@ -1713,6 +1747,34 @@ const css = `
     letter-spacing: 0.04em;
     text-transform: uppercase;
     padding-top: 2px;
+  }
+  .event-detail-toggle {
+    display: block;
+    width: max-content;
+    margin-top: 6px;
+    border: 1px solid rgba(85, 78, 65, 0.18);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.72);
+    color: #595247;
+    font-size: 10px;
+    font-weight: 800;
+    padding: 3px 6px;
+    cursor: pointer;
+  }
+  .event-detail-toggle:hover { background: #fff; border-color: #cfc8b9; }
+  .event-technical {
+    margin-top: 6px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+  }
+  .event-technical span {
+    border-radius: 5px;
+    background: #f1eee7;
+    color: #5f5a52;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 5px;
   }
 
   .idea-list {
@@ -2015,14 +2077,21 @@ function targetLabel(target: TrackedIdea["target"]): string {
   return target === "idea" ? "idea" : target === "hierarchy" ? "nesting" : "connection";
 }
 
-function eventStateMark(state: UnderhoodEvent["state"]): string {
+function eventStageMark(stage: UnderhoodEvent["stage"]): string {
   return {
-    passed: "ok",
+    noticed: "1",
+    tracked: "2",
+    checked: "3",
     held: "!",
     chosen: ">",
-    watching: "...",
-  }[state];
+  }[stage];
 }
+
+function underhoodTabLabel(snapshot: UnderstandingSnapshot | null): string {
+  if (!snapshot) return "Under the hood";
+  return snapshot.activeEvents[0]?.title ?? snapshot.latest.title ?? "Under the hood";
+}
+
 function Meter({ label, value }: { label: string; value: number }) {
   return (
     <div className="meter-row">
@@ -2043,9 +2112,11 @@ export function UnderTheHoodPanel({
 }) {
   const [open, setOpen] = useState(false);
   const [activeEvent, setActiveEvent] = useState(0);
+  const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
   const events = snapshot?.activeEvents ?? [];
 
   useEffect(() => {
+    setExpandedEvents(new Set());
     if (!snapshot || !open) {
       setActiveEvent(0);
       return;
@@ -2064,6 +2135,18 @@ export function UnderTheHoodPanel({
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [events, open, snapshot]);
 
+  function toggleEventDetail(id: string) {
+    setExpandedEvents((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
+
   if (!open) {
     return (
       <button
@@ -2072,7 +2155,7 @@ export function UnderTheHoodPanel({
         onClick={() => setOpen(true)}
         aria-label="Open under the hood panel"
       >
-        Under the hood
+        {underhoodTabLabel(snapshot)}
       </button>
     );
   }
@@ -2124,16 +2207,38 @@ export function UnderTheHoodPanel({
               {events.map((event, index) => {
                 const revealed = index < activeEvent;
                 const active = index === activeEvent;
+                const expanded = expandedEvents.has(event.id);
+                const hasDetail = Boolean(event.technicalDetail?.length);
                 return (
                   <div
                     key={event.id}
-                    className={`event-row ${event.state} ${revealed ? "revealed" : ""} ${active ? "active" : ""}`}
+                    className={`event-row ${event.state} stage-${event.stage} ${revealed ? "revealed" : ""} ${active ? "active" : ""}`}
                   >
-                    <span className="event-dot">{revealed ? eventStateMark(event.state) : ""}</span>
+                    <span className="event-dot">{revealed ? eventStageMark(event.stage) : ""}</span>
                     <span className="event-copy">
+                      <span className="event-stage">{event.stage}</span>
                       <span className="event-title">{event.title}</span>
                       <span className="event-detail">{event.detail}</span>
                       {event.evidence && <span className="event-evidence">{event.evidence}</span>}
+                      {hasDetail && revealed && (
+                        <>
+                          <button
+                            type="button"
+                            className="event-detail-toggle"
+                            onClick={() => toggleEventDetail(event.id)}
+                            aria-expanded={expanded}
+                          >
+                            {expanded ? "Hide detail" : "Show detail"}
+                          </button>
+                          {expanded && (
+                            <div className="event-technical">
+                              {event.technicalDetail?.map((detail) => (
+                                <span key={detail}>{detail}</span>
+                              ))}
+                            </div>
+                          )}
+                        </>
+                      )}
                     </span>
                     <span className="event-state">{revealed ? event.stateLabel : "checking"}</span>
                   </div>
