@@ -17,6 +17,8 @@ import {
   type EdgeProps,
   type Node,
   type NodeProps,
+  type OnConnectStart,
+  type OnConnectEnd,
   type OnReconnect,
   useNodesState,
 } from "@xyflow/react";
@@ -59,6 +61,13 @@ interface PendingConnection {
   sourceHandleId?: string | null;
   targetHandleId?: string | null;
   text: string;
+  /**
+   * Connector-to-empty-canvas with "Label on": the card on this `side` does not
+   * exist yet and is created only when the user confirms. Deferring creation
+   * means Cancel leaves nothing behind and Confirm is a single undoable action.
+   * The id on that side is an empty placeholder until confirm.
+   */
+  createCard?: { position: XYPosition; side: "source" | "target" };
 }
 
 /** Id-based actions shared by a card and every card embedded inside it. */
@@ -91,6 +100,10 @@ interface ThoughtMapProps {
   coachDebug?: CoachDebugInfo | null;
   /** Compact live coach-trace status chip, rendered in the map header. */
   coachStatus?: ReactNode;
+  /** Docked-draft affordance, rendered in the map header when the draft is docked. */
+  draftDock?: ReactNode;
+  /** True while the floating draft chip is hovering over the header dock zone. */
+  draftDockActive?: boolean;
   commandAck?: MapCommandAcknowledgement | null;
   /** Card ids the current coach turn refers to (by #ref) — highlighted on the canvas. */
   highlightedCardIds?: ReadonlySet<string>;
@@ -410,6 +423,7 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
       </button>
 
       <div className="map-card-drag">
+        <span className="map-drag-grip" aria-hidden="true" />
         <span className="map-role-chip">{roleLabel(unit, children.length)}</span>
       </div>
 
@@ -522,6 +536,8 @@ function ThoughtMapInner({
   confirmed,
   coachDebug,
   coachStatus,
+  draftDock,
+  draftDockActive,
   commandAck,
   highlightedCardIds,
   revision,
@@ -897,7 +913,11 @@ function ThoughtMapInner({
   }, [deleteConnection, revision, store]);
 
   const edges = useMemo<Edge[]>(() => {
-    const pendingEdge: Edge | undefined = pendingConnection
+    // A deferred connector-to-canvas connection has one endpoint that doesn't
+    // exist yet (id is ""), so it must NOT render a pending edge — React Flow
+    // would warn and draw a broken line to a missing node. The label panel is the
+    // only affordance shown until the user confirms and the card is created.
+    const pendingEdge: Edge | undefined = pendingConnection && !pendingConnection.createCard
       ? {
           id: "pending-connection",
           source: pendingConnection.sourceId,
@@ -1013,6 +1033,91 @@ function ThoughtMapInner({
     [bank, onBeforeMapChange, onStoreChange, requireConnectionLabel, store],
   );
 
+  // Dragging a connector from a card and releasing on the empty canvas spawns a
+  // new card there and connects the two — an explicit, user-driven map action.
+  const connectingFrom = useRef<
+    { nodeId: string; handleType: "source" | "target" | null; handleId: string | null } | null
+  >(null);
+
+  const onConnectStart = useCallback<OnConnectStart>((_event, params) => {
+    connectingFrom.current = params.nodeId
+      ? { nodeId: params.nodeId, handleType: params.handleType, handleId: params.handleId }
+      : null;
+  }, []);
+
+  // Best-effort: focus a freshly created card so the user can type into it.
+  const focusNewCard = useCallback((id: string) => {
+    window.setTimeout(() => {
+      const el = document.querySelector(
+        `.react-flow__node[data-id="${id}"] textarea`,
+      ) as HTMLTextAreaElement | null;
+      el?.focus();
+    }, 0);
+  }, []);
+
+  const onConnectEnd = useCallback<OnConnectEnd>(
+    (event, connectionState) => {
+      const from = connectingFrom.current;
+      connectingFrom.current = null;
+      if (!from) return;
+      // A valid drop onto an existing card's handle is already handled by
+      // onConnect — don't also spawn a card. Releasing on another existing card
+      // (not a handle) must not create one either, so require the empty pane.
+      if (connectionState?.isValid) return;
+      const targetEl = event.target as Element | null;
+      if (!targetEl?.classList.contains("react-flow__pane")) return;
+
+      const origin = store.get(from.nodeId);
+      if (!origin || origin.role === "connection_label") return;
+
+      const point =
+        "changedTouches" in event && event.changedTouches.length > 0
+          ? { x: event.changedTouches[0].clientX, y: event.changedTouches[0].clientY }
+          : { x: (event as MouseEvent).clientX, y: (event as MouseEvent).clientY };
+      const pos = flow.screenToFlowPosition(point);
+      const cardPosition = { x: pos.x - CARD_WIDTH / 2, y: pos.y - 16 };
+
+      // Preserve the exact dot the user dragged from, on the origin's side. A drag
+      // from a target handle means the origin is the target and the new card the
+      // source; otherwise the origin is the source.
+      const originIsSource = from.handleType !== "target";
+      const originHandle = anchorHandleId(from.handleId);
+
+      if (requireConnectionLabel) {
+        // Defer card creation to confirm so Cancel leaves nothing behind and the
+        // whole action (card + connection) is one undo step.
+        setPendingConnection({
+          sourceId: originIsSource ? origin.id : "",
+          targetId: originIsSource ? "" : origin.id,
+          sourceHandleId: originIsSource ? originHandle : undefined,
+          targetHandleId: originIsSource ? undefined : originHandle,
+          text: "",
+          createCard: { position: cardPosition, side: originIsSource ? "target" : "source" },
+        });
+        setConnectionPanelKey((key) => key + 1);
+        return;
+      }
+
+      // "Label off": create + connect immediately as a single undoable action.
+      onBeforeMapChange();
+      const newCard = store.addBlankUserCard(cardPosition);
+      const sourceId = originIsSource ? origin.id : newCard.id;
+      const targetId = originIsSource ? newCard.id : origin.id;
+      store.registerConnection({
+        sourceId,
+        targetId,
+        text: "",
+        bank,
+        sourceHandleId: originIsSource ? originHandle : undefined,
+        targetHandleId: originIsSource ? undefined : originHandle,
+        position: connectionMidpoint(store, sourceId, targetId),
+      });
+      onStoreChange();
+      focusNewCard(newCard.id);
+    },
+    [bank, flow, focusNewCard, onBeforeMapChange, onStoreChange, requireConnectionLabel, store],
+  );
+
   const onReconnect = useCallback<OnReconnect<Edge>>(
     (oldEdge, connection) => {
       if (!connection.source || !connection.target || connection.source === connection.target) return;
@@ -1038,41 +1143,75 @@ function ThoughtMapInner({
   }, []);
 
   // One step: wording is optional, confirm once. Empty wording writes nothing
-  // to the bank (registerConnection handles that).
+  // to the bank (registerConnection handles that). For a deferred connector-to-
+  // canvas card, the new card is created here so card + connection are one action.
   const confirmConnection = useCallback(() => {
     if (!pendingConnection) return;
-    const source = store.get(pendingConnection.sourceId);
-    const target = store.get(pendingConnection.targetId);
-    if (!source || !target || source.role === "connection_label" || target.role === "connection_label") {
-      setPendingConnection(null);
-      return;
+    const pc = pendingConnection;
+    // Validate the endpoint(s) that must already exist BEFORE mutating anything,
+    // so a bail (e.g. the origin card was deleted while labeling) can't leave a
+    // half-created connection or an orphan card.
+    const existingSideId = pc.createCard
+      ? pc.createCard.side === "source"
+        ? pc.targetId
+        : pc.sourceId
+      : undefined;
+    if (existingSideId !== undefined) {
+      const existing = store.get(existingSideId);
+      if (!existing || existing.role === "connection_label") {
+        setPendingConnection(null);
+        return;
+      }
+    } else {
+      const source = store.get(pc.sourceId);
+      const target = store.get(pc.targetId);
+      if (!source || !target || source.role === "connection_label" || target.role === "connection_label") {
+        setPendingConnection(null);
+        return;
+      }
     }
+
     onBeforeMapChange();
+    let sourceId = pc.sourceId;
+    let targetId = pc.targetId;
+    let createdCardId: string | undefined;
+    if (pc.createCard) {
+      const newCard = store.addBlankUserCard(pc.createCard.position);
+      createdCardId = newCard.id;
+      if (pc.createCard.side === "source") sourceId = newCard.id;
+      else targetId = newCard.id;
+    }
     store.registerConnection({
-      sourceId: pendingConnection.sourceId,
-      targetId: pendingConnection.targetId,
-      text: pendingConnection.text,
+      sourceId,
+      targetId,
+      text: pc.text,
       bank,
-      sourceHandleId: pendingConnection.sourceHandleId,
-      targetHandleId: pendingConnection.targetHandleId,
-      position: connectionMidpoint(store, pendingConnection.sourceId, pendingConnection.targetId),
+      sourceHandleId: pc.sourceHandleId,
+      targetHandleId: pc.targetHandleId,
+      position: connectionMidpoint(store, sourceId, targetId),
     });
     setPendingConnection(null);
     onStoreChange();
-  }, [bank, onBeforeMapChange, onStoreChange, pendingConnection, store]);
+    if (createdCardId) focusNewCard(createdCardId);
+  }, [bank, focusNewCard, onBeforeMapChange, onStoreChange, pendingConnection, store]);
 
   const sourceUnit = pendingConnection ? store.get(pendingConnection.sourceId) : undefined;
   const targetUnit = pendingConnection ? store.get(pendingConnection.targetId) : undefined;
+  const sourceLabelText =
+    sourceUnit?.text ?? (pendingConnection?.createCard?.side === "source" ? "new card" : "source");
+  const targetLabelText =
+    targetUnit?.text ?? (pendingConnection?.createCard?.side === "target" ? "new card" : "target");
 
   return (
     <section className="map-panel">
-      <div className="map-header">
+      <div className={`map-header ${draftDockActive ? "draft-dock-target" : ""}`}>
         <div className="map-heading">
           <h2>Concept map</h2>
           <span className="map-count">{visibleCardCount} cards</span>
         </div>
 
         {coachStatus}
+        {draftDock}
 
         {commandAck && (
           <div className="map-command-ack" role="status">
@@ -1089,10 +1228,19 @@ function ThoughtMapInner({
             type="range"
             min={0}
             max={100}
+            step={25}
+            list="question-bias-ticks"
             value={questionBias}
             aria-label="Question framing bias"
             onChange={(event) => onQuestionBiasChange(Number(event.target.value))}
           />
+          <datalist id="question-bias-ticks">
+            <option value="0" />
+            <option value="25" />
+            <option value="50" />
+            <option value="75" />
+            <option value="100" />
+          </datalist>
           <span>Map</span>
         </label>
 
@@ -1140,6 +1288,8 @@ function ThoughtMapInner({
           onDragOver={onPaneDragOver}
           onDrop={onPaneDrop}
           onConnect={onConnect}
+          onConnectStart={onConnectStart}
+          onConnectEnd={onConnectEnd}
           onReconnect={onReconnect}
           connectionMode={ConnectionMode.Loose}
           edgesReconnectable
@@ -1155,9 +1305,9 @@ function ThoughtMapInner({
         {pendingConnection && (
           <div key={connectionPanelKey} className="connection-panel blink">
             <div className="connection-panel-meta">
-              <span>{sourceUnit?.text ?? "source"}</span>
+              <span>{sourceLabelText}</span>
               <span>to</span>
-              <span>{targetUnit?.text ?? "target"}</span>
+              <span>{targetLabelText}</span>
             </div>
             <textarea
               className="connection-input"

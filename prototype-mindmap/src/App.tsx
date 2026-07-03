@@ -13,7 +13,7 @@ import {
 import type { LoopState } from "./controller";
 import { detectDraftDeclarations } from "./draft-declarations";
 import type { MockLLM, QuestionStance } from "./llm-contract";
-import { CoachTraceStatus, deriveTraceEvent, type TraceEvent } from "./CoachTrace";
+import { deriveTraceEvent, type TraceEvent } from "./CoachTrace";
 import { ThoughtMap, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
@@ -86,6 +86,17 @@ const DRAFT_MIN_VISIBLE_HEIGHT = 120;
 const DRAFT_CHIP_SIZE = 64;
 const SESSION_STORAGE_KEY = "prototype-mindmap-session-v1";
 
+// The Think↔Map slider snaps to five fixed stops. Initial/persisted values (which
+// predate snapping, or a legacy default like 35) are snapped to the nearest stop
+// so behavior starts on a real mode instead of an off-tick position.
+const QUESTION_BIAS_STOPS = [0, 25, 50, 75, 100] as const;
+function snapQuestionBias(value: number): number {
+  return QUESTION_BIAS_STOPS.reduce(
+    (best, stop) => (Math.abs(stop - value) < Math.abs(best - value) ? stop : best),
+    QUESTION_BIAS_STOPS[0] as number,
+  );
+}
+
 interface PendingMirror {
   id: string;
   reflection: MirrorReflection;
@@ -115,6 +126,7 @@ interface PersistedSession {
   requireConnectionLabel?: boolean;
   draftText: string;
   draftCollapsed: boolean;
+  draftDocked?: boolean;
   draftPos: DraftPanelPos;
   draftSize: DraftPanelSize;
   controller: {
@@ -524,6 +536,12 @@ const css = `
     flex-wrap: wrap;
     column-gap: 14px;
     row-gap: 8px;
+    transition: background 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  }
+  .map-header.draft-dock-target {
+    border-bottom-color: #d6a955;
+    background: #fff7df;
+    box-shadow: inset 0 -3px 0 #d6a955, 0 8px 22px rgba(122, 90, 22, 0.12);
   }
 
   .map-heading {
@@ -548,7 +566,7 @@ const css = `
     margin-left: auto;
     flex: 0 0 auto;
     display: grid;
-    grid-template-columns: auto minmax(130px, 220px) auto;
+    grid-template-columns: auto minmax(84px, 116px) auto;
     align-items: center;
     gap: 8px;
     font-size: 11px;
@@ -558,6 +576,11 @@ const css = `
 
   .question-bias input {
     accent-color: #1a6fa3;
+    width: 100%;
+  }
+  /* Native tick marks for the five snap positions. */
+  .question-bias datalist {
+    display: none;
   }
 
   .map-debug-toggle {
@@ -569,6 +592,39 @@ const css = `
     background: #fff;
     color: #666;
     cursor: pointer;
+  }
+
+  /* Docked draft keeps the same size and physical affordance as the floating
+     chip; it simply snaps into its predefined header slot. */
+  .map-draft-dock {
+    flex: 0 0 auto;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    width: 64px;
+    height: 64px;
+    padding: 0;
+    border: 1px solid #d6a955;
+    border-radius: 12px;
+    background: #f6e8c8;
+    color: #7a5a16;
+    box-shadow: 0 6px 18px rgba(122, 90, 22, 0.16);
+    cursor: pointer;
+    user-select: none;
+  }
+  .map-draft-dock:hover { background: #f6e7bd; border-color: #c79740; }
+  .map-draft-dock-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+  }
+  .map-draft-dock-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #1a6fa3;
   }
 
   .map-command-ack {
@@ -615,7 +671,7 @@ const css = `
     }
 
     .question-bias {
-      grid-template-columns: auto minmax(96px, 160px) auto;
+      grid-template-columns: auto minmax(64px, 96px) auto;
     }
   }
 
@@ -712,6 +768,20 @@ const css = `
     gap: 6px;
   }
   .map-card-drag:active { cursor: grabbing; }
+
+  /* Four-dot grip: an obvious grab target at the card's top-left. It lives inside
+     the drag bar (the React Flow dragHandle), so dragging works no matter what the
+     card body holds — editable text, nested cards, scrollable content, buttons. */
+  .map-drag-grip {
+    flex: 0 0 auto;
+    width: 10px;
+    height: 10px;
+    color: #a9a49a;
+    background-image: radial-gradient(currentColor 1.1px, transparent 1.4px);
+    background-size: 5px 5px;
+    background-position: 0 0;
+  }
+  .map-card-drag:hover .map-drag-grip { color: #7d7970; }
 
   .map-role-chip,
   .map-parent-chip {
@@ -836,25 +906,25 @@ const css = `
   }
   .map-resize-n,
   .map-resize-s {
-    left: 12px;
-    right: 12px;
-    height: 6px;
+    left: 16px;
+    right: 16px;
+    height: 10px;
     cursor: ns-resize;
   }
   .map-resize-n { top: 0; }
   .map-resize-s { bottom: 0; }
   .map-resize-e,
   .map-resize-w {
-    top: 12px;
-    bottom: 12px;
-    width: 6px;
+    top: 16px;
+    bottom: 16px;
+    width: 10px;
     cursor: ew-resize;
   }
   .map-resize-e { right: 0; }
   .map-resize-w { left: 0; }
   .map-resize-corner {
-    width: 12px;
-    height: 12px;
+    width: 16px;
+    height: 16px;
   }
   .map-resize-nw { top: 0; left: 0; cursor: nwse-resize; }
   .map-resize-ne { top: 0; right: 0; cursor: nesw-resize; }
@@ -1423,9 +1493,9 @@ const css = `
     position: absolute;
     top: 72px;
     right: 14px;
-    bottom: 22px;
     z-index: 131;
     width: min(380px, calc(100% - 36px));
+    max-height: calc(100vh - 104px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1474,7 +1544,7 @@ const css = `
   }
 
   .underhood-body {
-    flex: 1;
+    flex: 0 1 auto;
     min-height: 0;
     overflow-y: auto;
     padding: 12px;
@@ -1765,7 +1835,9 @@ const css = `
       left: 14px;
       right: 14px;
       top: auto;
-      height: min(70vh, 560px);
+      bottom: 14px;
+      width: auto;
+      max-height: min(70vh, 560px);
     }
   }
 `;
@@ -2178,10 +2250,11 @@ export default function App() {
   const initialTraceLog = persistedSession?.traceLog ?? [];
   const initialUnderstandingSnapshot = persistedSession?.understandingSnapshot ?? null;
   const initialMapRevision = persistedSession?.mapRevision ?? 0;
-  const initialQuestionBias = persistedSession?.questionBias ?? 35;
+  const initialQuestionBias = snapQuestionBias(persistedSession?.questionBias ?? 35);
   const initialRequireConnectionLabel = persistedSession?.requireConnectionLabel ?? true;
   const initialDraftText = persistedSession?.draftText ?? "";
   const initialDraftCollapsed = persistedSession?.draftCollapsed ?? false;
+  const initialDraftDocked = persistedSession?.draftDocked ?? false;
   const initialDraftSize = persistedSession
     ? clampDraftSize(persistedSession.draftSize)
     : { w: 440, h: 340 };
@@ -2265,6 +2338,8 @@ export default function App() {
   // Draft panel state
   const [draftText, setDraftText] = useState(initialDraftText);
   const [draftCollapsed, setDraftCollapsed] = useState(initialDraftCollapsed);
+  const [draftDocked, setDraftDocked] = useState(initialDraftDocked);
+  const [draftDockTargetActive, setDraftDockTargetActive] = useState(false);
   const [draftPos, setDraftPos] = useState<DraftPanelPos>(initialDraftPos);
   const [draftSize, setDraftSize] = useState<DraftPanelSize>(initialDraftSize);
   // Where the collapsed chip sat before it was expanded, so collapsing returns
@@ -2335,8 +2410,21 @@ export default function App() {
     const downX = e.clientX;
     const downY = e.clientY;
     let moved = false;
+    let overDockTarget = false;
+    let lastX = e.clientX;
+    let lastY = e.clientY;
+    const isOverDockTarget = (clientX: number, clientY: number): boolean => {
+      const header = document.querySelector(".map-header");
+      if (!(header instanceof HTMLElement)) return false;
+      const rect = header.getBoundingClientRect();
+      return clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom;
+    };
     const onMove = (ev: MouseEvent) => {
+      lastX = ev.clientX;
+      lastY = ev.clientY;
       if (Math.abs(ev.clientX - downX) > 4 || Math.abs(ev.clientY - downY) > 4) moved = true;
+      overDockTarget = isOverDockTarget(ev.clientX, ev.clientY);
+      setDraftDockTargetActive(overDockTarget);
       // Clamp to the chip's own footprint so it can reach every edge/corner.
       setDraftPos(clampBoxPosition(
         { x: ev.clientX - startX, y: ev.clientY - startY },
@@ -2347,6 +2435,13 @@ export default function App() {
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
       window.removeEventListener("mouseup", onUp);
+      const shouldDock = moved && (overDockTarget || isOverDockTarget(lastX, lastY));
+      setDraftDockTargetActive(false);
+      if (shouldDock) {
+        setDraftDocked(true);
+        setDraftCollapsed(true);
+        return;
+      }
       if (!moved) {
         // Expand into available space: keep the whole panel on-screen, shifting
         // up/left when the chip sits near a bottom/right edge. Remember the
@@ -2403,6 +2498,9 @@ export default function App() {
   useEffect(() => {
     if (!activeAnchor) return;
     setHighlightAnchor(activeAnchor);
+    // Undock and expand so an anchored question actually reveals the draft span,
+    // not just the toolbar dot. Mirrors revealDraftAnchor().
+    setDraftDocked(false);
     setDraftCollapsed(false);
   }, [activeAnchor]);
 
@@ -2568,6 +2666,7 @@ export default function App() {
       requireConnectionLabel,
       draftText,
       draftCollapsed,
+      draftDocked,
       draftPos,
       draftSize,
       controller: {
@@ -2594,6 +2693,7 @@ export default function App() {
   }, [
     confirmed,
     draftCollapsed,
+    draftDocked,
     draftPos,
     draftSize,
     draftText,
@@ -2786,15 +2886,9 @@ export default function App() {
     }
   }
 
-  function bringDraftIntoView() {
-    const size = clampDraftSize(draftSize);
-    setDraftCollapsed(false);
-    setDraftSize(size);
-    setDraftPos(defaultDraftPosition(size));
-  }
-
   function revealDraftAnchor(anchor: string) {
     setHighlightAnchor(anchor);
+    setDraftDocked(false);
     setDraftCollapsed(false);
   }
 
@@ -2857,8 +2951,6 @@ export default function App() {
     speech.reset();
   }
 
-  const currentMode = stateRef.current.mode;
-
   return (
     <>
       <style>{css}</style>
@@ -2867,13 +2959,7 @@ export default function App() {
         <div className="chat-panel">
           <div className="chat-header">
             <h1>Reflective Coach</h1>
-            <span className={`mode-chip ${loading ? "loading" : currentMode}`}>
-              {loading ? "thinking…" : currentMode}
-            </span>
             <div className="chat-header-actions">
-              <button className="reset-btn" onClick={bringDraftIntoView} title="Bring draft back into view">
-                Draft
-              </button>
               <button className="reset-btn" onClick={clearChatOnly} title="Clear the chat conversation only">
                 Clear chat
               </button>
@@ -2966,7 +3052,9 @@ export default function App() {
           </div>
         </div>
 
-        {/* Draft — a distinct square chip when collapsed, full panel when open. */}
+        {/* Draft floating layer — chip when collapsed, panel when open. Hidden
+            (not unmounted) while docked so draft text, scroll, and anchors survive. */}
+        <div className="draft-layer" style={{ display: draftDocked ? "none" : "contents" }}>
         {draftCollapsed ? (
           <button
             type="button"
@@ -2996,6 +3084,13 @@ export default function App() {
             {highlightAnchor && (
               <span style={{ fontSize: 10, color: "#1a6fa3", fontWeight: 600 }}>● anchored</span>
             )}
+            <button
+              className="draft-panel-btn"
+              onClick={() => setDraftDocked(true)}
+              title="Dock the draft into the map toolbar"
+            >
+              Dock
+            </button>
             <button
               className="draft-panel-btn"
               onClick={() => {
@@ -3042,6 +3137,7 @@ export default function App() {
           )}
         </div>
         )}
+        </div>
 
         <div className="map-shell">
           <ThoughtMap
@@ -3050,8 +3146,24 @@ export default function App() {
             bank={stateRef.current.bank}
             confirmed={confirmed}
             coachDebug={lastCoachDebug}
-            coachStatus={<CoachTraceStatus events={traceLog} />}
             commandAck={commandAck}
+            draftDock={
+              draftDocked ? (
+                <button
+                  type="button"
+                  className="map-draft-dock"
+                  onClick={() => {
+                    setDraftDocked(false);
+                    setDraftCollapsed(false);
+                  }}
+                  title="Reopen the draft panel"
+                >
+                  <span className="map-draft-dock-label">DRAFT</span>
+                  {highlightAnchor && <span className="map-draft-dock-dot" aria-hidden="true" />}
+                </button>
+              ) : undefined
+            }
+            draftDockActive={draftDockTargetActive}
             highlightedCardIds={referencedCardIds}
             revision={mapRevision}
             questionBias={questionBias}
