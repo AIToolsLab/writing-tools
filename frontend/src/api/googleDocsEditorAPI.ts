@@ -8,6 +8,8 @@
  * all document operations here go through Apps Script on Google's servers.
  */
 
+import { loadScratchpadLocal, saveScratchpadLocal } from './scratchpadStore';
+
 // Declare the global GoogleAppsScript bridge (defined in sidebar.html)
 declare global {
 	interface Window {
@@ -149,6 +151,34 @@ export const googleDocsEditorAPI: EditorAPI = {
 		if (!found) {
 			throw new Error('Phrase not found');
 		}
+	},
+
+	/** Full document text, used for the corpus and the `view` tool. */
+	async getDocText(): Promise<string> {
+		const ctx = await window.GoogleAppsScript.getDocContext();
+		return `${ctx.beforeCursor || ''}${ctx.selectedText || ''}${ctx.afterCursor || ''}`;
+	},
+
+	/** Paragraphs in order — the coordinate system for `view` and inserts. */
+	async getParagraphs(): Promise<string[]> {
+		const ctx = await window.GoogleAppsScript.getDocContext();
+		const text = `${ctx.beforeCursor || ''}${ctx.selectedText || ''}${ctx.afterCursor || ''}`;
+		return text.split('\n');
+	},
+
+	// TODO(my-words): bridge to Apps Script (selectPhrase + replaceSelection for
+	// str_replace; insertTextAtCursor for insert). The GDocs multi-tab corpus
+	// (getAllTabs) is the exciting follow-up. Deferred — v1 targets standalone.
+	applyEdit(_edit: DocEdit): Promise<void> {
+		return Promise.reject(
+			new Error('applyEdit is not implemented for Google Docs yet'),
+		);
+	},
+	loadScratchpad(): Promise<string> {
+		return loadScratchpadLocal();
+	},
+	saveScratchpad(text: string): Promise<void> {
+		return saveScratchpadLocal(text);
 	},
 };
 

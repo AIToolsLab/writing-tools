@@ -32,24 +32,85 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	});
 
 	// OpenAI-compatible passthrough. The frontend's ai-sdk client posts here; we
-	// only inject the server-held API key and stream the upstream response back.
+	// only inject the server-held API key and relay the upstream response back.
+	// We log every request/response so empty or truncated replies are visible
+	// instead of silently surfacing as a 200 with no body.
 	app.post('/api/openai/chat/completions', async (c) => {
 		const body = await c.req.text();
-		const upstream = await fetch(OPENAI_URL, {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${openaiApiKey()}`,
-				'Content-Type': 'application/json',
+		// Non-streaming requests (e.g. the my-words generateText path) omit
+		// `stream:true`; those we buffer fully so a dropped upstream connection
+		// throws here rather than yielding an empty 200. Streaming requests
+		// (streamText pages) are relayed through with a byte counter.
+		const wantsStream = (() => {
+			try {
+				return Boolean((JSON.parse(body) as { stream?: unknown }).stream);
+			} catch {
+				return false;
+			}
+		})();
+
+		const started = Date.now();
+		let upstream: Response;
+		try {
+			upstream = await fetch(OPENAI_URL, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${openaiApiKey()}`,
+					'Content-Type': 'application/json',
+				},
+				body,
+			});
+		} catch (e) {
+			console.error('[openai-proxy] upstream fetch failed:', (e as Error).message);
+			throw e; // -> onError -> 500 JSON, instead of a silent empty response
+		}
+
+		const contentType =
+			upstream.headers.get('content-type') ??
+			(wantsStream ? 'text/event-stream' : 'application/json');
+
+		const log = (bytes: number) => {
+			const line = `[openai-proxy] ${upstream.status} ${
+				wantsStream ? 'stream' : 'json'
+			} ${contentType.split(';')[0]} ${bytes}B ${Date.now() - started}ms`;
+			if (!upstream.ok || bytes === 0) console.warn(`${line} ⚠️ EMPTY/ERROR`);
+			else console.log(line);
+		};
+
+		if (!wantsStream) {
+			let buf: ArrayBuffer;
+			try {
+				buf = await upstream.arrayBuffer();
+			} catch (e) {
+				console.error(
+					'[openai-proxy] upstream body read failed:',
+					(e as Error).message,
+				);
+				throw e;
+			}
+			log(buf.byteLength);
+			return new Response(buf, {
+				status: upstream.status,
+				headers: { 'Content-Type': contentType },
+			});
+		}
+
+		// Streaming: relay the body through a pass-through that tallies bytes so
+		// we can log the total (and flag an empty stream) once it completes.
+		let bytes = 0;
+		const counter = new TransformStream<Uint8Array, Uint8Array>({
+			transform(chunk, ctrl) {
+				bytes += chunk.byteLength;
+				ctrl.enqueue(chunk);
 			},
-			body,
+			flush() {
+				log(bytes);
+			},
 		});
 
-		return new Response(upstream.body, {
+		return new Response(upstream.body?.pipeThrough(counter) ?? null, {
 			status: upstream.status,
-			headers: {
-				'Content-Type':
-					upstream.headers.get('content-type') ?? 'text/event-stream',
-			},
+			headers: { 'Content-Type': contentType },
 		});
 	});
 
