@@ -1046,6 +1046,38 @@ const css = `
     font-size: 11px;
     color: #d9d6ce;
   }
+  .edge-direction {
+    display: grid;
+    gap: 4px;
+  }
+  .edge-direction > span {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #d9d6ce;
+  }
+  .edge-direction-buttons {
+    display: flex;
+    gap: 4px;
+  }
+  .edge-direction-buttons button {
+    flex: 1;
+    min-width: 34px;
+    border: 1px solid #4a4945;
+    border-radius: 5px;
+    background: #2b2b2b;
+    color: #f5f2ea;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 800;
+    padding: 3px 5px;
+  }
+  .edge-direction-buttons button.active {
+    background: #f5f2ea;
+    color: #1f1e1b;
+    border-color: #f5f2ea;
+  }
   .edge-popover {
     display: flex;
     flex-direction: column;
@@ -2458,6 +2490,75 @@ export default function App() {
   }, [draftPos, draftSize]);
 
   // Resize logic — edge flags control which edges are active
+  const onDockedDraftMouseDown = useCallback((e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const startX = e.clientX - rect.left;
+    const startY = e.clientY - rect.top;
+    const downX = e.clientX;
+    const downY = e.clientY;
+    let moved = false;
+    let lastX = e.clientX;
+    let lastY = e.clientY;
+
+    const isOverDockTarget = (clientX: number, clientY: number): boolean => {
+      const header = document.querySelector(".map-header");
+      if (!(header instanceof HTMLElement)) return false;
+      const headerRect = header.getBoundingClientRect();
+      return (
+        clientX >= headerRect.left &&
+        clientX <= headerRect.right &&
+        clientY >= headerRect.top &&
+        clientY <= headerRect.bottom
+      );
+    };
+
+    const onMove = (ev: MouseEvent) => {
+      lastX = ev.clientX;
+      lastY = ev.clientY;
+      const didMove = Math.abs(ev.clientX - downX) > 4 || Math.abs(ev.clientY - downY) > 4;
+      if (!didMove) return;
+      moved = true;
+      setDraftDocked(false);
+      setDraftCollapsed(true);
+      setDraftDockTargetActive(isOverDockTarget(ev.clientX, ev.clientY));
+      setDraftPos(clampBoxPosition(
+        { x: ev.clientX - startX, y: ev.clientY - startY },
+        DRAFT_CHIP_SIZE,
+        DRAFT_CHIP_SIZE,
+      ));
+    };
+
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      setDraftDockTargetActive(false);
+
+      if (!moved) {
+        setDraftDocked(false);
+        setDraftCollapsed(false);
+        return;
+      }
+
+      if (isOverDockTarget(lastX, lastY)) {
+        setDraftDocked(true);
+        setDraftCollapsed(true);
+        return;
+      }
+
+      setDraftDocked(false);
+      setDraftCollapsed(true);
+      setDraftPos(clampBoxPosition(
+        { x: lastX - startX, y: lastY - startY },
+        DRAFT_CHIP_SIZE,
+        DRAFT_CHIP_SIZE,
+      ));
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  }, []);
+
   const startResize = useCallback((
     e: React.MouseEvent,
     edges: { top?: boolean; bottom?: boolean; left?: boolean; right?: boolean },
@@ -3152,11 +3253,8 @@ export default function App() {
                 <button
                   type="button"
                   className="map-draft-dock"
-                  onClick={() => {
-                    setDraftDocked(false);
-                    setDraftCollapsed(false);
-                  }}
-                  title="Reopen the draft panel"
+                  onMouseDown={onDockedDraftMouseDown}
+                  title="Click to open draft, or drag out to undock"
                 >
                   <span className="map-draft-dock-label">DRAFT</span>
                   {highlightAnchor && <span className="map-draft-dock-dot" aria-hidden="true" />}

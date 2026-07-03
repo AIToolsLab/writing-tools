@@ -8,6 +8,7 @@ import {
   Handle,
   MiniMap,
   ConnectionMode,
+  MarkerType,
   Position,
   ReactFlow,
   ReactFlowProvider,
@@ -23,8 +24,8 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import dagre from "@dagrejs/dagre";
-import type { ThoughtUnitStore, XYBounds, XYPosition, XYSize } from "./map-store";
+import { computeAutoCleanPositions } from "./map-layout";
+import type { ConnectionLayoutDirection, ThoughtUnitStore, XYBounds, XYPosition, XYSize } from "./map-store";
 import type { SourceBank } from "./store";
 import { cardRef } from "./store";
 import type { ConfirmedReflection, ThoughtUnit } from "./types";
@@ -68,6 +69,13 @@ interface PendingConnection {
    * The id on that side is an empty placeholder until confirm.
    */
   createCard?: { position: XYPosition; side: "source" | "target" };
+}
+
+interface ConnectionEdgeData extends Record<string, unknown> {
+  label: string;
+  layoutDirection: ConnectionLayoutDirection;
+  onDelete?: (id: string) => void;
+  onDirectionChange?: (id: string, direction: ConnectionLayoutDirection) => void;
 }
 
 /** Id-based actions shared by a card and every card embedded inside it. */
@@ -472,6 +480,8 @@ function ConnectionEdge({
   sourcePosition,
   targetPosition,
   data,
+  markerStart,
+  markerEnd,
 }: EdgeProps) {
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
@@ -482,12 +492,15 @@ function ConnectionEdge({
     targetPosition,
   });
   const [open, setOpen] = useState(false);
-  const label = typeof data?.label === "string" ? data.label : "";
-  const onDelete = typeof data?.onDelete === "function" ? (data.onDelete as (id: string) => void) : undefined;
+  const edgeData = data as Partial<ConnectionEdgeData> | undefined;
+  const label = typeof edgeData?.label === "string" ? edgeData.label : "";
+  const layoutDirection = edgeData?.layoutDirection ?? "none";
+  const onDelete = edgeData?.onDelete;
+  const onDirectionChange = edgeData?.onDirectionChange;
 
   return (
     <>
-      <BaseEdge id={id} path={edgePath} className="map-edge" />
+      <BaseEdge id={id} path={edgePath} className="map-edge" markerStart={markerStart} markerEnd={markerEnd} />
       <EdgeLabelRenderer>
         <div
           className="edge-badge-wrap nodrag nopan"
@@ -504,6 +517,34 @@ function ConnectionEdge({
           {open && (
             <div className="edge-popover">
               {label && <div className="edge-popover-text">{label}</div>}
+              {onDirectionChange && (
+                <div className="edge-direction">
+                  <span>Layout direction</span>
+                  <div className="edge-direction-buttons" role="group" aria-label="Layout direction">
+                    {([
+                      ["none", "↔"],
+                      ["source_to_target", "→"],
+                      ["target_to_source", "←"],
+                    ] as const).map(([direction, glyph]) => (
+                      <button
+                        key={direction}
+                        type="button"
+                        className={layoutDirection === direction ? "active" : ""}
+                        onClick={() => onDirectionChange(id, direction)}
+                        title={
+                          direction === "none"
+                            ? "Neutral: keep close without ordering"
+                            : direction === "source_to_target"
+                              ? "Source should sit before/above target"
+                              : "Target should sit before/above source"
+                        }
+                      >
+                        {glyph}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               <div className="edge-move-hint">Drag a line end to move it; drag a card dot for a new connection.</div>
               {onDelete && (
                 <button type="button" className="edge-delete" onClick={() => onDelete(id)}>
@@ -602,133 +643,31 @@ function ThoughtMapInner({
     [onBeforeMapChange, onStoreChange, store],
   );
 
-  // Auto-clean: tidy scattered cards using direction-aware placement. Only root
-  // cards are canvas nodes; nested cards travel with their parent. Each card is
-  // placed on the side its connection actually attaches to (a card linked from
-  // another's left lands to its left, etc.), so the arrangement matches the
-  // connectors' geometry and edges stay short and straight.
+  const setConnectionDirection = useCallback(
+    (id: string, direction: ConnectionLayoutDirection) => {
+      onBeforeMapChange();
+      store.setConnectionLayoutDirection(id, direction);
+      onStoreChange();
+    },
+    [onBeforeMapChange, onStoreChange, store],
+  );
+
+  // Auto-clean: tidy scattered root-level cards using direction-aware placement.
+  // Nested cards are not positioned directly; they travel with their parent.
   const autoClean = useCallback(() => {
-    const roots = store
-      .getAll()
-      .filter((unit) => !unit.parentId && unit.role !== "connection_label");
-    if (roots.length === 0) return;
-
-    const rootIds = new Set(roots.map((u) => u.id));
-    // Resolve any card id to its top-level (canvas) ancestor.
-    const rootOf = (id: string): string | undefined => {
-      let cur = store.get(id);
-      const seen = new Set<string>();
-      while (cur?.parentId && !seen.has(cur.id)) {
-        seen.add(cur.id);
-        cur = store.get(cur.parentId);
-      }
-      return cur?.id;
-    };
-    const size = (id: string) => store.getSize(id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
-
-    // Undirected adjacency (for components) + directed edges (for dagre flow).
-    const adj = new Map<string, Set<string>>();
-    roots.forEach((u) => adj.set(u.id, new Set()));
-    const edges: Array<{ from: string; to: string }> = [];
-    for (const c of store.getConnections()) {
-      const a = rootOf(c.sourceId);
-      const b = rootOf(c.targetId);
-      if (!a || !b || a === b || !rootIds.has(a) || !rootIds.has(b)) continue;
-      adj.get(a)!.add(b);
-      adj.get(b)!.add(a);
-      edges.push({ from: a, to: b });
-    }
-
-    // Connected components, seeded in the user's rough reading order so the
-    // tidied layout keeps a familiar left-to-right / top-to-bottom sense.
-    const orderedRoots = [...roots].sort((x, y) => {
-      const px = store.getPosition(x.id) ?? { x: 0, y: 0 };
-      const py = store.getPosition(y.id) ?? { x: 0, y: 0 };
-      return px.y - py.y || px.x - py.x;
+    const nextPositions = computeAutoCleanPositions({
+      units: store.getAll(),
+      connections: store.getConnections(),
+      positions: store.getPositions(),
+      sizes: store.getSizes(),
+      defaultSize: { w: CARD_WIDTH, h: CARD_HEIGHT },
     });
-    const seen = new Set<string>();
-    const components: string[][] = [];
-    for (const r of orderedRoots) {
-      if (seen.has(r.id)) continue;
-      const comp: string[] = [];
-      const q = [r.id];
-      seen.add(r.id);
-      while (q.length > 0) {
-        const id = q.shift()!;
-        comp.push(id);
-        for (const nb of adj.get(id) ?? []) {
-          if (!seen.has(nb)) {
-            seen.add(nb);
-            q.push(nb);
-          }
-        }
-      }
-      components.push(comp);
-    }
-
-    // Lay each component out top-down with dagre (clean rank flow, minimal
-    // crossings), then pack components left-to-right and wrap to a new row past
-    // a max width — so unconnected cards spread across the canvas instead of
-    // stacking, while connected trees stay compact.
-    const GAP = 120;
-    const ORIGIN_X = 80;
-    const ORIGIN_Y = 80;
-    const MAX_ROW_WIDTH = 2400;
+    if (Object.keys(nextPositions).length === 0) return;
 
     onBeforeMapChange();
-
-    let cursorX = ORIGIN_X;
-    let cursorY = ORIGIN_Y;
-    let rowHeight = 0;
-    for (const comp of components) {
-      const compSet = new Set(comp);
-      const g = new dagre.graphlib.Graph();
-      g.setGraph({ rankdir: "TB", nodesep: 60, ranksep: 90, marginx: 0, marginy: 0 });
-      g.setDefaultEdgeLabel(() => ({}));
-      for (const id of comp) {
-        const s = size(id);
-        g.setNode(id, { width: s.w, height: s.h });
-      }
-      for (const e of edges) {
-        if (compSet.has(e.from) && compSet.has(e.to)) g.setEdge(e.from, e.to);
-      }
-      dagre.layout(g);
-
-      // dagre reports node centers; normalize to the component's top-left.
-      let minX = Infinity;
-      let minY = Infinity;
-      let maxX = -Infinity;
-      let maxY = -Infinity;
-      for (const id of comp) {
-        const n = g.node(id);
-        const s = size(id);
-        minX = Math.min(minX, n.x - s.w / 2);
-        minY = Math.min(minY, n.y - s.h / 2);
-        maxX = Math.max(maxX, n.x + s.w / 2);
-        maxY = Math.max(maxY, n.y + s.h / 2);
-      }
-      const compW = maxX - minX;
-      const compH = maxY - minY;
-
-      // Wrap to a new row if this component would overflow the row width.
-      if (cursorX > ORIGIN_X && cursorX + compW > ORIGIN_X + MAX_ROW_WIDTH) {
-        cursorX = ORIGIN_X;
-        cursorY += rowHeight + GAP;
-        rowHeight = 0;
-      }
-
-      for (const id of comp) {
-        const n = g.node(id);
-        const s = size(id);
-        store.setPosition(id, {
-          x: cursorX + (n.x - s.w / 2 - minX),
-          y: cursorY + (n.y - s.h / 2 - minY),
-        });
-      }
-      cursorX += compW + GAP;
-      rowHeight = Math.max(rowHeight, compH);
+    for (const [id, position] of Object.entries(nextPositions)) {
+      store.setPosition(id, position);
     }
-
     onStoreChange();
 
     // Re-frame the tidied map after the nodes re-render.
@@ -904,13 +843,26 @@ function ThoughtMapInner({
         target: connection.targetId,
         sourceHandle: renderHandleId("source", connection.sourceHandleId),
         targetHandle: renderHandleId("target", connection.targetHandleId),
+        markerEnd:
+          connection.layoutDirection === "source_to_target"
+            ? { type: MarkerType.ArrowClosed, width: 18, height: 18 }
+            : undefined,
+        markerStart:
+          connection.layoutDirection === "target_to_source"
+            ? { type: MarkerType.ArrowClosed, width: 18, height: 18 }
+            : undefined,
         type: "connection",
         reconnectable: true,
-        data: { label: label?.text ?? "", onDelete: deleteConnection },
+        data: {
+          label: label?.text ?? "",
+          layoutDirection: connection.layoutDirection,
+          onDelete: deleteConnection,
+          onDirectionChange: setConnectionDirection,
+        },
         className: "map-edge",
       };
     });
-  }, [deleteConnection, revision, store]);
+  }, [deleteConnection, revision, setConnectionDirection, store]);
 
   const edges = useMemo<Edge[]>(() => {
     // A deferred connector-to-canvas connection has one endpoint that doesn't
@@ -926,6 +878,7 @@ function ThoughtMapInner({
           targetHandle: renderHandleId("target", pendingConnection.targetHandleId ?? undefined),
           animated: true,
           label: pendingConnection.text,
+          data: { layoutDirection: "none" },
           type: "smoothstep",
           className: "map-edge pending",
         }

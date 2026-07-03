@@ -161,6 +161,48 @@ describe("ThoughtUnitStore", () => {
     expect(registered.labelUnit.text).toBe("");
     expect(registered.labelUnit.source.utteranceIds).toEqual([]);
     expect(store.getConnections()).toHaveLength(1);
+    expect(store.getConnections()[0].layoutDirection).toBe("none");
+  });
+
+  it("updates and persists connection layout direction", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+    const { connection } = store.registerConnection({ sourceId: "a", targetId: "b", text: "", bank });
+
+    store.setConnectionLayoutDirection(connection.id, "source_to_target");
+
+    expect(store.getConnections()[0]).toMatchObject({
+      id: connection.id,
+      layoutDirection: "source_to_target",
+    });
+
+    const restored = new ThoughtUnitStore();
+    restored.loadSnapshot(store.snapshot());
+
+    expect(restored.getConnections()[0]).toMatchObject({
+      id: connection.id,
+      layoutDirection: "source_to_target",
+    });
+  });
+
+  it("defaults legacy snapshot connections to neutral layout direction", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+    store.registerConnection({ sourceId: "a", targetId: "b", text: "", bank });
+    const snapshot = store.snapshot();
+    const legacySnapshot = {
+      ...snapshot,
+      connections: snapshot.connections.map(({ layoutDirection: _layoutDirection, ...connection }) => connection),
+    };
+
+    const restored = new ThoughtUnitStore();
+    restored.loadSnapshot(legacySnapshot);
+
+    expect(restored.getConnections()[0].layoutDirection).toBe("none");
   });
 
   it("deletes a connection and its label unit", () => {
@@ -276,6 +318,30 @@ describe("ThoughtUnitStore", () => {
       targetId: "c",
       sourceHandleId: "bottom",
       targetHandleId: "top",
+    });
+  });
+
+  it("reconnects a connection without changing layout direction", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+    store.add(unit("c", "control"));
+    const { connection } = store.registerConnection({
+      sourceId: "a",
+      targetId: "b",
+      text: "",
+      bank,
+    });
+    store.setConnectionLayoutDirection(connection.id, "target_to_source");
+
+    store.reconnect(connection.id, "b", "c", "bottom", "top");
+
+    expect(store.getConnections()[0]).toMatchObject({
+      id: connection.id,
+      sourceId: "b",
+      targetId: "c",
+      layoutDirection: "target_to_source",
     });
   });
 

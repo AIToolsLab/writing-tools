@@ -50,12 +50,18 @@ export interface ThoughtConnection {
   targetId: string;
   sourceHandleId?: string;
   targetHandleId?: string;
+  layoutDirection: ConnectionLayoutDirection;
   labelUnitId: string;
   /** Undefined when the connection has no wording (relationship label is optional). */
   labelUtteranceId?: string;
   confirmedAt: number;
   createdBy: "user";
 }
+
+export type ConnectionLayoutDirection = "none" | "source_to_target" | "target_to_source";
+export type ThoughtConnectionSnapshot = Omit<ThoughtConnection, "layoutDirection"> & {
+  layoutDirection?: ConnectionLayoutDirection;
+};
 
 export interface RegisteredConnection {
   connection: ThoughtConnection;
@@ -68,7 +74,7 @@ export interface ThoughtUnitStoreSnapshot {
   units: ThoughtUnit[];
   positions: Record<string, XYPosition>;
   sizes?: Record<string, XYSize>;
-  connections: ThoughtConnection[];
+  connections: ThoughtConnectionSnapshot[];
 }
 
 function roleEntry(role: ThoughtUnitRole, changedBy: "user" | "ai_proposed_user_confirmed") {
@@ -461,6 +467,7 @@ export class ThoughtUnitStore {
       targetId,
       sourceHandleId: handles.sourceHandleId,
       targetHandleId: handles.targetHandleId,
+      layoutDirection: "none",
       labelUnitId: labelUnit.id,
       labelUtteranceId: utterance?.id,
       confirmedAt: Date.now(),
@@ -497,6 +504,15 @@ export class ThoughtUnitStore {
       targetId,
       sourceHandleId: handles.sourceHandleId,
       targetHandleId: handles.targetHandleId,
+    });
+  }
+
+  setConnectionLayoutDirection(id: string, layoutDirection: ConnectionLayoutDirection): void {
+    const connection = this._connections.get(id);
+    if (!connection) return;
+    this._connections.set(id, {
+      ...connection,
+      layoutDirection,
     });
   }
 
@@ -584,7 +600,12 @@ export class ThoughtUnitStore {
     this._sizes = new Map(
       Object.entries(snapshot.sizes ?? {}).map(([id, size]) => [id, clampCardSize(size)]),
     );
-    this._connections = new Map(snapshot.connections.map((connection) => [connection.id, connection]));
+    this._connections = new Map(
+      snapshot.connections.map((connection) => [
+        connection.id,
+        { ...connection, layoutDirection: connection.layoutDirection ?? "none" },
+      ]),
+    );
     primeIdCounters(
       [
         ...snapshot.units.map((unit) => unit.id),
