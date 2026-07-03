@@ -164,9 +164,12 @@ export async function startRealtimeSession(
 		},
 	});
 	if (!sdpRes.ok) {
+		const detail = await sdpRes.text().catch(() => '');
 		mic.getTracks().forEach((t) => t.stop());
 		pc.close();
-		throw new Error(`SDP exchange failed (${sdpRes.status})`);
+		throw new Error(
+			`SDP exchange failed (${sdpRes.status})${detail ? `: ${detail.slice(0, 300)}` : ''}`,
+		);
 	}
 	const answerSdp = await sdpRes.text();
 	await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
