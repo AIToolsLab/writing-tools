@@ -100,9 +100,10 @@ export async function startRealtimeSession(
 				audio: {
 					input: {
 						// Semantic end-of-turn so a thinking pause doesn't cut the writer off.
-						turn_detection: { type: 'semantic_vad' },
+						turn_detection: { type: 'semantic_vad', "eagerness": "low" },
 						// Transcribe the writer's speech so their turns show in the log.
-						transcription: { model: 'gpt-4o-mini-transcribe' },
+						transcription: { model: 'gpt-realtime-whisper' },
+						"noise_reduction": { "type": "far_field" },
 					},
 				},
 			},
