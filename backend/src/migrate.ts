@@ -9,7 +9,16 @@
 import { getMigrations } from 'better-auth/db/migration';
 import { auth } from './auth.js';
 
-const { runMigrations } = await getMigrations(auth.options);
-await runMigrations();
-console.log('Better Auth migrations applied.');
-process.exit(0);
+// Let the process exit naturally rather than calling process.exit(): in a
+// container stdout is a pipe (async on Unix), so exiting immediately after a
+// log can truncate it. better-sqlite3 is synchronous and holds nothing open on
+// the event loop, so the process ends on its own once this resolves. On failure
+// we set a non-zero exit code so the initContainer fails and blocks the pod.
+try {
+	const { runMigrations } = await getMigrations(auth.options);
+	await runMigrations();
+	console.log('Better Auth migrations applied.');
+} catch (err) {
+	console.error('Better Auth migration failed:', err);
+	process.exitCode = 1;
+}
