@@ -6,6 +6,14 @@ import { appendLog, pollLogs, validateUsername, zipLogs } from './logging.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+// Mints short-lived ephemeral credentials so a browser can open a WebRTC
+// Realtime session without ever seeing the server API key. See the voice spike
+// (frontend/src/pages/my-words/voice-spike) and docs/my-words-voice-native-research.md.
+const OPENAI_REALTIME_SESSION_URL =
+	'https://api.openai.com/v1/realtime/client_secrets';
+// The realtime-capable model the ephemeral session is bound to. Override via env
+// as OpenAI ships new ids (gpt-realtime, gpt-realtime-2, …).
+const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime';
 
 export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	const app = new Hono();
@@ -111,6 +119,44 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		return new Response(upstream.body?.pipeThrough(counter) ?? null, {
 			status: upstream.status,
 			headers: { 'Content-Type': contentType },
+		});
+	});
+
+	// Mint an ephemeral Realtime session token for the browser voice spike. The
+	// server key stays here; the browser receives only the short-lived secret it
+	// uses to open the WebRTC session directly with OpenAI.
+	app.post('/api/openai/realtime/session', async (c) => {
+		const key = openaiApiKey();
+		if (!key) {
+			return c.json({ detail: 'OPENAI_API_KEY not set' }, 500);
+		}
+		let upstream: Response;
+		try {
+			upstream = await fetch(OPENAI_REALTIME_SESSION_URL, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${key}`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					session: { type: 'realtime', model: REALTIME_MODEL },
+				}),
+			});
+		} catch (e) {
+			console.error(
+				'[realtime-session] upstream fetch failed:',
+				(e as Error).message,
+			);
+			throw e; // -> onError -> 500 JSON
+		}
+
+		const text = await upstream.text();
+		if (!upstream.ok) {
+			console.warn(`[realtime-session] ${upstream.status} ${text.slice(0, 200)}`);
+		}
+		return new Response(text, {
+			status: upstream.status,
+			headers: { 'Content-Type': 'application/json' },
 		});
 	});
 

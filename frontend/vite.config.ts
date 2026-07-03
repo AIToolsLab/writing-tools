@@ -105,7 +105,8 @@ export default defineConfig(async ({ mode }) => {
 					editor: path.resolve(__dirname, 'editor.html'),
 					logs: path.resolve(__dirname, 'logs.html'),
 					commands: path.resolve(__dirname, 'commands.html'),
-					'mywords-demo': path.resolve(__dirname, 'mywords-demo.html')
+					'mywords-demo': path.resolve(__dirname, 'mywords-demo.html'),
+					'voice-spike': path.resolve(__dirname, 'voice-spike.html')
 				},
 				output: {
 					manualChunks: {
