@@ -28,6 +28,8 @@ export interface RealtimeSessionOptions {
 	audioEl: HTMLAudioElement;
 	/** Optional firehose for logging/transcripts (raw server events). */
 	onEvent?: (evt: Record<string, unknown>) => void;
+	/** Optional connection/playback status messages (not server events). */
+	onStatus?: (msg: string) => void;
 	/** Model id; defaults to the realtime model the ephemeral token is bound to. */
 	model?: string;
 }
@@ -66,15 +68,26 @@ export async function startRealtimeSession(
 	const ephemeralKey = await mintEphemeralKey();
 
 	const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
-	const pc = new RTCPeerConnection();
 
-	// Remote audio (the model's voice) → the <audio> element. Setting srcObject
-	// imperatively after mount doesn't reliably honour the `autoPlay` attribute,
-	// and the track arrives after the click gesture, so start playback here.
+	// Prime playback *now*, while we're still in the gesture-activation window
+	// that getUserMedia just confirmed: attach an empty stream to the <audio>
+	// element and start it playing (silently). The model's track is added to this
+	// same, already-playing stream in `ontrack`, so it becomes audible without a
+	// second play() — sidestepping the autoplay block that otherwise eats a
+	// play() fired later from ontrack. A rejected prime is the usual "no audio".
+	const remoteStream = new MediaStream();
+	opts.audioEl.srcObject = remoteStream;
+	opts.audioEl.play().then(
+		() => opts.onStatus?.('audio element primed'),
+		(err: Error) => opts.onStatus?.(`audio prime blocked: ${err.name} — ${err.message}`),
+	);
+
+	const pc = new RTCPeerConnection();
 	pc.ontrack = (e) => {
-		opts.audioEl.srcObject = e.streams[0];
-		void opts.audioEl.play().catch(() => {});
+		opts.onStatus?.(`remote ${e.track.kind} track received`);
+		remoteStream.addTrack(e.track);
 	};
+	pc.onconnectionstatechange = () => opts.onStatus?.(`connection: ${pc.connectionState}`);
 	for (const track of mic.getTracks()) pc.addTrack(track, mic);
 
 	const dc = pc.createDataChannel('oai-events');

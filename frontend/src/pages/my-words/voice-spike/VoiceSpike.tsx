@@ -145,6 +145,7 @@ export default function VoiceSpike() {
 				audioEl: audioRef.current,
 				instructions: `${INSTRUCTIONS_INTRO}\n\nThe document right now:\n"""\n${docText}\n"""`,
 				tools: buildTools(),
+				onStatus: (msg) => pushLog({ kind: 'system', text: msg }),
 				onEvent: (evt) => {
 					// Surface transcripts and errors; ignore the firehose otherwise.
 					// GA renamed the assistant transcript event with an `output_`
