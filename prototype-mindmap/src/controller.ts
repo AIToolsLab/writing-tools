@@ -15,8 +15,8 @@
 import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
 import { detectDraftDeclarations, type DraftDeclaration } from "./draft-declarations";
-import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MockLLM, QuestionStance } from "./llm-contract";
-import { contentTokens, normalize } from "./normalize";
+import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MapQuestionAnchor, MockLLM, QuestionStance } from "./llm-contract";
+import { contentTokens, normalize, stem } from "./normalize";
 import { evaluateReadiness, readyCandidates } from "./readiness";
 import { detectSignals } from "./signals";
 import { CandidateStore, SourceBank, cardRef } from "./store";
@@ -183,6 +183,12 @@ export interface LoopState {
     lastAnswerNorm?: string;
     repeatCount: number;
   };
+  /**
+   * The coach's last question/clarify (text + stance) the user is now responding
+   * to. Set at the end of a question/clarify turn and cleared on a mirror, so a
+   * substantively-answered question is not re-asked in reworded form (Goal 5).
+   */
+  lastCoachQuestion?: { text: string; stance?: QuestionStance };
 }
 
 export interface ProcessTurnOptions {
@@ -306,6 +312,120 @@ function isStaleFocusFamilyQuestion(text: string): boolean {
 function shortFocusLabel(text: string): string {
   const compact = text.trim().replace(/\s+/g, " ");
   return compact.length <= 48 ? compact : `${compact.slice(0, 45).trim()}...`;
+}
+
+// --- Goal 4: map-aware questioning context (read-only, code-derived) ---
+
+function mapAnchorText(text: string): string {
+  const compact = text.trim().replace(/\s+/g, " ");
+  return compact.length <= 60 ? compact : `${compact.slice(0, 57).trim()}...`;
+}
+
+/**
+ * Read-only map anchors for map-aware questioning: each current root card's ref +
+ * text, plus the refs/text of the cards it connects to (undirected — no layout or
+ * direction metadata). Pure and advisory; it never authorizes a map write and the
+ * model may only reference these as conversational anchors in a question.
+ */
+function buildMapQuestionContext(map: LLMMapContext): MapQuestionAnchor[] {
+  const cards = map.thoughtUnits.filter(
+    (unit) => unit.role !== "connection_label" && unit.text.trim().length > 0,
+  );
+  if (cards.length === 0) return [];
+  const byId = new Map(cards.map((card) => [card.id, card]));
+  const neighborsByCard = new Map<string, Map<string, string>>();
+  const addNeighbor = (fromId: string, toId: string) => {
+    const from = byId.get(fromId);
+    const to = byId.get(toId);
+    if (!from || !to) return;
+    const entry = neighborsByCard.get(fromId) ?? new Map<string, string>();
+    entry.set(cardRef(toId), mapAnchorText(to.text));
+    neighborsByCard.set(fromId, entry);
+  };
+  for (const connection of map.connections) {
+    addNeighbor(connection.sourceId, connection.targetId);
+    addNeighbor(connection.targetId, connection.sourceId);
+  }
+  const roots = cards.filter((card) => !card.parentId);
+  const ordered = (roots.length > 0 ? roots : cards).slice(0, 6);
+  return ordered.map((card) => ({
+    ref: cardRef(card.id),
+    text: mapAnchorText(card.text),
+    neighbors: Array.from((neighborsByCard.get(card.id) ?? new Map<string, string>()).entries())
+      .slice(0, 4)
+      .map(([ref, text]) => ({ ref, text })),
+  }));
+}
+
+// A map-aware forward question used when the user has answered but the coach is
+// about to re-ask the same concept. It invites the user to relate their point to
+// the map WITHOUT proposing structure (no invented ref, no placement, no edge).
+function mapAwareTransitionQuestion(): string {
+  return "Does what you just said belong with something already on your map, or is it a separate point you'd want to name on its own?";
+}
+
+// --- Goal 5: answer detection + reworded-re-ask detection ---
+
+/**
+ * A turn that reads as a direct map command (create/put a card, connect/nest, or a
+ * #ref structural command) rather than an answer. Deterministic/lexical so answer
+ * detection can exclude command-like turns before the LLM context is built — the
+ * ADVANCE (do-not-re-ask) nudge must not contaminate a command turn.
+ */
+function looksLikeDirectCommand(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (extractExplicitCreateCardText(trimmed)) return true;
+  if (isConnectCommandText(trimmed)) return true;
+  const structural = detectStructuralVerbIntent(trimmed);
+  if (structural && /#\d+/.test(trimmed)) return true;
+  if (/\b(?:make|create|add|turn)\b[\s\S]{0,70}\b(?:card|node|point)\b/i.test(trimmed)) {
+    return true;
+  }
+  if (/\b(?:put|add|move|nest|drop)\b[\s\S]{0,40}\b(?:under|inside|within|on(?:to)? the (?:map|canvas))\b/i.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+function looksLikeTopicPivot(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  return (
+    /\b(?:instead|rather than|switch(?:ing)? to|move on to|change topic)\b/i.test(trimmed) ||
+    /^(?:i\s+(?:want|would like|need)\s+to|let'?s|maybe\s+(?:i|we)\s+should|can\s+we|could\s+we)\s+(?:talk|focus|look|move|switch|go|work|turn)\b/i.test(trimmed)
+  );
+}
+
+/**
+ * Does the latest user turn read as a real answer to the coach's last question?
+ * Substantive wording, not stuck/uncertain, not a question/help request back, and
+ * not a direct map command (those are handled by the command paths and must not be
+ * treated as an answer).
+ */
+function looksLikeSubstantiveAnswer(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (isStuck(trimmed)) return false;
+  if (isQuestionOrHelpRequest(trimmed)) return false;
+  if (looksLikeDirectCommand(trimmed)) return false;
+  if (looksLikeTopicPivot(trimmed)) return false;
+  return contentTokens(trimmed).length >= 3;
+}
+
+/**
+ * Fraction of the shorter question's content stems shared with the other. Used
+ * only to catch a reworded re-ask of a just-answered question ("what does control
+ * mean" vs "what is the meaning of control"). Stem-based so light rewording still
+ * matches; never used to author anything.
+ */
+function questionConceptOverlap(a: string, b: string): number {
+  const stemsA = new Set(contentTokens(a).map((token) => stem(token.toLowerCase())));
+  const stemsB = new Set(contentTokens(b).map((token) => stem(token.toLowerCase())));
+  if (stemsA.size === 0 || stemsB.size === 0) return 0;
+  let overlap = 0;
+  for (const s of stemsA) if (stemsB.has(s)) overlap += 1;
+  return overlap / Math.min(stemsA.size, stemsB.size);
 }
 
 // Grounded anchors the coach can offer as directions: existing map cards first
@@ -638,14 +758,33 @@ function setActiveElicitation(
  * so the anti-repeat guard can see two turns back. Use this everywhere lastAiText
  * is set — including the command/confirmation early returns — so the two-turn
  * window never goes stale across a command interlude.
+ *
+ * Also clears {@link LoopState.lastCoachQuestion} (Goal 5). Every early command /
+ * confirmation return calls this, so clearing here keeps the answer-detection
+ * anchor from going stale after a command interlude; finish() re-sets it for a
+ * genuine question/clarify turn immediately after calling this.
  */
 function setLastAiText(state: LoopState, text: string): void {
   state.prevAiText = state.lastAiText;
   state.lastAiText = text;
+  state.lastCoachQuestion = undefined;
+}
+
+function setLastQuestionText(state: LoopState, text: string, stance?: QuestionStance): void {
+  setLastAiText(state, text);
+  state.lastCoachQuestion = { text, stance };
 }
 
 function clearCoverageFocusForMapCommand(state: LoopState): void {
   state.coverageFocus = undefined;
+}
+
+function isRelationshipWordingQuestion(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    /\b(?:relationship|relation|relate|connect(?:ion|ed)?|link|tie)\b/.test(lower) &&
+    /\b(?:describe|wording|words?|label|call|use|want|between|in your own words|how do|how would)\b/.test(lower)
+  );
 }
 
 function isSuggestiveStructuralQuestion(text: string): boolean {
@@ -1953,6 +2092,7 @@ export function createState(_config?: MindmapConfig): LoopState {
     activeSelectionContext: undefined,
     pendingCardWording: undefined,
     captureLoop: undefined,
+    lastCoachQuestion: undefined,
   };
 }
 
@@ -2566,7 +2706,7 @@ export async function processTurn(
       state.mode = "question";
       state.turnsSinceLastMirror++;
       const text = "I'm holding off on organizing this yet because the map is still too sparse. What exact wording do you want to carry forward as the next card?";
-      setLastAiText(state, text);
+      setLastQuestionText(state, text, "organize");
       setActiveElicitation(state, "sparse_map_next_card");
       return {
         mode: "question",
@@ -2582,7 +2722,7 @@ export async function processTurn(
       state.mode = "question";
       state.turnsSinceLastMirror++;
       const text = nextStepQuestion(state.draft, userText);
-      setLastAiText(state, text);
+      setLastQuestionText(state, text, state.draft.trim() ? "deepen" : "organize");
       return {
         mode: "question",
         text,
@@ -2599,7 +2739,7 @@ export async function processTurn(
         state.mode = "question";
         state.turnsSinceLastMirror++;
         const text = nextStepQuestion(state.draft, userText);
-        setLastAiText(state, text);
+        setLastQuestionText(state, text, state.draft.trim() ? "deepen" : "organize");
         return {
           mode: "question",
           text,
@@ -2663,7 +2803,7 @@ export async function processTurn(
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
     const text = coverageNotSureQuestion(state.coverageFocus.cardRef);
-    setLastAiText(state, text);
+    setLastQuestionText(state, text, "narrow");
     return {
       mode: "clarify",
       text,
@@ -2681,7 +2821,7 @@ export async function processTurn(
     state.organizeFocus = undefined;
     state.turnsSinceLastMirror++;
     const text = coverageAnchorQuestion(coverageIntent.cardRef);
-    setLastAiText(state, text);
+    setLastQuestionText(state, text, "narrow");
     return {
       mode: "question",
       text,
@@ -2721,6 +2861,13 @@ export async function processTurn(
   const focusHelpIntent = detectFocusHelpIntent(userText);
   const userIsStuck = isStuck(userText) && !focusHelpIntent;
   const draftDeclarations = detectDraftDeclarations(state.draft, config.draftDeclarations);
+  // Goal 5: did the user just give a substantive answer to the coach's last
+  // question? Advisory — it nudges the model (and a controller backstop below) to
+  // advance rather than re-ask an answered question.
+  const userAnsweredLastQuestion =
+    Boolean(state.lastCoachQuestion) && !userIsStuck && looksLikeSubstantiveAnswer(userText);
+  // Goal 4: read-only map anchors the model may use to anchor a question.
+  const mapQuestionContext = buildMapQuestionContext(map);
   const ctx: LLMContext = {
     bank: bankForMirrors,
     candidates: state.candidates.getAll(),
@@ -2746,6 +2893,9 @@ export async function processTurn(
     draft: state.draft || undefined,
     draftDeclarations,
     map,
+    mapQuestionContext: mapQuestionContext.length > 0 ? mapQuestionContext : undefined,
+    lastCoachQuestion: state.lastCoachQuestion,
+    userAnsweredLastQuestion,
   };
   const turn = await llm(ctx);
   const directExplicitRefConnect = explicitRefConnectCommand(userText, map, config);
@@ -3045,7 +3195,8 @@ export async function processTurn(
 
     const organizePair =
       (out.mode === "question" || out.mode === "clarify") &&
-      (out.questionStance === "organize" || turn.questionIntent === "organize" || turn.questionStance === "organize")
+      (out.questionStance === "organize" || turn.questionIntent === "organize" || turn.questionStance === "organize") &&
+      isRelationshipWordingQuestion(out.text)
         ? extractCardPairRefs(out.text)
         : undefined;
 
@@ -3198,6 +3349,47 @@ export async function processTurn(
       out = { ...out, questionStance: turn.questionStance };
     }
 
+    // Goal 5: reworded re-ask guard. If the user just gave a substantive answer to
+    // the coach's last question and the model is about to re-ask the SAME concept
+    // in different words (so the verbatim/2-cycle guards above don't catch it),
+    // steer forward instead of re-deepening. Only plain deepen/narrow questions
+    // qualify; suppression/bridge/command turns are left alone.
+    const answeredQuestion = state.lastCoachQuestion;
+    if (
+      userAnsweredLastQuestion &&
+      answeredQuestion !== undefined &&
+      !commandPromptActive &&
+      out.suppressionReason === undefined &&
+      (out.mode === "question" || out.mode === "clarify") &&
+      // Only steer an explicit deepen/narrow re-ask. Questions the model tagged
+      // organize/settle/challenge (or left untagged) are left alone, so this
+      // backstop can't hijack an incidental follow-up.
+      (out.questionStance === "deepen" || out.questionStance === "narrow") &&
+      questionConceptOverlap(out.text, answeredQuestion.text) >= 0.6
+    ) {
+      if (config.pacing.mapPressure >= 0.5 && !mapIsSparse) {
+        // Map-lean: pivot toward relating the answer to the existing map (Goal 4
+        // flavor). Still a read-only question — no ref invented, no structure.
+        out = {
+          ...out,
+          mode: "question",
+          text: mapAwareTransitionQuestion(),
+          questionAnchor: undefined,
+          questionStance: "organize",
+        };
+      } else {
+        // Think-lean / sparse: settle forward off the answered concept.
+        out = {
+          ...out,
+          mode: "question",
+          text: DE_ESCALATE,
+          questionAnchor: undefined,
+          questionStance: "settle",
+        };
+      }
+      state.clarifyTarget = undefined;
+    }
+
     // Focus-help guard: when the user explicitly asked for direction/recommendation,
     // a stale settle/focus-family question (including any DE_ESCALATE swap above)
     // ignores that ask. Replace it with grounded options drawn from existing
@@ -3283,6 +3475,12 @@ export async function processTurn(
       state.activeSelectionContext = undefined;
     }
     setLastAiText(state, out.text);
+    // Goal 5: remember the question the user will answer next (cleared on a mirror,
+    // where the next user turn is a confirm rather than an answer).
+    state.lastCoachQuestion =
+      out.mode === "question" || out.mode === "clarify"
+        ? { text: out.text, stance: out.questionStance }
+        : undefined;
     out = {
       ...out,
       understanding: buildUnderstanding({

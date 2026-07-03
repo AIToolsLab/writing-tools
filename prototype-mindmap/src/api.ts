@@ -19,6 +19,7 @@ import type {
   LLMMapContext,
   LLMTurn,
   MapCommand,
+  MapQuestionAnchor,
   MockLLM,
   QuestionStance,
 } from "./llm-contract";
@@ -182,6 +183,18 @@ function renderDraftDeclarations(declarations: DraftDeclaration[]): string {
     .join("\n");
 }
 
+function renderMapQuestionContext(anchors: MapQuestionAnchor[]): string {
+  return anchors
+    .map((anchor) => {
+      const neighbors =
+        anchor.neighbors.length > 0
+          ? ` — connected to ${anchor.neighbors.map((n) => `${n.ref} "${n.text}"`).join(", ")}`
+          : "";
+      return `${anchor.ref} "${anchor.text}"${neighbors}`;
+    })
+    .join("\n");
+}
+
 function systemPrompt(ctx: LLMContext, cfg: MindmapConfig): string {
   // Pacing constraint
   const tooSoon = ctx.turnsSinceLastMirror < cfg.pacing.minQuestionTurnsBetweenMirrors;
@@ -225,7 +238,19 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
       ctx.readyCandidateIds.length >= cfg.pacing.organizeIntentReadyThreshold
     );
   const mapNote =
-    `\nMAP AWARENESS: The canvas below is user-authored structure. You may reference it to ask sharper questions, especially in organize mode, but you must never initiate, draw, place, rename, group, connect, or propose map structure on your own. Mention a map ref like #86 only when the user selected, named, or explicitly referred to that exact card/ref; do not infer destination cards by similarity. When the user explicitly commands a map change with exact wording or exact refs, emit mapCommands as side effects; otherwise no dashed proposals, no "approve this structure", no suggested edge labels. Ask questions that make the user articulate relationships in their own words.`;
+    `\nMAP AWARENESS: The canvas below is user-authored structure. You MAY reference existing cards by their #ref or text as read-only anchors in a QUESTION ("How does that relate to #86?", "Which existing card feels closest to this?") — this is encouraged for sharper questions, especially in organize mode. Referencing a card in a question is read-only context, NOT a placement or a connection. You must never initiate, draw, place, rename, group, connect, or propose map structure on your own, and never emit a mapCommand for a card you only inferred by similarity. Only emit mapCommands when the user explicitly commands a map change with exact wording or exact refs. Forbidden regardless of pressure: "I'll put this under #86", "This should connect to #86 as cause/effect" (unless the user authored that relationship), "approve this structure", dashed proposals, and suggested edge labels. Ask questions that make the user articulate relationships in their own words.`;
+  const mapQuestionNote =
+    ctx.mapQuestionContext && ctx.mapQuestionContext.length > 0 && !ctx.sparseMapBlocksOrganize && mapPressure >= 0.5
+      ? `\nMAP-AWARE QUESTIONING: Map pressure is ${mapPressure.toFixed(2)} and the map has real cards (see MAP QUESTION ANCHORS below). Prefer a question that uses an existing card as a conversational anchor so the user relates their thinking to what's already there. Acceptable: "How does the point you just made about control relate to #86?", "Which existing card feels closest to this idea?", "Does this belong with the monitoring card, or is it a separate focus you want to name?". Not acceptable: "I'll put this under #86.", "This should connect to #86 as cause/effect.", "Approve this structure." Use refs read-only; never emit a mapCommand from this.`
+      : "";
+  const transitionNote =
+    ctx.userAnsweredLastQuestion && ctx.lastCoachQuestion
+      ? `\nADVANCE (do not re-ask): You just asked "${ctx.lastCoachQuestion.text}" and the user appears to be responding with substantive wording. Do NOT ask the same thing again, even reworded. Move forward using what they just gave you: ${
+          mapPressure >= 0.5
+            ? "prefer a grounded mirror/carry-forward if their wording supports it, or a map-aware bridge relating their answer to an existing card"
+            : "ask a follow-up that builds directly on what they just said — its implication, dependency, tension, or the next concrete step"
+        }.`
+      : "";
   const draftDeclarationNote = ctx.draftDeclarations.length > 0
     ? `\nDRAFT DECLARATIONS: The system detected explicit declarations or high-confidence repeated focus already written in the draft. These are user-authored salience signals: they are NOT Source Bank evidence by themselves, NOT automatic candidates, NOT mirror-ready on their own, and NOT permission to put anything on the map. Use them to avoid blind probing and to ask sharper draft-backed questions. When the user's chat wording overlaps one of these ideas, especially when Map pressure is high, prefer a grounded mirror using chat Source Bank spans or a bridge asking whether to carry the idea toward the map. Do not ask the user to restate these declared ideas; ask about a consequence, tension, assumption, relationship, priority, or whether they want to carry exact wording forward.`
     : "";
@@ -277,7 +302,7 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const candidateTrackingNote = `\nCANDIDATE TRACKING: Whenever the user authors a substantive conceptual claim in their own words — even one that is not mirror-ready yet — upsert an idea candidate for it, citing this turn's utterance id(s) in addEvidenceIds and reusing a stable id across turns for the same concept so evidence accumulates toward readiness. This is internal bookkeeping only: it is never shown to the user as structure and never places anything on the map. Do NOT upsert for low-information replies, pure questions, command-only turns, or ideas that appear only in the draft. For large exploratory turns, follow the LARGE TURN rule instead: upsert only the idea the user explicitly selected, declared, or chose to carry forward — do not harvest a candidate for every point in the dump.`;
 
   return `${PHILOSOPHY}
-${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${candidateTrackingNote}${mapNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${mirrorPressureNote}${legibilityNote}
+${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${candidateTrackingNote}${mapNote}${mapQuestionNote}${transitionNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${mirrorPressureNote}${legibilityNote}
 
 CURRENT DRAFT (user's document — read-only reference for anchoring):
 """
@@ -295,7 +320,11 @@ ${renderCandidates(ctx.candidates, ctx.readyCandidateIds)}
 
 CURRENT CONCEPT MAP (user-authored canvas -- awareness only):
 ${renderMap(ctx.map)}
-
+${
+  ctx.mapQuestionContext && ctx.mapQuestionContext.length > 0
+    ? `\nMAP QUESTION ANCHORS (read-only — safe to reference in a question, never to place/connect):\n${renderMapQuestionContext(ctx.mapQuestionContext)}\n`
+    : ""
+}
 ===== OUTPUT FORMAT — return valid JSON only =====
 
 {

@@ -142,6 +142,7 @@ interface PersistedSession {
     activeSelectionContext?: LoopState["activeSelectionContext"];
     pendingCardWording?: LoopState["pendingCardWording"];
     captureLoop?: LoopState["captureLoop"];
+    lastCoachQuestion?: LoopState["lastCoachQuestion"];
   };
   bank: LoopState["bank"] extends { getAll(): infer T } ? T : never;
   candidates: LoopState["candidates"] extends { getAll(): infer T } ? T : never;
@@ -882,6 +883,9 @@ const css = `
     opacity: 0;
     background: rgba(26, 111, 163, 0.14);
     transition: opacity 0.12s;
+    /* Keep a resize drag from selecting card text or starting a touch scroll. */
+    user-select: none;
+    touch-action: none;
   }
   .map-card:hover .map-resize-edge,
   .map-card:hover .map-resize-corner,
@@ -1950,6 +1954,9 @@ function cloneLoopState(state: LoopState): LoopState {
   cloned.activeSelectionContext = state.activeSelectionContext;
   cloned.pendingCardWording = state.pendingCardWording;
   cloned.captureLoop = state.captureLoop;
+  // Answer-detection (Goal 5) reads the coach's last question across turns, so it
+  // must survive the working-state clone or the transition guard never sees it.
+  cloned.lastCoachQuestion = state.lastCoachQuestion;
   return cloned;
 }
 
@@ -2240,6 +2247,7 @@ export default function App() {
     state.activeSelectionContext = persistedSession.controller.activeSelectionContext;
     state.pendingCardWording = persistedSession.controller.pendingCardWording;
     state.captureLoop = persistedSession.controller.captureLoop;
+    state.lastCoachQuestion = persistedSession.controller.lastCoachQuestion;
     return state;
   }, [persistedSession]);
 
@@ -2763,6 +2771,7 @@ export default function App() {
         activeSelectionContext: stateRef.current.activeSelectionContext,
         pendingCardWording: stateRef.current.pendingCardWording,
         captureLoop: stateRef.current.captureLoop,
+        lastCoachQuestion: stateRef.current.lastCoachQuestion,
       },
       bank: stateRef.current.bank.getAll(),
       candidates: stateRef.current.candidates.getAll(),

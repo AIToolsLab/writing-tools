@@ -8,7 +8,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
 import { createState, MIRROR_PREAMBLE, processTurn } from "./controller";
-import type { LLMContext, LLMTurn } from "./llm-contract";
+import type { LLMContext, LLMMapContext, LLMTurn } from "./llm-contract";
 import { resetIdCounter } from "./store";
 import type { MirrorClaim, MirrorReflection, SourceSpan, ThoughtUnit } from "./types";
 
@@ -24,6 +24,14 @@ function questionLLM(question: string) {
   return (_ctx: LLMContext): LLMTurn => ({
     mode: "question",
     text: question,
+  });
+}
+
+function deepenLLM(question: string) {
+  return (_ctx: LLMContext): LLMTurn => ({
+    mode: "question",
+    text: question,
+    questionStance: "deepen",
   });
 }
 
@@ -4978,5 +4986,262 @@ describe("LLM context", () => {
     };
     await processTurn(state, "follow-up", captureLLM, cfg);
     expect(capturedTarget?.userPhrase).toBe("running fast");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Map-aware questioning + answer transitions (Goals 4 & 5)
+// ---------------------------------------------------------------------------
+
+describe("map-aware questioning (Goal 4)", () => {
+  const mapWith = (units: ThoughtUnit[], connections: LLMMapContext["connections"] = []): LLMMapContext => ({
+    thoughtUnits: units,
+    connections,
+  });
+
+  it("passes read-only map question anchors (ref, text, neighbors) in LLM context", async () => {
+    const state = createState();
+    const map = mapWith(
+      [mapUnit("tu_86", "monitoring"), mapUnit("tu_166", "control"), mapUnit("tu_9", "draft")],
+      [
+        {
+          id: "conn1",
+          sourceId: "tu_86",
+          targetId: "tu_166",
+          labelUnitId: "lu1",
+          labelText: "",
+          sourceText: "monitoring",
+          targetText: "control",
+          utteranceIds: [],
+        },
+      ],
+    );
+    let captured: LLMContext | undefined;
+    const capturingLLM = (ctx: LLMContext): LLMTurn => {
+      captured = ctx;
+      return { mode: "question", text: "Q" };
+    };
+
+    await processTurn(state, "let's look at this", capturingLLM, defaultConfig, "chat", map);
+
+    const anchors = captured?.mapQuestionContext ?? [];
+    expect(anchors.length).toBeGreaterThan(0);
+    const monitoring = anchors.find((a) => a.ref === "#86");
+    expect(monitoring?.text).toBe("monitoring");
+    expect(monitoring?.neighbors.map((n) => n.ref)).toContain("#166");
+  });
+
+  it("does not emit map commands when the coach references a card in a question", async () => {
+    const state = createState();
+    const map = mapWith([
+      mapUnit("tu_86", "monitoring"),
+      mapUnit("tu_9", "draft"),
+      mapUnit("tu_10", "idea"),
+    ]);
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "How does that relate to #86?",
+      questionStance: "organize",
+    });
+
+    const out = await processTurn(
+      state,
+      "here's my point about control",
+      llm,
+      withQuestionIntentBias(defaultConfig, 100),
+      "chat",
+      map,
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("#86");
+  });
+
+  it("does not arm relationship capture for a read-only two-ref comparison question", async () => {
+    const state = createState();
+    const cfg = withQuestionIntentBias(defaultConfig, 100);
+    const map = mapWith([
+      mapUnit("tu_86", "monitoring"),
+      mapUnit("tu_166", "control"),
+      mapUnit("tu_9", "draft"),
+    ]);
+
+    await processTurn(
+      state,
+      "I am thinking about control",
+      organizeQuestionLLM("Which feels closer to this idea, #86 or #166?"),
+      cfg,
+      "chat",
+      map,
+    );
+    expect(state.organizeFocus).toBeUndefined();
+
+    let called = false;
+    const out = await processTurn(
+      state,
+      "monitoring",
+      () => {
+        called = true;
+        return organizeQuestionLLM("What makes monitoring important here?")({} as LLMContext);
+      },
+      cfg,
+      "chat",
+      map,
+    );
+
+    expect(called).toBe(true);
+    expect(out.commandConfirmation?.kind).not.toBe("relationship_confirmation");
+    expect(out.text).toBe("What makes monitoring important here?");
+  });
+
+  it("still allows a deepen question under low map pressure", async () => {
+    const state = createState();
+    const out = await processTurn(
+      state,
+      "I like writing",
+      questionLLM("What does writing let you work out?"),
+      defaultConfig,
+    );
+    expect(out.mode).toBe("question");
+    expect(out.text).toBe("What does writing let you work out?");
+  });
+});
+
+describe("answer transitions (Goal 5)", () => {
+  const CONTROL_ANSWER = "Control means the human decides which ideas enter the draft";
+
+  it("does not re-ask an answered question in reworded form (think pressure settles forward)", async () => {
+    const state = createState();
+    const cfg = defaultConfig; // map pressure 0
+    await processTurn(state, "I want to think about control", questionLLM("What does control mean here?"), cfg);
+    expect(state.lastCoachQuestion?.text).toBe("What does control mean here?");
+
+    const reAsk = "What does control actually mean here?";
+    const out = await processTurn(state, CONTROL_ANSWER, deepenLLM(reAsk), cfg);
+
+    expect(out.text).not.toBe(reAsk);
+    expect(out.questionStance).toBe("settle");
+  });
+
+  it("steers an answered question toward a map-aware bridge under high map pressure", async () => {
+    const state = createState();
+    const cfg = withQuestionIntentBias(defaultConfig, 100);
+    const map = {
+      thoughtUnits: [mapUnit("tu_86", "monitoring"), mapUnit("tu_166", "control"), mapUnit("tu_9", "draft")],
+      connections: [],
+    };
+    await processTurn(state, "let's dig into control", questionLLM("What does control mean here?"), cfg, "chat", map);
+
+    const reAsk = "What does control actually mean here?";
+    const out = await processTurn(state, CONTROL_ANSWER, deepenLLM(reAsk), cfg, "chat", map);
+
+    expect(out.text).not.toBe(reAsk);
+    expect(out.text).toContain("belong with something already on your map");
+    expect(out.questionStance).toBe("organize");
+    expect(out.mapCommands).toBeUndefined();
+  });
+
+  it("allows a genuinely new-concept follow-up after an answer (no over-trigger)", async () => {
+    const state = createState();
+    const cfg = defaultConfig;
+    await processTurn(state, "let's think about control", questionLLM("What does control mean here?"), cfg);
+
+    const newConcept = "What makes visibility different from tracing?";
+    const out = await processTurn(state, CONTROL_ANSWER, deepenLLM(newConcept), cfg);
+
+    expect(out.text).toBe(newConcept);
+  });
+
+  it("routes a not-sure reply to stuck handling, not the answer transition", async () => {
+    const state = createState();
+    const cfg = defaultConfig;
+    await processTurn(state, "let's think about control", questionLLM("What does control mean here?"), cfg);
+
+    const out = await processTurn(state, "I'm not sure", questionLLM("What does control actually mean here?"), cfg);
+
+    expect(out.mode).toBe("clarify");
+  });
+
+  it("clears the last-question anchor after a direct command (no stale answer detection)", async () => {
+    const state = createState();
+    const cfg = defaultConfig;
+    await processTurn(state, "let's think about control", deepenLLM("What does control mean here?"), cfg);
+    expect(state.lastCoachQuestion?.text).toBe("What does control mean here?");
+
+    // A direct command interlude must not leave the deepen question as the anchor.
+    const out = await processTurn(
+      state,
+      "Create a card with exactly this text: human control",
+      questionLLM("ignored"),
+      cfg,
+    );
+    expect(out.mapCommands?.length).toBeGreaterThan(0);
+    expect(state.lastCoachQuestion?.text).not.toBe("What does control mean here?");
+  });
+
+  it("does not flag a command-like turn as an answer (no ADVANCE contamination)", async () => {
+    const state = createState();
+    const cfg = defaultConfig;
+    await processTurn(state, "let's think about control", deepenLLM("What does control mean here?"), cfg);
+
+    let captured: LLMContext | undefined;
+    const capturingLLM = (ctx: LLMContext): LLMTurn => {
+      captured = ctx;
+      return { mode: "question", text: "Q" };
+    };
+    await processTurn(state, "Create a card with exactly this text: human control", capturingLLM, cfg);
+
+    expect(captured?.userAnsweredLastQuestion).toBeFalsy();
+  });
+
+  it("does not flag a loose make-card command as an answer", async () => {
+    const state = createState();
+    const cfg = defaultConfig;
+    await processTurn(state, "let's think about control", deepenLLM("What does control mean here?"), cfg);
+
+    let captured: LLMContext | undefined;
+    const capturingLLM = (ctx: LLMContext): LLMTurn => {
+      captured = ctx;
+      return { mode: "question", text: "Q" };
+    };
+    await processTurn(state, "make the control point a card", capturingLLM, cfg);
+
+    expect(captured?.userAnsweredLastQuestion).toBeFalsy();
+  });
+
+  it("tracks deterministic coverage questions as the last coach question", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_46", "Different style of AI use that enables user control")],
+      connections: [],
+    };
+
+    await processTurn(
+      state,
+      "is there any major point the current card #46 doesn't cover?",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(state.lastCoachQuestion?.text).toContain("#46");
+    expect(state.lastCoachQuestion?.stance).toBe("narrow");
+  });
+
+  it("does not mark an unrelated substantive pivot as an answer to the last question", async () => {
+    const state = createState();
+    const cfg = defaultConfig;
+    await processTurn(state, "let's think about control", deepenLLM("What does control mean here?"), cfg);
+
+    let captured: LLMContext | undefined;
+    const capturingLLM = (ctx: LLMContext): LLMTurn => {
+      captured = ctx;
+      return { mode: "question", text: "Q" };
+    };
+    await processTurn(state, "I want to talk about monitoring instead", capturingLLM, cfg);
+
+    expect(captured?.userAnsweredLastQuestion).toBeFalsy();
   });
 });

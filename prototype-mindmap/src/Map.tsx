@@ -429,7 +429,7 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
       </button>
 
       <div className="map-card-drag">
-        <span className="map-drag-grip" aria-hidden="true" />
+        <span className="map-drag-grip" role="img" aria-label="Drag card" title="Drag card" />
         <span className="map-role-chip">{roleLabel(unit, children.length)}</span>
       </div>
 

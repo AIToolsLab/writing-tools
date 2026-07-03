@@ -135,6 +135,19 @@ export interface LLMMapContext {
   connections: LLMMapConnection[];
 }
 
+/**
+ * A read-only, code-derived anchor from the current map for map-aware
+ * questioning: a card's ref + text and the refs/text of cards it connects to.
+ * Deliberately excludes direction metadata. The model may reference these in a
+ * question as a conversational anchor; it never authorizes placing, renaming,
+ * connecting, or proposing structure.
+ */
+export interface MapQuestionAnchor {
+  ref: string;
+  text: string;
+  neighbors: Array<{ ref: string; text: string }>;
+}
+
 /** Context snapshot handed to the LLM (or mock) each turn. */
 export interface LLMContext {
   bank: SourceUtterance[];
@@ -196,6 +209,24 @@ export interface LLMContext {
   draftDeclarations: DraftDeclaration[];
   /** User-authored concept map state. The model may ask about it, never place structure. */
   map: LLMMapContext;
+  /**
+   * Code-derived, read-only map anchors for map-aware questioning (Goal 4).
+   * Present when the map has current cards. The model may use these to anchor a
+   * question to existing cards; it never authorizes map mutation or structure
+   * proposals.
+   */
+  mapQuestionContext?: MapQuestionAnchor[];
+  /**
+   * The coach's previous question/clarify the user is now responding to (Goal 5),
+   * so the model advances instead of re-asking an answered question.
+   */
+  lastCoachQuestion?: { text: string; stance?: QuestionStance };
+  /**
+   * True when the latest user turn reads as a substantive answer to
+   * {@link lastCoachQuestion} (not stuck, not a command). Advisory: it nudges the
+   * model to move forward rather than re-deepen the same concept.
+   */
+  userAnsweredLastQuestion?: boolean;
 }
 
 /** Sync in tests, async when wired to the real backend. */
