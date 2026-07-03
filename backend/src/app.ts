@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import type { Auth } from './auth.js'; // type-only import, no runtime cost
-import { logSecret, openaiApiKey } from './config.js';
+import { gitCommit, logSecret, openaiApiKey } from './config.js';
 import { appendLog, pollLogs, validateUsername, zipLogs } from './logging.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 
@@ -98,7 +98,9 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		return c.json({ message: 'Feedback logged successfully.' });
 	});
 
-	app.get('/api/ping', (c) => c.json({ timestamp: new Date().toISOString() }));
+	app.get('/api/ping', (c) =>
+		c.json({ timestamp: new Date().toISOString(), gitCommit: gitCommit() }),
+	);
 
 	// Study-log viewer polling. Gated by the shared LOG_SECRET, like before.
 	app.post('/api/logs_poll', async (c) => {

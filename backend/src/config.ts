@@ -25,6 +25,9 @@ export const PORT = Number(process.env.PORT) || 8000;
 
 export const DEBUG = (process.env.DEBUG ?? '').toLowerCase() === 'true';
 
+// Set at image build time (see repo-root Dockerfile); 'unknown' in local dev.
+export const gitCommit = () => (process.env.GIT_COMMIT ?? 'unknown').trim();
+
 // Read at request time via these helpers so tests can override the environment
 export const openaiApiKey = () => (process.env.OPENAI_API_KEY ?? '').trim();
 export const logSecret = () => (process.env.LOG_SECRET ?? '').trim();

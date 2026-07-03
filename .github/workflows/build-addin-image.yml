@@ -74,5 +74,9 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # GIT_COMMIT is baked in so the running backend can report the commit
+          # it was built from via GET /api/ping.
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
