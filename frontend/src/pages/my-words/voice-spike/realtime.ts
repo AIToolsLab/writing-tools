@@ -68,9 +68,12 @@ export async function startRealtimeSession(
 	const mic = await navigator.mediaDevices.getUserMedia({ audio: true });
 	const pc = new RTCPeerConnection();
 
-	// Remote audio (the model's voice) → the <audio> element.
+	// Remote audio (the model's voice) → the <audio> element. Setting srcObject
+	// imperatively after mount doesn't reliably honour the `autoPlay` attribute,
+	// and the track arrives after the click gesture, so start playback here.
 	pc.ontrack = (e) => {
 		opts.audioEl.srcObject = e.streams[0];
+		void opts.audioEl.play().catch(() => {});
 	};
 	for (const track of mic.getTracks()) pc.addTrack(track, mic);
 
@@ -114,6 +117,17 @@ export async function startRealtimeSession(
 
 	const toolsByName = new Map(opts.tools.map((t) => [t.name, t]));
 
+	// The API allows only one active response at a time. The model can emit
+	// several tool calls within one response, so we can't fire `response.create`
+	// per call — that collides with the still-running response. Track the active
+	// response and defer a single follow-up until it finishes.
+	let activeResponse = false;
+	let wantFollowUp = false;
+	const requestResponse = () => {
+		if (activeResponse) wantFollowUp = true;
+		else send({ type: 'response.create' });
+	};
+
 	dc.onmessage = async (e) => {
 		let evt: Record<string, unknown>;
 		try {
@@ -122,6 +136,19 @@ export async function startRealtimeSession(
 			return;
 		}
 		opts.onEvent?.(evt);
+
+		if (evt.type === 'response.created') {
+			activeResponse = true;
+			return;
+		}
+		if (evt.type === 'response.done') {
+			activeResponse = false;
+			if (wantFollowUp) {
+				wantFollowUp = false;
+				send({ type: 'response.create' });
+			}
+			return;
+		}
 
 		// The model finished emitting a function call's arguments → run it.
 		if (evt.type === 'response.function_call_arguments.done') {
@@ -147,8 +174,9 @@ export async function startRealtimeSession(
 					output: JSON.stringify(output),
 				},
 			});
-			// Let the model speak/act on the tool result.
-			send({ type: 'response.create' });
+			// Let the model speak/act on the tool result — but only once the
+			// response that made the call(s) has finished (see requestResponse).
+			requestResponse();
 		}
 	};
 
