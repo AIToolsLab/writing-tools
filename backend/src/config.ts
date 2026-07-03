@@ -1,3 +1,6 @@
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 // Load a local .env when present (dev). In Docker the env vars are injected by
 // compose, and no .env exists, so loadEnvFile throws and we ignore it.
 try {
@@ -5,6 +8,16 @@ try {
 } catch {
 	// no .env file; rely on the process environment
 }
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Single persistent storage root for the SQLite auth DB and the study logs, so a
+// deployment only has to mount and configure one directory. Defaults to
+// backend/data (resolved from both src/ in dev and dist/ in the built image),
+// preserving the previous auth.db location. In k8s, set DATA_DIR to the mounted
+// volume path. LOG_DIR (see logging.ts) still overrides just the logs subdir.
+export const dataDir = (): string =>
+	(process.env.DATA_DIR ?? '').trim() || path.resolve(__dirname, '../data');
 
 // Local bare-metal default is 8000 to match the webpack dev-server proxy target.
 // In production, the PORT is set by the environment.
