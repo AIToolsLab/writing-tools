@@ -127,6 +127,41 @@ function spanGroundedInSingleUtterance(
  * AND be grounded in a single utterance. This blocks the evasion of citing each
  * entity separately while the *relationship* between them is the AI's invention.
  */
+
+/**
+ * The relationship the CLAIM asserts must have been stated in one breath. The
+ * per-span binding above is not enough on its own — the AI can stitch two
+ * fully-grounded user sentences together with an invented connective
+ * ("A. leads to B.") where each sentence happens to contain *some* relational
+ * word; every span passes, yet the cross-utterance relationship is the AI's
+ * invention. So some single cited utterance must (a) carry EVERY relational/
+ * containment term the claim text itself uses — the connective can't be pasted
+ * in from elsewhere — and (b) ground most of the claim's content words, so the
+ * relationship isn't re-anchored onto a token-mass-dominant sentence while a
+ * short stitched-on tail rides along.
+ */
+function claimRelationStatedInOneUtterance(
+  claim: MirrorClaim,
+  bank: Map<string, SourceUtterance>,
+  threshold: number,
+  terms: string[],
+): boolean {
+  const content = contentTokens(claim.text);
+  if (content.length === 0) return false;
+  const claimNorm = ` ${normalize(claim.text)} `;
+  const claimTerms = terms.filter((term) => claimNorm.includes(` ${term} `));
+  const citedIds = new Set(claim.sourceSpans.flatMap((span) => span.utteranceIds));
+  for (const id of citedIds) {
+    const text = bank.get(id)?.text;
+    if (!text || !phraseHasTerm(text, terms)) continue;
+    const utteranceNorm = ` ${normalize(text)} `;
+    if (!claimTerms.every((term) => utteranceNorm.includes(` ${term} `))) continue;
+    const uStems = stemSet([text]);
+    const grounded = content.filter((tok) => uStems.has(stem(tok)));
+    if (ratio(grounded.length, content.length) >= threshold) return true;
+  }
+  return false;
+}
 function tentativeEvidenceRe(cfg: MindmapConfig): RegExp {
   return new RegExp(cfg.mirror.tentativeEvidencePattern, "i");
 }
@@ -211,11 +246,12 @@ function checkSpanGrounding(
   let relationshipOk = true;
   if (claim.target === "hierarchy" || claim.target === "connection") {
     const terms = claim.target === "hierarchy" ? CONTAINMENT_TERMS : RELATION_TERMS;
-    relationshipOk = claim.sourceSpans.some(
-      (s) =>
-        phraseHasTerm(s.userPhrase, terms) &&
-        spanGroundedInSingleUtterance(s, bank, threshold),
-    );
+    relationshipOk =
+      claim.sourceSpans.some(
+        (s) =>
+          phraseHasTerm(s.userPhrase, terms) &&
+          spanGroundedInSingleUtterance(s, bank, threshold),
+      ) && claimRelationStatedInOneUtterance(claim, bank, threshold, terms);
     if (!relationshipOk) {
       // Point Clarify Mode at the relational gap.
       weakest =

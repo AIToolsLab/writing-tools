@@ -130,6 +130,33 @@ const DUPLICATE_CONNECTION_HANDLE_PAIRS: Array<[string, string]> = [
   ),
 ];
 
+function facingConnectionHandles(
+  sourcePosition?: XYPosition,
+  targetPosition?: XYPosition,
+  sourceSize?: XYSize,
+  targetSize?: XYSize,
+): { sourceHandleId?: string; targetHandleId?: string } {
+  if (!sourcePosition || !targetPosition) return {};
+  const sourceCenter = {
+    x: sourcePosition.x + (sourceSize?.w ?? DEFAULT_CARD_W) / 2,
+    y: sourcePosition.y + (sourceSize?.h ?? DEFAULT_CARD_H) / 2,
+  };
+  const targetCenter = {
+    x: targetPosition.x + (targetSize?.w ?? DEFAULT_CARD_W) / 2,
+    y: targetPosition.y + (targetSize?.h ?? DEFAULT_CARD_H) / 2,
+  };
+  const dx = targetCenter.x - sourceCenter.x;
+  const dy = targetCenter.y - sourceCenter.y;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0
+      ? { sourceHandleId: "right", targetHandleId: "left" }
+      : { sourceHandleId: "left", targetHandleId: "right" };
+  }
+  return dy >= 0
+    ? { sourceHandleId: "bottom", targetHandleId: "top" }
+    : { sourceHandleId: "top", targetHandleId: "bottom" };
+}
+
 function defaultPosition(index: number): XYPosition {
   return {
     x: 80 + (index % 4) * 280,
@@ -428,6 +455,7 @@ export class ThoughtUnitStore {
     labelUtteranceId,
     sourceHandleId,
     targetHandleId,
+    layoutDirection,
     position,
   }: {
     sourceId: string;
@@ -437,6 +465,7 @@ export class ThoughtUnitStore {
     labelUtteranceId?: string;
     sourceHandleId?: string | null;
     targetHandleId?: string | null;
+    layoutDirection?: ConnectionLayoutDirection;
     position?: XYPosition;
   }): RegisteredConnection {
     const handles = this.connectionHandlesFor(sourceId, targetId, sourceHandleId, targetHandleId);
@@ -467,7 +496,7 @@ export class ThoughtUnitStore {
       targetId,
       sourceHandleId: handles.sourceHandleId,
       targetHandleId: handles.targetHandleId,
-      layoutDirection: "none",
+      layoutDirection: layoutDirection ?? "none",
       labelUnitId: labelUnit.id,
       labelUtteranceId: utterance?.id,
       confirmedAt: Date.now(),
@@ -516,6 +545,22 @@ export class ThoughtUnitStore {
     });
   }
 
+  /**
+   * Set only a connection's rendered handles (which side of each card the line
+   * attaches to), leaving endpoints and everything else untouched. Used by
+   * Auto-clean to route lines onto facing sides after a layout, without going
+   * through `reconnect`'s duplicate-placement resolution.
+   */
+  setConnectionHandles(id: string, sourceHandleId?: string, targetHandleId?: string): void {
+    const connection = this._connections.get(id);
+    if (!connection) return;
+    this._connections.set(id, {
+      ...connection,
+      sourceHandleId,
+      targetHandleId,
+    });
+  }
+
   getConnections(): ThoughtConnection[] {
     return Array.from(this._connections.values());
   }
@@ -535,7 +580,13 @@ export class ThoughtUnitStore {
       unorderedPairKey(connection.sourceId, connection.targetId) === pairKey,
     );
     if (existing.length === 0) {
-      return { sourceHandleId, targetHandleId };
+      if (sourceHandleId || targetHandleId) return { sourceHandleId, targetHandleId };
+      return facingConnectionHandles(
+        this.getPosition(sourceId),
+        this.getPosition(targetId),
+        this.getSize(sourceId),
+        this.getSize(targetId),
+      );
     }
 
     const used = new Set(existing.map((connection) =>

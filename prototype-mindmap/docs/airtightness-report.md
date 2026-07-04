@@ -3,8 +3,10 @@
 Current enforcement appendix for `prototype-mindmap`. `DESIGN.md` is the
 canonical product/design source. This report tracks which philosophical
 constraints are enforced in code, which are prompt-level, and where the residual
-soft spots are. Current verification: `155/155` app tests and `12/12` speech-hook
-tests passing.
+soft spots are. Current verification: full vitest suite green, including a
+100-run adversarial fuzz harness (`src/fuzz.loop.test.ts`) that drives
+`processTurn` through randomized turn sequences against a hostile mock LLM and
+asserts the enforcement invariants every turn.
 
 ## Central Principle
 
@@ -17,7 +19,8 @@ AI reflections only; direct user map actions are never blocked by validation.
 | Constraint | File(s) | Mechanism |
 | --- | --- | --- |
 | Reflections use the user's words | `validator.ts` | Lexical grounding requires broad overlap >= `0.8` and additions <= `0.15`. |
-| Relationships/hierarchy in mirrors come from the user | `validator.ts` | Span grounding requires cited user spans; hierarchy/connection claims need relational/containment wording grounded in one utterance. |
+| Relationships/hierarchy in mirrors come from the user | `validator.ts` | Span grounding requires cited user spans; hierarchy/connection claims need relational/containment wording grounded in one utterance. Additionally, the claim's own relationship must be stated in ONE utterance: some cited utterance must carry every relational term the claim text uses and ground most of its content words, so two grounded user sentences cannot be stitched together with an invented connective. |
+| Model-authored phrases are never attributed to the user | `controller.ts`, `understanding.ts` | Clarify spans (`turn.clarifySpan`) and failing weakest spans are model output; their phrases are quoted ("when you said ..."), pinned as clarify targets, or shown as Under-the-Hood evidence only when verbatim user wording (normalized substring of the Source Bank / cited utterances). |
 | Readiness cannot be gamed by the LLM | `controller.ts`, `signals.ts`, `readiness.ts` | Relation signals and spontaneity are code-derived; LLM only groups evidence ids. |
 | Hierarchy readiness needs spontaneous containment language | `readiness.ts` | `requireSpontaneousForHierarchy` blocks purely prompted containment. |
 | AI cannot commit mirror structure | `controller.ts`, `App.tsx` | Passing mirrors become confirmable chunks; only user-confirmed chunks become cards. |
@@ -37,9 +40,10 @@ AI reflections only; direct user map actions are never blocked by validation.
 | Malformed model output is contained | `api.ts` | Unknown modes coerce to question; malformed claims/spans are filtered. |
 | Source Bank is ground truth | `store.ts` | User chat, declarations, and map edits are append-only source utterances. |
 | Command provenance is not mirrorable | `controller.ts`, `store.ts`, `api.ts` | Command-consumed utterances remain in the Source Bank but are marked `commandOnly` and excluded from LLM-rendered bank context and candidate evidence replay. |
-| Direct card commands use exact user words | `controller.ts`, `map-commands.ts` | `create_card` requires exact current-turn phrase and matching cited id; referential/declarative/tentative cases are blocked. |
-| Direct nesting commands do not guess references | `controller.ts`, `map-commands.ts`, `map-store.ts` | `nest_card` executes on exact references; unique near matches become pending confirmations; ambiguous near matches ask which card; `setParent` cycle guard applies. |
-| Direct connection commands do not guess endpoints | `controller.ts`, `map-commands.ts`, `map-store.ts` | `connect_cards` executes on exact references; unique near matches become pending confirmations; ambiguous near matches ask which card; same-card edges are dropped. |
+| Direct card commands use exact user words | `controller.ts`, `map-commands.ts` | `create_card` requires an exact current-turn phrase at word boundaries (a mid-word fragment like "art" inside "start" does not count) and matching cited id; referential/declarative/tentative cases are blocked. |
+| Direct nesting commands do not guess references | `controller.ts`, `map-commands.ts`, `map-store.ts` | `nest_card` executes on exact references; unique near matches become pending confirmations; ambiguous near matches ask which card; `setParent` cycle guard applies. An LLM-emitted nest between EXISTING cards also requires both cards to be named this turn plus instruction-shaped nest wording, so the model cannot quietly author hierarchy. |
+| Direct connection commands do not guess endpoints | `controller.ts`, `map-commands.ts`, `map-store.ts` | `connect_cards` executes on exact references; unique near matches become pending confirmations; ambiguous near matches ask which card; same-card edges are dropped. For two existing cards, the turn must carry instruction-shaped connect wording (or cite both cards by #ref) — "these two ideas connect deeply" is a declarative and stays on the mirror path. |
+| Pending confirmations cannot act on deleted cards | `controller.ts` | If a card referenced by a pending confirmation / label capture / child placement is deleted before the user confirms, the pending command is dropped with an honest notice instead of reporting "Done." for a silent no-op. |
 | AI cannot invent command labels | `controller.ts`, `map-commands.ts` | Labels must be exact current-turn phrases. If labels are optional, missing/ungrounded labels are stripped and the edge remains unlabeled; if labels are required, the controller asks the user for the label instead of inventing one. |
 | Required connection labels are user-supplied only | `controller.ts` | With label requirement on, resolved unlabeled connections become a pending label request; the next user turn completes the edge and is not rerouted into mirror/card creation. |
 | Commands take precedence after gates pass | `controller.ts`, `App.tsx` | Accepted direct commands execute even in mixed turns, same-turn mirrors are suppressed, and complete non-uncertain commands suppress redundant coach follow-up. |

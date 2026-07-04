@@ -8,8 +8,9 @@
  *   3. Pacing: if turnsSinceLastMirror < minQuestionTurnsBetweenMirrors, a
  *      mirror proposal is converted to a question turn instead.
  *   4. Candidate updates from the LLM are applied before readiness is checked.
- *   5. The LLM never sees ConfirmedReflections or ThoughtUnits in M1 — those
- *      live outside the loop for now.
+ *   5. The LLM sees the user-authored map read-only (LLMContext.map); every
+ *      consequential act it proposes against it is fenced by the command gates
+ *      below.
  */
 
 import type { MindmapConfig } from "./config";
@@ -98,7 +99,6 @@ export interface PendingRelationshipConfirmationCommand {
   command: Extract<AcceptedMapCommand, { kind: "connect_cards" }>;
   labelText: string;
   debug: string;
-  awaitingCorrection?: boolean;
 }
 
 export interface PendingDuplicateConnectionCommand {
@@ -435,6 +435,18 @@ function questionConceptOverlap(a: string, b: string): number {
   return overlap / Math.min(stemsA.size, stemsB.size);
 }
 
+// A question that anchors on the user's EARLIER uncertainty ("earlier you said
+// you weren't sure...") drifts when the user has since answered substantively.
+// The concept-overlap gate can't catch it — the re-ask references the stale
+// "not sure", not the answered question's concepts — so detect the stale
+// reference itself.
+const STALE_UNCERTAINTY_REFERENCE =
+  /\b(?:you (?:said|mentioned|felt|noted|told me)|earlier|before)\b[\s\S]{0,60}\b(?:not\s+sure|unsure|uncertain|stuck|hesitant|didn'?t\s+know|don'?t\s+know|no\s+idea)\b/i;
+
+function referencesStaleUncertainty(text: string): boolean {
+  return STALE_UNCERTAINTY_REFERENCE.test(text);
+}
+
 // Grounded anchors the coach can offer as directions: existing map cards first
 // (cited by #ref), then the user's own recent bank wording. Never invented.
 function collectGroundedFocusAnchors(map: LLMMapContext, state: LoopState): string[] {
@@ -497,6 +509,25 @@ function mirrorPressureBridgeQuestion(userText: string, map: LLMMapContext): str
     return `I think this may be close enough to reflect how this connects to ${ref}. Do you want me to try mirroring that structure now, or keep unpacking it?`;
   }
   return "I think this may be close enough to reflect back. Do you want me to try mirroring the structure I'm hearing, or keep unpacking it?";
+}
+
+function choseMirrorBridgeUnpackBranch(userText: string, lastAiText: string): boolean {
+  return (
+    /\bkeep\s+unpack(?:ing)?\b/i.test(userText) &&
+    /\btry mirroring\b[\s\S]{0,120}\bkeep unpacking\b/i.test(lastAiText)
+  );
+}
+
+function forcedDeepenFallbackQuestion(): string {
+  return "What should we unpack more deeply about the idea you were just working on?";
+}
+
+function forcedOrganizeFallbackQuestion(): string {
+  return "Which two ideas should we relate first, in your own words?";
+}
+
+function forcedPivotFallbackQuestion(): string {
+  return "Okay - let's leave that aside. Where would you like to point next?";
 }
 
 type DraftSalienceBridge = {
@@ -787,6 +818,29 @@ function clearCoverageFocusForMapCommand(state: LoopState): void {
   state.coverageFocus = undefined;
 }
 
+/**
+ * A phrase may be attributed to the user (quoted as `when you said "..."`,
+ * pinned as the clarify target, surfaced in the Under-the-Hood panel) ONLY when
+ * it is verbatim user wording — a normalized phrase in some Source Bank
+ * utterance. Clarify spans and weakest failing spans are MODEL-authored fields;
+ * without this check, invented model wording gets quoted back as if the user
+ * said it.
+ */
+function isUserAttributablePhrase(phrase: string | undefined, bank: SourceBank): boolean {
+  const needle = normalize(phrase ?? "");
+  if (!needle) return false;
+  return bank.getAll().some((utterance) => textContainsExactPhrase(normalize(utterance.text), needle));
+}
+
+/** Keep a model-proposed span only when its user phrase is really the user's. */
+function sanitizeClarifySpan(
+  span: SourceSpan | undefined,
+  bank: SourceBank,
+): SourceSpan | undefined {
+  if (!span) return undefined;
+  return isUserAttributablePhrase(span.userPhrase, bank) ? span : undefined;
+}
+
 function isRelationshipWordingQuestion(text: string): boolean {
   const lower = text.toLowerCase();
   return (
@@ -994,6 +1048,44 @@ function isConnectCommandText(text: string): boolean {
   );
 }
 
+/**
+ * A command verb reads as an instruction when it leads the sentence (after at
+ * most short filler) or follows an explicit intent lead ("I want to put...").
+ * "I already put X under Y" stays prose.
+ */
+function commandVerbReadsImperative(text: string, matchIndex: number): boolean {
+  if (isImperativeLeading(text, matchIndex)) return true;
+  const lead = text.slice(0, matchIndex);
+  return /\b(?:i\s+(?:want|would\s+like|need)\s+to|i'?d\s+like\s+to|let'?s|please)\s*$/i.test(lead);
+}
+
+/**
+ * Connect wording that reads as an instruction, not a description. "Connect A
+ * to B" / "please draw a line between them" qualify; "these two ideas connect
+ * deeply" is the user STATING a relationship — that is mirror material, never
+ * a silent map write. Explicit #ref-pair phrasing ("#448 should link to #451")
+ * is exempted by the caller: citing both refs is already command intent.
+ */
+function isImperativeConnectCommandText(text: string): boolean {
+  const match =
+    /\b(?:connect|link|join)\b/i.exec(text) ??
+    /\b(?:draw|make|create|add|put)\b(?=[\s\S]{0,80}\b(?:line|connection|link|edge)\b)/i.exec(text);
+  if (!match) return false;
+  return commandVerbReadsImperative(text, match.index);
+}
+
+/**
+ * Nest wording that reads as an instruction ("put X under Y", "nest it inside
+ * Y"). "X belongs under Y" is a declarative and stays on the mirror path.
+ */
+function isImperativeNestCommandText(text: string): boolean {
+  const match = /\b(?:put|nest|move|place|drop|add|make)\b(?=[\s\S]{0,60}\b(?:under|underneath|inside|within|into|in|subpoint|child)\b)/i.exec(
+    text,
+  );
+  if (!match) return false;
+  return commandVerbReadsImperative(text, match.index);
+}
+
 function detectStructuralVerbIntent(text: string): StructuralVerbIntent | undefined {
   const lower = text.toLowerCase();
   if (/\b(?:nest|under|inside|subpoint|child)\b/.test(lower)) return "nest";
@@ -1102,13 +1194,33 @@ function hasStructuralNegation(text: string): boolean {
   return /\b(?:do not|don'?t|never|won'?t|would\s+not|cannot|can'?t|no longer)\b/.test(scope);
 }
 
+/**
+ * Word-boundary containment for exact-phrase checks. A raw substring test lets
+ * a mid-word fragment count as a "current-turn exact phrase" ("art" inside
+ * "start"), which would let a hostile command mint text the user never typed
+ * as words. Case-sensitive, like the original check.
+ */
+function textContainsExactPhrase(text: string, phrase: string): boolean {
+  const isWordChar = (ch: string | undefined): boolean =>
+    ch !== undefined && /[\p{L}\p{N}]/u.test(ch);
+  let from = 0;
+  while (true) {
+    const index = text.indexOf(phrase, from);
+    if (index === -1) return false;
+    if (!isWordChar(text[index - 1]) && !isWordChar(text[index + phrase.length])) {
+      return true;
+    }
+    from = index + 1;
+  }
+}
+
 function currentTurnSourceIdsForPhrase(
   phrase: string | undefined,
   units: SourceUtterance[],
 ): string[] {
   const trimmed = phrase?.trim();
   if (!trimmed || isReferentialCardText(trimmed)) return [];
-  return units.filter((unit) => unit.text.includes(trimmed)).map((unit) => unit.id);
+  return units.filter((unit) => textContainsExactPhrase(unit.text, trimmed)).map((unit) => unit.id);
 }
 
 function cleanExplicitCardText(
@@ -1520,11 +1632,14 @@ function existingCardRefGroundedInTurn(
 ): boolean {
   if (!("id" in ref)) return true;
   const unit = map.thoughtUnits.find((thoughtUnit) => thoughtUnit.id === ref.id);
-  const normalizedTurn = normalize(userText);
-  return (
-    normalizedTurn.includes(normalize(cardRef(ref.id))) ||
-    (unit ? normalizedTurn.includes(normalize(unit.text)) : false)
-  );
+  // Whole-word containment: a card named "art" must not count as "named this
+  // turn" because the turn contains "start".
+  const paddedTurn = ` ${normalize(userText)} `;
+  const namedBy = (text: string): boolean => {
+    const needle = normalize(text);
+    return needle.length > 0 && paddedTurn.includes(` ${needle} `);
+  };
+  return namedBy(cardRef(ref.id)) || (unit ? namedBy(unit.text) : false);
 }
 
 function existingConnectionBetween(
@@ -1712,7 +1827,7 @@ function acceptedMapCommands(
       continue;
     }
 
-    const sourceUnits = units.filter((unit) => unit.text.includes(phrase));
+    const sourceUnits = units.filter((unit) => textContainsExactPhrase(unit.text, phrase));
     if (sourceUnits.length === 0) {
       notes.push({ reason: "not_current_turn_span", detail: `Blocked non-current-turn card text "${phrase}".` });
       continue;
@@ -1757,7 +1872,7 @@ function acceptedMapCommands(
       });
       continue;
     }
-    const relevantUnits = units.filter((unit) => unit.text.includes(childText));
+    const relevantUnits = units.filter((unit) => textContainsExactPhrase(unit.text, childText));
     const childResolved = resolveCommandCardRefDetailed(childText, units, map);
     if (childResolved.kind === "near") {
       const nearPending = acceptedCommandFromNearMatch(command, units, map);
@@ -1784,6 +1899,22 @@ function acceptedMapCommands(
         notes.push({ reason: "blocked_interpretation", detail: `Blocked declarative/tentative nesting child "${childText}".` });
         continue;
       }
+    }
+    // The deterministic "#ref in #ref" path executes earlier; an LLM-emitted
+    // nest between EXISTING cards previously had no current-turn gate at all,
+    // so the model could quietly author hierarchy. Both cards must be named
+    // this turn and the turn must carry instruction-shaped nest wording.
+    if ("id" in child && !existingCardRefGroundedInTurn(child, userText, map)) {
+      notes.push({ reason: "ungrounded_existing_endpoint", detail: `Blocked nesting because the child card was not named in this turn.` });
+      continue;
+    }
+    if (!existingCardRefGroundedInTurn({ id: parentId }, userText, map)) {
+      notes.push({ reason: "ungrounded_existing_endpoint", detail: `Blocked nesting because the parent card was not named in this turn.` });
+      continue;
+    }
+    if (!units.some((unit) => isImperativeNestCommandText(unit.text))) {
+      notes.push({ reason: "blocked_interpretation", detail: `Blocked declarative/tentative nesting command for "${childText}".` });
+      continue;
     }
     const key = `nest:${cardRefKey(child)}->${parentId}`;
     if (seen.has(key)) continue;
@@ -1814,7 +1945,16 @@ function acceptedMapCommands(
         notes.push({ reason: "ungrounded_existing_endpoint", detail: `Blocked connection because both existing card endpoints were not named in this turn.` });
         continue;
       }
-      if (!units.some((unit) => isConnectCommandText(unit.text))) {
+      // Naming two existing cards near a connect-word is not enough — "these
+      // two ideas connect deeply" is a statement, not an instruction, and must
+      // stay on the mirror path. Require instruction-shaped connect wording,
+      // except when the user cited both cards by #ref (already command intent).
+      const refPairNamed = (userText.match(/#\d+/g) ?? []).length >= 2;
+      const connectReadsImperative = units.some((unit) => isImperativeConnectCommandText(unit.text));
+      if (
+        !units.some((unit) => isConnectCommandText(unit.text)) ||
+        (!refPairNamed && !connectReadsImperative)
+      ) {
         notes.push({ reason: "blocked_interpretation", detail: `Blocked declarative/tentative connection "${sourceText}" -> "${targetText}".` });
         continue;
       }
@@ -2059,6 +2199,19 @@ function mirrorEligibleBank(bank: SourceUtterance[]): SourceUtterance[] {
   return bank.filter((utterance) => !utterance.commandOnly);
 }
 
+/** Do all the existing-card ids a command references still exist on the map? */
+function commandCardIdsExist(command: AcceptedMapCommand, map: LLMMapContext): boolean {
+  const ids: string[] = [];
+  if (command.kind === "nest_card") {
+    ids.push(command.parentId);
+    if ("id" in command.child) ids.push(command.child.id);
+  } else if (command.kind === "connect_cards") {
+    if ("id" in command.source) ids.push(command.source.id);
+    if ("id" in command.target) ids.push(command.target.id);
+  }
+  return ids.every((id) => map.thoughtUnits.some((unit) => unit.id === id));
+}
+
 function commandConsumedUtteranceIds(commands: AcceptedMapCommand[]): Set<string> {
   const ids = new Set<string>();
   for (const command of commands) {
@@ -2275,6 +2428,7 @@ export async function processTurn(
     state.organizeFocus = undefined;
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;
+    state.captureLoop = undefined;
     state.pendingChildPlacement = undefined;
     state.clarifyTarget = undefined;
     if (options.overrideMode === "pivot") {
@@ -2282,6 +2436,32 @@ export async function processTurn(
       // coverage focus so the model cannot re-anchor on the stale thread.
       state.lastCoachQuestion = undefined;
       state.coverageFocus = undefined;
+    }
+  }
+
+  // A pending confirmation can outlive its cards: the user can delete a card on
+  // the sovereign canvas while the confirmation waits. Executing it anyway
+  // would silently no-op in the map layer while the chat reports "Done." — so
+  // drop a stale pending command, and answer honestly when the user's reply was
+  // clearly aimed at it (any other input proceeds through normal routing).
+  let stalePendingNote: CommandDebugNote | undefined;
+  if (state.pendingMapCommand && !commandCardIdsExist(state.pendingMapCommand.command, map)) {
+    const pending = state.pendingMapCommand;
+    state.pendingMapCommand = undefined;
+    stalePendingNote = { reason: "pending_command_stale_reference", detail: pending.debug };
+    if (isAffirmative(userText) || isNegative(userText) || isLabelDecline(userText)) {
+      state.mode = "question";
+      state.turnsSinceLastMirror++;
+      const text =
+        "One of the cards in that pending action is no longer on the map, so I dropped it. What would you like to do next?";
+      setLastAiText(state, text);
+      return {
+        mode: "question",
+        text,
+        llmTurn: { mode: "question", text },
+        commandDebug: [stalePendingNote],
+        questionStance: "organize",
+      };
     }
   }
 
@@ -2587,7 +2767,6 @@ export async function processTurn(
 
   if (
     state.pendingMapCommand?.kind === "relationship_confirmation" &&
-    !state.pendingMapCommand.awaitingCorrection &&
     isAffirmative(userText)
   ) {
     const pending = state.pendingMapCommand;
@@ -2663,7 +2842,6 @@ export async function processTurn(
     state.bank.markCommandOnly(labelSourceUtteranceIds);
     state.pendingMapCommand = {
       ...pending,
-      awaitingCorrection: false,
       labelText,
       command: {
         ...pending.command,
@@ -2798,6 +2976,28 @@ export async function processTurn(
       state.pendingChildPlacement = undefined;
     } else if (ingestUser && isChildCardWording(userText)) {
       const pending = state.pendingChildPlacement;
+      if (!map.thoughtUnits.some((unit) => unit.id === pending.parentId)) {
+        // The parent card was deleted while we waited for the child wording —
+        // minting the nest would silently no-op, so drop the flow honestly.
+        state.pendingChildPlacement = undefined;
+        state.mode = "question";
+        state.turnsSinceLastMirror++;
+        const text =
+          "The card I was going to nest that under is no longer on the map, so I didn't create the child card. What would you like to do next?";
+        setLastAiText(state, text);
+        return {
+          mode: "question",
+          text,
+          llmTurn: { mode: "question", text },
+          commandDebug: [
+            {
+              reason: "pending_command_stale_reference",
+              detail: `Dropped child placement; parent "${pending.parentText}" is gone.`,
+            },
+          ],
+          questionStance: "organize",
+        };
+      }
       const remaining = Math.max(0, pending.remaining - 1);
       state.pendingChildPlacement = remaining > 0
         ? { ...pending, remaining }
@@ -3017,6 +3217,7 @@ export async function processTurn(
   // sure": the user wants grounded options, not a smaller settle handle.
   const focusHelpIntent = detectFocusHelpIntent(userText);
   const userIsStuck = isStuck(userText) && !focusHelpIntent;
+  const userChoseUnpackFromMirrorBridge = choseMirrorBridgeUnpackBranch(userText, state.lastAiText);
   const draftDeclarations = detectDraftDeclarations(state.draft, config.draftDeclarations);
   // Goal 5: did the user just give a substantive answer to the coach's last
   // question? Advisory — it nudges the model (and a controller backstop below) to
@@ -3086,7 +3287,10 @@ export async function processTurn(
   const turnShape = acceptedCommands.length > 0
     ? detectTurnShape(userText, units, { hasAcceptedMapCommand: true, config: config.turnShape })
     : initialTurnShape;
-  const turnDebugNotes: CommandDebugNote[] = [...commandResult.notes];
+  const turnDebugNotes: CommandDebugNote[] = [
+    ...(stalePendingNote ? [stalePendingNote] : []),
+    ...commandResult.notes,
+  ];
   if (droppedLlmCreateCards.length > 0) {
     turnDebugNotes.push({
       reason: "command_uncertainty",
@@ -3337,6 +3541,7 @@ export async function processTurn(
     if (
       mapIsSparse &&
       !commandPromptActive &&
+      !options.overrideMode &&
       out.mode === "question" &&
       out.suppressionReason !== "command_precedence" &&
       (out.questionStance === "organize" || turn.questionIntent === "organize" || turn.questionStance === "organize")
@@ -3420,6 +3625,8 @@ export async function processTurn(
       !commandPromptActive &&
       !commandBlockedActive &&
       !repairClarifyActive &&
+      !options.overrideMode &&
+      !userChoseUnpackFromMirrorBridge &&
       acceptedCommands.length === 0 &&
       !userIsStuck &&
       (out.mode === "question" || out.mode === "clarify") &&
@@ -3444,6 +3651,8 @@ export async function processTurn(
       !commandBlockedActive &&
       !repairClarifyActive &&
       (out.mode === "question" || out.mode === "clarify") &&
+      !options.overrideMode &&
+      !userChoseUnpackFromMirrorBridge &&
       out.suppressionReason === undefined
     ) {
       state.mode = "question";
@@ -3457,6 +3666,44 @@ export async function processTurn(
         questionAnchor: undefined,
         questionStance: "organize",
       };
+    }
+
+    if (
+      options.overrideMode === "deepen" &&
+      (out.mode === "question" || out.mode === "clarify") &&
+      !commandPromptActive &&
+      (out.questionStance === "settle" ||
+        isStaleFocusFamilyQuestion(out.text) ||
+        /\btry mirroring\b[\s\S]{0,120}\bkeep unpacking\b/i.test(out.text))
+    ) {
+      out = {
+        ...out,
+        mode: "question",
+        text: forcedDeepenFallbackQuestion(),
+        questionAnchor: undefined,
+        questionStance: "deepen",
+        suppressionReason: undefined,
+        suppressionDetail: undefined,
+      };
+      state.clarifyTarget = undefined;
+    }
+
+    if (
+      userChoseUnpackFromMirrorBridge &&
+      (out.mode === "question" || out.mode === "clarify") &&
+      !commandPromptActive &&
+      /\btry mirroring\b[\s\S]{0,120}\bkeep unpacking\b/i.test(out.text)
+    ) {
+      out = {
+        ...out,
+        mode: "question",
+        text: forcedDeepenFallbackQuestion(),
+        questionAnchor: undefined,
+        questionStance: "deepen",
+        suppressionReason: undefined,
+        suppressionDetail: undefined,
+      };
+      state.clarifyTarget = undefined;
     }
 
     // Anti-repeat guard: if a question/clarify turn would say verbatim what we
@@ -3473,6 +3720,7 @@ export async function processTurn(
       Boolean(state.prevAiText) && normalizedOutText === normalizeText(state.prevAiText ?? "");
     if (
       (out.mode === "question" || out.mode === "clarify") &&
+      !options.overrideMode &&
       out.suppressionReason !== "command_precedence" &&
       repeatsLastAiText
     ) {
@@ -3490,6 +3738,7 @@ export async function processTurn(
       }
     } else if (
       (out.mode === "question" || out.mode === "clarify") &&
+      !options.overrideMode &&
       out.suppressionReason !== "command_precedence" &&
       repeatsTwoTurnsAgo
     ) {
@@ -3505,6 +3754,49 @@ export async function processTurn(
       out.questionStance === undefined
     ) {
       out = { ...out, questionStance: turn.questionStance };
+    }
+
+    if (
+      options.overrideMode === "organize" &&
+      (out.mode === "question" || out.mode === "clarify") &&
+      !commandPromptActive &&
+      (out.questionStance === "settle" ||
+        out.questionStance === "deepen" ||
+        (out.questionStance !== "organize" && turn.questionIntent !== "organize") ||
+        isStaleFocusFamilyQuestion(out.text) ||
+        /\btry mirroring\b[\s\S]{0,120}\bkeep unpacking\b/i.test(out.text))
+    ) {
+      out = {
+        ...out,
+        mode: "question",
+        text: forcedOrganizeFallbackQuestion(),
+        questionAnchor: undefined,
+        questionStance: "organize",
+        suppressionReason: undefined,
+        suppressionDetail: undefined,
+      };
+      state.clarifyTarget = undefined;
+    }
+
+    if (
+      options.overrideMode === "pivot" &&
+      (out.mode === "question" || out.mode === "clarify") &&
+      !commandPromptActive &&
+      (repeatsLastAiText ||
+        repeatsTwoTurnsAgo ||
+        isStaleFocusFamilyQuestion(out.text) ||
+        /\btry mirroring\b[\s\S]{0,120}\bkeep unpacking\b/i.test(out.text))
+    ) {
+      out = {
+        ...out,
+        mode: "question",
+        text: forcedPivotFallbackQuestion(),
+        questionAnchor: undefined,
+        questionStance: "settle",
+        suppressionReason: undefined,
+        suppressionDetail: undefined,
+      };
+      state.clarifyTarget = undefined;
     }
 
     // Goal 5: reworded re-ask guard. If the user just gave a substantive answer to
@@ -3525,7 +3817,11 @@ export async function processTurn(
       // below still protects a legitimately-new settle (different concept, low
       // overlap) from being hijacked.
       (out.questionStance === "deepen" || out.questionStance === "narrow" || out.questionStance === "settle") &&
-      questionConceptOverlap(out.text, answeredQuestion.text) >= 0.6
+      // Either a reworded re-ask of the same concept, OR a drifted settle
+      // re-ask that anchors on a stale "not sure" (low concept overlap with
+      // the answered question, but still ignoring the answer just given).
+      (questionConceptOverlap(out.text, answeredQuestion.text) >= 0.6 ||
+        referencesStaleUncertainty(out.text))
     ) {
       if (config.pacing.mapPressure >= 0.5 && !mapIsSparse) {
         // Map-lean: pivot toward relating the answer to the existing map (Goal 4
@@ -3610,8 +3906,12 @@ export async function processTurn(
     } else if (out.mode === "clarify" && state.clarifyTarget) {
       setActiveElicitation(state, "clarify_after_failed_mirror", state.clarifyTarget.userPhrase);
     } else {
+      // The capture flow (elicitation + pending wording + its repeat memory)
+      // dies together — a surviving captureLoop would trip the repeated-capture
+      // clarify on the FIRST repeat of a later, unrelated elicitation.
       state.activeElicitation = undefined;
       state.pendingCardWording = undefined;
+      state.captureLoop = undefined;
     }
     if (out.mode === "question") {
       const pendingChildPlacement = childPlacementRequest(out.text, map);
@@ -3715,6 +4015,31 @@ export async function processTurn(
         questionStance: "organize",
       });
     }
+  }
+
+  if (
+    (options.overrideMode === "deepen" ||
+      options.overrideMode === "organize" ||
+      options.overrideMode === "pivot" ||
+      userChoseUnpackFromMirrorBridge) &&
+    turn.mode === "mirror"
+  ) {
+    const text =
+      options.overrideMode === "organize"
+        ? forcedOrganizeFallbackQuestion()
+        : options.overrideMode === "pivot"
+          ? forcedPivotFallbackQuestion()
+          : forcedDeepenFallbackQuestion();
+    const questionStance: QuestionStance =
+      options.overrideMode === "organize" ? "organize" : options.overrideMode === "pivot" ? "settle" : "deepen";
+    state.turnsSinceLastMirror++;
+    state.mode = "question";
+    return finish({
+      mode: "question",
+      text,
+      llmTurn: turn,
+      questionStance,
+    });
   }
 
   if (turn.mode === "mirror") {
@@ -3895,25 +4220,28 @@ export async function processTurn(
       });
     }
 
-    // Mirror blocked — route to clarify on weakest failing span.
+    // Mirror blocked — route to clarify on weakest failing span. A failing
+    // span's userPhrase is model text that failed grounding, so only quote it
+    // (or pin it) when it is verbatim user wording.
     const failingClaims = result.claims.filter((c) => !c.ok);
     const weakestSpan = failingClaims
       .map((c) => c.weakestSpan)
       .find((s): s is SourceSpan => s !== undefined);
+    const quotableSpan = sanitizeClarifySpan(weakestSpan, state.bank);
     const tentativeBlocked = failingClaims.some((claim) =>
       claim.checks.some((check) => check.check === "tentative_uncertainty" && !check.ok),
     );
 
     state.mode = "clarify";
-    state.clarifyTarget = weakestSpan;
+    state.clarifyTarget = quotableSpan;
     state.turnsSinceLastMirror++;
 
     const failurePreamble = validationPreamble(failingClaims);
     const clarifyText =
       tentativeBlocked
         ? "I think this may be something to carry forward, but it still sounds tentative - what would make it feel firm enough?"
-        : weakestSpan != null
-        ? `${failurePreamble ?? "I think you're pointing at something to carry forward, but I can't place it cleanly yet."} when you said "${weakestSpan.userPhrase}", what did you mean by that?`
+        : quotableSpan != null
+        ? `${failurePreamble ?? "I think you're pointing at something to carry forward, but I can't place it cleanly yet."} when you said "${quotableSpan.userPhrase}", what did you mean by that?`
         : `${failurePreamble ?? "I think you're pointing at something to carry forward, but I can't place it cleanly yet."} can you say a little more?`;
 
     return finish({
@@ -3929,13 +4257,20 @@ export async function processTurn(
 
   if (turn.mode === "clarify") {
     state.mode = "clarify";
-    state.clarifyTarget = turn.clarifySpan ?? state.clarifyTarget;
+    // The model's clarify span is unvalidated output — pin it only when its
+    // user phrase really is the user's wording (it feeds prompts and the
+    // Under-the-Hood panel as a user quote).
+    state.clarifyTarget = sanitizeClarifySpan(turn.clarifySpan, state.bank) ?? state.clarifyTarget;
     state.turnsSinceLastMirror++;
     return finish({ mode: "clarify", text: turn.text, llmTurn: turn, questionAnchor: turn.questionAnchor });
   }
 
-  // Default: question.
+  // Default: question. The model has moved off any clarify thread, so drop the
+  // pin — a stale target otherwise keeps anchoring prompts and the
+  // Under-the-Hood panel, and suppresses the mirror-pressure and salience
+  // bridges for the rest of the session.
   state.mode = "question";
+  state.clarifyTarget = undefined;
   state.turnsSinceLastMirror++;
   return finish({ mode: "question", text: turn.text, llmTurn: turn, questionAnchor: turn.questionAnchor });
 }

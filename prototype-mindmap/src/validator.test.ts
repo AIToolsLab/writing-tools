@@ -232,6 +232,93 @@ describe("mirror validator — 3 checks", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("blocks two grounded user sentences stitched together with an invented connective", () => {
+    // Each sentence is fully grounded and each happens to contain a relational
+    // word, so every per-span check passes — but "leads to" joining them is the
+    // AI's invention. The claim's relationship must be stated in ONE utterance.
+    const bank = [
+      u("user trust depends on data provenance"),
+      u("shared control shapes the outcome for new users"),
+    ];
+    const stitched =
+      "user trust depends on data provenance leads to shared control shapes the outcome for new users";
+    const reflection = {
+      claims: [
+        claim(
+          stitched,
+          [
+            {
+              claimText: bank[0].text,
+              utteranceIds: [bank[0].id],
+              userPhrase: bank[0].text,
+            },
+            {
+              claimText: bank[1].text,
+              utteranceIds: [bank[1].id],
+              userPhrase: bank[1].text,
+            },
+          ],
+          "connection",
+        ),
+      ],
+    };
+    const result = validateMirror(reflection, bank, defaultConfig);
+    expect(result.ok).toBe(false);
+    expect(checkOf(result.claims[0], "span_grounding")?.ok).toBe(false);
+  });
+
+  it("blocks a stitched connective even when one grounded sentence dominates the token mass", () => {
+    // The stitched-on tail ("nope") is tiny, so a pure content-overlap ratio
+    // against the long sentence still clears the threshold. The invented
+    // "leads to" connective must be caught by the term binding itself.
+    const bank = [
+      u("shared control connects to team judgment when nobody is watching"),
+      u("nope"),
+      u("one thing leads to another sometimes"), // grounds "leads" lexically
+    ];
+    const stitched =
+      "shared control connects to team judgment when nobody is watching leads to nope";
+    const reflection = {
+      claims: [
+        claim(
+          stitched,
+          [
+            { claimText: bank[0].text, utteranceIds: [bank[0].id], userPhrase: bank[0].text },
+            { claimText: bank[1].text, utteranceIds: [bank[1].id], userPhrase: bank[1].text },
+          ],
+          "connection",
+        ),
+      ],
+    };
+    const result = validateMirror(reflection, bank, defaultConfig);
+    expect(result.ok).toBe(false);
+    expect(checkOf(result.claims[0], "span_grounding")?.ok).toBe(false);
+  });
+
+  it("still accepts a relational claim citing extra context when the relation lives in one utterance", () => {
+    const bank = [
+      u("the plan depends on trust between the teams"),
+      u("trust is hard to rebuild"),
+    ];
+    const reflection = {
+      claims: [
+        claim(
+          "the plan depends on trust between the teams",
+          [
+            {
+              claimText: "the plan depends on trust between the teams",
+              utteranceIds: [bank[0].id, bank[1].id],
+              userPhrase: "the plan depends on trust between the teams",
+            },
+          ],
+          "connection",
+        ),
+      ],
+    };
+    const result = validateMirror(reflection, bank, defaultConfig);
+    expect(result.ok).toBe(true);
+  });
+
   it("fails closed on an empty / span-less claim", () => {
     const bank = [u("something the user actually said here")];
     const reflection = { claims: [claim("entirely invented framing", [])] };

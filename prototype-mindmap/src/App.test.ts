@@ -125,14 +125,20 @@ describe("UnderTheHoodPanel", () => {
     expect(container.textContent).toContain("Idea is ready to reflect");
     expect(container.textContent).toContain("checked");
     expect(container.textContent).toContain("human control decides the final draft");
-    expect(container.textContent).toContain("ok");
-    expect(container.querySelector(".anchor-button")).not.toBeNull();
+    expect(container.textContent).not.toContain("I won't change your map unless you ask me to.");
+    expect(container.querySelector(".anchor-button")).toBeNull();
 
     const detailButton = Array.from(container.querySelectorAll<HTMLButtonElement>(".event-detail-toggle"))
       .find((button) => button.textContent === "Show detail");
     expect(detailButton).toBeTruthy();
     act(() => detailButton!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(container.textContent).toContain("grounded:100%");
+
+    const draftAnchorsHeader = Array.from(container.querySelectorAll<HTMLButtonElement>(".underhood-section-title"))
+      .find((button) => button.textContent?.includes("Draft anchors"));
+    expect(draftAnchorsHeader).toBeTruthy();
+    act(() => draftAnchorsHeader!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(container.querySelector(".anchor-button")).not.toBeNull();
 
     const anchor = container.querySelector<HTMLButtonElement>(".anchor-button");
     act(() => anchor!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
@@ -149,6 +155,41 @@ describe("UnderTheHoodPanel", () => {
     expect(tab?.textContent).toContain("Idea is ready to reflect");
   });
 
+  it("can be controlled by an external toggle", () => {
+    const onOpenChange = vi.fn();
+    act(() =>
+      root.render(
+        createElement(UnderTheHoodPanel, {
+          snapshot: snapshot(),
+          onDraftAnchor: vi.fn(),
+          open: false,
+          onOpenChange,
+        }),
+      ),
+    );
+
+    expect(container.querySelector(".underhood-panel")).toBeNull();
+    const tab = container.querySelector<HTMLButtonElement>(".underhood-tab");
+    act(() => tab!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+
+    act(() =>
+      root.render(
+        createElement(UnderTheHoodPanel, {
+          snapshot: snapshot(),
+          onDraftAnchor: vi.fn(),
+          open: true,
+          onOpenChange,
+        }),
+      ),
+    );
+
+    expect(container.querySelector(".underhood-panel")).not.toBeNull();
+    const close = container.querySelector<HTMLButtonElement>(".underhood-close");
+    act(() => close!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
   it("reveals path steps immediately when reduced motion is preferred", () => {
     const original = window.matchMedia;
     window.matchMedia = vi.fn().mockReturnValue({ matches: true });
@@ -161,6 +202,52 @@ describe("UnderTheHoodPanel", () => {
 
     expect(container.querySelector(".event-row.revealed")).not.toBeNull();
     expect(container.textContent).toContain("ready");
+    window.matchMedia = original;
+  });
+
+  it("collapses under-the-hood sections without losing their headers", () => {
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true });
+    act(() =>
+      root.render(createElement(UnderTheHoodPanel, { snapshot: snapshot(), onDraftAnchor: vi.fn() })),
+    );
+
+    const tab = container.querySelector<HTMLButtonElement>(".underhood-tab");
+    act(() => tab!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    const matteredHeader = Array.from(container.querySelectorAll<HTMLButtonElement>(".underhood-section-title"))
+      .find((button) => button.textContent?.includes("What mattered this turn"));
+    expect(matteredHeader).toBeTruthy();
+    expect(container.textContent).toContain("Idea is ready to reflect");
+
+    act(() => matteredHeader!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(container.textContent).toContain("What mattered this turn");
+    expect(container.textContent).not.toContain("Idea is ready to reflect");
+    window.matchMedia = original;
+  });
+
+  it("collapses a long tracked-ideas section by default", () => {
+    const manyIdeas = snapshot();
+    manyIdeas.trackedIdeas = [0, 1, 2, 3].map((index) => ({
+      id: `candidate-${index}`,
+      label: `tracked idea ${index}`,
+      target: "idea" as const,
+      status: "too_early" as const,
+      meters: { grounded: 0.5, specific: 0.5, related: 0.5 },
+      showRelated: false,
+    }));
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true });
+    act(() =>
+      root.render(createElement(UnderTheHoodPanel, { snapshot: manyIdeas, onDraftAnchor: vi.fn() })),
+    );
+
+    const tab = container.querySelector<HTMLButtonElement>(".underhood-tab");
+    act(() => tab!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+
+    expect(container.textContent).toContain("Ideas I'm tracking");
+    expect(container.textContent).not.toContain("tracked idea 0");
     window.matchMedia = original;
   });
 

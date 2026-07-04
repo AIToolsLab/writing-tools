@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { makeLLM, type ConversationMessage } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
 import {
@@ -85,7 +85,7 @@ const DRAFT_MIN_VISIBLE_HEIGHT = 120;
 const DRAFT_CHIP_SIZE = 64;
 const SESSION_STORAGE_KEY = "prototype-mindmap-session-v1";
 
-// The Think↔Map slider snaps to five fixed stops. Initial/persisted values (which
+// The Think<->Map slider snaps to five fixed stops. Initial/persisted values (which
 // predate snapping, or a legacy default like 35) are snapped to the nearest stop
 // so behavior starts on a real mode instead of an off-tick position.
 const QUESTION_BIAS_STOPS = [0, 25, 50, 75, 100] as const;
@@ -414,30 +414,62 @@ const css = `
 
   .input-row {
     display: flex;
-    gap: 8px;
-    align-items: flex-end;
+    flex-direction: column;
+    gap: 6px;
+    border: 1px solid #d8d3c8;
+    border-radius: 14px;
+    background: #fff;
+    padding: 8px;
+    box-shadow: 0 1px 2px rgba(30, 28, 24, 0.04);
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .input-row:focus-within {
+    border-color: #1a6fa3;
+    box-shadow: 0 0 0 2px rgba(26, 111, 163, 0.1);
   }
 
-  .mic-btn {
-    width: 38px;
-    height: 38px;
-    flex: 0 0 38px;
-    border: 1px solid #d8d3c8;
-    border-radius: 8px;
+  .composer-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 32px;
+  }
+
+  .mic-btn,
+  .uth-toggle-btn {
+    height: 30px;
+    flex: 0 0 auto;
+    border: 1px solid transparent;
+    border-radius: 999px;
     background: #fff;
-    color: #666;
+    color: #77736c;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.02em;
     cursor: pointer;
     transition: opacity 0.15s, border-color 0.15s, color 0.15s, background 0.15s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
   }
-  .mic-btn:hover:not(:disabled) {
+  .mic-btn {
+    width: 30px;
+    padding: 0;
+  }
+  .uth-toggle-btn {
+    width: auto;
+    padding: 0 10px;
+    gap: 5px;
+  }
+  .mic-btn:hover:not(:disabled),
+  .uth-toggle-btn:hover:not(:disabled) {
     border-color: #1a6fa3;
     color: #1a6fa3;
     background: #f3f8fb;
   }
-  .mic-btn:disabled {
+  .mic-btn:disabled,
+  .uth-toggle-btn:disabled {
     opacity: 0.45;
     cursor: default;
   }
@@ -445,6 +477,17 @@ const css = `
     border-color: #c8652f;
     color: #c8652f;
     background: #fff2ea;
+  }
+  .uth-toggle-btn.active {
+    border-color: #2f8f6b;
+    color: #1f6b4d;
+    background: #eaf7f0;
+  }
+  .mic-btn svg,
+  .uth-toggle-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 2;
   }
 
   textarea {
@@ -464,18 +507,27 @@ const css = `
   }
   textarea:focus { border-color: #1a6fa3; }
   .composer-textarea {
-    min-height: 42px;
+    min-height: 58px;
     max-height: 220px;
     overflow-y: hidden;
+    width: 100%;
+    border: 0;
+    border-radius: 10px;
+    padding: 6px 8px;
+    background: transparent;
+  }
+  .composer-textarea:focus {
+    border-color: transparent;
   }
   .composer-textarea.composer-scroll {
     overflow-y: auto;
   }
 
   .send-btn {
-    flex-shrink: 0;
-    width: 36px;
-    height: 36px;
+    margin-left: auto;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     background: #1a6fa3;
     color: #fff;
@@ -508,14 +560,14 @@ const css = `
 
   .map-header {
     min-height: 60px;
-    padding: 9px 16px;
+    padding: 9px 438px 9px 16px;
     border-bottom: 1px solid #e5e3de;
     background: #fafaf8;
     flex-shrink: 0;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
-    column-gap: 14px;
+    column-gap: 18px;
     row-gap: 8px;
     transition: background 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
   }
@@ -549,11 +601,12 @@ const css = `
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 14px;
     flex-wrap: wrap;
   }
   .map-left-tools {
     justify-self: start;
+    max-width: 100%;
   }
   .map-right-tools {
     justify-self: end;
@@ -598,6 +651,16 @@ const css = `
     background: #fbf7ec;
     color: #a2834e;
     transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+  }
+
+  @media (max-width: 1200px) {
+    .map-header {
+      padding-right: 16px;
+    }
+    .map-left-tools,
+    .map-right-tools {
+      gap: 9px;
+    }
   }
   .map-draft-slot.occupied {
     border-style: solid;
@@ -794,7 +857,7 @@ const css = `
 
   /* Four-dot grip: an obvious grab target at the card's top-left. It lives inside
      the drag bar (the React Flow dragHandle), so dragging works no matter what the
-     card body holds — editable text, nested cards, scrollable content, buttons. */
+     card body holds - editable text, nested cards, scrollable content, buttons. */
   .map-drag-grip {
     flex: 0 0 auto;
     width: 10px;
@@ -883,6 +946,18 @@ const css = `
     border: 2px solid #fff;
     opacity: 0;
     transition: opacity 0.12s, transform 0.12s;
+  }
+  /* Invisible anchor node standing in for a nested connection endpoint. It
+     exists only so the edge attaches at the embedded card's position - never
+     visible, never interactive. */
+  .map-proxy-anchor {
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    pointer-events: none;
+  }
+  .map-proxy-anchor .map-handle {
+    pointer-events: none;
   }
   .map-card:hover .map-handle,
   .map-card.selected .map-handle {
@@ -1045,6 +1120,10 @@ const css = `
   }
 
   /* ---- connection edge badge ---- */
+  /* The edge-label layer must sit above cards so an open direction popover is
+     never covered. Collapsed badges are small and transparent-backed, so this
+     does not visually collide with card bodies. */
+  .react-flow__edgelabel-renderer { z-index: 6; }
   .edge-badge-wrap {
     position: absolute;
     pointer-events: all;
@@ -1052,7 +1131,9 @@ const css = `
     flex-direction: column;
     align-items: center;
     gap: 4px;
+    z-index: 5;
   }
+  .edge-badge-wrap.open { z-index: 1200; }
   .edge-badge {
     width: 27px;
     height: 27px;
@@ -1069,54 +1150,103 @@ const css = `
     justify-content: center;
   }
   .edge-badge:hover { background: #f3f1ec; }
+  .edge-badge.active {
+    background: #1a1a1a;
+    color: #fff;
+    border-color: #1a1a1a;
+    box-shadow: 0 0 0 3px rgba(26,26,26,0.18);
+  }
   .edge-move-hint {
     font-size: 11px;
-    color: #d9d6ce;
+    color: #b9b6ad;
   }
   .edge-direction {
     display: grid;
-    gap: 4px;
+    gap: 5px;
   }
-  .edge-direction > span {
+  .edge-direction-title {
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #d9d6ce;
+    color: #b9b6ad;
   }
   .edge-direction-buttons {
     display: flex;
+    flex-direction: column;
     gap: 4px;
   }
   .edge-direction-buttons button {
-    flex: 1;
-    min-width: 34px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
     border: 1px solid #4a4945;
-    border-radius: 5px;
+    border-radius: 6px;
     background: #2b2b2b;
     color: #f5f2ea;
     cursor: pointer;
-    font-size: 13px;
-    font-weight: 800;
-    padding: 3px 5px;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 5px 8px;
+    text-align: left;
   }
+  .edge-direction-buttons button:hover { background: #363636; }
   .edge-direction-buttons button.active {
     background: #f5f2ea;
     color: #1f1e1b;
     border-color: #f5f2ea;
   }
+  .edge-direction-glyph { font-size: 15px; width: 16px; text-align: center; }
+  .edge-direction-label { flex: 1; }
   .edge-popover {
+    position: absolute;
+    bottom: calc(100% + 14px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1200;
+    pointer-events: all;
     display: flex;
     flex-direction: column;
-    gap: 6px;
-    max-width: 200px;
+    gap: 7px;
+    width: 230px;
+    max-width: 230px;
     background: #1a1a1a;
     color: #fff;
     font-size: 12px;
     line-height: 1.4;
-    padding: 6px 9px;
-    border-radius: 6px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    padding: 9px 11px;
+    border-radius: 8px;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.34);
+  }
+  /* Bright tether from the on-edge badge up to the floating popover. */
+  .edge-popover::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 2px;
+    height: 14px;
+    background: #f0b429;
+  }
+  .edge-popover-cards {
+    display: grid;
+    gap: 3px;
+  }
+  .edge-popover-card {
+    font-size: 11.5px;
+    color: #e7e4dc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .edge-popover-card b { color: #f0b429; margin-right: 4px; }
+  .edge-popover-text {
+    font-style: italic;
+    color: #d9d6ce;
+    border-top: 1px solid #333;
+    padding-top: 6px;
   }
   .edge-delete {
     font-size: 11px;
@@ -1227,7 +1357,7 @@ const css = `
     border-left: 3px solid #9e9586;
     border-radius: 5px;
     background: #fff;
-    padding: 5px 8px;
+    padding: 8px 8px 5px 22px;
     cursor: grab;
   }
   .map-embed:active {
@@ -1238,6 +1368,20 @@ const css = `
     border-style: dashed;
   }
   .map-embed.role-subnode { border-left-color: #1a6fa3; }
+  .map-embed-drag-grip {
+    position: absolute;
+    top: 9px;
+    left: 7px;
+    width: 10px;
+    height: 10px;
+    color: #a9a49a;
+    background-image: radial-gradient(currentColor 1.1px, transparent 1.4px);
+    background-size: 5px 5px;
+    background-position: 0 0;
+    cursor: grab;
+  }
+  .map-embed:hover .map-embed-drag-grip { color: #7d7970; }
+  .map-embed-drag-grip:active { cursor: grabbing; }
   .map-embed-editor {
     width: 100%;
     border: none;
@@ -1425,7 +1569,7 @@ const css = `
     background: #fff;
   }
 
-  /* Shared box model — backdrop and textarea MUST match exactly so the
+  /* Shared box model - backdrop and textarea MUST match exactly so the
      highlight lines up with the text the user sees. */
   .draft-backdrop,
   .draft-editor {
@@ -1575,13 +1719,14 @@ const css = `
 
   .underhood-nextmove {
     flex-shrink: 0;
-    padding: 9px 12px 10px;
+    padding: 8px 10px 10px;
     border-bottom: 1px solid #e7e2d8;
     background: #fbfaf6;
   }
   .underhood-nextmove .underhood-section-title {
-    padding: 0 2px 6px;
+    padding: 0 2px 7px;
     background: transparent;
+    border-bottom: 0;
   }
   .nextmove-list {
     display: grid;
@@ -1645,6 +1790,8 @@ const css = `
     overflow: hidden;
   }
   .underhood-section-title {
+    width: 100%;
+    border: 0;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -1657,6 +1804,58 @@ const css = `
     color: #726c63;
     background: #f7f5ef;
     border-bottom: 1px solid #ece8df;
+    cursor: pointer;
+    text-align: left;
+  }
+  .underhood-section-title:hover {
+    background: #f2efe7;
+  }
+  .underhood-section-title .section-title-main {
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .underhood-section-title .section-title-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .underhood-section-title .section-chevron {
+    width: 14px;
+    height: 14px;
+    color: #8a857b;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .underhood-section-title .section-chevron::before {
+    content: "";
+    position: absolute;
+    left: 3px;
+    top: 3px;
+    width: 0;
+    height: 0;
+    border-style: solid;
+  }
+  .underhood-section-title .section-chevron.expanded::before {
+    left: 1px;
+    top: 5px;
+    border-width: 6px 5px 0 5px;
+    border-color: currentColor transparent transparent transparent;
+  }
+  .underhood-section-title .section-chevron.collapsed::before {
+    left: 5px;
+    top: 2px;
+    border-width: 5px 0 5px 6px;
+    border-color: transparent transparent transparent currentColor;
+  }
+  .underhood-section-title .section-meta {
+    flex-shrink: 0;
+    font-size: 10px;
+    color: #928c83;
+  }
+  .underhood-section.collapsed .underhood-section-title {
+    border-bottom: 0;
   }
 
   .underhood-latest {
@@ -2168,37 +2367,136 @@ function Meter({ label, value }: { label: string; value: number }) {
   );
 }
 
+function MicIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 3a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3Z" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M5 11a7 7 0 0 0 14 0" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M12 18v3" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M8 21h8" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function UnderhoodIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M5 5h14v14H5z" fill="none" stroke="currentColor" strokeLinejoin="round" />
+      <path d="M8 9h8M8 12h5M8 15h7" fill="none" stroke="currentColor" strokeLinecap="round" />
+      <path d="M3 9h2M3 15h2M19 9h2M19 15h2" fill="none" stroke="currentColor" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 /**
  * The user-facing "next move" controls. Deliberately labelled in plain user
- * verbs — never stance names, candidate gists, or model prose — so the user can
+ * verbs - never stance names, candidate gists, or model prose - so the user can
  * steer (and unstick) the coach without being anchored on AI scaffolding. This
  * emits only a coach-steering request; it never authors a map write.
  */
 const NEXT_MOVE_OPTIONS: { mode: UserRequestedMode; label: string; hint: string }[] = [
-  { mode: "mirror", label: "Reflect this back", hint: "Sum up what I’ve said so far" },
+  { mode: "mirror", label: "Reflect this back", hint: "Sum up what I've said so far" },
   { mode: "deepen", label: "Go deeper", hint: "Dig into the idea on the table" },
   { mode: "organize", label: "Connect the ideas", hint: "Ask how my thoughts relate" },
-  { mode: "pivot", label: "Ask something else", hint: "This question isn’t landing — move on" },
+  { mode: "pivot", label: "Ask something else", hint: "This question isn't landing - move on" },
 ];
+
+type UnderhoodSectionId =
+  | "nextMove"
+  | "latest"
+  | "mattered"
+  | "ideas"
+  | "waiting"
+  | "safety"
+  | "draftAnchors";
+
+const STATIC_SAFETY_LABEL = "I won't change your map unless you ask me to.";
+
+function isStaticSafetyCheck(check: SafetyCheck): boolean {
+  return check.state === "ok" && check.label === STATIC_SAFETY_LABEL;
+}
+
+function UnderhoodSection({
+  title,
+  meta,
+  collapsed,
+  onToggle,
+  className = "",
+  children,
+}: {
+  title: string;
+  meta?: string | number;
+  collapsed: boolean;
+  onToggle: () => void;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className={`underhood-section ${collapsed ? "collapsed" : ""} ${className}`.trim()}>
+      <button
+        type="button"
+        className="underhood-section-title"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+      >
+        <span className="section-title-main">
+          <span className={`section-chevron ${collapsed ? "collapsed" : "expanded"}`} aria-hidden="true" />
+          <span className="section-title-text">{title}</span>
+        </span>
+        {meta !== undefined && <span className="section-meta">{meta}</span>}
+      </button>
+      {!collapsed && children}
+    </section>
+  );
+}
 
 export function UnderTheHoodPanel({
   snapshot,
   onDraftAnchor,
   onRequestMode,
   busy = false,
+  open: controlledOpen,
+  onOpenChange,
 }: {
   snapshot: UnderstandingSnapshot | null;
   onDraftAnchor: (anchor: string) => void;
   onRequestMode?: (mode: UserRequestedMode) => void;
   busy?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = useCallback(
+    (nextOpen: boolean) => {
+      if (controlledOpen === undefined) {
+        setUncontrolledOpen(nextOpen);
+      }
+      onOpenChange?.(nextOpen);
+    },
+    [controlledOpen, onOpenChange],
+  );
   const [activeEvent, setActiveEvent] = useState(0);
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
+  const [sectionCollapsed, setSectionCollapsed] = useState<Partial<Record<UnderhoodSectionId, boolean>>>({});
   const events = useMemo(
     () => (snapshot?.activeEvents ?? []).filter((event) => event.kind !== "question_chosen"),
     [snapshot?.activeEvents],
   );
+  const safetyChecks = snapshot?.safetyChecks ?? [];
+  const showSafetyChecks =
+    safetyChecks.length > 0 && !safetyChecks.every((check) => isStaticSafetyCheck(check));
+
+  function sectionIsCollapsed(id: UnderhoodSectionId, defaultCollapsed = false): boolean {
+    return sectionCollapsed[id] ?? defaultCollapsed;
+  }
+
+  function toggleSection(id: UnderhoodSectionId, defaultCollapsed = false) {
+    setSectionCollapsed((current) => ({
+      ...current,
+      [id]: !(current[id] ?? defaultCollapsed),
+    }));
+  }
 
   useEffect(() => {
     setExpandedEvents(new Set());
@@ -2258,15 +2556,17 @@ export function UnderTheHoodPanel({
           onClick={() => setOpen(false)}
           aria-label="Close under the hood panel"
         >
-          ×
+          x
         </button>
       </div>
 
       {onRequestMode && (
-        <section className="underhood-nextmove" aria-label="Choose the coach's next move">
-          <div className="underhood-section-title">
-            <span>What do you want next?</span>
-          </div>
+        <UnderhoodSection
+          title="What do you want next?"
+          collapsed={sectionIsCollapsed("nextMove")}
+          onToggle={() => toggleSection("nextMove")}
+          className="underhood-nextmove"
+        >
           <div className="nextmove-list">
             {NEXT_MOVE_OPTIONS.map((option) => (
               <button
@@ -2281,36 +2581,38 @@ export function UnderTheHoodPanel({
               </button>
             ))}
           </div>
-        </section>
+        </UnderhoodSection>
       )}
 
       {!snapshot ? (
         <div className="underhood-empty">
-          Start a turn and I’ll show the read-only checks, tracked ideas, and safety gates here.
+          Start a turn and I'll show the read-only checks, tracked ideas, and safety gates here.
         </div>
       ) : (
         <div className="underhood-body">
-          <section className="underhood-section">
-            <div className="underhood-section-title">
-              <span>Latest move</span>
-            </div>
+          <UnderhoodSection
+            title="Latest move"
+            collapsed={sectionIsCollapsed("latest")}
+            onToggle={() => toggleSection("latest")}
+          >
             <div className="underhood-latest">
               <span className={`underhood-orb ${snapshot.latest.level}`} aria-hidden="true">
-                {snapshot.latest.level === "held" ? "!" : snapshot.latest.level === "notice" ? "•" : "…"}
+                {snapshot.latest.level === "held" ? "!" : snapshot.latest.level === "notice" ? "*" : "..."}
               </span>
               <div className="underhood-latest-text">
                 <strong>{snapshot.latest.title}</strong>
                 <span>{snapshot.latest.explanation}</span>
               </div>
             </div>
-          </section>
+          </UnderhoodSection>
 
           {events.length > 0 && (
-          <section className="underhood-section">
-            <div className="underhood-section-title">
-              <span>What mattered this turn</span>
-              <span>{Math.min(activeEvent, events.length)}/{events.length}</span>
-            </div>
+          <UnderhoodSection
+            title="What mattered this turn"
+            meta={`${Math.min(activeEvent, events.length)}/${events.length}`}
+            collapsed={sectionIsCollapsed("mattered")}
+            onToggle={() => toggleSection("mattered")}
+          >
             <div className="event-list">
               {events.map((event, index) => {
                 const revealed = index < activeEvent;
@@ -2354,14 +2656,15 @@ export function UnderTheHoodPanel({
                 );
               })}
             </div>
-          </section>
+          </UnderhoodSection>
           )}
 
-          <section className="underhood-section">
-            <div className="underhood-section-title">
-              <span>Ideas I’m tracking</span>
-              <span>{snapshot.trackedIdeas.length}</span>
-            </div>
+          <UnderhoodSection
+            title="Ideas I'm tracking"
+            meta={snapshot.trackedIdeas.length}
+            collapsed={sectionIsCollapsed("ideas", snapshot.trackedIdeas.length > 3)}
+            onToggle={() => toggleSection("ideas", snapshot.trackedIdeas.length > 3)}
+          >
             {snapshot.trackedIdeas.length === 0 ? (
               <div className="waiting-card">No tracked idea is settled enough to display yet.</div>
             ) : (
@@ -2384,23 +2687,27 @@ export function UnderTheHoodPanel({
                 ))}
               </div>
             )}
-          </section>
+          </UnderhoodSection>
 
           {snapshot.waitingFor && (
-            <section className="underhood-section">
-              <div className="underhood-section-title">
-                <span>Waiting for</span>
-              </div>
+            <UnderhoodSection
+              title="Waiting for"
+              collapsed={sectionIsCollapsed("waiting")}
+              onToggle={() => toggleSection("waiting")}
+            >
               <div className="waiting-card">{snapshot.waitingFor}</div>
-            </section>
+            </UnderhoodSection>
           )}
 
-          <section className="underhood-section">
-            <div className="underhood-section-title">
-              <span>Safety checks</span>
-            </div>
+          {showSafetyChecks && (
+          <UnderhoodSection
+            title="Safety checks"
+            meta={safetyChecks.length}
+            collapsed={sectionIsCollapsed("safety")}
+            onToggle={() => toggleSection("safety")}
+          >
             <div className="safety-list">
-              {snapshot.safetyChecks.map((check: SafetyCheck) => (
+              {safetyChecks.map((check: SafetyCheck) => (
                 <div
                   key={check.id}
                   className={`safety-row ${check.state}`}
@@ -2412,13 +2719,16 @@ export function UnderTheHoodPanel({
                 </div>
               ))}
             </div>
-          </section>
+          </UnderhoodSection>
+          )}
 
           {snapshot.draftAnchors.length > 0 && (
-            <section className="underhood-section">
-              <div className="underhood-section-title">
-                <span>Draft anchors</span>
-              </div>
+            <UnderhoodSection
+              title="Draft anchors"
+              meta={snapshot.draftAnchors.length}
+              collapsed={sectionIsCollapsed("draftAnchors", true)}
+              onToggle={() => toggleSection("draftAnchors", true)}
+            >
               <div className="anchor-list">
                 {snapshot.draftAnchors.map((anchor) => (
                   <button
@@ -2432,7 +2742,7 @@ export function UnderTheHoodPanel({
                   </button>
                 ))}
               </div>
-            </section>
+            </UnderhoodSection>
           )}
         </div>
       )}
@@ -2525,6 +2835,7 @@ export default function App() {
   const [input, setInput] = useState("");
   const [composerScrollable, setComposerScrollable] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [underhoodOpen, setUnderhoodOpen] = useState(false);
 
   const runtimeConfig = useMemo(
     () => withQuestionIntentBias(defaultConfig, questionBias),
@@ -2818,7 +3129,7 @@ export default function App() {
     setDraftCollapsed(false);
   }, [activeAnchor]);
 
-  // When the highlight lands, scroll the draft so it is visible — without
+  // When the highlight lands, scroll the draft so it is visible - without
   // stealing focus from wherever the user is typing.
   useEffect(() => {
     if (!highlightAnchor) return;
@@ -2831,7 +3142,7 @@ export default function App() {
     }
   }, [highlightAnchor, syncBackdropScroll]);
 
-  // Cards the current coach turn refers to (by #ref) — highlighted on the map.
+  // Cards the current coach turn refers to (by #ref) - highlighted on the map.
   const referencedCardIds = useMemo(() => {
     const last = [...msgs].reverse().find((m) => m.role === "assistant");
     const refs = new Set(last?.text.match(/#\d+/g) ?? []);
@@ -2881,7 +3192,7 @@ export default function App() {
       {
         id: ++msgId,
         role: "assistant",
-        text: "What are you trying to think through? Just start anywhere — there's no wrong place to begin.",
+        text: "What are you trying to think through? Just start anywhere - there's no wrong place to begin.",
         mode: "question",
       },
     ]);
@@ -3181,7 +3492,7 @@ export default function App() {
       };
       stateRef.current.mode = "clarify";
       stateRef.current.turnsSinceLastMirror++;
-      // Only surface the user's OWN wording in Under the Hood — never the mirror
+      // Only surface the user's OWN wording in Under the Hood - never the mirror
       // claim's phrasing (which is AI-authored). Fall back to undefined so UTH
       // shows a neutral "that idea" rather than leaking generated prose. (The
       // chat message above may quote the claim; chat is not UTH-restricted.)
@@ -3380,7 +3691,7 @@ export default function App() {
               <div className="msg assistant">
                 <span className="msg-label">coach</span>
                 <div className="msg-bubble" style={{ color: "#aaa", fontStyle: "italic" }}>
-                  thinking…
+                  thinking...
                 </div>
               </div>
             )}
@@ -3390,35 +3701,6 @@ export default function App() {
           <div className="input-area">
             {error && <div className="error-banner">{error}</div>}
             <div className="input-row">
-              <button
-                className={`mic-btn ${speech.listening ? "live" : ""}`}
-                type="button"
-                title={
-                  speech.supported
-                    ? speech.listening
-                      ? "Stop voice dictation"
-                      : "Start voice dictation"
-                    : "Voice dictation is unavailable in this browser"
-                }
-                aria-label={
-                  speech.supported
-                    ? speech.listening
-                      ? "Stop voice dictation"
-                      : "Start voice dictation"
-                    : "Voice dictation is unavailable in this browser"
-                }
-                aria-pressed={speech.listening}
-                disabled={!speech.supported || loading}
-                onClick={() => {
-                  if (speech.listening) {
-                    speech.stop();
-                    return;
-                  }
-                  speech.start(input);
-                }}
-              >
-                Mic
-              </button>
               <textarea
                 ref={textareaRef}
                 className={`composer-textarea ${composerScrollable ? "composer-scroll" : ""}`}
@@ -3429,15 +3711,57 @@ export default function App() {
                 onKeyDown={onKey}
                 disabled={loading}
               />
-              <button className="send-btn" onClick={() => void send()} disabled={loading || !input.trim()}>
-                ↑
-              </button>
+              <div className="composer-toolbar">
+                <button
+                  className={`uth-toggle-btn ${underhoodOpen ? "active" : ""}`}
+                  type="button"
+                  title={underhoodOpen ? "Close under the hood" : "Open under the hood"}
+                  aria-label={underhoodOpen ? "Close under the hood panel" : "Open under the hood panel"}
+                  aria-pressed={underhoodOpen}
+                  onClick={() => setUnderhoodOpen((value) => !value)}
+                >
+                  <UnderhoodIcon />
+                  <span>UTH</span>
+                </button>
+                <button
+                  className={`mic-btn ${speech.listening ? "live" : ""}`}
+                  type="button"
+                  title={
+                    speech.supported
+                      ? speech.listening
+                        ? "Stop voice dictation"
+                        : "Start voice dictation"
+                      : "Voice dictation is unavailable in this browser"
+                  }
+                  aria-label={
+                    speech.supported
+                      ? speech.listening
+                        ? "Stop voice dictation"
+                        : "Start voice dictation"
+                      : "Voice dictation is unavailable in this browser"
+                  }
+                  aria-pressed={speech.listening}
+                  disabled={!speech.supported || loading}
+                  onClick={() => {
+                    if (speech.listening) {
+                      speech.stop();
+                      return;
+                    }
+                    speech.start(input);
+                  }}
+                >
+                  <MicIcon />
+                </button>
+                <button className="send-btn" onClick={() => void send()} disabled={loading || !input.trim()}>
+                  {"\u2191"}
+                </button>
+              </div>
             </div>
-            <div className="input-hint">Enter to send · Shift+Enter for newline</div>
+            <div className="input-hint">Enter to send {"\u00b7"} Shift+Enter for newline</div>
           </div>
         </div>
 
-        {/* Draft floating layer — chip when collapsed, panel when open. Hidden
+        {/* Draft floating layer - chip when collapsed, panel when open. Hidden
             (not unmounted) while docked so draft text, scroll, and anchors survive. */}
         <div className="draft-layer" style={{ display: draftDocked ? "none" : "contents" }}>
         {draftCollapsed ? (
@@ -3446,7 +3770,7 @@ export default function App() {
             className="draft-chip"
             style={{ left: draftPos.x, top: draftPos.y }}
             onMouseDown={onChipMouseDown}
-            title="Open draft — drag to move, click to expand"
+            title="Open draft - drag to move, click to expand"
           >
             <span className="draft-chip-label">DRAFT</span>
             {highlightAnchor && <span className="draft-chip-dot" aria-label="anchored" />}
@@ -3467,7 +3791,7 @@ export default function App() {
           <div className="draft-panel-header" onMouseDown={onDragStart}>
             <span className="draft-panel-title">Draft</span>
             {highlightAnchor && (
-              <span style={{ fontSize: 10, color: "#1a6fa3", fontWeight: 600 }}>● anchored</span>
+              <span style={{ fontSize: 10, color: "#1a6fa3", fontWeight: 600 }}>* anchored</span>
             )}
             <button
               className="draft-panel-btn"
@@ -3485,11 +3809,11 @@ export default function App() {
               }}
               title="Collapse to icon"
             >
-              ▾
+              v
             </button>
           </div>
 
-          {/* Resize handles on the panel border — outside the content area */}
+          {/* Resize handles on the panel border - outside the content area */}
           {!draftCollapsed && (
             <>
               <div className="rh rh-n"  onMouseDown={(e) => startResize(e, { top: true })} />
@@ -3515,7 +3839,7 @@ export default function App() {
                   value={draftText}
                   onChange={(e) => setDraftText(e.target.value)}
                   onScroll={syncBackdropScroll}
-                  placeholder="Paste or type your draft here…"
+                  placeholder="Paste or type your draft here..."
                 />
               </div>
             </div>
@@ -3566,6 +3890,8 @@ export default function App() {
             onDraftAnchor={revealDraftAnchor}
             onRequestMode={requestMode}
             busy={loading}
+            open={underhoodOpen}
+            onOpenChange={setUnderhoodOpen}
           />
         </div>
       </div>
@@ -3627,7 +3953,7 @@ function MirrorCard({
                 </div>
               ) : (
                 <span className={`claim-badge ${decision}`}>
-                  {decision === "confirmed" ? "✓ confirmed" : "✗ not quite"}
+                  {decision === "confirmed" ? " confirmed" : " not quite"}
                 </span>
               )}
             </div>

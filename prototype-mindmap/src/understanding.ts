@@ -22,6 +22,7 @@
 
 import type { MindmapConfig } from "./config";
 import type { PendingMapCommand, SuppressionReason, TurnOutput } from "./controller";
+import { normalize } from "./normalize";
 import type { DraftDeclaration, DraftDeclarationKind } from "./draft-declarations";
 import type { MapQuestionAnchor, QuestionStance } from "./llm-contract";
 import type { DetectedSignal } from "./signals";
@@ -472,12 +473,33 @@ function pendingKindLabel(kind: PendingMapCommand["kind"]): string {
   }
 }
 
+function textContainsExactPhrase(text: string, phrase: string): boolean {
+  const isWordChar = (ch: string | undefined): boolean =>
+    ch !== undefined && /[\p{L}\p{N}]/u.test(ch);
+  let from = 0;
+  while (true) {
+    const index = text.indexOf(phrase, from);
+    if (index === -1) return false;
+    if (!isWordChar(text[index - 1]) && !isWordChar(text[index + phrase.length])) {
+      return true;
+    }
+    from = index + 1;
+  }
+}
+
 function validationEvidence(out: TurnOutput): string | undefined {
-  const phrase = out.validationDebug
-    ?.flatMap((claim) => claim.sourceSpans)
-    .map((span) => span.userPhrase.trim())
-    .find(Boolean);
-  return phrase ? shorten(phrase, 82) : undefined;
+  // A failing span's userPhrase is MODEL text that failed grounding — surface
+  // it as evidence only when it is verbatim user wording from its own cited
+  // utterances; otherwise show no evidence rather than model prose.
+  for (const span of out.validationDebug?.flatMap((claim) => claim.sourceSpans) ?? []) {
+    const phrase = span.userPhrase.trim();
+    const needle = normalize(phrase);
+    if (!needle) continue;
+    if (span.citedUtterances.some((cited) => textContainsExactPhrase(normalize(cited.text), needle))) {
+      return shorten(phrase, 82);
+    }
+  }
+  return undefined;
 }
 
 function percent(n: number): string {

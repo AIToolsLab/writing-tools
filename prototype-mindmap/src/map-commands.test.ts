@@ -198,6 +198,7 @@ describe("applyAcceptedMapCommands", () => {
     expect(store.getConnections()[0]).toMatchObject({
       sourceId: "source",
       targetId: "target",
+      layoutDirection: "source_to_target",
     });
     const label = store.get(store.getConnections()[0].labelUnitId);
     expect(label?.text).toBe("");
@@ -226,6 +227,7 @@ describe("applyAcceptedMapCommands", () => {
     );
 
     expect(store.getConnections()).toHaveLength(1);
+    expect(store.getConnections()[0].layoutDirection).toBe("source_to_target");
     const label = store.get(store.getConnections()[0].labelUnitId);
     expect(label?.text).toBe("preserves");
     expect(label?.source.utteranceIds).toContain(chatUtterance.id);

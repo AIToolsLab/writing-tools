@@ -24,7 +24,7 @@ import {
   useNodesState,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { computeAutoCleanPositions } from "./map-layout";
+import { computeAutoCleanPositions, computeConnectionHandles } from "./map-layout";
 import type { ConnectionLayoutDirection, ThoughtUnitStore, XYBounds, XYPosition, XYSize } from "./map-store";
 import type { SourceBank } from "./store";
 import { cardRef } from "./store";
@@ -62,6 +62,7 @@ interface PendingConnection {
   sourceHandleId?: string | null;
   targetHandleId?: string | null;
   text: string;
+  layoutDirection?: ConnectionLayoutDirection;
   /**
    * Connector-to-empty-canvas with "Label on": the card on this `side` does not
    * exist yet and is created only when the user confirms. Deferring creation
@@ -76,6 +77,13 @@ interface ConnectionEdgeData extends Record<string, unknown> {
   layoutDirection: ConnectionLayoutDirection;
   onDelete?: (id: string) => void;
   onDirectionChange?: (id: string, direction: ConnectionLayoutDirection) => void;
+  /** Perpendicular offset so nearby badges don't stack (see badgeOffsets). */
+  badgeOffset?: { dx: number; dy: number };
+  /** Concrete card refs/text so the direction popover names real cards. */
+  sourceRef?: string;
+  targetRef?: string;
+  sourceText?: string;
+  targetText?: string;
 }
 
 /** Id-based actions shared by a card and every card embedded inside it. */
@@ -100,6 +108,73 @@ type ThoughtNodeData = {
 } & Record<string, unknown>;
 
 type ThoughtFlowNode = Node<ThoughtNodeData, "thought">;
+type AnchorProxyFlowNode = Node<Record<string, unknown>, "anchorProxy">;
+type MapFlowNode = ThoughtFlowNode | AnchorProxyFlowNode;
+
+/** Rendered offset/size of a nested card, relative to its root canvas node. */
+interface ProxyGeometry {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+function proxyGeometryEqual(
+  a: Record<string, ProxyGeometry>,
+  b: Record<string, ProxyGeometry>,
+): boolean {
+  const aKeys = Object.keys(a);
+  const bKeys = Object.keys(b);
+  if (aKeys.length !== bKeys.length) return false;
+  return aKeys.every((key) => {
+    const prev = a[key];
+    const next = b[key];
+    if (!next) return false;
+    return (
+      Math.abs(prev.x - next.x) < 0.5 &&
+      Math.abs(prev.y - next.y) < 0.5 &&
+      Math.abs(prev.w - next.w) < 0.5 &&
+      Math.abs(prev.h - next.h) < 0.5
+    );
+  });
+}
+
+/**
+ * Connections whose endpoint is a NESTED card need an invisible proxy anchor
+ * node: only root cards become React Flow nodes, so an edge that still targets
+ * the child id silently vanishes. The proxy keeps the edge pointing at the REAL
+ * child card id — remapping the edge to the parent would silently change which
+ * card the connection means — and sits over the embedded card's rendered spot.
+ */
+export function proxyAnchorSpecs(
+  units: ThoughtUnit[],
+  connections: Array<{ sourceId: string; targetId: string }>,
+): Array<{ id: string; rootId: string }> {
+  const byId = new Map(units.map((unit) => [unit.id, unit]));
+  const specs = new Map<string, string>();
+  for (const connection of connections) {
+    for (const endpointId of [connection.sourceId, connection.targetId]) {
+      if (specs.has(endpointId)) continue;
+      const unit = byId.get(endpointId);
+      if (!unit?.parentId || unit.role === "connection_label") continue;
+      let root = unit;
+      const seen = new Set<string>([unit.id]);
+      let broken = false;
+      while (root.parentId) {
+        const parent = byId.get(root.parentId);
+        if (!parent || seen.has(parent.id)) {
+          broken = true;
+          break;
+        }
+        seen.add(parent.id);
+        root = parent;
+      }
+      if (broken) continue;
+      specs.set(endpointId, root.id);
+    }
+  }
+  return Array.from(specs.entries()).map(([id, rootId]) => ({ id, rootId }));
+}
 
 interface ThoughtMapProps {
   store: ThoughtUnitStore;
@@ -179,6 +254,8 @@ function findDropTarget(moved: Node, nodes: Node[]): Node | undefined {
   };
   return nodes.find((node) => {
     if (node.id === moved.id) return false;
+    // Invisible proxy anchors (nested-connection endpoints) are not drop targets.
+    if (node.type !== "thought") return false;
     const box = bounds(node);
     return (
       center.x >= box.x &&
@@ -305,6 +382,7 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
   return (
     <div
       className={`map-embed role-${unit.role} ${dragging ? "dragging" : ""} ${expanded ? "expanded" : ""}`}
+      data-card-id={unit.id}
       draggable
       title="Drag to the canvas to pull this card out"
       onDragStart={(event) => {
@@ -323,6 +401,7 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
         setDragging(false);
       }}
     >
+      <span className="map-embed-drag-grip" role="img" aria-label="Drag nested card" title="Drag nested card" />
       <textarea
         className="map-embed-editor nodrag nowheel"
         value={draft}
@@ -477,7 +556,20 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
   );
 }
 
-const nodeTypes = { thought: ThoughtCardNode };
+/**
+ * Invisible node standing in for a nested card as a connection endpoint. It
+ * renders only the connection handles (transparent, non-interactive) so React
+ * Flow can attach the edge at the embedded card's on-screen position.
+ */
+function AnchorProxyNode(_props: NodeProps<AnchorProxyFlowNode>) {
+  return (
+    <div className="map-proxy-anchor">
+      <ConnectionHandles />
+    </div>
+  );
+}
+
+const nodeTypes = { thought: ThoughtCardNode, anchorProxy: AnchorProxyNode };
 
 /**
  * Connection edge with a small badge at the midpoint. The relationship wording
@@ -509,49 +601,69 @@ function ConnectionEdge({
   const layoutDirection = edgeData?.layoutDirection ?? "none";
   const onDelete = edgeData?.onDelete;
   const onDirectionChange = edgeData?.onDirectionChange;
+  const offset = edgeData?.badgeOffset ?? { dx: 0, dy: 0 };
+  const badgeX = labelX + offset.dx;
+  const badgeY = labelY + offset.dy;
+  const sourceRef = edgeData?.sourceRef ?? "source";
+  const targetRef = edgeData?.targetRef ?? "target";
+  const sourceText = edgeData?.sourceText ?? "";
+  const targetText = edgeData?.targetText ?? "";
+
+  // Concrete direction choices named by real card refs, so the user can tell
+  // which card feeds into which instead of abstract "source/target".
+  const directionOptions = [
+    { value: "none" as const, glyph: "↔", label: "No arrow", hint: "Neutral: keep close without ordering" },
+    {
+      value: "source_to_target" as const,
+      glyph: "→",
+      label: `${sourceRef} → ${targetRef}`,
+      hint: `${sourceRef} sits before/above ${targetRef}`,
+    },
+    {
+      value: "target_to_source" as const,
+      glyph: "←",
+      label: `${targetRef} → ${sourceRef}`,
+      hint: `${targetRef} sits before/above ${sourceRef}`,
+    },
+  ];
 
   return (
     <>
       <BaseEdge id={id} path={edgePath} className="map-edge" markerStart={markerStart} markerEnd={markerEnd} />
       <EdgeLabelRenderer>
         <div
-          className="edge-badge-wrap nodrag nopan"
-          style={{ transform: `translate(-50%, -50%) translate(${labelX}px, ${labelY}px)` }}
+          className={`edge-badge-wrap nodrag nopan ${open ? "open" : ""}`}
+          style={{ transform: `translate(-50%, -50%) translate(${badgeX}px, ${badgeY}px)` }}
         >
           <button
             type="button"
-            className="edge-badge"
+            className={`edge-badge ${open ? "active" : ""}`}
             title={label || "connection"}
             onClick={() => setOpen((o) => !o)}
           >
             {open ? "×" : "↔"}
           </button>
           {open && (
-            <div className="edge-popover">
-              {label && <div className="edge-popover-text">{label}</div>}
+            <div className="edge-popover" role="dialog" aria-label="Connection">
+              <div className="edge-popover-cards">
+                <span className="edge-popover-card"><b>{sourceRef}</b> {shortenEdgeText(sourceText)}</span>
+                <span className="edge-popover-card"><b>{targetRef}</b> {shortenEdgeText(targetText)}</span>
+              </div>
+              {label && <div className="edge-popover-text">"{label}"</div>}
               {onDirectionChange && (
                 <div className="edge-direction">
-                  <span>Layout direction</span>
-                  <div className="edge-direction-buttons" role="group" aria-label="Layout direction">
-                    {([
-                      ["none", "↔"],
-                      ["source_to_target", "→"],
-                      ["target_to_source", "←"],
-                    ] as const).map(([direction, glyph]) => (
+                  <span className="edge-direction-title">Arrow direction</span>
+                  <div className="edge-direction-buttons" role="group" aria-label="Arrow direction">
+                    {directionOptions.map((option) => (
                       <button
-                        key={direction}
+                        key={option.value}
                         type="button"
-                        className={layoutDirection === direction ? "active" : ""}
-                        onClick={() => onDirectionChange(id, direction)}
-                        title={
-                          direction === "none"
-                            ? "Neutral: keep close without ordering"
-                            : direction === "source_to_target"
-                              ? "Source should sit before/above target"
-                              : "Target should sit before/above source"
-                        }
+                        className={layoutDirection === option.value ? "active" : ""}
+                        onClick={() => onDirectionChange(id, option.value)}
+                        title={option.hint}
                       >
-                        {glyph}
+                        <span className="edge-direction-glyph">{option.glyph}</span>
+                        <span className="edge-direction-label">{option.label}</span>
                       </button>
                     ))}
                   </div>
@@ -569,6 +681,12 @@ function ConnectionEdge({
       </EdgeLabelRenderer>
     </>
   );
+}
+
+function shortenEdgeText(text: string): string {
+  const compact = text.trim().replace(/\s+/g, " ");
+  if (!compact) return "";
+  return compact.length <= 26 ? compact : `${compact.slice(0, 24).trim()}…`;
 }
 
 const edgeTypes = { connection: ConnectionEdge };
@@ -664,12 +782,16 @@ function ThoughtMapInner({
   // Auto-clean: tidy scattered root-level cards using direction-aware placement.
   // Nested cards are not positioned directly; they travel with their parent.
   const autoClean = useCallback(() => {
+    const units = store.getAll();
+    const connections = store.getConnections();
+    const sizes = measuredRootSizes(flow, store);
+    const defaultSize = { w: CARD_WIDTH, h: CARD_HEIGHT };
     const nextPositions = computeAutoCleanPositions({
-      units: store.getAll(),
-      connections: store.getConnections(),
+      units,
+      connections,
       positions: store.getPositions(),
-      sizes: measuredRootSizes(flow, store),
-      defaultSize: { w: CARD_WIDTH, h: CARD_HEIGHT },
+      sizes,
+      defaultSize,
     });
     if (Object.keys(nextPositions).length === 0) return;
 
@@ -677,6 +799,31 @@ function ThoughtMapInner({
     for (const [id, position] of Object.entries(nextPositions)) {
       store.setPosition(id, position);
     }
+
+    // Route connectors onto the facing sides for the new geometry so lines don't
+    // cut through card interiors. rootOf resolves a nested endpoint to the card
+    // that actually renders it.
+    const byId = new Map(units.map((unit) => [unit.id, unit]));
+    const rootOf = (id: string): string | undefined => {
+      let cur = byId.get(id);
+      const seen = new Set<string>();
+      while (cur?.parentId && !seen.has(cur.id)) {
+        seen.add(cur.id);
+        cur = byId.get(cur.parentId);
+      }
+      return cur?.id;
+    };
+    const handleAssignments = computeConnectionHandles({
+      connections,
+      positions: { ...store.getPositions(), ...nextPositions },
+      sizes,
+      defaultSize,
+      rootOf,
+    });
+    for (const assignment of handleAssignments) {
+      store.setConnectionHandles(assignment.connectionId, assignment.sourceHandleId, assignment.targetHandleId);
+    }
+
     onStoreChange();
 
     // Re-frame the tidied map after the nodes re-render.
@@ -807,19 +954,19 @@ function ThoughtMapInner({
     [flow, onBeforeMapChange, onStoreChange, store],
   );
 
-  const flowNodes = useMemo<ThoughtFlowNode[]>(() => {
-    // Only ROOT cards are canvas nodes; nested cards render inside their parent.
-    const roots = store
-      .getAll()
-      .filter((unit) => !unit.parentId && unit.role !== "connection_label");
+  const [proxyGeometry, setProxyGeometry] = useState<Record<string, ProxyGeometry>>({});
 
+  const flowNodes = useMemo<MapFlowNode[]>(() => {
+    // Only ROOT cards are canvas nodes; nested cards render inside their parent.
     const allUnits = store.getAll();
-    return roots.map((unit) => {
+    const roots = allUnits.filter((unit) => !unit.parentId && unit.role !== "connection_label");
+
+    const rootNodes: MapFlowNode[] = roots.map((unit) => {
       const size = store.getSize(unit.id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
       const hasChildren = allUnits.some((u) => u.parentId === unit.id);
       return {
         id: unit.id,
-        type: "thought",
+        type: "thought" as const,
         position: store.getPosition(unit.id) ?? { x: 80, y: 80 },
         data: {
           unit,
@@ -835,13 +982,131 @@ function ThoughtMapInner({
         dragHandle: ".map-card-drag",
       };
     });
-  }, [actions, revision, store]);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState<ThoughtFlowNode>(flowNodes);
+    // Nested connection endpoints get an invisible proxy node parented to their
+    // root card, so their edges render at the embedded card's position instead
+    // of vanishing. Parents must precede children in the node array.
+    const proxyNodes: MapFlowNode[] = proxyAnchorSpecs(allUnits, store.getConnections()).map(
+      ({ id, rootId }) => {
+        const measured = proxyGeometry[id];
+        return {
+          id,
+          type: "anchorProxy" as const,
+          parentId: rootId,
+          // Until measured, land roughly over the parent's children area.
+          position: measured ? { x: measured.x, y: measured.y } : { x: 16, y: 48 },
+          draggable: false,
+          selectable: false,
+          focusable: false,
+          connectable: false,
+          style: {
+            width: measured?.w ?? 48,
+            height: measured?.h ?? 28,
+            pointerEvents: "none" as const,
+          },
+          data: {},
+        };
+      },
+    );
+
+    return [...rootNodes, ...proxyNodes];
+  }, [actions, proxyGeometry, revision, store]);
+
+  const [nodes, setNodes, onNodesChange] = useNodesState<MapFlowNode>(flowNodes);
 
   useEffect(() => {
     setNodes(flowNodes);
   }, [flowNodes, setNodes]);
+
+  // Measure where each nested endpoint's embedded card actually renders,
+  // relative to its root node, and place the proxy there. Zoom cancels out of
+  // the relative math, so measurements are stable across viewport changes; the
+  // equality guard keeps the effect from re-render looping.
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      const zoom = flow.getZoom() || 1;
+      const next: Record<string, ProxyGeometry> = {};
+      for (const spec of proxyAnchorSpecs(store.getAll(), store.getConnections())) {
+        const rootEl = canvasRef.current?.querySelector(
+          `.react-flow__node[data-id="${spec.rootId}"]`,
+        );
+        const childEl = rootEl?.querySelector(`[data-card-id="${spec.id}"]`);
+        if (!rootEl || !childEl) continue;
+        const rootRect = rootEl.getBoundingClientRect();
+        const childRect = childEl.getBoundingClientRect();
+        next[spec.id] = {
+          x: (childRect.left - rootRect.left) / zoom,
+          y: (childRect.top - rootRect.top) / zoom,
+          w: childRect.width / zoom,
+          h: childRect.height / zoom,
+        };
+      }
+      setProxyGeometry((prev) => (proxyGeometryEqual(prev, next) ? prev : next));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [flow, nodes, revision, store]);
+
+  // Rendered center of a connection endpoint. Root cards use their own stored
+  // position; a nested endpoint falls back to the center of the card that
+  // actually renders it (its root ancestor) — enough to place/stagger badges.
+  const endpointCenter = useCallback(
+    (id: string): XYPosition | undefined => {
+      const own = store.getPosition(id);
+      if (own) {
+        const s = store.getSize(id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
+        return { x: own.x + s.w / 2, y: own.y + s.h / 2 };
+      }
+      let cur = store.get(id);
+      const seen = new Set<string>();
+      while (cur?.parentId && !seen.has(cur.id)) {
+        seen.add(cur.id);
+        cur = store.get(cur.parentId);
+      }
+      if (!cur) return undefined;
+      const rootPos = store.getPosition(cur.id);
+      if (!rootPos) return undefined;
+      const s = store.getSize(cur.id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
+      return { x: rootPos.x + s.w / 2, y: rootPos.y + s.h / 2 };
+    },
+    [store],
+  );
+
+  // Perpendicular badge offsets so edge badges with nearby midpoints (e.g. two
+  // connectors between close cards) stagger apart instead of stacking into one
+  // unreadable pile. Each badge stays tethered to its own edge.
+  const badgeOffsets = useMemo<Record<string, { dx: number; dy: number }>>(() => {
+    const STAGGER = 24;
+    const BUCKET = 44;
+    const mids = store.getConnections().map((connection) => {
+      const s = endpointCenter(connection.sourceId);
+      const t = endpointCenter(connection.targetId);
+      if (!s || !t) return { id: connection.id, mid: undefined, perp: { x: 0, y: 0 } };
+      const dx = t.x - s.x;
+      const dy = t.y - s.y;
+      const len = Math.hypot(dx, dy) || 1;
+      return {
+        id: connection.id,
+        mid: { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2 },
+        perp: { x: -dy / len, y: dx / len },
+      };
+    });
+    const buckets = new Map<string, typeof mids>();
+    for (const m of mids) {
+      if (!m.mid) continue;
+      const key = `${Math.round(m.mid.x / BUCKET)}:${Math.round(m.mid.y / BUCKET)}`;
+      const arr = buckets.get(key) ?? [];
+      arr.push(m);
+      buckets.set(key, arr);
+    }
+    const offsets: Record<string, { dx: number; dy: number }> = {};
+    for (const arr of buckets.values()) {
+      arr.forEach((m, index) => {
+        const k = index - (arr.length - 1) / 2;
+        offsets[m.id] = { dx: m.perp.x * k * STAGGER, dy: m.perp.y * k * STAGGER };
+      });
+    }
+    return offsets;
+  }, [endpointCenter, revision, store]);
 
   const confirmedEdges = useMemo<Edge[]>(() => {
     return store.getConnections().map((connection) => {
@@ -867,11 +1132,16 @@ function ThoughtMapInner({
           layoutDirection: connection.layoutDirection,
           onDelete: deleteConnection,
           onDirectionChange: setConnectionDirection,
+          badgeOffset: badgeOffsets[connection.id],
+          sourceRef: cardRef(connection.sourceId),
+          targetRef: cardRef(connection.targetId),
+          sourceText: store.get(connection.sourceId)?.text ?? "",
+          targetText: store.get(connection.targetId)?.text ?? "",
         },
         className: "map-edge",
       };
     });
-  }, [deleteConnection, revision, setConnectionDirection, store]);
+  }, [badgeOffsets, deleteConnection, revision, setConnectionDirection, store]);
 
   const edges = useMemo<Edge[]>(() => {
     // A deferred connector-to-canvas connection has one endpoint that doesn't
@@ -887,7 +1157,7 @@ function ThoughtMapInner({
           targetHandle: renderHandleId("target", pendingConnection.targetHandleId ?? undefined),
           animated: true,
           label: pendingConnection.text,
-          data: { layoutDirection: "none" },
+          data: { layoutDirection: pendingConnection.layoutDirection ?? "none" },
           type: "smoothstep",
           className: "map-edge pending",
         }
@@ -899,7 +1169,7 @@ function ThoughtMapInner({
 
   // Apply drop-target and coach-reference highlight classes without disturbing
   // node state — derived per render.
-  const displayNodes = useMemo<ThoughtFlowNode[]>(
+  const displayNodes = useMemo<MapFlowNode[]>(
     () =>
       nodes.map((node) => {
         const extra: string[] = [];
@@ -915,7 +1185,8 @@ function ThoughtMapInner({
   // nest into so the user sees the target before releasing. No commit happens
   // until drag stop — this is pure visual feedback over the existing behavior.
   const onNodeDrag = useCallback(
-    (_event: MouseEvent | TouchEvent, node: ThoughtFlowNode) => {
+    (_event: MouseEvent | TouchEvent, node: MapFlowNode) => {
+      if (node.type !== "thought") return;
       const dragged = store.get(node.id);
       if (!dragged || dragged.role === "connection_label") {
         setDropTargetId(undefined);
@@ -933,7 +1204,8 @@ function ThoughtMapInner({
   );
 
   const onNodeDragStop = useCallback(
-    (_event: MouseEvent | TouchEvent, node: ThoughtFlowNode) => {
+    (_event: MouseEvent | TouchEvent, node: MapFlowNode) => {
+      if (node.type !== "thought") return;
       setDropTargetId(undefined);
       onBeforeMapChange();
       store.setPosition(node.id, node.position);
@@ -965,30 +1237,47 @@ function ThoughtMapInner({
     (connection: Connection) => {
       if (!connection.source || !connection.target || connection.source === connection.target) return;
       // Connection-label cards are not valid relationship endpoints.
-      const source = store.get(connection.source);
-      const target = store.get(connection.target);
+      const originId = connectingFrom.current?.nodeId;
+      const sourceId =
+        originId && (originId === connection.source || originId === connection.target)
+          ? originId
+          : connection.source;
+      const targetId = sourceId === connection.source ? connection.target : connection.source;
+      if (sourceId === targetId) return;
+      const source = store.get(sourceId);
+      const target = store.get(targetId);
       if (!source || !target) return;
       if (source.role === "connection_label" || target.role === "connection_label") return;
+      const sourceHandleId =
+        sourceId === connection.source
+          ? anchorHandleId(connection.sourceHandle)
+          : anchorHandleId(connection.targetHandle);
+      const targetHandleId =
+        targetId === connection.target
+          ? anchorHandleId(connection.targetHandle)
+          : anchorHandleId(connection.sourceHandle);
       if (!requireConnectionLabel) {
         onBeforeMapChange();
         store.registerConnection({
-          sourceId: connection.source,
-          targetId: connection.target,
+          sourceId,
+          targetId,
           text: "",
           bank,
-          sourceHandleId: anchorHandleId(connection.sourceHandle),
-          targetHandleId: anchorHandleId(connection.targetHandle),
-          position: connectionMidpoint(store, connection.source, connection.target),
+          sourceHandleId,
+          targetHandleId,
+          layoutDirection: "source_to_target",
+          position: connectionMidpoint(store, sourceId, targetId),
         });
         onStoreChange();
         return;
       }
       setPendingConnection({
-        sourceId: connection.source,
-        targetId: connection.target,
-        sourceHandleId: anchorHandleId(connection.sourceHandle),
-        targetHandleId: anchorHandleId(connection.targetHandle),
+        sourceId,
+        targetId,
+        sourceHandleId,
+        targetHandleId,
         text: "",
+        layoutDirection: "source_to_target",
       });
       setConnectionPanelKey((key) => key + 1);
     },
@@ -1039,22 +1328,22 @@ function ThoughtMapInner({
       const pos = flow.screenToFlowPosition(point);
       const cardPosition = { x: pos.x - CARD_WIDTH / 2, y: pos.y - 16 };
 
-      // Preserve the exact dot the user dragged from, on the origin's side. A drag
-      // from a target handle means the origin is the target and the new card the
-      // source; otherwise the origin is the source.
-      const originIsSource = from.handleType !== "target";
+      // Handles are geometric, not semantic: the card the user dragged from is
+      // always the source of a newly drawn connector, even if they grabbed a
+      // target-side handle.
       const originHandle = anchorHandleId(from.handleId);
 
       if (requireConnectionLabel) {
         // Defer card creation to confirm so Cancel leaves nothing behind and the
         // whole action (card + connection) is one undo step.
         setPendingConnection({
-          sourceId: originIsSource ? origin.id : "",
-          targetId: originIsSource ? "" : origin.id,
-          sourceHandleId: originIsSource ? originHandle : undefined,
-          targetHandleId: originIsSource ? undefined : originHandle,
+          sourceId: origin.id,
+          targetId: "",
+          sourceHandleId: originHandle,
+          targetHandleId: undefined,
           text: "",
-          createCard: { position: cardPosition, side: originIsSource ? "target" : "source" },
+          layoutDirection: "source_to_target",
+          createCard: { position: cardPosition, side: "target" },
         });
         setConnectionPanelKey((key) => key + 1);
         return;
@@ -1063,15 +1352,16 @@ function ThoughtMapInner({
       // "Label off": create + connect immediately as a single undoable action.
       onBeforeMapChange();
       const newCard = store.addBlankUserCard(cardPosition);
-      const sourceId = originIsSource ? origin.id : newCard.id;
-      const targetId = originIsSource ? newCard.id : origin.id;
+      const sourceId = origin.id;
+      const targetId = newCard.id;
       store.registerConnection({
         sourceId,
         targetId,
         text: "",
         bank,
-        sourceHandleId: originIsSource ? originHandle : undefined,
-        targetHandleId: originIsSource ? undefined : originHandle,
+        sourceHandleId: originHandle,
+        targetHandleId: undefined,
+        layoutDirection: "source_to_target",
         position: connectionMidpoint(store, sourceId, targetId),
       });
       onStoreChange();
@@ -1150,6 +1440,7 @@ function ThoughtMapInner({
       bank,
       sourceHandleId: pc.sourceHandleId,
       targetHandleId: pc.targetHandleId,
+      layoutDirection: pc.layoutDirection,
       position: connectionMidpoint(store, sourceId, targetId),
     });
     setPendingConnection(null);

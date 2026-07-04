@@ -5439,6 +5439,135 @@ describe("user next-move override (Under the Hood)", () => {
     expect(cap.get()?.clarifyTarget).toBeUndefined();
     expect(cap.get()?.forcedMode).toBe("pivot");
   });
+
+  it("does not let the anti-repeat settle guard override a forced deepen click", async () => {
+    const state = createState();
+    const staleSettle = "Let's ease off that one - what's one small part of this you already feel sure about?";
+    state.lastAiText = staleSettle;
+    state.prevAiText = "Which part feels easiest to name first?";
+
+    const out = await processTurn(
+      state,
+      "",
+      () => ({ mode: "question", text: staleSettle, questionStance: "settle" }),
+      defaultConfig,
+      "chat",
+      overrideMap,
+      { ingestUser: false, overrideMode: "deepen" },
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.questionStance).toBe("deepen");
+    expect(out.text).toBe("What should we unpack more deeply about the idea you were just working on?");
+  });
+
+  it("treats keep unpacking as choosing the non-mirror branch of a mirror-pressure bridge", async () => {
+    const state = createState();
+    state.lastAiText =
+      "I think this may be close enough to reflect back. Do you want me to try mirroring the structure I'm hearing, or keep unpacking it?";
+    const cfg = noReadinessCfg({
+      minQuestionTurnsBetweenMirrors: 0,
+      minReadyCandidatesToBatch: 1,
+    });
+
+    const out = await processTurn(
+      state,
+      "keep unpacking",
+      mirrorPressureQuestionLLM(
+        "I think this may be close enough to reflect back. Do you want me to try mirroring the structure I'm hearing, or keep unpacking it?",
+      ),
+      cfg,
+      "chat",
+      overrideMap,
+    );
+
+    expect(out.suppressionReason).not.toBe("mirror_pressure_bridge");
+    expect(out.questionStance).toBe("deepen");
+    expect(out.text).toBe("What should we unpack more deeply about the idea you were just working on?");
+  });
+
+  it("normalizes a forced organize click when the model returns a settle question", async () => {
+    const state = createState();
+
+    const out = await processTurn(
+      state,
+      "",
+      () => ({
+        mode: "question",
+        text: "Let's ease off that one - what's one small part of this you already feel sure about?",
+        questionStance: "settle",
+      }),
+      defaultConfig,
+      "chat",
+      overrideMap,
+      { ingestUser: false, overrideMode: "organize" },
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.questionStance).toBe("organize");
+    expect(out.text).toBe("Which two ideas should we relate first, in your own words?");
+  });
+
+  it("does not allow a forced organize click to enter the mirror path", async () => {
+    const state = createState();
+    state.turnsSinceLastMirror = 99;
+
+    const out = await processTurn(
+      state,
+      "",
+      groundedMirrorLLM("control means writer decisions", "u_fake"),
+      noReadinessCfg(),
+      "chat",
+      overrideMap,
+      { ingestUser: false, overrideMode: "organize" },
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.validatedMirror).toBeUndefined();
+    expect(out.questionStance).toBe("organize");
+    expect(out.text).toBe("Which two ideas should we relate first, in your own words?");
+  });
+
+  it("normalizes a forced pivot click when the model repeats the stale question", async () => {
+    const state = createState();
+    const stale = "Which focused point for this section feels easiest to name first?";
+    state.lastAiText = stale;
+    state.lastCoachQuestion = { text: stale, stance: "settle" };
+
+    const out = await processTurn(
+      state,
+      "",
+      () => ({ mode: "question", text: stale, questionStance: "settle" }),
+      defaultConfig,
+      "chat",
+      overrideMap,
+      { ingestUser: false, overrideMode: "pivot" },
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.questionStance).toBe("settle");
+    expect(out.text).toBe("Okay - let's leave that aside. Where would you like to point next?");
+  });
+
+  it("does not allow a forced pivot click to enter the mirror path", async () => {
+    const state = createState();
+    state.turnsSinceLastMirror = 99;
+
+    const out = await processTurn(
+      state,
+      "",
+      groundedMirrorLLM("control means writer decisions", "u_fake"),
+      noReadinessCfg(),
+      "chat",
+      overrideMap,
+      { ingestUser: false, overrideMode: "pivot" },
+    );
+
+    expect(out.mode).toBe("question");
+    expect(out.validatedMirror).toBeUndefined();
+    expect(out.questionStance).toBe("settle");
+    expect(out.text).toBe("Okay - let's leave that aside. Where would you like to point next?");
+  });
 });
 
 describe("bug pass: cancel-vs-correction disambiguation", () => {
@@ -5759,5 +5888,387 @@ describe("bug pass: exact-text command provenance", () => {
     expect(bank[1].commandOnly).toBe(true);
     expect(bank[2].commandOnly).toBe(true);
     expect(create?.kind === "create_card" ? create.sourceUtteranceIds : []).toEqual([bank[1].id, bank[2].id]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Hardening pass: clarify-span attribution, clarify-pin lifecycle, capture-loop
+// memory, and the stale-uncertainty settle drift
+// ---------------------------------------------------------------------------
+
+describe("hardening: model-authored clarify phrases are never attributed to the user", () => {
+  /** Mirror whose weakest failing span carries a phrase the user never said. */
+  function inventedSpanMirrorLLM(utteranceId: string) {
+    return (_ctx: LLMContext): LLMTurn => {
+      const phrase = "the fabricated lattice framing";
+      const claim: MirrorClaim = {
+        id: "c1",
+        text: phrase,
+        candidateId: "cand1",
+        target: "idea",
+        sourceSpans: [{ claimText: phrase, utteranceIds: [utteranceId], userPhrase: phrase }],
+      };
+      return {
+        mode: "mirror",
+        text: "unshown",
+        mirror: { claims: [claim] },
+        candidateUpserts: [
+          { id: "cand1", target: "idea", gist: "running fast", addEvidenceIds: [utteranceId] },
+        ],
+      };
+    };
+  }
+
+  it("does not quote an ungrounded weakest span back as 'when you said ...'", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg();
+    await processTurn(state, "running fast", questionLLM("Q"), cfg);
+    const uid = state.bank.getAll()[0].id;
+    const out = await processTurn(state, "sure", inventedSpanMirrorLLM(uid), cfg);
+
+    expect(out.mode).toBe("clarify");
+    expect(out.suppressionReason).toBe("validation_failed");
+    expect(out.text).not.toContain("fabricated lattice");
+    expect(out.text).not.toContain("when you said");
+    expect(state.clarifyTarget).toBeUndefined();
+    const snapshotJson = JSON.stringify(out.understanding ?? {});
+    expect(snapshotJson).not.toContain("fabricated lattice");
+  });
+
+  it("still quotes the weakest span when it really is the user's wording", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg();
+    await processTurn(state, "running fast", questionLLM("Q"), cfg);
+    const uid = state.bank.getAll()[0].id;
+    const out = await processTurn(state, "sure", driftingMirrorLLM(uid), cfg);
+
+    expect(out.text).toContain('when you said "running fast"');
+    expect(state.clarifyTarget?.userPhrase).toBe("running fast");
+  });
+
+  it("drops an invented clarifySpan from a clarify-mode turn instead of pinning it", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg();
+    await processTurn(state, "running fast", questionLLM("Q"), cfg);
+    const out = await processTurn(state, "sure", (_ctx: LLMContext): LLMTurn => ({
+      mode: "clarify",
+      text: "Which part is doing the most work?",
+      clarifySpan: {
+        claimText: "x",
+        utteranceIds: [state.bank.getAll()[0].id],
+        userPhrase: "the fabricated lattice framing",
+      },
+    }), cfg);
+
+    expect(out.mode).toBe("clarify");
+    expect(state.clarifyTarget).toBeUndefined();
+    const snapshotJson = JSON.stringify(out.understanding ?? {});
+    expect(snapshotJson).not.toContain("fabricated lattice");
+  });
+
+  it("does not treat a mid-word fragment as user-attributable clarify wording", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg();
+    await processTurn(state, "let's start fresh", questionLLM("Q"), cfg);
+    const out = await processTurn(state, "sure", (_ctx: LLMContext): LLMTurn => ({
+      mode: "clarify",
+      text: "Which part matters?",
+      clarifySpan: {
+        claimText: "art",
+        utteranceIds: [state.bank.getAll()[0].id],
+        userPhrase: "art",
+      },
+    }), cfg);
+
+    expect(out.mode).toBe("clarify");
+    expect(state.clarifyTarget).toBeUndefined();
+  });
+
+  it("keeps a clarifySpan whose phrase is verbatim user wording", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg();
+    await processTurn(state, "running fast", questionLLM("Q"), cfg);
+    await processTurn(state, "sure", (_ctx: LLMContext): LLMTurn => ({
+      mode: "clarify",
+      text: "What does running fast mean here?",
+      clarifySpan: {
+        claimText: "running fast",
+        utteranceIds: [state.bank.getAll()[0].id],
+        userPhrase: "running fast",
+      },
+    }), cfg);
+
+    expect(state.clarifyTarget?.userPhrase).toBe("running fast");
+  });
+});
+
+describe("hardening: clarify pin lifecycle", () => {
+  it("clears the clarify pin when the model moves on to a plain question", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg();
+    await processTurn(state, "running fast", questionLLM("Q"), cfg);
+    const uid = state.bank.getAll()[0].id;
+    await processTurn(state, "sure", driftingMirrorLLM(uid), cfg);
+    expect(state.clarifyTarget).toBeDefined();
+
+    await processTurn(state, "a follow-up thought", questionLLM("Fresh question?"), cfg);
+    expect(state.clarifyTarget).toBeUndefined();
+    expect(state.activeElicitation).toBeUndefined();
+  });
+
+  it("keeps the pin across consecutive clarify turns", async () => {
+    const state = createState();
+    const cfg = noReadinessCfg();
+    await processTurn(state, "running fast", questionLLM("Q"), cfg);
+    const uid = state.bank.getAll()[0].id;
+    await processTurn(state, "sure", driftingMirrorLLM(uid), cfg);
+
+    await processTurn(state, "a follow-up thought", (_ctx: LLMContext): LLMTurn => ({
+      mode: "clarify",
+      text: "Say more about that part?",
+    }), cfg);
+    expect(state.clarifyTarget?.userPhrase).toBe("running fast");
+  });
+});
+
+describe("hardening: capture-loop memory dies with its elicitation", () => {
+  const carryForwardQuestion = "What exact wording do you want to carry forward as the next card?";
+
+  async function armCaptureLoop(state: ReturnType<typeof createState>): Promise<void> {
+    await processTurn(state, "let me think about oversight", questionLLM(carryForwardQuestion), defaultConfig);
+    expect(state.activeElicitation?.kind).toBe("sparse_map_next_card");
+    await processTurn(state, "human oversight matters", questionLLM(carryForwardQuestion), defaultConfig);
+    expect(state.captureLoop?.repeatCount).toBe(1);
+  }
+
+  it("clears captureLoop when the elicitation ends on a plain question", async () => {
+    const state = createState();
+    await armCaptureLoop(state);
+    await processTurn(state, "actually something new", questionLLM("Totally fresh question?"), defaultConfig);
+    expect(state.activeElicitation).toBeUndefined();
+    expect(state.captureLoop).toBeUndefined();
+  });
+
+  it("clears captureLoop on a user-forced mode override", async () => {
+    const state = createState();
+    await armCaptureLoop(state);
+    await processTurn(
+      state,
+      "",
+      questionLLM("Fresh question?"),
+      defaultConfig,
+      "chat",
+      { thoughtUnits: [], connections: [] },
+      { ingestUser: false, overrideMode: "pivot" },
+    );
+    expect(state.captureLoop).toBeUndefined();
+    expect(state.pendingCardWording).toBeUndefined();
+  });
+});
+
+describe("hardening: LLM cannot author structure between existing cards", () => {
+  const twoCardMap = (): LLMMapContext => ({
+    thoughtUnits: [mapUnit("tu_1", "human control"), mapUnit("tu_2", "authorship")],
+    connections: [],
+  });
+
+  it("blocks an LLM nest between existing cards the user never asked to nest", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Q",
+      mapCommands: [
+        { kind: "nest_card", childText: "human control", parentText: "authorship" },
+      ],
+    });
+
+    const out = await processTurn(state, "I keep thinking about oversight", llm, defaultConfig, "chat", twoCardMap());
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(
+      out.commandDebug?.some((note) =>
+        note.reason === "ungrounded_existing_endpoint" || note.reason === "blocked_interpretation",
+      ),
+    ).toBe(true);
+  });
+
+  it("blocks a declarative 'belongs under' from executing as a nest command", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Q",
+      mapCommands: [
+        { kind: "nest_card", childText: "human control", parentText: "authorship" },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "human control belongs under authorship in my head",
+      llm,
+      defaultConfig,
+      "chat",
+      twoCardMap(),
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandDebug?.some((note) => note.reason === "blocked_interpretation")).toBe(true);
+  });
+
+  it("still executes an instruction-shaped nest between existing named cards", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Q",
+      mapCommands: [
+        { kind: "nest_card", childText: "human control", parentText: "authorship" },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "put human control under authorship",
+      llm,
+      defaultConfig,
+      "chat",
+      twoCardMap(),
+    );
+
+    expect(out.mapCommands).toEqual([
+      { kind: "nest_card", child: { id: "tu_1" }, parentId: "tu_2" },
+    ]);
+  });
+
+  it("blocks a declarative 'these connect' from executing as a connection command", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Q",
+      mapCommands: [
+        { kind: "connect_cards", sourceText: "human control", targetText: "authorship" },
+      ],
+    });
+
+    const out = await processTurn(
+      state,
+      "human control and authorship connect deeply for me",
+      llm,
+      defaultConfig,
+      "chat",
+      twoCardMap(),
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandDebug?.some((note) => note.reason === "blocked_interpretation")).toBe(true);
+  });
+
+  it("blocks a create_card whose phrase is only a mid-word fragment of the turn", async () => {
+    const state = createState();
+    const llm = (ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Q",
+      mapCommands: [
+        {
+          kind: "create_card",
+          text: "art",
+          sourceSpan: { userPhrase: "art", utteranceIds: [ctx.bank[ctx.bank.length - 1]!.id] },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "we should start fresh on this part of it", llm);
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandDebug?.some((note) => note.reason === "not_current_turn_span")).toBe(true);
+  });
+});
+
+describe("hardening: pending commands whose cards were deleted mid-flow", () => {
+  it("drops a stale reference confirmation on 'yes' instead of faking Done", async () => {
+    const state = createState();
+    // Only tu_451 still exists — tu_448 was deleted while the confirm waited.
+    const map: LLMMapContext = {
+      thoughtUnits: [mapUnit("tu_451", "main claim")],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "reference_confirmation",
+      command: { kind: "connect_cards", source: { id: "tu_448" }, target: { id: "tu_451" } },
+      prompt: "Did you mean that one?",
+      debug: "near_match_pending",
+      correctionSlots: ["source"],
+    };
+
+    const out = await processTurn(state, "yes", questionLLM("ignored"), defaultConfig, "chat", map);
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("no longer on the map");
+    expect(out.commandDebug?.[0]?.reason).toBe("pending_command_stale_reference");
+    expect(state.pendingMapCommand).toBeUndefined();
+  });
+
+  it("drops a stale child placement instead of nesting under a deleted parent", async () => {
+    const state = createState();
+    state.pendingChildPlacement = {
+      parentId: "tu_577",
+      parentText: "Mechanism 1",
+      remaining: 1,
+    };
+
+    const out = await processTurn(
+      state,
+      "No silent commits without review",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      { thoughtUnits: [], connections: [] },
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("no longer on the map");
+    expect(state.pendingChildPlacement).toBeUndefined();
+  });
+});
+
+describe("hardening: stale-uncertainty settle drift (Goal 5 backstop)", () => {
+  it("steers a settle re-ask that anchors on a stale 'not sure' after a substantive answer", async () => {
+    const state = createState();
+    await processTurn(state, "control matters to me", questionLLM("What does control mean to you?"), defaultConfig);
+    expect(state.lastCoachQuestion?.text).toBe("What does control mean to you?");
+
+    const driftedSettleLLM = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Earlier you said you were not sure - which part still feels shaky to you?",
+      questionStance: "settle",
+    });
+    const out = await processTurn(
+      state,
+      "control means people can veto decisions they distrust",
+      driftedSettleLLM,
+      defaultConfig,
+    );
+
+    expect(out.text).not.toContain("Earlier you said");
+    expect(out.text).toContain("Let's ease off that one");
+    expect(out.questionStance).toBe("settle");
+  });
+
+  it("leaves a genuinely new settle question alone", async () => {
+    const state = createState();
+    await processTurn(state, "control matters to me", questionLLM("What does control mean to you?"), defaultConfig);
+
+    const freshSettleLLM = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What is one small piece of the veto idea you could pin down first?",
+      questionStance: "settle",
+    });
+    const out = await processTurn(
+      state,
+      "control means people can veto decisions they distrust",
+      freshSettleLLM,
+      defaultConfig,
+    );
+
+    expect(out.text).toBe("What is one small piece of the veto idea you could pin down first?");
   });
 });

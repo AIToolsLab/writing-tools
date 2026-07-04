@@ -16,13 +16,6 @@ function ensureCard(
   );
   if (existingByText) return existingByText;
 
-  const existingBySameSourceAndText = store.getAll().find((unit) =>
-    unit.role !== "connection_label" &&
-    normalize(unit.text) === normalizedText &&
-    ref.sourceUtteranceIds.some((id) => unit.source.utteranceIds.includes(id)),
-  );
-  if (existingBySameSourceAndText) return existingBySameSourceAndText;
-
   const utterance = bank.add(ref.text, "declaration");
   bank.markCommandOnly([utterance.id]);
   const unit = store.addFromUserUtterance(utterance);
@@ -70,6 +63,7 @@ export function applyAcceptedMapCommands(
         targetId: target.id,
         text: command.labelText ?? "",
         bank,
+        layoutDirection: "source_to_target",
       });
       if (command.labelSourceUtteranceIds && command.labelSourceUtteranceIds.length > 0) {
         store.update(registered.labelUnit.id, {

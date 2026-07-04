@@ -485,6 +485,83 @@ describe("buildUnderstanding", () => {
     expect(visible).not.toContain("AI-generated");
   });
 
+  it("never surfaces a failing span's phrase as evidence when it is not user wording", () => {
+    const bank = new SourceBank();
+    const source = bank.add("control means user decisions");
+    const snapshot = buildUnderstanding({
+      out: out({
+        suppressionReason: "validation_failed",
+        validationDebug: [
+          {
+            claimId: "claim_secret",
+            claimText: "invented framing",
+            target: "idea",
+            message: "failed",
+            checks: [
+              { check: "lexical_grounding", ok: false, score: 0, threshold: 0.75 },
+            ],
+            sourceSpans: [
+              {
+                claimText: "invented framing",
+                // Model-authored phrase that failed grounding — NOT user wording.
+                userPhrase: "the fabricated lattice framing",
+                utteranceIds: [source.id],
+                citedUtterances: [{ id: source.id, text: source.text }],
+              },
+            ],
+          },
+        ],
+      }),
+      candidates: [],
+      readiness: [],
+      bank,
+      draftDeclarations: [],
+      config: defaultConfig,
+    });
+
+    const visible = JSON.stringify(snapshot.activeEvents);
+    expect(visible).not.toContain("fabricated lattice");
+    const attempted = snapshot.activeEvents.find((event) => event.title === "Reflection attempted");
+    expect(attempted?.evidence).toBeUndefined();
+  });
+
+  it("does not surface a failing span phrase that only appears inside a larger word", () => {
+    const bank = new SourceBank();
+    const source = bank.add("let's start fresh");
+    const snapshot = buildUnderstanding({
+      out: out({
+        suppressionReason: "validation_failed",
+        validationDebug: [
+          {
+            claimId: "claim_secret",
+            claimText: "art",
+            target: "idea",
+            message: "failed",
+            checks: [
+              { check: "lexical_grounding", ok: false, score: 0, threshold: 0.75 },
+            ],
+            sourceSpans: [
+              {
+                claimText: "art",
+                userPhrase: "art",
+                utteranceIds: [source.id],
+                citedUtterances: [{ id: source.id, text: source.text }],
+              },
+            ],
+          },
+        ],
+      }),
+      candidates: [],
+      readiness: [],
+      bank,
+      draftDeclarations: [],
+      config: defaultConfig,
+    });
+
+    const attempted = snapshot.activeEvents.find((event) => event.title === "Reflection attempted");
+    expect(attempted?.evidence).toBeUndefined();
+  });
+
   it("labels density as the blocker before relationship clarity", () => {
     const bank = new SourceBank();
     const source = bank.add("control under authorship");

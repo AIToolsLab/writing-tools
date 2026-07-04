@@ -187,6 +187,47 @@ describe("ThoughtUnitStore", () => {
     });
   });
 
+  it("can register a manually drawn connection with a default source-to-target direction", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+
+    const { connection } = store.registerConnection({
+      sourceId: "a",
+      targetId: "b",
+      text: "",
+      bank,
+      layoutDirection: "source_to_target",
+    });
+
+    expect(connection.layoutDirection).toBe("source_to_target");
+    expect(store.getConnections()[0].layoutDirection).toBe("source_to_target");
+  });
+
+  it("preserves layout direction when reconnecting an edge", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+    store.add(unit("c", "control"));
+    const { connection } = store.registerConnection({
+      sourceId: "a",
+      targetId: "b",
+      text: "",
+      bank,
+      layoutDirection: "source_to_target",
+    });
+
+    store.reconnect(connection.id, "a", "c");
+
+    expect(store.getConnections()[0]).toMatchObject({
+      sourceId: "a",
+      targetId: "c",
+      layoutDirection: "source_to_target",
+    });
+  });
+
   it("defaults legacy snapshot connections to neutral layout direction", () => {
     const store = new ThoughtUnitStore();
     const bank = new SourceBank();
@@ -251,10 +292,33 @@ describe("ThoughtUnitStore", () => {
     const second = store.registerConnection({ sourceId: "b", targetId: "a", text: "qualifies", bank });
 
     expect(store.getConnections()).toHaveLength(2);
-    expect(first.connection.sourceHandleId).toBeUndefined();
-    expect(first.connection.targetHandleId).toBeUndefined();
+    expect(first.connection.sourceHandleId).toBe("right");
+    expect(first.connection.targetHandleId).toBe("left");
     expect(second.connection.sourceHandleId).toBe("right");
     expect(second.connection.targetHandleId).toBe("left");
+  });
+
+  it("routes a first positioned connection through facing card sides", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+    store.add(unit("c", "control"));
+    store.setPosition("a", { x: 0, y: 0 });
+    store.setPosition("b", { x: 420, y: 20 });
+    store.setPosition("c", { x: 40, y: 360 });
+
+    const horizontal = store.registerConnection({ sourceId: "a", targetId: "b", text: "", bank });
+    const vertical = store.registerConnection({ sourceId: "a", targetId: "c", text: "", bank });
+
+    expect(horizontal.connection).toMatchObject({
+      sourceHandleId: "right",
+      targetHandleId: "left",
+    });
+    expect(vertical.connection).toMatchObject({
+      sourceHandleId: "bottom",
+      targetHandleId: "top",
+    });
   });
 
   it("moves reconnected duplicate edges away from already-used handles", () => {
