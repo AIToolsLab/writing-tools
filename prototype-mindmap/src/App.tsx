@@ -513,9 +513,10 @@ const css = `
     background: #fafaf8;
     flex-shrink: 0;
     display: grid;
-    grid-template-columns: auto auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
     column-gap: 14px;
+    row-gap: 8px;
     transition: background 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
   }
   .map-header.draft-dock-target {
@@ -549,12 +550,14 @@ const css = `
     display: flex;
     align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
   }
   .map-left-tools {
     justify-self: start;
   }
   .map-right-tools {
-    justify-self: start;
+    justify-self: end;
+    justify-content: flex-end;
   }
 
   .question-bias {
@@ -644,8 +647,8 @@ const css = `
 
   .map-command-ack {
     min-width: 0;
-    flex: 0 1 280px;
-    max-width: 280px;
+    flex: 1 1 170px;
+    max-width: min(280px, 100%);
     display: flex;
     align-items: center;
     gap: 8px;
@@ -682,7 +685,12 @@ const css = `
 
   @media (max-width: 1180px) {
     .map-header {
+      grid-template-columns: auto minmax(0, 1fr);
       column-gap: 10px;
+    }
+
+    .map-right-tools {
+      grid-column: 2;
     }
 
     .question-bias {
@@ -2479,7 +2487,10 @@ export default function App() {
   );
   const initialConfirmed = persistedSession?.confirmed ?? [];
   const initialCoachDebug = persistedSession?.lastCoachDebug ?? null;
-  const initialUnderstandingSnapshot = persistedSession?.understandingSnapshot ?? null;
+  // Under-the-Hood is a transparency surface, so do not trust a snapshot read
+  // back from localStorage as live cognition. Show a fresh snapshot only after a
+  // controller turn rebuilds it from code-owned state in this session.
+  const initialUnderstandingSnapshot = null;
   const initialMapRevision = persistedSession?.mapRevision ?? 0;
   const initialQuestionBias = snapQuestionBias(persistedSession?.questionBias ?? 35);
   const initialRequireConnectionLabel = persistedSession?.requireConnectionLabel ?? true;
@@ -2523,6 +2534,10 @@ export default function App() {
   useEffect(() => {
     configRef.current = runtimeConfig;
   }, [runtimeConfig]);
+
+  useEffect(() => {
+    llmRef.current = makeLLM(() => configRef.current, buildConversationHistory(msgs));
+  }, [msgs]);
 
   const captureMapUndo = useCallback(() => {
     undoStackRef.current.push({

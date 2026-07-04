@@ -1155,7 +1155,14 @@ const UNCERTAIN_COMMAND_FRAME =
 
 function hasUncertainCommandFrame(text: string, markerIndex: number): boolean {
   const prefix = text.slice(0, markerIndex);
-  return /\?/.test(prefix) || UNCERTAIN_COMMAND_FRAME.test(prefix);
+  const lastBoundary = Math.max(
+    prefix.lastIndexOf("."),
+    prefix.lastIndexOf("!"),
+    prefix.lastIndexOf("?"),
+    prefix.lastIndexOf("\n"),
+  );
+  const localFrame = prefix.slice(lastBoundary + 1);
+  return /\?/.test(localFrame) || UNCERTAIN_COMMAND_FRAME.test(localFrame);
 }
 
 function extractExplicitCreateCardText(text: string): string | undefined {
@@ -1320,6 +1327,7 @@ function explicitExactTextCardCommand(
 ): Extract<AcceptedMapCommand, { kind: "create_card" }> | undefined {
   const trimmed = userText.trim();
   let payload: string | undefined;
+  let markerIndex = -1;
   for (const re of EXACT_TEXT_MARKERS) {
     const match = re.exec(trimmed);
     if (match) {
@@ -1331,6 +1339,7 @@ function explicitExactTextCardCommand(
       // inspected, so it may itself be a question or contain hedge words.
       if (isNegatedImperativePrefix(trimmed, match.index)) return undefined;
       if (hasUncertainCommandFrame(trimmed, match.index)) return undefined;
+      markerIndex = match.index;
       payload = cleanExplicitCardText(match[1], { preserveTerminalPunctuation: true });
       break;
     }
@@ -1343,11 +1352,34 @@ function explicitExactTextCardCommand(
   // that the per-unit path would truncate. The marker sits at the very start of
   // the turn, so every unit is marker-or-payload and all are this-turn wording.
   if (units.some((unit) => unit.text.includes(payload!))) return undefined;
+  const citedUnits = unitsAtOrAfterTextIndex(trimmed, units, markerIndex);
+  if (citedUnits.length === 0) return undefined;
   return {
     kind: "create_card",
     text: payload,
-    sourceUtteranceIds: units.map((unit) => unit.id),
+    sourceUtteranceIds: citedUnits.map((unit) => unit.id),
   };
+}
+
+function unitsAtOrAfterTextIndex(
+  turnText: string,
+  units: SourceUtterance[],
+  index: number,
+): SourceUtterance[] {
+  if (index <= 0) return units;
+  let searchFrom = 0;
+  const cited: SourceUtterance[] = [];
+  for (const unit of units) {
+    const unitIndex = turnText.indexOf(unit.text, searchFrom);
+    if (unitIndex < 0) {
+      return units;
+    }
+    if (unitIndex + unit.text.length > index) {
+      cited.push(unit);
+    }
+    searchFrom = unitIndex + unit.text.length;
+  }
+  return cited;
 }
 
 function extractNaturalConnectionLabel(units: SourceUtterance[]): string | undefined {
@@ -2733,9 +2765,10 @@ export async function processTurn(
 
   const directExactTextCard = explicitExactTextCardCommand(userText, units);
   if (directExactTextCard) {
-    // The whole turn is a verbatim placement command; keep all of it out of the
-    // mirror bank and hand control back like any other complete command.
-    state.bank.markCommandOnly(units.map((unit) => unit.id));
+    // Keep the marker/payload segments out of the mirror bank and hand control
+    // back like any other complete command. If the user wrote unrelated wording
+    // before the marker in the same turn, leave that earlier wording mirrorable.
+    state.bank.markCommandOnly(directExactTextCard.sourceUtteranceIds ?? units.map((unit) => unit.id));
     state.mode = "question";
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;

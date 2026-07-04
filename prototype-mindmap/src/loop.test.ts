@@ -5734,3 +5734,30 @@ describe("bug pass: user-forced mirror bypasses pacing cooldown", () => {
     expect(pacedOut.suppressionReason).toBe("cooldown");
   });
 });
+
+describe("bug pass: exact-text command provenance", () => {
+  it("does not mark unrelated same-turn wording as command-only", async () => {
+    const state = createState();
+    const out = await processTurn(
+      state,
+      "Fairness should stay separate. Create a card with exactly this text: AI is risky. It removes agency.",
+      questionLLM("ignored"),
+      defaultConfig,
+    );
+
+    const create = out.mapCommands?.find((command) => command.kind === "create_card");
+    expect(create?.kind).toBe("create_card");
+    expect(create?.kind === "create_card" ? create.text : "").toBe("AI is risky. It removes agency.");
+
+    const bank = state.bank.getAll();
+    expect(bank.map((unit) => unit.text)).toEqual([
+      "Fairness should stay separate.",
+      "Create a card with exactly this text: AI is risky.",
+      "It removes agency.",
+    ]);
+    expect(bank[0].commandOnly).toBeFalsy();
+    expect(bank[1].commandOnly).toBe(true);
+    expect(bank[2].commandOnly).toBe(true);
+    expect(create?.kind === "create_card" ? create.sourceUtteranceIds : []).toEqual([bank[1].id, bank[2].id]);
+  });
+});

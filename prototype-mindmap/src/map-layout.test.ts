@@ -37,12 +37,13 @@ function layout(
   units: ThoughtUnit[],
   connections: ThoughtConnection[],
   positions: Record<string, XYPosition> = {},
+  sizes: Record<string, XYSize> = {},
 ) {
   return computeAutoCleanPositions({
     units,
     connections,
     positions,
-    sizes: {},
+    sizes,
     defaultSize,
   });
 }
@@ -53,6 +54,20 @@ function boxesOverlap(a: XYPosition, b: XYPosition) {
     b.x + defaultSize.w <= a.x ||
     a.y + defaultSize.h <= b.y ||
     b.y + defaultSize.h <= a.y
+  );
+}
+
+function boxesOverlapWithSizes(
+  a: XYPosition,
+  aSize: XYSize,
+  b: XYPosition,
+  bSize: XYSize,
+) {
+  return !(
+    a.x + aSize.w <= b.x ||
+    b.x + bSize.w <= a.x ||
+    a.y + aSize.h <= b.y ||
+    b.y + bSize.h <= a.y
   );
 }
 
@@ -117,5 +132,26 @@ describe("computeAutoCleanPositions", () => {
     expect(positions.other).toBeDefined();
     expect(positions.child).toBeUndefined();
     expect(positions.parent.y).toBeLessThan(positions.other.y);
+  });
+
+  it("uses supplied rendered root sizes so expanded nested parents do not overlap components", () => {
+    const tallParent = { w: 200, h: 360 };
+    const positions = layout(
+      [
+        unit("parent"),
+        unit("child", "child", "parent"),
+        unit("other"),
+        unit("separate"),
+      ],
+      [connection("co", "child", "other", "source_to_target")],
+      {},
+      { parent: tallParent },
+    );
+
+    expect(positions.parent).toBeDefined();
+    expect(positions.other).toBeDefined();
+    expect(positions.separate).toBeDefined();
+    expect(boxesOverlapWithSizes(positions.parent, tallParent, positions.separate, defaultSize)).toBe(false);
+    expect(boxesOverlapWithSizes(positions.parent, tallParent, positions.other, defaultSize)).toBe(false);
   });
 });

@@ -225,6 +225,23 @@ function visibleFlowBounds(
   };
 }
 
+function measuredRootSizes(
+  flow: ReturnType<typeof useReactFlow>,
+  store: ThoughtUnitStore,
+): Record<string, XYSize> {
+  const sizes = store.getSizes();
+  for (const node of flow.getNodes()) {
+    const unit = store.get(node.id);
+    if (!unit || unit.parentId || unit.role === "connection_label") continue;
+    const width = node.measured?.width ?? node.width;
+    const height = node.measured?.height ?? node.height;
+    if (typeof width !== "number" || typeof height !== "number") continue;
+    if (width <= 0 || height <= 0) continue;
+    sizes[node.id] = { w: width, h: height };
+  }
+  return sizes;
+}
+
 function roleLabel(unit: ThoughtUnit, childCount: number): string {
   // The reference number replaces the generic "card" word so the user and the
   // AI can cite the same handle. Title cards keep the word plus the ref.
@@ -651,7 +668,7 @@ function ThoughtMapInner({
       units: store.getAll(),
       connections: store.getConnections(),
       positions: store.getPositions(),
-      sizes: store.getSizes(),
+      sizes: measuredRootSizes(flow, store),
       defaultSize: { w: CARD_WIDTH, h: CARD_HEIGHT },
     });
     if (Object.keys(nextPositions).length === 0) return;
@@ -1163,17 +1180,7 @@ function ThoughtMapInner({
           <button type="button" className="map-add-card" onClick={addCard}>
             + New card
           </button>
-          {commandAck && (
-            <div className="map-command-ack" role="status">
-              <span>{commandAck.text}</span>
-              <button type="button" onClick={onUndo} disabled={!canUndo} title="Undo this map command">
-                Undo
-              </button>
-            </div>
-          )}
-        </div>
 
-        <div className="map-right-tools">
           <button
             type="button"
             className={`map-label-toggle ${requireConnectionLabel ? "active" : ""}`}
@@ -1194,6 +1201,15 @@ function ThoughtMapInner({
           <button type="button" className="map-undo" onClick={onUndo} disabled={!canUndo} title="Undo map change">
             Undo
           </button>
+
+          {commandAck && (
+            <div className="map-command-ack" role="status">
+              <span>{commandAck.text}</span>
+              <button type="button" onClick={onUndo} disabled={!canUndo} title="Undo this map command">
+                Undo
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
