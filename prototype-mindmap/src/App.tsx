@@ -3166,9 +3166,17 @@ export default function App() {
       };
       stateRef.current.mode = "clarify";
       stateRef.current.turnsSinceLastMirror++;
+      // Only surface the user's OWN wording in Under the Hood — never the mirror
+      // claim's phrasing (which is AI-authored). Fall back to undefined so UTH
+      // shows a neutral "that idea" rather than leaking generated prose. (The
+      // chat message above may quote the claim; chat is not UTH-restricted.)
+      const declinedUserEdit =
+        (pm.editedTexts[declinedClaim.id] ?? "").trim() !== declinedClaim.text.trim()
+          ? (pm.editedTexts[declinedClaim.id] ?? "").trim()
+          : undefined;
       stateRef.current.activeElicitation = {
         kind: "clarify_after_failed_mirror",
-        targetPhrase: declinedText ?? declinedClaim.text,
+        targetPhrase: declinedUserEdit || undefined,
       };
       stateRef.current.prevAiText = stateRef.current.lastAiText;
       stateRef.current.lastAiText = text;

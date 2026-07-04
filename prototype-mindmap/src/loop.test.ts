@@ -5586,6 +5586,62 @@ describe("bug pass: cancel-vs-correction disambiguation", () => {
 
     expect(correctedLabel(state)).toBe("supports");
   });
+
+  it("extracts the wording from a bare 'it should be X' correction", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    await processTurn(state, "No, it should be supports", questionLLM("ignored"), defaultConfig, "chat", relMap);
+
+    expect(correctedLabel(state)).toBe("supports");
+  });
+
+  it("extracts X from 'I meant X instead of Y' when Y is the pending label", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    await processTurn(state, "I meant supports instead of causes", questionLLM("ignored"), defaultConfig, "chat", relMap);
+
+    expect(correctedLabel(state)).toBe("supports");
+  });
+
+  it("extracts X from 'I mean X rather than Y' when Y is the pending label", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    await processTurn(state, "I mean supports rather than causes", questionLLM("ignored"), defaultConfig, "chat", relMap);
+
+    expect(correctedLabel(state)).toBe("supports");
+  });
+
+  it("does not guess from 'instead of Y' when Y is not the pending label", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    await processTurn(state, "I meant supports instead of the survey", questionLLM("ignored"), defaultConfig, "chat", relMap);
+
+    expect(correctedLabel(state)).not.toBe("supports");
+    expect(correctedLabel(state)).toBe("I meant supports instead of the survey");
+  });
+
+  it("re-prompts on a hedged reply instead of extracting a fragment as the label", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    const out = await processTurn(
+      state,
+      "I'm not sure it should be anything",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      relMap,
+    );
+
+    // Must not lift "anything" out of an uncertain turn; the pending label stays
+    // as-is and the coach re-prompts for the wording.
+    expect(correctedLabel(state)).toBe("causes");
+    expect(out.text).toContain("relationship pending");
+  });
 });
 
 describe("bug pass: settle re-ask backstop", () => {
@@ -5616,5 +5672,65 @@ describe("bug pass: settle re-ask backstop", () => {
     // The coach must not re-ask the same settled concept back at the user.
     expect(out.text).not.toBe(reask);
     expect(out.mode).toBe("question");
+  });
+});
+
+describe("bug pass: command precedence over pending label capture", () => {
+  it("runs a fresh exact-text card command instead of storing it as a connection label", async () => {
+    const state = createState();
+    state.pendingMapCommand = {
+      kind: "connection_label",
+      command: { kind: "connect_cards", source: { id: "tu_1" }, target: { id: "tu_2" } },
+      prompt: "What should the label be between #1 and #2?",
+      debug: "connection_label_pending",
+    };
+    const map = { thoughtUnits: [mapUnit("tu_1", "A"), mapUnit("tu_2", "B")], connections: [] };
+
+    const out = await processTurn(
+      state,
+      "Actually create a card with exactly this text: writer decides final wording",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    const cmds = out.mapCommands ?? [];
+    // Command precedence: the create command runs; the pending connection is NOT
+    // created with the whole sentence as its label.
+    expect(cmds.some((c) => c.kind === "create_card")).toBe(true);
+    expect(cmds.some((c) => c.kind === "connect_cards")).toBe(false);
+    expect(state.pendingMapCommand?.kind).not.toBe("connection_label");
+  });
+});
+
+describe("bug pass: user-forced mirror bypasses pacing cooldown", () => {
+  const cfg = { ...defaultConfig, pacing: { ...defaultConfig.pacing, minQuestionTurnsBetweenMirrors: 3 } };
+
+  it("does not suppress a forced mirror as cooldown, but still does for an unforced one", async () => {
+    const forced = createState();
+    await processTurn(forced, "human control decides the wording", questionLLM("Q"), cfg);
+    forced.turnsSinceLastMirror = 0;
+    const forcedOut = await processTurn(
+      forced,
+      "",
+      groundedMirrorLLM("human control decides the wording", forced.bank.getAll()[0].id),
+      cfg,
+      "chat",
+      { thoughtUnits: [], connections: [] },
+      { ingestUser: false, overrideMode: "mirror" },
+    );
+    expect(forcedOut.suppressionReason).not.toBe("cooldown");
+
+    const paced = createState();
+    await processTurn(paced, "human control decides the wording", questionLLM("Q"), cfg);
+    paced.turnsSinceLastMirror = 0;
+    const pacedOut = await processTurn(
+      paced,
+      "human control decides the wording",
+      groundedMirrorLLM("human control decides the wording", paced.bank.getAll()[0].id),
+      cfg,
+    );
+    expect(pacedOut.suppressionReason).toBe("cooldown");
   });
 });

@@ -1957,15 +1957,21 @@ function extractCorrectedLabel(text: string, pendingLabel?: string): string | un
       .replace(/[.!?;,]+$/g, "")
       .trim();
 
+  // Unconditional forms — no competing wording to disambiguate:
+  // "[it|that|the (relationship|connection) label|wording] should be X",
+  // "use X instead".
   const explicit =
-    trimmed.match(/\b(?:relationship |connection )?(?:label|wording)\s+should\s+be\s+(.+)$/i) ||
+    trimmed.match(/\b(?:it|that|(?:the )?(?:relationship |connection )?(?:label|wording))\s+should\s+be\s+(.+)$/i) ||
     trimmed.match(/\buse\s+(.+?)\s+instead\b/i);
   if (explicit) return clean(explicit[1]) || undefined;
 
-  // "I meant X, not Y" is only trustworthy when Y is the wording being corrected
-  // (it matches the pending label), so X is unambiguously the replacement.
-  // Without that check we'd be guessing which side is the label.
-  const meant = trimmed.match(/\bi (?:meant|mean)\s+(.+?)\s*,?\s*\bnot\s+(.+)$/i);
+  // "I meant X not/instead of/rather than Y" is only trustworthy when Y is the
+  // wording being corrected (it matches the pending label), so X is
+  // unambiguously the replacement. Without that check we'd be guessing which
+  // side is the label.
+  const meant = trimmed.match(
+    /\bi (?:meant|mean)\s+(.+?)\s*,?\s*\b(?:not|instead\s+of|rather\s+than)\s+(.+)$/i,
+  );
   if (meant && pendingLabel && clean(meant[2]).toLowerCase() === clean(pendingLabel).toLowerCase()) {
     return clean(meant[1]) || undefined;
   }
@@ -2398,6 +2404,20 @@ export async function processTurn(
     };
   }
 
+  // Command precedence: a fresh explicit map command preempts a pending
+  // connection-label capture. Without this, "Actually create a card with exactly
+  // this text: X" would be stored as the connection's label instead of running
+  // the command. Drop the pending label and let normal command routing handle it.
+  if (
+    state.pendingMapCommand?.kind === "connection_label" &&
+    (explicitExactTextCardCommand(userText, units) ||
+      explicitRefConnectCommand(userText, map, config) ||
+      explicitRefNestCommand(userText, map, config) ||
+      deterministicCreateCardCommands(userText, units).length > 0)
+  ) {
+    state.pendingMapCommand = undefined;
+  }
+
   if (state.pendingMapCommand?.kind === "connection_label") {
     const pending = state.pendingMapCommand;
     state.mode = "question";
@@ -2590,8 +2610,12 @@ export async function processTurn(
     // yield the wording "supports", not the whole sentence. "I meant X, not Y" is
     // resolved against the pending label so X is unambiguous. Plain wording
     // replies return undefined from the extractor and fall back to the raw text.
-    const labelText = extractCorrectedLabel(userText, pending.labelText) ?? userText.trim();
-    if (!labelText || isStuck(labelText) || labelText.endsWith("?")) {
+    const rawReply = userText.trim();
+    const labelText = extractCorrectedLabel(userText, pending.labelText) ?? rawReply;
+    // Guard on the raw reply too, not just the extracted label: a hedged or
+    // question-shaped turn must still re-prompt even when extraction pulled a
+    // fragment out of it ("I'm not sure it should be anything" -> "anything").
+    if (!labelText || isStuck(rawReply) || isStuck(labelText) || rawReply.endsWith("?") || labelText.endsWith("?")) {
       const text = "I still have that relationship pending. What exact relationship wording should I use?";
       setLastAiText(state, text);
       return {
@@ -3675,8 +3699,11 @@ export async function processTurn(
       });
     }
 
-    // 6a. Pacing check — too soon?
+    // 6a. Pacing check — too soon? A user-forced "Reflect this back" bypasses
+    // pacing (it must still pass readiness + validation below), so an explicit
+    // request is never silently swallowed by the cooldown.
     if (
+      options.overrideMode !== "mirror" &&
       state.turnsSinceLastMirror <
       config.pacing.minQuestionTurnsBetweenMirrors
     ) {
