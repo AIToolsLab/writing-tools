@@ -15,7 +15,7 @@
 import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
 import { detectDraftDeclarations, type DraftDeclaration } from "./draft-declarations";
-import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MapQuestionAnchor, MockLLM, QuestionStance } from "./llm-contract";
+import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MapQuestionAnchor, MockLLM, QuestionStance, UserRequestedMode } from "./llm-contract";
 import { contentTokens, normalize, stem } from "./normalize";
 import { evaluateReadiness, readyCandidates } from "./readiness";
 import { detectSignals } from "./signals";
@@ -195,6 +195,13 @@ export interface ProcessTurnOptions {
   ingestUser?: boolean;
   requireConnectionLabel?: boolean;
   continuationFocus?: string[];
+  /**
+   * User-initiated override of the coach's next move (from the Under the Hood
+   * panel). When set, `processTurn` clears any pending confirmation/elicitation
+   * up front (so a wedged state can't swallow the request) and forces the
+   * corresponding mode via the prompt. Only meaningful with `ingestUser: false`.
+   */
+  overrideMode?: UserRequestedMode;
 }
 
 const STUCK_PHRASES = [
@@ -487,9 +494,9 @@ function explicitUserMentionedCardRef(text: string, map: LLMMapContext): string 
 function mirrorPressureBridgeQuestion(userText: string, map: LLMMapContext): string {
   const ref = explicitUserMentionedCardRef(userText, map);
   if (ref) {
-    return `I think there may be enough here to reflect how this connects to ${ref}. Do you want me to mirror that structure now, or keep unpacking it?`;
+    return `I think this may be close enough to reflect how this connects to ${ref}. Do you want me to try mirroring that structure now, or keep unpacking it?`;
   }
-  return "I think there may be enough here to reflect back. Do you want me to mirror the structure I'm hearing, or keep unpacking it?";
+  return "I think this may be close enough to reflect back. Do you want me to try mirroring the structure I'm hearing, or keep unpacking it?";
 }
 
 type DraftSalienceBridge = {
@@ -691,6 +698,7 @@ function isCompactRelationshipAnswer(text: string): boolean {
   if (answersSiblingFraming(text)) return false;
   const trimmed = text.trim();
   if (!trimmed || /#\d+/.test(trimmed)) return false;
+  if (asksForChatOnlyOrReflection(trimmed) || cancelsPendingMapAction(trimmed)) return false;
   if (/^(no|none|nope|not sure|i don't know|i dont know)\b/i.test(trimmed)) return false;
   if (/\b(?:carry forward|exact wording|on the map|map to carry)\b/i.test(trimmed)) return false;
   const tokens = contentTokens(trimmed);
@@ -1888,11 +1896,80 @@ function isNegative(text: string): boolean {
 }
 
 // "cancel" / "never mind" abandon a pending confirmation outright — the user
-// wants no action, not a correction. Distinct from the "no, that's wrong"
-// negatives above, which ask for replacement wording.
+// wants no action, not a correction. Bare negatives ("no", "nope") likewise
+// cancel a pending relationship confirmation now (via cancelsPendingMapAction);
+// a non-negative free-text reply is treated as replacement wording instead.
 function isCancel(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/[.!?;]+$/g, "").replace(/\s+/g, " ");
   return normalized === "cancel" || normalized === "never mind" || normalized === "nevermind";
+}
+
+function asksForChatOnlyOrReflection(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/[.!?;]+$/g, "").replace(/\s+/g, " ");
+  const lower = normalized.replace(/[’']/g, "'");
+  if (/^(?:mirror|mirror it|mirror it back|reflect|reflect it|reflect it back)$/.test(lower)) return true;
+  return (
+    /\b(?:chat only|in chat only|chat-only)\b/.test(lower) ||
+    /\b(?:reflect|reflection|mirror)\b/.test(lower) &&
+      /\b(?:chat|back|idea|structure|hearing)\b/.test(lower)
+  );
+}
+
+function cancelsPendingMapAction(text: string): boolean {
+  const normalized = text.trim().toLowerCase().replace(/[.!?;]+$/g, "").replace(/\s+/g, " ");
+  const lower = normalized.replace(/[’']/g, "'");
+  if (isLabelDecline(text)) return false;
+  if (isNegative(text) || isCancel(text) || asksForChatOnlyOrReflection(text)) return true;
+  return (
+    /\b(?:cancel|stop|drop|forget|abandon)\b[\s\S]{0,80}\b(?:relationship|connection|connect|map|action)\b/.test(lower) ||
+    /\b(?:don't|dont|do not|won't|wont)\b[\s\S]{0,80}\b(?:change|edit|touch|connect|create|make|add)\b[\s\S]{0,40}\bmap\b/.test(lower) ||
+    /\b(?:don't|dont|do not|stop)\b[\s\S]{0,80}\bconnect(?:ing)?\b/.test(lower) ||
+    // "I meant X, not Y" is only a cancel when the negation targets the map
+    // action itself ("...not connect them"), never when Y is corrected label
+    // content ("I meant supports, not causes") — that must fall through to the
+    // relationship-wording correction path.
+    //
+    // NOTE: there is deliberately no broad "no ... relationship|connection|label"
+    // fallback here. It fired on ordinary corrections ("No, the relationship
+    // label should be supports") and structure descriptions ("there are no
+    // relationship between them, but they are both small ideas..."), dropping the
+    // pending connection instead of correcting its wording. Genuine cancels are
+    // still caught by the bare-negative / "cancel" / "don't connect" / "don't
+    // change the map" branches above.
+    /\bi (?:meant|mean)\b[\s\S]{0,80}\b(?:not|instead)\b[\s\S]{0,40}\b(?:connect|connection|relationship|link|nest|map)\b/.test(lower)
+  );
+}
+
+/**
+ * Pull the intended wording out of a relationship-label *correction* such as
+ * "No, the relationship label should be supports" or "use supports instead", so
+ * the whole sentence is not stored verbatim as the label. Returns undefined when
+ * the reply is not a recognised correction form — the caller then falls back to
+ * treating the raw text as the wording.
+ */
+function extractCorrectedLabel(text: string, pendingLabel?: string): string | undefined {
+  const trimmed = text.trim();
+  const clean = (raw: string): string =>
+    raw
+      .trim()
+      .replace(/\s+instead\b\.?$/i, "")
+      .replace(/^["'‘’“”]+|["'‘’“”]+$/g, "")
+      .replace(/[.!?;,]+$/g, "")
+      .trim();
+
+  const explicit =
+    trimmed.match(/\b(?:relationship |connection )?(?:label|wording)\s+should\s+be\s+(.+)$/i) ||
+    trimmed.match(/\buse\s+(.+?)\s+instead\b/i);
+  if (explicit) return clean(explicit[1]) || undefined;
+
+  // "I meant X, not Y" is only trustworthy when Y is the wording being corrected
+  // (it matches the pending label), so X is unambiguously the replacement.
+  // Without that check we'd be guessing which side is the label.
+  const meant = trimmed.match(/\bi (?:meant|mean)\s+(.+?)\s*,?\s*\bnot\s+(.+)$/i);
+  if (meant && pendingLabel && clean(meant[2]).toLowerCase() === clean(pendingLabel).toLowerCase()) {
+    return clean(meant[1]) || undefined;
+  }
+  return undefined;
 }
 
 /**
@@ -2144,6 +2221,32 @@ export async function processTurn(
     }
   }
 
+  if (state.pendingMapCommand && asksForChatOnlyOrReflection(userText)) {
+    state.pendingMapCommand = undefined;
+    state.organizeFocus = undefined;
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.pendingChildPlacement = undefined;
+  }
+
+  // User-initiated mode override (from Under the Hood): unconditionally clear any
+  // pending confirmation/elicitation so a wedged state can't swallow the request,
+  // then fall through to the forced-mode LLM call below.
+  if (options.overrideMode) {
+    state.pendingMapCommand = undefined;
+    state.organizeFocus = undefined;
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.pendingChildPlacement = undefined;
+    state.clarifyTarget = undefined;
+    if (options.overrideMode === "pivot") {
+      // The escape hatch: also drop the question the user is rejecting and any
+      // coverage focus so the model cannot re-anchor on the stale thread.
+      state.lastCoachQuestion = undefined;
+      state.coverageFocus = undefined;
+    }
+  }
+
   if (
     state.pendingMapCommand?.kind === "reference_confirmation" &&
     !state.pendingMapCommand.awaitingCorrection &&
@@ -2301,9 +2404,11 @@ export async function processTurn(
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
-    if (isNegative(userText)) {
+    if (cancelsPendingMapAction(userText)) {
       state.pendingMapCommand = undefined;
-      const text = "Okay - I won't create that connection.";
+      const text = asksForChatOnlyOrReflection(userText)
+        ? "Okay - I won't change the map. What would you like to reflect or unpack in chat?"
+        : "Okay - I won't create that connection.";
       setLastAiText(state, text);
       return {
         mode: "question",
@@ -2407,6 +2512,27 @@ export async function processTurn(
     };
   }
 
+  if (state.pendingMapCommand?.kind === "relationship_confirmation" && cancelsPendingMapAction(userText)) {
+    const pending = state.pendingMapCommand;
+    state.pendingMapCommand = undefined;
+    state.organizeFocus = undefined;
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.turnsSinceLastMirror++;
+    const text = asksForChatOnlyOrReflection(userText)
+      ? "Okay - I won't change the map. What would you like to reflect or unpack in chat?"
+      : "Okay - I won't create that connection. What would you like to do next?";
+    setLastAiText(state, text);
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      commandDebug: [{ reason: "relationship_cancelled", detail: pending.debug }],
+      questionStance: "organize",
+    };
+  }
+
   if (
     state.pendingMapCommand?.kind === "relationship_confirmation" &&
     !state.pendingMapCommand.awaitingCorrection &&
@@ -2454,66 +2580,17 @@ export async function processTurn(
     };
   }
 
-  if (state.pendingMapCommand?.kind === "relationship_confirmation" && isCancel(userText)) {
-    const pending = state.pendingMapCommand;
-    state.pendingMapCommand = undefined;
-    state.organizeFocus = undefined;
-    state.mode = "question";
-    state.activeElicitation = undefined;
-    state.pendingCardWording = undefined;
-    state.turnsSinceLastMirror++;
-    const text = "Okay - I won't create that connection. What would you like to do next?";
-    setLastAiText(state, text);
-    return {
-      mode: "question",
-      text,
-      llmTurn: { mode: "question", text },
-      commandDebug: [{ reason: "relationship_cancelled", detail: pending.debug }],
-      questionStance: "organize",
-    };
-  }
-
-  if (state.pendingMapCommand?.kind === "relationship_confirmation" && isNegative(userText)) {
-    const pending = state.pendingMapCommand;
-    state.pendingMapCommand = {
-      ...pending,
-      awaitingCorrection: true,
-    };
-    state.mode = "question";
-    state.activeElicitation = undefined;
-    state.pendingCardWording = undefined;
-    state.turnsSinceLastMirror++;
-    const text = "Okay - what relationship wording would you use instead?";
-    setLastAiText(state, text);
-    return {
-      mode: "question",
-      text,
-      llmTurn: { mode: "question", text },
-      commandConfirmation: state.pendingMapCommand,
-      commandDebug: [{ reason: "relationship_rejected", detail: pending.debug }],
-      questionStance: "organize",
-    };
-  }
-
   if (state.pendingMapCommand?.kind === "relationship_confirmation") {
     const pending = state.pendingMapCommand;
     state.mode = "question";
     state.activeElicitation = undefined;
     state.pendingCardWording = undefined;
     state.turnsSinceLastMirror++;
-    if (pending.awaitingCorrection && isAffirmative(userText)) {
-      const text = "I still need the replacement relationship wording before I can create that connection. What exact wording should I use?";
-      setLastAiText(state, text);
-      return {
-        mode: "question",
-        text,
-        llmTurn: { mode: "question", text },
-        commandConfirmation: pending,
-        commandDebug: [{ reason: "relationship_correction_still_pending", detail: pending.debug }],
-        questionStance: "organize",
-      };
-    }
-    const labelText = userText.trim();
+    // A correction like "No, the relationship label should be supports" should
+    // yield the wording "supports", not the whole sentence. "I meant X, not Y" is
+    // resolved against the pending label so X is unambiguous. Plain wording
+    // replies return undefined from the extractor and fall back to the raw text.
+    const labelText = extractCorrectedLabel(userText, pending.labelText) ?? userText.trim();
     if (!labelText || isStuck(labelText) || labelText.endsWith("?")) {
       const text = "I still have that relationship pending. What exact relationship wording should I use?";
       setLastAiText(state, text);
@@ -2701,6 +2778,13 @@ export async function processTurn(
   }
 
   if (state.organizeFocus) {
+    if (asksForChatOnlyOrReflection(userText)) {
+      state.organizeFocus = undefined;
+      state.activeElicitation = undefined;
+    }
+  }
+
+  if (state.organizeFocus) {
     if (mapIsSparse && answersSiblingFraming(userText)) {
       state.organizeFocus = undefined;
       state.mode = "question";
@@ -2712,6 +2796,22 @@ export async function processTurn(
         mode: "question",
         text,
         llmTurn: { mode: "question", text },
+        questionStance: "organize",
+      };
+    }
+
+    if (cancelsPendingMapAction(userText)) {
+      state.organizeFocus = undefined;
+      state.activeElicitation = undefined;
+      state.mode = "question";
+      state.turnsSinceLastMirror++;
+      const text = "Okay - I won't create that connection. What would you like to do next?";
+      setLastAiText(state, text);
+      return {
+        mode: "question",
+        text,
+        llmTurn: { mode: "question", text },
+        commandDebug: [{ reason: "relationship_cancelled", detail: "organize_focus_cancelled" }],
         questionStance: "organize",
       };
     }
@@ -2896,6 +2996,7 @@ export async function processTurn(
     mapQuestionContext: mapQuestionContext.length > 0 ? mapQuestionContext : undefined,
     lastCoachQuestion: state.lastCoachQuestion,
     userAnsweredLastQuestion,
+    forcedMode: options.overrideMode,
   };
   const turn = await llm(ctx);
   const directExplicitRefConnect = explicitRefConnectCommand(userText, map, config);
@@ -3097,7 +3198,7 @@ export async function processTurn(
 
   // De-escalation used to break a verbatim-repeat loop (see finish()).
   const DE_ESCALATE =
-    "Let's zoom out a little — what's one small piece of this you feel sure about?";
+    "Let's ease off that one — what's one small part of this you already feel sure about?";
   const MIRROR_SUPPRESSED_REPEAT_QUESTION =
     "What exact wording do you want the map to carry forward from that?";
   const normalizeText = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -3361,10 +3462,12 @@ export async function processTurn(
       !commandPromptActive &&
       out.suppressionReason === undefined &&
       (out.mode === "question" || out.mode === "clarify") &&
-      // Only steer an explicit deepen/narrow re-ask. Questions the model tagged
-      // organize/settle/challenge (or left untagged) are left alone, so this
-      // backstop can't hijack an incidental follow-up.
-      (out.questionStance === "deepen" || out.questionStance === "narrow") &&
+      // Steer an explicit deepen/narrow/settle re-ask. organize/challenge (or
+      // untagged) are left alone. settle is included so the coach cannot keep
+      // re-settling a concept the user just answered — the concept-overlap gate
+      // below still protects a legitimately-new settle (different concept, low
+      // overlap) from being hijacked.
+      (out.questionStance === "deepen" || out.questionStance === "narrow" || out.questionStance === "settle") &&
       questionConceptOverlap(out.text, answeredQuestion.text) >= 0.6
     ) {
       if (config.pacing.mapPressure >= 0.5 && !mapIsSparse) {

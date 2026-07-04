@@ -109,9 +109,9 @@ const SUPPRESSION_CATALOG: Record<SuppressionReason, CatalogEntry> = {
   mirror_pressure_bridge: {
     level: "notice",
     icon: "reflect",
-    title: "Ready to reflect",
+    title: "Reflection may be close",
     explanation:
-      "Enough user-owned wording had accumulated, so I asked whether to mirror before continuing.",
+      "User-owned wording had accumulated, so I asked whether to try a checked mirror before continuing.",
   },
   draft_salience_bridge: {
     level: "notice",

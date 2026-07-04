@@ -29,6 +29,20 @@ export type QuestionStance =
   | "challenge";
 
 /**
+ * A user-initiated override of the coach's next move, chosen from the Under the
+ * Hood panel. A deliberately small, user-facing subset of the coach's behaviors
+ * so the user can steer (and unstick) the turn without ever authoring map writes
+ * or seeing model scaffolding. Maps onto the LLM contract as:
+ *   - "mirror"   -> mode "mirror"
+ *   - "deepen"   -> mode "question", questionIntent "deepen"
+ *   - "organize" -> mode "question", questionIntent "organize"
+ *   - "pivot"    -> mode "question": the user's escape hatch. Drop the current
+ *                   question/focus and ask a fresh, easy hand-back — never re-ask
+ *                   or narrow the same thing.
+ */
+export type UserRequestedMode = "mirror" | "deepen" | "organize" | "pivot";
+
+/**
  * Upsert instruction for a candidate. The LLM may propose the *grouping*
  * (which utterances support which candidate, plus a gist and target) — but it
  * may NOT supply relation signals or spontaneity. Those are derived in code
@@ -227,6 +241,13 @@ export interface LLMContext {
    * model to move forward rather than re-deepen the same concept.
    */
   userAnsweredLastQuestion?: boolean;
+  /**
+   * Set when the user explicitly chose the coach's next move from the Under the
+   * Hood panel. Highest-priority steering: the prompt forces the corresponding
+   * mode this turn (a forced mirror still passes the validator, and falls back to
+   * an honest "not enough of your words yet" question when nothing is groundable).
+   */
+  forcedMode?: UserRequestedMode;
 }
 
 /** Sync in tests, async when wired to the real backend. */

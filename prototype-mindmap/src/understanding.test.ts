@@ -210,7 +210,7 @@ describe("buildUnderstanding", () => {
       config: defaultConfig,
     });
 
-    expect(snapshot.activeEvents[0].title).toBe("Ready to reflect");
+    expect(snapshot.activeEvents[0].title).toBe("Reflection may be close");
     expect(snapshot.activeEvents[0].evidence).toContain("control means");
     expect(JSON.stringify(snapshot.activeEvents)).not.toContain("candidate_secret");
     expect(JSON.stringify(snapshot.activeEvents)).not.toContain("AI-generated");

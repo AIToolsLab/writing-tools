@@ -91,7 +91,7 @@ describe("dominant-reason precedence", () => {
     expect(ev.level).toBe("notice");
   });
 
-  it("mirror-pressure bridge surfaces as ready to reflect without raw ids in compact copy", () => {
+  it("mirror-pressure bridge surfaces as a possible reflection without raw ids in compact copy", () => {
     const ev = deriveTraceEvent(
       out({
         mode: "question",
@@ -102,9 +102,9 @@ describe("dominant-reason precedence", () => {
     );
 
     expect(ev.reason).toBe("mirror_pressure_bridge");
-    expect(ev.title).toBe("Ready to reflect");
+    expect(ev.title).toBe("Reflection may be close");
     expect(ev.explanation).toBe(
-      "Enough user-owned wording had accumulated, so I asked whether to mirror before continuing.",
+      "User-owned wording had accumulated, so I asked whether to try a checked mirror before continuing.",
     );
     expect(`${ev.title} ${ev.explanation} ${ev.detail ?? ""}`).not.toContain("cand1");
     expect(JSON.stringify(ev.technical?.mirrorPressure)).not.toContain("cand1");

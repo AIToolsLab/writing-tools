@@ -169,11 +169,11 @@ describe("UnderTheHoodPanel", () => {
     legacy.activeEvents = [
       {
         id: "legacy",
-        kind: "question_chosen",
-        title: "Question chosen",
+        kind: "idea_tracked",
+        title: "Idea tracked",
         detail: "Older saved event.",
-        state: "chosen",
-        stateLabel: "deepen",
+        state: "watching",
+        stateLabel: "tracked",
       } as UnderstandingSnapshot["activeEvents"][number],
     ];
     const original = window.matchMedia;
@@ -185,8 +185,8 @@ describe("UnderTheHoodPanel", () => {
     const tab = container.querySelector<HTMLButtonElement>(".underhood-tab");
     act(() => tab!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
-    expect(container.textContent).toContain("Question chosen");
-    expect(container.textContent).toContain("chosen");
+    expect(container.textContent).toContain("Idea tracked");
+    expect(container.textContent).toContain("tracked");
     expect(container.textContent).not.toContain("undefined");
     window.matchMedia = original;
   });

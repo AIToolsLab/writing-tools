@@ -12,7 +12,7 @@ import {
 } from "./controller";
 import type { LoopState } from "./controller";
 import { detectDraftDeclarations } from "./draft-declarations";
-import type { MockLLM, QuestionStance } from "./llm-contract";
+import type { MockLLM, QuestionStance, UserRequestedMode } from "./llm-contract";
 import { ThoughtMap, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
@@ -195,18 +195,21 @@ const css = `
   .chat-header {
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 14px 16px;
+    gap: 12px;
+    min-height: 60px;
+    padding: 10px 16px;
     border-bottom: 1px solid #e5e3de;
     background: #fafaf8;
     flex-shrink: 0;
   }
 
   .chat-header-actions {
-    margin-left: auto;
     display: flex;
     gap: 6px;
     align-items: center;
+  }
+  .chat-header-actions-left {
+    flex: 0 0 auto;
   }
 
   .reset-btn {
@@ -221,14 +224,6 @@ const css = `
     transition: opacity 0.15s;
   }
   .reset-btn:hover { opacity: 0.7; }
-
-  .chat-header h1 {
-    font-size: 13px;
-    font-weight: 600;
-    color: #444;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
-  }
 
   .stance-chip {
     margin-left: 6px;
@@ -513,15 +508,14 @@ const css = `
 
   .map-header {
     min-height: 60px;
-    padding: 10px 16px;
+    padding: 9px 16px;
     border-bottom: 1px solid #e5e3de;
     background: #fafaf8;
     flex-shrink: 0;
-    display: flex;
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr);
     align-items: center;
-    flex-wrap: wrap;
     column-gap: 14px;
-    row-gap: 8px;
     transition: background 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
   }
   .map-header.draft-dock-target {
@@ -532,6 +526,7 @@ const css = `
 
   .map-heading {
     flex: 0 0 auto;
+    min-width: 96px;
   }
   .map-header h2 {
     font-size: 13px;
@@ -548,11 +543,24 @@ const css = `
     color: #8a8780;
   }
 
+  .map-left-tools,
+  .map-right-tools {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .map-left-tools {
+    justify-self: start;
+  }
+  .map-right-tools {
+    justify-self: start;
+  }
+
   .question-bias {
-    margin-left: auto;
     flex: 0 0 auto;
     display: grid;
-    grid-template-columns: auto minmax(84px, 116px) auto;
+    grid-template-columns: auto minmax(82px, 118px) auto;
     align-items: center;
     gap: 8px;
     font-size: 11px;
@@ -568,22 +576,43 @@ const css = `
   .question-bias datalist {
     display: none;
   }
-
-  .map-debug-toggle {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 5px 10px;
-    border-radius: 6px;
-    border: 1px solid #ddd;
-    background: #fff;
-    color: #666;
-    cursor: pointer;
+  .chat-question-bias {
+    margin-left: auto;
+    min-width: 178px;
+    justify-content: end;
   }
 
   /* Docked draft keeps the same size and physical affordance as the floating
      chip; it simply snaps into its predefined header slot. */
+  .map-draft-slot {
+    flex: 0 0 64px;
+    width: 64px;
+    height: 64px;
+    display: grid;
+    place-items: center;
+    border: 1px dashed #d6c8aa;
+    border-radius: 12px;
+    background: #fbf7ec;
+    color: #a2834e;
+    transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+  }
+  .map-draft-slot.occupied {
+    border-style: solid;
+    border-color: transparent;
+    background: transparent;
+  }
+  .draft-dock-target .map-draft-slot {
+    border-color: #c79740;
+    background: #fff1c8;
+    box-shadow: inset 0 0 0 2px rgba(199, 151, 64, 0.18);
+  }
+  .map-draft-slot-label {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
   .map-draft-dock {
-    flex: 0 0 auto;
     display: inline-flex;
     flex-direction: column;
     align-items: center;
@@ -818,6 +847,8 @@ const css = `
   .map-card-actions button,
   .map-undo,
   .map-clean,
+  .map-clear-draft,
+  .map-clear-map,
   .connection-panel button {
     border: 1px solid #d8d5ce;
     border-radius: 6px;
@@ -943,8 +974,7 @@ const css = `
     stroke-dasharray: 6 5;
   }
 
-  .connection-panel,
-  .map-debug {
+  .connection-panel {
     position: absolute;
     z-index: 8;
     right: 16px;
@@ -1093,6 +1123,7 @@ const css = `
   .edge-delete:hover { background: #8a352f; }
 
   /* ---- map header extras ---- */
+  .map-clear-draft,
   .map-add-card {
     font-size: 12px;
     font-weight: 600;
@@ -1103,6 +1134,12 @@ const css = `
     color: #1a7a3c;
     cursor: pointer;
   }
+  .map-clear-draft {
+    border-color: #ddd3bf;
+    background: #f8f4ea;
+    color: #705d36;
+  }
+  .map-clear-draft:hover { background: #f0e7d3; }
   .map-add-card:hover { background: #dcf4e6; }
 
   .map-label-toggle {
@@ -1124,10 +1161,17 @@ const css = `
   .map-label-toggle.active:hover { background: #dcf4e6; }
 
   .map-undo,
-  .map-clean {
+  .map-clean,
+  .map-clear-map {
     font-size: 12px;
     padding: 5px 10px;
   }
+  .map-clear-map {
+    border-color: #ead3cf;
+    background: #fff7f5;
+    color: #8a4f45;
+  }
+  .map-clear-map:hover { background: #fdecea; }
   .map-undo:disabled {
     opacity: 0.45;
     cursor: default;
@@ -1261,52 +1305,6 @@ const css = `
     background: #fafaf8;
     border-radius: 6px;
     padding: 8px;
-  }
-
-  .map-debug {
-    top: 16px;
-    bottom: 16px;
-    width: min(340px, calc(100% - 32px));
-    padding: 12px;
-    overflow-y: auto;
-  }
-
-  .map-debug-title {
-    font-size: 10px;
-    font-weight: 700;
-    color: #666;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    margin-bottom: 8px;
-  }
-
-  .map-debug-item {
-    border-top: 1px solid #ece9e2;
-    padding: 8px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    font-size: 12px;
-    line-height: 1.4;
-  }
-
-  .map-debug-item small {
-    color: #999;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-  }
-
-  .map-debug-validation,
-  .map-debug-span {
-    border-left: 2px solid #e4dfd6;
-    padding-left: 8px;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-
-  .map-debug-span {
-    color: #5f5b54;
   }
 
   .error-banner {
@@ -1486,12 +1484,12 @@ const css = `
 
   .underhood-tab {
     position: absolute;
-    top: 96px;
+    top: 86px;
     right: 0;
     z-index: 130;
     writing-mode: vertical-rl;
     transform: rotate(180deg);
-    padding: 12px 7px;
+    padding: 16px 8px;
     border: 1px solid #d9d5cc;
     border-right: none;
     border-radius: 0 8px 8px 0;
@@ -1501,7 +1499,7 @@ const css = `
     font-weight: 800;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    max-height: 220px;
+    max-height: calc(100vh - 40px);
     overflow: hidden;
     text-overflow: ellipsis;
     box-shadow: -4px 6px 18px rgba(0,0,0,0.08);
@@ -1515,11 +1513,11 @@ const css = `
 
   .underhood-panel {
     position: absolute;
-    top: 72px;
+    top: 12px;
     right: 14px;
     z-index: 131;
-    width: min(380px, calc(100% - 36px));
-    max-height: calc(100vh - 104px);
+    width: min(408px, calc(100% - 36px));
+    max-height: calc(100vh - 24px);
     display: flex;
     flex-direction: column;
     overflow: hidden;
@@ -1567,14 +1565,60 @@ const css = `
     cursor: pointer;
   }
 
+  .underhood-nextmove {
+    flex-shrink: 0;
+    padding: 9px 12px 10px;
+    border-bottom: 1px solid #e7e2d8;
+    background: #fbfaf6;
+  }
+  .underhood-nextmove .underhood-section-title {
+    padding: 0 2px 6px;
+    background: transparent;
+  }
+  .nextmove-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  .nextmove-button {
+    padding: 7px 8px;
+    border: 1px solid #d8d4ca;
+    border-left-width: 3px;
+    border-radius: 7px;
+    background: #fff;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: #33302a;
+    text-align: left;
+    cursor: pointer;
+    transition: border-color 0.12s ease, background 0.12s ease, transform 0.08s ease;
+  }
+  .nextmove-button:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  .nextmove-button:disabled {
+    opacity: 0.5;
+    cursor: default;
+  }
+  /* Per-move accent colours (left border + hover tint). */
+  .nextmove-button.mode-mirror { border-left-color: #1a6fa3; background: #f0f8fe; }
+  .nextmove-button.mode-mirror:hover:not(:disabled) { border-color: #1a6fa3; background: #eef7fd; }
+  .nextmove-button.mode-deepen { border-left-color: #2f8f6b; background: #f0faf5; }
+  .nextmove-button.mode-deepen:hover:not(:disabled) { border-color: #2f8f6b; background: #eef8f3; }
+  .nextmove-button.mode-organize { border-left-color: #c8892b; background: #fdf7ea; }
+  .nextmove-button.mode-organize:hover:not(:disabled) { border-color: #c8892b; background: #fbf4e6; }
+  .nextmove-button.mode-pivot { border-left-color: #7a5bb0; background: #f6f1fd; }
+  .nextmove-button.mode-pivot:hover:not(:disabled) { border-color: #7a5bb0; background: #f3eefb; }
+
   .underhood-body {
     flex: 0 1 auto;
     min-height: 0;
     overflow-y: auto;
-    padding: 12px;
+    padding: 10px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
   }
 
   .underhood-empty {
@@ -1597,7 +1641,7 @@ const css = `
     align-items: center;
     justify-content: space-between;
     gap: 8px;
-    padding: 9px 10px;
+    padding: 7px 9px;
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.05em;
@@ -1608,15 +1652,15 @@ const css = `
   }
 
   .underhood-latest {
-    padding: 10px;
+    padding: 8px 9px;
     display: flex;
-    gap: 9px;
+    gap: 8px;
     align-items: flex-start;
   }
   .underhood-orb {
-    width: 26px;
-    height: 26px;
-    border-radius: 8px;
+    width: 22px;
+    height: 22px;
+    border-radius: 7px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1630,14 +1674,14 @@ const css = `
   .underhood-orb.held { background: #b37a18; }
   .underhood-latest-text strong {
     display: block;
-    font-size: 13px;
+    font-size: 12px;
     color: #2b2924;
   }
   .underhood-latest-text span {
     display: block;
-    margin-top: 3px;
+    margin-top: 2px;
     font-size: 12px;
-    line-height: 1.38;
+    line-height: 1.28;
     color: #706b62;
   }
 
@@ -1645,6 +1689,8 @@ const css = `
     display: grid;
     gap: 0;
     padding: 10px 10px 10px 12px;
+    max-height: 244px;
+    overflow-y: auto;
   }
   .event-row {
     position: relative;
@@ -1782,6 +1828,8 @@ const css = `
     flex-direction: column;
     gap: 9px;
     padding: 10px;
+    max-height: 208px;
+    overflow-y: auto;
   }
   .idea-card {
     border: 1px solid #ebe6dc;
@@ -2112,17 +2160,37 @@ function Meter({ label, value }: { label: string; value: number }) {
   );
 }
 
+/**
+ * The user-facing "next move" controls. Deliberately labelled in plain user
+ * verbs — never stance names, candidate gists, or model prose — so the user can
+ * steer (and unstick) the coach without being anchored on AI scaffolding. This
+ * emits only a coach-steering request; it never authors a map write.
+ */
+const NEXT_MOVE_OPTIONS: { mode: UserRequestedMode; label: string; hint: string }[] = [
+  { mode: "mirror", label: "Reflect this back", hint: "Sum up what I’ve said so far" },
+  { mode: "deepen", label: "Go deeper", hint: "Dig into the idea on the table" },
+  { mode: "organize", label: "Connect the ideas", hint: "Ask how my thoughts relate" },
+  { mode: "pivot", label: "Ask something else", hint: "This question isn’t landing — move on" },
+];
+
 export function UnderTheHoodPanel({
   snapshot,
   onDraftAnchor,
+  onRequestMode,
+  busy = false,
 }: {
   snapshot: UnderstandingSnapshot | null;
   onDraftAnchor: (anchor: string) => void;
+  onRequestMode?: (mode: UserRequestedMode) => void;
+  busy?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const [activeEvent, setActiveEvent] = useState(0);
   const [expandedEvents, setExpandedEvents] = useState<Set<string>>(new Set());
-  const events = snapshot?.activeEvents ?? [];
+  const events = useMemo(
+    () => (snapshot?.activeEvents ?? []).filter((event) => event.kind !== "question_chosen"),
+    [snapshot?.activeEvents],
+  );
 
   useEffect(() => {
     setExpandedEvents(new Set());
@@ -2186,6 +2254,28 @@ export function UnderTheHoodPanel({
         </button>
       </div>
 
+      {onRequestMode && (
+        <section className="underhood-nextmove" aria-label="Choose the coach's next move">
+          <div className="underhood-section-title">
+            <span>What do you want next?</span>
+          </div>
+          <div className="nextmove-list">
+            {NEXT_MOVE_OPTIONS.map((option) => (
+              <button
+                key={option.mode}
+                type="button"
+                className={`nextmove-button mode-${option.mode}`}
+                onClick={() => onRequestMode(option.mode)}
+                disabled={busy}
+                title={option.hint}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {!snapshot ? (
         <div className="underhood-empty">
           Start a turn and I’ll show the read-only checks, tracked ideas, and safety gates here.
@@ -2207,6 +2297,7 @@ export function UnderTheHoodPanel({
             </div>
           </section>
 
+          {events.length > 0 && (
           <section className="underhood-section">
             <div className="underhood-section-title">
               <span>What mattered this turn</span>
@@ -2256,6 +2347,7 @@ export function UnderTheHoodPanel({
               })}
             </div>
           </section>
+          )}
 
           <section className="underhood-section">
             <div className="underhood-section-title">
@@ -2803,8 +2895,24 @@ export default function App() {
       });
   }
 
-  function appendCoachOutput(out: TurnOutput) {
+  function appendCoachOutput(out: TurnOutput, opts?: { replaceLastCoach?: boolean }) {
     const understanding = buildUnderstandingForOutput(out);
+    // When a turn replaces the previous coach message (e.g. an Under the Hood
+    // "next move" click), drop that message instead of stacking a duplicate. If
+    // it carried an undecided mirror, clear it so no orphan card lingers.
+    const replaceLastCoach =
+      Boolean(opts?.replaceLastCoach) &&
+      msgs.length > 0 &&
+      msgs[msgs.length - 1].role === "assistant";
+    const replacedMirrorId = replaceLastCoach ? msgs[msgs.length - 1].mirrorId : undefined;
+    if (replacedMirrorId) {
+      setPendingMirrors((prev) => {
+        if (!prev.has(replacedMirrorId)) return prev;
+        const next = new Map(prev);
+        next.delete(replacedMirrorId);
+        return next;
+      });
+    }
     setLastCoachDebug({
       mode: out.mode,
       suppressionReason: out.suppressionReason as SuppressionReason | undefined,
@@ -2850,7 +2958,12 @@ export default function App() {
       });
     }
 
-    setMsgs((prev) => [...prev, newMsg]);
+    setMsgs((prev) => {
+      if (replaceLastCoach && prev.length > 0 && prev[prev.length - 1].role === "assistant") {
+        return [...prev.slice(0, -1), newMsg];
+      }
+      return [...prev, newMsg];
+    });
     setUnderstandingSnapshot(understanding);
   }
 
@@ -2941,6 +3054,44 @@ export default function App() {
       mergeLiveBankIntoWorkingState(workingState, stateRef.current);
       stateRef.current = workingState;
       appendCoachOutput(out);
+    } catch (e) {
+      if (nonce !== turnNonceRef.current) return;
+      const msg = e instanceof Error ? e.message : String(e);
+      setError(msg);
+    } finally {
+      if (nonce === turnNonceRef.current) setLoading(false);
+    }
+  }
+
+  // User-initiated override of the coach's next move, triggered from the Under
+  // the Hood panel. Runs a coach turn with no synthetic user message (mirrors
+  // the mirror-continuation path); `overrideMode` clears any wedged pending
+  // state and forces the requested mode via the prompt. The result replaces the
+  // previous coach message rather than stacking a duplicate.
+  async function requestMode(mode: UserRequestedMode) {
+    if (loading) return;
+    const nonce = ++turnNonceRef.current;
+
+    speech.stop();
+    setError(null);
+
+    setLoading(true);
+    try {
+      const workingState = cloneLoopState(stateRef.current);
+      const out = await processTurn(
+        workingState,
+        "",
+        llmRef.current,
+        configRef.current,
+        "chat",
+        mapStoreRef.current.toLLMContext(),
+        { ingestUser: false, requireConnectionLabel, overrideMode: mode },
+      );
+
+      if (nonce !== turnNonceRef.current) return;
+      mergeLiveBankIntoWorkingState(workingState, stateRef.current);
+      stateRef.current = workingState;
+      appendCoachOutput(out, { replaceLastCoach: true });
     } catch (e) {
       if (nonce !== turnNonceRef.current) return;
       const msg = e instanceof Error ? e.message : String(e);
@@ -3155,18 +3306,32 @@ export default function App() {
         {/* Chat panel */}
         <div className="chat-panel">
           <div className="chat-header">
-            <h1>Reflective Coach</h1>
-            <div className="chat-header-actions">
+            <div className="chat-header-actions chat-header-actions-left">
               <button className="reset-btn" onClick={clearChatOnly} title="Clear the chat conversation only">
                 Clear chat
               </button>
-              <button className="reset-btn" onClick={clearDraftOnly} title="Clear the draft only">
-                Clear draft
-              </button>
-              <button className="reset-btn" onClick={clearMapOnly} title="Clear the map only">
-                Clear map
-              </button>
             </div>
+            <label className="question-bias chat-question-bias">
+              <span>Think</span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={25}
+                list="question-bias-ticks"
+                value={questionBias}
+                aria-label="Question framing bias"
+                onChange={(event) => setQuestionBias(Number(event.target.value))}
+              />
+              <datalist id="question-bias-ticks">
+                <option value="0" />
+                <option value="25" />
+                <option value="50" />
+                <option value="75" />
+                <option value="100" />
+              </datalist>
+              <span>Map</span>
+            </label>
           </div>
 
           <div className="messages">
@@ -3344,8 +3509,9 @@ export default function App() {
             confirmed={confirmed}
             coachDebug={lastCoachDebug}
             commandAck={commandAck}
-            draftDock={
-              draftDocked ? (
+            draftDockSlot={
+              <div className={`map-draft-slot ${draftDocked ? "occupied" : "empty"}`}>
+                {draftDocked ? (
                 <button
                   type="button"
                   className="map-draft-dock"
@@ -3355,23 +3521,28 @@ export default function App() {
                   <span className="map-draft-dock-label">DRAFT</span>
                   {highlightAnchor && <span className="map-draft-dock-dot" aria-hidden="true" />}
                 </button>
-              ) : undefined
+                ) : (
+                  <span className="map-draft-slot-label">Draft</span>
+                )}
+              </div>
             }
             draftDockActive={draftDockTargetActive}
             highlightedCardIds={referencedCardIds}
             revision={mapRevision}
-            questionBias={questionBias}
-            onQuestionBiasChange={setQuestionBias}
             requireConnectionLabel={requireConnectionLabel}
             onRequireConnectionLabelChange={setRequireConnectionLabel}
             canUndo={canUndoMap}
             onUndo={undoMapChange}
+            onClearDraft={clearDraftOnly}
+            onClearMap={clearMapOnly}
             onBeforeMapChange={captureMapUndo}
             onStoreChange={markUserMapChanged}
           />
           <UnderTheHoodPanel
             snapshot={understandingSnapshot}
             onDraftAnchor={revealDraftAnchor}
+            onRequestMode={requestMode}
+            busy={loading}
           />
         </div>
       </div>

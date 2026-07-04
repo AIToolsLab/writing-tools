@@ -62,6 +62,56 @@ describe("makeLLM JSON resilience", () => {
     expect(secondBody.messages.some((m) => m.role === "assistant" && m.content === "What next?")).toBe(true);
   });
 
+  it("renders the latest user turn and previous coach turn in the system prompt", async () => {
+    const valid = '{"mode":"question","text":"What next?"}';
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(valid));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await makeLLM()({
+      ...ctx,
+      turnText: "mirror",
+      lastAiText: "Do you want me to try mirroring the structure I'm hearing, or keep unpacking it?",
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const system = body.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(system).toContain("LATEST USER TURN:");
+    expect(system).toContain("mirror");
+    expect(system).toContain("PREVIOUS COACH TURN:");
+    expect(system).toContain("try mirroring the structure");
+  });
+
+  it("renders a highest-priority override directive when the user forces a mode", async () => {
+    const valid = '{"mode":"question","text":"What next?"}';
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(valid));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await makeLLM()({ ...ctx, forcedMode: "pivot" });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const system = body.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(system).toContain("USER OVERRIDE (HIGHEST PRIORITY");
+    expect(system).toContain("did NOT land");
+  });
+
+  it("omits the override directive when no mode is forced", async () => {
+    const valid = '{"mode":"question","text":"What next?"}';
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(valid));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await makeLLM()({ ...ctx });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const system = body.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(system).not.toContain("USER OVERRIDE (HIGHEST PRIORITY");
+  });
+
   it("retries once on invalid JSON and parses the valid retry", async () => {
     // First response has unescaped double quotes inside a string value (the
     // exact gpt-5.4 failure mode from testing); the retry is valid.

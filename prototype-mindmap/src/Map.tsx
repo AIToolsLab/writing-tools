@@ -108,18 +108,19 @@ interface ThoughtMapProps {
   coachDebug?: CoachDebugInfo | null;
   /** Docked-draft affordance, rendered in the map header when the draft is docked. */
   draftDock?: ReactNode;
+  draftDockSlot?: ReactNode;
   /** True while the floating draft chip is hovering over the header dock zone. */
   draftDockActive?: boolean;
   commandAck?: MapCommandAcknowledgement | null;
   /** Card ids the current coach turn refers to (by #ref) — highlighted on the canvas. */
   highlightedCardIds?: ReadonlySet<string>;
   revision: number;
-  questionBias: number;
-  onQuestionBiasChange: (value: number) => void;
   requireConnectionLabel: boolean;
   onRequireConnectionLabelChange: (value: boolean) => void;
   canUndo: boolean;
   onUndo: () => void;
+  onClearDraft: () => void;
+  onClearMap: () => void;
   onBeforeMapChange: () => void;
   onStoreChange: () => void;
 }
@@ -162,10 +163,6 @@ export interface CoachDebugInfo {
     reason: string;
     detail: string;
   }>;
-}
-
-function scoreText(score: number, threshold: number): string {
-  return `${score.toFixed(2)} / ${threshold.toFixed(2)}`;
 }
 
 function bounds(node: Node): { x: number; y: number; width: number; height: number } {
@@ -572,26 +569,24 @@ export function ThoughtMap(props: ThoughtMapProps) {
 function ThoughtMapInner({
   store,
   bank,
-  confirmed,
-  coachDebug,
   draftDock,
+  draftDockSlot,
   draftDockActive,
   commandAck,
   highlightedCardIds,
   revision,
-  questionBias,
-  onQuestionBiasChange,
   requireConnectionLabel,
   onRequireConnectionLabelChange,
   canUndo,
   onUndo,
+  onClearDraft,
+  onClearMap,
   onBeforeMapChange,
   onStoreChange,
 }: ThoughtMapProps) {
   const flow = useReactFlow();
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const visibleCardCount = store.getAll().filter((unit) => unit.role !== "connection_label").length;
-  const [showDebug, setShowDebug] = useState(false);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [connectionPanelKey, setConnectionPanelKey] = useState(0);
 
@@ -1160,63 +1155,46 @@ function ThoughtMapInner({
           <span className="map-count">{visibleCardCount} cards</span>
         </div>
 
-        {draftDock}
+        <div className="map-left-tools">
+          {draftDockSlot ?? draftDock}
+          <button type="button" className="map-clear-draft" onClick={onClearDraft} title="Clear the draft only">
+            Clear draft
+          </button>
+          <button type="button" className="map-add-card" onClick={addCard}>
+            + New card
+          </button>
+          {commandAck && (
+            <div className="map-command-ack" role="status">
+              <span>{commandAck.text}</span>
+              <button type="button" onClick={onUndo} disabled={!canUndo} title="Undo this map command">
+                Undo
+              </button>
+            </div>
+          )}
+        </div>
 
-        {commandAck && (
-          <div className="map-command-ack" role="status">
-            <span>{commandAck.text}</span>
-            <button type="button" onClick={onUndo} disabled={!canUndo} title="Undo this map command">
-              Undo
-            </button>
-          </div>
-        )}
+        <div className="map-right-tools">
+          <button
+            type="button"
+            className={`map-label-toggle ${requireConnectionLabel ? "active" : ""}`}
+            onClick={() => onRequireConnectionLabelChange(!requireConnectionLabel)}
+            title={requireConnectionLabel ? "Ask for relationship wording on new connections" : "Create unlabeled connections immediately"}
+          >
+            Label {requireConnectionLabel ? "on" : "off"}
+          </button>
 
-        <label className="question-bias">
-          <span>Think</span>
-          <input
-            type="range"
-            min={0}
-            max={100}
-            step={25}
-            list="question-bias-ticks"
-            value={questionBias}
-            aria-label="Question framing bias"
-            onChange={(event) => onQuestionBiasChange(Number(event.target.value))}
-          />
-          <datalist id="question-bias-ticks">
-            <option value="0" />
-            <option value="25" />
-            <option value="50" />
-            <option value="75" />
-            <option value="100" />
-          </datalist>
-          <span>Map</span>
-        </label>
+          <button type="button" className="map-clean" onClick={autoClean} title="Tidy the map: lay connected cards into clean trees and spread the rest across the canvas">
+            Auto-clean
+          </button>
 
-        <button type="button" className="map-add-card" onClick={addCard}>
-          + New card
-        </button>
+          <button type="button" className="map-clear-map" onClick={onClearMap} title="Clear the map only">
+            Clear map
+          </button>
 
-        <button
-          type="button"
-          className={`map-label-toggle ${requireConnectionLabel ? "active" : ""}`}
-          onClick={() => onRequireConnectionLabelChange(!requireConnectionLabel)}
-          title={requireConnectionLabel ? "Ask for relationship wording on new connections" : "Create unlabeled connections immediately"}
-        >
-          Label {requireConnectionLabel ? "on" : "off"}
-        </button>
-
-        <button type="button" className="map-clean" onClick={autoClean} title="Tidy the map: lay connected cards into clean trees and spread the rest across the canvas">
-          Auto-clean
-        </button>
-
-        <button type="button" className="map-undo" onClick={onUndo} disabled={!canUndo} title="Undo map change">
-          Undo
-        </button>
-
-        <button type="button" className="map-debug-toggle" onClick={() => setShowDebug((v) => !v)}>
-          Debug
-        </button>
+          <button type="button" className="map-undo" onClick={onUndo} disabled={!canUndo} title="Undo map change">
+            Undo
+          </button>
+        </div>
       </div>
 
       <p className="map-hint">
@@ -1278,69 +1256,6 @@ function ThoughtMapInner({
           </div>
         )}
 
-        {showDebug && (
-          <div className="map-debug">
-            <div className="map-debug-title">Last coach decision</div>
-            {coachDebug ? (
-              <div className="map-debug-item">
-                <span>{coachDebug.mode}</span>
-                <small>{coachDebug.suppressionReason ?? "not suppressed"}</small>
-                {coachDebug.suppressionDetail && <span>{coachDebug.suppressionDetail}</span>}
-                {coachDebug.acceleratedCandidateIds && coachDebug.acceleratedCandidateIds.length > 0 && (
-                  <span>accelerated: {coachDebug.acceleratedCandidateIds.join(", ")}</span>
-                )}
-                {coachDebug.readinessNotes?.map((note) => (
-                  <span key={note}>{note}</span>
-                ))}
-                {coachDebug.commandDebug?.map((note, index) => (
-                  <span key={`${note.reason}-${index}`}>
-                    command {note.reason}: {note.detail}
-                  </span>
-                ))}
-                {coachDebug.validationDebug?.map((claim) => (
-                  <div key={claim.claimId} className="map-debug-validation">
-                    <span>claim: {claim.claimText}</span>
-                    <small>{claim.target || "unknown target"}</small>
-                    {claim.checks.map((check) => (
-                      <span key={check.check}>
-                        {check.check}: {check.ok ? "ok" : "failed"} {scoreText(check.score, check.threshold)}
-                        {check.parts && check.parts.length > 0
-                          ? ` (${check.parts
-                              .map((part) => `${part.name} ${scoreText(part.score, part.threshold)}`)
-                              .join("; ")})`
-                          : ""}
-                      </span>
-                    ))}
-                    {claim.sourceSpans.map((span, index) => (
-                      <div key={`${claim.claimId}-span-${index}`} className="map-debug-span">
-                        <span>span phrase: {span.userPhrase}</span>
-                        <small>ids: {span.utteranceIds.join(", ") || "none"}</small>
-                        {span.citedUtterances.map((utterance) => (
-                          <span key={utterance.id}>
-                            {utterance.id}: {utterance.text}
-                          </span>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p>None</p>
-            )}
-            <div className="map-debug-title">Confirmed reflections</div>
-            {confirmed.length === 0 ? (
-              <p>None</p>
-            ) : (
-              confirmed.map((item) => (
-                <div key={item.id} className="map-debug-item">
-                  <span>{item.text}</span>
-                  <small>{item.target}</small>
-                </div>
-              ))
-            )}
-          </div>
-        )}
       </div>
     </section>
   );

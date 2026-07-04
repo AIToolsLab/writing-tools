@@ -2812,7 +2812,7 @@ describe("question mode", () => {
     expect(out.commandDebug?.some((note) => note.reason === "relationship_cancelled")).toBe(true);
   });
 
-  it("does not execute a rejected relationship confirmation on a later yes", async () => {
+  it("cancels a pending relationship confirmation on bare no", async () => {
     const state = createState();
     const map = {
       thoughtUnits: [mapUnit("tu_448", "support detail"), mapUnit("tu_451", "main claim")],
@@ -2842,8 +2842,15 @@ describe("question mode", () => {
     );
 
     expect(rejected.mapCommands).toBeUndefined();
-    expect(rejected.commandConfirmation?.kind).toBe("relationship_confirmation");
-    expect(state.pendingMapCommand?.kind === "relationship_confirmation" ? state.pendingMapCommand.awaitingCorrection : false).toBe(true);
+    expect(rejected.commandConfirmation).toBeUndefined();
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(rejected.text).toContain("won't create that connection");
+    expect(rejected.commandDebug).toEqual([
+      {
+        reason: "relationship_cancelled",
+        detail: "relationship_confirmation_pending",
+      },
+    ]);
 
     const yes = await processTurn(
       state,
@@ -2855,13 +2862,124 @@ describe("question mode", () => {
     );
 
     expect(yes.mapCommands).toBeUndefined();
-    expect(yes.text).toContain("replacement relationship wording");
-    expect(yes.commandDebug).toEqual([
+    expect(yes.commandConfirmation).toBeUndefined();
+  });
+
+  it("routes chat-only reflection correction out of pending relationship confirmation", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_86", "Could talk about monitoring?"),
+        mapUnit("tu_166", "control means the writer decides"),
+        mapUnit("tu_183", "Monitoring becomes active control"),
+      ],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "relationship_confirmation",
+      labelText: "mirror",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_86" },
+        target: { id: "tu_166" },
+        labelText: "mirror",
+        labelSourceUtteranceIds: ["u_label"],
+      },
+      prompt: "It sounds like you want the relationship wording to be 'mirror' between #86 and #166. Is that right?",
+      debug: "relationship_confirmation_pending",
+    };
+    let capturedCtx: LLMContext | undefined;
+
+    const out = await processTurn(
+      state,
+      "No - I meant mirror the idea back to me, not use mirror as a relationship label. Please reflect this in chat only.",
+      (ctx) => {
+        capturedCtx = ctx;
+        return { mode: "question", text: "What structure should I try to reflect first?", questionStance: "organize" };
+      },
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandConfirmation).toBeUndefined();
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(capturedCtx?.turnText).toContain("chat only");
+    expect(capturedCtx?.organizeFocus).toBeUndefined();
+    expect(out.text).toBe("What structure should I try to reflect first?");
+  });
+
+  it("cancels pending relationship confirmation on explicit stop-connecting language", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_86", "Could talk about monitoring?"), mapUnit("tu_166", "control means the writer decides")],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "relationship_confirmation",
+      labelText: "mirror",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_86" },
+        target: { id: "tu_166" },
+        labelText: "mirror",
+        labelSourceUtteranceIds: ["u_label"],
+      },
+      prompt: "It sounds like you want the relationship wording to be 'mirror' between #86 and #166. Is that right?",
+      debug: "relationship_confirmation_pending",
+    };
+
+    const out = await processTurn(
+      state,
+      "Cancel the relationship action. Stop trying to connect #86 and #166. I do not want a map change.",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandConfirmation).toBeUndefined();
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(out.text).toContain("won't create that connection");
+    expect(out.commandDebug).toEqual([
       {
-        reason: "relationship_correction_still_pending",
+        reason: "relationship_cancelled",
         detail: "relationship_confirmation_pending",
       },
     ]);
+  });
+
+  it("does not treat mirror as relationship label while an organize pair is focused", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_86", "Could talk about monitoring?"), mapUnit("tu_166", "control means the writer decides")],
+      connections: [],
+    };
+    state.organizeFocus = {
+      refs: ["#86", "#166"],
+      key: "#86|#166",
+      declineCount: 0,
+    };
+    let capturedCtx: LLMContext | undefined;
+    const out = await processTurn(
+      state,
+      "mirror",
+      (ctx) => {
+        capturedCtx = ctx;
+        return { mode: "question", text: "What part should I reflect first?", questionStance: "organize" };
+      },
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandConfirmation).toBeUndefined();
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(capturedCtx?.organizeFocus).toBeUndefined();
+    expect(out.text).not.toContain("relationship wording to be 'mirror'");
   });
 
   it("clears organize focus when a duplicate connection is rejected", async () => {
@@ -3247,7 +3365,7 @@ describe("pacing", () => {
     // so it is forced into a distinct settle move instead.
     expect(first.text).toBe("What part of that feels most important to carry forward on the map?");
     expect(second.text).toBe("What exact wording do you want the map to carry forward from that?");
-    expect(third.text).toBe("Let's zoom out a little — what's one small piece of this you feel sure about?");
+    expect(third.text).toBe("Let's ease off that one — what's one small part of this you already feel sure about?");
     expect(third.questionStance).toBe("settle");
   });
 
@@ -3647,7 +3765,7 @@ describe("pacing", () => {
     expect(out.suppressionReason).toBe("mirror_pressure_bridge");
     expect(out.mapCommands).toBeUndefined();
     expect(out.text).toBe(
-      "I think there may be enough here to reflect back. Do you want me to mirror the structure I'm hearing, or keep unpacking it?",
+      "I think this may be close enough to reflect back. Do you want me to try mirroring the structure I'm hearing, or keep unpacking it?",
     );
   });
 
@@ -3670,7 +3788,7 @@ describe("pacing", () => {
 
     expect(out.suppressionReason).toBe("mirror_pressure_bridge");
     expect(out.text).toBe(
-      "I think there may be enough here to reflect how this connects to #86. Do you want me to mirror that structure now, or keep unpacking it?",
+      "I think this may be close enough to reflect how this connects to #86. Do you want me to try mirroring that structure now, or keep unpacking it?",
     );
   });
 
@@ -5243,5 +5361,260 @@ describe("answer transitions (Goal 5)", () => {
     await processTurn(state, "I want to talk about monitoring instead", capturingLLM, cfg);
 
     expect(captured?.userAnsweredLastQuestion).toBeFalsy();
+  });
+});
+
+describe("user next-move override (Under the Hood)", () => {
+  const overrideMap = {
+    thoughtUnits: [
+      mapUnit("tu_86", "monitoring becomes active control"),
+      mapUnit("tu_166", "control means the writer decides"),
+    ],
+    connections: [],
+  };
+
+  function capture(): { llm: (ctx: LLMContext) => LLMTurn; get: () => LLMContext | undefined } {
+    let captured: LLMContext | undefined;
+    return {
+      llm: (ctx: LLMContext): LLMTurn => {
+        captured = ctx;
+        return { mode: "question", text: "Where would you like to go?", questionStance: "settle" };
+      },
+      get: () => captured,
+    };
+  }
+
+  it("forwards the chosen mode to the model as forcedMode", async () => {
+    const state = createState();
+    const cap = capture();
+    await processTurn(state, "", cap.llm, defaultConfig, "chat", overrideMap, {
+      ingestUser: false,
+      overrideMode: "deepen",
+    });
+    expect(cap.get()?.forcedMode).toBe("deepen");
+  });
+
+  it("does not force a mode on an ordinary typed turn", async () => {
+    const state = createState();
+    const cap = capture();
+    await processTurn(state, "I want to write about control", cap.llm, defaultConfig, "chat", overrideMap);
+    expect(cap.get()?.forcedMode).toBeUndefined();
+  });
+
+  it("clears a wedged pending confirmation when a mode is forced", async () => {
+    const state = createState();
+    state.pendingMapCommand = {
+      kind: "relationship_confirmation",
+      labelText: "mirror",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_86" },
+        target: { id: "tu_166" },
+        labelText: "mirror",
+        labelSourceUtteranceIds: ["u_label"],
+      },
+      prompt: "It sounds like you want the relationship wording to be 'mirror'. Is that right?",
+      debug: "relationship_confirmation_pending",
+    };
+    const cap = capture();
+    await processTurn(state, "", cap.llm, defaultConfig, "chat", overrideMap, {
+      ingestUser: false,
+      overrideMode: "mirror",
+    });
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(cap.get()?.forcedMode).toBe("mirror");
+  });
+
+  it("pivot drops the last coach question and clarify pin so the model can't re-anchor", async () => {
+    const state = createState();
+    state.lastCoachQuestion = { text: "Which part feels easiest to point at?", stance: "settle" };
+    state.clarifyTarget = { claimText: "giving back", utteranceIds: ["u_1"], userPhrase: "giving back" };
+    const cap = capture();
+    await processTurn(state, "", cap.llm, defaultConfig, "chat", overrideMap, {
+      ingestUser: false,
+      overrideMode: "pivot",
+    });
+    // The model must not see the stale question/pin it is being asked to escape.
+    expect(cap.get()?.lastCoachQuestion).toBeUndefined();
+    expect(cap.get()?.clarifyTarget).toBeUndefined();
+    expect(cap.get()?.forcedMode).toBe("pivot");
+  });
+});
+
+describe("bug pass: cancel-vs-correction disambiguation", () => {
+  const relMap = {
+    thoughtUnits: [
+      mapUnit("tu_1", "supports the main claim"),
+      mapUnit("tu_2", "the main claim"),
+    ],
+    connections: [],
+  };
+
+  function pendingRelationship() {
+    return {
+      kind: "relationship_confirmation" as const,
+      labelText: "causes",
+      command: {
+        kind: "connect_cards" as const,
+        source: { id: "tu_1" },
+        target: { id: "tu_2" },
+        labelText: "causes",
+        labelSourceUtteranceIds: ["u_label"],
+      },
+      prompt: "It sounds like you want the relationship wording to be 'causes'. Is that right?",
+      debug: "relationship_confirmation_pending",
+    };
+  }
+
+  function correctedLabel(state: ReturnType<typeof createState>): string | undefined {
+    const pending = state.pendingMapCommand;
+    return pending?.kind === "relationship_confirmation" ? pending.labelText : undefined;
+  }
+
+  it("treats 'I meant supports, not causes' as a label correction, not a cancel", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    const out = await processTurn(
+      state,
+      "I meant supports, not causes",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      relMap,
+    );
+
+    expect(out.commandDebug?.some((n) => n.reason === "relationship_cancelled")).toBe(false);
+    // Not dropped, and Y ("causes") matches the pending label, so X ("supports")
+    // is taken as the corrected wording — not the whole sentence.
+    expect(correctedLabel(state)).toBe("supports");
+  });
+
+  it("does not guess from 'I meant X, not Y' when Y is not the pending label", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    await processTurn(
+      state,
+      "I meant supports, not the roundabout",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      relMap,
+    );
+
+    // Y ("the roundabout") is not the pending label ("causes"), so we must not
+    // guess "supports"; the raw text is kept for the user to re-confirm.
+    expect(correctedLabel(state)).not.toBe("supports");
+    expect(correctedLabel(state)).toBe("I meant supports, not the roundabout");
+  });
+
+  it("still cancels when the negation targets the action ('not connect them')", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    const out = await processTurn(
+      state,
+      "I meant to point at it, not connect them",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      relMap,
+    );
+
+    expect(out.commandDebug?.some((n) => n.reason === "relationship_cancelled")).toBe(true);
+    expect(state.pendingMapCommand).toBeUndefined();
+  });
+
+  it("treats 'No, the relationship label should be supports' as a correction, not a cancel", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    const out = await processTurn(
+      state,
+      "No, the relationship label should be supports",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      relMap,
+    );
+
+    expect(out.commandDebug?.some((n) => n.reason === "relationship_cancelled")).toBe(false);
+    expect(correctedLabel(state)).toBe("supports");
+  });
+
+  it("treats 'No, the connection label should be supports instead' as a correction, not a cancel", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    const out = await processTurn(
+      state,
+      "No, the connection label should be supports instead",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      relMap,
+    );
+
+    expect(out.commandDebug?.some((n) => n.reason === "relationship_cancelled")).toBe(false);
+    expect(correctedLabel(state)).toBe("supports");
+  });
+
+  it("extracts the wording from a bare 'the label should be X' correction", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    await processTurn(state, "the label should be supports", questionLLM("ignored"), defaultConfig, "chat", relMap);
+
+    expect(correctedLabel(state)).toBe("supports");
+  });
+
+  it("extracts the wording from a 'use X instead' correction", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    await processTurn(state, "use supports instead", questionLLM("ignored"), defaultConfig, "chat", relMap);
+
+    expect(correctedLabel(state)).toBe("supports");
+  });
+
+  it("keeps a plain wording reply as the label verbatim", async () => {
+    const state = createState();
+    state.pendingMapCommand = pendingRelationship();
+
+    await processTurn(state, "supports", questionLLM("ignored"), defaultConfig, "chat", relMap);
+
+    expect(correctedLabel(state)).toBe("supports");
+  });
+});
+
+describe("bug pass: settle re-ask backstop", () => {
+  it("steers away from re-settling a concept the user just answered", async () => {
+    const state = createState();
+    state.lastCoachQuestion = {
+      text: "what makes giving back to society matter here?",
+      stance: "deepen",
+    };
+    const reask = "which part of what makes giving back to society matter feels easiest to point at?";
+    // The real model tags these settle re-asks with questionStance "settle" (the
+    // "settle" chip in the UI); the backstop only fires on an explicit tag.
+    const settleReaskLLM = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: reask,
+      questionStance: "settle",
+    });
+
+    const out = await processTurn(
+      state,
+      "giving back to society matters because it helps the people I met at the roundabout",
+      settleReaskLLM,
+      defaultConfig,
+      "chat",
+      { thoughtUnits: [], connections: [] },
+    );
+
+    // The coach must not re-ask the same settled concept back at the user.
+    expect(out.text).not.toBe(reask);
+    expect(out.mode).toBe("question");
   });
 });

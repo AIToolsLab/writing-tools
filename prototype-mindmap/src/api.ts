@@ -301,8 +301,32 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   // confirmation, so eager tracking cannot author anything on its own.
   const candidateTrackingNote = `\nCANDIDATE TRACKING: Whenever the user authors a substantive conceptual claim in their own words — even one that is not mirror-ready yet — upsert an idea candidate for it, citing this turn's utterance id(s) in addEvidenceIds and reusing a stable id across turns for the same concept so evidence accumulates toward readiness. This is internal bookkeeping only: it is never shown to the user as structure and never places anything on the map. Do NOT upsert for low-information replies, pure questions, command-only turns, or ideas that appear only in the draft. For large exploratory turns, follow the LARGE TURN rule instead: upsert only the idea the user explicitly selected, declared, or chose to carry forward — do not harvest a candidate for every point in the dump.`;
 
-  return `${PHILOSOPHY}
+  // User-initiated override from the Under the Hood panel. Highest priority: it
+  // is prepended before the pacing/readiness/intent notes so the user's explicit
+  // choice wins. A forced mirror still passes the validator, so the fallback
+  // keeps it honest when there is not enough of the user's own wording yet.
+  const forcedModeNote = !ctx.forcedMode
+    ? ""
+    : ctx.forcedMode === "mirror"
+    ? `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user explicitly asked you to reflect their thinking back now. Use mode "mirror", grounding every claim in their own Source Bank wording. If there is not enough settled user-owned wording to mirror cleanly, do NOT fabricate a reflection or invent structure — briefly say you don't have enough of their own words to mirror yet and ask one focused question that would get you there.`
+    : ctx.forcedMode === "deepen"
+    ? `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user explicitly asked you to go deeper on the idea currently on the table. Use mode "question" with questionIntent "deepen": ask what it is, what it depends on, or what would change it. Do not open a new topic and do not emit mapCommands.`
+    : ctx.forcedMode === "pivot"
+    ? `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): Your last question did NOT land — the user wants to move off it. Do NOT re-ask, rephrase, or narrow the same thing (see PREVIOUS COACH TURN above and avoid its topic). Use mode "question" with a single, easy, open hand-back: either invite them to point anywhere they like, or pivot to a clearly different card or draft region. Keep it short and pressure-free. Do not emit mapCommands.`
+    : `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user explicitly asked you to help connect their ideas. Use mode "question" with questionIntent "organize": ask how already-named thoughts relate, in their own words. Do not offer label pairs to choose between, do not author structure, and do not emit mapCommands.`;
+
+  return `${PHILOSOPHY}${forcedModeNote}
 ${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${candidateTrackingNote}${mapNote}${mapQuestionNote}${transitionNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${mirrorPressureNote}${legibilityNote}
+
+LATEST USER TURN:
+"""
+${ctx.turnText || "(empty)"}
+"""
+
+PREVIOUS COACH TURN:
+"""
+${ctx.lastAiText || "(none)"}
+"""
 
 CURRENT DRAFT (user's document — read-only reference for anchoring):
 """
