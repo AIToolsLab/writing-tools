@@ -417,6 +417,10 @@ export class ThoughtUnitStore {
     const oldTitleId = member.parentId;
     const oldTitle = this._units.get(oldTitleId);
     if (!oldTitle) return false;
+    const oldTitlePosition = this._positions.get(oldTitleId);
+    const oldTitleSize = this._sizes.get(oldTitleId);
+    const memberPosition = this._positions.get(memberId);
+    const memberSize = this._sizes.get(memberId);
 
     const siblings = this.getAll().filter(
       (unit) => unit.parentId === oldTitleId && unit.id !== memberId,
@@ -427,6 +431,14 @@ export class ThoughtUnitStore {
     for (const sibling of siblings) {
       this.setParent(sibling.id, memberId, sibling.role);
     }
+    if (oldTitlePosition) this._positions.set(memberId, oldTitlePosition);
+    else this._positions.delete(memberId);
+    if (oldTitleSize) this._sizes.set(memberId, oldTitleSize);
+    else this._sizes.delete(memberId);
+    if (memberPosition) this._positions.set(oldTitleId, memberPosition);
+    else this._positions.delete(oldTitleId);
+    if (memberSize) this._sizes.set(oldTitleId, memberSize);
+    else this._sizes.delete(oldTitleId);
     return true;
   }
 

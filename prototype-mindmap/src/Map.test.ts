@@ -5,7 +5,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { proxyAnchorSpecs } from "./Map";
+import { proxyAnchorSpecs, renderedEndpointCenter } from "./Map";
+import { ThoughtUnitStore } from "./map-store";
 import type { ThoughtUnit, ThoughtUnitRole } from "./types";
 
 function unit(id: string, parentId?: string, role: ThoughtUnitRole = "node"): ThoughtUnit {
@@ -79,5 +80,18 @@ describe("proxyAnchorSpecs", () => {
         { sourceId: "ghost", targetId: "root" },
       ]),
     ).toEqual([]);
+  });
+});
+
+describe("renderedEndpointCenter", () => {
+  it("ignores stale stored positions for nested cards and uses their rendered root", () => {
+    const store = new ThoughtUnitStore();
+    store.add(unit("root"), { x: 100, y: 200 });
+    store.add(unit("child", "root", "content"), { x: 900, y: 900 });
+
+    expect(renderedEndpointCenter(store, "child", { w: 200, h: 100 })).toEqual({
+      x: 200,
+      y: 250,
+    });
   });
 });

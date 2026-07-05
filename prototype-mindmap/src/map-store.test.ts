@@ -106,6 +106,21 @@ describe("ThoughtUnitStore", () => {
     expect(siblingHistory[siblingHistory.length - 1]?.changedBy).toBe("user");
   });
 
+  it("keeps the promoted title at the visible root geometry", () => {
+    const store = new ThoughtUnitStore();
+    store.add(unit("title", "old title"), { x: 120, y: 240 });
+    store.add(unit("member", "better title", "title"), { x: 900, y: 900 });
+    store.setSize("title", { w: 420, h: 260 });
+    store.setSize("member", { w: 180, h: 90 });
+
+    store.swapTitle("member");
+
+    expect(store.getPosition("member")).toEqual({ x: 120, y: 240 });
+    expect(store.getSize("member")).toEqual({ w: 420, h: 260 });
+    expect(store.getPosition("title")).toEqual({ x: 900, y: 900 });
+    expect(store.getSize("title")).toEqual({ w: 180, h: 90 });
+  });
+
   it("refuses a re-parent that would create a cycle", () => {
     const store = new ThoughtUnitStore();
     store.add(unit("a", "top"));

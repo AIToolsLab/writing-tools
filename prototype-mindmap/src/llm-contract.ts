@@ -10,6 +10,7 @@
 
 import type { DetectedSignal } from "./signals";
 import type { DraftDeclaration } from "./draft-declarations";
+import type { OpenThreadContext } from "./open-threads";
 import type { TurnShape } from "./turn-shape";
 import type {
   CandidateTarget,
@@ -56,7 +57,7 @@ export interface CandidateUpsert {
   addEvidenceIds: string[];
 }
 
-export type MapCommandKind = "create_card" | "nest_card" | "connect_cards";
+export type MapCommandKind = "create_card" | "nest_card" | "connect_cards" | "edit_card";
 
 export interface MapCommandSourceSpan {
   utteranceIds?: string[];
@@ -71,6 +72,8 @@ export interface MapCommandSourceSpan {
 export interface MapCommand {
   kind: MapCommandKind;
   text?: string;
+  cardText?: string;
+  newText?: string;
   sourceSpan?: MapCommandSourceSpan;
   childText?: string;
   parentText?: string;
@@ -206,6 +209,12 @@ export interface LLMContext {
     selectedText?: string;
     sourceUtteranceIds: string[];
   };
+  /**
+   * Exact user-authored phrases parked from earlier large exploratory turns.
+   * These are optional memory anchors only: not candidates, not tasks, not
+   * priorities, and never permission to create structure.
+   */
+  openThreads?: OpenThreadContext[];
   /** Current organize focus, if the coach recently asked about a specific card pair. */
   organizeFocus?: {
     refs: string[];

@@ -116,6 +116,17 @@ answered scoping questions I took **layout/routing first (#1,#2,#4,#5)**, **own 
 - **#5 Badge staggering — `badgeOffsets` memo + `endpointCenter`.** Edges whose midpoints bucket together
   get perpendicular offsets so nearby badges separate. **Preview-verified**: 3-edge fan already separated;
   a forced parallel 500↔501 pair lands its two badges apart, not stacked.
+- **#1 follow-up fix (user-reported): directed edges respect the user's orientation.** The user had #57
+  level with and to the RIGHT of #12 (a lateral relationship), but the edge was `source_to_target`, so
+  `buildRootLayoutModel` unconditionally made it a Dagre rank edge → #57 was forced into the rank below
+  #12. Fix: an edge becomes a VERTICAL rank edge only when the user actually placed the target with a
+  meaningful vertical gap (`> 0.6 * max card height`); an edge laid out level stays lateral (same rank),
+  so #57 stays beside #12 in user x-order. Direction metadata now only orients (which card on top) and is
+  a fallback when positions are absent (new cards / the position-free unit tests). Lateral nodes with no
+  vertical edge of their own would float to rank 0, so `snapLateralNodesToNeighborRank` seats each onto
+  its ranked neighbor's rank after Dagre (tried Dagre `minlen:0` first — it throws, silently hit the
+  fallback grid and collapsed all ranks; snap is the robust path). Preview-verified on the user's 8-card
+  layout: #57 same rank as #12, to its right, edge routes right→left. Regression test added.
 - **#2 follow-up fix (user-reported): tree routing, not raw dominant-axis.** After auto-clean, the
   #12→#57 edge exited #12's *side* and stacked on the same side as #12's incoming edge, because #57 was
   farther left than below and the old `|dy| >= |dx|` rule chose horizontal. Fixed `computeConnectionHandles`

@@ -16,6 +16,7 @@ import type { MockLLM, QuestionStance, UserRequestedMode } from "./llm-contract"
 import { ThoughtMap, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
+import { promoteOpenThreadsForUtterances, reopenPromotedOpenThreads, type ParkedThread } from "./open-threads";
 import { evaluateReadiness } from "./readiness";
 import { cardRef } from "./store";
 import type { SourceSpan, SourceUtterance } from "./types";
@@ -46,6 +47,7 @@ interface DraftPanelSize { w: number; h: number; }
 interface MapUndoSnapshot {
   map: ThoughtUnitStoreSnapshot;
   bank: ReturnType<LoopState["bank"]["getAll"]>;
+  openThreads: ParkedThread[];
 }
 
 type ClaimDecision = "pending" | "confirmed" | "declined";
@@ -82,7 +84,8 @@ const DRAFT_MARGIN = 12;
 const DRAFT_HEADER_HEIGHT = 40;
 const DRAFT_MIN_VISIBLE_WIDTH = 220;
 const DRAFT_MIN_VISIBLE_HEIGHT = 120;
-const DRAFT_CHIP_SIZE = 64;
+const DRAFT_CHIP_WIDTH = 56;
+const DRAFT_CHIP_HEIGHT = 44;
 const SESSION_STORAGE_KEY = "prototype-mindmap-session-v1";
 
 // The Think<->Map slider snaps to five fixed stops. Initial/persisted values (which
@@ -140,6 +143,8 @@ interface PersistedSession {
     pendingChildPlacement?: LoopState["pendingChildPlacement"];
     activeElicitation?: LoopState["activeElicitation"];
     activeSelectionContext?: LoopState["activeSelectionContext"];
+    openThreads?: LoopState["openThreads"];
+    dismissedCandidateIds?: LoopState["dismissedCandidateIds"];
     pendingCardWording?: LoopState["pendingCardWording"];
     captureLoop?: LoopState["captureLoop"];
     lastCoachQuestion?: LoopState["lastCoachQuestion"];
@@ -153,8 +158,33 @@ function commandAckText(commands: AcceptedMapCommand[]): string {
   if (commands.length !== 1) return `${commands.length} map changes applied.`;
   const command = commands[0];
   if (command.kind === "create_card") return `Card added: "${command.text}".`;
+  if (command.kind === "edit_card") return `Card updated: "${command.text}".`;
   if (command.kind === "nest_card") return "Card nested.";
   return command.labelText ? "Cards connected with your label." : "Cards connected.";
+}
+
+function commandSourceUtteranceIds(commands: AcceptedMapCommand[]): string[] {
+  const ids = new Set<string>();
+  for (const command of commands) {
+    if (command.kind === "create_card") {
+      command.sourceUtteranceIds.forEach((id) => ids.add(id));
+    } else if (command.kind === "edit_card") {
+      command.sourceUtteranceIds.forEach((id) => ids.add(id));
+    } else if (command.kind === "nest_card") {
+      if ("sourceUtteranceIds" in command.child) {
+        command.child.sourceUtteranceIds.forEach((id) => ids.add(id));
+      }
+    } else {
+      if ("sourceUtteranceIds" in command.source) {
+        command.source.sourceUtteranceIds.forEach((id) => ids.add(id));
+      }
+      if ("sourceUtteranceIds" in command.target) {
+        command.target.sourceUtteranceIds.forEach((id) => ids.add(id));
+      }
+      command.labelSourceUtteranceIds?.forEach((id) => ids.add(id));
+    }
+  }
+  return Array.from(ids);
 }
 
 // ---------------------------------------------------------------------------
@@ -431,11 +461,19 @@ const css = `
   .composer-toolbar {
     display: flex;
     align-items: center;
+    justify-content: space-between;
     gap: 7px;
     min-height: 32px;
   }
+  .composer-left-tools,
+  .composer-action-tools {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
 
   .mic-btn,
+  .draft-toggle-btn,
   .uth-toggle-btn {
     height: 30px;
     flex: 0 0 auto;
@@ -462,13 +500,19 @@ const css = `
     padding: 0 10px;
     gap: 5px;
   }
+  .draft-toggle-btn {
+    width: auto;
+    padding: 0 11px;
+  }
   .mic-btn:hover:not(:disabled),
+  .draft-toggle-btn:hover:not(:disabled),
   .uth-toggle-btn:hover:not(:disabled) {
     border-color: #1a6fa3;
     color: #1a6fa3;
     background: #f3f8fb;
   }
   .mic-btn:disabled,
+  .draft-toggle-btn:disabled,
   .uth-toggle-btn:disabled {
     opacity: 0.45;
     cursor: default;
@@ -524,7 +568,6 @@ const css = `
   }
 
   .send-btn {
-    margin-left: auto;
     flex: 0 0 auto;
     width: 34px;
     height: 34px;
@@ -559,17 +602,20 @@ const css = `
   }
 
   .map-header {
-    min-height: 60px;
-    padding: 9px 438px 9px 16px;
+    min-height: 58px;
+    padding: 7px 12px;
     border-bottom: 1px solid #e5e3de;
     background: #fafaf8;
     flex-shrink: 0;
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    column-gap: 18px;
-    row-gap: 8px;
+    column-gap: 10px;
+    row-gap: 0;
     transition: background 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  }
+  .map-shell.underhood-open .map-header {
+    padding-right: 438px;
   }
   .map-header.draft-dock-target {
     border-bottom-color: #d6a955;
@@ -579,20 +625,15 @@ const css = `
 
   .map-heading {
     flex: 0 0 auto;
-    min-width: 96px;
-  }
-  .map-header h2 {
-    font-size: 13px;
-    font-weight: 600;
-    color: #444;
-    letter-spacing: 0.02em;
-    text-transform: uppercase;
+    min-width: 40px;
   }
 
   .map-count {
     display: block;
-    margin-top: 2px;
+    margin-top: 0;
     font-size: 11px;
+    line-height: 1;
+    white-space: nowrap;
     color: #8a8780;
   }
 
@@ -601,16 +642,23 @@ const css = `
     min-width: 0;
     display: flex;
     align-items: center;
-    gap: 14px;
-    flex-wrap: wrap;
+    gap: 7px;
+    flex-wrap: nowrap;
   }
   .map-left-tools {
     justify-self: start;
     max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
   }
   .map-right-tools {
     justify-self: end;
     justify-content: flex-end;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: thin;
   }
 
   .question-bias {
@@ -641,25 +689,22 @@ const css = `
   /* Docked draft keeps the same size and physical affordance as the floating
      chip; it simply snaps into its predefined header slot. */
   .map-draft-slot {
-    flex: 0 0 64px;
-    width: 64px;
-    height: 64px;
+    flex: 0 0 56px;
+    width: 56px;
+    height: 44px;
     display: grid;
     place-items: center;
     border: 1px dashed #d6c8aa;
-    border-radius: 12px;
+    border-radius: 7px;
     background: #fbf7ec;
     color: #a2834e;
     transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
   }
 
   @media (max-width: 1200px) {
-    .map-header {
-      padding-right: 16px;
-    }
     .map-left-tools,
     .map-right-tools {
-      gap: 9px;
+      gap: 6px;
     }
   }
   .map-draft-slot.occupied {
@@ -675,20 +720,26 @@ const css = `
   .map-draft-slot-label {
     font-size: 10px;
     font-weight: 800;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.02em;
     text-transform: uppercase;
+  }
+
+  @media (max-width: 900px) {
+    .map-shell.underhood-open .map-header {
+      padding-right: 16px;
+    }
   }
   .map-draft-dock {
     display: inline-flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: 6px;
-    width: 64px;
-    height: 64px;
+    gap: 4px;
+    width: 56px;
+    height: 44px;
     padding: 0;
     border: 1px solid #d6a955;
-    border-radius: 12px;
+    border-radius: 7px;
     background: #f6e8c8;
     color: #7a5a16;
     box-shadow: 0 6px 18px rgba(122, 90, 22, 0.16);
@@ -699,11 +750,11 @@ const css = `
   .map-draft-dock-label {
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
   }
   .map-draft-dock-dot {
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: #1a6fa3;
   }
@@ -747,15 +798,6 @@ const css = `
   }
 
   @media (max-width: 1180px) {
-    .map-header {
-      grid-template-columns: auto minmax(0, 1fr);
-      column-gap: 10px;
-    }
-
-    .map-right-tools {
-      grid-column: 2;
-    }
-
     .question-bias {
       grid-template-columns: auto minmax(64px, 96px) auto;
     }
@@ -1263,9 +1305,9 @@ const css = `
   /* ---- map header extras ---- */
   .map-clear-draft,
   .map-add-card {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    padding: 5px 11px;
+    padding: 4px 8px;
     border-radius: 6px;
     border: 1px solid #b5dfc5;
     background: #eafaf0;
@@ -1281,9 +1323,9 @@ const css = `
   .map-add-card:hover { background: #dcf4e6; }
 
   .map-label-toggle {
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 600;
-    padding: 5px 10px;
+    padding: 4px 8px;
     border-radius: 6px;
     border: 1px solid #d8d5ce;
     background: #fff;
@@ -1301,8 +1343,8 @@ const css = `
   .map-undo,
   .map-clean,
   .map-clear-map {
-    font-size: 12px;
-    padding: 5px 10px;
+    font-size: 11px;
+    padding: 4px 8px;
   }
   .map-clear-map {
     border-color: #ead3cf;
@@ -1488,16 +1530,16 @@ const css = `
   .draft-chip {
     position: fixed;
     z-index: 100;
-    width: 64px;
-    height: 64px;
+    width: 56px;
+    height: 44px;
     display: flex;
-    flex-direction: column;
+    flex-direction: row;
     align-items: center;
     justify-content: center;
-    gap: 3px;
+    gap: 4px;
     padding: 0;
     border: 1px solid #d6a955;
-    border-radius: 12px;
+    border-radius: 9px;
     background: #f6e8c8;
     color: #7a5a16;
     box-shadow: 0 6px 18px rgba(122, 90, 22, 0.22);
@@ -1509,11 +1551,11 @@ const css = `
   .draft-chip-label {
     font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.04em;
   }
   .draft-chip-dot {
-    width: 7px;
-    height: 7px;
+    width: 6px;
+    height: 6px;
     border-radius: 50%;
     background: #1a6fa3;
   }
@@ -2071,6 +2113,26 @@ const css = `
   .idea-status.needs_your_wording { background: #fcebd1; color: #9a6810; }
   .idea-status.needs_relationship { background: #e5f0fb; color: #286fa4; }
   .idea-status.too_early { background: #eeeae1; color: #655f55; }
+  .idea-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .idea-dismiss {
+    border: 1px solid #e0d8c8;
+    background: #fbfaf7;
+    color: #6a6256;
+    border-radius: 7px;
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 650;
+    cursor: pointer;
+  }
+  .idea-dismiss:hover {
+    background: #fff5d5;
+    border-color: #d7b762;
+    color: #463b25;
+  }
   .meter-group {
     margin-top: 9px;
     display: grid;
@@ -2151,6 +2213,8 @@ const css = `
     cursor: pointer;
   }
   .anchor-button:hover { background: #fff5d5; border-color: #e1be65; }
+  .anchor-button.parked-thread { cursor: default; }
+  .anchor-button.parked-thread:hover { background: #fbfaf7; border-color: #e3ded4; }
   .anchor-kind {
     display: block;
     margin-top: 4px;
@@ -2269,6 +2333,8 @@ function cloneLoopState(state: LoopState): LoopState {
   cloned.pendingChildPlacement = state.pendingChildPlacement;
   cloned.activeElicitation = state.activeElicitation;
   cloned.activeSelectionContext = state.activeSelectionContext;
+  cloned.openThreads = state.openThreads;
+  cloned.dismissedCandidateIds = state.dismissedCandidateIds;
   cloned.pendingCardWording = state.pendingCardWording;
   cloned.captureLoop = state.captureLoop;
   // Answer-detection (Goal 5) reads the coach's last question across turns, so it
@@ -2408,6 +2474,7 @@ type UnderhoodSectionId =
   | "ideas"
   | "waiting"
   | "safety"
+  | "openThreads"
   | "draftAnchors";
 
 const STATIC_SAFETY_LABEL = "I won't change your map unless you ask me to.";
@@ -2454,6 +2521,7 @@ export function UnderTheHoodPanel({
   snapshot,
   onDraftAnchor,
   onRequestMode,
+  onDismissIdea,
   busy = false,
   open: controlledOpen,
   onOpenChange,
@@ -2461,6 +2529,7 @@ export function UnderTheHoodPanel({
   snapshot: UnderstandingSnapshot | null;
   onDraftAnchor: (anchor: string) => void;
   onRequestMode?: (mode: UserRequestedMode) => void;
+  onDismissIdea?: (ideaId: string) => void;
   busy?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -2676,7 +2745,19 @@ export function UnderTheHoodPanel({
                         <div className="idea-label">{idea.label}</div>
                         <span className="anchor-kind">{targetLabel(idea.target)}</span>
                       </div>
-                      <span className={`idea-status ${idea.status}`}>{statusLabel(idea.status)}</span>
+                      <div className="idea-actions">
+                        <span className={`idea-status ${idea.status}`}>{statusLabel(idea.status)}</span>
+                        {onDismissIdea && (
+                          <button
+                            type="button"
+                            className="idea-dismiss"
+                            onClick={() => onDismissIdea(idea.id)}
+                            disabled={busy}
+                          >
+                            Dismiss
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <div className="meter-group">
                       <Meter label="Grounded" value={idea.meters.grounded} />
@@ -2696,6 +2777,24 @@ export function UnderTheHoodPanel({
               onToggle={() => toggleSection("waiting")}
             >
               <div className="waiting-card">{snapshot.waitingFor}</div>
+            </UnderhoodSection>
+          )}
+
+          {snapshot.openThreads.length > 0 && (
+            <UnderhoodSection
+              title="Parked earlier phrases"
+              meta={snapshot.openThreads.length}
+              collapsed={sectionIsCollapsed("openThreads", true)}
+              onToggle={() => toggleSection("openThreads", true)}
+            >
+              <div className="anchor-list">
+                {snapshot.openThreads.map((thread) => (
+                  <div key={thread.id} className="anchor-button parked-thread">
+                    {thread.label}
+                    <span className="anchor-kind">{thread.status}</span>
+                  </div>
+                ))}
+              </div>
             </UnderhoodSection>
           )}
 
@@ -2770,6 +2869,8 @@ export default function App() {
     state.pendingChildPlacement = persistedSession.controller.pendingChildPlacement;
     state.activeElicitation = persistedSession.controller.activeElicitation;
     state.activeSelectionContext = persistedSession.controller.activeSelectionContext;
+    state.openThreads = persistedSession.controller.openThreads ?? [];
+    state.dismissedCandidateIds = persistedSession.controller.dismissedCandidateIds ?? [];
     state.pendingCardWording = persistedSession.controller.pendingCardWording;
     state.captureLoop = persistedSession.controller.captureLoop;
     state.lastCoachQuestion = persistedSession.controller.lastCoachQuestion;
@@ -2854,6 +2955,7 @@ export default function App() {
     undoStackRef.current.push({
       map: mapStoreRef.current.snapshot(),
       bank: stateRef.current.bank.getAll(),
+      openThreads: stateRef.current.openThreads,
     });
     if (undoStackRef.current.length > 50) {
       undoStackRef.current.shift();
@@ -2875,6 +2977,7 @@ export default function App() {
     if (!previous) return;
     mapStoreRef.current.loadSnapshot(previous.map);
     stateRef.current.bank.replaceAll(previous.bank);
+    stateRef.current.openThreads = previous.openThreads;
     setCanUndoMap(undoStackRef.current.length > 0);
     setCommandAck(null);
     markMapChanged();
@@ -2885,11 +2988,30 @@ export default function App() {
       if (commands.length === 0) return;
       captureMapUndo();
       applyAcceptedMapCommands(commands, mapStoreRef.current, stateRef.current.bank);
+      stateRef.current.openThreads = promoteOpenThreadsForUtterances(
+        stateRef.current.openThreads,
+        commandSourceUtteranceIds(commands),
+      );
       setCommandAck({ text: commandAckText(commands) });
       markMapChanged();
     },
     [captureMapUndo, markMapChanged],
   );
+
+  const dismissTrackedIdea = useCallback((ideaId: string) => {
+    stateRef.current.candidates.delete(ideaId);
+    stateRef.current.dismissedCandidateIds = Array.from(
+      new Set([...stateRef.current.dismissedCandidateIds, ideaId]),
+    );
+    setUnderstandingSnapshot((prev) =>
+      prev
+        ? {
+            ...prev,
+            trackedIdeas: prev.trackedIdeas.filter((idea) => idea.id !== ideaId),
+          }
+        : prev,
+    );
+  }, []);
 
   // Draft panel state
   const [draftText, setDraftText] = useState(initialDraftText);
@@ -2984,8 +3106,8 @@ export default function App() {
       // Clamp to the chip's own footprint so it can reach every edge/corner.
       setDraftPos(clampBoxPosition(
         { x: ev.clientX - startX, y: ev.clientY - startY },
-        DRAFT_CHIP_SIZE,
-        DRAFT_CHIP_SIZE,
+        DRAFT_CHIP_WIDTH,
+        DRAFT_CHIP_HEIGHT,
       ));
     };
     const onUp = () => {
@@ -3048,8 +3170,8 @@ export default function App() {
       setDraftDockTargetActive(isOverDockTarget(ev.clientX, ev.clientY));
       setDraftPos(clampBoxPosition(
         { x: ev.clientX - startX, y: ev.clientY - startY },
-        DRAFT_CHIP_SIZE,
-        DRAFT_CHIP_SIZE,
+        DRAFT_CHIP_WIDTH,
+        DRAFT_CHIP_HEIGHT,
       ));
     };
 
@@ -3074,8 +3196,8 @@ export default function App() {
       setDraftCollapsed(true);
       setDraftPos(clampBoxPosition(
         { x: lastX - startX, y: lastY - startY },
-        DRAFT_CHIP_SIZE,
-        DRAFT_CHIP_SIZE,
+        DRAFT_CHIP_WIDTH,
+        DRAFT_CHIP_HEIGHT,
       ));
     };
 
@@ -3217,6 +3339,7 @@ export default function App() {
         clarifyTarget: stateForUnderstanding.clarifyTarget,
         activeElicitation: stateForUnderstanding.activeElicitation,
         pendingMapCommand: stateForUnderstanding.pendingMapCommand,
+        openThreads: stateForUnderstanding.openThreads,
         config: configForUnderstanding,
       });
   }
@@ -3323,6 +3446,8 @@ export default function App() {
         pendingChildPlacement: stateRef.current.pendingChildPlacement,
         activeElicitation: stateRef.current.activeElicitation,
         activeSelectionContext: stateRef.current.activeSelectionContext,
+        openThreads: stateRef.current.openThreads,
+        dismissedCandidateIds: stateRef.current.dismissedCandidateIds,
         pendingCardWording: stateRef.current.pendingCardWording,
         captureLoop: stateRef.current.captureLoop,
         lastCoachQuestion: stateRef.current.lastCoachQuestion,
@@ -3478,6 +3603,10 @@ export default function App() {
     if (confirmedReflection) {
       captureMapUndo();
       mapStoreRef.current.addFromReflection(confirmedReflection);
+      stateRef.current.openThreads = promoteOpenThreadsForUtterances(
+        stateRef.current.openThreads,
+        confirmedReflection.sourceUtteranceIds,
+      );
       setConfirmed((prev) => [...prev, confirmedReflection]);
       markUserMapChanged();
     }
@@ -3575,6 +3704,16 @@ export default function App() {
     setDraftCollapsed(false);
   }
 
+  function toggleDraftFromComposer() {
+    if (draftDocked) {
+      setDraftDocked(false);
+      setDraftCollapsed(false);
+      return;
+    }
+    setDraftDocked(true);
+    setDraftCollapsed(true);
+  }
+
   function clearMapOnly() {
     turnNonceRef.current++;
     setLoading(false);
@@ -3590,6 +3729,7 @@ export default function App() {
     stateRef.current.coverageFocus = undefined;
     stateRef.current.pendingChildPlacement = undefined;
     stateRef.current.activeElicitation = undefined;
+    stateRef.current.openThreads = reopenPromotedOpenThreads(stateRef.current.openThreads);
     stateRef.current.pendingCardWording = undefined;
     stateRef.current.captureLoop = undefined;
     setMapMountKey((key) => key + 1);
@@ -3712,49 +3852,62 @@ export default function App() {
                 disabled={loading}
               />
               <div className="composer-toolbar">
-                <button
-                  className={`uth-toggle-btn ${underhoodOpen ? "active" : ""}`}
-                  type="button"
-                  title={underhoodOpen ? "Close under the hood" : "Open under the hood"}
-                  aria-label={underhoodOpen ? "Close under the hood panel" : "Open under the hood panel"}
-                  aria-pressed={underhoodOpen}
-                  onClick={() => setUnderhoodOpen((value) => !value)}
-                >
-                  <UnderhoodIcon />
-                  <span>UTH</span>
-                </button>
-                <button
-                  className={`mic-btn ${speech.listening ? "live" : ""}`}
-                  type="button"
-                  title={
-                    speech.supported
-                      ? speech.listening
-                        ? "Stop voice dictation"
-                        : "Start voice dictation"
-                      : "Voice dictation is unavailable in this browser"
-                  }
-                  aria-label={
-                    speech.supported
-                      ? speech.listening
-                        ? "Stop voice dictation"
-                        : "Start voice dictation"
-                      : "Voice dictation is unavailable in this browser"
-                  }
-                  aria-pressed={speech.listening}
-                  disabled={!speech.supported || loading}
-                  onClick={() => {
-                    if (speech.listening) {
-                      speech.stop();
-                      return;
+                <div className="composer-left-tools">
+                  <button
+                    className={`uth-toggle-btn ${underhoodOpen ? "active" : ""}`}
+                    type="button"
+                    title={underhoodOpen ? "Close under the hood" : "Open under the hood"}
+                    aria-label={underhoodOpen ? "Close under the hood panel" : "Open under the hood panel"}
+                    aria-pressed={underhoodOpen}
+                    onClick={() => setUnderhoodOpen((value) => !value)}
+                  >
+                    <UnderhoodIcon />
+                    <span>UTH</span>
+                  </button>
+                  <button
+                    className="draft-toggle-btn"
+                    type="button"
+                    title={draftDocked ? "Open draft" : "Dock draft"}
+                    aria-label={draftDocked ? "Open draft" : "Dock draft"}
+                    onClick={toggleDraftFromComposer}
+                  >
+                    Draft
+                  </button>
+                </div>
+                <div className="composer-action-tools">
+                  <button
+                    className={`mic-btn ${speech.listening ? "live" : ""}`}
+                    type="button"
+                    title={
+                      speech.supported
+                        ? speech.listening
+                          ? "Stop voice dictation"
+                          : "Start voice dictation"
+                        : "Voice dictation is unavailable in this browser"
                     }
-                    speech.start(input);
-                  }}
-                >
-                  <MicIcon />
-                </button>
-                <button className="send-btn" onClick={() => void send()} disabled={loading || !input.trim()}>
-                  {"\u2191"}
-                </button>
+                    aria-label={
+                      speech.supported
+                        ? speech.listening
+                          ? "Stop voice dictation"
+                          : "Start voice dictation"
+                        : "Voice dictation is unavailable in this browser"
+                    }
+                    aria-pressed={speech.listening}
+                    disabled={!speech.supported || loading}
+                    onClick={() => {
+                      if (speech.listening) {
+                        speech.stop();
+                        return;
+                      }
+                      speech.start(input);
+                    }}
+                  >
+                    <MicIcon />
+                  </button>
+                  <button className="send-btn" onClick={() => void send()} disabled={loading || !input.trim()}>
+                    {"\u2191"}
+                  </button>
+                </div>
               </div>
             </div>
             <div className="input-hint">Enter to send {"\u00b7"} Shift+Enter for newline</div>
@@ -3804,7 +3957,7 @@ export default function App() {
               className="draft-panel-btn"
               onClick={() => {
                 const back = preExpandChipPosRef.current;
-                if (back) setDraftPos(clampBoxPosition(back, DRAFT_CHIP_SIZE, DRAFT_CHIP_SIZE));
+                if (back) setDraftPos(clampBoxPosition(back, DRAFT_CHIP_WIDTH, DRAFT_CHIP_HEIGHT));
                 setDraftCollapsed(true);
               }}
               title="Collapse to icon"
@@ -3848,7 +4001,7 @@ export default function App() {
         )}
         </div>
 
-        <div className="map-shell">
+        <div className={`map-shell ${underhoodOpen ? "underhood-open" : ""}`}>
           <ThoughtMap
             key={mapMountKey}
             store={mapStoreRef.current}
@@ -3889,6 +4042,7 @@ export default function App() {
             snapshot={understandingSnapshot}
             onDraftAnchor={revealDraftAnchor}
             onRequestMode={requestMode}
+            onDismissIdea={dismissTrackedIdea}
             busy={loading}
             open={underhoodOpen}
             onOpenChange={setUnderhoodOpen}

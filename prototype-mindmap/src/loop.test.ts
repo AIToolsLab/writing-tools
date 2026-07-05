@@ -7,7 +7,7 @@
 
 import { beforeEach, describe, expect, it } from "vitest";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
-import { createState, MIRROR_PREAMBLE, processTurn } from "./controller";
+import { createState, MIRROR_PREAMBLE, processTurn, type PendingMapCommand } from "./controller";
 import type { LLMContext, LLMMapContext, LLMTurn } from "./llm-contract";
 import { resetIdCounter } from "./store";
 import type { MirrorClaim, MirrorReflection, SourceSpan, ThoughtUnit } from "./types";
@@ -3409,6 +3409,42 @@ describe("pacing", () => {
     expect(state.activeElicitation).toEqual({ kind: "sparse_map_next_card", targetPhrase: undefined });
   });
 
+  it("counts visible cards, not connection-label units, when deciding whether the map is sparse", async () => {
+    const state = createState();
+    const cfg = withQuestionIntentBias(defaultConfig, 100);
+    const sparseMapWithOrphanLabels = {
+      thoughtUnits: [
+        mapUnit("n_1", "Constraint"),
+        { ...mapUnit("label_1", "supports"), role: "connection_label" as const },
+        { ...mapUnit("label_2", "qualifies"), role: "connection_label" as const },
+      ],
+      connections: [],
+    };
+    let captured: LLMContext | undefined;
+
+    const out = await processTurn(
+      state,
+      "No silent commit matters here",
+      (ctx): LLMTurn => {
+        captured = ctx;
+        return {
+          mode: "question",
+          text: "Between #1 and #2, what relationship do you want to state?",
+          questionIntent: "organize",
+          questionStance: "organize",
+        };
+      },
+      cfg,
+      "chat",
+      sparseMapWithOrphanLabels,
+    );
+
+    expect(captured?.sparseMapBlocksOrganize).toBe(true);
+    expect(out.text).toBe(
+      "I'm holding off on organizing this yet because the map is still too sparse. What exact wording do you want to carry forward as the next card?",
+    );
+  });
+
   it("still allows organize questions once the map has enough visible structure", async () => {
     const state = createState();
     const cfg = withQuestionIntentBias(defaultConfig, 100);
@@ -4425,12 +4461,70 @@ describe("pacing", () => {
     const out = await processTurn(state, userText, llm);
 
     expect(state.candidates.getAll()).toHaveLength(0);
+    expect(state.openThreads.map((thread) => thread.text)).toEqual([
+      "The opening is about control.",
+      "The middle is about authorship.",
+      "The ending needs a contrast.",
+      "I am still exploring what matters most.",
+    ]);
     expect(out.commandDebug).toEqual([
       {
         reason: "large_turn_candidate_filter",
         detail: "dropped 3 broad idea candidate(s) from exploratory turn",
       },
     ]);
+  });
+
+  it("does not surface parked threads on ordinary unrelated turns", async () => {
+    const state = createState();
+    await processTurn(
+      state,
+      "The opening is about control. The middle is about authorship. The ending needs a contrast. I am still exploring what matters most.",
+      questionLLM("Which one piece should we stay with first?"),
+    );
+
+    let capturedCtx: LLMContext | undefined;
+    await processTurn(state, "the new issue is reader trust", (ctx) => {
+      capturedCtx = ctx;
+      return { mode: "question", text: "What makes reader trust matter?" };
+    });
+
+    expect(capturedCtx?.openThreads).toBeUndefined();
+  });
+
+  it("surfaces parked threads when the user asks what to do next", async () => {
+    const state = createState();
+    await processTurn(
+      state,
+      "The opening is about control. The middle is about authorship. The ending needs a contrast. I am still exploring what matters most.",
+      questionLLM("Which one piece should we stay with first?"),
+    );
+
+    let capturedCtx: LLMContext | undefined;
+    await processTurn(state, "what should we do next", (ctx) => {
+      capturedCtx = ctx;
+      return { mode: "question", text: "Which one still feels live?" };
+    });
+
+    expect(capturedCtx?.openThreads?.map((thread) => thread.text)).toContain("The ending needs a contrast.");
+  });
+
+  it("activates a matching parked thread and bounds selected-strand context to it", async () => {
+    const state = createState();
+    await processTurn(
+      state,
+      "The opening is about control. The middle is about authorship. The ending needs a contrast. I am still exploring what matters most.",
+      questionLLM("Which one piece should we stay with first?"),
+    );
+
+    let capturedCtx: LLMContext | undefined;
+    await processTurn(state, "I want to talk about authorship", (ctx) => {
+      capturedCtx = ctx;
+      return { mode: "question", text: "What about authorship feels live?" };
+    });
+
+    expect(state.openThreads.find((thread) => thread.text === "The middle is about authorship.")?.status).toBe("active");
+    expect(capturedCtx?.activeSelectionContext?.sourceUtteranceIds).toEqual(["u_2"]);
   });
 
   it("keeps a single idea upsert from a large exploratory turn as non-structural evidence", async () => {
@@ -5831,6 +5925,118 @@ describe("bug pass: command precedence over pending label capture", () => {
     expect(cmds.some((c) => c.kind === "connect_cards")).toBe(false);
     expect(state.pendingMapCommand?.kind).not.toBe("connection_label");
   });
+
+  it("cancels a pending connection label even when the cancel text names card refs", async () => {
+    const state = createState();
+    state.pendingMapCommand = {
+      kind: "connection_label",
+      command: { kind: "connect_cards", source: { id: "tu_1" }, target: { id: "tu_2" } },
+      prompt: "What should the label be between #1 and #2?",
+      debug: "connection_label_pending",
+    };
+    const map = { thoughtUnits: [mapUnit("tu_1", "A"), mapUnit("tu_2", "B")], connections: [] };
+
+    const out = await processTurn(
+      state,
+      "Don't connect #1 to #2",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandDebug?.[0]?.reason).toBe("connection_label_cancelled");
+    expect(state.pendingMapCommand).toBeUndefined();
+  });
+
+  it.each([
+    [
+      "reference confirmation",
+      (): PendingMapCommand => ({
+        kind: "reference_confirmation",
+        command: { kind: "connect_cards", source: { id: "tu_1" }, target: { id: "tu_2" } },
+        prompt: "Did you mean that one?",
+        debug: "near_match_pending",
+        correctionSlots: ["source"],
+      }),
+    ],
+    [
+      "relationship confirmation",
+      (): PendingMapCommand => ({
+        kind: "relationship_confirmation",
+        labelText: "supports",
+        command: {
+          kind: "connect_cards",
+          source: { id: "tu_1" },
+          target: { id: "tu_2" },
+          labelText: "supports",
+          labelSourceUtteranceIds: ["u_label"],
+        },
+        prompt: "It sounds like you want the relationship wording to be 'supports'. Is that right?",
+        debug: "relationship_confirmation_pending",
+      }),
+    ],
+    [
+      "duplicate connection confirmation",
+      (): PendingMapCommand => ({
+        kind: "duplicate_connection_confirmation",
+        command: { kind: "connect_cards", source: { id: "tu_1" }, target: { id: "tu_2" } },
+        prompt: "There is already a connection. Add another?",
+        debug: "duplicate_connection_pending",
+      }),
+    ],
+  ])("runs a fresh exact-text card command instead of staying wedged in %s", async (_name, makePending) => {
+    const state = createState();
+    state.pendingMapCommand = makePending();
+    const map = { thoughtUnits: [mapUnit("tu_1", "A"), mapUnit("tu_2", "B")], connections: [] };
+
+    const out = await processTurn(
+      state,
+      "Actually create a card with exactly this text: writer decides final wording",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "writer decides final wording",
+        sourceUtteranceIds: ["u_1"],
+      },
+    ]);
+    expect(state.pendingMapCommand).toBeUndefined();
+  });
+
+  it("runs a fresh exact-text card command instead of capturing it as pending child wording", async () => {
+    const state = createState();
+    state.pendingChildPlacement = {
+      parentId: "tu_1",
+      parentText: "A",
+      remaining: 1,
+    };
+    const map = { thoughtUnits: [mapUnit("tu_1", "A")], connections: [] };
+
+    const out = await processTurn(
+      state,
+      "Actually create a card with exactly this text: writer decides final wording",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "create_card",
+        text: "writer decides final wording",
+        sourceUtteranceIds: ["u_1"],
+      },
+    ]);
+    expect(state.pendingChildPlacement).toBeUndefined();
+  });
 });
 
 describe("bug pass: user-forced mirror bypasses pacing cooldown", () => {
@@ -6270,5 +6476,166 @@ describe("hardening: stale-uncertainty settle drift (Goal 5 backstop)", () => {
     );
 
     expect(out.text).toBe("What is one small piece of the veto idea you could pin down first?");
+  });
+});
+
+describe("parked/authorship hardening follow-ups", () => {
+  it("accepts an exact current-turn edit_card command for a named card", async () => {
+    const state = createState();
+    const map: LLMMapContext = {
+      thoughtUnits: [mapUnit("tu_10", "human control")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "reword #10 to human authorship stays in charge",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "edit_card",
+        id: "tu_10",
+        text: "human authorship stays in charge",
+        sourceUtteranceIds: [expect.any(String)],
+      },
+    ]);
+  });
+
+  it("accepts colon-style exact edit wording", async () => {
+    const state = createState();
+    const map: LLMMapContext = {
+      thoughtUnits: [mapUnit("tu_10", "human control")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "make #10 say: human authorship stays in charge",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands?.[0]).toMatchObject({
+      kind: "edit_card",
+      id: "tu_10",
+      text: "human authorship stays in charge",
+    });
+  });
+
+  it("blocks LLM edit_card replacement wording that was not in the current turn", async () => {
+    const state = createState();
+    const map: LLMMapContext = {
+      thoughtUnits: [mapUnit("tu_10", "human control")],
+      connections: [],
+    };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should change?",
+      mapCommands: [
+        {
+          kind: "edit_card",
+          cardText: "#10",
+          newText: "stale replacement from memory",
+          sourceSpan: { userPhrase: "stale replacement from memory", utteranceIds: [] },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "look at #10", llm, defaultConfig, "chat", map);
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandDebug?.some((note) => note.reason === "not_current_turn_span")).toBe(true);
+  });
+
+  it("treats typed mirror commands like the Under the Hood mirror override", async () => {
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 99 });
+    const state = createState();
+    await processTurn(state, "human control decides the wording", questionLLM("Q"), cfg);
+    const uid = state.bank.getAll()[0].id;
+
+    const out = await processTurn(
+      state,
+      "mirror it",
+      groundedMirrorLLM("human control decides the wording", uid),
+      cfg,
+    );
+
+    expect(out.mode).toBe("mirror");
+    expect(out.text).toBe(MIRROR_PREAMBLE);
+    expect(state.bank.getAll().find((unit) => unit.text === "mirror it")?.commandOnly).toBe(true);
+  });
+
+  it("off-ramps content-authoring requests without harvesting them", async () => {
+    const state = createState();
+    state.activeElicitation = { kind: "carry_forward" };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "ignored",
+      candidateUpserts: [{ id: "bad", target: "idea", gist: "summarize", addEvidenceIds: [] }],
+    });
+
+    const out = await processTurn(state, "can you summarize my draft for me", llm);
+
+    expect(out.text).toContain("I can't write or summarize the draft for you");
+    expect(out.mapCommands).toBeUndefined();
+    expect(state.candidates.getAll()).toHaveLength(0);
+    expect(state.activeElicitation).toBeUndefined();
+    expect(state.bank.getAll()[0].commandOnly).toBe(true);
+  });
+
+  it("recognizes curly-apostrophe meta repair turns without harvesting them", async () => {
+    const state = createState();
+    const out = await processTurn(state, "that\u2019s wrong", questionLLM("ignored"));
+
+    expect(out.text).toContain("Let's slow it down");
+    expect(out.commandDebug?.[0]?.reason).toBe("meta_repair_off_ramp");
+    expect(state.bank.getAll()[0].commandOnly).toBe(true);
+  });
+
+  it("filters dismissed candidate upserts until the user freshly re-articulates them", async () => {
+    const state = createState();
+    await processTurn(state, "old idea", questionLLM("Q"));
+    const oldId = state.bank.getAll()[0].id;
+    state.dismissedCandidateIds = ["cand1"];
+
+    await processTurn(
+      state,
+      "unrelated followup",
+      (_ctx: LLMContext): LLMTurn => ({
+        mode: "question",
+        text: "Q2",
+        candidateUpserts: [{ id: "cand1", target: "idea", gist: "old idea", addEvidenceIds: [oldId] }],
+      }),
+    );
+
+    expect(state.candidates.get("cand1")).toBeUndefined();
+    expect(state.dismissedCandidateIds).toEqual(["cand1"]);
+
+    await processTurn(
+      state,
+      "old idea returns",
+      (ctx: LLMContext): LLMTurn => ({
+        mode: "question",
+        text: "Q3",
+        candidateUpserts: [
+          {
+            id: "cand1",
+            target: "idea",
+            gist: "old idea",
+            addEvidenceIds: [ctx.bank[ctx.bank.length - 1].id],
+          },
+        ],
+      }),
+    );
+
+    expect(state.candidates.get("cand1")).toBeDefined();
+    expect(state.dismissedCandidateIds).toEqual([]);
   });
 });

@@ -319,6 +319,36 @@ function measuredRootSizes(
   return sizes;
 }
 
+export function renderedEndpointCenter(
+  store: ThoughtUnitStore,
+  id: string,
+  defaultSize: XYSize,
+): XYPosition | undefined {
+  let unit = store.get(id);
+  if (!unit || unit.role === "connection_label") return undefined;
+
+  if (!unit.parentId) {
+    const position = store.getPosition(unit.id);
+    if (!position) return undefined;
+    const size = store.getSize(unit.id) ?? defaultSize;
+    return { x: position.x + size.w / 2, y: position.y + size.h / 2 };
+  }
+
+  const seen = new Set<string>();
+  while (unit.parentId) {
+    if (seen.has(unit.id)) return undefined;
+    seen.add(unit.id);
+    const parent = store.get(unit.parentId);
+    if (!parent || parent.role === "connection_label") return undefined;
+    unit = parent;
+  }
+
+  const position = store.getPosition(unit.id);
+  if (!position) return undefined;
+  const size = store.getSize(unit.id) ?? defaultSize;
+  return { x: position.x + size.w / 2, y: position.y + size.h / 2 };
+}
+
 function roleLabel(unit: ThoughtUnit, childCount: number): string {
   // The reference number replaces the generic "card" word so the user and the
   // AI can cite the same handle. Title cards keep the word plus the ref.
@@ -1051,22 +1081,7 @@ function ThoughtMapInner({
   // actually renders it (its root ancestor) — enough to place/stagger badges.
   const endpointCenter = useCallback(
     (id: string): XYPosition | undefined => {
-      const own = store.getPosition(id);
-      if (own) {
-        const s = store.getSize(id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
-        return { x: own.x + s.w / 2, y: own.y + s.h / 2 };
-      }
-      let cur = store.get(id);
-      const seen = new Set<string>();
-      while (cur?.parentId && !seen.has(cur.id)) {
-        seen.add(cur.id);
-        cur = store.get(cur.parentId);
-      }
-      if (!cur) return undefined;
-      const rootPos = store.getPosition(cur.id);
-      if (!rootPos) return undefined;
-      const s = store.getSize(cur.id) ?? { w: CARD_WIDTH, h: CARD_HEIGHT };
-      return { x: rootPos.x + s.w / 2, y: rootPos.y + s.h / 2 };
+      return renderedEndpointCenter(store, id, { w: CARD_WIDTH, h: CARD_HEIGHT });
     },
     [store],
   );
@@ -1459,7 +1474,6 @@ function ThoughtMapInner({
     <section className="map-panel">
       <div className={`map-header ${draftDockActive ? "draft-dock-target" : ""}`}>
         <div className="map-heading">
-          <h2>Concept map</h2>
           <span className="map-count">{visibleCardCount} cards</span>
         </div>
 
@@ -1480,7 +1494,9 @@ function ThoughtMapInner({
           >
             Label {requireConnectionLabel ? "on" : "off"}
           </button>
+        </div>
 
+        <div className="map-right-tools">
           <button type="button" className="map-clean" onClick={autoClean} title="Tidy the map: lay connected cards into clean trees and spread the rest across the canvas">
             Auto-clean
           </button>

@@ -23,6 +23,7 @@
 import type { MindmapConfig } from "./config";
 import type { PendingMapCommand, SuppressionReason, TurnOutput } from "./controller";
 import { normalize } from "./normalize";
+import type { ParkedThread } from "./open-threads";
 import type { DraftDeclaration, DraftDeclarationKind } from "./draft-declarations";
 import type { MapQuestionAnchor, QuestionStance } from "./llm-contract";
 import type { DetectedSignal } from "./signals";
@@ -91,6 +92,12 @@ export interface DraftAnchor {
   kind: DraftDeclarationKind;
 }
 
+export interface ParkedThreadAnchor {
+  id: string;
+  label: string;
+  status: ParkedThread["status"];
+}
+
 export type UnderhoodEventKind =
   | "command_detected"
   | "map_write_guard"
@@ -134,6 +141,8 @@ export interface UnderstandingSnapshot {
   safetyChecks: SafetyCheck[];
   /** Draft ideas the AI is aware of; clicking highlights the draft span. */
   draftAnchors: DraftAnchor[];
+  /** Exact user phrases parked from earlier large turns. Memory only. */
+  openThreads: ParkedThreadAnchor[];
   /** Fixed thesis banner. */
   banner: string;
 }
@@ -157,6 +166,7 @@ export interface UnderstandingInputs {
   userAnsweredLastQuestion?: boolean;
   mapIsSparse?: boolean;
   detectedSignals?: DetectedSignal[];
+  openThreads?: ParkedThread[];
   config: MindmapConfig;
 }
 
@@ -426,6 +436,18 @@ function buildDraftAnchors(declarations: DraftDeclaration[]): DraftAnchor[] {
   return anchors;
 }
 
+function buildOpenThreadAnchors(threads: ParkedThread[] | undefined): ParkedThreadAnchor[] {
+  return (threads ?? [])
+    .filter((thread) => thread.status !== "stale")
+    .slice(-6)
+    .reverse()
+    .map((thread) => ({
+      id: thread.id,
+      label: shorten(thread.text, 72),
+      status: thread.status,
+    }));
+}
+
 // ---------------------------------------------------------------------------
 // Active events (eventful liveness, not a fixed every-turn checklist)
 // ---------------------------------------------------------------------------
@@ -440,6 +462,10 @@ function commandEvidence(
       ? cardRef(command.child.id)
       : firstUserEvidence(command.child.sourceUtteranceIds, bank);
     return child && command.parentId ? `${child} under ${cardRef(command.parentId)}` : child;
+  }
+  if (command.kind === "edit_card") {
+    const evidence = firstUserEvidence(command.sourceUtteranceIds, bank);
+    return evidence ? `${cardRef(command.id)} -> ${evidence}` : cardRef(command.id);
   }
   const source = "id" in command.source
     ? cardRef(command.source.id)
@@ -1015,6 +1041,7 @@ function buildActiveEvents(
 export function buildUnderstanding(input: UnderstandingInputs): UnderstandingSnapshot {
   const trackedIdeas = buildTrackedIdeas(input);
   const draftAnchors = buildDraftAnchors(input.draftDeclarations);
+  const openThreads = buildOpenThreadAnchors(input.openThreads);
   return {
     latest: deriveTraceEvent(input.out, "latest"),
     activeEvents: buildActiveEvents(input, trackedIdeas, draftAnchors),
@@ -1022,6 +1049,7 @@ export function buildUnderstanding(input: UnderstandingInputs): UnderstandingSna
     waitingFor: describeWaitingFor(input),
     safetyChecks: buildSafetyChecks(input),
     draftAnchors,
+    openThreads,
     banner: THESIS_BANNER,
   };
 }

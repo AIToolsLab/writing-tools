@@ -1,4 +1,3 @@
-import dagre from "@dagrejs/dagre";
 import type { ThoughtConnection, XYPosition, XYSize } from "./map-store";
 import type { ThoughtUnit } from "./types";
 
@@ -11,20 +10,17 @@ export interface AutoCleanLayoutInput {
 }
 
 const NODESEP = 64;
-const RANKSEP = 88;
-// Same-rank nodes share a Dagre y (or nearly so); adjacent ranks are separated
-// by at least RANKSEP, so a tolerance well under RANKSEP clusters a rank without
-// ever merging two.
-const RANK_TOLERANCE = 40;
+const ROWSEP = 88;
+// Cards whose top edges are this close are treated as the same user-created row.
+// This absorbs small manual misalignments and different card heights while still
+// keeping clearly separate rows separate.
+const ROW_TOLERANCE = 60;
 
 interface RootLayoutNode {
   id: string;
-  /** Final center after layout. */
-  x: number;
-  y: number;
   w: number;
   h: number;
-  /** The user's existing position, used as the stable horizontal-order prior. */
+  /** The user's existing position, used as the stable row/order prior. */
   ox: number;
   oy: number;
 }
@@ -32,287 +28,73 @@ interface RootLayoutNode {
 /**
  * Auto-clean layout.
  *
- * Dagre decides the VERTICAL hierarchy (which card ranks above which, from the
- * user's direction metadata). But Dagre's crossing-minimization also reorders
- * siblings within a rank, which scrambles the user's left-to-right arrangement.
- * So we take only Dagre's ranks and re-derive horizontal order from the user's
- * existing x-positions: within each rank, cards are laid left-to-right in the
- * order the user already had them (stable by current x, then y, then id). The
- * result tidies the tree without semantically shuffling it, and re-running on an
- * unchanged map is idempotent.
+ * The canvas position is user-authored structure, so Auto-clean preserves rows
+ * the user already made. It clusters root cards by their current vertical
+ * placement, then straightens each row in place. A card keeps its horizontal
+ * anchor unless it would overlap the previous card in that row, in which case it
+ * is nudged just far enough right to make room. Arrows do not create new rows
+ * here; they only affect connection handles after layout.
  */
 export function computeAutoCleanPositions(input: AutoCleanLayoutInput): Record<string, XYPosition> {
-  const { positions, defaultSize } = input;
-  const model = buildRootLayoutModel(input);
-  if (model.roots.length === 0) return {};
-  const { roots, rootIds, directedEdges, size } = model;
+  const { units, positions, sizes, defaultSize } = input;
+  const roots = units.filter((unit) => !unit.parentId && unit.role !== "connection_label");
+  if (roots.length === 0) return {};
 
-  // Soft vertical inference for neutral edges: if the user placed two connected
-  // cards with a clear vertical gap and no explicit direction, preserve that
-  // vertical intent so a hand-built top-down tree is not flattened into a row.
-  const inferred = inferVerticalEdges(model, positions, size, defaultSize);
-  const rankEdges = [...directedEdges, ...inferred];
-
-  const orderedRoots = [...roots].sort((a, b) => {
-    const pa = positions[a.id] ?? { x: 0, y: 0 };
-    const pb = positions[b.id] ?? { x: 0, y: 0 };
-    return pa.y - pb.y || pa.x - pb.x || (a.id < b.id ? -1 : 1);
+  const nodes: RootLayoutNode[] = roots.map((unit, index) => {
+    const size = sizes[unit.id] ?? defaultSize;
+    const position = positions[unit.id] ?? fallbackPosition(index, defaultSize);
+    return {
+      id: unit.id,
+      w: size.w,
+      h: size.h,
+      ox: position.x,
+      oy: position.y,
+    };
   });
 
-  const components = connectedComponents(orderedRoots, model.adjacency);
-
   const out: Record<string, XYPosition> = {};
-  const GAP = 120;
-  const ORIGIN_X = 80;
-  const ORIGIN_Y = 80;
-  const MAX_ROW_WIDTH = 2400;
+  const rows = clusterRows(nodes);
 
-  let cursorX = ORIGIN_X;
-  let cursorY = ORIGIN_Y;
-  let rowHeight = 0;
-
-  for (const comp of components) {
-    const nodes = layoutComponent(comp, rankEdges, size, positions);
-
-    let minX = Infinity;
-    let minY = Infinity;
-    let maxX = -Infinity;
-    let maxY = -Infinity;
-    for (const n of nodes) {
-      minX = Math.min(minX, n.x - n.w / 2);
-      minY = Math.min(minY, n.y - n.h / 2);
-      maxX = Math.max(maxX, n.x + n.w / 2);
-      maxY = Math.max(maxY, n.y + n.h / 2);
+  for (const row of rows) {
+    const ordered = [...row.nodes].sort(
+      (a, b) => a.ox - b.ox || a.oy - b.oy || (a.id < b.id ? -1 : 1),
+    );
+    const rowY = row.anchorY;
+    let previousRight = Number.NEGATIVE_INFINITY;
+    for (const node of ordered) {
+      const x = Math.max(node.ox, previousRight + NODESEP);
+      out[node.id] = { x, y: rowY };
+      previousRight = x + node.w;
     }
-    const compW = maxX - minX;
-    const compH = maxY - minY;
-
-    if (cursorX > ORIGIN_X && cursorX + compW > ORIGIN_X + MAX_ROW_WIDTH) {
-      cursorX = ORIGIN_X;
-      cursorY += rowHeight + GAP;
-      rowHeight = 0;
-    }
-
-    for (const n of nodes) {
-      out[n.id] = {
-        x: cursorX + (n.x - n.w / 2 - minX),
-        y: cursorY + (n.y - n.h / 2 - minY),
-      };
-    }
-    cursorX += compW + GAP;
-    rowHeight = Math.max(rowHeight, compH);
-    void rootIds;
   }
 
   return out;
 }
 
-interface RootLayoutModel {
-  roots: ThoughtUnit[];
-  rootIds: Set<string>;
-  adjacency: Map<string, Set<string>>;
-  directedEdges: Array<{ from: string; to: string }>;
-  rootOf: (id: string) => string | undefined;
-  size: (id: string) => XYSize;
-}
-
-function buildRootLayoutModel({
-  units,
-  connections,
-  sizes,
-  defaultSize,
-}: AutoCleanLayoutInput): RootLayoutModel {
-  const roots = units.filter((unit) => !unit.parentId && unit.role !== "connection_label");
-  const rootIds = new Set(roots.map((u) => u.id));
-  const byId = new Map(units.map((unit) => [unit.id, unit]));
-  const rootOf = (id: string): string | undefined => {
-    let cur = byId.get(id);
-    const seen = new Set<string>();
-    while (cur?.parentId && !seen.has(cur.id)) {
-      seen.add(cur.id);
-      cur = byId.get(cur.parentId);
-    }
-    return cur?.id;
+function fallbackPosition(index: number, defaultSize: XYSize): XYPosition {
+  return {
+    x: 80 + index * (defaultSize.w + NODESEP),
+    y: 80 + Math.floor(index / 4) * (defaultSize.h + ROWSEP),
   };
-  const size = (id: string) => sizes[id] ?? defaultSize;
-
-  const adjacency = new Map<string, Set<string>>();
-  roots.forEach((u) => adjacency.set(u.id, new Set()));
-  const directedEdges: Array<{ from: string; to: string }> = [];
-  for (const c of connections) {
-    const a = rootOf(c.sourceId);
-    const b = rootOf(c.targetId);
-    if (!a || !b || a === b || !rootIds.has(a) || !rootIds.has(b)) continue;
-    adjacency.get(a)!.add(b);
-    adjacency.get(b)!.add(a);
-    if (c.layoutDirection === "source_to_target") {
-      directedEdges.push({ from: a, to: b });
-    } else if (c.layoutDirection === "target_to_source") {
-      directedEdges.push({ from: b, to: a });
-    }
-  }
-
-  return { roots, rootIds, adjacency, directedEdges, rootOf, size };
-}
-
-/**
- * For neutral (undirected) connections, keep the user's vertical intent: when the
- * two connected roots sit with a clear vertical gap (dominant over horizontal),
- * add a top-to-bottom rank edge so a hand-built vertical tree is not flattened.
- * Same-row neutral connections stay neutral (no hierarchy invented).
- */
-function inferVerticalEdges(
-  model: RootLayoutModel,
-  positions: Record<string, XYPosition>,
-  size: (id: string) => XYSize,
-  defaultSize: XYSize,
-): Array<{ from: string; to: string }> {
-  const explicit = new Set(model.directedEdges.map((e) => pairKey(e.from, e.to)));
-  const inferred: Array<{ from: string; to: string }> = [];
-  const seenPairs = new Set<string>();
-  for (const [a, neighbors] of model.adjacency) {
-    for (const b of neighbors) {
-      const key = unorderedKey(a, b);
-      if (seenPairs.has(key)) continue;
-      seenPairs.add(key);
-      if (explicit.has(pairKey(a, b)) || explicit.has(pairKey(b, a))) continue;
-      const pa = positions[a];
-      const pb = positions[b];
-      if (!pa || !pb) continue;
-      const dy = pb.y - pa.y;
-      const dx = pb.x - pa.x;
-      const threshold = 0.75 * Math.max(size(a).h, size(b).h, defaultSize.h);
-      if (Math.abs(dy) <= threshold || Math.abs(dy) <= Math.abs(dx)) continue;
-      if (dy > 0) inferred.push({ from: a, to: b });
-      else inferred.push({ from: b, to: a });
-    }
-  }
-  return inferred;
-}
-
-function pairKey(a: string, b: string): string {
-  return `${a}->${b}`;
 }
 
 function unorderedKey(a: string, b: string): string {
   return a < b ? `${a}|${b}` : `${b}|${a}`;
 }
 
-function connectedComponents(
-  orderedRoots: ThoughtUnit[],
-  adjacency: Map<string, Set<string>>,
-): string[][] {
-  const seen = new Set<string>();
-  const components: string[][] = [];
-  for (const r of orderedRoots) {
-    if (seen.has(r.id)) continue;
-    const comp: string[] = [];
-    const q = [r.id];
-    seen.add(r.id);
-    while (q.length > 0) {
-      const id = q.shift()!;
-      comp.push(id);
-      for (const nb of adjacency.get(id) ?? []) {
-        if (!seen.has(nb)) {
-          seen.add(nb);
-          q.push(nb);
-        }
-      }
-    }
-    components.push(comp);
-  }
-  return components;
-}
-
-/**
- * Lay out one connected component: Dagre for ranks (vertical bands), then
- * re-derive horizontal order within each rank from the user's existing x.
- */
-function layoutComponent(
-  comp: string[],
-  rankEdges: Array<{ from: string; to: string }>,
-  size: (id: string) => XYSize,
-  positions: Record<string, XYPosition>,
-): RootLayoutNode[] {
-  const compSet = new Set(comp);
-  const g = new dagre.graphlib.Graph();
-  g.setGraph({ rankdir: "TB", acyclicer: "greedy", nodesep: NODESEP, ranksep: RANKSEP, marginx: 0, marginy: 0 });
-  g.setDefaultEdgeLabel(() => ({}));
-  for (const id of comp) {
-    const s = size(id);
-    g.setNode(id, { width: s.w, height: s.h });
-  }
-  for (const e of rankEdges) {
-    if (compSet.has(e.from) && compSet.has(e.to)) g.setEdge(e.from, e.to, { weight: 2 });
-  }
-
-  let dagreOk = true;
-  try {
-    dagre.layout(g);
-  } catch {
-    dagreOk = false;
-  }
-
-  const nodes: RootLayoutNode[] = comp.map((id, index) => {
-    const s = size(id);
-    const n = dagreOk ? g.node(id) : undefined;
-    const pos = positions[id];
-    return {
-      id,
-      x: n ? n.x : index * (s.w + NODESEP) + s.w / 2,
-      y: n ? n.y : s.h / 2,
-      w: s.w,
-      h: s.h,
-      ox: pos?.x ?? (n ? n.x : index * (s.w + NODESEP)),
-      oy: pos?.y ?? (n ? n.y : 0),
-    };
-  });
-
-  return reorderRanksByUserX(nodes);
-}
-
-/**
- * Cluster nodes into ranks by their Dagre y, then within each rank re-place them
- * left-to-right in the user's existing horizontal order. Rank y (the vertical
- * hierarchy Dagre chose) is preserved; only intra-rank order and spacing change,
- * so siblings keep the user's left/right arrangement and never overlap.
- */
-function reorderRanksByUserX(nodes: RootLayoutNode[]): RootLayoutNode[] {
-  if (nodes.length <= 1) return nodes;
-  const byY = [...nodes].sort((a, b) => a.y - b.y);
-  const ranks: RootLayoutNode[][] = [];
-  let current: RootLayoutNode[] = [];
-  let rankAnchorY = Number.NEGATIVE_INFINITY;
-  for (const node of byY) {
-    if (current.length === 0 || node.y - rankAnchorY <= RANK_TOLERANCE) {
-      if (current.length === 0) rankAnchorY = node.y;
-      current.push(node);
+function clusterRows(nodes: RootLayoutNode[]): Array<{ anchorY: number; nodes: RootLayoutNode[] }> {
+  const sorted = [...nodes].sort((a, b) => a.oy - b.oy || a.ox - b.ox || (a.id < b.id ? -1 : 1));
+  const rows: Array<{ anchorY: number; nodes: RootLayoutNode[] }> = [];
+  for (const node of sorted) {
+    const row = rows.find((candidate) => Math.abs(node.oy - candidate.anchorY) <= ROW_TOLERANCE);
+    if (row) {
+      row.nodes.push(node);
+      row.anchorY = row.nodes.reduce((sum, item) => sum + item.oy, 0) / row.nodes.length;
     } else {
-      ranks.push(current);
-      current = [node];
-      rankAnchorY = node.y;
+      rows.push({ anchorY: node.oy, nodes: [node] });
     }
   }
-  if (current.length > 0) ranks.push(current);
-
-  for (const rank of ranks) {
-    // The rank keeps its horizontal center, but its members are ordered by the
-    // user's existing x (then y, then id) and spaced left-to-right by width.
-    const centerX = rank.reduce((sum, n) => sum + n.x, 0) / rank.length;
-    const rankY = rank.reduce((sum, n) => sum + n.y, 0) / rank.length;
-    const ordered = [...rank].sort(
-      (a, b) => a.ox - b.ox || a.oy - b.oy || (a.id < b.id ? -1 : 1),
-    );
-    const totalW = ordered.reduce((sum, n) => sum + n.w, 0) + NODESEP * (ordered.length - 1);
-    let cursor = centerX - totalW / 2;
-    for (const node of ordered) {
-      node.x = cursor + node.w / 2;
-      node.y = rankY;
-      cursor += node.w + NODESEP;
-    }
-  }
-
-  return nodes;
+  return rows;
 }
 
 export type ConnectionHandleAssignment = {
@@ -325,18 +107,59 @@ const HANDLE_TOP = "top";
 const HANDLE_BOTTOM = "bottom";
 const HANDLE_LEFT = "left";
 const HANDLE_RIGHT = "right";
+const DUPLICATE_HANDLE_PAIR_CANDIDATES: Array<[string, string]> = [
+  [HANDLE_RIGHT, HANDLE_LEFT],
+  [HANDLE_BOTTOM, HANDLE_TOP],
+  [HANDLE_LEFT, HANDLE_RIGHT],
+  [HANDLE_TOP, HANDLE_BOTTOM],
+  ["right-top", "left-top"],
+  ["right-bottom", "left-bottom"],
+  ["bottom-right", "top-right"],
+  ["bottom-left", "top-left"],
+];
+
+function normalizedHandlePlacement(
+  sourceId: string,
+  targetId: string,
+  sourceHandleId: string,
+  targetHandleId: string,
+): string {
+  return sourceId <= targetId
+    ? `${sourceHandleId}->${targetHandleId}`
+    : `${targetHandleId}->${sourceHandleId}`;
+}
+
+function nonOverlappingHandlePair(
+  sourceId: string,
+  targetId: string,
+  desiredSourceHandleId: string,
+  desiredTargetHandleId: string,
+  used: Set<string>,
+): { sourceHandleId: string; targetHandleId: string } {
+  const candidates: Array<[string, string]> = [
+    [desiredSourceHandleId, desiredTargetHandleId],
+    ...DUPLICATE_HANDLE_PAIR_CANDIDATES,
+  ];
+
+  for (const [sourceHandleId, targetHandleId] of candidates) {
+    const placement = normalizedHandlePlacement(sourceId, targetId, sourceHandleId, targetHandleId);
+    if (!used.has(placement)) {
+      used.add(placement);
+      return { sourceHandleId, targetHandleId };
+    }
+  }
+
+  used.add(normalizedHandlePlacement(sourceId, targetId, desiredSourceHandleId, desiredTargetHandleId));
+  return { sourceHandleId: desiredSourceHandleId, targetHandleId: desiredTargetHandleId };
+}
 
 /**
  * After a layout, pick legible connection handles from card geometry so lines
  * leave and enter on the facing sides instead of cutting through card interiors.
  *
- * Auto-clean produces a top-down tree: cards in different ranks share no y, and
- * same-rank cards share a y exactly. So the rule is rank-aware, not a raw
- * dominant-axis vote: any two cards with a real vertical gap route bottom-to-top
- * (a card's incoming edge enters its top and its outgoing edge leaves its
- * bottom, never stacking two lines on one side just because a child is offset
- * horizontally). Horizontal handles are used only when the cards sit at
- * effectively the same height (siblings side by side).
+ * Auto-clean preserves user-created rows. So the handle rule is row-aware:
+ * cards with a real vertical gap route bottom-to-top, while cards in the same
+ * row use side handles.
  *
  * Positions are top-left corners (as stored); sizes give card extents. Endpoints
  * are resolved to their rendered root/nesting owner via `rootOf` so a nested
@@ -359,6 +182,7 @@ export function computeConnectionHandles(input: {
   };
 
   const assignments: ConnectionHandleAssignment[] = [];
+  const usedPlacementsByPair = new Map<string, Set<string>>();
   for (const c of connections) {
     const sourceRoot = rootOf(c.sourceId) ?? c.sourceId;
     const targetRoot = rootOf(c.targetId) ?? c.targetId;
@@ -367,9 +191,6 @@ export function computeConnectionHandles(input: {
     if (!sc || !tc || sourceRoot === targetRoot) continue;
     const dx = tc.x - sc.x;
     const dy = tc.y - sc.y;
-    // A vertical gap of at least half the shorter card's height means the cards
-    // are in different ranks — route as a tree (bottom-to-top) even if the child
-    // is offset sideways. Only near-equal heights use side handles.
     const verticalGapMin = 0.5 * Math.min(size(sourceRoot).h, size(targetRoot).h);
     let sourceHandleId: string;
     let targetHandleId: string;
@@ -388,7 +209,17 @@ export function computeConnectionHandles(input: {
       sourceHandleId = HANDLE_LEFT;
       targetHandleId = HANDLE_RIGHT;
     }
-    assignments.push({ connectionId: c.id, sourceHandleId, targetHandleId });
+    const pairKey = unorderedKey(sourceRoot, targetRoot);
+    const usedPlacements = usedPlacementsByPair.get(pairKey) ?? new Set<string>();
+    usedPlacementsByPair.set(pairKey, usedPlacements);
+    const distinct = nonOverlappingHandlePair(
+      sourceRoot,
+      targetRoot,
+      sourceHandleId,
+      targetHandleId,
+      usedPlacements,
+    );
+    assignments.push({ connectionId: c.id, ...distinct });
   }
   return assignments;
 }

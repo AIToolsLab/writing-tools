@@ -195,6 +195,13 @@ function renderMapQuestionContext(anchors: MapQuestionAnchor[]): string {
     .join("\n");
 }
 
+function renderOpenThreads(threads: NonNullable<LLMContext["openThreads"]>): string {
+  if (threads.length === 0) return "(none)";
+  return threads
+    .map((thread) => `${thread.status} id=${thread.id} text="${thread.text}" source=[${thread.sourceUtteranceIds.join(",")}]`)
+    .join("\n");
+}
+
 function systemPrompt(ctx: LLMContext, cfg: MindmapConfig): string {
   // Pacing constraint
   const tooSoon = ctx.turnsSinceLastMirror < cfg.pacing.minQuestionTurnsBetweenMirrors;
@@ -275,6 +282,9 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const activeSelectionNote = ctx.activeSelectionContext?.sourceUtteranceIds.length
     ? `\nSELECTED STRAND: The user is now working inside a previously selected strand from a large exploratory turn.${ctx.activeSelectionContext.selectedText ? ` Selected wording: "${ctx.activeSelectionContext.selectedText}".` : ""} You may use only these source-bank ids as bounded supporting context for that strand: [${ctx.activeSelectionContext.sourceUtteranceIds.join(", ")}]. Do NOT ask for support that is already present inside this bounded strand, and do NOT treat the rest of the earlier large turn as available for harvesting.`
     : "";
+  const openThreadsNote = ctx.openThreads?.length
+    ? `\nPARKED EARLIER PHRASES: These are exact user-authored phrases from earlier large exploratory turns. They are memory anchors only: not tasks, not priorities, not candidates, not evidence of importance, and not permission to make cards. If the user asked what to do next, pivoted, or asked for options, you may offer up to 3 of them as optional return points and ask what still feels live. Do not say the user "needs" to return to them.`
+    : "";
   const legibilityNote =
     `\nLEGIBILITY: If the system has already blocked a move for grounding, readiness, or sparse-map reasons, the next question may carry one short explanatory preamble. Let the user feel the effort before the question; do not sound like you ignored their answer.`;
   const mirrorPressureNote =
@@ -316,7 +326,7 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
     : `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user explicitly asked you to help connect their ideas. Use mode "question" with questionIntent "organize": ask how already-named thoughts relate, in their own words. Do not offer label pairs to choose between, do not author structure, and do not emit mapCommands.`;
 
   return `${PHILOSOPHY}${forcedModeNote}
-${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${candidateTrackingNote}${mapNote}${mapQuestionNote}${transitionNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${mirrorPressureNote}${legibilityNote}
+${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${candidateTrackingNote}${mapNote}${mapQuestionNote}${transitionNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${openThreadsNote}${mirrorPressureNote}${legibilityNote}
 
 LATEST USER TURN:
 """
@@ -341,6 +351,9 @@ ${renderBank(ctx.bank)}
 
 CANDIDATE THOUGHTS (internal — never shown raw to user):
 ${renderCandidates(ctx.candidates, ctx.readyCandidateIds)}
+
+PARKED EARLIER PHRASES (optional recall anchors only):
+${ctx.openThreads?.length ? renderOpenThreads(ctx.openThreads) : "(none surfaced this turn)"}
 
 CURRENT CONCEPT MAP (user-authored canvas -- awareness only):
 ${renderMap(ctx.map)}
@@ -393,8 +406,10 @@ ${
   "candidateDeletes": ["<id>"],
   "mapCommands": [
     {
-      "kind": "create_card" | "nest_card" | "connect_cards",
+      "kind": "create_card" | "nest_card" | "connect_cards" | "edit_card",
       "text": "<create_card only: exact user words to place on the card>",
+      "cardText": "<edit_card only: exact existing card text/reference>",
+      "newText": "<edit_card only: exact replacement wording from this turn>",
       "sourceSpan": {
         "utteranceIds": ["<id from this turn>"],
         "userPhrase": "<exact substring from this turn>"
@@ -447,6 +462,12 @@ DIRECT MAP COMMANDS:
 - If the user gestures without wording ("put my main point on the map", "add
   that control thing"), do not emit a command; ask what words should go on the
   card.
+- Emit "edit_card" only when the user explicitly names an existing card and
+  gives exact replacement wording in this same turn ("reword #12 to X", "make
+  #12 say X"). Put the card reference in "cardText", the replacement words in
+  "newText", and copy those same replacement words into
+  "sourceSpan.userPhrase". Never rewrite, improve, summarize, or paraphrase the
+  card yourself.
 - Emit "nest_card" only for imperative nesting commands ("put X under Y", "make
   X a subpoint of Y", "I want X to come under Y", "X should go under Y", "nest X
   inside Y"). A first-person "I want X under Y" is a placement command, not a
@@ -682,6 +703,8 @@ interface RawLLMResponse {
   mapCommands?: Array<{
     kind?: string;
     text?: string;
+    cardText?: string;
+    newText?: string;
     sourceSpan?: {
       utteranceIds?: string[];
       userPhrase?: string;
@@ -747,24 +770,31 @@ function parseQuestionStance(raw: string | undefined): QuestionStance | undefine
 function parseMapCommands(raw: RawLLMResponse["mapCommands"]): MapCommand[] {
   return (raw ?? [])
     .filter((command) => command.kind)
-    .map((command) => ({
-      kind:
-        command.kind === "nest_card" || command.kind === "connect_cards"
+    .map((command) => {
+      const kind =
+        command.kind === "nest_card" ||
+        command.kind === "connect_cards" ||
+        command.kind === "edit_card"
           ? command.kind
-          : "create_card",
-      text: command.text,
-      sourceSpan: command.sourceSpan?.userPhrase
-        ? {
-            utteranceIds: command.sourceSpan.utteranceIds,
-            userPhrase: command.sourceSpan.userPhrase,
-          }
-        : undefined,
-      childText: command.childText,
-      parentText: command.parentText,
-      sourceText: command.sourceText,
-      targetText: command.targetText,
-      labelText: command.labelText,
-    }));
+          : "create_card";
+      return {
+        kind,
+        text: command.text,
+        cardText: command.cardText,
+        newText: command.newText,
+        sourceSpan: command.sourceSpan?.userPhrase
+          ? {
+              utteranceIds: command.sourceSpan.utteranceIds,
+              userPhrase: command.sourceSpan.userPhrase,
+            }
+          : undefined,
+        childText: command.childText,
+        parentText: command.parentText,
+        sourceText: command.sourceText,
+        targetText: command.targetText,
+        labelText: command.labelText,
+      };
+    });
 }
 
 function parseTurn(raw: RawLLMResponse): LLMTurn {

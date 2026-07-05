@@ -54,6 +54,24 @@ export function applyAcceptedMapCommands(
       continue;
     }
 
+    if (command.kind === "edit_card") {
+      const utterance = store.editText(command.id, command.text, bank);
+      const edited = store.get(command.id);
+      if (utterance && edited) {
+        const utteranceIds = Array.from(
+          new Set([...edited.source.utteranceIds, ...command.sourceUtteranceIds, utterance.id]),
+        );
+        const updated = store.update(command.id, {
+          source: {
+            ...edited.source,
+            utteranceIds,
+          },
+        });
+        created.push(updated ?? edited);
+      }
+      continue;
+    }
+
     if (command.kind === "connect_cards") {
       const source = ensureCard(command.source, store, bank);
       const target = ensureCard(command.target, store, bank);

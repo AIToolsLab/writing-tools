@@ -205,6 +205,31 @@ describe("applyAcceptedMapCommands", () => {
     expect(bank.getAll()).toHaveLength(0);
   });
 
+  it("edits an existing card with user-commanded replacement wording", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    const chatUtterance = bank.add("reword #1 to human authorship stays in charge", "chat");
+    store.add(unit("tu_1", "human control"));
+
+    const changed = applyAcceptedMapCommands(
+      [
+        {
+          kind: "edit_card",
+          id: "tu_1",
+          text: "human authorship stays in charge",
+          sourceUtteranceIds: [chatUtterance.id],
+        },
+      ],
+      store,
+      bank,
+    );
+
+    expect(changed).toHaveLength(1);
+    expect(store.get("tu_1")?.text).toBe("human authorship stays in charge");
+    expect(store.get("tu_1")?.source.utteranceIds).toContain(chatUtterance.id);
+    expect(bank.getAll().some((u) => u.origin === "node_edit" && u.text === "human authorship stays in charge")).toBe(true);
+  });
+
   it("registers a labeled user-commanded connection with label provenance", () => {
     const store = new ThoughtUnitStore();
     const bank = new SourceBank();

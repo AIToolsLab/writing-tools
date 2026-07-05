@@ -18,6 +18,14 @@ import { defaultConfig } from "./config";
 import { detectDraftDeclarations, type DraftDeclaration } from "./draft-declarations";
 import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MapQuestionAnchor, MockLLM, QuestionStance, UserRequestedMode } from "./llm-contract";
 import { contentTokens, normalize, stem } from "./normalize";
+import {
+  activateOpenThread,
+  findMatchingOpenThread,
+  ignoreActiveOpenThreads,
+  parkExploratoryTurn,
+  unresolvedOpenThreadContext,
+  type ParkedThread,
+} from "./open-threads";
 import { evaluateReadiness, readyCandidates } from "./readiness";
 import { detectSignals } from "./signals";
 import { CandidateStore, SourceBank, cardRef } from "./store";
@@ -69,6 +77,12 @@ export type AcceptedMapCommand =
       target: AcceptedMapCommandCardRef;
       labelText?: string;
       labelSourceUtteranceIds?: string[];
+    }
+  | {
+      kind: "edit_card";
+      id: string;
+      text: string;
+      sourceUtteranceIds: string[];
     };
 
 export interface PendingMapCommandConfirmation {
@@ -172,6 +186,8 @@ export interface LoopState {
     selectedUtteranceIds: string[];
     selectedText?: string;
   };
+  openThreads: ParkedThread[];
+  dismissedCandidateIds: string[];
   pendingCardWording?: {
     text: string;
     normalizedText: string;
@@ -294,6 +310,23 @@ function detectFocusHelpIntent(text: string): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
   return FOCUS_HELP_PATTERNS.some((re) => re.test(trimmed));
+}
+
+function detectOpenThreadRecallIntent(
+  text: string,
+  forcedMode: UserRequestedMode | undefined,
+  config: MindmapConfig,
+): boolean {
+  if (forcedMode === "pivot") return true;
+  if (detectFocusHelpIntent(text)) return true;
+  if (!text.trim()) return false;
+  if (/\bwhat\s+(?:should|could|can|do)\s+(?:i|we)\s+do\s+next\b/i.test(text)) return true;
+  return new RegExp(config.coaching.moveOnPattern, "i").test(text);
+}
+
+function detectOpenThreadDismissal(text: string): boolean {
+  return /\b(?:ignore|skip|drop|leave)\s+(?:this|that|it|that thread|this thread)(?:\s+aside)?\b/i.test(text) ||
+    /\b(?:don't|do not)\s+(?:want to\s+)?(?:talk about|work on|return to)\s+(?:this|that|it)\b/i.test(text);
 }
 
 // Stale settle/focus-family question wording. When the user has explicitly asked
@@ -456,6 +489,14 @@ function collectGroundedFocusAnchors(map: LLMMapContext, state: LoopState): stri
   );
   for (const unit of roots.slice(0, 3)) {
     anchors.push(`${cardRef(unit.id)} (${shortFocusLabel(unit.text)})`);
+  }
+  if (anchors.length >= 2) return anchors.slice(0, 3);
+  for (const thread of unresolvedOpenThreadContext(state.openThreads)) {
+    const label = shortFocusLabel(thread.text);
+    if (label && !anchors.some((existing) => existing.includes(label))) {
+      anchors.push(label);
+    }
+    if (anchors.length >= 3) break;
   }
   if (anchors.length >= 2) return anchors.slice(0, 3);
   const visibleBank = state.bank.getAll().filter((unit) => !unit.commandOnly);
@@ -659,7 +700,8 @@ function childPlacementQuestion(
 }
 
 function sparseMapBlocksOrganize(map: LLMMapContext): boolean {
-  return map.thoughtUnits.length > 0 && map.thoughtUnits.length < 3 && map.connections.length === 0;
+  const visibleCards = map.thoughtUnits.filter((unit) => unit.role !== "connection_label");
+  return visibleCards.length > 0 && visibleCards.length < 3 && map.connections.length === 0;
 }
 
 function nextCardQuestion(): string {
@@ -1162,6 +1204,41 @@ function explicitRefConnectCommand(
   };
 }
 
+function deterministicEditCardCommand(
+  userText: string,
+  units: SourceUtterance[],
+  map: LLMMapContext,
+  config: MindmapConfig,
+): MapCommand | undefined {
+  if (isUncertainExplicitPlacement(userText, config)) return undefined;
+  const trimmed = userText.trim();
+  const patterns = [
+    /\b(?:reword|rename|edit|change|update)\s+(#\d+)\s+(?:to|as)\s*:?\s+(.+)$/i,
+    /\b(?:make|have)\s+(#\d+)\s+(?:say|read)\s*:?\s+(.+)$/i,
+    /\b(?:change|update)\s+(?:the\s+)?(?:text|wording)\s+of\s+(#\d+)\s+(?:to|as)\s*:?\s+(.+)$/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = pattern.exec(trimmed);
+    if (!match || isNegatedImperativePrefix(trimmed, match.index)) continue;
+    const cardRefText = match[1];
+    if (!resolveCardRefNumber(cardRefText, map)) return undefined;
+    const newText = cleanExplicitCardText(match[2], { preserveTerminalPunctuation: true });
+    if (!newText) return undefined;
+    return {
+      kind: "edit_card",
+      cardText: cardRefText,
+      newText,
+      sourceSpan: {
+        userPhrase: newText,
+        utteranceIds: currentTurnSourceIdsForPhrase(newText, units),
+      },
+    };
+  }
+
+  return undefined;
+}
+
 function isUncertainExplicitPlacement(text: string, config: MindmapConfig): boolean {
   const trimmed = text.trim();
   return (
@@ -1471,6 +1548,62 @@ function explicitExactTextCardCommand(
     text: payload,
     sourceUtteranceIds: citedUnits.map((unit) => unit.id),
   };
+}
+
+// A user turn that signals returning to / picking a topic ("I want to talk
+// about X", "let's go back to X", or literally restating the parked phrase),
+// as opposed to an ordinary answer that merely shares a word with one.
+function looksLikeThreadReturn(text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed) return false;
+  if (looksLikeTopicPivot(trimmed)) return true;
+  return /\b(?:back to|return(?:ing)? to|revisit|pick up|come back to)\b/i.test(trimmed);
+}
+
+function activateMatchingParkedThread(
+  state: LoopState,
+  userText: string,
+  now = Date.now(),
+): void {
+  // Thread matching is deliberately loose (one strong topic word can recall a
+  // thread), so only a return/pivot-shaped turn may activate one. A direct map
+  // command or an ordinary substantive answer that happens to reuse a parked
+  // phrase's words must not silently retarget the bounded selection context.
+  if (looksLikeDirectCommand(userText)) return;
+  const isLiteralRestatement = Boolean(
+    findMatchingOpenThread(state.openThreads, userText) &&
+      normalize(userText).length > 0 &&
+      state.openThreads.some(
+        (thread) =>
+          (thread.status === "parked" || thread.status === "active") &&
+          normalize(thread.text).includes(normalize(userText)),
+      ),
+  );
+  if (!looksLikeThreadReturn(userText) && !isLiteralRestatement) return;
+  const match = findMatchingOpenThread(state.openThreads, userText);
+  if (!match) return;
+  state.openThreads = activateOpenThread(state.openThreads, match.id, now);
+  state.activeSelectionContext = {
+    sourceTurnId: match.sourceTurnId,
+    sourceUtteranceIds: match.sourceUtteranceIds,
+    selectedUtteranceIds: match.sourceUtteranceIds,
+    selectedText: userText.trim() || match.text,
+  };
+}
+
+function hasFreshExplicitMapCommand(
+  userText: string,
+  units: SourceUtterance[],
+  map: LLMMapContext,
+  config: MindmapConfig,
+): boolean {
+  return Boolean(
+    explicitExactTextCardCommand(userText, units) ||
+      explicitRefConnectCommand(userText, map, config) ||
+      explicitRefNestCommand(userText, map, config) ||
+      deterministicEditCardCommand(userText, units, map, config) ||
+      deterministicCreateCardCommands(userText, units).length > 0
+  );
 }
 
 function unitsAtOrAfterTextIndex(
@@ -1858,6 +1991,47 @@ function acceptedMapCommands(
   }
 
   for (const command of processableCommands) {
+    if (command.kind !== "edit_card") continue;
+    const cardText = (command.cardText ?? command.sourceText ?? "").trim();
+    const phrase = (command.sourceSpan?.userPhrase ?? command.newText ?? command.text ?? "").trim();
+    const id = resolveCardRefNumber(cardText, map) ?? resolveExistingCardId(cardText, map);
+    if (!id) {
+      notes.push({ reason: "unresolved_reference", detail: `Blocked edit command; could not resolve "${cardText}".` });
+      continue;
+    }
+    if (!phrase) {
+      notes.push({ reason: "missing_card_text", detail: "Blocked edit_card with no replacement wording." });
+      continue;
+    }
+    if (!existingCardRefGroundedInTurn({ id }, userText, map)) {
+      notes.push({ reason: "ungrounded_existing_endpoint", detail: "Blocked edit because the card was not named in this turn." });
+      continue;
+    }
+    const sourceUnits = units.filter((unit) => textContainsExactPhrase(unit.text, phrase));
+    if (sourceUnits.length === 0) {
+      notes.push({ reason: "not_current_turn_span", detail: `Blocked non-current-turn edit text "${phrase}".` });
+      continue;
+    }
+    const citedIds = new Set(command.sourceSpan?.utteranceIds ?? []);
+    const currentSourceUnits = citedIds.size > 0
+      ? sourceUnits.filter((unit) => citedIds.has(unit.id))
+      : sourceUnits;
+    if (currentSourceUnits.length === 0) {
+      notes.push({ reason: "stale_source_id", detail: `Blocked edit text "${phrase}" because cited ids were not this turn.` });
+      continue;
+    }
+    const key = `edit:${id}:${phrase}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    accepted.push({
+      kind: "edit_card",
+      id,
+      text: phrase,
+      sourceUtteranceIds: currentSourceUnits.map((unit) => unit.id),
+    });
+  }
+
+  for (const command of processableCommands) {
     if (command.kind !== "nest_card") continue;
     const childText = command.childText?.trim();
     const parentId = resolveExistingCardId(command.parentText, map);
@@ -2087,6 +2261,70 @@ function asksForChatOnlyOrReflection(text: string): boolean {
   );
 }
 
+function detectTypedModeOverride(text: string): UserRequestedMode | undefined {
+  const normalized = text.trim().toLowerCase().replace(/[.!?;]+$/g, "").replace(/\s+/g, " ");
+  const lower = normalized.replace(/[â€™']/g, "'");
+  if (!lower) return undefined;
+  const canonical = lower.replace(/[\u2018\u2019]/g, "'");
+  if (/^(?:mirror|mirror it|mirror this|mirror that|mirror it back|mirror this back|mirror that back)$/.test(canonical)) {
+    return "mirror";
+  }
+  if (/^(?:reflect|reflect it|reflect this|reflect that|reflect back|reflect it back|reflect this back|reflect that back)$/.test(canonical)) {
+    return "mirror";
+  }
+  if (/\bi meant\b[\s\S]{0,80}\bmirror\b[\s\S]{0,80}\b(?:structure|hearing|heard)\b/.test(canonical)) {
+    return "mirror";
+  }
+  return undefined;
+}
+
+function detectOffRampResponse(text: string): { text: string; stance: QuestionStance; debug: string } | undefined {
+  const normalized = text.trim().toLowerCase().replace(/\s+/g, " ");
+  const lower = normalized.replace(/[â€™']/g, "'");
+  if (!lower) return undefined;
+  const canonical = lower.replace(/[\u2018\u2019]/g, "'");
+
+  const authoringRequest =
+    /^(?:can|could|would|will)\s+you\b[\s\S]{0,80}\b(?:summarize|write|rewrite|compose|draft|polish)\b/.test(canonical) ||
+    /^(?:please\s+)?(?:summarize|write|rewrite|compose|draft|polish)\b/.test(canonical) ||
+    /\b(?:summarize|write|rewrite|compose|draft|polish)\b[\s\S]{0,40}\bfor me\b/.test(canonical);
+  if (
+    authoringRequest &&
+    /\b(?:for me|my draft|the draft|this draft|essay|paragraph|section|paper|post|response)\b/.test(canonical)
+  ) {
+    return {
+      text: "I can't write or summarize the draft for you. I can help you think through what you want it to say, keep track of your own phrases, and place exact wording on the map when you choose it. What part do you want to work through?",
+      stance: "settle",
+      debug: "content_authoring_off_ramp",
+    };
+  }
+
+  if (
+    /^(?:what can you do|what do you do|how can you help)\b/.test(canonical) ||
+    /^(?:can|could)\s+you\b[\s\S]{0,80}\b(?:help|explain)\b[\s\S]{0,80}\b(?:what|how)\b[\s\S]{0,80}\b(?:you|this|tool|system)\b/.test(canonical) ||
+    /^(?:are you able to|can you)\b[\s\S]{0,80}\b(?:make cards|edit cards|change the map|use the map)\b/.test(canonical)
+  ) {
+    return {
+      text: "I can reflect what I'm hearing, ask focus questions, and make map changes when you give exact wording or card references. I won't decide the structure for you or write the draft for you. What would be useful right now?",
+      stance: "settle",
+      debug: "capability_off_ramp",
+    };
+  }
+
+  if (
+    /\b(?:annoyed|frustrated|confused)\b/.test(canonical) ||
+    /\b(?:this is weird|that is weird|not what i meant|you misunderstood|that's wrong|that is wrong)\b/.test(canonical)
+  ) {
+    return {
+      text: "That makes sense. Let's slow it down: do you want me to reflect what I heard, ask a different question, or focus on a specific card?",
+      stance: "settle",
+      debug: "meta_repair_off_ramp",
+    };
+  }
+
+  return undefined;
+}
+
 function cancelsPendingMapAction(text: string): boolean {
   const normalized = text.trim().toLowerCase().replace(/[.!?;]+$/g, "").replace(/\s+/g, " ");
   const lower = normalized.replace(/[’']/g, "'");
@@ -2208,6 +2446,8 @@ function commandCardIdsExist(command: AcceptedMapCommand, map: LLMMapContext): b
   } else if (command.kind === "connect_cards") {
     if ("id" in command.source) ids.push(command.source.id);
     if ("id" in command.target) ids.push(command.target.id);
+  } else if (command.kind === "edit_card") {
+    ids.push(command.id);
   }
   return ids.every((id) => map.thoughtUnits.some((unit) => unit.id === id));
 }
@@ -2223,6 +2463,10 @@ function commandConsumedUtteranceIds(commands: AcceptedMapCommand[]): Set<string
       if (!("id" in command.child)) {
         for (const id of command.child.sourceUtteranceIds) ids.add(id);
       }
+      continue;
+    }
+    if (command.kind === "edit_card") {
+      for (const id of command.sourceUtteranceIds) ids.add(id);
       continue;
     }
     if (!("id" in command.source)) {
@@ -2358,6 +2602,8 @@ export function createState(_config?: MindmapConfig): LoopState {
     pendingChildPlacement: undefined,
     activeElicitation: undefined,
     activeSelectionContext: undefined,
+    openThreads: [],
+    dismissedCandidateIds: [],
     pendingCardWording: undefined,
     captureLoop: undefined,
     lastCoachQuestion: undefined,
@@ -2376,14 +2622,19 @@ export async function processTurn(
   const ingestUser = options.ingestUser ?? true;
   const requireConnectionLabel = options.requireConnectionLabel ?? false;
   const continuationFocus = options.continuationFocus ?? [];
+  const typedOverrideMode = ingestUser ? detectTypedModeOverride(userText) : undefined;
+  const effectiveOverrideMode = options.overrideMode ?? typedOverrideMode;
+  const offRampResponse =
+    ingestUser && !effectiveOverrideMode ? detectOffRampResponse(userText) : undefined;
   // 1. Record the user's words, segmented into sentence-level units so a big
   //    voice chunk becomes several grounded units rather than one opaque blob.
   const units = ingestUser ? state.bank.addSegmented(userText, origin) : [];
   const mapIsSparse = sparseMapBlocksOrganize(map);
-
   if (ingestUser) {
     updateSelectionContext(state, userText);
     if (
+      !effectiveOverrideMode &&
+      !offRampResponse &&
       state.activeElicitation &&
       (state.activeElicitation.kind === "carry_forward" || state.activeElicitation.kind === "sparse_map_next_card") &&
       isStableCardLikeAnswer(userText)
@@ -2423,7 +2674,7 @@ export async function processTurn(
   // User-initiated mode override (from Under the Hood): unconditionally clear any
   // pending confirmation/elicitation so a wedged state can't swallow the request,
   // then fall through to the forced-mode LLM call below.
-  if (options.overrideMode) {
+  if (effectiveOverrideMode) {
     state.pendingMapCommand = undefined;
     state.organizeFocus = undefined;
     state.activeElicitation = undefined;
@@ -2431,12 +2682,36 @@ export async function processTurn(
     state.captureLoop = undefined;
     state.pendingChildPlacement = undefined;
     state.clarifyTarget = undefined;
-    if (options.overrideMode === "pivot") {
+    if (effectiveOverrideMode === "pivot") {
       // The escape hatch: also drop the question the user is rejecting and any
       // coverage focus so the model cannot re-anchor on the stale thread.
       state.lastCoachQuestion = undefined;
       state.coverageFocus = undefined;
     }
+  }
+  if (typedOverrideMode && units.length > 0) {
+    state.bank.markCommandOnly(units.map((unit) => unit.id));
+  }
+
+  if (offRampResponse) {
+    if (units.length > 0) state.bank.markCommandOnly(units.map((unit) => unit.id));
+    state.pendingMapCommand = undefined;
+    state.organizeFocus = undefined;
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.captureLoop = undefined;
+    state.pendingChildPlacement = undefined;
+    state.clarifyTarget = undefined;
+    state.mode = "question";
+    state.turnsSinceLastMirror++;
+    setLastAiText(state, offRampResponse.text);
+    return {
+      mode: "question",
+      text: offRampResponse.text,
+      llmTurn: { mode: "question", text: offRampResponse.text },
+      commandDebug: [{ reason: offRampResponse.debug, detail: "Handled without harvesting or map commands." }],
+      questionStance: offRampResponse.stance,
+    };
   }
 
   // A pending confirmation can outlive its cards: the user can delete a card on
@@ -2463,6 +2738,17 @@ export async function processTurn(
         questionStance: "organize",
       };
     }
+  }
+
+  if (
+    state.pendingMapCommand &&
+    !cancelsPendingMapAction(userText) &&
+    hasFreshExplicitMapCommand(userText, units, map, config)
+  ) {
+    state.pendingMapCommand = undefined;
+    state.organizeFocus = undefined;
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
   }
 
   if (
@@ -2616,19 +2902,9 @@ export async function processTurn(
     };
   }
 
-  // Command precedence: a fresh explicit map command preempts a pending
-  // connection-label capture. Without this, "Actually create a card with exactly
-  // this text: X" would be stored as the connection's label instead of running
-  // the command. Drop the pending label and let normal command routing handle it.
-  if (
-    state.pendingMapCommand?.kind === "connection_label" &&
-    (explicitExactTextCardCommand(userText, units) ||
-      explicitRefConnectCommand(userText, map, config) ||
-      explicitRefNestCommand(userText, map, config) ||
-      deterministicCreateCardCommands(userText, units).length > 0)
-  ) {
-    state.pendingMapCommand = undefined;
-  }
+  // (Command precedence for a fresh explicit command over ANY pending map
+  // command — including a pending connection-label capture — is handled by the
+  // generalized guard before the pending handlers above.)
 
   if (state.pendingMapCommand?.kind === "connection_label") {
     const pending = state.pendingMapCommand;
@@ -2971,6 +3247,11 @@ export async function processTurn(
   }
 
   const explicitMoveOn = wantsToMoveOn(userText, config);
+  if (state.pendingChildPlacement && hasFreshExplicitMapCommand(userText, units, map, config)) {
+    state.pendingChildPlacement = undefined;
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+  }
   if (state.pendingChildPlacement) {
     if (explicitMoveOn || cancelsChildPlacement(userText)) {
       state.pendingChildPlacement = undefined;
@@ -3201,6 +3482,15 @@ export async function processTurn(
     detectSignals(u.id, u.text, state.lastAiText),
   );
   const initialTurnShape = detectTurnShape(userText, units, { config: config.turnShape });
+  if (ingestUser) {
+    if (detectOpenThreadDismissal(userText)) {
+      state.openThreads = ignoreActiveOpenThreads(state.openThreads);
+    } else if (initialTurnShape.kind === "large_exploratory") {
+      state.openThreads = parkExploratoryTurn(state.openThreads, units);
+    } else {
+      activateMatchingParkedThread(state, userText);
+    }
+  }
 
   // 3. Pre-turn ready candidates — passed in LLM context so it knows what it
   //    may mirror. (Computed before candidate updates so it reflects prior state.)
@@ -3217,6 +3507,9 @@ export async function processTurn(
   // sure": the user wants grounded options, not a smaller settle handle.
   const focusHelpIntent = detectFocusHelpIntent(userText);
   const userIsStuck = isStuck(userText) && !focusHelpIntent;
+  const openThreadsForRecall = detectOpenThreadRecallIntent(userText, effectiveOverrideMode, config)
+    ? unresolvedOpenThreadContext(state.openThreads)
+    : undefined;
   const userChoseUnpackFromMirrorBridge = choseMirrorBridgeUnpackBranch(userText, state.lastAiText);
   const draftDeclarations = detectDraftDeclarations(state.draft, config.draftDeclarations);
   // Goal 5: did the user just give a substantive answer to the coach's last
@@ -3241,6 +3534,7 @@ export async function processTurn(
     continuationFocus,
     activeElicitation: state.activeElicitation,
     activeSelectionContext: selectedStrandSnapshot(state),
+    openThreads: openThreadsForRecall && openThreadsForRecall.length > 0 ? openThreadsForRecall : undefined,
     organizeFocus: state.organizeFocus
       ? {
           refs: state.organizeFocus.refs,
@@ -3254,12 +3548,14 @@ export async function processTurn(
     mapQuestionContext: mapQuestionContext.length > 0 ? mapQuestionContext : undefined,
     lastCoachQuestion: state.lastCoachQuestion,
     userAnsweredLastQuestion,
-    forcedMode: options.overrideMode,
+    forcedMode: effectiveOverrideMode,
   };
   const turn = await llm(ctx);
   const directExplicitRefConnect = explicitRefConnectCommand(userText, map, config);
+  const directEditCard = deterministicEditCardCommand(userText, units, map, config);
   const deterministicMapCommands = [
     ...deterministicCreateCardCommands(userText, units),
+    ...(directEditCard ? [directEditCard] : []),
     ...(directExplicitRefConnect ? [directExplicitRefConnect] : []),
   ];
   const uncertainTurn = isUncertainExplicitPlacement(userText, config);
@@ -3344,11 +3640,25 @@ export async function processTurn(
     }
   }
 
+  const thisTurnUtteranceIdsForSuppression = new Set(units.map((u) => u.id));
+  const dismissedCandidateIds = new Set(state.dismissedCandidateIds);
   for (const u of candidateUpserts) {
     // Evidence ids must reference real utterances in the bank.
     const validEvidence = u.addEvidenceIds.filter(
       (id) => state.bank.get(id) !== undefined && eligibleBankIds.has(id),
     );
+    if (dismissedCandidateIds.has(u.id)) {
+      const hasFreshEvidence = validEvidence.some((id) => thisTurnUtteranceIdsForSuppression.has(id));
+      if (!hasFreshEvidence) {
+        turnDebugNotes.push({
+          reason: "dismissed_candidate_filtered",
+          detail: `Skipped dismissed candidate "${u.id}" until the user re-articulates it.`,
+        });
+        continue;
+      }
+      dismissedCandidateIds.delete(u.id);
+      state.dismissedCandidateIds = state.dismissedCandidateIds.filter((id) => id !== u.id);
+    }
     if (acceptedCommands.length > 0 && validEvidence.length === 0) continue;
     // Attach only signals the detector actually found on this turn's utterance,
     // to candidates the LLM says that utterance supports.
@@ -3541,7 +3851,7 @@ export async function processTurn(
     if (
       mapIsSparse &&
       !commandPromptActive &&
-      !options.overrideMode &&
+      !effectiveOverrideMode &&
       out.mode === "question" &&
       out.suppressionReason !== "command_precedence" &&
       (out.questionStance === "organize" || turn.questionIntent === "organize" || turn.questionStance === "organize")
@@ -3625,7 +3935,7 @@ export async function processTurn(
       !commandPromptActive &&
       !commandBlockedActive &&
       !repairClarifyActive &&
-      !options.overrideMode &&
+      !effectiveOverrideMode &&
       !userChoseUnpackFromMirrorBridge &&
       acceptedCommands.length === 0 &&
       !userIsStuck &&
@@ -3651,7 +3961,7 @@ export async function processTurn(
       !commandBlockedActive &&
       !repairClarifyActive &&
       (out.mode === "question" || out.mode === "clarify") &&
-      !options.overrideMode &&
+      !effectiveOverrideMode &&
       !userChoseUnpackFromMirrorBridge &&
       out.suppressionReason === undefined
     ) {
@@ -3669,7 +3979,7 @@ export async function processTurn(
     }
 
     if (
-      options.overrideMode === "deepen" &&
+      effectiveOverrideMode === "deepen" &&
       (out.mode === "question" || out.mode === "clarify") &&
       !commandPromptActive &&
       (out.questionStance === "settle" ||
@@ -3720,7 +4030,7 @@ export async function processTurn(
       Boolean(state.prevAiText) && normalizedOutText === normalizeText(state.prevAiText ?? "");
     if (
       (out.mode === "question" || out.mode === "clarify") &&
-      !options.overrideMode &&
+      !effectiveOverrideMode &&
       out.suppressionReason !== "command_precedence" &&
       repeatsLastAiText
     ) {
@@ -3738,7 +4048,7 @@ export async function processTurn(
       }
     } else if (
       (out.mode === "question" || out.mode === "clarify") &&
-      !options.overrideMode &&
+      !effectiveOverrideMode &&
       out.suppressionReason !== "command_precedence" &&
       repeatsTwoTurnsAgo
     ) {
@@ -3757,7 +4067,7 @@ export async function processTurn(
     }
 
     if (
-      options.overrideMode === "organize" &&
+      effectiveOverrideMode === "organize" &&
       (out.mode === "question" || out.mode === "clarify") &&
       !commandPromptActive &&
       (out.questionStance === "settle" ||
@@ -3779,7 +4089,7 @@ export async function processTurn(
     }
 
     if (
-      options.overrideMode === "pivot" &&
+      effectiveOverrideMode === "pivot" &&
       (out.mode === "question" || out.mode === "clarify") &&
       !commandPromptActive &&
       (repeatsLastAiText ||
@@ -3958,6 +4268,7 @@ export async function processTurn(
         userAnsweredLastQuestion,
         mapIsSparse,
         detectedSignals,
+        openThreads: state.openThreads,
         config,
       }),
     };
@@ -4018,20 +4329,20 @@ export async function processTurn(
   }
 
   if (
-    (options.overrideMode === "deepen" ||
-      options.overrideMode === "organize" ||
-      options.overrideMode === "pivot" ||
+    (effectiveOverrideMode === "deepen" ||
+      effectiveOverrideMode === "organize" ||
+      effectiveOverrideMode === "pivot" ||
       userChoseUnpackFromMirrorBridge) &&
     turn.mode === "mirror"
   ) {
     const text =
-      options.overrideMode === "organize"
+      effectiveOverrideMode === "organize"
         ? forcedOrganizeFallbackQuestion()
-        : options.overrideMode === "pivot"
+        : effectiveOverrideMode === "pivot"
           ? forcedPivotFallbackQuestion()
           : forcedDeepenFallbackQuestion();
     const questionStance: QuestionStance =
-      options.overrideMode === "organize" ? "organize" : options.overrideMode === "pivot" ? "settle" : "deepen";
+      effectiveOverrideMode === "organize" ? "organize" : effectiveOverrideMode === "pivot" ? "settle" : "deepen";
     state.turnsSinceLastMirror++;
     state.mode = "question";
     return finish({
@@ -4061,7 +4372,7 @@ export async function processTurn(
     // pacing (it must still pass readiness + validation below), so an explicit
     // request is never silently swallowed by the cooldown.
     if (
-      options.overrideMode !== "mirror" &&
+      effectiveOverrideMode !== "mirror" &&
       state.turnsSinceLastMirror <
       config.pacing.minQuestionTurnsBetweenMirrors
     ) {
