@@ -141,6 +141,15 @@ function mapUnit(id: string, text: string): ThoughtUnit {
   };
 }
 
+function nestedMapUnit(id: string, text: string, parentId: string): ThoughtUnit {
+  return {
+    ...mapUnit(id, text),
+    role: "content",
+    parentId,
+    roleHistory: [{ role: "content", changedBy: "user", at: 1 }],
+  };
+}
+
 /**
  * Mirror that injects words not in the source bank — should fail lexical
  * grounding and route to clarify.
@@ -1935,6 +1944,195 @@ describe("question mode", () => {
     ]);
   });
 
+  it("rejects a connect_cards command that names an already-nested card", async () => {
+    const state = createState();
+    const nestedChild: ThoughtUnit = {
+      id: "tu_12",
+      text: "artifact ownership",
+      role: "content",
+      parentId: "tu_10",
+      source: { utteranceIds: ["u_tu_12"], createdBy: "user" },
+      roleHistory: [{ role: "content", changedBy: "user", at: 1 }],
+    };
+    const map = {
+      thoughtUnits: [mapUnit("tu_10", "authorial ownership"), nestedChild, mapUnit("tu_5", "reader trust")],
+      connections: [],
+    };
+    let called = false;
+    const llm = (_ctx: LLMContext): LLMTurn => {
+      called = true;
+      return {
+        mode: "question",
+        text: "Done.",
+        mapCommands: [{ kind: "connect_cards", sourceText: "#12", targetText: "#5" }],
+      };
+    };
+
+    const out = await processTurn(state, "connect #12 to #5", llm, defaultConfig, "chat", map);
+
+    expect(called).toBe(true);
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("#12");
+    expect(out.text).toContain("nested inside #10");
+    expect(out.commandDebug?.some((note) => note.reason === "nested_endpoint_blocked")).toBe(true);
+  });
+
+  it("rejects a near-match confirmation that resolves to an already-nested card", async () => {
+    const state = createState();
+    const nestedSource: ThoughtUnit = {
+      id: "source",
+      text: "human control",
+      role: "content",
+      parentId: "target",
+      source: { utteranceIds: ["u_source"], createdBy: "user" },
+      roleHistory: [{ role: "content", changedBy: "user", at: 1 }],
+    };
+    const map = {
+      thoughtUnits: [nestedSource, mapUnit("target", "authorship")],
+      connections: [],
+    };
+    const firstLLM = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [{ kind: "connect_cards", sourceText: "control", targetText: "authorship" }],
+    });
+
+    await processTurn(state, "connect control to authorship", firstLLM, defaultConfig, "chat", map);
+
+    let called = false;
+    const secondLLM = (_ctx: LLMContext): LLMTurn => {
+      called = true;
+      return { mode: "question", text: "should not be called" };
+    };
+    const out = await processTurn(state, "yes", secondLLM, defaultConfig, "chat", map);
+
+    expect(called).toBe(false);
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("nested inside");
+    expect(out.commandDebug?.some((note) => note.reason === "nested_endpoint_blocked")).toBe(true);
+  });
+
+  it("rejects a pending connection-label completion if an endpoint became nested", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_10", "authorship"),
+        nestedMapUnit("tu_12", "human control", "tu_10"),
+        mapUnit("tu_5", "reader trust"),
+      ],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "connection_label",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_12" },
+        target: { id: "tu_5" },
+      },
+      prompt: "What should the label be?",
+      debug: "connection_label_pending",
+    };
+
+    const out = await processTurn(state, "supports", questionLLM("ignored"), defaultConfig, "chat", map);
+
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("#12");
+    expect(out.text).toContain("nested inside #10");
+    expect(out.commandDebug?.some((note) => note.reason === "nested_endpoint_blocked")).toBe(true);
+  });
+
+  it("rejects a pending relationship confirmation if an endpoint became nested", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_10", "authorship"),
+        nestedMapUnit("tu_12", "human control", "tu_10"),
+        mapUnit("tu_5", "reader trust"),
+      ],
+      connections: [],
+    };
+    state.pendingMapCommand = {
+      kind: "relationship_confirmation",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_12" },
+        target: { id: "tu_5" },
+        labelText: "supports",
+      },
+      labelText: "supports",
+      prompt: "Is that relationship wording right?",
+      debug: "relationship_confirmation_pending",
+    };
+
+    const out = await processTurn(state, "yes", questionLLM("ignored"), defaultConfig, "chat", map);
+
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("nested inside #10");
+    expect(out.commandDebug?.some((note) => note.reason === "nested_endpoint_blocked")).toBe(true);
+  });
+
+  it("rejects a pending duplicate confirmation if an endpoint became nested", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_10", "authorship"),
+        nestedMapUnit("tu_12", "human control", "tu_10"),
+        mapUnit("tu_5", "reader trust"),
+      ],
+      connections: [
+        {
+          id: "edge_existing",
+          sourceId: "tu_10",
+          targetId: "tu_5",
+          labelUnitId: "tu_label",
+          labelText: "supports",
+          sourceText: "authorship",
+          targetText: "reader trust",
+          utteranceIds: [],
+        },
+      ],
+    };
+    state.pendingMapCommand = {
+      kind: "duplicate_connection_confirmation",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_12" },
+        target: { id: "tu_5" },
+        labelText: "supports",
+      },
+      prompt: "There is already a connection. Add another?",
+      debug: "duplicate_connection_pending",
+    };
+
+    const out = await processTurn(state, "yes", questionLLM("ignored"), defaultConfig, "chat", map);
+
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("nested inside #10");
+    expect(out.commandDebug?.some((note) => note.reason === "nested_endpoint_blocked")).toBe(true);
+  });
+
+  it("still connects two ordinary root cards unaffected by the nested-endpoint check", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_10", "authorial ownership"), mapUnit("tu_5", "reader trust")],
+      connections: [],
+    };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Done.",
+      mapCommands: [{ kind: "connect_cards", sourceText: "#10", targetText: "#5" }],
+    });
+
+    const out = await processTurn(state, "connect #10 to #5", llm, defaultConfig, "chat", map);
+
+    expect(out.mapCommands).toEqual([
+      { kind: "connect_cards", source: { id: "tu_10" }, target: { id: "tu_5" } },
+    ]);
+  });
+
   it("asks which card when a command reference has multiple near matches", async () => {
     const state = createState();
     const llm = (_ctx: LLMContext): LLMTurn => ({
@@ -2368,6 +2566,32 @@ describe("question mode", () => {
     expect(out.text).toBe("Done. What would you like to do next?");
   });
 
+  it("executes subject-first #ref nest-to commands directly", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_35", "child"), mapUnit("tu_33", "parent")],
+      connections: [],
+    };
+
+    const out = await processTurn(
+      state,
+      "#35 nest to #33",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "nest_card",
+        child: { id: "tu_35" },
+        parentId: "tu_33",
+      },
+    ]);
+    expect(out.text).toBe("Done. What would you like to do next?");
+  });
+
   it("does not fall into carry-forward when a #ref relationship phrase uses authored wording", async () => {
     const state = createState();
     const map = {
@@ -2450,6 +2674,61 @@ describe("question mode", () => {
         target: { id: "tu_451" },
         labelText: "link",
         labelSourceUtteranceIds: [state.bank.getAll()[0].id],
+      },
+    ]);
+  });
+
+  it("lets a fresh subject-first nest command preempt a pending duplicate connection confirmation", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [
+        mapUnit("tu_27", "every action of AI need confirmation from user"),
+        mapUnit("tu_28", "Mechanism 1 - Constraint"),
+        mapUnit("tu_33", "No AI words"),
+        mapUnit("tu_35", "AI can only use writer's own word"),
+      ],
+      connections: [
+        {
+          id: "edge_existing",
+          sourceId: "tu_27",
+          targetId: "tu_28",
+          labelUnitId: "tu_label",
+          labelText: "supports",
+          sourceText: "every action of AI need confirmation from user",
+          targetText: "Mechanism 1 - Constraint",
+          utteranceIds: [],
+        },
+      ],
+    };
+    state.pendingMapCommand = {
+      kind: "duplicate_connection_confirmation",
+      command: {
+        kind: "connect_cards",
+        source: { id: "tu_27" },
+        target: { id: "tu_28" },
+      },
+      prompt: "There is already a connection between those cards. Do you want to add another relationship?",
+      debug: "duplicate_connection_pending",
+    };
+
+    const out = await processTurn(
+      state,
+      "#35 nest into #33",
+      questionLLM("ignored"),
+      defaultConfig,
+      "chat",
+      map,
+    );
+
+    expect(state.pendingMapCommand).toBeUndefined();
+    expect(out.commandConfirmation).toBeUndefined();
+    expect(out.text).toBe("Done. What would you like to do next?");
+    expect(out.text).not.toContain("duplicate connection pending");
+    expect(out.mapCommands).toEqual([
+      {
+        kind: "nest_card",
+        child: { id: "tu_35" },
+        parentId: "tu_33",
       },
     ]);
   });

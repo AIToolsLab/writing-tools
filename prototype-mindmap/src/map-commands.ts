@@ -83,6 +83,7 @@ export function applyAcceptedMapCommands(
         bank,
         layoutDirection: "source_to_target",
       });
+      if (!registered) continue;
       if (command.labelSourceUtteranceIds && command.labelSourceUtteranceIds.length > 0) {
         store.update(registered.labelUnit.id, {
           source: {

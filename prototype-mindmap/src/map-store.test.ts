@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { ThoughtUnitStore } from "./map-store";
 import { resetIdCounter, SourceBank } from "./store";
-import type { ConfirmedReflection, SourceUtterance, ThoughtUnit } from "./types";
+import type { ConfirmedReflection, SourceUtterance, ThoughtUnit, ThoughtUnitRole } from "./types";
 
 beforeEach(() => {
   resetIdCounter();
@@ -19,17 +19,18 @@ function reflection(overrides: Partial<ConfirmedReflection> = {}): ConfirmedRefl
   };
 }
 
-function unit(id: string, text: string, parentId?: string): ThoughtUnit {
+function unit(id: string, text: string, parentId?: string, roleOverride?: ThoughtUnitRole): ThoughtUnit {
+  const role = roleOverride ?? (parentId ? "content" : "node");
   return {
     id,
     text,
-    role: parentId ? "content" : "node",
+    role,
     parentId,
     source: {
       utteranceIds: [`u-${id}`],
       createdBy: "user",
     },
-    roleHistory: [{ role: parentId ? "content" : "node", changedBy: "user", at: 1 }],
+    roleHistory: [{ role, changedBy: "user", at: 1 }],
   };
 }
 
@@ -86,6 +87,176 @@ describe("ThoughtUnitStore", () => {
       role: "content",
       changedBy: "user",
     });
+  });
+
+  it("redirects a connection to the new root when its card becomes nested", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("parent", "main idea"));
+    store.add(unit("child", "detail"));
+    store.add(unit("other", "unrelated point"));
+    const { connection } = store.registerConnection({ sourceId: "child", targetId: "other", text: "", bank })!;
+
+    store.setParent("child", "parent", "content");
+
+    const updated = store.getConnections().find((c) => c.id === connection.id);
+    expect(updated?.sourceId).toBe("parent");
+    expect(updated?.targetId).toBe("other");
+  });
+
+  it("redirects to the top-most root across multiple nesting levels", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("grandparent", "top idea"));
+    store.add(unit("parent", "mid idea"));
+    store.add(unit("child", "detail"));
+    store.add(unit("other", "unrelated point"));
+    const { connection } = store.registerConnection({ sourceId: "child", targetId: "other", text: "", bank })!;
+
+    store.setParent("parent", "grandparent", "content");
+    store.setParent("child", "parent", "content");
+
+    const updated = store.getConnections().find((c) => c.id === connection.id);
+    expect(updated?.sourceId).toBe("grandparent");
+    expect(updated?.targetId).toBe("other");
+  });
+
+  it("deletes a connection that would become a self-loop after redirecting", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("parent", "main idea"));
+    store.add(unit("child", "detail"));
+    const { connection, labelUnit } = store.registerConnection({ sourceId: "child", targetId: "parent", text: "", bank })!;
+
+    store.setParent("child", "parent", "content");
+
+    expect(store.getConnections().find((c) => c.id === connection.id)).toBeUndefined();
+    expect(store.get(labelUnit.id)).toBeUndefined();
+  });
+
+  it("leaves connections untouched when nesting a card with no connections", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("parent", "main idea"));
+    store.add(unit("child", "detail"));
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+    const { connection } = store.registerConnection({ sourceId: "a", targetId: "b", text: "", bank })!;
+
+    store.setParent("child", "parent", "content");
+
+    const unchanged = store.getConnections().find((c) => c.id === connection.id);
+    expect(unchanged?.sourceId).toBe("a");
+    expect(unchanged?.targetId).toBe("b");
+  });
+
+  it("normalizes a newly registered connection endpoint to its root card", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("parent", "main idea"));
+    store.add(unit("child", "detail", "parent"));
+    store.add(unit("other", "unrelated point"));
+
+    const registered = store.registerConnection({ sourceId: "child", targetId: "other", text: "", bank });
+
+    expect(registered?.connection.sourceId).toBe("parent");
+    expect(registered?.connection.targetId).toBe("other");
+  });
+
+  it("does not register a connection that normalizes to a self-loop", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("parent", "main idea"));
+    store.add(unit("child", "detail", "parent"));
+
+    const registered = store.registerConnection({ sourceId: "child", targetId: "parent", text: "supports", bank });
+
+    expect(registered).toBeUndefined();
+    expect(store.getConnections()).toEqual([]);
+    expect(store.getAll().filter((card) => card.role === "connection_label")).toEqual([]);
+  });
+
+  it("normalizes reconnected endpoints to root cards", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("parent", "main idea"));
+    store.add(unit("child", "detail", "parent"));
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+    const { connection } = store.registerConnection({ sourceId: "a", targetId: "b", text: "", bank })!;
+
+    store.reconnect(connection.id, "child", "b");
+
+    const updated = store.getConnections().find((c) => c.id === connection.id);
+    expect(updated?.sourceId).toBe("parent");
+    expect(updated?.targetId).toBe("b");
+  });
+
+  it("deletes a reconnected edge that normalizes to a self-loop", () => {
+    const store = new ThoughtUnitStore();
+    const bank = new SourceBank();
+    store.add(unit("parent", "main idea"));
+    store.add(unit("child", "detail", "parent"));
+    store.add(unit("a", "author"));
+    store.add(unit("b", "honesty"));
+    const { connection, labelUnit } = store.registerConnection({ sourceId: "a", targetId: "b", text: "", bank })!;
+
+    store.reconnect(connection.id, "child", "parent");
+
+    expect(store.getConnections().find((c) => c.id === connection.id)).toBeUndefined();
+    expect(store.get(labelUnit.id)).toBeUndefined();
+  });
+
+  it("normalizes legacy nested endpoints when loading a snapshot", () => {
+    const store = new ThoughtUnitStore();
+    store.add(unit("parent", "main idea"));
+    store.add(unit("child", "detail", "parent"));
+    store.add(unit("other", "unrelated point"));
+    store.add(unit("label", "supports", undefined, "connection_label"));
+
+    const restored = new ThoughtUnitStore();
+    restored.loadSnapshot({
+      ...store.snapshot(),
+      connections: [
+        {
+          id: "edge_1",
+          sourceId: "child",
+          targetId: "other",
+          labelUnitId: "label",
+          confirmedAt: 1,
+          createdBy: "user",
+        },
+      ],
+    });
+
+    expect(restored.getConnections()).toEqual([
+      expect.objectContaining({ id: "edge_1", sourceId: "parent", targetId: "other" }),
+    ]);
+  });
+
+  it("drops legacy snapshot connections that normalize to self-loops", () => {
+    const store = new ThoughtUnitStore();
+    store.add(unit("parent", "main idea"));
+    store.add(unit("child", "detail", "parent"));
+    store.add(unit("label", "supports", undefined, "connection_label"));
+
+    const restored = new ThoughtUnitStore();
+    restored.loadSnapshot({
+      ...store.snapshot(),
+      connections: [
+        {
+          id: "edge_1",
+          sourceId: "child",
+          targetId: "parent",
+          labelUnitId: "label",
+          confirmedAt: 1,
+          createdBy: "user",
+        },
+      ],
+    });
+
+    expect(restored.getConnections()).toEqual([]);
+    expect(restored.get("label")).toBeUndefined();
   });
 
   it("swaps a member card into the title position", () => {
@@ -146,7 +317,7 @@ describe("ThoughtUnitStore", () => {
       targetId: "b",
       text: "keeps it honest",
       bank,
-    });
+    })!;
 
     expect(bank.getAll()).toHaveLength(1);
     expect(bank.getAll()[0]).toMatchObject({
@@ -169,7 +340,7 @@ describe("ThoughtUnitStore", () => {
     store.add(unit("a", "author"));
     store.add(unit("b", "honesty"));
 
-    const registered = store.registerConnection({ sourceId: "a", targetId: "b", text: "   ", bank });
+    const registered = store.registerConnection({ sourceId: "a", targetId: "b", text: "   ", bank })!;
 
     expect(bank.getAll()).toHaveLength(0);
     expect(registered.utterance).toBeUndefined();
@@ -184,7 +355,7 @@ describe("ThoughtUnitStore", () => {
     const bank = new SourceBank();
     store.add(unit("a", "author"));
     store.add(unit("b", "honesty"));
-    const { connection } = store.registerConnection({ sourceId: "a", targetId: "b", text: "", bank });
+    const { connection } = store.registerConnection({ sourceId: "a", targetId: "b", text: "", bank })!;
 
     store.setConnectionLayoutDirection(connection.id, "source_to_target");
 
@@ -214,7 +385,7 @@ describe("ThoughtUnitStore", () => {
       text: "",
       bank,
       layoutDirection: "source_to_target",
-    });
+    })!;
 
     expect(connection.layoutDirection).toBe("source_to_target");
     expect(store.getConnections()[0].layoutDirection).toBe("source_to_target");
@@ -232,7 +403,7 @@ describe("ThoughtUnitStore", () => {
       text: "",
       bank,
       layoutDirection: "source_to_target",
-    });
+    })!;
 
     store.reconnect(connection.id, "a", "c");
 
@@ -271,7 +442,7 @@ describe("ThoughtUnitStore", () => {
       targetId: "b",
       text: "keeps it honest",
       bank,
-    });
+    })!;
 
     store.deleteConnection(connection.id);
 
@@ -289,7 +460,7 @@ describe("ThoughtUnitStore", () => {
       targetId: "b",
       text: "keeps it honest",
       bank,
-    });
+    })!;
 
     store.delete("a");
 
@@ -303,8 +474,8 @@ describe("ThoughtUnitStore", () => {
     store.add(unit("a", "author"));
     store.add(unit("b", "honesty"));
 
-    const first = store.registerConnection({ sourceId: "a", targetId: "b", text: "supports", bank });
-    const second = store.registerConnection({ sourceId: "b", targetId: "a", text: "qualifies", bank });
+    const first = store.registerConnection({ sourceId: "a", targetId: "b", text: "supports", bank })!;
+    const second = store.registerConnection({ sourceId: "b", targetId: "a", text: "qualifies", bank })!;
 
     expect(store.getConnections()).toHaveLength(2);
     expect(first.connection.sourceHandleId).toBe("right");
@@ -323,8 +494,8 @@ describe("ThoughtUnitStore", () => {
     store.setPosition("b", { x: 420, y: 20 });
     store.setPosition("c", { x: 40, y: 360 });
 
-    const horizontal = store.registerConnection({ sourceId: "a", targetId: "b", text: "", bank });
-    const vertical = store.registerConnection({ sourceId: "a", targetId: "c", text: "", bank });
+    const horizontal = store.registerConnection({ sourceId: "a", targetId: "b", text: "", bank })!;
+    const vertical = store.registerConnection({ sourceId: "a", targetId: "c", text: "", bank })!;
 
     expect(horizontal.connection).toMatchObject({
       sourceHandleId: "right",
@@ -349,7 +520,7 @@ describe("ThoughtUnitStore", () => {
       targetHandleId: "left",
       text: "supports",
       bank,
-    });
+    })!;
     const second = store.registerConnection({
       sourceId: "a",
       targetId: "c",
@@ -357,7 +528,7 @@ describe("ThoughtUnitStore", () => {
       targetHandleId: "left",
       text: "qualifies",
       bank,
-    });
+    })!;
 
     store.reconnect(second.connection.id, "a", "b", "right", "left");
 
@@ -387,7 +558,7 @@ describe("ThoughtUnitStore", () => {
       targetHandleId: "left",
       text: "",
       bank,
-    });
+    })!;
 
     store.reconnect(connection.id, "b", "c", "bottom", "top");
 
@@ -411,7 +582,7 @@ describe("ThoughtUnitStore", () => {
       targetId: "b",
       text: "",
       bank,
-    });
+    })!;
     store.setConnectionLayoutDirection(connection.id, "target_to_source");
 
     store.reconnect(connection.id, "b", "c", "bottom", "top");

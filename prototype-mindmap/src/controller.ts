@@ -1201,7 +1201,9 @@ function explicitRefNestCommand(
   config: MindmapConfig,
 ): Extract<AcceptedMapCommand, { kind: "nest_card" }> | undefined {
   if (isUncertainExplicitPlacement(userText, config)) return undefined;
-  const match = userText.match(/\b(?:put|nest|move)\s+(#\d+)\s+(?:in|into|inside|under)\s+(#\d+)\b/i);
+  const match =
+    userText.match(/\b(?:put|nest|move)\s+(#\d+)\s+(?:in|into|inside|under)\s+(#\d+)\b/i) ??
+    userText.match(/(#\d+)\s+nest\s+(?:in|into|inside|under|to)\s+(#\d+)\b/i);
   if (!match) return undefined;
   const childId = resolveCardRefNumber(match[1], map);
   const parentId = resolveCardRefNumber(match[2], map);
@@ -1858,6 +1860,72 @@ function describeCardRef(ref: AcceptedMapCommandCardRef, map: LLMMapContext): st
   return map.thoughtUnits.find((unit) => unit.id === ref.id)?.text ?? ref.id;
 }
 
+/** Walk `map.thoughtUnits`' parentId chain from `id` to the top, cycle-guarded. */
+function rootCardId(id: string, map: LLMMapContext): string {
+  const byId = new Map(map.thoughtUnits.map((unit) => [unit.id, unit]));
+  const seen = new Set<string>([id]);
+  let root = id;
+  let current = byId.get(id);
+  while (current?.parentId) {
+    if (seen.has(current.parentId)) break;
+    root = current.parentId;
+    seen.add(root);
+    current = byId.get(root);
+  }
+  return root;
+}
+
+/**
+ * Only the parent (root) card may ever have a connector attached. If either
+ * resolved endpoint is currently nested, refuse the connection outright rather
+ * than silently redirecting it — the user is actively issuing a command and
+ * should name the card they mean instead of having it reinterpreted for them.
+ */
+function nestedEndpointRejection(
+  source: AcceptedMapCommandCardRef,
+  target: AcceptedMapCommandCardRef,
+  map: LLMMapContext,
+): { prompt: string; debug: string } | undefined {
+  for (const ref of [source, target]) {
+    if (!("id" in ref)) continue;
+    const unit = map.thoughtUnits.find((thoughtUnit) => thoughtUnit.id === ref.id);
+    if (!unit?.parentId) continue;
+    const rootId = rootCardId(ref.id, map);
+    const nestedRef = cardRef(ref.id);
+    const rootRef = cardRef(rootId);
+    return {
+      prompt: `I won't connect ${nestedRef} directly — it's nested inside ${rootRef}. Connect ${rootRef} instead, or pull ${nestedRef} out first if you want it connected on its own.`,
+      debug: `nested_endpoint_blocked: ${nestedRef} is nested inside ${rootRef}`,
+    };
+  }
+  return undefined;
+}
+
+function rejectNowNestedPendingConnection(
+  state: LoopState,
+  command: Extract<AcceptedMapCommand, { kind: "connect_cards" }>,
+  map: LLMMapContext,
+  options: { incrementTurn?: boolean } = {},
+): TurnOutput | undefined {
+  const nestedRejection = nestedEndpointRejection(command.source, command.target, map);
+  if (!nestedRejection) return undefined;
+  const incrementTurn = options.incrementTurn ?? true;
+  state.pendingMapCommand = undefined;
+  state.organizeFocus = undefined;
+  state.mode = "question";
+  state.activeElicitation = undefined;
+  state.pendingCardWording = undefined;
+  if (incrementTurn) state.turnsSinceLastMirror++;
+  setLastAiText(state, nestedRejection.prompt);
+  return {
+    mode: "question",
+    text: nestedRejection.prompt,
+    llmTurn: { mode: "question", text: nestedRejection.prompt },
+    commandDebug: [{ reason: "nested_endpoint_blocked", detail: nestedRejection.debug }],
+    questionStance: "organize",
+  };
+}
+
 function groundedLabel(command: MapCommand, units: SourceUtterance[]): {
   labelText?: string;
   labelSourceUtteranceIds?: string[];
@@ -2194,6 +2262,12 @@ function acceptedMapCommands(
     const source = sourceResolved.ref;
     const target = targetResolved.ref;
     if ("id" in source && "id" in target && source.id === target.id) continue;
+    const nestedRejection = nestedEndpointRejection(source, target, map);
+    if (nestedRejection) {
+      if (!pending && !clarificationPrompt) clarificationPrompt = nestedRejection.prompt;
+      notes.push({ reason: "nested_endpoint_blocked", detail: nestedRejection.debug });
+      continue;
+    }
     const label = groundedLabel(command, units);
     if (requireConnectionLabel && !label.labelText) {
       if (!pending) {
@@ -2838,6 +2912,25 @@ export async function processTurn(
     isAffirmative(userText)
   ) {
     const pending = state.pendingMapCommand;
+    if (pending.command.kind === "connect_cards") {
+      const nestedRejection = nestedEndpointRejection(pending.command.source, pending.command.target, map);
+      if (nestedRejection) {
+        state.pendingMapCommand = undefined;
+        state.organizeFocus = undefined;
+        state.mode = "question";
+        state.activeElicitation = undefined;
+        state.pendingCardWording = undefined;
+        state.turnsSinceLastMirror++;
+        setLastAiText(state, nestedRejection.prompt);
+        return {
+          mode: "question",
+          text: nestedRejection.prompt,
+          llmTurn: { mode: "question", text: nestedRejection.prompt },
+          commandDebug: [{ reason: "nested_endpoint_blocked", detail: nestedRejection.debug }],
+          questionStance: "organize",
+        };
+      }
+    }
     if (
       pending.command.kind === "connect_cards" &&
       requireConnectionLabel &&
@@ -3017,6 +3110,8 @@ export async function processTurn(
         target: pending.command.target,
       };
       state.bank.markCommandOnly(units.map((unit) => unit.id));
+      const nestedPendingRejection = rejectNowNestedPendingConnection(state, command, map, { incrementTurn: false });
+      if (nestedPendingRejection) return nestedPendingRejection;
       if (existingConnectionBetween(map, command)) {
         state.pendingMapCommand = {
           kind: "duplicate_connection_confirmation",
@@ -3068,6 +3163,8 @@ export async function processTurn(
       labelSourceUtteranceIds: units.map((unit) => unit.id),
     };
     state.bank.markCommandOnly(units.map((unit) => unit.id));
+    const nestedPendingRejection = rejectNowNestedPendingConnection(state, command, map, { incrementTurn: false });
+    if (nestedPendingRejection) return nestedPendingRejection;
     if (existingConnectionBetween(map, command)) {
       state.pendingMapCommand = {
         kind: "duplicate_connection_confirmation",
@@ -3127,6 +3224,8 @@ export async function processTurn(
     isAffirmative(userText)
   ) {
     const pending = state.pendingMapCommand;
+    const nestedPendingRejection = rejectNowNestedPendingConnection(state, pending.command, map);
+    if (nestedPendingRejection) return nestedPendingRejection;
     if (existingConnectionBetween(map, pending.command)) {
       state.pendingMapCommand = {
         kind: "duplicate_connection_confirmation",
@@ -3221,6 +3320,8 @@ export async function processTurn(
 
   if (state.pendingMapCommand?.kind === "duplicate_connection_confirmation" && isAffirmative(userText)) {
     const pending = state.pendingMapCommand;
+    const nestedPendingRejection = rejectNowNestedPendingConnection(state, pending.command, map);
+    if (nestedPendingRejection) return nestedPendingRejection;
     state.pendingMapCommand = undefined;
     state.organizeFocus = undefined;
     state.mode = "question";

@@ -393,6 +393,51 @@ export class ThoughtUnitStore {
     return false;
   }
 
+  /** Walk `id`'s parent chain to the top; returns `id` itself if it has none. */
+  private rootAncestorId(id: string): string {
+    const seen = new Set<string>([id]);
+    let current = this._units.get(id);
+    let root = id;
+    while (current?.parentId) {
+      if (seen.has(current.parentId)) break; // guard against a pre-existing cycle
+      root = current.parentId;
+      seen.add(root);
+      current = this._units.get(root);
+    }
+    return root;
+  }
+
+  private connectableRootId(id: string): string | undefined {
+    const unit = this._units.get(id);
+    if (!unit || unit.role === "connection_label") return undefined;
+    const rootId = this.rootAncestorId(id);
+    const root = this._units.get(rootId);
+    if (!root || root.role === "connection_label") return undefined;
+    return rootId;
+  }
+
+  /**
+   * A connection may only ever point at a root card - only the parent can have
+   * a connector attached. Called whenever `id` becomes nested: any connection
+   * referencing `id` moves to redirect to its new root ancestor instead. If
+   * that redirect would make both endpoints the same card (the card was
+   * connected directly to the very parent it's now nested inside, or to
+   * something that resolves to the same root), the connection is meaningless
+   * once nested, so it's deleted rather than left dangling.
+   */
+  private redirectConnectionsFor(id: string, rootId: string): void {
+    for (const connection of this.getConnections()) {
+      const nextSourceId = connection.sourceId === id ? rootId : connection.sourceId;
+      const nextTargetId = connection.targetId === id ? rootId : connection.targetId;
+      if (nextSourceId === connection.sourceId && nextTargetId === connection.targetId) continue;
+      if (nextSourceId === nextTargetId) {
+        this.deleteConnection(connection.id);
+        continue;
+      }
+      this.reconnect(connection.id, nextSourceId, nextTargetId);
+    }
+  }
+
   setParent(id: string, parentId?: string, role?: ThoughtUnitRole): ThoughtUnit | undefined {
     const current = this._units.get(id);
     if (!current) return undefined;
@@ -407,6 +452,10 @@ export class ThoughtUnitStore {
     };
     if (!parentId) delete next.parentId;
     this._units.set(id, next);
+    // Only the parent (root) can have a connector attached: whenever a card
+    // becomes nested, redirect any connections that reference it to its new
+    // root ancestor instead.
+    if (parentId) this.redirectConnectionsFor(id, this.rootAncestorId(id));
     return next;
   }
 
@@ -479,8 +528,11 @@ export class ThoughtUnitStore {
     targetHandleId?: string | null;
     layoutDirection?: ConnectionLayoutDirection;
     position?: XYPosition;
-  }): RegisteredConnection {
-    const handles = this.connectionHandlesFor(sourceId, targetId, sourceHandleId, targetHandleId);
+  }): RegisteredConnection | undefined {
+    const rootSourceId = this.connectableRootId(sourceId);
+    const rootTargetId = this.connectableRootId(targetId);
+    if (!rootSourceId || !rootTargetId || rootSourceId === rootTargetId) return undefined;
+    const handles = this.connectionHandlesFor(rootSourceId, rootTargetId, sourceHandleId, targetHandleId);
     const trimmed = text.trim();
     // Wording is optional. Only write to the bank when there is actually wording.
     const utterance = trimmed
@@ -504,8 +556,8 @@ export class ThoughtUnitStore {
 
     const connection: ThoughtConnection = {
       id: nextId("edge"),
-      sourceId,
-      targetId,
+      sourceId: rootSourceId,
+      targetId: rootTargetId,
       sourceHandleId: handles.sourceHandleId,
       targetHandleId: handles.targetHandleId,
       layoutDirection: layoutDirection ?? "none",
@@ -537,12 +589,19 @@ export class ThoughtUnitStore {
     targetHandleId?: string | null,
   ): void {
     const connection = this._connections.get(id);
-    if (!connection || sourceId === targetId) return;
-    const handles = this.connectionHandlesFor(sourceId, targetId, sourceHandleId, targetHandleId, id);
+    if (!connection) return;
+    const rootSourceId = this.connectableRootId(sourceId);
+    const rootTargetId = this.connectableRootId(targetId);
+    if (!rootSourceId || !rootTargetId) return;
+    if (rootSourceId === rootTargetId) {
+      this.deleteConnection(id);
+      return;
+    }
+    const handles = this.connectionHandlesFor(rootSourceId, rootTargetId, sourceHandleId, targetHandleId, id);
     this._connections.set(id, {
       ...connection,
-      sourceId,
-      targetId,
+      sourceId: rootSourceId,
+      targetId: rootTargetId,
       sourceHandleId: handles.sourceHandleId,
       targetHandleId: handles.targetHandleId,
     });
@@ -663,12 +722,23 @@ export class ThoughtUnitStore {
     this._sizes = new Map(
       Object.entries(snapshot.sizes ?? {}).map(([id, size]) => [id, clampCardSize(size)]),
     );
-    this._connections = new Map(
-      snapshot.connections.map((connection) => [
-        connection.id,
-        { ...connection, layoutDirection: connection.layoutDirection ?? "none" },
-      ]),
-    );
+    this._connections = new Map();
+    for (const connection of snapshot.connections) {
+      const sourceId = this.connectableRootId(connection.sourceId);
+      const targetId = this.connectableRootId(connection.targetId);
+      if (!sourceId || !targetId || sourceId === targetId) {
+        this._units.delete(connection.labelUnitId);
+        this._positions.delete(connection.labelUnitId);
+        this._sizes.delete(connection.labelUnitId);
+        continue;
+      }
+      this._connections.set(connection.id, {
+        ...connection,
+        sourceId,
+        targetId,
+        layoutDirection: connection.layoutDirection ?? "none",
+      });
+    }
     primeIdCounters(
       [
         ...snapshot.units.map((unit) => unit.id),
