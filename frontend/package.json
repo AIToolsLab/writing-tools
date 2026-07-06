@@ -56,6 +56,7 @@
 		"ai": "^7.0.0",
 		"jotai": "^2.12.5",
 		"lexical": "^0.16.1",
+		"livekit-client": "^2.20.0",
 		"posthog-js": "^1.388.1",
 		"react": "^18.2.0",
 		"react-dom": "^18.2.0",

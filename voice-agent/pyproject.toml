@@ -1,0 +1,15 @@
+[project]
+name = "writing-tools-voice-agent"
+version = "0.1.0"
+description = "LiveKit voice agent for the My Words voice tab: an OpenAI Realtime model whose editor tools are forwarded to the browser over RPC."
+requires-python = ">=3.10"
+dependencies = [
+    "livekit-agents[openai]>=1.6,<2",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = ["ruff>=0.6"]
+
+[tool.ruff]
+line-length = 100

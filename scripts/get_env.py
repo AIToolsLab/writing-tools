@@ -59,6 +59,13 @@ def prompt_posthog_token() -> str:
     ).strip()
 
 
+def prompt_livekit(label: str) -> str:
+    return input(
+        f"{label} (from your LiveKit Cloud project's Settings → Keys, "
+        "https://cloud.livekit.io — leave blank to skip the voice tab): "
+    ).strip()
+
+
 present = existing_keys(env_file)
 
 # (key, value-or-callable, optional comment lines to write before it).
@@ -81,6 +88,12 @@ entries = [
         "Device flow client IDs (comma-separated). Use writing-tools-device-poc for local dev.",
         "Set to your real client ID(s) externally before enabling in production.",
     ]),
+    ("LIVEKIT_URL", lambda: prompt_livekit("LIVEKIT_URL (wss://…)"), [
+        "LiveKit Cloud — powers the My Words voice tab and the voice-agent worker.",
+        "Leave blank to disable voice; the token endpoint returns 500 until set.",
+    ]),
+    ("LIVEKIT_API_KEY", lambda: prompt_livekit("LIVEKIT_API_KEY"), None),
+    ("LIVEKIT_API_SECRET", lambda: prompt_livekit("LIVEKIT_API_SECRET"), None),
 ]
 
 missing = [e for e in entries if e[0] not in present]
@@ -97,7 +110,8 @@ for key, value, comments in missing:
     resolved = value() if callable(value) else value
     # Quote prompted/generated string values; leave plain literals (booleans,
     # URLs, empty defaults) unquoted to match the original file's style.
-    if key in ("OPENAI_API_KEY", "LOG_SECRET", "POSTHOG_PROJECT_TOKEN"):
+    if key in ("OPENAI_API_KEY", "LOG_SECRET", "POSTHOG_PROJECT_TOKEN",
+               "LIVEKIT_API_KEY", "LIVEKIT_API_SECRET"):
         lines.append(f'{key}="{resolved}"')
     else:
         lines.append(f"{key}={resolved}")

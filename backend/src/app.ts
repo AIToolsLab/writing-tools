@@ -1,7 +1,14 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
+import { AccessToken } from 'livekit-server-sdk';
 import type { Auth } from './auth.js'; // type-only import, no runtime cost
-import { logSecret, openaiApiKey } from './config.js';
+import {
+	livekitApiKey,
+	livekitApiSecret,
+	livekitUrl,
+	logSecret,
+	openaiApiKey,
+} from './config.js';
 import { appendLog, pollLogs, validateUsername, zipLogs } from './logging.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 
@@ -158,6 +165,42 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			status: upstream.status,
 			headers: { 'Content-Type': 'application/json' },
 		});
+	});
+
+	// Mint a LiveKit room-join token for the My Words voice tab. The browser gets
+	// a short-lived JWT; the API secret stays here. A Python worker (voice-agent/)
+	// is auto-dispatched to whatever room the browser joins, so we don't name an
+	// agent in the grant. Body: optional { room, identity }. (Later: gate on
+	// Better Auth like /api/protected once past the spike.)
+	app.post('/api/livekit/token', async (c) => {
+		const url = livekitUrl();
+		const apiKey = livekitApiKey();
+		const apiSecret = livekitApiSecret();
+		if (!url || !apiKey || !apiSecret) {
+			return c.json(
+				{ detail: 'LIVEKIT_URL/LIVEKIT_API_KEY/LIVEKIT_API_SECRET not set' },
+				500,
+			);
+		}
+
+		const body = (await c.req.json().catch(() => ({}))) as {
+			room?: string;
+			identity?: string;
+		};
+		const room = body.room?.trim() || `my-words-${crypto.randomUUID()}`;
+		const identity =
+			body.identity?.trim() || `writer-${crypto.randomUUID().slice(0, 8)}`;
+
+		const at = new AccessToken(apiKey, apiSecret, { identity, ttl: '15m' });
+		at.addGrant({
+			roomJoin: true,
+			room,
+			canPublish: true,
+			canSubscribe: true,
+			canPublishData: true,
+		});
+		const token = await at.toJwt();
+		return c.json({ token, url, room, identity });
 	});
 
 	// Client event logging. Accepts an arbitrary JSON object; everything beyond

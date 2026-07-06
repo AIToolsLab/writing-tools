@@ -10,22 +10,29 @@ import { createProposeStrategy } from './interaction/strategies/propose';
 import { createWalkthroughStrategy } from './interaction/strategies/walkthrough';
 import type { InteractionStrategy } from './interaction/types';
 import { useInteraction } from './interaction/useInteraction';
+import { VoiceSession } from './voice/VoiceSession';
 
 type StrategyKey = keyof typeof MODE_PROMPTS;
+// Voice is a peer of the strategy tabs but runs its own turn-loop (the LiveKit
+// agent drives turns), so it doesn't go through the Responder/strategy path.
+type TabKey = StrategyKey | 'voice';
 
 const STRATEGIES: Record<StrategyKey, () => InteractionStrategy> = {
 	walkthrough: createWalkthroughStrategy,
 	propose: createProposeStrategy,
 };
 
-const TAB_LABELS: Record<StrategyKey, string> = {
+const TAB_LABELS: Record<TabKey, string> = {
 	walkthrough: 'Walkthrough',
 	propose: 'Propose',
+	voice: 'Voice',
 };
+
+const TAB_KEYS: TabKey[] = ['walkthrough', 'propose', 'voice'];
 
 export default function MyWords() {
 	const editor = useContext(EditorContext);
-	const [strategyKey, setStrategyKey] = useState<StrategyKey>('walkthrough');
+	const [tab, setTab] = useState<TabKey>('walkthrough');
 	// The writer's scratchpad persists across a strategy switch; the session
 	// (conversation + caption) resets, via the keyed <LiveSession> below.
 	const [scratchpad, setScratchpad] = useState('');
@@ -63,19 +70,18 @@ export default function MyWords() {
 					padding: '0.5rem 0.75rem 0',
 				}}
 			>
-				{(Object.keys(STRATEGIES) as StrategyKey[]).map((key) => (
+				{TAB_KEYS.map((key) => (
 					<button
 						key={key}
 						type="button"
-						onClick={() => setStrategyKey(key)}
+						onClick={() => setTab(key)}
 						style={{
 							flex: '1 1 auto',
 							padding: '0.35rem',
 							border: '1px solid #d1d5db',
 							borderRadius: 6,
-							background:
-								key === strategyKey ? '#4f46e5' : '#f3f4f6',
-							color: key === strategyKey ? '#fff' : '#374151',
+							background: key === tab ? '#4f46e5' : '#f3f4f6',
+							color: key === tab ? '#fff' : '#374151',
 							fontSize: '0.8rem',
 							cursor: 'pointer',
 						}}
@@ -85,13 +91,17 @@ export default function MyWords() {
 				))}
 			</div>
 			<div style={{ flex: '1 1 auto', minHeight: 0 }}>
-				<LiveSession
-					key={strategyKey}
-					strategyKey={strategyKey}
-					editor={editor}
-					scratchpad={scratchpad}
-					onScratchpadChange={setScratchpad}
-				/>
+				{tab === 'voice' ? (
+					<VoiceSession editor={editor} scratchpad={scratchpad} />
+				) : (
+					<LiveSession
+						key={tab}
+						strategyKey={tab}
+						editor={editor}
+						scratchpad={scratchpad}
+						onScratchpadChange={setScratchpad}
+					/>
+				)}
 			</div>
 		</div>
 	);
