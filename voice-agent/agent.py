@@ -45,7 +45,7 @@ load_dotenv(_HERE.parent / "backend" / ".env")
 logger = logging.getLogger("my-words-voice")
 
 # Override as OpenAI ships new realtime ids (gpt-realtime, gpt-realtime-2, …).
-REALTIME_MODEL = os.environ.get("OPENAI_REALTIME_MODEL", "gpt-realtime")
+REALTIME_MODEL = os.environ.get("OPENAI_REALTIME_MODEL", "gpt-realtime-2")
 REALTIME_VOICE = os.environ.get("OPENAI_REALTIME_VOICE", "marin")
 
 # The word-bank stance, ported from BASE_PROMPT in the text path

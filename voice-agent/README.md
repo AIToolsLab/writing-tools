@@ -24,7 +24,7 @@ The agent reads `LIVEKIT_URL`, `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET`, and
 then falls back to `../backend/.env` — so once the backend has LiveKit creds
 (via `python scripts/get_env.py`), the agent needs no extra config.
 
-Optional overrides: `OPENAI_REALTIME_MODEL` (default `gpt-realtime`),
+Optional overrides: `OPENAI_REALTIME_MODEL` (default `gpt-realtime-2`),
 `OPENAI_REALTIME_VOICE` (default `marin`).
 
 ## Run
