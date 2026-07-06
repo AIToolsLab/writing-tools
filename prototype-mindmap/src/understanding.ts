@@ -235,7 +235,7 @@ function ideaLabel(
   const texts = candidate.evidenceUtteranceIds
     .map((id) => bank.get(id))
     .filter((u): u is SourceUtterance => Boolean(u))
-    .filter((u) => !u.commandOnly)
+    .filter((u) => !u.commandOnly && !u.nonHarvestable)
     .map((u) => stripLabelLeadIn(u.text))
     .filter((text) => text.length > 0);
   if (texts.length === 0) return undefined;

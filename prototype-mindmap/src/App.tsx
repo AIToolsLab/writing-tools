@@ -2354,6 +2354,7 @@ function mergeLiveBankIntoWorkingState(workingState: LoopState, liveState: LoopS
       mergedById.set(liveUnit.id, {
         ...current,
         commandOnly: Boolean(current.commandOnly || liveUnit.commandOnly),
+        nonHarvestable: Boolean(current.nonHarvestable || liveUnit.nonHarvestable),
       });
     } else {
       mergedById.set(liveUnit.id, liveUnit);
@@ -3323,7 +3324,7 @@ export default function App() {
   function buildUnderstandingForOutput(out: TurnOutput): UnderstandingSnapshot {
     const stateForUnderstanding = stateRef.current;
     const configForUnderstanding = configRef.current;
-    const mirrorEligibleBank = stateForUnderstanding.bank.getAll().filter((u) => !u.commandOnly);
+    const mirrorEligibleBank = stateForUnderstanding.bank.getAll().filter((u) => !u.commandOnly && !u.nonHarvestable);
     return out.understanding ??
       buildUnderstanding({
         out,

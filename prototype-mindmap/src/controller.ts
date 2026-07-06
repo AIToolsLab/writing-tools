@@ -16,7 +16,7 @@
 import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
 import { detectDraftDeclarations, type DraftDeclaration } from "./draft-declarations";
-import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MapQuestionAnchor, MockLLM, QuestionStance, UserRequestedMode } from "./llm-contract";
+import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MapQuestionAnchor, MockLLM, QuestionStance, UserAffect, UserRequestedMode } from "./llm-contract";
 import { contentTokens, normalize, stem } from "./normalize";
 import {
   activateOpenThread,
@@ -54,6 +54,7 @@ export type SuppressionReason =
   | "mirror_pressure_bridge"
   | "draft_salience_bridge"
   | "command_precedence"
+  | "meta_aside"
   | "validation_failed";
 
 export type AcceptedMapCommandCardRef =
@@ -237,6 +238,33 @@ const MIRROR_PRESSURE_LONG_RUN_EXTRA_TURNS = 3;
 function isStuck(text: string): boolean {
   const lower = text.toLowerCase();
   return STUCK_PHRASES.some((p) => lower.includes(p));
+}
+
+// Deterministic floor for "the user seems drained". Only obvious wording — the
+// LLM's `affect` field carries the long tail. This list ONLY ever adds
+// gentleness (softens tone, drops map-ward pressure); it never forces the coach
+// to push, so it is a safety net, not a fence.
+const DRAINED_PHRASES = [
+  "i'm exhausted", "im exhausted", "i am exhausted", "so tired", "i'm tired", "im tired",
+  "i'm burnt out", "im burnt out", "burned out", "this is exhausting", "this is draining",
+  "i'm drained", "im drained", "i'm overwhelmed", "im overwhelmed", "too much right now",
+  "this is too much", "i can't keep", "i cant keep", "i'm done for", "im done for",
+  "need a break", "worn out", "mentally tired", "brain is fried", "i'm spent", "im spent",
+];
+
+function seemsDrained(text: string): boolean {
+  const lower = text.toLowerCase();
+  return DRAINED_PHRASES.some((p) => lower.includes(p));
+}
+
+// Affect used by code (tone/pacing only). Combines the model's read with the
+// deterministic floor; the floor can only assert a drained state, never override
+// the model toward "energized".
+type DrainedAffect = "exhausted" | "frustrated" | "overwhelmed";
+const DRAINED_AFFECTS = new Set<DrainedAffect>(["exhausted", "frustrated", "overwhelmed"]);
+
+function isDrainedAffect(affect: UserAffect | undefined): affect is DrainedAffect {
+  return affect !== undefined && DRAINED_AFFECTS.has(affect as DrainedAffect);
 }
 
 function wantsToMoveOn(text: string, config: MindmapConfig): boolean {
@@ -499,7 +527,7 @@ function collectGroundedFocusAnchors(map: LLMMapContext, state: LoopState): stri
     if (anchors.length >= 3) break;
   }
   if (anchors.length >= 2) return anchors.slice(0, 3);
-  const visibleBank = state.bank.getAll().filter((unit) => !unit.commandOnly);
+  const visibleBank = state.bank.getAll().filter((unit) => !unit.commandOnly && !unit.nonHarvestable);
   for (const unit of visibleBank.slice(-3).reverse()) {
     const label = shortFocusLabel(unit.text);
     if (label && !anchors.some((existing) => existing.includes(label))) {
@@ -1243,7 +1271,10 @@ function isUncertainExplicitPlacement(text: string, config: MindmapConfig): bool
   const trimmed = text.trim();
   return (
     /\?/.test(trimmed) ||
-    /^(should|would|can|do you think|i wonder)\b/i.test(trimmed) ||
+    // Keep this modal list aligned with isQuestionShapedCommandTurn: a turn that
+    // reads as asking WHETHER to act must never execute structure, even when
+    // voice input drops the question mark ("Could #10 say human oversight").
+    /^(should|would|could|can|shall|do you think|i wonder)\b/i.test(trimmed) ||
     hasStructuralNegation(trimmed) ||
     hasCommandUncertainty(trimmed, config)
   );
@@ -2263,7 +2294,7 @@ function asksForChatOnlyOrReflection(text: string): boolean {
 
 function detectTypedModeOverride(text: string): UserRequestedMode | undefined {
   const normalized = text.trim().toLowerCase().replace(/[.!?;]+$/g, "").replace(/\s+/g, " ");
-  const lower = normalized.replace(/[â€™']/g, "'");
+  const lower = normalized.replace(/[’']/g, "'");
   if (!lower) return undefined;
   const canonical = lower.replace(/[\u2018\u2019]/g, "'");
   if (/^(?:mirror|mirror it|mirror this|mirror that|mirror it back|mirror this back|mirror that back)$/.test(canonical)) {
@@ -2278,9 +2309,48 @@ function detectTypedModeOverride(text: string): UserRequestedMode | undefined {
   return undefined;
 }
 
-function detectOffRampResponse(text: string): { text: string; stance: QuestionStance; debug: string } | undefined {
+function capabilityManifestText(config: MindmapConfig): string {
+  const canDo = config.capabilities.canDo.map((item) => `- ${item}`).join("\n");
+  const cantDo = config.capabilities.cantDo.map((item) => `- ${item}`).join("\n");
+  return `Here is what I can do:\n${canDo}\n\nAnd what I cannot do:\n${cantDo}\n\nWhat would be useful right now?`;
+}
+
+// A request for the TOOL to perform an appearance/export/file action it does not
+// support ("can you make the cards blue?", "change the layout", "export this map").
+// Deliberately precise: an appearance word must co-occur with an unambiguous
+// MUTATION verb, so "can you tell me if my style is clear" or "color theory matters
+// in my essay" — writing subject matter — are NOT hijacked as feature requests.
+function isUnsupportedCapabilityAsk(canonical: string): boolean {
+  const asksForCapability =
+    /^(?:can|could|would|will)\s+you\b/.test(canonical) ||
+    /^(?:are you (?:able|capable)(?:\s+(?:of|to))?|do you know how to)\b/.test(canonical) ||
+    /^(?:please\s+)?(?:make|change|set|turn|format|export|download|save|share|print)\b/.test(canonical);
+  if (!asksForCapability) return false;
+
+  // "style"/"color" are excluded as mutation verbs: they are also ordinary
+  // writing nouns, so requiring a distinct mutation verb is what avoids the
+  // false positives above.
+  const mutationVerb = /\b(?:make|change|set|turn|adjust|format|customi[sz]e|rearrange|recolou?r|paint)\b/;
+  // Unambiguously VISUAL words only. "style", "theme", "appearance", "background",
+  // "bold", "italic" are excluded — they are common writing subject matter in a
+  // writing tool ("my style", "the theme of my essay", "background information").
+  const appearanceWord = /\b(?:colou?rs?|blue|red|green|purple|font|fonts|layout)\b/;
+  const exportFamily = /\b(?:export|download|save|share|print)\b/;
+  const fileTarget = /\b(?:map|canvas|file|pdf|png|jpe?g|image|json|this|it)\b/;
+
+  return (
+    (mutationVerb.test(canonical) && appearanceWord.test(canonical)) ||
+    (exportFamily.test(canonical) && fileTarget.test(canonical))
+  );
+}
+
+function detectOffRampResponse(
+  text: string,
+  isSubstantive: boolean,
+  config: MindmapConfig,
+): { text: string; stance: QuestionStance; debug: string } | undefined {
   const normalized = text.trim().toLowerCase().replace(/\s+/g, " ");
-  const lower = normalized.replace(/[â€™']/g, "'");
+  const lower = normalized.replace(/[’']/g, "'");
   if (!lower) return undefined;
   const canonical = lower.replace(/[\u2018\u2019]/g, "'");
 
@@ -2302,18 +2372,27 @@ function detectOffRampResponse(text: string): { text: string; stance: QuestionSt
   if (
     /^(?:what can you do|what do you do|how can you help)\b/.test(canonical) ||
     /^(?:can|could)\s+you\b[\s\S]{0,80}\b(?:help|explain)\b[\s\S]{0,80}\b(?:what|how)\b[\s\S]{0,80}\b(?:you|this|tool|system)\b/.test(canonical) ||
-    /^(?:are you able to|can you)\b[\s\S]{0,80}\b(?:make cards|edit cards|change the map|use the map)\b/.test(canonical)
+    /^(?:are you able to|can you)\b[\s\S]{0,80}\b(?:make cards|edit cards|change the map|use the map)\b/.test(canonical) ||
+    isUnsupportedCapabilityAsk(canonical) ||
+    // Questions about a specific card ability ("can you reword a card?",
+    // "are you capable of rewording a card?") get the honest capability answer
+    // instead of falling through to the coach loop and looping the user.
+    /^(?:are you (?:able|capable)(?:\s+(?:of|to))?|can you|could you|do you know how to)\b[\s\S]{0,60}\b(?:reword(?:ing)?|rename|renaming|edit(?:ing)?|chang(?:e|ing)|updat(?:e|ing)|delete|deleting|remove|removing)\b[\s\S]{0,40}\bcards?\b/.test(canonical)
   ) {
     return {
-      text: "I can reflect what I'm hearing, ask focus questions, and make map changes when you give exact wording or card references. I won't decide the structure for you or write the draft for you. What would be useful right now?",
+      text: capabilityManifestText(config),
       stance: "settle",
       debug: "capability_off_ramp",
     };
   }
 
+  // Soft emotional / system-repair aside. Only fires when the turn ISN'T also
+  // real writing content — a "frustrated, but here's my actual point" turn must
+  // be coached (with affect softening the tone), not discarded as a repair.
   if (
-    /\b(?:annoyed|frustrated|confused)\b/.test(canonical) ||
-    /\b(?:this is weird|that is weird|not what i meant|you misunderstood|that's wrong|that is wrong)\b/.test(canonical)
+    !isSubstantive &&
+    (/\b(?:annoyed|frustrated|confused)\b/.test(canonical) ||
+      /\b(?:this is weird|that is weird|not what i meant|you misunderstood|that's wrong|that is wrong)\b/.test(canonical))
   ) {
     return {
       text: "That makes sense. Let's slow it down: do you want me to reflect what I heard, ask a different question, or focus on a specific card?",
@@ -2434,7 +2513,7 @@ function validationDetail(claims: ClaimValidation[]): string {
 }
 
 function mirrorEligibleBank(bank: SourceUtterance[]): SourceUtterance[] {
-  return bank.filter((utterance) => !utterance.commandOnly);
+  return bank.filter((utterance) => !utterance.commandOnly && !utterance.nonHarvestable);
 }
 
 /** Do all the existing-card ids a command references still exist on the map? */
@@ -2625,7 +2704,9 @@ export async function processTurn(
   const typedOverrideMode = ingestUser ? detectTypedModeOverride(userText) : undefined;
   const effectiveOverrideMode = options.overrideMode ?? typedOverrideMode;
   const offRampResponse =
-    ingestUser && !effectiveOverrideMode ? detectOffRampResponse(userText) : undefined;
+    ingestUser && !effectiveOverrideMode
+      ? detectOffRampResponse(userText, looksLikeSubstantiveAnswer(userText), config)
+      : undefined;
   // 1. Record the user's words, segmented into sentence-level units so a big
   //    voice chunk becomes several grounded units rather than one opaque blob.
   const units = ingestUser ? state.bank.addSegmented(userText, origin) : [];
@@ -3507,6 +3588,9 @@ export async function processTurn(
   // sure": the user wants grounded options, not a smaller settle handle.
   const focusHelpIntent = detectFocusHelpIntent(userText);
   const userIsStuck = isStuck(userText) && !focusHelpIntent;
+  // Deterministic affect floor (input side): obvious "I'm drained" wording. The
+  // model can add its own richer read via turn.affect. This only softens.
+  const userSeemsDrained = ingestUser && seemsDrained(userText);
   const openThreadsForRecall = detectOpenThreadRecallIntent(userText, effectiveOverrideMode, config)
     ? unresolvedOpenThreadContext(state.openThreads)
     : undefined;
@@ -3527,6 +3611,8 @@ export async function processTurn(
     detectedSignals,
     readyCandidateIds: preTurnReadyIds,
     userIsStuck,
+    userSeemsDrained: userSeemsDrained || undefined,
+    capabilities: config.capabilities,
     focusHelpIntent,
     lastAiText: state.lastAiText,
     turnText: userText,
@@ -3551,6 +3637,59 @@ export async function processTurn(
     forcedMode: effectiveOverrideMode,
   };
   const turn = await llm(ctx);
+
+  // Affect (tone/pacing modifier only — never fences, never drops content). The
+  // model's richer read wins; the deterministic floor backs it up and can only
+  // assert a drained state. Consumed below to drop the map-ward pressure nudges.
+  const userAffect: UserAffect | undefined =
+    turn.affect ?? (userSeemsDrained ? "overwhelmed" : undefined);
+  const userIsDrained = isDrainedAffect(userAffect) || userSeemsDrained;
+
+  // Pure-meta lane: a conversational aside with no writing content. The model
+  // recognizes and phrases it; code fences every structural consequence. We only
+  // HONOR it when the turn is clearly not real work — never for a command, an
+  // answer to the coach's last question, or an in-progress card-wording capture.
+  // Everything else is trusted to the model's read (the fence keeps that safe).
+  const inCardCapture = Boolean(
+    state.activeElicitation &&
+      (state.activeElicitation.kind === "carry_forward" ||
+        state.activeElicitation.kind === "sparse_map_next_card") &&
+      isStableCardLikeAnswer(userText),
+  );
+  const metaHonored = Boolean(
+    ingestUser &&
+      turn.metaIntent &&
+      !looksLikeDirectCommand(userText) &&
+      !userAnsweredLastQuestion &&
+      !inCardCapture &&
+      // The one hard guard: if the turn carries real writing content, never
+      // discard it as an aside. Coach it — the affect channel still softens the
+      // tone, so emotional awareness is not lost, only the content is protected.
+      !looksLikeSubstantiveAnswer(userText),
+  );
+  if (metaHonored) {
+    // Fence: the aside is banked for provenance but never harvested, and NO map
+    // commands or candidate upserts from this turn are applied (we return before
+    // that routing). In-progress coaching context (clarifyTarget, activeElicitation,
+    // lastCoachQuestion) is deliberately PRESERVED so a brief aside doesn't wipe
+    // the thread — the coach resumes it next turn.
+    if (units.length > 0) state.bank.markNonHarvestable(units.map((unit) => unit.id));
+    state.mode = "question";
+    state.turnsSinceLastMirror++;
+    const metaText = turn.text.trim() || "I hear you. We can slow down — what would help right now?";
+    state.prevAiText = state.lastAiText;
+    state.lastAiText = metaText;
+    return {
+      mode: "question",
+      text: metaText,
+      llmTurn: { mode: "question", text: metaText },
+      suppressionReason: "meta_aside",
+      suppressionDetail: `meta_intent:${turn.metaIntent}${userAffect ? `; affect:${userAffect}` : ""}`,
+      commandDebug: [{ reason: "meta_aside", detail: `Answered a conversational aside (${turn.metaIntent}); no harvest, no map change.` }],
+      questionStance: "settle",
+    };
+  }
+
   const directExplicitRefConnect = explicitRefConnectCommand(userText, map, config);
   const directEditCard = deterministicEditCardCommand(userText, units, map, config);
   const deterministicMapCommands = [
@@ -3568,11 +3707,14 @@ export async function processTurn(
   // question ("...exactly this text: Is AI risky?") must still land.
   const questionShapedTurn = isQuestionShapedCommandTurn(userText);
   const llmCommands = turn.mapCommands ?? [];
+  // Card WRITES (create_card and edit_card) are dropped on question-shaped
+  // turns: both mint/replace card text that may be grounded inside the question
+  // itself ("Should #10 say human oversight?").
   const droppedLlmCreateCards = questionShapedTurn
-    ? llmCommands.filter((command) => command.kind === "create_card")
+    ? llmCommands.filter((command) => command.kind === "create_card" || command.kind === "edit_card")
     : [];
   const llmMapCommands = questionShapedTurn
-    ? llmCommands.filter((command) => command.kind !== "create_card")
+    ? llmCommands.filter((command) => command.kind !== "create_card" && command.kind !== "edit_card")
     : llmCommands;
   const commandResult = acceptedMapCommands([...deterministicMapCommands, ...llmMapCommands], units, map, {
     requireConnectionLabel,
@@ -3753,15 +3895,21 @@ export async function processTurn(
     acceptedCommands.length === 0 &&
     !commandResult.pending &&
     !userIsStuck &&
+    // Affect awareness: when the user seems drained, drop the map-ward push. This
+    // is the point of the affect channel — genuine "this person is tired"
+    // recognition switches off the pressure nudge instead of code forcing it.
+    !userIsDrained &&
     commandResult.notes.length === 0 &&
     turnShape.kind !== "large_exploratory" &&
     mirrorCooldownSatisfied &&
     (mirrorPressureBatchReady || mirrorPressureLongRunReady);
   const explicitMapSalienceBridge = explicitListMapBridge(userText, map);
   const draftBackedSalienceBridge =
-    (explicitMapSalienceBridge || turnShape.kind === "large_exploratory")
+    (explicitMapSalienceBridge || turnShape.kind === "large_exploratory" || userIsDrained)
       ? undefined
       : draftSalienceBridge(userText, draftDeclarations, config);
+  // The explicit "put these under #N" list bridge answers a direct user ask, so
+  // it survives; only the coach-initiated draft push is dropped when drained.
   const salienceBridge = explicitMapSalienceBridge ?? draftBackedSalienceBridge;
   const repairClarifyWasActive = Boolean(
     state.clarifyTarget || state.activeElicitation?.kind === "clarify_after_failed_mirror",
@@ -4461,9 +4609,13 @@ export async function processTurn(
         state.turnsSinceLastMirror++;
         state.mode = "clarify";
         state.clarifyTarget = undefined;
+        // User-facing text uses the #N ref (never the internal unit id), and
+        // names the exact command that fulfills the reword branch so the offer
+        // is actionable instead of a dead end.
+        const nearRef = cardRef(nearExistingClaim.match.id);
         return finish({
           mode: "clarify",
-          text: `That seems close to ${nearExistingClaim.match.id}. Do you want this as a separate card, or should ${nearExistingClaim.match.id} be edited/reworded?`,
+          text: `That seems close to ${nearRef}. Do you want this as a separate card, or should ${nearRef} be reworded? You can say: reword ${nearRef} to <your exact words>.`,
           llmTurn: turn,
           suppressionReason: "not_ready",
           suppressionDetail: `near existing card ${nearExistingClaim.match.id}: ${nearExistingClaim.match.text}`,
@@ -4585,4 +4737,3 @@ export async function processTurn(
   state.turnsSinceLastMirror++;
   return finish({ mode: "question", text: turn.text, llmTurn: turn, questionAnchor: turn.questionAnchor });
 }
-

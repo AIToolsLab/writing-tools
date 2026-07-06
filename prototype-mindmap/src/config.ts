@@ -116,11 +116,23 @@ export interface CoachingConfig {
   organizePairDeclineLimit: number;
 }
 
+/**
+ * Capabilities manifest — maintained product truth about what the tool can and
+ * cannot do. Injected into the prompt so the model's capability/aside answers
+ * stay honest instead of relying on model self-knowledge, and used by the
+ * deterministic capability off-ramp. Calibration, not enforcement.
+ */
+export interface CapabilitiesConfig {
+  canDo: string[];
+  cantDo: string[];
+}
+
 export interface MindmapConfig {
   mirror: MirrorThresholds;
   readiness: ReadinessThresholds;
   pacing: PacingConfig;
   coaching: CoachingConfig;
+  capabilities: CapabilitiesConfig;
   turnShape: TurnShapeConfig;
   draftDeclarations: DraftDeclarationConfig;
   draftRedundancy: DraftRedundancyConfig;
@@ -210,6 +222,22 @@ export const defaultConfig: MindmapConfig = {
     moveOnPattern:
       "\\b(?:move\\s+on|pivot|fine\\s+as\\s+is|leave\\s+(?:it|this)|what\\s+next|something\\s+else|focus\\s+on\\s+some\\s+part\\s+of\\s+the\\s+draft)\\b",
     organizePairDeclineLimit: 2,
+  },
+  capabilities: {
+    canDo: [
+      "reflect your own words back to you (a mirror you confirm chunk by chunk)",
+      "ask focused questions to help you think, not to fill the map",
+      "place a card, nest a card, connect two cards, or reword a card when you give exact wording or a card ref (e.g. reword #12 to <your words>)",
+      "keep track of exact phrases you parked earlier so you can return to them",
+      "point at parts of your own draft (read-only) to anchor a question",
+    ],
+    cantDo: [
+      "write, rewrite, summarize, or edit your draft for you",
+      "decide the structure, wording, hierarchy, or connections for you",
+      "put anything on the map that isn't your own exact words, chosen by you",
+      "change card colors, styling, layout, or other appearance settings",
+      "export, save to a file, or share your map",
+    ],
   },
   turnShape: {
     largeUnitCount: 4,

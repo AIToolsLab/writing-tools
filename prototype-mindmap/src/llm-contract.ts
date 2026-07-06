@@ -134,7 +134,27 @@ export interface LLMTurn {
    * examine a stated assumption without supplying the answer.
    */
   questionStance?: QuestionStance;
+  /**
+   * The turn is a pure conversational aside with NO writing content — venting,
+   * confusion about the tool, a greeting/thanks, off-topic, or unparseable. When
+   * set (and the controller agrees the turn carries no substantive content), the
+   * coach answers briefly and honestly and the controller FENCES it: no map
+   * commands, no candidate harvest, no clarify/elicitation changes. `text` is the
+   * aside. Never use this to dodge a real answer — if the turn also contains
+   * writing content, leave it unset and let normal coaching run.
+   */
+  metaIntent?: MetaIntent;
+  /**
+   * How the user seems to be feeling this turn. A TONE/PACING modifier only — it
+   * never fences anything, never drops content, and works on ANY turn including a
+   * productive one. When drained/overwhelmed/frustrated, the controller softens
+   * and drops the map-ward pressure nudges. "energized" leaves pacing unchanged.
+   */
+  affect?: UserAffect;
 }
+
+export type MetaIntent = "emotional" | "confused" | "social" | "off_topic" | "unparseable";
+export type UserAffect = "exhausted" | "frustrated" | "overwhelmed" | "energized";
 
 export interface LLMMapConnection {
   id: string;
@@ -177,6 +197,20 @@ export interface LLMContext {
   readyCandidateIds: string[];
   /** True when the user's message contains stuck language ("I'm not sure" etc.). */
   userIsStuck: boolean;
+  /**
+   * Deterministic floor for affect: true when the user's wording clearly reads
+   * as drained/overwhelmed ("I'm exhausted", "this is too much"). A backup for
+   * when the model doesn't set `affect` itself. When true the coach should
+   * acknowledge gently and NOT push toward the map. It never forces harshness —
+   * it only ever adds gentleness.
+   */
+  userSeemsDrained?: boolean;
+  /**
+   * The capabilities manifest — product truth about what this tool can and
+   * cannot do. Optional on the context: `api.ts` falls back to the config
+   * manifest when a caller (e.g. a test) omits it.
+   */
+  capabilities?: { canDo: string[]; cantDo: string[] };
   /**
    * True when the user explicitly asked the coach for help focusing, a
    * recommendation, or possible directions ("where could we go from here?",

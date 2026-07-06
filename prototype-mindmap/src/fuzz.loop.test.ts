@@ -222,7 +222,11 @@ function nextUserInput(world: FuzzWorld): FuzzInput {
     if (a === b) b = refs.find((r) => r !== a) ?? b;
     return {
       kind: "ref_command",
-      text: pick(rng, [`Connect ${a} to ${b}`, `put ${a} under ${b}`]),
+      text: pick(rng, [
+        `Connect ${a} to ${b}`,
+        `put ${a} under ${b}`,
+        `reword ${a} to ${pick(rng, TOPIC_PHRASES)} ${pick(rng, TOPIC_TAILS)}`,
+      ]),
     };
   }
   if (roll < 0.77 && cardTexts.length >= 2) {
@@ -474,6 +478,18 @@ function buildAdversarialLLM(world: FuzzWorld): MockLLM {
           text: old,
           sourceSpan: { userPhrase: old, utteranceIds: cited ? [cited] : [] },
         });
+      } else if (attack < 0.7 && cards.length >= 1) {
+        // Rewrite an existing card to invented model text — the edit gates must
+        // refuse (replacement wording is not this turn's user words).
+        commands.push({
+          kind: "edit_card",
+          cardText: cardRef(cards[0]!.id),
+          newText: `${INVENTED_MARKER} rewritten meaning`,
+          sourceSpan: {
+            userPhrase: `${INVENTED_MARKER} rewritten meaning`,
+            utteranceIds: cited ? [cited] : [],
+          },
+        });
       } else if (attack < 0.8 && cards.length >= 1) {
         commands.push({
           kind: "nest_card",
@@ -493,6 +509,25 @@ function buildAdversarialLLM(world: FuzzWorld): MockLLM {
         text: pick(rng, PLAIN_QUESTIONS),
         mapCommands: commands,
         questionStance: "organize",
+      };
+    }
+
+    // --- Meta lane abuse: claim an aside while smuggling structure. Every map
+    //     command and candidate upsert on a honored meta turn must be dropped. ---
+    if (roll < 0.92) {
+      const cited = recent[0]?.id;
+      const cards = ctx.map.thoughtUnits.filter((u) => u.role !== "connection_label" && u.text.trim());
+      return {
+        mode: "question",
+        text: `${MODEL_PROSE_MARKER} sure, whatever you say`,
+        metaIntent: pick(rng, ["emotional", "confused", "social", "off_topic", "unparseable"] as const),
+        affect: pick(rng, ["exhausted", "frustrated", "overwhelmed", "energized"] as const),
+        mapCommands: cards.length >= 1
+          ? [{ kind: "create_card", text: `${INVENTED_MARKER} smuggled`, sourceSpan: { userPhrase: `${INVENTED_MARKER} smuggled`, utteranceIds: cited ? [cited] : [] } }]
+          : undefined,
+        candidateUpserts: [
+          { id: `cand_meta_${Math.floor(rng() * 100)}`, target: "idea", gist: `${MODEL_PROSE_MARKER} aside`, addEvidenceIds: cited ? [cited] : [] },
+        ],
       };
     }
 
@@ -522,7 +557,7 @@ function buildAdversarialLLM(world: FuzzWorld): MockLLM {
 // ---------------------------------------------------------------------------
 
 const VALID_MODES = new Set(["question", "mirror", "clarify"]);
-const MUTATION_KINDS = new Set(["create_card", "nest_card", "connect_cards"]);
+const MUTATION_KINDS = new Set(["create_card", "nest_card", "connect_cards", "edit_card"]);
 
 function traceOf(world: FuzzWorld): string {
   const tail = world.log.slice(-8);
@@ -545,6 +580,7 @@ function checkCommandAuthorship(world: FuzzWorld, out: TurnOutput): void {
   for (const command of out.mapCommands ?? []) {
     const mintedTexts: string[] = [];
     if (command.kind === "create_card") mintedTexts.push(command.text);
+    if (command.kind === "edit_card") mintedTexts.push(command.text);
     if (command.kind === "nest_card" && !("id" in command.child)) mintedTexts.push(command.child.text);
     if (command.kind === "connect_cards") {
       if (!("id" in command.source)) mintedTexts.push(command.source.text);
@@ -598,7 +634,7 @@ function checkTurnInvariants(world: FuzzWorld, out: TurnOutput): void {
   if (out.mode === "mirror") {
     expect(out.validatedMirror, `I3 violation: mirror without validatedMirror\n${traceOf(world)}`).toBeDefined();
     expect(out.text, `I3 violation: mirror text is not the fixed preamble\n${traceOf(world)}`).toBe(MIRROR_PREAMBLE);
-    const eligible = world.state.bank.getAll().filter((u) => !u.commandOnly);
+    const eligible = world.state.bank.getAll().filter((u) => !u.commandOnly && !u.nonHarvestable);
     const revalidated = validateMirror(out.validatedMirror!.reflection, eligible, world.config);
     expect(
       revalidated.ok,
@@ -610,6 +646,14 @@ function checkTurnInvariants(world: FuzzWorld, out: TurnOutput): void {
         `I3 violation: mirrored claim uses non-user vocabulary: ${JSON.stringify(claim.text)}\n${traceOf(world)}`,
       ).toBe(true);
     }
+  }
+
+  // I7: a fenced meta aside never authors or harvests structure.
+  if (out.suppressionReason === "meta_aside") {
+    expect(
+      (out.mapCommands ?? []).length,
+      `I7 violation: meta_aside turn carried map commands\n${traceOf(world)}`,
+    ).toBe(0);
   }
 
   checkCommandAuthorship(world, out);

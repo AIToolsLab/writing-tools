@@ -106,6 +106,18 @@ export class SourceBank {
     }
   }
 
+  /** Mark utterances as conversational asides — kept, but not writing material. */
+  markNonHarvestable(ids: Iterable<string>): void {
+    for (const id of ids) {
+      const utterance = this._utterances.get(id);
+      if (!utterance || utterance.nonHarvestable) continue;
+      this._utterances.set(id, {
+        ...utterance,
+        nonHarvestable: true,
+      });
+    }
+  }
+
   replaceAll(utterances: SourceUtterance[]): void {
     this._utterances = new Map(utterances.map((u) => [u.id, u]));
     primeIdCounters(

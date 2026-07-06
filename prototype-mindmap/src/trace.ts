@@ -134,6 +134,12 @@ const SUPPRESSION_CATALOG: Record<SuppressionReason, CatalogEntry> = {
     title: "Followed your instruction",
     explanation: "You gave a direct instruction, so I did that and stepped back.",
   },
+  meta_aside: {
+    level: "quiet",
+    icon: "chat",
+    title: "Answered directly",
+    explanation: "That read as a quick aside, so I answered it plainly — no map change.",
+  },
 };
 
 /** Plain-question stance — always ambient. Compile-enforced over the union. */

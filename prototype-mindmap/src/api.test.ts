@@ -83,6 +83,30 @@ describe("makeLLM JSON resilience", () => {
     expect(system).toContain("try mirroring the structure");
   });
 
+  it("keeps non-harvestable aside utterances out of the source bank prompt", async () => {
+    const valid = '{"mode":"question","text":"What next?"}';
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(valid));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await makeLLM()({
+      ...ctx,
+      bank: [
+        { id: "u_1", text: "authorship means the writer chooses", origin: "chat", timestamp: 1 },
+        { id: "u_2", text: "ugh whatever", origin: "chat", timestamp: 2, nonHarvestable: true },
+        { id: "u_3", text: "make a card", origin: "chat", timestamp: 3, commandOnly: true },
+      ],
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const system = body.messages.find((m) => m.role === "system")?.content ?? "";
+    const sourceBank = system.match(/SOURCE BANK[\s\S]*?CANDIDATE THOUGHTS/)?.[0] ?? "";
+    expect(sourceBank).toContain("[u_1] authorship means the writer chooses");
+    expect(sourceBank).not.toContain("ugh whatever");
+    expect(sourceBank).not.toContain("make a card");
+  });
+
   it("renders a highest-priority override directive when the user forces a mode", async () => {
     const valid = '{"mode":"question","text":"What next?"}';
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(valid));

@@ -144,10 +144,133 @@ answered scoping questions I took **layout/routing first (#1,#2,#4,#5)**, **own 
   beyond staggering; deeper popover free-space collision search (current high-z + float-above solves the
   "hidden under card" complaint). #3/#6/#7 were done during the quota gap — not re-touched.
 
+## Review pass over the gap-landed work (2026-07-05, third session)
+
+Scope: review + fix-as-you-go of everything landed between `20c20b6` and `74b71b8` (open-threads,
+edit_card, off-ramps, dismiss ideas, row-preserving auto-clean, generalized command precedence,
+stale-pending guard, sanitizeClarifySpan, typed mirror override). Baseline 537/537 → final 540/540,
+tsc + vite build clean.
+
+Fixed this pass (each with a regression test where behavioral):
+- R1 open-threads activation hijack: thread matching is deliberately loose (one shared topic word =
+  0.5 overlap on a 2-token thread), and it fired on EVERY compact turn — an ordinary answer sharing a
+  word with an old parked phrase could retarget `activeSelectionContext` + mark the thread active.
+  Now only return/pivot-shaped turns (`looksLikeThreadReturn`) or literal restatements activate, and
+  direct-command turns never do. (controller.ts `activateMatchingParkedThread`)
+- R2 question-shaped edit hole: LLM-emitted `edit_card` was not dropped on question-shaped turns
+  (only create_card was), and `isUncertainExplicitPlacement` was missing the modals `could`/`shall`
+  that `isQuestionShapedCommandTurn` has — so "Could #10 say human oversight" (voice, no "?") could
+  execute a model-emitted edit. Both aligned; card WRITES (create+edit) now dropped on question turns.
+- R3 raw internal id leak (transcript bug): "That seems close to tu_10 ... edited/reworded?" showed
+  the internal unit id and offered an action that then had no path. Now cites the #ref and names the
+  fulfilling command ("You can say: reword #N to <your exact words>").
+- R4 capability off-ramp misses (transcript bug): "can you reword a card" / "are you capable of
+  rewording a card?" fell through to the coach loop (only "are you able to ... edit cards" matched).
+  Detector broadened to capability-verb + card phrasings; answer text now names the reword command.
+- R5 mojibake regexes: two `[â€™']` character classes (UTF-8 corruption of `[’']`) in
+  detectTypedModeOverride / detectOffRampResponse.
+- R6 dead block: the connection_label-specific command-precedence check was unreachable after the
+  generalized precedence guard landed; removed.
+- R7 fuzz harness taught about edit_card: MUTATION_KINDS (UTH read-only invariant), authorship check
+  on `edit_card.text`, an adversarial LLM edit attack (invented replacement wording must be blocked),
+  and a legit "reword #N to <words>" user-input category.
+
+Verified airtight in the new work (no action): edit_card acceptance gates mirror create_card
+(resolve + named-this-turn + exact current-turn replacement via word-boundary `textContainsExactPhrase`
++ cited-id check); commandConsumedUtteranceIds covers edit_card; sanitizeClarifySpan applied at both
+clarifyTarget set-points; stale-pending guard drops confirmations whose cards were deleted; UTH/trace/
+App ack/api prompt all cover edit_card; dismiss wiring (App ✕ → dismissedCandidateIds, persisted,
+cloned, cleared with state) emits zero map writes.
+
+## Weird-input lane (2026-07-05, fourth session) — the two-channel "aware, not fenced" design
+
+User + reviewer green-lit the LLM meta-lane, but the ORIGINAL binary (meta OR coach) would have
+fenced the AI from noticing exhaustion on a productive turn. Fixed by splitting into TWO channels so
+awareness is never gated out — only STRUCTURE is fenced. Decisions: soften + drop map-ward pushes
+(no proactive pause); LLM + deterministic floor. 549/549 green, tsc + vite build clean.
+
+- **Channel 1 — `metaIntent` (pure aside, fenced).** New `LLMTurn.metaIntent`
+  (emotional|confused|social|off_topic|unparseable). Honored only when the turn is clearly not real
+  work: `!command && !userAnsweredLastQuestion && !inCardCapture && !looksLikeSubstantiveAnswer` (the
+  last is the reviewer's mixed-turn guard — a "frustrated but here's my real point" turn is coached,
+  never discarded). When honored: return BEFORE candidate application and command routing (structure
+  can't leak), mark the utterance `nonHarvestable` (new flag, NOT `commandOnly` — reviewer's point),
+  preserve clarifyTarget/activeElicitation/lastCoachQuestion so a brief aside doesn't wipe the thread.
+  `suppressionReason: "meta_aside"`.
+- **Channel 2 — `affect` (tone/pacing modifier, NEVER fences).** New `LLMTurn.affect`
+  (exhausted|frustrated|overwhelmed|energized) settable on ANY turn including productive ones, plus a
+  deterministic floor (`DRAINED_PHRASES` + `LLMContext.userSeemsDrained`) that can only ASSERT drained,
+  never force harshness. When drained, `mirrorPressureHigh` and the draft-`salienceBridge` are switched
+  OFF — i.e. genuine "this person is tired" recognition removes the two brittle map-ward pushes instead
+  of code forcing them. This is the crux of honoring the user's "don't fence awareness" value.
+- **Capabilities manifest** (`config.capabilities.canDo/cantDo`) — product truth injected into the
+  prompt so meta/capability answers stay honest instead of model vibes; `LLMContext.capabilities`
+  optional (api falls back to config). Deterministic capability/authoring off-ramps kept as the reliable
+  fast path; the soft meta-repair off-ramp now also defers to coaching on substantive turns.
+- **Post-review hardening**: deterministic capability answers now render from the manifest instead of
+  hardcoded copy; unsupported feature asks such as card styling/color/export route to the hard
+  capability off-ramp before the LLM, so no smuggled candidates/commands can be harvested; and a pure
+  `meta_aside` no longer clears `pendingCardWording`/`captureLoop`, so a quick "ugh" during card-capture
+  does not wipe the exact wording the user already supplied.
+- **Second bug sweep**: `nonHarvestable` now propagates through the async live-bank merge and is excluded
+  everywhere source material is rendered or re-derived (`api` Source Bank prompt, focus-help bank anchors,
+  App readiness snapshot, and UTH idea labels). This closes the read-side leak where a fenced aside could
+  still appear as ordinary source context even though controller harvest/mirror gates excluded it.
+- **Enforcement**: `mirrorEligibleBank` excludes `nonHarvestable`; `store.markNonHarvestable` added;
+  api parser whitelists the two enums; question-shaped turns already drop card writes. Fuzz harness:
+  adversarial mock now sets metaIntent+affect while smuggling create_card + candidateUpserts → I7
+  invariant asserts a `meta_aside` turn carries zero map commands; mirror re-validation now excludes
+  nonHarvestable too. Tests: pure-aside fenced, mixed-turn NOT honored, drained-floor drops the
+  mirror-pressure push.
+- **Deferred / minor**: (a) a meta aside during a pending confirmation gets the "still pending"
+  reprompt (pending handlers run pre-LLM), not a warm aside — safe, nothing lost. (b) The substantive
+  backstop is a coarse >=3-content-token line; it errs low-cost both ways and the LLM's metaIntent is
+  always required, so no code-only fencing. (c) UTH keeps its last snapshot on a meta aside (no
+  rebuild), consistent with the deterministic off-ramp — a plain in-panel event is still a follow-up.
+
+## Review pass over the weird-input lane + reviewer fixes (2026-07-05, fifth session)
+
+Reviewed the landed reviewer-fix code (unsupported-capability detection, manifest-driven answer,
+meta-branch no longer clearing capture state — all confirmed present) plus the full off-ramp / meta /
+affect surface. 550/550 green, tsc + vite build clean.
+
+- **R-fix (real bug): capability off-ramp hijacked writing subject matter.** `isUnsupportedCapabilityAsk`
+  treated bare `style|color|theme|layout|appearance|font|background|bold|italic` as app-feature asks, so
+  a *writing* turn — "can you tell me if my **style** is clear", "**color** theory matters in my essay",
+  "make my writing **style** clearer", "the central **theme** of my essay" — got hijacked into the
+  capability off-ramp and its content discarded (`commandOnly`). Tightened in two rounds: (1) an
+  appearance word must co-occur with an unambiguous MUTATION verb (make/change/set/turn/... — `style`
+  and `color` no longer count as the verb); (2) narrowed `appearanceWord` to unambiguously-visual terms
+  only (`colou?rs?|blue|red|green|purple|font|fonts|layout`), dropping style/theme/appearance/background/
+  bold/italic. All pinned cases still fire ("make cards blue", "change the layout", "export this map");
+  new regression test covers 5 writing-content phrasings that must reach the coach and stay harvestable.
+- **Verified sound (no change):** meta lane fence returns before candidate/command routing;
+  `nonHarvestable` wired symmetrically (understanding.ts label sourcing, App.tsx bank merge OR-both-flags,
+  App.tsx understanding-bank filter); affect suppression gates only the two map-ward pushes
+  (mirror-pressure + draft-salience) and leaves the explicit user-asked list bridge alone; deterministic
+  off-ramp precedence over the LLM meta-lane is clean (off-ramp returns pre-LLM); trace catalog has
+  meta_aside so the header chip renders.
+- **Minor, left as-is:** "can you write my thesis" (a content-authoring ask) isn't caught by the
+  deterministic authoring off-ramp because `thesis` isn't in its target-noun list — but the LLM layer
+  (manifest in prompt) declines it and no content is authored (enforcement holds), so it's an honesty-UX
+  gap, not an enforcement hole. "change the layout"/"export this" remain intentionally map-interpreted
+  per the pinned tests; a rare "change the layout of my essay" could still be mis-caught.
+
 ## Judgment calls deferred to user (do not act)
-1. reference_confirmation swallows a NEW explicit command until the user answers yes/no/cancel/names a
-   card (connection_label got a command-precedence escape in `a207501`; reference_confirmation did not).
-   Exits exist (no/cancel/override), so not a wedge — extending command precedence there is a UX call.
+1. ~~reference_confirmation swallows a NEW explicit command~~ RESOLVED in the gap work: generalized
+   command precedence now preempts any pending kind (with a cancel guard).
+1b. Off-ramp ordering: a meta-repair phrase ("that's wrong") while a confirmation is pending CLEARS the
+   pending command and reorients, instead of routing to the near-match rejection/correction flow. Safe
+   (nothing executes) but lossy — the user must restate the command. Deliberate in the gap work (it has
+   its own test), so left as shipped; flagging the trade-off.
+1c. Dismissed-idea resurrection is LLM-gameable: un-suppression only requires the upsert to cite ANY
+   this-turn utterance, so a pushy model can revive a dismissed candidate off an unrelated turn.
+   Consequence-bounded (readiness/validator/confirm still gate; panel is read-only). A stricter
+   "re-articulate" check would need vocabulary overlap between the fresh turn and the dismissed idea.
+1d. The agreed "fenced LLM meta-lane" for emotional/general-weird input shipped as DETERMINISTIC
+   templates instead (annoyed/frustrated/confused/"that's wrong" → fixed repair copy). More conservative
+   than the decision, but general-weird input still falls to the normal coach loop with no special
+   prompt note. Fine for demo; revisit if off-distribution turns still feel mechanical.
 2. activeSelectionContext persists until the next mirror or large turn (advisory-only; feeds acceleration
    evidence + LLM ctx). Clearing it on move-on/topic-pivot would be tidier but changes coaching behavior.
 3. clearChatOnly (App.tsx ~3309) replaces the whole LoopState with a fresh empty bank while the MAP (and

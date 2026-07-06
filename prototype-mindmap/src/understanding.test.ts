@@ -89,6 +89,39 @@ describe("buildUnderstanding", () => {
     expect(label.toLowerCase()).not.toContain("please");
   });
 
+  it("does not label tracked ideas from non-harvestable aside wording", () => {
+    const bank = new SourceBank();
+    const source = bank.add("ugh whatever");
+    bank.markNonHarvestable([source.id]);
+    const candidate: CandidateThought = {
+      id: "candidate_aside",
+      target: "idea",
+      evidenceUtteranceIds: [source.id],
+      relationSignals: [],
+      gist: "aside gist",
+    };
+    const readiness: ReadinessSignal = {
+      candidateId: candidate.id,
+      target: "idea",
+      sourceDensity: 1,
+      relationClarity: 1,
+      unsupportedRisk: 0,
+      decision: "attempt_mirror",
+      reason: "Ready to mirror.",
+    };
+
+    const snapshot = buildUnderstanding({
+      out: out(),
+      candidates: [candidate],
+      readiness: [readiness],
+      bank,
+      draftDeclarations: [],
+      config: defaultConfig,
+    });
+
+    expect(snapshot.trackedIdeas).toHaveLength(0);
+  });
+
   it("does not strip an ordinary colon in the user's own wording", () => {
     const bank = new SourceBank();
     const source = bank.add("control means: the human decides what enters");

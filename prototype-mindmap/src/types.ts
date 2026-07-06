@@ -23,6 +23,12 @@ export interface SourceUtterance {
   turnId?: string;
   /** Ground-truth command wording kept for provenance, but excluded from mirrors. */
   commandOnly?: boolean;
+  /**
+   * Kept for provenance but excluded from mirror/candidate harvest, WITHOUT
+   * implying a map/control command. Used for conversational asides (the meta
+   * lane): the words are the user's, but they are not writing material to place.
+   */
+  nonHarvestable?: boolean;
 }
 
 // ---------------------------------------------------------------------------

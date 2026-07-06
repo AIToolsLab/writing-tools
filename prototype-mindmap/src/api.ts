@@ -135,7 +135,7 @@ NON-NEGOTIABLE RULES:
    concrete version — break it into something they can point at. Never move on.`;
 
 function renderBank(bank: SourceUtterance[]): string {
-  const visible = bank.filter((u) => !u.commandOnly);
+  const visible = bank.filter((u) => !u.commandOnly && !u.nonHarvestable);
   if (visible.length === 0) return "(nothing yet)";
   return visible.map((u) => `[${u.id}] ${u.text}`).join("\n");
 }
@@ -226,6 +226,21 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
   const stuckNote = ctx.userIsStuck
     ? `\nSTUCK: The user just said they're not sure. Do NOT move on. Use mode "clarify" or "question" to ask a tighter, more concrete version of what they're stuck on.`
     : "";
+
+  const capabilities = ctx.capabilities ?? cfg.capabilities;
+  // Meta lane + capabilities manifest. Recognition is yours; code fences every
+  // structural consequence. Honesty about capabilities is anchored to the
+  // manifest so you never invent or promise a feature that doesn't exist.
+  const metaNote =
+    `\nCONVERSATIONAL ASIDES (meta lane): Not every turn is writing input. When the user's turn is purely an aside — venting/emotion, confusion about how this tool works, a greeting/thanks, off-topic, or unparseable — set "metaIntent" (emotional | confused | social | off_topic | unparseable) and answer briefly, warmly, and honestly in "text". On such a turn emit NO mapCommands and NO candidateUpserts. Prefer coaching: only use metaIntent when the turn genuinely is not writing material. If the turn ALSO contains real writing content, do NOT use metaIntent — coach the content normally (you can still acknowledge the aside in one clause).
+WHAT YOU CAN DO (say only these; never promise anything outside this list):
+${capabilities.canDo.map((item) => `  - ${item}`).join("\n")}
+WHAT YOU CANNOT DO (be honest and brief; offer the nearest real capability, never invent a near-feature):
+${capabilities.cantDo.map((item) => `  - ${item}`).join("\n")}`;
+
+  // Affect: a tone/pacing modifier only. Never fences, never drops content.
+  const affectNote =
+    `\nAFFECT: You may set "affect" (exhausted | frustrated | overwhelmed | energized) on ANY turn, including a productive one — it changes only your tone and pacing, never what you harvest. If the user seems drained/overwhelmed/frustrated${ctx.userSeemsDrained ? " (their wording already reads that way this turn)" : ""}: acknowledge it in one short human sentence, make the next step smaller, and do NOT push toward the map (no "close enough to reflect back?", no "carry that to the map?"). Do not force progress on someone who is tired.`;
 
   // Focus-help override — the user explicitly asked for direction/recommendation.
   const focusHelpNote = ctx.focusHelpIntent
@@ -326,7 +341,7 @@ You MUST use mode "clarify" and ask one focused question about this specific phr
     : `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user explicitly asked you to help connect their ideas. Use mode "question" with questionIntent "organize": ask how already-named thoughts relate, in their own words. Do not offer label pairs to choose between, do not author structure, and do not emit mapCommands.`;
 
   return `${PHILOSOPHY}${forcedModeNote}
-${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${candidateTrackingNote}${mapNote}${mapQuestionNote}${transitionNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${openThreadsNote}${mirrorPressureNote}${legibilityNote}
+${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${candidateTrackingNote}${mapNote}${mapQuestionNote}${transitionNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${openThreadsNote}${mirrorPressureNote}${metaNote}${affectNote}${legibilityNote}
 
 LATEST USER TURN:
 """
@@ -370,6 +385,8 @@ ${
   "questionIntent": "deepen" | "organize",  // ONLY when mode = "question"
   "questionStance": "settle" | "narrow" | "deepen" | "organize" | "challenge",  // ONLY when mode = "question" or "clarify"
   "questionAnchor": string,                 // verbatim draft substring this question is about; empty string if none
+  "metaIntent": "emotional" | "confused" | "social" | "off_topic" | "unparseable",  // ONLY for a pure conversational aside (no writing content); emit no mapCommands/candidateUpserts
+  "affect": "exhausted" | "frustrated" | "overwhelmed" | "energized",  // OPTIONAL, any turn; tone/pacing only
 
   "mirror": {                            // ONLY when mode = "mirror"
     "claims": [
@@ -675,6 +692,8 @@ interface RawLLMResponse {
   questionIntent?: string;
   questionStance?: string;
   questionAnchor?: string;
+  metaIntent?: string;
+  affect?: string;
   mirror?: {
     claims?: Array<{
       id?: string;
@@ -825,6 +844,15 @@ function parseTurn(raw: RawLLMResponse): LLMTurn {
 
   if (raw.questionAnchor?.trim()) {
     turn.questionAnchor = raw.questionAnchor.trim();
+  }
+
+  const META_INTENTS = ["emotional", "confused", "social", "off_topic", "unparseable"] as const;
+  if (raw.metaIntent && (META_INTENTS as readonly string[]).includes(raw.metaIntent)) {
+    turn.metaIntent = raw.metaIntent as LLMTurn["metaIntent"];
+  }
+  const AFFECTS = ["exhausted", "frustrated", "overwhelmed", "energized"] as const;
+  if (raw.affect && (AFFECTS as readonly string[]).includes(raw.affect)) {
+    turn.affect = raw.affect as LLMTurn["affect"];
   }
 
   turn.candidateUpserts = (raw.candidateUpserts ?? [])

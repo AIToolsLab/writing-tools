@@ -2274,6 +2274,29 @@ describe("question mode", () => {
     expect(out.text).toBe("Do you want that placement?");
   });
 
+  it("drops an LLM edit_card emitted off a question-shaped turn without a question mark", async () => {
+    const state = createState();
+    const map = { thoughtUnits: [mapUnit("tu_10", "authorial ownership")], connections: [] };
+    // Voice input often drops the "?" — a leading modal alone must still read as
+    // asking WHETHER to act, never execute the model's edit.
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Do you want #10 to say that?",
+      mapCommands: [
+        {
+          kind: "edit_card",
+          cardText: "#10",
+          newText: "human oversight",
+          sourceSpan: { userPhrase: "human oversight", utteranceIds: [] },
+        },
+      ],
+    });
+
+    const out = await processTurn(state, "Could #10 say human oversight", llm, defaultConfig, "chat", map);
+
+    expect(out.mapCommands ?? []).toHaveLength(0);
+  });
+
   it("does not execute uncertain explicit placement when uncertainty appears before the command", async () => {
     const state = createState();
     const map = {
@@ -3623,8 +3646,10 @@ describe("pacing", () => {
     const out = await processTurn(state, userText, llm, cfg, "chat", sparseMap);
 
     expect(out.mode).toBe("clarify");
+    // User-facing copy cites the #ref (never the internal unit id) and names
+    // the exact edit command so the reword branch is actionable.
     expect(out.text).toBe(
-      "That seems close to n_1. Do you want this as a separate card, or should n_1 be edited/reworded?",
+      "That seems close to #1. Do you want this as a separate card, or should #1 be reworded? You can say: reword #1 to <your exact words>.",
     );
     expect(out.validatedMirror).toBeUndefined();
   });
@@ -4525,6 +4550,26 @@ describe("pacing", () => {
 
     expect(state.openThreads.find((thread) => thread.text === "The middle is about authorship.")?.status).toBe("active");
     expect(capturedCtx?.activeSelectionContext?.sourceUtteranceIds).toEqual(["u_2"]);
+  });
+
+  it("does not activate a parked thread from an ordinary answer that merely shares a word", async () => {
+    const state = createState();
+    await processTurn(
+      state,
+      "The opening is about control. The middle is about authorship. The ending needs a contrast. I am still exploring what matters most.",
+      questionLLM("Which one piece should we stay with first?"),
+    );
+
+    // Substantive answer, not a return/pivot-shaped turn — it shares the word
+    // "authorship" with a parked thread (0.5 overlap on a 2-token thread), but
+    // must not activate it or retarget the bounded selection context.
+    await processTurn(
+      state,
+      "authorship feels heavier than control in my everyday writing",
+      questionLLM("Say more about that?"),
+    );
+
+    expect(state.openThreads.some((thread) => thread.status === "active")).toBe(false);
   });
 
   it("keeps a single idea upsert from a large exploratory turn as non-structural evidence", async () => {
@@ -6597,6 +6642,188 @@ describe("parked/authorship hardening follow-ups", () => {
     expect(out.text).toContain("Let's slow it down");
     expect(out.commandDebug?.[0]?.reason).toBe("meta_repair_off_ramp");
     expect(state.bank.getAll()[0].commandOnly).toBe(true);
+  });
+
+  it("answers card-capability questions honestly instead of looping the coach", async () => {
+    // Both transcript phrasings that previously fell through to the coach loop.
+    for (const question of ["can you reword a card", "are you capable of rewording a card?"]) {
+      const state = createState();
+      const out = await processTurn(state, question, questionLLM("ignored"));
+
+      expect(out.commandDebug?.[0]?.reason).toBe("capability_off_ramp");
+      expect(out.text).toContain("reword #12");
+      expect(out.mapCommands).toBeUndefined();
+      expect(state.bank.getAll()[0].commandOnly).toBe(true);
+    }
+  });
+
+  it("answers unsupported capability questions from the manifest without harvesting them", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => {
+      throw new Error("capability off-ramp should not call the LLM");
+    };
+
+    const out = await processTurn(state, "can you make cards blue", llm);
+
+    expect(out.commandDebug?.[0]?.reason).toBe("capability_off_ramp");
+    expect(out.text).toContain("change card colors, styling, layout, or other appearance settings");
+    expect(out.mapCommands).toBeUndefined();
+    expect(state.candidates.getAll()).toHaveLength(0);
+    expect(state.bank.getAll()[0].commandOnly).toBe(true);
+
+    for (const question of ["can you change the layout", "can you export this map"]) {
+      const nextState = createState();
+      const nextOut = await processTurn(nextState, question, llm);
+      expect(nextOut.commandDebug?.[0]?.reason).toBe("capability_off_ramp");
+      expect(nextState.bank.getAll()[0].commandOnly).toBe(true);
+    }
+  });
+
+  it("does not hijack writing subject matter (style/color/layout) as a capability ask", async () => {
+    // These are about the user's WRITING, not an app feature — they must reach the
+    // coach, not the capability off-ramp, and their content stays harvestable.
+    for (const content of [
+      "can you tell me if my style is clear and matches my argument",
+      "color theory matters a lot in the essay I am writing",
+      "the layout of my argument feels off to me",
+      "can you help me make my writing style clearer",
+      "what is the central theme of my essay about ownership",
+    ]) {
+      const state = createState();
+      const out = await processTurn(state, content, questionLLM("Say more?"));
+      expect(out.commandDebug?.[0]?.reason).not.toBe("capability_off_ramp");
+      expect(out.suppressionReason).not.toBe("meta_aside");
+      expect(state.bank.getAll().every((u) => !u.commandOnly && !u.nonHarvestable)).toBe(true);
+    }
+  });
+
+  it("renders deterministic capability answers from config rather than hardcoded text", async () => {
+    const state = createState();
+    const cfg: MindmapConfig = {
+      ...defaultConfig,
+      capabilities: {
+        canDo: ["custom supported action"],
+        cantDo: ["custom unsupported action"],
+      },
+    };
+
+    const out = await processTurn(state, "what can you do", questionLLM("ignored"), cfg);
+
+    expect(out.commandDebug?.[0]?.reason).toBe("capability_off_ramp");
+    expect(out.text).toContain("custom supported action");
+    expect(out.text).toContain("custom unsupported action");
+    expect(out.text).not.toContain("reword #12");
+  });
+
+  it("fences a pure-meta aside: shows the model's words, harvests nothing, drops smuggled structure", async () => {
+    const state = createState();
+    const map = { thoughtUnits: [mapUnit("tu_10", "authorial ownership")], connections: [] };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "No worries — take your time.",
+      metaIntent: "social",
+      // Smuggled structure on an aside turn — every bit must be dropped.
+      mapCommands: [
+        { kind: "create_card", text: "sneaky card", sourceSpan: { userPhrase: "sneaky card", utteranceIds: [] } },
+      ],
+      candidateUpserts: [{ id: "meta_bad", target: "idea", gist: "sneaky gist", addEvidenceIds: ["u_1"] }],
+    });
+
+    const out = await processTurn(state, "haha ok", llm, defaultConfig, "chat", map);
+
+    expect(out.text).toBe("No worries — take your time.");
+    expect(out.suppressionReason).toBe("meta_aside");
+    expect(out.mapCommands).toBeUndefined();
+    expect(state.candidates.getAll()).toHaveLength(0);
+    // Banked for provenance, but marked non-harvestable (not a command).
+    const utterance = state.bank.getAll()[0];
+    expect(utterance.nonHarvestable).toBe(true);
+    expect(utterance.commandOnly).toBeUndefined();
+  });
+
+  it("preserves pending card wording when a pure-meta aside interrupts capture", async () => {
+    const state = createState();
+    state.activeElicitation = { kind: "carry_forward" };
+    state.pendingCardWording = {
+      text: "writer owns the final wording",
+      normalizedText: "writer owns the final wording",
+      utteranceIds: ["u_prev"],
+      source: "carry_forward",
+      attemptCount: 1,
+    };
+    state.captureLoop = { lastAnswerNorm: "writer owns the final wording", repeatCount: 1 };
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "We can pause there.",
+      metaIntent: "emotional",
+    });
+
+    const out = await processTurn(state, "ugh", llm);
+
+    expect(out.suppressionReason).toBe("meta_aside");
+    expect(state.pendingCardWording?.text).toBe("writer owns the final wording");
+    expect(state.captureLoop?.lastAnswerNorm).toBe("writer owns the final wording");
+    expect(state.activeElicitation).toEqual({ kind: "carry_forward" });
+  });
+
+  it("does not offer non-harvestable aside wording as a grounded focus option", async () => {
+    const state = createState();
+    await processTurn(state, "ugh", (_ctx): LLMTurn => ({
+      mode: "question",
+      text: "We can pause there.",
+      metaIntent: "emotional",
+    }));
+
+    const out = await processTurn(
+      state,
+      "what should I do next",
+      questionLLM("Which part feels easiest to start with?"),
+    );
+
+    expect(out.text).not.toContain("ugh");
+  });
+
+  it("does NOT honor metaIntent on a mixed turn that carries real writing content", async () => {
+    const state = createState();
+    const llm = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What feels most alive there?",
+      metaIntent: "emotional",
+      affect: "frustrated",
+    });
+
+    const out = await processTurn(
+      state,
+      "honestly I'm frustrated, but the real point is authorship requires more control from the writer",
+      llm,
+    );
+
+    // The aside is not honored — the content is coached and stays harvestable.
+    expect(out.suppressionReason).not.toBe("meta_aside");
+    expect(state.bank.getAll().every((u) => !u.nonHarvestable)).toBe(true);
+  });
+
+  it("drops the map-ward pressure nudge when the user seems drained (deterministic floor)", async () => {
+    const cfg = noReadinessCfg({ minQuestionTurnsBetweenMirrors: 0, minReadyCandidatesToBatch: 2 });
+    // Prime two ready candidates so mirror-pressure would normally fire.
+    const state = createState();
+    const primeLLM = (ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "Q",
+      questionStance: "deepen",
+      candidateUpserts: ctx.bank.slice(-1).map((u, i) => ({
+        id: `ready_${state.candidates.getAll().length + i + 1}`,
+        target: "idea" as const,
+        gist: u.text,
+        addEvidenceIds: [u.id],
+      })),
+    });
+    await processTurn(state, "control means the writer decides everything", primeLLM, cfg);
+    await processTurn(state, "ownership means the writer keeps authorship", primeLLM, cfg);
+
+    // A drained turn must not get the "close enough to reflect back?" push.
+    const out = await processTurn(state, "honestly I'm exhausted right now", questionLLM("plain"), cfg);
+    expect(out.suppressionReason).not.toBe("mirror_pressure_bridge");
   });
 
   it("filters dismissed candidate upserts until the user freshly re-articulates them", async () => {
