@@ -20,7 +20,13 @@ import {
 } from './liveVoice';
 
 type Status = 'idle' | 'connecting' | 'live' | 'error';
-type LogEntry = { kind: TranscriptSpeaker | 'tool' | 'system'; text: string };
+// `id` is the transcript segment id, so interim → final updates replace the same
+// line. Tool/system entries have no id and always append.
+type LogEntry = {
+	kind: TranscriptSpeaker | 'tool' | 'system';
+	text: string;
+	id?: string;
+};
 
 export function VoiceSession(props: {
 	editor: EditorAPI;
@@ -31,9 +37,13 @@ export function VoiceSession(props: {
 	const audioRef = useRef<HTMLAudioElement>(null);
 	const sessionRef = useRef<Session | null>(null);
 
-	// The writer's spoken turns, accumulated so the corpus lets the model shape
-	// what they just said. A ref so `corpus()` always sees the latest.
-	const spokenRef = useRef<string[]>([]);
+	// The writer's spoken turns, so the corpus lets the model shape what they
+	// just said. Keyed by segment id and updated on every transcript update
+	// (interim included), so a word enters the word-bank as soon as ASR has a
+	// guess — not only when the (often-delayed) final segment lands. That
+	// shrinks the window where the model tries to shape a just-spoken word and
+	// gets a spurious REJECTED. A ref so `corpus()` always sees the latest.
+	const spokenRef = useRef<Map<string, string>>(new Map());
 	const scratchpadRef = useRef(scratchpad);
 	scratchpadRef.current = scratchpad;
 
@@ -48,24 +58,39 @@ export function VoiceSession(props: {
 			buildCorpus({
 				docText: await editor.getDocText(),
 				scratchpad: scratchpadRef.current,
-				userMessages: spokenRef.current,
+				userMessages: [...spokenRef.current.values()],
 			}),
 		[editor],
 	);
+
+	// Replace a transcript segment's line in place (interim → final share an id)
+	// instead of appending one per update. Tool/system entries have no id and
+	// always append.
+	const upsertLog = useCallback((entry: LogEntry) => {
+		setLog((prev) => {
+			const idx = entry.id ? prev.findIndex((e) => e.id === entry.id) : -1;
+			if (idx === -1) return [...prev, entry];
+			const next = prev.slice();
+			next[idx] = entry;
+			return next;
+		});
+	}, []);
 
 	const start = useCallback(async () => {
 		if (sessionRef.current || !audioRef.current) return;
 		setStatus('connecting');
 		setLog([]);
-		spokenRef.current = [];
+		spokenRef.current = new Map();
 		try {
 			const session = await startVoiceSession({
 				editor,
 				corpus,
 				audioEl: audioRef.current,
-				onTranscript: (who, text) => {
-					if (who === 'you') spokenRef.current.push(text);
-					pushLog({ kind: who, text });
+				onTranscript: (seg) => {
+					// Feed the writer's words (interim included) into the corpus,
+					// replacing this segment's prior text as ASR refines it.
+					if (seg.who === 'you') spokenRef.current.set(seg.id, seg.text);
+					upsertLog({ kind: seg.who, text: seg.text, id: seg.id });
 				},
 				onTool: (text) => pushLog({ kind: 'tool', text }),
 				onStatus: (text) => pushLog({ kind: 'system', text }),
@@ -76,7 +101,7 @@ export function VoiceSession(props: {
 			setStatus('error');
 			pushLog({ kind: 'system', text: `failed: ${(e as Error).message}` });
 		}
-	}, [editor, corpus, pushLog]);
+	}, [editor, corpus, pushLog, upsertLog]);
 
 	const stop = useCallback(async () => {
 		await sessionRef.current?.stop();

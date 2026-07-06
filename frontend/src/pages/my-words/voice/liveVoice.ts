@@ -32,6 +32,20 @@ import type { EditOp } from '../interaction/types';
 
 export type TranscriptSpeaker = 'you' | 'partner';
 
+/**
+ * One transcription update. LiveKit splits each utterance into a segment and
+ * emits an interim stream (`final: false`, live updates) then a final stream
+ * (`final: true`), both sharing `id` — so consumers replace by `id` rather than
+ * appending, and act on the writer's words only when `final`.
+ */
+export interface TranscriptSegment {
+	who: TranscriptSpeaker;
+	/** Stable `lk.segment_id`: interim and final updates share it. */
+	id: string;
+	text: string;
+	final: boolean;
+}
+
 export interface VoiceSessionOptions {
 	/** The real editor host (from EditorContext). */
 	editor: EditorAPI;
@@ -39,8 +53,8 @@ export interface VoiceSessionOptions {
 	corpus: () => Promise<Corpus>;
 	/** Element the agent's audio track is attached to for playback. */
 	audioEl: HTMLAudioElement;
-	/** A finalized transcript segment (writer or agent). */
-	onTranscript?: (who: TranscriptSpeaker, text: string) => void;
+	/** A transcript update (interim or final); dedupe by `seg.id`. */
+	onTranscript?: (seg: TranscriptSegment) => void;
 	/** A tool call landed (for the on-screen log). */
 	onTool?: (text: string) => void;
 	/** Connection/playback status (not conversation content). */
@@ -53,20 +67,23 @@ export interface VoiceSession {
 
 const TOOL_NAMES = ['view', 'str_replace', 'insert', 'move', 'highlight'] as const;
 
+/** Coerce an unknown RPC-payload field to a string (non-strings → ''). */
+const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+
 /** Map an RPC payload to an `EditOp`, or throw if the shape is unusable. */
 function payloadToOp(method: string, a: Record<string, unknown>): EditOp {
 	switch (method) {
 		case 'str_replace':
 			return {
 				kind: 'str_replace',
-				oldStr: String(a.old_str ?? ''),
-				newStr: String(a.new_str ?? ''),
+				oldStr: str(a.old_str),
+				newStr: str(a.new_str),
 				paragraph: a.paragraph as number | undefined,
 			};
 		case 'insert':
 			return {
 				kind: 'insert',
-				text: String(a.text ?? ''),
+				text: str(a.text),
 				after: a.after as string | undefined,
 				paragraph: a.paragraph as number | undefined,
 				position: a.position as 'before' | 'after' | undefined,
@@ -74,7 +91,7 @@ function payloadToOp(method: string, a: Record<string, unknown>): EditOp {
 		case 'move':
 			return {
 				kind: 'move',
-				phrase: String(a.phrase ?? ''),
+				phrase: str(a.phrase),
 				paragraph: Number(a.paragraph),
 				position: a.position as 'before' | 'after' | undefined,
 			};
@@ -114,18 +131,30 @@ export async function startVoiceSession(
 	});
 	room.on(RoomEvent.Disconnected, () => opts.onStatus?.('disconnected'));
 
-	// Transcriptions arrive as text streams on the `lk.transcription` topic, one
-	// per finalized segment, tagged with the speaker's identity.
+	// Transcriptions arrive as text streams on the `lk.transcription` topic. Each
+	// utterance yields an interim then a final stream sharing `lk.segment_id`; we
+	// pass both up (tagged `final`) so consumers replace-by-id instead of piling
+	// up a line per update. (The handler must return void, so the async read runs
+	// in a fire-and-forget IIFE.)
 	room.registerTextStreamHandler(
 		'lk.transcription',
-		async (reader, participant: { identity?: string }) => {
-			const text = (await reader.readAll()).trim();
-			if (!text) return;
-			const who: TranscriptSpeaker =
-				participant.identity === room.localParticipant.identity
-					? 'you'
-					: 'partner';
-			opts.onTranscript?.(who, text);
+		(reader, participant: { identity?: string }) => {
+			const attrs = reader.info.attributes ?? {};
+			// Real transcriptions carry a transcribed track id; ignore other text.
+			if (!attrs['lk.transcribed_track_id']) return;
+			void (async () => {
+				const text = (await reader.readAll()).trim();
+				if (!text) return;
+				opts.onTranscript?.({
+					who:
+						participant.identity === room.localParticipant.identity
+							? 'you'
+							: 'partner',
+					id: attrs['lk.segment_id'] || reader.info.id,
+					text,
+					final: attrs['lk.transcription_final'] === 'true',
+				});
+			})();
 		},
 	);
 
@@ -144,7 +173,7 @@ export async function startVoiceSession(
 			return viewText(editor);
 		}
 		if (method === 'highlight') {
-			const phrase = String(args.phrase ?? '');
+			const phrase = str(args.phrase);
 			try {
 				await editor.selectPhrase(phrase);
 				opts.onTool?.(`highlight("${phrase}")`);
