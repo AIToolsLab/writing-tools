@@ -140,40 +140,15 @@ function proxyGeometryEqual(
 }
 
 /**
- * Connections whose endpoint is a NESTED card need an invisible proxy anchor
- * node: only root cards become React Flow nodes, so an edge that still targets
- * the child id silently vanishes. The proxy keeps the edge pointing at the REAL
- * child card id — remapping the edge to the parent would silently change which
- * card the connection means — and sits over the embedded card's rendered spot.
+ * Legacy nested-endpoint edges used invisible proxy anchors. Connections now
+ * normalize to root cards in the store, so this deliberately returns no proxies:
+ * rendering a proxy would preserve corrupt state instead of surfacing it.
  */
 export function proxyAnchorSpecs(
-  units: ThoughtUnit[],
-  connections: Array<{ sourceId: string; targetId: string }>,
+  _units: ThoughtUnit[],
+  _connections: Array<{ sourceId: string; targetId: string }>,
 ): Array<{ id: string; rootId: string }> {
-  const byId = new Map(units.map((unit) => [unit.id, unit]));
-  const specs = new Map<string, string>();
-  for (const connection of connections) {
-    for (const endpointId of [connection.sourceId, connection.targetId]) {
-      if (specs.has(endpointId)) continue;
-      const unit = byId.get(endpointId);
-      if (!unit?.parentId || unit.role === "connection_label") continue;
-      let root = unit;
-      const seen = new Set<string>([unit.id]);
-      let broken = false;
-      while (root.parentId) {
-        const parent = byId.get(root.parentId);
-        if (!parent || seen.has(parent.id)) {
-          broken = true;
-          break;
-        }
-        seen.add(parent.id);
-        root = parent;
-      }
-      if (broken) continue;
-      specs.set(endpointId, root.id);
-    }
-  }
-  return Array.from(specs.entries()).map(([id, rootId]) => ({ id, rootId }));
+  return [];
 }
 
 interface ThoughtMapProps {
@@ -1013,9 +988,8 @@ function ThoughtMapInner({
       };
     });
 
-    // Nested connection endpoints get an invisible proxy node parented to their
-    // root card, so their edges render at the embedded card's position instead
-    // of vanishing. Parents must precede children in the node array.
+    // The store normalizes connection endpoints to root cards. This legacy hook
+    // intentionally produces no nested endpoint proxies.
     const proxyNodes: MapFlowNode[] = proxyAnchorSpecs(allUnits, store.getConnections()).map(
       ({ id, rootId }) => {
         const measured = proxyGeometry[id];
@@ -1048,10 +1022,8 @@ function ThoughtMapInner({
     setNodes(flowNodes);
   }, [flowNodes, setNodes]);
 
-  // Measure where each nested endpoint's embedded card actually renders,
-  // relative to its root node, and place the proxy there. Zoom cancels out of
-  // the relative math, so measurements are stable across viewport changes; the
-  // equality guard keeps the effect from re-render looping.
+  // Legacy proxy geometry path. `proxyAnchorSpecs` now returns no specs because
+  // connection endpoints normalize to root cards in the store.
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
       const zoom = flow.getZoom() || 1;
@@ -1076,9 +1048,8 @@ function ThoughtMapInner({
     return () => cancelAnimationFrame(frame);
   }, [flow, nodes, revision, store]);
 
-  // Rendered center of a connection endpoint. Root cards use their own stored
-  // position; a nested endpoint falls back to the center of the card that
-  // actually renders it (its root ancestor) — enough to place/stagger badges.
+  // Rendered center of a connection endpoint. Endpoints should be root cards;
+  // the nested fallback is defensive for stale in-memory state.
   const endpointCenter = useCallback(
     (id: string): XYPosition | undefined => {
       return renderedEndpointCenter(store, id, { w: CARD_WIDTH, h: CARD_HEIGHT });

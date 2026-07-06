@@ -1,7 +1,6 @@
 /**
- * Headless tests for the nested-connection proxy anchors. The rendering side is
- * verified visually; these pin the spec derivation: which endpoints need a
- * proxy, and which root canvas node each proxy must be parented to.
+ * Headless tests for defensive endpoint geometry. Connections normalize to root
+ * cards in the store, so the old nested-endpoint proxy path must stay inactive.
  */
 
 import { describe, expect, it } from "vitest";
@@ -26,35 +25,31 @@ describe("proxyAnchorSpecs", () => {
     expect(proxyAnchorSpecs(units, [{ sourceId: "a", targetId: "b" }])).toEqual([]);
   });
 
-  it("maps a nested endpoint to its root ancestor", () => {
+  it("does not preserve a nested endpoint through a proxy", () => {
     const units = [unit("root"), unit("child", "root", "content"), unit("other")];
-    expect(proxyAnchorSpecs(units, [{ sourceId: "other", targetId: "child" }])).toEqual([
-      { id: "child", rootId: "root" },
-    ]);
+    expect(proxyAnchorSpecs(units, [{ sourceId: "other", targetId: "child" }])).toEqual([]);
   });
 
-  it("walks multi-level nesting to the actual canvas node", () => {
+  it("does not proxy multi-level nested endpoints", () => {
     const units = [
       unit("root"),
       unit("mid", "root", "subnode"),
       unit("leaf", "mid", "content"),
       unit("other"),
     ];
-    expect(proxyAnchorSpecs(units, [{ sourceId: "leaf", targetId: "other" }])).toEqual([
-      { id: "leaf", rootId: "root" },
-    ]);
+    expect(proxyAnchorSpecs(units, [{ sourceId: "leaf", targetId: "other" }])).toEqual([]);
   });
 
-  it("emits one spec per endpoint even across multiple connections", () => {
+  it("does not emit legacy specs across multiple connections", () => {
     const units = [unit("root"), unit("child", "root", "content"), unit("a"), unit("b")];
     const specs = proxyAnchorSpecs(units, [
       { sourceId: "a", targetId: "child" },
       { sourceId: "child", targetId: "b" },
     ]);
-    expect(specs).toEqual([{ id: "child", rootId: "root" }]);
+    expect(specs).toEqual([]);
   });
 
-  it("covers both endpoints when each is nested in a different parent", () => {
+  it("does not proxy either endpoint when both are nested", () => {
     const units = [
       unit("rootA"),
       unit("childA", "rootA", "content"),
@@ -62,10 +57,7 @@ describe("proxyAnchorSpecs", () => {
       unit("childB", "rootB", "content"),
     ];
     const specs = proxyAnchorSpecs(units, [{ sourceId: "childA", targetId: "childB" }]);
-    expect(specs).toEqual([
-      { id: "childA", rootId: "rootA" },
-      { id: "childB", rootId: "rootB" },
-    ]);
+    expect(specs).toEqual([]);
   });
 
   it("skips connection labels, unknown ids, and broken parent chains", () => {
