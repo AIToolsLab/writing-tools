@@ -18,7 +18,7 @@
 import { openai } from '@ai-sdk/openai';
 import { generateObject } from 'ai';
 import { z } from 'zod';
-import { readFileSync, writeFileSync, readdirSync } from 'fs';
+import { readFileSync, writeFileSync, readdirSync, existsSync } from 'fs';
 import { resolve } from 'path';
 import { fileURLToPath } from 'node:url';
 
@@ -128,6 +128,13 @@ async function main() {
   const criteria = loadCriteria();
   console.log(`Loaded ${criteria.length} criteria from criteria.md`);
 
+  // Tripwire: 0 criteria means every conversation is judged against nothing and "passes"
+  // vacuously. Fail loud rather than silently green.
+  if (criteria.length === 0) {
+    console.error('No criteria parsed from criteria.md — refusing to run (results would be vacuous).');
+    process.exit(1);
+  }
+
   // Find conversation logs. Exclude this pipeline's own result files (`_judgments.json`,
   // `_probes.json`) — they share the `${scenarioId}_` prefix but are not ConversationLogs,
   // and parsing them as logs crashes the judge (their `.messages` is undefined).
@@ -193,9 +200,15 @@ async function main() {
 
   console.log(`\nTotal failures: ${totalFailures}`);
 
-  // Write detailed results
+  // Write detailed results. Merge into any existing file so a single-archetype run
+  // (`judge.ts <scenario> <archetype>`) updates just that entry instead of clobbering
+  // the whole aggregate written by a full run.
   const outPath = resolve(OUTPUTS_DIR, `${scenarioId}_judgments.json`);
-  writeFileSync(outPath, JSON.stringify(allResults, null, 2) + '\n');
+  const existing: Record<string, Verdict[]> = existsSync(outPath)
+    ? JSON.parse(readFileSync(outPath, 'utf-8'))
+    : {};
+  const merged = { ...existing, ...allResults };
+  writeFileSync(outPath, JSON.stringify(merged, null, 2) + '\n');
   console.log(`Detailed results: ${outPath}`);
 
   if (totalFailures > 0) {

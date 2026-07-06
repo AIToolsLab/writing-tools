@@ -148,6 +148,12 @@ async function main() {
   const scenario = loadScenario(scenarioId);
 
   const criteria = loadCriteria();
+  // Tripwire: 0 criteria means every probe's criterion slug is "unknown" and the probe
+  // passes vacuously. Fail loud rather than silently green.
+  if (criteria.length === 0) {
+    console.error('No criteria parsed from criteria.md — refusing to run (results would be vacuous).');
+    process.exit(1);
+  }
   const criteriaById = new Map(criteria.map((c) => [c.id, c]));
 
   let probes = [...GENERIC_PROBES, ...getScenarioProbes(scenario)];
