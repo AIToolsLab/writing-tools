@@ -1,24 +1,17 @@
 /**
- * Provider-neutral auth session.
+ * App auth session.
  *
- * `AppInner` consumes `useAppAuth()` instead of calling `useAuth0()` directly, so the
- * visible login state (loading / authenticated / user / buttons) is decoupled from any
- * one provider. Three adapters supply the same `AppAuthSession` shape:
+ * `AppInner` consumes `useAppAuth()` for all visible login state (loading / authenticated
+ * / user / buttons), decoupled from the auth implementation. Two providers supply the
+ * same `AppAuthSession` shape:
  *
- *   - Auth0AuthProvider   (default everywhere; preserves current behavior)
- *   - BetterAuthProvider  (opt-in: standalone editor + ?auth=betterauth)
- *   - DemoAuthProvider    (OverallMode.demo)
+ *   - BetterAuthProvider  (default for every real-auth surface)
+ *   - DemoAuthProvider    (OverallMode.demo — Google Docs, no-backend dev)
  *
  * Hook-rule safety: we never call adapter hooks conditionally. `AppAuthProvider` chooses
  * WHICH provider component to render; each component unconditionally calls its own hooks
  * and is only mounted when selected.
- *
- * SCAFFOLDING: `Auth0AuthProvider`, `DemoAuthProvider`, and the `AppAuthProvider`
- * selector are temporary compatibility shims that let Auth0 and Better Auth coexist
- * during migration. Once Better Auth becomes the default, this collapses into a single
- * Better Auth-only provider and the selector/adapters can be removed.
  */
-import { useAuth0 } from '@auth0/auth0-react';
 import { useAtomValue } from 'jotai';
 import {
 	createContext,
@@ -26,19 +19,17 @@ import {
 	useMemo,
 	type ReactNode,
 } from 'react';
-import { detectPlatform } from '@/api';
 import { AccessTokenProvider } from '@/contexts/authTokenContext';
-import { EditorContext } from '@/contexts/editorContext';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 import { useDeviceAuth } from '@/hooks/useDeviceAuth';
 
 export interface AppAuthSession {
-	provider: 'auth0' | 'betterauth' | 'demo';
-	isLoading: boolean; // initial session/provider loading only
+	provider: 'betterauth' | 'demo';
+	isLoading: boolean; // initial session/provider loading (incl. token hydration)
 	isAuthorizing: boolean; // device polling in progress (NOT isLoading)
 	isAuthenticated: boolean; // token present AND user loaded
 	user?: { name?: string; email?: string };
-	error?: Error; // provider-level error (e.g. Auth0 error screen)
+	error?: Error; // provider-level error
 	authorization?: {
 		status: 'pending' | 'polling' | 'error';
 		userCode?: string;
@@ -51,7 +42,7 @@ export interface AppAuthSession {
 }
 
 const DEFAULT_SESSION: AppAuthSession = {
-	provider: 'auth0',
+	provider: 'betterauth',
 	isLoading: false,
 	isAuthorizing: false,
 	isAuthenticated: false,
@@ -66,43 +57,6 @@ const DEFAULT_SESSION: AppAuthSession = {
 const AppAuthContext = createContext<AppAuthSession>(DEFAULT_SESSION);
 
 export const useAppAuth = (): AppAuthSession => useContext(AppAuthContext);
-
-/** True only on the standalone editor with the explicit opt-in query param. */
-function isBetterAuthOptIn(): boolean {
-	if (typeof window === 'undefined') return false;
-	if (detectPlatform() !== 'standalone') return false;
-	return new URLSearchParams(window.location.search).get('auth') === 'betterauth';
-}
-
-// --- Auth0 adapter -------------------------------------------------------------
-
-function Auth0AuthProvider({ children }: { children: ReactNode }) {
-	const auth0 = useAuth0();
-	const editorAPI = useContext(EditorContext);
-
-	const session = useMemo<AppAuthSession>(
-		() => ({
-			provider: 'auth0',
-			isLoading: auth0.isLoading,
-			isAuthorizing: false,
-			isAuthenticated: auth0.isAuthenticated,
-			user: auth0.user
-				? { name: auth0.user.name, email: auth0.user.email }
-				: undefined,
-			error: auth0.error,
-			getAccessToken: auth0.getAccessTokenSilently,
-			login: () => editorAPI.doLogin(auth0),
-			logout: () => editorAPI.doLogout(auth0),
-		}),
-		[auth0, editorAPI],
-	);
-
-	return (
-		<AppAuthContext.Provider value={session}>
-			{children}
-		</AppAuthContext.Provider>
-	);
-}
 
 // --- Better Auth adapter -------------------------------------------------------
 
@@ -130,7 +84,9 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 
 		return {
 			provider: 'betterauth',
-			isLoading: false,
+			// Hydrating a persisted token on mount is initial session load, shown via the
+			// "Waiting" screen — NOT the device-code UI.
+			isLoading: device.status === 'hydrating',
 			isAuthorizing,
 			isAuthenticated: device.status === 'success' && !!device.token,
 			user: device.user,
@@ -182,17 +138,14 @@ function DemoAuthProvider({ children }: { children: ReactNode }) {
 
 // --- Selector + token bridge ---------------------------------------------------
 
-/** Renders exactly one adapter provider by mode + opt-in. */
+/** Renders the demo provider in demo mode, Better Auth everywhere else. */
 export function AppAuthProvider({ children }: { children: ReactNode }) {
 	const mode = useAtomValue(overallModeAtom);
 
 	if (mode === OverallMode.demo) {
 		return <DemoAuthProvider>{children}</DemoAuthProvider>;
 	}
-	if (isBetterAuthOptIn()) {
-		return <BetterAuthProvider>{children}</BetterAuthProvider>;
-	}
-	return <Auth0AuthProvider>{children}</Auth0AuthProvider>;
+	return <BetterAuthProvider>{children}</BetterAuthProvider>;
 }
 
 /** Feeds the selected session's getAccessToken into the existing token context. */

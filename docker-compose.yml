@@ -1,18 +1,18 @@
 services:
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    depends_on:
-      - backend
-    restart: unless-stopped
-
+  # Single public web container: the Hono backend serves both the built frontend
+  # (frontend/dist) and the /api/* routes. The old separate nginx `frontend`
+  # service is gone; the combined image is built from the repo-root Dockerfile.
   backend:
     build:
-      context: ./backend
+      context: .
       dockerfile: Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
     environment:
       - PORT=5000
+      # Persist study logs and the auth SQLite DB under one mounted volume.
+      # DATA_DIR is the single root for both (auth.db + logs/).
+      - DATA_DIR=/app/backend/data
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - LOG_SECRET=${LOG_SECRET}
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}

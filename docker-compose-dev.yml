@@ -1,20 +1,15 @@
 services:
-  frontend:
-    ports:
-      - "5001:80"
-    environment:
-      - NODE_ENV=production
-
+  # Combined container takes over the old frontend public port (5001).
   backend:
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
       - PORT=5000
       - DEBUG=True
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - LOG_SECRET=${LOG_SECRET:-}
     volumes:
-      - ./backend/logs:/app/backend/logs
+      # Single persistent volume: holds auth.db and logs/ (LOG_DIR points here).
       - ./backend/data:/app/backend/data
 
   experiment:

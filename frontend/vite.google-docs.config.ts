@@ -16,14 +16,18 @@ export default defineConfig(({ mode }) => {
 
 	return {
 		plugins: [react()],
+		// This lib build runs after `vite build` into the same dist/ (emptyOutDir
+		// is false). Disable publicDir copying so it does NOT re-copy public/ over
+		// the main build's output — in particular the prod-transformed
+		// dist/manifest.xml, which would otherwise be clobbered with the raw dev
+		// manifest (localhost:3000 / -dev id).
+		publicDir: false,
 		resolve: {
 			alias: {
 				'@': path.resolve(__dirname, './src')
 			}
 		},
 		define: {
-			'process.env.AUTH0_DOMAIN': JSON.stringify('dev-rbroo1fvav24wamu.us.auth0.com'),
-			'process.env.AUTH0_CLIENT_ID': JSON.stringify('YZhokQZRgE2YUqU5Is9LcaMiCzujoaVr'),
 			'process.env.NODE_ENV': JSON.stringify(isDev ? 'development' : 'production'),
 			// Backend origin for the sidebar: empty in dev (reaches the backend via
 			// the dev server's /api proxy); the deployed origin in prod.

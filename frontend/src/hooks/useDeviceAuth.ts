@@ -1,9 +1,11 @@
 /**
  * React hook driving the interactive Better Auth device flow.
  *
- * Owns the state machine and an in-memory access token (never persisted). Polling is
- * cancellable: reset(), logout(), unmount, or a fresh start() abort the in-flight loop
- * via an AbortController so a stale tick cannot deliver a token after the user leaves.
+ * Owns the state machine and the access token. The token is persisted (guarded
+ * localStorage) so a page refresh restores the session via hydrate-on-mount instead of
+ * forcing a fresh interactive login. Polling is cancellable: reset(), logout(), unmount,
+ * or a fresh start() abort the in-flight loop via an AbortController. The abort signal is
+ * the single source of truth for cancellation, so no mounted flag is needed.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
@@ -14,9 +16,11 @@ import {
 	requestDeviceCode,
 	signOut as signOutRequest,
 } from '@/api/deviceAuth';
+import { clearToken, loadToken, persistToken } from '@/api/authTokenStore';
 
 export type DeviceAuthStatus =
 	| 'idle'
+	| 'hydrating' // validating a persisted token on mount
 	| 'pending' // requesting the device code
 	| 'polling' // waiting for the user to approve in the browser
 	| 'success'
@@ -65,6 +69,7 @@ export function useDeviceAuth(): UseDeviceAuth {
 	const reset = useCallback(() => {
 		abortInFlight();
 		tokenRef.current = undefined;
+		clearToken();
 		setState(INITIAL);
 	}, [abortInFlight]);
 
@@ -132,6 +137,7 @@ export function useDeviceAuth(): UseDeviceAuth {
 				controller.signal,
 			);
 			tokenRef.current = result.accessToken;
+			persistToken(result.accessToken);
 			safeSet(controller, {
 				status: 'success',
 				token: result.accessToken,
@@ -154,23 +160,48 @@ export function useDeviceAuth(): UseDeviceAuth {
 			if (token) {
 				await signOutRequest(token);
 			}
-		} catch { 
+		} catch {
 			// Best-effort, ignore server sign-out failure. Clear local state regardless.
 		} finally {
-			// Clear local state regardless of sign-out success, since the token is the only proof of auth.
+			// Clear local state regardless of sign-out success, since the token is the
+			// only proof of auth.
 			tokenRef.current = undefined;
+			clearToken();
 			setState(INITIAL);
 		}
 	}, [abortInFlight]);
 
 	useEffect(() => {
-		// Abort any in-flight device flow when the component unmounts. 
-		// The signal is the source of truth so no mounted flag is needed.
+		const controller = new AbortController();
+		abortRef.current = controller;
+
+		// Hydrate: if a token was persisted, validate it instead of forcing a new login.
+		const stored = loadToken();
+		if (stored) {
+			setState({ status: 'hydrating' });
+			fetchUserInfo(stored, controller.signal)
+				.then((user) => {
+					tokenRef.current = stored;
+					safeSet(controller, {
+						status: 'success',
+						token: stored,
+						user,
+					});
+				})
+				.catch(() => {
+					if (controller.signal.aborted) return;
+					// Stale/invalid token — drop it and fall back to login.
+					clearToken();
+					safeSet(controller, { status: 'idle' });
+				});
+		}
+
+		// Abort any in-flight device flow / hydration when the component unmounts.
 		return () => {
 			abortRef.current?.abort();
 			abortRef.current = null;
 		};
-	}, []);
+	}, [safeSet]);
 
 	return { ...state, start, reset, logout };
 }

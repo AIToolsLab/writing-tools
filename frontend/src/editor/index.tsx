@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 
 import * as SidebarInner from '@/pages/app';
-import type { Auth0ContextInterface } from '@auth0/auth0-react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import LexicalEditor from './editor';
 import './styles.css';
@@ -44,26 +43,6 @@ export function EditorScreen({
 	};
 
 	const editorAPI: EditorAPI = useMemo(() => ({
-		doLogin: async (auth0Client: Auth0ContextInterface) => {
-			try {
-				await auth0Client.loginWithPopup();
-			} catch (error) {
-
-				console.error('auth0Client.loginWithPopup Error:', error);
-			}
-		},
-		doLogout: async (auth0Client: Auth0ContextInterface) => {
-			try {
-				await auth0Client.logout({
-					logoutParams: {
-						returnTo: `${location.origin}/editor.html`,
-					},
-				});
-			} catch (error) {
-
-				console.error('auth0Client.logout Error:', error);
-			}
-		},
 		getDocContext: async (): Promise<DocContext> => {
 			return Promise.resolve(docContextRef.current);
 		},
