@@ -12,14 +12,14 @@ import {
 } from "./controller";
 import type { LoopState } from "./controller";
 import { detectDraftDeclarations } from "./draft-declarations";
-import type { MockLLM, QuestionStance, UserRequestedMode } from "./llm-contract";
-import { ThoughtMap, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
+import type { MockLLM, QuestionStance, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
+import { pruneContextSelection, ThoughtMap, toggleContextSelection, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
 import { promoteOpenThreadsForUtterances, reopenPromotedOpenThreads, type ParkedThread } from "./open-threads";
 import { evaluateReadiness } from "./readiness";
 import { cardRef } from "./store";
-import type { SourceSpan, SourceUtterance } from "./types";
+import type { SourceSpan, SourceUtterance, ThoughtUnitRole } from "./types";
 import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
 import { buildUnderstanding, type SafetyCheck, type TrackedIdea, type UnderhoodEvent, type UnderstandingSnapshot } from "./understanding";
 import { useSpeechToText } from "./useSpeechToText";
@@ -152,6 +152,12 @@ interface PersistedSession {
   bank: LoopState["bank"] extends { getAll(): infer T } ? T : never;
   candidates: LoopState["candidates"] extends { getAll(): infer T } ? T : never;
   map: ThoughtUnitStoreSnapshot;
+}
+
+interface DraftSelectionFocus {
+  start: number;
+  end: number;
+  text: string;
 }
 
 function commandAckText(commands: AcceptedMapCommand[]): string {
@@ -861,6 +867,12 @@ const css = `
   .react-flow__node.referenced .map-card {
     border-color: #b58f3a;
     box-shadow: 0 0 0 3px rgba(181, 143, 58, 0.4), 0 10px 26px rgba(181, 143, 58, 0.22);
+  }
+
+  .react-flow__node.context-selected .map-card {
+    border-color: #b58f3a;
+    box-shadow: 0 0 0 3px rgba(181, 143, 58, 0.5), 0 10px 26px rgba(181, 143, 58, 0.24);
+    background: #fff9e8;
   }
 
   .map-card-close {
@@ -2938,6 +2950,8 @@ export default function App() {
   const [composerScrollable, setComposerScrollable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [underhoodOpen, setUnderhoodOpen] = useState(false);
+  const [contextSelectedCardIds, setContextSelectedCardIds] = useState<Set<string>>(new Set());
+  const [draftSelectionFocus, setDraftSelectionFocus] = useState<DraftSelectionFocus | undefined>(undefined);
 
   const runtimeConfig = useMemo(
     () => withQuestionIntentBias(defaultConfig, questionBias),
@@ -3035,6 +3049,19 @@ export default function App() {
       backdropRef.current.scrollLeft = draftRef.current.scrollLeft;
     }
   }, [initialMsgs.length, persistedSession]);
+
+  const updateDraftSelectionFocus = useCallback(() => {
+    const textarea = draftRef.current;
+    if (!textarea) return;
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    if (start === end) {
+      setDraftSelectionFocus(undefined);
+      return;
+    }
+    const text = textarea.value.slice(start, end).trim();
+    setDraftSelectionFocus(text ? { start, end, text } : undefined);
+  }, []);
 
   // Position draft panel once window is available
   useEffect(() => {
@@ -3277,6 +3304,61 @@ export default function App() {
     return ids.size > 0 ? ids : undefined;
   }, [msgs, mapRevision]);
 
+  const rootCardIds = useMemo(() => {
+    return new Set(
+      mapStoreRef.current
+        .getAll()
+        .filter((unit) => !unit.parentId && unit.role !== "connection_label")
+        .map((unit) => unit.id),
+    );
+  }, [mapRevision]);
+
+  useEffect(() => {
+    setContextSelectedCardIds((current) => {
+      const pruned = pruneContextSelection(current, rootCardIds);
+      return pruned.size === current.size && Array.from(pruned).every((id) => current.has(id))
+        ? current
+        : pruned;
+    });
+  }, [rootCardIds]);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setContextSelectedCardIds(new Set());
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  const toggleContextCard = useCallback((id: string) => {
+    if (!rootCardIds.has(id)) return;
+    setContextSelectedCardIds((current) => toggleContextSelection(current, id));
+  }, [rootCardIds]);
+
+  const clearContextSelection = useCallback(() => {
+    setContextSelectedCardIds(new Set());
+  }, []);
+
+  const selectedFocus = useMemo<SelectedFocusContext | undefined>(() => {
+    const cards = mapStoreRef.current
+      .getAll()
+      .filter((unit) => contextSelectedCardIds.has(unit.id) && !unit.parentId && unit.role !== "connection_label")
+      .map((unit) => ({
+        id: unit.id,
+        ref: cardRef(unit.id),
+        text: unit.text,
+        role: unit.role as Exclude<ThoughtUnitRole, "connection_label">,
+      }));
+    const draftText = draftSelectionFocus?.text.trim();
+    if (cards.length === 0 && !draftText) return undefined;
+    return {
+      ...(cards.length > 0 ? { cards } : {}),
+      ...(draftText ? { draftText } : {}),
+    };
+  }, [contextSelectedCardIds, draftSelectionFocus, mapRevision]);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const turnNonceRef = useRef(0);
@@ -3499,7 +3581,7 @@ export default function App() {
         configRef.current,
         "chat",
         mapStoreRef.current.toLLMContext(),
-        { requireConnectionLabel },
+        { requireConnectionLabel, selectedFocus },
       );
 
       if (nonce !== turnNonceRef.current) return;
@@ -3537,7 +3619,7 @@ export default function App() {
         configRef.current,
         "chat",
         mapStoreRef.current.toLLMContext(),
-        { ingestUser: false, requireConnectionLabel, overrideMode: mode },
+        { ingestUser: false, requireConnectionLabel, overrideMode: mode, selectedFocus },
       );
 
       if (nonce !== turnNonceRef.current) return;
@@ -3660,7 +3742,7 @@ export default function App() {
           configRef.current,
           "chat",
           mapStoreRef.current.toLLMContext(),
-          { ingestUser: false, requireConnectionLabel, continuationFocus },
+          { ingestUser: false, requireConnectionLabel, continuationFocus, selectedFocus },
         );
         if (nonce !== turnNonceRef.current) return;
         mergeLiveBankIntoWorkingState(workingState, stateRef.current);
@@ -3733,6 +3815,7 @@ export default function App() {
     stateRef.current.openThreads = reopenPromotedOpenThreads(stateRef.current.openThreads);
     stateRef.current.pendingCardWording = undefined;
     stateRef.current.captureLoop = undefined;
+    setContextSelectedCardIds(new Set());
     setMapMountKey((key) => key + 1);
     markMapChanged();
   }
@@ -3743,6 +3826,7 @@ export default function App() {
     llmRef.current = makeLLM(() => configRef.current, buildConversationHistory(msgs));
     setDraftText("");
     setHighlightAnchor(undefined);
+    setDraftSelectionFocus(undefined);
     stateRef.current.draft = "";
   }
 
@@ -3991,7 +4075,13 @@ export default function App() {
                   ref={draftRef}
                   className="draft-editor"
                   value={draftText}
-                  onChange={(e) => setDraftText(e.target.value)}
+                  onChange={(e) => {
+                    setDraftText(e.target.value);
+                    setDraftSelectionFocus(undefined);
+                  }}
+                  onSelect={updateDraftSelectionFocus}
+                  onKeyUp={updateDraftSelectionFocus}
+                  onMouseUp={updateDraftSelectionFocus}
                   onScroll={syncBackdropScroll}
                   placeholder="Paste or type your draft here..."
                 />
@@ -4029,6 +4119,7 @@ export default function App() {
             }
             draftDockActive={draftDockTargetActive}
             highlightedCardIds={referencedCardIds}
+            contextSelectedCardIds={contextSelectedCardIds}
             revision={mapRevision}
             requireConnectionLabel={requireConnectionLabel}
             onRequireConnectionLabelChange={setRequireConnectionLabel}
@@ -4036,6 +4127,8 @@ export default function App() {
             onUndo={undoMapChange}
             onClearDraft={clearDraftOnly}
             onClearMap={clearMapOnly}
+            onContextCardToggle={toggleContextCard}
+            onClearContextSelection={clearContextSelection}
             onBeforeMapChange={captureMapUndo}
             onStoreChange={markUserMapChanged}
           />

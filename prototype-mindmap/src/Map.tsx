@@ -164,6 +164,7 @@ interface ThoughtMapProps {
   commandAck?: MapCommandAcknowledgement | null;
   /** Card ids the current coach turn refers to (by #ref) — highlighted on the canvas. */
   highlightedCardIds?: ReadonlySet<string>;
+  contextSelectedCardIds?: ReadonlySet<string>;
   revision: number;
   requireConnectionLabel: boolean;
   onRequireConnectionLabelChange: (value: boolean) => void;
@@ -171,6 +172,8 @@ interface ThoughtMapProps {
   onUndo: () => void;
   onClearDraft: () => void;
   onClearMap: () => void;
+  onContextCardToggle?: (id: string) => void;
+  onClearContextSelection?: () => void;
   onBeforeMapChange: () => void;
   onStoreChange: () => void;
 }
@@ -213,6 +216,39 @@ export interface CoachDebugInfo {
     reason: string;
     detail: string;
   }>;
+}
+
+export function toggleContextSelection(current: ReadonlySet<string>, id: string): Set<string> {
+  const next = new Set(current);
+  if (next.has(id)) next.delete(id);
+  else next.add(id);
+  return next;
+}
+
+export function pruneContextSelection(
+  current: ReadonlySet<string>,
+  validRootIds: ReadonlySet<string>,
+): Set<string> {
+  return new Set(Array.from(current).filter((id) => validRootIds.has(id)));
+}
+
+export function groupDragPositions(
+  selectedIds: ReadonlySet<string>,
+  startPositions: ReadonlyMap<string, XYPosition>,
+  primaryId: string,
+  primaryPosition: XYPosition,
+): Map<string, XYPosition> {
+  const primaryStart = startPositions.get(primaryId);
+  if (!primaryStart) return new Map();
+  const dx = primaryPosition.x - primaryStart.x;
+  const dy = primaryPosition.y - primaryStart.y;
+  const next = new Map<string, XYPosition>();
+  for (const id of selectedIds) {
+    const start = startPositions.get(id);
+    if (!start) continue;
+    next.set(id, { x: start.x + dx, y: start.y + dy });
+  }
+  return next;
 }
 
 function bounds(node: Node): { x: number; y: number; width: number; height: number } {
@@ -714,6 +750,7 @@ function ThoughtMapInner({
   draftDockActive,
   commandAck,
   highlightedCardIds,
+  contextSelectedCardIds,
   revision,
   requireConnectionLabel,
   onRequireConnectionLabelChange,
@@ -721,6 +758,8 @@ function ThoughtMapInner({
   onUndo,
   onClearDraft,
   onClearMap,
+  onContextCardToggle,
+  onClearContextSelection,
   onBeforeMapChange,
   onStoreChange,
 }: ThoughtMapProps) {
@@ -1152,6 +1191,10 @@ function ThoughtMapInner({
   }, [confirmedEdges, pendingConnection]);
 
   const [dropTargetId, setDropTargetId] = useState<string | undefined>(undefined);
+  const groupDragRef = useRef<{
+    primaryId: string;
+    startPositions: Map<string, XYPosition>;
+  } | null>(null);
 
   // Apply drop-target and coach-reference highlight classes without disturbing
   // node state — derived per render.
@@ -1161,10 +1204,50 @@ function ThoughtMapInner({
         const extra: string[] = [];
         if (node.id === dropTargetId) extra.push("drop-target");
         if (highlightedCardIds?.has(node.id)) extra.push("referenced");
+        if (contextSelectedCardIds?.has(node.id)) extra.push("context-selected");
         if (extra.length === 0) return node;
         return { ...node, className: `${node.className ?? ""} ${extra.join(" ")}`.trim() };
       }),
-    [nodes, dropTargetId, highlightedCardIds],
+    [nodes, dropTargetId, highlightedCardIds, contextSelectedCardIds],
+  );
+
+  const onNodeClick = useCallback(
+    (event: React.MouseEvent, node: MapFlowNode) => {
+      if (!event.shiftKey || node.type !== "thought") return;
+      const unit = store.get(node.id);
+      if (!unit || unit.parentId || unit.role === "connection_label") return;
+      event.preventDefault();
+      event.stopPropagation();
+      onContextCardToggle?.(node.id);
+    },
+    [onContextCardToggle, store],
+  );
+
+  const onPaneClick = useCallback(() => {
+    onClearContextSelection?.();
+  }, [onClearContextSelection]);
+
+  const onNodeDragStart = useCallback(
+    (_event: MouseEvent | TouchEvent, node: MapFlowNode) => {
+      if (
+        node.type !== "thought" ||
+        !contextSelectedCardIds?.has(node.id) ||
+        contextSelectedCardIds.size < 2
+      ) {
+        groupDragRef.current = null;
+        return;
+      }
+      const startPositions = new Map<string, XYPosition>();
+      for (const id of contextSelectedCardIds) {
+        const unit = store.get(id);
+        if (!unit || unit.parentId || unit.role === "connection_label") continue;
+        const position = store.getPosition(id) ?? nodes.find((candidate) => candidate.id === id)?.position;
+        if (position) startPositions.set(id, position);
+      }
+      groupDragRef.current =
+        startPositions.size > 1 ? { primaryId: node.id, startPositions } : null;
+    },
+    [contextSelectedCardIds, nodes, store],
   );
 
   // Live drop-target highlight: while a card is dragged, mark the card it would
@@ -1173,6 +1256,24 @@ function ThoughtMapInner({
   const onNodeDrag = useCallback(
     (_event: MouseEvent | TouchEvent, node: MapFlowNode) => {
       if (node.type !== "thought") return;
+      const groupDrag = groupDragRef.current;
+      if (groupDrag && groupDrag.primaryId === node.id) {
+        const nextPositions = groupDragPositions(
+          contextSelectedCardIds ?? new Set<string>(),
+          groupDrag.startPositions,
+          node.id,
+          node.position,
+        );
+        setDropTargetId(undefined);
+        setNodes((current) =>
+          current.map((currentNode) => {
+            if (currentNode.id === node.id) return currentNode;
+            const position = nextPositions.get(currentNode.id);
+            return position ? { ...currentNode, position } : currentNode;
+          }),
+        );
+        return;
+      }
       const dragged = store.get(node.id);
       if (!dragged || dragged.role === "connection_label") {
         setDropTargetId(undefined);
@@ -1186,13 +1287,31 @@ function ThoughtMapInner({
         !store.wouldCycle(dragged.id, targetUnit.id);
       setDropTargetId(valid && targetUnit ? targetUnit.id : undefined);
     },
-    [nodes, store],
+    [contextSelectedCardIds, nodes, setNodes, store],
   );
 
   const onNodeDragStop = useCallback(
     (_event: MouseEvent | TouchEvent, node: MapFlowNode) => {
       if (node.type !== "thought") return;
       setDropTargetId(undefined);
+      const groupDrag = groupDragRef.current;
+      groupDragRef.current = null;
+      if (groupDrag && groupDrag.primaryId === node.id) {
+        const nextPositions = groupDragPositions(
+          contextSelectedCardIds ?? new Set<string>(),
+          groupDrag.startPositions,
+          node.id,
+          node.position,
+        );
+        if (nextPositions.size > 0) {
+          onBeforeMapChange();
+          for (const [id, position] of nextPositions) {
+            store.setPosition(id, position);
+          }
+          onStoreChange();
+        }
+        return;
+      }
       onBeforeMapChange();
       store.setPosition(node.id, node.position);
 
@@ -1216,7 +1335,7 @@ function ThoughtMapInner({
 
       onStoreChange();
     },
-    [nodes, onBeforeMapChange, onStoreChange, store],
+    [contextSelectedCardIds, nodes, onBeforeMapChange, onStoreChange, store],
   );
 
   const onConnect = useCallback(
@@ -1504,6 +1623,9 @@ function ThoughtMapInner({
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           onNodesChange={onNodesChange}
+          onNodeClick={onNodeClick}
+          onPaneClick={onPaneClick}
+          onNodeDragStart={onNodeDragStart}
           onNodeDrag={onNodeDrag}
           onNodeDragStop={onNodeDragStop}
           onDragOver={onPaneDragOver}

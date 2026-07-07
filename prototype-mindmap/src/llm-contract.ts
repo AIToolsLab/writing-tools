@@ -19,6 +19,7 @@ import type {
   SourceSpan,
   SourceUtterance,
   ThoughtUnit,
+  ThoughtUnitRole,
 } from "./types";
 
 export type LLMMode = "question" | "mirror" | "clarify";
@@ -185,6 +186,16 @@ export interface MapQuestionAnchor {
   neighbors: Array<{ ref: string; text: string }>;
 }
 
+export interface SelectedFocusContext {
+  cards?: Array<{
+    id: string;
+    ref: string;
+    text: string;
+    role: Exclude<ThoughtUnitRole, "connection_label">;
+  }>;
+  draftText?: string;
+}
+
 /** Context snapshot handed to the LLM (or mock) each turn. */
 export interface LLMContext {
   bank: SourceUtterance[];
@@ -273,6 +284,12 @@ export interface LLMContext {
    * proposals.
    */
   mapQuestionContext?: MapQuestionAnchor[];
+  /**
+   * User-selected read-only focus from the UI: yellow context-selected cards
+   * and/or selected draft text. This should steer questions, but it is never
+   * Source Bank evidence and never permission to mutate the map or draft.
+   */
+  selectedFocus?: SelectedFocusContext;
   /**
    * The coach's previous question/clarify the user is now responding to (Goal 5),
    * so the model advances instead of re-asking an answered question.

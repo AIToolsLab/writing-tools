@@ -16,7 +16,7 @@
 import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
 import { detectDraftDeclarations, type DraftDeclaration } from "./draft-declarations";
-import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MapQuestionAnchor, MockLLM, QuestionStance, UserAffect, UserRequestedMode } from "./llm-contract";
+import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MapQuestionAnchor, MockLLM, QuestionStance, SelectedFocusContext, UserAffect, UserRequestedMode } from "./llm-contract";
 import { contentTokens, normalize, stem } from "./normalize";
 import {
   activateOpenThread,
@@ -212,6 +212,7 @@ export interface ProcessTurnOptions {
   ingestUser?: boolean;
   requireConnectionLabel?: boolean;
   continuationFocus?: string[];
+  selectedFocus?: SelectedFocusContext;
   /**
    * User-initiated override of the coach's next move (from the Under the Hood
    * panel). When set, `processTurn` clears any pending confirmation/elicitation
@@ -2775,6 +2776,7 @@ export async function processTurn(
   const ingestUser = options.ingestUser ?? true;
   const requireConnectionLabel = options.requireConnectionLabel ?? false;
   const continuationFocus = options.continuationFocus ?? [];
+  const selectedFocus = options.selectedFocus;
   const typedOverrideMode = ingestUser ? detectTypedModeOverride(userText) : undefined;
   const effectiveOverrideMode = options.overrideMode ?? typedOverrideMode;
   const offRampResponse =
@@ -3733,6 +3735,7 @@ export async function processTurn(
     draftDeclarations,
     map,
     mapQuestionContext: mapQuestionContext.length > 0 ? mapQuestionContext : undefined,
+    selectedFocus,
     lastCoachQuestion: state.lastCoachQuestion,
     userAnsweredLastQuestion,
     forcedMode: effectiveOverrideMode,

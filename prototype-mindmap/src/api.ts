@@ -195,6 +195,17 @@ function renderMapQuestionContext(anchors: MapQuestionAnchor[]): string {
     .join("\n");
 }
 
+function renderSelectedFocus(focus: NonNullable<LLMContext["selectedFocus"]>): string {
+  const lines: string[] = [];
+  for (const card of focus.cards ?? []) {
+    lines.push(`selected_card ${card.ref} role=${card.role} text="${card.text}"`);
+  }
+  if (focus.draftText?.trim()) {
+    lines.push(`selected_draft_text "${focus.draftText.trim()}"`);
+  }
+  return lines.length > 0 ? lines.join("\n") : "(none)";
+}
+
 function renderOpenThreads(threads: NonNullable<LLMContext["openThreads"]>): string {
   if (threads.length === 0) return "(none)";
   return threads
@@ -297,6 +308,10 @@ ${capabilities.cantDo.map((item) => `  - ${item}`).join("\n")}`;
   const activeSelectionNote = ctx.activeSelectionContext?.sourceUtteranceIds.length
     ? `\nSELECTED STRAND: The user is now working inside a previously selected strand from a large exploratory turn.${ctx.activeSelectionContext.selectedText ? ` Selected wording: "${ctx.activeSelectionContext.selectedText}".` : ""} You may use only these source-bank ids as bounded supporting context for that strand: [${ctx.activeSelectionContext.sourceUtteranceIds.join(", ")}]. Do NOT ask for support that is already present inside this bounded strand, and do NOT treat the rest of the earlier large turn as available for harvesting.`
     : "";
+  const selectedFocusNote =
+    (ctx.selectedFocus?.cards?.length || ctx.selectedFocus?.draftText?.trim())
+      ? `\nSELECTED UI FOCUS (READ-ONLY, HIGH PRIORITY): The user deliberately selected this map/draft context for the next coach move. Prefer it over generic map/draft anchors. If forcedMode is "deepen", ask about the selected card/text. If forcedMode is "organize" and two or more cards are selected, ask how those selected cards relate in the user's own words. If forcedMode is "pivot", pivot within this selected context before leaving it. If forcedMode is "mirror", only mirror claims that are already grounded in Source Bank utterances; selected map cards or draft text alone are NOT Source Bank evidence. This selection never authorizes mapCommands, card edits, draft edits, or new structure.`
+      : "";
   const openThreadsNote = ctx.openThreads?.length
     ? `\nPARKED EARLIER PHRASES: These are exact user-authored phrases from earlier large exploratory turns. They are memory anchors only: not tasks, not priorities, not candidates, not evidence of importance, and not permission to make cards. If the user asked what to do next, pivoted, or asked for options, you may offer up to 3 of them as optional return points and ask what still feels live. Do not say the user "needs" to return to them.`
     : "";
@@ -340,7 +355,7 @@ ${capabilities.cantDo.map((item) => `  - ${item}`).join("\n")}`;
     ? `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): Your last question did NOT land — the user wants to move off it. Do NOT re-ask, rephrase, or narrow the same thing (see PREVIOUS COACH TURN above and avoid its topic). Use mode "question" with a single, easy, open hand-back: either invite them to point anywhere they like, or pivot to a clearly different card or draft region. Keep it short and pressure-free. Do not emit mapCommands.`
     : `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user explicitly asked you to help connect their ideas. Use mode "question" with questionIntent "organize": ask how already-named thoughts relate, in their own words. Do not offer label pairs to choose between, do not author structure, and do not emit mapCommands.`;
 
-  return `${PHILOSOPHY}${forcedModeNote}
+  return `${PHILOSOPHY}${forcedModeNote}${selectedFocusNote}
 ${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${candidateTrackingNote}${mapNote}${mapQuestionNote}${transitionNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${openThreadsNote}${mirrorPressureNote}${metaNote}${affectNote}${legibilityNote}
 
 LATEST USER TURN:
@@ -372,6 +387,9 @@ ${ctx.openThreads?.length ? renderOpenThreads(ctx.openThreads) : "(none surfaced
 
 CURRENT CONCEPT MAP (user-authored canvas -- awareness only):
 ${renderMap(ctx.map)}
+
+SELECTED UI FOCUS (read-only; not Source Bank evidence):
+${ctx.selectedFocus ? renderSelectedFocus(ctx.selectedFocus) : "(none)"}
 ${
   ctx.mapQuestionContext && ctx.mapQuestionContext.length > 0
     ? `\nMAP QUESTION ANCHORS (read-only — safe to reference in a question, never to place/connect):\n${renderMapQuestionContext(ctx.mapQuestionContext)}\n`

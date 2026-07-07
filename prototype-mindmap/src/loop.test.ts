@@ -5812,6 +5812,58 @@ describe("user next-move override (Under the Hood)", () => {
     expect(cap.get()?.forcedMode).toBe("deepen");
   });
 
+  it("forwards selected UI focus to the model without adding source-bank evidence", async () => {
+    const state = createState();
+    const cap = capture();
+    await processTurn(state, "", cap.llm, defaultConfig, "chat", overrideMap, {
+      ingestUser: false,
+      overrideMode: "deepen",
+      selectedFocus: {
+        cards: [{ id: "tu_86", ref: "#86", text: "human control decides the wording", role: "node" }],
+        draftText: "this paragraph argues for human control",
+      },
+    });
+
+    expect(cap.get()?.selectedFocus).toEqual({
+      cards: [{ id: "tu_86", ref: "#86", text: "human control decides the wording", role: "node" }],
+      draftText: "this paragraph argues for human control",
+    });
+    expect(cap.get()?.bank).toEqual([]);
+    expect(cap.get()?.forcedMode).toBe("deepen");
+  });
+
+  it("does not let selected map text become permission for a model-authored card", async () => {
+    const state = createState();
+    const out = await processTurn(
+      state,
+      "",
+      () => ({
+        mode: "question",
+        text: "I'll ask about that.",
+        mapCommands: [
+          {
+            kind: "create_card",
+            text: "human control decides the wording",
+            sourceSpan: { userPhrase: "human control decides the wording", utteranceIds: [] },
+          },
+        ],
+      }),
+      defaultConfig,
+      "chat",
+      overrideMap,
+      {
+        ingestUser: false,
+        overrideMode: "deepen",
+        selectedFocus: {
+          cards: [{ id: "tu_86", ref: "#86", text: "human control decides the wording", role: "node" }],
+        },
+      },
+    );
+
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.commandDebug?.some((note) => note.reason === "not_current_turn_span")).toBe(true);
+  });
+
   it("does not force a mode on an ordinary typed turn", async () => {
     const state = createState();
     const cap = capture();

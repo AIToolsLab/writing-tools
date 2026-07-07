@@ -122,6 +122,34 @@ describe("makeLLM JSON resilience", () => {
     expect(system).toContain("did NOT land");
   });
 
+  it("renders selected UI focus as read-only and not source-bank evidence", async () => {
+    const valid = '{"mode":"question","text":"What next?"}';
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(valid));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await makeLLM()({
+      ...ctx,
+      forcedMode: "organize",
+      selectedFocus: {
+        cards: [
+          { id: "tu_86", ref: "#86", text: "human control decides the wording", role: "node" },
+          { id: "tu_166", ref: "#166", text: "authorship stays with the writer", role: "node" },
+        ],
+        draftText: "the system should not write for the author",
+      },
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const system = body.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(system).toContain("SELECTED UI FOCUS (READ-ONLY, HIGH PRIORITY)");
+    expect(system).toContain("selected_card #86 role=node text=\"human control decides the wording\"");
+    expect(system).toContain("selected_draft_text \"the system should not write for the author\"");
+    expect(system).toContain("not Source Bank evidence");
+    expect(system).toContain("never authorizes mapCommands");
+  });
+
   it("omits the override directive when no mode is forced", async () => {
     const valid = '{"mode":"question","text":"What next?"}';
     const fetchMock = vi.fn().mockResolvedValue(jsonResponse(valid));

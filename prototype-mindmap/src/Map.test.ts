@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { proxyAnchorSpecs, renderedEndpointCenter } from "./Map";
+import { groupDragPositions, pruneContextSelection, proxyAnchorSpecs, renderedEndpointCenter, toggleContextSelection } from "./Map";
 import { ThoughtUnitStore } from "./map-store";
 import type { ThoughtUnit, ThoughtUnitRole } from "./types";
 
@@ -85,5 +85,40 @@ describe("renderedEndpointCenter", () => {
       x: 200,
       y: 250,
     });
+  });
+});
+
+describe("context selection helpers", () => {
+  it("toggles shift-click context selection independently from ordinary selection", () => {
+    const first = toggleContextSelection(new Set(), "a");
+    expect(Array.from(first)).toEqual(["a"]);
+
+    const second = toggleContextSelection(first, "b");
+    expect(Array.from(second).sort()).toEqual(["a", "b"]);
+
+    const third = toggleContextSelection(second, "a");
+    expect(Array.from(third)).toEqual(["b"]);
+  });
+
+  it("prunes deleted, nested, or otherwise invalid ids from context selection", () => {
+    const current = new Set(["root-a", "root-b", "child"]);
+    const validRoots = new Set(["root-b"]);
+
+    expect(Array.from(pruneContextSelection(current, validRoots))).toEqual(["root-b"]);
+  });
+
+  it("moves every selected card by the primary card drag delta", () => {
+    const selected = new Set(["a", "b", "c"]);
+    const starts = new Map([
+      ["a", { x: 10, y: 20 }],
+      ["b", { x: 100, y: 120 }],
+      ["c", { x: -40, y: 0 }],
+    ]);
+
+    const next = groupDragPositions(selected, starts, "a", { x: 25, y: 15 });
+
+    expect(next.get("a")).toEqual({ x: 25, y: 15 });
+    expect(next.get("b")).toEqual({ x: 115, y: 115 });
+    expect(next.get("c")).toEqual({ x: -25, y: -5 });
   });
 });
