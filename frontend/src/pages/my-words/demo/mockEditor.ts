@@ -5,7 +5,7 @@
  * and `snapshot` so a document panel can render it live.
  */
 
-import { applyOp } from '../interaction/ops';
+import { applyOp, applySplice } from '../interaction/ops';
 
 export class MockEditor implements EditorAPI {
 	private paragraphs: string[];
@@ -40,22 +40,35 @@ export class MockEditor implements EditorAPI {
 	getParagraphs = async () => [...this.paragraphs];
 
 	applyEdit = async (edit: DocEdit) => {
-		const op =
-			edit.type === 'str_replace'
-				? ({
-						kind: 'str_replace' as const,
-						oldStr: edit.oldStr,
-						newStr: edit.newStr,
-				  })
-				: ({
-						kind: 'insert' as const,
-						text: edit.text,
-						after: edit.after,
-						paragraph: edit.paragraph,
-						position: edit.position,
-				  });
-		this.paragraphs = applyOp(this.paragraphs, op);
+		if (edit.type === 'delete_paragraph') {
+			this.paragraphs = [
+				...this.paragraphs.slice(0, edit.paragraph - 1),
+				...this.paragraphs.slice(edit.paragraph),
+			];
+		} else {
+			const op =
+				edit.type === 'str_replace'
+					? ({
+							kind: 'str_replace' as const,
+							oldStr: edit.oldStr,
+							newStr: edit.newStr,
+					  })
+					: ({
+							kind: 'insert' as const,
+							text: edit.text,
+							after: edit.after,
+							paragraph: edit.paragraph,
+							position: edit.position,
+					  });
+			this.paragraphs = applyOp(this.paragraphs, op);
+		}
 		this.selection = ''; // a fresh edit clears the prior highlight
+		this.emit();
+	};
+
+	applySplice = async (splice: ParagraphSplice) => {
+		this.paragraphs = applySplice(this.paragraphs, splice);
+		this.selection = '';
 		this.emit();
 	};
 

@@ -199,6 +199,25 @@ export const wordEditorAPI: EditorAPI = {
 				return;
 			}
 
+			if (edit.type === 'delete_paragraph') {
+				// Remove the whole paragraph, mark included (splice shrinkage,
+				// e.g. undoing an inserted paragraph — no empty residue).
+				const paragraphs = body.paragraphs;
+				context.load(paragraphs, 'items');
+				await context.sync();
+				if (
+					edit.paragraph < 1 ||
+					edit.paragraph > paragraphs.items.length
+				) {
+					throw new Error(
+						`Paragraph ${edit.paragraph} is out of range (1–${paragraphs.items.length}).`,
+					);
+				}
+				paragraphs.items[edit.paragraph - 1].delete();
+				await context.sync();
+				return;
+			}
+
 			// insert — by paragraph number (robust; avoids the search limit)
 			if (edit.paragraph !== undefined) {
 				const paragraphs = body.paragraphs;

@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { applyOp, describeOp, previewOp } from '../interaction/ops';
+import {
+	applyOp,
+	applyOpLogged,
+	applySplice,
+	describeOp,
+	invertSplices,
+	lowerOp,
+	previewOp,
+	spliceIsFresh,
+} from '../interaction/ops';
+import type { EditOp } from '../interaction/types';
 
 describe('applyOp', () => {
 	it('str_replace replaces the first occurrence only', () => {
@@ -78,6 +88,135 @@ describe('applyOp', () => {
 				paragraph: 2,
 			}),
 		).toThrow(/paragraph 2/);
+	});
+});
+
+describe('newline lowering (splits and merges)', () => {
+	it('a newline in newStr splits the paragraph', () => {
+		expect(
+			applyOp(['intro and the rest', 'tail'], {
+				kind: 'str_replace',
+				oldStr: ' and ',
+				newStr: '.\nAnd ',
+				paragraph: 1,
+			}),
+		).toEqual(['intro.', 'And the rest', 'tail']);
+	});
+
+	it('a newline in oldStr matches across the boundary and merges', () => {
+		expect(
+			applyOp(['first half', 'second half', 'tail'], {
+				kind: 'str_replace',
+				oldStr: 'half\nsecond',
+				newStr: 'half, second',
+			}),
+		).toEqual(['first half, second half', 'tail']);
+	});
+
+	it('runs of newlines count as one paragraph break', () => {
+		expect(
+			applyOp(['a'], { kind: 'insert', text: 'x\n\n\ny\n', paragraph: 1 }),
+		).toEqual(['a', 'x', 'y']);
+	});
+
+	it('scoped cross-boundary match must start in that paragraph', () => {
+		expect(() =>
+			applyOp(['a b', 'c d'], {
+				kind: 'str_replace',
+				oldStr: 'b\nc',
+				newStr: 'b c',
+				paragraph: 2,
+			}),
+		).toThrow(/paragraph 2/);
+	});
+
+	it('inline insert (after) can split its paragraph', () => {
+		expect(
+			applyOp(['hello world'], {
+				kind: 'insert',
+				text: ' there\nnew line',
+				after: 'hello',
+			}),
+		).toEqual(['hello there', 'new line world']);
+	});
+});
+
+describe('splice logging and undo', () => {
+	const roundTrip = (before: string[], op: EditOp) => {
+		const { after, undo } = applyOpLogged(before, op);
+		expect(undo.reduce(applySplice, after)).toEqual(before);
+		return { after, undo };
+	};
+
+	it('undo restores exactly: str_replace', () => {
+		roundTrip(['the cat sat'], {
+			kind: 'str_replace',
+			oldStr: 'cat',
+			newStr: 'dog',
+		});
+	});
+
+	it('undo restores exactly: paragraph insert (no empty residue)', () => {
+		const { after, undo } = roundTrip(['a', 'b'], {
+			kind: 'insert',
+			text: 'x',
+			paragraph: 1,
+		});
+		expect(after).toEqual(['a', 'x', 'b']);
+		expect(undo.reduce(applySplice, after)).toHaveLength(2);
+	});
+
+	it('undo restores exactly: move that emptied a paragraph', () => {
+		roundTrip(['keep this', 'move me'], {
+			kind: 'move',
+			phrase: 'move me',
+			paragraph: 1,
+			position: 'before',
+		});
+	});
+
+	it('undo restores exactly: split and merge', () => {
+		roundTrip(['one two three'], {
+			kind: 'str_replace',
+			oldStr: ' two ',
+			newStr: '\n',
+		});
+		roundTrip(['one', 'two'], {
+			kind: 'str_replace',
+			oldStr: 'one\ntwo',
+			newStr: 'one two',
+		});
+	});
+
+	it('spliceIsFresh refuses after the range is mutated', () => {
+		const before = ['a', 'b'];
+		const { after, undo } = applyOpLogged(before, {
+			kind: 'str_replace',
+			oldStr: 'b',
+			newStr: 'B',
+		});
+		expect(undo.every((s) => spliceIsFresh(after, s))).toBe(true);
+		const tampered = [...after];
+		tampered[1] = 'hand-edited';
+		expect(undo.every((s) => spliceIsFresh(tampered, s))).toBe(false);
+	});
+
+	it('lowerOp throws on a miss without partial application', () => {
+		expect(() =>
+			lowerOp(['a'], { kind: 'str_replace', oldStr: 'zz', newStr: 'y' }),
+		).toThrow(/not found in the document/);
+	});
+
+	it('invertSplices reverses order for multi-splice ops', () => {
+		const splices = lowerOp(['keep this', 'move me'], {
+			kind: 'move',
+			phrase: 'move me',
+			paragraph: 1,
+			position: 'before',
+		});
+		expect(splices).toHaveLength(2);
+		const undo = invertSplices(splices);
+		expect(undo[0].index).toBe(splices[1].index);
 	});
 });
 

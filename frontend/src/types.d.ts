@@ -51,7 +51,31 @@ type DocEdit =
 			paragraph?: number;
 			/** Where to insert relative to `paragraph`. Defaults to 'after'. */
 			position?: 'before' | 'after';
+	  }
+	| {
+			/**
+			 * Remove a whole paragraph, mark included. Internal — used to apply
+			 * paragraph-range splices (e.g. undoing an insert); never exposed as
+			 * an agent tool.
+			 */
+			type: 'delete_paragraph';
+			/** 1-based paragraph number (from `view`). */
+			paragraph: number;
 	  };
+
+/**
+ * The canonical paragraph-range mutation every `EditOp` lowers to: replace
+ * `remove.length` paragraphs at `index` with `insert`. See
+ * `pages/my-words/interaction/ops.ts` for lowering/inversion.
+ */
+interface ParagraphSplice {
+	/** First affected paragraph (0-based). */
+	index: number;
+	/** Current text of the paragraphs replaced — doubles as a freshness check. */
+	remove: string[];
+	/** Paragraph texts that take their place. */
+	insert: string[];
+}
 
 interface EditorAPI {
 	getDocContext(this: void): Promise<DocContext>;
@@ -67,6 +91,12 @@ interface EditorAPI {
 	getParagraphs(this: void): Promise<string[]>;
 	/** Apply a validated edit to the document. */
 	applyEdit(this: void, edit: DocEdit): Promise<void>;
+	/**
+	 * Apply a paragraph-range splice natively, in one atomic step (one undo
+	 * entry, cursor preserved). Hosts without it get splices expressed as a
+	 * sequence of `applyEdit` primitives instead.
+	 */
+	applySplice?(this: void, splice: ParagraphSplice): Promise<void>;
 	/**
 	 * Load the persisted "My Words" scratchpad, or '' if none. Each host picks
 	 * its own store — Word uses document.settings (travels with the file), other

@@ -60,11 +60,15 @@ export async function locateProposal(
 	};
 }
 
-/** Render the document for the `view` tool: paragraphs numbered [1], [2], … */
-export async function viewText(editor: EditorAPI): Promise<string> {
-	const paragraphs = await editor.getParagraphs();
-	if (!paragraphs.some((p) => p.trim().length > 0))
-		return '(the document is empty)';
+/**
+ * Render paragraphs for the `view` tool, numbered [1], [2], … Pure so the
+ * scratchpad (an array of lines) can use it too.
+ */
+export function viewParagraphs(
+	paragraphs: string[],
+	emptyLabel = '(the document is empty)',
+): string {
+	if (!paragraphs.some((p) => p.trim().length > 0)) return emptyLabel;
 	// Skip blank paragraphs (they burn tokens), but keep each kept paragraph's
 	// real 1-based number so `insert`/`move` targeting still lines up.
 	return paragraphs
@@ -74,18 +78,23 @@ export async function viewText(editor: EditorAPI): Promise<string> {
 		.join('\n');
 }
 
+/** Render the document for the `view` tool: paragraphs numbered [1], [2], … */
+export async function viewText(editor: EditorAPI): Promise<string> {
+	return viewParagraphs(await editor.getParagraphs());
+}
+
 /**
  * A numbered window of paragraphs (each clipped) around a center paragraph, or
- * the whole short document if no center is given. Used to re-orient the model
- * after an edit lands or fails — cheaper than a full `view`.
+ * everything if no center is given. Used to re-orient the model after an edit
+ * lands or fails — cheaper than a full `view`. Pure; see `windowAround` for the
+ * editor-backed wrapper.
  */
-async function numberedWindow(
-	editor: EditorAPI,
+export function numberedWindow(
+	paragraphs: string[],
 	center?: number,
 	radius = 1,
 	clipLen = 80,
-): Promise<string> {
-	const paragraphs = await editor.getParagraphs();
+): string {
 	const total = paragraphs.length;
 	let lo = 0;
 	let hi = total - 1;
@@ -104,6 +113,22 @@ function probeFor(op: EditOp): string {
 	if (op.kind === 'str_replace') return op.newStr;
 	if (op.kind === 'insert') return op.text;
 	return op.phrase;
+}
+
+/**
+ * The post-apply report the model reads: a brief confirmation plus a clipped
+ * window around where the change landed — never the full text (token cost).
+ * `surface` names the document or the scratchpad.
+ */
+export function appliedReport(
+	paragraphs: string[],
+	op: EditOp,
+	surface = 'document',
+): string {
+	const probe = probeFor(op).trim().slice(0, 40);
+	const center =
+		paragraphs.findIndex((p) => probe && p.includes(probe)) + 1 || undefined;
+	return `Applied. The ${surface} now has ${paragraphs.length} paragraph(s); numbers may have shifted. Around the change:\n${numberedWindow(paragraphs, center)}`;
 }
 
 /** The paragraph an op targets, if it carries one. */
@@ -125,18 +150,16 @@ export async function applyOpAndReport(
 ): Promise<{ ok: boolean; report: string }> {
 	try {
 		await applyEditOp(ctx.editor, op);
-		const probe = probeFor(op).trim().slice(0, 40);
-		const paras = await ctx.editor.getParagraphs();
-		const center =
-			paras.findIndex((p) => probe && p.includes(probe)) + 1 || undefined;
-		const total = paras.length;
-		const window = await numberedWindow(ctx.editor, center);
 		return {
 			ok: true,
-			report: `Applied. The document now has ${total} paragraph(s); numbers may have shifted. Around the change:\n${window}`,
+			report: appliedReport(await ctx.editor.getParagraphs(), op),
 		};
 	} catch (e) {
-		const window = await numberedWindow(ctx.editor, targetParagraph(op), 2);
+		const window = numberedWindow(
+			await ctx.editor.getParagraphs(),
+			targetParagraph(op),
+			2,
+		);
 		return {
 			ok: false,
 			report: `Could not apply that: ${(e as Error).message} The document may have changed since you last looked. Current paragraphs near there:\n${window}\nRe-check the numbers (or \`view\`) and try again.`,
