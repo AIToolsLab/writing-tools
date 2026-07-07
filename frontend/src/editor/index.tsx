@@ -9,6 +9,8 @@ import './styles.css';
 import classes from './styles.module.css';
 import { EditorContext } from '@/contexts/editorContext';
 import { loadScratchpadLocal, saveScratchpadLocal } from '@/api/scratchpadStore';
+import { lowerOp } from '@/pages/my-words/interaction/ops';
+import type { EditOp } from '@/pages/my-words/interaction/types';
 
 function Sidebar() {
 	return <SidebarInner.default />;
@@ -81,67 +83,55 @@ export function EditorScreen({
 			if (!controls) {
 				return Promise.reject(new Error('Editor is not ready yet'));
 			}
-			const current = controls.getText();
-
-			let next: string;
-			if (edit.type === 'str_replace') {
-				// Scope to one paragraph when given (matches the Word host).
-				if (edit.paragraph !== undefined) {
-					const paras = controls.getParagraphs();
-					const i = edit.paragraph - 1;
-					const at = paras[i]?.indexOf(edit.oldStr) ?? -1;
-					if (at === -1) {
-						throw new Error(
-							`Could not find "${edit.oldStr}" in paragraph ${edit.paragraph}.`,
-						);
-					}
-					paras[i] =
-						paras[i].slice(0, at) +
-						edit.newStr +
-						paras[i].slice(at + edit.oldStr.length);
-					next = paras.join('\n');
-				} else {
-					const idx = current.indexOf(edit.oldStr);
-					if (idx === -1) {
-						throw new Error(
-							`Could not find the text to replace: "${edit.oldStr}"`,
-						);
-					}
-					next =
-						current.slice(0, idx) +
-						edit.newStr +
-						current.slice(idx + edit.oldStr.length);
-				}
-			} else if (edit.paragraph !== undefined) {
-				const paras = controls.getParagraphs();
+			// Lower to paragraph-range splices and apply them node-by-node —
+			// never a whole-document rewrite (setText), which would destroy the
+			// cursor, collapse undo, and double paragraph breaks.
+			const paras = controls.getParagraphs();
+			if (edit.type === 'delete_paragraph') {
 				if (edit.paragraph < 1 || edit.paragraph > paras.length) {
-					throw new Error(
-						`Paragraph ${edit.paragraph} is out of range (1–${paras.length}).`,
+					return Promise.reject(
+						new Error(
+							`Paragraph ${edit.paragraph} is out of range (1–${paras.length}).`,
+						),
 					);
 				}
-				const spliceAt =
-					edit.position === 'before'
-						? edit.paragraph - 1
-						: edit.paragraph;
-				paras.splice(spliceAt, 0, edit.text);
-				next = paras.join('\n');
-			} else if (edit.after !== undefined && edit.after !== '') {
-				const idx = current.indexOf(edit.after);
-				if (idx === -1) {
-					throw new Error(
-						`Could not find the anchor text: "${edit.after}"`,
-					);
-				}
-				const at = idx + edit.after.length;
-				next = current.slice(0, at) + edit.text + current.slice(at);
-			} else {
-				// No anchor: insert at the current cursor / after the selection.
-				const { beforeCursor, selectedText, afterCursor } =
-					docContextRef.current;
-				next = beforeCursor + selectedText + edit.text + afterCursor;
+				controls.applySplice({
+					index: edit.paragraph - 1,
+					remove: [paras[edit.paragraph - 1]],
+					insert: [],
+				});
+				return Promise.resolve();
 			}
-
-			controls.setText(next);
+			const op: EditOp =
+				edit.type === 'str_replace'
+					? {
+							kind: 'str_replace',
+							oldStr: edit.oldStr,
+							newStr: edit.newStr,
+							paragraph: edit.paragraph,
+						}
+					: {
+							kind: 'insert',
+							text: edit.text,
+							after: edit.after,
+							paragraph: edit.paragraph,
+							position: edit.position,
+						};
+			try {
+				for (const splice of lowerOp(paras, op)) {
+					controls.applySplice(splice);
+				}
+			} catch (e) {
+				return Promise.reject(e as Error);
+			}
+			return Promise.resolve();
+		},
+		applySplice: (splice: ParagraphSplice): Promise<void> => {
+			const controls = controlsRef.current;
+			if (!controls) {
+				return Promise.reject(new Error('Editor is not ready yet'));
+			}
+			controls.applySplice(splice);
 			return Promise.resolve();
 		},
 		loadScratchpad: () => loadScratchpadLocal(),
