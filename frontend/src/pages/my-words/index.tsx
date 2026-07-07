@@ -92,7 +92,11 @@ export default function MyWords() {
 			</div>
 			<div style={{ flex: '1 1 auto', minHeight: 0 }}>
 				{tab === 'voice' ? (
-					<VoiceSession editor={editor} scratchpad={scratchpad} />
+					<VoiceSession
+						editor={editor}
+						scratchpad={scratchpad}
+						onScratchpadChange={setScratchpad}
+					/>
 				) : (
 					<LiveSession
 						key={tab}

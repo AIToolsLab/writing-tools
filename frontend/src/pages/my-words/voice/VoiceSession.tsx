@@ -8,6 +8,12 @@
  * transcript is fed into the corpus's `userMessages` slot — the voice analogue
  * of the text path appending sent messages to the scratchpad. Without it,
  * `validateOp` would reject the model shaping words the writer just said aloud.
+ *
+ * Layout: the scratchpad (a second document the agent edits with the same
+ * tools) takes most of the space; a compact "You said" strip shows the
+ * writer's recent turns; the raw tool/system log lives behind a Debug
+ * disclosure. The header carries Undo (pops the agent-edit undo stack) and,
+ * during a pre-edit reveal, a ✕ chip that vetoes the pending edit.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -18,6 +24,7 @@ import {
 	type TranscriptSpeaker,
 	type VoiceSession as Session,
 } from './liveVoice';
+import { VoiceScratchpad } from './VoiceScratchpad';
 
 type Status = 'idle' | 'connecting' | 'live' | 'error';
 // `id` is the transcript segment id, so interim → final updates replace the same
@@ -31,8 +38,9 @@ type LogEntry = {
 export function VoiceSession(props: {
 	editor: EditorAPI;
 	scratchpad: string;
+	onScratchpadChange: (v: string) => void;
 }) {
-	const { editor, scratchpad } = props;
+	const { editor, scratchpad, onScratchpadChange } = props;
 
 	const audioRef = useRef<HTMLAudioElement>(null);
 	const sessionRef = useRef<Session | null>(null);
@@ -46,9 +54,24 @@ export function VoiceSession(props: {
 	const spokenRef = useRef<Map<string, string>>(new Map());
 	const scratchpadRef = useRef(scratchpad);
 	scratchpadRef.current = scratchpad;
+	// The agent's scratchpad edits update the ref synchronously (before React
+	// re-renders) so a back-to-back tool call validates against fresh text.
+	const setScratchpad = useCallback(
+		(text: string) => {
+			scratchpadRef.current = text;
+			onScratchpadChange(text);
+		},
+		[onScratchpadChange],
+	);
 
 	const [status, setStatus] = useState<Status>('idle');
 	const [log, setLog] = useState<LogEntry[]>([]);
+	const [agentHighlight, setAgentHighlight] = useState<string | null>(null);
+	const [reveal, setReveal] = useState<{
+		anchor?: string;
+		cancel: () => void;
+	} | null>(null);
+	const [undoDepth, setUndoDepth] = useState(0);
 	const pushLog = useCallback((entry: LogEntry) => {
 		setLog((prev) => [...prev, entry]);
 	}, []);
@@ -81,11 +104,16 @@ export function VoiceSession(props: {
 		setStatus('connecting');
 		setLog([]);
 		spokenRef.current = new Map();
+		setUndoDepth(0);
 		try {
 			const session = await startVoiceSession({
 				editor,
 				corpus,
 				audioEl: audioRef.current,
+				scratchpad: {
+					get: () => scratchpadRef.current,
+					set: setScratchpad,
+				},
 				onTranscript: (seg) => {
 					// Feed the writer's words (interim included) into the corpus,
 					// replacing this segment's prior text as ASR refines it.
@@ -94,6 +122,9 @@ export function VoiceSession(props: {
 				},
 				onTool: (text) => pushLog({ kind: 'tool', text }),
 				onStatus: (text) => pushLog({ kind: 'system', text }),
+				onScratchpadHighlight: setAgentHighlight,
+				onReveal: setReveal,
+				onUndoDepth: setUndoDepth,
 			});
 			sessionRef.current = session;
 			setStatus('live');
@@ -101,13 +132,20 @@ export function VoiceSession(props: {
 			setStatus('error');
 			pushLog({ kind: 'system', text: `failed: ${(e as Error).message}` });
 		}
-	}, [editor, corpus, pushLog, upsertLog]);
+	}, [editor, corpus, pushLog, upsertLog, setScratchpad]);
 
 	const stop = useCallback(async () => {
 		await sessionRef.current?.stop();
 		sessionRef.current = null;
 		setStatus('idle');
+		setReveal(null);
+		setAgentHighlight(null);
 		pushLog({ kind: 'system', text: 'stopped' });
+	}, [pushLog]);
+
+	const undo = useCallback(async () => {
+		const report = await sessionRef.current?.undo();
+		if (report) pushLog({ kind: 'system', text: report });
 	}, [pushLog]);
 
 	// Tear the session down if the tab unmounts.
@@ -118,12 +156,35 @@ export function VoiceSession(props: {
 		};
 	}, []);
 
+	// The writer's recent spoken turns — the history that actually matters.
+	const said = log.filter((e) => e.kind === 'you').slice(-3);
+
 	return (
 		<div style={S.page}>
 			<audio ref={audioRef} autoPlay />
 			<div style={S.header}>
 				<strong style={{ fontSize: '0.85rem' }}>Voice</strong>
 				<span style={S.status(status)}>{status}</span>
+				{reveal ? (
+					<button
+						type="button"
+						style={S.veto}
+						title="Cancel this edit before it lands"
+						onClick={() => reveal.cancel()}
+					>
+						✕ cancel edit
+					</button>
+				) : null}
+				{status === 'live' && undoDepth > 0 ? (
+					<button
+						type="button"
+						style={S.undoBtn}
+						title="Undo the partner's last edit"
+						onClick={() => void undo()}
+					>
+						Undo
+					</button>
+				) : null}
 				{status === 'live' ? (
 					<button type="button" style={S.btn} onClick={() => void stop()}>
 						Stop
@@ -140,20 +201,38 @@ export function VoiceSession(props: {
 				)}
 			</div>
 
-			<div style={S.log}>
-				{log.length === 0 ? (
-					<div style={S.logEmpty}>
+			<VoiceScratchpad
+				value={scratchpad}
+				onChange={setScratchpad}
+				highlight={agentHighlight}
+				onQuoteClick={(phrase) => void editor.selectPhrase(phrase).catch(() => {})}
+			/>
+
+			<div style={S.said}>
+				{said.length === 0 ? (
+					<div style={S.saidEmpty}>
 						Click “Start talking”, grant mic access, and say something like
 						“read what I have, then help me tighten the first line.”
 					</div>
 				) : (
-					log.map((e, i) => (
-						<div key={i} style={S.logRow(e.kind)}>
-							<span style={S.logTag}>{e.kind}</span> {e.text}
+					said.map((e, i) => (
+						<div key={e.id ?? i} style={S.saidRow}>
+							<span style={S.logTag}>you</span> {e.text}
 						</div>
 					))
 				)}
 			</div>
+
+			<details style={S.debug}>
+				<summary style={S.debugSummary}>Debug log ({log.length})</summary>
+				<div style={S.log}>
+					{log.map((e, i) => (
+						<div key={i} style={S.logRow(e.kind)}>
+							<span style={S.logTag}>{e.kind}</span> {e.text}
+						</div>
+					))}
+				</div>
+			</details>
 		</div>
 	);
 }
@@ -198,11 +277,48 @@ const S = {
 		cursor: 'pointer',
 		fontSize: '0.85rem',
 	} as const,
-	log: {
-		flex: 1,
-		padding: '0.75rem',
+	undoBtn: {
+		padding: '0.25rem 0.6rem',
+		border: '1px solid #d1d5db',
+		borderRadius: 6,
+		background: '#f9fafb',
+		color: '#374151',
+		cursor: 'pointer',
+		fontSize: '0.75rem',
+	} as const,
+	veto: {
+		padding: '0.25rem 0.6rem',
+		border: '1px solid #dc2626',
+		borderRadius: 999,
+		background: '#fef2f2',
+		color: '#b91c1c',
+		cursor: 'pointer',
+		fontSize: '0.75rem',
+		fontWeight: 600,
+	} as const,
+	said: {
+		padding: '0.5rem 0.75rem',
+		borderBottom: '1px solid #e5e7eb',
+		fontSize: '0.78rem',
+		maxHeight: '5.5rem',
 		overflowY: 'auto',
-		fontSize: '0.8rem',
+	} as const,
+	saidRow: { margin: '0 0 0.25rem', color: '#065f46' } as const,
+	saidEmpty: { color: '#6b7280', fontStyle: 'italic' } as const,
+	debug: {
+		flexShrink: 0,
+		maxHeight: '40%',
+		overflowY: 'auto',
+		padding: '0.25rem 0.75rem 0.5rem',
+	} as const,
+	debugSummary: {
+		cursor: 'pointer',
+		fontSize: '0.72rem',
+		color: '#6b7280',
+	} as const,
+	log: {
+		paddingTop: '0.4rem',
+		fontSize: '0.75rem',
 	} as const,
 	logRow: (kind: LogEntry['kind']) =>
 		({
@@ -222,5 +338,4 @@ const S = {
 		opacity: 0.6,
 		marginRight: 4,
 	} as const,
-	logEmpty: { color: '#6b7280', fontStyle: 'italic' } as const,
 };

@@ -67,10 +67,30 @@ existing words over piling on new material. Because this is spoken, keep replies
 to one or two sentences and never read punctuation, symbols, or paragraph \
 numbers aloud.
 
-Tools (they act on the writer's live document in their browser): `view` reads \
-the numbered document; `str_replace` / `insert` / `move` make small edits drawn \
-from the writer's words; `highlight` points at a passage while you talk about \
-it. Re-`view` before an edit when paragraph numbers may have shifted. The \
+Every edit is tentative: the app shows the writer where an edit will land just \
+before it does (they can cancel it), so apply your move, say in a few words what \
+changed, and invite a reaction. If the writer hesitates or objects, `undo` it \
+without fuss and ask what they'd prefer.
+
+There are two surfaces, chosen with `target`. The DOCUMENT (default) is the \
+piece itself. The SCRATCHPAD is the writer's thinking space — their ideas in \
+their own words. It does not need to stay in sync with the document; it's where \
+spoken phrasing gets parked verbatim before it's lost, where scraps without a \
+home collect, and where structure gets sketched without committing the piece. \
+Light conventions, not rules: a `#` line is one idea in the writer's words; \
+`-` lines under it are related notes; a "quoted phrase" points at the \
+document's wording; `[[idea words]]` links to another idea — but the writer \
+owns those links, so suggest one aloud rather than writing it unasked. When the \
+writer says something worth keeping that doesn't belong in the document yet, \
+offer to jot it on the scratchpad — in their words, not yours.
+
+Tools (they act on the writer's live surfaces in their browser): `view` reads \
+the numbered paragraphs; `str_replace` / `insert` / `move` make small edits \
+drawn from the writer's words; `highlight` points at a passage while you talk \
+about it; `undo` reverts your most recent edit. In edit text, a newline starts \
+a new paragraph — so `str_replace` can split a paragraph (newline in the new \
+text) or join two (match across the boundary by putting a newline in the old \
+text). Re-`view` before an edit when paragraph numbers may have shifted. The \
 bracketed numbers like [2] are an internal coordinate for your tools only — \
 never say them to the writer; refer to a passage by quoting its words or by \
 `highlight`ing it. If a tool comes back `REJECTED`, it means the words weren't \
@@ -111,14 +131,24 @@ class MyWordsAgent(Agent):
         super().__init__(instructions=INSTRUCTIONS)
 
     @function_tool()
-    async def view(self, context: RunContext) -> str:
-        """Read the current document, with paragraphs numbered like [3].
+    async def view(
+        self,
+        context: RunContext,
+        target: str | None = None,
+        around: int | None = None,
+    ) -> str:
+        """Read the current document (or scratchpad), paragraphs numbered like [3].
 
         Call this to re-read before an edit when paragraph numbers may have
         shifted. The numbers are for targeting `insert`/`move`; never say them
         aloud.
+
+        Args:
+            target: 'document' (default) or 'scratchpad'.
+            around: Optional paragraph number — return just a short window
+                around it instead of the whole text.
         """
-        return await _forward("view", {})
+        return await _forward("view", {"target": target, "around": around})
 
     @function_tool()
     async def str_replace(
@@ -127,21 +157,30 @@ class MyWordsAgent(Agent):
         old_str: str,
         new_str: str,
         paragraph: int | None = None,
+        target: str | None = None,
     ) -> str:
         """Replace a SHORT span (a phrase or sentence within one paragraph).
 
         The replacement must be lifted from the writer's own words. Pass
         `paragraph` (the [n] from `view`) to scope the search there — more
-        reliable than a bare search.
+        reliable than a bare search. A newline in `new_str` splits the
+        paragraph; a newline in `old_str` matches across a paragraph boundary
+        (which is how you join two paragraphs).
 
         Args:
             old_str: The exact existing text to replace.
             new_str: The replacement, drawn from the writer's words.
             paragraph: 1-based paragraph number from `view` to scope to.
+            target: 'document' (default) or 'scratchpad'.
         """
         return await _forward(
             "str_replace",
-            {"old_str": old_str, "new_str": new_str, "paragraph": paragraph},
+            {
+                "old_str": old_str,
+                "new_str": new_str,
+                "paragraph": paragraph,
+                "target": target,
+            },
         )
 
     @function_tool()
@@ -152,18 +191,20 @@ class MyWordsAgent(Agent):
         after: str | None = None,
         paragraph: int | None = None,
         position: str | None = None,
+        target: str | None = None,
     ) -> str:
         """Insert text lifted from the writer's words.
 
         Pass `paragraph` + `position` to place a new paragraph relative to an
-        existing one, `after` to insert within a paragraph, or neither for the
-        cursor.
+        existing one, `after` to insert within a paragraph, or neither to
+        append at the end. A newline in `text` starts another new paragraph.
 
         Args:
             text: The text to insert, drawn from the writer's words.
             after: Insert right after this existing text (within a paragraph).
             paragraph: 1-based paragraph number from `view` to position against.
             position: 'before' or 'after' the target paragraph. Defaults to after.
+            target: 'document' (default) or 'scratchpad'.
         """
         return await _forward(
             "insert",
@@ -172,6 +213,7 @@ class MyWordsAgent(Agent):
                 "after": after,
                 "paragraph": paragraph,
                 "position": position,
+                "target": target,
             },
         )
 
@@ -182,6 +224,7 @@ class MyWordsAgent(Agent):
         phrase: str,
         paragraph: int,
         position: str | None = None,
+        target: str | None = None,
     ) -> str:
         """Relocate an existing passage (the writer's own words) elsewhere.
 
@@ -191,20 +234,39 @@ class MyWordsAgent(Agent):
             phrase: The exact existing passage to relocate.
             paragraph: 1-based paragraph number to move it next to.
             position: 'before' or 'after' the target paragraph. Defaults to after.
+            target: 'document' (default) or 'scratchpad'.
         """
         return await _forward(
             "move",
-            {"phrase": phrase, "paragraph": paragraph, "position": position},
+            {
+                "phrase": phrase,
+                "paragraph": paragraph,
+                "position": position,
+                "target": target,
+            },
         )
 
     @function_tool()
-    async def highlight(self, context: RunContext, phrase: str) -> str:
-        """Select a passage in the document to point at it while you talk.
+    async def highlight(
+        self, context: RunContext, phrase: str, target: str | None = None
+    ) -> str:
+        """Point at a passage while you talk about it (selects/highlights it).
 
         Args:
             phrase: The exact existing text to highlight.
+            target: 'document' (default) or 'scratchpad'.
         """
-        return await _forward("highlight", {"phrase": phrase})
+        return await _forward("highlight", {"phrase": phrase, "target": target})
+
+    @function_tool()
+    async def undo(self, context: RunContext) -> str:
+        """Revert your most recent edit (document or scratchpad).
+
+        Use it freely when the writer hesitates or objects — edits are meant to
+        be tentative. Undoing something the writer has since hand-edited is
+        refused rather than guessed at.
+        """
+        return await _forward("undo", {})
 
 
 server = AgentServer()
