@@ -5382,7 +5382,7 @@ describe("LLM context", () => {
     expect(out.mode).toBe("question");
     expect(out.suppressionReason).toBe("draft_salience_bridge");
     expect(out.text).toBe(
-      'What part of "human control decides what enters the draft" feels most important to unpack first?',
+      'What part of "human control decides what enters the draft" needs your own wording next?',
     );
     expect(out.questionAnchor).toBe("The main idea is human control decides what enters the draft");
     expect(out.questionStance).toBe("deepen");
@@ -5438,7 +5438,7 @@ describe("LLM context", () => {
 
     expect(out.mode).toBe("question");
     expect(out.text).toBe(
-      'What tension or consequence in "human control decides what enters the draft" feels most important to examine next?',
+      'What part of "human control decides what enters the draft" needs your own wording next?',
     );
     expect(out.questionAnchor).toBe("The main idea is human control decides what enters the draft");
     expect(out.questionStance).toBe("deepen");
@@ -5458,7 +5458,7 @@ describe("LLM context", () => {
     );
 
     expect(out.mode).toBe("question");
-    expect(out.text).toContain("What tension or consequence");
+    expect(out.text).toContain("needs your own wording next");
     expect(out.text).toContain("Human control decides what enters the draft");
     expect(out.questionAnchor).toBe("Human control decides what enters the draft.");
     expect(state.candidates.getAll()).toHaveLength(0);
@@ -5673,7 +5673,9 @@ describe("answer transitions (Goal 5)", () => {
     const out = await processTurn(state, CONTROL_ANSWER, deepenLLM(reAsk), cfg, "chat", map);
 
     expect(out.text).not.toBe(reAsk);
-    expect(out.text).toContain("belong with something already on your map");
+    expect(out.text).toContain("#86");
+    expect(out.text).toContain("#166");
+    expect(out.text).toContain("relate in your own words");
     expect(out.questionStance).toBe("organize");
     expect(out.mapCommands).toBeUndefined();
   });
@@ -5864,11 +5866,143 @@ describe("user next-move override (Under the Hood)", () => {
     expect(out.commandDebug?.some((note) => note.reason === "not_current_turn_span")).toBe(true);
   });
 
+  it("uses a selected card when forced deepen has to replace a generic settle question", async () => {
+    const state = createState();
+    const out = await processTurn(
+      state,
+      "",
+      () => ({
+        mode: "question",
+        text: "Which part feels easiest to start with?",
+        questionStance: "settle",
+      }),
+      defaultConfig,
+      "chat",
+      overrideMap,
+      {
+        ingestUser: false,
+        overrideMode: "deepen",
+        selectedFocus: {
+          cards: [{ id: "tu_86", ref: "#86", text: "monitoring becomes active control", role: "node" }],
+        },
+      },
+    );
+
+    expect(out.questionStance).toBe("deepen");
+    expect(out.text).toBe('What assumption inside #86 "monitoring becomes active control" should we test first?');
+  });
+
+  it("uses draft declarations to make forced deepen on a selected card more draft-aware", async () => {
+    const state = createState();
+    state.draft = "The main idea is human control decides what enters the draft.";
+
+    const out = await processTurn(
+      state,
+      "",
+      () => ({
+        mode: "question",
+        text: "Which part feels easiest to start with?",
+        questionStance: "settle",
+      }),
+      defaultConfig,
+      "chat",
+      overrideMap,
+      {
+        ingestUser: false,
+        overrideMode: "deepen",
+        selectedFocus: {
+          cards: [{ id: "tu_52", ref: "#52", text: "Authorship Theory", role: "node" }],
+        },
+      },
+    );
+
+    expect(out.questionStance).toBe("deepen");
+    expect(out.text).toBe(
+      'How does "human control decides what enters the draft" change what #52 needs to explain?',
+    );
+  });
+
+  it("uses selected cards when forced organize has to replace a generic settle question", async () => {
+    const state = createState();
+    const out = await processTurn(
+      state,
+      "",
+      () => ({
+        mode: "question",
+        text: "Which part feels easiest to start with?",
+        questionStance: "settle",
+      }),
+      defaultConfig,
+      "chat",
+      overrideMap,
+      {
+        ingestUser: false,
+        overrideMode: "organize",
+        selectedFocus: {
+          cards: [
+            { id: "tu_86", ref: "#86", text: "monitoring becomes active control", role: "node" },
+            { id: "tu_166", ref: "#166", text: "control means the writer decides", role: "node" },
+          ],
+        },
+      },
+    );
+
+    expect(out.questionStance).toBe("organize");
+    expect(out.text).toBe("How do #86 and #166 relate in your own words?");
+  });
+
+  it("uses selected draft text when forced deepen has to replace a generic settle question", async () => {
+    const state = createState();
+    const out = await processTurn(
+      state,
+      "",
+      () => ({
+        mode: "question",
+        text: "Which part feels easiest to start with?",
+        questionStance: "settle",
+      }),
+      defaultConfig,
+      "chat",
+      overrideMap,
+      {
+        ingestUser: false,
+        overrideMode: "deepen",
+        selectedFocus: {
+          draftText: "the system should not write for the author",
+        },
+      },
+    );
+
+    expect(out.questionStance).toBe("deepen");
+    expect(out.text).toBe('What claim inside "the system should not write for the author" feels least settled?');
+  });
+
   it("does not force a mode on an ordinary typed turn", async () => {
     const state = createState();
     const cap = capture();
     await processTurn(state, "I want to write about control", cap.llm, defaultConfig, "chat", overrideMap);
     expect(cap.get()?.forcedMode).toBeUndefined();
+  });
+
+  it("rewrites robotic leading in-quote question wording", async () => {
+    const state = createState();
+    const out = await processTurn(
+      state,
+      "I want to focus on the different contributing factors to it",
+      () => ({
+        mode: "question",
+        text: 'In "the different contributing factors to it," which one feels most central to stay with first?',
+        questionStance: "narrow",
+      }),
+      defaultConfig,
+      "chat",
+      overrideMap,
+    );
+
+    expect(out.text).toBe(
+      'When you say "the different contributing factors to it", which one feels most central to stay with first?',
+    );
+    expect(state.lastCoachQuestion?.text).toBe(out.text);
   });
 
   it("clears a wedged pending confirmation when a mode is forced", async () => {
@@ -5928,7 +6062,7 @@ describe("user next-move override (Under the Hood)", () => {
 
     expect(out.mode).toBe("question");
     expect(out.questionStance).toBe("deepen");
-    expect(out.text).toBe("What should we unpack more deeply about the idea you were just working on?");
+    expect(out.text).toContain("What assumption inside #86");
   });
 
   it("treats keep unpacking as choosing the non-mirror branch of a mirror-pressure bridge", async () => {
@@ -5953,7 +6087,7 @@ describe("user next-move override (Under the Hood)", () => {
 
     expect(out.suppressionReason).not.toBe("mirror_pressure_bridge");
     expect(out.questionStance).toBe("deepen");
-    expect(out.text).toBe("What should we unpack more deeply about the idea you were just working on?");
+    expect(out.text).toContain("What assumption inside #86");
   });
 
   it("normalizes a forced organize click when the model returns a settle question", async () => {
@@ -5975,7 +6109,9 @@ describe("user next-move override (Under the Hood)", () => {
 
     expect(out.mode).toBe("question");
     expect(out.questionStance).toBe("organize");
-    expect(out.text).toBe("Which two ideas should we relate first, in your own words?");
+    expect(out.text).toContain("#86");
+    expect(out.text).toContain("#166");
+    expect(out.text).toContain("relate in your own words");
   });
 
   it("does not allow a forced organize click to enter the mirror path", async () => {
@@ -5995,7 +6131,9 @@ describe("user next-move override (Under the Hood)", () => {
     expect(out.mode).toBe("question");
     expect(out.validatedMirror).toBeUndefined();
     expect(out.questionStance).toBe("organize");
-    expect(out.text).toBe("Which two ideas should we relate first, in your own words?");
+    expect(out.text).toContain("#86");
+    expect(out.text).toContain("#166");
+    expect(out.text).toContain("relate in your own words");
   });
 
   it("normalizes a forced pivot click when the model repeats the stale question", async () => {
@@ -6016,7 +6154,7 @@ describe("user next-move override (Under the Hood)", () => {
 
     expect(out.mode).toBe("question");
     expect(out.questionStance).toBe("settle");
-    expect(out.text).toBe("Okay - let's leave that aside. Where would you like to point next?");
+    expect(out.text).toBe("Okay - let's leave the last question aside. What different angle on #86 should we look at?");
   });
 
   it("does not allow a forced pivot click to enter the mirror path", async () => {
@@ -6036,7 +6174,7 @@ describe("user next-move override (Under the Hood)", () => {
     expect(out.mode).toBe("question");
     expect(out.validatedMirror).toBeUndefined();
     expect(out.questionStance).toBe("settle");
-    expect(out.text).toBe("Okay - let's leave that aside. Where would you like to point next?");
+    expect(out.text).toBe("Okay - let's leave the last question aside. What different angle on #86 should we look at?");
   });
 });
 

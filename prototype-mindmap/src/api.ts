@@ -101,7 +101,7 @@ async function chatJSON<T>(messages: OpenAIMessage[]): Promise<T> {
       {
         role: "user",
         content:
-          "That was not valid JSON. Return ONLY one valid JSON object, nothing else. Every double quote inside a string value must be escaped; do not wrap phrases in raw double quotes inside string values — use a single quote or a #ref instead.",
+          "That was not valid JSON. Return ONLY one valid JSON object, nothing else. Every double quote inside a string value must be escaped as \\\". When the visible response quotes the user's exact wording, keep the quotation marks in the response text, but escape them correctly inside JSON.",
       },
     ];
     const retryContent = await postChat(retryMessages);
@@ -285,7 +285,7 @@ ${capabilities.cantDo.map((item) => `  - ${item}`).join("\n")}`;
         }.`
       : "";
   const draftDeclarationNote = ctx.draftDeclarations.length > 0
-    ? `\nDRAFT DECLARATIONS: The system detected explicit declarations or high-confidence repeated focus already written in the draft. These are user-authored salience signals: they are NOT Source Bank evidence by themselves, NOT automatic candidates, NOT mirror-ready on their own, and NOT permission to put anything on the map. Use them to avoid blind probing and to ask sharper draft-backed questions. When the user's chat wording overlaps one of these ideas, especially when Map pressure is high, prefer a grounded mirror using chat Source Bank spans or a bridge asking whether to carry the idea toward the map. Do not ask the user to restate these declared ideas; ask about a consequence, tension, assumption, relationship, priority, or whether they want to carry exact wording forward.`
+    ? `\nDRAFT DECLARATIONS: The system detected explicit declarations or high-confidence repeated focus already written in the draft. These are user-authored salience signals: they are NOT Source Bank evidence by themselves, NOT automatic candidates, NOT mirror-ready on their own, and NOT permission to put anything on the map. Use them to avoid blind probing and to ask sharper draft-aware questions. When the user's chat wording overlaps one of these ideas, especially when Map pressure is high, prefer a grounded mirror using chat Source Bank spans or a bridge asking whether to carry the idea toward the map. Do not ask the user to restate these declared ideas; ask about a concrete phrase, example, consequence, assumption, relationship, priority, or whether they want to carry exact wording forward. Keep draft-aware questions light: one short grounding clause at most, one focused question, no mini-essay and no menu of theoretical options unless the user already named those options.`
     : "";
   const largeTurnNote =
     ctx.turnShape.kind === "large_exploratory"
@@ -310,7 +310,7 @@ ${capabilities.cantDo.map((item) => `  - ${item}`).join("\n")}`;
     : "";
   const selectedFocusNote =
     (ctx.selectedFocus?.cards?.length || ctx.selectedFocus?.draftText?.trim())
-      ? `\nSELECTED UI FOCUS (READ-ONLY, HIGH PRIORITY): The user deliberately selected this map/draft context for the next coach move. Prefer it over generic map/draft anchors. If forcedMode is "deepen", ask about the selected card/text. If forcedMode is "organize" and two or more cards are selected, ask how those selected cards relate in the user's own words. If forcedMode is "pivot", pivot within this selected context before leaving it. If forcedMode is "mirror", only mirror claims that are already grounded in Source Bank utterances; selected map cards or draft text alone are NOT Source Bank evidence. This selection never authorizes mapCommands, card edits, draft edits, or new structure.`
+      ? `\nSELECTED UI FOCUS (READ-ONLY, HIGH PRIORITY): The user deliberately selected this map/draft context for the next coach move. Prefer it over generic map/draft anchors. If forcedMode is "deepen", ask about the selected card/text; when a draft is present, make the question aware of one concrete phrase, example, or issue in the draft instead of asking a generic "which part" question. Keep it simple and intelligent: one short grounding clause at most, then one question. Do not pack the question with multiple theoretical alternatives unless those alternatives are already the user's own wording. If forcedMode is "organize" and two or more cards are selected, ask how those selected cards relate in the user's own words. If forcedMode is "pivot", pivot within this selected context before leaving it. If forcedMode is "mirror", only mirror claims that are already grounded in Source Bank utterances; selected map cards or draft text alone are NOT Source Bank evidence. This selection never authorizes mapCommands, card edits, draft edits, or new structure.`
       : "";
   const openThreadsNote = ctx.openThreads?.length
     ? `\nPARKED EARLIER PHRASES: These are exact user-authored phrases from earlier large exploratory turns. They are memory anchors only: not tasks, not priorities, not candidates, not evidence of importance, and not permission to make cards. If the user asked what to do next, pivoted, or asked for options, you may offer up to 3 of them as optional return points and ask what still feels live. Do not say the user "needs" to return to them.`
@@ -321,7 +321,7 @@ ${capabilities.cantDo.map((item) => `  - ${item}`).join("\n")}`;
     `\nMIRROR PRESSURE: If the user has answered several focused questions on the same live concept and ready candidates exist, stop re-unearthing the same idea. Use mode "mirror" with grounded sourceSpans, or ask a bridge question about whether to mirror/carry the settled structure forward. Do not keep asking "what does X mean", "what makes X different", or another generic deepen question once the user's own wording has settled.`;
   const intentNote = shouldOrganize
     ? `\nQUESTION INTENT: Use "organize" — the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask structural/relational questions: what is bigger, what connects what, how two named concepts relate. Do NOT open new topics.`
-    : `\nQUESTION INTENT: Use "deepen" — dig into one concept. Ask what it is, what it does, what assumption it rests on, or what would change it. Surface real tensions before moving on.`;
+    : `\nQUESTION INTENT: Use "deepen" — dig into one concept. Ask what it is, what it does, what assumption it rests on, or what would change it. When a draft exists, use its concrete wording as context so the question sounds aware of the work in progress, not like a generic coaching prompt. Prefer a precise, short question over a heavily worded one.`;
 
   const relationshipSafeIntentNote = shouldOrganize
     ? `\nQUESTION INTENT: Use "organize" - the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask the user to author the relationship between already-named thoughts in their own words. Do NOT offer possible structures such as bigger/smaller, under/alongside, claim/software idea, cause/effect, or any pair of labels for them to choose between unless the user already supplied those exact alternatives. If the user declines to state a relationship, says it is fine as-is, says they want to move on, or keeps demurring, do NOT re-ask about the same cards; pivot to a different card, a draft region, or an open hand-back question instead. Do NOT open new topics.`
@@ -460,10 +460,17 @@ ${
 }
 
 OUTPUT FORMAT: Respond with exactly one valid JSON object and nothing else.
-Inside string values (especially "text"), do NOT wrap phrases in raw double
-quotes — refer to a card by its #ref or paraphrase it. If you must show a
-quotation mark in prose, use a single quote. An unescaped double quote inside a
-string value will break the response.
+Inside string values (especially "text"), any double quotation mark must be
+escaped as \\" so the JSON stays valid. When the visible response quotes exact
+user wording, draft wording, or a line from the user's text, include quotation
+marks around that quoted wording. For example, write
+"text": "When you say \\"human control\\", what changes?" rather than dropping
+the quotation marks. Use natural grammar around quotes: say "When you say
+\\"the different contributing factors\\", ..." or "Which of the contributing
+factors you mentioned..."; do NOT write robotic location phrases like "In
+\\"the different contributing factors\\", ..." unless the quoted words are an
+actual section title, heading, or line location. Refer to cards by #ref when you
+are not quoting exact text.
 
 NOTE: You do NOT supply relation signals or spontaneity. The system detects the
 user's containment/relation language deterministically and attaches it to the
@@ -629,6 +636,10 @@ QUESTION TYPES — match to current intent:
 
 Never ask a vague rephrase-question ("How does that shape your thinking?").
 Never embed an answer in the question.
+Do not start a question with "In 'quoted user words'" or "In \"quoted user
+words\"" unless the quote is truly a section/heading/location. For ordinary
+phrases, use "When you say ...", "Which part of ...", or a direct question that
+absorbs the user's wording naturally.
 Never ask the user to choose between inferred structural labels. Bad: "Is X a
 software idea or an authorship claim?", "Does X sit under Y or alongside it?",
 "Is X the cause or the result?" unless the user already said those exact labels.

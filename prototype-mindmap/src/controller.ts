@@ -426,13 +426,6 @@ function buildMapQuestionContext(map: LLMMapContext): MapQuestionAnchor[] {
   }));
 }
 
-// A map-aware forward question used when the user has answered but the coach is
-// about to re-ask the same concept. It invites the user to relate their point to
-// the map WITHOUT proposing structure (no invented ref, no placement, no edge).
-function mapAwareTransitionQuestion(): string {
-  return "Does what you just said belong with something already on your map, or is it a separate point you'd want to name on its own?";
-}
-
 // --- Goal 5: answer detection + reworded-re-ask detection ---
 
 /**
@@ -588,18 +581,6 @@ function choseMirrorBridgeUnpackBranch(userText: string, lastAiText: string): bo
   );
 }
 
-function forcedDeepenFallbackQuestion(): string {
-  return "What should we unpack more deeply about the idea you were just working on?";
-}
-
-function forcedOrganizeFallbackQuestion(): string {
-  return "Which two ideas should we relate first, in your own words?";
-}
-
-function forcedPivotFallbackQuestion(): string {
-  return "Okay - let's leave that aside. Where would you like to point next?";
-}
-
 type DraftSalienceBridge = {
   text: string;
   detail: string;
@@ -611,6 +592,147 @@ function formatInlineList(items: string[]): string {
   if (items.length <= 1) return items[0] ?? "";
   if (items.length === 2) return `${items[0]} and ${items[1]}`;
   return `${items.slice(0, -1).join(", ")}, and ${items[items.length - 1]}`;
+}
+
+function shortenFocusText(text: string, max = 72): string {
+  const compact = text.trim().replace(/\s+/g, " ");
+  return compact.length <= max ? compact : `${compact.slice(0, max - 3).trim()}...`;
+}
+
+function selectedCardLabel(card: NonNullable<SelectedFocusContext["cards"]>[number]): string {
+  const text = shortenFocusText(card.text, 54);
+  return text ? `${card.ref} "${text}"` : card.ref;
+}
+
+function selectedDraftLabel(selectedFocus: SelectedFocusContext | undefined): string | undefined {
+  const text = selectedFocus?.draftText?.trim();
+  return text ? `"${shortenFocusText(text)}"` : undefined;
+}
+
+function selectedDraftDeclarationLabel(declarations: DraftDeclaration[] | undefined): string | undefined {
+  const declaration = declarations?.[0];
+  if (!declaration) return undefined;
+  return `"${shortenDraftDeclaration(declaration.text)}"`;
+}
+
+function fallbackMapAnchorPair(anchors: MapQuestionAnchor[] | undefined): [MapQuestionAnchor, MapQuestionAnchor] | undefined {
+  if (!anchors || anchors.length < 2) return undefined;
+  return [anchors[0], anchors[1]];
+}
+
+function focusedDeepenFallbackQuestion(
+  selectedFocus: SelectedFocusContext | undefined,
+  mapQuestionContext: MapQuestionAnchor[] | undefined,
+  userText: string,
+  draftDeclarations?: DraftDeclaration[],
+): string {
+  const draft = selectedDraftLabel(selectedFocus);
+  if (draft) {
+    return `What claim inside ${draft} feels least settled?`;
+  }
+  const cards = selectedFocus?.cards ?? [];
+  if (cards.length === 1) {
+    const draftDeclaration = selectedDraftDeclarationLabel(draftDeclarations);
+    if (draftDeclaration) {
+      return `How does ${draftDeclaration} change what ${cards[0].ref} needs to explain?`;
+    }
+    return `What assumption inside ${selectedCardLabel(cards[0])} should we test first?`;
+  }
+  if (cards.length >= 2) {
+    return `What tension across ${formatInlineList(cards.slice(0, 3).map((card) => card.ref))} should we unpack first?`;
+  }
+  const anchor = mapQuestionContext?.[0];
+  if (anchor) {
+    return `What assumption inside ${anchor.ref} "${anchor.text}" should we test first?`;
+  }
+  const userQuote = shortenFocusText(userText, 64);
+  if (contentTokens(userQuote).length >= 3) {
+    return `What consequence of "${userQuote}" should we unpack first?`;
+  }
+  return "What should we unpack more deeply about the idea you were just working on?";
+}
+
+function focusedOrganizeFallbackQuestion(
+  selectedFocus: SelectedFocusContext | undefined,
+  mapQuestionContext: MapQuestionAnchor[] | undefined,
+): string {
+  const cards = selectedFocus?.cards ?? [];
+  if (cards.length >= 2) {
+    return `How do ${formatInlineList(cards.slice(0, 3).map((card) => card.ref))} relate in your own words?`;
+  }
+  if (cards.length === 1) {
+    return `Which other idea should we compare with ${selectedCardLabel(cards[0])} first?`;
+  }
+  const draft = selectedDraftLabel(selectedFocus);
+  if (draft) {
+    return `Which map card should this selected draft text connect to first, if any?`;
+  }
+  const pair = fallbackMapAnchorPair(mapQuestionContext);
+  if (pair) {
+    return `How do ${pair[0].ref} "${pair[0].text}" and ${pair[1].ref} "${pair[1].text}" relate in your own words?`;
+  }
+  return "Which two ideas should we relate first, in your own words?";
+}
+
+function focusedPivotFallbackQuestion(
+  selectedFocus: SelectedFocusContext | undefined,
+  mapQuestionContext: MapQuestionAnchor[] | undefined,
+): string {
+  const cards = selectedFocus?.cards ?? [];
+  if (cards.length >= 2) {
+    return `Okay - let's leave the last question aside. What different angle on ${formatInlineList(cards.slice(0, 3).map((card) => card.ref))} should we look at?`;
+  }
+  if (cards.length === 1) {
+    return `Okay - let's leave the last question aside. What different angle on ${selectedCardLabel(cards[0])} should we look at?`;
+  }
+  const draft = selectedDraftLabel(selectedFocus);
+  if (draft) {
+    return `Okay - let's leave the last question aside. What different angle on the selected draft passage should we look at?`;
+  }
+  const anchor = mapQuestionContext?.[0];
+  if (anchor) {
+    return `Okay - let's leave the last question aside. What different angle on ${anchor.ref} should we look at?`;
+  }
+  return "Okay - let's leave that aside. Where would you like to point next?";
+}
+
+function focusedSettleFallbackQuestion(
+  selectedFocus: SelectedFocusContext | undefined,
+  mapQuestionContext: MapQuestionAnchor[] | undefined,
+  userText: string,
+): string {
+  const cards = selectedFocus?.cards ?? [];
+  if (cards.length >= 2) {
+    return `Let's ease off the repeated question - which selected card feels clearest right now: ${formatInlineList(cards.slice(0, 3).map((card) => card.ref))}?`;
+  }
+  if (cards.length === 1) {
+    return `Let's ease off the repeated question - what feels clearest inside ${selectedCardLabel(cards[0])} right now?`;
+  }
+  const draft = selectedDraftLabel(selectedFocus);
+  if (draft) {
+    return `Let's ease off the repeated question - what feels clearest in the selected draft passage right now?`;
+  }
+  const anchor = mapQuestionContext?.[0];
+  if (anchor) {
+    return `Let's ease off the repeated question - what feels clearest in ${anchor.ref} right now?`;
+  }
+  const userQuote = shortenFocusText(userText, 64);
+  if (contentTokens(userQuote).length >= 3) {
+    return `Let's ease off that one — what feels clearest in "${userQuote}" right now?`;
+  }
+  return "Let's ease off that one — what's one small part of this you already feel sure about?";
+}
+
+function lowerFirstLetter(text: string): string {
+  return text.replace(/^([A-Z])/, (match) => match.toLowerCase());
+}
+
+function fluidQuoteQuestionText(text: string): string {
+  const match = text.match(/^In\s+["']([^"']{3,160})["']\s*,?\s*(.+)$/);
+  if (!match) return text;
+  const quoted = match[1].trim().replace(/\s*,\s*$/, "");
+  const rest = lowerFirstLetter(match[2].trim());
+  return `When you say "${quoted}", ${rest}`;
 }
 
 function countWord(count: number): string {
@@ -694,7 +816,7 @@ function draftSalienceBridge(
     };
   }
   return {
-    text: `What part of "${quote}" feels most important to unpack first?`,
+    text: `What part of "${quote}" needs your own wording next?`,
     anchor: declaration.userPhrase,
     detail: `draft-backed deepen prompt: ${declaration.kind}`,
     stance: "deepen",
@@ -955,7 +1077,7 @@ function targetedDraftDeclarationQuestion(declarations: DraftDeclaration[]): Par
   const quote = shortenDraftDeclaration(declaration.text);
   return {
     mode: "question",
-    text: `What tension or consequence in "${quote}" feels most important to examine next?`,
+    text: `What part of "${quote}" needs your own wording next?`,
     questionAnchor: declaration.userPhrase,
     questionStance: "deepen",
   };
@@ -4019,9 +4141,6 @@ export async function processTurn(
     state.clarifyTarget || state.activeElicitation?.kind === "clarify_after_failed_mirror",
   );
 
-  // De-escalation used to break a verbatim-repeat loop (see finish()).
-  const DE_ESCALATE =
-    "Let's ease off that one — what's one small part of this you already feel sure about?";
   const MIRROR_SUPPRESSED_REPEAT_QUESTION =
     "What exact wording do you want the map to carry forward from that?";
   const normalizeText = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
@@ -4241,7 +4360,7 @@ export async function processTurn(
       out = {
         ...out,
         mode: "question",
-        text: forcedDeepenFallbackQuestion(),
+        text: focusedDeepenFallbackQuestion(selectedFocus, mapQuestionContext, userText, draftDeclarations),
         questionAnchor: undefined,
         questionStance: "deepen",
         suppressionReason: undefined,
@@ -4259,7 +4378,7 @@ export async function processTurn(
       out = {
         ...out,
         mode: "question",
-        text: forcedDeepenFallbackQuestion(),
+        text: focusedDeepenFallbackQuestion(selectedFocus, mapQuestionContext, userText, draftDeclarations),
         questionAnchor: undefined,
         questionStance: "deepen",
         suppressionReason: undefined,
@@ -4295,7 +4414,7 @@ export async function processTurn(
         };
       } else {
         // A forced de-escalation IS a settle move.
-        out = { ...out, text: DE_ESCALATE, questionAnchor: undefined, questionStance: "settle" };
+        out = { ...out, text: focusedSettleFallbackQuestion(selectedFocus, mapQuestionContext, userText), questionAnchor: undefined, questionStance: "settle" };
         state.clarifyTarget = undefined;
       }
     } else if (
@@ -4309,7 +4428,7 @@ export async function processTurn(
       // oscillate forever between two carry-forward phrasings, each different from
       // the turn right before it — a last-turn-only check never trips. Break it
       // with a settle move distinct from both oscillating phrasings.
-      out = { ...out, text: DE_ESCALATE, questionAnchor: undefined, questionStance: "settle" };
+      out = { ...out, text: focusedSettleFallbackQuestion(selectedFocus, mapQuestionContext, userText), questionAnchor: undefined, questionStance: "settle" };
       state.clarifyTarget = undefined;
     } else if (
       (out.mode === "question" || out.mode === "clarify") &&
@@ -4331,7 +4450,7 @@ export async function processTurn(
       out = {
         ...out,
         mode: "question",
-        text: forcedOrganizeFallbackQuestion(),
+        text: focusedOrganizeFallbackQuestion(selectedFocus, mapQuestionContext),
         questionAnchor: undefined,
         questionStance: "organize",
         suppressionReason: undefined,
@@ -4352,7 +4471,7 @@ export async function processTurn(
       out = {
         ...out,
         mode: "question",
-        text: forcedPivotFallbackQuestion(),
+        text: focusedPivotFallbackQuestion(selectedFocus, mapQuestionContext),
         questionAnchor: undefined,
         questionStance: "settle",
         suppressionReason: undefined,
@@ -4391,7 +4510,7 @@ export async function processTurn(
         out = {
           ...out,
           mode: "question",
-          text: mapAwareTransitionQuestion(),
+          text: focusedOrganizeFallbackQuestion(selectedFocus, mapQuestionContext),
           questionAnchor: undefined,
           questionStance: "organize",
         };
@@ -4400,7 +4519,7 @@ export async function processTurn(
         out = {
           ...out,
           mode: "question",
-          text: DE_ESCALATE,
+          text: focusedSettleFallbackQuestion(selectedFocus, mapQuestionContext, userText),
           questionAnchor: undefined,
           questionStance: "settle",
         };
@@ -4496,6 +4615,9 @@ export async function processTurn(
     } else if (out.mode === "mirror") {
       state.activeSelectionContext = undefined;
     }
+    if (out.mode === "question" || out.mode === "clarify") {
+      out = { ...out, text: fluidQuoteQuestionText(out.text) };
+    }
     setLastAiText(state, out.text);
     // Goal 5: remember the question the user will answer next (cleared on a mirror,
     // where the next user turn is a confirm rather than an answer).
@@ -4589,10 +4711,10 @@ export async function processTurn(
   ) {
     const text =
       effectiveOverrideMode === "organize"
-        ? forcedOrganizeFallbackQuestion()
+        ? focusedOrganizeFallbackQuestion(selectedFocus, mapQuestionContext)
         : effectiveOverrideMode === "pivot"
-          ? forcedPivotFallbackQuestion()
-          : forcedDeepenFallbackQuestion();
+          ? focusedPivotFallbackQuestion(selectedFocus, mapQuestionContext)
+          : focusedDeepenFallbackQuestion(selectedFocus, mapQuestionContext, userText, draftDeclarations);
     const questionStance: QuestionStance =
       effectiveOverrideMode === "organize" ? "organize" : effectiveOverrideMode === "pivot" ? "settle" : "deepen";
     state.turnsSinceLastMirror++;

@@ -146,8 +146,32 @@ describe("makeLLM JSON resilience", () => {
     expect(system).toContain("SELECTED UI FOCUS (READ-ONLY, HIGH PRIORITY)");
     expect(system).toContain("selected_card #86 role=node text=\"human control decides the wording\"");
     expect(system).toContain("selected_draft_text \"the system should not write for the author\"");
+    expect(system).toContain("make the question aware of one concrete phrase, example, or issue in the draft");
+    expect(system).toContain("Keep it simple and intelligent");
     expect(system).toContain("not Source Bank evidence");
     expect(system).toContain("never authorizes mapCommands");
+  });
+
+  it("instructs the model to quote exact user and draft wording in visible text", async () => {
+    const valid = '{"mode":"question","text":"What next?"}';
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(valid));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await makeLLM()({
+      ...ctx,
+      draft: "human control decides what enters the draft",
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const system = body.messages.find((m) => m.role === "system")?.content ?? "";
+    expect(system).toContain("When the visible response quotes exact");
+    expect(system).toContain("include quotation");
+    expect(system).toContain("marks around that quoted wording");
+    expect(system).toContain("Use natural grammar around quotes");
+    expect(system).toContain("do NOT write robotic location phrases");
+    expect(system).toContain('\\"human control\\"');
   });
 
   it("omits the override directive when no mode is forced", async () => {

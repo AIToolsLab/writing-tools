@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resolveMirrorDecision, UnderTheHoodPanel } from "./App";
+import { draftHtmlToPlainText, normalizeDraftPasteHtml, resolveMirrorDecision, UnderTheHoodPanel } from "./App";
 import type { UnderstandingSnapshot } from "./understanding";
 
 describe("resolveMirrorDecision", () => {
@@ -44,6 +44,41 @@ describe("resolveMirrorDecision", () => {
     expect(second.anyConfirmed).toBe(true);
     expect(second.anyDeclined).toBe(true);
     expect(second.shouldContinue).toBe(false);
+  });
+});
+
+describe("rich draft paste helpers", () => {
+  it("preserves rich-text paragraphs and bold formatting in draft HTML", () => {
+    expect(
+      normalizeDraftPasteHtml(
+        "First paragraph\nSecond paragraph",
+        "<p><strong>First</strong> paragraph</p><p>Second paragraph</p>",
+      ),
+    ).toBe("<p><strong>First</strong> paragraph</p><p>Second paragraph</p>");
+  });
+
+  it("preserves pasted lists in draft HTML", () => {
+    expect(
+      normalizeDraftPasteHtml("- First\n- Second", "<ul><li><b>First</b></li><li>Second</li></ul>"),
+    ).toBe("<ul><li><strong>First</strong></li><li>Second</li></ul>");
+  });
+
+  it("converts rich draft HTML back to plain text for model context", () => {
+    expect(
+      draftHtmlToPlainText("<p><strong>First</strong> paragraph</p><ul><li>One</li><li>Two</li></ul>"),
+    ).toBe("First paragraph\n\n- One\n- Two");
+  });
+
+  it("adds paragraph spacing for plain text pasted as single-line paragraphs", () => {
+    expect(draftHtmlToPlainText(normalizeDraftPasteHtml("First paragraph\nSecond paragraph"))).toBe(
+      "First paragraph\n\nSecond paragraph",
+    );
+  });
+
+  it("keeps existing blank paragraph spacing in plain text", () => {
+    expect(draftHtmlToPlainText(normalizeDraftPasteHtml("First paragraph\n\nSecond paragraph"))).toBe(
+      "First paragraph\n\nSecond paragraph",
+    );
   });
 });
 

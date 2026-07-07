@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from "react";
 import { makeLLM, type ConversationMessage } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
 import {
@@ -126,6 +126,7 @@ interface PersistedSession {
   questionBias: number;
   requireConnectionLabel?: boolean;
   draftText: string;
+  draftHtml?: string;
   draftCollapsed: boolean;
   draftDocked?: boolean;
   draftPos: DraftPanelPos;
@@ -154,11 +155,7 @@ interface PersistedSession {
   map: ThoughtUnitStoreSnapshot;
 }
 
-interface DraftSelectionFocus {
-  start: number;
-  end: number;
-  text: string;
-}
+interface DraftSelectionFocus { text: string; }
 
 function commandAckText(commands: AcceptedMapCommand[]): string {
   if (commands.length !== 1) return `${commands.length} map changes applied.`;
@@ -1623,9 +1620,7 @@ const css = `
     background: #fff;
   }
 
-  /* Shared box model - backdrop and textarea MUST match exactly so the
-     highlight lines up with the text the user sees. */
-  .draft-backdrop,
+  /* Shared draft editing surface. */
   .draft-editor {
     position: absolute;
     inset: 0;
@@ -1641,28 +1636,34 @@ const css = `
     border: none;
   }
 
-  /* Backdrop sits behind, paints only the highlight; its text is invisible. */
-  .draft-backdrop {
-    overflow-y: auto;
-    color: transparent;
-    pointer-events: none;
-    z-index: 0;
-  }
-  .draft-backdrop mark {
-    background: #fff0b3;
-    color: transparent;
-    border-radius: 2px;
-  }
-
-  /* Textarea on top, transparent bg so the highlight shows through. */
   .draft-editor {
     max-height: none;
     outline: none;
     resize: none;
     overflow-y: auto;
-    background: transparent;
+    background: #fff;
     color: #1a1a1a;
     z-index: 1;
+  }
+  .draft-editor:empty::before {
+    content: attr(data-placeholder);
+    color: #aaa;
+    font-style: italic;
+    pointer-events: none;
+  }
+  .draft-editor p {
+    margin: 0 0 0.9em;
+  }
+  .draft-editor p:last-child {
+    margin-bottom: 0;
+  }
+  .draft-editor ul,
+  .draft-editor ol {
+    margin: 0 0 0.9em 1.4em;
+    padding: 0;
+  }
+  .draft-editor li {
+    margin: 0.15em 0;
   }
 
   .rh { position: absolute; z-index: 10; }
@@ -2375,23 +2376,149 @@ function mergeLiveBankIntoWorkingState(workingState: LoopState, liveState: LoopS
   workingState.bank.replaceAll(Array.from(mergedById.values()));
 }
 
-/**
- * Backdrop content for the draft highlight overlay. Renders the draft text with
- * the anchor substring wrapped in <mark>. A trailing space keeps the backdrop's
- * last line height in sync with the textarea when the draft ends in a newline.
- */
-function renderBackdrop(text: string, anchor?: string) {
-  if (!anchor || !text) return text + " ";
-  const idx = text.indexOf(anchor);
-  if (idx === -1) return text + " ";
-  return (
-    <>
-      {text.slice(0, idx)}
-      <mark>{anchor}</mark>
-      {text.slice(idx + anchor.length)}
-      {" "}
-    </>
-  );
+function normalizeDraftPlainTextPaste(text: string): string {
+  const normalized = text.replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ");
+  const lines = normalized.split("\n");
+  const hasBlankLine = lines.some((line) => line.trim() === "");
+  const nonEmptyLines = lines.filter((line) => line.trim() !== "");
+  if (hasBlankLine || nonEmptyLines.length < 2) return normalized;
+  return lines.join("\n\n");
+}
+
+function escapeDraftHtml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function plainTextToDraftHtml(text: string): string {
+  if (!text) return "";
+  return normalizeDraftPlainTextPaste(text)
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trimEnd())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${escapeDraftHtml(paragraph).replace(/\n/g, "<br>")}</p>`)
+    .join("");
+}
+
+function sanitizeDraftHtml(html: string): string {
+  if (!html.trim() || typeof DOMParser === "undefined") return "";
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  const allowedInline = new Set(["B", "STRONG", "I", "EM", "U", "BR"]);
+
+  const renderChildren = (node: Node): string =>
+    Array.from(node.childNodes).map(renderNode).join("");
+
+  const renderNode = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return escapeDraftHtml((node.textContent ?? "").replace(/\u00a0/g, " "));
+    if (!(node instanceof HTMLElement)) return renderChildren(node);
+    const tag = node.tagName;
+    if (tag === "BR") return "<br>";
+    if (tag === "UL" || tag === "OL") {
+      const items = Array.from(node.children)
+        .filter((child): child is HTMLElement => child instanceof HTMLElement && child.tagName === "LI")
+        .map((child) => `<li>${renderChildren(child).trim() || "<br>"}</li>`)
+        .join("");
+      return items ? `<${tag.toLowerCase()}>${items}</${tag.toLowerCase()}>` : "";
+    }
+    if (tag === "LI") return `<li>${renderChildren(node).trim() || "<br>"}</li>`;
+    if (tag === "P" || tag === "DIV" || /^H[1-6]$/.test(tag) || tag === "BLOCKQUOTE" || tag === "SECTION") {
+      const body = renderChildren(node).trim();
+      return body ? `<p>${body}</p>` : "";
+    }
+    if (tag === "PRE") {
+      const body = escapeDraftHtml(node.textContent ?? "").replace(/\n/g, "<br>");
+      return body ? `<p>${body}</p>` : "";
+    }
+    if (allowedInline.has(tag)) {
+      const normalizedTag = tag === "B" ? "strong" : tag === "I" ? "em" : tag.toLowerCase();
+      if (normalizedTag === "br") return "<br>";
+      const body = renderChildren(node);
+      return body ? `<${normalizedTag}>${body}</${normalizedTag}>` : "";
+    }
+    return renderChildren(node);
+  };
+
+  const sanitized = renderChildren(doc.body).replace(/(<br>\s*){3,}/g, "<br><br>").trim();
+  return sanitized;
+}
+
+export function normalizeDraftPasteHtml(plainText: string, html = ""): string {
+  const sanitized = sanitizeDraftHtml(html);
+  if (sanitized.trim()) return sanitized;
+  return plainTextToDraftHtml(plainText);
+}
+
+export function draftHtmlToPlainText(html: string): string {
+  if (!html.trim() || typeof DOMParser === "undefined") return "";
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  const listStack: string[] = [];
+
+  const renderChildren = (node: Node): string =>
+    Array.from(node.childNodes).map(renderNode).join("");
+
+  const renderNode = (node: Node): string => {
+    if (node.nodeType === Node.TEXT_NODE) return (node.textContent ?? "").replace(/\u00a0/g, " ");
+    if (!(node instanceof HTMLElement)) return renderChildren(node);
+    const tag = node.tagName;
+    if (tag === "BR") return "\n";
+    if (tag === "P" || tag === "DIV" || /^H[1-6]$/.test(tag) || tag === "BLOCKQUOTE" || tag === "SECTION") {
+      const text = renderChildren(node).trimEnd();
+      return text ? `${text}\n\n` : "";
+    }
+    if (tag === "UL" || tag === "OL") {
+      listStack.push(tag);
+      const text = renderChildren(node);
+      listStack.pop();
+      return text ? `${text}\n` : "";
+    }
+    if (tag === "LI") {
+      const marker = listStack[listStack.length - 1] === "OL" ? "1. " : "- ";
+      const text = renderChildren(node).trim();
+      return text ? `${marker}${text}\n` : "";
+    }
+    return renderChildren(node);
+  };
+
+  return renderChildren(doc.body)
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd();
+}
+
+function selectTextInElement(root: HTMLElement, searchText: string): boolean {
+  const needle = searchText.trim();
+  if (!needle) return false;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const textNodes: Array<{ node: Text; start: number; end: number }> = [];
+  let fullText = "";
+  let current: Node | null;
+  while ((current = walker.nextNode())) {
+    const node = current as Text;
+    const start = fullText.length;
+    fullText += node.data;
+    textNodes.push({ node, start, end: fullText.length });
+  }
+  const start = fullText.indexOf(needle);
+  if (start < 0) return false;
+  const end = start + needle.length;
+  const startNode = textNodes.find((entry) => start >= entry.start && start <= entry.end);
+  const endNode = textNodes.find((entry) => end >= entry.start && end <= entry.end);
+  if (!startNode || !endNode) return false;
+  const range = document.createRange();
+  range.setStart(startNode.node, Math.max(0, start - startNode.start));
+  range.setEnd(endNode.node, Math.max(0, end - endNode.start));
+  const selection = window.getSelection();
+  selection?.removeAllRanges();
+  selection?.addRange(range);
+  const rect = range.getBoundingClientRect();
+  const editorRect = root.getBoundingClientRect();
+  root.scrollTop += rect.top - editorRect.top - 24;
+  return true;
 }
 
 function statusLabel(status: TrackedIdea["status"]): string {
@@ -2919,6 +3046,7 @@ export default function App() {
   const initialQuestionBias = snapQuestionBias(persistedSession?.questionBias ?? 35);
   const initialRequireConnectionLabel = persistedSession?.requireConnectionLabel ?? true;
   const initialDraftText = persistedSession?.draftText ?? "";
+  const initialDraftHtml = persistedSession?.draftHtml ?? plainTextToDraftHtml(initialDraftText);
   const initialDraftCollapsed = persistedSession?.draftCollapsed ?? false;
   const initialDraftDocked = persistedSession?.draftDocked ?? false;
   const initialDraftSize = persistedSession
@@ -3030,6 +3158,7 @@ export default function App() {
 
   // Draft panel state
   const [draftText, setDraftText] = useState(initialDraftText);
+  const [draftHtml, setDraftHtml] = useState(initialDraftHtml);
   const [draftCollapsed, setDraftCollapsed] = useState(initialDraftCollapsed);
   const [draftDocked, setDraftDocked] = useState(initialDraftDocked);
   const [draftDockTargetActive, setDraftDockTargetActive] = useState(false);
@@ -3039,29 +3168,54 @@ export default function App() {
   // it there instead of leaving it at the (shifted) panel position.
   const preExpandChipPosRef = useRef<DraftPanelPos | null>(null);
   const draftPanelRef = useRef<HTMLDivElement>(null);
-  const draftRef = useRef<HTMLTextAreaElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-
-  // Keep the highlight layer scrolled in lockstep with the textarea.
-  const syncBackdropScroll = useCallback(() => {
-    if (backdropRef.current && draftRef.current) {
-      backdropRef.current.scrollTop = draftRef.current.scrollTop;
-      backdropRef.current.scrollLeft = draftRef.current.scrollLeft;
-    }
-  }, [initialMsgs.length, persistedSession]);
+  const draftRef = useRef<HTMLDivElement>(null);
 
   const updateDraftSelectionFocus = useCallback(() => {
-    const textarea = draftRef.current;
-    if (!textarea) return;
-    const start = textarea.selectionStart;
-    const end = textarea.selectionEnd;
-    if (start === end) {
+    const editor = draftRef.current;
+    const selection = window.getSelection();
+    if (!editor || !selection || selection.rangeCount === 0 || selection.isCollapsed) {
       setDraftSelectionFocus(undefined);
       return;
     }
-    const text = textarea.value.slice(start, end).trim();
-    setDraftSelectionFocus(text ? { start, end, text } : undefined);
+    const range = selection.getRangeAt(0);
+    if (!editor.contains(range.commonAncestorContainer)) {
+      setDraftSelectionFocus(undefined);
+      return;
+    }
+    const text = selection.toString().trim();
+    setDraftSelectionFocus(text ? { text } : undefined);
   }, []);
+
+  const syncDraftFromEditor = useCallback((editor: HTMLDivElement) => {
+    const html = sanitizeDraftHtml(editor.innerHTML);
+    setDraftHtml(html);
+    setDraftText(draftHtmlToPlainText(html));
+  }, []);
+
+  const handleDraftInput = useCallback((event: FormEvent<HTMLDivElement>) => {
+    syncDraftFromEditor(event.currentTarget);
+    setDraftSelectionFocus(undefined);
+  }, [syncDraftFromEditor]);
+
+  const handleDraftPaste = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
+    const plainText = event.clipboardData.getData("text/plain");
+    const html = event.clipboardData.getData("text/html");
+    const pastedHtml = normalizeDraftPasteHtml(plainText, html);
+    if (!pastedHtml) return;
+
+    event.preventDefault();
+    document.execCommand("insertHTML", false, pastedHtml);
+    syncDraftFromEditor(event.currentTarget);
+    setDraftSelectionFocus(undefined);
+  }, [syncDraftFromEditor]);
+
+  useEffect(() => {
+    const editor = draftRef.current;
+    if (!editor) return;
+    if (editor.innerHTML !== draftHtml && (draftHtml === "" || document.activeElement !== editor)) {
+      editor.innerHTML = draftHtml;
+    }
+  }, [draftCollapsed, draftHtml]);
 
   // Position draft panel once window is available
   useEffect(() => {
@@ -3279,18 +3433,12 @@ export default function App() {
     setDraftCollapsed(false);
   }, [activeAnchor]);
 
-  // When the highlight lands, scroll the draft so it is visible - without
-  // stealing focus from wherever the user is typing.
+  // When the highlight lands, select and scroll the rich draft text into view.
   useEffect(() => {
     if (!highlightAnchor) return;
-    const mark = backdropRef.current?.querySelector("mark");
-    const ta = draftRef.current;
-    if (mark instanceof HTMLElement && ta) {
-      const target = Math.max(0, mark.offsetTop - 24);
-      ta.scrollTop = target;
-      syncBackdropScroll();
-    }
-  }, [highlightAnchor, syncBackdropScroll]);
+    const editor = draftRef.current;
+    if (editor) selectTextInElement(editor, highlightAnchor);
+  }, [highlightAnchor, draftHtml]);
 
   // Cards the current coach turn refers to (by #ref) - highlighted on the map.
   const referencedCardIds = useMemo(() => {
@@ -3512,6 +3660,7 @@ export default function App() {
       questionBias,
       requireConnectionLabel,
       draftText,
+      draftHtml,
       draftCollapsed,
       draftDocked,
       draftPos,
@@ -3544,6 +3693,7 @@ export default function App() {
     confirmed,
     draftCollapsed,
     draftDocked,
+    draftHtml,
     draftPos,
     draftSize,
     draftText,
@@ -3825,6 +3975,7 @@ export default function App() {
     setLoading(false);
     llmRef.current = makeLLM(() => configRef.current, buildConversationHistory(msgs));
     setDraftText("");
+    setDraftHtml("");
     setHighlightAnchor(undefined);
     setDraftSelectionFocus(undefined);
     stateRef.current.draft = "";
@@ -4068,22 +4219,19 @@ export default function App() {
           {!draftCollapsed && (
             <div className="draft-body">
               <div className="draft-editor-wrap">
-                <div className="draft-backdrop" ref={backdropRef} aria-hidden="true">
-                  {renderBackdrop(draftText, highlightAnchor)}
-                </div>
-                <textarea
+                <div
                   ref={draftRef}
                   className="draft-editor"
-                  value={draftText}
-                  onChange={(e) => {
-                    setDraftText(e.target.value);
-                    setDraftSelectionFocus(undefined);
-                  }}
+                  contentEditable
+                  suppressContentEditableWarning
+                  role="textbox"
+                  aria-multiline="true"
+                  data-placeholder="Paste or type your draft here..."
+                  onInput={handleDraftInput}
                   onSelect={updateDraftSelectionFocus}
                   onKeyUp={updateDraftSelectionFocus}
                   onMouseUp={updateDraftSelectionFocus}
-                  onScroll={syncBackdropScroll}
-                  placeholder="Paste or type your draft here..."
+                  onPaste={handleDraftPaste}
                 />
               </div>
             </div>
