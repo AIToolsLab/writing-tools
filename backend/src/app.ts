@@ -6,7 +6,8 @@ import {
 	livekitApiKey,
 	livekitApiSecret,
 	livekitUrl,
-	logSecret,
+gitCommit,
+logSecret,
 	openaiApiKey,
 } from './config.js';
 import { appendLog, pollLogs, validateUsername, zipLogs } from './logging.js';
@@ -248,7 +249,9 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		return c.json({ message: 'Feedback logged successfully.' });
 	});
 
-	app.get('/api/ping', (c) => c.json({ timestamp: new Date().toISOString() }));
+	app.get('/api/ping', (c) =>
+		c.json({ timestamp: new Date().toISOString(), gitCommit: gitCommit() }),
+	);
 
 	// Study-log viewer polling. Gated by the shared LOG_SECRET, like before.
 	app.post('/api/logs_poll', async (c) => {
