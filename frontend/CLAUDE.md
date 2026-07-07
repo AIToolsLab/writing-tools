@@ -27,8 +27,9 @@ Two runners own two disjoint directories — never mix them:
 
 - **Vitest** (unit/integration) — `src/`, files named `*.test.ts(x)`, colocated in
   `__tests__/`. Scoped via `include` in `vitest.config.ts`. Run with `npm test`
-  (or `npm run test:watch`). Node environment by default; for a component test add
-  `// @vitest-environment jsdom` at the top of that file.
+  (or `npm run test:watch`). Node environment only — jsdom is not installed, so
+  test through headless APIs (e.g. Lexical's `createEditor` with
+  `{ discrete: true }` updates) rather than rendering components.
   - LLM calls are tested by passing a `MockLanguageModelV2` (from `ai/test`) as the
     `model` arg to `streamText`/`generateText` — see `src/api/__tests__/generate.test.ts`.
 - **Playwright** (E2E/visual) — `tests/`, files named `*.spec.ts`. Scoped via
