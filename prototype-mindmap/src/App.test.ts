@@ -63,6 +63,24 @@ describe("rich draft paste helpers", () => {
     ).toBe("<ul><li><strong>First</strong></li><li>Second</li></ul>");
   });
 
+  it("preserves multiple nested list levels from clipboard HTML", () => {
+    expect(
+      normalizeDraftPasteHtml(
+        "",
+        "<ul><li>One</li><ul><li>Two</li><ul><li>Three</li></ul></ul><li>Back</li></ul>",
+      ),
+    ).toBe("<ul><li>One<ul><li>Two<ul><li>Three</li></ul></li></ul></li><li>Back</li></ul>");
+  });
+
+  it("does not let block-level bold wrappers make the whole draft bold", () => {
+    expect(
+      normalizeDraftPasteHtml(
+        "",
+        '<b><p>Normal paragraph</p><p><span style="font-weight:700">Bold phrase</span> only</p></b>',
+      ),
+    ).toBe("<p>Normal paragraph</p><p><strong>Bold phrase</strong> only</p>");
+  });
+
   it("converts rich draft HTML back to plain text for model context", () => {
     expect(
       draftHtmlToPlainText("<p><strong>First</strong> paragraph</p><ul><li>One</li><li>Two</li></ul>"),

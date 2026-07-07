@@ -1593,16 +1593,33 @@ const css = `
   }
 
   .draft-panel-btn {
-    background: none;
-    border: none;
+    background: #fff;
+    border: 1px solid #d8d4cb;
     cursor: pointer;
-    font-size: 14px;
-    color: #999;
-    padding: 2px 4px;
-    border-radius: 4px;
+    font-size: 12px;
+    color: #5f5a51;
+    padding: 5px 9px;
+    border-radius: 6px;
     line-height: 1;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
-  .draft-panel-btn:hover { color: #444; background: #eee; }
+  .draft-panel-btn:hover { color: #2f2b25; background: #f2eee7; border-color: #c9bfae; }
+  .draft-panel-btn-icon {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .draft-chevron-down {
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: rotate(45deg);
+    margin-top: -3px;
+  }
 
   .draft-body {
     flex: 1;
@@ -2407,10 +2424,36 @@ function sanitizeDraftHtml(html: string): string {
   if (!html.trim() || typeof DOMParser === "undefined") return "";
   const parser = new DOMParser();
   const doc = parser.parseFromString(html, "text/html");
-  const allowedInline = new Set(["B", "STRONG", "I", "EM", "U", "BR"]);
 
   const renderChildren = (node: Node): string =>
     Array.from(node.childNodes).map(renderNode).join("");
+
+  const hasBlockChild = (element: HTMLElement): boolean =>
+    Array.from(element.children).some((child) =>
+      child instanceof HTMLElement &&
+      (/^(P|DIV|UL|OL|LI|H[1-6]|BLOCKQUOTE|SECTION|PRE)$/).test(child.tagName),
+    );
+
+  const isBoldElement = (element: HTMLElement): boolean => {
+    const weight = element.style.fontWeight;
+    if (/^(normal|400)$/i.test(weight)) return false;
+    return element.tagName === "B" || element.tagName === "STRONG" || /^(bold|[5-9]00)$/i.test(weight);
+  };
+
+  const isItalicElement = (element: HTMLElement): boolean =>
+    element.tagName === "I" || element.tagName === "EM" || /italic/i.test(element.style.fontStyle);
+
+  const isUnderlineElement = (element: HTMLElement): boolean =>
+    element.tagName === "U" || /underline/i.test(element.style.textDecorationLine || element.style.textDecoration);
+
+  const wrapInlineMarks = (element: HTMLElement, htmlText: string): string => {
+    if (!htmlText || hasBlockChild(element)) return htmlText;
+    let out = htmlText;
+    if (isUnderlineElement(element)) out = `<u>${out}</u>`;
+    if (isItalicElement(element)) out = `<em>${out}</em>`;
+    if (isBoldElement(element)) out = `<strong>${out}</strong>`;
+    return out;
+  };
 
   const renderNode = (node: Node): string => {
     if (node.nodeType === Node.TEXT_NODE) return escapeDraftHtml((node.textContent ?? "").replace(/\u00a0/g, " "));
@@ -2418,11 +2461,21 @@ function sanitizeDraftHtml(html: string): string {
     const tag = node.tagName;
     if (tag === "BR") return "<br>";
     if (tag === "UL" || tag === "OL") {
-      const items = Array.from(node.children)
-        .filter((child): child is HTMLElement => child instanceof HTMLElement && child.tagName === "LI")
-        .map((child) => `<li>${renderChildren(child).trim() || "<br>"}</li>`)
-        .join("");
-      return items ? `<${tag.toLowerCase()}>${items}</${tag.toLowerCase()}>` : "";
+      const items: string[] = [];
+      for (const child of Array.from(node.childNodes)) {
+        if (!(child instanceof HTMLElement)) continue;
+        if (child.tagName === "LI") {
+          items.push(`<li>${renderChildren(child).trim() || "<br>"}</li>`);
+        } else if (child.tagName === "UL" || child.tagName === "OL") {
+          const nested = renderNode(child);
+          if (nested && items.length > 0) {
+            items[items.length - 1] = items[items.length - 1].replace(/<\/li>$/, `${nested}</li>`);
+          } else if (nested) {
+            items.push(`<li>${nested}</li>`);
+          }
+        }
+      }
+      return items.length > 0 ? `<${tag.toLowerCase()}>${items.join("")}</${tag.toLowerCase()}>` : "";
     }
     if (tag === "LI") return `<li>${renderChildren(node).trim() || "<br>"}</li>`;
     if (tag === "P" || tag === "DIV" || /^H[1-6]$/.test(tag) || tag === "BLOCKQUOTE" || tag === "SECTION") {
@@ -2433,17 +2486,33 @@ function sanitizeDraftHtml(html: string): string {
       const body = escapeDraftHtml(node.textContent ?? "").replace(/\n/g, "<br>");
       return body ? `<p>${body}</p>` : "";
     }
-    if (allowedInline.has(tag)) {
-      const normalizedTag = tag === "B" ? "strong" : tag === "I" ? "em" : tag.toLowerCase();
-      if (normalizedTag === "br") return "<br>";
-      const body = renderChildren(node);
-      return body ? `<${normalizedTag}>${body}</${normalizedTag}>` : "";
-    }
-    return renderChildren(node);
+    return wrapInlineMarks(node, renderChildren(node));
   };
 
   const sanitized = renderChildren(doc.body).replace(/(<br>\s*){3,}/g, "<br><br>").trim();
   return sanitized;
+}
+
+function insertDraftHtmlAtSelection(root: HTMLElement, html: string): void {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const fragment = template.content;
+  const selection = window.getSelection();
+  if (!selection || selection.rangeCount === 0 || !root.contains(selection.getRangeAt(0).commonAncestorContainer)) {
+    root.append(fragment);
+    return;
+  }
+  const range = selection.getRangeAt(0);
+  range.deleteContents();
+  const lastNode = fragment.lastChild;
+  range.insertNode(fragment);
+  if (lastNode) {
+    const nextRange = document.createRange();
+    nextRange.setStartAfter(lastNode);
+    nextRange.collapse(true);
+    selection.removeAllRanges();
+    selection.addRange(nextRange);
+  }
 }
 
 export function normalizeDraftPasteHtml(plainText: string, html = ""): string {
@@ -3204,7 +3273,7 @@ export default function App() {
     if (!pastedHtml) return;
 
     event.preventDefault();
-    document.execCommand("insertHTML", false, pastedHtml);
+    insertDraftHtmlAtSelection(event.currentTarget, pastedHtml);
     syncDraftFromEditor(event.currentTarget);
     setDraftSelectionFocus(undefined);
   }, [syncDraftFromEditor]);
@@ -4179,26 +4248,26 @@ export default function App() {
         >
           <div className="draft-panel-header" onMouseDown={onDragStart}>
             <span className="draft-panel-title">Draft</span>
-            {highlightAnchor && (
-              <span style={{ fontSize: 10, color: "#1a6fa3", fontWeight: 600 }}>* anchored</span>
-            )}
             <button
               className="draft-panel-btn"
+              type="button"
               onClick={() => setDraftDocked(true)}
               title="Dock the draft into the map toolbar"
             >
               Dock
             </button>
             <button
-              className="draft-panel-btn"
+              className="draft-panel-btn draft-panel-btn-icon"
+              type="button"
               onClick={() => {
                 const back = preExpandChipPosRef.current;
                 if (back) setDraftPos(clampBoxPosition(back, DRAFT_CHIP_WIDTH, DRAFT_CHIP_HEIGHT));
                 setDraftCollapsed(true);
               }}
+              aria-label="Collapse draft"
               title="Collapse to icon"
             >
-              v
+              <span className="draft-chevron-down" aria-hidden="true" />
             </button>
           </div>
 
