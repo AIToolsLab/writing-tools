@@ -1318,24 +1318,51 @@ function explicitRefCommandClarification(
   return undefined;
 }
 
+function matchExplicitRefNestPair(userText: string): { childRef: string; parentRef: string } | undefined {
+  const match =
+    userText.match(/\b(?:put|nest|move)\s+(#\d+)\s+(?:in|into|inside|under)\s+(#\d+)\b/i) ??
+    userText.match(/(#\d+)\s+nest\s+(?:in|into|inside|under|to)\s+(#\d+)\b/i);
+  if (!match) return undefined;
+  return { childRef: match[1], parentRef: match[2] };
+}
+
 function explicitRefNestCommand(
   userText: string,
   map: LLMMapContext,
   config: MindmapConfig,
 ): Extract<AcceptedMapCommand, { kind: "nest_card" }> | undefined {
   if (isUncertainExplicitPlacement(userText, config)) return undefined;
-  const match =
-    userText.match(/\b(?:put|nest|move)\s+(#\d+)\s+(?:in|into|inside|under)\s+(#\d+)\b/i) ??
-    userText.match(/(#\d+)\s+nest\s+(?:in|into|inside|under|to)\s+(#\d+)\b/i);
-  if (!match) return undefined;
-  const childId = resolveCardRefNumber(match[1], map);
-  const parentId = resolveCardRefNumber(match[2], map);
+  const pair = matchExplicitRefNestPair(userText);
+  if (!pair) return undefined;
+  const childId = resolveCardRefNumber(pair.childRef, map);
+  const parentId = resolveCardRefNumber(pair.parentRef, map);
   if (!childId || !parentId || childId === parentId) return undefined;
   return {
     kind: "nest_card",
     child: { id: childId },
     parentId,
   };
+}
+
+/**
+ * A deterministic `#ref in #ref` nest that would create a cycle — nesting a card
+ * inside itself or inside one of its own descendants. `explicitRefNestCommand`
+ * bails on the self case and the store's `setParent` no-ops on any cycle, so
+ * without this the coach would say "Done." while nothing changed. Return an
+ * honest refusal instead. Parallels `nestedEndpointRejection` for connections.
+ */
+function directRefNestRejection(
+  userText: string,
+  map: LLMMapContext,
+  config: MindmapConfig,
+): { prompt: string; debug: string } | undefined {
+  if (isUncertainExplicitPlacement(userText, config)) return undefined;
+  const pair = matchExplicitRefNestPair(userText);
+  if (!pair) return undefined;
+  const childId = resolveCardRefNumber(pair.childRef, map);
+  const parentId = resolveCardRefNumber(pair.parentRef, map);
+  if (!childId || !parentId) return undefined;
+  return cycleNestRejection({ id: childId }, { id: parentId }, map);
 }
 
 function explicitRefConnectCommand(
@@ -1999,6 +2026,53 @@ function rootCardId(id: string, map: LLMMapContext): string {
 }
 
 /**
+ * Would nesting `childId` under `parentId` close a cycle? True when the parent
+ * IS the child (self-nest) or already descends from the child. Walks the
+ * parent's ancestor chain over `map.thoughtUnits`, cycle-guarded against any
+ * pre-existing corruption.
+ */
+function nestWouldCycle(childId: string, parentId: string, map: LLMMapContext): boolean {
+  if (childId === parentId) return true;
+  const byId = new Map(map.thoughtUnits.map((unit) => [unit.id, unit]));
+  const seen = new Set<string>([parentId]);
+  let current = byId.get(parentId);
+  while (current?.parentId) {
+    if (current.parentId === childId) return true;
+    if (seen.has(current.parentId)) break;
+    seen.add(current.parentId);
+    current = byId.get(current.parentId);
+  }
+  return false;
+}
+
+/**
+ * A nest command that would create a cycle can never take effect (the store's
+ * `setParent` no-ops on `wouldCycle`), so accepting it would leave the coach
+ * saying "Done." over an unchanged map. Refuse it honestly instead. Only fires
+ * when both refs are EXISTING cards — new card text can't already be nested.
+ */
+function cycleNestRejection(
+  child: AcceptedMapCommandCardRef,
+  parent: AcceptedMapCommandCardRef,
+  map: LLMMapContext,
+): { prompt: string; debug: string } | undefined {
+  if (!("id" in child) || !("id" in parent)) return undefined;
+  if (!nestWouldCycle(child.id, parent.id, map)) return undefined;
+  const childRef = cardRef(child.id);
+  if (child.id === parent.id) {
+    return {
+      prompt: `A card can't nest inside itself. Did you mean a different card for one of those?`,
+      debug: `nest_cycle_blocked: self-nest ${childRef}`,
+    };
+  }
+  const parentRef = cardRef(parent.id);
+  return {
+    prompt: `I can't nest ${childRef} under ${parentRef} — ${parentRef} is already inside ${childRef}. Pull ${parentRef} out first if you want them the other way round.`,
+    debug: `nest_cycle_blocked: ${parentRef} is nested inside ${childRef}`,
+  };
+}
+
+/**
  * Only the parent (root) card may ever have a connector attached. If either
  * resolved endpoint is currently nested, refuse the connection outright rather
  * than silently redirecting it — the user is actively issuing a command and
@@ -2310,6 +2384,12 @@ function acceptedMapCommands(
     }
     if (!units.some((unit) => isImperativeNestCommandText(unit.text))) {
       notes.push({ reason: "blocked_interpretation", detail: `Blocked declarative/tentative nesting command for "${childText}".` });
+      continue;
+    }
+    const cycleRejection = cycleNestRejection(child, { id: parentId }, map);
+    if (cycleRejection) {
+      if (!pending && !clarificationPrompt) clarificationPrompt = cycleRejection.prompt;
+      notes.push({ reason: "nest_cycle_blocked", detail: cycleRejection.debug });
       continue;
     }
     const key = `nest:${cardRefKey(child)}->${parentId}`;
@@ -3055,6 +3135,28 @@ export async function processTurn(
         };
       }
     }
+    if (pending.command.kind === "nest_card") {
+      // The canvas may have changed while the near-match confirmation waited, so
+      // re-check the cycle before executing: a card the user is nesting under
+      // could have become that card's own descendant meanwhile.
+      const cycleRejection = cycleNestRejection(pending.command.child, { id: pending.command.parentId }, map);
+      if (cycleRejection) {
+        state.pendingMapCommand = undefined;
+        state.organizeFocus = undefined;
+        state.mode = "question";
+        state.activeElicitation = undefined;
+        state.pendingCardWording = undefined;
+        state.turnsSinceLastMirror++;
+        setLastAiText(state, cycleRejection.prompt);
+        return {
+          mode: "question",
+          text: cycleRejection.prompt,
+          llmTurn: { mode: "question", text: cycleRejection.prompt },
+          commandDebug: [{ reason: "nest_cycle_blocked", detail: cycleRejection.debug }],
+          questionStance: "organize",
+        };
+      }
+    }
     if (
       pending.command.kind === "connect_cards" &&
       requireConnectionLabel &&
@@ -3498,6 +3600,25 @@ export async function processTurn(
       llmTurn: { mode: "question", text },
       commandConfirmation: pending,
       commandDebug: [{ reason: "duplicate_connection_still_pending", detail: pending.debug }],
+      questionStance: "organize",
+    };
+  }
+
+  const directNestRejection = directRefNestRejection(userText, map, config);
+  if (directNestRejection) {
+    state.bank.markCommandOnly(units.map((unit) => unit.id));
+    state.mode = "question";
+    state.activeElicitation = undefined;
+    state.pendingCardWording = undefined;
+    state.pendingChildPlacement = undefined;
+    state.turnsSinceLastMirror++;
+    setLastAiText(state, directNestRejection.prompt);
+    clearCoverageFocusForMapCommand(state);
+    return {
+      mode: "question",
+      text: directNestRejection.prompt,
+      llmTurn: { mode: "question", text: directNestRejection.prompt },
+      commandDebug: [{ reason: "nest_cycle_blocked", detail: directNestRejection.debug }],
       questionStance: "organize",
     };
   }

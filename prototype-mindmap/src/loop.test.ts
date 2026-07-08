@@ -2114,6 +2114,89 @@ describe("question mode", () => {
     expect(out.commandDebug?.some((note) => note.reason === "nested_endpoint_blocked")).toBe(true);
   });
 
+  it("refuses a direct #ref nest that would create a cycle (parent nested inside child)", async () => {
+    const state = createState();
+    const nestedChild: ThoughtUnit = {
+      id: "tu_20",
+      text: "human control",
+      role: "content",
+      parentId: "tu_10",
+      source: { utteranceIds: ["u_tu_20"], createdBy: "user" },
+      roleHistory: [{ role: "content", changedBy: "user", at: 1 }],
+    };
+    const map = {
+      thoughtUnits: [mapUnit("tu_10", "authorship"), nestedChild],
+      connections: [],
+    };
+    let called = false;
+    const llm = (_ctx: LLMContext): LLMTurn => {
+      called = true;
+      return { mode: "question", text: "should not be called" };
+    };
+
+    const out = await processTurn(state, "nest #10 under #20", llm, defaultConfig, "chat", map);
+
+    expect(called).toBe(false);
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("#20 is already inside #10");
+    expect(out.commandDebug?.some((note) => note.reason === "nest_cycle_blocked")).toBe(true);
+  });
+
+  it("refuses a direct #ref self-nest with an honest message", async () => {
+    const state = createState();
+    const map = {
+      thoughtUnits: [mapUnit("tu_10", "authorship")],
+      connections: [],
+    };
+    let called = false;
+    const llm = (_ctx: LLMContext): LLMTurn => {
+      called = true;
+      return { mode: "question", text: "should not be called" };
+    };
+
+    const out = await processTurn(state, "nest #10 under #10", llm, defaultConfig, "chat", map);
+
+    expect(called).toBe(false);
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("can't nest inside itself");
+    expect(out.commandDebug?.some((note) => note.reason === "nest_cycle_blocked")).toBe(true);
+  });
+
+  it("refuses a near-match nest confirmation that would create a cycle", async () => {
+    const state = createState();
+    const nestedParent: ThoughtUnit = {
+      id: "tu_2",
+      text: "authorship",
+      role: "content",
+      parentId: "tu_1",
+      source: { utteranceIds: ["u_tu_2"], createdBy: "user" },
+      roleHistory: [{ role: "content", changedBy: "user", at: 1 }],
+    };
+    const map = {
+      thoughtUnits: [mapUnit("tu_1", "human control"), nestedParent],
+      connections: [],
+    };
+    const firstLLM = (_ctx: LLMContext): LLMTurn => ({
+      mode: "question",
+      text: "What should we place next?",
+      mapCommands: [{ kind: "nest_card", childText: "control", parentText: "authorship" }],
+    });
+
+    await processTurn(state, "nest control under authorship", firstLLM, defaultConfig, "chat", map);
+
+    let called = false;
+    const secondLLM = (_ctx: LLMContext): LLMTurn => {
+      called = true;
+      return { mode: "question", text: "should not be called" };
+    };
+    const out = await processTurn(state, "yes", secondLLM, defaultConfig, "chat", map);
+
+    expect(called).toBe(false);
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("already inside");
+    expect(out.commandDebug?.some((note) => note.reason === "nest_cycle_blocked")).toBe(true);
+  });
+
   it("still connects two ordinary root cards unaffected by the nested-endpoint check", async () => {
     const state = createState();
     const map = {

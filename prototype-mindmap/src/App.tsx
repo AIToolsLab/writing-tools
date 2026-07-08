@@ -3757,7 +3757,13 @@ export default function App() {
       candidates: stateRef.current.candidates.getAll(),
       map: mapStoreRef.current.snapshot(),
     };
-    window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(snapshot));
+    try {
+      window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(snapshot));
+    } catch {
+      // Persistence is best-effort. A full quota (long session, large draft
+      // HTML/map) or a storage-blocked context (private mode) must not throw
+      // out of this effect and blank the app — the load path already fails soft.
+    }
   }, [
     confirmed,
     draftCollapsed,
