@@ -5758,7 +5758,10 @@ describe("answer transitions (Goal 5)", () => {
     expect(out.text).not.toBe(reAsk);
     expect(out.text).toContain("#86");
     expect(out.text).toContain("#166");
-    expect(out.text).toContain("relate in your own words");
+    // High map pressure: the map-aware bridge offers the connector-label option
+    // alongside an open question, without forcing connector wording.
+    expect(out.text).toContain("connector");
+    expect(out.text).toContain("keep unpacking");
     expect(out.questionStance).toBe("organize");
     expect(out.mapCommands).toBeUndefined();
   });
@@ -6031,7 +6034,146 @@ describe("user next-move override (Under the Hood)", () => {
     );
 
     expect(out.questionStance).toBe("organize");
-    expect(out.text).toBe("How do #86 and #166 relate in your own words?");
+    // Think-lean (default slider): names the cards WITH their text, not bare refs.
+    expect(out.text).toContain('#86 "monitoring becomes active control"');
+    expect(out.text).toContain('#166 "control means the writer decides"');
+    expect(out.text).toContain("relate in your own words");
+  });
+
+  it("offers the connector-label option alongside an open relate question when the slider leans toward the map", async () => {
+    const state = createState();
+    const mapLeanConfig = {
+      ...defaultConfig,
+      pacing: { ...defaultConfig.pacing, mapPressure: 1 },
+    };
+    const out = await processTurn(
+      state,
+      "",
+      () => ({
+        mode: "question",
+        text: "Which part feels easiest to start with?",
+        questionStance: "settle",
+      }),
+      mapLeanConfig,
+      "chat",
+      overrideMap,
+      {
+        ingestUser: false,
+        overrideMode: "organize",
+        selectedFocus: {
+          cards: [
+            { id: "tu_86", ref: "#86", text: "monitoring becomes active control", role: "node" },
+            { id: "tu_166", ref: "#166", text: "control means the writer decides", role: "node" },
+          ],
+        },
+      },
+    );
+
+    expect(out.questionStance).toBe("organize");
+    // Names the cards and offers the connector-label option...
+    expect(out.text).toContain("connector");
+    expect(out.text).toContain('#86 "monitoring becomes active control"');
+    expect(out.text).toContain('#166 "control means the writer decides"');
+    // ...but open, not forced: the user can keep unpacking instead of labeling.
+    expect(out.text).toContain("keep unpacking");
+  });
+
+  it("reflects highlighted draft text back as confirmable sentence-chunk cards without calling the model", async () => {
+    const state = createState();
+    let called = false;
+    const llm = (_ctx: LLMContext): LLMTurn => {
+      called = true;
+      return { mode: "question", text: "should not be called" };
+    };
+    const draftText =
+      "Ownership is most threatened at idea generation. AI can structure ideas before the writer forms them.";
+
+    const out = await processTurn(state, "", llm, defaultConfig, "chat", overrideMap, {
+      ingestUser: false,
+      overrideMode: "mirror",
+      selectedFocus: { draftText },
+    });
+
+    expect(called).toBe(false);
+    expect(out.mode).toBe("mirror");
+    expect(out.validatedMirror).toBeDefined();
+    const claims = out.validatedMirror!.reflection.claims;
+    expect(claims).toHaveLength(2);
+    expect(claims.map((c) => c.text)).toEqual([
+      "Ownership is most threatened at idea generation.",
+      "AI can structure ideas before the writer forms them.",
+    ]);
+    // Every claim is grounded in a real bank utterance (the words are verbatim
+    // the user's own draft, added to the bank on reflect) — but fenced from
+    // harvest until confirmed, so declining every chip leaves no durable evidence.
+    for (const claim of claims) {
+      const utteranceId = claim.sourceSpans[0].utteranceIds[0];
+      const utterance = state.bank.get(utteranceId);
+      expect(utterance?.text).toBe(claim.text);
+      expect(utterance?.nonHarvestable).toBe(true);
+    }
+    expect(out.validatedMirror!.claims.every((c) => c.ok)).toBe(true);
+  });
+
+  it("recognizes a Connect click when there is nothing to connect", async () => {
+    const state = createState();
+    let called = false;
+    const llm = (_ctx: LLMContext): LLMTurn => {
+      called = true;
+      return { mode: "question", text: "should not be called" };
+    };
+    const map = { thoughtUnits: [mapUnit("tu_10", "authorship")], connections: [] };
+
+    const out = await processTurn(state, "", llm, defaultConfig, "chat", map, {
+      ingestUser: false,
+      overrideMode: "organize",
+    });
+
+    expect(called).toBe(false);
+    expect(out.mapCommands).toBeUndefined();
+    expect(out.text).toContain("only one idea");
+    expect(out.commandDebug?.some((note) => note.reason === "connect_needs_two_cards")).toBe(true);
+  });
+
+  it("recognizes a Connect click on an already-connected selected pair", async () => {
+    const state = createState();
+    let called = false;
+    const llm = (_ctx: LLMContext): LLMTurn => {
+      called = true;
+      return { mode: "question", text: "should not be called" };
+    };
+    const map = {
+      thoughtUnits: [mapUnit("tu_10", "authorship"), mapUnit("tu_20", "control")],
+      connections: [
+        {
+          id: "edge_1",
+          sourceId: "tu_10",
+          targetId: "tu_20",
+          labelUnitId: "tu_99",
+          labelText: "",
+          sourceText: "authorship",
+          targetText: "control",
+          utteranceIds: [],
+        },
+      ],
+    };
+
+    const out = await processTurn(state, "", llm, defaultConfig, "chat", map, {
+      ingestUser: false,
+      overrideMode: "organize",
+      selectedFocus: {
+        cards: [
+          { id: "tu_10", ref: "#10", text: "authorship", role: "node" },
+          { id: "tu_20", ref: "#20", text: "control", role: "node" },
+        ],
+      },
+    });
+
+    expect(called).toBe(false);
+    expect(out.text).toContain("already connected");
+    expect(out.text).toContain("#10");
+    expect(out.text).toContain("#20");
+    expect(out.commandDebug?.some((note) => note.reason === "connect_already_connected")).toBe(true);
   });
 
   it("uses selected draft text when forced deepen has to replace a generic settle question", async () => {

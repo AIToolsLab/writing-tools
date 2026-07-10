@@ -3239,6 +3239,11 @@ export default function App() {
   const draftPanelRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLDivElement>(null);
 
+  // The coach's question-anchor highlight is drawn with a REAL DOM selection (to
+  // reveal/scroll the span). That must never be mistaken for a selection the user
+  // made — otherwise "Reflect this back" reflects a span the user never touched.
+  const anchorSelectionTextRef = useRef<string | undefined>(undefined);
+
   const updateDraftSelectionFocus = useCallback(() => {
     const editor = draftRef.current;
     const selection = window.getSelection();
@@ -3252,6 +3257,12 @@ export default function App() {
       return;
     }
     const text = selection.toString().trim();
+    const anchor = anchorSelectionTextRef.current?.trim();
+    if (text && anchor && text === anchor) {
+      // This is the coach's anchor highlight, not the user's own selection.
+      setDraftSelectionFocus(undefined);
+      return;
+    }
     setDraftSelectionFocus(text ? { text } : undefined);
   }, []);
 
@@ -3503,7 +3514,10 @@ export default function App() {
   }, [activeAnchor]);
 
   // When the highlight lands, select and scroll the rich draft text into view.
+  // Record the anchor text so the selection handler can tell this app-created
+  // selection apart from one the user actually made.
   useEffect(() => {
+    anchorSelectionTextRef.current = highlightAnchor;
     if (!highlightAnchor) return;
     const editor = draftRef.current;
     if (editor) selectTextInElement(editor, highlightAnchor);
@@ -3790,6 +3804,12 @@ export default function App() {
     setInput("");
     setError(null);
     speech.reset();
+    // Consume-once: this typed message DOES use the current yellow-selected focus
+    // (so "select a card, then ask about this" works), then the selection is
+    // cleared so it can't silently scope the NEXT, unrelated turn. `selectedFocus`
+    // is captured from this render, so clearing here doesn't affect the call below.
+    setContextSelectedCardIds(new Set());
+    setDraftSelectionFocus(undefined);
 
     setMsgs((prev) => [
       ...prev,

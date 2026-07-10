@@ -652,13 +652,25 @@ function focusedDeepenFallbackQuestion(
   return "What should we unpack more deeply about the idea you were just working on?";
 }
 
+// The safety-net question when the model's forced-organize output is unusable.
+// It names the selected cards WITH their text (not bare refs) and reads the
+// Think/Map slider. Toward Map (4/5 or full) it asks an OPEN question about how
+// the ideas relate AND offers the option to put wording straight on a connector,
+// so the user can keep unpacking OR choose to label a connection — never forced.
+// Toward Think it asks the same open "how do these relate" question without the
+// connector nudge. Either way it only ever asks for the USER's own wording — it
+// never supplies or hints at the relationship.
 function focusedOrganizeFallbackQuestion(
   selectedFocus: SelectedFocusContext | undefined,
   mapQuestionContext: MapQuestionAnchor[] | undefined,
+  mapLean = false,
 ): string {
+  const openConnect = (subject: string) =>
+    `How do ${subject} connect for you? You can put the wording for that link straight on a connector, or keep unpacking the idea — your call.`;
   const cards = selectedFocus?.cards ?? [];
   if (cards.length >= 2) {
-    return `How do ${formatInlineList(cards.slice(0, 3).map((card) => card.ref))} relate in your own words?`;
+    const label = formatInlineList(cards.slice(0, 3).map((card) => selectedCardLabel(card)));
+    return mapLean ? openConnect(label) : `How do ${label} relate in your own words?`;
   }
   if (cards.length === 1) {
     return `Which other idea should we compare with ${selectedCardLabel(cards[0])} first?`;
@@ -669,9 +681,12 @@ function focusedOrganizeFallbackQuestion(
   }
   const pair = fallbackMapAnchorPair(mapQuestionContext);
   if (pair) {
-    return `How do ${pair[0].ref} "${pair[0].text}" and ${pair[1].ref} "${pair[1].text}" relate in your own words?`;
+    const pairLabel = `${pair[0].ref} "${pair[0].text}" and ${pair[1].ref} "${pair[1].text}"`;
+    return mapLean ? openConnect(pairLabel) : `How do ${pairLabel} relate in your own words?`;
   }
-  return "Which two ideas should we relate first, in your own words?";
+  return mapLean
+    ? "How would two of your ideas connect? You can put the wording straight on a connector, or keep unpacking first — your call."
+    : "Which two ideas should we relate first, in your own words?";
 }
 
 function focusedPivotFallbackQuestion(
@@ -2966,6 +2981,125 @@ export function createState(_config?: MindmapConfig): LoopState {
   };
 }
 
+/**
+ * Deterministic mirror from a draft passage the user highlighted and asked to
+ * "Reflect this back". The words are the user's own, verbatim, and the user
+ * explicitly selected them (selection is authorship), so each sentence is added
+ * to the Source Bank as grounded wording and offered back as a confirmable
+ * chunk. Confirming a chunk creates a card through the normal reflection-confirm
+ * path. No model call and no invention: the claim text IS the user's sentence.
+ */
+function buildDraftSelectionMirror(
+  state: LoopState,
+  draftText: string,
+  config: MindmapConfig,
+): TurnOutput {
+  const utterances = state.bank.addSegmented(draftText, "declaration");
+  // The Source Bank is append-only, so declining every chip must NOT leave the
+  // selected draft text behind as durable, harvestable evidence. Fence these
+  // utterances off from all future mirror/candidate harvest until the user
+  // confirms — confirmation (which creates the card) is the only act that
+  // promotes selected draft wording into the map. They still validate this
+  // turn's reflection (validation reads utterance text regardless of the flag).
+  state.bank.markNonHarvestable(utterances.map((utterance) => utterance.id));
+  const claims: MirrorClaim[] = utterances
+    .filter((utterance) => contentTokens(utterance.text).length >= 2)
+    .map((utterance) => ({
+      id: `draft_sel_${utterance.id}`,
+      text: utterance.text,
+      candidateId: `draft_selection_${utterance.id}`,
+      target: "idea",
+      sourceSpans: [
+        { claimText: utterance.text, userPhrase: utterance.text, utteranceIds: [utterance.id] },
+      ],
+    }));
+
+  const bail = (text: string, reason: string): TurnOutput => {
+    state.mode = "question";
+    state.turnsSinceLastMirror++;
+    setLastAiText(state, text);
+    return {
+      mode: "question",
+      text,
+      llmTurn: { mode: "question", text },
+      commandDebug: [{ reason, detail: "Draft-selection reflect produced no confirmable card." }],
+      questionStance: "settle",
+    };
+  };
+
+  if (claims.length === 0) {
+    return bail(
+      "That selection doesn't have enough of your own wording to become a card yet — try highlighting a full sentence.",
+      "draft_selection_empty",
+    );
+  }
+
+  const result = validateMirror({ claims }, state.bank.getAll(), config);
+  const okClaims = result.claims.filter((claim) => claim.ok);
+  if (okClaims.length === 0) {
+    return bail(
+      "That selection still reads as tentative, so I won't turn it into a card yet. What would make it feel firm enough to commit?",
+      "draft_selection_tentative",
+    );
+  }
+  const okIds = new Set(okClaims.map((claim) => claim.claimId));
+  const okReflection: MirrorReflection = { claims: claims.filter((claim) => okIds.has(claim.id)) };
+
+  const text = "Here's what you highlighted, in your own words. Confirm the pieces you want to become cards.";
+  state.mode = "mirror";
+  state.turnsSinceLastMirror = 0;
+  state.clarifyTarget = undefined;
+  setLastAiText(state, text);
+  return {
+    mode: "mirror",
+    text,
+    llmTurn: { mode: "mirror", text },
+    validatedMirror: { reflection: okReflection, claims: okClaims },
+  };
+}
+
+/**
+ * "Connect the ideas" can be clicked when there is nothing to connect. Rather
+ * than ask a hollow "how do these relate?" over an empty/one-card map (or over a
+ * pair that is already connected), recognize the unintended action and hand back
+ * an honest, useful reply. Returns undefined when the click is sensible.
+ */
+function organizeOverrideRejection(
+  selectedFocus: SelectedFocusContext | undefined,
+  map: LLMMapContext,
+): { text: string; reason: string; detail: string } | undefined {
+  const rootCards = map.thoughtUnits.filter(
+    (unit) => !unit.parentId && unit.role !== "connection_label",
+  );
+  if (rootCards.length < 2) {
+    return {
+      text:
+        rootCards.length === 0
+          ? "There aren't any cards on the map yet to connect — want to capture an idea first?"
+          : "There's only one idea on the map so far, so there's nothing to connect it to yet. Want to add another, or go deeper on this one?",
+      reason: "connect_needs_two_cards",
+      detail: `Organize override with ${rootCards.length} connectable card(s).`,
+    };
+  }
+  const selected = selectedFocus?.cards ?? [];
+  if (selected.length === 2) {
+    const [a, b] = selected;
+    const alreadyConnected = map.connections.some(
+      (connection) =>
+        (connection.sourceId === a.id && connection.targetId === b.id) ||
+        (connection.sourceId === b.id && connection.targetId === a.id),
+    );
+    if (alreadyConnected) {
+      return {
+        text: `${a.ref} and ${b.ref} are already connected. Want to relabel that link in your own words, or connect something else?`,
+        reason: "connect_already_connected",
+        detail: `Organize override on already-connected pair ${a.ref}/${b.ref}.`,
+      };
+    }
+  }
+  return undefined;
+}
+
 export async function processTurn(
   state: LoopState,
   userText: string,
@@ -3048,6 +3182,33 @@ export async function processTurn(
       state.coverageFocus = undefined;
     }
   }
+
+  // "Reflect this back" on highlighted draft text is a deterministic, code-built
+  // mirror of the user's own verbatim wording — no model call. Confirming a chunk
+  // turns it into a card. (Selected cards are already structure, so only a draft
+  // selection triggers this; a card-only mirror falls through to the normal path.)
+  if (effectiveOverrideMode === "mirror" && selectedFocus?.draftText?.trim()) {
+    return buildDraftSelectionMirror(state, selectedFocus.draftText, config);
+  }
+
+  // "Connect the ideas" clicked when there is nothing sensible to connect:
+  // answer honestly instead of asking a hollow relate-question.
+  if (effectiveOverrideMode === "organize") {
+    const rejection = organizeOverrideRejection(selectedFocus, map);
+    if (rejection) {
+      state.mode = "question";
+      state.turnsSinceLastMirror++;
+      setLastAiText(state, rejection.text);
+      return {
+        mode: "question",
+        text: rejection.text,
+        llmTurn: { mode: "question", text: rejection.text },
+        commandDebug: [{ reason: rejection.reason, detail: rejection.detail }],
+        questionStance: "organize",
+      };
+    }
+  }
+
   if (typedOverrideMode && units.length > 0) {
     state.bank.markCommandOnly(units.map((unit) => unit.id));
   }
@@ -4571,7 +4732,7 @@ export async function processTurn(
       out = {
         ...out,
         mode: "question",
-        text: focusedOrganizeFallbackQuestion(selectedFocus, mapQuestionContext),
+        text: focusedOrganizeFallbackQuestion(selectedFocus, mapQuestionContext, config.pacing.mapPressure >= 0.5),
         questionAnchor: undefined,
         questionStance: "organize",
         suppressionReason: undefined,
@@ -4631,7 +4792,7 @@ export async function processTurn(
         out = {
           ...out,
           mode: "question",
-          text: focusedOrganizeFallbackQuestion(selectedFocus, mapQuestionContext),
+          text: focusedOrganizeFallbackQuestion(selectedFocus, mapQuestionContext, true),
           questionAnchor: undefined,
           questionStance: "organize",
         };
@@ -4832,7 +4993,7 @@ export async function processTurn(
   ) {
     const text =
       effectiveOverrideMode === "organize"
-        ? focusedOrganizeFallbackQuestion(selectedFocus, mapQuestionContext)
+        ? focusedOrganizeFallbackQuestion(selectedFocus, mapQuestionContext, config.pacing.mapPressure >= 0.5)
         : effectiveOverrideMode === "pivot"
           ? focusedPivotFallbackQuestion(selectedFocus, mapQuestionContext)
           : focusedDeepenFallbackQuestion(selectedFocus, mapQuestionContext, userText, draftDeclarations);

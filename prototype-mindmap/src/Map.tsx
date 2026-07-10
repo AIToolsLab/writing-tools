@@ -1612,7 +1612,8 @@ function ThoughtMapInner({
 
       <p className="map-hint">
         Drag a card onto another to nest it inside · use "Out" to separate ·
-        drag a card dot to connect · drag a line end to move a connector
+        drag a card dot to connect · drag a line end to move a connector ·
+        shift-click a card to select it
       </p>
 
       <div className="map-canvas" ref={canvasRef}>

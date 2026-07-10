@@ -143,13 +143,37 @@ describe("makeLLM JSON resilience", () => {
       messages: Array<{ role: string; content: string }>;
     };
     const system = body.messages.find((m) => m.role === "system")?.content ?? "";
-    expect(system).toContain("SELECTED UI FOCUS (READ-ONLY, HIGH PRIORITY)");
+    expect(system).toContain("SELECTED UI FOCUS (READ-ONLY TARGET, HIGH PRIORITY)");
     expect(system).toContain("selected_card #86 role=node text=\"human control decides the wording\"");
     expect(system).toContain("selected_draft_text \"the system should not write for the author\"");
-    expect(system).toContain("make the question aware of one concrete phrase, example, or issue in the draft");
-    expect(system).toContain("Keep it simple and intelligent");
+    // Target-only: the focus note points to the material and defers behavior to
+    // the USER OVERRIDE, rather than prescribing a per-mode question itself.
+    expect(system).toContain("Treat it as the TARGET of the USER OVERRIDE move above");
+    expect(system).toContain("never changes WHAT the move is");
     expect(system).toContain("not Source Bank evidence");
     expect(system).toContain("never authorizes mapCommands");
+  });
+
+  it("moves draft-anchoring into the deepen override note, not the focus note", async () => {
+    const valid = '{"mode":"question","text":"What next?"}';
+    const fetchMock = vi.fn().mockResolvedValue(jsonResponse(valid));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await makeLLM()({
+      ...ctx,
+      forcedMode: "deepen",
+      draft: "human control decides what enters the draft",
+      selectedFocus: { draftText: "human control decides what enters the draft" },
+    });
+
+    const body = JSON.parse(fetchMock.mock.calls[0][1]?.body as string) as {
+      messages: Array<{ role: string; content: string }>;
+    };
+    const system = body.messages.find((m) => m.role === "system")?.content ?? "";
+    // The behavior (anchor to a concrete draft phrase) now lives in the deepen
+    // verb note, gated on the selected draft target.
+    expect(system).toContain("When a draft passage is the selected target");
+    expect(system).toContain("one concrete phrase, example, or issue in the draft");
   });
 
   it("instructs the model to quote exact user and draft wording in visible text", async () => {
