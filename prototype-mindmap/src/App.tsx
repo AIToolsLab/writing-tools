@@ -648,6 +648,16 @@ const css = `
     gap: 7px;
     flex-wrap: nowrap;
   }
+  .map-left-tools,
+  .map-right-tools {
+    /* A native (non-overlay) horizontal scrollbar takes real height at the
+       bottom of the box; with overflow-y hidden that clips into the tallest
+       child (the docked draft pill). Reserve scrollbar height as padding, then
+       pull it back with a negative margin so it doesn't shift the header
+       layout — the scrollbar has room without visible content losing height. */
+    padding-bottom: 17px;
+    margin-bottom: -17px;
+  }
   .map-left-tools {
     justify-self: start;
     max-width: 100%;
