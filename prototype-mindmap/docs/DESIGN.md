@@ -118,9 +118,9 @@ or whether explicit declarations and direct commands are honored.
 
 ### Diagnostics
 
-The Debug panel exposes mode, suppression reason, validation check scores,
-validation payloads, accelerated candidates, and readiness notes. This turns
-"felt wrong" reports into concrete gate diagnoses.
+The Control Room panel exposes mode, suppression reason, validation check
+scores, validation payloads, accelerated candidates, and readiness notes. This
+turns "felt wrong" reports into concrete gate diagnoses.
 
 ## Implementation Map
 

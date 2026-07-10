@@ -2637,8 +2637,8 @@ function eventStage(event: UnderhoodEvent): UnderhoodEvent["stage"] {
 }
 
 function underhoodTabLabel(snapshot: UnderstandingSnapshot | null): string {
-  if (!snapshot) return "Under the hood";
-  return snapshot.activeEvents[0]?.title ?? snapshot.latest.title ?? "Under the hood";
+  if (!snapshot) return "Control Room";
+  return snapshot.activeEvents[0]?.title ?? snapshot.latest.title ?? "Control Room";
 }
 
 function Meter({ label, value }: { label: string; value: number }) {
@@ -2680,10 +2680,10 @@ function UnderhoodIcon() {
  * emits only a coach-steering request; it never authors a map write.
  */
 const NEXT_MOVE_OPTIONS: { mode: UserRequestedMode; label: string; hint: string }[] = [
-  { mode: "mirror", label: "Reflect this back", hint: "Sum up what I've said so far" },
+  { mode: "mirror", label: "Reflect back", hint: "Sum up what I've said so far" },
   { mode: "deepen", label: "Go deeper", hint: "Dig into the idea on the table" },
-  { mode: "organize", label: "Connect the ideas", hint: "Ask how my thoughts relate" },
-  { mode: "pivot", label: "Ask something else", hint: "This question isn't landing - move on" },
+  { mode: "organize", label: "Connect ideas", hint: "Ask how my thoughts relate" },
+  { mode: "pivot", label: "Ask differently", hint: "Same subject, a fresh angle" },
 ];
 
 type UnderhoodSectionId =
@@ -2824,7 +2824,7 @@ export function UnderTheHoodPanel({
         type="button"
         className={`underhood-tab ${snapshot ? "live" : ""}`}
         onClick={() => setOpen(true)}
-        aria-label="Open under the hood panel"
+        aria-label="Open Control Room panel"
       >
         {underhoodTabLabel(snapshot)}
       </button>
@@ -2832,17 +2832,17 @@ export function UnderTheHoodPanel({
   }
 
   return (
-    <aside className="underhood-panel" aria-label="Under the hood">
+    <aside className="underhood-panel" aria-label="Control Room">
       <div className="underhood-head">
         <div className="underhood-title">
-          <strong>Under the hood</strong>
+          <strong>Control Room</strong>
           <span>{snapshot?.banner ?? "This will show what the coach is considering as we talk."}</span>
         </div>
         <button
           type="button"
           className="underhood-close"
           onClick={() => setOpen(false)}
-          aria-label="Close under the hood panel"
+          aria-label="Close Control Room panel"
         >
           x
         </button>
@@ -2850,7 +2850,7 @@ export function UnderTheHoodPanel({
 
       {onRequestMode && (
         <UnderhoodSection
-          title="What do you want next?"
+          title="Steer the coach"
           collapsed={sectionIsCollapsed("nextMove")}
           onToggle={() => toggleSection("nextMove")}
           className="underhood-nextmove"
@@ -4197,13 +4197,13 @@ export default function App() {
                   <button
                     className={`uth-toggle-btn ${underhoodOpen ? "active" : ""}`}
                     type="button"
-                    title={underhoodOpen ? "Close under the hood" : "Open under the hood"}
-                    aria-label={underhoodOpen ? "Close under the hood panel" : "Open under the hood panel"}
+                    title={underhoodOpen ? "Close Control Room" : "Open Control Room"}
+                    aria-label={underhoodOpen ? "Close Control Room panel" : "Open Control Room panel"}
                     aria-pressed={underhoodOpen}
                     onClick={() => setUnderhoodOpen((value) => !value)}
                   >
                     <UnderhoodIcon />
-                    <span>UTH</span>
+                    <span>Control Room</span>
                   </button>
                   <button
                     className="draft-toggle-btn"
