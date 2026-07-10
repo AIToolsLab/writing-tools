@@ -18,6 +18,7 @@ import IntroPage from '@/components/study/IntroPage';
 import IntroSurvey from '@/components/study/IntroSurvey';
 import StartTaskPage from '@/components/study/StartTaskPage';
 import TaskPage from '@/components/study/TaskPage';
+import TaskCompletionPage from '@/components/study/TaskCompletionPage';
 import PostTaskSurvey from '@/components/study/PostTaskSurvey';
 import FinalPage from '@/components/study/FinalPage';
 
@@ -27,6 +28,7 @@ const pageComponents = {
   'intro-survey': IntroSurvey,
   'start-task': StartTaskPage,
   task: TaskPage,
+  'debrief': TaskCompletionPage,
   'post-task-survey': PostTaskSurvey,
   final: FinalPage,
 } as const;
