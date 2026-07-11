@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from 'reshaped';
+import { Button } from '@/components/button';
 import classes from './styles.module.css';
 
 interface OnboardingCarouselProps {

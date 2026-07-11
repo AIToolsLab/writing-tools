@@ -25,8 +25,7 @@ import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { resolvePage } from '../registry';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
-import { Reshaped, Button } from 'reshaped';
-import 'reshaped/themes/slate/theme.css';
+import { Button } from '@/components/button';
 import '@/theme.css';
 
 // PostHog configuration - project token is safe to commit publicly
@@ -500,20 +499,18 @@ export default function App() {
 	return (
 		<AppWithProviders>
 			<ChatContextWrapper>
-				<Reshaped theme="slate">
-					<AppAuthProvider>
-						<PostHogConsentBridge />
-						<AppAuthTokenBridge>
-							{/* The document's brief is shared by every page, so it
-							    is loaded once here rather than per page. Inside the
-							    auth providers because the section it feeds logs
-							    edits. */}
-							<DocBriefProvider>
-								<AppInner />
-							</DocBriefProvider>
-						</AppAuthTokenBridge>
-					</AppAuthProvider>
-				</Reshaped>
+				<AppAuthProvider>
+					<PostHogConsentBridge />
+					<AppAuthTokenBridge>
+						{/* The document's brief is shared by every page, so it
+						    is loaded once here rather than per page. Inside the
+						    auth providers because the section it feeds logs
+						    edits. */}
+						<DocBriefProvider>
+							<AppInner />
+						</DocBriefProvider>
+					</AppAuthTokenBridge>
+				</AppAuthProvider>
 			</ChatContextWrapper>
 		</AppWithProviders>
 	);
