@@ -58,8 +58,7 @@
 		"react": "^18.2.0",
 		"react-dom": "^18.2.0",
 		"react-icons": "^5.2.1",
-		"react-remark": "^2.1.0",
-		"reshaped": "^3.5.3"
+		"react-remark": "^2.1.0"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.0.6",

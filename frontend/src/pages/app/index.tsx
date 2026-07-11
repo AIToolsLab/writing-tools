@@ -22,8 +22,7 @@ import Draft from '../draft';
 import Revise from '../revise';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
-import { Reshaped, Button } from 'reshaped';
-import 'reshaped/themes/slate/theme.css';
+import { Button } from '@/components/button';
 
 // PostHog configuration - project token is safe to commit publicly
 const POSTHOG_KEY = 'phc_p3Br0zRnw7PdTVpdNI92vvBTWcBBY0jvkHO8dNvkCTl';
@@ -393,13 +392,11 @@ export default function App() {
 	return (
 		<AppWithProviders>
 			<ChatContextWrapper>
-				<Reshaped theme="slate">
-					<AppAuthProvider>
-						<AppAuthTokenBridge>
-							<AppInner />
-						</AppAuthTokenBridge>
-					</AppAuthProvider>
-				</Reshaped>
+				<AppAuthProvider>
+					<AppAuthTokenBridge>
+						<AppInner />
+					</AppAuthTokenBridge>
+				</AppAuthProvider>
 			</ChatContextWrapper>
 		</AppWithProviders>
 	);

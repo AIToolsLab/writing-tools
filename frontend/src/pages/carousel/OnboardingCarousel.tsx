@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button } from 'reshaped';
+import { Button } from '@/components/button';
 import classes from './styles.module.css';
 import descriptionImage from '@/assets/c1.png';
 import functionImage from '@/assets/logo_black.png';
