@@ -340,6 +340,32 @@ function AppInner() {
 					</Button>
 				</div>
 			) : null}
+			<footer className={classes.footer}>
+				<a
+					href="https://thoughtful-ai.com/"
+					className={classes.ibtn}
+					target="_blank"
+					rel="noopener noreferrer"
+				>
+					thoughtful-ai.com
+				</a>
+				<p className={classes.acknowledgment}>
+					Built by the Thoughtful AI Lab at Calvin University. This material is
+					based upon work supported by the U.S. National Science Foundation
+					under Grant No.{' '}
+					<a
+						href="https://www.nsf.gov/awardsearch/show-award/?AWD_ID=2246145"
+						className={classes.ibtn}
+						target="_blank"
+						rel="noopener noreferrer"
+					>
+						2246145
+					</a>
+					. Any opinions, findings, and conclusions or recommendations
+					expressed are those of the authors and do not necessarily reflect the
+					views of the National Science Foundation.
+				</p>
+			</footer>
 		</div>
 	);
 }
