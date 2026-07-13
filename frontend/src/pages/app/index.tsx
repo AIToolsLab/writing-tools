@@ -347,24 +347,18 @@ function AppInner() {
 					target="_blank"
 					rel="noopener noreferrer"
 				>
-					thoughtful-ai.com
+					Thoughtful AI Lab
 				</a>
-				<p className={classes.acknowledgment}>
-					Built by the Thoughtful AI Lab at Calvin University. This material is
-					based upon work supported by the U.S. National Science Foundation
-					under Grant No.{' '}
-					<a
-						href="https://www.nsf.gov/awardsearch/show-award/?AWD_ID=2246145"
-						className={classes.ibtn}
-						target="_blank"
-						rel="noopener noreferrer"
-					>
-						2246145
-					</a>
-					. Any opinions, findings, and conclusions or recommendations
-					expressed are those of the authors and do not necessarily reflect the
-					views of the National Science Foundation.
-				</p>
+				{' · '}
+				<a
+					href="https://www.nsf.gov/awardsearch/show-award/?AWD_ID=2246145"
+					className={classes.ibtn}
+					target="_blank"
+					rel="noopener noreferrer"
+					title="This material is based upon work supported by the U.S. National Science Foundation under Grant No. 2246145. Any opinions, findings, and conclusions or recommendations expressed are those of the authors and do not necessarily reflect the views of the National Science Foundation."
+				>
+					NSF #2246145
+				</a>
 			</footer>
 		</div>
 	);

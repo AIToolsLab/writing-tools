@@ -187,25 +187,14 @@ hr {
 }
 
 .footer {
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	gap: 0.25rem;
-	padding: 0.6rem 0.8rem;
+	text-align: center;
+	padding: 0.3rem 0.6rem;
+	font-size: 0.65rem;
+	font-weight: 300;
+	color: #9a9a9a;
 	border-top: 1px solid #f1f1f1;
-	background-color: #fbfbfb;
 }
 
 .footer > a {
-	font-size: 0.8rem;
-	font-weight: 500;
-}
-
-.acknowledgment {
 	font-size: 0.65rem;
-	font-weight: 300;
-	line-height: 1.4;
-	color: #8a8a8a;
-	text-align: center;
-	margin: 0;
 }
