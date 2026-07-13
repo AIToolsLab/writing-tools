@@ -9,7 +9,7 @@ import {
 	filterExtraDataForConsent,
 	isConsentLevel,
 } from './consent.js';
-import { logSecret, openaiApiKey } from './config.js';
+import { gitCommit, logSecret, openaiApiKey } from './config.js';
 import { appendLog, deleteUserLogs, pollLogs, zipLogs } from './logging.js';
 import {
 	captureException,
@@ -188,7 +188,9 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		return c.json({ message: 'Your logged data has been deleted.' });
 	});
 
-	app.get('/api/ping', (c) => c.json({ timestamp: new Date().toISOString() }));
+	app.get('/api/ping', (c) =>
+		c.json({ timestamp: new Date().toISOString(), gitCommit: gitCommit() }),
+	);
 
 	// Study-log viewer polling. Gated by the shared LOG_SECRET, like before.
 	app.post('/api/logs_poll', async (c) => {

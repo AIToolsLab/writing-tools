@@ -1,6 +1,5 @@
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { betterAuth } from 'better-auth';
 import { bearer, deviceAuthorization } from 'better-auth/plugins';
 import Database from 'better-sqlite3';
@@ -8,17 +7,16 @@ import {
 	betterAuthSecret,
 	betterAuthTrustedOrigins,
 	betterAuthUrl,
+	dataDir,
 	deviceClientIds,
 	googleClientId,
 	googleClientSecret,
 } from './config.js';
 import { deleteUserLogs } from './logging.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-// DB path resolves to backend/data/auth.db from both src/ (dev) and dist/ (built).
-// Docker mounts target /app/backend/data. Path is intentionally fixed for this milestone.
-const dbPath = path.resolve(__dirname, '../data/auth.db');
+// The auth DB lives under the shared DATA_DIR (defaults to backend/data). In
+// Docker/k8s, DATA_DIR points at the mounted volume so auth.db persists.
+const dbPath = path.join(dataDir(), 'auth.db');
 
 // Ensure the data directory exists. This runs only when this module is actually
 // executed — i.e. at runtime when auth is enabled, or when the Better Auth CLI

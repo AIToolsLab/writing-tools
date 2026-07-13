@@ -27,8 +27,13 @@ RUN npm run build
 FROM node:24-slim AS run
 WORKDIR /app/backend
 ENV NODE_ENV=production
-# STATIC_ROOT (backend/src/static.ts) and LOG_DIR default to ./public and
-# ./logs; compose sets LOG_DIR to the mounted data volume.
+# Surfaced by GET /api/ping (backend/src/config.ts) so a deployed container can
+# be traced back to the commit it was built from.
+ARG GIT_COMMIT=unknown
+ENV GIT_COMMIT=${GIT_COMMIT}
+# STATIC_ROOT (backend/src/static.ts) defaults to ./public; DATA_DIR
+# (backend/src/config.ts) defaults to ./data but compose points it at the
+# mounted data volume.
 COPY backend/package.json backend/package-lock.json* ./
 RUN npm install --omit=dev
 COPY --from=backend /app/backend/dist ./dist

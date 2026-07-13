@@ -1,6 +1,7 @@
 import { appendFile, mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { zipSync } from 'fflate';
+import { dataDir } from './config.js';
 
 /**
  * Structured study log. Mirrors the `Log` shape written by the former FastAPI
@@ -15,9 +16,11 @@ export interface LogEntry {
 	extra_data: Record<string, unknown>;
 }
 
-// Resolved lazily so tests can point LOG_DIR at a temp directory.
+// Resolved lazily so tests can point LOG_DIR at a temp directory. Defaults to a
+// `logs` subdir of the shared DATA_DIR; LOG_DIR overrides just this location.
 function logDir(): string {
-	return path.resolve(process.env.LOG_DIR ?? './logs');
+	const explicit = (process.env.LOG_DIR ?? '').trim();
+	return explicit ? path.resolve(explicit) : path.join(dataDir(), 'logs');
 }
 
 /**

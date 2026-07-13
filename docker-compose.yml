@@ -6,12 +6,13 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
     environment:
       - PORT=5000
-      # Persist study logs and the auth SQLite DB under one mounted volume
-      # (/app/backend/data). auth.db already lives there; LOG_DIR moves logs
-      # under it too, so a single volume covers all persistent state.
-      - LOG_DIR=/app/backend/data/logs
+      # Persist study logs and the auth SQLite DB under one mounted volume.
+      # DATA_DIR is the single root for both (auth.db + logs/).
+      - DATA_DIR=/app/backend/data
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - LOG_SECRET=${LOG_SECRET}
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}

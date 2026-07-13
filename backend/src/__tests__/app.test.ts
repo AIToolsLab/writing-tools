@@ -52,11 +52,12 @@ afterEach(() => {
 });
 
 describe('GET /api/ping', () => {
-	it('returns an ISO timestamp', async () => {
+	it('returns an ISO timestamp and the git commit', async () => {
 		const res = await app.request('/api/ping');
 		expect(res.status).toBe(200);
-		const body = (await res.json()) as { timestamp: string };
+		const body = (await res.json()) as { timestamp: string; gitCommit: string };
 		expect(Number.isNaN(Date.parse(body.timestamp))).toBe(false);
+		expect(body.gitCommit).toBe('unknown');
 	});
 });
 
