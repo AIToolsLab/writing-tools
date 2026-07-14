@@ -16,9 +16,11 @@ import { useAtomValue } from 'jotai';
 import {
 	createContext,
 	useContext,
+	useEffect,
 	useMemo,
 	type ReactNode,
 } from 'react';
+import { setOpenAITokenProvider } from '@/api/openai';
 import { type ConsentLevel, DEFAULT_CONSENT_LEVEL } from '@/consent';
 import { AccessTokenProvider } from '@/contexts/authTokenContext';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
@@ -159,9 +161,19 @@ export function AppAuthProvider({ children }: { children: ReactNode }) {
 	return <BetterAuthProvider>{children}</BetterAuthProvider>;
 }
 
-/** Feeds the selected session's getAccessToken into the existing token context. */
+/**
+ * Feeds the selected session's getAccessToken into the existing token context, and
+ * into the OpenAI client — the model proxy is authenticated and meters spend per
+ * user, but the client is a module singleton used outside React, so it takes the
+ * token getter by installation rather than through context.
+ */
 export function AppAuthTokenBridge({ children }: { children: ReactNode }) {
 	const session = useAppAuth();
+
+	useEffect(() => {
+		setOpenAITokenProvider(session.getAccessToken);
+	}, [session.getAccessToken]);
+
 	return (
 		<AccessTokenProvider getAccessTokenSilently={session.getAccessToken}>
 			{children}
