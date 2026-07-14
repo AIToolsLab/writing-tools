@@ -9,7 +9,7 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - LOG_SECRET=${LOG_SECRET:-}
     volumes:
-      # Single persistent volume: holds auth.db and logs/ (LOG_DIR points here).
+      # Single persistent volume: holds app.db and logs/ (LOG_DIR points here).
       - ./backend/data:/app/backend/data
 
   experiment:

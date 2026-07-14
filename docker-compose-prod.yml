@@ -10,7 +10,7 @@ services:
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://e.thoughtful-ai.com/}
     volumes:
-      # Single persistent volume (auth.db + logs/). One-time host migration:
+      # Single persistent volume (app.db + logs/). One-time host migration:
       #   mkdir -p /opt/thoughtful/data/logs
       #   mv /opt/thoughtful/auth/auth.db /opt/thoughtful/data/
       #   mv /opt/thoughtful/logs/* /opt/thoughtful/data/logs/
