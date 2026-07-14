@@ -27,6 +27,14 @@ RUN npm run build
 FROM node:24-slim AS run
 WORKDIR /app/backend
 ENV NODE_ENV=production
+# Debug tools for shelling into a running/deployed container.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    sqlite3 \
+    less \
+    curl \
+    ca-certificates \
+    vim \
+    && rm -rf /var/lib/apt/lists/*
 # Surfaced by GET /api/ping (backend/src/config.ts) so a deployed container can
 # be traced back to the commit it was built from.
 ARG GIT_COMMIT=unknown
