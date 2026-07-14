@@ -1,14 +1,7 @@
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import {
-	afterEach,
-	beforeEach,
-	describe,
-	expect,
-	it,
-	vi,
-} from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app.js';
 import type { Auth } from '../auth.js';
 
@@ -175,13 +168,13 @@ describe('POST /api/me/consent', () => {
 	});
 });
 
-describe('DELETE /api/me/data', () => {
-	it("deletes the authenticated user's log file", async () => {
+describe('DELETE /api/me/activity', () => {
+	it("erases the authenticated user's logged activity", async () => {
 		const { app: authApp } = makeAuthApp({
 			id: 'usr-del',
 			loggingConsent: 'document',
 		});
-		// Write a log entry, confirm it exists, then delete.
+		// Write a log entry, confirm it exists, then erase.
 		await authApp.request('/api/log', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
@@ -189,9 +182,15 @@ describe('DELETE /api/me/data', () => {
 		});
 		await readUserLog('usr-del'); // throws if missing
 
-		const res = await authApp.request('/api/me/data', { method: 'DELETE' });
+		const res = await authApp.request('/api/me/activity', { method: 'DELETE' });
 		expect(res.status).toBe(200);
 		await expect(readUserLog('usr-del')).rejects.toThrow();
+	});
+
+	it('401s without a session', async () => {
+		const { app: authApp } = makeAuthApp(null);
+		const res = await authApp.request('/api/me/activity', { method: 'DELETE' });
+		expect(res.status).toBe(401);
 	});
 });
 

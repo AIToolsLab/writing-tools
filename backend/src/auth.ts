@@ -9,7 +9,7 @@ import {
 	googleClientSecret,
 } from './config.js';
 import { db } from './db.js';
-import { deleteUserLogs } from './logging.js';
+import { eraseLoggedData } from './erasure.js';
 import { anonymizeUserUsage } from './usage.js';
 
 // A module-level `auth` singleton (not a factory) so the Better Auth CLI can
@@ -45,17 +45,19 @@ export const auth = betterAuth({
 			},
 		},
 		// Enables auth.api.deleteUser for the authenticated user (off by default).
-		// beforeDelete purges the user's study logs so "delete my account" also
-		// removes their data. Google-only accounts have no password, so deletion
-		// proceeds from the session alone (no verification flow configured).
+		// Google-only accounts have no password, so deletion proceeds from the
+		// session alone (no verification flow configured).
 		//
-		// LLM usage rows are anonymized rather than deleted: they're content-free
-		// billing records, and dropping them would make our per-user spend stop
-		// reconciling with the provider's invoice. See usage.ts.
+		// beforeDelete runs the same erasure as the withdrawal endpoint (study logs
+		// + analytics profile), so account deletion is by construction a superset of
+		// it — see erasure.ts. On top of that it anonymizes the LLM usage rows rather
+		// than deleting them: they're content-free billing records, and dropping them
+		// would make our per-user spend stop reconciling with the provider's invoice
+		// (see usage.ts). Better Auth then drops the account, sessions and OAuth links.
 		deleteUser: {
 			enabled: true,
 			beforeDelete: async (user) => {
-				await deleteUserLogs(user.id);
+				await eraseLoggedData(user.id);
 				anonymizeUserUsage(user.id);
 			},
 		},

@@ -7,6 +7,10 @@
  * more. This module is the single source of truth for that ordering and for
  * which payload fields are allowed at which level. The client pre-strips to the
  * same rules, but the server re-applies them so a tampered client can't escalate.
+ *
+ * These levels govern *study/analytics* logging only. LLM usage metering (usage.ts)
+ * sits outside them deliberately: it's the content-free billing record for requests
+ * we are charged for, so it is kept at every level, including `none`.
  */
 
 export const CONSENT_LEVELS = [

@@ -10,13 +10,10 @@ import {
 	isConsentLevel,
 } from './consent.js';
 import { gitCommit, logSecret } from './config.js';
-import { appendLog, deleteUserLogs, pollLogs, zipLogs } from './logging.js';
+import { eraseLoggedData } from './erasure.js';
+import { appendLog, pollLogs, zipLogs } from './logging.js';
 import { openaiProxy } from './openaiProxy.js';
-import {
-	captureException,
-	deletePosthogPerson,
-	posthogMiddleware,
-} from './posthog.js';
+import { captureException, posthogMiddleware } from './posthog.js';
 import { costUsd } from './pricing.js';
 import { summarizeUsage } from './usage.js';
 
@@ -161,26 +158,26 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		return c.json({ loggingConsent: level });
 	});
 
-	// Delete the authenticated user's logged study data (keeps their account).
-	// Removes the JSONL log file and best-effort purges their PostHog person.
-	// Full account deletion is Better Auth's /api/auth delete-user route, whose
-	// beforeDelete hook also calls deleteUserLogs.
+	// Erase the authenticated user's logged activity — study logs and analytics
+	// profile — while keeping their account. This is *withdrawal*: they carry on
+	// using the add-in, they just want what we've recorded about them gone.
 	//
-	// LLM usage rows are deliberately untouched here: the account still exists and
-	// still runs up a bill, so it still has to be metered. They're anonymized only
-	// when the account itself is deleted (see auth.ts).
-	app.delete('/api/me/data', async (c) => {
+	// Not "delete my data", which is what this used to be called: it doesn't touch
+	// the account, and it deliberately leaves the LLM usage rows, because the
+	// account is still open and still running up a bill. Departure is Better Auth's
+	// delete-user route, whose beforeDelete hook runs this same erasure and *then*
+	// anonymizes the usage rows (see erasure.ts, auth.ts).
+	app.delete('/api/me/activity', async (c) => {
 		const user = await resolveUser(c);
 		if (!user) return c.json({ detail: 'Unauthorized' }, 401);
 
 		try {
-			await deleteUserLogs(user.id);
+			await eraseLoggedData(user.id);
 		} catch (e) {
-			await captureException(e, { path: '/api/me/data' });
-			return c.json({ detail: 'Failed to delete log data' }, 500);
+			await captureException(e, { path: '/api/me/activity' });
+			return c.json({ detail: 'Failed to erase logged activity' }, 500);
 		}
-		await deletePosthogPerson(user.id);
-		return c.json({ message: 'Your logged data has been deleted.' });
+		return c.json({ message: 'Your logged activity has been erased.' });
 	});
 
 	app.get('/api/ping', (c) =>
