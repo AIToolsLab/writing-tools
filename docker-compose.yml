@@ -14,6 +14,9 @@ services:
       # DATA_DIR is the single root for both (app.db + logs/).
       - DATA_DIR=/app/backend/data
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Thoughtful-demo project key: pays for sessionless (demo-mode) requests, capped
+      # on OpenAI's side. Unset => sessionless requests are refused. See openaiProxy.ts.
+      - OPENAI_DEMO_API_KEY=${OPENAI_DEMO_API_KEY:-}
       - LOG_SECRET=${LOG_SECRET}
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://e.thoughtful-ai.com/}

@@ -9,15 +9,16 @@ import {
 	filterExtraDataForConsent,
 	isConsentLevel,
 } from './consent.js';
-import { gitCommit, logSecret, openaiApiKey } from './config.js';
+import { gitCommit, logSecret } from './config.js';
 import { appendLog, deleteUserLogs, pollLogs, zipLogs } from './logging.js';
+import { openaiProxy } from './openaiProxy.js';
 import {
 	captureException,
 	deletePosthogPerson,
 	posthogMiddleware,
 } from './posthog.js';
-
-const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+import { costUsd } from './pricing.js';
+import { summarizeUsage } from './usage.js';
 
 export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	const app = new Hono();
@@ -51,27 +52,17 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		return c.json({ detail: 'Internal server error' }, 500);
 	});
 
-	// OpenAI-compatible passthrough. The frontend's ai-sdk client posts here; we
-	// only inject the server-held API key and stream the upstream response back.
-	app.post('/api/openai/chat/completions', async (c) => {
-		const body = await c.req.text();
-		const upstream = await fetch(OPENAI_URL, {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${openaiApiKey()}`,
-				'Content-Type': 'application/json',
-			},
-			body,
-		});
-
-		return new Response(upstream.body, {
-			status: upstream.status,
-			headers: {
-				'Content-Type':
-					upstream.headers.get('content-type') ?? 'text/event-stream',
-			},
-		});
-	});
+	// OpenAI-compatible passthrough: picks the API key that pays for the request,
+	// relays the upstream response unchanged, and meters token usage against the
+	// paying identity (see attributeRequest in openaiProxy.ts). A session spends the
+	// main key; sessionless traffic spends the capped demo key, or is refused.
+	app.post(
+		'/api/openai/chat/completions',
+		openaiProxy('chat/completions', {
+			resolveUserId: async (c) => (await resolveUser(c))?.id ?? null,
+			authEnabled: !!auth,
+		}),
+	);
 
 	// Resolve the authenticated user from the request's session, or null. Returns
 	// null when auth is disabled (dev/tests without BETTER_AUTH_ENABLED) so the
@@ -174,6 +165,10 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	// Removes the JSONL log file and best-effort purges their PostHog person.
 	// Full account deletion is Better Auth's /api/auth delete-user route, whose
 	// beforeDelete hook also calls deleteUserLogs.
+	//
+	// LLM usage rows are deliberately untouched here: the account still exists and
+	// still runs up a bill, so it still has to be metered. They're anonymized only
+	// when the account itself is deleted (see auth.ts).
 	app.delete('/api/me/data', async (c) => {
 		const user = await resolveUser(c);
 		if (!user) return c.json({ detail: 'Unauthorized' }, 401);
@@ -196,7 +191,10 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	app.post('/api/logs_poll', async (c) => {
 		const { log_positions = {}, secret = '' } = (await c.req
 			.json()
-			.catch(() => ({}))) as { log_positions?: Record<string, number>; secret?: string };
+			.catch(() => ({}))) as {
+			log_positions?: Record<string, number>;
+			secret?: string;
+		};
 
 		if (logSecret() === '') {
 			return c.json({ error: 'Logging secret not set.' }, 500);
@@ -223,6 +221,62 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 				'Content-Type': 'application/zip',
 				'Content-Disposition': 'attachment; filename=logs.zip',
 			},
+		});
+	});
+
+	// LLM spend broken down by user (and model). Operator tool, gated by the same
+	// LOG_SECRET as the other researcher routes. `since`/`until` are ISO dates and
+	// default to the last 30 days. Dollars are computed here from the stored token
+	// counts, so a model with no entry in pricing.ts reports costUsd: null and shows
+	// up in `unpricedModels` rather than silently costing nothing.
+	app.get('/api/usage_summary', (c) => {
+		const secret = c.req.query('secret') ?? '';
+		if (logSecret() === '') {
+			return c.json({ error: 'Logging secret not set.' }, 500);
+		}
+		if (secret !== logSecret()) {
+			return c.json({ error: 'Invalid secret.' }, 403);
+		}
+
+		const parseDate = (raw: string | undefined, fallback: number): number => {
+			const parsed = raw ? Date.parse(raw) : Number.NaN;
+			return Number.isNaN(parsed) ? fallback : parsed;
+		};
+		const until = parseDate(c.req.query('until'), Date.now());
+		const since = parseDate(
+			c.req.query('since'),
+			until - 30 * 24 * 60 * 60 * 1000,
+		);
+
+		const rows = summarizeUsage(since, until).map((row) => ({
+			...row,
+			costUsd: costUsd(row),
+		}));
+
+		// Per-user totals; unpriced rows contribute requests but no dollars.
+		const byUser = new Map<
+			string,
+			{ email: string | null; costUsd: number; requests: number }
+		>();
+		for (const row of rows) {
+			const entry = byUser.get(row.userId) ?? {
+				email: row.email,
+				costUsd: 0,
+				requests: 0,
+			};
+			entry.costUsd += row.costUsd ?? 0;
+			entry.requests += row.requests;
+			byUser.set(row.userId, entry);
+		}
+
+		return c.json({
+			since: new Date(since).toISOString(),
+			until: new Date(until).toISOString(),
+			totals: [...byUser].map(([userId, t]) => ({ userId, ...t })),
+			rows,
+			unpricedModels: [
+				...new Set(rows.filter((r) => r.costUsd === null).map((r) => r.model)),
+			],
 		});
 	});
 
