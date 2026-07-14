@@ -1,28 +1,16 @@
-import { mkdirSync } from 'node:fs';
-import path from 'node:path';
 import { betterAuth } from 'better-auth';
 import { bearer, deviceAuthorization } from 'better-auth/plugins';
-import Database from 'better-sqlite3';
 import {
 	betterAuthSecret,
 	betterAuthTrustedOrigins,
 	betterAuthUrl,
-	dataDir,
 	deviceClientIds,
 	googleClientId,
 	googleClientSecret,
 } from './config.js';
+import { db } from './db.js';
 import { deleteUserLogs } from './logging.js';
-
-// The auth DB lives under the shared DATA_DIR (defaults to backend/data). In
-// Docker/k8s, DATA_DIR points at the mounted volume so auth.db persists.
-const dbPath = path.join(dataDir(), 'auth.db');
-
-// Ensure the data directory exists. This runs only when this module is actually
-// executed — i.e. at runtime when auth is enabled, or when the Better Auth CLI
-// imports this file for migration. mkdirSync creates the directory; new Database()
-// creates auth.db if absent; `@better-auth/cli migrate` creates the tables.
-mkdirSync(path.dirname(dbPath), { recursive: true });
+import { anonymizeUserUsage } from './usage.js';
 
 // A module-level `auth` singleton (not a factory) so the Better Auth CLI can
 // auto-discover it: `npx @better-auth/cli migrate` looks for an exported `auth`
@@ -30,7 +18,10 @@ mkdirSync(path.dirname(dbPath), { recursive: true });
 // tests never executes this module and never opens SQLite. index.ts imports this
 // module dynamically, and only when BETTER_AUTH_ENABLED=true.
 export const auth = betterAuth({
-	database: new Database(dbPath),
+	// The shared application database (db.ts) — Better Auth's tables and ours live
+	// in one file, on one connection. Better Auth creates its own tables here via
+	// `@better-auth/cli migrate` (src/migrate.ts); ours are versioned in db.ts.
+	database: db(),
 	baseURL: betterAuthUrl(),
 	secret: betterAuthSecret(),
 	trustedOrigins: betterAuthTrustedOrigins(),
@@ -57,10 +48,15 @@ export const auth = betterAuth({
 		// beforeDelete purges the user's study logs so "delete my account" also
 		// removes their data. Google-only accounts have no password, so deletion
 		// proceeds from the session alone (no verification flow configured).
+		//
+		// LLM usage rows are anonymized rather than deleted: they're content-free
+		// billing records, and dropping them would make our per-user spend stop
+		// reconciling with the provider's invoice. See usage.ts.
 		deleteUser: {
 			enabled: true,
 			beforeDelete: async (user) => {
 				await deleteUserLogs(user.id);
+				anonymizeUserUsage(user.id);
 			},
 		},
 	},

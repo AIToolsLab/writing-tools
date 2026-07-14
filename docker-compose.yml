@@ -10,8 +10,8 @@ services:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
     environment:
       - PORT=5000
-      # Persist study logs and the auth SQLite DB under one mounted volume.
-      # DATA_DIR is the single root for both (auth.db + logs/).
+      # Persist study logs and the application SQLite DB under one mounted volume.
+      # DATA_DIR is the single root for both (app.db + logs/).
       - DATA_DIR=/app/backend/data
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - LOG_SECRET=${LOG_SECRET}
