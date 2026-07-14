@@ -38,7 +38,7 @@ export const CONSENT_LEVEL_LABELS: Record<
 	none: {
 		title: 'No logging',
 		description:
-			'No usage analytics or event logging at all — nothing about your activity is sent to our servers.',
+			'No usage analytics or event logging at all. We still keep a content-free record of the AI requests we are billed for (time, model, token counts) — never your writing.',
 	},
 	usage: {
 		title: 'Usage only',

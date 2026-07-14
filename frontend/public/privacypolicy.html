@@ -177,7 +177,7 @@
   <p>Last Updated: June 30, 2026</p>
   <h2 id="overview">Overview</h2>
   <p>This privacy policy describes how our AI Writing Assistant (“the Add-in”) collects, uses, and protects your information. The Add-in is a writing tool that uses AI to help you think and reflect as you write. You can also choose to take part in an optional research study. We are committed to data minimization and to being transparent about exactly what we collect and store.</p>
-  <p>A key principle: <strong>you control what we log</strong>. You choose a logging level (described under “Your Logging Choices” below), and we never store more than that level allows.</p>
+  <p>A key principle: <strong>you control what we log</strong>. You choose a logging level (described under “Your Logging Choices” below), and we never store more than that level allows. The one exception is a content-free record of the AI requests we are billed for, described under “AI Usage Records” — it contains none of your writing, and we keep it at every logging level.</p>
   <h2 id="information-we-collect">Information We Collect</h2>
   <h3 id="document-content">Document Content and AI Processing</h3>
   <ul>
@@ -191,6 +191,12 @@
   <li>For product analytics and error monitoring we use <strong>PostHog</strong>. Analytics are disabled until you choose a level that permits them, and are tied to your account so that you can later have them deleted. They are not anonymous.</li>
   <li>No data is collected in the background when the Add-in is not in use.</li>
   </ul>
+  <h3 id="ai-usage-records">AI Usage Records</h3>
+  <ul>
+  <li>Every time the Add-in asks an AI provider for a suggestion, we record that the request happened: the time, which model answered it, how many tokens it consumed, and your account. We are charged for these requests, so we keep this record to run the service, understand our costs, and detect misuse.</li>
+  <li><strong>These records contain no content</strong> — not your document text, not your request, and not the suggestion you received. Only the counts.</li>
+  <li>Because this is operational and billing information rather than research or analytics data, we keep it at <em>every</em> logging level, including “No logging”. Your logging level governs what we store about how you <em>use</em> the Add-in; it does not change the fact that we are billed for the AI requests you make.</li>
+  </ul>
   <h3 id="account-information">Account Information</h3>
   <ul>
   <li>You sign in with Google. We receive your name and email address from Google to create and identify your account.</li>
@@ -199,7 +205,7 @@
   <h2 id="your-logging-choices">Your Logging Choices</h2>
   <p>You choose one of four cumulative logging levels. We ask you to choose when you start, and you can change it at any time from the Add-in’s account settings. Each level includes everything in the levels below it.</p>
   <ul>
-  <li><strong>No logging</strong> — No usage analytics or event logging at all.</li>
+  <li><strong>No logging</strong> — No usage analytics or event logging at all. (The content-free AI usage records described above are still kept, because we are billed for those requests.)</li>
   <li><strong>Usage only</strong> — Which features you use (for example, which buttons and modes, and timing). No document text and no AI suggestions are stored. This is the starting point for new users.</li>
   <li><strong>Usage + AI suggestions</strong> — Also stores the suggestions the assistant shows you. Your document text itself is still not stored.</li>
   <li><strong>Full study logging</strong> — Also stores the document context sent to generate suggestions. This level is intended for participants who have agreed to join our research study.</li>
@@ -222,6 +228,7 @@
   <ul>
   <li>Logged events are stored on our servers, keyed to your account identifier.</li>
   <li>We retain logged events for as long as your account is active, and delete them when you request it (see “Your Rights and Choices”). Research data is retained according to the applicable study consent.</li>
+  <li>AI usage records are retained as billing history. They hold no content, and they are detached from your identity if you delete your account.</li>
   <li>Data is protected with encryption in transit, and access is restricted to our team.</li>
   </ul>
   <h2 id="data-sharing-and-third-parties">Data Sharing and Third Parties</h2>
@@ -236,8 +243,8 @@
   <h2 id="your-rights-and-choices">Your Rights and Choices</h2>
   <ul>
   <li><strong>Change what is logged</strong> at any time by changing your logging level in the Add-in’s account settings.</li>
-  <li><strong>Delete your logged data</strong> — you can request deletion of your logged events and analytics from the account settings; this removes your log records and requests deletion of your analytics profile.</li>
-  <li><strong>Delete your account</strong> — deleting your account also deletes your logged data.</li>
+  <li><strong>Erase your logged activity</strong> — from the account settings you can erase everything we have recorded about how you use the Add-in: your logged events and your analytics profile. You keep your account and can carry on using the Add-in; this is how you withdraw from the research study without leaving. Because your account is still open, the content-free AI usage records described above continue from that point on — we are still billed for the requests you make.</li>
+  <li><strong>Delete your account</strong> — this erases your logged activity (exactly as above) and then removes your account itself. Your AI usage records are stripped of your identity rather than erased: the token counts remain, so that our books still reconcile with what the AI provider billed us, but they are no longer linked to you or to each other — and they never contained any of your content.</li>
   <li><strong>Access</strong> information about what we hold and how it is used by contacting us.</li>
   </ul>
   <h2 id="changes-to-this-policy">Changes to This Policy</h2>
