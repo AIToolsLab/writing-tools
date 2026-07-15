@@ -34,6 +34,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     ca-certificates \
     vim \
+    jq \
+    htop \
+    procps \
+    netcat-openbsd \
     && rm -rf /var/lib/apt/lists/*
 # Surfaced by GET /api/ping (backend/src/config.ts) so a deployed container can
 # be traced back to the commit it was built from.
