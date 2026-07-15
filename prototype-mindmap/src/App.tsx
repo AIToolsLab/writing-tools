@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from "react";
 import { makeLLM, type ConversationMessage } from "./api";
-import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
+import { defaultConfig, withHelpMode, withQuestionIntentBias, type HelpMode, type MindmapConfig } from "./config";
 import {
   createState,
   processTurn,
@@ -28,6 +28,14 @@ import { useSpeechToText } from "./useSpeechToText";
 // Types
 // ---------------------------------------------------------------------------
 
+/** One coach reply generated at a specific help/constraint level, for comparison. */
+interface ComparisonOption {
+  level: HelpMode;
+  text: string;
+  mode?: "question" | "mirror" | "clarify";
+  questionStance?: QuestionStance;
+}
+
 interface ChatMsg {
   id: number;
   role: "user" | "assistant";
@@ -39,7 +47,22 @@ interface ChatMsg {
   questionAnchor?: string;
   /** The coaching stance the AI chose for this turn, if any. */
   questionStance?: QuestionStance;
+  /**
+   * Set on a committed coach turn that was chosen from a 3-level comparison. The
+   * transcript keeps all three replies (read-only) with the picked one marked;
+   * `text`/`mirrorId` above belong to the picked level.
+   */
+  comparison?: { options: ComparisonOption[]; pickedLevel: HelpMode };
 }
+
+/** 1 = Assist (most substitutive) → 3 = Reflect (most thoughtful). */
+const HELP_LEVELS: HelpMode[] = [1, 2, 3];
+const HELP_LEVEL_LABEL: Record<HelpMode, string> = { 1: "Assist", 2: "Guide", 3: "Reflect" };
+const HELP_LEVEL_HINT: Record<HelpMode, string> = {
+  1: "may suggest ideas + structure",
+  2: "may suggest ideas only",
+  3: "reflects your own thinking only",
+};
 
 interface DraftPanelPos { x: number; y: number; }
 interface DraftPanelSize { w: number; h: number; }
@@ -124,6 +147,7 @@ interface PersistedSession {
   understandingSnapshot?: UnderstandingSnapshot | null;
   mapRevision: number;
   questionBias: number;
+  helpMode?: HelpMode;
   requireConnectionLabel?: boolean;
   draftText: string;
   draftHtml?: string;
@@ -697,6 +721,83 @@ const css = `
     margin-left: auto;
     min-width: 178px;
     justify-content: end;
+  }
+
+  /* ---- 3-level response comparison ---- */
+  .compare-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 100%;
+  }
+  .compare-option {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border: 1px solid #e0ddd5;
+    border-left: 3px solid #cfcabf;
+    border-radius: 10px;
+    background: #fff;
+    padding: 9px 12px;
+    font: inherit;
+    color: #1a1a1a;
+  }
+  .compare-option.level-1 { border-left-color: #c8652f; }
+  .compare-option.level-2 { border-left-color: #b58f3a; }
+  .compare-option.level-3 { border-left-color: #1a6fa3; }
+  .compare-option.pickable { cursor: pointer; transition: box-shadow 0.14s, border-color 0.14s, background 0.14s; }
+  .compare-option.pickable:hover {
+    background: #fafaf8;
+    box-shadow: 0 4px 14px rgba(30, 30, 30, 0.1);
+  }
+  .compare-group.committed .compare-option { opacity: 0.6; }
+  .compare-group.committed .compare-option.picked {
+    opacity: 1;
+    background: #f4f9fc;
+    box-shadow: inset 0 0 0 1px rgba(26, 111, 163, 0.25);
+  }
+  .compare-option-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 4px;
+  }
+  .compare-level {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: #55514a;
+  }
+  .compare-option.level-1 .compare-level { color: #b0491f; }
+  .compare-option.level-2 .compare-level { color: #8a6a1e; }
+  .compare-option.level-3 .compare-level { color: #1a6fa3; }
+  .compare-hint {
+    font-size: 10px;
+    color: #9a958c;
+  }
+  .compare-picked-tag {
+    margin-left: auto;
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #1a6fa3;
+    background: #e3eff7;
+    border-radius: 99px;
+    padding: 1px 8px;
+  }
+  .compare-option-text {
+    font-size: 14px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .compare-pick-cta {
+    margin-top: 7px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1a6fa3;
   }
 
   /* Docked draft keeps the same size and physical affordance as the floating
@@ -3140,6 +3241,10 @@ export default function App() {
   const llmRef = useRef<MockLLM>(makeLLM(() => configRef.current, buildConversationHistory(initialMsgs)));
   const mapStoreRef = useRef<ThoughtUnitStore>(initialMapStore);
   const undoStackRef = useRef<MapUndoSnapshot[]>([]);
+  // Live turn-outputs + working states for the pending 3-level comparison, keyed
+  // by level. Held in a ref (not state) because LoopState carries live stores and
+  // must not trigger re-renders; the render-facing copy lives in `comparison`.
+  const comparisonRunsRef = useRef<Map<HelpMode, { out: TurnOutput; workingState: LoopState }>>(new Map());
 
   const [msgs, setMsgs] = useState<ChatMsg[]>(initialMsgs);
   const [pendingMirrors, setPendingMirrors] = useState<Map<string, PendingMirror>>(initialPendingMirrors);
@@ -3156,6 +3261,9 @@ export default function App() {
   const [input, setInput] = useState("");
   const [composerScrollable, setComposerScrollable] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Pending 3-level comparison awaiting the user's pick. While set, the composer
+  // is locked until the user chooses which reply continues the thread.
+  const [comparison, setComparison] = useState<{ userText: string; options: ComparisonOption[] } | null>(null);
   const [underhoodOpen, setUnderhoodOpen] = useState(false);
   const [contextSelectedCardIds, setContextSelectedCardIds] = useState<Set<string>>(new Set());
   const [draftSelectionFocus, setDraftSelectionFocus] = useState<DraftSelectionFocus | undefined>(undefined);
@@ -3668,7 +3776,10 @@ export default function App() {
       });
   }
 
-  function appendCoachOutput(out: TurnOutput, opts?: { replaceLastCoach?: boolean }) {
+  function appendCoachOutput(
+    out: TurnOutput,
+    opts?: { replaceLastCoach?: boolean; comparison?: { options: ComparisonOption[]; pickedLevel: HelpMode } },
+  ) {
     const understanding = buildUnderstandingForOutput(out);
     // When a turn replaces the previous coach message (e.g. an Under the Hood
     // "next move" click), drop that message instead of stacking a duplicate. If
@@ -3705,6 +3816,7 @@ export default function App() {
       mode: out.mode,
       questionAnchor: out.questionAnchor,
       questionStance: out.questionStance,
+      comparison: opts?.comparison,
     };
 
     if (out.validatedMirror) {
@@ -3805,9 +3917,30 @@ export default function App() {
     requireConnectionLabel,
   ]);
 
+  // Run the same user turn once per help level (1/2/3) on independent clones of
+  // the pre-turn state, so the three replies are directly comparable — same
+  // context, only the constraint differs. Nothing is committed here; the caller
+  // holds the working states until the user picks which one continues the thread.
+  async function runCoachLevels(
+    text: string,
+    opts: { ingestUser?: boolean; requireConnectionLabel: boolean; selectedFocus?: SelectedFocusContext },
+  ): Promise<Array<{ level: HelpMode; out: TurnOutput; workingState: LoopState }>> {
+    const history = buildConversationHistory(msgs);
+    const baseCfg = configRef.current;
+    const mapContext = mapStoreRef.current.toLLMContext();
+    return Promise.all(
+      HELP_LEVELS.map(async (level) => {
+        const workingState = cloneLoopState(stateRef.current);
+        const levelLLM = makeLLM(withHelpMode(baseCfg, level), history);
+        const out = await processTurn(workingState, text, levelLLM, baseCfg, "chat", mapContext, opts);
+        return { level, out, workingState };
+      }),
+    );
+  }
+
   async function send() {
     const text = input.trim();
-    if (!text || loading) return;
+    if (!text || loading || comparison) return;
     const nonce = ++turnNonceRef.current;
 
     speech.stop();
@@ -3818,6 +3951,7 @@ export default function App() {
     // (so "select a card, then ask about this" works), then the selection is
     // cleared so it can't silently scope the NEXT, unrelated turn. `selectedFocus`
     // is captured from this render, so clearing here doesn't affect the call below.
+    const turnSelectedFocus = selectedFocus;
     setContextSelectedCardIds(new Set());
     setDraftSelectionFocus(undefined);
 
@@ -3828,21 +3962,24 @@ export default function App() {
 
     setLoading(true);
     try {
-      const workingState = cloneLoopState(stateRef.current);
-      const out = await processTurn(
-        workingState,
-        text,
-        llmRef.current,
-        configRef.current,
-        "chat",
-        mapStoreRef.current.toLLMContext(),
-        { requireConnectionLabel, selectedFocus },
-      );
+      const runs = await runCoachLevels(text, {
+        requireConnectionLabel,
+        selectedFocus: turnSelectedFocus,
+      });
 
       if (nonce !== turnNonceRef.current) return;
-      mergeLiveBankIntoWorkingState(workingState, stateRef.current);
-      stateRef.current = workingState;
-      appendCoachOutput(out);
+      comparisonRunsRef.current = new Map(
+        runs.map((r) => [r.level, { out: r.out, workingState: r.workingState }]),
+      );
+      setComparison({
+        userText: text,
+        options: runs.map((r) => ({
+          level: r.level,
+          text: r.out.text,
+          mode: r.out.mode,
+          questionStance: r.out.questionStance,
+        })),
+      });
     } catch (e) {
       if (nonce !== turnNonceRef.current) return;
       const msg = e instanceof Error ? e.message : String(e);
@@ -3850,6 +3987,23 @@ export default function App() {
     } finally {
       if (nonce === turnNonceRef.current) setLoading(false);
     }
+  }
+
+  // Commit the picked level: adopt its working state as canonical, apply its map
+  // commands / mirror / debug, and record all three replies (picked marked) in
+  // the transcript. The next turn branches into three again from here.
+  function pickComparison(level: HelpMode) {
+    const picked = comparisonRunsRef.current.get(level);
+    const pending = comparison;
+    if (!picked || !pending) return;
+
+    mergeLiveBankIntoWorkingState(picked.workingState, stateRef.current);
+    stateRef.current = picked.workingState;
+
+    const options = pending.options;
+    setComparison(null);
+    comparisonRunsRef.current = new Map();
+    appendCoachOutput(picked.out, { comparison: { options, pickedLevel: level } });
   }
 
   // User-initiated override of the coach's next move, triggered from the Under
@@ -4105,6 +4259,8 @@ export default function App() {
     setLastCoachDebug(null);
     setUnderstandingSnapshot(null);
     setHighlightAnchor(undefined);
+    setComparison(null);
+    comparisonRunsRef.current = new Map();
     undoStackRef.current = [];
     setCanUndoMap(false);
     setCommandAck(null);
@@ -4154,11 +4310,33 @@ export default function App() {
               <div key={m.id} className={`msg ${m.role} ${m.mode ?? ""}`}>
                 <span className="msg-label">
                   {m.role === "user" ? "you" : "coach"}
-                  {m.questionStance && (
+                  {m.questionStance && !m.comparison && (
                     <span className={`stance-chip stance-${m.questionStance}`}>{m.questionStance}</span>
                   )}
                 </span>
-                <div className="msg-bubble">{m.text}</div>
+                {m.comparison ? (
+                  <div className="compare-group committed">
+                    {m.comparison.options.map((opt) => (
+                      <div
+                        key={opt.level}
+                        className={`compare-option level-${opt.level}${
+                          opt.level === m.comparison!.pickedLevel ? " picked" : ""
+                        }`}
+                      >
+                        <div className="compare-option-head">
+                          <span className="compare-level">{HELP_LEVEL_LABEL[opt.level]}</span>
+                          <span className="compare-hint">{HELP_LEVEL_HINT[opt.level]}</span>
+                          {opt.level === m.comparison!.pickedLevel && (
+                            <span className="compare-picked-tag">chosen</span>
+                          )}
+                        </div>
+                        <div className="compare-option-text">{opt.text}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="msg-bubble">{m.text}</div>
+                )}
                 {m.mirrorId && pendingMirrors.has(m.mirrorId) && (
                   <MirrorCard
                     pm={pendingMirrors.get(m.mirrorId)!}
@@ -4172,7 +4350,33 @@ export default function App() {
               <div className="msg assistant">
                 <span className="msg-label">coach</span>
                 <div className="msg-bubble" style={{ color: "#aaa", fontStyle: "italic" }}>
-                  thinking...
+                  comparing three responses...
+                </div>
+              </div>
+            )}
+            {comparison && (
+              <div className="msg assistant">
+                <span className="msg-label">coach · pick one to continue</span>
+                <div className="compare-group pending">
+                  {comparison.options.map((opt) => (
+                    <button
+                      key={opt.level}
+                      type="button"
+                      className={`compare-option level-${opt.level} pickable`}
+                      onClick={() => pickComparison(opt.level)}
+                      title={`Continue the conversation with the ${HELP_LEVEL_LABEL[opt.level]} reply`}
+                    >
+                      <div className="compare-option-head">
+                        <span className="compare-level">{HELP_LEVEL_LABEL[opt.level]}</span>
+                        <span className="compare-hint">{HELP_LEVEL_HINT[opt.level]}</span>
+                        {opt.questionStance && (
+                          <span className={`stance-chip stance-${opt.questionStance}`}>{opt.questionStance}</span>
+                        )}
+                      </div>
+                      <div className="compare-option-text">{opt.text}</div>
+                      <div className="compare-pick-cta">Continue with this →</div>
+                    </button>
+                  ))}
                 </div>
               </div>
             )}
@@ -4186,11 +4390,11 @@ export default function App() {
                 ref={textareaRef}
                 className={`composer-textarea ${composerScrollable ? "composer-scroll" : ""}`}
                 rows={2}
-                placeholder="Say what's on your mind…"
+                placeholder={comparison ? "Pick one of the three replies above to continue…" : "Say what's on your mind…"}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKey}
-                disabled={loading}
+                disabled={loading || comparison !== null}
               />
               <div className="composer-toolbar">
                 <div className="composer-left-tools">
@@ -4234,7 +4438,7 @@ export default function App() {
                         : "Voice dictation is unavailable in this browser"
                     }
                     aria-pressed={speech.listening}
-                    disabled={!speech.supported || loading}
+                    disabled={!speech.supported || loading || comparison !== null}
                     onClick={() => {
                       if (speech.listening) {
                         speech.stop();
@@ -4245,13 +4449,21 @@ export default function App() {
                   >
                     <MicIcon />
                   </button>
-                  <button className="send-btn" onClick={() => void send()} disabled={loading || !input.trim()}>
+                  <button
+                    className="send-btn"
+                    onClick={() => void send()}
+                    disabled={loading || comparison !== null || !input.trim()}
+                  >
                     {"\u2191"}
                   </button>
                 </div>
               </div>
             </div>
-            <div className="input-hint">Enter to send {"\u00b7"} Shift+Enter for newline</div>
+            <div className="input-hint">
+              {comparison
+                ? "Three replies compared \u2014 pick one to continue the conversation."
+                : `Enter to send \u00b7 Shift+Enter for newline`}
+            </div>
           </div>
         </div>
 

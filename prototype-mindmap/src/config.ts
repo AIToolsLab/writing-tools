@@ -127,6 +127,18 @@ export interface CapabilitiesConfig {
   cantDo: string[];
 }
 
+/**
+ * User-facing "Substitutive ↔ Thoughtful help" setting. Unlike the Think/Map
+ * bias (pure pacing), this changes how directive the coach is ALLOWED to be —
+ * but only in what it is *told* it may say. It never relaxes the code-enforced
+ * floor: a mirror must still be grounded in the user's own words, and only the
+ * user's exact words ever land on the map. The three stops accumulate:
+ *   1 substitutive — floor only; the coach may suggest ideas AND structure.
+ *   2 middle       — floor + no structure/scaffolding; may still suggest ideas.
+ *   3 thoughtful   — floor + no scaffolding + no ideas (fully non-directive).
+ */
+export type HelpMode = 1 | 2 | 3;
+
 export interface MindmapConfig {
   mirror: MirrorThresholds;
   readiness: ReadinessThresholds;
@@ -136,6 +148,8 @@ export interface MindmapConfig {
   turnShape: TurnShapeConfig;
   draftDeclarations: DraftDeclarationConfig;
   draftRedundancy: DraftRedundancyConfig;
+  /** Substitutive↔Thoughtful help level (prompt-only). Defaults to 3 (thoughtful). */
+  helpMode?: HelpMode;
 }
 
 function clampInt(value: number, min: number, max: number): number {
@@ -191,9 +205,20 @@ export function withQuestionIntentBias(
 }
 
 /**
+ * Set the user-facing help level. Prompt-only: it never touches validator,
+ * readiness, grounding, or command gates — those stay enforced in code at every
+ * level. Only the system prompt (api.ts) reads this to widen or narrow what the
+ * coach is told it may offer.
+ */
+export function withHelpMode(config: MindmapConfig, helpMode: HelpMode): MindmapConfig {
+  return { ...config, helpMode };
+}
+
+/**
  * Prototype defaults. Starting points for calibration, not sacred math.
  */
 export const defaultConfig: MindmapConfig = {
+  helpMode: 3,
   mirror: {
     lexicalBroadMin: 0.8,
     lexicalAdditionsMax: 0.15,
