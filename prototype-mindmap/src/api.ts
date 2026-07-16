@@ -11,7 +11,13 @@ import {
 } from "./assistant-response";
 import type { ProposedAction, ProposedRef } from "./action-gateway";
 import type { MirrorClaim, MirrorReflection, SourceSpan } from "./types";
-import type { SourceBackedOption } from "./assistance-contract";
+import {
+  ASSISTANCE_CONTRACTS,
+  contractForLevel,
+  type AssistanceLevel,
+  type AssistantResponseKind,
+  type SourceBackedOption,
+} from "./assistance-contract";
 import {
   CONVERSATIONAL_TEXT_FORMAT,
   MINDMAP_PROVIDER_TOOLS,
@@ -300,4 +306,105 @@ export function makeLLM(
     }
     return envelope;
   };
+}
+
+// ---------------------------------------------------------------------------
+// Assistance-contract comparison: one call, one answer per level (read-only).
+// ---------------------------------------------------------------------------
+
+/** One contract level's answer inside a read-only comparison preview. */
+export interface LevelComparisonResult {
+  level: AssistanceLevel;
+  label: string;
+  kind?: string;
+  text: string;
+  options?: string[];
+  /** Contract violations the model made at this level, surfaced for honesty. */
+  rejectionReasons: string[];
+}
+
+function comparisonSystemPrompt(context: LLMContext): string {
+  const contracts = ([0, 1, 2] as AssistanceLevel[])
+    .map((level) => {
+      const c = ASSISTANCE_CONTRACTS[level];
+      return `L${level} — ${c.label} (${c.id}): ${c.description} Allowed kinds: ${c.allowedResponseKinds.join(
+        ", ",
+      )}. AI-suggested structure: ${c.allowsAiSuggestedStructure ? "allowed, must be visibly AI-suggested" : "not allowed"}. Options must be verbatim user wording: ${c.optionsMustBeVerbatim}.`;
+    })
+    .join("\n");
+  return `You are comparing three assistance contracts. Answer the SAME latest user turn THREE
+times — once under EACH contract below — obeying ONLY that contract's rules for its own
+answer. Make the differences honest: a lower level must never contribute what only a higher
+level may.
+
+${contracts}
+
+FLOOR (every level): reflections and options must use the user's own words; only the user's
+exact words ever become map structure; at L0/L1 never originate ideas or structure; every
+option must be a VERBATIM span of the user's own words. Questions may scaffold but must not
+embed an answer.
+
+${renderContext(context)}
+
+Return valid JSON only:
+{"responses":[
+  {"level":0,"kind":"question|reflection|aside|map_proposal","text":"<L0 answer>"},
+  {"level":1,"kind":"question|reflection|aside|map_proposal|options","text":"<L1 answer>","options":["<verbatim user phrase>"]},
+  {"level":2,"kind":"question|reflection|aside|map_proposal|options|suggestion","text":"<L2 answer>"}
+]}
+Return EXACTLY three responses, in order 0,1,2. Escape inner double quotes as \\".`;
+}
+
+/**
+ * One chat request that answers the current turn under all three contracts. Each
+ * answer is classified against its own contract (allowed kinds, verbatim options)
+ * so the differences — and any violation — are visible. Read-only: nothing here is
+ * committed to the map.
+ */
+export async function compareAssistanceLevels(
+  context: LLMContext,
+  history: ConversationMessage[],
+): Promise<LevelComparisonResult[]> {
+  const messages: OpenAIMessage[] = [
+    { role: "system", content: comparisonSystemPrompt(context) },
+    ...history.slice(-20),
+  ];
+  const raw = await postChat(messages);
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw) as unknown; }
+  catch { throw new ModelResponseValidationError("invalid_provider_json"); }
+
+  const body = object(parsed);
+  const items = Array.isArray(body?.responses) ? body.responses : [];
+  const byLevel = new Map<number, Record<string, unknown>>();
+  for (const item of items) {
+    const record = object(item);
+    if (record && typeof record.level === "number") byLevel.set(record.level, record);
+  }
+  const bankTexts = context.bank.map((utterance) => utterance.text.toLowerCase());
+
+  return ([0, 1, 2] as AssistanceLevel[]).map((level) => {
+    const contract = contractForLevel(level);
+    const item = byLevel.get(level);
+    const kind = typeof item?.kind === "string" ? item.kind : undefined;
+    const visibleText = text(item?.text) ?? "(no response)";
+    const options = Array.isArray(item?.options)
+      ? item.options
+          .map((option) => (typeof option === "string" ? option : text(object(option)?.text)))
+          .filter((option): option is string => Boolean(option))
+      : undefined;
+
+    const rejectionReasons: string[] = [];
+    if (kind && !contract.allowedResponseKinds.includes(kind as AssistantResponseKind)) {
+      rejectionReasons.push(`kind "${kind}" not allowed at ${contract.label}`);
+    }
+    if (kind === "options" && contract.optionsMustBeVerbatim && options && options.length > 0) {
+      const nonVerbatim = options.filter(
+        (option) => !bankTexts.some((utterance) => utterance.includes(option.toLowerCase())),
+      );
+      if (nonVerbatim.length > 0) rejectionReasons.push(`${nonVerbatim.length} option(s) not verbatim`);
+    }
+
+    return { level, label: contract.label, kind, text: visibleText, options, rejectionReasons };
+  });
 }

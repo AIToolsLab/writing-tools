@@ -2,7 +2,7 @@ import type { AssistanceContractSnapshot, ContributionOrigin, InfluenceTrace } f
 
 export type LedgerEventKind =
   | "contract_initialized" | "contract_selected" | "contract_changed"
-  | "user_message" | "model_request" | "assistant_response"
+  | "user_message" | "model_request" | "assistant_response" | "compare_turn"
   | "provider_tool_requested" | "provider_tool_result"
   | "pointer_validation" | "contract_decision" | "assistant_echo_overlap"
   | "proposal_created" | "proposal_edited" | "proposal_resolved" | "proposal_invalidated" | "map_mutated";

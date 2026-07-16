@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from "react";
-import { historyForCurrentTurn, makeLLM, type ConversationMessage } from "./api";
+import { compareAssistanceLevels, historyForCurrentTurn, makeLLM, type ConversationMessage, type LevelComparisonResult } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
 import type { AssistantResponse, ConversationState, DiagnosticEvent, TurnResult } from "./assistant-response";
 import type { ProposalOutcomeContext, QuestionStance, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
@@ -7,7 +7,7 @@ import { pruneContextSelection, ThoughtMap, toggleContextSelection, type CoachDe
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
 import { applyConfirmedReflection, applyGatewayActions, executeCanvasAction, inspectAction, type ProposedAction } from "./action-gateway";
 import { createProposalStore, resolveProposal, updateProposal, type Proposal } from "./proposal-store";
-import { cloneConversationState, createConversationState, mergeConversationBank, processTurn } from "./stage1-loop";
+import { buildContext, cloneConversationState, createConversationState, mergeConversationBank, processTurn } from "./stage1-loop";
 import { cardRef } from "./store";
 import type { ThoughtUnit, ThoughtUnitRole } from "./types";
 import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
@@ -37,6 +37,8 @@ interface ChatMsg {
   questionStance?: QuestionStance;
   /** Preserves the typed response kind for visible provenance in the transcript. */
   responseKind?: AssistantResponse["kind"];
+  /** Read-only 3-level comparison preview (one answer per contract), if a compare turn. */
+  comparison?: LevelComparisonResult[];
 }
 
 interface DraftPanelPos { x: number; y: number; }
@@ -192,7 +194,8 @@ const css = `
   .chat-header {
     display: flex;
     align-items: center;
-    gap: 12px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
     min-height: 60px;
     padding: 10px 16px;
     border-bottom: 1px solid #e5e3de;
@@ -323,6 +326,45 @@ const css = `
   }
   .msg.assistant.mirror .msg-bubble  { background: #e8f8ed; }
   .msg.assistant.clarify .msg-bubble { background: #fff3e0; }
+
+  /* ---- assistance-contract comparison toggle + 3-level preview ---- */
+  .compare-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #68645d;
+    cursor: pointer;
+  }
+  .compare3 { display: flex; flex-direction: column; gap: 8px; width: 100%; }
+  .compare3-card {
+    border: 1px solid #e0ddd5;
+    border-left: 3px solid #cfcabf;
+    border-radius: 10px;
+    background: #fff;
+    padding: 8px 12px;
+  }
+  .compare3-card.level-0 { border-left-color: #1a6fa3; }
+  .compare3-card.level-1 { border-left-color: #b58f3a; }
+  .compare3-card.level-2 { border-left-color: #8a4bb0; }
+  .compare3-head { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+  .compare3-level { font-size: 11px; font-weight: 800; color: #55514a; }
+  .compare3-card.level-0 .compare3-level { color: #1a6fa3; }
+  .compare3-card.level-1 .compare3-level { color: #8a6a1e; }
+  .compare3-card.level-2 .compare3-level { color: #8a4bb0; }
+  .compare3-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; color: #9a958c; }
+  .compare3-kind { margin-left: auto; font-size: 10px; color: #9a958c; font-style: italic; }
+  .compare3-text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; color: #1a1a1a; }
+  .compare3-options { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .option-chip.static {
+    font-size: 13px;
+    border: 1px solid #cbd7e2;
+    border-radius: 999px;
+    background: #f4f9fc;
+    color: #1a4e6e;
+    padding: 3px 10px;
+  }
+  .compare3-rej { margin-top: 5px; font-size: 10px; color: #b0491f; }
 
   /* ---- mirror confirmation card ---- */
   .mirror-card {
@@ -3139,6 +3181,9 @@ export default function App() {
   const [mapMountKey, setMapMountKey] = useState(0);
   const [questionBias, setQuestionBias] = useState(initialQuestionBias);
   const [assistanceLevel, setAssistanceLevel] = useState<AssistanceLevel>(initialContract.level);
+  // Comparison preview: when on, a turn is answered once per contract level in a
+  // single call and shown read-only, side by side. Nothing is committed.
+  const [compareMode, setCompareMode] = useState(false);
   const [ledgerAvailable, setLedgerAvailable] = useState(true);
   const [requireConnectionLabel, setRequireConnectionLabel] = useState(initialRequireConnectionLabel);
   const [canUndoMap, setCanUndoMap] = useState(false);
@@ -3862,6 +3907,33 @@ export default function App() {
 
     setLoading(true);
     try {
+      if (compareMode) {
+        // Comparison preview: one call, one answer per contract level, on a
+        // throwaway clone. Nothing is committed — the map/state does not advance;
+        // this is purely to see how L0/L1/L2 differ on this input.
+        void recordEvent("user_message", { text, compare: true });
+        const previewState = cloneConversationState(stateRef.current);
+        const added = previewState.bank.addSegmented(text, "chat");
+        const context = buildContext(
+          previewState,
+          text,
+          added,
+          mapStoreRef.current.toLLMContext(),
+          configRef.current,
+          selectedFocus,
+          undefined,
+          undefined,
+        );
+        const results = await compareAssistanceLevels(context, turnHistory);
+        if (nonce !== turnNonceRef.current) return;
+        setMsgs((prev) => [...prev, { id: ++msgId, role: "assistant", text: "", comparison: results }]);
+        void recordEvent("compare_turn", {
+          results,
+          levels: results.map((r) => ({ level: r.level, kind: r.kind, rejections: r.rejectionReasons })),
+        });
+        return;
+      }
+
       const workingState = cloneConversationState(stateRef.current);
       void recordEvent("user_message", { text });
       const requestedTools: Array<{ name: "propose_reflection_v1" | "propose_map_action_v1"; callId?: string; round: number }> = [];
@@ -4192,6 +4264,10 @@ export default function App() {
                 ))}
               </select>
             </label>
+            <label className="compare-toggle" title="Answer each turn once per contract level (L0/L1/L2) in one call — read-only, nothing is committed">
+              <input type="checkbox" checked={compareMode} onChange={(event) => setCompareMode(event.target.checked)} />
+              <span>Compare 3 levels</span>
+            </label>
           </div>
 
           {!ledgerAvailable && <div className="error-banner">Local audit storage is unavailable in this browser.</div>}
@@ -4200,13 +4276,38 @@ export default function App() {
             {msgs.map((m) => (
               <div key={m.id} className={`msg ${m.role} ${m.mode ?? ""}`}>
                 <span className="msg-label">
-                  {m.role === "user" ? "you" : "coach"}
-                  {m.role === "assistant" && <AssistantResponseKindBadge kind={m.responseKind} />}
+                  {m.role === "user" ? "you" : m.comparison ? "coach · comparing 3 contract levels" : "coach"}
+                  {m.role === "assistant" && !m.comparison && <AssistantResponseKindBadge kind={m.responseKind} />}
                   {m.questionStance && (
                     <span className={`stance-chip stance-${m.questionStance}`}>{m.questionStance}</span>
                   )}
                 </span>
-                <div className="msg-bubble">{m.text}</div>
+                {m.comparison ? (
+                  <div className="compare3">
+                    {m.comparison.map((v) => (
+                      <div key={v.level} className={`compare3-card level-${v.level}`}>
+                        <div className="compare3-head">
+                          <span className="compare3-level">{`L${v.level}`}</span>
+                          <span className="compare3-label">{v.label}</span>
+                          {v.kind && <span className="compare3-kind">{v.kind}</span>}
+                        </div>
+                        <div className="compare3-text">{v.text}</div>
+                        {v.options && v.options.length > 0 && (
+                          <div className="compare3-options">
+                            {v.options.map((option, index) => (
+                              <span key={index} className="option-chip static">{option}</span>
+                            ))}
+                          </div>
+                        )}
+                        {v.rejectionReasons.length > 0 && (
+                          <div className="compare3-rej">gate: {v.rejectionReasons.join("; ")}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="msg-bubble">{m.text}</div>
+                )}
                 {m.role === "assistant" && m.questionAnchor && (
                   <button className="anchor-view-btn" type="button" onClick={() => revealDraftAnchor(m.questionAnchor!)}>
                     View passage
