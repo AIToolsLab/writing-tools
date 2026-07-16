@@ -266,6 +266,30 @@ export class ThoughtUnitStore {
     return this.add(unit, position);
   }
 
+  /**
+   * Create an AI-originated card (Stage 2, Level 2). The AI proposed the content
+   * (inferred); the user confirmed it by choosing to add it. It carries NO bank
+   * utterance — its provenance is permanently `ai_originated` and it renders with
+   * a persistent AI-attribution badge. Only reachable when the active contract's
+   * provenancePolicy allows it; the caller enforces that.
+   */
+  addAiOriginatedCard(
+    text: string,
+    position: XYPosition = this.nextRootPosition(),
+  ): ThoughtUnit {
+    const unit: ThoughtUnit = {
+      id: nextId("tu"),
+      text,
+      role: "node",
+      source: {
+        utteranceIds: [],
+        createdBy: "ai_originated",
+      },
+      roleHistory: [roleEntry("node", "ai_proposed_user_confirmed")],
+    };
+    return this.add(unit, position);
+  }
+
   addFromUserUtterance(
     utterance: SourceUtterance,
     position: XYPosition = this.nextRootPosition(),

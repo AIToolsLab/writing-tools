@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from "react";
-import { makeLLM, type ConversationMessage } from "./api";
-import { defaultConfig, withHelpMode, withQuestionIntentBias, type HelpMode, type MindmapConfig } from "./config";
+import { makeCompareLLM, makeLLM, type ConversationMessage } from "./api";
+import { defaultConfig, withContractLevel, withQuestionIntentBias, type ContractLevel, type MindmapConfig } from "./config";
+import { contractFor, DEFAULT_CONTRACT_LEVEL } from "./contracts";
+import { logLedgerEvent } from "./ledger";
 import {
   createState,
   processTurn,
@@ -12,7 +14,7 @@ import {
 } from "./controller";
 import type { LoopState } from "./controller";
 import { detectDraftDeclarations } from "./draft-declarations";
-import type { MockLLM, QuestionStance, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
+import type { MockLLM, QuestionStance, SelectedFocusContext, TurnOption, UserRequestedMode } from "./llm-contract";
 import { pruneContextSelection, ThoughtMap, toggleContextSelection, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
@@ -28,14 +30,6 @@ import { useSpeechToText } from "./useSpeechToText";
 // Types
 // ---------------------------------------------------------------------------
 
-/** One coach reply generated at a specific help/constraint level, for comparison. */
-interface ComparisonOption {
-  level: HelpMode;
-  text: string;
-  mode?: "question" | "mirror" | "clarify";
-  questionStance?: QuestionStance;
-}
-
 interface ChatMsg {
   id: number;
   role: "user" | "assistant";
@@ -47,22 +41,27 @@ interface ChatMsg {
   questionAnchor?: string;
   /** The coaching stance the AI chose for this turn, if any. */
   questionStance?: QuestionStance;
-  /**
-   * Set on a committed coach turn that was chosen from a 3-level comparison. The
-   * transcript keeps all three replies (read-only) with the picked one marked;
-   * `text`/`mirrorId` above belong to the picked level.
-   */
-  comparison?: { options: ComparisonOption[]; pickedLevel: HelpMode };
+  /** Grounded options (Level 1+): the user's own verbatim phrases, offered as chips. */
+  options?: TurnOption[];
+  /** An AI-originated card proposal (Level 2) the user can accept onto the map. */
+  suggestedCard?: { text: string };
+  /** Set once the user has accepted the AI-originated card, so the button retires. */
+  suggestedCardAccepted?: boolean;
+  /** Read-only 3-level comparison preview (one response per contract), if this was a compare turn. */
+  comparison?: ComparisonView[];
 }
 
-/** 1 = Assist (most substitutive) → 3 = Reflect (most thoughtful). */
-const HELP_LEVELS: HelpMode[] = [1, 2, 3];
-const HELP_LEVEL_LABEL: Record<HelpMode, string> = { 1: "Assist", 2: "Guide", 3: "Reflect" };
-const HELP_LEVEL_HINT: Record<HelpMode, string> = {
-  1: "may suggest ideas + structure",
-  2: "may suggest ideas only",
-  3: "reflects your own thinking only",
-};
+/** One contract level's response inside a read-only comparison preview. */
+interface ComparisonView {
+  level: ContractLevel;
+  label: string;
+  text: string;
+  kind?: string;
+  attribution?: string;
+  options?: string[];
+  suggestedCard?: string;
+  rejectionReasons: string[];
+}
 
 interface DraftPanelPos { x: number; y: number; }
 interface DraftPanelSize { w: number; h: number; }
@@ -147,7 +146,7 @@ interface PersistedSession {
   understandingSnapshot?: UnderstandingSnapshot | null;
   mapRevision: number;
   questionBias: number;
-  helpMode?: HelpMode;
+  activeContractLevel?: ContractLevel;
   requireConnectionLabel?: boolean;
   draftText: string;
   draftHtml?: string;
@@ -723,81 +722,178 @@ const css = `
     justify-content: end;
   }
 
-  /* ---- 3-level response comparison ---- */
-  .compare-group {
+  /* ---- Experimenter contract switcher ---- */
+  .contract-switcher {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: #68645d;
+  }
+  .contract-switcher select {
+    font: inherit;
+    font-size: 11px;
+    padding: 2px 4px;
+    border: 1px solid #d8d5ce;
+    border-radius: 6px;
+    background: #fff;
+    color: #33302b;
+  }
+
+  .compare-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #68645d;
+    cursor: pointer;
+  }
+
+  /* ---- 3-level comparison preview (read-only) ---- */
+  .compare3 {
     display: flex;
     flex-direction: column;
     gap: 8px;
     width: 100%;
-    max-width: 100%;
   }
-  .compare-option {
-    display: block;
-    width: 100%;
-    text-align: left;
+  .compare3-card {
     border: 1px solid #e0ddd5;
     border-left: 3px solid #cfcabf;
     border-radius: 10px;
     background: #fff;
-    padding: 9px 12px;
-    font: inherit;
-    color: #1a1a1a;
+    padding: 8px 12px;
   }
-  .compare-option.level-1 { border-left-color: #c8652f; }
-  .compare-option.level-2 { border-left-color: #b58f3a; }
-  .compare-option.level-3 { border-left-color: #1a6fa3; }
-  .compare-option.pickable { cursor: pointer; transition: box-shadow 0.14s, border-color 0.14s, background 0.14s; }
-  .compare-option.pickable:hover {
-    background: #fafaf8;
-    box-shadow: 0 4px 14px rgba(30, 30, 30, 0.1);
-  }
-  .compare-group.committed .compare-option { opacity: 0.6; }
-  .compare-group.committed .compare-option.picked {
-    opacity: 1;
-    background: #f4f9fc;
-    box-shadow: inset 0 0 0 1px rgba(26, 111, 163, 0.25);
-  }
-  .compare-option-head {
+  .compare3-card.level-0 { border-left-color: #1a6fa3; }
+  .compare3-card.level-1 { border-left-color: #b58f3a; }
+  .compare3-card.level-2 { border-left-color: #8a4bb0; }
+  .compare3-head {
     display: flex;
     align-items: center;
     gap: 7px;
     margin-bottom: 4px;
   }
-  .compare-level {
+  .compare3-level {
     font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
+    font-weight: 800;
     color: #55514a;
   }
-  .compare-option.level-1 .compare-level { color: #b0491f; }
-  .compare-option.level-2 .compare-level { color: #8a6a1e; }
-  .compare-option.level-3 .compare-level { color: #1a6fa3; }
-  .compare-hint {
+  .compare3-card.level-0 .compare3-level { color: #1a6fa3; }
+  .compare3-card.level-1 .compare3-level { color: #8a6a1e; }
+  .compare3-card.level-2 .compare3-level { color: #8a4bb0; }
+  .compare3-label {
     font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
     color: #9a958c;
   }
-  .compare-picked-tag {
+  .compare3-attr {
     margin-left: auto;
     font-size: 10px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: #1a6fa3;
-    background: #e3eff7;
-    border-radius: 99px;
-    padding: 1px 8px;
+    color: #9a958c;
+    font-style: italic;
   }
-  .compare-option-text {
+  .compare3-text {
     font-size: 14px;
     line-height: 1.5;
     white-space: pre-wrap;
+    color: #1a1a1a;
   }
-  .compare-pick-cta {
-    margin-top: 7px;
+  .compare3-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+  .option-chip.static { cursor: default; }
+  .compare3-suggestion {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #5a3a70;
+  }
+  .compare3-rej {
+    margin-top: 5px;
+    font-size: 10px;
+    color: #b0491f;
+  }
+
+  /* ---- Grounded options (Level 1+): pick-from-your-own-words chips ---- */
+  .option-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 8px;
+  }
+  .option-chip {
+    text-align: left;
+    border: 1px solid #cbd7e2;
+    border-radius: 999px;
+    background: #f4f9fc;
+    color: #1a4e6e;
+    padding: 4px 12px;
+    font: inherit;
+    font-size: 13px;
+    line-height: 1.35;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s;
+  }
+  .option-chip:hover {
+    background: #e6f1f8;
+    border-color: #9dc0d6;
+  }
+
+  /* ---- AI-originated suggestion (Level 2): visibly AI-attributed ---- */
+  .ai-suggestion {
+    margin-top: 8px;
+    border: 1px dashed #c6a2d8;
+    border-radius: 10px;
+    background: #faf5fd;
+    padding: 9px 12px;
+  }
+  .ai-suggestion.accepted { opacity: 0.75; }
+  .ai-suggestion-head {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-bottom: 5px;
+  }
+  .ai-badge {
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #fff;
+    background: #8a4bb0;
+    border-radius: 4px;
+    padding: 1px 5px;
+  }
+  .ai-suggestion-label {
     font-size: 11px;
     font-weight: 700;
-    color: #1a6fa3;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: #7a4a99;
+  }
+  .ai-suggestion-text {
+    font-size: 14px;
+    line-height: 1.5;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+  }
+  .ai-suggestion-accept {
+    border: 1px solid #b487cf;
+    border-radius: 8px;
+    background: #8a4bb0;
+    color: #fff;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 12px;
+    cursor: pointer;
+  }
+  .ai-suggestion-accept:hover { background: #7a3fa0; }
+  .ai-suggestion-done {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6a4a80;
   }
 
   /* Docked draft keeps the same size and physical affordance as the floating
@@ -1041,6 +1137,18 @@ const css = `
     letter-spacing: 0.04em;
     text-transform: uppercase;
     color: #68645d;
+  }
+
+  .map-ai-badge {
+    flex: 0 0 auto;
+    margin-left: 4px;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #fff;
+    background: #8a4bb0;
+    border-radius: 3px;
+    padding: 1px 4px;
   }
 
   .map-parent-chip {
@@ -3237,14 +3345,16 @@ export default function App() {
     : { x: 0, y: 0 };
 
   const stateRef = useRef<LoopState>(initialState);
-  const configRef = useRef<MindmapConfig>(withQuestionIntentBias(defaultConfig, initialQuestionBias));
+  const configRef = useRef<MindmapConfig>(
+    withContractLevel(
+      withQuestionIntentBias(defaultConfig, initialQuestionBias),
+      persistedSession?.activeContractLevel ?? DEFAULT_CONTRACT_LEVEL,
+    ),
+  );
   const llmRef = useRef<MockLLM>(makeLLM(() => configRef.current, buildConversationHistory(initialMsgs)));
+  const compareLLMRef = useRef(makeCompareLLM(buildConversationHistory(initialMsgs)));
   const mapStoreRef = useRef<ThoughtUnitStore>(initialMapStore);
   const undoStackRef = useRef<MapUndoSnapshot[]>([]);
-  // Live turn-outputs + working states for the pending 3-level comparison, keyed
-  // by level. Held in a ref (not state) because LoopState carries live stores and
-  // must not trigger re-renders; the render-facing copy lives in `comparison`.
-  const comparisonRunsRef = useRef<Map<HelpMode, { out: TurnOutput; workingState: LoopState }>>(new Map());
 
   const [msgs, setMsgs] = useState<ChatMsg[]>(initialMsgs);
   const [pendingMirrors, setPendingMirrors] = useState<Map<string, PendingMirror>>(initialPendingMirrors);
@@ -3261,16 +3371,22 @@ export default function App() {
   const [input, setInput] = useState("");
   const [composerScrollable, setComposerScrollable] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Pending 3-level comparison awaiting the user's pick. While set, the composer
-  // is locked until the user chooses which reply continues the thread.
-  const [comparison, setComparison] = useState<{ userText: string; options: ComparisonOption[] } | null>(null);
+  // The session's active assistance-contract level (Stage 2). Default L0
+  // (non-directive) for every new session; a persisted session restores its own.
+  const [activeContractLevel, setActiveContractLevel] = useState<ContractLevel>(
+    persistedSession?.activeContractLevel ?? DEFAULT_CONTRACT_LEVEL,
+  );
+  // Comparison preview: when on, a turn is answered once per contract level
+  // (L0/L1/L2) in a single call and shown read-only, side by side — nothing is
+  // committed to the map. Off = normal single-contract turn.
+  const [compareMode, setCompareMode] = useState(false);
   const [underhoodOpen, setUnderhoodOpen] = useState(false);
   const [contextSelectedCardIds, setContextSelectedCardIds] = useState<Set<string>>(new Set());
   const [draftSelectionFocus, setDraftSelectionFocus] = useState<DraftSelectionFocus | undefined>(undefined);
 
   const runtimeConfig = useMemo(
-    () => withQuestionIntentBias(defaultConfig, questionBias),
-    [questionBias],
+    () => withContractLevel(withQuestionIntentBias(defaultConfig, questionBias), activeContractLevel),
+    [questionBias, activeContractLevel],
   );
 
   useEffect(() => {
@@ -3279,6 +3395,7 @@ export default function App() {
 
   useEffect(() => {
     llmRef.current = makeLLM(() => configRef.current, buildConversationHistory(msgs));
+    compareLLMRef.current = makeCompareLLM(buildConversationHistory(msgs));
   }, [msgs]);
 
   const captureMapUndo = useCallback(() => {
@@ -3778,7 +3895,7 @@ export default function App() {
 
   function appendCoachOutput(
     out: TurnOutput,
-    opts?: { replaceLastCoach?: boolean; comparison?: { options: ComparisonOption[]; pickedLevel: HelpMode } },
+    opts?: { replaceLastCoach?: boolean },
   ) {
     const understanding = buildUnderstandingForOutput(out);
     // When a turn replaces the previous coach message (e.g. an Under the Hood
@@ -3816,7 +3933,8 @@ export default function App() {
       mode: out.mode,
       questionAnchor: out.questionAnchor,
       questionStance: out.questionStance,
-      comparison: opts?.comparison,
+      options: out.options,
+      suggestedCard: out.suggestedCard,
     };
 
     if (out.validatedMirror) {
@@ -3850,6 +3968,30 @@ export default function App() {
       return [...prev, newMsg];
     });
     setUnderstandingSnapshot(understanding);
+
+    // Ledger: full detail local; only metadata mirrored to the study log.
+    logLedgerEvent(
+      "coach_turn",
+      {
+        contractLevel: activeContractLevel,
+        text: out.text,
+        kind: out.llmTurn.kind,
+        attribution: out.llmTurn.attribution,
+        mode: out.mode,
+        contractRejections: out.contractRejections,
+        options: out.options?.map((o) => o.text),
+        suggestedCard: out.suggestedCard?.text,
+      },
+      {
+        contractLevel: activeContractLevel,
+        kind: out.llmTurn.kind,
+        attribution: out.llmTurn.attribution,
+        mode: out.mode,
+        rejectionReasons: out.contractRejections?.map((r) => r.reason) ?? [],
+        optionCount: out.options?.length ?? 0,
+        hasSuggestedCard: Boolean(out.suggestedCard),
+      },
+    );
   }
 
   useEffect(() => {
@@ -3863,6 +4005,7 @@ export default function App() {
       understandingSnapshot,
       mapRevision,
       questionBias,
+      activeContractLevel,
       requireConnectionLabel,
       draftText,
       draftHtml,
@@ -3914,33 +4057,71 @@ export default function App() {
     msgs,
     pendingMirrors,
     questionBias,
+    activeContractLevel,
     requireConnectionLabel,
   ]);
 
-  // Run the same user turn once per help level (1/2/3) on independent clones of
-  // the pre-turn state, so the three replies are directly comparable — same
-  // context, only the constraint differs. Nothing is committed here; the caller
-  // holds the working states until the user picks which one continues the thread.
-  async function runCoachLevels(
-    text: string,
-    opts: { ingestUser?: boolean; requireConnectionLabel: boolean; selectedFocus?: SelectedFocusContext },
-  ): Promise<Array<{ level: HelpMode; out: TurnOutput; workingState: LoopState }>> {
-    const history = buildConversationHistory(msgs);
-    const baseCfg = configRef.current;
-    const mapContext = mapStoreRef.current.toLLMContext();
-    return Promise.all(
-      HELP_LEVELS.map(async (level) => {
-        const workingState = cloneLoopState(stateRef.current);
-        const levelLLM = makeLLM(withHelpMode(baseCfg, level), history);
-        const out = await processTurn(workingState, text, levelLLM, baseCfg, "chat", mapContext, opts);
-        return { level, out, workingState };
-      }),
+  // Append a read-only 3-level comparison preview to the transcript. Nothing here
+  // is committed — the map and controller state are unchanged.
+  function appendComparison(responses: NonNullable<TurnOutput["comparisonResponses"]>) {
+    const views: ComparisonView[] = responses.map((r) => ({
+      level: r.level,
+      label: contractFor(r.level).label,
+      text: r.turn.text,
+      kind: r.turn.kind,
+      attribution: r.turn.attribution,
+      options: r.turn.options?.map((o) => o.text),
+      suggestedCard: r.turn.suggestedCard?.text,
+      rejectionReasons: r.rejections.map((x) => x.reason),
+    }));
+    setMsgs((prev) => [...prev, { id: ++msgId, role: "assistant", text: "", comparison: views }]);
+    logLedgerEvent(
+      "compare_turn",
+      { responses: views },
+      {
+        levels: views.map((v) => ({
+          level: v.level,
+          kind: v.kind,
+          attribution: v.attribution,
+          rejectionReasons: v.rejectionReasons,
+        })),
+      },
+    );
+  }
+
+  // Experimenter control: switch the session's active contract mid-session. Every
+  // change is a logged ledger event. Default stays L0 for new sessions.
+  function changeContractLevel(next: ContractLevel) {
+    if (next === activeContractLevel) return;
+    const from = activeContractLevel;
+    setActiveContractLevel(next);
+    logLedgerEvent(
+      "contract_change",
+      { from, to: next },
+      { from, to: next },
+    );
+  }
+
+  // Accept an AI-originated card (Level 2). The AI proposed the content; this
+  // click is the user's confirmation. The card lands on the same map with a
+  // permanent `ai_originated` provenance and renders with an AI-attribution badge.
+  function acceptSuggestedCard(messageId: number, text: string) {
+    captureMapUndo();
+    mapStoreRef.current.addAiOriginatedCard(text);
+    markUserMapChanged();
+    setMsgs((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, suggestedCardAccepted: true } : m)),
+    );
+    logLedgerEvent(
+      "ai_card_accepted",
+      { contractLevel: activeContractLevel, text },
+      { contractLevel: activeContractLevel },
     );
   }
 
   async function send() {
     const text = input.trim();
-    if (!text || loading || comparison) return;
+    if (!text || loading) return;
     const nonce = ++turnNonceRef.current;
 
     speech.stop();
@@ -3959,27 +4140,50 @@ export default function App() {
       ...prev,
       { id: ++msgId, role: "user", text },
     ]);
+    logLedgerEvent(
+      "user_turn",
+      { contractLevel: activeContractLevel, text },
+      { contractLevel: activeContractLevel, chars: text.length },
+    );
 
     setLoading(true);
     try {
-      const runs = await runCoachLevels(text, {
-        requireConnectionLabel,
-        selectedFocus: turnSelectedFocus,
-      });
+      if (compareMode) {
+        // Comparison preview: one call, one gated response per contract level, on
+        // a throwaway clone. Nothing is committed — the map/controller state does
+        // not advance; this is purely to see how L0/L1/L2 differ on this input.
+        const previewState = cloneLoopState(stateRef.current);
+        const out = await processTurn(
+          previewState,
+          text,
+          llmRef.current,
+          configRef.current,
+          "chat",
+          mapStoreRef.current.toLLMContext(),
+          { requireConnectionLabel, selectedFocus: turnSelectedFocus, compareLLM: compareLLMRef.current },
+        );
+        if (nonce !== turnNonceRef.current) return;
+        appendComparison(out.comparisonResponses ?? []);
+        return;
+      }
+
+      // One coach turn under the session's active assistance contract (default
+      // L0). `llmRef` reads `configRef.current`, which carries `contractLevel`.
+      const workingState = cloneLoopState(stateRef.current);
+      const out = await processTurn(
+        workingState,
+        text,
+        llmRef.current,
+        configRef.current,
+        "chat",
+        mapStoreRef.current.toLLMContext(),
+        { requireConnectionLabel, selectedFocus: turnSelectedFocus },
+      );
 
       if (nonce !== turnNonceRef.current) return;
-      comparisonRunsRef.current = new Map(
-        runs.map((r) => [r.level, { out: r.out, workingState: r.workingState }]),
-      );
-      setComparison({
-        userText: text,
-        options: runs.map((r) => ({
-          level: r.level,
-          text: r.out.text,
-          mode: r.out.mode,
-          questionStance: r.out.questionStance,
-        })),
-      });
+      mergeLiveBankIntoWorkingState(workingState, stateRef.current);
+      stateRef.current = workingState;
+      appendCoachOutput(out);
     } catch (e) {
       if (nonce !== turnNonceRef.current) return;
       const msg = e instanceof Error ? e.message : String(e);
@@ -3987,23 +4191,6 @@ export default function App() {
     } finally {
       if (nonce === turnNonceRef.current) setLoading(false);
     }
-  }
-
-  // Commit the picked level: adopt its working state as canonical, apply its map
-  // commands / mirror / debug, and record all three replies (picked marked) in
-  // the transcript. The next turn branches into three again from here.
-  function pickComparison(level: HelpMode) {
-    const picked = comparisonRunsRef.current.get(level);
-    const pending = comparison;
-    if (!picked || !pending) return;
-
-    mergeLiveBankIntoWorkingState(picked.workingState, stateRef.current);
-    stateRef.current = picked.workingState;
-
-    const options = pending.options;
-    setComparison(null);
-    comparisonRunsRef.current = new Map();
-    appendCoachOutput(picked.out, { comparison: { options, pickedLevel: level } });
   }
 
   // User-initiated override of the coach's next move, triggered from the Under
@@ -4259,8 +4446,9 @@ export default function App() {
     setLastCoachDebug(null);
     setUnderstandingSnapshot(null);
     setHighlightAnchor(undefined);
-    setComparison(null);
-    comparisonRunsRef.current = new Map();
+    // Every new session starts non-directive (L0), per the locked default.
+    setActiveContractLevel(DEFAULT_CONTRACT_LEVEL);
+    logLedgerEvent("session_reset", {}, {});
     undoStackRef.current = [];
     setCanUndoMap(false);
     setCommandAck(null);
@@ -4281,6 +4469,26 @@ export default function App() {
               <button className="reset-btn" onClick={clearChatOnly} title="Clear the chat conversation only">
                 Clear chat
               </button>
+              <label className="contract-switcher" title="Experimenter control: assistance contract level (logged)">
+                <span>Contract</span>
+                <select
+                  value={activeContractLevel}
+                  onChange={(e) => changeContractLevel(Number(e.target.value) as ContractLevel)}
+                  disabled={compareMode}
+                >
+                  <option value={0}>L0 · Non-directive</option>
+                  <option value={1}>L1 · Grounded options</option>
+                  <option value={2}>L2 · Suggestive</option>
+                </select>
+              </label>
+              <label className="compare-toggle" title="Answer each turn once per contract level (L0/L1/L2) in one call — read-only, nothing is committed">
+                <input
+                  type="checkbox"
+                  checked={compareMode}
+                  onChange={(e) => setCompareMode(e.target.checked)}
+                />
+                <span>Compare 3 levels</span>
+              </label>
             </div>
             <label className="question-bias chat-question-bias">
               <span>Think</span>
@@ -4309,33 +4517,84 @@ export default function App() {
             {msgs.map((m) => (
               <div key={m.id} className={`msg ${m.role} ${m.mode ?? ""}`}>
                 <span className="msg-label">
-                  {m.role === "user" ? "you" : "coach"}
-                  {m.questionStance && !m.comparison && (
+                  {m.role === "user" ? "you" : m.comparison ? "coach · comparing 3 contract levels" : "coach"}
+                  {m.questionStance && (
                     <span className={`stance-chip stance-${m.questionStance}`}>{m.questionStance}</span>
                   )}
                 </span>
                 {m.comparison ? (
-                  <div className="compare-group committed">
-                    {m.comparison.options.map((opt) => (
-                      <div
-                        key={opt.level}
-                        className={`compare-option level-${opt.level}${
-                          opt.level === m.comparison!.pickedLevel ? " picked" : ""
-                        }`}
-                      >
-                        <div className="compare-option-head">
-                          <span className="compare-level">{HELP_LEVEL_LABEL[opt.level]}</span>
-                          <span className="compare-hint">{HELP_LEVEL_HINT[opt.level]}</span>
-                          {opt.level === m.comparison!.pickedLevel && (
-                            <span className="compare-picked-tag">chosen</span>
-                          )}
+                  <div className="compare3">
+                    {m.comparison.map((v) => (
+                      <div key={v.level} className={`compare3-card level-${v.level}`}>
+                        <div className="compare3-head">
+                          <span className="compare3-level">{`L${v.level}`}</span>
+                          <span className="compare3-label">{v.label}</span>
+                          {v.attribution && <span className="compare3-attr">{v.attribution}</span>}
                         </div>
-                        <div className="compare-option-text">{opt.text}</div>
+                        <div className="compare3-text">{v.text || "(no response)"}</div>
+                        {v.options && v.options.length > 0 && (
+                          <div className="compare3-options">
+                            {v.options.map((o, i) => (
+                              <span key={i} className="option-chip static">{o}</span>
+                            ))}
+                          </div>
+                        )}
+                        {v.suggestedCard && (
+                          <div className="compare3-suggestion">
+                            <span className="ai-badge">AI</span> {v.suggestedCard}
+                          </div>
+                        )}
+                        {v.rejectionReasons.length > 0 && (
+                          <div className="compare3-rej">gate: {v.rejectionReasons.join(", ")}</div>
+                        )}
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="msg-bubble">{m.text}</div>
+                )}
+                {m.options && m.options.length > 0 && (
+                  <div className="option-chips">
+                    {m.options.map((opt, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className="option-chip"
+                        title="Insert your own words into the composer"
+                        onClick={() => {
+                          setInput((prev) => (prev.trim() ? `${prev} ${opt.text}` : opt.text));
+                          textareaRef.current?.focus();
+                          logLedgerEvent(
+                            "option_picked",
+                            { contractLevel: activeContractLevel, text: opt.text },
+                            { contractLevel: activeContractLevel },
+                          );
+                        }}
+                      >
+                        {opt.text}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {m.suggestedCard && (
+                  <div className={`ai-suggestion${m.suggestedCardAccepted ? " accepted" : ""}`}>
+                    <div className="ai-suggestion-head">
+                      <span className="ai-badge">AI</span>
+                      <span className="ai-suggestion-label">AI-originated suggestion</span>
+                    </div>
+                    <div className="ai-suggestion-text">{m.suggestedCard.text}</div>
+                    {m.suggestedCardAccepted ? (
+                      <div className="ai-suggestion-done">Added to map (AI-attributed) ✓</div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="ai-suggestion-accept"
+                        onClick={() => acceptSuggestedCard(m.id, m.suggestedCard!.text)}
+                      >
+                        Add to map (AI-attributed)
+                      </button>
+                    )}
+                  </div>
                 )}
                 {m.mirrorId && pendingMirrors.has(m.mirrorId) && (
                   <MirrorCard
@@ -4350,33 +4609,7 @@ export default function App() {
               <div className="msg assistant">
                 <span className="msg-label">coach</span>
                 <div className="msg-bubble" style={{ color: "#aaa", fontStyle: "italic" }}>
-                  comparing three responses...
-                </div>
-              </div>
-            )}
-            {comparison && (
-              <div className="msg assistant">
-                <span className="msg-label">coach · pick one to continue</span>
-                <div className="compare-group pending">
-                  {comparison.options.map((opt) => (
-                    <button
-                      key={opt.level}
-                      type="button"
-                      className={`compare-option level-${opt.level} pickable`}
-                      onClick={() => pickComparison(opt.level)}
-                      title={`Continue the conversation with the ${HELP_LEVEL_LABEL[opt.level]} reply`}
-                    >
-                      <div className="compare-option-head">
-                        <span className="compare-level">{HELP_LEVEL_LABEL[opt.level]}</span>
-                        <span className="compare-hint">{HELP_LEVEL_HINT[opt.level]}</span>
-                        {opt.questionStance && (
-                          <span className={`stance-chip stance-${opt.questionStance}`}>{opt.questionStance}</span>
-                        )}
-                      </div>
-                      <div className="compare-option-text">{opt.text}</div>
-                      <div className="compare-pick-cta">Continue with this →</div>
-                    </button>
-                  ))}
+                  thinking...
                 </div>
               </div>
             )}
@@ -4390,11 +4623,11 @@ export default function App() {
                 ref={textareaRef}
                 className={`composer-textarea ${composerScrollable ? "composer-scroll" : ""}`}
                 rows={2}
-                placeholder={comparison ? "Pick one of the three replies above to continue…" : "Say what's on your mind…"}
+                placeholder="Say what's on your mind…"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKey}
-                disabled={loading || comparison !== null}
+                disabled={loading}
               />
               <div className="composer-toolbar">
                 <div className="composer-left-tools">
@@ -4438,7 +4671,7 @@ export default function App() {
                         : "Voice dictation is unavailable in this browser"
                     }
                     aria-pressed={speech.listening}
-                    disabled={!speech.supported || loading || comparison !== null}
+                    disabled={!speech.supported || loading}
                     onClick={() => {
                       if (speech.listening) {
                         speech.stop();
@@ -4452,18 +4685,14 @@ export default function App() {
                   <button
                     className="send-btn"
                     onClick={() => void send()}
-                    disabled={loading || comparison !== null || !input.trim()}
+                    disabled={loading || !input.trim()}
                   >
                     {"\u2191"}
                   </button>
                 </div>
               </div>
             </div>
-            <div className="input-hint">
-              {comparison
-                ? "Three replies compared \u2014 pick one to continue the conversation."
-                : `Enter to send \u00b7 Shift+Enter for newline`}
-            </div>
+            <div className="input-hint">Enter to send {"\u00b7"} Shift+Enter for newline</div>
           </div>
         </div>
 

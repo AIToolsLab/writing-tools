@@ -8,6 +8,7 @@
  *   - clarify targets come from the weakest failing span, set by the validator
  */
 
+import type { Attribution, ResponseKind } from "./contracts";
 import type { DetectedSignal } from "./signals";
 import type { DraftDeclaration } from "./draft-declarations";
 import type { OpenThreadContext } from "./open-threads";
@@ -92,6 +93,27 @@ export interface MapCommand {
  */
 export interface LLMTurn {
   mode: LLMMode;
+  /**
+   * Assistance-contract taxonomy for this turn (Stage 2). `kind` is what the AI
+   * contributed; `attribution` is whether that content is user-asserted or
+   * AI-inferred. The response gate checks both against the active contract's
+   * allowlist. Optional for now (defaulted from `mode`/`metaIntent` when absent).
+   */
+  kind?: ResponseKind;
+  attribution?: Attribution;
+  /**
+   * Grounded options (Level 1+): a few of the USER'S OWN phrases, offered for
+   * them to pick from. When the contract sets `optionsMustBeVerbatim`, the gate
+   * drops any option that is not a verbatim span of the user's material.
+   */
+  options?: TurnOption[];
+  /**
+   * An AI-originated card proposal (Level 2 only). When the contract permits the
+   * AI-attributed lane, the user may accept this to place an `ai_originated` card
+   * on the map (badged as AI). The gate strips it at any level that forbids the
+   * lane, so it can never become map structure at L0/L1.
+   */
+  suggestedCard?: { text: string };
   /** The string presented to the user for this turn. */
   text: string;
   /** Proposed reflection — only present when mode === "mirror". */
@@ -152,6 +174,14 @@ export interface LLMTurn {
    * and drops the map-ward pressure nudges. "energized" leaves pacing unchanged.
    */
   affect?: UserAffect;
+}
+
+/** One grounded option — a verbatim phrase from the user, offered for a pick. */
+export interface TurnOption {
+  /** The offered phrase. At Level 1 this must be a verbatim user span. */
+  text: string;
+  /** Source grounding: the user utterance(s) this phrase was taken from. */
+  sourceSpan?: SourceSpan;
 }
 
 export type MetaIntent = "emotional" | "confused" | "social" | "off_topic" | "unparseable";
@@ -312,3 +342,10 @@ export interface LLMContext {
 
 /** Sync in tests, async when wired to the real backend. */
 export type MockLLM = (ctx: LLMContext) => LLMTurn | Promise<LLMTurn>;
+
+/**
+ * Comparison LLM (Stage 2): answers the SAME turn once per contract level in a
+ * SINGLE call, returning one raw turn per level (ordered L0, L1, L2). Used only
+ * by the read-only "compare 3 levels" preview — nothing it returns is committed.
+ */
+export type CompareLLM = (ctx: LLMContext) => Promise<LLMTurn[]>;

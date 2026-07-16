@@ -10,11 +10,13 @@
  * conversation history and calls the backend on each turn.
  */
 
-import type { HelpMode, MindmapConfig } from "./config";
+import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
+import { contractFor, DEFAULT_CONTRACT_LEVEL, type Contract } from "./contracts";
 import type { DraftDeclaration } from "./draft-declarations";
 import { cardRef } from "./store";
 import type {
+  CompareLLM,
   LLMContext,
   LLMMapContext,
   LLMTurn,
@@ -35,7 +37,11 @@ const BACKEND_URL =
   (import.meta.env.VITE_BACKEND_URL as string | undefined) ??
   "http://localhost:8000/api";
 
-const MODEL = "gpt-5.4";
+// Model selection is developer-only (env), never user-facing. Default per Stage 2:
+// GPT-5.6 Terra at low reasoning. Override with VITE_MODEL / VITE_REASONING_EFFORT.
+const MODEL = (import.meta.env.VITE_MODEL as string | undefined) || "gpt-5.6-terra";
+const REASONING_EFFORT =
+  (import.meta.env.VITE_REASONING_EFFORT as string | undefined) || "low";
 
 interface OpenAIMessage {
   role: "system" | "user" | "assistant";
@@ -53,7 +59,9 @@ async function postChat(messages: OpenAIMessage[]): Promise<string> {
     body: JSON.stringify({
       model: MODEL,
       messages,
-      temperature: 0.3,
+      // Reasoning models (the Stage 2 default) only accept the default temperature,
+      // so we don't send one. Determinism is steered via low reasoning effort.
+      reasoning_effort: REASONING_EFFORT,
       stream: false,
       response_format: { type: "json_object" },
     }),
@@ -117,61 +125,31 @@ async function chatJSON<T>(messages: OpenAIMessage[]): Promise<T> {
 // Prompt construction
 // ---------------------------------------------------------------------------
 
-// Rules 2-4 (a mirror must reflect the user's own words with cited spans) plus
-// the "only the user's exact words land on the map" ban are the FLOOR — the
-// "No AI words" constraint that never turns off, enforced in code at every help
-// level. Only rule 1 (and the coach's opening self-description) widen as help
-// moves toward the substitutive end.
-function philosophyFor(helpMode: HelpMode): string {
-  const header =
-    helpMode >= 3
-      ? `You are a non-directive writing coach helping the user build a mind map of their
-own thinking. Your job is to ask questions and reflect structure back — never to
-author ideas, name relationships, or decide what belongs where.`
-      : helpMode === 2
-      ? `You are a writing coach helping the user build a mind map of their own thinking.
-You may offer ideas, angles, and examples to move them forward, but you must not
-author or propose the map's STRUCTURE (which cards connect, nest, or how it is
-organized). The user decides all structure, and only the user's own exact words
-ever land on the map.`
-      : `You are a hands-on writing partner helping the user build a mind map of their own
-thinking. You may offer ideas AND suggest possible structure (how their ideas
-might connect, nest, or be organized) as proposals for the user to accept or
-reject. Only the user's own exact words, chosen by them, ever become a card,
-connection, or edit.`;
+// The persona + "what you may contribute" text is per-contract and lives in
+// contracts.ts (`promptFragment`). The FLOOR below is fixed at every contract
+// level and enforced in code (validator + map-write gating): a mirror must
+// reflect the user's own words with cited spans, and only the user's exact words
+// land on the map. The contract only widens what the AI may contribute.
+function buildPhilosophy(contract: Contract): string {
+  const attributionNote = contract.allowedAttribution.includes("inferred")
+    ? `AI-originated (inferred) material is allowed but MUST be marked attribution "inferred", stay clearly AI-attributed, and be confirmed by the user before it lands on the map.`
+    : `Everything you surface must be attribution "asserted" — grounded in the user's own words. Never emit an "inferred" turn at this level.`;
 
-  const ruleOne =
-    helpMode >= 3
-      ? `1. Never invent ideas, relationships, or concepts the user has not expressed.`
-      : helpMode === 2
-      ? `1. You MAY offer ideas, angles, and examples in your chat text (this widens the
-   "never offer ideas" defaults in the notes below). You must NOT invent or
-   propose relationships, hierarchy, or map structure the user has not expressed.`
-      : `1. You MAY offer ideas AND suggest possible structure — connections, nesting,
-   grouping — in your chat text, as proposals the user accepts or rejects (this
-   widens the "never offer ideas/structure" defaults in the notes below). Never
-   present a suggestion as already decided.`;
+  return `${contract.promptFragment}
 
-  const ruleSixTail =
-    helpMode >= 3
-      ? ` Never move on.`
-      : helpMode === 2
-      ? ` You may also offer a concrete idea or angle to help unstick them.`
-      : ` You may also offer a concrete idea or a possible next step to unstick them.`;
+NON-NEGOTIABLE FLOOR (fixed at every contract level):
+- A mirror reflects STRUCTURE (what is bigger, what sits under what, what connects
+  what) — never a replay of the transcript. Do not echo messages as bullets.
+- Use the user's own words for every content term in a mirror claim. Framing glue
+  ("it sounds like", "is the broader thing", "sits under") is allowed.
+- Every mirror claim must carry sourceSpans citing the exact utterance IDs and the
+  user's own phrase that grounds it.
+- Never use the word "node".
+- Only the user's own exact words, chosen by them, ever become a card, connection,
+  or edit — never place, connect, nest, rename, or edit the map yourself.
 
-  return `${header}
-
-NON-NEGOTIABLE RULES:
-${ruleOne}
-2. A mirror reflects STRUCTURE (what is bigger, what sits under what, what connects
-   what) — never a replay of the transcript. Do not echo messages as bullets.
-3. Use the user's own words for every content term in a mirror claim. Framing glue
-   ("it sounds like", "is the broader thing", "sits under") is allowed.
-4. Every mirror claim must carry sourceSpans citing the exact utterance IDs and the
-   user's own phrase that grounds it.
-5. Never use the word "node". Never lead a question with an embedded answer.
-6. If the user is stuck ("I'm not sure", "I don't know"): ask a tighter, more
-   concrete version — break it into something they can point at.${ruleSixTail}`;
+RESPONSE KINDS you may emit this session (id ${contract.id}): ${contract.allowedKinds.join(", ")}.
+${attributionNote}`;
 }
 
 function renderBank(bank: SourceUtterance[]): string {
@@ -254,20 +232,7 @@ function renderOpenThreads(threads: NonNullable<LLMContext["openThreads"]>): str
 }
 
 function systemPrompt(ctx: LLMContext, cfg: MindmapConfig): string {
-  const helpMode: HelpMode = cfg.helpMode ?? 3;
-  // Substitutive↔Thoughtful help. Prompt-only: it widens what the coach may say
-  // but never the code-enforced floor (grounded mirrors; only the user's exact
-  // words on the map). Empty at the thoughtful default so behavior is unchanged.
-  const helpModeNote =
-    helpMode >= 3
-      ? ""
-      : `\nHELP MODE (${helpMode === 2 ? "suggest ideas" : "suggest ideas and structure"}): The user set help toward the substitutive end${
-          helpMode === 2
-            ? ", so you MAY propose concrete ideas, angles, and examples in your chat text to move them forward"
-            : ", so you MAY propose concrete ideas AND suggest how their ideas might connect, nest, or be organized (including possible relationship wordings) in your chat text"
-        }. Frame every suggestion as an option they can accept or reject, and still ask what they think — do not decide for them. This WIDENS the non-directive "never offer ideas${
-          helpMode === 1 ? "/structure" : ""
-        }" guidance in the notes below. TWO THINGS NEVER CHANGE at any help level: (a) only the user's own exact words, chosen by them, ever become a card, connection, or edit — never place, connect, nest, rename, or edit the map yourself; (b) any reflection (mirror) you show must be grounded in the user's own words with cited spans.`;
+  const contract = contractFor(cfg.contractLevel ?? DEFAULT_CONTRACT_LEVEL);
 
   // Pacing constraint
   const tooSoon = ctx.turnsSinceLastMirror < cfg.pacing.minQuestionTurnsBetweenMirrors;
@@ -416,7 +381,7 @@ ${capabilities.cantDo.map((item) => `  - ${item}`).join("\n")}`;
     ? `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user asked you to help connect their ideas and their pacing is set toward the map. Use mode "question" with questionIntent "organize": ask ONE open question about how the specific named cards relate or connect for them, in their OWN words, and let them know they can put that wording straight onto a connector if they already have it — so they can either keep unpacking the idea OR choose to label a connection, their call. Name the cards by their ref and exact text. Do NOT force them to produce connector wording, do NOT supply, guess, or hint at the relationship yourself, do NOT offer label options to choose between, do NOT author structure, and do NOT emit mapCommands.`
     : `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user asked you to help connect their ideas and their pacing is set toward thinking. Use mode "question" with questionIntent "organize": ask a single, concrete question that helps them put into their OWN words how the named ideas sit together. If they have already written about these ideas in the draft, you MAY anchor the question to that specific draft region (read-only) so it feels concrete rather than generic — but you must NOT name, supply, or hint at the relationship itself. Do NOT offer label options, do NOT author structure, and do NOT emit mapCommands.`;
 
-  return `${philosophyFor(helpMode)}${forcedModeNote}${selectedFocusNote}${helpModeNote}
+  return `${buildPhilosophy(contract)}${forcedModeNote}${selectedFocusNote}
 ${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${candidateTrackingNote}${mapNote}${mapQuestionNote}${transitionNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${openThreadsNote}${mirrorPressureNote}${metaNote}${affectNote}${legibilityNote}
 
 LATEST USER TURN:
@@ -460,6 +425,15 @@ ${
 
 {
   "mode": "question" | "mirror" | "clarify",
+  "kind": "question" | "reflection" | "aside" | "map_proposal" | "options" | "suggestion",  // the kind of turn — MUST be one the active contract allows (see RESPONSE KINDS above)
+  "attribution": "asserted" | "inferred",  // "asserted" = grounded in the user's own words; "inferred" = AI-originated (only allowed at contracts that permit it)
+  "options": [                              // ONLY when kind = "options": a few of the USER'S OWN verbatim phrases to pick from
+    {
+      "text": "<a phrase copied VERBATIM from the SOURCE BANK — the user's exact words>",
+      "sourceSpan": { "utteranceIds": ["<id from SOURCE BANK>"], "userPhrase": "<same verbatim phrase>" }
+    }
+  ],
+  "suggestedCard": { "text": "<ONLY when attribution = \"inferred\" and the contract allows it: a concrete AI-originated card the user may accept onto the map, clearly your idea>" },
   "text": "<what you say to the user>",
   "questionIntent": "deepen" | "organize",  // ONLY when mode = "question"
   "questionStance": "settle" | "narrow" | "deepen" | "organize" | "challenge",  // ONLY when mode = "question" or "clarify"
@@ -778,6 +752,13 @@ Rules:
 
 interface RawLLMResponse {
   mode?: string;
+  kind?: string;
+  attribution?: string;
+  options?: Array<{
+    text?: string;
+    sourceSpan?: { claimText?: string; utteranceIds?: string[]; userPhrase?: string };
+  }>;
+  suggestedCard?: { text?: string };
   text?: string;
   questionIntent?: string;
   questionStance?: string;
@@ -915,6 +896,41 @@ function parseTurn(raw: RawLLMResponse): LLMTurn {
     text: raw.text?.trim() || "(no response)",
   };
 
+  // Contract taxonomy (Stage 2). Trust an explicit, valid value from the model;
+  // otherwise infer a safe default from mode/metaIntent so older/omitting turns
+  // still classify. Enforcement against the active contract happens in the gate.
+  const RESPONSE_KINDS = [
+    "question",
+    "reflection",
+    "aside",
+    "map_proposal",
+    "options",
+    "suggestion",
+  ] as const;
+  turn.kind =
+    raw.kind && (RESPONSE_KINDS as readonly string[]).includes(raw.kind)
+      ? (raw.kind as LLMTurn["kind"])
+      : mode === "mirror"
+      ? "reflection"
+      : raw.metaIntent
+      ? "aside"
+      : "question";
+  turn.attribution = raw.attribution === "inferred" ? "inferred" : "asserted";
+
+  if (turn.kind === "options" && Array.isArray(raw.options)) {
+    const options = raw.options
+      .filter((o) => o.text?.trim())
+      .map((o) => ({
+        text: o.text!.trim(),
+        sourceSpan: o.sourceSpan ? parseSpan(o.sourceSpan) : undefined,
+      }));
+    if (options.length > 0) turn.options = options;
+  }
+
+  if (turn.attribution === "inferred" && raw.suggestedCard?.text?.trim()) {
+    turn.suggestedCard = { text: raw.suggestedCard.text.trim() };
+  }
+
   if (mode === "mirror") {
     turn.mirror = parseMirror(raw.mirror);
   }
@@ -1011,5 +1027,90 @@ export function makeLLM(
 
     history.push({ role: "assistant", content: turn.text });
     return turn;
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Comparison call (Stage 2): one request, one response per contract level.
+// ---------------------------------------------------------------------------
+
+function comparisonSystemPrompt(ctx: LLMContext): string {
+  const fragments = ([0, 1, 2] as const)
+    .map((lvl) => {
+      const c = contractFor(lvl);
+      return `CONTRACT L${lvl} — ${c.label} (id ${c.id})\nallowed kinds: ${c.allowedKinds.join(
+        ", ",
+      )}; attribution: ${c.allowedAttribution.join(", ")}\n${c.promptFragment}`;
+    })
+    .join("\n\n");
+
+  return `You are comparing assistance contracts. Answer the SAME latest user turn THREE
+times — once under each contract below — obeying ONLY that contract's "what you may
+contribute" rules for its own response. Make the differences honest and visible: a
+lower level must NOT sneak in anything only a higher level may contribute.
+
+${fragments}
+
+NON-NEGOTIABLE FLOOR (every level): a reflection uses the user's own words with cited
+spans; only the user's own exact words become map structure; at L0/L1 never emit
+"inferred" material; every option must be a VERBATIM span of the user's own words.
+
+SOURCE BANK (utterance ID -> user's exact words):
+${renderBank(ctx.bank)}
+
+CANDIDATE THOUGHTS (internal -- never shown raw):
+${renderCandidates(ctx.candidates, ctx.readyCandidateIds)}
+
+CURRENT CONCEPT MAP (user-authored canvas -- awareness only):
+${renderMap(ctx.map)}
+
+LATEST USER TURN:
+${ctx.turnText}
+
+===== OUTPUT FORMAT -- return valid JSON only =====
+{
+  "responses": [
+    { "level": 0, "kind": "question|reflection|aside|map_proposal", "attribution": "asserted", "text": "<L0 reply>" },
+    { "level": 1, "kind": "question|reflection|aside|map_proposal|options", "attribution": "asserted", "text": "<L1 reply>", "options": [ { "text": "<verbatim user phrase>" } ] },
+    { "level": 2, "kind": "question|reflection|suggestion|map_proposal", "attribution": "asserted|inferred", "text": "<L2 reply>", "suggestedCard": { "text": "<AI-originated card, omit if none>" } }
+  ]
+}
+Return EXACTLY three responses, one per level, in order 0,1,2. Inside string values,
+any double quote must be escaped as \\".`;
+}
+
+interface RawCompareResponse {
+  responses?: Array<RawLLMResponse & { level?: number }>;
+}
+
+function parseCompareResponses(raw: RawCompareResponse): LLMTurn[] {
+  const byLevel = new Map<number, LLMTurn>();
+  for (const r of raw.responses ?? []) {
+    if (typeof r.level === "number") byLevel.set(r.level, parseTurn(r));
+  }
+  return [0, 1, 2].map(
+    (lvl) =>
+      byLevel.get(lvl) ?? {
+        mode: "question",
+        text: "(no response)",
+        kind: "question",
+        attribution: "asserted",
+      },
+  );
+}
+
+/**
+ * One OpenAI call that answers the current turn once per contract level. Returns
+ * three raw turns ordered [L0, L1, L2] for the read-only comparison preview.
+ */
+export function makeCompareLLM(initialHistory: ConversationMessage[] = []): CompareLLM {
+  const history: ConversationMessage[] = initialHistory.filter((m) => m.role === "assistant");
+  return async (ctx: LLMContext): Promise<LLMTurn[]> => {
+    const messages: OpenAIMessage[] = [
+      { role: "system", content: comparisonSystemPrompt(ctx) },
+      ...history.map((m) => ({ role: m.role, content: m.content })),
+    ];
+    const raw = await chatJSON<RawCompareResponse>(messages);
+    return parseCompareResponses(raw);
   };
 }

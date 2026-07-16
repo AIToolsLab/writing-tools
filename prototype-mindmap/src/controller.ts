@@ -16,7 +16,7 @@
 import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
 import { detectDraftDeclarations, type DraftDeclaration } from "./draft-declarations";
-import type { LLMContext, LLMMapContext, LLMTurn, MapCommand, MapQuestionAnchor, MockLLM, QuestionStance, SelectedFocusContext, UserAffect, UserRequestedMode } from "./llm-contract";
+import type { CompareLLM, LLMContext, LLMMapContext, LLMTurn, MapCommand, MapQuestionAnchor, MockLLM, QuestionStance, SelectedFocusContext, TurnOption, UserAffect, UserRequestedMode } from "./llm-contract";
 import { contentTokens, normalize, stem } from "./normalize";
 import {
   activateOpenThread,
@@ -41,6 +41,8 @@ import type {
   UtteranceOrigin,
 } from "./types";
 import { validateMirror } from "./validator";
+import { contractFor, DEFAULT_CONTRACT_LEVEL, type ContractLevel } from "./contracts";
+import { gateTurn, type GateRejection } from "./contract-gate";
 
 export type ControllerMode = "question" | "mirror" | "clarify";
 export type SuppressionReason =
@@ -220,6 +222,13 @@ export interface ProcessTurnOptions {
    * corresponding mode via the prompt. Only meaningful with `ingestUser: false`.
    */
   overrideMode?: UserRequestedMode;
+  /**
+   * Comparison preview (Stage 2): when set, `processTurn` answers this turn once
+   * per contract level via a single call, gates each response, and returns them on
+   * `comparisonResponses` WITHOUT committing anything (no map writes, no mirror).
+   * The caller runs this on a throwaway clone and discards the state.
+   */
+  compareLLM?: CompareLLM;
 }
 
 const STUCK_PHRASES = [
@@ -2948,6 +2957,32 @@ export interface TurnOutput {
   /** The coaching stance the AI chose for this question/clarify turn, if any. */
   questionStance?: QuestionStance;
   /**
+   * Contract-gate rejections for this turn (Stage 2): the model emitted a kind or
+   * attribution the active contract disallows, and the gate normalized it. Pure
+   * observability / ledger input — the normalization already happened on llmTurn.
+   */
+  contractRejections?: GateRejection[];
+  /**
+   * Grounded options (Level 1+) that survived the gate's verbatim check — the
+   * user's own phrases, offered as pick-one chips. Present only on options turns.
+   */
+  options?: TurnOption[];
+  /**
+   * An AI-originated card the user may accept onto the map (Level 2 only). Present
+   * only when the active contract permits the AI-attributed lane; the gate strips
+   * it otherwise, so it is never present at L0/L1.
+   */
+  suggestedCard?: { text: string };
+  /**
+   * One gated response per contract level (Stage 2 comparison preview). Present
+   * only on a `compareLLM` turn; nothing here is committed to the map or state.
+   */
+  comparisonResponses?: Array<{
+    level: ContractLevel;
+    turn: LLMTurn;
+    rejections: GateRejection[];
+  }>;
+  /**
    * Read-only "under the hood" snapshot: what the AI is considering this turn
    * (tracked ideas + readiness, what it's waiting for, safety checks, draft
    * anchors). Pure observability — built entirely from existing state, never
@@ -4144,7 +4179,35 @@ export async function processTurn(
     userAnsweredLastQuestion,
     forcedMode: effectiveOverrideMode,
   };
-  const turn = await llm(ctx);
+  // Comparison preview (Stage 2): one call, one gated response per contract
+  // level. Returns early without committing anything — the caller discards the
+  // throwaway state it ran this on.
+  if (options.compareLLM) {
+    const raws = await options.compareLLM(ctx);
+    const compareBank = state.bank.getAll();
+    const comparisonResponses = ([0, 1, 2] as const).map((level, i) => {
+      const raw = raws[i] ?? { mode: "question" as const, text: "(no response)" };
+      const gated = gateTurn(raw, contractFor(level), compareBank);
+      return { level, turn: gated.turn, rejections: gated.rejections };
+    });
+    return {
+      mode: state.mode,
+      text: "",
+      llmTurn: raws[0] ?? { mode: "question", text: "" },
+      comparisonResponses,
+    };
+  }
+
+  const rawTurn = await llm(ctx);
+
+  // Contract gate (Stage 2): classify the turn against the session's active
+  // contract and normalize kind/attribution to legal values before anything
+  // downstream keys off them. Rejections are surfaced on the output for the
+  // ledger / Control Room; the floor still enforces what reaches the map.
+  const activeContract = contractFor(config.contractLevel ?? DEFAULT_CONTRACT_LEVEL);
+  const gateResult = gateTurn(rawTurn, activeContract, state.bank.getAll());
+  const turn = gateResult.turn;
+  const contractRejections = gateResult.rejections;
 
   // Affect (tone/pacing modifier only — never fences, never drops content). The
   // model's richer read wins; the deterministic floor backs it up and can only
@@ -4428,6 +4491,17 @@ export async function processTurn(
   const normalizeText = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
   function finish(out: TurnOutput): TurnOutput {
+    if (contractRejections.length > 0) {
+      out = { ...out, contractRejections };
+    }
+    // Surface surviving grounded options so the UI can render pick-one chips.
+    if (turn.kind === "options" && turn.options && turn.options.length > 0) {
+      out = { ...out, options: turn.options };
+    }
+    // Surface an AI-originated card proposal (Level 2) for the user to accept.
+    if (turn.suggestedCard?.text?.trim()) {
+      out = { ...out, suggestedCard: { text: turn.suggestedCard.text.trim() } };
+    }
     const commandClarification = commandResult.notes.find((note) => note.reason === "command_clarification");
     const commandPromptActive = Boolean(commandResult.pending || commandClarification);
     const commandBlockedActive = commandResult.notes.length > 0;

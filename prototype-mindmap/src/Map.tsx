@@ -565,6 +565,14 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
       <div className="map-card-drag">
         <span className="map-drag-grip" role="img" aria-label="Drag card" title="Drag card" />
         <span className="map-role-chip">{roleLabel(unit, children.length)}</span>
+        {unit.source.createdBy === "ai_originated" && (
+          <span
+            className="map-ai-badge"
+            title="AI-originated — you accepted this AI suggestion; it is not your own words"
+          >
+            AI
+          </span>
+        )}
       </div>
 
       <textarea

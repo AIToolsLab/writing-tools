@@ -10,6 +10,8 @@
  * None of these are user-facing yet. They are builder/admin calibration.
  */
 
+import { DEFAULT_CONTRACT_LEVEL, type ContractLevel } from "./contracts";
+
 export interface MirrorThresholds {
   /**
    * Lexical grounding, broad part — minimum fraction of the reflection's
@@ -128,16 +130,12 @@ export interface CapabilitiesConfig {
 }
 
 /**
- * User-facing "Substitutive ↔ Thoughtful help" setting. Unlike the Think/Map
- * bias (pure pacing), this changes how directive the coach is ALLOWED to be —
- * but only in what it is *told* it may say. It never relaxes the code-enforced
- * floor: a mirror must still be grounded in the user's own words, and only the
- * user's exact words ever land on the map. The three stops accumulate:
- *   1 substitutive — floor only; the coach may suggest ideas AND structure.
- *   2 middle       — floor + no structure/scaffolding; may still suggest ideas.
- *   3 thoughtful   — floor + no scaffolding + no ideas (fully non-directive).
+ * Session assistance-contract level (0-2). Replaces the old prompt-only helpMode.
+ * The full contract (allowed kinds/attribution, prompt fragment) lives in
+ * contracts.ts; config only carries the selected level so pacing/plumbing can see
+ * it. Defaults to 0 (non-directive).
  */
-export type HelpMode = 1 | 2 | 3;
+export type { ContractLevel } from "./contracts";
 
 export interface MindmapConfig {
   mirror: MirrorThresholds;
@@ -148,8 +146,8 @@ export interface MindmapConfig {
   turnShape: TurnShapeConfig;
   draftDeclarations: DraftDeclarationConfig;
   draftRedundancy: DraftRedundancyConfig;
-  /** Substitutive↔Thoughtful help level (prompt-only). Defaults to 3 (thoughtful). */
-  helpMode?: HelpMode;
+  /** Active assistance-contract level (0-2). Defaults to 0 (non-directive). */
+  contractLevel?: ContractLevel;
 }
 
 function clampInt(value: number, min: number, max: number): number {
@@ -205,20 +203,20 @@ export function withQuestionIntentBias(
 }
 
 /**
- * Set the user-facing help level. Prompt-only: it never touches validator,
- * readiness, grounding, or command gates — those stay enforced in code at every
- * level. Only the system prompt (api.ts) reads this to widen or narrow what the
- * coach is told it may offer.
+ * Set the active assistance-contract level. The level selects an immutable
+ * Contract (contracts.ts) that the prompt (api.ts) and the response gate read.
+ * It never relaxes the code-enforced floor — validator, readiness, grounding,
+ * and map-write authorization stay enforced at every level.
  */
-export function withHelpMode(config: MindmapConfig, helpMode: HelpMode): MindmapConfig {
-  return { ...config, helpMode };
+export function withContractLevel(config: MindmapConfig, contractLevel: ContractLevel): MindmapConfig {
+  return { ...config, contractLevel };
 }
 
 /**
  * Prototype defaults. Starting points for calibration, not sacred math.
  */
 export const defaultConfig: MindmapConfig = {
-  helpMode: 3,
+  contractLevel: DEFAULT_CONTRACT_LEVEL,
   mirror: {
     lexicalBroadMin: 0.8,
     lexicalAdditionsMax: 0.15,

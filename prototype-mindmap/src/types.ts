@@ -188,11 +188,16 @@ export interface ThoughtUnit {
   text: string;
   role: ThoughtUnitRole;
   parentId?: string;
-  /** Provenance: every unit traces to user words and (if AI-captured) a reflection. */
+  /**
+   * Provenance. `user` and `ai_from_reflection` both trace to the user's own
+   * words (the latter is a mirror the user confirmed). `ai_originated` is the
+   * Level-2 lane: content the AI itself originated (inferred), user-confirmed, and
+   * permanently badged as AI-attributed — it does NOT trace to a user utterance.
+   */
   source: {
     reflectionId?: string;
     utteranceIds: string[];
-    createdBy: "user" | "ai_from_reflection";
+    createdBy: "user" | "ai_from_reflection" | "ai_originated";
   };
   roleHistory: RoleHistoryEntry[];
 }
