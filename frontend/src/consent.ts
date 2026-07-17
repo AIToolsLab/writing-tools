@@ -58,13 +58,17 @@ export const CONSENT_LEVEL_LABELS: Record<
 };
 
 // Payload keys carrying content above the `usage` tier (must match backend
-// KEY_MIN_LEVEL). `prompt`/`docContext` are document text; `result`/`generation`
-// are AI output. Anything else is usage-level metadata.
+// KEY_MIN_LEVEL). `prompt`/`docContext`/`message`/`target` are user/document
+// text; `result`/`generation`/`response` are AI output. Anything else is
+// usage-level metadata.
 const KEY_MIN_LEVEL: Record<string, ConsentLevel> = {
 	prompt: 'document',
 	docContext: 'document',
+	message: 'document', // chat: the user's typed message
+	target: 'document', // revise: a verbatim document quote from a clicked reference
 	result: 'ai_output',
 	generation: 'ai_output',
+	response: 'ai_output', // revise: the AI-generated visualization text
 };
 
 export interface ConsentFilterResult {

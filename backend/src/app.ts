@@ -61,6 +61,15 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			authEnabled: !!auth,
 		}),
 	);
+	// Responses API — same attribution, metering, and key selection, just a
+	// different upstream endpoint.
+	app.post(
+		'/api/openai/responses',
+		openaiProxy('responses', {
+			resolveUser,
+			authEnabled: !!auth,
+		}),
+	);
 
 	// Resolve the authenticated user from the request's session, or null. Returns
 	// null when auth is disabled (dev/tests without BETTER_AUTH_ENABLED) so the
@@ -119,6 +128,16 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 
 		const event = (payload.event as string) ?? 'unknown_event';
 		delete payload.event;
+
+		// Schema version and page are promoted to first-class columns so readers
+		// can version-branch and filter per page without parsing extra_data.
+		// Pre-schema clients omit them: default the version to 0 and page to null.
+		const schemaVersion =
+			typeof payload.schema_version === 'number' ? payload.schema_version : 0;
+		delete payload.schema_version;
+		const page = typeof payload.page === 'string' ? payload.page : null;
+		delete payload.page;
+
 		Object.assign(extraData, payload);
 
 		// Server-side consent gate (the client also pre-strips). Level 'none' drops
@@ -138,6 +157,8 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 				ok: true,
 				username: user.id,
 				event,
+				schema_version: schemaVersion,
+				page,
 				extra_data: gated,
 			});
 		} catch (e) {

@@ -47,15 +47,20 @@ export function consentRank(level: ConsentLevel): number {
  * level required to log them. Anything NOT listed is treated as usage-level
  * metadata (event name, generation_type, error codes, counts, client_timestamp).
  *
- * Keys here match what the draft page sends today (see frontend draft/index.tsx):
- *   - `prompt` / `docContext`  → DocContext (raw document text) → `document`
- *   - `result` / `generation`  → the AI output we displayed       → `ai_output`
+ * Keys here match what the pages send (see frontend src/api/logging.ts):
+ *   - `prompt` / `docContext`     → DocContext (raw document text)   → `document`
+ *   - `message` / `target`        → user text / a quoted doc snippet → `document`
+ *   - `result` / `generation`     → the AI output we displayed       → `ai_output`
+ *   - `response`                  → AI visualization text (Revise)   → `ai_output`
  */
 const KEY_MIN_LEVEL: Record<string, ConsentLevel> = {
 	prompt: 'document',
 	docContext: 'document',
+	message: 'document',
+	target: 'document',
 	result: 'ai_output',
 	generation: 'ai_output',
+	response: 'ai_output',
 };
 
 export interface ConsentFilterResult {
