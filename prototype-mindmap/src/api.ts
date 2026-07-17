@@ -6,6 +6,7 @@ import type { LLMContext } from "./llm-contract";
 import {
   ModelResponseValidationError,
   type AssistantModel,
+  type AssistantResponse,
   type AssistantResponseEnvelope,
   type StructuredRejection,
 } from "./assistant-response";
@@ -15,7 +16,6 @@ import {
   ASSISTANCE_CONTRACTS,
   contractForLevel,
   type AssistanceLevel,
-  type AssistantResponseKind,
   type SourceBackedOption,
 } from "./assistance-contract";
 import {
@@ -312,13 +312,15 @@ export function makeLLM(
 // Assistance-contract comparison: one call, one answer per level (read-only).
 // ---------------------------------------------------------------------------
 
-/** One contract level's answer inside a read-only comparison preview. */
+/** One contract level's answer inside a comparison preview. */
 export interface LevelComparisonResult {
   level: AssistanceLevel;
   label: string;
   kind?: string;
   text: string;
   options?: string[];
+  /** Full parsed response, replayed verbatim when the user continues at this level. */
+  response?: AssistantResponse;
   /** Contract violations the model made at this level, surfaced for honesty. */
   rejectionReasons: string[];
 }
@@ -344,22 +346,32 @@ exact words ever become map structure; at L0/L1 never originate ideas or structu
 option must be a VERBATIM span of the user's own words. Questions may scaffold but must not
 embed an answer.
 
+At Level 0, PREFER a question. Use a reflection only when mirroring the structure the user
+just stated is clearly more helpful right now than asking one more question.
+
 ${renderContext(context)}
 
-Return valid JSON only:
+Return valid JSON only, one FULL response object per level (same shape as a single turn):
 {"responses":[
-  {"level":0,"kind":"question|reflection|aside|map_proposal","text":"<L0 answer>"},
-  {"level":1,"kind":"question|reflection|aside|map_proposal|options","text":"<L1 answer>","options":["<verbatim user phrase>"]},
-  {"level":2,"kind":"question|reflection|aside|map_proposal|options|suggestion","text":"<L2 answer>"}
+  {"level":0, ...L0 response...},
+  {"level":1, ...L1 response...},
+  {"level":2, ...L2 response...}
 ]}
+Each response object is exactly one of:
+  {"kind":"question","text":"...","stance":"settle|narrow|deepen|organize|challenge","anchor":"optional exact draft substring"}
+  {"kind":"aside","text":"..."}
+  {"kind":"reflection","text":"...","reflection":{"claims":[{"id":"...","text":"...","candidateId":"...","target":"idea|hierarchy|connection","sourceSpans":[{"claimText":"...","utteranceIds":["..."],"userPhrase":"exact substring"}],"relationSpan":{"utteranceId":"...","text":"exact connective"}}]}}
+  {"kind":"map_proposal","text":"...","action":{"kind":"create_card|edit_card|nest_card|connect_cards", ...fields...}}
+  {"kind":"options","text":"...","options":[{"text":"exact user wording","sourceSpans":[{"userPhrase":"exact substring","utteranceIds":["..."]}]}]}
+  {"kind":"suggestion","text":"..."}
 Return EXACTLY three responses, in order 0,1,2. Escape inner double quotes as \\".`;
 }
 
 /**
  * One chat request that answers the current turn under all three contracts. Each
- * answer is classified against its own contract (allowed kinds, verbatim options)
- * so the differences — and any violation — are visible. Read-only: nothing here is
- * committed to the map.
+ * answer is parsed into a full typed response and classified against its own
+ * contract, so the differences — and any violation — are visible, and the exact
+ * response can later be replayed if the user continues at that level.
  */
 export async function compareAssistanceLevels(
   context: LLMContext,
@@ -386,25 +398,81 @@ export async function compareAssistanceLevels(
   return ([0, 1, 2] as AssistanceLevel[]).map((level) => {
     const contract = contractForLevel(level);
     const item = byLevel.get(level);
-    const kind = typeof item?.kind === "string" ? item.kind : undefined;
-    const visibleText = text(item?.text) ?? "(no response)";
-    const options = Array.isArray(item?.options)
-      ? item.options
-          .map((option) => (typeof option === "string" ? option : text(object(option)?.text)))
-          .filter((option): option is string => Boolean(option))
-      : undefined;
+
+    // Parse the full typed response; fall back to a plain question on any invalid
+    // payload so a single bad level never breaks the whole preview.
+    let response: AssistantResponse | undefined;
+    if (item) {
+      try { response = parseAssistantResponse({ response: item }).response; }
+      catch { const fallback = text(item.text); if (fallback) response = { kind: "question", text: fallback }; }
+    }
+
+    const kind = response?.kind;
+    const visibleText = response?.text ?? "(no response)";
+    const options = response?.kind === "options" ? response.options.map((option) => option.text) : undefined;
 
     const rejectionReasons: string[] = [];
-    if (kind && !contract.allowedResponseKinds.includes(kind as AssistantResponseKind)) {
+    if (kind && !contract.allowedResponseKinds.includes(kind)) {
       rejectionReasons.push(`kind "${kind}" not allowed at ${contract.label}`);
     }
-    if (kind === "options" && contract.optionsMustBeVerbatim && options && options.length > 0) {
-      const nonVerbatim = options.filter(
-        (option) => !bankTexts.some((utterance) => utterance.includes(option.toLowerCase())),
+    if (response?.kind === "options" && contract.optionsMustBeVerbatim) {
+      const nonVerbatim = response.options.filter(
+        (option) => !bankTexts.some((utterance) => utterance.includes(option.text.toLowerCase())),
       );
       if (nonVerbatim.length > 0) rejectionReasons.push(`${nonVerbatim.length} option(s) not verbatim`);
     }
 
-    return { level, label: contract.label, kind, text: visibleText, options, rejectionReasons };
+    return { level, label: contract.label, kind, text: visibleText, options, response, rejectionReasons };
   });
+}
+
+// ---------------------------------------------------------------------------
+// Thinking-trajectory segmentation (Recap view). AI groups consecutive turns
+// into focus episodes and picks an EXTRACTIVE label (the user's own verbatim
+// words) — it organizes/selects, it never paraphrases. Read-only recap only.
+// ---------------------------------------------------------------------------
+
+export interface ThinkingSegmentRaw { start: number; end: number; label: string; subIdeas: string[]; }
+
+export async function segmentUserTurns(turns: string[]): Promise<ThinkingSegmentRaw[]> {
+  if (turns.length === 0) return [];
+  const numbered = turns.map((turn, index) => `[${index + 1}] ${turn}`).join("\n");
+  const system = `You organize a writer's own turns into focus episodes for a read-only recap of
+their thinking. Group CONSECUTIVE turns that are about the same focus into segments.
+
+For each segment:
+- "start" and "end" = the 1-based turn numbers it spans (inclusive).
+- "label" = the segment's BIG idea: a SHORT phrase copied VERBATIM from the user's turns in
+  that segment — an exact substring of what they actually wrote.
+- "subIdeas" = 0–3 of the MOST IMPORTANT smaller ideas the writer raised UNDER that big idea,
+  each ALSO copied VERBATIM from their turns in that segment (exact substrings). Only include a
+  sub-idea if it is a distinct, substantive point worth remembering. SKIP minor details, filler,
+  and bare agreement/negation (e.g. "yes", "no", "ok"). Use [] when there are none. Fewer is
+  better — do not pad. Do not repeat the label as a sub-idea.
+
+Never paraphrase, summarize, translate, or invent wording — only ever copy the user's own words.
+Cover every turn exactly once, in order, with no gaps or overlaps.
+Return ONLY valid JSON:
+{"segments":[{"start":N,"end":N,"label":"exact user words","subIdeas":["exact user words",...]}]}
+
+TURNS:
+${numbered}`;
+  const raw = await postChat([{ role: "system", content: system }]);
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw) as unknown; }
+  catch { throw new ModelResponseValidationError("invalid_provider_json"); }
+  const body = object(parsed);
+  const items = Array.isArray(body?.segments) ? body.segments : [];
+  const segments: ThinkingSegmentRaw[] = [];
+  for (const item of items) {
+    const record = object(item);
+    const start = typeof record?.start === "number" ? record.start : undefined;
+    const end = typeof record?.end === "number" ? record.end : undefined;
+    const label = text(record?.label);
+    const subIdeas = Array.isArray(record?.subIdeas)
+      ? record.subIdeas.map((sub) => text(sub)).filter((sub): sub is string => Boolean(sub))
+      : [];
+    if (start && end && label && end >= start) segments.push({ start, end, label, subIdeas });
+  }
+  return segments;
 }

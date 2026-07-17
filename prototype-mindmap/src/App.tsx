@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from "react";
-import { compareAssistanceLevels, historyForCurrentTurn, makeLLM, type ConversationMessage, type LevelComparisonResult } from "./api";
+import { compareAssistanceLevels, historyForCurrentTurn, makeLLM, segmentUserTurns, type ConversationMessage, type LevelComparisonResult } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
 import type { AssistantResponse, ConversationState, DiagnosticEvent, TurnResult } from "./assistant-response";
 import type { ProposalOutcomeContext, QuestionStance, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
@@ -37,8 +37,109 @@ interface ChatMsg {
   questionStance?: QuestionStance;
   /** Preserves the typed response kind for visible provenance in the transcript. */
   responseKind?: AssistantResponse["kind"];
+  /** Assistance level active when this user turn was sent (for the recap's dominant/current level). */
+  level?: AssistanceLevel;
   /** Read-only 3-level comparison preview (one answer per contract), if a compare turn. */
   comparison?: LevelComparisonResult[];
+  /** The user turn this comparison answered — replayed when the user picks a level to continue. */
+  comparisonUserText?: string;
+}
+
+/**
+ * Deterministic session recap (Control Room "Recap" view). Serves both the writer
+ * (their own thinking, in order + what they built) and a teacher (authorship split
+ * + AI usage). Computed from live state, not the ledger — no AI, no paraphrase.
+ */
+interface RecapData {
+  turnCount: number;
+  /** The level the writer spent the most turns under. */
+  dominantLevelLabel: string;
+  /** The level active right now. */
+  currentLevelLabel: string;
+  /** True when the writer used more than one level (so we show dominant → now). */
+  levelSwitched: boolean;
+  cardsTotal: number;
+  yourCards: number;
+  aiCards: number;
+  /** Suggestions the coach offered (L2 only, response kind "suggestion"). */
+  suggestionsOffered: number;
+  connectionCount: number;
+  /** The user's own utterances, in order — their thinking trajectory. */
+  timeline: string[];
+  /** Per user turn: their words + what the coach offered just before it. */
+  turnBeats: Array<{ text: string; coachKind?: string }>;
+  /** Cards on the map with provenance (yours vs AI-originated). */
+  built: Array<{ text: string; ai: boolean }>;
+}
+
+/** One focus episode in the thinking-trajectory timeline (Recap). */
+interface ThinkingSegment {
+  /** 1-based inclusive turn range this episode spans. */
+  start: number;
+  end: number;
+  /** The user's own verbatim words — extractive, never AI paraphrase. */
+  label: string;
+  /** Smaller ideas the writer raised under this big idea — also verbatim, extractive. */
+  subIdeas: string[];
+  /** What the coach offered just before this episode (its response kind). */
+  coachKind?: string;
+  /** Best-effort: this episode's wording landed on the map. */
+  onMap: boolean;
+  /** The matched card was AI-originated (the user took the AI's wording). */
+  aiOrigin?: boolean;
+}
+
+/** First `count` words of a string, with an ellipsis if truncated. */
+function firstWords(text: string, count: number): string {
+  const words = text.trim().split(/\s+/).filter(Boolean);
+  const slice = words.slice(0, count).join(" ");
+  return words.length > count ? `${slice}…` : slice;
+}
+
+/** Bare agreement/negation words that carry no idea on their own. */
+const TRIVIAL_SUBIDEA_WORDS = new Set([
+  "yes", "no", "ok", "okay", "yeah", "yep", "yup", "nope", "nah", "sure", "maybe", "right", "correct",
+]);
+
+/** A sub-idea is trivial if it's under 3 words or just a bare yes/no-type word. */
+function isTrivialSubIdea(text: string): boolean {
+  const words = text.trim().replace(/[.,!?;:]+$/g, "").split(/\s+/).filter(Boolean);
+  if (words.length < 3) return true;
+  return words.every((word) => TRIVIAL_SUBIDEA_WORDS.has(word.toLowerCase()));
+}
+
+/** Collapsible list of an episode's smaller ideas — hidden until clicked to keep the trail scannable. */
+function RecapSubIdeas({ subIdeas }: { subIdeas: string[] }): ReactNode {
+  const [open, setOpen] = useState(false);
+  if (subIdeas.length === 0) return null;
+  return (
+    <div className="recap-trail-subwrap">
+      <button type="button" className="recap-trail-subtoggle" onClick={() => setOpen((value) => !value)}>
+        {open ? "▾" : "▸"} {subIdeas.length} smaller idea{subIdeas.length > 1 ? "s" : ""}
+      </button>
+      {open && (
+        <ul className="recap-trail-subideas">
+          {subIdeas.map((sub, index) => (
+            <li key={index}>{sub}</li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Human label for what the coach offered before an episode (recap trajectory). */
+function coachMoveLabel(kind?: string): string | undefined {
+  switch (kind) {
+    case "question": return "asked a question";
+    case "reflection": return "mirrored your words";
+    case "options": return "offered your own phrases";
+    case "suggestion": return "suggested an idea";
+    case "map_proposal": return "proposed structure";
+    case "aside": return "noted";
+    case "compare": return "compared 3 levels";
+    default: return undefined;
+  }
 }
 
 interface DraftPanelPos { x: number; y: number; }
@@ -365,6 +466,20 @@ const css = `
     padding: 3px 10px;
   }
   .compare3-rej { margin-top: 5px; font-size: 10px; color: #b0491f; }
+  .compare3-continue {
+    margin-top: 8px;
+    border: 1px solid #cbd7e2;
+    border-radius: 8px;
+    background: #fff;
+    color: #1a4e6e;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 4px 12px;
+    cursor: pointer;
+  }
+  .compare3-continue:hover:not(:disabled) { background: #eef5fa; border-color: #9dc0d6; }
+  .compare3-continue:disabled { opacity: 0.5; cursor: default; }
 
   /* ---- mirror confirmation card ---- */
   .mirror-card {
@@ -1948,6 +2063,169 @@ const css = `
     gap: 10px;
   }
 
+  /* ---- Control Room: Now / Recap view toggle + Recap view ---- */
+  .underhood-viewtabs {
+    display: flex;
+    gap: 6px;
+    padding: 8px 10px 0;
+  }
+  .underhood-viewtabs button {
+    flex: 1;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 5px 8px;
+    border: 1px solid #d8d5ce;
+    border-radius: 8px;
+    background: #fff;
+    color: #68645d;
+    cursor: pointer;
+  }
+  .underhood-viewtabs button.active {
+    background: #1a6fa3;
+    border-color: #1a6fa3;
+    color: #fff;
+  }
+  .recap-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .recap-stat {
+    display: flex;
+    flex-direction: column;
+    padding: 8px 10px;
+    border: 1px solid #eceae4;
+    border-radius: 8px;
+    background: #fafaf8;
+  }
+  .recap-stat strong { font-size: 16px; color: #1a1a1a; }
+  .recap-stat span { font-size: 11px; color: #9a958c; }
+  .recap-authorship {
+    margin-top: 8px;
+    font-size: 12px;
+    color: #55514a;
+  }
+  .recap-timeline {
+    margin: 0;
+    padding-left: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #1a1a1a;
+  }
+  /* Vertical trajectory rail: reads as a timeline, not a 2D mind map. */
+  .recap-trail {
+    list-style: none;
+    margin: 0;
+    padding: 0 0 0 14px;
+    border-left: 2px solid #d8d5ce;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .recap-trail-node {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .recap-trail-node::before {
+    content: "";
+    position: absolute;
+    left: -19px;
+    top: 4px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #1a6fa3;
+    border: 2px solid #fff;
+  }
+  .recap-trail-turns {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #9a958c;
+  }
+  .recap-trail-coach {
+    font-size: 12px;
+    color: #7a4a99;
+  }
+  .recap-trail-label {
+    font-size: 13px;
+    line-height: 1.4;
+    color: #1a1a1a;
+  }
+  .recap-trail-subwrap {
+    margin-top: 3px;
+  }
+  .recap-trail-subtoggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0;
+    border: none;
+    background: none;
+    cursor: pointer;
+    font-size: 11px;
+    color: #7a756c;
+  }
+  .recap-trail-subtoggle:hover { color: #1a6fa3; }
+  .recap-trail-subideas {
+    list-style: none;
+    margin: 4px 0 0;
+    padding: 0 0 0 12px;
+    border-left: 1px dashed #d8d5ce;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .recap-trail-subideas li {
+    position: relative;
+    font-size: 12px;
+    line-height: 1.35;
+    color: #55514a;
+  }
+  .recap-trail-subideas li::before {
+    content: "–";
+    position: absolute;
+    left: -10px;
+    color: #b3ada3;
+  }
+  .recap-trail-mark {
+    font-size: 10px;
+    font-weight: 700;
+    color: #1a6fa3;
+  }
+  .recap-built {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+  }
+  .recap-built li {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: #1a1a1a;
+  }
+  .recap-ai-badge {
+    flex: 0 0 auto;
+    font-size: 9px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    color: #fff;
+    background: #8a4bb0;
+    border-radius: 3px;
+    padding: 1px 4px;
+  }
+
   .underhood-empty {
     margin: auto;
     max-width: 260px;
@@ -2780,6 +3058,8 @@ function UnderhoodSection({
 
 export function UnderTheHoodPanel({
   snapshot,
+  recap,
+  onSegmentThinking,
   onDraftAnchor,
   onRequestMode,
   onDismissIdea,
@@ -2788,6 +3068,8 @@ export function UnderTheHoodPanel({
   onOpenChange,
 }: {
   snapshot: UnderstandingSnapshot | null;
+  recap?: RecapData;
+  onSegmentThinking?: (beats: RecapData["turnBeats"]) => Promise<ThinkingSegment[]>;
   onDraftAnchor: (anchor: string) => void;
   onRequestMode?: (mode: UserRequestedMode) => void;
   onDismissIdea?: (ideaId: string) => void;
@@ -2795,6 +3077,10 @@ export function UnderTheHoodPanel({
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
+  const [view, setView] = useState<"now" | "recap">("now");
+  const [segments, setSegments] = useState<ThinkingSegment[]>([]);
+  const [segmenting, setSegmenting] = useState(false);
+  const segmentedCountRef = useRef(-1);
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = useCallback(
@@ -2848,6 +3134,22 @@ export function UnderTheHoodPanel({
     return () => timers.forEach((timer) => window.clearTimeout(timer));
   }, [events, open, snapshot]);
 
+  // Segment the trajectory on demand (only when the Recap view is open) and cache
+  // it by turn count, so we don't re-call the model every time the panel toggles.
+  useEffect(() => {
+    if (view !== "recap" || !open || !recap || !onSegmentThinking) return;
+    const count = recap.turnBeats.length;
+    if (count === 0) { setSegments([]); segmentedCountRef.current = 0; return; }
+    if (count === segmentedCountRef.current) return;
+    let cancelled = false;
+    setSegmenting(true);
+    onSegmentThinking(recap.turnBeats)
+      .then((result) => { if (!cancelled) { setSegments(result); segmentedCountRef.current = count; } })
+      .catch(() => { /* keep whatever was cached */ })
+      .finally(() => { if (!cancelled) setSegmenting(false); });
+    return () => { cancelled = true; };
+  }, [view, open, recap, onSegmentThinking]);
+
   function toggleEventDetail(id: string) {
     setExpandedEvents((current) => {
       const next = new Set(current);
@@ -2890,6 +3192,93 @@ export function UnderTheHoodPanel({
         </button>
       </div>
 
+      {recap && (
+        <div className="underhood-viewtabs">
+          <button type="button" className={view === "now" ? "active" : ""} onClick={() => setView("now")}>Now</button>
+          <button type="button" className={view === "recap" ? "active" : ""} onClick={() => setView("recap")}>Recap</button>
+        </div>
+      )}
+
+      {recap && view === "recap" ? (
+        <div className="underhood-body recap-body">
+          <UnderhoodSection title="At a glance" collapsed={false} onToggle={() => {}}>
+            <div className="recap-stats">
+              <div className="recap-stat"><strong>{recap.turnCount}</strong><span>your turns</span></div>
+              <div className="recap-stat">
+                <strong>{recap.levelSwitched ? `${recap.dominantLevelLabel} → ${recap.currentLevelLabel}` : recap.currentLevelLabel}</strong>
+                <span>{recap.levelSwitched ? "assistance (mostly → now)" : "assistance"}</span>
+              </div>
+              <div className="recap-stat"><strong>{recap.cardsTotal}</strong><span>cards</span></div>
+              <div className="recap-stat"><strong>{recap.connectionCount}</strong><span>connections</span></div>
+            </div>
+            <div
+              className="recap-authorship"
+              title="Counts cards committed to the map, not chat turns. Cards from AI suggestions only occur at L2 (Suggestive)."
+            >
+              Cards on map: <strong>{recap.yourCards}</strong> yours {"·"} <strong>{recap.aiCards}</strong> from AI suggestions
+            </div>
+            {recap.suggestionsOffered > 0 && (
+              <div className="recap-authorship">
+                AI ideas: <strong>{recap.aiCards}</strong> taken {"/"} <strong>{recap.suggestionsOffered}</strong> offered
+                {" "}({Math.round((recap.aiCards / recap.suggestionsOffered) * 100)}%)
+              </div>
+            )}
+          </UnderhoodSection>
+
+          <UnderhoodSection
+            title="Your thinking, in order"
+            meta={segments.length > 0 ? segments.length : recap.timeline.length}
+            collapsed={false}
+            onToggle={() => {}}
+          >
+            {recap.timeline.length === 0 ? (
+              <div className="waiting-card">Nothing captured yet — say what's on your mind.</div>
+            ) : segmenting && segments.length === 0 ? (
+              <div className="waiting-card">Reading your thinking…</div>
+            ) : segments.length > 0 ? (
+              <ol className="recap-trail">
+                {segments.map((segment, index) => (
+                  <li key={index} className="recap-trail-node">
+                    <span className="recap-trail-turns">
+                      {segment.start === segment.end ? `turn ${segment.start}` : `turns ${segment.start}–${segment.end}`}
+                    </span>
+                    {coachMoveLabel(segment.coachKind) && (
+                      <span className="recap-trail-coach">coach {coachMoveLabel(segment.coachKind)}</span>
+                    )}
+                    <span className="recap-trail-label">you: {segment.label}</span>
+                    <RecapSubIdeas subIdeas={segment.subIdeas} />
+                    {segment.onMap && (
+                      <span className="recap-trail-mark">{"→"} on map{segment.aiOrigin ? " · AI" : ""}</span>
+                    )}
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <ol className="recap-timeline">
+                {recap.timeline.map((entry, index) => (
+                  <li key={index}>{entry}</li>
+                ))}
+              </ol>
+            )}
+          </UnderhoodSection>
+
+          <UnderhoodSection title="What you built" meta={recap.cardsTotal} collapsed={false} onToggle={() => {}}>
+            {recap.built.length === 0 ? (
+              <div className="waiting-card">No cards on the map yet.</div>
+            ) : (
+              <ul className="recap-built">
+                {recap.built.map((card, index) => (
+                  <li key={index} className={card.ai ? "ai" : ""}>
+                    {card.ai && <span className="recap-ai-badge">AI</span>}
+                    <span>{card.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </UnderhoodSection>
+        </div>
+      ) : (
+        <>
       {onRequestMode && (
         <UnderhoodSection
           title="Steer the coach"
@@ -3106,6 +3495,8 @@ export function UnderTheHoodPanel({
           )}
         </div>
       )}
+        </>
+      )}
     </aside>
   );
 }
@@ -3197,6 +3588,10 @@ export default function App() {
   const [draftSelectionFocus, setDraftSelectionFocus] = useState<DraftSelectionFocus | undefined>(undefined);
   const [stickyDraftFocus, setStickyDraftFocus] = useState<DraftSelectionFocus | undefined>(initialStickyDraftFocus);
   const ledgerRef = useRef(new EventLedger(initialSessionId));
+  // Per-comparison working state (with this turn's user words already ingested) +
+  // the parsed per-level responses, so "Continue with this" can replay the exact
+  // previewed response on the same bank (grounding ids match) without a new call.
+  const comparePreviewRef = useRef(new Map<number, { state: ReturnType<typeof cloneConversationState>; results: LevelComparisonResult[] }>());
   const contract = contractForLevel(assistanceLevel);
 
   const recordEvent = useCallback(async (kind: LedgerEventKind, detail?: unknown, extra?: { origin?: import("./assistance-contract").ContributionOrigin; responseKind?: string; outcome?: string; code?: string; contract?: import("./assistance-contract").AssistanceContractSnapshot; providerTransport?: "chat_json" | "responses_tools"; toolName?: "propose_reflection_v1" | "propose_map_action_v1"; repairCount?: number }) => {
@@ -3732,6 +4127,106 @@ export default function App() {
     };
   }, [contextSelectedCardIds, draftSelectionFocus, mapRevision, stickyDraftFocus]);
 
+  // Deterministic recap for the Control Room "Recap" view. Recomputed when the
+  // conversation or map changes. `ai_suggested` origin = AI-originated; else yours.
+  const recapData = useMemo<RecapData>(() => {
+    const units = mapStoreRef.current.getAll().filter((unit) => unit.role !== "connection_label");
+    const aiCards = units.filter((unit) => unit.source.origin === "ai_suggested");
+    const connections = mapStoreRef.current.getConnections();
+    // Walk msgs in order so each user turn carries what the coach offered just
+    // before it (the AI move the user was responding to).
+    const turnBeats: Array<{ text: string; coachKind?: string }> = [];
+    const turnLevels: AssistanceLevel[] = [];
+    let lastCoachKind: string | undefined;
+    let suggestionsOffered = 0;
+    for (const message of msgs) {
+      if (message.role === "assistant") {
+        lastCoachKind = message.comparison
+          ? "compare"
+          : message.responseKind ?? (message.mode === "mirror" ? "reflection" : "question");
+        if (message.responseKind === "suggestion") suggestionsOffered += 1;
+      } else if (message.role === "user" && message.text.trim()) {
+        turnBeats.push({ text: message.text, coachKind: lastCoachKind });
+        // Turns recorded before per-turn level tracking fall back to the current level.
+        turnLevels.push(message.level ?? assistanceLevel);
+      }
+    }
+    // Dominant level = the one the writer spent the most turns under (ties: earliest used).
+    const levelCounts = new Map<AssistanceLevel, number>();
+    for (const level of turnLevels) levelCounts.set(level, (levelCounts.get(level) ?? 0) + 1);
+    let dominantLevel: AssistanceLevel = assistanceLevel;
+    let maxCount = -1;
+    for (const [level, count] of levelCounts) {
+      if (count > maxCount) { maxCount = count; dominantLevel = level; }
+    }
+    return {
+      turnCount: turnBeats.length,
+      dominantLevelLabel: contractForLevel(dominantLevel).label,
+      currentLevelLabel: contract.label,
+      // Only flag a switch when the level you used most differs from the one you're on now —
+      // otherwise "mostly → now" would redundantly show the same label twice.
+      levelSwitched: dominantLevel !== assistanceLevel,
+      cardsTotal: units.length,
+      yourCards: units.length - aiCards.length,
+      aiCards: aiCards.length,
+      suggestionsOffered,
+      connectionCount: connections.length,
+      timeline: turnBeats.map((beat) => beat.text),
+      turnBeats,
+      built: units.map((unit) => ({ text: unit.text, ai: unit.source.origin === "ai_suggested" })),
+    };
+  }, [msgs, mapRevision, contract.label, assistanceLevel]);
+
+  // Group the user's turns into focus episodes for the Recap timeline. AI does the
+  // grouping and picks each label, but the label is forced to be the user's OWN
+  // verbatim words (extractive) — never a paraphrase. Falls back to one episode
+  // per turn if the model is unavailable. Called on-demand and cached by the panel.
+  const segmentThinking = useCallback(async (beats: Array<{ text: string; coachKind?: string }>): Promise<ThinkingSegment[]> => {
+    const turns = beats.map((beat) => beat.text);
+    let raw: Array<{ start: number; end: number; label: string; subIdeas: string[] }>;
+    try {
+      raw = await segmentUserTurns(turns);
+      if (raw.length === 0) throw new Error("empty");
+    } catch {
+      raw = turns.map((_, index) => ({ start: index + 1, end: index + 1, label: turns[index], subIdeas: [] }));
+    }
+    const cards = mapStoreRef.current.getAll().filter((unit) => unit.role !== "connection_label");
+    return raw.map((segment) => {
+      const span = turns.slice(segment.start - 1, segment.end).join(" ");
+      const spanLower = span.toLowerCase();
+      const label = spanLower.includes(segment.label.toLowerCase())
+        ? segment.label.trim()
+        : firstWords(span, 9);
+      // Keep only sub-ideas that are genuinely the writer's own words (verbatim
+      // substrings of the span), distinct from the big-idea label, and substantive:
+      // drop bare agreement/negation and one/two-word fragments. Cap to the top few.
+      const labelLower = label.toLowerCase();
+      const subIdeas = segment.subIdeas
+        .map((sub) => sub.trim())
+        .filter((sub) => sub.length > 0 && spanLower.includes(sub.toLowerCase()) && sub.toLowerCase() !== labelLower)
+        .filter((sub) => !isTrivialSubIdea(sub))
+        .filter((sub, index, all) => all.findIndex((other) => other.toLowerCase() === sub.toLowerCase()) === index)
+        .slice(0, 3);
+      const key = label.replace(/…$/, "").trim().toLowerCase();
+      const matched =
+        key.length > 3
+          ? cards.find((card) => {
+              const cardText = card.text.toLowerCase();
+              return cardText.includes(key) || key.includes(cardText);
+            })
+          : undefined;
+      return {
+        start: segment.start,
+        end: segment.end,
+        label,
+        subIdeas,
+        coachKind: beats[segment.start - 1]?.coachKind,
+        onMap: Boolean(matched),
+        aiOrigin: matched?.source.origin === "ai_suggested",
+      };
+    });
+  }, []);
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const turnNonceRef = useRef(0);
@@ -3898,7 +4393,7 @@ export default function App() {
     setContextSelectedCardIds(new Set());
     setDraftSelectionFocus(undefined);
 
-    const userMessage: ChatMsg = { id: ++msgId, role: "user", text };
+    const userMessage: ChatMsg = { id: ++msgId, role: "user", text, level: assistanceLevel };
     // React state is asynchronous. Construct the provider transcript here so
     // this exact user turn is present once, in final dialogue position, on the
     // very request it triggered.
@@ -3926,9 +4421,13 @@ export default function App() {
         );
         const results = await compareAssistanceLevels(context, turnHistory);
         if (nonce !== turnNonceRef.current) return;
-        setMsgs((prev) => [...prev, { id: ++msgId, role: "assistant", text: "", comparison: results }]);
+        const comparisonId = ++msgId;
+        // Keep the ingested working state so "Continue with this" can replay the
+        // exact chosen response on the same bank (no regeneration, ids match).
+        comparePreviewRef.current.set(comparisonId, { state: previewState, results });
+        setMsgs((prev) => [...prev, { id: comparisonId, role: "assistant", text: "", comparison: results, comparisonUserText: text }]);
         void recordEvent("compare_turn", {
-          results,
+          results: results.map((r) => ({ level: r.level, kind: r.kind, text: r.text, options: r.options })),
           levels: results.map((r) => ({ level: r.level, kind: r.kind, rejections: r.rejectionReasons })),
         });
         return;
@@ -3967,6 +4466,81 @@ export default function App() {
       if (nonce !== turnNonceRef.current) return;
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
+    } finally {
+      if (nonce === turnNonceRef.current) setLoading(false);
+    }
+  }
+
+  // Pick one contract level from a comparison preview and continue under it: switch
+  // the session to that level, drop the read-only preview, and run a real turn for
+  // the same user message through the full pipeline (a fresh call — the preview was
+  // never committed). The committed answer replaces the preview.
+  async function continueWithLevel(messageId: number, level: AssistanceLevel, userText: string) {
+    if (loading) return;
+    const entry = comparePreviewRef.current.get(messageId);
+    const chosen = entry?.results.find((result) => result.level === level);
+    const nonce = ++turnNonceRef.current;
+    setError(null);
+    setAssistanceLevel(level); // continue the session at the chosen level; compare mode stays on
+    void recordEvent(
+      "contract_changed",
+      { from: assistanceLevel, to: level, reason: "continue_from_compare" },
+      { contract: snapshotContract(contractForLevel(level)) },
+    );
+    const priorAssistant = [...msgs].reverse().find((message) => message.role === "assistant" && message.text && message.id !== messageId);
+    const remaining = msgs.filter((message) => message.id !== messageId);
+    setMsgs((prev) => prev.filter((message) => message.id !== messageId));
+    comparePreviewRef.current.delete(messageId);
+    setLoading(true);
+    try {
+      const chosenContract = contractForLevel(level);
+      let out: TurnResult | undefined;
+
+      // 1) Replay the EXACT previewed response on the state it was generated against
+      //    (this turn's words already ingested → grounding ids line up); no new call.
+      if (entry && chosen?.response) {
+        const response = chosen.response;
+        const replayed = await processTurn(
+          entry.state,
+          "",
+          async () => ({ response }),
+          configRef.current,
+          mapStoreRef.current.toLLMContext(),
+          { mapRevision, requireConnectionLabel, store: mapStoreRef.current, contract: chosenContract, priorAssistant },
+        );
+        if (nonce !== turnNonceRef.current) return;
+        // Only adopt the replay if it actually committed a visible response. A
+        // grounded response the model didn't cite perfectly is rejected by the
+        // contract gate and would otherwise leave the user with silence.
+        if (replayed.response) {
+          out = replayed;
+          stateRef.current = entry.state;
+        }
+      }
+
+      // 2) Fallback: no cached preview (e.g. after reload), or the exact replay could
+      //    not be committed — run a fresh turn at this level so there is always a reply.
+      if (!out) {
+        const turnHistory = historyForCurrentTurn(buildConversationHistory(remaining), undefined);
+        const workingState = cloneConversationState(stateRef.current);
+        out = await processTurn(
+          workingState,
+          userText,
+          makeLLM(() => configRef.current, turnHistory),
+          configRef.current,
+          mapStoreRef.current.toLLMContext(),
+          { mapRevision, requireConnectionLabel, store: mapStoreRef.current, contract: chosenContract, priorAssistant },
+        );
+        if (nonce !== turnNonceRef.current) return;
+        mergeConversationBank(workingState, stateRef.current);
+        stateRef.current = workingState;
+      }
+
+      for (const event of out.diagnostics) void recordEvent("contract_decision", event, { outcome: event.outcome, code: event.code });
+      appendCoachOutput(out);
+    } catch (e) {
+      if (nonce !== turnNonceRef.current) return;
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       if (nonce === turnNonceRef.current) setLoading(false);
     }
@@ -4117,7 +4691,7 @@ export default function App() {
     const coachId = ++msgId;
     setMsgs((previous) => [
       ...previous,
-      { id: userId, role: "user", text },
+      { id: userId, role: "user", text, level: assistanceLevel },
       { id: coachId, role: "assistant", text: "Review this map change.", mode: "question", proposalId: proposal.id },
     ]);
     setProposals((current) => {
@@ -4302,6 +4876,14 @@ export default function App() {
                         {v.rejectionReasons.length > 0 && (
                           <div className="compare3-rej">gate: {v.rejectionReasons.join("; ")}</div>
                         )}
+                        <button
+                          type="button"
+                          className="compare3-continue"
+                          disabled={loading}
+                          onClick={() => void continueWithLevel(m.id, v.level, m.comparisonUserText ?? "")}
+                        >
+                          Continue with this →
+                        </button>
                       </div>
                     ))}
                   </div>
@@ -4574,6 +5156,8 @@ export default function App() {
           />
           <UnderTheHoodPanel
             snapshot={understandingSnapshot}
+            recap={recapData}
+            onSegmentThinking={segmentThinking}
             onDraftAnchor={revealDraftAnchor}
             onRequestMode={requestMode}
             onDismissIdea={dismissTrackedIdea}
