@@ -41,6 +41,8 @@ async function logSomething(userId: string) {
 		ok: true,
 		username: userId,
 		event: 'saved',
+		schema_version: 1,
+		page: null,
 		extra_data: {},
 	});
 }

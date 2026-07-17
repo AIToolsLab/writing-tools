@@ -7,12 +7,20 @@ import { dataDir } from './config.js';
  * Structured study log. Mirrors the `Log` shape written by the former FastAPI
  * backend so existing JSONL files and the Python analysis tooling in `scripts/`
  * keep working unchanged.
+ *
+ * `schema_version` and `page` are first-class columns (not buried in
+ * `extra_data`) so readers can version-branch and filter per page cheaply. They
+ * are added by the frontend event-logging layer; entries written before it
+ * existed omit both fields — readers should treat a missing `schema_version` as
+ * 0 and a missing `page` as `null`.
  */
 export interface LogEntry {
 	timestamp: number;
 	ok: boolean;
 	username: string;
 	event: string;
+	schema_version: number;
+	page: string | null;
 	extra_data: Record<string, unknown>;
 }
 

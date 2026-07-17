@@ -11,6 +11,7 @@ import {
 	useState,
 } from 'react';
 import { Remark } from 'react-remark';
+import { draftLog } from '@/api/logging';
 import { OPENAI_MODEL, openai } from '@/api/openai';
 import { buildMessages } from '@/api/prompts';
 import { EditorContext } from '@/contexts/editorContext';
@@ -264,9 +265,9 @@ export default function Draft() {
 
 	const save = useCallback(
 		(generation: GenerationResult, document: DocContext) => {
-			log({
-				event: 'ShowSuggestion',
-				prompt: document,
+			draftLog.suggestionShown(log, {
+				generationType: generation.generation_type,
+				docContext: document,
 				result: generation,
 			});
 			updateSavedItems((savedItems) => [
@@ -300,9 +301,9 @@ export default function Draft() {
 				(savedItem) => savedItem.dateSaved !== dateSaved,
 			);
 
-			log({
-				event: 'Delete',
-				prompt: savedItems[savedItemIdx].document,
+			draftLog.suggestionDeleted(log, {
+				generationType: savedItems[savedItemIdx].generation.generation_type,
+				docContext: savedItems[savedItemIdx].document,
 				result: savedItems[savedItemIdx].generation,
 			});
 			return newSaved;
@@ -344,6 +345,10 @@ export default function Draft() {
 				const isEmpty = suggestion.result.trim() === '' || suggestion.result.trim() === '[]';
 				if (isEmpty) {
 					console.warn('Received empty suggestion.');
+					draftLog.suggestionEmpty(log, {
+						generationType: suggestionRequest.type,
+						docContext: suggestionRequest.docContext,
+					});
 				} else {
 					save(suggestion, suggestionRequest.docContext);
 				}
@@ -351,11 +356,10 @@ export default function Draft() {
 				const errMsg: string =
 					err.message ||
 					'An error occurred while generating the suggestion.';
-				log({
-					event: 'generation_error',
-					generation_type: suggestionRequest.type,
+				draftLog.generationError(log, {
+					generationType: suggestionRequest.type,
 					docContext: suggestionRequest.docContext,
-					result: errMsg,
+					error: errMsg,
 				});
 				updateErrorMsg(errMsg);
 			}
@@ -390,9 +394,8 @@ export default function Draft() {
 			);
 			return;
 		}
-		log({
-			event: 'auto_refresh',
-			generation_type: modesToShow[0],
+		draftLog.autoRefresh(log, {
+			generationType: modesToShow[0],
 			docContext: docContextRef.current,
 		});
 		getSuggestion(request, false);
@@ -427,9 +430,8 @@ export default function Draft() {
 										className={`${classes.featureCard} ${isActive ? classes.active : ''}`}
 										onClick={() => {
 											setActiveMode(mode);
-											log({
-												event: 'request_suggestion',
-												generation_type: mode,
+											draftLog.suggestionRequested(log, {
+												generationType: mode,
 												docContext: docContextRef.current,
 											});
 											resetAutoRefresh();
