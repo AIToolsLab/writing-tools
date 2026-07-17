@@ -15,6 +15,7 @@ import { openaiProxy } from './openaiProxy.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 import { costUsd } from './pricing.js';
 import { summarizeUsage } from './usage.js';
+import { isUserAllowed } from './userAllowlist.js';
 
 // Shared gate for the researcher/operator routes (log viewer + usage summary).
 // Returns an error Response to short-circuit, or null when the secret is valid.
@@ -72,12 +73,26 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		if (!auth) return null;
 		const session = await auth.api.getSession({ headers: c.req.raw.headers });
 		if (!session) return null;
-		const raw = (session.user as { loggingConsent?: unknown }).loggingConsent;
+		const u = session.user as {
+			loggingConsent?: unknown;
+			isAnonymous?: unknown;
+			email?: string | null;
+			alwaysAllow?: unknown;
+		};
+		const isAnonymous = u.isAnonymous === true;
 		return {
 			id: session.user.id,
-			loggingConsent: isConsentLevel(raw) ? raw : DEFAULT_CONSENT_LEVEL,
-			isAnonymous:
-				(session.user as { isAnonymous?: unknown }).isAnonymous === true,
+			loggingConsent: isConsentLevel(u.loggingConsent)
+				? u.loggingConsent
+				: DEFAULT_CONSENT_LEVEL,
+			isAnonymous,
+			// Recompute from the same policy the customSession flag uses, so proxy
+			// enforcement doesn't depend on the customSession endpoint override.
+			isAllowed: isUserAllowed({
+				email: u.email,
+				isAnonymous,
+				alwaysAllow: u.alwaysAllow === true,
+			}),
 		};
 	}
 

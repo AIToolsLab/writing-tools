@@ -34,7 +34,7 @@ export type OpenAIEndpoint = 'chat/completions' | 'responses';
  * The subset of the session identity the proxy needs to decide who pays — see
  * SessionUser in auth.ts (the canonical shape).
  */
-export type ProxyUser = Pick<SessionUser, 'id' | 'isAnonymous'>;
+export type ProxyUser = Pick<SessionUser, 'id' | 'isAnonymous' | 'isAllowed'>;
 
 export interface ProxyOptions {
 	/** Authenticated user for this request, or null if there's no session. */
@@ -221,6 +221,12 @@ function requestedModel(parsed: Record<string, unknown> | null): string {
 export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 	return async (c: Context): Promise<Response> => {
 		const user = await options.resolveUser(c);
+		// Enforce the beta allowlist server-side. The client also shows a "not allowed"
+		// screen, but that's UX — this is the gate a disallowed user can't bypass by
+		// calling the proxy directly. isAllowed already folds in anonymous/demo users
+		// (always allowed) and the per-user alwaysAllow grant, so this one check covers
+		// every authenticated case; sessionless traffic is left to attributeRequest.
+		if (user && !user.isAllowed) return c.json({ detail: 'Forbidden' }, 403);
 		const attribution = attributeRequest(user, options.authEnabled);
 		if (!attribution) return c.json({ detail: 'Unauthorized' }, 401);
 

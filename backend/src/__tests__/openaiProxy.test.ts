@@ -29,9 +29,23 @@ function appWithUser(user: SessionUser | null) {
 	return createApp({ auth });
 }
 
-// Two example users
-const real = (id: string) => ({ id, isAnonymous: false, loggingConsent: CONSENT_LEVELS[2] } as SessionUser);
-const anon = (id: string) => ({ id, isAnonymous: true, loggingConsent: FULL_CONSENT_LEVEL } as SessionUser);
+// Two example users. `email` is what resolveUser recomputes isAllowed from — a Calvin
+// address so the real user passes the beta allowlist; anon users are always allowed.
+const real = (id: string) =>
+	({
+		id,
+		email: `${id}@calvin.edu`,
+		isAnonymous: false,
+		loggingConsent: CONSENT_LEVELS[2],
+		isAllowed: true,
+	}) as SessionUser;
+const anon = (id: string) =>
+	({
+		id,
+		isAnonymous: true,
+		loggingConsent: FULL_CONSENT_LEVEL,
+		isAllowed: true,
+	}) as SessionUser;
 
 
 /** A chat/completions SSE stream ending in the usage event include_usage asks for. */
@@ -237,6 +251,35 @@ describe('POST /api/openai/chat/completions', () => {
 		);
 
 		expect(res.status).toBe(401);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('forbids a signed-in user who is not on the beta allowlist, without calling OpenAI', async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal('fetch', fetchMock);
+
+		// A real session whose email is outside the allowlist: resolveUser recomputes
+		// isAllowed=false, so the proxy fails closed even though the session is valid.
+		const disallowed = {
+			id: 'usr-outside',
+			email: 'someone@gmail.com',
+			isAnonymous: false,
+			loggingConsent: CONSENT_LEVELS[2],
+		} as unknown as SessionUser;
+
+		const res = await appWithUser(disallowed).request(
+			'/api/openai/chat/completions',
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer token',
+				},
+				body: JSON.stringify({ model: 'gpt-4o', stream: true }),
+			},
+		);
+
+		expect(res.status).toBe(403);
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 

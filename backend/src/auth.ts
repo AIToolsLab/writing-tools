@@ -162,15 +162,17 @@ export const auth = betterAuth({
 export type Auth = typeof auth;
 
 /**
- * The authenticated identity resolved from a session (app.ts's resolveUser). This is
- * the canonical shape every consumer narrows from: the OpenAI proxy takes just
- * `Pick<SessionUser, 'id' | 'isAnonymous'>` (ProxyUser) to decide who pays, while the
- * logging/consent routes also read `loggingConsent`. Defined here because auth owns
- * identity — it's a plain type, so importing it (type-only) never runs this module.
+ * The authenticated identity resolved from a session (app.ts's resolveUser).
  */
 export interface SessionUser {
 	id: string;
 	loggingConsent: ConsentLevel;
 	/** True for anonymous (demo) sessions — spends the capped demo key, not the main one. */
 	isAnonymous: boolean;
+	/**
+	 * Whether this identity passes the beta access allowlist (userAllowlist.ts). The
+	 * OpenAI proxy fails closed on this, so a disallowed user can't bypass the client's
+	 * "not allowed" screen by hitting the API directly.
+	 */
+	isAllowed: boolean;
 }
