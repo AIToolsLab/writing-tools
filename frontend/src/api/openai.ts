@@ -1,4 +1,7 @@
-import { createOpenAI } from '@ai-sdk/openai';
+import {
+	createOpenAI,
+	type OpenAIResponsesProviderOptions,
+} from '@ai-sdk/openai';
 import { SERVER_URL } from './index';
 
 /**
@@ -42,4 +45,19 @@ export const openai = createOpenAI({
 	fetch: authorizedFetch,
 });
 
-export const OPENAI_MODEL = 'gpt-4o';
+export const OPENAI_MODEL = 'gpt-5.6-terra';
+
+/**
+ * The shared language model for all generation. `openai.responses()` selects the
+ * Responses API (rather than `openai.chat()` / Chat Completions), which is what
+ * the reasoning models expect.
+ */
+export const languageModel = openai.responses(OPENAI_MODEL);
+
+/**
+ * Passed as `providerOptions` on every `streamText` call. Low reasoning effort
+ * keeps latency down for the interactive writing-help flows.
+ */
+export const openaiProviderOptions = {
+	openai: { reasoningEffort: 'low' } satisfies OpenAIResponsesProviderOptions,
+};

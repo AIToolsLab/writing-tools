@@ -3,7 +3,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 
-import { OPENAI_MODEL, openai } from '@/api/openai';
+import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { ChatContext } from '@/contexts/chatContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useDocContext } from '@/utilities';
@@ -134,7 +134,8 @@ export default function Chat() {
 
 		try {
 			const result = streamText({
-				model: openai.chat(OPENAI_MODEL),
+				model: languageModel,
+				providerOptions: openaiProviderOptions,
 				messages: newMessages.slice(0, -1) as ModelMessage[],
 				maxOutputTokens: 1024,
 				abortSignal: requestController.signal,

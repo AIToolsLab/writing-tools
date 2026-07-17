@@ -21,7 +21,7 @@ import {
 	AiOutlineQuestionCircle
 } from 'react-icons/ai';
 import { isRunningInGoogleDocs } from '@/api';
-import { OPENAI_MODEL, openai } from '@/api/openai';
+import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
 import { useDocContext } from '@/utilities';
 import TagLinker from '../tag-linker';
@@ -292,7 +292,8 @@ ${request}
 
 			try {
 				const result = streamText({
-					model: openai.chat(OPENAI_MODEL),
+					model: languageModel,
+					providerOptions: openaiProviderOptions,
 					system: systemPrompt,
 					messages,
 					maxOutputTokens: 1024,
