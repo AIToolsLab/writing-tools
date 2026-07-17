@@ -25,6 +25,7 @@ interface Rate {
 const RATES: Record<string, Rate> = {
 	'gpt-4o': { input: 2.5, cachedInput: 1.25, output: 10.0 },
 	'gpt-4o-mini': { input: 0.15, cachedInput: 0.075, output: 0.6 },
+	'gpt-5.6-terra': { input: 2.5, cachedInput: 0.25, output: 15.0 },
 };
 
 function rateFor(model: string): Rate | null {

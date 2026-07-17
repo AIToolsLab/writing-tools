@@ -12,7 +12,7 @@ import {
 } from 'react';
 import { Remark } from 'react-remark';
 import { draftLog } from '@/api/logging';
-import { OPENAI_MODEL, openai } from '@/api/openai';
+import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { buildMessages } from '@/api/prompts';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
@@ -72,7 +72,8 @@ class Fetcher {
 			) as ModelMessage[];
 
 			const stream = streamText({
-				model: openai.chat(OPENAI_MODEL),
+				model: languageModel,
+				providerOptions: openaiProviderOptions,
 				messages,
 				abortSignal: AbortSignal.timeout(20000),
 			});
