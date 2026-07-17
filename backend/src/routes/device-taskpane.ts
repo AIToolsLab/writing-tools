@@ -37,7 +37,7 @@ function buildDebugDeviceHtml(serializedClientId: string) {
 
   <div>
     <button class="primary" id="start">Start device login</button>
-    <button id="check">Call /api/protected with token</button>
+    <button id="check">Verify session with token</button>
     <button id="clear">Clear token</button>
   </div>
 
@@ -125,7 +125,7 @@ function buildDebugDeviceHtml(serializedClientId: string) {
           accessToken = data.access_token;
           // Log success without rendering the raw token value.
           log('device/token → SUCCESS (token held in memory)');
-          setStatus(el('span', 'ok', 'Token received.'), ' Now click "Call /api/protected with token".');
+          setStatus(el('span', 'ok', 'Token received.'), ' Now click "Verify session with token".');
           return;
         }
 
@@ -155,19 +155,20 @@ function buildDebugDeviceHtml(serializedClientId: string) {
       setTimeout(tick, interval * 1000);
     }
 
-    async function callProtected() {
+    async function verifySession() {
       if (!accessToken) {
         setStatus(el('span', 'err', 'No token.'), ' Run the device login first.');
         return;
       }
-      const res = await fetch(BASE + '/api/protected', {
+      const res = await fetch(BASE + '/api/auth/get-session', {
         credentials: 'omit',
         headers: { Authorization: 'Bearer ' + accessToken },
       });
       const data = await res.json();
-      log('/api/protected → ' + res.status + '\\n' + JSON.stringify(data, null, 2));
-      if (res.ok) {
-        setStatus(el('span', 'ok', String(res.status)), ' — authenticated as ' + data.email);
+      log('/api/auth/get-session → ' + res.status + '\\n' + JSON.stringify(data, null, 2));
+      // get-session returns 200 + null when the Bearer token doesn't verify (no 401).
+      if (res.ok && data && data.user) {
+        setStatus(el('span', 'ok', String(res.status)), ' — authenticated as ' + data.user.email);
       } else {
         setStatus(el('span', 'err', String(res.status)), ' — ' + JSON.stringify(data));
       }
@@ -180,7 +181,7 @@ function buildDebugDeviceHtml(serializedClientId: string) {
     }
 
     document.getElementById('start').onclick = startFlow;
-    document.getElementById('check').onclick = callProtected;
+    document.getElementById('check').onclick = verifySession;
     document.getElementById('clear').onclick = clearToken;
   </script>
 </body>

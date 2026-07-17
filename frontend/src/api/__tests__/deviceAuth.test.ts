@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // only SERVER_URL is needed.
 vi.mock('../index', () => ({ SERVER_URL: '/api' }));
 
+import { DEFAULT_CONSENT_LEVEL } from '@/consent';
 import {
 	pollForToken,
 	requestDeviceCode,
@@ -117,22 +118,73 @@ describe('pollForToken', () => {
 });
 
 describe('fetchUserInfo', () => {
-	it('returns the user on 200', async () => {
+	it('maps the nested get-session user to UserInfo on 200', async () => {
 		fetchMock.mockResolvedValueOnce(
-			resp({ email: 'a@calvin.edu', name: 'A' }, true),
+			resp(
+				{
+					session: { id: 'sess_1' },
+					user: {
+						id: 'user_1',
+						email: 'a@calvin.edu',
+						name: 'A',
+						loggingConsent: 'document',
+					},
+				},
+				true,
+			),
 		);
 		await expect(fetchUserInfo('tok')).resolves.toEqual({
+			id: 'user_1',
 			email: 'a@calvin.edu',
 			name: 'A',
+			loggingConsent: 'document',
+		});
+		// hits the framework endpoint on the token-only path, no cookies
+		expect(fetchMock).toHaveBeenCalledWith(
+			'/api/auth/get-session',
+			expect.objectContaining({
+				credentials: 'omit',
+				headers: { Authorization: 'Bearer tok' },
+			}),
+		);
+	});
+
+	it('defaults an invalid loggingConsent to DEFAULT_CONSENT_LEVEL', async () => {
+		fetchMock.mockResolvedValueOnce(
+			resp(
+				{
+					user: {
+						id: 'u',
+						email: 'a@calvin.edu',
+						name: 'A',
+						loggingConsent: 'bogus',
+					},
+				},
+				true,
+			),
+		);
+		await expect(fetchUserInfo('tok')).resolves.toEqual({
+			id: 'u',
+			email: 'a@calvin.edu',
+			name: 'A',
+			loggingConsent: DEFAULT_CONSENT_LEVEL, // 'usage'
 		});
 	});
 
-	it('throws on 401', async () => {
+	it('throws on 200 + null body (expired/invalid Bearer session)', async () => {
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			json: () => Promise.resolve(null),
+		} as Response);
+		await expect(fetchUserInfo('tok')).rejects.toThrow(/no active session/);
+	});
+
+	it('throws on a non-2xx transport error', async () => {
 		fetchMock.mockResolvedValueOnce({
 			ok: false,
-			status: 401,
+			status: 500,
 			json: () => Promise.resolve({}),
 		} as Response);
-		await expect(fetchUserInfo('tok')).rejects.toThrow(/protected failed/);
+		await expect(fetchUserInfo('tok')).rejects.toThrow(/get-session failed/);
 	});
 });
