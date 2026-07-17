@@ -36,23 +36,10 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	app.use('*', posthogMiddleware);
 
 	if (auth) {
-		// Better Auth owns all /api/auth/* — OAuth redirects, callbacks, sessions, sign-out
+		// Better Auth owns all /api/auth/* — OAuth redirects, callbacks, sessions, sign-out.
+		// Clients (and the debug pages) read the signed-in user, including our
+		// loggingConsent additionalField, straight from GET /api/auth/get-session.
 		app.on(['POST', 'GET'], '/api/auth/*', (c) => auth.handler(c.req.raw));
-
-		// Permanent diagnostic route — proves cookie + Bearer session verification
-		// works. Also the client's user-info fetch: includes loggingConsent so the
-		// add-in can gate analytics/logging to the user's level.
-		app.get('/api/protected', async (c) => {
-			const session = await auth.api.getSession({ headers: c.req.raw.headers });
-			if (!session) return c.json({ error: 'Unauthorized' }, 401);
-			const raw = (session.user as { loggingConsent?: unknown }).loggingConsent;
-			return c.json({
-				id: session.user.id,
-				email: session.user.email,
-				name: session.user.name,
-				loggingConsent: isConsentLevel(raw) ? raw : DEFAULT_CONSENT_LEVEL,
-			});
-		});
 	}
 
 	app.onError(async (err, c) => {

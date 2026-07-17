@@ -3,7 +3,7 @@
  *
  * The add-in is a product first, with a longitudinal-study opt-in on top. Each
  * user carries a `loggingConsent` level (stored on their Better Auth record and
- * delivered via /api/protected). Levels are cumulative. The client strips content
+ * delivered via GET /api/auth/get-session). Levels are cumulative. The client strips content
  * to the user's level before sending events so we don't transmit more than the
  * user allowed; the server re-applies the same rules authoritatively.
  */
