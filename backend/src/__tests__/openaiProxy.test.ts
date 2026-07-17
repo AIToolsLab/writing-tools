@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app.js';
-import type { Auth } from '../auth.js';
+import type { Auth, SessionUser } from '../auth.js';
 import { closeDb, db } from '../db.js';
 import {
 	attributeRequest,
@@ -16,17 +16,23 @@ import {
 	summarizeUsage,
 	type UsageSummaryRow,
 } from '../usage.js';
+import { CONSENT_LEVELS, FULL_CONSENT_LEVEL } from '../consent.js';
 
 const env = { ...process.env };
 
 /** Better Auth stub: a session for `user`, or none when null. */
-function appWithUser(user: { id: string } | null) {
+function appWithUser(user: SessionUser | null) {
 	const auth = {
 		handler: async () => new Response(null),
 		api: { getSession: async () => (user ? { user } : null) },
 	} as unknown as Auth;
 	return createApp({ auth });
 }
+
+// Two example users
+const real = (id: string) => ({ id, isAnonymous: false, loggingConsent: CONSENT_LEVELS[2] } as SessionUser);
+const anon = (id: string) => ({ id, isAnonymous: true, loggingConsent: FULL_CONSENT_LEVEL } as SessionUser);
+
 
 /** A chat/completions SSE stream ending in the usage event include_usage asks for. */
 const CHAT_SSE = [
@@ -173,14 +179,29 @@ describe('createSseUsageScanner', () => {
 });
 
 describe('attributeRequest', () => {
-	it('bills a signed-in user to the main key', () => {
-		expect(attributeRequest('usr-1', true)).toEqual({
+	it('bills a real signed-in user to the main key', () => {
+		expect(attributeRequest(real('usr-1'), true)).toEqual({
 			apiKey: 'test-key',
 			userId: 'usr-1',
 		});
 	});
 
-	it('sends sessionless traffic to the capped demo key', () => {
+	it('bills an anonymous (demo) user to the capped demo key, metered to their own id', () => {
+		// The key is capped, but metering stays per-user so a future per-demo-user cap
+		// can read it — NOT collapsed into the shared `demo` bucket.
+		process.env.OPENAI_DEMO_API_KEY = 'demo-key';
+		expect(attributeRequest(anon('anon-1'), true)).toEqual({
+			apiKey: 'demo-key',
+			userId: 'anon-1',
+		});
+	});
+
+	it('fails closed for an anonymous user when no demo key is configured', () => {
+		// An anon user must never fall through to the main key with auth on.
+		expect(attributeRequest(anon('anon-1'), true)).toBeNull();
+	});
+
+	it('sends sessionless traffic to the capped demo key, shared `demo` bucket', () => {
 		process.env.OPENAI_DEMO_API_KEY = 'demo-key';
 		expect(attributeRequest(null, true)).toEqual({
 			apiKey: 'demo-key',
@@ -253,11 +274,42 @@ describe('POST /api/openai/chat/completions', () => {
 		expect(rows[0]).toMatchObject({ userId: DEMO_USER_ID, requests: 1 });
 	});
 
+	it('serves an anonymous (demo) session on the demo key, metered to its own id', async () => {
+		// A real anonymous session (Better Auth anonymous plugin): spends the capped
+		// demo key like sessionless demo traffic, but meters to the user's own id so
+		// per-demo-user spend is attributable.
+		process.env.OPENAI_DEMO_API_KEY = 'demo-key';
+		const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
+			sseResponse(),
+		);
+		vi.stubGlobal('fetch', fetchMock);
+
+		const res = await appWithUser(anon('anon-7')).request(
+			'/api/openai/chat/completions',
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ model: 'gpt-4o', stream: true }),
+			},
+		);
+
+		expect(res.status).toBe(200);
+		await res.text();
+
+		const sentHeaders = fetchMock.mock.calls[0]?.[1]?.headers as
+			| Record<string, string>
+			| undefined;
+		expect(sentHeaders?.Authorization).toBe('Bearer demo-key');
+
+		const rows = await waitForUsage();
+		expect(rows[0]).toMatchObject({ userId: 'anon-7', requests: 1 });
+	});
+
 	it('streams the response through untouched and meters usage to the session user', async () => {
 		const fetchMock = vi.fn(async () => sseResponse());
 		vi.stubGlobal('fetch', fetchMock);
 
-		const res = await appWithUser({ id: 'usr-123' }).request(
+		const res = await appWithUser(real('usr-123')).request(
 			'/api/openai/chat/completions',
 			{
 				method: 'POST',
@@ -290,7 +342,7 @@ describe('POST /api/openai/chat/completions', () => {
 		);
 		vi.stubGlobal('fetch', fetchMock);
 
-		const res = await appWithUser({ id: 'usr-123' }).request(
+		const res = await appWithUser(real('usr-123')).request(
 			'/api/openai/chat/completions',
 			{
 				method: 'POST',
@@ -315,7 +367,7 @@ describe('POST /api/openai/chat/completions', () => {
 			vi.fn(async () => slowFinishingSseResponse(150)),
 		);
 
-		const res = await appWithUser({ id: 'usr-1' }).request(
+		const res = await appWithUser(real('usr-1')).request(
 			'/api/openai/chat/completions',
 			{
 				method: 'POST',
@@ -348,7 +400,7 @@ describe('POST /api/openai/chat/completions', () => {
 			),
 		);
 
-		const res = await appWithUser({ id: 'usr-1' }).request(
+		const res = await appWithUser(real('usr-1')).request(
 			'/api/openai/chat/completions',
 			{
 				method: 'POST',
@@ -379,7 +431,7 @@ describe('POST /api/openai/chat/completions', () => {
 			),
 		);
 
-		const res = await appWithUser({ id: 'usr-9' }).request(
+		const res = await appWithUser(real('usr-9')).request(
 			'/api/openai/chat/completions',
 			{
 				method: 'POST',
@@ -428,7 +480,7 @@ describe('GET /api/usage_summary', () => {
 			'fetch',
 			vi.fn(async () => sseResponse()),
 		);
-		const proxied = await appWithUser({ id: 'usr-spender' }).request(
+		const proxied = await appWithUser(real('usr-spender')).request(
 			'/api/openai/chat/completions',
 			{
 				method: 'POST',
@@ -476,7 +528,7 @@ describe('GET /api/usage_summary', () => {
 					),
 			),
 		);
-		const proxied = await appWithUser({ id: 'usr-1' }).request(
+		const proxied = await appWithUser(real('usr-1')).request(
 			'/api/openai/chat/completions',
 			{
 				method: 'POST',

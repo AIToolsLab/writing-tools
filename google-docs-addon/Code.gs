@@ -61,6 +61,27 @@ function createHomepageCard() {
             )
         )
     )
+    .addSection(
+      CardService.newCardSection()
+        .addWidget(
+          CardService.newTextButton()
+            .setText('Visit thoughtful-ai.com')
+            .setOpenLink(
+              CardService.newOpenLink().setUrl('https://thoughtful-ai.com/')
+            )
+        )
+        .addWidget(
+          CardService.newTextParagraph()
+            .setText(
+              'Built by the Thoughtful AI Lab at Calvin University. This material ' +
+              'is based upon work supported by the U.S. National Science Foundation ' +
+              'under Grant No. <a href="https://www.nsf.gov/awardsearch/show-award/?AWD_ID=2246145">2246145</a>. ' +
+              'Any opinions, findings, and conclusions or recommendations expressed ' +
+              'are those of the authors and do not necessarily reflect the views of ' +
+              'the National Science Foundation.'
+            )
+        )
+    )
     .build();
   return card;
 }
