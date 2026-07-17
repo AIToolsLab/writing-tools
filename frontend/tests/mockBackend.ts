@@ -75,6 +75,35 @@ export async function fulfillOpenAI(route: Route, result: string) {
 }
 
 export async function setupMockBackend(page: Page) {
+  // Demo pages mint an anonymous Better Auth session on load (src/api/anonymousAuth.ts).
+  // The Playwright "backend" is just http-server over dist/, which 405s a POST, so the
+  // real auth server never answers here — stand in for it. The frontend only needs a
+  // 2xx plus the bearer token in the `set-auth-token` header (the bearer plugin's contract).
+  await page.route('**/auth/sign-in/anonymous', async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: {
+        'content-type': 'application/json',
+        'set-auth-token': 'mock-anonymous-token',
+      },
+      body: JSON.stringify({ user: { id: 'mock-anon-user', isAnonymous: true } }),
+    });
+  });
+
+  // Right after signing in, the frontend verifies the token and loads the user via
+  // GET /auth/get-session (src/api/deviceAuth.ts fetchUserInfo). Without this, http-server
+  // 404s and the demo lands on the "Oops... get-session failed (404)" error screen.
+  // Shape mirrors Better Auth's get-session body: a nested `user`.
+  await page.route('**/auth/get-session', async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        user: { id: 'mock-anon-user', loggingConsent: 'usage' },
+      }),
+    });
+  });
+
   await page.route('**/openai/chat/completions', async (route) => {
     const messages = (route.request().postDataJSON()?.messages ?? []) as {
       content: string;

@@ -10,13 +10,21 @@ services:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
     environment:
       - PORT=5000
-      # Persist study logs and the auth SQLite DB under one mounted volume.
-      # DATA_DIR is the single root for both (auth.db + logs/).
+      # Persist study logs and the application SQLite DB under one mounted volume.
+      # DATA_DIR is the single root for both (app.db + logs/).
       - DATA_DIR=/app/backend/data
       - OPENAI_API_KEY=${OPENAI_API_KEY}
+      # Thoughtful-demo project key: pays for sessionless (demo-mode) requests, capped
+      # on OpenAI's side. Unset => sessionless requests are refused. See openaiProxy.ts.
+      - OPENAI_DEMO_API_KEY=${OPENAI_DEMO_API_KEY:-}
       - LOG_SECRET=${LOG_SECRET}
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://e.thoughtful-ai.com/}
+      # Management API (personal key + project id) — required for "delete my data"
+      # to purge a user's PostHog person/events. Unset => deletion no-ops with a
+      # warning (see deletePosthogPerson).
+      - POSTHOG_PERSONAL_API_KEY=${POSTHOG_PERSONAL_API_KEY:-}
+      - POSTHOG_PROJECT_ID=${POSTHOG_PROJECT_ID:-}
       - BETTER_AUTH_ENABLED=${BETTER_AUTH_ENABLED:-false}
       - BETTER_AUTH_SECRET=${BETTER_AUTH_SECRET:-}
       - BETTER_AUTH_URL=${BETTER_AUTH_URL:-}

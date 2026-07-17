@@ -39,18 +39,18 @@ jobs:
       - uses: actions/checkout@v7
 
       - name: Log in to GHCR
-        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Buildx
-        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Compute tags and labels
         id: meta
-        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         with:
           images: ghcr.io/aitoolslab/writing-tools-addin
           # Bare SHA tag is what CD pins to; latest is a convenience pointer.
@@ -64,8 +64,24 @@ jobs:
       - name: Audit build context
         run: ./scripts/audit-build-context.sh .
 
+      # Fetched before the push below overwrites `latest`, so this is the
+      # pre-build baseline to diff the new image against. Guards for a
+      # non-flat manifest (e.g. an attestation index left over from before
+      # `provenance: false` below) by falling back to "no baseline" rather
+      # than erroring — .manifests[].size on an index is the tiny JSON
+      # document size, not the image size, so it's not a usable number here.
+      - name: Record baseline size (current latest)
+        id: baseline
+        run: |
+          image=ghcr.io/aitoolslab/writing-tools-addin:latest
+          size=""
+          if manifest=$(docker buildx imagetools inspect "$image" --raw 2>/dev/null); then
+            size=$(jq -r 'if has("layers") then ([.config.size] + [.layers[].size] | add) else empty end' <<<"$manifest")
+          fi
+          echo "size=$size" >> "$GITHUB_OUTPUT"
+
       - name: Build and push
-        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           # Repo root: the combined image needs both frontend/ and backend/.
           context: .
@@ -80,3 +96,59 @@ jobs:
             GIT_COMMIT=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+          # Nothing downstream consumes SLSA provenance/SBOM attestations, and
+          # leaving them on turns the pushed ref into a multi-manifest index
+          # (image manifest + attestation manifest) instead of a flat
+          # single-arch image manifest, which would break the size check below.
+          provenance: false
+          sbom: false
+
+      # Reads the manifest just pushed above (a small registry API call, not a
+      # full image pull) to report and track compressed image size over time.
+      - name: Report image size
+        env:
+          BASELINE_SIZE: ${{ steps.baseline.outputs.size }}
+          # Warn (never fail) once growth vs. the current `latest` passes this
+          # fraction. Bump this if a change intentionally grows the image.
+          WARN_THRESHOLD: "0.15"
+        run: |
+          image=ghcr.io/aitoolslab/writing-tools-addin:${{ github.sha }}
+          manifest=$(docker buildx imagetools inspect "$image" --raw)
+          new_size=$(jq -r 'if has("layers") then ([.config.size] + [.layers[].size] | add) else empty end' <<<"$manifest")
+
+          if [ -z "$new_size" ]; then
+            echo "### Add-in image size" >> "$GITHUB_STEP_SUMMARY"
+            echo "Pushed manifest wasn't the expected flat single-arch shape; skipping size report." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          new_human=$(numfmt --to=iec-i --suffix=B "$new_size")
+
+          {
+            echo "### Add-in image size"
+            echo
+            echo "| tag | compressed size |"
+            echo "|---|---|"
+            echo "| \`${{ github.sha }}\` | ${new_human} |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ -z "$BASELINE_SIZE" ]; then
+            echo "No previous \`latest\` image found; nothing to compare against." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          base_human=$(numfmt --to=iec-i --suffix=B "$BASELINE_SIZE")
+          delta=$((new_size - BASELINE_SIZE))
+          delta_human=$(numfmt --to=iec-i --suffix=B "${delta#-}")
+          [ "$delta" -lt 0 ] && delta_human="-${delta_human}"
+          pct=$(awk -v b="$BASELINE_SIZE" -v d="$delta" 'BEGIN { printf "%.1f", (d / b) * 100 }')
+
+          {
+            echo "| previous \`latest\` | ${base_human} |"
+            echo "| delta | ${delta_human} (${pct}%) |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          over=$(awk -v b="$BASELINE_SIZE" -v d="$delta" -v t="$WARN_THRESHOLD" 'BEGIN { print (d > b * t) ? "1" : "0" }')
+          if [ "$over" = "1" ]; then
+            echo "::warning title=Image size grew ${pct}%::New add-in image is ${new_human} vs ${base_human} previously (+${delta_human}, ${pct}%), over the ${WARN_THRESHOLD} threshold. Check for accidentally added layers/deps."
+          fi

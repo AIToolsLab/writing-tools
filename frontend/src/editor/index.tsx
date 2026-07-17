@@ -177,30 +177,36 @@ export function EditorScreen({
 	};
 
 	return (
-		<div className={isDemo ? classes.democontainer : classes.container}>
-			<div className={isDemo ? classes.demoeditor : classes.editor}>
-				<LexicalEditor
-					initialState={getInitialState()}
-					updateDocContext={docUpdated}
-					storageKey={getStorageKey()}
-					preamble={editorPreamble}
-					onReady={handleEditorReady}
-				/>
-				{isDemo ? (
-					<div className={`${classes.wordCount}`}>
-						Words: {wordCount}
-					</div>
-				) : null}
-			</div>
+		<>
+			{isDemo ? (
+				<div className={classes.demoDisclosure}>
+					All demo usage is logged. Demo may be unavailable during
+					times of high usage.
+				</div>
+			) : null}
+			<div className={isDemo ? classes.democontainer : classes.container}>
+				<div className={isDemo ? classes.demoeditor : classes.editor}>
+					<LexicalEditor
+						initialState={getInitialState()}
+						updateDocContext={docUpdated}
+						storageKey={getStorageKey()}
+						preamble={editorPreamble}
+						onReady={handleEditorReady}
+					/>
+					{isDemo ? (
+						<div className={`${classes.wordCount}`}>
+							Words: {wordCount}
+						</div>
+					) : null}
+				</div>
 
-			<div
-				className={isDemo ? classes.demosidebar : classes.sidebar}
-			>
-				<EditorContext.Provider value={editorAPI}>
-					<Sidebar />
-				</EditorContext.Provider>
+				<div className={isDemo ? classes.demosidebar : classes.sidebar}>
+					<EditorContext.Provider value={editorAPI}>
+						<Sidebar />
+					</EditorContext.Provider>
+				</div>
 			</div>
-		</div>
+		</>
 	);
 }
 
