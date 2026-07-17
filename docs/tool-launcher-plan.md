@@ -14,6 +14,13 @@ features.
 - The mindmap prototype on `feat/uist`: a full-page, client-side-only app
   that uses the backend only for OpenAI access. It has a draft-editing
   surface but that's not its main UI. It does not fit the taskpane shape.
+- A phone surface for a prototype — e.g. voice interaction with the
+  document that's open on the desktop. Same platform contract, but the
+  connection is device↔document rather than tab↔taskpane, which motivates
+  the room model below.
+- Prototypes that *are* taskpane-shaped and should appear inside the
+  sidebar without being merged into the add-in bundle (see "Taskpane-shaped
+  tools" below).
 - Future: external researchers running longitudinal writing studies on our
   deployment ("bring your tool, we provide auth + LLM proxy + logging +
   document access"), without each of them re-doing app-store approval,
@@ -139,22 +146,97 @@ stash; the tool receives it on grant exchange. Optionally a
 - No persistent connection, no teardown problem, trivially auditable
   ("this tool received a copy of your document at 14:32").
 
-### v2: live channel (read-write, opt-in per launch)
+### v2: rooms (live, multi-surface, opt-in per join)
 
-Backend relay: the taskpane holds a WebSocket (or SSE + POST) to a
-per-grant channel; the tool sends `EditorAPI`-shaped RPCs
-(`getDocContext`, `selectPhrase`, `insertText`, …) with its bearer token;
-the backend forwards to the taskpane, which executes against Office.js and
-replies. Scopes on the grant (`doc:read` vs `doc:write`) gate which RPCs
-the relay forwards.
+The first draft of this section was a point-to-point relay (taskpane ↔ one
+tool, keyed by grant). Generalizing it to **rooms** costs little and buys
+the multi-device cases (phone/voice surfaces, several documents open,
+eventually collaborators):
 
-- Write access should default to **patch-with-confirm**: the tool proposes
-  an edit, the sidebar shows it, the writer applies it. Direct silent
-  writes only for trusted first-party tools.
-- Channel lifetime = taskpane lifetime; taskpane close tears the channel
-  down and the tool sees a clean `disconnected` event. This is the honest
-  answer to "how do we tear it down": the relay makes disconnect explicit
-  instead of a dangling opener/postMessage reference.
+- **A room is anchored on a document-in-progress.** The taskpane (or
+  standalone editor) that holds the document creates the room and joins as
+  the **doc authority** — the one member that can execute Office.js, so
+  all `EditorAPI` RPCs route to it. A user with three documents open has
+  three rooms.
+- **Everything else is just a member.** Browser-tab tools, a phone voice
+  surface, an in-taskpane panel tool — all identical from the protocol's
+  point of view: connect a WebSocket to `/api/rooms/:id/ws` with a Bearer
+  token, receive membership + scopes, then exchange messages.
+- **The server is a dumb switchboard.** It enforces membership and scopes
+  and forwards messages; it holds no document state (the handoff snapshot
+  stash aside). No OT/CRDT, no server-side document model — the document
+  in Word stays the single source of truth, which keeps the backend thin
+  and the mental model simple. If real multi-writer editing ever matters,
+  that's a different project.
+- **Message vocabulary**, versioned as part of the platform contract:
+  - `rpc` — `EditorAPI`-shaped calls (`getDocContext`, `selectPhrase`,
+    `proposeEdit`, …) addressed to the doc authority, gated by `doc:read`
+    / `doc:write` scopes.
+  - `broadcast` — tool-defined messages fanned out to other members (how
+    the phone half of a prototype talks to its desktop half without us
+    having to anticipate their protocol).
+  - `presence` — join/leave/authority-offline events, so a phone can show
+    "connected to *Draft of paper.docx*" and tools can react cleanly when
+    the taskpane closes.
+- Write access defaults to **patch-with-confirm**: the tool proposes an
+  edit, the sidebar shows it, the writer applies it. Direct silent writes
+  only for trusted first-party tools.
+- **Lifecycle**: the room record is a cheap persistent row (id, owner, doc
+  label, per-member scopes); *connections* are ephemeral. "Active" just
+  means it has connected members. If the doc authority is offline, `rpc`
+  calls fail fast with `authority_offline` — v1 does not queue.
+
+**Joining: explicit control that can still "just work".**
+
+- The launch grant from Phase 1 *is* a room invitation — same primitive,
+  now carrying a room id and scopes. Nothing new to invent.
+- From the sidebar: "Open on another device" shows a QR code / short URL
+  wrapping a grant (the device-flow `user_code` UX, reused). Scan with the
+  phone → signed in (or device flow if not) → joined to *that* room.
+- From a device directly: `GET /api/rooms` lists the user's rooms with
+  human labels (doc title, host app, last-active). Exactly one active room
+  → auto-join it (the "just work" path). Several → a picker. This is the
+  whole "which device gets which document" UI: you always joined a
+  specific room, and the room list + per-room member list ("this phone,
+  this mindmap tab") is the audit and revocation surface.
+- **Multiple users later** slot in as invitations to another account:
+  membership records already carry (user, device, scopes), so a
+  collaborator's device is just a member whose user ≠ owner. Presence
+  makes them visible; the owner revokes membership the same way as for
+  their own devices. Nothing about the v1 protocol needs to change — only
+  the invitation UI and log-attribution rules.
+
+## Taskpane-shaped tools (panel surface)
+
+Some prototypes genuinely fit the sidebar. For those, the browser-launch
+story is wrong — they belong inside the taskpane. Two decisions:
+
+**Trust: first-party only, and not just for simplicity.** Rendering
+third-party code inside the taskpane reopens everything browser-launch
+avoided (sandbox origin, Office-webview quirks), *and* adds an AppSource
+concern: the add-in was validated as our code on our domains, and loading
+arbitrary external content inside it is the kind of post-approval behavior
+change store policies frown on. Third-party tools stay browser-launched;
+"panel" tools are ones we host and vet. Revisit only if a sandbox origin
+ever lands.
+
+**Integration: iframe + join the room — not a merge, and not a second
+API.** A panel tool is built and deployed independently (own repo or
+`sandbox/`, static assets under `/tools/<name>/` on our origin or a
+subdomain) and rendered in an iframe on a generic "tool host" page in the
+sidebar (chrome: title, back button, disconnect). Crucially, it talks to
+the platform the same way every other surface does: bearer token + join
+the room as a member. We could build a postMessage bridge to `EditorAPI`
+instead — lower latency, works offline — but that would mean two
+transports for one protocol and a second thing for tool authors to learn.
+One rule keeps the platform small: **"join the room, speak the protocol";
+where a tool renders (tab, phone, iframe) is orthogonal to how it
+integrates.** The iframe host page can hand the grant to the frame via
+`postMessage` so panel launches skip the device flow.
+
+The practical payoff: a taskpane-shaped prototype stops requiring a
+`PageName` case, a frontend-bundle merge, and a production deploy of the
+add-in. It requires uploading static files and adding a manifest entry.
 
 ## Registration UX
 
@@ -167,7 +249,10 @@ Keep it far short of an app store:
   scopes, contact) fetched from `<tool-origin>/.well-known/writing-tool.json`
   or pasted. Requested scopes drive a consent screen ("Mindmap wants:
   LLM access, read your document"). For community studies this consent
-  screen is also where IRB-relevant disclosure lives.
+  screen is also where IRB-relevant disclosure lives. The manifest also
+  carries a `surface` hint — `page` (browser launch, default; the only
+  option for third parties) or `panel` (first-party, rendered in the
+  taskpane tool host).
 - **Drag-and-drop bundle hosting: defer.** Hosting arbitrary uploaded
   bundles is the single riskiest piece (needs a dedicated sandbox origin,
   CSP, storage isolation) and researcher-hosted URLs cover the need. If it
@@ -186,7 +271,7 @@ Fine to skip for first-party-only Phase 1, but designed-for now:
 | Doc data leaving trust boundary | trusted tools | consent screen naming scopes; snapshot-only default; patch-with-confirm writes |
 | Same-origin code execution | avoided by design (browser launch) | stays avoided; sandbox origin if bundle hosting ever lands |
 | Log tenancy | shared JSONL as today | logs keyed `(user, tool)`; per-study export scoped to the study's own logs |
-| Revocation | session revoke via sidebar | plus grant audit list ("connected tools") |
+| Revocation | session revoke via sidebar | plus per-room member list ("this phone, this mindmap tab") with per-member revoke |
 
 Also worth stating: permissive CORS is *compatible* with the bearer-token
 model (no cookies to steal cross-site), but cookie-authenticated routes
@@ -203,7 +288,14 @@ origins.
    field; browser launch with handoff grant (token + read-only doc
    snapshot); mindmap ported to consume it. Device-flow fallback for
    direct visits.
-3. **Phase 2:** live doc channel over a backend relay with `doc:read` /
-   `doc:write` scopes and patch-with-confirm writes.
-4. **Phase 3 (community service):** scoped tokens, quotas, manifest
+3. **Phase 2:** rooms — WebSocket switchboard with membership + scopes
+   (`doc:read` / `doc:write`, patch-with-confirm writes), `rpc` /
+   `broadcast` / `presence` message types, room list + QR/short-URL join.
+   The phone/voice use case is the acceptance test: a student prototype's
+   phone half talks to its desktop half through `broadcast` without any
+   platform changes.
+4. **Phase 2.5:** taskpane tool host — iframe page in the sidebar that
+   renders first-party panel tools, which join the room like any other
+   member.
+5. **Phase 3 (community service):** scoped tokens, quotas, manifest
    registration + consent screens, per-study log tenancy and export.
