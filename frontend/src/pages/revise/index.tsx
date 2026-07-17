@@ -20,9 +20,12 @@ import {
 	AiOutlineEdit,
 	AiOutlineQuestionCircle
 } from 'react-icons/ai';
+import { useAtomValue } from 'jotai';
 import { isRunningInGoogleDocs } from '@/api';
+import { reviseLog } from '@/api/logging';
 import { OPENAI_MODEL, openai } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
+import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import TagLinker from '../tag-linker';
 import classes from './styles.module.css';
@@ -206,6 +209,7 @@ const makeAnchorWithCallback = (
 export default function Revise() {
 	const editorAPI = useContext(EditorContext);
 	const docContext = useDocContext(editorAPI);
+	const username = useAtomValue(usernameAtom);
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const [_loading, setLoading] = useState(false);
 	const [_customPrompts, _setCustomPrompts] = useState<Prompt[]>([]);
@@ -222,6 +226,7 @@ export default function Revise() {
 	const clickCallbackRef = useRef((href: string) => {
 		if (href.startsWith('doctext:')) {
 			const text = decodeURIComponent(href.slice('doctext:'.length));
+			reviseLog.referenceClicked(username, { target: text });
 			(async () => {
 				let currentlySearchingForText = text;
 				while (currentlySearchingForText.length > 0) {
@@ -275,6 +280,12 @@ export default function Revise() {
 			const newViz = new Visualization(request, docContext);
 			setVisualizations((prev) => [...prev, newViz]);
 
+			reviseLog.visualizationRequested(username, {
+				feature: prompt.keyword,
+				isOverall: Boolean(prompt.isOverall),
+				docContext,
+			});
+
 			const docTextAsPrompt = getDocTextAsPrompt(docContext);
 
 			const messages: ModelMessage[] = [
@@ -312,11 +323,19 @@ ${request}
 				}
 
 				console.log('Visualization response complete:', newViz.response);
+				reviseLog.visualizationCompleted(username, {
+					feature: prompt.keyword,
+					response: newViz.response,
+				});
 			} catch (err) {
 				if (requestController.signal.aborted) {
 					return;
 				}
 				console.error('Error fetching visualization:', err);
+				reviseLog.visualizationError(username, {
+					feature: prompt.keyword,
+					error: err instanceof Error ? err.message : String(err),
+				});
 			} finally {
 				// Ignore stale completions from older requests that were already replaced.
 				if (activeRequestControllerRef.current === requestController) {
@@ -325,20 +344,28 @@ ${request}
 				}
 			}
 		},
-		[docContext],
+		[docContext, username],
 	);
 
-	const toggleFeature = useCallback((keyword: string) => {
-		setSelectedFeatures(prev => 
-			prev.includes(keyword) 
-				? prev.filter(f => f !== keyword)
-				: [...prev, keyword]
-		);
-	}, []);
+	const toggleFeature = useCallback(
+		(keyword: string) => {
+			// Log outside the state updater — updaters must stay pure (StrictMode
+			// runs them twice in dev, which would double-log).
+			const selected = !selectedFeatures.includes(keyword);
+			reviseLog.featureToggled(username, { feature: keyword, selected });
+			setSelectedFeatures((prev) =>
+				prev.includes(keyword)
+					? prev.filter((f) => f !== keyword)
+					: [...prev, keyword],
+			);
+		},
+		[selectedFeatures, username],
+	);
 
 	const runSelectedFeatures = useCallback(() => {
 		if (selectedFeatures.length === 0) return;
-		
+
+		reviseLog.featuresRun(username, { features: selectedFeatures });
 		setIsRunning(true);
 		const selectedPrompts = promptList.filter(p => selectedFeatures.includes(p.keyword));
 		
@@ -355,7 +382,7 @@ ${request}
 		};
 		
 		runNext();
-	}, [selectedFeatures, requestVisualization]);
+	}, [selectedFeatures, requestVisualization, username]);
 
 	if (
 		docContext.beforeCursor.length === 0 &&

@@ -1,11 +1,14 @@
 import { streamText, type ModelMessage } from 'ai';
+import { useAtomValue } from 'jotai';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 
+import { chatLog } from '@/api/logging';
 import { OPENAI_MODEL, openai } from '@/api/openai';
 import { ChatContext } from '@/contexts/chatContext';
 import { EditorContext } from '@/contexts/editorContext';
+import { usernameAtom } from '@/contexts/userContext';
 import { useDocContext } from '@/utilities';
 import classes from './styles.module.css';
 
@@ -19,6 +22,7 @@ const suggestionPrompts = [
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const editorAPI = useContext(EditorContext);
+	const username = useAtomValue(usernameAtom);
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -114,12 +118,13 @@ export default function Chat() {
 		};
 	}, []);
 
-	async function submitMessage(text: string) {
+	async function submitMessage(text: string, source: 'input' | 'suggested') {
 		// Only one active request is allowed; cancel any previous stream first.
 		activeRequestControllerRef.current?.abort();
 		const requestController = new AbortController();
 		activeRequestControllerRef.current = requestController;
 
+		chatLog.messageSent(username, { message: text, source });
 		updateSendingMessage(true);
 
 		let newMessages = [
@@ -146,11 +151,17 @@ export default function Chat() {
 				newMessages[newMessages.length - 1].content += delta;
 				updateChatMessages(newMessages);
 			}
+			chatLog.responseCompleted(username, {
+				responseLength: newMessages[newMessages.length - 1].content.length,
+			});
 		} catch (error) {
 			if (requestController.signal.aborted) {
 				return;
 			}
 			console.error('Error while streaming chat response:', error);
+			chatLog.responseError(username, {
+				error: error instanceof Error ? error.message : String(error),
+			});
 		} finally {
 			// Ignore stale completions from older requests that were already replaced.
 			if (activeRequestControllerRef.current === requestController) {
@@ -166,12 +177,12 @@ export default function Chat() {
 		const trimmedMessage = message.trim();
 		if (!trimmedMessage) return;
 
-		await submitMessage(trimmedMessage);
+		await submitMessage(trimmedMessage, 'input');
 	}
 
 	async function sendSuggestedMessage(text: string) {
 		updateMessage(text);
-		await submitMessage(text);
+		await submitMessage(text, 'suggested');
 	}
 
 	return (

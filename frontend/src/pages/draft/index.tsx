@@ -12,7 +12,7 @@ import {
 	useState,
 } from 'react';
 import { Remark } from 'react-remark';
-import { log } from '@/api';
+import { draftLog } from '@/api/logging';
 import { OPENAI_MODEL, openai } from '@/api/openai';
 import { buildMessages } from '@/api/prompts';
 import { EditorContext } from '@/contexts/editorContext';
@@ -266,10 +266,9 @@ export default function Draft() {
 
 	const save = useCallback(
 		(generation: GenerationResult, document: DocContext) => {
-			log({
-				username: username,
-				event: 'ShowSuggestion',
-				prompt: document,
+			draftLog.suggestionShown(username, {
+				generationType: generation.generation_type,
+				docContext: document,
 				result: generation,
 			});
 			updateSavedItems((savedItems) => [
@@ -303,10 +302,9 @@ export default function Draft() {
 				(savedItem) => savedItem.dateSaved !== dateSaved,
 			);
 
-			log({
-				username: username,
-				event: 'Delete',
-				prompt: savedItems[savedItemIdx].document,
+			draftLog.suggestionDeleted(username, {
+				generationType: savedItems[savedItemIdx].generation.generation_type,
+				docContext: savedItems[savedItemIdx].document,
 				result: savedItems[savedItemIdx].generation,
 			});
 			return newSaved;
@@ -348,6 +346,10 @@ export default function Draft() {
 				const isEmpty = suggestion.result.trim() === '' || suggestion.result.trim() === '[]';
 				if (isEmpty) {
 					console.warn('Received empty suggestion.');
+					draftLog.suggestionEmpty(username, {
+						generationType: suggestionRequest.type,
+						docContext: suggestionRequest.docContext,
+					});
 				} else {
 					save(suggestion, suggestionRequest.docContext);
 				}
@@ -355,13 +357,10 @@ export default function Draft() {
 				const errMsg: string =
 					err.message ||
 					'An error occurred while generating the suggestion.';
-				log({
-					username: username,
-					event: 'generation_error',
-
-					generation_type: suggestionRequest.type,
+				draftLog.generationError(username, {
+					generationType: suggestionRequest.type,
 					docContext: suggestionRequest.docContext,
-					result: errMsg,
+					error: errMsg,
 				});
 				updateErrorMsg(errMsg);
 			}
@@ -396,11 +395,8 @@ export default function Draft() {
 			);
 			return;
 		}
-		log({
-			username: username,
-			event: 'auto_refresh',
-
-			generation_type: modesToShow[0],
+		draftLog.autoRefresh(username, {
+			generationType: modesToShow[0],
 			docContext: docContextRef.current,
 		});
 		getSuggestion(request, false);
@@ -435,10 +431,8 @@ export default function Draft() {
 										className={`${classes.featureCard} ${isActive ? classes.active : ''}`}
 										onClick={() => {
 											setActiveMode(mode);
-											log({
-												username: username,
-												event: 'request_suggestion',
-												generation_type: mode,
+											draftLog.suggestionRequested(username, {
+												generationType: mode,
 												docContext: docContextRef.current,
 											});
 											resetAutoRefresh();

@@ -59,6 +59,52 @@ describe('POST /api/log', () => {
 		expect(entry.extra_data.client_timestamp).toBe(123);
 		expect(entry.extra_data.detail).toBe('hello');
 	});
+
+	it('promotes schema_version and page to top-level columns', async () => {
+		const res = await app.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
+				username: 'eve',
+				event: 'suggestion_requested',
+				schema_version: 1,
+				page: 'draft',
+				generationType: 'example_sentences',
+			}),
+		});
+		expect(res.status).toBe(200);
+
+		await new Promise((r) => setTimeout(r, 20));
+		const content = await readFile(
+			path.join(process.env.LOG_DIR!, 'eve.jsonl'),
+			'utf8',
+		);
+		const entry = JSON.parse(content.trim());
+		expect(entry.schema_version).toBe(1);
+		expect(entry.page).toBe('draft');
+		// Promoted columns must not linger in extra_data.
+		expect(entry.extra_data).not.toHaveProperty('schema_version');
+		expect(entry.extra_data).not.toHaveProperty('page');
+		expect(entry.extra_data.generationType).toBe('example_sentences');
+	});
+
+	it('defaults schema_version to 0 and page to null for pre-schema clients', async () => {
+		const res = await app.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ username: 'eve', event: 'legacy_event' }),
+		});
+		expect(res.status).toBe(200);
+
+		await new Promise((r) => setTimeout(r, 20));
+		const content = await readFile(
+			path.join(process.env.LOG_DIR!, 'eve.jsonl'),
+			'utf8',
+		);
+		const entry = JSON.parse(content.trim());
+		expect(entry.schema_version).toBe(0);
+		expect(entry.page).toBeNull();
+	});
 });
 
 describe('POST /api/openai/chat/completions', () => {
