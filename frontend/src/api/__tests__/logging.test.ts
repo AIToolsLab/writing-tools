@@ -12,7 +12,8 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 function lastBody(): Record<string, unknown> {
 	const calls = fetchMock.mock.calls;
-	const [, init] = calls[calls.length - 1]!;
+	const [, init] = calls[calls.length - 1];
+	// eslint-disable-next-line @typescript-eslint/no-unsafe-return
 	return JSON.parse((init as RequestInit).body as string);
 }
 
