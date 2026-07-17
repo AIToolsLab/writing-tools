@@ -90,6 +90,20 @@ export async function setupMockBackend(page: Page) {
     });
   });
 
+  // Right after signing in, the frontend verifies the token and loads the user via
+  // GET /auth/get-session (src/api/deviceAuth.ts fetchUserInfo). Without this, http-server
+  // 404s and the demo lands on the "Oops... get-session failed (404)" error screen.
+  // Shape mirrors Better Auth's get-session body: a nested `user`.
+  await page.route('**/auth/get-session', async (route) => {
+    await route.fulfill({
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        user: { id: 'mock-anon-user', loggingConsent: 'usage' },
+      }),
+    });
+  });
+
   await page.route('**/openai/chat/completions', async (route) => {
     const messages = (route.request().postDataJSON()?.messages ?? []) as {
       content: string;
