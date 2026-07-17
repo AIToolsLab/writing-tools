@@ -306,7 +306,7 @@ ${request}
 					providerOptions: openaiProviderOptions,
 					system: systemPrompt,
 					messages,
-					maxOutputTokens: 1024,
+					maxOutputTokens: 5000,
 					abortSignal: requestController.signal,
 				});
 
