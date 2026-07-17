@@ -288,6 +288,23 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 
 		if (!streaming || !upstream.body) {
 			const text = await upstream.text();
+			// An empty-bodied upstream 200 is a transport failure, not a real
+			// response: Node 26's undici negotiates HTTP/2 to api.openai.com by
+			// default (undici 8 flipped `allowH2` on) and its h2 client can tear a
+			// stream down after headers arrive — e.g. GOAWAY on a pinned idle
+			// session, undici#5381 / undici#5468 — without erroring, delivering
+			// 200 + 0 bytes. Buffering (above) turns most such failures into a
+			// thrown read (→ onError → 500); a clean empty 200 is rejected as a 502
+			// here rather than forwarded for the client to choke on. Observed
+			// intermittently on Node 26.4 in 2026-07; Node 24 (HTTP/1.1) is
+			// unaffected.
+			if (upstream.ok && text.length === 0) {
+				console.error(
+					`[openai-proxy] ${endpoint}: upstream ${upstream.status} with empty body — returning 502`,
+				);
+				meter(null, null, null);
+				return c.json({ detail: 'Upstream returned an empty response' }, 502);
+			}
 			let parsed: unknown = null;
 			try {
 				parsed = JSON.parse(text);

@@ -61,6 +61,15 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			authEnabled: !!auth,
 		}),
 	);
+	// Responses API — same attribution, metering, and key selection, just a
+	// different upstream endpoint.
+	app.post(
+		'/api/openai/responses',
+		openaiProxy('responses', {
+			resolveUser,
+			authEnabled: !!auth,
+		}),
+	);
 
 	// Resolve the authenticated user from the request's session, or null. Returns
 	// null when auth is disabled (dev/tests without BETTER_AUTH_ENABLED) so the

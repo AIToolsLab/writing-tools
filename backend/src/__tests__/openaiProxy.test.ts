@@ -510,6 +510,74 @@ describe('POST /api/openai/chat/completions', () => {
 		const rows = await waitForUsage();
 		expect(rows[0]).toMatchObject({ userId: ANONYMOUS_USER_ID });
 	});
+
+	it('rejects an empty-bodied upstream 200 as a 502 instead of relaying it', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(
+				async () =>
+					new Response(null, {
+						status: 200,
+						headers: { 'Content-Type': 'application/json' },
+					}),
+			),
+		);
+		const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+		const res = await appWithUser(real('usr-e')).request(
+			'/api/openai/chat/completions',
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ model: 'gpt-4o' }),
+			},
+		);
+
+		expect(res.status).toBe(502);
+		expect(await res.json()).toEqual({
+			detail: 'Upstream returned an empty response',
+		});
+		expect(errSpy).toHaveBeenCalledOnce();
+	});
+});
+
+describe('POST /api/openai/responses', () => {
+	it('proxies to the responses endpoint and meters usage to the session user', async () => {
+		const body = {
+			model: 'gpt-4o-2024-08-06',
+			output: [{ content: [{ text: 'Hi' }] }],
+			usage: { input_tokens: 40, output_tokens: 9 },
+		};
+		const fetchMock = vi.fn(
+			async (_url: string, _init: RequestInit) =>
+				new Response(JSON.stringify(body), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' },
+				}),
+		);
+		vi.stubGlobal('fetch', fetchMock);
+
+		const res = await appWithUser(real('usr-r')).request(
+			'/api/openai/responses',
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ model: 'gpt-4o', input: 'hi' }),
+			},
+		);
+
+		expect(res.status).toBe(200);
+		expect(fetchMock.mock.calls[0]?.[0]).toBe(
+			'https://api.openai.com/v1/responses',
+		);
+		expect(await res.json()).toEqual(body);
+		const rows = await waitForUsage();
+		expect(rows[0]).toMatchObject({
+			userId: 'usr-r',
+			inputTokens: 40,
+			outputTokens: 9,
+		});
+	});
 });
 
 describe('GET /api/usage_summary', () => {
