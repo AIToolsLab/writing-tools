@@ -8,6 +8,7 @@ import {
 	googleClientId,
 	googleClientSecret,
 } from './config.js';
+import { CONSENT_LEVELS, DEFAULT_CONSENT_LEVEL } from './consent.js';
 import { db } from './db.js';
 import { eraseLoggedData } from './erasure.js';
 import { anonymizeUserUsage } from './usage.js';
@@ -27,14 +28,14 @@ export const auth = betterAuth({
 	trustedOrigins: betterAuthTrustedOrigins(),
 	// Logging-consent level lives on the user record so it's available on every
 	// session. Server-controlled (`input: false`): set only via auth.api.updateUser
-	// from our /api/me/consent route, never accepted from sign-up input. The enum
-	// mirrors CONSENT_LEVELS in consent.ts. New users default to 'usage'
-	// (content-free); content logging (ai_output/document) requires opting up.
+	// from our /api/me/consent route, never accepted from sign-up input. The enum and
+	// default come straight from consent.ts (the single source of truth). New users
+	// default to 'usage' (content-free); content logging requires opting up.
 	user: {
 		additionalFields: {
 			loggingConsent: {
-				type: ['none', 'usage', 'ai_output', 'document'],
-				defaultValue: 'usage',
+				type: [...CONSENT_LEVELS],
+				defaultValue: DEFAULT_CONSENT_LEVEL,
 				required: false,
 				input: false,
 			},
