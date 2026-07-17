@@ -1,9 +1,8 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
-import type { Auth } from './auth.js'; // type-only import, no runtime cost
+import type { Auth, SessionUser } from './auth.js'; // type-only import, no runtime cost
 import {
-	type ConsentLevel,
 	CONSENT_LEVELS,
 	DEFAULT_CONSENT_LEVEL,
 	filterExtraDataForConsent,
@@ -68,17 +67,21 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	app.post(
 		'/api/openai/chat/completions',
 		openaiProxy('chat/completions', {
-			resolveUserId: async (c) => (await resolveUser(c))?.id ?? null,
+			// The proxy only reads { id, isAnonymous }; resolveUser also returns
+			// loggingConsent, which is structurally compatible and simply ignored here.
+			resolveUser,
 			authEnabled: !!auth,
 		}),
 	);
 
 	// Resolve the authenticated user from the request's session, or null. Returns
 	// null when auth is disabled (dev/tests without BETTER_AUTH_ENABLED) so the
-	// caller can 401 — identity-keyed logging requires a session.
+	// caller can 401 — identity-keyed logging requires a session. `isAnonymous`
+	// distinguishes demo sessions (see the anonymous plugin in auth.ts): they log
+	// and meter like any user, but their model spend goes to the capped demo key.
 	async function resolveUser(
 		c: Context,
-	): Promise<{ id: string; loggingConsent: ConsentLevel } | null> {
+	): Promise<SessionUser | null> {
 		if (!auth) return null;
 		const session = await auth.api.getSession({ headers: c.req.raw.headers });
 		if (!session) return null;
@@ -86,6 +89,8 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		return {
 			id: session.user.id,
 			loggingConsent: isConsentLevel(raw) ? raw : DEFAULT_CONSENT_LEVEL,
+			isAnonymous:
+				(session.user as { isAnonymous?: unknown }).isAnonymous === true,
 		};
 	}
 

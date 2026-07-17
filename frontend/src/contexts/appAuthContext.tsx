@@ -5,8 +5,9 @@
  * / user / buttons), decoupled from the auth implementation. Two providers supply the
  * same `AppAuthSession` shape:
  *
- *   - BetterAuthProvider  (default for every real-auth surface)
- *   - DemoAuthProvider    (OverallMode.demo — Google Docs, no-backend dev)
+ *   - BetterAuthProvider  (default for every real-auth surface: Word, Google Docs)
+ *   - DemoAuthProvider    (OverallMode.demo — the anonymous home-page trial). Mints
+ *                          a real anonymous session; NOT a real signed-in user.
  *
  * Hook-rule safety: we never call adapter hooks conditionally. `AppAuthProvider` chooses
  * WHICH provider component to render; each component unconditionally calls its own hooks
@@ -24,6 +25,7 @@ import { setOpenAITokenProvider } from '@/api/openai';
 import { type ConsentLevel, DEFAULT_CONSENT_LEVEL } from '@/consent';
 import { AccessTokenProvider } from '@/contexts/authTokenContext';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
+import { useAnonymousAuth } from '@/hooks/useAnonymousAuth';
 import { useDeviceAuth } from '@/hooks/useDeviceAuth';
 
 export interface AppAuthSession {
@@ -58,7 +60,9 @@ const DEFAULT_SESSION: AppAuthSession = {
 	isAuthenticated: false,
 	loggingConsent: DEFAULT_CONSENT_LEVEL,
 	getAccessToken: () => {
-		console.warn('getAccessToken called before AppAuthProvider initialized');
+		console.warn(
+			'getAccessToken called before AppAuthProvider initialized',
+		);
 		return Promise.resolve('');
 	},
 	login: () => Promise.resolve(),
@@ -101,7 +105,8 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 			isAuthorizing,
 			isAuthenticated: device.status === 'success' && !!device.token,
 			user: device.user,
-			loggingConsent: device.user?.loggingConsent ?? DEFAULT_CONSENT_LEVEL,
+			loggingConsent:
+				device.user?.loggingConsent ?? DEFAULT_CONSENT_LEVEL,
 			authorization,
 			getAccessToken: () => {
 				if (device.token) return Promise.resolve(device.token);
@@ -128,18 +133,31 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 // --- Demo adapter --------------------------------------------------------------
 
 function DemoAuthProvider({ children }: { children: ReactNode }) {
+	const anon = useAnonymousAuth();
+
 	const session = useMemo<AppAuthSession>(
 		() => ({
 			provider: 'demo',
+			// The demo editor renders immediately — the anonymous session is
+			// established in the background (getAccessToken awaits it), so there's no
+			// "Waiting for authentication" wall for a public trial.
 			isLoading: false,
 			isAuthorizing: false,
-			isAuthenticated: true,
-			loggingConsent: DEFAULT_CONSENT_LEVEL,
-			getAccessToken: () => Promise.resolve('demo-access-token'),
+			isAuthenticated: anon.status === 'success' && !!anon.token,
+			user: anon.user,
+			// Anonymous users are created at full consent server-side; reflect that
+			// once the session loads. The fallback only applies during the brief
+			// pre-load window, where nothing is logged (isAuthenticated is false).
+			loggingConsent: anon.user?.loggingConsent ?? DEFAULT_CONSENT_LEVEL,
+			error:
+				anon.status === 'error'
+					? new Error(anon.error ?? 'Demo sign-in failed')
+					: undefined,
+			getAccessToken: anon.getAccessToken,
 			login: () => Promise.resolve(),
 			logout: () => Promise.resolve(),
 		}),
-		[],
+		[anon],
 	);
 
 	return (

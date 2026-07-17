@@ -24,6 +24,13 @@ export type ConsentLevel = (typeof CONSENT_LEVELS)[number];
 
 export const DEFAULT_CONSENT_LEVEL: ConsentLevel = 'usage';
 
+// The highest level — logs everything. Anonymous/demo users are created here: the
+// public demo discloses that all usage is logged, so there's nothing to opt up to.
+// Computed from the tail of CONSENT_LEVELS so it tracks the ordering if it changes.
+export const FULL_CONSENT_LEVEL: ConsentLevel = CONSENT_LEVELS[
+	CONSENT_LEVELS.length - 1
+] as ConsentLevel; // CONSENT_LEVELS is a non-empty const tuple
+
 export function isConsentLevel(value: unknown): value is ConsentLevel {
 	return (
 		typeof value === 'string' &&

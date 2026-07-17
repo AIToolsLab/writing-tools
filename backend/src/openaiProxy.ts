@@ -20,6 +20,7 @@
  * endpoint.
  */
 import type { Context } from 'hono';
+import type { SessionUser } from './auth.js'; // type-only: never runs the auth module
 import { openaiApiKey, openaiDemoApiKey } from './config.js';
 import { captureException } from './posthog.js';
 import { ANONYMOUS_USER_ID, DEMO_USER_ID, recordUsage } from './usage.js';
@@ -28,9 +29,16 @@ const OPENAI_BASE = 'https://api.openai.com/v1';
 
 export type OpenAIEndpoint = 'chat/completions' | 'responses';
 
+/**
+ * The paying identity for a request: who they are, and whether they're a demo user.
+ * The subset of the session identity the proxy needs to decide who pays — see
+ * SessionUser in auth.ts (the canonical shape).
+ */
+export type ProxyUser = Pick<SessionUser, 'id' | 'isAnonymous'>;
+
 export interface ProxyOptions {
-	/** Authenticated user id for this request, or null if there's no session. */
-	resolveUserId: (c: Context) => Promise<string | null>;
+	/** Authenticated user for this request, or null if there's no session. */
+	resolveUser: (c: Context) => Promise<ProxyUser | null>;
 	/**
 	 * Whether auth is configured at all. When it isn't (local dev with
 	 * BETTER_AUTH_ENABLED unset), unauthenticated requests are served rather than
@@ -46,29 +54,46 @@ export interface Attribution {
 }
 
 /**
- * Decide who pays. The bucket always names whoever's key was actually charged, so
- * the usage summary reconciles against the right OpenAI invoice:
+ * Decide who pays. `apiKey` (which key is charged) and `userId` (the metering
+ * bucket) are chosen separately, so a demo user can spend the capped key while
+ * still being metered to their own id. The bucket always names an identity whose
+ * spend reconciles against the key that paid:
  *
- *   - a session          → the main key, metered to that user;
- *   - no session, demo key set → the Thoughtful-demo key, metered to `demo`. This
- *     is how demo mode and the pre-sign-in editor work: they carry no session, and
- *     their spend is capped on OpenAI's side by that project's own limit;
- *   - no session, no demo key, auth on → null, i.e. 401. Fail closed rather than
- *     quietly billing the main key for unauthenticated traffic;
+ *   - a real (non-anonymous) session → the main key, metered to that user;
+ *   - an anonymous (demo) session, demo key set → the Thoughtful-demo key, but
+ *     metered to that anon user's OWN id (not a shared `demo` bucket). The key is
+ *     capped on OpenAI's side; per-user metering is what a future per-demo-user cap
+ *     will read. Without a demo key it falls through like the sessionless case;
+ *   - no session, demo key set → the demo key, metered to the shared `demo` bucket
+ *     (misconfigured/legacy sessionless traffic; the app mints an anon session for
+ *     real demo use);
+ *   - no session (or anon, no demo key), auth on → null, i.e. 401. Fail closed
+ *     rather than quietly billing the main key for traffic we can't cap;
  *   - no session, no demo key, auth off → the main key, metered to `anonymous`.
  *     Local dev only; kept separate from `demo` because a different key paid.
  */
 export function attributeRequest(
-	userId: string | null,
+	user: ProxyUser | null,
 	authEnabled: boolean,
 ): Attribution | null {
-	if (userId) return { apiKey: openaiApiKey(), userId };
+	// Real account → main key, metered to them.
+	if (user && !user.isAnonymous) return { apiKey: openaiApiKey(), userId: user.id };
 
 	const demoKey = openaiDemoApiKey();
-	if (demoKey) return { apiKey: demoKey, userId: DEMO_USER_ID };
+
+	// Anonymous (demo) account → capped demo key, metered to their own id so demo
+	// spend stays per-user (a future per-demo-user cap reads this). Falls back to the
+	// dev/refuse behaviour below when no demo key is configured.
+	if (user?.isAnonymous && demoKey) return { apiKey: demoKey, userId: user.id };
+
+	// No usable session. A demo key still covers sessionless traffic (capped),
+	// metered to the shared demo bucket.
+	if (demoKey && !user) return { apiKey: demoKey, userId: DEMO_USER_ID };
 
 	if (authEnabled) return null;
-	return { apiKey: openaiApiKey(), userId: ANONYMOUS_USER_ID };
+	// Local dev, auth off: main key. An anon user (only reachable with auth off) keeps
+	// its own id; truly sessionless traffic goes to the `anonymous` bucket.
+	return { apiKey: openaiApiKey(), userId: user?.id ?? ANONYMOUS_USER_ID };
 }
 
 interface RawUsage {
@@ -195,8 +220,8 @@ function requestedModel(parsed: Record<string, unknown> | null): string {
 
 export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 	return async (c: Context): Promise<Response> => {
-		const userId = await options.resolveUserId(c);
-		const attribution = attributeRequest(userId, options.authEnabled);
+		const user = await options.resolveUser(c);
+		const attribution = attributeRequest(user, options.authEnabled);
 		if (!attribution) return c.json({ detail: 'Unauthorized' }, 401);
 
 		const body = await c.req.text();
