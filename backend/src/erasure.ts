@@ -21,10 +21,21 @@ import { deletePosthogPerson } from './posthog.js';
 /**
  * Delete everything we've logged about a user: their study-log file and their
  * analytics profile. PostHog deletion is best-effort (it needs a management API
- * key; see deletePosthogPerson), so a failure there is reported rather than
- * thrown — the logs we control are still gone.
+ * key; see deletePosthogPerson) and never throws. The two touch unrelated systems,
+ * so we run them concurrently and independently — a failure deleting the log file
+ * must not skip the PostHog deletion, or vice versa. If either genuinely fails we
+ * still surface it, so the caller (e.g. Better Auth's beforeDelete) can abort rather
+ * than drop an account whose data we couldn't erase.
  */
 export async function eraseLoggedData(userId: string): Promise<void> {
-	await deleteUserLogs(userId);
-	await deletePosthogPerson(userId);
+	const results = await Promise.allSettled([
+		deleteUserLogs(userId),
+		deletePosthogPerson(userId),
+	]);
+	const failures = results
+		.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
+		.map((r) => r.reason);
+	if (failures.length > 0) {
+		throw new AggregateError(failures, 'eraseLoggedData: partial failure');
+	}
 }
