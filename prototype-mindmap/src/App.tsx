@@ -1,28 +1,22 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from "react";
-import { makeLLM, type ConversationMessage } from "./api";
+import { historyForCurrentTurn, makeLLM, type ConversationMessage } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
-import {
-  createState,
-  processTurn,
-  type AcceptedMapCommand,
-  type ControllerMode,
-  type PendingMapCommand,
-  type SuppressionReason,
-  type TurnOutput,
-} from "./controller";
-import type { LoopState } from "./controller";
-import { detectDraftDeclarations } from "./draft-declarations";
-import type { MockLLM, QuestionStance, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
+import type { AssistantResponse, ConversationState, DiagnosticEvent, TurnResult } from "./assistant-response";
+import type { ProposalOutcomeContext, QuestionStance, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
 import { pruneContextSelection, ThoughtMap, toggleContextSelection, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
-import { applyAcceptedMapCommands } from "./map-commands";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
-import { promoteOpenThreadsForUtterances, reopenPromotedOpenThreads, type ParkedThread } from "./open-threads";
-import { evaluateReadiness } from "./readiness";
+import { applyConfirmedReflection, applyGatewayActions, executeCanvasAction, inspectAction, type ProposedAction } from "./action-gateway";
+import { createProposalStore, resolveProposal, updateProposal, type Proposal } from "./proposal-store";
+import { cloneConversationState, createConversationState, mergeConversationBank, processTurn } from "./stage1-loop";
 import { cardRef } from "./store";
-import type { SourceSpan, SourceUtterance, ThoughtUnitRole } from "./types";
+import type { ThoughtUnit, ThoughtUnitRole } from "./types";
 import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
-import { buildUnderstanding, type SafetyCheck, type TrackedIdea, type UnderhoodEvent, type UnderstandingSnapshot } from "./understanding";
+import { validateMirror } from "./validator";
+import type { ParkedThread } from "./open-threads";
+import { buildDiagnosticSnapshot, type SafetyCheck, type TrackedIdea, type UnderhoodEvent, type UnderstandingSnapshot } from "./understanding";
 import { useSpeechToText } from "./useSpeechToText";
+import { ASSISTANCE_CONTRACTS, contractForLevel, DEFAULT_ASSISTANCE_CONTRACT, normalizeInfluenceTrace, snapshotContract, type AssistanceLevel } from "./assistance-contract";
+import { EventLedger, mirrorSanitizedEvent, type LedgerEventKind } from "./event-ledger";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,12 +27,16 @@ interface ChatMsg {
   role: "user" | "assistant";
   text: string;
   mode?: "question" | "mirror" | "clarify";
-  /** Set when this message carries a mirror the user hasn't acted on yet. */
+  /** A typed proposal awaiting an explicit UI decision. */
+  proposalId?: string;
+  /** v1/v2 migration input only. */
   mirrorId?: string;
   /** Verbatim draft substring this question is anchored to, if any. */
   questionAnchor?: string;
   /** The coaching stance the AI chose for this turn, if any. */
   questionStance?: QuestionStance;
+  /** Preserves the typed response kind for visible provenance in the transcript. */
+  responseKind?: AssistantResponse["kind"];
 }
 
 interface DraftPanelPos { x: number; y: number; }
@@ -46,8 +44,7 @@ interface DraftPanelSize { w: number; h: number; }
 
 interface MapUndoSnapshot {
   map: ThoughtUnitStoreSnapshot;
-  bank: ReturnType<LoopState["bank"]["getAll"]>;
-  openThreads: ParkedThread[];
+  bank: ReturnType<ConversationState["bank"]["getAll"]>;
 }
 
 type ClaimDecision = "pending" | "confirmed" | "declined";
@@ -99,15 +96,7 @@ function snapQuestionBias(value: number): number {
   );
 }
 
-interface PendingMirror {
-  id: string;
-  reflection: MirrorReflection;
-  claims: ClaimValidation[];
-  decisions: Record<string, ClaimDecision>;
-  editedTexts: Record<string, string>;
-}
-
-interface PersistedPendingMirror {
+export interface PersistedPendingMirror {
   id: string;
   reflection: MirrorReflection;
   claims: ClaimValidation[];
@@ -116,9 +105,12 @@ interface PersistedPendingMirror {
 }
 
 interface PersistedSession {
-  version: 1;
+  version: 1 | 2 | 3 | 4 | 5;
+  sessionId?: string;
+  assistanceLevel?: AssistanceLevel;
   msgs: ChatMsg[];
-  pendingMirrors: PersistedPendingMirror[];
+  pendingMirrors?: PersistedPendingMirror[];
+  proposals?: Proposal[];
   confirmed: ConfirmedReflection[];
   lastCoachDebug?: CoachDebugInfo | null;
   understandingSnapshot?: UnderstandingSnapshot | null;
@@ -131,64 +123,36 @@ interface PersistedSession {
   draftDocked?: boolean;
   draftPos: DraftPanelPos;
   draftSize: DraftPanelSize;
-  controller: {
-    mode: ControllerMode;
-    turnsSinceLastMirror: number;
-    clarifyTarget?: SourceSpan;
-    lastAiText: string;
-    prevAiText?: LoopState["prevAiText"];
-    coverageFocus?: LoopState["coverageFocus"];
+  stickyDraftFocus?: DraftSelectionFocus;
+  conversation?: {
+    turnsSinceLastReflection: number;
+    lastAssistantText: string;
     draft: string;
-    pendingMapCommand?: PendingMapCommand;
-    organizeFocus?: LoopState["organizeFocus"];
-    pendingChildPlacement?: LoopState["pendingChildPlacement"];
-    activeElicitation?: LoopState["activeElicitation"];
-    activeSelectionContext?: LoopState["activeSelectionContext"];
-    openThreads?: LoopState["openThreads"];
-    dismissedCandidateIds?: LoopState["dismissedCandidateIds"];
-    pendingCardWording?: LoopState["pendingCardWording"];
-    captureLoop?: LoopState["captureLoop"];
-    lastCoachQuestion?: LoopState["lastCoachQuestion"];
+    dismissedCandidateIds: string[];
+    openThreads?: ParkedThread[];
   };
-  bank: LoopState["bank"] extends { getAll(): infer T } ? T : never;
-  candidates: LoopState["candidates"] extends { getAll(): infer T } ? T : never;
+  /** Read only by the v1/v2 migration and never restored into live routing state. */
+  controller?: { turnsSinceLastMirror?: number; lastAiText?: string; draft?: string; dismissedCandidateIds?: string[]; openThreads?: ParkedThread[] };
+  diagnostics?: DiagnosticEvent[];
+  bank: ReturnType<ConversationState["bank"]["getAll"]>;
+  candidates: ReturnType<ConversationState["candidates"]["getAll"]>;
   map: ThoughtUnitStoreSnapshot;
 }
 
+export function migrateLegacyMirrors(pending: PersistedPendingMirror[], mapRevision: number): Proposal[] {
+  return pending.map((mirror) => ({
+    id: mirror.id,
+    mapRevision,
+    referencedCardIds: [],
+    origin: "unresolved",
+    contract: snapshotContract(DEFAULT_ASSISTANCE_CONTRACT),
+    state: "invalidated",
+    invalidReason: "This earlier-version reflection must be created again under the current assistance contract.",
+    detail: { kind: "reflection", reflection: mirror.reflection, claims: mirror.claims, decisions: mirror.decisions, editedTexts: mirror.editedTexts ?? Object.fromEntries(mirror.reflection.claims.map((claim) => [claim.id, claim.text])) },
+  }));
+}
+
 interface DraftSelectionFocus { text: string; }
-
-function commandAckText(commands: AcceptedMapCommand[]): string {
-  if (commands.length !== 1) return `${commands.length} map changes applied.`;
-  const command = commands[0];
-  if (command.kind === "create_card") return `Card added: "${command.text}".`;
-  if (command.kind === "edit_card") return `Card updated: "${command.text}".`;
-  if (command.kind === "nest_card") return "Card nested.";
-  return command.labelText ? "Cards connected with your label." : "Cards connected.";
-}
-
-function commandSourceUtteranceIds(commands: AcceptedMapCommand[]): string[] {
-  const ids = new Set<string>();
-  for (const command of commands) {
-    if (command.kind === "create_card") {
-      command.sourceUtteranceIds.forEach((id) => ids.add(id));
-    } else if (command.kind === "edit_card") {
-      command.sourceUtteranceIds.forEach((id) => ids.add(id));
-    } else if (command.kind === "nest_card") {
-      if ("sourceUtteranceIds" in command.child) {
-        command.child.sourceUtteranceIds.forEach((id) => ids.add(id));
-      }
-    } else {
-      if ("sourceUtteranceIds" in command.source) {
-        command.source.sourceUtteranceIds.forEach((id) => ids.add(id));
-      }
-      if ("sourceUtteranceIds" in command.target) {
-        command.target.sourceUtteranceIds.forEach((id) => ids.add(id));
-      }
-      command.labelSourceUtteranceIds?.forEach((id) => ids.add(id));
-    }
-  }
-  return Array.from(ids);
-}
 
 // ---------------------------------------------------------------------------
 // Styles (no build step needed, just a style tag approach via CSS-in-JS)
@@ -300,6 +264,45 @@ const css = `
     text-transform: uppercase;
     color: #999;
   }
+  .ai-suggestion-badge {
+    display: inline-block;
+    margin-left: 5px;
+    padding: 2px 5px;
+    border: 1px solid #c9b3e7;
+    border-radius: 8px;
+    background: #f1e7ff;
+    color: #70459a;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: none;
+  }
+  .focus-chip {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0 10px 6px;
+    padding: 5px 8px;
+    border: 1px solid #bfd8e8;
+    border-radius: 8px;
+    background: #f2f8fb;
+    color: #385a6f;
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  .focus-chip-text { flex: 1; min-width: 0; }
+  .focus-chip-dismiss,
+  .anchor-view-btn {
+    border: 1px solid #bdd5e4;
+    border-radius: 6px;
+    background: #fff;
+    color: #23678f;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: 700;
+    padding: 3px 6px;
+  }
+  .anchor-view-btn { margin-top: 5px; }
 
   .msg-bubble {
     padding: 9px 13px;
@@ -341,6 +344,29 @@ const css = `
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: #2a8a50;
+  }
+
+  .mirror-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .influence-badge {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px;
+    border-radius: 8px;
+    border: 1px solid #e6c982;
+    background: #fdf4dc;
+    color: #8a5a12;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    cursor: help;
   }
 
   .mirror-claims { display: flex; flex-direction: column; gap: 10px; }
@@ -998,6 +1024,30 @@ const css = `
     border-radius: 50%;
     background: #1a7a3c;
     margin-left: auto;
+  }
+  .map-origin-badge { padding: 2px 5px; border-radius: 8px; background: #f1e7ff; color: #70459a; font-size: 10px; font-weight: 700; }
+  .assistance-contract { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #666; }
+  .assistance-contract select {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 1px solid #dcdad4;
+    border-radius: 8px;
+    background-color: #fff;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5L5 6.5L8 3.5' fill='none' stroke='%231a6fa3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    padding: 5px 26px 5px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #4f4b45;
+    cursor: pointer;
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .assistance-contract select:hover { border-color: #b9c9d5; }
+  .assistance-contract select:focus {
+    outline: none;
+    border-color: #1a6fa3;
+    box-shadow: 0 0 0 3px rgba(26, 111, 163, 0.15);
   }
 
   .map-handle {
@@ -2338,7 +2388,7 @@ function loadPersistedSession(): PersistedSession | null {
     const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PersistedSession;
-    return parsed.version === 1 ? parsed : null;
+    return parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4 || parsed.version === 5 ? parsed : null;
   } catch {
     return null;
   }
@@ -2351,56 +2401,6 @@ function buildConversationHistory(msgs: ChatMsg[]): ConversationMessage[] {
       role: msg.role,
       content: msg.text,
     }));
-}
-
-function cloneLoopState(state: LoopState): LoopState {
-  const cloned = createState();
-  cloned.bank.replaceAll(state.bank.getAll());
-  cloned.candidates.replaceAll(state.candidates.getAll());
-  cloned.mode = state.mode;
-  cloned.turnsSinceLastMirror = state.turnsSinceLastMirror;
-  cloned.clarifyTarget = state.clarifyTarget;
-  cloned.lastAiText = state.lastAiText;
-  // prevAiText and coverageFocus are stateful across turns: the anti-repeat
-  // 2-cycle guard reads prevAiText, and a live card-coverage concern must
-  // survive the working-state clone or the browser falls back to generic
-  // settle/focus wording on a follow-up "not sure".
-  cloned.prevAiText = state.prevAiText;
-  cloned.coverageFocus = state.coverageFocus;
-  cloned.draft = state.draft;
-  cloned.pendingMapCommand = state.pendingMapCommand;
-  cloned.organizeFocus = state.organizeFocus;
-  cloned.pendingChildPlacement = state.pendingChildPlacement;
-  cloned.activeElicitation = state.activeElicitation;
-  cloned.activeSelectionContext = state.activeSelectionContext;
-  cloned.openThreads = state.openThreads;
-  cloned.dismissedCandidateIds = state.dismissedCandidateIds;
-  cloned.pendingCardWording = state.pendingCardWording;
-  cloned.captureLoop = state.captureLoop;
-  // Answer-detection (Goal 5) reads the coach's last question across turns, so it
-  // must survive the working-state clone or the transition guard never sees it.
-  cloned.lastCoachQuestion = state.lastCoachQuestion;
-  return cloned;
-}
-
-function mergeLiveBankIntoWorkingState(workingState: LoopState, liveState: LoopState) {
-  const mergedById = new Map<string, SourceUtterance>();
-  for (const unit of workingState.bank.getAll()) {
-    mergedById.set(unit.id, unit);
-  }
-  for (const liveUnit of liveState.bank.getAll()) {
-    const current = mergedById.get(liveUnit.id);
-    if (current) {
-      mergedById.set(liveUnit.id, {
-        ...current,
-        commandOnly: Boolean(current.commandOnly || liveUnit.commandOnly),
-        nonHarvestable: Boolean(current.nonHarvestable || liveUnit.nonHarvestable),
-      });
-    } else {
-      mergedById.set(liveUnit.id, liveUnit);
-    }
-  }
-  workingState.bank.replaceAll(Array.from(mergedById.values()));
 }
 
 function normalizeDraftPlainTextPaste(text: string): string {
@@ -2617,7 +2617,7 @@ function targetLabel(target: TrackedIdea["target"]): string {
   return target === "idea" ? "idea" : target === "hierarchy" ? "nesting" : "connection";
 }
 
-function eventStageMark(stage: UnderhoodEvent["stage"]): string {
+function eventStageMark(stage: NonNullable<UnderhoodEvent["stage"]>): string {
   return {
     noticed: "1",
     tracked: "2",
@@ -2627,7 +2627,7 @@ function eventStageMark(stage: UnderhoodEvent["stage"]): string {
   }[stage];
 }
 
-function eventStage(event: UnderhoodEvent): UnderhoodEvent["stage"] {
+function eventStage(event: UnderhoodEvent): NonNullable<UnderhoodEvent["stage"]> {
   const stage = event.stage as UnderhoodEvent["stage"] | undefined;
   if (stage) return stage;
   if (event.state === "held") return "held";
@@ -3070,50 +3070,38 @@ export function UnderTheHoodPanel({
 
 export default function App() {
   const persistedSession = useMemo(() => loadPersistedSession(), []);
+  const initialContract = contractForLevel(persistedSession?.assistanceLevel ?? 0);
+  const initialSessionId = persistedSession?.sessionId ?? newSessionId();
 
   const initialState = useMemo(() => {
-    const state = createState();
+    const state = createConversationState();
     if (!persistedSession) return state;
     state.bank.replaceAll(persistedSession.bank);
     state.candidates.replaceAll(persistedSession.candidates);
-    state.mode = persistedSession.controller.mode;
-    state.turnsSinceLastMirror = persistedSession.controller.turnsSinceLastMirror;
-    state.clarifyTarget = persistedSession.controller.clarifyTarget;
-    state.lastAiText = persistedSession.controller.lastAiText;
-    state.prevAiText = persistedSession.controller.prevAiText;
-    state.coverageFocus = persistedSession.controller.coverageFocus;
-    state.draft = persistedSession.controller.draft;
-    state.pendingMapCommand = persistedSession.controller.pendingMapCommand;
-    state.organizeFocus = persistedSession.controller.organizeFocus;
-    state.pendingChildPlacement = persistedSession.controller.pendingChildPlacement;
-    state.activeElicitation = persistedSession.controller.activeElicitation;
-    state.activeSelectionContext = persistedSession.controller.activeSelectionContext;
-    state.openThreads = persistedSession.controller.openThreads ?? [];
-    state.dismissedCandidateIds = persistedSession.controller.dismissedCandidateIds ?? [];
-    state.pendingCardWording = persistedSession.controller.pendingCardWording;
-    state.captureLoop = persistedSession.controller.captureLoop;
-    state.lastCoachQuestion = persistedSession.controller.lastCoachQuestion;
+    state.turnsSinceLastReflection = persistedSession.conversation?.turnsSinceLastReflection ?? persistedSession.controller?.turnsSinceLastMirror ?? 0;
+    state.lastAssistantText = persistedSession.conversation?.lastAssistantText ?? persistedSession.controller?.lastAiText ?? "";
+    state.draft = persistedSession.conversation?.draft ?? persistedSession.controller?.draft ?? persistedSession.draftText;
+    state.dismissedCandidateIds = persistedSession.conversation?.dismissedCandidateIds ?? persistedSession.controller?.dismissedCandidateIds ?? [];
+    state.openThreads = persistedSession.conversation?.openThreads ?? persistedSession.controller?.openThreads ?? [];
     return state;
   }, [persistedSession]);
 
   const initialMapStore = useMemo(() => {
     const store = new ThoughtUnitStore();
     if (persistedSession) {
-      store.loadSnapshot(persistedSession.map);
+      executeCanvasAction({ kind: "restore_snapshot", snapshot: persistedSession.map }, { store, bank: initialState.bank });
+      for (const unit of store.getAll()) {
+        if (!unit.source.origin) store.update(unit.id, { source: { ...unit.source, origin: unit.source.reflectionId ? "legacy_confirmed" : "user_canvas" } });
+      }
     }
     return store;
-  }, [persistedSession]);
+  }, [initialState.bank, persistedSession]);
 
-  const initialMsgs = persistedSession?.msgs ?? [];
-  const initialPendingMirrors = useMemo(
-    () =>
-      new Map(
-        (persistedSession?.pendingMirrors ?? []).map((pm) => [
-          pm.id,
-          { ...pm, editedTexts: pm.editedTexts ?? {} },
-        ]),
-      ),
-    [persistedSession],
+  const migratedMirrorProposals = useMemo<Proposal[]>(() => migrateLegacyMirrors(persistedSession?.pendingMirrors ?? [], persistedSession?.mapRevision ?? 0), [persistedSession]);
+  const initialMsgs = useMemo(() => (persistedSession?.msgs ?? []).map((message) => message.mirrorId && !message.proposalId ? { ...message, proposalId: message.mirrorId, mirrorId: undefined } : message), [persistedSession]);
+  const initialProposals = useMemo(
+    () => createProposalStore(migrateStoredProposals([...(persistedSession?.proposals ?? []), ...migratedMirrorProposals], initialState.bank, initialMapStore)),
+    [initialMapStore, initialState.bank, migratedMirrorProposals, persistedSession],
   );
   const initialConfirmed = persistedSession?.confirmed ?? [];
   const initialCoachDebug = persistedSession?.lastCoachDebug ?? null;
@@ -3134,21 +3122,24 @@ export default function App() {
   const initialDraftPos = persistedSession
     ? clampDraftPosition(persistedSession.draftPos, initialDraftSize)
     : { x: 0, y: 0 };
+  const initialStickyDraftFocus = persistedSession?.stickyDraftFocus;
 
-  const stateRef = useRef<LoopState>(initialState);
+  const stateRef = useRef<ConversationState>(initialState);
   const configRef = useRef<MindmapConfig>(withQuestionIntentBias(defaultConfig, initialQuestionBias));
-  const llmRef = useRef<MockLLM>(makeLLM(() => configRef.current, buildConversationHistory(initialMsgs)));
   const mapStoreRef = useRef<ThoughtUnitStore>(initialMapStore);
   const undoStackRef = useRef<MapUndoSnapshot[]>([]);
 
   const [msgs, setMsgs] = useState<ChatMsg[]>(initialMsgs);
-  const [pendingMirrors, setPendingMirrors] = useState<Map<string, PendingMirror>>(initialPendingMirrors);
+  const [proposals, setProposals] = useState(initialProposals);
   const [confirmed, setConfirmed] = useState<ConfirmedReflection[]>(initialConfirmed);
   const [lastCoachDebug, setLastCoachDebug] = useState<CoachDebugInfo | null>(initialCoachDebug);
   const [understandingSnapshot, setUnderstandingSnapshot] = useState<UnderstandingSnapshot | null>(initialUnderstandingSnapshot);
+  const [diagnostics, setDiagnostics] = useState<DiagnosticEvent[]>(persistedSession?.diagnostics ?? []);
   const [mapRevision, setMapRevision] = useState(initialMapRevision);
   const [mapMountKey, setMapMountKey] = useState(0);
   const [questionBias, setQuestionBias] = useState(initialQuestionBias);
+  const [assistanceLevel, setAssistanceLevel] = useState<AssistanceLevel>(initialContract.level);
+  const [ledgerAvailable, setLedgerAvailable] = useState(true);
   const [requireConnectionLabel, setRequireConnectionLabel] = useState(initialRequireConnectionLabel);
   const [canUndoMap, setCanUndoMap] = useState(false);
   const [commandAck, setCommandAck] = useState<MapCommandAcknowledgement | null>(null);
@@ -3159,6 +3150,21 @@ export default function App() {
   const [underhoodOpen, setUnderhoodOpen] = useState(false);
   const [contextSelectedCardIds, setContextSelectedCardIds] = useState<Set<string>>(new Set());
   const [draftSelectionFocus, setDraftSelectionFocus] = useState<DraftSelectionFocus | undefined>(undefined);
+  const [stickyDraftFocus, setStickyDraftFocus] = useState<DraftSelectionFocus | undefined>(initialStickyDraftFocus);
+  const ledgerRef = useRef(new EventLedger(initialSessionId));
+  const contract = contractForLevel(assistanceLevel);
+
+  const recordEvent = useCallback(async (kind: LedgerEventKind, detail?: unknown, extra?: { origin?: import("./assistance-contract").ContributionOrigin; responseKind?: string; outcome?: string; code?: string; contract?: import("./assistance-contract").AssistanceContractSnapshot; providerTransport?: "chat_json" | "responses_tools"; toolName?: "propose_reflection_v1" | "propose_map_action_v1"; repairCount?: number }) => {
+    const event = await ledgerRef.current.record(kind, detail, { contract: extra?.contract ?? snapshotContract(contract), origin: extra?.origin });
+    setLedgerAvailable(ledgerRef.current.isAvailable);
+    void mirrorSanitizedEvent(event, { responseKind: extra?.responseKind, outcome: extra?.outcome, code: extra?.code, providerTransport: extra?.providerTransport, toolName: extra?.toolName, repairCount: extra?.repairCount });
+  }, [contract]);
+
+  useEffect(() => {
+    void recordEvent(persistedSession?.version === 5 ? "contract_selected" : "contract_initialized", { reason: persistedSession ? "migration" : "new_session" });
+  // The first mount records initial contract only. Level changes have their own event below.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const runtimeConfig = useMemo(
     () => withQuestionIntentBias(defaultConfig, questionBias),
@@ -3169,15 +3175,10 @@ export default function App() {
     configRef.current = runtimeConfig;
   }, [runtimeConfig]);
 
-  useEffect(() => {
-    llmRef.current = makeLLM(() => configRef.current, buildConversationHistory(msgs));
-  }, [msgs]);
-
   const captureMapUndo = useCallback(() => {
     undoStackRef.current.push({
       map: mapStoreRef.current.snapshot(),
       bank: stateRef.current.bank.getAll(),
-      openThreads: stateRef.current.openThreads,
     });
     if (undoStackRef.current.length > 50) {
       undoStackRef.current.shift();
@@ -3197,28 +3198,120 @@ export default function App() {
   const undoMapChange = useCallback(() => {
     const previous = undoStackRef.current.pop();
     if (!previous) return;
-    mapStoreRef.current.loadSnapshot(previous.map);
+    executeCanvasAction({ kind: "restore_snapshot", snapshot: previous.map }, { store: mapStoreRef.current, bank: stateRef.current.bank });
     stateRef.current.bank.replaceAll(previous.bank);
-    stateRef.current.openThreads = previous.openThreads;
     setCanUndoMap(undoStackRef.current.length > 0);
     setCommandAck(null);
     markMapChanged();
   }, [markMapChanged]);
 
-  const applyMapCommands = useCallback(
-    (commands: AcceptedMapCommand[]) => {
-      if (commands.length === 0) return;
-      captureMapUndo();
-      applyAcceptedMapCommands(commands, mapStoreRef.current, stateRef.current.bank);
-      stateRef.current.openThreads = promoteOpenThreadsForUtterances(
-        stateRef.current.openThreads,
-        commandSourceUtteranceIds(commands),
+  const updateActionProposal = useCallback((proposalId: string, action: ProposedAction) => {
+    setProposals((current) => {
+      const proposal = current.get(proposalId);
+      if (!proposal || proposal.detail.kind !== "map_action") return current;
+      return updateProposal(current, proposalId, {
+        state: "edited",
+        detail: { ...proposal.detail, action, executable: undefined, completion: undefined },
+      });
+    });
+  }, []);
+
+  const groundEditedAction = useCallback((action: ProposedAction): ProposedAction => {
+    const sourceFor = (text: string, ids: string[] | undefined): string[] => {
+      if (ids?.some((id) => stateRef.current.bank.get(id)?.text.includes(text))) return ids;
+      const declaration = stateRef.current.bank.add(text, "declaration");
+      stateRef.current.bank.markCommandOnly([declaration.id]);
+      return [...(ids ?? []), declaration.id];
+    };
+    if (action.kind === "create_card") {
+      return { ...action, sourceUtteranceIds: sourceFor(action.text, action.sourceUtteranceIds) };
+    }
+    if (action.kind === "edit_card") {
+      return { ...action, sourceUtteranceIds: sourceFor(action.text, action.sourceUtteranceIds) };
+    }
+    if (action.kind === "connect_cards" && action.labelText?.trim()) {
+      return { ...action, labelSourceUtteranceIds: sourceFor(action.labelText, action.labelSourceUtteranceIds) };
+    }
+    return action;
+  }, []);
+
+  const decideActionProposal = useCallback((proposalId: string, decision: "confirmed" | "declined") => {
+    const proposal = proposals.get(proposalId);
+    if (!proposal || proposal.detail.kind !== "map_action") return;
+    if (decision === "declined") {
+      setProposals((current) => resolveProposal(current, proposalId, "declined"));
+      void recordEvent("proposal_resolved", { proposalId, decision }, { origin: proposal.origin, outcome: "declined" });
+      return;
+    }
+    let action = proposal.detail.action;
+    let capturedUndo = false;
+    let checked = inspectAction(action, {
+      actor: "ai_proposal",
+      store: mapStoreRef.current,
+      bank: stateRef.current.bank,
+      requireConnectionLabel,
+      allowAiSuggestedStructure: proposal.contract?.allowsAiSuggestedStructure ?? false,
+      allowGroundedOptions: proposal.contract?.allowedResponseKinds.includes("options") ?? false,
+      verifiedPairingProof: proposal.detail.pairingProof ?? (proposal.detail.completion?.kind === "relationship_label" ? proposal.detail.completion.pairingProof : undefined),
+    });
+    // A user edit is a direct authorship act. If it is the only thing blocking
+    // an otherwise-valid action, record it as a declaration and retry once.
+    if (checked.status === "rejected" && checked.reason === "non_verbatim_text" && proposal.state === "edited") {
+      const userChecked = inspectAction(action, {
+        actor: "user_canvas",
+        store: mapStoreRef.current,
+        bank: stateRef.current.bank,
+        requireConnectionLabel,
+      });
+      if (userChecked.status === "ready") {
+        captureMapUndo();
+        capturedUndo = true;
+        action = groundEditedAction(action);
+        checked = inspectAction(action, { actor: "user_canvas", store: mapStoreRef.current, bank: stateRef.current.bank, requireConnectionLabel });
+      } else {
+        checked = userChecked;
+      }
+    }
+    if (checked.status === "needs_input" || checked.status === "needs_reference_choice" || checked.status === "needs_relationship_label") {
+      const completion = checked.status === "needs_relationship_label"
+        ? { kind: "relationship_label" as const, pairingProof: checked.pairingProof, pairingOrigin: checked.pairingOrigin, options: checked.options }
+        : checked.status === "needs_reference_choice"
+          ? { kind: "reference_choice" as const, slot: checked.slot, candidates: checked.candidates }
+          : { kind: "generic" as const, fields: checked.fields };
+      setProposals((current) => updateProposal(current, proposalId, { state: "edited", detail: { kind: "map_action", action, completion } }));
+      return;
+    }
+    if (checked.status === "rejected") {
+      setProposals((current) =>
+        resolveProposal(current, proposalId, "invalidated", checked.detail),
       );
-      setCommandAck({ text: commandAckText(commands) });
-      markMapChanged();
-    },
-    [captureMapUndo, markMapChanged],
-  );
+      return;
+    }
+    if (!capturedUndo) captureMapUndo();
+    const relationshipProvenance = checked.action.kind === "connect_cards"
+      ? {
+          pairingOrigin: proposal.detail.completion?.kind === "relationship_label"
+            ? proposal.detail.completion.pairingOrigin
+            : proposal.detail.pairingProof ? "user_asserted" : proposal.origin ?? "legacy_confirmed",
+          labelOrigin: checked.action.labelOrigin ?? (proposal.state === "edited" ? "user_asserted" as const : proposal.origin ?? "legacy_confirmed"),
+        }
+      : undefined;
+    const appliedOrigin = relationshipProvenance && (relationshipProvenance.pairingOrigin === "ai_suggested" || relationshipProvenance.labelOrigin === "ai_suggested")
+      ? "ai_suggested" as const
+      : proposal.origin ?? "legacy_confirmed";
+    applyGatewayActions([checked.action], mapStoreRef.current, stateRef.current.bank, { origin: appliedOrigin, contract: proposal.contract, relationshipProvenance });
+    setProposals((current) => resolveProposal(current, proposalId, "confirmed"));
+    void recordEvent("proposal_resolved", { proposalId, decision: "confirmed" }, { origin: proposal.origin, outcome: "confirmed" });
+    void recordEvent("map_mutated", { proposalId, action: checked.action }, { origin: proposal.origin, outcome: "applied" });
+    setCommandAck({ text: "Map change confirmed." });
+    const event: DiagnosticEvent = { id: `d_${Date.now()}`, at: Date.now(), stage: "application", outcome: "applied", code: "map_action_applied", detail: "The confirmed proposal was revalidated against the current map and applied." };
+    setDiagnostics((current) => [...current, event].slice(-100));
+    markMapChanged();
+    // A confirmation is meaningful user steering. Give the coach a fresh turn
+    // against the already-updated map, without manufacturing chat text or
+    // treating the decision as new source material.
+    void requestMode(undefined, { proposalKind: "map_action", decision: "confirmed" }, mapRevision + 1);
+  }, [captureMapUndo, groundEditedAction, mapRevision, markMapChanged, proposals, recordEvent, requestMode, requireConnectionLabel]);
 
   const dismissTrackedIdea = useCallback((ideaId: string) => {
     stateRef.current.candidates.delete(ideaId);
@@ -3505,22 +3598,16 @@ export default function App() {
     window.addEventListener("mouseup", onUp);
   }, [draftPos, draftSize]);
 
-  // Active anchor: from the most recent AI question/clarify message.
-  const activeAnchor = [...msgs].reverse().find(
-    (m) => m.role === "assistant" && m.questionAnchor
-  )?.questionAnchor;
+  // Only the latest assistant turn may offer an anchor. Older anchors must not
+  // keep resurfacing after the conversation has moved on.
+  const activeAnchor = [...msgs].reverse().find((m) => m.role === "assistant")?.questionAnchor;
 
-  // The draft highlight persists until the user clicks inside the draft to
-  // dismiss it (clicks elsewhere never clear it). A new anchor re-shows it and
-  // opens the draft if it was minimized.
+  // An unsolicited model anchor is a quiet offer, not permission to open or
+  // move the user's draft. If the draft is already open, it is highlighted;
+  // otherwise the visible dot and "View passage" control let the user opt in.
   const [highlightAnchor, setHighlightAnchor] = useState<string | undefined>(undefined);
   useEffect(() => {
-    if (!activeAnchor) return;
     setHighlightAnchor(activeAnchor);
-    // Undock and expand so an anchored question actually reveals the draft span,
-    // not just the toolbar dot. Mirrors revealDraftAnchor().
-    setDraftDocked(false);
-    setDraftCollapsed(false);
   }, [activeAnchor]);
 
   // When the highlight lands, select and scroll the rich draft text into view.
@@ -3528,10 +3615,10 @@ export default function App() {
   // selection apart from one the user actually made.
   useEffect(() => {
     anchorSelectionTextRef.current = highlightAnchor;
-    if (!highlightAnchor) return;
+    if (!highlightAnchor || draftDocked || draftCollapsed) return;
     const editor = draftRef.current;
     if (editor) selectTextInElement(editor, highlightAnchor);
-  }, [highlightAnchor, draftHtml]);
+  }, [highlightAnchor, draftHtml, draftDocked, draftCollapsed]);
 
   // Cards the current coach turn refers to (by #ref) - highlighted on the map.
   const referencedCardIds = useMemo(() => {
@@ -3592,13 +3679,13 @@ export default function App() {
         text: unit.text,
         role: unit.role as Exclude<ThoughtUnitRole, "connection_label">,
       }));
-    const draftText = draftSelectionFocus?.text.trim();
+    const draftText = stickyDraftFocus?.text.trim() || draftSelectionFocus?.text.trim();
     if (cards.length === 0 && !draftText) return undefined;
     return {
       ...(cards.length > 0 ? { cards } : {}),
       ...(draftText ? { draftText } : {}),
     };
-  }, [contextSelectedCardIds, draftSelectionFocus, mapRevision]);
+  }, [contextSelectedCardIds, draftSelectionFocus, mapRevision, stickyDraftFocus]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -3631,106 +3718,52 @@ export default function App() {
     setComposerScrollable(textarea.scrollHeight > maxHeight);
   }, [input]);
 
-  // Seed with opening question only for a fresh session.
-  useEffect(() => {
-    if (persistedSession || initialMsgs.length > 0) return;
-    setMsgs([
-      {
-        id: ++msgId,
-        role: "assistant",
-        text: "What are you trying to think through? Just start anywhere - there's no wrong place to begin.",
-        mode: "question",
-      },
-    ]);
-  }, [initialMsgs.length, persistedSession]);
-
-  function buildUnderstandingForOutput(out: TurnOutput): UnderstandingSnapshot {
-    const stateForUnderstanding = stateRef.current;
-    const configForUnderstanding = configRef.current;
-    const mirrorEligibleBank = stateForUnderstanding.bank.getAll().filter((u) => !u.commandOnly && !u.nonHarvestable);
-    return out.understanding ??
-      buildUnderstanding({
-        out,
-        candidates: stateForUnderstanding.candidates.getAll(),
-        readiness: stateForUnderstanding.candidates
-          .getAll()
-          .map((candidate) => evaluateReadiness(candidate, mirrorEligibleBank, configForUnderstanding)),
-        bank: stateForUnderstanding.bank,
-        draftDeclarations: detectDraftDeclarations(
-          stateForUnderstanding.draft,
-          configForUnderstanding.draftDeclarations,
-        ),
-        clarifyTarget: stateForUnderstanding.clarifyTarget,
-        activeElicitation: stateForUnderstanding.activeElicitation,
-        pendingMapCommand: stateForUnderstanding.pendingMapCommand,
-        openThreads: stateForUnderstanding.openThreads,
-        config: configForUnderstanding,
-      });
-  }
-
-  function appendCoachOutput(out: TurnOutput, opts?: { replaceLastCoach?: boolean }) {
-    const understanding = buildUnderstandingForOutput(out);
-    // When a turn replaces the previous coach message (e.g. an Under the Hood
-    // "next move" click), drop that message instead of stacking a duplicate. If
-    // it carried an undecided mirror, clear it so no orphan card lingers.
+  function appendCoachOutput(out: TurnResult, opts?: { replaceLastCoach?: boolean }) {
+    const nextDiagnostics = [...diagnostics, ...out.diagnostics].slice(-100);
+    setDiagnostics(nextDiagnostics);
+    const understanding = buildDiagnosticSnapshot(out.diagnostics, stateRef.current.candidates.getAll());
     const replaceLastCoach =
       Boolean(opts?.replaceLastCoach) &&
       msgs.length > 0 &&
       msgs[msgs.length - 1].role === "assistant";
-    const replacedMirrorId = replaceLastCoach ? msgs[msgs.length - 1].mirrorId : undefined;
-    if (replacedMirrorId) {
-      setPendingMirrors((prev) => {
-        if (!prev.has(replacedMirrorId)) return prev;
-        const next = new Map(prev);
-        next.delete(replacedMirrorId);
-        return next;
-      });
+    const replacedProposalId = replaceLastCoach ? msgs[msgs.length - 1].proposalId : undefined;
+    if (replacedProposalId) {
+      setProposals((current) => resolveProposal(current, replacedProposalId, "cancelled"));
     }
     setLastCoachDebug({
-      mode: out.mode,
-      suppressionReason: out.suppressionReason as SuppressionReason | undefined,
-      suppressionDetail: out.suppressionDetail,
-      validationDebug: out.validationDebug,
-      acceleratedCandidateIds: out.acceleratedCandidateIds,
-      readinessNotes: out.readinessNotes,
-      commandDebug: out.commandDebug,
+      mode: out.response?.kind ?? "idle",
+      commandDebug: out.diagnostics.map((event) => ({ reason: event.code, detail: event.detail })),
     });
 
-    applyMapCommands(out.mapCommands ?? []);
+    if (!out.response) {
+      setUnderstandingSnapshot(understanding);
+      return;
+    }
+
+    void recordEvent("assistant_response", out.response, { responseKind: out.response.kind });
+    if (out.proposal) {
+      void recordEvent("proposal_created", out.proposal, { origin: out.proposal.origin, responseKind: out.response.kind });
+      if (out.proposal.influenceTrace?.exactOverlapPhrases.length) void recordEvent("assistant_echo_overlap", out.proposal.influenceTrace, { origin: out.proposal.origin });
+    }
 
     const newMsg: ChatMsg = {
       id: ++msgId,
       role: "assistant",
-      text: out.text,
-      mode: out.mode,
-      questionAnchor: out.questionAnchor,
-      questionStance: out.questionStance,
+      text: out.response.text,
+      mode: out.response.kind === "reflection" ? "mirror" : "question",
+      responseKind: out.response.kind,
+      questionAnchor: out.response.kind === "question" ? out.response.anchor : undefined,
+      questionStance: out.response.kind === "question" ? out.response.stance : undefined,
     };
 
-    if (out.validatedMirror) {
-      const mirrorId = `m_${Date.now()}_${newMsg.id}`;
-      newMsg.mirrorId = mirrorId;
-      const initialDecisions: Record<string, ClaimDecision> = {};
-      const initialEditedTexts: Record<string, string> = {};
-      for (const c of out.validatedMirror.claims) {
-        initialDecisions[c.claimId] = "pending";
-      }
-      for (const c of out.validatedMirror.reflection.claims) {
-        initialEditedTexts[c.id] = c.text;
-      }
-      setPendingMirrors((prev) => {
-        const next = new Map(prev);
-        next.set(mirrorId, {
-          id: mirrorId,
-          reflection: out.validatedMirror!.reflection,
-          claims: out.validatedMirror!.claims,
-          decisions: initialDecisions,
-          editedTexts: initialEditedTexts,
-        });
+    if (out.proposal) {
+      newMsg.proposalId = out.proposal.id;
+      setProposals((current) => {
+        const next = new Map(current);
+        next.set(out.proposal!.id, { ...out.proposal!, messageId: newMsg.id });
         return next;
       });
     }
-
     setMsgs((prev) => {
       if (replaceLastCoach && prev.length > 0 && prev[prev.length - 1].role === "assistant") {
         return [...prev.slice(0, -1), newMsg];
@@ -3741,11 +3774,13 @@ export default function App() {
   }
 
   useEffect(() => {
-    if (typeof window === "undefined" || msgs.length === 0) return;
+    if (typeof window === "undefined") return;
     const snapshot: PersistedSession = {
-      version: 1,
+      version: 5,
+      sessionId: initialSessionId,
+      assistanceLevel,
       msgs,
-      pendingMirrors: Array.from(pendingMirrors.values()),
+      proposals: Array.from(proposals.values()),
       confirmed,
       lastCoachDebug,
       understandingSnapshot,
@@ -3758,25 +3793,15 @@ export default function App() {
       draftDocked,
       draftPos,
       draftSize,
-      controller: {
-        mode: stateRef.current.mode,
-        turnsSinceLastMirror: stateRef.current.turnsSinceLastMirror,
-        clarifyTarget: stateRef.current.clarifyTarget,
-        lastAiText: stateRef.current.lastAiText,
-        prevAiText: stateRef.current.prevAiText,
-        coverageFocus: stateRef.current.coverageFocus,
+      stickyDraftFocus,
+      conversation: {
+        turnsSinceLastReflection: stateRef.current.turnsSinceLastReflection,
+        lastAssistantText: stateRef.current.lastAssistantText,
         draft: stateRef.current.draft,
-        pendingMapCommand: stateRef.current.pendingMapCommand,
-        organizeFocus: stateRef.current.organizeFocus,
-        pendingChildPlacement: stateRef.current.pendingChildPlacement,
-        activeElicitation: stateRef.current.activeElicitation,
-        activeSelectionContext: stateRef.current.activeSelectionContext,
-        openThreads: stateRef.current.openThreads,
         dismissedCandidateIds: stateRef.current.dismissedCandidateIds,
-        pendingCardWording: stateRef.current.pendingCardWording,
-        captureLoop: stateRef.current.captureLoop,
-        lastCoachQuestion: stateRef.current.lastCoachQuestion,
+        openThreads: stateRef.current.openThreads,
       },
+      diagnostics,
       bank: stateRef.current.bank.getAll(),
       candidates: stateRef.current.candidates.getAll(),
       map: mapStoreRef.current.snapshot(),
@@ -3790,6 +3815,7 @@ export default function App() {
     }
   }, [
     confirmed,
+    diagnostics,
     draftCollapsed,
     draftDocked,
     draftHtml,
@@ -3800,15 +3826,21 @@ export default function App() {
     understandingSnapshot,
     mapRevision,
     msgs,
-    pendingMirrors,
+    proposals,
     questionBias,
+    assistanceLevel,
     requireConnectionLabel,
+    stickyDraftFocus,
   ]);
 
   async function send() {
     const text = input.trim();
     if (!text || loading) return;
     const nonce = ++turnNonceRef.current;
+    const selectedCardIds = Array.from(contextSelectedCardIds).filter((id) => {
+      const card = mapStoreRef.current.get(id);
+      return Boolean(card && !card.parentId && card.role !== "connection_label");
+    });
 
     speech.stop();
     setInput("");
@@ -3821,27 +3853,43 @@ export default function App() {
     setContextSelectedCardIds(new Set());
     setDraftSelectionFocus(undefined);
 
-    setMsgs((prev) => [
-      ...prev,
-      { id: ++msgId, role: "user", text },
-    ]);
+    const userMessage: ChatMsg = { id: ++msgId, role: "user", text };
+    // React state is asynchronous. Construct the provider transcript here so
+    // this exact user turn is present once, in final dialogue position, on the
+    // very request it triggered.
+    const turnHistory = historyForCurrentTurn(buildConversationHistory(msgs), text);
+    setMsgs((prev) => [...prev, userMessage]);
 
     setLoading(true);
     try {
-      const workingState = cloneLoopState(stateRef.current);
+      const workingState = cloneConversationState(stateRef.current);
+      void recordEvent("user_message", { text });
+      const requestedTools: Array<{ name: "propose_reflection_v1" | "propose_map_action_v1"; callId?: string; round: number }> = [];
+      let providerResponseCount = 0;
       const out = await processTurn(
         workingState,
         text,
-        llmRef.current,
+        makeLLM(() => configRef.current, turnHistory, (trace) => {
+          const round = providerResponseCount++;
+          void recordEvent("model_request", { messages: trace.messages, model: trace.model, reasoningEffort: trace.reasoningEffort, responseId: trace.responseId }, { providerTransport: trace.transport });
+          if (trace.toolName) { requestedTools.push({ name: trace.toolName, callId: trace.toolCallId, round }); void recordEvent("provider_tool_requested", { toolName: trace.toolName, callId: trace.toolCallId, providerResponse: trace.parsedProviderResponse }, { providerTransport: trace.transport, toolName: trace.toolName }); }
+          void recordEvent("assistant_response", { parsedProviderResponse: trace.parsedProviderResponse, responseId: trace.responseId, outputItemTypes: trace.outputItemTypes }, { providerTransport: trace.transport, toolName: trace.toolName });
+        }),
         configRef.current,
-        "chat",
         mapStoreRef.current.toLLMContext(),
-        { requireConnectionLabel, selectedFocus },
+        { mapRevision, requireConnectionLabel, selectedFocus, selectedCardIds, store: mapStoreRef.current, contract, priorAssistant: [...msgs].reverse().find((message) => message.role === "assistant") },
       );
+      const last = out.diagnostics[out.diagnostics.length - 1];
+      const firstRejection = out.diagnostics.find((event) => event.outcome === "rejected");
+      requestedTools.forEach((tool) => {
+        const terminal = tool.round === providerResponseCount - 1;
+        void recordEvent("provider_tool_result", { toolName: tool.name, callId: tool.callId, diagnostics: out.diagnostics }, { providerTransport: "responses_tools", toolName: tool.name, outcome: terminal ? last?.outcome : "rejected", code: terminal ? last?.code : firstRejection?.code });
+      });
 
       if (nonce !== turnNonceRef.current) return;
-      mergeLiveBankIntoWorkingState(workingState, stateRef.current);
+      mergeConversationBank(workingState, stateRef.current);
       stateRef.current = workingState;
+      for (const event of out.diagnostics) void recordEvent("contract_decision", event, { outcome: event.outcome, code: event.code });
       appendCoachOutput(out);
     } catch (e) {
       if (nonce !== turnNonceRef.current) return;
@@ -3852,12 +3900,9 @@ export default function App() {
     }
   }
 
-  // User-initiated override of the coach's next move, triggered from the Under
-  // the Hood panel. Runs a coach turn with no synthetic user message (mirrors
-  // the mirror-continuation path); `overrideMode` clears any wedged pending
-  // state and forces the requested mode via the prompt. The result replaces the
-  // previous coach message rather than stacking a duplicate.
-  async function requestMode(mode: UserRequestedMode) {
+  // Runs a coach-only turn without synthetic user text. A panel request replaces
+  // its prior coach move; a completed proposal appends a genuine continuation.
+  async function requestMode(mode?: UserRequestedMode, proposalOutcome?: ProposalOutcomeContext, currentMapRevision = mapRevision) {
     if (loading) return;
     const nonce = ++turnNonceRef.current;
 
@@ -3866,21 +3911,35 @@ export default function App() {
 
     setLoading(true);
     try {
-      const workingState = cloneLoopState(stateRef.current);
+      const workingState = cloneConversationState(stateRef.current);
+      // The Stage 1 loop has no regex-routed forced modes. This remains a
+      // visible user request for a fresh coach move, not a controller override.
+      const requestedTools: Array<{ name: "propose_reflection_v1" | "propose_map_action_v1"; callId?: string; round: number }> = [];
+      let providerResponseCount = 0;
       const out = await processTurn(
         workingState,
         "",
-        llmRef.current,
+        makeLLM(() => configRef.current, buildConversationHistory(msgs), (trace) => {
+          const round = providerResponseCount++;
+          void recordEvent("model_request", { messages: trace.messages, model: trace.model, reasoningEffort: trace.reasoningEffort, responseId: trace.responseId }, { providerTransport: trace.transport });
+          if (trace.toolName) { requestedTools.push({ name: trace.toolName, callId: trace.toolCallId, round }); void recordEvent("provider_tool_requested", { toolName: trace.toolName, callId: trace.toolCallId, providerResponse: trace.parsedProviderResponse }, { providerTransport: trace.transport, toolName: trace.toolName }); }
+          void recordEvent("assistant_response", { parsedProviderResponse: trace.parsedProviderResponse, responseId: trace.responseId, outputItemTypes: trace.outputItemTypes }, { providerTransport: trace.transport, toolName: trace.toolName });
+        }),
         configRef.current,
-        "chat",
         mapStoreRef.current.toLLMContext(),
-        { ingestUser: false, requireConnectionLabel, overrideMode: mode, selectedFocus },
+        { mapRevision: currentMapRevision, requireConnectionLabel, selectedFocus, requestedSupport: mode, proposalOutcome, store: mapStoreRef.current, contract, priorAssistant: [...msgs].reverse().find((message) => message.role === "assistant") },
       );
+      const last = out.diagnostics[out.diagnostics.length - 1];
+      const firstRejection = out.diagnostics.find((event) => event.outcome === "rejected");
+      requestedTools.forEach((tool) => {
+        const terminal = tool.round === providerResponseCount - 1;
+        void recordEvent("provider_tool_result", { toolName: tool.name, callId: tool.callId, diagnostics: out.diagnostics }, { providerTransport: "responses_tools", toolName: tool.name, outcome: terminal ? last?.outcome : "rejected", code: terminal ? last?.code : firstRejection?.code });
+      });
 
       if (nonce !== turnNonceRef.current) return;
-      mergeLiveBankIntoWorkingState(workingState, stateRef.current);
+      mergeConversationBank(workingState, stateRef.current);
       stateRef.current = workingState;
-      appendCoachOutput(out, { replaceLastCoach: true });
+      appendCoachOutput(out, { replaceLastCoach: Boolean(mode) });
     } catch (e) {
       if (nonce !== turnNonceRef.current) return;
       const msg = e instanceof Error ? e.message : String(e);
@@ -3890,22 +3949,16 @@ export default function App() {
     }
   }
 
-  async function decideClaim(mirrorId: string, claimId: string, decision: "confirmed" | "declined") {
+  async function decideClaim(proposalId: string, claimId: string, decision: "confirmed" | "declined") {
     if (loading) return;
-    const pm = pendingMirrors.get(mirrorId);
-    if (!pm || pm.decisions[claimId] !== "pending") return;
-    const resolution = resolveMirrorDecision(pm.decisions, claimId, decision);
+    const proposal = proposals.get(proposalId);
+    if (!proposal || proposal.detail.kind !== "reflection" || proposal.detail.decisions[claimId] !== "pending") return;
+    const reflection = proposal.detail;
+    const resolution = resolveMirrorDecision(reflection.decisions, claimId, decision);
 
-    const claim = pm.reflection.claims.find((c) => c.id === claimId);
-    const declinedClaim =
-      decision === "declined"
-        ? claim
-        : pm.reflection.claims.find((c) => resolution.nextDecisions[c.id] === "declined");
-    const editedText = (pm.editedTexts[claimId] ?? claim?.text ?? "").trim();
+    const claim = reflection.reflection.claims.find((c) => c.id === claimId);
+    const editedText = (reflection.editedTexts[claimId] ?? claim?.text ?? "").trim();
     const finalText = editedText || claim?.text;
-    const declinedText = declinedClaim
-      ? (pm.editedTexts[declinedClaim.id] ?? declinedClaim.text).trim() || declinedClaim.text
-      : undefined;
     let confirmedReflection: ConfirmedReflection | undefined;
     if (decision === "confirmed") {
       if (claim && finalText) {
@@ -3918,115 +3971,89 @@ export default function App() {
             new Set(claim.sourceSpans.flatMap((s) => s.utteranceIds)),
           ),
           confirmedAt: Date.now(),
+          origin: proposal.origin,
+          contract: proposal.contract,
         };
       }
     }
 
-    setPendingMirrors((prev) => {
-      const pm = prev.get(mirrorId);
-      if (!pm) return prev;
-      const next = new Map(prev);
-      const updated: PendingMirror = {
-        ...pm,
-        decisions: resolution.nextDecisions,
-      };
-      next.set(mirrorId, updated);
-
-      // Remove the mirror card once all claims are decided.
-      if (resolution.allDecided) next.delete(mirrorId);
-
-      return next;
-    });
-
     if (confirmedReflection) {
-      captureMapUndo();
-      mapStoreRef.current.addFromReflection(confirmedReflection);
-      stateRef.current.openThreads = promoteOpenThreadsForUtterances(
-        stateRef.current.openThreads,
-        confirmedReflection.sourceUtteranceIds,
-      );
-      setConfirmed((prev) => [...prev, confirmedReflection]);
-      markUserMapChanged();
+      const appliedText = confirmedReflection.text;
+      const wasEdited = appliedText !== claim?.text;
+      if (!wasEdited && claim) {
+        const validation = validateMirror({ claims: [claim] }, stateRef.current.bank.getAll(), configRef.current);
+        if (!validation.ok) {
+          setProposals((current) => resolveProposal(current, proposalId, "invalidated", "The reflection evidence no longer validates."));
+          return;
+        }
+        captureMapUndo();
+        applyConfirmedReflection(confirmedReflection, mapStoreRef.current);
+        setConfirmed((prev) => [...prev, confirmedReflection]);
+        markUserMapChanged();
+        const event: DiagnosticEvent = { id: `d_${Date.now()}`, at: Date.now(), stage: "application", outcome: "applied", code: "reflection_claim_applied", detail: "Confirmed reflection claim passed the gateway and was added to the map." };
+        setDiagnostics((current) => [...current, event].slice(-100));
+        void recordEvent("map_mutated", { proposalId, claimId }, { origin: proposal.origin, outcome: "applied" });
+      } else {
+        captureMapUndo();
+        const ids = [stateRef.current.bank.add(appliedText, "declaration").id];
+        const action: ProposedAction = { kind: "create_card", text: appliedText, sourceUtteranceIds: ids };
+        const checked = inspectAction(action, { actor: "user_canvas", store: mapStoreRef.current, bank: stateRef.current.bank });
+        if (checked.status === "ready") {
+          applyGatewayActions([checked.action], mapStoreRef.current, stateRef.current.bank);
+          setConfirmed((prev) => [...prev, { ...confirmedReflection, sourceUtteranceIds: ids }]);
+          markUserMapChanged();
+        }
+      }
     }
-
-    if (resolution.allDecided && resolution.anyDeclined && declinedClaim) {
-      const text = `What wording should change before I carry "${declinedText ?? declinedClaim.text}" forward?`;
-      const repairOut: TurnOutput = {
-        mode: "clarify",
-        text,
-        llmTurn: { mode: "clarify", text },
-        questionStance: "narrow",
-      };
-      stateRef.current.mode = "clarify";
-      stateRef.current.turnsSinceLastMirror++;
-      // Only surface the user's OWN wording in Under the Hood - never the mirror
-      // claim's phrasing (which is AI-authored). Fall back to undefined so UTH
-      // shows a neutral "that idea" rather than leaking generated prose. (The
-      // chat message above may quote the claim; chat is not UTH-restricted.)
-      const declinedUserEdit =
-        (pm.editedTexts[declinedClaim.id] ?? "").trim() !== declinedClaim.text.trim()
-          ? (pm.editedTexts[declinedClaim.id] ?? "").trim()
-          : undefined;
-      stateRef.current.activeElicitation = {
-        kind: "clarify_after_failed_mirror",
-        targetPhrase: declinedUserEdit || undefined,
-      };
-      stateRef.current.prevAiText = stateRef.current.lastAiText;
-      stateRef.current.lastAiText = text;
-      const msgIdForTrace = ++msgId;
-      setMsgs((prev) => [
-        ...prev,
-        { id: msgIdForTrace, role: "assistant", text, mode: repairOut.mode, questionStance: repairOut.questionStance },
-      ]);
-      setUnderstandingSnapshot(buildUnderstandingForOutput(repairOut));
-      return;
-    }
-
-    if (resolution.shouldContinue) {
-      const nonce = ++turnNonceRef.current;
-      const continuationFocus = pm.reflection.claims
-        .filter((pendingClaim) => resolution.nextDecisions[pendingClaim.id] === "confirmed")
-        .map((pendingClaim) => (pm.editedTexts[pendingClaim.id] ?? pendingClaim.text).trim() || pendingClaim.text);
-      setLoading(true);
-      try {
-        const workingState = cloneLoopState(stateRef.current);
-        const out = await processTurn(
-          workingState,
-          "",
-          llmRef.current,
-          configRef.current,
-          "chat",
-          mapStoreRef.current.toLLMContext(),
-          { ingestUser: false, requireConnectionLabel, continuationFocus, selectedFocus },
-        );
-        if (nonce !== turnNonceRef.current) return;
-        mergeLiveBankIntoWorkingState(workingState, stateRef.current);
-        stateRef.current = workingState;
-        appendCoachOutput(out);
-      } catch (e) {
-        if (nonce !== turnNonceRef.current) return;
-        const msg = e instanceof Error ? e.message : String(e);
-        setError(msg);
-      } finally {
-        if (nonce === turnNonceRef.current) setLoading(false);
+    setProposals((current) => {
+      const existing = current.get(proposalId);
+      if (!existing || existing.detail.kind !== "reflection") return current;
+      return updateProposal(current, proposalId, { state: resolution.allDecided ? (resolution.anyConfirmed ? "confirmed" : "declined") : existing.state, detail: { ...existing.detail, decisions: resolution.nextDecisions } });
+    });
+    if (resolution.allDecided) {
+      void recordEvent("proposal_resolved", { proposalId, decision }, { origin: proposal.origin, outcome: resolution.anyConfirmed ? "confirmed" : "declined" });
+      if (resolution.shouldContinue) {
+        void requestMode(undefined, { proposalKind: "reflection", decision: "confirmed" }, mapRevision + 1);
       }
     }
   }
+  function editMirrorClaim(proposalId: string, claimId: string, text: string) {
+    setProposals((current) => {
+      const proposal = current.get(proposalId);
+      if (!proposal || proposal.detail.kind !== "reflection" || proposal.detail.decisions[claimId] !== "pending") return current;
+      return updateProposal(current, proposalId, { state: "edited", detail: { ...proposal.detail, editedTexts: { ...proposal.detail.editedTexts, [claimId]: text } } });
+    });
+  }
 
-  function editMirrorClaim(mirrorId: string, claimId: string, text: string) {
-    setPendingMirrors((prev) => {
-      const pm = prev.get(mirrorId);
-      if (!pm || pm.decisions[claimId] !== "pending") return prev;
-      const next = new Map(prev);
-      next.set(mirrorId, {
-        ...pm,
-        editedTexts: {
-          ...pm.editedTexts,
-          [claimId]: text,
-        },
-      });
+  function addComposerAsCard() {
+    const text = input.trim();
+    if (!text || loading) return;
+    const utterances = stateRef.current.bank.addSegmented(text, "chat");
+    const proposal: Proposal = {
+      id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      mapRevision,
+      referencedCardIds: [],
+      origin: "user_asserted",
+      contract: snapshotContract(contract),
+      state: "shown",
+      detail: {
+        kind: "map_action",
+        action: { kind: "create_card", text, sourceUtteranceIds: utterances.map((utterance) => utterance.id) },
+      },
+    };
+    const userId = ++msgId;
+    const coachId = ++msgId;
+    setMsgs((previous) => [
+      ...previous,
+      { id: userId, role: "user", text },
+      { id: coachId, role: "assistant", text: "Review this map change.", mode: "question", proposalId: proposal.id },
+    ]);
+    setProposals((current) => {
+      const next = new Map(current);
+      next.set(proposal.id, proposal);
       return next;
     });
+    setInput("");
   }
 
   function onKey(e: React.KeyboardEvent<HTMLTextAreaElement>) {
@@ -4042,6 +4069,19 @@ export default function App() {
     setDraftCollapsed(false);
   }
 
+  function pinDraftSelection() {
+    const text = draftSelectionFocus?.text.trim();
+    if (!text) return;
+    // Store a text snapshot, not a DOM range: edits and selection changes must
+    // not silently change the context the user deliberately pinned.
+    setStickyDraftFocus({ text });
+  }
+
+  function focusSummary(text: string): string {
+    const compact = text.replace(/\s+/g, " ").trim();
+    return compact.length > 90 ? `${compact.slice(0, 87)}…` : compact;
+  }
+
   function toggleDraftFromComposer() {
     if (draftDocked) {
       setDraftDocked(false);
@@ -4055,22 +4095,14 @@ export default function App() {
   function clearMapOnly() {
     turnNonceRef.current++;
     setLoading(false);
-    llmRef.current = makeLLM(() => configRef.current, buildConversationHistory(msgs));
     mapStoreRef.current = new ThoughtUnitStore();
     undoStackRef.current = [];
     setCanUndoMap(false);
     setCommandAck(null);
-    setPendingMirrors(new Map());
+    setProposals((current) => createProposalStore(Array.from(current.values()).map((proposal) => proposal.state === "shown" || proposal.state === "edited" ? { ...proposal, state: "invalidated", invalidReason: "The map was cleared." } : proposal)));
     setConfirmed([]);
-    stateRef.current.pendingMapCommand = undefined;
-    stateRef.current.organizeFocus = undefined;
-    stateRef.current.coverageFocus = undefined;
-    stateRef.current.pendingChildPlacement = undefined;
-    stateRef.current.activeElicitation = undefined;
-    stateRef.current.openThreads = reopenPromotedOpenThreads(stateRef.current.openThreads);
-    stateRef.current.pendingCardWording = undefined;
-    stateRef.current.captureLoop = undefined;
     setContextSelectedCardIds(new Set());
+    setStickyDraftFocus(undefined);
     setMapMountKey((key) => key + 1);
     markMapChanged();
   }
@@ -4078,11 +4110,11 @@ export default function App() {
   function clearDraftOnly() {
     turnNonceRef.current++;
     setLoading(false);
-    llmRef.current = makeLLM(() => configRef.current, buildConversationHistory(msgs));
     setDraftText("");
     setDraftHtml("");
     setHighlightAnchor(undefined);
     setDraftSelectionFocus(undefined);
+    setStickyDraftFocus(undefined);
     stateRef.current.draft = "";
   }
 
@@ -4090,21 +4122,18 @@ export default function App() {
     turnNonceRef.current++;
     setLoading(false);
     const draft = draftText;
-    stateRef.current = createState();
+    const referencedUtteranceIds = new Set(mapStoreRef.current.getAll().flatMap((unit) => unit.source.utteranceIds));
+    const retainedMapSources = stateRef.current.bank.getAll().filter((utterance) => referencedUtteranceIds.has(utterance.id));
+    stateRef.current = createConversationState();
+    stateRef.current.bank.replaceAll(retainedMapSources);
     stateRef.current.draft = draft;
-    llmRef.current = makeLLM(() => configRef.current);
-    setMsgs([
-      {
-        id: ++msgId,
-        role: "assistant",
-        text: "What are you trying to think through? Just start anywhere - there's no wrong place to begin.",
-        mode: "question",
-      },
-    ]);
-    setPendingMirrors(new Map());
+    setMsgs([]);
+    setProposals(createProposalStore());
+    setDiagnostics([]);
     setLastCoachDebug(null);
     setUnderstandingSnapshot(null);
     setHighlightAnchor(undefined);
+    setStickyDraftFocus(undefined);
     undoStackRef.current = [];
     setCanUndoMap(false);
     setCommandAck(null);
@@ -4147,25 +4176,56 @@ export default function App() {
               </datalist>
               <span>Map</span>
             </label>
+            <label className="assistance-contract">
+              <span>Help</span>
+              <select
+                aria-label="Assistance level"
+                value={assistanceLevel}
+                onChange={(event) => {
+                  const next = Number(event.target.value) as AssistanceLevel;
+                  setAssistanceLevel(next);
+                  void recordEvent("contract_changed", { from: assistanceLevel, to: next }, { contract: snapshotContract(contractForLevel(next)) });
+                }}
+              >
+                {([0, 1, 2] as AssistanceLevel[]).map((level) => (
+                  <option key={level} value={level}>{ASSISTANCE_CONTRACTS[level].label}</option>
+                ))}
+              </select>
+            </label>
           </div>
+
+          {!ledgerAvailable && <div className="error-banner">Local audit storage is unavailable in this browser.</div>}
 
           <div className="messages">
             {msgs.map((m) => (
               <div key={m.id} className={`msg ${m.role} ${m.mode ?? ""}`}>
                 <span className="msg-label">
                   {m.role === "user" ? "you" : "coach"}
+                  {m.role === "assistant" && <AssistantResponseKindBadge kind={m.responseKind} />}
                   {m.questionStance && (
                     <span className={`stance-chip stance-${m.questionStance}`}>{m.questionStance}</span>
                   )}
                 </span>
                 <div className="msg-bubble">{m.text}</div>
-                {m.mirrorId && pendingMirrors.has(m.mirrorId) && (
-                  <MirrorCard
-                    pm={pendingMirrors.get(m.mirrorId)!}
-                    onDecide={(claimId, d) => decideClaim(m.mirrorId!, claimId, d)}
-                    onEdit={(claimId, text) => editMirrorClaim(m.mirrorId!, claimId, text)}
-                  />
+                {m.role === "assistant" && m.questionAnchor && (
+                  <button className="anchor-view-btn" type="button" onClick={() => revealDraftAnchor(m.questionAnchor!)}>
+                    View passage
+                  </button>
                 )}
+                {m.proposalId && proposals.has(m.proposalId) && (proposals.get(m.proposalId)!.detail.kind === "reflection" ? (
+                    <MirrorCard
+                      proposal={proposals.get(m.proposalId)!}
+                      onDecide={(claimId, decision) => void decideClaim(m.proposalId!, claimId, decision)}
+                      onEdit={(claimId, text) => editMirrorClaim(m.proposalId!, claimId, text)}
+                    />
+                  ) : (
+                    <MapActionProposalCard
+                      proposal={proposals.get(m.proposalId)!}
+                      cards={mapStoreRef.current.getAll().filter((card) => card.role !== "connection_label")}
+                      onEdit={updateActionProposal}
+                      onDecide={decideActionProposal}
+                    />
+                  ))}
               </div>
             ))}
             {loading && (
@@ -4181,6 +4241,12 @@ export default function App() {
 
           <div className="input-area">
             {error && <div className="error-banner">{error}</div>}
+            {stickyDraftFocus && (
+              <div className="focus-chip" role="status">
+                <span className="focus-chip-text">Focusing on selected text: “{focusSummary(stickyDraftFocus.text)}”</span>
+                <button className="focus-chip-dismiss" type="button" onClick={() => setStickyDraftFocus(undefined)} aria-label="Stop focusing on selected text">×</button>
+              </div>
+            )}
             <div className="input-row">
               <textarea
                 ref={textareaRef}
@@ -4216,6 +4282,26 @@ export default function App() {
                   </button>
                 </div>
                 <div className="composer-action-tools">
+                  {draftSelectionFocus?.text.trim() && (
+                    <button
+                      className="draft-toggle-btn"
+                      type="button"
+                      title="Keep this selected draft text as the coach's focus until you dismiss it"
+                      onMouseDown={(event) => event.preventDefault()}
+                      onClick={pinDraftSelection}
+                    >
+                      Ask about this
+                    </button>
+                  )}
+                  <button
+                    className="draft-toggle-btn"
+                    type="button"
+                    title="Create a confirmable card from this wording"
+                    onClick={addComposerAsCard}
+                    disabled={loading || !input.trim()}
+                  >
+                    Add as card
+                  </button>
                   <button
                     className={`mic-btn ${speech.listening ? "live" : ""}`}
                     type="button"
@@ -4404,22 +4490,53 @@ export default function App() {
 // Mirror confirmation card
 // ---------------------------------------------------------------------------
 
-function MirrorCard({
-  pm,
+/**
+ * Heads-up badge shown when a proposal's wording echoes the coach's own prior
+ * message. Keeps L0's "your words" claim honest in the moment: the percentage
+ * is the share of the proposal's cited phrases that came back verbatim from the
+ * coach, and the tooltip lists them.
+ */
+export function InfluenceBadge({ influence }: { influence?: import("./assistance-contract").InfluenceTrace }) {
+  if (!influence || !influence.exactOverlapPhrases.length) return null;
+  const pct = Number.isFinite(influence.overlapRatio) ? Math.round(influence.overlapRatio! * 100) : undefined;
+  return (
+    <span
+      className="influence-badge"
+      title={`This wording echoes your coach's previous message: "${influence.exactOverlapPhrases.join('", "')}"`}
+    >
+      Echoes coach{pct === undefined ? "" : ` · ${pct}%`}
+    </span>
+  );
+}
+
+export function AssistantResponseKindBadge({ kind }: { kind?: AssistantResponse["kind"] }) {
+  if (kind !== "suggestion") return null;
+  return <span className="ai-suggestion-badge">AI suggestion</span>;
+}
+
+export function MirrorCard({
+  proposal,
   onDecide,
   onEdit,
 }: {
-  pm: PendingMirror;
+  proposal: Proposal;
   onDecide: (claimId: string, decision: "confirmed" | "declined") => void;
   onEdit: (claimId: string, text: string) => void;
 }) {
+  if (proposal.detail.kind !== "reflection") return null;
+  if (proposal.state === "invalidated") return <div className="mirror-card"><span className="mirror-card-label">This proposal is no longer valid: {proposal.invalidReason}</span></div>;
+  if (proposal.state === "confirmed" || proposal.state === "declined" || proposal.state === "cancelled") return null;
+  const reflection = proposal.detail;
   return (
     <div className="mirror-card">
-      <span className="mirror-card-label">Edit if needed, then confirm</span>
+      <div className="mirror-card-head">
+        <span className="mirror-card-label">Here&apos;s the structure in your words — edit if needed, then confirm</span>
+        <InfluenceBadge influence={proposal.influenceTrace} />
+      </div>
       <div className="mirror-claims">
-        {pm.reflection.claims.map((claim, index) => {
-          const decision = pm.decisions[claim.id] ?? "pending";
-          const text = pm.editedTexts[claim.id] ?? claim.text;
+        {reflection.reflection.claims.map((claim, index) => {
+          const decision = reflection.decisions[claim.id] ?? "pending";
+          const text = reflection.editedTexts[claim.id] ?? claim.text;
           const claimNumber = index + 1;
           return (
             <div key={claim.id} className="claim-row">
@@ -4460,6 +4577,128 @@ function MirrorCard({
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function newSessionId(): string {
+  return typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+}
+
+export function migrateStoredProposals(items: Proposal[], bank: ConversationState["bank"], store: ThoughtUnitStore): Proposal[] {
+  const contract = snapshotContract(DEFAULT_ASSISTANCE_CONTRACT);
+  return items.map((proposal) => {
+    const normalized = { ...proposal, influenceTrace: normalizeInfluenceTrace(proposal.influenceTrace) };
+    if ((normalized.state === "shown" || normalized.state === "edited") && normalized.detail.kind === "map_action") {
+      const mapDetail = normalized.detail;
+      if (mapDetail.action.kind === "connect_cards" && !mapDetail.action.labelText?.trim() && !mapDetail.pairingProof && !(mapDetail.completion?.kind === "relationship_label" && mapDetail.completion.pairingProof)) {
+        return { ...normalized, state: "invalidated", invalidReason: "This earlier connection proposal lacks durable pairing evidence." };
+      }
+    }
+    if (normalized.contract && normalized.origin) {
+      if ((normalized.state === "shown" || normalized.state === "edited") && normalized.origin === "unresolved") {
+        return { ...normalized, state: "invalidated", invalidReason: normalized.invalidReason ?? "This earlier-version proposal needs to be created again." };
+      }
+      return normalized;
+    }
+    if (normalized.state !== "shown" && normalized.state !== "edited") {
+      return { ...normalized, origin: "legacy_confirmed", contract };
+    }
+    if (normalized.attribution !== "asserted") {
+      return { ...normalized, origin: "unresolved", contract, state: "invalidated", invalidReason: normalized.invalidReason ?? "This earlier-version proposal needs to be created again." };
+    }
+    if (normalized.detail.kind === "reflection") {
+      const valid = validateMirror(normalized.detail.reflection, bank.getAll(), defaultConfig).ok;
+      return valid
+        ? { ...normalized, origin: "user_asserted", contract }
+        : { ...normalized, origin: "unresolved", contract, state: "invalidated", invalidReason: "This earlier reflection no longer validates." };
+    }
+    const check = inspectAction(normalized.detail.action, { actor: "ai_proposal", store, bank, requireConnectionLabel: true, allowAiSuggestedStructure: false });
+    return check.status !== "ready"
+      ? { ...normalized, origin: "unresolved", contract, state: "invalidated", invalidReason: check.detail }
+      : { ...normalized, origin: check.origin ?? "user_asserted", contract };
+  });
+}
+
+export function MapActionProposalCard({
+  proposal,
+  cards,
+  onEdit,
+  onDecide,
+}: {
+  proposal: Proposal;
+  cards: ThoughtUnit[];
+  onEdit: (id: string, action: ProposedAction) => void;
+  onDecide: (id: string, decision: "confirmed" | "declined") => void;
+}) {
+  if (proposal.detail.kind !== "map_action") return null;
+  const { action } = proposal.detail;
+  const completion = proposal.detail.completion;
+  if (proposal.state === "confirmed" || proposal.state === "declined" || proposal.state === "cancelled") return null;
+  if (proposal.state === "invalidated") {
+    return <div className="mirror-card"><span className="mirror-card-label">This proposal is no longer valid: {proposal.invalidReason}</span></div>;
+  }
+  const visibleCards = completion?.kind === "reference_choice"
+    ? cards.filter((card) => completion.candidates.some((candidate) => candidate.id === card.id))
+    : cards;
+  const cardOptions = (
+    <option value="">Choose an existing card…</option>
+  );
+  const selectRef = (
+    value: string | undefined,
+    onChange: (id: string) => void,
+    label: string,
+  ) => (
+    <label className="claim-row">
+      <span className="claim-text">{label}</span>
+      <select value={value ?? ""} onChange={(event) => onChange(event.target.value)}>
+        {cardOptions}
+        {visibleCards.map((card) => <option key={card.id} value={card.id}>{card.text || "Untitled card"}</option>)}
+      </select>
+    </label>
+  );
+  const renderEditor = () => {
+    if (action.kind === "create_card") {
+      return <textarea className="claim-text claim-editor" value={action.text} rows={3} onChange={(event) => onEdit(proposal.id, { ...action, text: event.target.value })} />;
+    }
+    if (action.kind === "edit_card") {
+      return <textarea className="claim-text claim-editor" value={action.text} rows={3} onChange={(event) => onEdit(proposal.id, { ...action, text: event.target.value })} />;
+    }
+    if (action.kind === "nest_card") {
+      return <>
+        {selectRef(action.child.id, (id) => onEdit(proposal.id, { ...action, child: { id } }), "Card to place")}
+        {selectRef(action.parent.id, (id) => onEdit(proposal.id, { ...action, parent: { id } }), "Parent card")}
+      </>;
+    }
+    return <>
+      {selectRef(action.source.id, (id) => onEdit(proposal.id, { ...action, source: { id } }), "From")}
+      {selectRef(action.target.id, (id) => onEdit(proposal.id, { ...action, target: { id } }), "To")}
+      <textarea className="claim-text claim-editor" value={action.labelText ?? ""} placeholder="Relationship wording" rows={2} onChange={(event) => onEdit(proposal.id, { ...action, labelText: event.target.value, labelOrigin: action.labelOrigin === "ai_suggested" ? "ai_suggested" : "user_asserted" })} />
+      {completion?.kind === "relationship_label" && completion.options.length > 0 && (
+        <div className="claim-btns">
+          {completion.options.map((option, index) => <button key={`${option.text}-${index}`} className="btn btn-decline-sm" onClick={() => onEdit(proposal.id, { ...action, labelText: option.text, labelSourceUtteranceIds: option.sourceUtteranceIds, labelOrigin: option.origin })}>{option.origin === "ai_suggested" ? `AI suggestion: ${option.text}` : option.text}</button>)}
+        </div>
+      )}
+    </>;
+  };
+  const complete = action.kind === "create_card" || action.kind === "edit_card"
+    ? Boolean(action.text.trim())
+    : action.kind === "nest_card"
+      ? Boolean(action.child.id && action.parent.id)
+      : Boolean(action.source.id && action.target.id && (completion?.kind !== "relationship_label" || action.labelText?.trim()));
+  return (
+    <div className="mirror-card">
+      <div className="mirror-card-head">
+        <span className="mirror-card-label">{proposal.origin === "ai_suggested" ? "AI suggestion — review before adding" : "Review this map change"}</span>
+        <InfluenceBadge influence={proposal.influenceTrace} />
+      </div>
+      {renderEditor()}
+      <div className="claim-btns">
+        <button className="btn btn-confirm-sm" disabled={!complete} onClick={() => onDecide(proposal.id, "confirmed")}>Confirm</button>
+        <button className="btn btn-decline-sm" onClick={() => onDecide(proposal.id, "declined")}>Dismiss</button>
       </div>
     </div>
   );

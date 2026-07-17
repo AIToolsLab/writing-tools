@@ -7,6 +7,7 @@ import type {
   ThoughtUnit,
   ThoughtUnitRole,
 } from "./types";
+import type { AssistanceContractSnapshot, ContributionOrigin } from "./assistance-contract";
 
 export interface XYPosition {
   x: number;
@@ -56,6 +57,11 @@ export interface ThoughtConnection {
   labelUtteranceId?: string;
   confirmedAt: number;
   createdBy: "user";
+  origin?: ContributionOrigin | "user_canvas";
+  contract?: AssistanceContractSnapshot;
+  /** Pairing and wording are independent: completing a label cannot launder an AI-selected pair. */
+  pairingOrigin?: ContributionOrigin;
+  labelOrigin?: ContributionOrigin;
 }
 
 export type ConnectionLayoutDirection = "none" | "source_to_target" | "target_to_source";
@@ -260,6 +266,8 @@ export class ThoughtUnitStore {
         reflectionId: reflection.id,
         utteranceIds: [...reflection.sourceUtteranceIds],
         createdBy: "ai_from_reflection",
+        origin: reflection.origin ?? "user_asserted",
+        contract: reflection.contract,
       },
       roleHistory: [roleEntry("node", "ai_proposed_user_confirmed")],
     };
@@ -280,6 +288,7 @@ export class ThoughtUnitStore {
       source: {
         utteranceIds: [utterance.id],
         createdBy: "user",
+        origin: "user_canvas",
       },
       roleHistory: [roleEntry("node", "user")],
     };
@@ -299,6 +308,7 @@ export class ThoughtUnitStore {
       source: {
         utteranceIds: [],
         createdBy: "user",
+        origin: "user_canvas",
       },
       roleHistory: [roleEntry("node", "user")],
     };
@@ -416,6 +426,29 @@ export class ThoughtUnitStore {
     return rootId;
   }
 
+  addAiSuggestedCard(
+    text: string,
+    contract?: AssistanceContractSnapshot,
+    position: XYPosition = this.nextRootPosition(),
+  ): ThoughtUnit {
+    return this.add({
+      id: nextId("tu"),
+      text,
+      role: "node",
+      source: { utteranceIds: [], createdBy: "ai_from_reflection", origin: "ai_suggested", contract },
+      roleHistory: [roleEntry("node", "ai_proposed_user_confirmed")],
+    }, position);
+  }
+
+  editAiSuggestedText(id: string, text: string, contract?: AssistanceContractSnapshot): ThoughtUnit | undefined {
+    const current = this._units.get(id);
+    if (!current) return undefined;
+    return this.update(id, {
+      text,
+      source: { ...current.source, origin: "ai_suggested", contract },
+    });
+  }
+
   /**
    * A connection may only ever point at a root card - only the parent can have
    * a connector attached. Called whenever `id` becomes nested: any connection
@@ -450,6 +483,7 @@ export class ThoughtUnitStore {
       parentId,
       roleHistory: [...current.roleHistory, roleEntry(nextRole, "user")],
     };
+    delete next.parentProvenance;
     if (!parentId) delete next.parentId;
     this._units.set(id, next);
     // Only the parent (root) can have a connector attached: whenever a card
@@ -518,6 +552,9 @@ export class ThoughtUnitStore {
     targetHandleId,
     layoutDirection,
     position,
+    provenance,
+    relationshipProvenance,
+    recordInSourceBank = true,
   }: {
     sourceId: string;
     targetId: string;
@@ -528,6 +565,9 @@ export class ThoughtUnitStore {
     targetHandleId?: string | null;
     layoutDirection?: ConnectionLayoutDirection;
     position?: XYPosition;
+    provenance?: { origin: ContributionOrigin | "user_canvas"; contract?: AssistanceContractSnapshot };
+    relationshipProvenance?: { pairingOrigin: ContributionOrigin; labelOrigin: ContributionOrigin };
+    recordInSourceBank?: boolean;
   }): RegisteredConnection | undefined {
     const rootSourceId = this.connectableRootId(sourceId);
     const rootTargetId = this.connectableRootId(targetId);
@@ -535,7 +575,7 @@ export class ThoughtUnitStore {
     const handles = this.connectionHandlesFor(rootSourceId, rootTargetId, sourceHandleId, targetHandleId);
     const trimmed = text.trim();
     // Wording is optional. Only write to the bank when there is actually wording.
-    const utterance = trimmed
+    const utterance = trimmed && recordInSourceBank
       ? labelUtteranceId
         ? bank.get(labelUtteranceId) ?? bank.add(trimmed, "declaration")
         : bank.add(trimmed, "declaration")
@@ -549,6 +589,8 @@ export class ThoughtUnitStore {
       source: {
         utteranceIds: utterance ? [utterance.id] : [],
         createdBy: "user",
+        origin: provenance?.origin ?? "user_canvas",
+        contract: provenance?.contract,
       },
       roleHistory: [roleEntry("connection_label", "user")],
     };
@@ -565,6 +607,10 @@ export class ThoughtUnitStore {
       labelUtteranceId: utterance?.id,
       confirmedAt: Date.now(),
       createdBy: "user",
+      origin: provenance?.origin ?? "user_canvas",
+      contract: provenance?.contract,
+      pairingOrigin: relationshipProvenance?.pairingOrigin,
+      labelOrigin: relationshipProvenance?.labelOrigin,
     };
     this._connections.set(connection.id, connection);
     return { connection, labelUnit, utterance };

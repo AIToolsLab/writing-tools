@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { segment, stem } from "./normalize";
+import { containsWholePhrase, segment, stem } from "./normalize";
 
 describe("segment", () => {
   it("splits a multi-sentence block into units", () => {
@@ -26,5 +26,15 @@ describe("stem (variant convergence)", () => {
   });
   it("converges node / nodes", () => {
     expect(stem("node")).toBe(stem("nodes"));
+  });
+});
+
+describe("containsWholePhrase", () => {
+  it("does not treat a phrase as a substring of another word", () => {
+    expect(containsWholePhrase("thunder is underrated", "under")).toBe(false);
+  });
+
+  it("permits normalized punctuation and case differences", () => {
+    expect(containsWholePhrase("Human-control matters.", "human control")).toBe(true);
   });
 });

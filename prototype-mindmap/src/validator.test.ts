@@ -13,8 +13,9 @@ function claim(
   text: string,
   spans: MirrorClaim["sourceSpans"],
   target: MirrorClaim["target"] = "idea",
+  relationSpan?: MirrorClaim["relationSpan"],
 ): MirrorClaim {
-  return { id: `c-${text.slice(0, 8)}`, text, candidateId: "cand", target, sourceSpans: spans };
+  return { id: `c-${text.slice(0, 8)}`, text, candidateId: "cand", target, sourceSpans: spans, relationSpan };
 }
 
 function checkOf(
@@ -124,6 +125,7 @@ describe("mirror validator — 3 checks", () => {
             },
           ],
           "connection",
+          { utteranceId: bank[0].id, text: "depends on" },
         ),
       ],
     };
@@ -203,6 +205,7 @@ describe("mirror validator — 3 checks", () => {
             { claimText: "confirmation", utteranceIds: [bank[1].id], userPhrase: "the confirmation" },
           ],
           "connection",
+          { utteranceId: bank[0].id, text: "depends on" },
         ),
       ],
     };
@@ -225,6 +228,7 @@ describe("mirror validator — 3 checks", () => {
             },
           ],
           "connection",
+          { utteranceId: bank[0].id, text: "depends on" },
         ),
       ],
     };
@@ -259,6 +263,7 @@ describe("mirror validator — 3 checks", () => {
             },
           ],
           "connection",
+          { utteranceId: bank[0].id, text: "depends on" },
         ),
       ],
     };
@@ -312,6 +317,7 @@ describe("mirror validator — 3 checks", () => {
             },
           ],
           "connection",
+          { utteranceId: bank[0].id, text: "depends on" },
         ),
       ],
     };

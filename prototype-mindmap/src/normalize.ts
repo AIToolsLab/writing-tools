@@ -33,6 +33,19 @@ export function tokenize(text: string): string[] {
 }
 
 /**
+ * Tests whether a normalized phrase occurs as a run of complete tokens.
+ *
+ * This deliberately does not use raw substring matching: "under" must not
+ * validate against "thunder" or "underrated". Normalization still permits
+ * harmless case, punctuation, quote, and spacing differences.
+ */
+export function containsWholePhrase(haystack: string, phrase: string): boolean {
+  const normalizedHaystack = normalize(haystack);
+  const normalizedPhrase = normalize(phrase);
+  return Boolean(normalizedPhrase) && ` ${normalizedHaystack} `.includes(` ${normalizedPhrase} `);
+}
+
+/**
  * Function words and common conversational glue. A word classified as a
  * stopword is "structural glue": the AI may use it freely without it counting
  * against the unsupported-word budget, because it carries no idea.

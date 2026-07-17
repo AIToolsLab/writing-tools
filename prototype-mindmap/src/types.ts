@@ -37,19 +37,6 @@ export interface SourceUtterance {
 
 export type CandidateTarget = "idea" | "hierarchy" | "connection";
 
-/** One instance of relational/containment language the user produced. */
-export interface RelationSignal {
-  /** The user phrase carrying the relationship, e.g. "sits inside". */
-  phrase: string;
-  utteranceId: string;
-  /**
-   * True when the user introduced this relational language unprompted; false
-   * when it echoed the AI's immediately preceding question. Spontaneous signals
-   * are stronger evidence that the structure is actually in the user's head.
-   */
-  spontaneous: boolean;
-}
-
 /**
  * Evidence of an emerging idea, hierarchy, or connection. This is a hypothesis,
  * not a node. It only becomes structure after the user confirms a reflection
@@ -60,8 +47,6 @@ export interface CandidateThought {
   target: CandidateTarget;
   /** User utterances that contributed evidence for this candidate. */
   evidenceUtteranceIds: string[];
-  /** Relational language gathered for this candidate (empty for pure "idea"). */
-  relationSignals: RelationSignal[];
   /** Free-text gist the AI is tracking internally; never shown as-is to the user. */
   gist: string;
 }
@@ -88,6 +73,12 @@ export interface MirrorClaim {
   candidateId: string;
   target: CandidateTarget;
   sourceSpans: SourceSpan[];
+  /**
+   * Required for hierarchy/connection assertions. The model must point at the
+   * exact connective it relied on; validation verifies that pointer rather than
+   * consulting a fixed relationship word list.
+   */
+  relationSpan?: { utteranceId: string; text: string };
 }
 
 /** A full mirror attempt: one or more chunked claims submitted to the validator. */
@@ -139,19 +130,6 @@ export interface MirrorValidationResult {
 // Readiness — whether a candidate may be mirrored yet
 // ---------------------------------------------------------------------------
 
-export type ReadinessDecision = "attempt_mirror" | "ask_clarifying_question";
-
-export interface ReadinessSignal {
-  candidateId: string;
-  target: CandidateTarget;
-  sourceDensity: number;
-  relationClarity: number;
-  unsupportedRisk: number;
-  decision: ReadinessDecision;
-  /** When decision is to clarify, which signal was weak/missing. */
-  reason: string;
-}
-
 // ---------------------------------------------------------------------------
 // Confirmed structure — only the user can author this
 // ---------------------------------------------------------------------------
@@ -165,8 +143,10 @@ export interface ConfirmedReflection {
   text: string;
   candidateId: string;
   target: CandidateTarget;
-  sourceUtteranceIds: string[];
+ sourceUtteranceIds: string[];
   confirmedAt: number;
+  origin?: import("./assistance-contract").ContributionOrigin;
+  contract?: import("./assistance-contract").AssistanceContractSnapshot;
 }
 
 /**
@@ -188,11 +168,18 @@ export interface ThoughtUnit {
   text: string;
   role: ThoughtUnitRole;
   parentId?: string;
+  /** Provenance of the nesting relationship, kept separate from card wording. */
+  parentProvenance?: {
+    origin: import("./assistance-contract").ContributionOrigin | "user_canvas";
+    contract?: import("./assistance-contract").AssistanceContractSnapshot;
+  };
   /** Provenance: every unit traces to user words and (if AI-captured) a reflection. */
   source: {
     reflectionId?: string;
     utteranceIds: string[];
     createdBy: "user" | "ai_from_reflection";
+    origin?: import("./assistance-contract").ContributionOrigin | "user_canvas";
+    contract?: import("./assistance-contract").AssistanceContractSnapshot;
   };
   roleHistory: RoleHistoryEntry[];
 }

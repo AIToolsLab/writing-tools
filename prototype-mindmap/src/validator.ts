@@ -20,6 +20,7 @@
 
 import type { MindmapConfig } from "./config";
 import {
+  containsWholePhrase,
   contentTokens,
   isStopword,
   normalize,
@@ -27,7 +28,6 @@ import {
   stemSet,
   tokenize,
 } from "./normalize";
-import { CONTAINMENT_TERMS, RELATION_TERMS } from "./signals";
 import type {
   ClaimValidation,
   MirrorCheckResult,
@@ -88,12 +88,6 @@ function checkLexicalGrounding(
   };
 }
 
-/** Whole-word/phrase membership test (avoids "under" matching "thunder"). */
-function phraseHasTerm(phrase: string, terms: string[]): boolean {
-  const padded = ` ${normalize(phrase)} `;
-  return terms.some((term) => padded.includes(` ${term} `));
-}
-
 /**
  * Is a span's user phrase grounded within a SINGLE cited utterance (not the
  * union of several)? Relationships must have been stated in one breath, so the
@@ -122,10 +116,10 @@ function spanGroundedInSingleUtterance(
  * user-phrase's content words actually present in those utterances. A claim with
  * no spans is ungrounded by definition.
  *
- * For hierarchy/connection claims there is an additional binding requirement:
- * at least one span must itself carry the user's relational/containment wording
- * AND be grounded in a single utterance. This blocks the evasion of citing each
- * entity separately while the *relationship* between them is the AI's invention.
+ * For hierarchy/connection claims there is an additional pointer requirement:
+ * the model declares the literal connective it relied on and code verifies it
+ * against one source utterance.  No relation-word bank participates in this
+ * enforcement path.
  */
 
 /**
@@ -144,23 +138,22 @@ function claimRelationStatedInOneUtterance(
   claim: MirrorClaim,
   bank: Map<string, SourceUtterance>,
   threshold: number,
-  terms: string[],
 ): boolean {
+  const relation = claim.relationSpan;
+  if (!relation?.text.trim()) return false;
+  const utterance = bank.get(relation.utteranceId)?.text;
+  if (
+    !utterance ||
+    !containsWholePhrase(utterance, relation.text) ||
+    !containsWholePhrase(claim.text, relation.text)
+  ) {
+    return false;
+  }
   const content = contentTokens(claim.text);
   if (content.length === 0) return false;
-  const claimNorm = ` ${normalize(claim.text)} `;
-  const claimTerms = terms.filter((term) => claimNorm.includes(` ${term} `));
-  const citedIds = new Set(claim.sourceSpans.flatMap((span) => span.utteranceIds));
-  for (const id of citedIds) {
-    const text = bank.get(id)?.text;
-    if (!text || !phraseHasTerm(text, terms)) continue;
-    const utteranceNorm = ` ${normalize(text)} `;
-    if (!claimTerms.every((term) => utteranceNorm.includes(` ${term} `))) continue;
-    const uStems = stemSet([text]);
-    const grounded = content.filter((tok) => uStems.has(stem(tok)));
-    if (ratio(grounded.length, content.length) >= threshold) return true;
-  }
-  return false;
+  const uStems = stemSet([utterance]);
+  const grounded = content.filter((tok) => uStems.has(stem(tok)));
+  return ratio(grounded.length, content.length) >= threshold;
 }
 function tentativeEvidenceRe(cfg: MindmapConfig): RegExp {
   return new RegExp(cfg.mirror.tentativeEvidencePattern, "i");
@@ -188,20 +181,13 @@ function checkTentativeUncertainty(
     };
   }
 
-  const mapOk = cfg.pacing.mapPressure >= cfg.mirror.tentativeMirrorMapPressureMin;
   const preservesUncertainty = tentativeEvidenceRe(cfg).test(claim.text);
   return {
     check: "tentative_uncertainty",
-    ok: mapOk && preservesUncertainty,
-    score: cfg.pacing.mapPressure,
-    threshold: cfg.mirror.tentativeMirrorMapPressureMin,
+    ok: preservesUncertainty,
+    score: preservesUncertainty ? 1 : 0,
+    threshold: 1,
     parts: [
-      {
-        name: "map_pressure",
-        ok: mapOk,
-        score: cfg.pacing.mapPressure,
-        threshold: cfg.mirror.tentativeMirrorMapPressureMin,
-      },
       {
         name: "uncertainty_preserved",
         ok: preservesUncertainty,
@@ -245,17 +231,19 @@ function checkSpanGrounding(
   // Relationship binding for relational targets.
   let relationshipOk = true;
   if (claim.target === "hierarchy" || claim.target === "connection") {
-    const terms = claim.target === "hierarchy" ? CONTAINMENT_TERMS : RELATION_TERMS;
+    const relation = claim.relationSpan;
     relationshipOk =
+      !!relation &&
       claim.sourceSpans.some(
-        (s) =>
-          phraseHasTerm(s.userPhrase, terms) &&
-          spanGroundedInSingleUtterance(s, bank, threshold),
-      ) && claimRelationStatedInOneUtterance(claim, bank, threshold, terms);
+        (span) =>
+          span.utteranceIds.includes(relation.utteranceId) &&
+          spanGroundedInSingleUtterance(span, bank, threshold),
+      ) &&
+      claimRelationStatedInOneUtterance(claim, bank, threshold);
     if (!relationshipOk) {
       // Point Clarify Mode at the relational gap.
       weakest =
-        claim.sourceSpans.find((s) => phraseHasTerm(s.userPhrase, terms)) ??
+        claim.sourceSpans.find((s) => s.utteranceIds.includes(relation?.utteranceId ?? "")) ??
         weakest ??
         claim.sourceSpans[0];
     }

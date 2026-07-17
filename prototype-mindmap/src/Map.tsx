@@ -25,6 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { computeAutoCleanPositions, computeConnectionHandles } from "./map-layout";
+import { executeCanvasAction, type CanvasAction } from "./action-gateway";
 import type { ConnectionLayoutDirection, ThoughtUnitStore, XYBounds, XYPosition, XYSize } from "./map-store";
 import type { SourceBank } from "./store";
 import { cardRef } from "./store";
@@ -84,6 +85,7 @@ interface ConnectionEdgeData extends Record<string, unknown> {
   targetRef?: string;
   sourceText?: string;
   targetText?: string;
+  origin?: import("./assistance-contract").ContributionOrigin | "user_canvas";
 }
 
 /** Id-based actions shared by a card and every card embedded inside it. */
@@ -281,6 +283,8 @@ function sourceLabel(unit: ThoughtUnit): string {
   const utterances = unit.source.utteranceIds.length
     ? unit.source.utteranceIds.join(", ")
     : "none";
+  if (unit.source.origin === "ai_suggested") return `AI suggestion; source utterances: ${utterances}`;
+  if (unit.source.origin === "legacy_confirmed") return `confirmed in an earlier version; source utterances: ${utterances}`;
   if (unit.source.reflectionId) {
     return `reflection ${unit.source.reflectionId}; source utterances: ${utterances}`;
   }
@@ -456,6 +460,8 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
       />
       <div className="map-embed-actions nodrag">
         <span className="map-embed-ref" title="Card reference">{cardRef(unit.id)}</span>
+        {unit.parentProvenance?.origin === "ai_suggested" && <span className="map-origin-badge" aria-label="AI-suggested nesting">AI nesting</span>}
+        {unit.source.origin === "ai_suggested" && <span className="map-origin-badge" aria-label="AI suggestion">AI suggestion</span>}
         <button type="button" onClick={() => setExpanded((value) => !value)} title={expanded ? "Collapse card text" : "Expand card text"}>
           {expanded ? "Less" : "More"}
         </button>
@@ -584,6 +590,7 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
 
       <div className="map-card-actions nodrag">
         <span className="map-source-dot" aria-label={data.sourceLabel} />
+        {unit.source.origin === "ai_suggested" && <span className="map-origin-badge" aria-label="AI suggestion">AI suggestion</span>}
       </div>
 
       {children.length > 0 && (
@@ -649,6 +656,7 @@ function ConnectionEdge({
   const targetRef = edgeData?.targetRef ?? "target";
   const sourceText = edgeData?.sourceText ?? "";
   const targetText = edgeData?.targetText ?? "";
+  const aiSuggested = edgeData?.origin === "ai_suggested";
 
   // Concrete direction choices named by real card refs, so the user can tell
   // which card feeds into which instead of abstract "source/target".
@@ -679,13 +687,14 @@ function ConnectionEdge({
           <button
             type="button"
             className={`edge-badge ${open ? "active" : ""}`}
-            title={label || "connection"}
+            title={`${aiSuggested ? "AI-suggested connection" : "connection"}${label ? `: ${label}` : ""}`}
             onClick={() => setOpen((o) => !o)}
           >
-            {open ? "×" : "↔"}
+            {open ? "×" : aiSuggested ? "AI" : "↔"}
           </button>
           {open && (
             <div className="edge-popover" role="dialog" aria-label="Connection">
+              {aiSuggested && <span className="map-origin-badge" aria-label="AI-suggested connection">AI suggestion</span>}
               <div className="edge-popover-cards">
                 <span className="edge-popover-card"><b>{sourceRef}</b> {shortenEdgeText(sourceText)}</span>
                 <span className="edge-popover-card"><b>{targetRef}</b> {shortenEdgeText(targetText)}</span>
@@ -768,59 +777,60 @@ function ThoughtMapInner({
   const visibleCardCount = store.getAll().filter((unit) => unit.role !== "connection_label").length;
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [connectionPanelKey, setConnectionPanelKey] = useState(0);
+  const dispatchCanvas = useCallback((action: CanvasAction) => executeCanvasAction(action, { store, bank }), [bank, store]);
 
   const commitText = useCallback(
     (id: string, text: string) => {
       onBeforeMapChange();
-      store.editText(id, text, bank);
+      dispatchCanvas({ kind: "edit_card", id, text });
       onStoreChange();
     },
-    [bank, onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange],
   );
 
   const pullOut = useCallback(
     (id: string) => {
       onBeforeMapChange();
-      store.setParent(id, undefined, "node");
+      dispatchCanvas({ kind: "set_parent", id, role: "node" });
       onStoreChange();
     },
-    [onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange],
   );
 
   const promote = useCallback(
     (id: string) => {
       onBeforeMapChange();
-      store.swapTitle(id);
+      dispatchCanvas({ kind: "swap_title", id });
       onStoreChange();
     },
-    [onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange],
   );
 
   const deleteCard = useCallback(
     (id: string) => {
       onBeforeMapChange();
-      store.delete(id);
+      dispatchCanvas({ kind: "delete_card", id });
       onStoreChange();
     },
-    [onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange],
   );
 
   const deleteConnection = useCallback(
     (id: string) => {
       onBeforeMapChange();
-      store.deleteConnection(id);
+      dispatchCanvas({ kind: "delete_connection", id });
       onStoreChange();
     },
-    [onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange],
   );
 
   const setConnectionDirection = useCallback(
     (id: string, direction: ConnectionLayoutDirection) => {
       onBeforeMapChange();
-      store.setConnectionLayoutDirection(id, direction);
+      dispatchCanvas({ kind: "set_connection_direction", id, layoutDirection: direction });
       onStoreChange();
     },
-    [onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange],
   );
 
   // Auto-clean: tidy scattered root-level cards using direction-aware placement.
@@ -841,7 +851,7 @@ function ThoughtMapInner({
 
     onBeforeMapChange();
     for (const [id, position] of Object.entries(nextPositions)) {
-      store.setPosition(id, position);
+      dispatchCanvas({ kind: "move_card", id, position });
     }
 
     // Route connectors onto the facing sides for the new geometry so lines don't
@@ -865,14 +875,14 @@ function ThoughtMapInner({
       rootOf,
     });
     for (const assignment of handleAssignments) {
-      store.setConnectionHandles(assignment.connectionId, assignment.sourceHandleId, assignment.targetHandleId);
+      dispatchCanvas({ kind: "set_connection_handles", id: assignment.connectionId, sourceHandleId: assignment.sourceHandleId, targetHandleId: assignment.targetHandleId });
     }
 
     onStoreChange();
 
     // Re-frame the tidied map after the nodes re-render.
     setTimeout(() => flow.fitView({ padding: 0.2 }), 0);
-  }, [flow, onBeforeMapChange, onStoreChange, store]);
+  }, [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, store]);
 
   const resizeStart = useCallback(
     (
@@ -914,8 +924,8 @@ function ThoughtMapInner({
           nextY = startPosition.y + (startSize.h - nextH);
         }
 
-        store.setPosition(id, { x: nextX, y: nextY });
-        store.setSize(id, { w: nextW, h: nextH });
+        dispatchCanvas({ kind: "move_card", id, position: { x: nextX, y: nextY } });
+        dispatchCanvas({ kind: "resize_card", id, size: { w: nextW, h: nextH } });
         onStoreChange();
       };
 
@@ -927,7 +937,7 @@ function ThoughtMapInner({
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
     },
-    [flow, onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, store],
   );
 
   const getChildren = useCallback(
@@ -955,7 +965,9 @@ function ThoughtMapInner({
     const visibleSlot = viewportBounds ? store.nextRootPositionWithin(viewportBounds) : undefined;
     // Prefer a free slot inside the visible canvas before falling back to the
     // wider map placement search.
-    const unit = store.addBlankUserCard(visibleSlot);
+    const result = dispatchCanvas({ kind: "create_blank_card", position: visibleSlot });
+    const unit = result.status === "applied" && result.cardId ? store.get(result.cardId) : undefined;
+    if (!unit) return;
     onStoreChange();
 
     // If the free slot fell outside the current view (canvas is cluttered),
@@ -973,7 +985,7 @@ function ThoughtMapInner({
     if (!fullyVisible) {
       setTimeout(() => flow.fitView({ padding: 0.2 }), 0);
     }
-  }, [flow, onBeforeMapChange, onStoreChange, store]);
+  }, [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, store]);
 
   const onPaneDragOver = useCallback((event: React.DragEvent) => {
     if (!event.dataTransfer.types.includes(EMBEDDED_CARD_DRAG_TYPE)) return;
@@ -991,11 +1003,11 @@ function ThoughtMapInner({
       event.preventDefault();
       const position = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY });
       onBeforeMapChange();
-      store.setParent(id, undefined, "node");
-      store.setPosition(id, position);
+      dispatchCanvas({ kind: "set_parent", id, role: "node" });
+      dispatchCanvas({ kind: "move_card", id, position });
       onStoreChange();
     },
-    [flow, onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, store],
   );
 
   const [proxyGeometry, setProxyGeometry] = useState<Record<string, ProxyGeometry>>({});
@@ -1162,6 +1174,7 @@ function ThoughtMapInner({
           targetRef: cardRef(connection.targetId),
           sourceText: store.get(connection.sourceId)?.text ?? "",
           targetText: store.get(connection.targetId)?.text ?? "",
+          origin: connection.origin,
         },
         className: "map-edge",
       };
@@ -1306,14 +1319,14 @@ function ThoughtMapInner({
         if (nextPositions.size > 0) {
           onBeforeMapChange();
           for (const [id, position] of nextPositions) {
-            store.setPosition(id, position);
+            dispatchCanvas({ kind: "move_card", id, position });
           }
           onStoreChange();
         }
         return;
       }
       onBeforeMapChange();
-      store.setPosition(node.id, node.position);
+      dispatchCanvas({ kind: "move_card", id: node.id, position: node.position });
 
       const dragged = store.get(node.id);
       if (!dragged || dragged.role === "connection_label") {
@@ -1329,13 +1342,13 @@ function ThoughtMapInner({
         !store.wouldCycle(dragged.id, targetUnit.id);
       if (validTarget && targetUnit) {
         const hasChildren = store.getAll().some((unit) => unit.parentId === dragged.id);
-        if (targetUnit.role === "content") store.setRole(targetUnit.id, "subnode");
-        store.setParent(dragged.id, targetUnit.id, hasChildren ? "subnode" : "content");
+        if (targetUnit.role === "content") dispatchCanvas({ kind: "set_role", id: targetUnit.id, role: "subnode" });
+        dispatchCanvas({ kind: "set_parent", id: dragged.id, parentId: targetUnit.id, role: hasChildren ? "subnode" : "content" });
       }
 
       onStoreChange();
     },
-    [contextSelectedCardIds, nodes, onBeforeMapChange, onStoreChange, store],
+    [contextSelectedCardIds, dispatchCanvas, nodes, onBeforeMapChange, onStoreChange, store],
   );
 
   const onConnect = useCallback(
@@ -1363,16 +1376,7 @@ function ThoughtMapInner({
           : anchorHandleId(connection.sourceHandle);
       if (!requireConnectionLabel) {
         onBeforeMapChange();
-        store.registerConnection({
-          sourceId,
-          targetId,
-          text: "",
-          bank,
-          sourceHandleId,
-          targetHandleId,
-          layoutDirection: "source_to_target",
-          position: connectionMidpoint(store, sourceId, targetId),
-        });
+        dispatchCanvas({ kind: "connect_cards_direct", sourceId, targetId, text: "", sourceHandleId, targetHandleId, layoutDirection: "source_to_target", position: connectionMidpoint(store, sourceId, targetId) });
         onStoreChange();
         return;
       }
@@ -1386,7 +1390,7 @@ function ThoughtMapInner({
       });
       setConnectionPanelKey((key) => key + 1);
     },
-    [bank, onBeforeMapChange, onStoreChange, requireConnectionLabel, store],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange, requireConnectionLabel, store],
   );
 
   // Dragging a connector from a card and releasing on the empty canvas spawns a
@@ -1456,23 +1460,15 @@ function ThoughtMapInner({
 
       // "Label off": create + connect immediately as a single undoable action.
       onBeforeMapChange();
-      const newCard = store.addBlankUserCard(cardPosition);
+      const created = dispatchCanvas({ kind: "create_blank_card", position: cardPosition });
+      if (created.status !== "applied" || !created.cardId) return;
       const sourceId = origin.id;
-      const targetId = newCard.id;
-      store.registerConnection({
-        sourceId,
-        targetId,
-        text: "",
-        bank,
-        sourceHandleId: originHandle,
-        targetHandleId: undefined,
-        layoutDirection: "source_to_target",
-        position: connectionMidpoint(store, sourceId, targetId),
-      });
+      const targetId = created.cardId;
+      dispatchCanvas({ kind: "connect_cards_direct", sourceId, targetId, text: "", sourceHandleId: originHandle, layoutDirection: "source_to_target", position: connectionMidpoint(store, sourceId, targetId) });
       onStoreChange();
-      focusNewCard(newCard.id);
+      focusNewCard(created.cardId);
     },
-    [bank, flow, focusNewCard, onBeforeMapChange, onStoreChange, requireConnectionLabel, store],
+    [dispatchCanvas, flow, focusNewCard, onBeforeMapChange, onStoreChange, requireConnectionLabel, store],
   );
 
   const onReconnect = useCallback<OnReconnect<Edge>>(
@@ -1483,16 +1479,10 @@ function ThoughtMapInner({
       if (!source || !target) return;
       if (source.role === "connection_label" || target.role === "connection_label") return;
       onBeforeMapChange();
-      store.reconnect(
-        oldEdge.id,
-        connection.source,
-        connection.target,
-        anchorHandleId(connection.sourceHandle),
-        anchorHandleId(connection.targetHandle),
-      );
+      dispatchCanvas({ kind: "reconnect", id: oldEdge.id, sourceId: connection.source, targetId: connection.target, sourceHandleId: anchorHandleId(connection.sourceHandle), targetHandleId: anchorHandleId(connection.targetHandle) });
       onStoreChange();
     },
-    [onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange, store],
   );
 
   const cancelConnection = useCallback(() => {
@@ -1533,25 +1523,17 @@ function ThoughtMapInner({
     let targetId = pc.targetId;
     let createdCardId: string | undefined;
     if (pc.createCard) {
-      const newCard = store.addBlankUserCard(pc.createCard.position);
-      createdCardId = newCard.id;
-      if (pc.createCard.side === "source") sourceId = newCard.id;
-      else targetId = newCard.id;
+      const created = dispatchCanvas({ kind: "create_blank_card", position: pc.createCard.position });
+      if (created.status !== "applied" || !created.cardId) return;
+      createdCardId = created.cardId;
+      if (pc.createCard.side === "source") sourceId = created.cardId;
+      else targetId = created.cardId;
     }
-    store.registerConnection({
-      sourceId,
-      targetId,
-      text: pc.text,
-      bank,
-      sourceHandleId: pc.sourceHandleId,
-      targetHandleId: pc.targetHandleId,
-      layoutDirection: pc.layoutDirection,
-      position: connectionMidpoint(store, sourceId, targetId),
-    });
+    dispatchCanvas({ kind: "connect_cards_direct", sourceId, targetId, text: pc.text, sourceHandleId: pc.sourceHandleId, targetHandleId: pc.targetHandleId, layoutDirection: pc.layoutDirection, position: connectionMidpoint(store, sourceId, targetId) });
     setPendingConnection(null);
     onStoreChange();
     if (createdCardId) focusNewCard(createdCardId);
-  }, [bank, focusNewCard, onBeforeMapChange, onStoreChange, pendingConnection, store]);
+  }, [dispatchCanvas, focusNewCard, onBeforeMapChange, onStoreChange, pendingConnection, store]);
 
   const sourceUnit = pendingConnection ? store.get(pendingConnection.sourceId) : undefined;
   const targetUnit = pendingConnection ? store.get(pendingConnection.targetId) : undefined;

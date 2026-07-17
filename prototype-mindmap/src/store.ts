@@ -133,8 +133,8 @@ export class CandidateStore {
   upsert(candidate: CandidateThought): void {
     const existing = this._candidates.get(candidate.id);
     if (existing) {
-      // Merge evidence and relation signals rather than replace, so no turn's
-      // data is silently lost on an update.
+      // Merge evidence rather than replace it, so no turn's grounding is
+      // silently lost on an update.
       const mergedEvidence = Array.from(
         new Set([
           ...existing.evidenceUtteranceIds,
@@ -145,10 +145,6 @@ export class CandidateStore {
         ...existing,
         ...candidate,
         evidenceUtteranceIds: mergedEvidence,
-        relationSignals: [
-          ...existing.relationSignals,
-          ...candidate.relationSignals,
-        ],
       });
     } else {
       this._candidates.set(candidate.id, candidate);

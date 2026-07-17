@@ -361,6 +361,11 @@ developer-only, default to GPT-5.6 Terra at low reasoning, and persist a local
 full-fidelity event ledger while mirroring only sanitized metadata to the study
 log endpoint.
 
+**Stage 2 boundary:** do not add Responses API work or provider tools here. The
+typed response plus deterministic gateway already provides a safer consequence
+boundary. Revisit read-only tools only when local traces show a concrete
+context-retrieval failure.
+
 **Fixed at every level — never varies:** provenance, validation, verbatim
 requirements, map-write authorization, confirmation, reference and graph checks.
 The contract varies *only* what the AI may contribute.
@@ -421,10 +426,10 @@ suggestive setting quietly breaks the product's central claim.
 
 The claim L0 can then support, falsifiable from the event log:
 
-> In non-directive mode, every card and every relation in the final map was
-> asserted by the user in a single utterance in their own words, and confirmed by
-> the user. The system contains no code path by which an AI-inferred relation can
-> become map structure.
+> In non-directive mode, map structure is explicitly stated by the user,
+> grounded in their wording, and confirmed by them. The system contains no code
+> path by which an AI-inferred relation can become map structure or be visually
+> staged on the map before confirmation.
 
 **Honest residue — state this in the paper rather than let a reviewer find it:**
 - *Selection.* Even a pure reflection involves the AI choosing which asserted
@@ -433,7 +438,8 @@ The claim L0 can then support, falsifiable from the event log:
   chooses what to reflect. Make the smaller claim precisely: "the AI does not
   author structure," not "the AI has no influence."
 - *Framing inside questions.* A question can smuggle a suggestion; no code check
-  catches it. Only Stage 4 evals address this.
+  catches it. Exact prior-assistant overlap is logged as influence evidence, but
+  it is not a reliable authorship classifier. Only Stage 4 evals address this.
 
 **UI language:** do not call a reflection a "proposal." An `asserted` chip says
 *"Here's the structure in your words — check each part"* (already `MIRROR_PREAMBLE`).
@@ -462,10 +468,10 @@ analytics:
 
 # GPT-5.6 Bakeoff (runs after Stage 1.5)
 
-Migrate the prototype provider to the Responses API through a backend passthrough
-while preserving the typed-response and deterministic-gateway boundary. Do not
-enable a production map-mutation tool: provider tools are evaluated through a
-synthetic forced-function-call probe only.
+Evaluate the feature-flagged Responses API transport while preserving the typed
+response and deterministic-gateway boundary. The implementation uses real
+reflection and map-proposal function calls, but neither tool can mutate or
+visually stage the map.
 
 Run the same fixed scenarios against Terra low, Terra none, Sol low, and Luna
 low. Compare end-to-end latency, structured-response validity, repair rate,
@@ -473,6 +479,25 @@ contract/pointer failures, token usage, and function-call argument validity.
 The bakeoff is gated on the Stage 1.5 transcript fixture and manual smoke test;
 otherwise it measures tolerance for a broken conversation harness instead of
 model quality.
+
+## Provider tool-calling checkpoint
+
+The tool implementation begins from local checkpoint `9b32e62` on
+`feat/mindmap-provider-tools`. It is an isolated transport experiment, not a new
+map-authority path.
+
+- `chat_json` remains the default; `responses_tools` is feature flagged.
+- Responses requests use `store: false`, strict schemas, automatic tool choice,
+  and disabled parallel calls.
+- `propose_reflection_v1` and `propose_map_action_v1` are the only tools and
+  normalize into the existing typed response union.
+- A rejected call receives at most one matching `function_call_output` repair;
+  there is no general tool loop.
+- Full calls remain in the local ledger. Outbound study events contain only
+  allowlisted transport, tool-name, result-code, and timing metadata.
+- Retrieval tools remain deferred until traces demonstrate a context failure.
+- Default cutover remains gated on a live browser smoke run, which was
+  unavailable at this checkpoint.
 
 ---
 

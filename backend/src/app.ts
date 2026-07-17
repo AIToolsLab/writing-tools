@@ -6,6 +6,7 @@ import { appendLog, pollLogs, validateUsername, zipLogs } from './logging.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 
 const OPENAI_URL = 'https://api.openai.com/v1/chat/completions';
+const OPENAI_RESPONSES_URL = 'https://api.openai.com/v1/responses';
 
 export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	const app = new Hono();
@@ -51,6 +52,79 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 					upstream.headers.get('content-type') ?? 'text/event-stream',
 			},
 		});
+	});
+
+	// Feature-flagged mind-map provider transport. This remains a transparent
+	// credential boundary: the frontend owns schemas and local orchestration.
+	app.post('/api/openai/responses', async (c) => {
+		const body = await c.req.text();
+		const upstream = await fetch(OPENAI_RESPONSES_URL, {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${openaiApiKey()}`,
+				'Content-Type': 'application/json',
+			},
+			body,
+		});
+
+		return new Response(upstream.body, {
+			status: upstream.status,
+			headers: {
+				'Content-Type': upstream.headers.get('content-type') ?? 'application/json',
+			},
+		});
+	});
+
+	// Mind-map study events have a deliberately narrow schema. Unlike the
+	// legacy generic /api/log endpoint, this route has no place for draft,
+	// message, prompt, source-span, or model-output text.
+	app.post('/api/mindmap/events', async (c) => {
+		const payload = (await c.req.json().catch(() => null)) as Record<string, unknown> | null;
+		const kinds = new Set([
+			'contract_initialized', 'contract_selected', 'contract_changed',
+			'user_message', 'model_request', 'assistant_response',
+			'provider_tool_requested', 'provider_tool_result',
+			'pointer_validation', 'contract_decision', 'assistant_echo_overlap',
+			'proposal_created', 'proposal_edited', 'proposal_resolved',
+			'proposal_invalidated', 'map_mutated',
+		]);
+		if (!payload || typeof payload.sessionId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(payload.sessionId)
+			|| typeof payload.sequence !== 'number' || !Number.isFinite(payload.sequence)
+			|| typeof payload.at !== 'number' || !Number.isFinite(payload.at)
+			|| typeof payload.kind !== 'string' || !kinds.has(payload.kind)) {
+			return c.json({ detail: 'Invalid sanitized mind-map event.' }, 400);
+		}
+		const optionalEnum = (name: string, values: readonly string[]) => typeof payload[name] === 'string' && values.includes(payload[name] as string) ? payload[name] : undefined;
+		const optionalCode = (name: string) => typeof payload[name] === 'string' && /^[a-z0-9_:-]{1,80}$/i.test(payload[name] as string) ? payload[name] : undefined;
+		const optionalNumber = (name: string) => typeof payload[name] === 'number' && Number.isFinite(payload[name]) ? payload[name] : undefined;
+		try {
+			await appendLog({
+				timestamp: Date.now() / 1000,
+				ok: true,
+				username: 'mindmap',
+				event: 'mindmap_event',
+					extra_data: {
+					session_id: payload.sessionId,
+					sequence: payload.sequence,
+					at: payload.at,
+					kind: payload.kind,
+					contract_id: optionalEnum('contractId', ['non_directive_v1', 'grounded_options_v1', 'suggestive_v1']),
+					contract_level: optionalNumber('contractLevel'),
+					response_kind: optionalEnum('responseKind', ['question', 'reflection', 'aside', 'map_proposal', 'options', 'suggestion']),
+					origin: optionalEnum('origin', ['user_asserted', 'ai_suggested', 'unresolved', 'legacy_confirmed']),
+					outcome: optionalEnum('outcome', ['accepted', 'needs_input', 'rejected', 'repaired', 'applied', 'confirmed', 'declined']),
+					code: optionalCode('code'),
+						duration_ms: optionalNumber('durationMs'),
+						provider_transport: optionalEnum('providerTransport', ['chat_json', 'responses_tools']),
+						tool_name: optionalEnum('toolName', ['propose_reflection_v1', 'propose_map_action_v1']),
+						repair_count: optionalNumber('repairCount'),
+				},
+			});
+		} catch (e) {
+			await captureException(e, { path: '/api/mindmap/events' });
+			return c.json({ detail: 'Failed to write mind-map event.' }, 500);
+		}
+		return c.json({ message: 'Mind-map event logged.' });
 	});
 
 	// Client event logging. Accepts an arbitrary JSON object; everything beyond

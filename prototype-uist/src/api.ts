@@ -33,7 +33,7 @@ async function chatJSON<T>(messages: OpenAIChatMessage[]): Promise<T> {
     body: JSON.stringify({
       model: MODEL,
       messages,
-      temperature: 0.3,
+      //temperature: 0.3,
       stream: false,
       response_format: { type: "json_object" },
     }),

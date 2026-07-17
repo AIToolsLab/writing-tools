@@ -1,5 +1,9 @@
 # Airtightness Report
 
+> Historical pre-cutover audit. Its controller, signal-bank, readiness-gate,
+> and direct-command descriptions do not describe the Stage 1 typed proposal
+> runtime. See `DESIGN.md` and `refactor-plan.md` for the current architecture.
+
 Current enforcement appendix for `prototype-mindmap`. `DESIGN.md` is the
 canonical product/design source. This report tracks which philosophical
 constraints are enforced in code, which are prompt-level, and where the residual

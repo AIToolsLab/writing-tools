@@ -3,7 +3,11 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { draftHtmlToPlainText, normalizeDraftPasteHtml, resolveMirrorDecision, UnderTheHoodPanel } from "./App";
+import { AssistantResponseKindBadge, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, UnderTheHoodPanel } from "./App";
+import { ASSISTANCE_CONTRACTS, snapshotContract } from "./assistance-contract";
+import { ThoughtUnitStore } from "./map-store";
+import type { Proposal } from "./proposal-store";
+import { createConversationState } from "./stage1-loop";
 import type { UnderstandingSnapshot } from "./understanding";
 
 describe("resolveMirrorDecision", () => {
@@ -44,6 +48,64 @@ describe("resolveMirrorDecision", () => {
     expect(second.anyConfirmed).toBe(true);
     expect(second.anyDeclined).toBe(true);
     expect(second.shouldContinue).toBe(false);
+  });
+});
+
+describe("session migration", () => {
+  it("invalidates unresolved legacy pending mirrors instead of granting current-contract provenance", () => {
+    const migrated = migrateLegacyMirrors([{ id: "m1", reflection: { claims: [{ id: "c1", text: "human control", candidateId: "candidate", target: "idea", sourceSpans: [] }] }, claims: [], decisions: { c1: "pending" } }], 7);
+    expect(migrated).toMatchObject([{ id: "m1", mapRevision: 7, state: "invalidated", origin: "unresolved", detail: { kind: "reflection", editedTexts: { c1: "human control" } } }]);
+  });
+});
+
+describe("proposal UI", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  beforeEach(() => { (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; container = document.createElement("div"); document.body.appendChild(container); root = createRoot(container); });
+  afterEach(() => { act(() => root.unmount()); container.remove(); delete (globalThis as typeof globalThis & { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT; });
+
+  it("renders inline completion controls and requires an explicit decision click", () => {
+    const onDecide = vi.fn();
+    const proposal = { id: "p1", mapRevision: 1, referencedCardIds: [], attribution: "asserted" as const, state: "shown" as const, detail: { kind: "map_action" as const, action: { kind: "connect_cards" as const, source: {}, target: {} }, needsInput: ["source" as const, "target" as const, "label" as const] } };
+    act(() => root.render(createElement(MapActionProposalCard, { proposal, cards: [], onEdit: vi.fn(), onDecide })));
+    expect(container.querySelectorAll("select")).toHaveLength(2);
+    const confirm = Array.from(container.querySelectorAll("button")).find((button) => button.textContent === "Confirm");
+    expect(confirm?.disabled).toBe(true);
+    act(() => confirm?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(onDecide).not.toHaveBeenCalled();
+  });
+
+  it("shows invalidation feedback instead of executable controls", () => {
+    const proposal = { id: "p1", mapRevision: 1, referencedCardIds: [], attribution: "asserted" as const, state: "invalidated" as const, invalidReason: "Card no longer exists.", detail: { kind: "map_action" as const, action: { kind: "create_card" as const, text: "x", sourceUtteranceIds: [] } } };
+    act(() => root.render(createElement(MapActionProposalCard, { proposal, cards: [], onEdit: vi.fn(), onDecide: vi.fn() })));
+    expect(container.textContent).toContain("Card no longer exists");
+    expect(container.querySelector("button")).toBeNull();
+  });
+
+  it("marks conversational AI suggestions and omits unavailable legacy echo percentages", () => {
+    act(() => root.render(createElement("div", undefined,
+      createElement(AssistantResponseKindBadge, { kind: "suggestion" }),
+      createElement(InfluenceBadge, { influence: { exactOverlapPhrases: ["human control"] } }),
+    )));
+    expect(container.textContent).toContain("AI suggestion");
+    expect(container.textContent).toContain("Echoes coach");
+    expect(container.textContent).not.toContain("NaN");
+  });
+
+  it("keeps a v4 echo trace but removes its unavailable pre-percentage value", () => {
+    const proposal = {
+      id: "v4-proposal",
+      mapRevision: 1,
+      referencedCardIds: [],
+      origin: "user_asserted",
+      contract: snapshotContract(ASSISTANCE_CONTRACTS[0]),
+      state: "confirmed",
+      influenceTrace: { priorAssistantMessageId: 2, exactOverlapPhrases: ["human control"] },
+      detail: { kind: "map_action", action: { kind: "create_card", text: "human control", sourceUtteranceIds: [] } },
+    } as Proposal;
+    const state = createConversationState();
+    const migrated = migrateStoredProposals([proposal], state.bank, new ThoughtUnitStore());
+    expect(migrated[0]?.influenceTrace).toEqual({ priorAssistantMessageId: 2, exactOverlapPhrases: ["human control"], overlapRatio: undefined });
   });
 });
 

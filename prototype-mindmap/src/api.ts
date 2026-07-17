@@ -1,960 +1,303 @@
 /// <reference types="vite/client" />
 
-/**
- * Real LLM client for the mindmap prototype.
- *
- * Wraps the shared backend proxy at POST /api/openai/chat/completions and
- * returns structured LLMTurn objects that the controller consumes.
- *
- * Call `makeLLM` to get a stateful MockLLM-compatible closure that maintains
- * conversation history and calls the backend on each turn.
- */
-
 import type { MindmapConfig } from "./config";
 import { defaultConfig } from "./config";
-import type { DraftDeclaration } from "./draft-declarations";
-import { cardRef } from "./store";
-import type {
-  LLMContext,
-  LLMMapContext,
-  LLMTurn,
-  MapCommand,
-  MapQuestionAnchor,
-  MockLLM,
-  QuestionStance,
-} from "./llm-contract";
-import type {
-  CandidateThought,
-  MirrorClaim,
-  MirrorReflection,
-  SourceSpan,
-  SourceUtterance,
-} from "./types";
+import type { LLMContext } from "./llm-contract";
+import {
+  ModelResponseValidationError,
+  type AssistantModel,
+  type AssistantResponseEnvelope,
+  type StructuredRejection,
+} from "./assistant-response";
+import type { ProposedAction, ProposedRef } from "./action-gateway";
+import type { MirrorClaim, MirrorReflection, SourceSpan } from "./types";
+import type { SourceBackedOption } from "./assistance-contract";
+import {
+  CONVERSATIONAL_TEXT_FORMAT,
+  MINDMAP_PROVIDER_TOOLS,
+  parseResponsesOutput,
+  type MindmapToolName,
+  type ProviderTransport,
+} from "./provider-tools";
 
-const BACKEND_URL =
-  (import.meta.env.VITE_BACKEND_URL as string | undefined) ??
-  "http://localhost:8000/api";
+const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? "http://localhost:8000/api";
+const MODEL = (import.meta.env.VITE_MINDMAP_MODEL as string | undefined) ?? "gpt-5.6-terra";
+const REASONING_EFFORT = (import.meta.env.VITE_MINDMAP_REASONING_EFFORT as string | undefined) ?? "low";
+export const PROVIDER_TRANSPORT: ProviderTransport = import.meta.env.VITE_MINDMAP_PROVIDER_TRANSPORT === "responses_tools" ? "responses_tools" : "chat_json";
 
-const MODEL = "gpt-5.4";
-
-interface OpenAIMessage {
-  role: "system" | "user" | "assistant";
-  content: string;
-}
-
-// ---------------------------------------------------------------------------
-// Wire-level helper
-// ---------------------------------------------------------------------------
+export interface OpenAIMessage { role: "system" | "user" | "assistant"; content: string }
 
 async function postChat(messages: OpenAIMessage[]): Promise<string> {
-  const res = await fetch(`${BACKEND_URL}/openai/chat/completions`, {
+  const response = await fetch(`${BACKEND_URL}/openai/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: MODEL,
-      messages,
-      temperature: 0.3,
-      stream: false,
-      response_format: { type: "json_object" },
-    }),
+    body: JSON.stringify({ model: MODEL, reasoning_effort: REASONING_EFFORT, messages, stream: false, response_format: { type: "json_object" } }),
   });
-
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    throw new Error(`Backend ${res.status}: ${body.slice(0, 300)}`);
-  }
-
-  const raw = await res.text().catch(() => "");
-  if (!raw.trim()) {
-    throw new Error("Backend returned an empty response body.");
-  }
-
-  let data: {
-    choices?: Array<{ message?: { content?: string } }>;
-  };
-  try {
-    data = JSON.parse(raw) as {
-      choices?: Array<{ message?: { content?: string } }>;
-    };
-  } catch {
-    throw new Error(`Backend returned invalid JSON: ${raw.slice(0, 300)}`);
-  }
-
-  const content = data.choices?.[0]?.message?.content;
+  if (!response.ok) throw new Error(`Backend ${response.status}: ${(await response.text()).slice(0, 300)}`);
+  const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
+  const content = body.choices?.[0]?.message?.content;
   if (!content) throw new Error("Backend returned an empty model response.");
   return content;
 }
 
-async function chatJSON<T>(messages: OpenAIMessage[]): Promise<T> {
-  const content = await postChat(messages);
-  try {
-    return JSON.parse(content) as T;
-  } catch {
-    // The model occasionally emits invalid JSON (e.g. an unescaped double quote
-    // inside a string value when it quotes the user's wording). One malformed
-    // response must not hard-break the flow, so retry once with a strict
-    // reminder before surfacing the error. Structured-output mode is not a
-    // reliable guarantee through the proxy, so this is the safety net.
-    const retryMessages: OpenAIMessage[] = [
-      ...messages,
-      { role: "assistant", content },
-      {
-        role: "user",
-        content:
-          "That was not valid JSON. Return ONLY one valid JSON object, nothing else. Every double quote inside a string value must be escaped as \\\". When the visible response quotes the user's exact wording, keep the quotation marks in the response text, but escape them correctly inside JSON.",
-      },
-    ];
-    const retryContent = await postChat(retryMessages);
-    try {
-      return JSON.parse(retryContent) as T;
-    } catch {
-      throw new Error(`Model returned invalid JSON: ${retryContent.slice(0, 200)}`);
-    }
-  }
+interface ResponsesTurnState {
+  output?: unknown[];
+  toolCallId?: string;
 }
 
-// ---------------------------------------------------------------------------
-// Prompt construction
-// ---------------------------------------------------------------------------
-
-const PHILOSOPHY = `\
-You are a non-directive writing coach helping the user build a mind map of their
-own thinking. Your job is to ask questions and reflect structure back — never to
-author ideas, name relationships, or decide what belongs where.
-
-NON-NEGOTIABLE RULES:
-1. Never invent ideas, relationships, or concepts the user has not expressed.
-2. A mirror reflects STRUCTURE (what is bigger, what sits under what, what connects
-   what) — never a replay of the transcript. Do not echo messages as bullets.
-3. Use the user's own words for every content term in a mirror claim. Framing glue
-   ("it sounds like", "is the broader thing", "sits under") is allowed.
-4. Every mirror claim must carry sourceSpans citing the exact utterance IDs and the
-   user's own phrase that grounds it.
-5. Never use the word "node". Never lead a question with an embedded answer.
-6. If the user is stuck ("I'm not sure", "I don't know"): ask a tighter, more
-   concrete version — break it into something they can point at. Never move on.`;
-
-function renderBank(bank: SourceUtterance[]): string {
-  const visible = bank.filter((u) => !u.commandOnly && !u.nonHarvestable);
-  if (visible.length === 0) return "(nothing yet)";
-  return visible.map((u) => `[${u.id}] ${u.text}`).join("\n");
-}
-
-function renderCandidates(candidates: CandidateThought[], readyIds: string[]): string {
-  if (candidates.length === 0) return "(none yet)";
-  const readySet = new Set(readyIds);
-  return candidates
-    .map((c) => {
-      const ready = readySet.has(c.id) ? " *** READY TO MIRROR ***" : "";
-      const signals = c.relationSignals.length > 0
-        ? ` signals=[${c.relationSignals.map((s) => `"${s.phrase}"${s.spontaneous ? "(S)" : "(P)"}`).join(", ")}]`
-        : "";
-      return `id=${c.id} target=${c.target} gist="${c.gist}" evidence=[${c.evidenceUtteranceIds.join(",")}]${signals}${ready}`;
-    })
-    .join("\n");
-}
-
-function renderMap(map: LLMMapContext): string {
-  const units = map.thoughtUnits;
-  const connections = map.connections;
-  if (units.length === 0 && connections.length === 0) return "(empty canvas)";
-
-  const byId = new Map(units.map((unit) => [unit.id, unit]));
-  const unitLines = units.map((unit) => {
-    const parent = unit.parentId ? byId.get(unit.parentId) : undefined;
-    const parentText = parent ? ` parent="${parent.text}"` : "";
-    const provenance = unit.source.reflectionId
-      ? ` reflection=${unit.source.reflectionId}`
-      : " user-created";
-    return `card=${unit.id} ref=${cardRef(unit.id)} role=${unit.role}${parentText}${provenance} text="${unit.text}"`;
+async function postResponses(input: unknown[], instructions: string): Promise<unknown> {
+  const response = await fetch(`${BACKEND_URL}/openai/responses`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: MODEL,
+      reasoning: { effort: REASONING_EFFORT },
+      instructions,
+      input,
+      tools: MINDMAP_PROVIDER_TOOLS,
+      tool_choice: "auto",
+      parallel_tool_calls: false,
+      text: { format: CONVERSATIONAL_TEXT_FORMAT },
+      store: false,
+    }),
   });
-
-  const connectionLines = connections.map((connection) =>
-    `connection=${connection.id} ${cardRef(connection.sourceId)} "${connection.sourceText}" -> ${cardRef(connection.targetId)} "${connection.targetText}" label="${connection.labelText}"`,
-  );
-
-  return [...unitLines, ...connectionLines].join("\n");
+  if (!response.ok) throw new Error(`Backend ${response.status}: ${(await response.text()).slice(0, 300)}`);
+  return response.json() as Promise<unknown>;
 }
 
-function renderDraftDeclarations(declarations: DraftDeclaration[]): string {
-  if (declarations.length === 0) return "(none detected)";
-  return declarations
-    .map((d) => `${d.kind} text="${d.text}" phrase="${d.userPhrase}"`)
-    .join("\n");
+export function renderContext(context: LLMContext): string {
+  const bank = context.bank.filter((item) => !item.commandOnly && !item.nonHarvestable).map((item) => `[${item.id}] ${item.text}`).join("\n") || "(empty)";
+  const map = context.map.thoughtUnits.filter((item) => item.role !== "connection_label").map((item) => `${item.id} ${item.text}${item.parentId ? ` parent=${item.parentId}` : ""}`).join("\n") || "(empty)";
+  const candidates = context.candidates.map((item) => `${item.id} ${item.target} ${item.gist} evidence=${item.evidenceUtteranceIds.join(",")}`).join("\n") || "(none)";
+  const threads = context.openThreads?.map((thread) => `${thread.status}: ${thread.text}`).join("\n") || "(none)";
+  const selection = context.selectedFocus
+    ? [
+      ...(context.selectedFocus.cards?.map((card) => `${card.ref} ${card.text}`) ?? []),
+      ...(context.selectedFocus.draftText ? [`draft selection: ${context.selectedFocus.draftText}`] : []),
+    ].join("\n") || "(none)"
+    : "(none)";
+  const support = context.requestedSupport
+    ? `The user explicitly selected the '${context.requestedSupport}' support control. Treat this as advisory steering, not authorization.`
+    : "(none)";
+  const capabilities = `Can do: ${context.capabilities.canDo.join("; ") || "(none)"}\nCannot do: ${context.capabilities.cantDo.join("; ") || "(none)"}`;
+  const pacing = `cards=${context.mapPacing.cardCount}; connections=${context.mapPacing.connectionCount}; sparse=${context.mapPacing.isSparse}. Sparse-map status is a pacing fact only: decide the visible response yourself.`;
+  const thinkMap = `value=${context.thinkMapBias} on a 0 (Think) to 100 (Map) control. Use this only to tune conversational eagerness; it never authorizes structure or weakens validation.`;
+  const shape = `kind=${context.turnShape.kind}; utterances=${context.turnShape.utteranceCount}; contentTokens=${context.turnShape.contentTokenCount}; characters=${context.turnShape.characterCount}`;
+  const reflectionRhythm = `assistant turns since the last reflection=${context.reflectionRhythm.turnsSinceLastReflection}; source-bank entries available=${context.reflectionRhythm.sourceUtteranceCount}. This is calibration only: consider whether another question adds value before asking the user to narrow further.`;
+  const proposalOutcome = context.proposalOutcome
+    ? `The user ${context.proposalOutcome.decision} a ${context.proposalOutcome.proposalKind === "map_action" ? "map change" : "reflection"}. The map above already reflects any confirmed change. Continue from that state; do not repeat the review request.`
+    : "(none)";
+  const contract = context.assistanceContract
+    ? `${context.assistanceContract.label} (L${context.assistanceContract.level}). Allowed visible kinds: ${context.assistanceContract.allowedResponseKinds.join(", ")}. AI-originated structure: ${context.assistanceContract.allowsAiSuggestedStructure ? "allowed but must be visibly suggested" : "not allowed"}.`
+    : "Non-directive default; do not originate structure.";
+  return `ASSISTANCE CONTRACT (a contribution boundary, never a map-write authorization):\n${contract}\n\nSOURCE BANK (user wording with evidence ids):\n${bank}\n\nMAP (read-only):\n${map}\n\nEXPLICIT UI SELECTION (if any):\n${selection}\n\nEXPLICIT SUPPORT REQUEST (if any):\n${support}\n\nEXPLICIT PROPOSAL OUTCOME (if any):\n${proposalOutcome}\n\nCAPABILITIES:\n${capabilities}\n\nMAP PACING FACT:\n${pacing}\n\nREFLECTION RHYTHM (advisory):\n${reflectionRhythm}\n\nTHINK/MAP PREFERENCE:\n${thinkMap}\n\nTURN SHAPE (measurement only):\n${shape}\n\nADVISORY CANDIDATES:\n${candidates}\n\nOPEN THREAD CALIBRATION:\n${threads}\n\nDRAFT (read-only):\n${context.draft || "(empty)"}`;
 }
 
-function renderMapQuestionContext(anchors: MapQuestionAnchor[]): string {
-  return anchors
-    .map((anchor) => {
-      const neighbors =
-        anchor.neighbors.length > 0
-          ? ` — connected to ${anchor.neighbors.map((n) => `${n.ref} "${n.text}"`).join(", ")}`
-          : "";
-      return `${anchor.ref} "${anchor.text}"${neighbors}`;
-    })
-    .join("\n");
-}
+function systemPrompt(context: LLMContext, _config: MindmapConfig, repair?: StructuredRejection, transport: ProviderTransport = "chat_json"): string {
+  const repairNote = repair ? `\nYour previous response was rejected by code: ${JSON.stringify(repair)}. Repair that exact issue once.` : "";
+  const transportInstruction = transport === "responses_tools"
+    ? "Use propose_reflection_v1 for reflections and propose_map_action_v1 for structural proposals. These tools only request review and never write to the map. For questions, asides, grounded options, or suggestions, return the required conversational JSON output."
+    : "Return one typed response and optional advisory bookkeeping as JSON using the schema below.";
+  return `You are a writing coach operating under the assistance contract supplied below. ${transportInstruction} Never infer authorization from imperative language: a map change is only a proposal. A contract never bypasses evidence, confirmation, or graph validation. In non-directive and grounded-options modes, never invent user ideas or relationships. Questions may scaffold reflection but must not embed an answer. When the user has already named a broad task or focus, acknowledge it briefly and move to one concrete next step; do not rephrase that goal as though it were unanswered. Evidence is an internal traceability requirement: find supporting wording in the source bank yourself instead of repeatedly asking the user to locate it. Ask for wording only when the user must genuinely decide substance. Reflections and asserted map proposals must carry source pointers, and hierarchy or connection claims need a relation pointer from the same user utterance.${repairNote}
 
-function renderSelectedFocus(focus: NonNullable<LLMContext["selectedFocus"]>): string {
-  const lines: string[] = [];
-  for (const card of focus.cards ?? []) {
-    lines.push(`selected_card ${card.ref} role=${card.role} text="${card.text}"`);
-  }
-  if (focus.draftText?.trim()) {
-    lines.push(`selected_draft_text "${focus.draftText.trim()}"`);
-  }
-  return lines.length > 0 ? lines.join("\n") : "(none)";
-}
-
-function renderOpenThreads(threads: NonNullable<LLMContext["openThreads"]>): string {
-  if (threads.length === 0) return "(none)";
-  return threads
-    .map((thread) => `${thread.status} id=${thread.id} text="${thread.text}" source=[${thread.sourceUtteranceIds.join(",")}]`)
-    .join("\n");
-}
-
-function systemPrompt(ctx: LLMContext, cfg: MindmapConfig): string {
-  // Pacing constraint
-  const tooSoon = ctx.turnsSinceLastMirror < cfg.pacing.minQuestionTurnsBetweenMirrors;
-  const mapPressure = cfg.pacing.mapPressure;
-  const pacingNote = tooSoon
-    ? `\nPACING: You MUST use mode "question" this turn (${ctx.turnsSinceLastMirror}/${cfg.pacing.minQuestionTurnsBetweenMirrors} turns since last mirror).`
-    : ctx.readyCandidateIds.length === 0
-    ? `\nREADINESS: No previously-ready candidates. Use mode "question" by default. If map pressure is high (${mapPressure.toFixed(2)}) and the user's latest answer is itself compact, substantive, and mirrorable, prefer one same-turn mirror by also upserting the idea candidate, setting "carryForwardCandidateIds" to that same candidate id, and grounding both the candidate's addEvidenceIds and the mirror claim's sourceSpans in this turn's Source Bank utterance ids. This carry-forward id is required for the system to accept a same-turn idea mirror. This is especially appropriate when the user just answered a map-eliciting question like what to carry forward. Do not do this for low-information answers, first-pass exploration, relationships, hierarchy, or material the user has not just authored in chat.`
-    : ctx.readyCandidateIds.length >= cfg.pacing.minReadyCandidatesToBatch
-    ? `\nREADINESS: Candidates ready to mirror: [${ctx.readyCandidateIds.join(", ")}]. Map pressure is ${mapPressure.toFixed(2)}. Prefer mode "mirror" when a concise validated reflection would help the user commit structure. At this point, another generic deepen/narrow question is usually wrong unless it targets a specific missing relationship or grounding problem. Do not mirror more than ${cfg.pacing.softMaxMirrorChunks} claims and do not mirror just because the slider is high.`
-    : `\nREADINESS: Candidates ready to mirror: [${ctx.readyCandidateIds.join(", ")}], below the current batch preference (${ctx.readyCandidateIds.length}/${cfg.pacing.minReadyCandidatesToBatch}). Map pressure is ${mapPressure.toFixed(2)}. Do NOT default to another deepen/narrow question just because you are below the batch preference: if a listed ready candidate is concise and grounded in the user's own words, prefer mode "mirror" for it now — especially when map pressure is high — rather than waiting for a second ready candidate to accumulate. Keep asking only when no ready candidate is cleanly groundable yet, or the one remaining gap is a specific missing relationship or grounding problem you can name. Never mirror just because the slider is high.`;
-
-  // Clarify override
-  const clarifyNote = ctx.clarifyTarget
-    ? `\nCLARIFY OVERRIDE: The last mirror was blocked on this ungrounded span:
-  userPhrase: "${ctx.clarifyTarget.userPhrase}"
-  utteranceIds: [${ctx.clarifyTarget.utteranceIds.join(", ")}]
-You MUST use mode "clarify" and ask one focused question about this specific phrase.`
-    : "";
-
-  // Stuck override
-  const stuckNote = ctx.userIsStuck
-    ? `\nSTUCK: The user just said they're not sure. Do NOT move on. Use mode "clarify" or "question" to ask a tighter, more concrete version of what they're stuck on.`
-    : "";
-
-  const capabilities = ctx.capabilities ?? cfg.capabilities;
-  // Meta lane + capabilities manifest. Recognition is yours; code fences every
-  // structural consequence. Honesty about capabilities is anchored to the
-  // manifest so you never invent or promise a feature that doesn't exist.
-  const metaNote =
-    `\nCONVERSATIONAL ASIDES (meta lane): Not every turn is writing input. When the user's turn is purely an aside — venting/emotion, confusion about how this tool works, a greeting/thanks, off-topic, or unparseable — set "metaIntent" (emotional | confused | social | off_topic | unparseable) and answer briefly, warmly, and honestly in "text". On such a turn emit NO mapCommands and NO candidateUpserts. Prefer coaching: only use metaIntent when the turn genuinely is not writing material. If the turn ALSO contains real writing content, do NOT use metaIntent — coach the content normally (you can still acknowledge the aside in one clause).
-WHAT YOU CAN DO (say only these; never promise anything outside this list):
-${capabilities.canDo.map((item) => `  - ${item}`).join("\n")}
-WHAT YOU CANNOT DO (be honest and brief; offer the nearest real capability, never invent a near-feature):
-${capabilities.cantDo.map((item) => `  - ${item}`).join("\n")}`;
-
-  // Affect: a tone/pacing modifier only. Never fences, never drops content.
-  const affectNote =
-    `\nAFFECT: You may set "affect" (exhausted | frustrated | overwhelmed | energized) on ANY turn, including a productive one — it changes only your tone and pacing, never what you harvest. If the user seems drained/overwhelmed/frustrated${ctx.userSeemsDrained ? " (their wording already reads that way this turn)" : ""}: acknowledge it in one short human sentence, make the next step smaller, and do NOT push toward the map (no "close enough to reflect back?", no "carry that to the map?"). Do not force progress on someone who is tired.`;
-
-  // Focus-help override — the user explicitly asked for direction/recommendation.
-  const focusHelpNote = ctx.focusHelpIntent
-    ? `\nFOCUS HELP: The user explicitly asked you to help them focus, recommend a direction, or name possible directions. This is one of the few times you MAY offer options: lay out 2-3 GROUNDED lenses/directions drawn only from existing cards (cite by #ref), the draft, or the user's own Source Bank wording, then ask which one they want to pursue. You may say which you would start with and briefly why, but you must ask the user to choose — never decide for them, never author a thesis or structure, and never emit mapCommands. Do NOT fall back to a generic settle question ("which part feels easiest", "one small piece you feel sure about"); that ignores their request.`
-    : "";
-
-  // Detected signals
-  const signalNote = ctx.detectedSignals.length > 0
-    ? `\nDETECTED SIGNALS in latest turn (auto-attached by the system to the candidate whose addEvidenceIds include this utterance): ${ctx.detectedSignals.map((s) => `"${s.phrase}" (${s.kind}, ${s.spontaneous ? "spontaneous" : "prompted"})`).join(", ")}\nMake sure this turn's utterance id is in addEvidenceIds of the right candidate so these signals land where they belong.`
-    : "";
-
-  // Question intent
-  const shouldOrganize =
-    !ctx.sparseMapBlocksOrganize &&
-    (
-      ctx.candidates.length >= cfg.pacing.organizeIntentCandidateThreshold ||
-      ctx.readyCandidateIds.length >= cfg.pacing.organizeIntentReadyThreshold
-    );
-  const mapNote =
-    `\nMAP AWARENESS: The canvas below is user-authored structure. You MAY reference existing cards by their #ref or text as read-only anchors in a QUESTION ("How does that relate to #86?", "Which existing card feels closest to this?") — this is encouraged for sharper questions, especially in organize mode. Referencing a card in a question is read-only context, NOT a placement or a connection. You must never initiate, draw, place, rename, group, connect, or propose map structure on your own, and never emit a mapCommand for a card you only inferred by similarity. Only emit mapCommands when the user explicitly commands a map change with exact wording or exact refs. Forbidden regardless of pressure: "I'll put this under #86", "This should connect to #86 as cause/effect" (unless the user authored that relationship), "approve this structure", dashed proposals, and suggested edge labels. Ask questions that make the user articulate relationships in their own words.`;
-  const mapQuestionNote =
-    ctx.mapQuestionContext && ctx.mapQuestionContext.length > 0 && !ctx.sparseMapBlocksOrganize && mapPressure >= 0.5
-      ? `\nMAP-AWARE QUESTIONING: Map pressure is ${mapPressure.toFixed(2)} and the map has real cards (see MAP QUESTION ANCHORS below). Prefer a question that uses an existing card as a conversational anchor so the user relates their thinking to what's already there. Acceptable: "How does the point you just made about control relate to #86?", "Which existing card feels closest to this idea?", "Does this belong with the monitoring card, or is it a separate focus you want to name?". Not acceptable: "I'll put this under #86.", "This should connect to #86 as cause/effect.", "Approve this structure." Use refs read-only; never emit a mapCommand from this.`
-      : "";
-  const transitionNote =
-    ctx.userAnsweredLastQuestion && ctx.lastCoachQuestion
-      ? `\nADVANCE (do not re-ask): You just asked "${ctx.lastCoachQuestion.text}" and the user appears to be responding with substantive wording. Do NOT ask the same thing again, even reworded. Move forward using what they just gave you: ${
-          mapPressure >= 0.5
-            ? "prefer a grounded mirror/carry-forward if their wording supports it, or a map-aware bridge relating their answer to an existing card"
-            : "ask a follow-up that builds directly on what they just said — its implication, dependency, tension, or the next concrete step"
-        }.`
-      : "";
-  const draftDeclarationNote = ctx.draftDeclarations.length > 0
-    ? `\nDRAFT DECLARATIONS: The system detected explicit declarations or high-confidence repeated focus already written in the draft. These are user-authored salience signals: they are NOT Source Bank evidence by themselves, NOT automatic candidates, NOT mirror-ready on their own, and NOT permission to put anything on the map. Use them to avoid blind probing and to ask sharper draft-aware questions. When the user's chat wording overlaps one of these ideas, especially when Map pressure is high, prefer a grounded mirror using chat Source Bank spans or a bridge asking whether to carry the idea toward the map. Do not ask the user to restate these declared ideas; ask about a concrete phrase, example, consequence, assumption, relationship, priority, or whether they want to carry exact wording forward. Keep draft-aware questions light: one short grounding clause at most, one focused question, no mini-essay and no menu of theoretical options unless the user already named those options.`
-    : "";
-  const largeTurnNote =
-    ctx.turnShape.kind === "large_exploratory"
-      ? `\nLARGE TURN: The latest user turn is a long/exploratory dump (${ctx.turnShape.reasons.join(", ")}). Treat it as material to help the user select from, not as permission to harvest structure. Use mode "question"; ask one focusing question about selection, priority, tension, or which exact piece to carry forward. Do NOT produce a list of cards, mirror multiple ideas, or upsert broad candidates from the whole dump.`
-      : ctx.turnShape.kind === "large_selected"
-      ? `\nLARGE TURN: The latest user turn is large but contains explicit selected wording. You may work only with that user-selected wording, and only through the existing carry-forward, validation, confirmation, and command gates. Do not harvest the rest of the turn.`
-      : "";
-  const sparseMapNote = ctx.sparseMapBlocksOrganize
-    ? `\nSPARSE MAP: The visible map is still too thin for relationship-first organizing. Stay in carry-forward/deepen mode. If the user's latest answer supplies substantive wording for the next card, prefer a same-turn idea mirror or a single direct carry-forward question. If the latest turn is an imperative map command with exact wording or refs, still emit mapCommands. Do NOT ask card-to-card relationship questions yet.`
-    : "";
-  const continuationNote = ctx.continuationFocus?.length
-    ? `\nCONTINUATION FOCUS: The user just confirmed these map items: ${ctx.continuationFocus.join("; ")}. Advance from these confirmed items — ask the next useful question about them before reopening older material. Refer to them by a short paraphrase or their #ref, NOT by quoting their full wording, and do not mirror command phrasing or stale bank content.`
-    : "";
-  const organizeFocusNote = ctx.organizeFocus
-    ? `\nCURRENT ORGANIZE FOCUS: The coach recently asked about ${ctx.organizeFocus.refs.join(" and ")}. If the user gives a compact phrase after a relationship-wording question, treat it as possible authored relationship wording and reflect it back for confirmation instead of pivoting to card capture. If the user declines to state a relationship, says it is fine as-is, says they want to move on, or seems unsure again after already demurring once (declines so far: ${ctx.organizeFocus.declineCount}), do NOT re-ask about the same cards. Pivot to a different card, a draft region, or an open hand-back question instead.`
-    : "";
-  const activeElicitationNote = ctx.activeElicitation
-    ? `\nACTIVE ELICITATION: The last coach turn was asking the user for ${ctx.activeElicitation.kind === "clarify_after_failed_mirror" ? "cleaner wording to carry something forward" : "the next wording to carry forward"}. If the latest turn is an imperative map command with exact wording or refs, emit mapCommands instead of treating it as an elicitation answer. If the latest answer is now substantive and source-groundable, do NOT ask another generic 'which part', exact-wording, next-card, or organize question. Prefer one same-turn idea mirror by upserting a single idea candidate, setting "carryForwardCandidateIds" to it, and grounding the mirror in this turn's utterance ids. If you still cannot mirror, ask a different focused clarification; do not repeat the same capture wording.`
-    : "";
-  const activeSelectionNote = ctx.activeSelectionContext?.sourceUtteranceIds.length
-    ? `\nSELECTED STRAND: The user is now working inside a previously selected strand from a large exploratory turn.${ctx.activeSelectionContext.selectedText ? ` Selected wording: "${ctx.activeSelectionContext.selectedText}".` : ""} You may use only these source-bank ids as bounded supporting context for that strand: [${ctx.activeSelectionContext.sourceUtteranceIds.join(", ")}]. Do NOT ask for support that is already present inside this bounded strand, and do NOT treat the rest of the earlier large turn as available for harvesting.`
-    : "";
-  // Selection provides the TARGET, never the behavior. The USER OVERRIDE note is
-  // the single owner of what each button does; this note only says "apply that
-  // move to the selected material" so the two can't compete and the model can't
-  // regress to a generic per-mode instruction here.
-  const selectedFocusNote =
-    (ctx.selectedFocus?.cards?.length || ctx.selectedFocus?.draftText?.trim())
-      ? `\nSELECTED UI FOCUS (READ-ONLY TARGET, HIGH PRIORITY): The user deliberately selected the map card(s) and/or draft text listed under "SELECTED UI FOCUS" below. Treat it as the TARGET of the USER OVERRIDE move above: apply that move to THIS material specifically, in preference to any generic map or draft anchor. This names only WHAT to focus on; it never changes WHAT the move is (that is defined solely by the USER OVERRIDE above). It is read-only context, not Source Bank evidence on its own, and never authorizes mapCommands, card edits, draft edits, or new structure.`
-      : "";
-  const openThreadsNote = ctx.openThreads?.length
-    ? `\nPARKED EARLIER PHRASES: These are exact user-authored phrases from earlier large exploratory turns. They are memory anchors only: not tasks, not priorities, not candidates, not evidence of importance, and not permission to make cards. If the user asked what to do next, pivoted, or asked for options, you may offer up to 3 of them as optional return points and ask what still feels live. Do not say the user "needs" to return to them.`
-    : "";
-  const legibilityNote =
-    `\nLEGIBILITY: If the system has already blocked a move for grounding, readiness, or sparse-map reasons, the next question may carry one short explanatory preamble. Let the user feel the effort before the question; do not sound like you ignored their answer.`;
-  const mirrorPressureNote =
-    `\nMIRROR PRESSURE: If the user has answered several focused questions on the same live concept and ready candidates exist, stop re-unearthing the same idea. Use mode "mirror" with grounded sourceSpans, or ask a bridge question about whether to mirror/carry the settled structure forward. Do not keep asking "what does X mean", "what makes X different", or another generic deepen question once the user's own wording has settled.`;
-  const intentNote = shouldOrganize
-    ? `\nQUESTION INTENT: Use "organize" — the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask structural/relational questions: what is bigger, what connects what, how two named concepts relate. Do NOT open new topics.`
-    : `\nQUESTION INTENT: Use "deepen" — dig into one concept. Ask what it is, what it does, what assumption it rests on, or what would change it. When a draft exists, use its concrete wording as context so the question sounds aware of the work in progress, not like a generic coaching prompt. Prefer a precise, short question over a heavily worded one.`;
-
-  const relationshipSafeIntentNote = shouldOrganize
-    ? `\nQUESTION INTENT: Use "organize" - the user has explored enough breadth (${ctx.candidates.length} candidates, ${ctx.readyCandidateIds.length} ready). Ask the user to author the relationship between already-named thoughts in their own words. Do NOT offer possible structures such as bigger/smaller, under/alongside, claim/software idea, cause/effect, or any pair of labels for them to choose between unless the user already supplied those exact alternatives. If the user declines to state a relationship, says it is fine as-is, says they want to move on, or keeps demurring, do NOT re-ask about the same cards; pivot to a different card, a draft region, or an open hand-back question instead. Do NOT open new topics.`
-    : intentNote;
-
-  // Declaration / carry-forward recognition is ALWAYS on — explicit user
-  // commitment is honored at any slider position. The slider controls eagerness
-  // for *non-declared* ideas continuously (via the pacing thresholds), not
-  // whether an explicit declaration fast-tracks. So this note is not gated on
-  // map pressure, and "avoid repeated narrowing" is folded in as always-true.
-  const declarationNote = `\nDECLARATION PRESSURE: Phrases like "the main idea is", "a second idea is", "another idea is", "the next point is", or "I also want to show" are carry-forward pressure for an idea candidate, not commands. If the declared idea is compact and source-groundable, upsert it, set "carryForwardCandidateIds", and mirror it. If it is compound, contrastive, or not yet source-groundable, ask one focused question that helps the user state the idea in their own words, then mirror on the next clear answer. Do not keep narrowing the same idea across turns.`;
-
-  // Candidate tracking is internal bookkeeping, not structure. Upserting early and
-  // often lets grounding accumulate toward readiness (and surfaces the idea in the
-  // read-only "under the hood" view) instead of being lost turn to turn. Candidates
-  // never become map structure without passing readiness + validation + the user's
-  // confirmation, so eager tracking cannot author anything on its own.
-  const candidateTrackingNote = `\nCANDIDATE TRACKING: Whenever the user authors a substantive conceptual claim in their own words — even one that is not mirror-ready yet — upsert an idea candidate for it, citing this turn's utterance id(s) in addEvidenceIds and reusing a stable id across turns for the same concept so evidence accumulates toward readiness. This is internal bookkeeping only: it is never shown to the user as structure and never places anything on the map. Do NOT upsert for low-information replies, pure questions, command-only turns, or ideas that appear only in the draft. For large exploratory turns, follow the LARGE TURN rule instead: upsert only the idea the user explicitly selected, declared, or chose to carry forward — do not harvest a candidate for every point in the dump.`;
-
-  // User-initiated override from the Under the Hood panel. Highest priority: it
-  // is prepended before the pacing/readiness/intent notes so the user's explicit
-  // choice wins. A forced mirror still passes the validator, so the fallback
-  // keeps it honest when there is not enough of the user's own wording yet.
-  const forcedModeNote = !ctx.forcedMode
-    ? ""
-    : ctx.forcedMode === "mirror"
-    ? `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user explicitly asked you to reflect their thinking back now. Use mode "mirror", grounding every claim in their own Source Bank wording. If there is not enough settled user-owned wording to mirror cleanly, do NOT fabricate a reflection or invent structure — briefly say you don't have enough of their own words to mirror yet and ask one focused question that would get you there.`
-    : ctx.forcedMode === "deepen"
-    ? `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user explicitly asked you to go deeper on the idea currently on the table (or on the SELECTED UI FOCUS target if one is given). Use mode "question" with questionIntent "deepen": ask what it is, what it depends on, or what would change it. When a draft passage is the selected target, make the question aware of one concrete phrase, example, or issue in the draft rather than asking a generic "which part" question. Keep it simple and intelligent: at most one short grounding clause, then one question. Do not open a new topic and do not emit mapCommands.`
-    : ctx.forcedMode === "pivot"
-    ? `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): Your last question did NOT land — the user wants a different question. If a SELECTED UI FOCUS target is given, STAY on that same subject (that card or its draft content) but ask from a genuinely different direction than your previous question (see PREVIOUS COACH TURN above) — a new lens on the same idea, not a repeat, rephrase, or narrowing of it. If no target is selected, do a single easy open hand-back: invite them to point anywhere, or pivot to a clearly different card or draft region. Keep it short and pressure-free. Do not emit mapCommands.`
-    : mapPressure >= 0.5
-    ? `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user asked you to help connect their ideas and their pacing is set toward the map. Use mode "question" with questionIntent "organize": ask ONE open question about how the specific named cards relate or connect for them, in their OWN words, and let them know they can put that wording straight onto a connector if they already have it — so they can either keep unpacking the idea OR choose to label a connection, their call. Name the cards by their ref and exact text. Do NOT force them to produce connector wording, do NOT supply, guess, or hint at the relationship yourself, do NOT offer label options to choose between, do NOT author structure, and do NOT emit mapCommands.`
-    : `\nUSER OVERRIDE (HIGHEST PRIORITY — overrides the pacing/readiness/intent notes below): The user asked you to help connect their ideas and their pacing is set toward thinking. Use mode "question" with questionIntent "organize": ask a single, concrete question that helps them put into their OWN words how the named ideas sit together. If they have already written about these ideas in the draft, you MAY anchor the question to that specific draft region (read-only) so it feels concrete rather than generic — but you must NOT name, supply, or hint at the relationship itself. Do NOT offer label options, do NOT author structure, and do NOT emit mapCommands.`;
-
-  return `${PHILOSOPHY}${forcedModeNote}${selectedFocusNote}
-${pacingNote}${clarifyNote}${stuckNote}${focusHelpNote}${signalNote}${relationshipSafeIntentNote}${declarationNote}${candidateTrackingNote}${mapNote}${mapQuestionNote}${transitionNote}${draftDeclarationNote}${largeTurnNote}${sparseMapNote}${continuationNote}${organizeFocusNote}${activeElicitationNote}${activeSelectionNote}${openThreadsNote}${mirrorPressureNote}${metaNote}${affectNote}${legibilityNote}
-
-LATEST USER TURN:
-"""
-${ctx.turnText || "(empty)"}
-"""
-
-PREVIOUS COACH TURN:
-"""
-${ctx.lastAiText || "(none)"}
-"""
-
-CURRENT DRAFT (user's document — read-only reference for anchoring):
-"""
-${ctx.draft || "(no draft provided)"}
-"""
-
-DRAFT DECLARATIONS ALREADY STATED (salience only, never automatic structure):
-${renderDraftDeclarations(ctx.draftDeclarations)}
-
-SOURCE BANK (utterance ID → user's exact words):
-${renderBank(ctx.bank)}
-
-CANDIDATE THOUGHTS (internal — never shown raw to user):
-${renderCandidates(ctx.candidates, ctx.readyCandidateIds)}
-
-PARKED EARLIER PHRASES (optional recall anchors only):
-${ctx.openThreads?.length ? renderOpenThreads(ctx.openThreads) : "(none surfaced this turn)"}
-
-CURRENT CONCEPT MAP (user-authored canvas -- awareness only):
-${renderMap(ctx.map)}
-
-SELECTED UI FOCUS (read-only; not Source Bank evidence):
-${ctx.selectedFocus ? renderSelectedFocus(ctx.selectedFocus) : "(none)"}
-${
-  ctx.mapQuestionContext && ctx.mapQuestionContext.length > 0
-    ? `\nMAP QUESTION ANCHORS (read-only — safe to reference in a question, never to place/connect):\n${renderMapQuestionContext(ctx.mapQuestionContext)}\n`
-    : ""
-}
-===== OUTPUT FORMAT — return valid JSON only =====
-
+Schema:
+${transport === "responses_tools" ? "For this transport, reflection and map_proposal entries describe normalized application responses only; emit them through their named tools. Text output is provider-constrained to question, aside, options, or suggestion." : ""}
 {
-  "mode": "question" | "mirror" | "clarify",
-  "text": "<what you say to the user>",
-  "questionIntent": "deepen" | "organize",  // ONLY when mode = "question"
-  "questionStance": "settle" | "narrow" | "deepen" | "organize" | "challenge",  // ONLY when mode = "question" or "clarify"
-  "questionAnchor": string,                 // verbatim draft substring this question is about; empty string if none
-  "metaIntent": "emotional" | "confused" | "social" | "off_topic" | "unparseable",  // ONLY for a pure conversational aside (no writing content); emit no mapCommands/candidateUpserts
-  "affect": "exhausted" | "frustrated" | "overwhelmed" | "energized",  // OPTIONAL, any turn; tone/pacing only
+  "response":
+    {"kind":"question","text":"...","stance":"settle|narrow|deepen|organize|challenge","anchor":"optional exact draft substring"}
+    OR {"kind":"aside","text":"..."}
+    OR {"kind":"reflection","text":"...","reflection":{"claims":[{"id":"...","text":"...","candidateId":"...","target":"idea|hierarchy|connection","sourceSpans":[{"claimText":"...","utteranceIds":["..."],"userPhrase":"exact substring"}],"relationSpan":{"utteranceId":"...","text":"exact connective"}}]}}
+    OR {"kind":"map_proposal","text":"...","action":{"kind":"create_card|edit_card|nest_card|connect_cards", "...":"use the fields below"}}
+    OR {"kind":"options","text":"...","options":[{"text":"exact user wording","sourceSpans":[{"userPhrase":"exact substring","utteranceIds":["..."]}]}]}
+    OR {"kind":"suggestion","text":"..."},
+  "advisory":{"candidateUpserts":[{"id":"...","target":"idea|hierarchy|connection","gist":"...","addEvidenceIds":["..."]}],"candidateDeletes":["..."],"affect":"exhausted|frustrated|overwhelmed|energized"}
+}
+Action fields: create_card={text,sourceUtteranceIds}; edit_card={id,text,sourceUtteranceIds}; nest_card={child:{id or text+sourceUtteranceIds},parent:{id or text+sourceUtteranceIds},relationEvidence:{utteranceId,text}}; connect_cards={source:{...},target:{...},labelText,labelSourceUtteranceIds,labelOptions?:[{text,sourceUtteranceIds}],relationEvidence:{utteranceId,text},pairingProof?:{kind:"co_mentioned"|"selection_and_named_card",utteranceId}}. Pairing proof only nominates evidence; code verifies it.
+Emit exactly one visible response. Advisory data never authorizes structure or a write.
 
-  "mirror": {                            // ONLY when mode = "mirror"
-    "claims": [
-      {
-        "id": "<unique id, e.g. c1>",
-        "text": "<structural claim in user's own words — see MIRROR RULES below>",
-            "candidateId": "<must be one of the READY candidate ids listed above, or a candidateUpserts id from this same turn when same-turn mirroring is permitted>",
-        "target": "idea" | "hierarchy" | "connection",
-        "sourceSpans": [
-          {
-            "claimText": "<the part of 'text' this span grounds>",
-            "utteranceIds": ["<id from SOURCE BANK>"],
-            "userPhrase": "<exact substring copied verbatim from that utterance>"
-          }
-        ]
-      }
-    ]
-  },
-
-  "clarifySpan": {                       // ONLY when mode = "clarify"
-    "claimText": "",
-    "utteranceIds": ["<id>"],
-    "userPhrase": "<exact phrase you're probing>"
-  },
-
-  "candidateUpserts": [
-    {
-      "id": "<stable id — reuse across turns for the same concept>",
-      "target": "idea" | "hierarchy" | "connection",
-      "gist": "<short internal handle using the user's own words where possible; do not invent structural labels>",
-      "addEvidenceIds": ["<utterance ids from this turn that support this candidate>"]
-    }
-  ],
-  "candidateDeletes": ["<id>"],
-  "mapCommands": [
-    {
-      "kind": "create_card" | "nest_card" | "connect_cards" | "edit_card",
-      "text": "<create_card only: exact user words to place on the card>",
-      "cardText": "<edit_card only: exact existing card text/reference>",
-      "newText": "<edit_card only: exact replacement wording from this turn>",
-      "sourceSpan": {
-        "utteranceIds": ["<id from this turn>"],
-        "userPhrase": "<exact substring from this turn>"
-      },
-      "childText": "<nest_card only: exact child card text/reference>",
-      "parentText": "<nest_card only: exact existing parent card text/reference>",
-      "sourceText": "<connect_cards only: exact source card text/reference>",
-      "targetText": "<connect_cards only: exact target card text/reference>",
-      "labelText": "<connect_cards only; exact user-supplied label wording, omit if none>"
-    }
-  ],
-  "carryForwardCandidateIds": ["<idea candidate id the user explicitly committed to carrying forward this turn>"]
+${renderContext(context)}`;
 }
 
-OUTPUT FORMAT: Respond with exactly one valid JSON object and nothing else.
-Inside string values (especially "text"), any double quotation mark must be
-escaped as \\" so the JSON stays valid. When the visible response quotes exact
-user wording, draft wording, or a line from the user's text, include quotation
-marks around that quoted wording. For example, write
-"text": "When you say \\"human control\\", what changes?" rather than dropping
-the quotation marks. Use natural grammar around quotes: say "When you say
-\\"the different contributing factors\\", ..." or "Which of the contributing
-factors you mentioned..."; do NOT write robotic location phrases like "In
-\\"the different contributing factors\\", ..." unless the quoted words are an
-actual section title, heading, or line location. Refer to cards by #ref when you
-are not quoting exact text.
-
-NOTE: You do NOT supply relation signals or spontaneity. The system detects the
-user's containment/relation language deterministically and attaches it to the
-candidates whose addEvidenceIds include that utterance. Your job is only to
-group evidence correctly via addEvidenceIds — assign the utterance to the right
-candidate and the signals follow automatically.
-
-Use "carryForwardCandidateIds" only when the user explicitly identifies,
-chooses, emphasizes, or restates a specific idea as something to carry forward.
-Do not use it for vague agreement, low-information replies, relationships,
-hierarchy, or ideas inferred only from the draft.
-
-DIRECT MAP COMMANDS:
-- "mapCommands" are side effects, not a chat mode. You may emit mapCommands
-  while mode is "question", "mirror", or "clarify".
-- If a turn contains both an imperative map command and uncertainty about a
-  different aspect ("make a card for X; I'm not sure how it connects"), still
-  emit the command when its wording/references are exact. Use the
-  question/clarify text only for the uncertainty. If the uncertainty is about
-  whether to perform the command itself, ask instead of emitting a command.
-- Emit "create_card" only for imperative placement commands, e.g. "put X on the
-  map", "make a card for X", "add X to the map". The command text/sourceSpan
-  must be exact user words from this turn. Never paraphrase.
-- If the user wraps the intended card wording in command scaffolding, strip the
-  wrapper and emit only the intended card text. Example: for "Create only this
-  card: human control", use text/sourceSpan.userPhrase "human control", not
-  "Create only this card: human control".
-- Do NOT emit a mapCommand for declarative salience or relationship statements:
-  "X is a main idea", "X supports Y", "I think X relates to Y" stay on the
-  mirror/question path.
-- If the user gestures without wording ("put my main point on the map", "add
-  that control thing"), do not emit a command; ask what words should go on the
-  card.
-- Emit "edit_card" only when the user explicitly names an existing card and
-  gives exact replacement wording in this same turn ("reword #12 to X", "make
-  #12 say X"). Put the card reference in "cardText", the replacement words in
-  "newText", and copy those same replacement words into
-  "sourceSpan.userPhrase". Never rewrite, improve, summarize, or paraphrase the
-  card yourself.
-- Emit "nest_card" only for imperative nesting commands ("put X under Y", "make
-  X a subpoint of Y", "I want X to come under Y", "X should go under Y", "nest X
-  inside Y"). A first-person "I want X under Y" is a placement command, not a
-  mirror — do not route it to the mirror path. "childText" and "parentText" must
-  be the user's words.
-- Treat connection commands as first-class direct map commands, especially when
-  the endpoints are visible #refs: "connect A to B", "link A and B", "draw a
-  connection from A to B", and "connect A to B with the label X" should emit
-  "connect_cards". This is a command, not a relationship statement to mirror.
-  Treat straight or curly quotes around the label as equivalent, and copy only
-  the label wording itself into "labelText" (not the quotes). If the user
-  supplies label wording, include it in "labelText"; otherwise omit it. Never
-  invent a connection label.
-- If the user uses explicit #refs with an awkward structural verb, still treat
-  it as command intent. "link" should favor "connect_cards". "nest to" should
-  favor a nesting clarification if direction is unclear. "join", "combine", and
-  "merge" do NOT authorize a new merge operation; if you are unsure whether the
-  user means connect or nest, ask that command-style clarification instead of
-  switching to mirror or carry-forward.
-- If the user uses a shortened visible-card reference ("connect control to
-  authorship" when the map has "human control"), copy the user's reference
-  exactly. The controller will either resolve exact matches, ask a "did you mean
-  X?" confirmation for a unique near match, or ask which card if ambiguous. Do
-  not silently rewrite partial references to the full card text.
-- If a reference is unclear, tentative, or declarative, do not emit a command;
-  ask which card or what wording the user wants.
-
-Worked same-turn carry-forward example:
-If SOURCE BANK contains u_7 = "The part to carry forward is: human control means
-the human decides which ideas enter the draft, what wording is used, and where
-those words are placed.", a valid high-map response may use:
-{
-  "mode": "mirror",
-  "text": "Here's what I'm hearing in your words.",
-  "candidateUpserts": [
-    {
-      "id": "cand_human_control",
-      "target": "idea",
-      "gist": "human control means the human decides which ideas enter the draft, what wording is used, and where those words are placed",
-      "addEvidenceIds": ["u_7"]
-    }
-  ],
-  "carryForwardCandidateIds": ["cand_human_control"],
-  "mirror": {
-    "claims": [
-      {
-        "id": "c1",
-        "candidateId": "cand_human_control",
-        "target": "idea",
-        "text": "human control means the human decides which ideas enter the draft, what wording is used, and where those words are placed",
-        "sourceSpans": [
-          {
-            "claimText": "human control means the human decides which ideas enter the draft, what wording is used, and where those words are placed",
-            "utteranceIds": ["u_7"],
-            "userPhrase": "human control means the human decides which ideas enter the draft, what wording is used, and where those words are placed"
-          }
-        ]
-      }
-    ]
-  }
+function object(value: unknown): Record<string, unknown> | undefined {
+  return value !== null && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : undefined;
+}
+function strings(value: unknown): string[] { return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []; }
+function text(value: unknown): string | undefined { return typeof value === "string" && value.trim() ? value.trim() : undefined; }
+function stance(value: unknown): "settle" | "narrow" | "deepen" | "organize" | "challenge" | undefined {
+  return value === "settle" || value === "narrow" || value === "deepen" || value === "organize" || value === "challenge" ? value : undefined;
 }
 
-===== QUESTION MODE RULES =====
-COACHING STANCE: Choose the pressure of the next question before wording it.
-This is about how the question feels, not what the user is allowed to do.
-- "settle": user sounds overwhelmed, apologetic, scattered, blank, or unsure.
-  Slow down. Briefly normalize the uncertainty if useful, then ask for the
-  smallest handle they can point to. Do not ask a big structural question.
-- "narrow": user gives thin, vague, or low-information answers. Ask "which part"
-  or "point to one example" questions. Either/or is allowed only when both
-  options are already the user's own alternatives, not labels you inferred.
-  Do not scold, demand effort, or imply the user is being unhelpful.
-- "deepen": one idea is live. Ask what it does, what it depends on, what would
-  change it, or what tension it creates.
-- "organize": enough user-owned material exists to ask about relationships,
-  order, grouping, or map structure. Ask the user to name the relationship;
-  never propose the relationship, grouping, title, or structure.
-- "challenge": the user has made a stable claim and seems able to examine it.
-  Challenge only a stated assumption or implication, never the person, and do
-  not supply the answer.
-
-MANDATORY QUESTION: Every "text" in question or clarify mode MUST contain exactly
-one question and MUST end with it. A reply that is only an observation, agreement,
-or summary with no question is invalid. Hard length limit: at most one short
-grounding clause, then the question. No paragraph of analysis before it.
-
-ANTI-LOOP: If a concept, hierarchy, or connection is already in the candidate store
-with solid evidence, do NOT re-ask what it is or re-explain it. Once something is
-named, move on: deepen its implications, challenge an assumption it rests on,
-connect it to another candidate, or open the next unexplored area. Do not re-ask
-the same question with different wording.
-If the user answers "both", "all", "either", or otherwise accepts multiple
-options, treat that as a real answer. Do NOT repeat the same forced choice. Ask
-what makes both true, which one should appear first, or what distinction still
-matters between them.
-
-ADVANCE, DO NOT VALIDATE: If the user just confirmed a mirror chunk or stated a
-clear structural claim, the next question MUST advance their thinking at the
-smallest useful step. Never validate or paraphrase ("that makes sense",
-"exactly", "you've identified X") as the whole reply. Agreement as the whole
-reply is a failure. In settle/narrow stance, "advance" may mean helping the user
-choose one manageable piece, not forcing a big decision.
-
-NATURAL AFFIRMATION: A brief, genuine lead-in ("Interesting —", "That's a sharp
-distinction —") is allowed occasionally when the user says something genuinely
-sharp — at most a few words, not every turn, never a paraphrase of their idea.
-Use affirmation sparingly: roughly no more than once every 3-4 assistant turns,
-and skip it when it would feel like grading. Always follow it immediately with
-the advancing question. Most turns should open straight into the question.
-
-QUESTION TYPES — match to current intent:
-  Settle:   "What's the one piece you feel least unsure about?",
-            "Which part feels easiest to point at right now?"
-  Narrow:   "Which part should we stay with?", "Where does this show up first?",
-            "Which of your two phrases matters more here?"
-  Deepen:   "What does X actually do?", "What assumption does X rest on?",
-            "What would have to be true for X to hold?", "What makes Y different from Z?"
-  Organize: "How do X and Y relate in your words?",
-            "What relationship, if any, do you want between X and Y?",
-            "Which two thoughts should be placed near each other first?",
-            "What would you call the link between those two?"
-  Challenge:"What would make X stop being true?", "What does X require the reader
-            to accept first?"
-
-Never ask a vague rephrase-question ("How does that shape your thinking?").
-Never embed an answer in the question.
-Do not start a question with "In 'quoted user words'" or "In \"quoted user
-words\"" unless the quote is truly a section/heading/location. For ordinary
-phrases, use "When you say ...", "Which part of ...", or a direct question that
-absorbs the user's wording naturally.
-Never ask the user to choose between inferred structural labels. Bad: "Is X a
-software idea or an authorship claim?", "Does X sit under Y or alongside it?",
-"Is X the cause or the result?" unless the user already said those exact labels.
-Avoid serial "why" questions; they often feel interrogative. Prefer "what part",
-"which piece", "where does this show up", or "what changes when".
-If the user is stuck: make the question more concrete, not broader.
-If the user is overwhelmed: reduce scope before asking for structure.
-If the user is not giving much: narrow the choice without blaming them.
-When using the CURRENT CONCEPT MAP, refer only to cards or connections the user
-has already authored. Ask for their relationship; do not supply a candidate
-relationship, grouping, title, or label for them to approve.
-Each card line carries a short reference like ref=#3. When you mention a specific
-card in chat, you MAY cite it by that reference (e.g. "#3") so the user knows
-exactly which card you mean. Use the reference exactly as given; never invent a
-reference or renumber cards. Citing a card this way is still only awareness — it
-does not authorize you to draw, rename, group, or connect anything.
-
-When the user mentions a card reference without an explicit edit, move, nest, or
-connect command, treat the card as context for the next question. Do not assume
-they want to change its wording or ask "what wording do you want to keep?" unless
-they actually asked to edit or carry wording forward.
-
-===== MIRROR MODE RULES =====
-A mirror claim describes ONE structural relationship. It is NOT a bullet from the transcript.
-
-For a HIERARCHY claim (one thing contains or is bigger than another):
-  "text" = "[bigger thing, user's words] [user's containment phrase] [smaller thing, user's words]"
-  Example: if user said "the creator role is kind of the umbrella over the AI part"
-  → text = "creator role is the umbrella over the AI part"  (NOT "user is creator, AI is facilitator")
-
-For a CONNECTION claim (a principle or relationship connecting two things):
-  "text" = "[A, user's words] [user's relational phrase] [B, user's words]"
-  Example: if user said "staying the author is what keeps it honest"
-  → text = "staying the author keeps it honest"
-
-For an IDEA claim (a single named concept the user has introduced):
-  "text" = the user's own name/phrase for the concept, minimal rephrasing
-  For same-turn carry-forward idea mirrors, keep the claim no broader than the
-  latest user wording you cite. If the idea uses two clauses, cite the utterance
-  id(s) that contain both clauses.
-
-CRITICAL VALIDATOR CONSTRAINTS (violations = mirror blocked, fall back to clarify):
-- At least 80% of the claim's content words must be in the user's SOURCE BANK vocabulary.
-- Every sourceSpan's userPhrase must appear verbatim in the cited utterance.
-- Every content word in the claim must be covered by the utterance ids you cite.
-  If you draw from this turn, cite this turn's utterance id(s), not stale ids.
-- Copy userPhrase character-for-character — no paraphrase, no punctuation cleanup.
-- Each claim needs at least one sourceSpan.
-
-OMIT "mirror" entirely if mode ≠ "mirror". OMIT "clarifySpan" if mode ≠ "clarify".
-
-===== DRAFT ANCHORING ("questionAnchor") =====
-When your question is about a specific region of the CURRENT DRAFT, set
-"questionAnchor" to an exact verbatim substring copied from the draft. The UI
-will highlight that region for the user as a visual cue.
-
-Rules:
-- Only anchor when the question is clearly about a specific draft region.
-- Leave "questionAnchor" as an empty string when the question spans the whole
-  draft or there is no draft.
-- Never invent text — copy character-for-character from the draft.
-- When a question touches two regions, anchor to the primary one and name the
-  second in your question text.
-- Keep the anchor short: the tightest phrase that identifies the region, not
-  the entire paragraph.
-- CONTRADICTION: If what the user says in the bank conflicts with a draft
-  region, use mode "clarify", set "questionAnchor" to the conflicting draft
-  phrase, and ask the user to clarify their intent. Do not suggest a
-  correction. Accept whatever they say and let it enter the bank normally.`;
+function parseSpan(value: unknown): SourceSpan | undefined {
+  const raw = object(value); const phrase = text(raw?.userPhrase); if (!raw || !phrase) return undefined;
+  return { claimText: text(raw.claimText) ?? phrase, utteranceIds: strings(raw.utteranceIds), userPhrase: phrase };
 }
 
-// ---------------------------------------------------------------------------
-// Raw LLM response type
-// ---------------------------------------------------------------------------
-
-interface RawLLMResponse {
-  mode?: string;
-  text?: string;
-  questionIntent?: string;
-  questionStance?: string;
-  questionAnchor?: string;
-  metaIntent?: string;
-  affect?: string;
-  mirror?: {
-    claims?: Array<{
-      id?: string;
-      text?: string;
-      candidateId?: string;
-      target?: string;
-      sourceSpans?: Array<{
-        claimText?: string;
-        utteranceIds?: string[];
-        userPhrase?: string;
-      }>;
-    }>;
-  };
-  clarifySpan?: {
-    claimText?: string;
-    utteranceIds?: string[];
-    userPhrase?: string;
-  };
-  candidateUpserts?: Array<{
-    id?: string;
-    target?: string;
-    gist?: string;
-    addEvidenceIds?: string[];
-  }>;
-  candidateDeletes?: string[];
-  mapCommands?: Array<{
-    kind?: string;
-    text?: string;
-    cardText?: string;
-    newText?: string;
-    sourceSpan?: {
-      utteranceIds?: string[];
-      userPhrase?: string;
-    };
-    childText?: string;
-    parentText?: string;
-    sourceText?: string;
-    targetText?: string;
-    labelText?: string;
-  }>;
-  carryForwardCandidateIds?: string[];
+function parseReflection(value: unknown): MirrorReflection | undefined {
+  const raw = object(value); const items = Array.isArray(raw?.claims) ? raw.claims : [];
+  const claims: MirrorClaim[] = items.flatMap((value) => {
+    const claim = object(value); const id = text(claim?.id); const claimText = text(claim?.text); if (!claim || !id || !claimText) return [];
+    const target = claim.target === "hierarchy" || claim.target === "connection" ? claim.target : "idea";
+    const relation = object(claim.relationSpan); const relationText = text(relation?.text); const relationId = text(relation?.utteranceId);
+    return [{ id, text: claimText, candidateId: text(claim.candidateId) ?? "unknown", target, sourceSpans: (Array.isArray(claim.sourceSpans) ? claim.sourceSpans : []).map(parseSpan).filter((span): span is SourceSpan => Boolean(span)), ...(relationText && relationId ? { relationSpan: { utteranceId: relationId, text: relationText } } : {}) }];
+  });
+  return claims.length ? { claims } : undefined;
 }
 
-// ---------------------------------------------------------------------------
-// Parse + validate the raw response into LLMTurn
-// ---------------------------------------------------------------------------
-
-function parseSpan(raw: RawLLMResponse["clarifySpan"]): SourceSpan | undefined {
-  if (!raw?.userPhrase) return undefined;
-  return {
-    claimText: raw.claimText ?? raw.userPhrase,
-    utteranceIds: raw.utteranceIds ?? [],
-    userPhrase: raw.userPhrase,
-  };
+function parseOptions(value: unknown): SourceBackedOption[] | undefined {
+  if (!Array.isArray(value) || value.length === 0) return undefined;
+  const options = value.flatMap((item) => {
+    const raw = object(item); const optionText = text(raw?.text);
+    if (!raw || !optionText) return [];
+    return [{ text: optionText, sourceSpans: (Array.isArray(raw.sourceSpans) ? raw.sourceSpans : []).map(parseSpan).filter((span): span is SourceSpan => Boolean(span)) }];
+  });
+  return options.length === value.length ? options : undefined;
 }
 
-function parseMirror(raw: RawLLMResponse["mirror"]): MirrorReflection | undefined {
-  if (!raw?.claims?.length) return undefined;
-  const claims: MirrorClaim[] = raw.claims
-    .filter((c) => c.id && c.text)
-    .map((c) => ({
-      id: c.id!,
-      text: c.text!,
-      candidateId: c.candidateId ?? "unknown",
-      target:
-        c.target === "hierarchy" || c.target === "connection"
-          ? c.target
-          : "idea",
-      sourceSpans: (c.sourceSpans ?? [])
-        .filter((s) => s.userPhrase)
-        .map((s) => ({
-          claimText: s.claimText ?? s.userPhrase!,
-          utteranceIds: s.utteranceIds ?? [],
-          userPhrase: s.userPhrase!,
-        })),
-    }));
-  return claims.length > 0 ? { claims } : undefined;
+function parseRef(value: unknown): ProposedRef {
+  const raw = object(value); return { ...(text(raw?.id) ? { id: text(raw?.id) } : {}), ...(text(raw?.text) ? { text: text(raw?.text) } : {}), sourceUtteranceIds: strings(raw?.sourceUtteranceIds) };
 }
 
-function parseQuestionStance(raw: string | undefined): QuestionStance | undefined {
-  if (
-    raw === "settle" ||
-    raw === "narrow" ||
-    raw === "deepen" ||
-    raw === "organize" ||
-    raw === "challenge"
-  ) {
-    return raw;
+function parseAction(value: unknown): ProposedAction | undefined {
+  const raw = object(value); if (!raw) return undefined;
+  if (raw.kind === "create_card") { const value = text(raw.text); return value ? { kind: "create_card", text: value, sourceUtteranceIds: strings(raw.sourceUtteranceIds) } : undefined; }
+  if (raw.kind === "edit_card") { const id = text(raw.id); const value = text(raw.text); return id && value ? { kind: "edit_card", id, text: value, sourceUtteranceIds: strings(raw.sourceUtteranceIds) } : undefined; }
+  const relation = object(raw.relationEvidence); const relationText = text(relation?.text); const relationId = text(relation?.utteranceId);
+  const relationEvidence = relationText && relationId ? { utteranceId: relationId, text: relationText } : undefined;
+  if (raw.kind === "nest_card") return { kind: "nest_card", child: parseRef(raw.child), parent: parseRef(raw.parent), relationEvidence };
+  if (raw.kind === "connect_cards") {
+    const proof = object(raw.pairingProof); const proofKind = text(proof?.kind); const proofId = text(proof?.utteranceId);
+    const pairingProof = proofId && proofKind === "co_mentioned" ? { kind: "co_mentioned" as const, utteranceId: proofId }
+      : proofId && proofKind === "selection_and_named_card" ? { kind: "selection_and_named_card" as const, utteranceId: proofId }
+        : undefined;
+    const labelOptions = Array.isArray(raw.labelOptions) ? raw.labelOptions.map((item) => object(item)).flatMap((option) => {
+      const optionText = text(option?.text); return optionText ? [{ text: optionText, sourceUtteranceIds: strings(option?.sourceUtteranceIds) }] : [];
+    }) : undefined;
+    return { kind: "connect_cards", source: parseRef(raw.source), target: parseRef(raw.target), labelText: text(raw.labelText), labelSourceUtteranceIds: strings(raw.labelSourceUtteranceIds), labelOptions, relationEvidence, pairingProof };
   }
   return undefined;
 }
 
-function parseMapCommands(raw: RawLLMResponse["mapCommands"]): MapCommand[] {
-  return (raw ?? [])
-    .filter((command) => command.kind)
-    .map((command) => {
-      const kind =
-        command.kind === "nest_card" ||
-        command.kind === "connect_cards" ||
-        command.kind === "edit_card"
-          ? command.kind
-          : "create_card";
-      return {
-        kind,
-        text: command.text,
-        cardText: command.cardText,
-        newText: command.newText,
-        sourceSpan: command.sourceSpan?.userPhrase
-          ? {
-              utteranceIds: command.sourceSpan.utteranceIds,
-              userPhrase: command.sourceSpan.userPhrase,
-            }
-          : undefined,
-        childText: command.childText,
-        parentText: command.parentText,
-        sourceText: command.sourceText,
-        targetText: command.targetText,
-        labelText: command.labelText,
-      };
-    });
+export function parseAssistantResponse(rawValue: unknown): AssistantResponseEnvelope {
+  const raw = object(rawValue); const response = object(raw?.response); const kind = response?.kind; const visibleText = text(response?.text);
+  if (!raw || !response || !visibleText) throw new Error("invalid_response_envelope");
+  let parsed: AssistantResponseEnvelope["response"];
+  if (kind === "aside") parsed = { kind, text: visibleText };
+  else if (kind === "question") parsed = { kind, text: visibleText, ...(stance(response.stance) ? { stance: stance(response.stance) } : {}), ...(text(response.anchor) ? { anchor: text(response.anchor) } : {}) };
+  else if (kind === "reflection") { const reflection = parseReflection(response.reflection); if (!reflection) throw new Error("invalid_reflection_payload"); parsed = { kind, text: visibleText, reflection }; }
+  else if (kind === "map_proposal") { const action = parseAction(response.action); if (!action) throw new Error("invalid_map_proposal_payload"); parsed = { kind, text: visibleText, action }; }
+  else if (kind === "options") { const options = parseOptions(response.options); if (!options) throw new Error("invalid_options_payload"); parsed = { kind, text: visibleText, options }; }
+  else if (kind === "suggestion") parsed = { kind, text: visibleText };
+  else throw new Error("unknown_response_kind");
+  const advisory = object(raw.advisory);
+  return { response: parsed, advisory: advisory ? { candidateUpserts: (Array.isArray(advisory.candidateUpserts) ? advisory.candidateUpserts : []).flatMap((item) => { const next = object(item); const id = text(next?.id); const gist = text(next?.gist); if (!id || !gist) return []; return [{ id, gist, target: next?.target === "hierarchy" || next?.target === "connection" ? next.target : "idea", addEvidenceIds: strings(next?.addEvidenceIds) }]; }), candidateDeletes: strings(advisory.candidateDeletes), ...(typeof advisory.affect === "string" ? { affect: advisory.affect as never } : {}) } : undefined };
 }
 
-function parseTurn(raw: RawLLMResponse): LLMTurn {
-  const mode: LLMTurn["mode"] =
-    raw.mode === "mirror" || raw.mode === "clarify" ? raw.mode : "question";
-
-  const turn: LLMTurn = {
-    mode,
-    text: raw.text?.trim() || "(no response)",
-  };
-
-  if (mode === "mirror") {
-    turn.mirror = parseMirror(raw.mirror);
-  }
-
-  if (mode === "clarify" && raw.clarifySpan) {
-    turn.clarifySpan = parseSpan(raw.clarifySpan);
-  }
-
-  if (mode === "question") {
-    turn.questionIntent =
-      raw.questionIntent === "organize" ? "organize" : "deepen";
-  }
-
-  if (mode === "question" || mode === "clarify") {
-    turn.questionStance = parseQuestionStance(raw.questionStance);
-  }
-
-  if (raw.questionAnchor?.trim()) {
-    turn.questionAnchor = raw.questionAnchor.trim();
-  }
-
-  const META_INTENTS = ["emotional", "confused", "social", "off_topic", "unparseable"] as const;
-  if (raw.metaIntent && (META_INTENTS as readonly string[]).includes(raw.metaIntent)) {
-    turn.metaIntent = raw.metaIntent as LLMTurn["metaIntent"];
-  }
-  const AFFECTS = ["exhausted", "frustrated", "overwhelmed", "energized"] as const;
-  if (raw.affect && (AFFECTS as readonly string[]).includes(raw.affect)) {
-    turn.affect = raw.affect as LLMTurn["affect"];
-  }
-
-  turn.candidateUpserts = (raw.candidateUpserts ?? [])
-    .filter((u) => u.id && u.gist)
-    .map((u) => ({
-      id: u.id!,
-      target:
-        u.target === "hierarchy" || u.target === "connection"
-          ? u.target
-          : "idea",
-      gist: u.gist!,
-      addEvidenceIds: u.addEvidenceIds ?? [],
-    }));
-
-  turn.candidateDeletes = raw.candidateDeletes ?? [];
-  turn.mapCommands = parseMapCommands(raw.mapCommands);
-  turn.carryForwardCandidateIds = raw.carryForwardCandidateIds ?? [];
-
-  return turn;
-}
-
-// ---------------------------------------------------------------------------
-// Public API
-// ---------------------------------------------------------------------------
-
-export interface ConversationMessage {
-  role: "user" | "assistant";
-  content: string;
+export interface ConversationMessage { role: "user" | "assistant"; content: string }
+export interface ProviderTrace {
+  transport: ProviderTransport;
+  model: string;
+  reasoningEffort: string;
+  messages: unknown[];
+  parsedProviderResponse: unknown;
+  responseId?: string;
+  outputItemTypes?: string[];
+  toolName?: MindmapToolName;
+  toolCallId?: string;
 }
 
 /**
- * Single stateless call -- useful when the caller manages conversation history.
+ * Create one request's dialogue history. The live UI calls this synchronously
+ * before scheduling its state update, so the model cannot receive a transcript
+ * which stops at its own unanswered question.
  */
+export function historyForCurrentTurn(committed: ConversationMessage[], userText?: string): ConversationMessage[] {
+  const history = [...committed];
+  if (userText?.trim()) history.push({ role: "user", content: userText });
+  return history.slice(-20);
+}
+
 export async function callLLM(
-  ctx: LLMContext,
+  context: LLMContext,
   history: ConversationMessage[],
-  cfg: MindmapConfig = defaultConfig,
-): Promise<LLMTurn> {
-  const messages: OpenAIMessage[] = [
-    { role: "system", content: systemPrompt(ctx, cfg) },
-    ...history.map((m) => ({ role: m.role, content: m.content })),
-  ];
+  config: MindmapConfig = defaultConfig,
+  repair?: StructuredRejection,
+  onTrace?: (trace: ProviderTrace) => void,
+  transport: ProviderTransport = PROVIDER_TRANSPORT,
+  responseState?: ResponsesTurnState,
+): Promise<AssistantResponseEnvelope> {
+  if (transport === "chat_json") {
+    const messages: OpenAIMessage[] = [{ role: "system", content: systemPrompt(context, config, repair, transport) }, ...history];
+    const rawProviderResponse = await postChat(messages);
+    let parsedProviderResponse: unknown;
+    try { parsedProviderResponse = JSON.parse(rawProviderResponse) as unknown; }
+    catch {
+      onTrace?.({ transport, model: MODEL, reasoningEffort: REASONING_EFFORT, messages, parsedProviderResponse: rawProviderResponse });
+      throw new ModelResponseValidationError("invalid_provider_json");
+    }
+    onTrace?.({ transport, model: MODEL, reasoningEffort: REASONING_EFFORT, messages, parsedProviderResponse });
+    try { return parseAssistantResponse(parsedProviderResponse); }
+    catch (error) {
+      if (error instanceof ModelResponseValidationError) throw error;
+      throw new ModelResponseValidationError(error instanceof Error ? error.message : "invalid_provider_response");
+    }
+  }
 
-  const raw = await chatJSON<RawLLMResponse>(messages);
-  return parseTurn(raw);
+  const input: unknown[] = history.map((message) => ({ role: message.role, content: message.content }));
+  if (repair && responseState?.output?.length) {
+    input.push(...responseState.output);
+    if (responseState.toolCallId) {
+      input.push({ type: "function_call_output", call_id: responseState.toolCallId, output: JSON.stringify({ status: "rejected", rejection: repair }) });
+    } else {
+      input.push({ role: "user", content: `Repair the rejected response once: ${JSON.stringify(repair)}` });
+    }
+  }
+  const providerResponse = await postResponses(input, systemPrompt(context, config, repair, transport));
+  let parsed: ReturnType<typeof parseResponsesOutput>;
+  try { parsed = parseResponsesOutput(providerResponse); }
+  catch (error) {
+    const body = object(providerResponse);
+    const rawOutput = Array.isArray(body?.output) ? body.output : [];
+    onTrace?.({
+      transport, model: MODEL, reasoningEffort: REASONING_EFFORT, messages: input,
+      parsedProviderResponse: providerResponse,
+      responseId: typeof body?.id === "string" ? body.id : undefined,
+      outputItemTypes: rawOutput.map((item) => object(item)?.type).filter((item): item is string => typeof item === "string"),
+    });
+    throw new ModelResponseValidationError(error instanceof Error ? error.message : "invalid_provider_response");
+  }
+  if (responseState) {
+    responseState.output = parsed.output;
+    responseState.toolCallId = parsed.toolCall?.callId;
+  }
+  onTrace?.({
+    transport,
+    model: MODEL,
+    reasoningEffort: REASONING_EFFORT,
+    messages: input,
+    parsedProviderResponse: providerResponse,
+    responseId: parsed.responseId,
+    outputItemTypes: parsed.output.map((item) => object(item)?.type).filter((item): item is string => typeof item === "string"),
+    toolName: parsed.toolCall?.name,
+    toolCallId: parsed.toolCall?.callId,
+  });
+  try { return parseAssistantResponse(parsed.rawEnvelope); }
+  catch (error) { throw new ModelResponseValidationError(error instanceof Error ? error.message : "invalid_provider_response"); }
 }
 
-/**
- * Factory that returns a stateful MockLLM closure with its own history buffer.
- * Pass the returned function directly to `processTurn`.
- *
- * User wording reaches the model through the controller-owned current turn and
- * Source Bank context, where command-only utterances can be filtered. Keep this
- * private history assistant-only so direct commands do not leak back into later
- * mirror/candidate prompts as raw chat history.
- */
 export function makeLLM(
-  cfg: MindmapConfig | (() => MindmapConfig) = defaultConfig,
+  config: MindmapConfig | (() => MindmapConfig) = defaultConfig,
   initialHistory: ConversationMessage[] = [],
-): MockLLM {
-  const history: ConversationMessage[] = initialHistory.filter((m) => m.role === "assistant");
-
-  return async (ctx: LLMContext): Promise<LLMTurn> => {
-    const currentConfig = typeof cfg === "function" ? cfg() : cfg;
-    const turn = await callLLM(ctx, history, currentConfig);
-
-    history.push({ role: "assistant", content: turn.text });
-    return turn;
+  onTrace?: (trace: ProviderTrace) => void,
+  transport: ProviderTransport = PROVIDER_TRANSPORT,
+): AssistantModel {
+  const history = initialHistory.slice(-20);
+  const responseState: ResponsesTurnState = {};
+  return async (context, repair) => {
+    const envelope = await callLLM(context, history, typeof config === "function" ? config() : config, repair, onTrace, transport, responseState);
+    if (transport === "chat_json") {
+      history.push({ role: "assistant", content: envelope.response.text });
+      if (history.length > 20) history.splice(0, history.length - 20);
+    }
+    return envelope;
   };
 }
