@@ -17,6 +17,18 @@ import { captureException, posthogMiddleware } from './posthog.js';
 import { costUsd } from './pricing.js';
 import { summarizeUsage } from './usage.js';
 
+// Shared gate for the researcher/operator routes (log viewer + usage summary).
+// Returns an error Response to short-circuit, or null when the secret is valid.
+function logSecretGate(c: Context, provided: string): Response | null {
+	if (logSecret() === '') {
+		return c.json({ error: 'Logging secret not set.' }, 500);
+	}
+	if (provided !== logSecret()) {
+		return c.json({ error: 'Invalid secret.' }, 403);
+	}
+	return null;
+}
+
 export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	const app = new Hono();
 
@@ -193,24 +205,16 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			secret?: string;
 		};
 
-		if (logSecret() === '') {
-			return c.json({ error: 'Logging secret not set.' }, 500);
-		}
-		if (secret !== logSecret()) {
-			return c.json({ error: 'Invalid secret.' }, 403);
-		}
+		const gate = logSecretGate(c, secret);
+		if (gate) return gate;
 		return c.json(await pollLogs(log_positions));
 	});
 
 	// Bulk log export as a ZIP (researcher tool, reached by direct URL).
 	app.get('/api/download_logs', async (c) => {
 		const secret = c.req.query('secret') ?? '';
-		if (logSecret() === '') {
-			return c.json({ error: 'Logging secret not set.' }, 500);
-		}
-		if (secret !== logSecret()) {
-			return c.json({ error: 'Invalid secret.' }, 403);
-		}
+		const gate = logSecretGate(c, secret);
+		if (gate) return gate;
 
 		const zip = await zipLogs();
 		return new Response(zip, {
@@ -228,12 +232,8 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	// up in `unpricedModels` rather than silently costing nothing.
 	app.get('/api/usage_summary', (c) => {
 		const secret = c.req.query('secret') ?? '';
-		if (logSecret() === '') {
-			return c.json({ error: 'Logging secret not set.' }, 500);
-		}
-		if (secret !== logSecret()) {
-			return c.json({ error: 'Invalid secret.' }, 403);
-		}
+		const gate = logSecretGate(c, secret);
+		if (gate) return gate;
 
 		const parseDate = (raw: string | undefined, fallback: number): number => {
 			const parsed = raw ? Date.parse(raw) : Number.NaN;
