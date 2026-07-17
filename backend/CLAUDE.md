@@ -17,15 +17,19 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   both schemas and is the deploy-time entrypoint (k8s initContainer). A pre-existing
   `auth.db` (the old name, when Better Auth was the only tenant) is renamed to `app.db`
   on first open, siblings included.
-- **OpenAI proxy** (`src/openaiProxy.ts`): `POST /api/openai/chat/completions` injects a
-  server-held API key and streams the upstream SSE response through unchanged. The
+- **OpenAI proxy** (`src/openaiProxy.ts`): `POST /api/openai/chat/completions` and
+  `/api/openai/responses` inject a server-held API key and relay the upstream response
+  through unchanged (`stream:true` piped as SSE, everything else buffered). The
   frontend's ai-sdk client builds the prompts and points at this route, sending the
   session token as its bearer. `attributeRequest` decides **which key pays**, and the
   usage bucket always names the key that was charged so the summary reconciles against
   the right invoice: a session → `OPENAI_API_KEY`, metered to that user; no session →
   `OPENAI_DEMO_API_KEY` (the capped Thoughtful-demo project), metered to `demo` — this
   is how demo mode and the pre-sign-in editor work; no session and no demo key → 401 if
-  auth is on (fail closed), else the main key metered to `anonymous` (local dev).
+  auth is on (fail closed), else the main key metered to `anonymous` (local dev). An
+  empty-bodied upstream 200 is rejected as a 502 (undici h2 transport failures on Node
+  26 otherwise surface as silent empty 200s — see the comment in `openaiProxy.ts`; run
+  Node 24 LTS).
 - **Usage metering** (`src/usage.ts`, `src/pricing.ts`): every proxied model request
   writes a content-free row (user, model, token counts, status) to the `llm_usage`
   table. Streaming responses are `tee()`d so usage can be read from the
