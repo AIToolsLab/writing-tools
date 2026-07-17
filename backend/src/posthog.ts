@@ -2,7 +2,14 @@ import { createMiddleware } from 'hono/factory';
 import { PostHog } from 'posthog-node';
 
 const token = (process.env.POSTHOG_PROJECT_TOKEN ?? '').trim() || "placeholder-token";
-const host = (process.env.POSTHOG_HOST ?? 'https://us.i.posthog.com').trim();
+// Strip any trailing slash so building management-API URLs (deletePosthogPerson)
+// can't produce a double slash — the shipped POSTHOG_HOST default ends in '/', and
+// many reverse proxies 404 on `//api/...`.
+const host =
+	((process.env.POSTHOG_HOST ?? '').trim() || 'https://us.i.posthog.com').replace(
+		/\/+$/,
+		'',
+	);
 
 const shouldDisablePosthog = token === "placeholder-token" || process.env.DISABLE_POSTHOG === '1';
 
