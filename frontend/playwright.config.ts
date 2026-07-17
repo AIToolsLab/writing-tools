@@ -25,7 +25,11 @@ export default defineConfig({
   /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 1 : undefined,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: 'html',
+  // In CI, `list` streams one line per test to the job log (github alone is silent
+  // until the end, hiding which test is slow); `github` adds PR failure annotations.
+  reporter: process.env.CI
+    ? [['list'], ['github'], ['html', { open: 'never' }]]
+    : [['list'], ['html']],
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('')`. */
@@ -78,7 +82,9 @@ export default defineConfig({
     {
       command:'npm run prod-server',
       url: 'http://localhost:3000',
-      timeout: 900000,
+      // Static http-server over ./dist binds in <1s; a short timeout surfaces a
+      // failed/missing build as a fast error instead of a 15-min "hang".
+      timeout: 120000,
       reuseExistingServer: !process.env.CI,
       name: 'Frontend',
     },

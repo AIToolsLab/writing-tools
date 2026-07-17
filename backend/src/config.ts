@@ -30,6 +30,14 @@ export const gitCommit = () => (process.env.GIT_COMMIT ?? 'unknown').trim();
 
 // Read at request time via these helpers so tests can override the environment
 export const openaiApiKey = () => (process.env.OPENAI_API_KEY ?? '').trim();
+
+// Key for the Thoughtful-demo OpenAI project, used to serve requests that carry no
+// session (demo mode, and the standalone editor before sign-in). Separate from the
+// main key so its spend is capped on OpenAI's side rather than by us. When unset,
+// unauthenticated requests are refused wherever auth is enabled — see openaiProxy.ts.
+export const openaiDemoApiKey = () =>
+	(process.env.OPENAI_DEMO_API_KEY ?? '').trim();
+
 export const logSecret = () => (process.env.LOG_SECRET ?? '').trim();
 
 // Auth — opt-in via BETTER_AUTH_ENABLED=true

@@ -3,7 +3,6 @@
  */
 
 import { streamText, type ModelMessage } from 'ai';
-import { useAtomValue } from 'jotai';
 import {
 	useCallback,
 	useContext,
@@ -16,7 +15,7 @@ import { draftLog } from '@/api/logging';
 import { OPENAI_MODEL, openai } from '@/api/openai';
 import { buildMessages } from '@/api/prompts';
 import { EditorContext } from '@/contexts/editorContext';
-import { usernameAtom } from '@/contexts/userContext';
+import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import { iconFunc } from './iconFunc';
 import classes from './styles.module.css';
@@ -237,7 +236,7 @@ function useResettableInterval(callback: () => void, interval: number) {
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const docContextSnapshot = useDocContext(editorAPI);
-	const username = useAtomValue(usernameAtom);
+	const log = useLog();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 	const [errorMsg, updateErrorMsg] = useState('');
@@ -266,7 +265,7 @@ export default function Draft() {
 
 	const save = useCallback(
 		(generation: GenerationResult, document: DocContext) => {
-			draftLog.suggestionShown(username, {
+			draftLog.suggestionShown(log, {
 				generationType: generation.generation_type,
 				docContext: document,
 				result: generation,
@@ -280,7 +279,7 @@ export default function Draft() {
 				...savedItems,
 			]);
 		},
-		[username],
+		[log],
 	);
 
 	function deleteSavedItem(dateSaved: Date) {
@@ -302,7 +301,7 @@ export default function Draft() {
 				(savedItem) => savedItem.dateSaved !== dateSaved,
 			);
 
-			draftLog.suggestionDeleted(username, {
+			draftLog.suggestionDeleted(log, {
 				generationType: savedItems[savedItemIdx].generation.generation_type,
 				docContext: savedItems[savedItemIdx].document,
 				result: savedItems[savedItemIdx].generation,
@@ -346,7 +345,7 @@ export default function Draft() {
 				const isEmpty = suggestion.result.trim() === '' || suggestion.result.trim() === '[]';
 				if (isEmpty) {
 					console.warn('Received empty suggestion.');
-					draftLog.suggestionEmpty(username, {
+					draftLog.suggestionEmpty(log, {
 						generationType: suggestionRequest.type,
 						docContext: suggestionRequest.docContext,
 					});
@@ -357,7 +356,7 @@ export default function Draft() {
 				const errMsg: string =
 					err.message ||
 					'An error occurred while generating the suggestion.';
-				draftLog.generationError(username, {
+				draftLog.generationError(log, {
 					generationType: suggestionRequest.type,
 					docContext: suggestionRequest.docContext,
 					error: errMsg,
@@ -367,7 +366,7 @@ export default function Draft() {
 
 			setIsLoading(false);
 		},
-		[getFetcher, save, username],
+		[getFetcher, save, log],
 	);
 
 	const autoRefreshCallback = useCallback(() => {
@@ -395,12 +394,12 @@ export default function Draft() {
 			);
 			return;
 		}
-		draftLog.autoRefresh(username, {
+		draftLog.autoRefresh(log, {
 			generationType: modesToShow[0],
 			docContext: docContextRef.current,
 		});
 		getSuggestion(request, false);
-	}, [getFetcher, getSuggestion, modesToShow, shouldAutoRefresh, username]);
+	}, [getFetcher, getSuggestion, shouldAutoRefresh, log]);
 
 	const resetAutoRefresh = useResettableInterval(
 		autoRefreshCallback,
@@ -431,7 +430,7 @@ export default function Draft() {
 										className={`${classes.featureCard} ${isActive ? classes.active : ''}`}
 										onClick={() => {
 											setActiveMode(mode);
-											draftLog.suggestionRequested(username, {
+											draftLog.suggestionRequested(log, {
 												generationType: mode,
 												docContext: docContextRef.current,
 											});

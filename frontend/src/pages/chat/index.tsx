@@ -1,5 +1,4 @@
 import { streamText, type ModelMessage } from 'ai';
-import { useAtomValue } from 'jotai';
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
 import { Remark } from 'react-remark';
@@ -8,7 +7,7 @@ import { chatLog } from '@/api/logging';
 import { OPENAI_MODEL, openai } from '@/api/openai';
 import { ChatContext } from '@/contexts/chatContext';
 import { EditorContext } from '@/contexts/editorContext';
-import { usernameAtom } from '@/contexts/userContext';
+import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import classes from './styles.module.css';
 
@@ -22,7 +21,7 @@ const suggestionPrompts = [
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const editorAPI = useContext(EditorContext);
-	const username = useAtomValue(usernameAtom);
+	const log = useLog();
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -124,7 +123,7 @@ export default function Chat() {
 		const requestController = new AbortController();
 		activeRequestControllerRef.current = requestController;
 
-		chatLog.messageSent(username, { message: text, source });
+		chatLog.messageSent(log, { message: text, source });
 		updateSendingMessage(true);
 
 		let newMessages = [
@@ -151,7 +150,7 @@ export default function Chat() {
 				newMessages[newMessages.length - 1].content += delta;
 				updateChatMessages(newMessages);
 			}
-			chatLog.responseCompleted(username, {
+			chatLog.responseCompleted(log, {
 				responseLength: newMessages[newMessages.length - 1].content.length,
 			});
 		} catch (error) {
@@ -159,7 +158,7 @@ export default function Chat() {
 				return;
 			}
 			console.error('Error while streaming chat response:', error);
-			chatLog.responseError(username, {
+			chatLog.responseError(log, {
 				error: error instanceof Error ? error.message : String(error),
 			});
 		} finally {

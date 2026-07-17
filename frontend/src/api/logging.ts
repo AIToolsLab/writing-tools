@@ -5,7 +5,7 @@
  * through the helpers in this module so that the study logs share one
  * consistent schema. Each event is written as:
  *
- *   { schema_version, page, event, username, timestamp, ...data }
+ *   { schema_version, page, event, timestamp, ...data }
  *
  * - `schema_version` lets log readers tell newer events from older ones. Bump
  *   {@link LOG_SCHEMA_VERSION} whenever the envelope or an event payload changes
@@ -16,11 +16,19 @@
  *   filtered per page without parsing the event name.
  * - `event` is a snake_case, verb-phrase name that is unique within its page.
  *
+ * Transport, identity, and consent are owned by {@link useLog} (see
+ * `@/hooks/useLog`): the server derives the user from the session, and content
+ * fields are stripped to the user's consent level. Each page calls `useLog()`
+ * once and passes the resulting {@link LogFn} to these helpers. Content-bearing
+ * payload fields must use names the consent gate recognizes (see
+ * `@/consent` `KEY_MIN_LEVEL`): `docContext`/`message`/`target` are document
+ * text, `result`/`response` are AI output; everything else is usage metadata.
+ *
  * Event names and payload shapes are declared once here (never inline at call
  * sites) so the naming convention stays consistent and payloads are type
  * checked. To add an event, add a method to the relevant page's helper object.
  */
-import { log } from './index';
+import type { LogFn } from '@/hooks/useLog';
 
 /**
  * Version of the frontend event-log schema. Bump when the envelope or any event
@@ -34,31 +42,17 @@ export const LOG_SCHEMA_VERSION = 1;
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat';
 
-/** Fields stamped onto every event by {@link logEvent}. */
-interface LogEnvelope {
-	schema_version: number;
-	page: LogPage;
-	event: string;
-	username: string;
-}
-
 /**
- * Low-level event emitter. Prefer the typed per-page helpers below — this is
- * the single place that stamps the schema version and page onto the payload.
+ * Emit one event through the page's {@link LogFn}, stamping the schema version,
+ * page, and event name. The single place the envelope is assembled.
  */
-function logEvent(
+function emit(
+	log: LogFn,
 	page: LogPage,
-	username: string,
 	event: string,
 	data: Record<string, unknown> = {},
-): Promise<Response> {
-	const envelope: LogEnvelope = {
-		schema_version: LOG_SCHEMA_VERSION,
-		page,
-		event,
-		username,
-	};
-	return log({ ...envelope, ...data });
+): Promise<void> {
+	return log({ schema_version: LOG_SCHEMA_VERSION, page, event, ...data });
 }
 
 /**
@@ -68,45 +62,45 @@ function logEvent(
 export const draftLog = {
 	/** A suggestion mode button was clicked. */
 	suggestionRequested(
-		username: string,
+		log: LogFn,
 		data: { generationType: string; docContext: DocContext },
 	) {
-		return logEvent('draft', username, 'suggestion_requested', data);
+		return emit(log, 'draft', 'suggestion_requested', data);
 	},
 	/** A generated suggestion was shown to (and saved for) the writer. */
 	suggestionShown(
-		username: string,
+		log: LogFn,
 		data: { generationType: string; docContext: DocContext; result: GenerationResult },
 	) {
-		return logEvent('draft', username, 'suggestion_shown', data);
+		return emit(log, 'draft', 'suggestion_shown', data);
 	},
 	/** The writer deleted a saved suggestion. */
 	suggestionDeleted(
-		username: string,
+		log: LogFn,
 		data: { generationType: string; docContext: DocContext; result: GenerationResult },
 	) {
-		return logEvent('draft', username, 'suggestion_deleted', data);
+		return emit(log, 'draft', 'suggestion_deleted', data);
 	},
 	/** The model returned an empty suggestion, so nothing was shown. */
 	suggestionEmpty(
-		username: string,
+		log: LogFn,
 		data: { generationType: string; docContext: DocContext },
 	) {
-		return logEvent('draft', username, 'suggestion_empty', data);
+		return emit(log, 'draft', 'suggestion_empty', data);
 	},
 	/** A suggestion request failed (timeout or model error). */
 	generationError(
-		username: string,
+		log: LogFn,
 		data: { generationType: string; docContext: DocContext; error: string },
 	) {
-		return logEvent('draft', username, 'generation_error', data);
+		return emit(log, 'draft', 'generation_error', data);
 	},
 	/** An automatic (non-user-initiated) refresh fired. */
 	autoRefresh(
-		username: string,
+		log: LogFn,
 		data: { generationType: string; docContext: DocContext },
 	) {
-		return logEvent('draft', username, 'auto_refresh', data);
+		return emit(log, 'draft', 'auto_refresh', data);
 	},
 };
 
@@ -116,40 +110,34 @@ export const draftLog = {
  */
 export const reviseLog = {
 	/** A feature checkbox was toggled on or off. */
-	featureToggled(
-		username: string,
-		data: { feature: string; selected: boolean },
-	) {
-		return logEvent('revise', username, 'feature_toggled', data);
+	featureToggled(log: LogFn, data: { feature: string; selected: boolean }) {
+		return emit(log, 'revise', 'feature_toggled', data);
 	},
 	/** The "Run" button was pressed for the current set of selected features. */
-	featuresRun(username: string, data: { features: string[] }) {
-		return logEvent('revise', username, 'features_run', data);
+	featuresRun(log: LogFn, data: { features: string[] }) {
+		return emit(log, 'revise', 'features_run', data);
 	},
 	/** A single feature's visualization request started streaming. */
 	visualizationRequested(
-		username: string,
+		log: LogFn,
 		data: { feature: string; isOverall: boolean; docContext: DocContext },
 	) {
-		return logEvent('revise', username, 'visualization_requested', data);
+		return emit(log, 'revise', 'visualization_requested', data);
 	},
 	/** A visualization finished streaming successfully. */
 	visualizationCompleted(
-		username: string,
+		log: LogFn,
 		data: { feature: string; response: string },
 	) {
-		return logEvent('revise', username, 'visualization_completed', data);
+		return emit(log, 'revise', 'visualization_completed', data);
 	},
 	/** A visualization request failed (and was not merely cancelled). */
-	visualizationError(
-		username: string,
-		data: { feature: string; error: string },
-	) {
-		return logEvent('revise', username, 'visualization_error', data);
+	visualizationError(log: LogFn, data: { feature: string; error: string }) {
+		return emit(log, 'revise', 'visualization_error', data);
 	},
 	/** The writer clicked a document reference (doctext link) in a result. */
-	referenceClicked(username: string, data: { target: string }) {
-		return logEvent('revise', username, 'reference_clicked', data);
+	referenceClicked(log: LogFn, data: { target: string }) {
+		return emit(log, 'revise', 'reference_clicked', data);
 	},
 };
 
@@ -159,20 +147,17 @@ export const reviseLog = {
 export const chatLog = {
 	/** The writer sent a message (typed or via a suggested-prompt chip). */
 	messageSent(
-		username: string,
+		log: LogFn,
 		data: { message: string; source: 'input' | 'suggested' },
 	) {
-		return logEvent('chat', username, 'message_sent', data);
+		return emit(log, 'chat', 'message_sent', data);
 	},
 	/** The assistant's streamed response finished. */
-	responseCompleted(
-		username: string,
-		data: { responseLength: number },
-	) {
-		return logEvent('chat', username, 'response_completed', data);
+	responseCompleted(log: LogFn, data: { responseLength: number }) {
+		return emit(log, 'chat', 'response_completed', data);
 	},
 	/** The assistant response failed to stream (and was not cancelled). */
-	responseError(username: string, data: { error: string }) {
-		return logEvent('chat', username, 'response_error', data);
+	responseError(log: LogFn, data: { error: string }) {
+		return emit(log, 'chat', 'response_error', data);
 	},
 };

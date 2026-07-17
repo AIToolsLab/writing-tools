@@ -1,4 +1,5 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import type { LogFn } from '@/hooks/useLog';
 import {
 	chatLog,
 	draftLog,
@@ -6,15 +7,11 @@ import {
 	reviseLog,
 } from '../logging';
 
-// The logging helpers ultimately call `log()` in ../index, which POSTs to
-// `${SERVER_URL}/log` via fetch. Stub fetch and inspect the serialized body.
-let fetchMock: ReturnType<typeof vi.fn>;
-
-function lastBody(): Record<string, unknown> {
-	const calls = fetchMock.mock.calls;
-	const [, init] = calls[calls.length - 1];
-	// eslint-disable-next-line @typescript-eslint/no-unsafe-return
-	return JSON.parse((init as RequestInit).body as string);
+// The page helpers stamp the envelope and forward to a LogFn (from useLog).
+// Pass a mock LogFn and inspect the payload it receives — transport, identity,
+// and consent are useLog's concern and tested there.
+function makeLog() {
+	return vi.fn<LogFn>().mockResolvedValue(undefined);
 }
 
 const docContext: DocContext = {
@@ -23,45 +20,42 @@ const docContext: DocContext = {
 	afterCursor: 'after',
 };
 
-beforeEach(() => {
-	fetchMock = vi.fn().mockResolvedValue(new Response('{}', { status: 200 }));
-	vi.stubGlobal('fetch', fetchMock);
-});
-
-afterEach(() => {
-	vi.unstubAllGlobals();
-});
-
 describe('event envelope', () => {
-	it('stamps schema_version, page, event, and username on every event', () => {
-		draftLog.suggestionRequested('alice', {
+	it('stamps schema_version, page, and event on every event', () => {
+		const log = makeLog();
+		draftLog.suggestionRequested(log, {
 			generationType: 'example_sentences',
 			docContext,
 		});
 
-		const body = lastBody();
-		expect(body.schema_version).toBe(LOG_SCHEMA_VERSION);
-		expect(body.page).toBe('draft');
-		expect(body.event).toBe('suggestion_requested');
-		expect(body.username).toBe('alice');
-		expect(body.generationType).toBe('example_sentences');
-		// The transport adds a timestamp.
-		expect(typeof body.timestamp).toBe('number');
+		expect(log).toHaveBeenCalledTimes(1);
+		const payload = log.mock.calls[0][0];
+		expect(payload.schema_version).toBe(LOG_SCHEMA_VERSION);
+		expect(payload.page).toBe('draft');
+		expect(payload.event).toBe('suggestion_requested');
+		expect(payload.generationType).toBe('example_sentences');
+		// Identity is added by useLog from the session, not here.
+		expect(payload).not.toHaveProperty('username');
 	});
 
 	it('scopes events to the emitting page', () => {
-		reviseLog.featuresRun('bob', { features: ['Main Point'] });
-		expect(lastBody().page).toBe('revise');
+		const log = makeLog();
+		reviseLog.featuresRun(log, { features: ['Main Point'] });
+		expect(log.mock.calls[0][0].page).toBe('revise');
 
-		chatLog.messageSent('bob', { message: 'hi', source: 'input' });
-		expect(lastBody().page).toBe('chat');
+		chatLog.messageSent(log, { message: 'hi', source: 'input' });
+		expect(log.mock.calls[1][0].page).toBe('chat');
 	});
 
 	it('carries event-specific payload fields through unchanged', () => {
-		chatLog.messageSent('carol', { message: 'what is my thesis?', source: 'suggested' });
-		const body = lastBody();
-		expect(body.event).toBe('message_sent');
-		expect(body.message).toBe('what is my thesis?');
-		expect(body.source).toBe('suggested');
+		const log = makeLog();
+		chatLog.messageSent(log, {
+			message: 'what is my thesis?',
+			source: 'suggested',
+		});
+		const payload = log.mock.calls[0][0];
+		expect(payload.event).toBe('message_sent');
+		expect(payload.message).toBe('what is my thesis?');
+		expect(payload.source).toBe('suggested');
 	});
 });

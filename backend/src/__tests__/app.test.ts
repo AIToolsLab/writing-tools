@@ -1,18 +1,39 @@
 import { mkdtemp, readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import {
-	afterEach,
-	beforeEach,
-	describe,
-	expect,
-	it,
-	vi,
-} from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app.js';
+import type { Auth } from '../auth.js';
 
 const app = createApp();
 const env = { ...process.env };
+
+/**
+ * Minimal Better Auth stub: getSession returns the given user (or null), and
+ * updateUser/deleteUser record their calls. Cast to Auth — we only touch the
+ * surface the app handlers use.
+ */
+function makeAuthApp(user: { id: string; loggingConsent?: string } | null) {
+	const calls: { updateUser: unknown[]; deleteUser: unknown[] } = {
+		updateUser: [],
+		deleteUser: [],
+	};
+	const auth = {
+		handler: async () => new Response(null),
+		api: {
+			getSession: async () => (user ? { user } : null),
+			updateUser: async (args: unknown) => {
+				calls.updateUser.push(args);
+				return { status: true };
+			},
+			deleteUser: async (args: unknown) => {
+				calls.deleteUser.push(args);
+				return { success: true, message: 'ok' };
+			},
+		},
+	} as unknown as Auth;
+	return { app: createApp({ auth }), calls };
+}
 
 beforeEach(async () => {
 	process.env.LOG_DIR = await mkdtemp(path.join(tmpdir(), 'wt-app-'));
@@ -33,39 +54,93 @@ describe('GET /api/ping', () => {
 	});
 });
 
+async function readUserLog(userId: string) {
+	const content = await readFile(
+		path.join(process.env.LOG_DIR as string, `${userId}.jsonl`),
+		'utf8',
+	);
+	return JSON.parse(content.trim());
+}
+
 describe('POST /api/log', () => {
-	it('writes the event and folds extras into extra_data', async () => {
-		const res = await app.request('/api/log', {
+	it('rejects unauthenticated requests with 401', async () => {
+		const { app: authApp } = makeAuthApp(null);
+		const res = await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ event: 'saved' }),
+		});
+		expect(res.status).toBe(401);
+	});
+
+	it('keys the log by the session user id and ignores any client username', async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'user-123',
+			loggingConsent: 'document',
+		});
+		const res = await authApp.request('/api/log', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
-				username: 'eve',
+				username: 'spoofed',
 				event: 'saved',
 				timestamp: 123,
 				detail: 'hello',
 			}),
 		});
 		expect(res.status).toBe(200);
-
-		// allow the fire-and-forget append to flush
-		await new Promise((r) => setTimeout(r, 20));
-		const content = await readFile(
-			path.join(process.env.LOG_DIR!, 'eve.jsonl'),
-			'utf8',
-		);
-		const entry = JSON.parse(content.trim());
-		expect(entry.username).toBe('eve');
+		const entry = await readUserLog('user-123');
+		expect(entry.username).toBe('user-123');
 		expect(entry.event).toBe('saved');
 		expect(entry.extra_data.client_timestamp).toBe(123);
 		expect(entry.extra_data.detail).toBe('hello');
+		expect(entry.extra_data.username).toBeUndefined();
 	});
 
-	it('promotes schema_version and page to top-level columns', async () => {
-		const res = await app.request('/api/log', {
+	it("strips content above the user's consent level ('usage')", async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-usage',
+			loggingConsent: 'usage',
+		});
+		await authApp.request('/api/log', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
 			body: JSON.stringify({
-				username: 'eve',
+				event: 'ShowSuggestion',
+				generation_type: 'example_sentences',
+				prompt: { beforeCursor: 'secret doc' },
+				result: { result: 'AI text' },
+			}),
+		});
+		const entry = await readUserLog('usr-usage');
+		expect(entry.extra_data.generation_type).toBe('example_sentences');
+		expect(entry.extra_data.prompt).toBeUndefined();
+		expect(entry.extra_data.result).toBeUndefined();
+	});
+
+	it("logs nothing at level 'none' but still returns 200", async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-none',
+			loggingConsent: 'none',
+		});
+		const res = await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ event: 'ShowSuggestion' }),
+		});
+		expect(res.status).toBe(200);
+		await expect(readUserLog('usr-none')).rejects.toThrow(); // no file written
+	});
+
+	it('promotes schema_version and page to top-level columns', async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-schema',
+			loggingConsent: 'document',
+		});
+		const res = await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({
 				event: 'suggestion_requested',
 				schema_version: 1,
 				page: 'draft',
@@ -74,12 +149,7 @@ describe('POST /api/log', () => {
 		});
 		expect(res.status).toBe(200);
 
-		await new Promise((r) => setTimeout(r, 20));
-		const content = await readFile(
-			path.join(process.env.LOG_DIR!, 'eve.jsonl'),
-			'utf8',
-		);
-		const entry = JSON.parse(content.trim());
+		const entry = await readUserLog('usr-schema');
 		expect(entry.schema_version).toBe(1);
 		expect(entry.page).toBe('draft');
 		// Promoted columns must not linger in extra_data.
@@ -89,21 +159,81 @@ describe('POST /api/log', () => {
 	});
 
 	it('defaults schema_version to 0 and page to null for pre-schema clients', async () => {
-		const res = await app.request('/api/log', {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-legacy',
+			loggingConsent: 'document',
+		});
+		const res = await authApp.request('/api/log', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ username: 'eve', event: 'legacy_event' }),
+			body: JSON.stringify({ event: 'legacy_event' }),
 		});
 		expect(res.status).toBe(200);
 
-		await new Promise((r) => setTimeout(r, 20));
-		const content = await readFile(
-			path.join(process.env.LOG_DIR!, 'eve.jsonl'),
-			'utf8',
-		);
-		const entry = JSON.parse(content.trim());
+		const entry = await readUserLog('usr-legacy');
 		expect(entry.schema_version).toBe(0);
 		expect(entry.page).toBeNull();
+	});
+});
+
+describe('POST /api/me/consent', () => {
+	it('rejects an invalid level and accepts a valid one via updateUser', async () => {
+		const { app: authApp, calls } = makeAuthApp({
+			id: 'usr-1',
+			loggingConsent: 'usage',
+		});
+
+		const bad = await authApp.request('/api/me/consent', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ level: 'everything' }),
+		});
+		expect(bad.status).toBe(400);
+
+		const good = await authApp.request('/api/me/consent', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ level: 'ai_output' }),
+		});
+		expect(good.status).toBe(200);
+		expect(await good.json()).toEqual({ loggingConsent: 'ai_output' });
+		expect(calls.updateUser).toHaveLength(1);
+	});
+
+	it('401s without a session', async () => {
+		const { app: authApp } = makeAuthApp(null);
+		const res = await authApp.request('/api/me/consent', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ level: 'usage' }),
+		});
+		expect(res.status).toBe(401);
+	});
+});
+
+describe('DELETE /api/me/activity', () => {
+	it("erases the authenticated user's logged activity", async () => {
+		const { app: authApp } = makeAuthApp({
+			id: 'usr-del',
+			loggingConsent: 'document',
+		});
+		// Write a log entry, confirm it exists, then erase.
+		await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ event: 'saved' }),
+		});
+		await readUserLog('usr-del'); // throws if missing
+
+		const res = await authApp.request('/api/me/activity', { method: 'DELETE' });
+		expect(res.status).toBe(200);
+		await expect(readUserLog('usr-del')).rejects.toThrow();
+	});
+
+	it('401s without a session', async () => {
+		const { app: authApp } = makeAuthApp(null);
+		const res = await authApp.request('/api/me/activity', { method: 'DELETE' });
+		expect(res.status).toBe(401);
 	});
 });
 
