@@ -254,11 +254,9 @@ function AppInner() {
 		);
 	}
 
-	// For the beta, only allow Calvin email addresses and example test user
-	const isUserAllowed =
-		noAuthMode ||
-		user?.email?.endsWith('@calvin.edu') ||
-		user?.email === 'example-user@textfocals.com';
+	// Beta access is decided server-side (backend userAllowlist.ts) and surfaced on
+	// the session as `isAllowed`; demo/no-auth modes are never gated here.
+	const isUserAllowed = noAuthMode || user?.isAllowed === true;
 
 	if (!noAuthMode && !isUserAllowed) {
 		return (

@@ -38,6 +38,8 @@ export interface AppAuthSession {
 		name?: string;
 		email?: string;
 		loggingConsent?: ConsentLevel;
+		/** Beta access decision, computed server-side (see backend userAllowlist.ts). */
+		isAllowed?: boolean;
 	};
 	/** Resolved consent level (defaults applied) — gate analytics/logging on this. */
 	loggingConsent: ConsentLevel;

@@ -1,5 +1,10 @@
 import { betterAuth } from 'better-auth';
-import { anonymous, bearer, deviceAuthorization } from 'better-auth/plugins';
+import {
+	anonymous,
+	bearer,
+	customSession,
+	deviceAuthorization,
+} from 'better-auth/plugins';
 import {
 	betterAuthSecret,
 	betterAuthTrustedOrigins,
@@ -17,6 +22,7 @@ import {
 import { db } from './db.js';
 import { eraseLoggedData } from './erasure.js';
 import { anonymizeUserUsage } from './usage.js';
+import { isUserAllowed } from './userAllowlist.js';
 
 // A module-level `auth` singleton (not a factory) so the Better Auth CLI can
 // auto-discover it: `npx @better-auth/cli migrate` looks for an exported `auth`
@@ -71,6 +77,18 @@ export const auth = betterAuth({
 				required: false,
 				input: false,
 			},
+			// Per-user grant that always allows a user, regardless of the beta allowlist
+			// (e.g. a collaborator without a Calvin address). Grant-only: `true` forces
+			// access, `false` is NOT a block — it just defers to the domain policy in
+			// userAllowlist.ts. Server-controlled (`input: false`) — set it directly in the
+			// DB (UPDATE "user" SET "alwaysAllow" = 1 WHERE email = …), never from sign-up
+			// input.
+			alwaysAllow: {
+				type: 'boolean',
+				defaultValue: false,
+				required: false,
+				input: false,
+			},
 		},
 		// Enables auth.api.deleteUser for the authenticated user (off by default).
 		// Google-only accounts have no password, so deletion proceeds from the
@@ -112,6 +130,23 @@ export const auth = betterAuth({
 			schema: {}, // workaround for https://github.com/better-auth/better-auth/issues/9422
 			validateClient: (clientId) => deviceClientIds().includes(clientId),
 		}),
+		// Surface the beta access decision on every session response so the client can
+		// render its "not allowed" screen without re-encoding the allowlist policy (that
+		// policy lives server-side in userAllowlist.ts). Listed last so it wraps the final
+		// user shape, including the anonymous plugin's isAnonymous field.
+		customSession(async ({ user, session }) => ({
+			session,
+			user: {
+				...user,
+				isAllowed: isUserAllowed(
+					user as {
+						email?: string | null;
+						isAnonymous?: boolean | null;
+						alwaysAllow?: boolean | null;
+					},
+				),
+			},
+		})),
 	],
 	socialProviders: {
 		google: {

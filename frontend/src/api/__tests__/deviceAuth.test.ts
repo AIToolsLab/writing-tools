@@ -128,6 +128,7 @@ describe('fetchUserInfo', () => {
 						email: 'a@calvin.edu',
 						name: 'A',
 						loggingConsent: 'document',
+						isAllowed: true,
 					},
 				},
 				true,
@@ -138,6 +139,7 @@ describe('fetchUserInfo', () => {
 			email: 'a@calvin.edu',
 			name: 'A',
 			loggingConsent: 'document',
+			isAllowed: true,
 		});
 		// hits the framework endpoint on the token-only path, no cookies
 		expect(fetchMock).toHaveBeenCalledWith(
@@ -168,6 +170,8 @@ describe('fetchUserInfo', () => {
 			email: 'a@calvin.edu',
 			name: 'A',
 			loggingConsent: DEFAULT_CONSENT_LEVEL, // 'usage'
+			// server omitted isAllowed → client coerces to false, never derives it
+			isAllowed: false,
 		});
 	});
 

@@ -153,6 +153,12 @@ export interface UserInfo {
 	name?: string;
 	/** Logging-consent level; gates analytics + event logging on the client. */
 	loggingConsent?: ConsentLevel;
+	/**
+	 * Beta access decision, computed server-side (customSession → userAllowlist.ts).
+	 * The client renders its "not allowed" screen from this rather than re-encoding
+	 * the allowlist policy.
+	 */
+	isAllowed?: boolean;
 }
 
 /**
@@ -166,6 +172,7 @@ interface GetSessionResponse {
 		email?: string;
 		name?: string;
 		loggingConsent?: unknown;
+		isAllowed?: unknown;
 	};
 }
 
@@ -197,7 +204,7 @@ export async function fetchUserInfo(
 	if (!data?.user) {
 		throw new Error('get-session: no active session');
 	}
-	const { id, email, name, loggingConsent: raw } = data.user;
+	const { id, email, name, loggingConsent: raw, isAllowed } = data.user;
 	return {
 		id,
 		email,
@@ -205,6 +212,7 @@ export async function fetchUserInfo(
 		// get-session returns the stored value uncoerced; /api/protected used to
 		// normalize server-side, so we replicate that guard client-side.
 		loggingConsent: isConsentLevel(raw) ? raw : DEFAULT_CONSENT_LEVEL,
+		isAllowed: isAllowed === true,
 	};
 }
 
