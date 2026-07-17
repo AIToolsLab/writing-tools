@@ -158,33 +158,39 @@ export function createSseUsageScanner() {
  * costed. Returns the body unchanged for the Responses API (which always reports
  * usage) and for anything we can't parse.
  */
-function withUsageReporting(body: string, endpoint: OpenAIEndpoint): string {
-	if (endpoint !== 'chat/completions') return body;
+/** Parse the request body once; null when it isn't a JSON object. */
+function parseBody(body: string): Record<string, unknown> | null {
 	try {
 		const parsed = JSON.parse(body);
-		if (parsed?.stream !== true) return body;
-		parsed.stream_options = { ...parsed.stream_options, include_usage: true };
-		return JSON.stringify(parsed);
+		return typeof parsed === 'object' && parsed !== null ? parsed : null;
 	} catch {
-		return body;
+		return null;
 	}
 }
 
-function wantsStream(body: string): boolean {
-	try {
-		return JSON.parse(body)?.stream === true;
-	} catch {
-		return false;
-	}
+function withUsageReporting(
+	parsed: Record<string, unknown> | null,
+	body: string,
+	endpoint: OpenAIEndpoint,
+): string {
+	if (endpoint !== 'chat/completions') return body;
+	if (parsed === null || parsed.stream !== true) return body;
+	return JSON.stringify({
+		...parsed,
+		stream_options: {
+			...(parsed.stream_options as Record<string, unknown> | undefined),
+			include_usage: true,
+		},
+	});
 }
 
-function requestedModel(body: string): string {
-	try {
-		const model = JSON.parse(body)?.model;
-		return typeof model === 'string' ? model : 'unknown';
-	} catch {
-		return 'unknown';
-	}
+function wantsStream(parsed: Record<string, unknown> | null): boolean {
+	return parsed?.stream === true;
+}
+
+function requestedModel(parsed: Record<string, unknown> | null): string {
+	const model = parsed?.model;
+	return typeof model === 'string' ? model : 'unknown';
 }
 
 export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
@@ -194,7 +200,8 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 		if (!attribution) return c.json({ detail: 'Unauthorized' }, 401);
 
 		const body = await c.req.text();
-		const streaming = wantsStream(body);
+		const parsedBody = parseBody(body);
+		const streaming = wantsStream(parsedBody);
 		const startedAt = Date.now();
 
 		const upstream = await fetch(`${OPENAI_BASE}/${endpoint}`, {
@@ -203,7 +210,7 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 				Authorization: `Bearer ${attribution.apiKey}`,
 				'Content-Type': 'application/json',
 			},
-			body: withUsageReporting(body, endpoint),
+			body: withUsageReporting(parsedBody, body, endpoint),
 		});
 
 		const contentType =
@@ -232,7 +239,7 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 					userId: attribution.userId,
 					provider: 'openai',
 					endpoint,
-					model: model ?? requestedModel(body),
+					model: model ?? requestedModel(parsedBody),
 					inputTokens: usage?.inputTokens ?? 0,
 					cachedInputTokens: usage?.cachedInputTokens ?? 0,
 					outputTokens: usage?.outputTokens ?? 0,
