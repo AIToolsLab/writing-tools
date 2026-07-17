@@ -47,7 +47,9 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   static root doesn't exist. Cache rules: `no-store` for `.html`/`manifest.xml`
   (they reference content-hashed bundles by name), `immutable` for hashed assets.
 - **Telemetry** (`src/posthog.ts`): optional PostHog error capture; a no-op when
-  `POSTHOG_PROJECT_TOKEN` is unset.
+  `POSTHOG_PROJECT_TOKEN` is unset. `deletePosthogPerson` (used by both erasure
+  paths) hits the PostHog *management* API and needs `POSTHOG_PERSONAL_API_KEY` +
+  `POSTHOG_PROJECT_ID`; without them it warns and no-ops.
 - **Auth** (`src/auth.ts`): Better Auth (Google sign-in + device-code flow for the
   add-in), on the shared `app.db`, enabled by `BETTER_AUTH_ENABLED=true`. Carries the
   user's `loggingConsent` level as a user field; `beforeDelete` purges study logs and
@@ -65,7 +67,9 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
 `OPENAI_API_KEY` (required to proxy), `OPENAI_DEMO_API_KEY` (Thoughtful-demo project;
 pays for sessionless requests — without it they're refused wherever auth is on),
 `LOG_SECRET` (required for log-viewer + `/api/usage_summary`), `DATA_DIR` (root for
-`app.db` + `logs/`), `PORT`, `DEBUG`, `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`, `LOG_DIR`
+`app.db` + `logs/`), `PORT`, `DEBUG`, `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`,
+`POSTHOG_PERSONAL_API_KEY` + `POSTHOG_PROJECT_ID` (management API — needed for
+"delete my data" to purge a user's PostHog person; unset => that step no-ops), `LOG_DIR`
 (overrides just the logs subdir). Auth: `BETTER_AUTH_ENABLED`, `BETTER_AUTH_SECRET`,
 `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`. For local dev, run `python scripts/get_env.py` to generate

@@ -12,6 +12,11 @@ services:
       - OPENAI_DEMO_API_KEY=${OPENAI_DEMO_API_KEY:-}
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
       - POSTHOG_HOST=${POSTHOG_HOST:-https://e.thoughtful-ai.com/}
+      # Management API (personal key + project id) — required for "delete my data"
+      # to purge a user's PostHog person/events. Unset => deletion no-ops with a
+      # warning (see deletePosthogPerson). Verified post-deploy in issue #517.
+      - POSTHOG_PERSONAL_API_KEY=${POSTHOG_PERSONAL_API_KEY:-}
+      - POSTHOG_PROJECT_ID=${POSTHOG_PROJECT_ID:-}
     volumes:
       # Single persistent volume (app.db + logs/). One-time host migration:
       #   mkdir -p /opt/thoughtful/data/logs
