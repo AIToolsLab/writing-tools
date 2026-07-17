@@ -1,7 +1,12 @@
-import { PostHogProvider, PostHogErrorBoundary } from '@posthog/react';
+import {
+	PostHogProvider,
+	PostHogErrorBoundary,
+	usePostHog,
+} from '@posthog/react';
 import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { consentRank } from '@/consent';
 import { CgGoogle } from 'react-icons/cg';
 import {
 	AppAuthProvider,
@@ -377,6 +382,12 @@ function AppWithProviders({
 			options={{
 				api_host: POSTHOG_HOST,
 				capture_exceptions: true,
+				// Capture nothing until we know the user's consent level. The
+				// PostHogConsentBridge opts in (and identifies) once a session with
+				// consent >= 'usage' loads. Until then — and at level 'none' — PostHog
+				// stays opted out. NOTE: opt-out also suppresses capture_exceptions, so
+				// level 'none' is fully silent (no crash reports either).
+				opt_out_capturing_by_default: true,
 			}}
 		>
 			<PostHogErrorBoundary fallback={<PostHogErrorFallback />}>
@@ -384,6 +395,36 @@ function AppWithProviders({
 			</PostHogErrorBoundary>
 		</PostHogProvider>
 	);
+}
+
+/**
+ * Bridges logging consent → PostHog. Mounted inside both PostHogProvider and
+ * AppAuthProvider. Opts capturing in and identifies the user (by stable Better
+ * Auth id, matching server-side log keying + deletion) once an authenticated
+ * session at consent >= 'usage' loads; otherwise stays opted out and clears any
+ * prior identity. Renders nothing.
+ */
+function PostHogConsentBridge(): null {
+	const posthog = usePostHog();
+	const { isAuthenticated, loggingConsent, user } = useAppAuth();
+
+	useEffect(() => {
+		if (!posthog) return;
+		const analyticsAllowed =
+			isAuthenticated && consentRank(loggingConsent) >= consentRank('usage');
+
+		// Require a stable id before opting in, so we never capture untethered
+		// anonymous events that can't be tied to a deletable account identity.
+		if (analyticsAllowed && user?.id) {
+			posthog.identify(user.id);
+			posthog.opt_in_capturing();
+		} else {
+			posthog.opt_out_capturing();
+			posthog.reset(); // drop any identity captured under a prior session
+		}
+	}, [posthog, isAuthenticated, loggingConsent, user?.id]);
+
+	return null;
 }
 
 export default function App() {
@@ -395,6 +436,7 @@ export default function App() {
 			<ChatContextWrapper>
 				<Reshaped theme="slate">
 					<AppAuthProvider>
+						<PostHogConsentBridge />
 						<AppAuthTokenBridge>
 							<AppInner />
 						</AppAuthTokenBridge>

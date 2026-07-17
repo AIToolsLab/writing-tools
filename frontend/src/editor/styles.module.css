@@ -27,12 +27,22 @@
 	flex-direction: column;
 }
 
-
 /* Container for the editor and sidebar in demo page*/
 .democontainer {
 	display: flex;
 	justify-content: center;
 	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+}
+
+/* Disclosure banner shown only on the anonymous public demo. */
+.demoDisclosure {
+	text-align: center;
+	font-family: 'Segoe UI', sans-serif, Arial, Helvetica;
+	font-size: 0.8rem;
+	color: #5f5f5f;
+	background-color: #fff8e1;
+	border-bottom: 1px solid #f0e2b0;
+	padding: 0.4rem 1rem;
 }
 
 .demoeditor {
