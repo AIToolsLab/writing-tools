@@ -1,7 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { setupMockBackend } from './mockBackend';
 
 // All tests target editor.html?page=demo which requires no login.
 test.beforeEach(async ({ page }) => {
+  // Even demo mode mints an anonymous session on load; mock it so it doesn't 405
+  // against the static test server (see mockBackend.ts).
+  await setupMockBackend(page);
   await page.goto('/editor.html?page=demo');
   // Draft is the default page — wait for it to confirm the app has loaded
   await expect(page.locator('button[aria-label="Examples"]')).toBeVisible({ timeout: 15000 });

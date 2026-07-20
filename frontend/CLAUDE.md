@@ -38,3 +38,30 @@ Keep unit tests in `src/` and E2E specs in `tests/`. If a unit runner's globs re
 into `tests/`, Playwright specs fail with "test.describe() did not expect to be called
 here". The `.test.ts` vs `.spec.ts` split is a second, intentional guardrail.
 
+### Event logging
+
+Each page calls `useLog()` once (see `src/hooks/useLog.ts` — it owns transport,
+session identity, and consent stripping) and passes the resulting `LogFn` to the
+typed helpers in `src/api/logging.ts` (`draftLog`, `reviseLog`, `chatLog`). Every
+event is written with a consistent envelope:
+
+```
+{ schema_version, page, event, timestamp, ...payload }
+```
+
+- `page` scopes the event to the tab that emitted it (`draft` | `revise` | `chat`).
+- `event` is a snake_case verb phrase, unique within its page (e.g.
+  `suggestion_requested`, `visualization_completed`, `message_sent`).
+- `schema_version` is stamped from `LOG_SCHEMA_VERSION`. Bump it (and add a
+  history line in `logging.ts`) whenever the envelope or a payload changes shape.
+  Pre-schema events have no `schema_version`; readers treat those as version 0.
+- Identity is the session user id, added server-side — never send a username.
+
+Add new events by adding a method to the relevant page's helper object so the
+naming convention and payload types stay in one place. Content-bearing payload
+fields must use names the consent gate recognizes (`src/consent.ts`
+`KEY_MIN_LEVEL`) so they're stripped to the user's level: `docContext` /
+`message` / `target` are document text, `result` / `response` are AI output;
+everything else is usage-level metadata. The backend (`backend/src/logging.ts`)
+promotes `schema_version` and `page` to first-class columns on each JSONL entry.
+

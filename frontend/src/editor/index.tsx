@@ -39,29 +39,34 @@ export function EditorScreen({
 	const [wordCount, setWordCount] = useState<number>(0);
 
 	const handleSelectionChange = () => {
-		selectionChangeHandlers.current.forEach((handler) => { handler(); });
+		selectionChangeHandlers.current.forEach((handler) => {
+			handler();
+		});
 	};
 
-	const editorAPI: EditorAPI = useMemo(() => ({
-		getDocContext: async (): Promise<DocContext> => {
-			return Promise.resolve(docContextRef.current);
-		},
-		addSelectionChangeHandler: (handler: () => void) => {
-			selectionChangeHandlers.current.push(handler);
-		},
-		removeSelectionChangeHandler: (handler: () => void) => {
-			const index = selectionChangeHandlers.current.indexOf(handler);
+	const editorAPI: EditorAPI = useMemo(
+		() => ({
+			getDocContext: async (): Promise<DocContext> => {
+				return Promise.resolve(docContextRef.current);
+			},
+			addSelectionChangeHandler: (handler: () => void) => {
+				selectionChangeHandlers.current.push(handler);
+			},
+			removeSelectionChangeHandler: (handler: () => void) => {
+				const index = selectionChangeHandlers.current.indexOf(handler);
 
-			if (index !== -1) selectionChangeHandlers.current.splice(index, 1);
+				if (index !== -1)
+					selectionChangeHandlers.current.splice(index, 1);
+				else console.warn('Handler not found');
+			},
 
-			else console.warn('Handler not found');
-		},
-
-		selectPhrase(_text) {
-			console.warn('selectPhrase is not implemented yet');
-			return new Promise<void>((resolve) => resolve());
-		},
-	}), []);
+			selectPhrase(_text) {
+				console.warn('selectPhrase is not implemented yet');
+				return new Promise<void>((resolve) => resolve());
+			},
+		}),
+		[],
+	);
 
 	const docUpdated = (docContext: DocContext) => {
 		docContextRef.current = docContext;
@@ -102,29 +107,35 @@ export function EditorScreen({
 	};
 
 	return (
-		<div className={isDemo ? classes.democontainer : classes.container}>
-			<div className={isDemo ? classes.demoeditor : classes.editor}>
-				<LexicalEditor
-					initialState={getInitialState()}
-					updateDocContext={docUpdated}
-					storageKey={getStorageKey()}
-					preamble={editorPreamble}
-				/>
-				{isDemo ? (
-					<div className={`${classes.wordCount}`}>
-						Words: {wordCount}
-					</div>
-				) : null}
-			</div>
+		<>
+			{isDemo ? (
+				<div className={classes.demoDisclosure}>
+					All demo usage is logged. Demo may be unavailable during
+					times of high usage.
+				</div>
+			) : null}
+			<div className={isDemo ? classes.democontainer : classes.container}>
+				<div className={isDemo ? classes.demoeditor : classes.editor}>
+					<LexicalEditor
+						initialState={getInitialState()}
+						updateDocContext={docUpdated}
+						storageKey={getStorageKey()}
+						preamble={editorPreamble}
+					/>
+					{isDemo ? (
+						<div className={`${classes.wordCount}`}>
+							Words: {wordCount}
+						</div>
+					) : null}
+				</div>
 
-			<div
-				className={isDemo ? classes.demosidebar : classes.sidebar}
-			>
-				<EditorContext.Provider value={editorAPI}>
-					<Sidebar />
-				</EditorContext.Provider>
+				<div className={isDemo ? classes.demosidebar : classes.sidebar}>
+					<EditorContext.Provider value={editorAPI}>
+						<Sidebar />
+					</EditorContext.Provider>
+				</div>
 			</div>
-		</div>
+		</>
 	);
 }
 
