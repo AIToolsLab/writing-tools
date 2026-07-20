@@ -9,7 +9,6 @@ export interface TrackedIdea { id: string; label: string; target: CandidateTarge
 export type SafetyCheckState = "ok" | "info" | "held";
 export interface SafetyCheck { id: string; label: string; state: SafetyCheckState }
 export interface DraftAnchor { label: string; anchor: string; kind: "main_idea" | "argument" | "evidence" | "relationship" | "transition" | "definition" }
-export interface ParkedThreadAnchor { id: string; label: string; status: "parked" | "promoted" }
 export type UnderhoodEventKind = "typed_response" | "pointer_validation" | "repair" | "gateway" | "proposal" | "application" | "question_chosen" | "readiness_changed" | "idea_tracked";
 export type UnderhoodEventState = "passed" | "held" | "watching" | "chosen";
 export type UnderhoodEventStage = "noticed" | "tracked" | "checked" | "held" | "chosen";
@@ -31,7 +30,6 @@ export interface UnderstandingSnapshot {
   waitingFor?: string;
   safetyChecks: SafetyCheck[];
   draftAnchors: DraftAnchor[];
-  openThreads: ParkedThreadAnchor[];
   banner: string;
 }
 
@@ -65,7 +63,6 @@ export function buildDiagnosticSnapshot(events: DiagnosticEvent[], _candidates: 
     waitingFor: events.some((event) => event.outcome === "needs_input") ? "Inline proposal information or an explicit proposal decision." : undefined,
     safetyChecks: [{ id: "gateway", label: "All structural changes cross the deterministic action gateway.", state: events.some((event) => event.outcome === "rejected") ? "held" : "ok" }],
     draftAnchors: [],
-    openThreads: [],
     banner: THESIS_BANNER,
   };
 }

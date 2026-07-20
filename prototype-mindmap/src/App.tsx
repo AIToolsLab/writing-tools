@@ -12,7 +12,6 @@ import { cardRef } from "./store";
 import type { ThoughtUnit, ThoughtUnitRole } from "./types";
 import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
 import { validateMirror } from "./validator";
-import type { ParkedThread } from "./open-threads";
 import { buildDiagnosticSnapshot, type SafetyCheck, type TrackedIdea, type UnderhoodEvent, type UnderstandingSnapshot } from "./understanding";
 import { useSpeechToText } from "./useSpeechToText";
 import { ASSISTANCE_CONTRACTS, contractForLevel, DEFAULT_ASSISTANCE_CONTRACT, normalizeInfluenceTrace, snapshotContract, type AssistanceLevel } from "./assistance-contract";
@@ -129,10 +128,9 @@ interface PersistedSession {
     lastAssistantText: string;
     draft: string;
     dismissedCandidateIds: string[];
-    openThreads?: ParkedThread[];
   };
   /** Read only by the v1/v2 migration and never restored into live routing state. */
-  controller?: { turnsSinceLastMirror?: number; lastAiText?: string; draft?: string; dismissedCandidateIds?: string[]; openThreads?: ParkedThread[] };
+  controller?: { turnsSinceLastMirror?: number; lastAiText?: string; draft?: string; dismissedCandidateIds?: string[] };
   diagnostics?: DiagnosticEvent[];
   bank: ReturnType<ConversationState["bank"]["getAll"]>;
   candidates: ReturnType<ConversationState["candidates"]["getAll"]>;
@@ -2303,8 +2301,6 @@ const css = `
     cursor: pointer;
   }
   .anchor-button:hover { background: #fff5d5; border-color: #e1be65; }
-  .anchor-button.parked-thread { cursor: default; }
-  .anchor-button.parked-thread:hover { background: #fbfaf7; border-color: #e3ded4; }
   .anchor-kind {
     display: block;
     margin-top: 4px;
@@ -2693,7 +2689,6 @@ type UnderhoodSectionId =
   | "ideas"
   | "waiting"
   | "safety"
-  | "openThreads"
   | "draftAnchors";
 
 const STATIC_SAFETY_LABEL = "I won't change your map unless you ask me to.";
@@ -2999,24 +2994,6 @@ export function UnderTheHoodPanel({
             </UnderhoodSection>
           )}
 
-          {snapshot.openThreads.length > 0 && (
-            <UnderhoodSection
-              title="Parked earlier phrases"
-              meta={snapshot.openThreads.length}
-              collapsed={sectionIsCollapsed("openThreads", true)}
-              onToggle={() => toggleSection("openThreads", true)}
-            >
-              <div className="anchor-list">
-                {snapshot.openThreads.map((thread) => (
-                  <div key={thread.id} className="anchor-button parked-thread">
-                    {thread.label}
-                    <span className="anchor-kind">{thread.status}</span>
-                  </div>
-                ))}
-              </div>
-            </UnderhoodSection>
-          )}
-
           {showSafetyChecks && (
           <UnderhoodSection
             title="Safety checks"
@@ -3082,7 +3059,6 @@ export default function App() {
     state.lastAssistantText = persistedSession.conversation?.lastAssistantText ?? persistedSession.controller?.lastAiText ?? "";
     state.draft = persistedSession.conversation?.draft ?? persistedSession.controller?.draft ?? persistedSession.draftText;
     state.dismissedCandidateIds = persistedSession.conversation?.dismissedCandidateIds ?? persistedSession.controller?.dismissedCandidateIds ?? [];
-    state.openThreads = persistedSession.conversation?.openThreads ?? persistedSession.controller?.openThreads ?? [];
     return state;
   }, [persistedSession]);
 
@@ -3799,7 +3775,6 @@ export default function App() {
         lastAssistantText: stateRef.current.lastAssistantText,
         draft: stateRef.current.draft,
         dismissedCandidateIds: stateRef.current.dismissedCandidateIds,
-        openThreads: stateRef.current.openThreads,
       },
       diagnostics,
       bank: stateRef.current.bank.getAll(),

@@ -217,7 +217,6 @@ describe("UnderTheHoodPanel", () => {
       waitingFor: "the exact words you'd carry forward",
       safetyChecks: [{ id: "safe", label: "I won't change your map unless you ask me to.", state: "ok" }],
       draftAnchors: [{ label: "human control", anchor: "human control", kind: "main_idea" }],
-      openThreads: [],
     };
   }
 
@@ -259,33 +258,6 @@ describe("UnderTheHoodPanel", () => {
     const anchor = container.querySelector<HTMLButtonElement>(".anchor-button");
     act(() => anchor!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(onDraftAnchor).toHaveBeenCalledWith("human control");
-    window.matchMedia = original;
-  });
-
-  it("renders parked earlier phrases collapsed by default", () => {
-    const withThreads = snapshot();
-    withThreads.openThreads = [
-      { id: "pt_1", label: "The middle is about authorship.", status: "parked" },
-    ];
-    const original = window.matchMedia;
-    window.matchMedia = vi.fn().mockReturnValue({ matches: true });
-    act(() =>
-      root.render(createElement(UnderTheHoodPanel, { snapshot: withThreads, onDraftAnchor: vi.fn() })),
-    );
-
-    const tab = container.querySelector<HTMLButtonElement>(".underhood-tab");
-    act(() => tab!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    expect(container.textContent).toContain("Parked earlier phrases");
-    expect(container.textContent).not.toContain("The middle is about authorship.");
-
-    const parkedHeader = Array.from(container.querySelectorAll<HTMLButtonElement>(".underhood-section-title"))
-      .find((button) => button.textContent?.includes("Parked earlier phrases"));
-    expect(parkedHeader).toBeTruthy();
-    act(() => parkedHeader!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
-
-    expect(container.textContent).toContain("The middle is about authorship.");
-    expect(container.textContent).toContain("parked");
     window.matchMedia = original;
   });
 

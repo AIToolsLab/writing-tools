@@ -39,7 +39,7 @@ function diagnostic(stage: DiagnosticEvent["stage"], outcome: DiagnosticEvent["o
 }
 
 export function createConversationState(): ConversationState {
-  return { bank: new SourceBank(), candidates: new CandidateStore(), draft: "", turnsSinceLastReflection: 0, lastAssistantText: "", dismissedCandidateIds: [], openThreads: [] };
+  return { bank: new SourceBank(), candidates: new CandidateStore(), draft: "", turnsSinceLastReflection: 0, lastAssistantText: "", dismissedCandidateIds: [] };
 }
 
 export function cloneConversationState(state: ConversationState): ConversationState {
@@ -50,7 +50,6 @@ export function cloneConversationState(state: ConversationState): ConversationSt
   clone.turnsSinceLastReflection = state.turnsSinceLastReflection;
   clone.lastAssistantText = state.lastAssistantText;
   clone.dismissedCandidateIds = [...state.dismissedCandidateIds];
-  clone.openThreads = state.openThreads.map((thread) => ({ ...thread, sourceUtteranceIds: [...thread.sourceUtteranceIds] }));
   return clone;
 }
 
@@ -177,7 +176,6 @@ export function buildContext(state: ConversationState, userText: string, added: 
     requestedSupport,
     proposalOutcome,
     assistanceContract: contract ? snapshotContract(contract) : undefined,
-    openThreads: state.openThreads.map(({ id, text, status, sourceUtteranceIds }) => ({ id, text, status, sourceUtteranceIds })),
   };
 }
 

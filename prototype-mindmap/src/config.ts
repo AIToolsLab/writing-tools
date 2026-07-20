@@ -66,7 +66,6 @@ export const defaultConfig: MindmapConfig = {
       "reflect your own words back to you (a mirror you confirm chunk by chunk)",
       "ask focused questions to help you think, not to fill the map",
       "place a card, nest a card, connect two cards, or reword a card from traceable user wording or a card ref; every change is still a proposal you review",
-      "keep track of phrases you parked earlier so you can return to them",
       "point at parts of your own draft (read-only) to anchor a question",
     ],
     cantDo: [

@@ -3,7 +3,6 @@ import type { CandidateStore, SourceBank } from "./store";
 import type { ProposedAction } from "./action-gateway";
 import type { MirrorReflection } from "./types";
 import type { Proposal } from "./proposal-store";
-import type { ParkedThread } from "./open-threads";
 import type { SourceBackedOption } from "./assistance-contract";
 
 export type AssistantResponse =
@@ -38,7 +37,6 @@ export interface ConversationState {
   turnsSinceLastReflection: number;
   lastAssistantText: string;
   dismissedCandidateIds: string[];
-  openThreads: ParkedThread[];
 }
 
 export type DiagnosticStage = "response" | "validation" | "gateway" | "repair" | "proposal" | "application";

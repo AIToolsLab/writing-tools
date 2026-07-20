@@ -69,7 +69,6 @@ export function renderContext(context: LLMContext): string {
   const bank = context.bank.filter((item) => !item.commandOnly && !item.nonHarvestable).map((item) => `[${item.id}] ${item.text}`).join("\n") || "(empty)";
   const map = context.map.thoughtUnits.filter((item) => item.role !== "connection_label").map((item) => `${item.id} ${item.text}${item.parentId ? ` parent=${item.parentId}` : ""}`).join("\n") || "(empty)";
   const candidates = context.candidates.map((item) => `${item.id} ${item.target} ${item.gist} evidence=${item.evidenceUtteranceIds.join(",")}`).join("\n") || "(none)";
-  const threads = context.openThreads?.map((thread) => `${thread.status}: ${thread.text}`).join("\n") || "(none)";
   const selection = context.selectedFocus
     ? [
       ...(context.selectedFocus.cards?.map((card) => `${card.ref} ${card.text}`) ?? []),
@@ -90,7 +89,7 @@ export function renderContext(context: LLMContext): string {
   const contract = context.assistanceContract
     ? `${context.assistanceContract.label} (L${context.assistanceContract.level}). Allowed visible kinds: ${context.assistanceContract.allowedResponseKinds.join(", ")}. AI-originated structure: ${context.assistanceContract.allowsAiSuggestedStructure ? "allowed but must be visibly suggested" : "not allowed"}.`
     : "Non-directive default; do not originate structure.";
-  return `ASSISTANCE CONTRACT (a contribution boundary, never a map-write authorization):\n${contract}\n\nSOURCE BANK (user wording with evidence ids):\n${bank}\n\nMAP (read-only):\n${map}\n\nEXPLICIT UI SELECTION (if any):\n${selection}\n\nEXPLICIT SUPPORT REQUEST (if any):\n${support}\n\nEXPLICIT PROPOSAL OUTCOME (if any):\n${proposalOutcome}\n\nCAPABILITIES:\n${capabilities}\n\nMAP PACING FACT:\n${pacing}\n\nREFLECTION RHYTHM (advisory):\n${reflectionRhythm}\n\nTHINK/MAP PREFERENCE:\n${thinkMap}\n\nTURN SHAPE (measurement only):\n${shape}\n\nADVISORY CANDIDATES:\n${candidates}\n\nOPEN THREAD CALIBRATION:\n${threads}\n\nDRAFT (read-only):\n${context.draft || "(empty)"}`;
+  return `ASSISTANCE CONTRACT (a contribution boundary, never a map-write authorization):\n${contract}\n\nSOURCE BANK (user wording with evidence ids):\n${bank}\n\nMAP (read-only):\n${map}\n\nEXPLICIT UI SELECTION (if any):\n${selection}\n\nEXPLICIT SUPPORT REQUEST (if any):\n${support}\n\nEXPLICIT PROPOSAL OUTCOME (if any):\n${proposalOutcome}\n\nCAPABILITIES:\n${capabilities}\n\nMAP PACING FACT:\n${pacing}\n\nREFLECTION RHYTHM (advisory):\n${reflectionRhythm}\n\nTHINK/MAP PREFERENCE:\n${thinkMap}\n\nTURN SHAPE (measurement only):\n${shape}\n\nADVISORY CANDIDATES:\n${candidates}\n\nDRAFT (read-only):\n${context.draft || "(empty)"}`;
 }
 
 function systemPrompt(context: LLMContext, _config: MindmapConfig, repair?: StructuredRejection, transport: ProviderTransport = "chat_json"): string {

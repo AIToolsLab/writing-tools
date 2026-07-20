@@ -1,4 +1,3 @@
-import type { OpenThreadContext } from "./open-threads";
 import type { TurnShape } from "./turn-shape";
 import type { CandidateThought, SourceUtterance, ThoughtUnit, ThoughtUnitRole } from "./types";
 import type { AssistanceContractSnapshot } from "./assistance-contract";
@@ -35,7 +34,6 @@ export interface LLMContext {
   turnShape: TurnShape;
   /** Product capability facts, not an interpretation of the user's intent. */
   capabilities: { canDo: string[]; cantDo: string[] };
-  openThreads?: OpenThreadContext[];
   /** A structural map fact that may inform pacing but never constrains a response. */
   mapPacing: { cardCount: number; connectionCount: number; isSparse: boolean };
   /** Factual conversation rhythm; advisory only and never a response gate. */
