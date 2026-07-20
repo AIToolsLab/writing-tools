@@ -10,6 +10,79 @@ one structured repair at most, and routes chat confirmations and direct canvas
 intents through the action gateway. Legacy routing/fallback tests were replaced
 with response, gateway, proposal, and repair contract tests.
 
+## Next implementation pass - recovery and draft-focus stabilization (locked)
+
+This is the next runtime pass. It is deliberately separate from LiveKit, model
+bakeoffs, and further provider-tool optimization.
+
+### Reflection recovery
+
+- Keep exactly one repair call. A rejected reflection may be repaired as a
+  reflection or may change strategy to any conversational response kind allowed
+  by the active assistance contract, especially a context-specific question or
+  aside.
+- Tell the repair model declaratively: when a requested reflection cannot be
+  repaired faithfully, briefly acknowledge uncertainty in natural language and
+  make one context-specific move using established conversation content. It must
+  not expose validation terminology, repeat a recent question, or use stock
+  recovery phrasing. Do not include polished fallback examples in the prompt.
+- Supply the structured rejection, the rejected typed payload, recent assistant
+  turns, and currently available grounded material to the repair call.
+- Questions and asides do not undergo reflection-pointer validation. They still
+  pass response parsing and the active assistance-contract allowlist.
+- If the single repair is unusable - malformed or still rejected by its
+  applicable checks - do not make another model call and do not silently render
+  nothing. Show a minimal transparent application recovery with a retry
+  affordance. This is terminal UI state, not a fabricated coach turn.
+- Remove the active `tentativeEvidencePattern` semantic classifier, including
+  the rule that treats every "I think" as uncertainty. Interpreting uncertainty
+  belongs to the model; code continues to verify cited text and consequential
+  actions rather than infer epistemic meaning from a word bank.
+- Update diagnostics to describe the actual result. Remove the stale instruction
+  to "fall back to a clarifying question" when no such controller fallback runs.
+  `waitingFor` may describe proposal completion only when an active proposal
+  genuinely requires user input; a repair request alone must not create it.
+
+### Draft focus interaction
+
+- Move `Ask about this` out of the crowded composer toolbar and into a compact
+  contextual control positioned above a real user-created draft selection.
+- Preserve model-provided read-only draft anchoring, but stop representing it as
+  the browser's native blue selection. Use a passive highlight that does not
+  become user-selected focus, alter draft content, or interfere with editing.
+- Keep `View passage` as the explicit reveal/scroll affordance. Prompt advice
+  should make draft anchors selective rather than routine, without a code rule
+  that interprets when a passage is semantically necessary.
+
+### Open-thread quarantine
+
+- The current discourse-marker splitter in `open-threads.ts` is not part of the
+  live turn path. Do not reactivate it as an interpretation layer. Before the
+  subsystem returns to live orchestration, replace marker-based semantic
+  inference with model-nominated exact spans and deterministic pointer checks.
+
+### Non-goals and preserved invariants
+
+- No LiveKit work in this pass.
+- No second repair call, canned coach fallback, forced Map proposal, regex
+  routing, chat yes/no proposal resolution, or direct model map mutation.
+- Think/Map remains prompt advice. Assistance contracts, provenance, explicit
+  proposal confirmation, no-ghost-structure, and the action gateway remain
+  unchanged.
+
+### Required regression evidence
+
+- A rejected reflection can repair into a valid question or aside and render it.
+- Repair receives the rejected payload, structured reason, grounded material,
+  and recent assistant turns; it still runs at most once.
+- An unusable repair ends loading and displays transparent retry UI without an
+  invented coach response.
+- Conversational "I think" no longer triggers code-level uncertainty
+  classification.
+- Model anchors never create native selection or `selectedFocus`; genuine user
+  selections can invoke the floating `Ask about this` control.
+- Control Room waiting/recovery text matches actual proposal and repair state.
+
 ## Stage 1.5 — Conversation-context stabilization (required)
 
 **Why this is a prerequisite:** the first hard-cutover implementation captures
