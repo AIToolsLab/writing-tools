@@ -267,7 +267,12 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			const parsed = raw ? Date.parse(raw) : Number.NaN;
 			return Number.isNaN(parsed) ? fallback : parsed;
 		};
-		const until = parseDate(c.req.query('until'), Date.now());
+		// The window is half-open [since, until) so adjacent reports don't
+		// double-count a boundary row. That makes the default upper bound `now + 1`,
+		// not `now`: a request metered in this very millisecond has ts === now, and a
+		// bare `now` (exclusive) would drop it — silently under-reporting the most
+		// recent spend, the whole point of the default window.
+		const until = parseDate(c.req.query('until'), Date.now() + 1);
 		const since = parseDate(
 			c.req.query('since'),
 			until - 30 * 24 * 60 * 60 * 1000,
