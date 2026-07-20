@@ -22,7 +22,7 @@ import {
 } from 'react-icons/ai';
 import { isRunningInGoogleDocs } from '@/api';
 import { reviseLog } from '@/api/logging';
-import { OPENAI_MODEL, openai } from '@/api/openai';
+import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
@@ -302,10 +302,11 @@ ${request}
 
 			try {
 				const result = streamText({
-					model: openai.chat(OPENAI_MODEL),
+					model: languageModel,
+					providerOptions: openaiProviderOptions,
 					system: systemPrompt,
 					messages,
-					maxOutputTokens: 1024,
+					maxOutputTokens: 5000,
 					abortSignal: requestController.signal,
 				});
 

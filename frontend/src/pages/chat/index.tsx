@@ -4,7 +4,7 @@ import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 
 import { chatLog } from '@/api/logging';
-import { OPENAI_MODEL, openai } from '@/api/openai';
+import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { ChatContext } from '@/contexts/chatContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
@@ -138,7 +138,8 @@ export default function Chat() {
 
 		try {
 			const result = streamText({
-				model: openai.chat(OPENAI_MODEL),
+				model: languageModel,
+				providerOptions: openaiProviderOptions,
 				messages: newMessages.slice(0, -1) as ModelMessage[],
 				maxOutputTokens: 1024,
 				abortSignal: requestController.signal,
