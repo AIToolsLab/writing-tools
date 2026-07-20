@@ -6,7 +6,7 @@ export type LedgerEventKind =
   | "provider_tool_requested" | "provider_tool_result"
   | "pointer_validation" | "contract_decision" | "assistant_echo_overlap"
   | "proposal_created" | "proposal_edited" | "proposal_resolved" | "proposal_invalidated" | "map_mutated"
-  | "application_recovery";
+  | "application_recovery" | "candidate_lifecycle_changed" | "candidate_recalled";
 
 export interface LocalLedgerEvent {
   sessionId: string;
@@ -35,6 +35,8 @@ export interface SanitizedMindmapEvent {
   providerTransport?: "chat_json" | "responses_tools";
   toolName?: "propose_reflection_v1" | "propose_map_action_v1";
   repairCount?: number;
+  candidateStatus?: "active" | "parked" | "ignored" | "promoted";
+  ageInTurns?: number;
 }
 
 const DB = "mindmap-assistance-ledger";

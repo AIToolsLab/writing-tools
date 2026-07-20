@@ -36,6 +36,7 @@ export interface SourceUtterance {
 // ---------------------------------------------------------------------------
 
 export type CandidateTarget = "idea" | "hierarchy" | "connection";
+export type CandidateStatus = "active" | "parked" | "ignored" | "promoted";
 
 /**
  * Evidence of an emerging idea, hierarchy, or connection. This is a hypothesis,
@@ -49,6 +50,14 @@ export interface CandidateThought {
   evidenceUtteranceIds: string[];
   /** Free-text gist the AI is tracking internally; never shown as-is to the user. */
   gist: string;
+  /** Lifecycle is code-enforced; the model may only nominate active or parked. */
+  status: CandidateStatus;
+  /** User-turn counters stamped by code, never supplied by the model. */
+  createdTurn: number;
+  lastTouchedTurn: number;
+  lastRecalledTurn?: number;
+  ignoredAtTurn?: number;
+  promotedAtTurn?: number;
 }
 
 // ---------------------------------------------------------------------------

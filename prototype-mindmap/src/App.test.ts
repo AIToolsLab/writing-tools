@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AssistantResponseKindBadge, buildConversationHistory, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, UnderTheHoodPanel } from "./App";
+import { AssistantResponseKindBadge, buildConversationHistory, deriveCurrentUserTurn, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateCandidateMemory, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, UnderTheHoodPanel } from "./App";
 import { ASSISTANCE_CONTRACTS, snapshotContract } from "./assistance-contract";
 import { ThoughtUnitStore } from "./map-store";
 import type { Proposal } from "./proposal-store";
@@ -68,6 +68,17 @@ describe("application recovery history", () => {
       { role: "user", content: "human control matters" },
       { role: "assistant", content: "What matters about control?" },
     ]);
+  });
+
+  it("migrates legacy candidates to fresh active memory and preserves known dismissals", () => {
+    expect(deriveCurrentUserTurn([{ turnId: "t_2" }, { turnId: "t_7" }, {}])).toBe(7);
+    const migrated = migrateCandidateMemory([{
+      id: "candidate",
+      target: "idea",
+      gist: "internal",
+      evidenceUtteranceIds: ["u_1"],
+    } as never], 7, ["candidate"]);
+    expect(migrated).toMatchObject([{ id: "candidate", status: "ignored", createdTurn: 7, lastTouchedTurn: 7, ignoredAtTurn: 7 }]);
   });
 });
 
@@ -222,9 +233,12 @@ describe("UnderTheHoodPanel", () => {
           id: "candidate-1",
           label: "human control decides the final draft",
           target: "idea",
+          status: "active",
           evidenceCount: 1,
+          ageInTurns: 0,
         },
       ],
+      ignoredIdeas: [],
       waitingFor: "the exact words you'd carry forward",
       safetyChecks: [{ id: "safe", label: "I won't change your map unless you ask me to.", state: "ok" }],
       draftAnchors: [{ label: "human control", anchor: "human control", kind: "main_idea" }],
@@ -295,6 +309,25 @@ describe("UnderTheHoodPanel", () => {
     act(() => dismiss!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 
     expect(onDismissIdea).toHaveBeenCalledWith("candidate-1");
+    window.matchMedia = original;
+  });
+
+  it("keeps ignored ideas collapsed and restores them only through an explicit action", () => {
+    const ignored = snapshot();
+    ignored.trackedIdeas = [];
+    ignored.ignoredIdeas = [{ id: "ignored-1", label: "transparency can become surveillance", target: "idea", status: "ignored", evidenceCount: 1, ageInTurns: 0 }];
+    const onRestoreIdea = vi.fn();
+    const original = window.matchMedia;
+    window.matchMedia = vi.fn().mockReturnValue({ matches: true });
+    act(() => root.render(createElement(UnderTheHoodPanel, { snapshot: ignored, onDraftAnchor: vi.fn(), onRestoreIdea })));
+    const tab = container.querySelector<HTMLButtonElement>(".underhood-tab");
+    act(() => tab!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(container.textContent).not.toContain("transparency can become surveillance");
+    const ignoredHeader = Array.from(container.querySelectorAll<HTMLButtonElement>(".underhood-section-title")).find((button) => button.textContent?.includes("Ignored ideas"));
+    act(() => ignoredHeader!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    const restore = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find((button) => button.textContent === "Restore");
+    act(() => restore!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(onRestoreIdea).toHaveBeenCalledWith("ignored-1");
     window.matchMedia = original;
   });
 
@@ -385,7 +418,9 @@ describe("UnderTheHoodPanel", () => {
       id: `candidate-${index}`,
       label: `tracked idea ${index}`,
       target: "idea" as const,
+      status: "parked" as const,
       evidenceCount: 1,
+      ageInTurns: 2,
     }));
     const original = window.matchMedia;
     window.matchMedia = vi.fn().mockReturnValue({ matches: true });

@@ -157,16 +157,120 @@ describe("typed Stage 1 controller", () => {
 
     expect(failed.terminal).toMatchObject({ kind: "repair_failed" });
     expect(state.bank.getAll()).toHaveLength(bankCount);
+    expect(state.currentUserTurn).toBe(1);
     expect(retried.response).toMatchObject({ kind: "aside" });
     expect(retried.terminal).toBeUndefined();
+  });
+
+  it("ages candidates only across user turns and resets age on a verified update", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    await processTurn(state, "Transparency can become surveillance.", async (context) => ({
+      response: { kind: "aside", text: "We can hold that concern." },
+      advisory: { candidateUpserts: [{ id: "memory", target: "idea", gist: "surveillance concern", addEvidenceIds: [context.bank[0]!.id], status: "parked" }] },
+    }), defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+
+    await processTurn(state, "Transparency is still on my mind.", async () => ({ response: { kind: "aside", text: "Stay with what matters." } }), defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+    expect(state.currentUserTurn).toBe(2);
+    expect(state.candidates.ageInTurns("memory", state.currentUserTurn)).toBe(1);
+
+    await processTurn(state, "", async () => ({
+      response: { kind: "aside", text: "We can keep it available." },
+      advisory: { candidateUpserts: [{ id: "memory", target: "idea", gist: "surveillance concern", addEvidenceIds: [], status: "parked" }] },
+    }), defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+    expect(state.currentUserTurn).toBe(2);
+    expect(state.candidates.ageInTurns("memory", state.currentUserTurn)).toBe(0);
+  });
+
+  it("validates and records a grounded recall without imposing a minimum age", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    await processTurn(state, "Transparency can become surveillance.", async (context) => ({
+      response: { kind: "aside", text: "I will hold that." },
+      advisory: { candidateUpserts: [{ id: "memory", target: "idea", gist: "surveillance concern", addEvidenceIds: [context.bank[0]!.id], status: "parked" }] },
+    }), defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+    const sourceId = state.candidates.get("memory")!.evidenceUtteranceIds[0];
+
+    const result = await processTurn(state, "Something is missing.", async () => ({ response: {
+      kind: "question",
+      text: "Earlier you said transparency can become surveillance. Do you want to return to that?",
+      recall: { candidateId: "memory", sourceUtteranceId: sourceId, userPhrase: "transparency can become surveillance" },
+    } }), defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+
+    expect(result.recall).toEqual({ candidateId: "memory", sourceUtteranceId: sourceId, userPhrase: "transparency can become surveillance", ageInTurns: 1 });
+    expect(state.candidates.get("memory")).toMatchObject({ status: "parked", lastRecalledTurn: 2, lastTouchedTurn: 2 });
+    expect(result.diagnostics.some((event) => event.code === "candidate_recalled")).toBe(true);
+  });
+
+  it("repairs an invalid recall once and may switch to an ordinary aside", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (_context, rejection) => rejection
+      ? { response: { kind: "aside" as const, text: "We can stay with what is here." } }
+      : { response: { kind: "question" as const, text: "Want to return to an earlier thought?", recall: { candidateId: "missing", sourceUtteranceId: "u_missing", userPhrase: "earlier thought" } } });
+    const result = await processTurn(state, "Something is missing.", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+    expect(model).toHaveBeenCalledTimes(2);
+    expect(result.response).toMatchObject({ kind: "aside" });
+    expect(result.recall).toBeUndefined();
+    expect(result.diagnostics.some((event) => event.code === "recall_candidate_unknown")).toBe(true);
+  });
+
+  it("rejects every ineligible recall pointer deterministically", async () => {
+    const cases: Array<{ name: string; status?: "active" | "parked" | "ignored" | "promoted"; sourceMode?: "linked" | "unlinked" | "command" | "aside"; phrase?: string; visible?: string; code: string }> = [
+      { name: "ignored", status: "ignored", code: "recall_candidate_ineligible" },
+      { name: "promoted", status: "promoted", code: "recall_candidate_ineligible" },
+      { name: "unlinked", sourceMode: "unlinked", code: "recall_evidence_unlinked" },
+      { name: "command-only", sourceMode: "command", code: "recall_evidence_ineligible" },
+      { name: "non-harvestable", sourceMode: "aside", code: "recall_evidence_ineligible" },
+      { name: "non-verbatim", phrase: "surveillance is always harmful", code: "recall_phrase_not_verbatim" },
+      { name: "not visible", visible: "Do you want to return to that concern?", code: "recall_phrase_not_visible" },
+    ];
+    for (const scenario of cases) {
+      const state = createConversationState();
+      state.currentUserTurn = 1;
+      const linked = state.bank.add("Transparency can become surveillance.");
+      const other = state.bank.add("Accountability matters.");
+      if (scenario.sourceMode === "command") state.bank.markCommandOnly([linked.id]);
+      if (scenario.sourceMode === "aside") state.bank.markNonHarvestable([linked.id]);
+      state.candidates.replaceAll([{
+        id: "memory", target: "idea", gist: "surveillance", evidenceUtteranceIds: [linked.id],
+        status: scenario.status ?? "parked", createdTurn: 1, lastTouchedTurn: 1,
+      }]);
+      const sourceUtteranceId = scenario.sourceMode === "unlinked" ? other.id : linked.id;
+      const model = vi.fn(async () => ({ response: {
+        kind: "aside" as const,
+        text: scenario.visible ?? "Earlier you said transparency can become surveillance.",
+        recall: { candidateId: "memory", sourceUtteranceId, userPhrase: scenario.phrase ?? "transparency can become surveillance" },
+      } }));
+      const result = await processTurn(state, "", model, defaultConfig, new ThoughtUnitStore().toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store: new ThoughtUnitStore() });
+      expect(model, scenario.name).toHaveBeenCalledTimes(2);
+      expect(result.terminal, scenario.name).toMatchObject({ kind: "repair_failed" });
+      expect(result.diagnostics.some((event) => event.code === scenario.code), scenario.name).toBe(true);
+    }
+  });
+
+  it("keeps map candidate linkage explicit and target checked", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const linked = await processTurn(state, "Human control matters.", async (context) => ({
+      response: { kind: "map_proposal", text: "Review this.", candidateId: "memory", action: { kind: "create_card", text: "Human control matters", sourceUtteranceIds: [context.bank[0]!.id] } },
+      advisory: { candidateUpserts: [{ id: "memory", target: "idea", gist: "human control", addEvidenceIds: [context.bank[0]!.id], status: "active" }] },
+    }), defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+    expect(linked.proposal?.detail).toMatchObject({ kind: "map_action", candidateId: "memory" });
+
+    const mismatch = await processTurn(state, "These ideas belong together.", async () => ({
+      response: { kind: "map_proposal", text: "Review this.", candidateId: "memory", action: { kind: "connect_cards", source: {}, target: {}, labelText: "together", labelSourceUtteranceIds: [] } },
+    }), defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+    expect(mismatch.terminal).toMatchObject({ kind: "repair_failed" });
+    expect(mismatch.diagnostics.some((event) => event.code === "map_candidate_invalid")).toBe(true);
   });
 
   it("does not commit advisory updates from a rejected response", async () => {
     const state = createConversationState();
     const store = new ThoughtUnitStore();
     const model = vi.fn(async (context, rejection) => rejection
-      ? { response: { kind: "question" as const, text: "Which wording matters?" }, advisory: { candidateUpserts: [{ id: "accepted", target: "idea" as const, gist: "human control", addEvidenceIds: [context.bank[0]!.id] }] } }
-      : { response: { kind: "map_proposal" as const, text: "Review this.", action: { kind: "create_card" as const, text: "invented framing", sourceUtteranceIds: [context.bank[0]!.id] } }, advisory: { candidateUpserts: [{ id: "rejected", target: "idea" as const, gist: "invented framing", addEvidenceIds: [context.bank[0]!.id] }] } });
+      ? { response: { kind: "question" as const, text: "Which wording matters?" }, advisory: { candidateUpserts: [{ id: "accepted", target: "idea" as const, gist: "human control", addEvidenceIds: [context.bank[0]!.id], status: "active" as const }] } }
+      : { response: { kind: "map_proposal" as const, text: "Review this.", action: { kind: "create_card" as const, text: "invented framing", sourceUtteranceIds: [context.bank[0]!.id] } }, advisory: { candidateUpserts: [{ id: "rejected", target: "idea" as const, gist: "invented framing", addEvidenceIds: [context.bank[0]!.id], status: "active" as const }] } });
     const result = await processTurn(state, "human control matters", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
     expect(result.response).toMatchObject({ kind: "question" });
     expect(state.candidates.get("rejected")).toBeUndefined();
@@ -323,6 +427,12 @@ describe("typed Stage 1 controller", () => {
               { id: "c2", text: "translation reveals meaning", candidateId: "y", target: "idea", sourceSpans: [{ claimText: "translation reveals meaning", userPhrase: "translation reveals meaning", utteranceIds: [context.bank[1]!.id] }] },
             ],
           },
+        },
+        advisory: {
+          candidateUpserts: [
+            { id: "x", target: "idea", gist: "language shapes thought", addEvidenceIds: [context.bank[0]!.id], status: "active" },
+            { id: "y", target: "idea", gist: "translation reveals meaning", addEvidenceIds: [context.bank[1]!.id], status: "active" },
+          ],
         },
       }),
       defaultConfig,

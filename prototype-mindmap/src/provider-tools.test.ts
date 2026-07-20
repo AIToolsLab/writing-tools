@@ -22,6 +22,10 @@ describe("provider proposal tools", () => {
     }
     expect(CONVERSATIONAL_TEXT_FORMAT.strict).toBe(true);
     assertStrictObjects(CONVERSATIONAL_TEXT_FORMAT.schema);
+    const schemas = JSON.stringify([MINDMAP_PROVIDER_TOOLS, CONVERSATIONAL_TEXT_FORMAT]);
+    expect(schemas).toContain('"status"');
+    expect(schemas).toContain('"recall"');
+    expect(schemas).not.toContain("candidateDeletes");
   });
 
   it("normalizes a map function call without executing it", () => {
@@ -29,13 +33,13 @@ describe("provider proposal tools", () => {
       id: "resp_1",
       output: [{
         type: "function_call", name: "propose_map_action_v1", call_id: "call_1",
-        arguments: JSON.stringify({ text: "Review this.", action: { kind: "create_card", text: "human control", sourceUtteranceIds: ["u_1"] }, advisory: { candidateUpserts: [], candidateDeletes: ["old"], affect: null } }),
+        arguments: JSON.stringify({ text: "Review this.", action: { kind: "create_card", text: "human control", sourceUtteranceIds: ["u_1"] }, candidateId: "memory", advisory: { candidateUpserts: [], affect: null } }),
       }],
     });
     expect(parsed).toMatchObject({
       responseId: "resp_1",
       toolCall: { name: "propose_map_action_v1", callId: "call_1" },
-      rawEnvelope: { response: { kind: "map_proposal", text: "Review this.", action: { kind: "create_card" } }, advisory: { candidateDeletes: ["old"] } },
+      rawEnvelope: { response: { kind: "map_proposal", text: "Review this.", candidateId: "memory", action: { kind: "create_card" } }, advisory: { candidateUpserts: [] } },
     });
   });
 

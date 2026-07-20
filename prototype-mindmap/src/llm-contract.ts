@@ -1,5 +1,5 @@
 import type { TurnShape } from "./turn-shape";
-import type { CandidateThought, SourceUtterance, ThoughtUnit, ThoughtUnitRole } from "./types";
+import type { CandidateStatus, CandidateTarget, SourceUtterance, ThoughtUnit, ThoughtUnitRole } from "./types";
 import type { AssistanceContractSnapshot } from "./assistance-contract";
 
 export type QuestionStance = "settle" | "narrow" | "deepen" | "organize" | "challenge";
@@ -27,10 +27,20 @@ export interface SelectedFocusContext {
   draftText?: string;
 }
 
+export interface CandidateMemoryFact {
+  id: string;
+  target: CandidateTarget;
+  status: CandidateStatus;
+  gist: string;
+  ageInTurns: number;
+  evidence: Array<{ utteranceId: string; text: string }>;
+  lastRecalledAgeInTurns?: number;
+}
+
 /** Read-only context for a typed assistant response. Every calibration field is advisory. */
 export interface LLMContext {
   bank: SourceUtterance[];
-  candidates: CandidateThought[];
+  candidates: CandidateMemoryFact[];
   turnShape: TurnShape;
   /** Product capability facts, not an interpretation of the user's intent. */
   capabilities: { canDo: string[]; cantDo: string[] };

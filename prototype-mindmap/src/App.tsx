@@ -9,7 +9,7 @@ import { applyConfirmedReflection, applyGatewayActions, executeCanvasAction, ins
 import { createProposalStore, resolveProposal, updateProposal, type Proposal } from "./proposal-store";
 import { cloneConversationState, createConversationState, mergeConversationBank, processTurn } from "./stage1-loop";
 import { cardRef } from "./store";
-import type { ThoughtUnit, ThoughtUnitRole } from "./types";
+import type { CandidateThought, ThoughtUnit, ThoughtUnitRole } from "./types";
 import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
 import { validateMirror } from "./validator";
 import { buildDiagnosticSnapshot, type SafetyCheck, type TrackedIdea, type UnderhoodEvent, type UnderstandingSnapshot } from "./understanding";
@@ -106,7 +106,7 @@ export interface PersistedPendingMirror {
 }
 
 interface PersistedSession {
-  version: 1 | 2 | 3 | 4 | 5;
+  version: 1 | 2 | 3 | 4 | 5 | 6;
   sessionId?: string;
   assistanceLevel?: AssistanceLevel;
   msgs: ChatMsg[];
@@ -129,7 +129,10 @@ interface PersistedSession {
     turnsSinceLastReflection: number;
     lastAssistantText: string;
     draft: string;
-    dismissedCandidateIds: string[];
+    currentUserTurn?: number;
+    legacyIgnoredCandidateIds?: string[];
+    /** v1-v5 migration input only. */
+    dismissedCandidateIds?: string[];
   };
   /** Read only by the v1/v2 migration and never restored into live routing state. */
   controller?: { turnsSinceLastMirror?: number; lastAiText?: string; draft?: string; dismissedCandidateIds?: string[] };
@@ -2388,7 +2391,7 @@ function loadPersistedSession(): PersistedSession | null {
     const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PersistedSession;
-    return parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4 || parsed.version === 5 ? parsed : null;
+    return parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4 || parsed.version === 5 || parsed.version === 6 ? parsed : null;
   } catch {
     return null;
   }
@@ -2400,6 +2403,29 @@ export function buildConversationHistory(msgs: ChatMsg[]): ConversationMessage[]
       ? [{ role: msg.role, content: msg.text }]
       : [],
   );
+}
+
+export function deriveCurrentUserTurn(bank: Array<{ turnId?: string }>): number {
+  return bank.reduce((highest, utterance) => {
+    const match = utterance.turnId?.match(/^t_(\d+)$/);
+    return Math.max(highest, match ? Number(match[1]) : 0);
+  }, 0);
+}
+
+export function migrateCandidateMemory(candidates: CandidateThought[], currentUserTurn: number, dismissedIds: string[] = []): CandidateThought[] {
+  const dismissed = new Set(dismissedIds);
+  return candidates.map((candidate) => {
+    const status = candidate.status === "active" || candidate.status === "parked" || candidate.status === "ignored" || candidate.status === "promoted"
+      ? candidate.status
+      : dismissed.has(candidate.id) ? "ignored" as const : "active" as const;
+    return {
+      ...candidate,
+      status,
+      createdTurn: Number.isFinite(candidate.createdTurn) ? candidate.createdTurn : currentUserTurn,
+      lastTouchedTurn: Number.isFinite(candidate.lastTouchedTurn) ? candidate.lastTouchedTurn : currentUserTurn,
+      ...(status === "ignored" && candidate.ignoredAtTurn === undefined ? { ignoredAtTurn: currentUserTurn } : {}),
+    };
+  });
 }
 
 function normalizeDraftPlainTextPaste(text: string): string {
@@ -2666,6 +2692,7 @@ type UnderhoodSectionId =
   | "latest"
   | "mattered"
   | "ideas"
+  | "ignoredIdeas"
   | "waiting"
   | "safety"
   | "draftAnchors";
@@ -2715,6 +2742,7 @@ export function UnderTheHoodPanel({
   onDraftAnchor,
   onRequestMode,
   onDismissIdea,
+  onRestoreIdea,
   busy = false,
   open: controlledOpen,
   onOpenChange,
@@ -2723,6 +2751,7 @@ export function UnderTheHoodPanel({
   onDraftAnchor: (anchor: string) => void;
   onRequestMode?: (mode: UserRequestedMode) => void;
   onDismissIdea?: (ideaId: string) => void;
+  onRestoreIdea?: (ideaId: string) => void;
   busy?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
@@ -2936,7 +2965,7 @@ export function UnderTheHoodPanel({
                     <div className="idea-top">
                       <div>
                         <div className="idea-label">{idea.label}</div>
-                        <span className="anchor-kind">{targetLabel(idea.target)}</span>
+                        <span className="anchor-kind">{targetLabel(idea.target)} · {idea.status === "active" ? "in view" : "saved for later"}</span>
                       </div>
                       <div className="idea-actions">
                         {onDismissIdea && (
@@ -2956,6 +2985,31 @@ export function UnderTheHoodPanel({
               </div>
             )}
           </UnderhoodSection>
+
+          {(snapshot.ignoredIdeas?.length ?? 0) > 0 && (
+            <UnderhoodSection
+              title="Ignored ideas"
+              meta={snapshot.ignoredIdeas.length}
+              collapsed={sectionIsCollapsed("ignoredIdeas", true)}
+              onToggle={() => toggleSection("ignoredIdeas", true)}
+            >
+              <div className="idea-list">
+                {snapshot.ignoredIdeas.map((idea) => (
+                  <div key={idea.id} className="idea-card">
+                    <div className="idea-top">
+                      <div>
+                        <div className="idea-label">{idea.label}</div>
+                        <span className="anchor-kind">{targetLabel(idea.target)}</span>
+                      </div>
+                      {onRestoreIdea && (
+                        <button type="button" className="idea-dismiss" onClick={() => onRestoreIdea(idea.id)} disabled={busy}>Restore</button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </UnderhoodSection>
+          )}
 
           {snapshot.waitingFor && (
             <UnderhoodSection
@@ -3027,11 +3081,18 @@ export default function App() {
     const state = createConversationState();
     if (!persistedSession) return state;
     state.bank.replaceAll(persistedSession.bank);
-    state.candidates.replaceAll(persistedSession.candidates);
+    const currentUserTurn = persistedSession.conversation?.currentUserTurn ?? deriveCurrentUserTurn(persistedSession.bank);
+    const legacyIgnoredCandidateIds = persistedSession.conversation?.legacyIgnoredCandidateIds
+      ?? persistedSession.conversation?.dismissedCandidateIds
+      ?? persistedSession.controller?.dismissedCandidateIds
+      ?? [];
+    state.currentUserTurn = currentUserTurn;
+    state.legacyIgnoredCandidateIds = legacyIgnoredCandidateIds;
+    state.candidates.replaceAll(migrateCandidateMemory(persistedSession.candidates, currentUserTurn, legacyIgnoredCandidateIds));
+    state.candidates.setLegacyIgnoredIds(legacyIgnoredCandidateIds);
     state.turnsSinceLastReflection = persistedSession.conversation?.turnsSinceLastReflection ?? persistedSession.controller?.turnsSinceLastMirror ?? 0;
     state.lastAssistantText = persistedSession.conversation?.lastAssistantText ?? persistedSession.controller?.lastAiText ?? "";
     state.draft = persistedSession.conversation?.draft ?? persistedSession.controller?.draft ?? persistedSession.draftText;
-    state.dismissedCandidateIds = persistedSession.conversation?.dismissedCandidateIds ?? persistedSession.controller?.dismissedCandidateIds ?? [];
     return state;
   }, [persistedSession]);
 
@@ -3054,10 +3115,11 @@ export default function App() {
   );
   const initialConfirmed = persistedSession?.confirmed ?? [];
   const initialCoachDebug = persistedSession?.lastCoachDebug ?? null;
-  // Under-the-Hood is a transparency surface, so do not trust a snapshot read
-  // back from localStorage as live cognition. Show a fresh snapshot only after a
-  // controller turn rebuilds it from code-owned state in this session.
-  const initialUnderstandingSnapshot = null;
+  // Rebuild transparency from code-owned memory rather than trusting persisted
+  // display prose. This keeps ignored memories restorable immediately after reload.
+  const initialUnderstandingSnapshot = persistedSession
+    ? buildDiagnosticSnapshot([], initialState.candidates.getAll(), initialState.bank.getAll(), initialState.currentUserTurn)
+    : null;
   const initialMapRevision = persistedSession?.mapRevision ?? 0;
   const initialQuestionBias = snapQuestionBias(persistedSession?.questionBias ?? 35);
   const initialRequireConnectionLabel = persistedSession?.requireConnectionLabel ?? true;
@@ -3103,14 +3165,14 @@ export default function App() {
   const ledgerRef = useRef(new EventLedger(initialSessionId));
   const contract = contractForLevel(assistanceLevel);
 
-  const recordEvent = useCallback(async (kind: LedgerEventKind, detail?: unknown, extra?: { origin?: import("./assistance-contract").ContributionOrigin; responseKind?: string; outcome?: string; code?: string; contract?: import("./assistance-contract").AssistanceContractSnapshot; providerTransport?: "chat_json" | "responses_tools"; toolName?: "propose_reflection_v1" | "propose_map_action_v1"; repairCount?: number }) => {
+  const recordEvent = useCallback(async (kind: LedgerEventKind, detail?: unknown, extra?: { origin?: import("./assistance-contract").ContributionOrigin; responseKind?: string; outcome?: string; code?: string; contract?: import("./assistance-contract").AssistanceContractSnapshot; providerTransport?: "chat_json" | "responses_tools"; toolName?: "propose_reflection_v1" | "propose_map_action_v1"; repairCount?: number; candidateStatus?: "active" | "parked" | "ignored" | "promoted"; ageInTurns?: number }) => {
     const event = await ledgerRef.current.record(kind, detail, { contract: extra?.contract ?? snapshotContract(contract), origin: extra?.origin });
     setLedgerAvailable(ledgerRef.current.isAvailable);
-    void mirrorSanitizedEvent(event, { responseKind: extra?.responseKind, outcome: extra?.outcome, code: extra?.code, providerTransport: extra?.providerTransport, toolName: extra?.toolName, repairCount: extra?.repairCount });
+    void mirrorSanitizedEvent(event, { responseKind: extra?.responseKind, outcome: extra?.outcome, code: extra?.code, providerTransport: extra?.providerTransport, toolName: extra?.toolName, repairCount: extra?.repairCount, candidateStatus: extra?.candidateStatus, ageInTurns: extra?.ageInTurns });
   }, [contract]);
 
   useEffect(() => {
-    void recordEvent(persistedSession?.version === 5 ? "contract_selected" : "contract_initialized", { reason: persistedSession ? "migration" : "new_session" });
+    void recordEvent(persistedSession ? "contract_selected" : "contract_initialized", { reason: persistedSession ? "migration" : "new_session" });
   // The first mount records initial contract only. Level changes have their own event below.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -3249,6 +3311,11 @@ export default function App() {
       ? "ai_suggested" as const
       : proposal.origin ?? "legacy_confirmed";
     applyGatewayActions([checked.action], mapStoreRef.current, stateRef.current.bank, { origin: appliedOrigin, contract: proposal.contract, relationshipProvenance });
+    const promotedCandidateId = proposal.detail.candidateId;
+    if (promotedCandidateId && stateRef.current.candidates.transition(promotedCandidateId, "promoted", stateRef.current.currentUserTurn)) {
+      void recordEvent("candidate_lifecycle_changed", { candidateId: promotedCandidateId, status: "promoted", turn: stateRef.current.currentUserTurn }, { outcome: "promoted", candidateStatus: "promoted" });
+      setUnderstandingSnapshot((prev) => prev ? { ...prev, trackedIdeas: prev.trackedIdeas.filter((idea) => idea.id !== promotedCandidateId), ignoredIdeas: (prev.ignoredIdeas ?? []).filter((idea) => idea.id !== promotedCandidateId) } : prev);
+    }
     setProposals((current) => resolveProposal(current, proposalId, "confirmed"));
     void recordEvent("proposal_resolved", { proposalId, decision: "confirmed" }, { origin: proposal.origin, outcome: "confirmed" });
     void recordEvent("map_mutated", { proposalId, action: checked.action }, { origin: proposal.origin, outcome: "applied" });
@@ -3263,19 +3330,32 @@ export default function App() {
   }, [captureMapUndo, groundEditedAction, mapRevision, markMapChanged, proposals, recordEvent, requestMode, requireConnectionLabel]);
 
   const dismissTrackedIdea = useCallback((ideaId: string) => {
-    stateRef.current.candidates.delete(ideaId);
-    stateRef.current.dismissedCandidateIds = Array.from(
-      new Set([...stateRef.current.dismissedCandidateIds, ideaId]),
-    );
+    if (!stateRef.current.candidates.transition(ideaId, "ignored", stateRef.current.currentUserTurn)) return;
+    void recordEvent("candidate_lifecycle_changed", { candidateId: ideaId, status: "ignored", turn: stateRef.current.currentUserTurn }, { outcome: "ignored", candidateStatus: "ignored" });
     setUnderstandingSnapshot((prev) =>
       prev
         ? {
             ...prev,
             trackedIdeas: prev.trackedIdeas.filter((idea) => idea.id !== ideaId),
+            ignoredIdeas: [...(prev.ignoredIdeas ?? []), ...prev.trackedIdeas.filter((idea) => idea.id === ideaId).map((idea) => ({ ...idea, status: "ignored" as const, ageInTurns: 0 }))],
           }
         : prev,
     );
-  }, []);
+  }, [recordEvent]);
+
+  const restoreTrackedIdea = useCallback((ideaId: string) => {
+    if (!stateRef.current.candidates.transition(ideaId, "parked", stateRef.current.currentUserTurn)) return;
+    void recordEvent("candidate_lifecycle_changed", { candidateId: ideaId, status: "parked", turn: stateRef.current.currentUserTurn }, { outcome: "restored", candidateStatus: "parked" });
+    setUnderstandingSnapshot((prev) =>
+      prev
+        ? {
+            ...prev,
+            trackedIdeas: [...prev.trackedIdeas, ...(prev.ignoredIdeas ?? []).filter((idea) => idea.id === ideaId).map((idea) => ({ ...idea, status: "parked" as const, ageInTurns: 0 }))],
+            ignoredIdeas: (prev.ignoredIdeas ?? []).filter((idea) => idea.id !== ideaId),
+          }
+        : prev,
+    );
+  }, [recordEvent]);
 
   // Draft panel state
   const [draftText, setDraftText] = useState(initialDraftText);
@@ -3670,7 +3750,7 @@ export default function App() {
   function appendCoachOutput(out: TurnResult, opts?: { replaceLastCoach?: boolean; recoveryId?: number }) {
     const nextDiagnostics = [...diagnostics, ...out.diagnostics].slice(-100);
     setDiagnostics(nextDiagnostics);
-    const understanding = buildDiagnosticSnapshot(out.diagnostics, stateRef.current.candidates.getAll(), stateRef.current.bank.getAll());
+    const understanding = buildDiagnosticSnapshot(out.diagnostics, stateRef.current.candidates.getAll(), stateRef.current.bank.getAll(), stateRef.current.currentUserTurn);
     const replaceLastCoach =
       Boolean(opts?.replaceLastCoach) &&
       msgs.length > 0 &&
@@ -3683,6 +3763,13 @@ export default function App() {
       mode: out.response?.kind ?? out.terminal?.kind ?? "idle",
       commandDebug: out.diagnostics.map((event) => ({ reason: event.code, detail: event.detail })),
     });
+    if (out.recall) {
+      const recalledStatus = stateRef.current.candidates.get(out.recall.candidateId)?.status;
+      void recordEvent("candidate_recalled", out.recall, { outcome: "recalled", code: "candidate_recalled", ageInTurns: out.recall.ageInTurns, ...(recalledStatus ? { candidateStatus: recalledStatus } : {}) });
+    }
+    for (const change of out.lifecycleChanges ?? []) {
+      void recordEvent("candidate_lifecycle_changed", change, { outcome: change.status, code: "candidate_memory_updated", candidateStatus: change.status });
+    }
 
     if (out.terminal) {
       void recordEvent("application_recovery", out.terminal, { outcome: "rejected", code: out.terminal.kind });
@@ -3737,7 +3824,7 @@ export default function App() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const snapshot: PersistedSession = {
-      version: 5,
+      version: 6,
       sessionId: initialSessionId,
       assistanceLevel,
       msgs,
@@ -3759,7 +3846,8 @@ export default function App() {
         turnsSinceLastReflection: stateRef.current.turnsSinceLastReflection,
         lastAssistantText: stateRef.current.lastAssistantText,
         draft: stateRef.current.draft,
-        dismissedCandidateIds: stateRef.current.dismissedCandidateIds,
+        currentUserTurn: stateRef.current.currentUserTurn,
+        legacyIgnoredCandidateIds: stateRef.current.legacyIgnoredCandidateIds,
       },
       diagnostics,
       bank: stateRef.current.bank.getAll(),
@@ -3954,6 +4042,10 @@ export default function App() {
         captureMapUndo();
         applyConfirmedReflection(confirmedReflection, mapStoreRef.current);
         setConfirmed((prev) => [...prev, confirmedReflection]);
+        if (stateRef.current.candidates.transition(confirmedReflection.candidateId, "promoted", stateRef.current.currentUserTurn)) {
+          void recordEvent("candidate_lifecycle_changed", { candidateId: confirmedReflection.candidateId, status: "promoted", turn: stateRef.current.currentUserTurn }, { outcome: "promoted", candidateStatus: "promoted" });
+          setUnderstandingSnapshot((prev) => prev ? { ...prev, trackedIdeas: prev.trackedIdeas.filter((idea) => idea.id !== confirmedReflection.candidateId), ignoredIdeas: (prev.ignoredIdeas ?? []).filter((idea) => idea.id !== confirmedReflection.candidateId) } : prev);
+        }
         markUserMapChanged();
         const event: DiagnosticEvent = { id: `d_${Date.now()}`, at: Date.now(), stage: "application", outcome: "applied", code: "reflection_claim_applied", detail: "Confirmed reflection claim passed the gateway and was added to the map." };
         setDiagnostics((current) => [...current, event].slice(-100));
@@ -3966,6 +4058,10 @@ export default function App() {
         if (checked.status === "ready") {
           applyGatewayActions([checked.action], mapStoreRef.current, stateRef.current.bank);
           setConfirmed((prev) => [...prev, { ...confirmedReflection, sourceUtteranceIds: ids }]);
+          if (stateRef.current.candidates.transition(confirmedReflection.candidateId, "promoted", stateRef.current.currentUserTurn)) {
+            void recordEvent("candidate_lifecycle_changed", { candidateId: confirmedReflection.candidateId, status: "promoted", turn: stateRef.current.currentUserTurn }, { outcome: "promoted", candidateStatus: "promoted" });
+            setUnderstandingSnapshot((prev) => prev ? { ...prev, trackedIdeas: prev.trackedIdeas.filter((idea) => idea.id !== confirmedReflection.candidateId), ignoredIdeas: (prev.ignoredIdeas ?? []).filter((idea) => idea.id !== confirmedReflection.candidateId) } : prev);
+          }
           markUserMapChanged();
         }
       }
@@ -4446,6 +4542,7 @@ export default function App() {
             onDraftAnchor={revealDraftAnchor}
             onRequestMode={requestMode}
             onDismissIdea={dismissTrackedIdea}
+            onRestoreIdea={restoreTrackedIdea}
             busy={loading}
             open={underhoodOpen}
             onOpenChange={setUnderhoodOpen}

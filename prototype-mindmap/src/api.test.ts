@@ -24,7 +24,7 @@ describe("typed assistant response parser", () => {
     expect(PROVIDER_TRANSPORT).toBe("chat_json");
   });
   it("parses exactly one visible response and separate advisory data", () => {
-    expect(parseAssistantResponse({ response: { kind: "question", text: "What matters here?", stance: "deepen" }, advisory: { candidateDeletes: ["c1"] } })).toEqual({ response: { kind: "question", text: "What matters here?", stance: "deepen" }, advisory: { candidateUpserts: [], candidateDeletes: ["c1"] } });
+    expect(parseAssistantResponse({ response: { kind: "question", text: "What matters here?", stance: "deepen" }, advisory: { candidateDeletes: ["c1"] } })).toEqual({ response: { kind: "question", text: "What matters here?", stance: "deepen" }, advisory: { candidateUpserts: [] } });
   });
 
   it("requires a relation pointer on the parsed relational claim payload", () => {
@@ -49,6 +49,27 @@ describe("typed assistant response parser", () => {
     ]);
   });
 
+  it("parses structured question and aside recall plus explicit map candidate linkage", () => {
+    const recall = { candidateId: "memory", sourceUtteranceId: "u_1", userPhrase: "human control" };
+    expect(parseAssistantResponse({ response: { kind: "question", text: "Return to human control?", recall } }).response).toMatchObject({ kind: "question", recall });
+    expect(parseAssistantResponse({ response: { kind: "aside", text: "Earlier: human control.", recall } }).response).toMatchObject({ kind: "aside", recall });
+    expect(parseAssistantResponse({
+      response: {
+        kind: "map_proposal",
+        text: "Review this.",
+        candidateId: "memory",
+        action: { kind: "create_card", text: "human control", sourceUtteranceIds: ["u_1"] },
+      },
+    }).response).toMatchObject({ kind: "map_proposal", candidateId: "memory" });
+  });
+
+  it("rejects malformed or unsupported recall annotations and drops forbidden lifecycle nominations", () => {
+    expect(() => parseAssistantResponse({ response: { kind: "question", text: "Return?", recall: { candidateId: "memory" } } })).toThrow("invalid_recall_payload");
+    expect(() => parseAssistantResponse({ response: { kind: "suggestion", text: "Return to this.", recall: { candidateId: "memory", sourceUtteranceId: "u_1", userPhrase: "this" } } })).toThrow("invalid_recall_kind");
+    const parsed = parseAssistantResponse({ response: { kind: "aside", text: "Stay here." }, advisory: { candidateUpserts: [{ id: "memory", target: "idea", gist: "x", addEvidenceIds: ["u_1"], status: "ignored" }] } });
+    expect(parsed.advisory?.candidateUpserts).toEqual([]);
+  });
+
   it("preserves ordering within the history window while keeping the new user turn last", () => {
     const committed = Array.from({ length: 21 }, (_, index) => ({
       role: index % 2 === 0 ? "user" as const : "assistant" as const,
@@ -69,7 +90,7 @@ describe("typed assistant response parser", () => {
   it("renders factual UI context without a duplicate latest-user-turn prompt field", () => {
     const rendered = renderContext({
       ...context,
-      candidates: [{ id: "candidate-1", target: "connection", gist: "human control", evidenceUtteranceIds: ["u_1"] }],
+      candidates: [{ id: "candidate-1", target: "connection", status: "parked", gist: "human control", ageInTurns: 3, evidence: [{ utteranceId: "u_1", text: "human control" }] }],
       selectedFocus: {
         cards: [{ id: "tu_1", ref: "A", text: "human control", role: "node" }],
         draftText: "the highlighted draft claim",
@@ -88,7 +109,10 @@ describe("typed assistant response parser", () => {
     expect(rendered).toContain(`Can do: ${defaultConfig.capabilities.canDo.join("; ")}`);
     expect(rendered).toContain(`Cannot do: ${defaultConfig.capabilities.cantDo.join("; ")}`);
     expect(rendered).toContain("A draft paragraph.");
-    expect(rendered).toContain("candidate-1 connection human control evidence=u_1");
+    expect(rendered).toContain("candidate-1 target=connection status=parked ageInTurns=3 gist=human control");
+    expect(rendered).toContain('[u_1] "human control"');
+    expect(rendered).toContain("RECALL-ELIGIBLE CANDIDATES");
+    expect(rendered).toContain("DO NOT RECALL OR SURFACE THESE CANDIDATES");
     expect(rendered).not.toContain("readiness=");
     expect(rendered).not.toContain("detectedSignals");
     expect(rendered).not.toContain("LATEST USER TURN");

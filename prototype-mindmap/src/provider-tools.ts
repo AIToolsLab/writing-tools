@@ -25,6 +25,17 @@ const relationEvidenceSchema: JsonSchema = {
     { type: "null" },
   ],
 };
+const recallSchema: JsonSchema = {
+  anyOf: [
+    {
+      type: "object",
+      properties: { candidateId: { type: "string" }, sourceUtteranceId: { type: "string" }, userPhrase: { type: "string" } },
+      required: ["candidateId", "sourceUtteranceId", "userPhrase"],
+      additionalProperties: false,
+    },
+    { type: "null" },
+  ],
+};
 const proposedRefSchema: JsonSchema = {
   type: "object",
   properties: {
@@ -100,14 +111,14 @@ const toolAdvisorySchema: JsonSchema = {
             properties: {
               id: { type: "string" }, target: { type: "string", enum: ["idea", "hierarchy", "connection"] },
               gist: { type: "string" }, addEvidenceIds: stringArray,
+              status: { type: "string", enum: ["active", "parked"] },
             },
-            required: ["id", "target", "gist", "addEvidenceIds"], additionalProperties: false,
+            required: ["id", "target", "gist", "addEvidenceIds", "status"], additionalProperties: false,
           },
         },
-        candidateDeletes: stringArray,
         affect: { type: ["string", "null"], enum: ["exhausted", "frustrated", "overwhelmed", "energized", null] },
       },
-      required: ["candidateUpserts", "candidateDeletes", "affect"], additionalProperties: false,
+      required: ["candidateUpserts", "affect"], additionalProperties: false,
     },
     { type: "null" },
   ],
@@ -133,8 +144,8 @@ export const MINDMAP_PROVIDER_TOOLS = [
     strict: true,
     parameters: {
       type: "object",
-      properties: { text: { type: "string" }, action: actionSchema, advisory: toolAdvisorySchema },
-      required: ["text", "action", "advisory"],
+      properties: { text: { type: "string" }, action: actionSchema, candidateId: { type: ["string", "null"] }, advisory: toolAdvisorySchema },
+      required: ["text", "action", "candidateId", "advisory"],
       additionalProperties: false,
     },
   },
@@ -148,10 +159,11 @@ const conversationalResponseSchema: JsonSchema = {
         kind: { const: "question" }, text: { type: "string" },
         stance: { type: ["string", "null"], enum: ["settle", "narrow", "deepen", "organize", "challenge", null] },
         anchor: { type: ["string", "null"] },
+        recall: recallSchema,
       },
-      required: ["kind", "text", "stance", "anchor"], additionalProperties: false,
+      required: ["kind", "text", "stance", "anchor", "recall"], additionalProperties: false,
     },
-    { type: "object", properties: { kind: { const: "aside" }, text: { type: "string" } }, required: ["kind", "text"], additionalProperties: false },
+    { type: "object", properties: { kind: { const: "aside" }, text: { type: "string" }, recall: recallSchema }, required: ["kind", "text", "recall"], additionalProperties: false },
     {
       type: "object",
       properties: {
@@ -224,7 +236,7 @@ export function parseResponsesOutput(value: unknown): ParsedResponsesOutput {
     if (!("advisory" in parsed)) throw new Error("invalid_provider_tool_arguments");
     const rawEnvelope = name === "propose_reflection_v1"
       ? { response: { kind: "reflection", text: parsed.text, reflection: parsed.reflection }, advisory: parsed.advisory }
-      : { response: { kind: "map_proposal", text: parsed.text, action: parsed.action }, advisory: parsed.advisory };
+      : { response: { kind: "map_proposal", text: parsed.text, action: parsed.action, candidateId: parsed.candidateId }, advisory: parsed.advisory };
     return { responseId: typeof body?.id === "string" ? body.id : undefined, output, rawEnvelope, toolCall: { name, callId, arguments: args } };
   }
 

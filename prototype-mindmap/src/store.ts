@@ -8,6 +8,7 @@
 import { segment } from "./normalize";
 import type {
   CandidateThought,
+  CandidateStatus,
   SourceUtterance,
   UtteranceOrigin,
 } from "./types";
@@ -129,10 +130,18 @@ export class SourceBank {
 
 export class CandidateStore {
   private _candidates: Map<string, CandidateThought> = new Map();
+  private _legacyIgnoredIds: Set<string> = new Set();
 
-  upsert(candidate: CandidateThought): void {
+  private signature(candidate: Pick<CandidateThought, "target" | "evidenceUtteranceIds">): string {
+    return `${candidate.target}:${Array.from(new Set(candidate.evidenceUtteranceIds)).sort().join(",")}`;
+  }
+
+  upsert(candidate: CandidateThought): "created" | "updated" | "blocked_id" | "blocked_tombstone" | "blocked_status" | "target_mismatch" {
+    if (this._legacyIgnoredIds.has(candidate.id)) return "blocked_id";
     const existing = this._candidates.get(candidate.id);
     if (existing) {
+      if (existing.status === "ignored" || existing.status === "promoted") return "blocked_status";
+      if (existing.target !== candidate.target) return "target_mismatch";
       // Merge evidence rather than replace it, so no turn's grounding is
       // silently lost on an update.
       const mergedEvidence = Array.from(
@@ -144,15 +153,44 @@ export class CandidateStore {
       this._candidates.set(candidate.id, {
         ...existing,
         ...candidate,
+        createdTurn: existing.createdTurn,
         evidenceUtteranceIds: mergedEvidence,
       });
+      return "updated";
     } else {
+      const signature = this.signature(candidate);
+      if (this.getAll().some((item) => item.status === "ignored" && this.signature(item) === signature)) return "blocked_tombstone";
       this._candidates.set(candidate.id, candidate);
+      return "created";
     }
   }
 
-  delete(id: string): void {
-    this._candidates.delete(id);
+  transition(id: string, status: Extract<CandidateStatus, "ignored" | "parked" | "promoted">, turn: number): boolean {
+    const candidate = this._candidates.get(id);
+    if (!candidate) return false;
+    if (status === "parked" && candidate.status !== "ignored") return false;
+    if (status === "ignored" && candidate.status !== "active" && candidate.status !== "parked") return false;
+    if (status === "promoted" && candidate.status === "promoted") return false;
+    this._candidates.set(id, {
+      ...candidate,
+      status,
+      lastTouchedTurn: turn,
+      ...(status === "ignored" ? { ignoredAtTurn: turn } : { ignoredAtTurn: undefined }),
+      ...(status === "promoted" ? { promotedAtTurn: turn } : {}),
+    });
+    return true;
+  }
+
+  markRecalled(id: string, turn: number): boolean {
+    const candidate = this._candidates.get(id);
+    if (!candidate || (candidate.status !== "active" && candidate.status !== "parked")) return false;
+    this._candidates.set(id, { ...candidate, lastTouchedTurn: turn, lastRecalledTurn: turn });
+    return true;
+  }
+
+  ageInTurns(id: string, currentTurn: number): number | undefined {
+    const candidate = this._candidates.get(id);
+    return candidate ? Math.max(0, currentTurn - candidate.lastTouchedTurn) : undefined;
   }
 
   get(id: string): CandidateThought | undefined {
@@ -165,5 +203,13 @@ export class CandidateStore {
 
   replaceAll(candidates: CandidateThought[]): void {
     this._candidates = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+  }
+
+  setLegacyIgnoredIds(ids: string[]): void {
+    this._legacyIgnoredIds = new Set(ids);
+  }
+
+  getLegacyIgnoredIds(): string[] {
+    return Array.from(this._legacyIgnoredIds);
   }
 }

@@ -17,6 +17,13 @@ describe("event ledger", () => {
     });
   });
 
+  it("sanitizes recall telemetry without sending candidate ids or user wording", () => {
+    const event = { sessionId: "s", sequence: 3, at: 3, kind: "candidate_recalled" as const, detail: { candidateId: "private", userPhrase: "private wording" } };
+    expect(sanitizedEvent(event, { outcome: "recalled", code: "candidate_recalled", candidateStatus: "parked", ageInTurns: 6 })).toEqual({
+      sessionId: "s", sequence: 3, at: 3, kind: "candidate_recalled", outcome: "recalled", code: "candidate_recalled", candidateStatus: "parked", ageInTurns: 6,
+    });
+  });
+
   it("keeps monotonically increasing in-memory sequence when IndexedDB is unavailable", async () => {
     vi.stubGlobal("indexedDB", undefined);
     const ledger = new EventLedger("s");

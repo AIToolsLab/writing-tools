@@ -5,11 +5,17 @@ import type { MirrorReflection } from "./types";
 import type { Proposal } from "./proposal-store";
 import type { SourceBackedOption } from "./assistance-contract";
 
+export interface RecallAnnotation {
+  candidateId: string;
+  sourceUtteranceId: string;
+  userPhrase: string;
+}
+
 export type AssistantResponse =
-  | { kind: "question"; text: string; stance?: QuestionStance; anchor?: string }
+  | { kind: "question"; text: string; stance?: QuestionStance; anchor?: string; recall?: RecallAnnotation }
   | { kind: "reflection"; text: string; reflection: MirrorReflection }
-  | { kind: "aside"; text: string }
-  | { kind: "map_proposal"; text: string; action: ProposedAction }
+  | { kind: "aside"; text: string; recall?: RecallAnnotation }
+  | { kind: "map_proposal"; text: string; action: ProposedAction; candidateId?: string }
   | { kind: "options"; text: string; options: SourceBackedOption[] }
   | { kind: "suggestion"; text: string };
 
@@ -19,8 +25,8 @@ export interface AssistantAdvisory {
     target: "idea" | "hierarchy" | "connection";
     gist: string;
     addEvidenceIds: string[];
+    status: "active" | "parked";
   }>;
-  candidateDeletes?: string[];
   affect?: "exhausted" | "frustrated" | "overwhelmed" | "energized";
 }
 
@@ -36,7 +42,8 @@ export interface ConversationState {
   draft: string;
   turnsSinceLastReflection: number;
   lastAssistantText: string;
-  dismissedCandidateIds: string[];
+  currentUserTurn: number;
+  legacyIgnoredCandidateIds: string[];
 }
 
 export type DiagnosticStage = "response" | "validation" | "gateway" | "repair" | "proposal" | "application";
@@ -79,6 +86,19 @@ export interface RepairFailureTerminal {
 export interface TurnResult {
   response?: AssistantResponse;
   proposal?: Proposal;
+  recall?: VerifiedRecall;
+  lifecycleChanges?: CandidateLifecycleChange[];
   terminal?: RepairFailureTerminal;
   diagnostics: DiagnosticEvent[];
+}
+
+export interface CandidateLifecycleChange {
+  candidateId: string;
+  status: "active" | "parked";
+  turn: number;
+  source: "model";
+}
+
+export interface VerifiedRecall extends RecallAnnotation {
+  ageInTurns: number;
 }

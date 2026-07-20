@@ -5,10 +5,12 @@ import { inspectAction } from "./action-gateway";
 import type {
   AssistantModel,
   AssistantResponseEnvelope,
+  CandidateLifecycleChange,
   ConversationState,
   DiagnosticEvent,
   StructuredRejection,
   TurnResult,
+  VerifiedRecall,
 } from "./assistant-response";
 import { ModelResponseValidationError } from "./assistant-response";
 import type { ThoughtUnitStore } from "./map-store";
@@ -17,7 +19,7 @@ import type { AssistanceContract, AssistanceContractSnapshot, InfluenceTrace } f
 import { DEFAULT_ASSISTANCE_CONTRACT, snapshotContract } from "./assistance-contract";
 import { CandidateStore, SourceBank } from "./store";
 import { detectTurnShape } from "./turn-shape";
-import type { MirrorClaim, SourceUtterance } from "./types";
+import type { CandidateThought, CandidateTarget, MirrorClaim, SourceUtterance } from "./types";
 import { validateMirror } from "./validator";
 
 export interface ProcessTurnOptions {
@@ -49,7 +51,7 @@ function exhaustedRepair(state: ConversationState, diagnostics: DiagnosticEvent[
 }
 
 export function createConversationState(): ConversationState {
-  return { bank: new SourceBank(), candidates: new CandidateStore(), draft: "", turnsSinceLastReflection: 0, lastAssistantText: "", dismissedCandidateIds: [] };
+  return { bank: new SourceBank(), candidates: new CandidateStore(), draft: "", turnsSinceLastReflection: 0, lastAssistantText: "", currentUserTurn: 0, legacyIgnoredCandidateIds: [] };
 }
 
 export function cloneConversationState(state: ConversationState): ConversationState {
@@ -59,7 +61,9 @@ export function cloneConversationState(state: ConversationState): ConversationSt
   clone.draft = state.draft;
   clone.turnsSinceLastReflection = state.turnsSinceLastReflection;
   clone.lastAssistantText = state.lastAssistantText;
-  clone.dismissedCandidateIds = [...state.dismissedCandidateIds];
+  clone.currentUserTurn = state.currentUserTurn;
+  clone.legacyIgnoredCandidateIds = [...state.legacyIgnoredCandidateIds];
+  clone.candidates.setLegacyIgnoredIds(clone.legacyIgnoredCandidateIds);
   return clone;
 }
 
@@ -108,20 +112,83 @@ function contractRejectsResponse(envelope: AssistantResponseEnvelope, contract: 
   return undefined;
 }
 
-function applyAdvisory(state: ConversationState, envelope: AssistantResponseEnvelope): void {
-  for (const candidate of envelope.advisory?.candidateUpserts ?? []) {
-    state.candidates.upsert({ id: candidate.id, target: candidate.target, gist: candidate.gist, evidenceUtteranceIds: candidate.addEvidenceIds });
-  }
-  for (const id of envelope.advisory?.candidateDeletes ?? []) state.candidates.delete(id);
+function eligibleEvidence(bank: SourceBank, ids: string[]): SourceUtterance[] {
+  return Array.from(new Set(ids)).flatMap((id) => {
+    const utterance = bank.get(id);
+    return utterance && !utterance.commandOnly && !utterance.nonHarvestable && utterance.text.trim() ? [utterance] : [];
+  });
 }
 
-function createProposal(envelope: AssistantResponseEnvelope, state: ConversationState, options: ProcessTurnOptions, config: MindmapConfig, contract: AssistanceContractSnapshot): { proposal?: Proposal; rejection?: StructuredRejection; diagnostics: DiagnosticEvent[] } {
+function prepareAdvisory(state: ConversationState, envelope: AssistantResponseEnvelope): { store: CandidateStore; diagnostics: DiagnosticEvent[]; changes: CandidateLifecycleChange[] } {
+  const store = new CandidateStore();
+  store.replaceAll(state.candidates.getAll());
+  store.setLegacyIgnoredIds(state.legacyIgnoredCandidateIds);
+  const diagnostics: DiagnosticEvent[] = [];
+  const changes: CandidateLifecycleChange[] = [];
+  for (const candidate of envelope.advisory?.candidateUpserts ?? []) {
+    const existing = store.get(candidate.id);
+    const validEvidence = eligibleEvidence(state.bank, candidate.addEvidenceIds).map((utterance) => utterance.id);
+    if (!existing && validEvidence.length === 0) {
+      diagnostics.push(diagnostic("validation", "rejected", "candidate_evidence_invalid", `Candidate ${candidate.id} was not stored because it had no eligible user evidence.`));
+      continue;
+    }
+    const next: CandidateThought = {
+      id: candidate.id,
+      target: candidate.target,
+      gist: candidate.gist,
+      evidenceUtteranceIds: validEvidence,
+      status: candidate.status,
+      createdTurn: existing?.createdTurn ?? state.currentUserTurn,
+      lastTouchedTurn: state.currentUserTurn,
+      lastRecalledTurn: existing?.lastRecalledTurn,
+      ignoredAtTurn: existing?.ignoredAtTurn,
+      promotedAtTurn: existing?.promotedAtTurn,
+    };
+    const outcome = store.upsert(next);
+    if (outcome === "created" || outcome === "updated") {
+      diagnostics.push(diagnostic("validation", "accepted", "candidate_memory_validated", `Candidate ${candidate.id} lifecycle bookkeeping was validated.`));
+      changes.push({ candidateId: candidate.id, status: candidate.status, turn: state.currentUserTurn, source: "model" });
+    } else {
+      diagnostics.push(diagnostic("validation", "rejected", `candidate_${outcome}`, `Candidate ${candidate.id} lifecycle update was blocked.`));
+    }
+  }
+  return { store, diagnostics, changes };
+}
+
+function validateRecall(envelope: AssistantResponseEnvelope, state: ConversationState): { recall?: VerifiedRecall; rejection?: StructuredRejection } {
+  const response = envelope.response;
+  if (response.kind !== "question" && response.kind !== "aside") return {};
+  if (!response.recall) return {};
+  const annotation = response.recall;
+  const candidate = state.candidates.get(annotation.candidateId);
+  if (!candidate) return { rejection: { code: "recall_candidate_unknown", detail: "The recalled candidate does not exist." } };
+  if (candidate.status !== "active" && candidate.status !== "parked") return { rejection: { code: "recall_candidate_ineligible", detail: `A ${candidate.status} candidate cannot be recalled.` } };
+  if (!candidate.evidenceUtteranceIds.includes(annotation.sourceUtteranceId)) return { rejection: { code: "recall_evidence_unlinked", detail: "The recalled evidence is not linked to that candidate." } };
+  const utterance = state.bank.get(annotation.sourceUtteranceId);
+  if (!utterance || utterance.commandOnly || utterance.nonHarvestable) return { rejection: { code: "recall_evidence_ineligible", detail: "The recalled evidence is not eligible user wording." } };
+  if (!containsWholePhrase(utterance.text, annotation.userPhrase)) return { rejection: { code: "recall_phrase_not_verbatim", detail: "The recalled phrase is not verbatim user wording." } };
+  if (!containsWholePhrase(response.text, annotation.userPhrase)) return { rejection: { code: "recall_phrase_not_visible", detail: "The recalled user phrase must appear in the visible response." } };
+  return { recall: { ...annotation, ageInTurns: state.candidates.ageInTurns(candidate.id, state.currentUserTurn) ?? 0 } };
+}
+
+function targetForAction(kind: import("./action-gateway").ProposedAction["kind"]): CandidateTarget {
+  if (kind === "nest_card") return "hierarchy";
+  if (kind === "connect_cards") return "connection";
+  return "idea";
+}
+
+function createProposal(envelope: AssistantResponseEnvelope, state: ConversationState, candidates: CandidateStore, options: ProcessTurnOptions, config: MindmapConfig, contract: AssistanceContractSnapshot): { proposal?: Proposal; rejection?: StructuredRejection; diagnostics: DiagnosticEvent[] } {
   const response = envelope.response;
   if (response.kind === "reflection") {
     const validation = validateMirror(response.reflection, state.bank.getAll(), config);
     if (!validation.ok) return { rejection: { code: "reflection_validation_failed", detail: validation.claims.filter((claim) => !claim.ok).map((claim) => claim.message).join(" ") }, diagnostics: [diagnostic("validation", "rejected", "reflection_validation_failed", "Reflection evidence pointers did not validate.")] };
     const attributions = response.reflection.claims.map((claim) => deriveClaimAttribution(claim, state.bank.getAll()));
     if (!attributions.every((value) => value === "asserted")) return { rejection: { code: "reflection_not_user_asserted", detail: "Reflections must remain grounded in user assertions; use a suggestion for new material." }, diagnostics: [diagnostic("validation", "rejected", "reflection_not_user_asserted", "Reflection was not fully asserted.")] };
+    const invalidCandidate = response.reflection.claims.find((claim) => {
+      const candidate = candidates.get(claim.candidateId);
+      return !candidate || (candidate.status !== "active" && candidate.status !== "parked") || candidate.target !== claim.target;
+    });
+    if (invalidCandidate) return { rejection: { code: "reflection_candidate_invalid", detail: `Reflection claim ${invalidCandidate.id} does not reference an eligible matching candidate.` }, diagnostics: [diagnostic("validation", "rejected", "reflection_candidate_invalid", "Reflection candidate linkage did not validate.")] };
     const trace = influenceTrace(response.reflection.claims.flatMap((claim) => [...claim.sourceSpans.map((span) => span.userPhrase), claim.relationSpan?.text ?? ""]), options.priorAssistant);
     const proposal: Proposal = {
       id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -136,6 +203,12 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
     return { proposal, diagnostics: [diagnostic("validation", "accepted", "reflection_valid", "Reflection evidence pointers validated."), diagnostic("proposal", "accepted", "proposal_shown", "Reflection is awaiting an explicit user decision.")] };
   }
   if (response.kind === "map_proposal") {
+    if (response.candidateId) {
+      const candidate = candidates.get(response.candidateId);
+      if (!candidate || (candidate.status !== "active" && candidate.status !== "parked") || candidate.target !== targetForAction(response.action.kind)) {
+        return { rejection: { code: "map_candidate_invalid", detail: "The linked candidate is missing, promoted, or does not match the proposed action." }, diagnostics: [diagnostic("validation", "rejected", "map_candidate_invalid", "Map proposal candidate linkage did not validate.")] };
+      }
+    }
     const checked = inspectAction(response.action, { actor: "ai_proposal", store: options.store, bank: state.bank, requireConnectionLabel: options.requireConnectionLabel, allowAiSuggestedStructure: contract.allowsAiSuggestedStructure, allowGroundedOptions: contract.allowedResponseKinds.includes("options"), turnUtteranceIds: options.turnUtteranceIds, selectedCardIds: options.selectedCardIds });
     if (checked.status === "rejected") return { rejection: { code: checked.reason, detail: checked.detail }, diagnostics: [diagnostic("gateway", "rejected", checked.reason, checked.detail)] };
     const proposal: Proposal = {
@@ -154,7 +227,7 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
       contract,
       state: "shown",
       detail: {
-        kind: "map_action", action: response.action,
+        kind: "map_action", action: response.action, candidateId: response.candidateId,
         executable: checked.status === "ready" ? checked.action : undefined,
         pairingProof: checked.status === "ready" ? checked.pairingProof : checked.status === "needs_relationship_label" ? checked.pairingProof : undefined,
         completion: checked.status === "needs_relationship_label"
@@ -169,12 +242,30 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
   return { diagnostics: [] };
 }
 
+function prepareEnvelope(envelope: AssistantResponseEnvelope, state: ConversationState, options: ProcessTurnOptions, config: MindmapConfig, activeContract: AssistanceContract, contractSnapshot: AssistanceContractSnapshot): { proposal?: Proposal; recall?: VerifiedRecall; candidates: CandidateStore; lifecycleChanges: CandidateLifecycleChange[]; rejection?: StructuredRejection; diagnostics: DiagnosticEvent[] } {
+  const contractRejection = contractRejectsResponse(envelope, activeContract, state.bank.getAll());
+  const advisory = prepareAdvisory(state, envelope);
+  if (contractRejection) return { candidates: advisory.store, lifecycleChanges: advisory.changes, rejection: contractRejection, diagnostics: [diagnostic("validation", "rejected", contractRejection.code, contractRejection.detail), ...advisory.diagnostics] };
+  const recalled = validateRecall(envelope, state);
+  if (recalled.rejection) return { candidates: advisory.store, lifecycleChanges: advisory.changes, rejection: recalled.rejection, diagnostics: [diagnostic("validation", "rejected", recalled.rejection.code, recalled.rejection.detail), ...advisory.diagnostics] };
+  const proposal = createProposal(envelope, state, advisory.store, options, config, contractSnapshot);
+  return { ...proposal, recall: recalled.recall, candidates: advisory.store, lifecycleChanges: advisory.changes, diagnostics: [...advisory.diagnostics, ...proposal.diagnostics] };
+}
+
 export function buildContext(state: ConversationState, userText: string, added: SourceUtterance[], map: LLMMapContext, config: MindmapConfig, selectedFocus?: SelectedFocusContext, requestedSupport?: UserRequestedMode, contract?: AssistanceContract, proposalOutcome?: ProposalOutcomeContext): LLMContext {
   const shape = detectTurnShape(userText, added);
   const cardCount = map.thoughtUnits.filter((unit) => unit.role !== "connection_label").length;
   return {
     bank: state.bank.getAll().filter((utterance) => !utterance.nonHarvestable),
-    candidates: state.candidates.getAll(),
+    candidates: state.candidates.getAll().map((candidate) => ({
+      id: candidate.id,
+      target: candidate.target,
+      status: candidate.status,
+      gist: candidate.gist,
+      ageInTurns: Math.max(0, state.currentUserTurn - candidate.lastTouchedTurn),
+      evidence: eligibleEvidence(state.bank, candidate.evidenceUtteranceIds).map((utterance) => ({ utteranceId: utterance.id, text: utterance.text })),
+      ...(candidate.lastRecalledTurn === undefined ? {} : { lastRecalledAgeInTurns: Math.max(0, state.currentUserTurn - candidate.lastRecalledTurn) }),
+    })),
     turnShape: shape,
     capabilities: config.capabilities,
     mapPacing: { cardCount, connectionCount: map.connections.length, isSparse: cardCount < 2 },
@@ -190,6 +281,7 @@ export function buildContext(state: ConversationState, userText: string, added: 
 }
 
 export async function processTurn(state: ConversationState, userText: string, model: AssistantModel, config: MindmapConfig, map: LLMMapContext, options: ProcessTurnOptions): Promise<TurnResult> {
+  if (userText.trim()) state.currentUserTurn++;
   const added = userText.trim() ? state.bank.addSegmented(userText, "chat") : [];
   const turnOptions: ProcessTurnOptions = { ...options, turnUtteranceIds: added.map((utterance) => utterance.id) };
   const activeContract = options.contract ?? DEFAULT_ASSISTANCE_CONTRACT;
@@ -217,8 +309,7 @@ export async function processTurn(state: ConversationState, userText: string, mo
     }
   }
   diagnostics.push(diagnostic("response", "accepted", envelope.response.kind, `Model returned ${envelope.response.kind}.`));
-  let rejection = contractRejectsResponse(envelope, activeContract, state.bank.getAll());
-  let prepared = rejection ? { rejection, diagnostics: [diagnostic("validation", "rejected", rejection.code, rejection.detail)] } : createProposal(envelope, state, turnOptions, config, contractSnapshot);
+  let prepared = prepareEnvelope(envelope, state, turnOptions, config, activeContract, contractSnapshot);
   diagnostics.push(...prepared.diagnostics);
   if (prepared.rejection) {
     if (repairUsed) {
@@ -233,8 +324,7 @@ export async function processTurn(state: ConversationState, userText: string, mo
       diagnostics.push(diagnostic("repair", "rejected", "repair_failed", repairError.message));
       return exhaustedRepair(state, diagnostics);
     }
-    rejection = contractRejectsResponse(envelope, activeContract, state.bank.getAll());
-    prepared = rejection ? { rejection, diagnostics: [diagnostic("validation", "rejected", rejection.code, rejection.detail)] } : createProposal(envelope, state, turnOptions, config, contractSnapshot);
+    prepared = prepareEnvelope(envelope, state, turnOptions, config, activeContract, contractSnapshot);
     diagnostics.push(...prepared.diagnostics);
     if (prepared.rejection) {
       diagnostics.push(diagnostic("repair", "rejected", "repair_failed", prepared.rejection.detail));
@@ -243,9 +333,13 @@ export async function processTurn(state: ConversationState, userText: string, mo
     diagnostics.push(diagnostic("repair", "repaired", "repair_succeeded", "The repaired typed response passed validation."));
   }
   if (repairUsed) diagnostics.push(diagnostic("repair", "repaired", "repair_succeeded", "The repaired typed response passed validation."));
-  applyAdvisory(state, envelope);
+  state.candidates = prepared.candidates;
+  if (prepared.recall) {
+    state.candidates.markRecalled(prepared.recall.candidateId, state.currentUserTurn);
+    diagnostics.push(diagnostic("application", "accepted", "candidate_recalled", `Candidate ${prepared.recall.candidateId} was recalled from user wording.`));
+  }
   state.lastAssistantText = envelope.response.text;
   if (envelope.response.kind === "reflection") state.turnsSinceLastReflection = 0;
   else state.turnsSinceLastReflection++;
-  return { response: envelope.response, proposal: prepared.proposal, diagnostics };
+  return { response: envelope.response, proposal: prepared.proposal, recall: prepared.recall, lifecycleChanges: prepared.lifecycleChanges, diagnostics };
 }

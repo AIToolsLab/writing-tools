@@ -20,6 +20,8 @@ export type ProposalAttribution = "asserted" | "inferred" | "unresolved";
 export interface MapActionProposal {
   kind: "map_action";
   action: ProposedAction;
+  /** Explicit lifecycle link; never inferred from action text. */
+  candidateId?: string;
   executable?: ExecutableAction;
   /** Captured proof remains available for confirmation even after UI context is consumed. */
   pairingProof?: VerifiedPairingProof;
