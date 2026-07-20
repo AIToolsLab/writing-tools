@@ -93,7 +93,9 @@ export function renderContext(context: LLMContext): string {
 }
 
 function systemPrompt(context: LLMContext, _config: MindmapConfig, repair?: StructuredRejection, transport: ProviderTransport = "chat_json"): string {
-  const repairNote = repair ? `\nYour previous response was rejected by code: ${JSON.stringify(repair)}. Repair that exact issue once.` : "";
+  const repairNote = repair
+    ? `\nYour previous response was rejected by code: ${JSON.stringify(repair)}. Repair that exact issue once. If a reflection cannot be repaired faithfully, you may briefly acknowledge uncertainty and make one context-specific conversational move allowed by the active contract, such as a question or aside. Do not mention validation, repeat a recent question, or use stock recovery wording.`
+    : "";
   const transportInstruction = transport === "responses_tools"
     ? "Use propose_reflection_v1 for reflections and propose_map_action_v1 for structural proposals. These tools only request review and never write to the map. For questions, asides, grounded options, or suggestions, return the required conversational JSON output."
     : "Return one typed response and optional advisory bookkeeping as JSON using the schema below.";

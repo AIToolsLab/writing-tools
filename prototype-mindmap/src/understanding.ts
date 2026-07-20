@@ -1,11 +1,9 @@
 import type { DiagnosticEvent } from "./assistant-response";
-import type { CandidateTarget, CandidateThought } from "./types";
+import type { CandidateTarget, CandidateThought, SourceUtterance } from "./types";
 import { diagnosticTrace, type TraceEvent } from "./trace";
 
 export const THESIS_BANNER = "Nothing here changes your map. Typed responses, proposals, validation, and applied actions are logged separately.";
-export type IdeaReadinessStatus = "too_early" | "needs_your_wording" | "needs_relationship" | "ready";
-export interface IdeaMeters { grounded: number; specific: number; related: number }
-export interface TrackedIdea { id: string; label: string; target: CandidateTarget; status: IdeaReadinessStatus; meters: IdeaMeters; showRelated: boolean }
+export interface TrackedIdea { id: string; label: string; target: CandidateTarget; evidenceCount: number }
 export type SafetyCheckState = "ok" | "info" | "held";
 export interface SafetyCheck { id: string; label: string; state: SafetyCheckState }
 export interface DraftAnchor { label: string; anchor: string; kind: "main_idea" | "argument" | "evidence" | "relationship" | "transition" | "definition" }
@@ -46,7 +44,18 @@ function stateFor(event: DiagnosticEvent): UnderhoodEventState {
   return "passed";
 }
 
-export function buildDiagnosticSnapshot(events: DiagnosticEvent[], _candidates: CandidateThought[] = []): UnderstandingSnapshot {
+function trackedIdeas(candidates: CandidateThought[], bank: SourceUtterance[]): TrackedIdea[] {
+  const byId = new Map(bank.map((utterance) => [utterance.id, utterance]));
+  return candidates.flatMap((candidate) => {
+    const evidence = candidate.evidenceUtteranceIds
+      .map((id) => byId.get(id))
+      .filter((utterance): utterance is SourceUtterance => Boolean(utterance && !utterance.commandOnly && !utterance.nonHarvestable && utterance.text.trim()));
+    const latest = evidence[evidence.length - 1];
+    return latest ? [{ id: candidate.id, label: latest.text, target: candidate.target, evidenceCount: evidence.length }] : [];
+  });
+}
+
+export function buildDiagnosticSnapshot(events: DiagnosticEvent[], candidates: CandidateThought[] = [], bank: SourceUtterance[] = []): UnderstandingSnapshot {
   return {
     latest: diagnosticTrace(events),
     activeEvents: events.map((event) => ({
@@ -59,7 +68,7 @@ export function buildDiagnosticSnapshot(events: DiagnosticEvent[], _candidates: 
       stateLabel: event.outcome.replace(/_/g, " "),
       technicalDetail: [`stage=${event.stage}`, `outcome=${event.outcome}`],
     })),
-    trackedIdeas: [],
+    trackedIdeas: trackedIdeas(candidates, bank),
     waitingFor: events.some((event) => event.outcome === "needs_input") ? "Inline proposal information or an explicit proposal decision." : undefined,
     safetyChecks: [{ id: "gateway", label: "All structural changes cross the deterministic action gateway.", state: events.some((event) => event.outcome === "rejected") ? "held" : "ok" }],
     draftAnchors: [],

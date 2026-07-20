@@ -5,7 +5,8 @@ export type LedgerEventKind =
   | "user_message" | "model_request" | "assistant_response"
   | "provider_tool_requested" | "provider_tool_result"
   | "pointer_validation" | "contract_decision" | "assistant_echo_overlap"
-  | "proposal_created" | "proposal_edited" | "proposal_resolved" | "proposal_invalidated" | "map_mutated";
+  | "proposal_created" | "proposal_edited" | "proposal_resolved" | "proposal_invalidated" | "map_mutated"
+  | "application_recovery";
 
 export interface LocalLedgerEvent {
   sessionId: string;

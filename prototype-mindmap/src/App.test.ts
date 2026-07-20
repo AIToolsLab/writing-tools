@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AssistantResponseKindBadge, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, UnderTheHoodPanel } from "./App";
+import { AssistantResponseKindBadge, buildConversationHistory, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, UnderTheHoodPanel } from "./App";
 import { ASSISTANCE_CONTRACTS, snapshotContract } from "./assistance-contract";
 import { ThoughtUnitStore } from "./map-store";
 import type { Proposal } from "./proposal-store";
@@ -55,6 +55,19 @@ describe("session migration", () => {
   it("invalidates unresolved legacy pending mirrors instead of granting current-contract provenance", () => {
     const migrated = migrateLegacyMirrors([{ id: "m1", reflection: { claims: [{ id: "c1", text: "human control", candidateId: "candidate", target: "idea", sourceSpans: [] }] }, claims: [], decisions: { c1: "pending" } }], 7);
     expect(migrated).toMatchObject([{ id: "m1", mapRevision: 7, state: "invalidated", origin: "unresolved", detail: { kind: "reflection", editedTexts: { c1: "human control" } } }]);
+  });
+});
+
+describe("application recovery history", () => {
+  it("excludes terminal recovery UI from provider dialogue history", () => {
+    expect(buildConversationHistory([
+      { id: 1, role: "user", text: "human control matters" },
+      { id: 2, role: "application", text: "I couldn’t complete that response reliably.", terminal: "repair_failed" },
+      { id: 3, role: "assistant", text: "What matters about control?" },
+    ])).toEqual([
+      { role: "user", content: "human control matters" },
+      { role: "assistant", content: "What matters about control?" },
+    ]);
   });
 });
 
@@ -209,9 +222,7 @@ describe("UnderTheHoodPanel", () => {
           id: "candidate-1",
           label: "human control decides the final draft",
           target: "idea",
-          status: "ready",
-          meters: { grounded: 1, specific: 0.8, related: 1 },
-          showRelated: false,
+          evidenceCount: 1,
         },
       ],
       waitingFor: "the exact words you'd carry forward",
@@ -374,9 +385,7 @@ describe("UnderTheHoodPanel", () => {
       id: `candidate-${index}`,
       label: `tracked idea ${index}`,
       target: "idea" as const,
-      status: "too_early" as const,
-      meters: { grounded: 0.5, specific: 0.5, related: 0.5 },
-      showRelated: false,
+      evidenceCount: 1,
     }));
     const original = window.matchMedia;
     window.matchMedia = vi.fn().mockReturnValue({ matches: true });

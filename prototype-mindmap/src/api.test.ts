@@ -115,6 +115,8 @@ describe("typed assistant response parser", () => {
     expect(second[0].content).toContain("Your previous response was rejected by code");
     expect(second[0].content).toContain("reflection_validation_failed");
     expect(second[0].content).toContain("Pointer was not exact.");
+    expect(second[0].content).toContain("context-specific conversational move");
+    expect(second[0].content).toContain("Do not mention validation");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

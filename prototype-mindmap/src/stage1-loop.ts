@@ -38,6 +38,16 @@ function diagnostic(stage: DiagnosticEvent["stage"], outcome: DiagnosticEvent["o
   return { id: `d_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, at: Date.now(), stage, outcome, code, detail };
 }
 
+const REPAIR_FAILURE_MESSAGE = "I couldn’t complete that response reliably. You can rephrase or try again.";
+
+function exhaustedRepair(state: ConversationState, diagnostics: DiagnosticEvent[]): TurnResult {
+  state.turnsSinceLastReflection++;
+  return {
+    terminal: { kind: "repair_failed", message: REPAIR_FAILURE_MESSAGE },
+    diagnostics,
+  };
+}
+
 export function createConversationState(): ConversationState {
   return { bank: new SourceBank(), candidates: new CandidateStore(), draft: "", turnsSinceLastReflection: 0, lastAssistantText: "", dismissedCandidateIds: [] };
 }
@@ -203,8 +213,7 @@ export async function processTurn(state: ConversationState, userText: string, mo
       if (!(repairError instanceof ModelResponseValidationError)) throw repairError;
       const repairDetail = repairError instanceof Error ? repairError.message : "The repaired provider response could not be parsed.";
       diagnostics.push(diagnostic("repair", "rejected", "repair_failed", repairDetail));
-      state.turnsSinceLastReflection++;
-      return { diagnostics };
+      return exhaustedRepair(state, diagnostics);
     }
   }
   diagnostics.push(diagnostic("response", "accepted", envelope.response.kind, `Model returned ${envelope.response.kind}.`));
@@ -214,8 +223,7 @@ export async function processTurn(state: ConversationState, userText: string, mo
   if (prepared.rejection) {
     if (repairUsed) {
       diagnostics.push(diagnostic("repair", "rejected", "repair_failed", prepared.rejection.detail));
-      state.turnsSinceLastReflection++;
-      return { diagnostics };
+      return exhaustedRepair(state, diagnostics);
     }
     diagnostics.push(diagnostic("repair", "needs_input", "repair_requested", "One structured repair call was requested."));
     try {
@@ -223,16 +231,14 @@ export async function processTurn(state: ConversationState, userText: string, mo
     } catch (repairError) {
       if (!(repairError instanceof ModelResponseValidationError)) throw repairError;
       diagnostics.push(diagnostic("repair", "rejected", "repair_failed", repairError.message));
-      state.turnsSinceLastReflection++;
-      return { diagnostics };
+      return exhaustedRepair(state, diagnostics);
     }
     rejection = contractRejectsResponse(envelope, activeContract, state.bank.getAll());
     prepared = rejection ? { rejection, diagnostics: [diagnostic("validation", "rejected", rejection.code, rejection.detail)] } : createProposal(envelope, state, turnOptions, config, contractSnapshot);
     diagnostics.push(...prepared.diagnostics);
     if (prepared.rejection) {
       diagnostics.push(diagnostic("repair", "rejected", "repair_failed", prepared.rejection.detail));
-      state.turnsSinceLastReflection++;
-      return { diagnostics };
+      return exhaustedRepair(state, diagnostics);
     }
     diagnostics.push(diagnostic("repair", "repaired", "repair_succeeded", "The repaired typed response passed validation."));
   }

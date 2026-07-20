@@ -48,7 +48,7 @@ describe("typed Stage 1 controller", () => {
     expect(store.getAll()).toHaveLength(0);
   });
 
-  it("returns idle diagnostics after the single repair also fails", async () => {
+  it("returns an application terminal after the single repair also fails", async () => {
     const state = createConversationState();
     const store = new ThoughtUnitStore();
     const model = vi.fn(async (context) => ({ response: { kind: "map_proposal" as const, text: "Review this.", action: { kind: "create_card" as const, text: "invented framing", sourceUtteranceIds: [context.bank[0]?.id ?? "missing"] } } }));
@@ -56,6 +56,7 @@ describe("typed Stage 1 controller", () => {
     expect(model).toHaveBeenCalledTimes(2);
     expect(result.response).toBeUndefined();
     expect(result.proposal).toBeUndefined();
+    expect(result.terminal).toMatchObject({ kind: "repair_failed" });
     expect(result.diagnostics[result.diagnostics.length - 1]?.code).toBe("repair_failed");
   });
 
@@ -72,13 +73,14 @@ describe("typed Stage 1 controller", () => {
     expect(result.diagnostics.filter((event) => event.code === "repair_requested")).toHaveLength(1);
   });
 
-  it("returns idle when an unparsable response also fails its only repair", async () => {
+  it("returns a terminal when an unparsable response also fails its only repair", async () => {
     const state = createConversationState();
     const store = new ThoughtUnitStore();
     const model = vi.fn(async () => { throw new ModelResponseValidationError("invalid_provider_tool_arguments"); });
     const result = await processTurn(state, "human control matters", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
     expect(model).toHaveBeenCalledTimes(2);
     expect(result.response).toBeUndefined();
+    expect(result.terminal).toMatchObject({ kind: "repair_failed" });
     expect(result.diagnostics[result.diagnostics.length - 1]?.code).toBe("repair_failed");
   });
 
@@ -90,7 +92,7 @@ describe("typed Stage 1 controller", () => {
     expect(model).toHaveBeenCalledTimes(1);
   });
 
-  it("returns idle when the semantic repair response is malformed", async () => {
+  it("returns a terminal when the semantic repair response is malformed", async () => {
     const state = createConversationState();
     const store = new ThoughtUnitStore();
     const model = vi.fn(async (context, rejection) => {
@@ -100,7 +102,63 @@ describe("typed Stage 1 controller", () => {
     const result = await processTurn(state, "human control matters", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
     expect(model).toHaveBeenCalledTimes(2);
     expect(result.response).toBeUndefined();
+    expect(result.terminal).toMatchObject({ kind: "repair_failed" });
     expect(result.diagnostics[result.diagnostics.length - 1]?.code).toBe("repair_failed");
+  });
+
+  it("allows a rejected reflection to repair into a valid context-specific question", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (_context, rejection) => rejection
+      ? { response: { kind: "question" as const, text: "What part of human control feels most important here?", stance: "deepen" as const } }
+      : { response: { kind: "reflection" as const, text: "Here is what I heard.", reflection: { claims: [{ id: "c1", text: "invented framing", candidateId: "c1", target: "idea" as const, sourceSpans: [] }] } } });
+
+    const result = await processTurn(state, "human control matters", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+
+    expect(model).toHaveBeenCalledTimes(2);
+    expect(result.response).toMatchObject({ kind: "question" });
+    expect(result.terminal).toBeUndefined();
+    expect(result.diagnostics.some((event) => event.code === "repair_succeeded")).toBe(true);
+  });
+
+  it("returns a terminal when a contract rejection is rejected again", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async () => ({ response: { kind: "suggestion" as const, text: "Try transparency as the umbrella." } }));
+
+    const result = await processTurn(state, "human control matters", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[0] });
+
+    expect(model).toHaveBeenCalledTimes(2);
+    expect(result.terminal).toMatchObject({ kind: "repair_failed" });
+    expect(result.diagnostics.some((event) => event.code === "contract_response_kind_not_allowed")).toBe(true);
+  });
+
+  it("can retry a failed turn without adding the user wording to the Source Bank again", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const failed = await processTurn(
+      state,
+      "human control matters",
+      async () => ({ response: { kind: "suggestion", text: "Try transparency as the umbrella." } }),
+      defaultConfig,
+      store.toLLMContext(),
+      { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[0] },
+    );
+    const bankCount = state.bank.getAll().length;
+
+    const retried = await processTurn(
+      state,
+      "",
+      async () => ({ response: { kind: "aside", text: "We can stay with the wording you have." } }),
+      defaultConfig,
+      store.toLLMContext(),
+      { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[0] },
+    );
+
+    expect(failed.terminal).toMatchObject({ kind: "repair_failed" });
+    expect(state.bank.getAll()).toHaveLength(bankCount);
+    expect(retried.response).toMatchObject({ kind: "aside" });
+    expect(retried.terminal).toBeUndefined();
   });
 
   it("does not commit advisory updates from a rejected response", async () => {

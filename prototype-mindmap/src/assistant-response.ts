@@ -70,8 +70,15 @@ export type AssistantModel = (
   repair?: StructuredRejection,
 ) => Promise<AssistantResponseEnvelope>;
 
+/** Application-owned terminal state after the single permitted repair also fails. */
+export interface RepairFailureTerminal {
+  kind: "repair_failed";
+  message: string;
+}
+
 export interface TurnResult {
   response?: AssistantResponse;
   proposal?: Proposal;
+  terminal?: RepairFailureTerminal;
   diagnostics: DiagnosticEvent[];
 }

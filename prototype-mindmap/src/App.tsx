@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from "react";
 import { historyForCurrentTurn, makeLLM, type ConversationMessage } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
-import type { AssistantResponse, ConversationState, DiagnosticEvent, TurnResult } from "./assistant-response";
+import type { AssistantResponse, ConversationState, DiagnosticEvent, RepairFailureTerminal, TurnResult } from "./assistant-response";
 import type { ProposalOutcomeContext, QuestionStance, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
 import { pruneContextSelection, ThoughtMap, toggleContextSelection, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
@@ -23,7 +23,7 @@ import { EventLedger, mirrorSanitizedEvent, type LedgerEventKind } from "./event
 
 interface ChatMsg {
   id: number;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "application";
   text: string;
   mode?: "question" | "mirror" | "clarify";
   /** A typed proposal awaiting an explicit UI decision. */
@@ -36,6 +36,8 @@ interface ChatMsg {
   questionStance?: QuestionStance;
   /** Preserves the typed response kind for visible provenance in the transcript. */
   responseKind?: AssistantResponse["kind"];
+  /** Application-owned terminal recovery; never sent to the model as dialogue. */
+  terminal?: RepairFailureTerminal["kind"];
 }
 
 interface DraftPanelPos { x: number; y: number; }
@@ -321,6 +323,8 @@ const css = `
   }
   .msg.assistant.mirror .msg-bubble  { background: #e8f8ed; }
   .msg.assistant.clarify .msg-bubble { background: #fff3e0; }
+  .msg.application .msg-bubble { background: #fff7e3; color: #5d4200; border: 1px solid #edd49a; }
+  .recovery-actions { margin-top: 7px; }
 
   /* ---- mirror confirmation card ---- */
   .mirror-card {
@@ -2390,13 +2394,12 @@ function loadPersistedSession(): PersistedSession | null {
   }
 }
 
-function buildConversationHistory(msgs: ChatMsg[]): ConversationMessage[] {
-  return msgs
-    .filter((msg) => msg.role === "user" || msg.role === "assistant")
-    .map((msg) => ({
-      role: msg.role,
-      content: msg.text,
-    }));
+export function buildConversationHistory(msgs: ChatMsg[]): ConversationMessage[] {
+  return msgs.flatMap((msg) =>
+    msg.role === "user" || msg.role === "assistant"
+      ? [{ role: msg.role, content: msg.text }]
+      : [],
+  );
 }
 
 function normalizeDraftPlainTextPaste(text: string): string {
@@ -2596,19 +2599,6 @@ function selectTextInElement(root: HTMLElement, searchText: string): boolean {
   return true;
 }
 
-function statusLabel(status: TrackedIdea["status"]): string {
-  switch (status) {
-    case "ready":
-      return "ready";
-    case "needs_your_wording":
-      return "needs words";
-    case "needs_relationship":
-      return "needs relation";
-    case "too_early":
-      return "too early";
-  }
-}
-
 function targetLabel(target: TrackedIdea["target"]): string {
   return target === "idea" ? "idea" : target === "hierarchy" ? "nesting" : "connection";
 }
@@ -2635,17 +2625,6 @@ function eventStage(event: UnderhoodEvent): NonNullable<UnderhoodEvent["stage"]>
 function underhoodTabLabel(snapshot: UnderstandingSnapshot | null): string {
   if (!snapshot) return "Control Room";
   return snapshot.activeEvents[0]?.title ?? snapshot.latest.title ?? "Control Room";
-}
-
-function Meter({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="meter-row">
-      <span>{label}</span>
-      <span className="meter-track" aria-label={`${label} ${Math.round(value * 100)} percent`}>
-        <span className="meter-fill" style={{ width: `${Math.round(value * 100)}%` }} />
-      </span>
-    </div>
-  );
 }
 
 function MicIcon() {
@@ -2949,7 +2928,7 @@ export function UnderTheHoodPanel({
             onToggle={() => toggleSection("ideas", snapshot.trackedIdeas.length > 3)}
           >
             {snapshot.trackedIdeas.length === 0 ? (
-              <div className="waiting-card">No tracked idea is settled enough to display yet.</div>
+              <div className="waiting-card">No user-grounded ideas are being held right now.</div>
             ) : (
               <div className="idea-list">
                 {snapshot.trackedIdeas.map((idea) => (
@@ -2960,7 +2939,6 @@ export function UnderTheHoodPanel({
                         <span className="anchor-kind">{targetLabel(idea.target)}</span>
                       </div>
                       <div className="idea-actions">
-                        <span className={`idea-status ${idea.status}`}>{statusLabel(idea.status)}</span>
                         {onDismissIdea && (
                           <button
                             type="button"
@@ -2972,11 +2950,6 @@ export function UnderTheHoodPanel({
                           </button>
                         )}
                       </div>
-                    </div>
-                    <div className="meter-group">
-                      <Meter label="Grounded" value={idea.meters.grounded} />
-                      <Meter label="Specific" value={idea.meters.specific} />
-                      {idea.showRelated && <Meter label="Related" value={idea.meters.related} />}
                     </div>
                   </div>
                 ))}
@@ -3694,10 +3667,10 @@ export default function App() {
     setComposerScrollable(textarea.scrollHeight > maxHeight);
   }, [input]);
 
-  function appendCoachOutput(out: TurnResult, opts?: { replaceLastCoach?: boolean }) {
+  function appendCoachOutput(out: TurnResult, opts?: { replaceLastCoach?: boolean; recoveryId?: number }) {
     const nextDiagnostics = [...diagnostics, ...out.diagnostics].slice(-100);
     setDiagnostics(nextDiagnostics);
-    const understanding = buildDiagnosticSnapshot(out.diagnostics, stateRef.current.candidates.getAll());
+    const understanding = buildDiagnosticSnapshot(out.diagnostics, stateRef.current.candidates.getAll(), stateRef.current.bank.getAll());
     const replaceLastCoach =
       Boolean(opts?.replaceLastCoach) &&
       msgs.length > 0 &&
@@ -3707,11 +3680,22 @@ export default function App() {
       setProposals((current) => resolveProposal(current, replacedProposalId, "cancelled"));
     }
     setLastCoachDebug({
-      mode: out.response?.kind ?? "idle",
+      mode: out.response?.kind ?? out.terminal?.kind ?? "idle",
       commandDebug: out.diagnostics.map((event) => ({ reason: event.code, detail: event.detail })),
     });
 
+    if (out.terminal) {
+      void recordEvent("application_recovery", out.terminal, { outcome: "rejected", code: out.terminal.kind });
+      setMsgs((prev) => [
+        ...prev.filter((message) => message.id !== opts?.recoveryId),
+        { id: ++msgId, role: "application", text: out.terminal!.message, terminal: out.terminal!.kind },
+      ]);
+      setUnderstandingSnapshot(understanding);
+      return;
+    }
+
     if (!out.response) {
+      if (opts?.recoveryId) setMsgs((prev) => prev.filter((message) => message.id !== opts.recoveryId));
       setUnderstandingSnapshot(understanding);
       return;
     }
@@ -3741,10 +3725,11 @@ export default function App() {
       });
     }
     setMsgs((prev) => {
-      if (replaceLastCoach && prev.length > 0 && prev[prev.length - 1].role === "assistant") {
-        return [...prev.slice(0, -1), newMsg];
+      const withoutRecovery = opts?.recoveryId ? prev.filter((message) => message.id !== opts.recoveryId) : prev;
+      if (replaceLastCoach && withoutRecovery.length > 0 && withoutRecovery[withoutRecovery.length - 1].role === "assistant") {
+        return [...withoutRecovery.slice(0, -1), newMsg];
       }
-      return [...prev, newMsg];
+      return [...withoutRecovery, newMsg];
     });
     setUnderstandingSnapshot(understanding);
   }
@@ -3833,7 +3818,7 @@ export default function App() {
     // this exact user turn is present once, in final dialogue position, on the
     // very request it triggered.
     const turnHistory = historyForCurrentTurn(buildConversationHistory(msgs), text);
-    setMsgs((prev) => [...prev, userMessage]);
+    setMsgs((prev) => [...prev.filter((message) => message.role !== "application" || message.terminal !== "repair_failed"), userMessage]);
 
     setLoading(true);
     try {
@@ -3877,7 +3862,7 @@ export default function App() {
 
   // Runs a coach-only turn without synthetic user text. A panel request replaces
   // its prior coach move; a completed proposal appends a genuine continuation.
-  async function requestMode(mode?: UserRequestedMode, proposalOutcome?: ProposalOutcomeContext, currentMapRevision = mapRevision) {
+  async function requestMode(mode?: UserRequestedMode, proposalOutcome?: ProposalOutcomeContext, currentMapRevision = mapRevision, recoveryId?: number) {
     if (loading) return;
     const nonce = ++turnNonceRef.current;
 
@@ -3914,7 +3899,7 @@ export default function App() {
       if (nonce !== turnNonceRef.current) return;
       mergeConversationBank(workingState, stateRef.current);
       stateRef.current = workingState;
-      appendCoachOutput(out, { replaceLastCoach: Boolean(mode) });
+      appendCoachOutput(out, { replaceLastCoach: Boolean(mode), recoveryId });
     } catch (e) {
       if (nonce !== turnNonceRef.current) return;
       const msg = e instanceof Error ? e.message : String(e);
@@ -3922,6 +3907,11 @@ export default function App() {
     } finally {
       if (nonce === turnNonceRef.current) setLoading(false);
     }
+  }
+
+  function retryRecovery(recoveryId: number) {
+    if (loading) return;
+    void requestMode(undefined, undefined, mapRevision, recoveryId);
   }
 
   async function decideClaim(proposalId: string, claimId: string, decision: "confirmed" | "declined") {
@@ -4175,13 +4165,18 @@ export default function App() {
             {msgs.map((m) => (
               <div key={m.id} className={`msg ${m.role} ${m.mode ?? ""}`}>
                 <span className="msg-label">
-                  {m.role === "user" ? "you" : "coach"}
+                  {m.role === "user" ? "you" : m.role === "assistant" ? "coach" : "recovery"}
                   {m.role === "assistant" && <AssistantResponseKindBadge kind={m.responseKind} />}
                   {m.questionStance && (
                     <span className={`stance-chip stance-${m.questionStance}`}>{m.questionStance}</span>
                   )}
                 </span>
                 <div className="msg-bubble">{m.text}</div>
+                {m.role === "application" && m.terminal === "repair_failed" && (
+                  <div className="recovery-actions">
+                    <button type="button" className="btn btn-confirm-sm" onClick={() => retryRecovery(m.id)} disabled={loading}>Try again</button>
+                  </div>
+                )}
                 {m.role === "assistant" && m.questionAnchor && (
                   <button className="anchor-view-btn" type="button" onClick={() => revealDraftAnchor(m.questionAnchor!)}>
                     View passage
