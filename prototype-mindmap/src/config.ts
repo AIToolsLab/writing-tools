@@ -11,10 +11,6 @@ export interface MirrorThresholds {
   lexicalAdditionsMax: number;
   /** Minimum grounding ratio for each cited source span. */
   spanGroundingMin: number;
-  /** Tentative claims may mirror only this far toward Map. */
-  tentativeMirrorMapPressureMin: number;
-  /** Wording whose uncertainty must be preserved by a reflection. */
-  tentativeEvidencePattern: string;
 }
 
 export interface TurnShapeConfig {
@@ -63,9 +59,6 @@ export const defaultConfig: MindmapConfig = {
     lexicalBroadMin: 0.8,
     lexicalAdditionsMax: 0.15,
     spanGroundingMin: 0.75,
-    tentativeMirrorMapPressureMin: 0.75,
-    tentativeEvidencePattern:
-      "\\b(?:maybe|perhaps|possibly|might|may|could|not sure|not fully sure|unsure|i think|i guess|i suppose|leaning toward|tentatively)\\b",
   },
   pacing: { mapPressure: 0, thinkMapBias: 0 },
   capabilities: {

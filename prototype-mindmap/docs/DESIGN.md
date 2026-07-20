@@ -106,8 +106,9 @@ canvas work.
 ### Slider
 
 The Think-to-Map slider changes eagerness and pacing for non-declared ideas. It
-is passed to the model as explicit factual steering and preserves the existing
-tentative-claim safeguard toward Think. It never changes pointer grounding,
+is passed to the model as explicit factual steering. Honoring a user's tentative
+framing is now the model's judgment, not a code word-bank: code no longer
+classifies uncertainty from wording. The slider never changes pointer grounding,
 confirmation, or whether chat-derived proposals require explicit confirmation.
 
 ### Diagnostics

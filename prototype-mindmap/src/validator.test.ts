@@ -38,7 +38,7 @@ function partOf(
   return check?.parts?.find((p) => p.name === name);
 }
 
-describe("mirror validator — 3 checks", () => {
+describe("mirror validator — 2 grounding checks", () => {
   it("passes a reflection made of the user's own words, lightly rearranged", () => {
     const bank = [
       u("the questioning comes before anything else"),

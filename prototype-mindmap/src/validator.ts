@@ -1,18 +1,19 @@
 /**
  * Mirror validator — the enforcement core.
  *
- * Before any mirror reflection can be shown to the user, it must pass three
- * checks against the Source Bank. This is *code*, not prompting: if the AI's
- * proposed reflection fails, it cannot be displayed, and the AI must fall back
- * to asking a clarifying question.
+ * Before any mirror reflection can be shown to the user, it must pass two
+ * grounding checks against the Source Bank. This is *code*, not prompting: a
+ * reflection that fails cannot be displayed. The single structured-repair path
+ * (see stage1-loop) decides what conversational move to make instead; code does
+ * not interpret epistemic meaning (e.g. treating "I think" as uncertainty) —
+ * that judgment belongs to the model.
  *
- * The three checks, coarsest to finest:
+ * The checks, coarsest to finest:
  *   1. Content overlap — are the reflection's content words the user's words?
- *      (catches vocabulary drift)
+ *      (catches vocabulary drift); and, as a fine ceiling, are stray new content
+ *      words below budget? (catches meaning-shifting insertions like "central")
  *   2. Source-span grounding — does every claim trace to a user utterance that
  *      actually supports it? (catches new *relationships* built from real words)
- *   3. Unsupported words — are stray new content words below budget?
- *      (catches small but meaning-shifting insertions like "central")
  *
  * Checks run per-claim so the caller can show/confirm chunks independently and
  * knows exactly which span to ask about when one fails.
@@ -155,49 +156,6 @@ function claimRelationStatedInOneUtterance(
   const grounded = content.filter((tok) => uStems.has(stem(tok)));
   return ratio(grounded.length, content.length) >= threshold;
 }
-function tentativeEvidenceRe(cfg: MindmapConfig): RegExp {
-  return new RegExp(cfg.mirror.tentativeEvidencePattern, "i");
-}
-
-function hasTentativeEvidence(claim: MirrorClaim, bank: Map<string, SourceUtterance>, cfg: MindmapConfig): boolean {
-  const re = tentativeEvidenceRe(cfg);
-  return claim.sourceSpans.some((span) => {
-    if (re.test(span.userPhrase)) return true;
-    return citedTexts(span, bank).some((text) => re.test(text));
-  });
-}
-
-function checkTentativeUncertainty(
-  claim: MirrorClaim,
-  bank: Map<string, SourceUtterance>,
-  cfg: MindmapConfig,
-): MirrorCheckResult {
-  if (!hasTentativeEvidence(claim, bank, cfg)) {
-    return {
-      check: "tentative_uncertainty",
-      ok: true,
-      score: 1,
-      threshold: cfg.mirror.tentativeMirrorMapPressureMin,
-    };
-  }
-
-  const preservesUncertainty = tentativeEvidenceRe(cfg).test(claim.text);
-  return {
-    check: "tentative_uncertainty",
-    ok: preservesUncertainty,
-    score: preservesUncertainty ? 1 : 0,
-    threshold: 1,
-    parts: [
-      {
-        name: "uncertainty_preserved",
-        ok: preservesUncertainty,
-        score: preservesUncertainty ? 1 : 0,
-        threshold: 1,
-      },
-    ],
-  };
-}
-
 function checkSpanGrounding(
   claim: MirrorClaim,
   bank: Map<string, SourceUtterance>,
@@ -269,9 +227,8 @@ function validateClaim(
     cfg.mirror.lexicalAdditionsMax,
   );
   const grounding = checkSpanGrounding(claim, bank, cfg.mirror.spanGroundingMin);
-  const tentative = checkTentativeUncertainty(claim, bank, cfg);
 
-  const checks = [lexical, grounding.result, tentative];
+  const checks = [lexical, grounding.result];
   const ok = checks.every((c) => c.ok);
 
   // The Clarify-Mode hint comes from the weakest span when grounding failed;
@@ -281,7 +238,7 @@ function validateClaim(
   const failed = checks.filter((c) => !c.ok).map((c) => c.check);
   const message = ok
     ? "Reflection is grounded in the user's words."
-    : `Mirror blocked — failed: ${failed.join(", ")}. Fall back to a clarifying question.`;
+    : `Reflection not grounded in the user's words — failed checks: ${failed.join(", ")}.`;
 
   return { claimId: claim.id, ok, checks, weakestSpan, message };
 }

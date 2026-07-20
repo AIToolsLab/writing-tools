@@ -1,194 +1,155 @@
 # Airtightness Report
 
-> Historical pre-cutover audit. Its controller, signal-bank, readiness-gate,
-> and direct-command descriptions do not describe the Stage 1 typed proposal
-> runtime. See `DESIGN.md` and `refactor-plan.md` for the current architecture.
+Enforcement appendix for `prototype-mindmap`, describing the **Stage 1 typed
+proposal runtime** (post-cutover). `DESIGN.md` is the canonical product/design
+source and `refactor-plan.md` is the staged plan; this report tracks which
+philosophical constraints are enforced in code, which are prompt-level, and
+where the residual soft spots are.
 
-Current enforcement appendix for `prototype-mindmap`. `DESIGN.md` is the
-canonical product/design source. This report tracks which philosophical
-constraints are enforced in code, which are prompt-level, and where the residual
-soft spots are. Current verification: full vitest suite green, including a
-100-run adversarial fuzz harness (`src/fuzz.loop.test.ts`) that drives
-`processTurn` through randomized turn sequences against a hostile mock LLM and
-asserts the enforcement invariants every turn.
+> Architecture note: the legacy `controller.ts` regex intent-router, the
+> `signals.ts`/`readiness.ts` word-bank readiness gate, and the direct-command
+> detection forest described in older versions of this report **no longer
+> exist**. `controller.ts` is a thin re-export of the typed loop; `map-commands.ts`
+> is a compatibility seam over the action gateway. Enforcement now lives in
+> `validator.ts`, `action-gateway.ts`, `proposal-store.ts`, `assistance-contract.ts`,
+> `map-store.ts`, and `store.ts`.
 
 ## Central Principle
 
-The user authors every idea, label, hierarchy, role, and connection. The AI may
-interpret and ask, but it cannot commit ungrounded structure. Validation gates
-AI reflections only; direct user map actions are never blocked by validation.
+The user authors every idea, label, hierarchy, role, and connection. The model
+interprets conversational meaning freely; code verifies only facts it owns —
+evidence pointers, references, graph integrity, provenance, contract
+permissions, and explicit confirmation. Validation gates the AI's contributions;
+direct user map actions are never blocked by validation.
+
+## The one enforcement pattern
+
+> Code does not *detect* language. The model *points at* its evidence, and code
+> *verifies the pointer is verbatim in the user's text*.
+
+Every consequential act is either fenced by grounding-plus-confirmation, or is a
+direct user canvas action. No keyword/regex bank interprets user intent in the
+enforcement path.
 
 ## Code-Enforced Constraints
 
 | Constraint | File(s) | Mechanism |
 | --- | --- | --- |
-| Reflections use the user's words | `validator.ts` | Lexical grounding requires broad overlap >= `0.8` and additions <= `0.15`. |
-| Relationships/hierarchy in mirrors come from the user | `validator.ts` | Span grounding requires cited user spans; hierarchy/connection claims need relational/containment wording grounded in one utterance. Additionally, the claim's own relationship must be stated in ONE utterance: some cited utterance must carry every relational term the claim text uses and ground most of its content words, so two grounded user sentences cannot be stitched together with an invented connective. |
-| Model-authored phrases are never attributed to the user | `controller.ts`, `understanding.ts` | Clarify spans (`turn.clarifySpan`) and failing weakest spans are model output; their phrases are quoted ("when you said ..."), pinned as clarify targets, or shown as Under-the-Hood evidence only when verbatim user wording (normalized substring of the Source Bank / cited utterances). |
-| Readiness cannot be gamed by the LLM | `controller.ts`, `signals.ts`, `readiness.ts` | Relation signals and spontaneity are code-derived; LLM only groups evidence ids. |
-| Hierarchy readiness needs spontaneous containment language | `readiness.ts` | `requireSpontaneousForHierarchy` blocks purely prompted containment. |
-| AI cannot commit mirror structure | `controller.ts`, `App.tsx` | Passing mirrors become confirmable chunks; only user-confirmed chunks become cards. |
-| LLM mirror prose cannot leak | `controller.ts` | Passing mirror text is a fixed preamble; only validated claims are shown for confirmation. |
-| Failed mirrors fail closed | `controller.ts` | Validation failure routes to clarify with `weakestSpan`; no model retry/rephrase is shown. |
-| Failed mirrors are legible | `controller.ts` | Clarify fallbacks explicitly acknowledge when the system was trying to carry something forward but could not place it cleanly yet. |
-| Tentative mirrors preserve uncertainty | `validator.ts`, `config.ts` | Tentative source evidence mirrors only near the Map side of the slider, and accepted claims must retain uncertainty wording. |
-| Rejected mirrors have a repair path | `App.tsx` | Declining a mirror chunk appends a repair question instead of leaving the user hanging. |
-| Stuck users are not mirrored | `controller.ts` | `isStuck` forces clarify and clears the stale clarify pin. |
-| Pacing is enforced | `controller.ts`, `config.ts` | Too-soon mirrors are downgraded to questions; the Think-to-Map slider shortens cooldown toward Map without changing readiness or validation gates. |
-| Only ready candidates can mirror | `controller.ts`, `readiness.ts` | Mirror claims are filtered to post-update ready candidate ids before validation. |
-| AI cannot re-mirror placed structure | `controller.ts` | `claimAlreadyOnMap` drops claims whose normalized text matches an existing card; if all claims are already placed the turn downgrades to a question (`already_on_map` suppression), preventing duplicate cards. |
-| Carry-forward is fenced | `controller.ts`, `readiness.ts` | `carryForwardCandidateIds` accelerates density only for idea candidates grounded in this turn. |
-| Large exploratory turns are not harvested | `controller.ts`, `turn-shape.ts` | Code classifies long turns; exploratory mirror attempts downgrade to a focusing question, and broad multi-idea upserts are dropped. |
-| Sparse maps do not trigger early organizing | `controller.ts`, `api.ts` | Visible map state can block organize-mode questions even when candidate counts are high; organize outputs are rewritten into carry-forward prompts until the map has enough structure. |
-| Immediate answers can satisfy the current ask | `controller.ts`, `api.ts`, `llm-contract.ts` | `activeElicitation` tracks the latest carry-forward / clarify target so a substantive next-turn answer biases toward a mirror attempt instead of another narrowing loop. |
-| Malformed model output is contained | `api.ts` | Unknown modes coerce to question; malformed claims/spans are filtered. |
-| Source Bank is ground truth | `store.ts` | User chat, declarations, and map edits are append-only source utterances. |
-| Command provenance is not mirrorable | `controller.ts`, `store.ts`, `api.ts` | Command-consumed utterances remain in the Source Bank but are marked `commandOnly` and excluded from LLM-rendered bank context and candidate evidence replay. |
-| Direct card commands use exact user words | `controller.ts`, `map-commands.ts` | `create_card` requires an exact current-turn phrase at word boundaries (a mid-word fragment like "art" inside "start" does not count) and matching cited id; referential/declarative/tentative cases are blocked. |
-| Direct nesting commands do not guess references | `controller.ts`, `map-commands.ts`, `map-store.ts` | `nest_card` executes on exact references; unique near matches become pending confirmations; ambiguous near matches ask which card; `setParent` cycle guard applies. An LLM-emitted nest between EXISTING cards also requires both cards to be named this turn plus instruction-shaped nest wording, so the model cannot quietly author hierarchy. |
-| Direct connection commands do not guess endpoints | `controller.ts`, `map-commands.ts`, `map-store.ts` | `connect_cards` executes on exact references; unique near matches become pending confirmations; ambiguous near matches ask which card; same-card edges are dropped. For two existing cards, the turn must carry instruction-shaped connect wording (or cite both cards by #ref) — "these two ideas connect deeply" is a declarative and stays on the mirror path. |
-| Pending confirmations cannot act on deleted cards | `controller.ts` | If a card referenced by a pending confirmation / label capture / child placement is deleted before the user confirms, the pending command is dropped with an honest notice instead of reporting "Done." for a silent no-op. |
-| AI cannot invent command labels | `controller.ts`, `map-commands.ts` | Labels must be exact current-turn phrases. If labels are optional, missing/ungrounded labels are stripped and the edge remains unlabeled; if labels are required, the controller asks the user for the label instead of inventing one. |
-| Required connection labels are user-supplied only | `controller.ts` | With label requirement on, resolved unlabeled connections become a pending label request; the next user turn completes the edge and is not rerouted into mirror/card creation. |
-| Commands take precedence after gates pass | `controller.ts`, `App.tsx` | Accepted direct commands execute even in mixed turns, same-turn mirrors are suppressed, and complete non-uncertain commands suppress redundant coach follow-up. |
-| Confirm follow-through does not fake user input | `App.tsx`, `controller.ts` | Post-confirm continuation runs with `ingestUser: false`, so the coach advances off updated map state without writing a synthetic utterance into the Source Bank. |
-| User map actions are undoable | `App.tsx`, `map-store.ts`, `map-commands.ts` | Command batches, edits, nesting, and connections go through map/bank snapshots. |
-| Shared-bank integration is enforced by tests | `App.tsx`, `map-commands.test.ts`, `map-store.test.ts` | Map/command writes use the same `SourceBank` instance the loop reads. |
-| Card sizes cannot brick the canvas | `map-store.ts` | `clampCardSize` bounds every `setSize` write and every `loadSnapshot` size to `120-1200` x `60-1200`, so a runaway/invalid persisted height can never render a full-canvas card. |
-| Calibration is separate from enforcement | `config.ts` | Thresholds, pacing, regex vocab, and slider transformations live in config. |
+| Reflections use the user's words | `validator.ts` | Lexical grounding: content-word overlap `>= 0.8` and additions `<= 0.15` against the Source Bank (stemmed). |
+| Relationships/hierarchy are stated by the user in one breath | `validator.ts` | Each cited span must ground `>= 0.75` of its phrase within a *single* utterance. For hierarchy/connection claims, the model declares the literal `relationSpan` connective; code verifies it is a verbatim substring of both the claim text and one cited utterance, and that most claim content words ground in that same utterance. No relation-word bank participates. |
+| A reflection is only ever a proposal | `stage1-loop.ts`, `proposal-store.ts`, `App.tsx` | A validated reflection becomes a `shown` proposal with per-claim confirm/decline; only confirmed chunks reach the gateway and become cards. |
+| Reflections cannot originate structure below L2 | `stage1-loop.ts` | `deriveClaimAttribution` marks a claim `asserted` only if every span and the relation span are verbatim user wording; a non-asserted reflection is rejected unless the contract allows AI-suggested structure. |
+| One consequence boundary for every map write | `action-gateway.ts` | `inspectAction` (AI proposals) and `executeCanvasAction` (direct user) are the only paths that mutate the map. Chat, panel buttons, and canvas all route through the gateway. |
+| AI card/edit text is verbatim user wording | `action-gateway.ts` | `create_card`/`edit_card` from an AI proposal require the text to be a whole-phrase substring of a cited utterance unless the contract permits AI-suggested structure (then the card is stamped `ai_suggested`, never `user_asserted`). |
+| Connections need verified pairing + relationship evidence | `action-gateway.ts` | Below L2, a connection requires a `VerifiedPairingProof` (selection pair, co-mention in one turn utterance, or selection-plus-named-card) *and* relationship evidence grounded in one utterance. The model nominates; code verifies. |
+| References are never guessed into execution | `action-gateway.ts` | Exact normalized match resolves; anything else returns `needs_reference_choice`/`needs_input` for the user to pick. Ambiguity never auto-executes. |
+| Missing labels/refs are completed inline, not mined from chat | `action-gateway.ts`, `proposal-store.ts` | Incomplete proposals carry a `completion` and stay `unresolved` (never mislabeled as an AI inference); the next chat message is not treated as a hidden answer. |
+| Graph integrity | `map-store.ts`, `action-gateway.ts` | Cycle guard on nesting; connection endpoints normalize to root cards; self-loops dropped; duplicate connections rejected. |
+| Proposals cannot execute against a changed map | `proposal-store.ts` | Each proposal stamps `mapRevision`; a moved revision or a vanished referenced card invalidates it. Resolution is by explicit UI transition (`canTransitionProposal`), never by parsing the next message. |
+| Contract allowlist is a code gate | `assistance-contract.ts`, `stage1-loop.ts` | `contractRejectsResponse` rejects any response `kind` not allowed at the active level and enforces `optionsMustBeVerbatim`. The contract never authorizes a write. |
+| Options at L1 are the user's own words | `stage1-loop.ts`, `action-gateway.ts` | `optionsMustBeVerbatim` requires every option and its spans to be verbatim user spans. |
+| Provenance is preserved | `map-store.ts`, `action-gateway.ts`, `proposal-store.ts` | `user_asserted`, `ai_suggested`, `unresolved`, and `legacy_confirmed` origins remain distinguishable and survive persistence. |
+| Provider tools transport intent, not authority | `provider-tools.ts`, `api.ts` | The feature-flagged Responses transport exposes only `propose_reflection_v1` and `propose_map_action_v1`; both normalize into the typed union and cross the same gateway/validator/confirmation boundaries. No tool confirms, applies, or persists. |
+| Source Bank is ground truth | `store.ts` | Chat, declarations, and map edits are append-only utterances; `commandOnly`/`nonHarvestable` exclude wording from later harvest without deleting provenance. |
+| Direct user actions are sovereign and undoable | `action-gateway.ts`, `map-store.ts`, `App.tsx` | `executeCanvasAction` skips AI-only checks (the user is never validation-gated) but still enforces graph integrity; edits/nesting/connections snapshot for undo. |
+| Card sizes cannot brick the canvas | `map-store.ts` | `clampCardSize` bounds every `setSize` and every loaded snapshot. |
+| Calibration is separate from enforcement | `config.ts` | Only deterministic thresholds and product facts; no language interpretation. |
+| Diagnostics describe real events | `stage1-loop.ts`, `understanding.ts`, `trace.ts`, `event-ledger.ts` | Response/validation/gateway/proposal/repair events are emitted from actual outcomes; the local ledger keeps full fidelity, outbound study events carry only allowlisted metadata. |
 
 ## Important Code Details
 
-### Mirror Validation
+### Mirror validation (`validator.ts`)
 
-`validator.ts` runs checks per claim. Lexical grounding measures whether the
-claim's content words trace to the Source Bank. Span grounding checks each
-`sourceSpan`; relational targets also require relationship language grounded in a
-single utterance. A failed claim yields `weakestSpan`, which the controller uses
-for clarify.
+Two grounding checks run per claim: **lexical grounding** (broad content-word
+overlap with a fine additions ceiling) and **span grounding** (each cited span
+grounds within one utterance; relational claims also require the declared
+connective to be verbatim in one utterance). Code no longer classifies epistemic
+meaning — the old `tentativeEvidencePattern` word-bank was removed; honoring a
+user's tentative framing is the model's judgment. A failed claim yields a
+`weakestSpan` for the repair/clarify path.
 
-### Readiness
+### The action gateway (`action-gateway.ts`)
 
-`readiness.ts` evaluates source density, relation clarity, and unsupported risk.
-For hierarchy, at least one containment signal must be spontaneous. Relation
-signals are detected by `signals.ts` and attached by `controller.ts` only when the
-LLM grouped the corresponding utterance into a candidate.
+`inspectAction` returns a structured result (`ready` / `needs_input` /
+`needs_reference_choice` / `needs_relationship_label` / `rejected`), not a
+boolean. `ready` carries an `ExecutableAction` and a computed `origin`.
+`applyGatewayActions` executes only an already-inspected executable action after
+the user's click. `executeCanvasAction` is the parallel boundary for immediate,
+explicitly user-authored canvas intents.
 
-### Carry-Forward
+### Proposal lifecycle (`proposal-store.ts`)
 
-The model may mark `carryForwardCandidateIds`, but code filters them to idea
-candidates with substantive evidence from this turn. Acceleration satisfies
-density only. Validation and user confirmation remain unchanged.
+One `Proposal` type replaces the old pending-command cluster. State transitions
+are constrained; `shown`/`edited` are the only actionable states; confirmation is
+a UI transition. `mapRevision` stamping makes stale proposals fail closed.
 
-### Large Turns
+### Assistance contracts (`assistance-contract.ts`)
 
-`turn-shape.ts` classifies the latest segmented user turn as compact, large
-exploratory, or large selected. Large exploratory turns are treated as material
-for selection: mirror attempts are downgraded to a focusing question, and broad
-multi-idea candidate upserts are filtered. Large selected turns may proceed only
-through existing carry-forward, validation, confirmation, and command gates.
+Three immutable, versioned levels: L0 non-directive (`question`, `reflection`,
+`aside`, `map_proposal`; asserted only), L1 grounded options (+ `options`,
+verbatim), L2 suggestive (+ `suggestion`, `ai_suggested` structure allowed but
+attributed). Fixed at every level: provenance, validation, verbatim
+requirements, map-write authorization, confirmation, and graph checks.
 
-### Sparse-Map Organize Guard
+### Provider transport (`provider-tools.ts`, `api.ts`)
 
-`controller.ts` checks visible map structure, not just candidate richness, before
-allowing organize-mode questioning. When the visible map has fewer than three
-cards and no connections, organize is blocked: the prompt is told to stay in
-carry-forward/clarify mode, and stray organize outputs are rewritten to explicit
-next-card capture questions.
-
-### Active Elicitation
-
-The controller records a minimal `activeElicitation` for the latest
-carry-forward / failed-mirror / sparse-map-next-card ask. On the next user turn,
-that lets code and prompt treat a substantive responsive answer as satisfying the
-current ask, biasing toward one grounded mirror attempt instead of another
-"which part?" narrowing loop. This is intentionally current-turn scoped; it does
-not mine the wider bank for latent intent.
-
-### Direct Map Commands and Provenance
-
-`mapCommands` are side effects, orthogonal to chat `mode`.
-
-- `create_card`: exact current-turn card phrase; no mirror or confirmation.
-- `nest_card`: exact/unique parent reference, or a unique near-match reference
-  after the user confirms it; child is existing exact/confirmed card or exact
-  current-turn phrase.
-- `connect_cards`: exact/unique endpoints, or unique near-match endpoints after
-  the user confirms them; optional label must be exact current-turn wording.
-
-The controller trusts the LLM to interpret speech acts, then code fences the
-consequential act. Declaratives such as "X supports Y" are blocked from command
-execution and stay on the mirror/question path. Fuzzy structure references never
-auto-execute: unique near matches ask "did you mean X?", and ambiguous matches
-ask the user which card.
-
-Accepted command wording stays in the Source Bank for provenance, but the
-controller marks command-consumed current-turn utterances `commandOnly`. Those
-utterances are excluded from later LLM bank context so command text cannot come
-back as a mirror candidate or Not-quite repair target.
-
-Accepted commands take precedence over same-turn reflection. If a complete
-command carries no uncertainty, the coach does not add an interrogative follow-up;
-the map acknowledgement carries the action and undo affordance. If the same turn
-also expresses uncertainty about another aspect, the command still executes and
-the coach may ask about that uncertainty.
-
-### Confirmation Follow-Through
-
-Confirming a mirror chunk writes the user-approved card, then triggers the normal
-coach loop against the updated map state so the conversation continues with a
-next-step question. The follow-up still runs through `processTurn`; it does not
-create a shortcut around readiness, validation, command, or confirmation gates.
-
-### Diagnostics
-
-`controller.ts` emits `suppressionReason`, `suppressionDetail`, `validationDebug`,
-`acceleratedCandidateIds`, and `readinessNotes`. `Map.tsx` surfaces these in the
-Debug panel.
+`chat_json` is the default; `responses_tools` is feature-flagged. Both parse into
+the same typed `AssistantResponseEnvelope`. The Responses adapter uses
+`store: false`, disables parallel tool calls, and replays provider items only in
+the single repair attempt. Live-turn dialogue history is built call-time
+(`historyForCurrentTurn`) so the model never sees a transcript that ends on its
+own unanswered question.
 
 ## Prompt-Level Constraints
 
-These shape behavior but are not the final enforcement boundary:
+These shape behavior but are **not** the final enforcement boundary:
 
-- `PHILOSOPHY` and question rules in `api.ts`
-- dynamic pacing/readiness/clarify/stuck notes
-- carry-forward/declaration pressure instructions
-- direct map command instructions
-- no-harvest guidance for large/exploratory turns
-- mirror-mode source-span instructions
+- the coach philosophy and question rules in `api.ts` (`systemPrompt`)
+- sparse-map pacing, reflection rhythm, and turn-shape advisories (all rendered
+  as facts, e.g. "cards=N; sparse=true", never as keyword interpretations)
+- the Think/Map eagerness value
+- the capability manifest (`config.ts`)
 
-Prompt failures are expected to be caught by controller/validator/command fences
-where the act would become consequential.
+Prompt failures are expected to be caught by the validator, the gateway, the
+contract allowlist, or the confirmation click wherever an act becomes
+consequential.
 
 ## Residual Soft Areas
 
-- Question quality remains prompt-level. Code prevents some repeated/suggestive
-  patterns, but cannot prove a question is always intuitive.
-- Signal detection is keyword-based; under-detection is safe but can require the
-  user to rephrase relationships.
-- Stemming/normalization is simple.
-- Candidate grouping is LLM-interpreted. Bad grouping is bounded by readiness,
-  validation, and confirmation, but can slow the conversation.
-- Command speech-act interpretation is LLM-owned. Code blocks obvious
-  declarative/tentative/referential mistakes, exact-span violations, stale ids,
-  ambiguous references, unconfirmed near matches, and ungrounded labels.
-- Near-match scoring is intentionally simple substring/token containment. It is
-  used only to ask the user, never to execute structure without confirmation.
+- **Question framing.** A question can smuggle a suggestion; no code check catches
+  this. Exact prior-assistant overlap is logged as an `InfluenceTrace` (evidence,
+  not an authorship classifier). Only Stage 4 evals characterize the rate.
+- **Near-match resolution** is simple substring/token containment, used only to
+  ask the user which card — never to execute structure without confirmation.
+- **Candidate grouping / turn-shape** are model-interpreted advisories; bad
+  advice is bounded by validation, the gateway, and confirmation.
+- **Open-threads subsystem** (`open-threads.ts`) is currently **dormant**: its
+  functions are not called from the live turn path, `state.openThreads` is never
+  populated, and its marker-based splitter must not be reactivated as an
+  interpretation layer (see `refactor-plan.md` "Open-thread quarantine"). The
+  capability manifest still advertises parked-phrase memory; reconcile before
+  relying on it.
+- **Stemming/normalization** is intentionally simple.
 
 ## File Responsibility Summary
 
 | File | Responsibility |
 | --- | --- |
-| `validator.ts` | Lexical and span/relationship grounding for mirrors. |
-| `readiness.ts` | Candidate readiness and hierarchy hard rule. |
-| `signals.ts` | Deterministic relation/containment detection. |
-| `turn-shape.ts` | Deterministic large-turn classification for no-harvest behavior. |
-| `controller.ts` | Orchestration, code-derived signals, mirror gates, carry-forward filtering, command acceptance, diagnostics. |
-| `store.ts` | Source Bank and Candidate Store. |
-| `map-store.ts` | Thought units, parent/child nesting, connections, positions, snapshots. |
-| `map-commands.ts` | Applies accepted direct map commands to the map and Source Bank. |
-| `config.ts` | Calibration thresholds and slider-derived pacing. |
-| `api.ts` | LLM prompt, output contract, defensive parsing. |
-| `App.tsx` | Session state, mirror confirmation, command application, undo, persistence. |
-| `Map.tsx` | Visual concept map and debug surface. |
-| `types.ts`, `llm-contract.ts` | Domain and LLM contract types. |
+| `validator.ts` | Lexical + span/relation grounding for reflections. |
+| `action-gateway.ts` | The sole map-write consequence boundary (AI proposals and direct canvas actions), reference/graph/verbatim/pairing checks, origin derivation. |
+| `proposal-store.ts` | Proposal type and state machine; revision-stamped invalidation. |
+| `assistance-contract.ts` | L0/L1/L2 contracts and snapshots; contribution allowlist. |
+| `stage1-loop.ts` | Thin orchestrator: contract check → validate/gateway → proposal; one structured repair. |
+| `store.ts` | Source Bank (ground truth) and Candidate Store. |
+| `map-store.ts` | Thought units, nesting, connections, endpoint normalization, sizes, snapshots. |
+| `map-commands.ts` | Deprecated compatibility seam re-exporting the gateway. |
+| `provider-tools.ts` | Responses-transport schemas and normalization into the typed union. |
+| `config.ts` | Deterministic thresholds and product facts (no interpretation). |
+| `normalize.ts` | Whole-phrase/word-boundary matching and stemming. |
+| `turn-shape.ts` | Deterministic size-only turn classification (advisory). |
+| `event-ledger.ts` | Local full-fidelity events; allowlisted outbound metadata. |
+| `api.ts` | Prompt, provider transports, defensive parsing into the typed union. |
+| `App.tsx` | Session state, persistence/migration, proposal UI, Control Room, undo, voice, draft. |
+| `Map.tsx` | Visual concept map and diagnostics surface. |
+| `types.ts`, `llm-contract.ts`, `assistant-response.ts` | Domain and response-contract types. |
+| `open-threads.ts` | Dormant parked-phrase subsystem (not wired to the live turn path). |
