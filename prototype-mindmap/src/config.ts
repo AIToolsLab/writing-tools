@@ -5,10 +5,6 @@
  */
 
 export interface MirrorThresholds {
-  /** Minimum fraction of reflection content words grounded in user wording. */
-  lexicalBroadMin: number;
-  /** Maximum fraction of unsupported content words in a reflection. */
-  lexicalAdditionsMax: number;
   /** Minimum grounding ratio for each cited source span. */
   spanGroundingMin: number;
 }
@@ -56,8 +52,6 @@ export function withQuestionIntentBias(config: MindmapConfig, bias: number): Min
 
 export const defaultConfig: MindmapConfig = {
   mirror: {
-    lexicalBroadMin: 0.8,
-    lexicalAdditionsMax: 0.15,
     spanGroundingMin: 0.75,
   },
   pacing: { mapPressure: 0, thinkMapBias: 0 },

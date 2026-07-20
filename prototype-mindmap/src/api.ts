@@ -20,18 +20,35 @@ import {
   type ProviderTransport,
 } from "./provider-tools";
 
-const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? "http://localhost:8000/api";
-const MODEL = (import.meta.env.VITE_MINDMAP_MODEL as string | undefined) ?? "gpt-5.6-terra";
-const REASONING_EFFORT = (import.meta.env.VITE_MINDMAP_REASONING_EFFORT as string | undefined) ?? "low";
-export const PROVIDER_TRANSPORT: ProviderTransport = import.meta.env.VITE_MINDMAP_PROVIDER_TRANSPORT === "responses_tools" ? "responses_tools" : "chat_json";
+const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
+const BACKEND_URL = viteEnv?.VITE_BACKEND_URL ?? "http://localhost:8000/api";
+const MODEL = viteEnv?.VITE_MINDMAP_MODEL ?? "gpt-5.6-terra";
+const REASONING_EFFORT = viteEnv?.VITE_MINDMAP_REASONING_EFFORT ?? "low";
+export const PROVIDER_TRANSPORT: ProviderTransport = viteEnv?.VITE_MINDMAP_PROVIDER_TRANSPORT === "responses_tools" ? "responses_tools" : "chat_json";
+
+/** Runtime transport settings. The browser uses Vite values; the eval runner
+ * passes explicit values so importing this module under Node is safe. */
+export interface ProviderRuntimeConfig {
+  backendUrl?: string;
+  model?: string;
+  reasoningEffort?: string;
+}
+
+function providerRuntime(overrides?: ProviderRuntimeConfig): Required<ProviderRuntimeConfig> {
+  return {
+    backendUrl: overrides?.backendUrl ?? BACKEND_URL,
+    model: overrides?.model ?? MODEL,
+    reasoningEffort: overrides?.reasoningEffort ?? REASONING_EFFORT,
+  };
+}
 
 export interface OpenAIMessage { role: "system" | "user" | "assistant"; content: string }
 
-async function postChat(messages: OpenAIMessage[]): Promise<string> {
-  const response = await fetch(`${BACKEND_URL}/openai/chat/completions`, {
+async function postChat(messages: OpenAIMessage[], runtime: Required<ProviderRuntimeConfig>): Promise<string> {
+  const response = await fetch(`${runtime.backendUrl}/openai/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ model: MODEL, reasoning_effort: REASONING_EFFORT, messages, stream: false, response_format: { type: "json_object" } }),
+    body: JSON.stringify({ model: runtime.model, reasoning_effort: runtime.reasoningEffort, messages, stream: false, response_format: { type: "json_object" } }),
   });
   if (!response.ok) throw new Error(`Backend ${response.status}: ${(await response.text()).slice(0, 300)}`);
   const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
@@ -45,13 +62,13 @@ interface ResponsesTurnState {
   toolCallId?: string;
 }
 
-async function postResponses(input: unknown[], instructions: string): Promise<unknown> {
-  const response = await fetch(`${BACKEND_URL}/openai/responses`, {
+async function postResponses(input: unknown[], instructions: string, runtime: Required<ProviderRuntimeConfig>): Promise<unknown> {
+  const response = await fetch(`${runtime.backendUrl}/openai/responses`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: MODEL,
-      reasoning: { effort: REASONING_EFFORT },
+      model: runtime.model,
+      reasoning: { effort: runtime.reasoningEffort },
       instructions,
       input,
       tools: MINDMAP_PROVIDER_TOOLS,
@@ -96,12 +113,14 @@ export function renderContext(context: LLMContext): string {
 
 function systemPrompt(context: LLMContext, _config: MindmapConfig, repair?: StructuredRejection, transport: ProviderTransport = "chat_json"): string {
   const repairNote = repair
-    ? `\nYour previous response was rejected by code: ${JSON.stringify(repair)}. Repair that exact issue once. If a reflection cannot be repaired faithfully, you may briefly acknowledge uncertainty and make one context-specific conversational move allowed by the active contract, such as a question or aside. Do not mention validation, repeat a recent question, or use stock recovery wording.`
+    ? repair.code === "reflection_validation_failed"
+      ? `\nYour previous response was rejected by code: ${JSON.stringify(repair)}. Repair that exact issue once. First try a fully grounded mirror using only content words from the cited user wording. If that is not possible faithfully, make one targeted, context-specific question that fills the missing substantive gap. Do not switch to generic grilling, expose validation, repeat a recent question, or use stock recovery wording.`
+      : `\nYour previous response was rejected by code: ${JSON.stringify(repair)}. Repair that exact issue once. If a reflection cannot be repaired faithfully, you may briefly acknowledge uncertainty and make one context-specific conversational move allowed by the active contract, such as a question or aside. Do not mention validation, repeat a recent question, or use stock recovery wording.`
     : "";
   const transportInstruction = transport === "responses_tools"
     ? "Use propose_reflection_v1 for reflections and propose_map_action_v1 for structural proposals. These tools only request review and never write to the map. For questions, asides, grounded options, or suggestions, return the required conversational JSON output."
     : "Return one typed response and optional advisory bookkeeping as JSON using the schema below.";
-  return `You are a writing coach operating under the assistance contract supplied below. ${transportInstruction} Never infer authorization from imperative language: a map change is only a proposal. A contract never bypasses evidence, confirmation, or graph validation. In non-directive and grounded-options modes, never invent user ideas or relationships. Questions may scaffold reflection but must not embed an answer. When the user has already named a broad task or focus, acknowledge it briefly and move to one concrete next step; do not rephrase that goal as though it were unanswered. Treat the full draft as background context and a user selection as explicit focus. Use the user's request, recent dialogue, and draft to judge the most useful next move. When passage choice is materially ambiguous, invite the user to choose. Use draft anchors selectively, and distinguish model-chosen anchors from user-selected focus. Evidence is an internal traceability requirement: find supporting wording in the source bank yourself instead of repeatedly asking the user to locate it. Ask for wording only when the user must genuinely decide substance. Reflections and asserted map proposals must carry source pointers, and hierarchy or connection claims need a relation pointer from the same user utterance. Candidate age is a fact, never a command to recall. Recall only when it helps the current conversation, only from active or parked candidates, and only as a question or aside carrying an exact user phrase in a recall annotation. Never recall ignored or promoted candidates. Do not echo unchanged candidates in advisory bookkeeping.${repairNote}
+  return `You are a writing coach operating under the assistance contract supplied below. ${transportInstruction} Never infer authorization from imperative language: a map change is only a proposal. A contract never bypasses evidence, confirmation, or graph validation. In non-directive and grounded-options modes, never invent user ideas or relationships. Questions may scaffold reflection but must not embed an answer. When the user has already named a broad task or focus, acknowledge it briefly and move to one concrete next step; do not rephrase that goal as though it were unanswered. Treat the full draft as background context and a user selection as explicit focus. Use the user's request, recent dialogue, and draft to judge the most useful next move. When passage choice is materially ambiguous, invite the user to choose. Use draft anchors selectively, and distinguish model-chosen anchors from user-selected focus. Evidence is an internal traceability requirement: find supporting wording in the source bank yourself instead of repeatedly asking the user to locate it. Ask for wording only when the user must genuinely decide substance. Every reflection at every assistance level must be strictly user-word-faithful: reuse only content words from its cited user utterances, though ordinary function-word glue is fine. Put any novel L2 language in an explicitly AI-attributed suggestion or map proposal, never a reflection. Reflections and asserted map proposals must carry source pointers, and hierarchy or connection claims need a relation pointer from the same user utterance. For a large or abstract turn, when a complete grounded mirror is not yet possible, favor one focusing question over arbitrarily collapsing it into one claim or presenting a proposal. This is conversational judgment, not a fixed response rule. Candidate age is a fact, never a command to recall. Recall only when it helps the current conversation, only from active or parked candidates, and only as a question or aside carrying an exact user phrase in a recall annotation. Never recall ignored or promoted candidates. Do not echo unchanged candidates in advisory bookkeeping.${repairNote}
 
 Schema:
 ${transport === "responses_tools" ? "For this transport, reflection and map_proposal entries describe normalized application responses only; emit them through their named tools. Text output is provider-constrained to question, aside, options, or suggestion." : ""}
@@ -238,17 +257,19 @@ export async function callLLM(
   onTrace?: (trace: ProviderTrace) => void,
   transport: ProviderTransport = PROVIDER_TRANSPORT,
   responseState?: ResponsesTurnState,
+  runtimeOverrides?: ProviderRuntimeConfig,
 ): Promise<AssistantResponseEnvelope> {
+  const runtime = providerRuntime(runtimeOverrides);
   if (transport === "chat_json") {
     const messages: OpenAIMessage[] = [{ role: "system", content: systemPrompt(context, config, repair, transport) }, ...history];
-    const rawProviderResponse = await postChat(messages);
+    const rawProviderResponse = await postChat(messages, runtime);
     let parsedProviderResponse: unknown;
     try { parsedProviderResponse = JSON.parse(rawProviderResponse) as unknown; }
     catch {
-      onTrace?.({ transport, model: MODEL, reasoningEffort: REASONING_EFFORT, messages, parsedProviderResponse: rawProviderResponse });
+      onTrace?.({ transport, model: runtime.model, reasoningEffort: runtime.reasoningEffort, messages, parsedProviderResponse: rawProviderResponse });
       throw new ModelResponseValidationError("invalid_provider_json");
     }
-    onTrace?.({ transport, model: MODEL, reasoningEffort: REASONING_EFFORT, messages, parsedProviderResponse });
+    onTrace?.({ transport, model: runtime.model, reasoningEffort: runtime.reasoningEffort, messages, parsedProviderResponse });
     try { return parseAssistantResponse(parsedProviderResponse); }
     catch (error) {
       if (error instanceof ModelResponseValidationError) throw error;
@@ -265,14 +286,14 @@ export async function callLLM(
       input.push({ role: "user", content: `Repair the rejected response once: ${JSON.stringify(repair)}` });
     }
   }
-  const providerResponse = await postResponses(input, systemPrompt(context, config, repair, transport));
+  const providerResponse = await postResponses(input, systemPrompt(context, config, repair, transport), runtime);
   let parsed: ReturnType<typeof parseResponsesOutput>;
   try { parsed = parseResponsesOutput(providerResponse); }
   catch (error) {
     const body = object(providerResponse);
     const rawOutput = Array.isArray(body?.output) ? body.output : [];
     onTrace?.({
-      transport, model: MODEL, reasoningEffort: REASONING_EFFORT, messages: input,
+      transport, model: runtime.model, reasoningEffort: runtime.reasoningEffort, messages: input,
       parsedProviderResponse: providerResponse,
       responseId: typeof body?.id === "string" ? body.id : undefined,
       outputItemTypes: rawOutput.map((item) => object(item)?.type).filter((item): item is string => typeof item === "string"),
@@ -285,8 +306,8 @@ export async function callLLM(
   }
   onTrace?.({
     transport,
-    model: MODEL,
-    reasoningEffort: REASONING_EFFORT,
+    model: runtime.model,
+    reasoningEffort: runtime.reasoningEffort,
     messages: input,
     parsedProviderResponse: providerResponse,
     responseId: parsed.responseId,
@@ -303,11 +324,12 @@ export function makeLLM(
   initialHistory: ConversationMessage[] = [],
   onTrace?: (trace: ProviderTrace) => void,
   transport: ProviderTransport = PROVIDER_TRANSPORT,
+  runtimeOverrides?: ProviderRuntimeConfig,
 ): AssistantModel {
   const history = initialHistory.slice(-20);
   const responseState: ResponsesTurnState = {};
   return async (context, repair) => {
-    const envelope = await callLLM(context, history, typeof config === "function" ? config() : config, repair, onTrace, transport, responseState);
+    const envelope = await callLLM(context, history, typeof config === "function" ? config() : config, repair, onTrace, transport, responseState, runtimeOverrides);
     if (transport === "chat_json") {
       history.push({ role: "assistant", content: envelope.response.text });
       if (history.length > 20) history.splice(0, history.length - 20);

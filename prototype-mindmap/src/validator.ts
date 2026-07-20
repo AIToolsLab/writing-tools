@@ -9,9 +9,9 @@
  * that judgment belongs to the model.
  *
  * The checks, coarsest to finest:
- *   1. Content overlap — are the reflection's content words the user's words?
- *      (catches vocabulary drift); and, as a fine ceiling, are stray new content
- *      words below budget? (catches meaning-shifting insertions like "central")
+ *   1. Lexical grounding — every reflection content word must stem-match the
+ *      Source Bank utterances cited by that claim. Function-word glue remains
+ *      free, but there is no unsupported-word budget.
  *   2. Source-span grounding — does every claim trace to a user utterance that
  *      actually supports it? (catches new *relationships* built from real words)
  *
@@ -53,40 +53,44 @@ function citedTexts(span: SourceSpan, bank: Map<string, SourceUtterance>): strin
 /**
  * Lexical grounding — is the reflection made of the user's words?
  *
- * One check with two parts over the same provenance signal:
- *   - broad overlap:  enough content words trace to the user (catches drift)
- *   - additions:      stray new content words stay under budget (catches a
- *                     single meaning-shifting insertion the average let through)
- *
- * The check passes only if both parts pass. They share data but apply two
- * thresholds — a blunt floor and a fine ceiling — so it stays a single concept
- * (lexical grounding) rather than implying two independent protections.
+ * Every content word in the displayed claim must be present, after stemming, in
+ * the utterances the claim itself cites. This deliberately does not use the
+ * whole Source Bank: an unrelated earlier user word cannot launder a new word
+ * into a claim. The two reported parts retain useful calibration detail while
+ * both enforce the same zero-addition boundary.
  */
 function checkLexicalGrounding(
   claim: MirrorClaim,
-  bankStems: Set<string>,
-  overlapMin: number,
-  additionsMax: number,
+  citedStems: Set<string>,
 ): MirrorCheckResult {
   const content = contentTokens(claim.text);
-  const owned = content.filter((tok) => bankStems.has(stem(tok)));
+  const owned = content.filter((tok) => citedStems.has(stem(tok)));
   const overlap = ratio(owned.length, content.length);
   const additions = ratio(content.length - owned.length, content.length);
 
   const noContent = content.length === 0; // nothing reflected => fail closed
-  const broadOk = !noContent && overlap >= overlapMin;
-  const additionsOk = !noContent && additions <= additionsMax;
+  const broadOk = !noContent && overlap === 1;
+  const additionsOk = !noContent && additions === 0;
 
   return {
     check: "lexical_grounding",
     ok: broadOk && additionsOk,
     score: overlap,
-    threshold: overlapMin,
+    threshold: 1,
     parts: [
-      { name: "broad_overlap", ok: broadOk, score: overlap, threshold: overlapMin },
-      { name: "additions", ok: additionsOk, score: additions, threshold: additionsMax },
+      { name: "all_content_words_cited", ok: broadOk, score: overlap, threshold: 1 },
+      { name: "additions", ok: additionsOk, score: additions, threshold: 0 },
     ],
   };
+}
+
+function citedStemSet(claim: MirrorClaim, bank: Map<string, SourceUtterance>): Set<string> {
+  const ids = new Set(claim.sourceSpans.flatMap((span) => span.utteranceIds));
+  if (claim.relationSpan) ids.add(claim.relationSpan.utteranceId);
+  return stemSet([...ids].flatMap((id) => {
+    const text = bank.get(id)?.text;
+    return text ? [text] : [];
+  }));
 }
 
 /**
@@ -217,15 +221,9 @@ function checkSpanGrounding(
 function validateClaim(
   claim: MirrorClaim,
   bank: Map<string, SourceUtterance>,
-  bankStems: Set<string>,
   cfg: MindmapConfig,
 ): ClaimValidation {
-  const lexical = checkLexicalGrounding(
-    claim,
-    bankStems,
-    cfg.mirror.lexicalBroadMin,
-    cfg.mirror.lexicalAdditionsMax,
-  );
+  const lexical = checkLexicalGrounding(claim, citedStemSet(claim, bank));
   const grounding = checkSpanGrounding(claim, bank, cfg.mirror.spanGroundingMin);
 
   const checks = [lexical, grounding.result];
@@ -256,10 +254,8 @@ export function validateMirror(
   cfg: MindmapConfig,
 ): MirrorValidationResult {
   const bank = new Map(bankUtterances.map((u) => [u.id, u]));
-  const bankStems = stemSet(bankUtterances.map((u) => u.text));
-
   const claims = reflection.claims.map((claim) =>
-    validateClaim(claim, bank, bankStems, cfg),
+    validateClaim(claim, bank, cfg),
   );
 
   return { ok: claims.length > 0 && claims.every((c) => c.ok), claims };

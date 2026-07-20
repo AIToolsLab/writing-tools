@@ -113,8 +113,8 @@ export interface MirrorCheckResult {
   /** Threshold it was compared against. */
   threshold: number;
   /**
-   * Sub-parts, when a check has more than one. Lexical grounding has two:
-   * a broad overlap part and a fine additions part. The check passes only
+   * Sub-parts, when a check has more than one. Lexical grounding reports
+   * complete cited-word coverage and zero additions. The check passes only
    * if every part passes.
    */
   parts?: MirrorCheckPart[];

@@ -1,5 +1,6 @@
 import type { AssistanceLevel } from "../../src/assistance-contract";
 import type { CandidateTarget } from "../../src/types";
+import { EVAL_LEVELS } from "./types";
 
 export interface RecallMemoryEvent {
   afterUserTurn: number;
@@ -20,7 +21,7 @@ export interface RecallEvalScenario {
   recallNote: string;
 }
 
-const LEVELS = [0, 2] as const;
+const LEVELS = EVAL_LEVELS;
 
 export const RECALL_EVAL_SCENARIOS: RecallEvalScenario[] = [
   {

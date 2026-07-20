@@ -149,6 +149,46 @@ describe("typed Stage 1 controller", () => {
     expect(result.diagnostics.some((event) => event.code === "repair_succeeded")).toBe(true);
   });
 
+  it("repairs a reflection with a fully grounded mirror before rendering it", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (context, rejection) => {
+      const sourceId = context.bank[0]!.id;
+      if (!rejection) {
+        return {
+          response: {
+            kind: "reflection" as const,
+            text: "A possible mirror.",
+            reflection: { claims: [{
+              id: "c1", text: "human control necessarily matters", candidateId: "c1", target: "idea" as const,
+              sourceSpans: [{ claimText: "human control matters", userPhrase: "human control matters", utteranceIds: [sourceId] }],
+            }] },
+          },
+          advisory: { candidateUpserts: [{ id: "c1", target: "idea" as const, gist: "human control", addEvidenceIds: [sourceId], status: "active" as const }] },
+        };
+      }
+      return {
+        response: {
+          kind: "reflection" as const,
+          text: "A possible mirror.",
+          reflection: { claims: [{
+            id: "c1", text: "human control matters", candidateId: "c1", target: "idea" as const,
+            sourceSpans: [{ claimText: "human control matters", userPhrase: "human control matters", utteranceIds: [sourceId] }],
+          }] },
+        },
+        advisory: { candidateUpserts: [{ id: "c1", target: "idea" as const, gist: "human control", addEvidenceIds: [sourceId], status: "active" as const }] },
+      };
+    });
+
+    const result = await processTurn(state, "human control matters", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+
+    expect(model).toHaveBeenCalledTimes(2);
+    expect(model.mock.calls[1]?.[1]).toMatchObject({ code: "reflection_validation_failed" });
+    expect(result.response).toMatchObject({ kind: "reflection" });
+    expect(result.proposal).toMatchObject({ origin: "user_asserted", state: "shown" });
+    expect(result.terminal).toBeUndefined();
+  });
+
   it("returns a terminal when a contract rejection is rejected again", async () => {
     const state = createConversationState();
     const store = new ThoughtUnitStore();
@@ -423,6 +463,48 @@ describe("typed Stage 1 controller", () => {
     expect(model).toHaveBeenCalledTimes(2);
     expect(result.response).toMatchObject({ kind: "options", options: [{ text: "human control" }] });
     expect(result.diagnostics.some((event) => event.code === "contract_options_not_verbatim")).toBe(true);
+  });
+
+  it("allows an L2 proposal to retain explicitly AI-suggested provenance", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const result = await processTurn(
+      state,
+      "I am exploring control.",
+      async () => ({ response: {
+        kind: "map_proposal" as const,
+        text: "Here is one AI suggestion to review.",
+        action: { kind: "create_card" as const, text: "a lens of authorship", sourceUtteranceIds: [] },
+      } }),
+      defaultConfig,
+      store.toLLMContext(),
+      { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[2] },
+    );
+
+    expect(result.response).toMatchObject({ kind: "map_proposal" });
+    expect(result.proposal).toMatchObject({ state: "shown", origin: "ai_suggested", contract: { level: 2 } });
+    expect(store.getAll()).toHaveLength(0);
+  });
+
+  it("does not relax reflection faithfulness at L2", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (context, rejection) => rejection
+      ? { response: { kind: "suggestion" as const, text: "One AI suggestion is to examine authorship." } }
+      : { response: {
+        kind: "reflection" as const,
+        text: "A possible mirror.",
+        reflection: { claims: [{
+          id: "c1", text: "human control necessarily matters", candidateId: "c1", target: "idea" as const,
+          sourceSpans: [{ claimText: "human control matters", userPhrase: "human control matters", utteranceIds: [context.bank[0]!.id] }],
+        }] },
+      } });
+
+    const result = await processTurn(state, "human control matters", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[2] });
+
+    expect(model).toHaveBeenCalledTimes(2);
+    expect(model.mock.calls[1]?.[1]).toMatchObject({ code: "reflection_validation_failed" });
+    expect(result.response).toMatchObject({ kind: "suggestion" });
   });
 
   it("records exact prior-assistant overlap as influence evidence without blocking an asserted proposal", async () => {

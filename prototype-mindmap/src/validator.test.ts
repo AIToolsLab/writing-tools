@@ -102,7 +102,7 @@ describe("mirror validator — 2 grounding checks", () => {
     expect(result.ok).toBe(false);
     const lexical = checkOf(result.claims[0], "lexical_grounding");
     expect(lexical?.ok).toBe(false);
-    expect(partOf(lexical, "broad_overlap")?.ok).toBe(false);
+    expect(partOf(lexical, "all_content_words_cited")?.ok).toBe(false);
   });
 
   it("Check 2: blocks a NEW relationship built from real user words", () => {
@@ -136,7 +136,7 @@ describe("mirror validator — 2 grounding checks", () => {
     expect(result.claims[0].weakestSpan?.userPhrase).toContain("connects");
   });
 
-  it("Check 3: blocks a single smuggled meaning-word the average let through", () => {
+  it("blocks a single smuggled meaning-word with no unsupported-word budget", () => {
     const bank = [u("there is real tension between the two ideas i keep circling")];
     const reflection = {
       claims: [
@@ -151,11 +151,46 @@ describe("mirror validator — 2 grounding checks", () => {
     };
     const result = validateMirror(reflection, bank, defaultConfig);
     expect(result.ok).toBe(false);
-    // Broad overlap is high enough to pass, but "central" trips the fine part.
+    // Every claimed content word must be cited; "central" cannot ride along.
     const lexical = checkOf(result.claims[0], "lexical_grounding");
     expect(lexical?.ok).toBe(false);
-    expect(partOf(lexical, "broad_overlap")?.ok).toBe(true);
+    expect(partOf(lexical, "all_content_words_cited")?.ok).toBe(false);
     expect(partOf(lexical, "additions")?.ok).toBe(false);
+  });
+
+  it("does not let an uncited Source Bank word launder a reflection claim", () => {
+    const cited = u("language matters");
+    const uncited = u("translation shapes thought");
+    const reflection = {
+      claims: [
+        claim("language shapes thought", [{
+          claimText: "language",
+          utteranceIds: [cited.id],
+          userPhrase: "language",
+        }]),
+      ],
+    };
+
+    const result = validateMirror(reflection, [cited, uncited], defaultConfig);
+    expect(result.ok).toBe(false);
+    expect(checkOf(result.claims[0], "lexical_grounding")?.ok).toBe(false);
+  });
+
+  it("blocks unsupported modal or hedge content without a special word bank", () => {
+    const bank = [u("language shapes thought")];
+    const reflection = {
+      claims: [
+        claim("language necessarily shapes thought", [{
+          claimText: "language shapes thought",
+          utteranceIds: [bank[0].id],
+          userPhrase: "language shapes thought",
+        }]),
+      ],
+    };
+
+    const result = validateMirror(reflection, bank, defaultConfig);
+    expect(result.ok).toBe(false);
+    expect(partOf(checkOf(result.claims[0], "lexical_grounding"), "additions")?.ok).toBe(false);
   });
 
   it("validates chunks independently — one passes while another fails", () => {

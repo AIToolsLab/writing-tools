@@ -139,10 +139,14 @@ describe("typed assistant response parser", () => {
     expect(second[0].content).toContain("Your previous response was rejected by code");
     expect(second[0].content).toContain("reflection_validation_failed");
     expect(second[0].content).toContain("Pointer was not exact.");
-    expect(second[0].content).toContain("context-specific conversational move");
-    expect(second[0].content).toContain("Do not mention validation");
+    expect(second[0].content).toContain("targeted, context-specific question");
+    expect(second[0].content).toContain("expose validation");
+    expect(second[0].content).toContain("First try a fully grounded mirror");
+    expect(second[0].content).toContain("targeted, context-specific question");
     expect(first[0].content).toContain("Treat the full draft as background context and a user selection as explicit focus.");
     expect(first[0].content).toContain("Use draft anchors selectively, and distinguish model-chosen anchors from user-selected focus.");
+    expect(first[0].content).toContain("Every reflection at every assistance level must be strictly user-word-faithful");
+    expect(first[0].content).toContain("For a large or abstract turn");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

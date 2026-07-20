@@ -1,4 +1,5 @@
 import type { AssistanceLevel } from "../../src/assistance-contract";
+import { EVAL_LEVELS } from "./types";
 
 export interface DraftFocusEvalScenario {
   id: string;
@@ -11,7 +12,7 @@ export interface DraftFocusEvalScenario {
   anchorGuidance: "avoid" | "optional" | "prefer";
 }
 
-const LEVELS = [0, 2] as const;
+const LEVELS = EVAL_LEVELS;
 const DRAFT = [
   "Those classes probably did matter.",
   "My twelve-year-old brain did not know it, but the difference was larger than the classes.",
