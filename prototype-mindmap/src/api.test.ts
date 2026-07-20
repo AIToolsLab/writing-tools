@@ -49,23 +49,48 @@ describe("typed assistant response parser", () => {
     ]);
   });
 
+  it("preserves ordering within the history window while keeping the new user turn last", () => {
+    const committed = Array.from({ length: 21 }, (_, index) => ({
+      role: index % 2 === 0 ? "user" as const : "assistant" as const,
+      content: `committed-${index}`,
+    }));
+
+    const history = historyForCurrentTurn(committed, "anaphoric reply");
+
+    expect(history).toHaveLength(20);
+    expect(history).toEqual([
+      ...committed.slice(-19),
+      { role: "user", content: "anaphoric reply" },
+    ]);
+    expect(history.filter((message) => message.content === "anaphoric reply")).toHaveLength(1);
+    expect(history[history.length - 1]).toEqual({ role: "user", content: "anaphoric reply" });
+  });
+
   it("renders factual UI context without a duplicate latest-user-turn prompt field", () => {
     const rendered = renderContext({
       ...context,
       candidates: [{ id: "candidate-1", target: "connection", gist: "human control", evidenceUtteranceIds: ["u_1"] }],
-      selectedFocus: { cards: [{ id: "tu_1", ref: "A", text: "human control", role: "node" }] },
+      selectedFocus: {
+        cards: [{ id: "tu_1", ref: "A", text: "human control", role: "node" }],
+        draftText: "the highlighted draft claim",
+      },
       requestedSupport: "deepen",
     });
 
     expect(rendered).toContain("EXPLICIT UI SELECTION");
     expect(rendered).toContain("A human control");
+    expect(rendered).toContain("draft selection: the highlighted draft claim");
     expect(rendered).toContain("'deepen' support control");
     expect(rendered).toContain("sparse=true");
     expect(rendered).toContain("value=75 on a 0 (Think) to 100 (Map) control");
     expect(rendered).toContain("TURN SHAPE (measurement only)");
+    expect(rendered).toContain("kind=compact; utterances=1; contentTokens=5; characters=29");
+    expect(rendered).toContain(`Can do: ${defaultConfig.capabilities.canDo.join("; ")}`);
+    expect(rendered).toContain(`Cannot do: ${defaultConfig.capabilities.cantDo.join("; ")}`);
     expect(rendered).toContain("A draft paragraph.");
     expect(rendered).toContain("candidate-1 connection human control evidence=u_1");
     expect(rendered).not.toContain("readiness=");
+    expect(rendered).not.toContain("detectedSignals");
     expect(rendered).not.toContain("LATEST USER TURN");
   });
 
@@ -87,6 +112,10 @@ describe("typed assistant response parser", () => {
     expect(request).toMatchObject({ model: "gpt-5.6-terra", reasoning_effort: "low" });
     expect(first.at(-1)).toEqual({ role: "user", content: "It is about human control." });
     expect(second).toContainEqual({ role: "assistant", content: "What is at stake?" });
+    expect(second[0].content).toContain("Your previous response was rejected by code");
+    expect(second[0].content).toContain("reflection_validation_failed");
+    expect(second[0].content).toContain("Pointer was not exact.");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("uses a bounded Responses tool repair with the matching call id", async () => {

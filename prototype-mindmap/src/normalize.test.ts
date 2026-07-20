@@ -31,7 +31,10 @@ describe("stem (variant convergence)", () => {
 
 describe("containsWholePhrase", () => {
   it("does not treat a phrase as a substring of another word", () => {
-    expect(containsWholePhrase("thunder is underrated", "under")).toBe(false);
+    expect(containsWholePhrase("underrated", "under")).toBe(false);
+    expect(containsWholePhrase("thunder", "under")).toBe(false);
+    expect(containsWholePhrase("starting point", "art")).toBe(false);
+    expect(containsWholePhrase("supporting evidence", "support")).toBe(false);
   });
 
   it("permits normalized punctuation and case differences", () => {

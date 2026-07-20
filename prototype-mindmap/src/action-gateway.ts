@@ -156,8 +156,6 @@ function resolveRef(
   if (exact) return { status: "resolved", ref: { id: exact.id }, ids: [exact.id] };
   const near = nearCards(text, units);
   if (near.length > 0) return { status: "needs_reference_choice", slot, candidates: choices(near), detail: `Choose the matching ${slot} card.` };
-  if (near.length > 1) return { status: "needs_input", fields: [slot], detail: `Choose which card matches “${text}”.` };
-  if (near.length === 1) return { status: "needs_input", fields: [slot], detail: `Confirm the matching card for “${text}”.` };
   if (context.actor === "ai_proposal" && !verbatim(text, ref.sourceUtteranceIds, context.bank)) {
     return { status: "rejected", reason: "non_verbatim_text", detail: `${slot} wording is not a user-verbatim span.` };
   }
