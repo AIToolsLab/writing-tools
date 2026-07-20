@@ -159,6 +159,8 @@ interface ThoughtMapProps {
   bank: SourceBank;
   confirmed: ConfirmedReflection[];
   coachDebug?: CoachDebugInfo | null;
+  /** Language pickers at the head of the right-hand tools; owned by App. */
+  languageTools?: ReactNode;
   /** Docked-draft affordance, rendered in the map header when the draft is docked. */
   draftDock?: ReactNode;
   draftDockSlot?: ReactNode;
@@ -763,6 +765,7 @@ export function ThoughtMap(props: ThoughtMapProps) {
 function ThoughtMapInner({
   store,
   bank,
+  languageTools,
   draftDock,
   draftDockSlot,
   draftDockActive,
@@ -1578,6 +1581,8 @@ function ThoughtMapInner({
         </div>
 
         <div className="map-right-tools">
+          {languageTools}
+
           <button type="button" className="map-clean" onClick={autoClean} title="Tidy the map: lay connected cards into clean trees and spread the rest across the canvas">
             Auto-clean
           </button>

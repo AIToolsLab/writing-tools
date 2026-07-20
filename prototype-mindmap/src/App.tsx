@@ -17,7 +17,7 @@ import { buildDiagnosticSnapshot, type SafetyCheck, type TrackedIdea, type Under
 import { useSpeechToText } from "./useSpeechToText";
 import { ASSISTANCE_CONTRACTS, contractForLevel, DEFAULT_ASSISTANCE_CONTRACT, normalizeInfluenceTrace, snapshotContract, type AssistanceLevel } from "./assistance-contract";
 import { EventLedger, mirrorSanitizedEvent, type LedgerEventKind } from "./event-ledger";
-import { effectiveLanguage, initialLanguageState, isReadOnlyView, languageLabel, languageOptions, matchesWritingLanguage, selectViewLanguage, setDraftLanguage, type LanguageOption, type LanguageState } from "./language";
+import { effectiveLanguage, initialLanguageState, isReadOnlyView, languageLabel, languageOptions, matchesWritingLanguage, selectViewLanguage, setDraftLanguage, settleDraftLanguage, type LanguageOption, type LanguageState } from "./language";
 import { translateStrings } from "./translate";
 import { useFullPageTranslation } from "./dom-translation";
 import { TranslationContext } from "./translation-context";
@@ -221,9 +221,12 @@ export interface PersistedPendingMirror {
 }
 
 interface PersistedSession {
-  version: 1 | 2 | 3 | 4 | 5;
+  version: 1 | 2 | 3 | 4 | 5 | 6;
   sessionId?: string;
   assistanceLevel?: AssistanceLevel;
+  /** Absent before the language was settled (old sessions, or a reload before
+   *  the first message); those resume on a fresh guess. */
+  writingLanguage?: string;
   msgs: ChatMsg[];
   pendingMirrors?: PersistedPendingMirror[];
   proposals?: Proposal[];
@@ -275,12 +278,35 @@ interface DraftSelectionFocus { text: string; }
 // ---------------------------------------------------------------------------
 
 const css = `
+  /* One source of truth for the three levels: the picker and the comparison
+     cards must agree on sight, so neither hard-codes a hue. \`-ink\` is a
+     readable-as-text variant; \`-ring\` the same hue at a border's alpha.
+     Framing stays out of this palette — it is one continuum, not a fourth level. */
+  :root {
+    --level-0: #1a6fa3;
+    --level-0-ink: #1a6fa3;
+    --level-0-soft: #eef5fb;
+    --level-0-ring: rgba(26, 111, 163, 0.32);
+    --level-1: #b58f3a;
+    --level-1-ink: #8a6a1e;
+    --level-1-soft: #fbf5e9;
+    --level-1-ring: rgba(181, 143, 58, 0.42);
+    --level-2: #8a4bb0;
+    --level-2-ink: #8a4bb0;
+    --level-2-soft: #f5eefa;
+    --level-2-ring: rgba(138, 75, 176, 0.32);
+
+    --framing: #1c7167;
+    --framing-pale: #a8ccc6;
+    --framing-track: #d2dae5;
+  }
+
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: #f5f4f0;
-    color: #1a1a1a;
+    color: #191a1b;
     height: 100vh;
     overflow: hidden;
   }
@@ -301,43 +327,298 @@ const css = `
     width: 420px;
     min-width: 340px;
     background: #fff;
-    border-right: 1px solid #e5e3de;
+    border-right: 1px solid #d2dae5;
     height: 100vh;
   }
 
+  /* Two stacked control blocks, each a label row over its control. Nothing
+     wraps: the widths are the panel's, not the content's. */
   .chat-header {
+    position: relative;
     display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px 12px;
-    min-height: 60px;
-    padding: 10px 16px;
-    border-bottom: 1px solid #e5e3de;
-    background: #fafaf8;
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px 16px 14px;
+    border-bottom: 1px solid #d2dae5;
+    background: linear-gradient(#f9fafc, #f1f3f6);
     flex-shrink: 0;
   }
 
-  .chat-header-actions {
+  .control-block {
     display: flex;
+    flex-direction: column;
     gap: 6px;
-    align-items: center;
   }
-  .chat-header-actions-left {
-    flex: 0 0 auto;
+  .control-block-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 16px;
+  }
+  .control-block-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: #798ab7;
+  }
+  .control-block-note {
+    font-size: 10.5px;
+    line-height: 1.35;
+    color: #7a8390;
   }
 
-  .reset-btn {
-    font-size: 11px;
-    font-weight: 600;
-    padding: 4px 10px;
-    border-radius: 6px;
-    border: 1px solid #ddd;
-    background: #f0efeb;
-    color: #666;
-    cursor: pointer;
-    transition: opacity 0.15s;
+  /* ---- assistance level: three segments, one lit ---- */
+  .segmented {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid #d2dae5;
+    border-radius: 10px;
+    background: #f7f8fa;
   }
-  .reset-btn:hover { opacity: 0.7; }
+  .segmented-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+    padding: 5px 4px 6px;
+    border: 0;
+    border-radius: 7px;
+    background: transparent;
+    color: #7a8390;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, box-shadow 0.15s;
+  }
+  .segmented-option:hover:not(.is-active) { background: rgba(255, 255, 255, 0.7); color: #596370; }
+  .segmented-option:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(26, 111, 163, 0.28);
+  }
+  .segmented-rank {
+    font-size: 8.5px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    color: #98a4c7;
+    transition: color 0.15s;
+  }
+  .segmented-name {
+    font-size: 10.5px;
+    font-weight: 650;
+    line-height: 1.2;
+    text-align: center;
+  }
+  /* Underline in the level's colour, so the live one reads by more than a tint. */
+  .segmented-option::after {
+    content: "";
+    display: block;
+    width: 0;
+    height: 2px;
+    margin-top: 3px;
+    border-radius: 99px;
+    background: currentColor;
+    opacity: 0;
+    transition: width 0.18s ease, opacity 0.18s ease;
+  }
+  .segmented-option.is-active::after { width: 18px; opacity: 1; }
+
+  /* Each level tints in its own hue, so the whole block shifts with the level. */
+  .segmented-option.is-active {
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(40, 35, 25, 0.1);
+  }
+  .segmented-option.is-active[data-level="0"] {
+    background: var(--level-0-soft);
+    color: var(--level-0-ink);
+    box-shadow: inset 0 0 0 1px var(--level-0-ring), 0 1px 2px rgba(40, 35, 25, 0.08);
+  }
+  .segmented-option.is-active[data-level="1"] {
+    background: var(--level-1-soft);
+    color: var(--level-1-ink);
+    box-shadow: inset 0 0 0 1px var(--level-1-ring), 0 1px 2px rgba(40, 35, 25, 0.08);
+  }
+  .segmented-option.is-active[data-level="2"] {
+    background: var(--level-2-soft);
+    color: var(--level-2-ink);
+    box-shadow: inset 0 0 0 1px var(--level-2-ring), 0 1px 2px rgba(40, 35, 25, 0.08);
+  }
+  .segmented-option.is-active .segmented-rank { color: inherit; opacity: 0.75; }
+  .segmented-option.is-active .segmented-name { font-weight: 700; }
+
+  /* ---- Think/Map rail ---- */
+  .bias-rail {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 10px;
+    font-size: 10px;
+    font-weight: 650;
+    color: #7a8390;
+  }
+  /* Ends stay muted until steered toward; at the midpoint neither lights up. */
+  .bias-end { user-select: none; color: #919fc4; transition: color 0.15s; }
+
+  .bias-track {
+    position: relative;
+    display: block;
+    height: 18px;
+  }
+  /* Full ramp painted across the track, then the unfilled part covered over, so
+     the fill edge's depth is the position. A fill-sized gradient would squeeze
+     to the deepest shade at every stop. */
+  .bias-track::before {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    left: 0;
+    right: 0;
+    top: 50%;
+    height: 5px;
+    transform: translateY(-50%);
+    border-radius: 99px;
+    background: linear-gradient(90deg, var(--framing-pale) 0%, var(--framing) 100%);
+  }
+  .bias-track::after {
+    content: "";
+    position: absolute;
+    z-index: 0;
+    left: var(--bias-fill);
+    right: 0;
+    top: 50%;
+    height: 5px;
+    transform: translateY(-50%);
+    border-radius: 99px;
+    background: var(--framing-track);
+    transition: left 0.15s ease;
+  }
+  .bias-ticks {
+    position: absolute;
+    z-index: 1;
+    inset: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 1px;
+    pointer-events: none;
+  }
+  .bias-tick {
+    width: 3px;
+    height: 3px;
+    border-radius: 99px;
+    background: #b8c5d6;
+    transition: background 0.15s;
+  }
+  .bias-tick.is-passed { background: rgba(255, 255, 255, 0.9); }
+  .bias-track input[type="range"] {
+    position: relative;
+    z-index: 2;
+    width: 100%;
+    height: 18px;
+    margin: 0;
+    background: transparent;
+    appearance: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+  }
+  .bias-track input[type="range"]::-webkit-slider-runnable-track { height: 18px; background: transparent; }
+  .bias-track input[type="range"]::-moz-range-track { height: 18px; background: transparent; }
+  .bias-track input[type="range"]::-webkit-slider-thumb {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    margin-top: 2px;
+    border: 2px solid var(--framing);
+    border-radius: 99px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(20, 60, 90, 0.28);
+    transition: transform 0.12s;
+  }
+  .bias-track input[type="range"]::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border: 2px solid var(--framing);
+    border-radius: 99px;
+    background: #fff;
+    box-shadow: 0 1px 3px rgba(20, 60, 90, 0.28);
+  }
+  .bias-track input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.12); }
+  .bias-track input[type="range"]:focus-visible::-webkit-slider-thumb {
+    box-shadow: 0 0 0 4px rgba(28, 113, 103, 0.24);
+  }
+
+  /* Only the end actually being steered toward takes the framing colour. */
+  .control-block[data-stop="0"]   .bias-end-think,
+  .control-block[data-stop="25"]  .bias-end-think,
+  .control-block[data-stop="75"]  .bias-end-map,
+  .control-block[data-stop="100"] .bias-end-map { color: var(--framing); }
+
+  /* ---- language pickers, in the map tools ----
+     One grouped control, not two loose dropdowns: a rounded shell, two
+     borderless selects split by a divider. Pen = the writer's source language,
+     eye = the read-only translated view over it. */
+  .language-bar {
+    display: inline-flex;
+    align-items: center;
+    height: 30px;
+    padding: 0 5px;
+    border: 1px solid #cbd4e1;
+    border-radius: 8px;
+    background: #fff;
+    transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+  }
+  .lang-field {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 0 3px;
+    color: #8a93a1;
+  }
+  .lang-field-icon {
+    display: flex;
+    width: 13px;
+    height: 13px;
+  }
+  .lang-field select {
+    appearance: none;
+    -webkit-appearance: none;
+    border: 0;
+    border-radius: 5px;
+    background-color: transparent;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5L5 6.5L8 3.5' fill='none' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 4px center;
+    padding: 4px 18px 4px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #212933;
+    cursor: pointer;
+    transition: background-color 0.15s;
+  }
+  .lang-field select:hover { background-color: #eef2f7; }
+  .lang-field select:focus-visible {
+    outline: none;
+    background-color: #eef2f7;
+    box-shadow: 0 0 0 2px rgba(26, 111, 163, 0.3);
+  }
+  .lang-divider {
+    width: 1px;
+    height: 16px;
+    margin: 0 3px;
+    background: #e2e8f0;
+  }
+  /* Translation is a whole-page state, so the whole control shifts to amber. */
+  .language-bar.is-translated {
+    border-color: #e0c98a;
+    background: #fdf9ee;
+  }
+  .language-bar.is-translated .lang-field-view { color: #b07a2a; }
+  .language-bar.is-translated .lang-field-view select {
+    color: #8a5a1f;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5L5 6.5L8 3.5' fill='none' stroke='%23b07a2a' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  }
+  .language-bar.is-translated .lang-field-view select:hover { background-color: #f7edd6; }
 
   .stance-chip {
     margin-left: 6px;
@@ -347,8 +628,8 @@ const css = `
     border-radius: 99px;
     letter-spacing: 0.04em;
     text-transform: lowercase;
-    background: #efece6;
-    color: #8a857c;
+    background: #e5eaf0;
+    color: #758191;
   }
   .stance-chip.stance-settle    { background: #eef6fb; color: #3b7ea8; }
   .stance-chip.stance-narrow    { background: #fdf3e7; color: #b07a2a; }
@@ -434,41 +715,77 @@ const css = `
     border-bottom-right-radius: 4px;
   }
   .msg.assistant .msg-bubble {
-    background: #f0efeb;
-    color: #1a1a1a;
+    background: #f7f8fa;
+    color: #191a1b;
     border-bottom-left-radius: 4px;
   }
   .msg.assistant.mirror .msg-bubble  { background: #e8f8ed; }
   .msg.assistant.clarify .msg-bubble { background: #fff3e0; }
 
   /* ---- assistance-contract comparison toggle + 3-level preview ---- */
+  /* Under the segmented control, since it overrides that setting for a turn. */
   .compare-toggle {
-    display: inline-flex;
+    display: flex;
     align-items: center;
-    gap: 4px;
+    justify-content: center;
+    gap: 6px;
+    width: 100%;
+    padding: 7px 10px;
+    border: 1px solid #d2dae5;
+    border-radius: 9px;
+    background: #f1f3f6;
+    color: #7a8390;
     font-size: 11px;
-    color: #68645d;
+    font-weight: 650;
     cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
   }
+  .compare-toggle:hover { background: #e9edf2; color: #596370; }
+  .compare-toggle.is-active {
+    border-color: #cdc4dd;
+    background: linear-gradient(90deg, var(--level-0-soft) 0%, var(--level-1-soft) 50%, var(--level-2-soft) 100%);
+    color: #404854;
+  }
+  /* All three level hues at once: the button turns the level into three answers. */
+  .compare-toggle.is-active::before {
+    content: "";
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 4px;
+    height: 2px;
+    border-radius: 99px;
+    background: linear-gradient(90deg,
+      var(--level-0) 0%, var(--level-0) 33%,
+      var(--level-1) 33%, var(--level-1) 66%,
+      var(--level-2) 66%, var(--level-2) 100%);
+  }
+  .compare-toggle { position: relative; }
+  .compare-toggle:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(26, 111, 163, 0.25);
+  }
+  .compare-toggle-mark { font-size: 12px; line-height: 1; }
+  .compare-toggle.is-active .compare-toggle-mark { color: var(--level-1-ink); }
   .compare3 { display: flex; flex-direction: column; gap: 8px; width: 100%; }
   .compare3-card {
-    border: 1px solid #e0ddd5;
-    border-left: 3px solid #cfcabf;
+    border: 1px solid #d1d9e4;
+    border-left: 3px solid #b8c5d6;
     border-radius: 10px;
     background: #fff;
     padding: 8px 12px;
   }
-  .compare3-card.level-0 { border-left-color: #1a6fa3; }
-  .compare3-card.level-1 { border-left-color: #b58f3a; }
-  .compare3-card.level-2 { border-left-color: #8a4bb0; }
+  .compare3-card.level-0 { border-left-color: var(--level-0); }
+  .compare3-card.level-1 { border-left-color: var(--level-1); }
+  .compare3-card.level-2 { border-left-color: var(--level-2); }
   .compare3-head { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
-  .compare3-level { font-size: 11px; font-weight: 800; color: #55514a; }
-  .compare3-card.level-0 .compare3-level { color: #1a6fa3; }
-  .compare3-card.level-1 .compare3-level { color: #8a6a1e; }
-  .compare3-card.level-2 .compare3-level { color: #8a4bb0; }
-  .compare3-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; color: #9a958c; }
-  .compare3-kind { margin-left: auto; font-size: 10px; color: #9a958c; font-style: italic; }
-  .compare3-text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; color: #1a1a1a; }
+  .compare3-level { font-size: 11px; font-weight: 800; color: #454e5a; }
+  .compare3-card.level-0 .compare3-level { color: var(--level-0-ink); }
+  .compare3-card.level-1 .compare3-level { color: var(--level-1-ink); }
+  .compare3-card.level-2 .compare3-level { color: var(--level-2-ink); }
+  .compare3-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.03em; color: #8591a1; }
+  .compare3-kind { margin-left: auto; font-size: 10px; color: #8591a1; font-style: italic; }
+  .compare3-text { font-size: 14px; line-height: 1.5; white-space: pre-wrap; color: #191a1b; }
   .compare3-options { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
   .option-chip.static {
     font-size: 13px;
@@ -624,7 +941,7 @@ const css = `
     border-radius: 6px;
     border: 1px solid #ddd;
     cursor: pointer;
-    background: #f0efeb;
+    background: #f7f8fa;
     color: #555;
     transition: opacity 0.15s;
   }
@@ -632,12 +949,12 @@ const css = `
 
   /* ---- input area ---- */
   .input-area {
-    border-top: 1px solid #e5e3de;
+    border-top: 1px solid #d2dae5;
     padding: 12px 14px;
     display: flex;
     flex-direction: column;
     gap: 8px;
-    background: #fafaf8;
+    background: #f7f8fa;
     flex-shrink: 0;
   }
 
@@ -645,7 +962,7 @@ const css = `
     display: flex;
     flex-direction: column;
     gap: 6px;
-    border: 1px solid #d8d3c8;
+    border: 1px solid #c4cedc;
     border-radius: 14px;
     background: #fff;
     padding: 8px;
@@ -658,24 +975,6 @@ const css = `
   }
 
   /* Writing-language and read-only translation controls */
-  .writing-language,
-  .view-language {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 11px;
-    color: #6b6257;
-  }
-  .writing-language select,
-  .view-language select {
-    max-width: 120px;
-    font-size: 11px;
-    padding: 2px 4px;
-    border: 1px solid #d8cfc0;
-    border-radius: 4px;
-    background: #fff;
-    color: #2f2b25;
-  }
   .language-mismatch {
     margin: 0 0 6px;
     padding: 6px 8px;
@@ -714,7 +1013,7 @@ const css = `
   .draft-editor-translated {
     white-space: pre-wrap;
     cursor: default;
-    background: #fdfaf3;
+    background: #f7f8fa;
   }
 
   .composer-toolbar {
@@ -739,7 +1038,7 @@ const css = `
     border: 1px solid transparent;
     border-radius: 999px;
     background: #fff;
-    color: #77736c;
+    color: #66707d;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.02em;
@@ -845,9 +1144,31 @@ const css = `
   .send-btn:disabled { opacity: 0.4; cursor: default; }
 
   .input-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     font-size: 11px;
     color: #aaa;
     line-height: 1.3;
+  }
+  /* Destructive, so it stays quiet in the composer's corner until pointed at. */
+  .clear-chat-btn {
+    margin-left: auto;
+    padding: 3px 8px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #919fc4;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .clear-chat-btn:hover { border-color: #e6d5d3; background: #fdf4f3; color: #a8564d; }
+  .clear-chat-btn:focus-visible {
+    outline: none;
+    border-color: #d8b4af;
+    box-shadow: 0 0 0 3px rgba(168, 86, 77, 0.16);
   }
 
   /* ---- concept map ---- */
@@ -863,8 +1184,8 @@ const css = `
   .map-header {
     min-height: 58px;
     padding: 7px 12px;
-    border-bottom: 1px solid #e5e3de;
-    background: #fafaf8;
+    border-bottom: 1px solid #d2dae5;
+    background: #f7f8fa;
     flex-shrink: 0;
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
@@ -893,7 +1214,7 @@ const css = `
     font-size: 11px;
     line-height: 1;
     white-space: nowrap;
-    color: #8a8780;
+    color: #7a8390;
   }
 
   .map-left-tools,
@@ -930,31 +1251,6 @@ const css = `
     scrollbar-width: thin;
   }
 
-  .question-bias {
-    flex: 0 0 auto;
-    display: grid;
-    grid-template-columns: auto minmax(82px, 118px) auto;
-    align-items: center;
-    gap: 8px;
-    font-size: 11px;
-    font-weight: 600;
-    color: #666;
-  }
-
-  .question-bias input {
-    accent-color: #1a6fa3;
-    width: 100%;
-  }
-  /* Native tick marks for the five snap positions. */
-  .question-bias datalist {
-    display: none;
-  }
-  .chat-question-bias {
-    margin-left: auto;
-    min-width: 178px;
-    justify-content: end;
-  }
-
   /* Docked draft keeps the same size and physical affordance as the floating
      chip; it simply snaps into its predefined header slot. */
   .map-draft-slot {
@@ -965,7 +1261,7 @@ const css = `
     place-items: center;
     border: 1px dashed #d6c8aa;
     border-radius: 7px;
-    background: #fbf7ec;
+    background: #f1f3f6;
     color: #a2834e;
     transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
   }
@@ -1066,18 +1362,6 @@ const css = `
     cursor: default;
   }
 
-  @media (max-width: 1180px) {
-    .question-bias {
-      grid-template-columns: auto minmax(64px, 96px) auto;
-    }
-  }
-
-  @media (max-width: 900px) {
-    .question-bias {
-      margin-left: 0;
-    }
-  }
-
   .map-canvas {
     position: relative;
     flex: 1;
@@ -1099,7 +1383,7 @@ const css = `
     width: 260px;
     min-height: 132px;
     background: #fff;
-    border: 1px solid #d8d5ce;
+    border: 1px solid #c9d1dd;
     border-radius: 8px;
     box-shadow: 0 8px 22px rgba(30, 30, 30, 0.08);
     display: flex;
@@ -1147,10 +1431,10 @@ const css = `
     height: 20px;
     padding: 0;
     line-height: 1;
-    border: 1px solid #e2ded5;
+    border: 1px solid #d2dae5;
     border-radius: 5px;
-    background: #fafaf8;
-    color: #8a8578;
+    background: #f7f8fa;
+    color: #707e92;
     cursor: pointer;
     font-size: 12px;
   }
@@ -1163,8 +1447,8 @@ const css = `
   .map-card-drag {
     min-height: 30px;
     padding: 7px 28px 7px 9px;
-    background: #fafaf8;
-    border-bottom: 1px solid #e9e6df;
+    background: #f7f8fa;
+    border-bottom: 1px solid #d2dae5;
     cursor: grab;
     display: flex;
     align-items: center;
@@ -1179,15 +1463,14 @@ const css = `
     flex: 0 0 auto;
     width: 10px;
     height: 10px;
-    color: #a9a49a;
+    color: #929fb1;
     background-image: radial-gradient(currentColor 1.1px, transparent 1.4px);
     background-size: 5px 5px;
     background-position: 0 0;
   }
-  .map-card-drag:hover .map-drag-grip { color: #7d7970; }
+  .map-card-drag:hover .map-drag-grip { color: #697484; }
 
-  .map-role-chip,
-  .map-parent-chip {
+  .map-role-chip {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -1195,15 +1478,7 @@ const css = `
     font-weight: 700;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #68645d;
-  }
-
-  .map-parent-chip {
-    min-width: 0;
-    max-width: 150px;
-    padding-left: 6px;
-    border-left: 1px solid #d8d5ce;
-    color: #918d85;
+    color: #57616e;
   }
 
   .map-card-editor {
@@ -1221,7 +1496,7 @@ const css = `
   }
   .map-card-editor:focus {
     outline: none;
-    background: #fcfbf8;
+    background: #f9fafc;
   }
 
   .map-card-actions {
@@ -1238,10 +1513,10 @@ const css = `
   .map-clear-draft,
   .map-clear-map,
   .connection-panel button {
-    border: 1px solid #d8d5ce;
+    border: 1px solid #c9d1dd;
     border-radius: 6px;
     background: #fff;
-    color: #4f4b45;
+    color: #404854;
     cursor: pointer;
     font-size: 11px;
     font-weight: 700;
@@ -1256,29 +1531,6 @@ const css = `
     margin-left: auto;
   }
   .map-origin-badge { padding: 2px 5px; border-radius: 8px; background: #f1e7ff; color: #70459a; font-size: 10px; font-weight: 700; }
-  .assistance-contract { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #666; }
-  .assistance-contract select {
-    appearance: none;
-    -webkit-appearance: none;
-    border: 1px solid #dcdad4;
-    border-radius: 8px;
-    background-color: #fff;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5L5 6.5L8 3.5' fill='none' stroke='%231a6fa3' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 8px center;
-    padding: 5px 26px 5px 10px;
-    font-size: 11px;
-    font-weight: 600;
-    color: #4f4b45;
-    cursor: pointer;
-    transition: border-color 0.15s, box-shadow 0.15s;
-  }
-  .assistance-contract select:hover { border-color: #b9c9d5; }
-  .assistance-contract select:focus {
-    outline: none;
-    border-color: #1a6fa3;
-    box-shadow: 0 0 0 3px rgba(26, 111, 163, 0.15);
-  }
 
   .map-handle {
     width: 9px;
@@ -1403,7 +1655,7 @@ const css = `
     z-index: 8;
     right: 16px;
     background: #fff;
-    border: 1px solid #d8d5ce;
+    border: 1px solid #c9d1dd;
     border-radius: 8px;
     box-shadow: 0 12px 30px rgba(30, 30, 30, 0.12);
   }
@@ -1432,7 +1684,7 @@ const css = `
     align-items: center;
     font-size: 11px;
     font-weight: 700;
-    color: #68645d;
+    color: #57616e;
   }
   .connection-panel-meta span {
     min-width: 0;
@@ -1446,12 +1698,6 @@ const css = `
     min-height: 66px;
     max-height: 120px;
     font-size: 13px;
-  }
-
-  .connection-affirm {
-    font-size: 12px;
-    font-weight: 700;
-    color: #4f4b45;
   }
 
   .connection-actions {
@@ -1479,9 +1725,9 @@ const css = `
     width: 27px;
     height: 27px;
     border-radius: 50%;
-    border: 1px solid #c9c5bd;
+    border: 1px solid #b7c1cf;
     background: #fff;
-    color: #6a665f;
+    color: #596370;
     font-size: 14px;
     line-height: 1;
     cursor: pointer;
@@ -1490,16 +1736,16 @@ const css = `
     align-items: center;
     justify-content: center;
   }
-  .edge-badge:hover { background: #f3f1ec; }
+  .edge-badge:hover { background: #ebeff4; }
   .edge-badge.active {
-    background: #1a1a1a;
+    background: #191a1b;
     color: #fff;
-    border-color: #1a1a1a;
+    border-color: #191a1b;
     box-shadow: 0 0 0 3px rgba(26,26,26,0.18);
   }
   .edge-move-hint {
     font-size: 11px;
-    color: #b9b6ad;
+    color: #a6b1c0;
   }
   .edge-direction {
     display: grid;
@@ -1510,7 +1756,7 @@ const css = `
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #b9b6ad;
+    color: #a6b1c0;
   }
   .edge-direction-buttons {
     display: flex;
@@ -1522,21 +1768,21 @@ const css = `
     align-items: center;
     gap: 8px;
     width: 100%;
-    border: 1px solid #4a4945;
+    border: 1px solid #42474d;
     border-radius: 6px;
-    background: #2b2b2b;
-    color: #f5f2ea;
+    background: #242a32;
+    color: #ebeff4;
     cursor: pointer;
     font-size: 12px;
     font-weight: 700;
     padding: 5px 8px;
     text-align: left;
   }
-  .edge-direction-buttons button:hover { background: #363636; }
+  .edge-direction-buttons button:hover { background: #343638; }
   .edge-direction-buttons button.active {
-    background: #f5f2ea;
-    color: #1f1e1b;
-    border-color: #f5f2ea;
+    background: #ebeff4;
+    color: #191c21;
+    border-color: #ebeff4;
   }
   .edge-direction-glyph { font-size: 15px; width: 16px; text-align: center; }
   .edge-direction-label { flex: 1; }
@@ -1552,7 +1798,7 @@ const css = `
     gap: 7px;
     width: 230px;
     max-width: 230px;
-    background: #1a1a1a;
+    background: #191a1b;
     color: #fff;
     font-size: 12px;
     line-height: 1.4;
@@ -1577,7 +1823,7 @@ const css = `
   }
   .edge-popover-card {
     font-size: 11.5px;
-    color: #e7e4dc;
+    color: #d2dae5;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -1585,7 +1831,7 @@ const css = `
   .edge-popover-card b { color: #f0b429; margin-right: 4px; }
   .edge-popover-text {
     font-style: italic;
-    color: #d9d6ce;
+    color: #c9d2de;
     border-top: 1px solid #333;
     padding-top: 6px;
   }
@@ -1613,6 +1859,8 @@ const css = `
     color: #1a7a3c;
     cursor: pointer;
   }
+  /* Amber: these buttons are colour-coded by action, so they keep their warmth
+     while the surrounding neutrals go cool. */
   .map-clear-draft {
     border-color: #ddd3bf;
     background: #f8f4ea;
@@ -1626,9 +1874,9 @@ const css = `
     font-weight: 600;
     padding: 4px 8px;
     border-radius: 6px;
-    border: 1px solid #d8d5ce;
+    border: 1px solid #c9d1dd;
     background: #fff;
-    color: #5f5b54;
+    color: #4f5864;
     cursor: pointer;
   }
   .map-label-toggle.active {
@@ -1636,7 +1884,7 @@ const css = `
     background: #eafaf0;
     color: #1a7a3c;
   }
-  .map-label-toggle:hover { background: #f3f1ec; }
+  .map-label-toggle:hover { background: #ebeff4; }
   .map-label-toggle.active:hover { background: #dcf4e6; }
 
   .map-undo,
@@ -1658,7 +1906,7 @@ const css = `
 
   .map-hint {
     font-size: 11px;
-    color: #9a958c;
+    color: #8591a1;
     padding: 4px 16px 0;
     line-height: 1.4;
   }
@@ -1667,8 +1915,8 @@ const css = `
   /* A card with children grows to fit them (height:auto in JS), so it must not
      clip its content the way a fixed-size childless card does. */
   .map-card.has-children {
-    background: #f6f4ef;
-    border-color: #cfc9be;
+    background: #f9fafc;
+    border-color: #b8c4d5;
     overflow: visible;
   }
   /* Parent (title) cards don't need the tall typing area or the spacer action
@@ -1687,15 +1935,15 @@ const css = `
     gap: 6px;
     margin-top: 0;
     padding: 14px 8px 8px 18px;
-    border-top: 1px solid #ded8cc;
-    border-left: 2px solid #ded8cc;
+    border-top: 1px solid #cad3e0;
+    border-left: 2px solid #cad3e0;
     margin-left: 8px;
-    background: #fbfaf7;
+    background: #f7f8fa;
   }
   .map-embed {
     position: relative;
-    border: 1px solid #ded8cc;
-    border-left: 3px solid #9e9586;
+    border: 1px solid #cad3e0;
+    border-left: 3px solid #7d8ea7;
     border-radius: 5px;
     background: #fff;
     padding: 8px 8px 5px 22px;
@@ -1715,13 +1963,13 @@ const css = `
     left: 7px;
     width: 10px;
     height: 10px;
-    color: #a9a49a;
+    color: #929fb1;
     background-image: radial-gradient(currentColor 1.1px, transparent 1.4px);
     background-size: 5px 5px;
     background-position: 0 0;
     cursor: grab;
   }
-  .map-embed:hover .map-embed-drag-grip { color: #7d7970; }
+  .map-embed:hover .map-embed-drag-grip { color: #697484; }
   .map-embed-drag-grip:active { cursor: grabbing; }
   .map-embed-editor {
     width: 100%;
@@ -1732,7 +1980,7 @@ const css = `
     font-family: inherit;
     font-size: 12px;
     line-height: 1.4;
-    color: #1a1a1a;
+    color: #191a1b;
     cursor: text;
   }
   .map-embed.expanded .map-embed-editor {
@@ -1751,36 +1999,36 @@ const css = `
     flex: 1 1 64px;
     font-size: 10px;
     font-weight: 700;
-    color: #918d85;
+    color: #7f8997;
   }
   .map-embed-actions button {
     font-size: 10px;
     padding: 2px 7px;
     border-radius: 5px;
-    border: 1px solid #d8d5ce;
-    background: #f3f1ec;
-    color: #6a665f;
+    border: 1px solid #c9d1dd;
+    background: #ebeff4;
+    color: #596370;
     cursor: pointer;
   }
-  .map-embed-actions button:hover { background: #e8e5dd; }
+  .map-embed-actions button:hover { background: #d2dae5; }
   .map-embed-children {
     display: flex;
     flex-direction: column;
     gap: 6px;
     margin-top: 7px;
     padding-left: 22px;
-    border-left: 2px solid #ded8cc;
+    border-left: 2px solid #cad3e0;
   }
   .map-embed-children .map-embed {
-    background: #fbfaf7;
+    background: #f7f8fa;
   }
   /* Deepen the indent and dim the rail per nesting level so depth reads clearly. */
   .map-embed-children .map-embed-children {
     padding-left: 24px;
-    border-left-color: #e4dfd4;
+    border-left-color: #d2dae5;
   }
   .map-embed-children .map-embed-children .map-embed-children {
-    border-left-color: #ebe7de;
+    border-left-color: #d2dae5;
   }
   .connection-panel button:disabled {
     opacity: 0.4;
@@ -1788,16 +2036,7 @@ const css = `
   }
   .connection-panel button.connection-cancel {
     background: transparent;
-    color: #8a857d;
-  }
-
-  .connection-wording {
-    font-size: 13px;
-    line-height: 1.4;
-    color: #222;
-    background: #fafaf8;
-    border-radius: 6px;
-    padding: 8px;
+    color: #768191;
   }
 
   .error-banner {
@@ -1813,7 +2052,7 @@ const css = `
   .draft-panel {
     position: fixed;
     background: #fff;
-    border: 1px solid #d0cec9;
+    border: 1px solid #c5cbd4;
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0,0,0,0.12);
     display: flex;
@@ -1865,8 +2104,8 @@ const css = `
     gap: 8px;
     height: 40px;
     padding: 0 12px;
-    background: #fafaf8;
-    border-bottom: 1px solid #e5e3de;
+    background: #f7f8fa;
+    border-bottom: 1px solid #d2dae5;
     cursor: grab;
     user-select: none;
     flex-shrink: 0;
@@ -1884,16 +2123,16 @@ const css = `
 
   .draft-panel-btn {
     background: #fff;
-    border: 1px solid #d8d4cb;
+    border: 1px solid #c6d0dd;
     cursor: pointer;
     font-size: 12px;
-    color: #5f5a51;
+    color: #4b5665;
     padding: 5px 9px;
     border-radius: 6px;
     line-height: 1;
     box-shadow: 0 1px 2px rgba(0,0,0,0.04);
   }
-  .draft-panel-btn:hover { color: #2f2b25; background: #f2eee7; border-color: #c9bfae; }
+  .draft-panel-btn:hover { color: #212933; background: #e7ebf1; border-color: #abbace; }
   .draft-panel-btn-icon {
     width: 28px;
     height: 28px;
@@ -1949,7 +2188,7 @@ const css = `
     resize: none;
     overflow-y: auto;
     background: #fff;
-    color: #1a1a1a;
+    color: #191a1b;
     z-index: 1;
   }
   .draft-editor:empty::before {
@@ -1983,12 +2222,6 @@ const css = `
   .rh-se { bottom: 0; right: 0; width: 12px; height: 12px; cursor: se-resize; }
   .rh-sw { bottom: 0; left: 0; width: 12px; height: 12px; cursor: sw-resize; }
 
-  .draft-placeholder {
-    color: #bbb;
-    font-style: italic;
-    pointer-events: none;
-  }
-
   .map-shell {
     position: relative;
     flex: 1;
@@ -2004,11 +2237,11 @@ const css = `
     writing-mode: vertical-rl;
     transform: rotate(180deg);
     padding: 16px 8px;
-    border: 1px solid #d9d5cc;
+    border: 1px solid #c7d1de;
     border-right: none;
     border-radius: 0 8px 8px 0;
-    background: #fbfaf7;
-    color: #55514a;
+    background: #f7f8fa;
+    color: #454e5a;
     font-size: 11px;
     font-weight: 800;
     letter-spacing: 0.05em;
@@ -2035,7 +2268,7 @@ const css = `
     display: flex;
     flex-direction: column;
     overflow: hidden;
-    border: 1px solid #d8d4ca;
+    border: 1px solid #c5cfdd;
     border-radius: 12px;
     background: rgba(255, 255, 252, 0.96);
     box-shadow: 0 18px 48px rgba(35, 31, 24, 0.18);
@@ -2048,8 +2281,8 @@ const css = `
     align-items: flex-start;
     gap: 10px;
     padding: 13px 14px 11px;
-    border-bottom: 1px solid #e7e2d8;
-    background: linear-gradient(135deg, #fffdf6, #f5fbff);
+    border-bottom: 1px solid #d2dae5;
+    background: linear-gradient(135deg, #f9fafc, #f5fbff);
   }
   .underhood-title {
     flex: 1;
@@ -2058,23 +2291,23 @@ const css = `
   .underhood-title strong {
     display: block;
     font-size: 13px;
-    color: #24221e;
+    color: #1c2026;
   }
   .underhood-title span {
     display: block;
     margin-top: 3px;
     font-size: 11px;
     line-height: 1.35;
-    color: #6f6a61;
+    color: #5a6676;
   }
   .underhood-close {
     flex-shrink: 0;
     width: 28px;
     height: 28px;
-    border: 1px solid #d8d4ca;
+    border: 1px solid #c5cfdd;
     border-radius: 7px;
     background: #fff;
-    color: #645f57;
+    color: #515b6a;
     font-size: 17px;
     cursor: pointer;
   }
@@ -2082,8 +2315,8 @@ const css = `
   .underhood-nextmove {
     flex-shrink: 0;
     padding: 8px 10px 10px;
-    border-bottom: 1px solid #e7e2d8;
-    background: #fbfaf6;
+    border-bottom: 1px solid #d2dae5;
+    background: #f7f8fa;
   }
   .underhood-nextmove .underhood-section-title {
     padding: 0 2px 7px;
@@ -2097,14 +2330,14 @@ const css = `
   }
   .nextmove-button {
     padding: 7px 8px;
-    border: 1px solid #d8d4ca;
+    border: 1px solid #c5cfdd;
     border-left-width: 3px;
     border-radius: 7px;
     background: #fff;
     font-size: 11.5px;
     font-weight: 600;
     line-height: 1.2;
-    color: #33302a;
+    color: #262d37;
     text-align: left;
     cursor: pointer;
     transition: border-color 0.12s ease, background 0.12s ease, transform 0.08s ease;
@@ -2148,10 +2381,10 @@ const css = `
     font-size: 12px;
     font-weight: 600;
     padding: 5px 8px;
-    border: 1px solid #d8d5ce;
+    border: 1px solid #c9d1dd;
     border-radius: 8px;
     background: #fff;
-    color: #68645d;
+    color: #57616e;
     cursor: pointer;
   }
   .underhood-viewtabs button.active {
@@ -2168,16 +2401,16 @@ const css = `
     display: flex;
     flex-direction: column;
     padding: 8px 10px;
-    border: 1px solid #eceae4;
+    border: 1px solid #e1e6ee;
     border-radius: 8px;
-    background: #fafaf8;
+    background: #f7f8fa;
   }
-  .recap-stat strong { font-size: 16px; color: #1a1a1a; }
-  .recap-stat span { font-size: 11px; color: #9a958c; }
+  .recap-stat strong { font-size: 16px; color: #191a1b; }
+  .recap-stat span { font-size: 11px; color: #8591a1; }
   .recap-authorship {
     margin-top: 8px;
     font-size: 12px;
-    color: #55514a;
+    color: #454e5a;
   }
   .recap-timeline {
     margin: 0;
@@ -2187,14 +2420,14 @@ const css = `
     gap: 5px;
     font-size: 13px;
     line-height: 1.4;
-    color: #1a1a1a;
+    color: #191a1b;
   }
   /* Vertical trajectory rail: reads as a timeline, not a 2D mind map. */
   .recap-trail {
     list-style: none;
     margin: 0;
     padding: 0 0 0 14px;
-    border-left: 2px solid #d8d5ce;
+    border-left: 2px solid #c9d1dd;
     display: flex;
     flex-direction: column;
     gap: 12px;
@@ -2220,7 +2453,7 @@ const css = `
     font-size: 10px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: #9a958c;
+    color: #8591a1;
   }
   .recap-trail-coach {
     font-size: 12px;
@@ -2229,7 +2462,7 @@ const css = `
   .recap-trail-label {
     font-size: 13px;
     line-height: 1.4;
-    color: #1a1a1a;
+    color: #191a1b;
   }
   .recap-trail-subwrap {
     margin-top: 3px;
@@ -2243,14 +2476,14 @@ const css = `
     background: none;
     cursor: pointer;
     font-size: 11px;
-    color: #7a756c;
+    color: #657181;
   }
   .recap-trail-subtoggle:hover { color: #1a6fa3; }
   .recap-trail-subideas {
     list-style: none;
     margin: 4px 0 0;
     padding: 0 0 0 12px;
-    border-left: 1px dashed #d8d5ce;
+    border-left: 1px dashed #c9d1dd;
     display: flex;
     flex-direction: column;
     gap: 3px;
@@ -2259,13 +2492,13 @@ const css = `
     position: relative;
     font-size: 12px;
     line-height: 1.35;
-    color: #55514a;
+    color: #454e5a;
   }
   .recap-trail-subideas li::before {
     content: "–";
     position: absolute;
     left: -10px;
-    color: #b3ada3;
+    color: #9ba8bb;
   }
   .recap-trail-mark {
     font-size: 10px;
@@ -2286,7 +2519,7 @@ const css = `
     gap: 6px;
     font-size: 13px;
     line-height: 1.4;
-    color: #1a1a1a;
+    color: #191a1b;
   }
   .recap-ai-badge {
     flex: 0 0 auto;
@@ -2303,13 +2536,13 @@ const css = `
     margin: auto;
     max-width: 260px;
     text-align: center;
-    color: #777169;
+    color: #626e7e;
     font-size: 13px;
     line-height: 1.45;
   }
 
   .underhood-section {
-    border: 1px solid #e5e1d8;
+    border: 1px solid #d2dae5;
     border-radius: 10px;
     background: #fff;
     overflow: hidden;
@@ -2326,14 +2559,14 @@ const css = `
     font-weight: 800;
     letter-spacing: 0.05em;
     text-transform: uppercase;
-    color: #726c63;
-    background: #f7f5ef;
-    border-bottom: 1px solid #ece8df;
+    color: #5c6879;
+    background: #f1f3f6;
+    border-bottom: 1px solid #d2dae5;
     cursor: pointer;
     text-align: left;
   }
   .underhood-section-title:hover {
-    background: #f2efe7;
+    background: #e7ebf1;
   }
   .underhood-section-title .section-title-main {
     min-width: 0;
@@ -2349,7 +2582,7 @@ const css = `
   .underhood-section-title .section-chevron {
     width: 14px;
     height: 14px;
-    color: #8a857b;
+    color: #748091;
     position: relative;
     flex-shrink: 0;
   }
@@ -2377,7 +2610,7 @@ const css = `
   .underhood-section-title .section-meta {
     flex-shrink: 0;
     font-size: 10px;
-    color: #928c83;
+    color: #7c8899;
   }
   .underhood-section.collapsed .underhood-section-title {
     border-bottom: 0;
@@ -2399,22 +2632,22 @@ const css = `
     font-size: 12px;
     font-weight: 800;
     color: #fff;
-    background: #6d6a62;
+    background: #5c6673;
   }
   .underhood-orb.notice { background: #2d7fb0; }
-  .underhood-orb.quiet { background: #8f8a80; }
+  .underhood-orb.quiet { background: #798596; }
   .underhood-orb.held { background: #b37a18; }
   .underhood-latest-text strong {
     display: block;
     font-size: 12px;
-    color: #2b2924;
+    color: #21262e;
   }
   .underhood-latest-text span {
     display: block;
     margin-top: 2px;
     font-size: 12px;
     line-height: 1.28;
-    color: #706b62;
+    color: #5a6678;
   }
 
   .event-list {
@@ -2433,7 +2666,7 @@ const css = `
     padding: 9px 9px 9px 0;
     border-radius: 9px;
     background: transparent;
-    color: #5f5a52;
+    color: #4c5665;
     opacity: 0.56;
     transition: opacity 0.2s, transform 0.2s, background 0.2s, border-color 0.2s;
     border: 1px solid transparent;
@@ -2446,7 +2679,7 @@ const css = `
     bottom: -5px;
     width: 2px;
     border-radius: 99px;
-    background: #ded9cf;
+    background: #ccd5e1;
   }
   .event-row.revealed { opacity: 1; }
   .event-row.active {
@@ -2471,7 +2704,7 @@ const css = `
   }
   .event-row.stage-noticed { color: #7d5f1c; }
   .event-row.stage-tracked { color: #286fa4; }
-  .event-row.stage-checked { color: #6d6a62; }
+  .event-row.stage-checked { color: #5c6673; }
   .event-row.stage-held { color: #9a6810; }
   .event-row.stage-chosen { color: #20804a; }
   .event-row.passed .event-dot { background: #edf8f0; }
@@ -2487,7 +2720,7 @@ const css = `
     padding: 2px 5px;
     border-radius: 99px;
     background: rgba(0,0,0,0.05);
-    color: #766f64;
+    color: #5c6a7e;
     font-size: 9px;
     font-weight: 900;
     letter-spacing: 0.04em;
@@ -2497,14 +2730,14 @@ const css = `
     display: block;
     font-size: 12px;
     font-weight: 800;
-    color: #2f2c27;
+    color: #242a32;
   }
   .event-detail {
     display: block;
     margin-top: 3px;
     font-size: 11px;
     line-height: 1.35;
-    color: #6d675f;
+    color: #586474;
   }
   .event-evidence {
     display: inline-block;
@@ -2514,7 +2747,7 @@ const css = `
     border-radius: 6px;
     background: rgba(255, 255, 255, 0.72);
     border: 1px solid rgba(85, 78, 65, 0.14);
-    color: #3f3a32;
+    color: #2d3744;
     font-size: 10px;
     font-weight: 700;
     line-height: 1.3;
@@ -2533,13 +2766,13 @@ const css = `
     border: 1px solid rgba(85, 78, 65, 0.18);
     border-radius: 6px;
     background: rgba(255, 255, 255, 0.72);
-    color: #595247;
+    color: #404d60;
     font-size: 10px;
     font-weight: 800;
     padding: 3px 6px;
     cursor: pointer;
   }
-  .event-detail-toggle:hover { background: #fff; border-color: #cfc8b9; }
+  .event-detail-toggle:hover { background: #fff; border-color: #b5c1d3; }
   .event-technical {
     margin-top: 6px;
     display: flex;
@@ -2548,8 +2781,8 @@ const css = `
   }
   .event-technical span {
     border-radius: 5px;
-    background: #f1eee7;
-    color: #5f5a52;
+    background: #e7ebf1;
+    color: #4c5665;
     font-size: 10px;
     font-weight: 700;
     padding: 3px 5px;
@@ -2564,7 +2797,7 @@ const css = `
     overflow-y: auto;
   }
   .idea-card {
-    border: 1px solid #ebe6dc;
+    border: 1px solid #d2dae5;
     border-radius: 9px;
     padding: 9px;
     background: #fffdf8;
@@ -2578,7 +2811,7 @@ const css = `
   .idea-label {
     font-size: 13px;
     line-height: 1.35;
-    color: #25231f;
+    color: #1c2128;
     font-weight: 650;
   }
   .idea-status {
@@ -2589,22 +2822,22 @@ const css = `
     font-weight: 800;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    background: #eeeae1;
-    color: #655f55;
+    background: #e1e6ee;
+    color: #4e5b6c;
   }
   .idea-status.ready { background: #dff3e7; color: #1e7b46; }
   .idea-status.needs_your_wording { background: #fcebd1; color: #9a6810; }
   .idea-status.needs_relationship { background: #e5f0fb; color: #286fa4; }
-  .idea-status.too_early { background: #eeeae1; color: #655f55; }
+  .idea-status.too_early { background: #e1e6ee; color: #4e5b6c; }
   .idea-actions {
     display: flex;
     gap: 6px;
     align-items: center;
   }
   .idea-dismiss {
-    border: 1px solid #e0d8c8;
-    background: #fbfaf7;
-    color: #6a6256;
+    border: 1px solid #c9d2df;
+    background: #f7f8fa;
+    color: #4e5d72;
     border-radius: 7px;
     padding: 2px 7px;
     font-size: 11px;
@@ -2628,12 +2861,12 @@ const css = `
     align-items: center;
     font-size: 10px;
     font-weight: 700;
-    color: #716b61;
+    color: #5a6678;
   }
   .meter-track {
     height: 7px;
     border-radius: 99px;
-    background: #ebe7dd;
+    background: #d2dae5;
     overflow: hidden;
   }
   .meter-fill {
@@ -2666,13 +2899,13 @@ const css = `
     align-items: start;
     font-size: 12px;
     line-height: 1.35;
-    color: #514d46;
+    color: #414a56;
   }
   .safety-mark {
     width: 16px;
     height: 16px;
     border-radius: 5px;
-    background: #e8e4dc;
+    background: #d2dae5;
   }
   .safety-row.ok .safety-mark { background: #98d6ad; }
   .safety-row.info .safety-mark { background: #a8d0ee; }
@@ -2682,26 +2915,26 @@ const css = `
     font-weight: 800;
     letter-spacing: 0.04em;
     text-transform: uppercase;
-    color: #7b746a;
+    color: #627083;
   }
 
   .anchor-button {
     width: 100%;
-    border: 1px solid #e3ded4;
+    border: 1px solid #d2dae5;
     border-radius: 8px;
-    background: #fbfaf7;
+    background: #f7f8fa;
     padding: 8px;
     text-align: left;
-    color: #302d28;
+    color: #252b33;
     cursor: pointer;
   }
   .anchor-button:hover { background: #fff5d5; border-color: #e1be65; }
   .anchor-button.parked-thread { cursor: default; }
-  .anchor-button.parked-thread:hover { background: #fbfaf7; border-color: #e3ded4; }
+  .anchor-button.parked-thread:hover { background: #f7f8fa; border-color: #d2dae5; }
   .anchor-kind {
     display: block;
     margin-top: 4px;
-    color: #877f72;
+    color: #697990;
     font-size: 10px;
     font-weight: 800;
     letter-spacing: 0.04em;
@@ -2781,7 +3014,7 @@ function loadPersistedSession(): PersistedSession | null {
     const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PersistedSession;
-    return parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4 || parsed.version === 5 ? parsed : null;
+    return parsed.version >= 1 && parsed.version <= 6 ? parsed : null;
   } catch {
     return null;
   }
@@ -3674,7 +3907,7 @@ export default function App() {
   }, [contract]);
 
   useEffect(() => {
-    void recordEvent(persistedSession?.version === 5 ? "contract_selected" : "contract_initialized", { reason: persistedSession ? "migration" : "new_session" });
+    void recordEvent((persistedSession?.version ?? 0) >= 5 ? "contract_selected" : "contract_initialized", { reason: persistedSession ? "migration" : "new_session" });
   // The first mount records initial contract only. Level changes have their own event below.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -3844,13 +4077,22 @@ export default function App() {
   // Writing language + read-only translated view. The draft language is the
   // source of truth; a translation is a projection shown to readers and is
   // never written back (see ./language.ts).
-  const [language, setLanguage] = useState<LanguageState>(initialLanguageState);
+  const [language, setLanguage] = useState<LanguageState>(() => {
+    const remembered = persistedSession?.writingLanguage;
+    const fresh = initialLanguageState();
+    return remembered ? setDraftLanguage(fresh, remembered) : fresh;
+  });
   const [translations, setTranslations] = useState<Map<string, string>>(new Map());
-  const [translating, setTranslating] = useState(false);
+  // Two translators (per-string lookup, whole-page DOM pass) finish at different
+  // times; separate flags stop one clearing the banner while the other runs.
+  const [lookupTranslating, setLookupTranslating] = useState(false);
+  const [pageTranslating, setPageTranslating] = useState(false);
+  const translating = lookupTranslating || pageTranslating;
   const [translateError, setTranslateError] = useState("");
   // Input the writer tried to send in the wrong language.
   const [languageMismatch, setLanguageMismatch] = useState(false);
   const readOnlyView = isReadOnlyView(language);
+
 
   // Draft panel state
   const [draftText, setDraftText] = useState(initialDraftText);
@@ -3908,7 +4150,7 @@ export default function App() {
     translationRunRef.current += 1;
     setTranslations(new Map());
     setTranslateError("");
-    setTranslating(false);
+    setLookupTranslating(false);
   }, [pageNeedsTranslation, displayLanguageCode]);
 
   // Deliberately dependency-free: it runs after every render and flushes what
@@ -3923,7 +4165,7 @@ export default function App() {
     pendingTranslationRef.current.clear();
 
     const run = translationRunRef.current;
-    setTranslating(true);
+    setLookupTranslating(true);
     translateStrings(pending, displayLanguageCode, (entries) => {
       // Show each batch as it lands rather than holding the whole screen back
       // until the slowest one returns.
@@ -3939,7 +4181,7 @@ export default function App() {
         setTranslateError(error instanceof Error ? error.message : "Translation failed.");
       })
       .finally(() => {
-        if (translationRunRef.current === run) setTranslating(false);
+        if (translationRunRef.current === run) setLookupTranslating(false);
       });
   });
 
@@ -3947,7 +4189,7 @@ export default function App() {
   // buttons, Control Room labels — that no per-string call site could reach.
   const translationRoot = useCallback(() => document.body, []);
   const handleTranslateError = useCallback((message: string) => setTranslateError(message), []);
-  const handleTranslateBusy = useCallback((busy: boolean) => setTranslating(busy), []);
+  const handleTranslateBusy = useCallback((busy: boolean) => setPageTranslating(busy), []);
   useFullPageTranslation({
     root: translationRoot,
     active: pageNeedsTranslation,
@@ -4497,9 +4739,12 @@ export default function App() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const snapshot: PersistedSession = {
-      version: 5,
+      version: 6,
       sessionId: initialSessionId,
       assistanceLevel,
+      // Persist only once settled; the view language is dropped so a reload
+      // resumes on the writer's words, not inside a read-only projection.
+      writingLanguage: language.settled ? language.draftLanguage : undefined,
       msgs,
       proposals: Array.from(proposals.values()),
       confirmed,
@@ -4543,6 +4788,7 @@ export default function App() {
     draftPos,
     draftSize,
     draftText,
+    language,
     lastCoachDebug,
     understandingSnapshot,
     mapRevision,
@@ -4557,9 +4803,12 @@ export default function App() {
   async function send() {
     const text = input.trim();
     if (!text || loading) return;
-    // The map and the draft are built from the writer's own words in one
-    // language; accepting another would put untraceable wording into both.
-    if (!matchesWritingLanguage(text, language.draftLanguage)) {
+    // The first message sets the writing language (enforcing the browser guess
+    // would reject it); after that, input in another language is blocked so the
+    // map and draft stay in one language.
+    if (!language.settled) {
+      setLanguage((current) => settleDraftLanguage(current, text));
+    } else if (!matchesWritingLanguage(text, language.draftLanguage)) {
       setLanguageMismatch(true);
       return;
     }
@@ -4982,82 +5231,78 @@ export default function App() {
       <div className="layout">
         {/* Chat panel */}
         <div className="chat-panel">
+          {/* Header carries only what shapes the answer: level and framing.
+              Language lives in the map tools, Clear chat by the composer. */}
           <div className="chat-header">
-            <div className="chat-header-actions chat-header-actions-left">
-              <button className="reset-btn" onClick={clearChatOnly} title="Clear the chat conversation only">
-                Clear chat
+            <div className="control-block">
+              <div className="control-block-head">
+                <span className="control-block-label">Assistance</span>
+              </div>
+              <div className="segmented" role="radiogroup" aria-label="Assistance level">
+                {([0, 1, 2] as AssistanceLevel[]).map((level) => (
+                  <button
+                    key={level}
+                    type="button"
+                    role="radio"
+                    aria-checked={assistanceLevel === level}
+                    className={`segmented-option${assistanceLevel === level ? " is-active" : ""}`}
+                    data-level={level}
+                    title={ASSISTANCE_CONTRACTS[level].description}
+                    onClick={() => {
+                      if (level === assistanceLevel) return;
+                      setAssistanceLevel(level);
+                      void recordEvent("contract_changed", { from: assistanceLevel, to: level }, { contract: snapshotContract(contractForLevel(level)) });
+                    }}
+                  >
+                    <span className="segmented-rank">L{level}</span>
+                    <span className="segmented-name">{ASSISTANCE_CONTRACTS[level].label}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="control-block-note">
+                {compareMode
+                  ? "Every turn is answered once per level. Nothing is committed."
+                  : contract.description}
+              </p>
+              <button
+                type="button"
+                className={`compare-toggle${compareMode ? " is-active" : ""}`}
+                aria-pressed={compareMode}
+                title="Answer each turn once per contract level (L0/L1/L2) in one call — read-only, nothing is committed"
+                onClick={() => setCompareMode((on) => !on)}
+              >
+                <span className="compare-toggle-mark" aria-hidden="true">{compareMode ? "◉" : "○"}</span>
+                <span>Compare all 3 levels</span>
               </button>
             </div>
-            <label className="question-bias chat-question-bias">
-              <span>Think</span>
-              <input
-                type="range"
-                min={0}
-                max={100}
-                step={25}
-                list="question-bias-ticks"
-                value={questionBias}
-                aria-label="Question framing bias"
-                onChange={(event) => setQuestionBias(Number(event.target.value))}
-              />
-              <datalist id="question-bias-ticks">
-                <option value="0" />
-                <option value="25" />
-                <option value="50" />
-                <option value="75" />
-                <option value="100" />
-              </datalist>
-              <span>Map</span>
-            </label>
-            <label className="assistance-contract">
-              <span>Help</span>
-              <select
-                aria-label="Assistance level"
-                value={assistanceLevel}
-                onChange={(event) => {
-                  const next = Number(event.target.value) as AssistanceLevel;
-                  setAssistanceLevel(next);
-                  void recordEvent("contract_changed", { from: assistanceLevel, to: next }, { contract: snapshotContract(contractForLevel(next)) });
-                }}
-              >
-                {([0, 1, 2] as AssistanceLevel[]).map((level) => (
-                  <option key={level} value={level}>{ASSISTANCE_CONTRACTS[level].label}</option>
-                ))}
-              </select>
-            </label>
-            <label className="compare-toggle" title="Answer each turn once per contract level (L0/L1/L2) in one call — read-only, nothing is committed">
-              <input type="checkbox" checked={compareMode} onChange={(event) => setCompareMode(event.target.checked)} />
-              <span>Compare 3 levels</span>
-            </label>
-            <label className="writing-language" data-no-translate title="The language you write in. Detected from your text, and overridable — a translation is made from this language.">
-              <span>Writing</span>
-              <select
-                aria-label="Writing language"
-                value={language.draftLanguage}
-                onChange={(event) => {
-                  setLanguage((current) => setDraftLanguage(current, event.target.value));
-                  setLanguageMismatch(false);
-                }}
-              >
-                {LANGUAGE_PICKER_OPTIONS.map((option) => (
-                  <option key={option.code} value={option.code}>{optionText(option)}</option>
-                ))}
-              </select>
-            </label>
-            <label className="view-language" data-no-translate title="Show a read-only translation for a teacher or reader who does not read your writing language. Nothing you see here is written back.">
-              <span>Show in</span>
-              <select
-                aria-label="Translation language"
-                value={effectiveLanguage(language)}
-                onChange={(event) =>
-                  setLanguage((current) => selectViewLanguage(current, event.target.value))
-                }
-              >
-                {LANGUAGE_PICKER_OPTIONS.map((option) => (
-                  <option key={option.code} value={option.code}>{optionText(option)}</option>
-                ))}
-              </select>
-            </label>
+
+            {/* data-stop drives which end takes the framing hue in CSS. */}
+            <div className="control-block" data-stop={questionBias}>
+              <div className="control-block-head">
+                <span className="control-block-label">Framing</span>
+              </div>
+              <label className="bias-rail">
+                <span className="bias-end bias-end-think">Think</span>
+                <span className="bias-track" style={{ ["--bias-fill" as string]: `${questionBias}%` }}>
+                  <span className="bias-ticks" aria-hidden="true">
+                    {QUESTION_BIAS_STOPS.map((stop) => (
+                      <span key={stop} className={`bias-tick${stop <= questionBias ? " is-passed" : ""}`} />
+                    ))}
+                  </span>
+                  <input
+                    type="range"
+                    min={0}
+                    max={100}
+                    step={25}
+                    value={questionBias}
+                    aria-label="Question framing bias, 0 is Think and 100 is Map"
+                    onChange={(event) => setQuestionBias(Number(event.target.value))}
+                  />
+                </span>
+                <span className="bias-end bias-end-map">Map</span>
+              </label>
+            </div>
+
           </div>
 
           {readOnlyView && (
@@ -5270,7 +5515,12 @@ export default function App() {
                 </div>
               </div>
             </div>
-            <div className="input-hint">Enter to send {"\u00b7"} Shift+Enter for newline</div>
+            <div className="input-hint">
+              <span>Enter to send {"\u00b7"} Shift+Enter for newline</span>
+              <button type="button" className="clear-chat-btn" onClick={clearChatOnly} title="Clear the chat conversation only">
+                Clear chat
+              </button>
+            </div>
           </div>
         </div>
 
@@ -5381,6 +5631,50 @@ export default function App() {
             confirmed={confirmed}
             coachDebug={lastCoachDebug}
             commandAck={commandAck}
+            languageTools={
+              <div className={`language-bar${readOnlyView ? " is-translated" : ""}`} data-no-translate>
+                <label className="lang-field" title="The language you write in. Detected from your first message, and overridable — a translation is made from this language.">
+                  <span className="lang-field-icon" aria-hidden="true">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M11.5 2.5l2 2L6 12l-2.5.5L4 10z" />
+                      <path d="M10 4l2 2" />
+                    </svg>
+                  </span>
+                  <select
+                    aria-label="Writing language"
+                    value={language.draftLanguage}
+                    onChange={(event) => {
+                      setLanguage((current) => setDraftLanguage(current, event.target.value));
+                      setLanguageMismatch(false);
+                    }}
+                  >
+                    {LANGUAGE_PICKER_OPTIONS.map((option) => (
+                      <option key={option.code} value={option.code}>{optionText(option)}</option>
+                    ))}
+                  </select>
+                </label>
+                <span className="lang-divider" aria-hidden="true" />
+                <label className="lang-field lang-field-view" title="Show a read-only translation for a teacher or reader who does not read your writing language. Nothing you see here is written back.">
+                  <span className="lang-field-icon" aria-hidden="true">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M1.5 8S3.5 4 8 4s6.5 4 6.5 4-2 4-6.5 4S1.5 8 1.5 8z" />
+                      <circle cx="8" cy="8" r="1.8" />
+                    </svg>
+                  </span>
+                  <select
+                    aria-label="Translation language"
+                    value={effectiveLanguage(language)}
+                    onChange={(event) =>
+                      setLanguage((current) => selectViewLanguage(current, event.target.value))
+                    }
+                  >
+                    {LANGUAGE_PICKER_OPTIONS.map((option) => (
+                      <option key={option.code} value={option.code}>{optionText(option)}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            }
             draftDockSlot={
               <div className={`map-draft-slot ${draftDocked ? "occupied" : "empty"}`}>
                 {draftDocked ? (

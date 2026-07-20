@@ -2,17 +2,20 @@ import { describe, expect, it } from "vitest";
 import {
   LANGUAGE_CODES,
   defaultDraftLanguage,
+  detectWritingLanguage,
   effectiveLanguage,
+  initialLanguageState,
   isReadOnlyView,
   languageLabel,
   languageOptions,
   matchesWritingLanguage,
   selectViewLanguage,
   setDraftLanguage,
+  settleDraftLanguage,
   type LanguageState,
 } from "./language";
 
-const zhDraft: LanguageState = { draftLanguage: "zh", viewLanguage: null };
+const zhDraft: LanguageState = { draftLanguage: "zh", viewLanguage: null, settled: true };
 
 describe("languageOptions", () => {
   it("returns one option per supported code", () => {
@@ -109,7 +112,75 @@ describe("matchesWritingLanguage", () => {
   });
 });
 
+describe("detectWritingLanguage", () => {
+  it("identifies a language its script gives away", () => {
+    expect(detectWritingLanguage("我想写一篇关于气候的文章", "en")).toBe("zh");
+    expect(detectWritingLanguage("환경에 대해 쓰고 싶어요", "en")).toBe("ko");
+    expect(detectWritingLanguage("θέλω να γράψω", "en")).toBe("el");
+    expect(detectWritingLanguage("ฉันอยากเขียน", "en")).toBe("th");
+  });
+
+  it("separates Japanese from Chinese by kana, not by character count", () => {
+    // Mostly Han, a little kana — a majority vote would call this Chinese.
+    expect(detectWritingLanguage("環境問題について書きたいです", "en")).toBe("ja");
+  });
+
+  it("keeps the guess when the script serves several languages", () => {
+    expect(detectWritingLanguage("я хочу написати", "uk")).toBe("uk");
+    expect(detectWritingLanguage("я хочу написать", "en")).toBe("ru");
+  });
+
+  it("cannot tell Latin languages apart, so it keeps a Latin guess", () => {
+    expect(detectWritingLanguage("je veux écrire un essai", "fr")).toBe("fr");
+    expect(detectWritingLanguage("I want to write an essay", "fr")).toBe("fr");
+  });
+
+  it("falls back to English when the guess is not Latin-script", () => {
+    // A Chinese browser, but the writer is plainly writing English.
+    expect(detectWritingLanguage("I want to write an essay", "zh")).toBe("en");
+  });
+
+  it("is decided by the dominant script, not the first one seen", () => {
+    // A quoted term must not decide the language of the message quoting it.
+    expect(detectWritingLanguage("I read the term 中文 somewhere", "en")).toBe("en");
+    expect(detectWritingLanguage("我觉得 AI 应该这样做", "en")).toBe("zh");
+  });
+
+  it("keeps the guess for text with no script at all", () => {
+    expect(detectWritingLanguage("123 !!!", "zh")).toBe("zh");
+    expect(detectWritingLanguage("   ", "ja")).toBe("ja");
+  });
+});
+
+describe("settleDraftLanguage", () => {
+  it("starts unsettled, so the browser guess is never enforced", () => {
+    expect(initialLanguageState().settled).toBe(false);
+  });
+
+  it("takes the writing language from the first message", () => {
+    const settled = settleDraftLanguage(initialLanguageState(), "我想写一篇文章");
+    expect(settled.draftLanguage).toBe("zh");
+    expect(settled.settled).toBe(true);
+  });
+
+  it("ignores later messages once settled", () => {
+    // Quoting an English passage mid-session must not redefine a Chinese
+    // session — the map and draft are already built from Chinese words.
+    const settled = settleDraftLanguage(initialLanguageState(), "我想写一篇文章");
+    expect(settleDraftLanguage(settled, "just quoting this").draftLanguage).toBe("zh");
+  });
+
+  it("leaves an explicit choice alone", () => {
+    const chosen = setDraftLanguage(initialLanguageState(), "ja");
+    expect(settleDraftLanguage(chosen, "我想写一篇文章").draftLanguage).toBe("ja");
+  });
+});
+
 describe("setDraftLanguage", () => {
+  it("settles the language, so the picker counts as a choice", () => {
+    expect(setDraftLanguage(initialLanguageState(), "fr").settled).toBe(true);
+  });
+
   it("can be changed at any time", () => {
     expect(setDraftLanguage(zhDraft, "ja").draftLanguage).toBe("ja");
   });
@@ -118,7 +189,7 @@ describe("setDraftLanguage", () => {
     // The initial value is only guessed from the browser locale. Locking a
     // wrong guess would strand a writer whose browser language is not the
     // language they write in.
-    const afterWriting: LanguageState = { draftLanguage: "zh", viewLanguage: null };
+    const afterWriting: LanguageState = { draftLanguage: "zh", viewLanguage: null, settled: true };
     expect(setDraftLanguage(afterWriting, "en").draftLanguage).toBe("en");
   });
 

@@ -36,6 +36,9 @@ export interface LanguageOption {
 export interface LanguageState {
   draftLanguage: string;
   viewLanguage: string | null;
+  /** False while `draftLanguage` is only the browser's guess; a guess is never
+   *  enforced against input. Set once the first message or the picker settles it. */
+  settled: boolean;
 }
 
 /**
@@ -109,6 +112,7 @@ const SCRIPT_BY_LANGUAGE: Record<string, RegExp> = {
 };
 
 const LATIN = /\p{Script=Latin}/u;
+const LATIN_GLOBAL = /\p{Script=Latin}/gu;
 
 /**
  * Whether some text plausibly belongs to the writing language.
@@ -133,8 +137,83 @@ export function matchesWritingLanguage(text: string, code: string): boolean {
   return true;
 }
 
+/** Languages per script, most likely first. Kana are split from Han because
+ *  they distinguish Japanese from Chinese; Latin is handled separately below. */
+const SCRIPT_CANDIDATES: Array<{ script: RegExp; languages: string[] }> = [
+  { script: /[\p{Script=Hiragana}\p{Script=Katakana}]/gu, languages: ["ja"] },
+  { script: /\p{Script=Han}/gu, languages: ["zh", "ja"] },
+  { script: /\p{Script=Hangul}/gu, languages: ["ko"] },
+  { script: /\p{Script=Cyrillic}/gu, languages: ["ru", "uk"] },
+  { script: /\p{Script=Arabic}/gu, languages: ["ar", "fa", "ur"] },
+  { script: /\p{Script=Hebrew}/gu, languages: ["he"] },
+  { script: /\p{Script=Greek}/gu, languages: ["el"] },
+  { script: /\p{Script=Devanagari}/gu, languages: ["hi"] },
+  { script: /\p{Script=Bengali}/gu, languages: ["bn"] },
+  { script: /\p{Script=Tamil}/gu, languages: ["ta"] },
+  { script: /\p{Script=Thai}/gu, languages: ["th"] },
+];
+
+function countMatches(text: string, script: RegExp): number {
+  script.lastIndex = 0; // these patterns are global and module-level
+  let count = 0;
+  while (script.exec(text) !== null) count += 1;
+  return count;
+}
+
+/**
+ * Read the writing language off the writer's text by script.
+ *
+ * Decisive where a script is (Chinese, Japanese, Korean, Greek…). Where one
+ * script serves several languages, `preferred` (the browser guess) picks among
+ * them, since the text cannot separate e.g. English from French. The dominant
+ * script wins, so a quoted foreign term does not decide the message.
+ */
+export function detectWritingLanguage(
+  text: string,
+  preferred: string = defaultDraftLanguage(),
+): string {
+  const trimmed = text.trim();
+  if (!trimmed) return preferred;
+
+  let best: string[] | null = null;
+  let bestCount = 0;
+  for (const { script, languages } of SCRIPT_CANDIDATES) {
+    const count = countMatches(trimmed, script);
+    // Any kana settles Japanese; a count vote would read its Han majority as Chinese.
+    if (count > 0 && languages[0] === "ja") return "ja";
+    if (count > bestCount) {
+      best = languages;
+      bestCount = count;
+    }
+  }
+
+  const latinCount = countMatches(trimmed, LATIN_GLOBAL);
+  if (latinCount > bestCount) {
+    // Latin: keep the guess if it is itself Latin-script, else fall back to English.
+    return SCRIPT_BY_LANGUAGE[preferred] ? "en" : preferred;
+  }
+  if (!best) return preferred;
+
+  // Honour the guess when it is one of this script's languages (uk over ru).
+  return best.includes(preferred) ? preferred : best[0];
+}
+
 export function initialLanguageState(): LanguageState {
-  return { draftLanguage: defaultDraftLanguage(), viewLanguage: null };
+  // Only a guess until the first message arrives to confirm or correct it.
+  return { draftLanguage: defaultDraftLanguage(), viewLanguage: null, settled: false };
+}
+
+/**
+ * Fix the writing language from the first message, once. Later messages never
+ * move it: the map and draft are already built from that language's words, so
+ * quoting another one must not redefine the session.
+ */
+export function settleDraftLanguage(
+  state: LanguageState,
+  text: string,
+): LanguageState {
+  if (state.settled) return state;
+  return setDraftLanguage(state, detectWritingLanguage(text, state.draftLanguage));
 }
 
 /** The language actually on screen right now. */
@@ -166,13 +245,9 @@ export function selectViewLanguage(
 }
 
 /**
- * Change the writing language.
- *
- * Deliberately never locked. The initial value is only a guess from the
- * browser's UI locale, which is frequently wrong — someone with a Chinese
- * browser may well be writing in English. Locking a wrong guess once the
- * session has content would leave the writer permanently mislabelled with no
- * way out, which is far worse than allowing a late correction.
+ * Change the writing language, and settle it. Never locked: detection can only
+ * narrow a Latin-script language to the browser guess, so a writer drafting
+ * French in an English browser must be able to correct it later.
  */
 export function setDraftLanguage(
   state: LanguageState,
@@ -182,5 +257,6 @@ export function setDraftLanguage(
   return {
     draftLanguage: code,
     viewLanguage: state.viewLanguage === code ? null : state.viewLanguage,
+    settled: true,
   };
 }

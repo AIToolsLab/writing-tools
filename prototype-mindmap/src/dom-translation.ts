@@ -110,6 +110,9 @@ export function useFullPageTranslation({
 
     let cancelled = false;
     let scheduled = 0;
+    let observer: MutationObserver | null = null;
+    let flushing = false;
+    let flushAgain = false;
 
     /** Put known translations on screen; return whatever is still missing. */
     function apply(): { visible: string[]; offscreen: string[] } {
@@ -162,33 +165,67 @@ export function useFullPageTranslation({
       };
     }
 
+    /**
+     * Apply, without the observer hearing our own writes — otherwise each
+     * mutation re-fires the observer that scheduled this pass, a loop that only
+     * ends when nothing is left to translate and keeps opening requests meanwhile.
+     */
+    function applyQuietly(): { visible: string[]; offscreen: string[] } {
+      observer?.disconnect();
+      try {
+        return apply();
+      } finally {
+        const element = root();
+        if (!cancelled && observer && element) {
+          observer.observe(element, { subtree: true, childList: true, characterData: true });
+        }
+      }
+    }
+
     async function flush() {
-      const { visible, offscreen } = apply();
-      if (cancelled || (visible.length === 0 && offscreen.length === 0)) {
-        onBusyChange(false);
+      // One pass at a time: overlapping passes each opened batches and reported
+      // "done" separately, flickering the indicator while requests multiplied.
+      if (flushing) {
+        flushAgain = true;
         return;
       }
-      onBusyChange(true);
-      function absorb(entries: Array<[string, string]>) {
-        if (cancelled) return;
-        for (const [original, translated] of entries) {
-          cache.current.set(original, translated);
-        }
-        apply();
-      }
+      flushing = true;
       try {
-        // On-screen text first, so the page stops looking half-translated while
-        // long off-screen passages are still in flight.
-        if (visible.length > 0) await translateStrings(visible, target, absorb);
-        if (!cancelled && offscreen.length > 0) {
-          await translateStrings(offscreen, target, absorb);
+        const { visible, offscreen } = applyQuietly();
+        if (cancelled || (visible.length === 0 && offscreen.length === 0)) {
+          onBusyChange(false);
+          return;
         }
-      } catch (error) {
-        if (!cancelled) {
-          onError(error instanceof Error ? error.message : "Translation failed.");
+        onBusyChange(true);
+        function absorb(entries: Array<[string, string]>) {
+          if (cancelled) return;
+          for (const [original, translated] of entries) {
+            cache.current.set(original, translated);
+          }
+          applyQuietly();
+        }
+        try {
+          // On-screen text first, so the page stops looking half-translated
+          // while long off-screen passages are still in flight.
+          if (visible.length > 0) await translateStrings(visible, target, absorb);
+          if (!cancelled && offscreen.length > 0) {
+            await translateStrings(offscreen, target, absorb);
+          }
+        } catch (error) {
+          if (!cancelled) {
+            onError(error instanceof Error ? error.message : "Translation failed.");
+          }
+        } finally {
+          if (!cancelled) onBusyChange(false);
         }
       } finally {
-        if (!cancelled) onBusyChange(false);
+        flushing = false;
+        // Real changes that arrived mid-pass (a new message, a reopened panel)
+        // are picked up once, after.
+        if (flushAgain && !cancelled) {
+          flushAgain = false;
+          schedule();
+        }
       }
     }
 
@@ -204,20 +241,21 @@ export function useFullPageTranslation({
       }, 200);
     }
 
-    void flush();
-
-    // React rewrites the text nodes it owns on every re-render, so the
-    // translation has to be re-applied whenever the tree changes.
-    const observer = new MutationObserver(schedule);
-    const element = root();
-    if (element) {
-      observer.observe(element, { subtree: true, childList: true, characterData: true });
+    // React rewrites its text nodes on re-render, so re-apply on tree changes.
+    // Created before the first flush so flush can pause it while it writes.
+    observer = new MutationObserver(schedule);
+    const observed = root();
+    if (observed) {
+      observer.observe(observed, { subtree: true, childList: true, characterData: true });
     }
+
+    void flush();
 
     return () => {
       cancelled = true;
       if (scheduled) window.clearTimeout(scheduled);
-      observer.disconnect();
+      observer?.disconnect();
+      observer = null;
       restore();
     };
   }, [active, target, root, onError, onBusyChange]);

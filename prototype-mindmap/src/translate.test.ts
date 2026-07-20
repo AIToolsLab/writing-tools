@@ -107,6 +107,42 @@ describe("translateStrings", () => {
     );
   });
 
+  it("retries a transport failure once before giving up", async () => {
+    // An empty body under load is transient; failing the page on the first
+    // one made a hiccup look like a broken feature.
+    let calls = 0;
+    vi.spyOn(api, "postChat").mockImplementation(async (messages) => {
+      calls += 1;
+      if (calls === 1) throw new SyntaxError("Unexpected end of JSON input");
+      return echoTranslator(messages);
+    });
+    await expect(translateStrings(["a"], "zh")).resolves.toEqual(["<a>"]);
+    expect(calls).toBe(2);
+  });
+
+  it("holds concurrent requests to the limit across separate callers", async () => {
+    // Two callers at once with a per-call limit each opened their own four
+    // connections; the backend answered with empty bodies — what this bounds.
+    let open = 0;
+    let peak = 0;
+    vi.spyOn(api, "postChat").mockImplementation(async (messages) => {
+      open += 1;
+      peak = Math.max(peak, open);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      open -= 1;
+      return echoTranslator(messages);
+    });
+
+    // Two callers, each with more batches than the limit allows on its own.
+    const many = Array.from({ length: 60 }, (_unused, index) => `item ${index}`);
+    await Promise.all([
+      translateStrings(many, "zh"),
+      translateStrings(many.map((text) => `${text} b`), "zh"),
+    ]);
+
+    expect(peak).toBeLessThanOrEqual(4);
+  });
+
   it("rejects a response whose item count does not match the request", async () => {
     // A short array would silently shift every later translation onto the wrong
     // source string, so this must fail rather than render misaligned text.

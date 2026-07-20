@@ -27,6 +27,28 @@ const MAX_CHARS_PER_BATCH = 2500;
  */
 const MAX_CONCURRENT_BATCHES = 4;
 
+/**
+ * Module-wide, not per call. Two callers translate a page at once (the DOM pass
+ * and the per-string lookup); a per-call pool let each open its own four
+ * connections, so the real number in flight was a multiple of the limit — which
+ * is what drew the empty bodies.
+ */
+let inFlight = 0;
+const waitingForSlot: Array<() => void> = [];
+
+async function withSlot<T>(run: () => Promise<T>): Promise<T> {
+  while (inFlight >= MAX_CONCURRENT_BATCHES) {
+    await new Promise<void>((resolve) => waitingForSlot.push(resolve));
+  }
+  inFlight += 1;
+  try {
+    return await run();
+  } finally {
+    inFlight -= 1;
+    waitingForSlot.shift()?.();
+  }
+}
+
 export class TranslationError extends Error {}
 
 /**
@@ -91,17 +113,24 @@ async function translateBatch(
   ].join(" ");
   const user = JSON.stringify({ items: segments });
 
+  const messages = [
+    { role: "system" as const, content: system },
+    { role: "user" as const, content: user },
+  ];
+
   let raw: string;
   try {
-    raw = await postChat([
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ]);
+    raw = await postChat(messages);
   } catch (error) {
-    // A truncated or empty body surfaces here as a bare "Unexpected end of JSON
-    // input", which says nothing about what actually failed.
-    const detail = error instanceof Error ? error.message : String(error);
-    throw new TranslationError(`Could not reach the translation service (${detail}).`);
+    // Transport failures are usually transient (a dropped/empty body under
+    // load), so retry once before failing the whole page.
+    try {
+      raw = await postChat(messages);
+    } catch {
+      // The raw failure is a bare "Unexpected end of JSON input"; name it.
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new TranslationError(`Could not reach the translation service (${detail}).`);
+    }
   }
   return parseTranslations(raw, segments.length);
 }
@@ -125,30 +154,25 @@ export async function translateStrings(
     .filter((index) => texts[index].trim().length > 0);
   if (translatable.length === 0) return result;
 
-  // Batches are independent, so several run at once — a long session is
-  // otherwise as slow as the sum of its parts — but only a few at a time, and
-  // each reports as it lands so text appears progressively.
+  // Independent batches run concurrently and report as they land, all queued on
+  // the module-wide slot limit so the open count is independent of caller count.
   const batches = batchIndices(texts, translatable);
-  let next = 0;
-
-  async function worker() {
-    while (next < batches.length) {
-      const batch = batches[next++];
-      const translated = await translateBatch(
-        batch.map((index) => texts[index]),
-        target,
-      );
-      const entries: Array<[string, string]> = [];
-      batch.forEach((index, position) => {
-        result[index] = translated[position];
-        entries.push([texts[index], translated[position]]);
-      });
-      onPartial?.(entries);
-    }
-  }
 
   await Promise.all(
-    Array.from({ length: Math.min(MAX_CONCURRENT_BATCHES, batches.length) }, worker),
+    batches.map((batch) =>
+      withSlot(async () => {
+        const translated = await translateBatch(
+          batch.map((index) => texts[index]),
+          target,
+        );
+        const entries: Array<[string, string]> = [];
+        batch.forEach((index, position) => {
+          result[index] = translated[position];
+          entries.push([texts[index], translated[position]]);
+        });
+        onPartial?.(entries);
+      }),
+    ),
   );
   return result;
 }
