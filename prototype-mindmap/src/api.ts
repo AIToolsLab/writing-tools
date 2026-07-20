@@ -33,7 +33,7 @@ export const PROVIDER_TRANSPORT: ProviderTransport = import.meta.env.VITE_MINDMA
 
 export interface OpenAIMessage { role: "system" | "user" | "assistant"; content: string }
 
-async function postChat(messages: OpenAIMessage[]): Promise<string> {
+export async function postChat(messages: OpenAIMessage[]): Promise<string> {
   const response = await fetch(`${BACKEND_URL}/openai/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },

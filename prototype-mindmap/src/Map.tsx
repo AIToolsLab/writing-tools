@@ -28,6 +28,7 @@ import { computeAutoCleanPositions, computeConnectionHandles } from "./map-layou
 import { executeCanvasAction, type CanvasAction } from "./action-gateway";
 import type { ConnectionLayoutDirection, ThoughtUnitStore, XYBounds, XYPosition, XYSize } from "./map-store";
 import type { SourceBank } from "./store";
+import { useTranslation } from "./translation-context";
 import { cardRef } from "./store";
 import type { ConfirmedReflection, ThoughtUnit } from "./types";
 
@@ -417,6 +418,7 @@ function ConnectionHandles() {
  * visual instead of a card sitting on top of another.
  */
 function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActions }) {
+  const { readOnly, translate } = useTranslation();
   const [draft, setDraft] = useState(unit.text);
   const [dragging, setDragging] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -449,7 +451,10 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
       <span className="map-embed-drag-grip" role="img" aria-label="Drag nested card" title="Drag nested card" />
       <textarea
         className="map-embed-editor nodrag nowheel"
-        value={draft}
+        // A translation is not the writer's wording, so it is shown but never
+        // editable — committing it would overwrite the card with the projection.
+        readOnly={readOnly}
+        value={readOnly ? translate(unit.text) : draft}
         rows={rows}
         placeholder="(empty)"
         onChange={(event) => setDraft(event.target.value)}
@@ -496,6 +501,7 @@ function embeddedTextareaRows(text: string): number {
 
 function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
   const { unit, actions, size } = data;
+  const { readOnly, translate } = useTranslation();
   const [draft, setDraft] = useState(unit.text);
 
   useEffect(() => {
@@ -575,7 +581,10 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
 
       <textarea
         className="map-card-editor nodrag nowheel"
-        value={draft}
+        // Shown but never editable: committing a translation would replace the
+        // card text with the projection instead of the writer's own wording.
+        readOnly={readOnly}
+        value={readOnly ? translate(unit.text) : draft}
         placeholder="(empty card — type your idea)"
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}

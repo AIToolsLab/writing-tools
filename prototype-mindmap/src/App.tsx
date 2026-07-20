@@ -17,6 +17,19 @@ import { buildDiagnosticSnapshot, type SafetyCheck, type TrackedIdea, type Under
 import { useSpeechToText } from "./useSpeechToText";
 import { ASSISTANCE_CONTRACTS, contractForLevel, DEFAULT_ASSISTANCE_CONTRACT, normalizeInfluenceTrace, snapshotContract, type AssistanceLevel } from "./assistance-contract";
 import { EventLedger, mirrorSanitizedEvent, type LedgerEventKind } from "./event-ledger";
+import { effectiveLanguage, initialLanguageState, isReadOnlyView, languageLabel, languageOptions, matchesWritingLanguage, selectViewLanguage, setDraftLanguage, type LanguageOption, type LanguageState } from "./language";
+import { translateStrings } from "./translate";
+import { useFullPageTranslation } from "./dom-translation";
+import { TranslationContext } from "./translation-context";
+
+const LANGUAGE_PICKER_OPTIONS = languageOptions();
+
+/** "Chinese (中文)" — the autonym helps writers find their own language. */
+function optionText(option: LanguageOption): string {
+  return option.nativeLabel && option.nativeLabel !== option.label
+    ? `${option.label} (${option.nativeLabel})`
+    : option.label;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -642,6 +655,66 @@ const css = `
   .input-row:focus-within {
     border-color: #1a6fa3;
     box-shadow: 0 0 0 2px rgba(26, 111, 163, 0.1);
+  }
+
+  /* Writing-language and read-only translation controls */
+  .writing-language,
+  .view-language {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 11px;
+    color: #6b6257;
+  }
+  .writing-language select,
+  .view-language select {
+    max-width: 120px;
+    font-size: 11px;
+    padding: 2px 4px;
+    border: 1px solid #d8cfc0;
+    border-radius: 4px;
+    background: #fff;
+    color: #2f2b25;
+  }
+  .language-mismatch {
+    margin: 0 0 6px;
+    padding: 6px 8px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #8a5a1f;
+    background: #fdf6e3;
+    border: 1px solid #e8dcc0;
+    border-radius: 4px;
+  }
+  .translation-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+    padding: 6px 10px;
+    font-size: 11px;
+    line-height: 1.4;
+    color: #5a4a2f;
+    background: #fdf6e3;
+    border-bottom: 1px solid #e8dcc0;
+  }
+  .translation-banner button {
+    flex-shrink: 0;
+    padding: 3px 8px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #5a4a2f;
+    background: #fff;
+    border: 1px solid #d8c9a4;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .translation-banner button:hover { background: #f7efd9; }
+  .draft-editor-translated {
+    white-space: pre-wrap;
+    cursor: default;
+    background: #fdfaf3;
   }
 
   .composer-toolbar {
@@ -3768,6 +3841,17 @@ export default function App() {
     );
   }, []);
 
+  // Writing language + read-only translated view. The draft language is the
+  // source of truth; a translation is a projection shown to readers and is
+  // never written back (see ./language.ts).
+  const [language, setLanguage] = useState<LanguageState>(initialLanguageState);
+  const [translations, setTranslations] = useState<Map<string, string>>(new Map());
+  const [translating, setTranslating] = useState(false);
+  const [translateError, setTranslateError] = useState("");
+  // Input the writer tried to send in the wrong language.
+  const [languageMismatch, setLanguageMismatch] = useState(false);
+  const readOnlyView = isReadOnlyView(language);
+
   // Draft panel state
   const [draftText, setDraftText] = useState(initialDraftText);
   const [draftHtml, setDraftHtml] = useState(initialDraftHtml);
@@ -3781,6 +3865,101 @@ export default function App() {
   const preExpandChipPosRef = useRef<DraftPanelPos | null>(null);
   const draftPanelRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLDivElement>(null);
+
+  // What the entire page renders in: the writing language by default, or a
+  // reader's language while a translation is being shown.
+  const displayLanguageCode = effectiveLanguage(language);
+  // Interface copy is authored in English, so anything other than an English
+  // page needs translating even when nothing is being 'shown in' another
+  // language.
+  const pageNeedsTranslation = displayLanguageCode !== "en" || readOnlyView;
+
+  // Strings asked for during render but not translated yet. Held in a ref so
+  // that asking costs nothing; the flush effect below picks them up after the
+  // render completes.
+  const pendingTranslationRef = useRef<Set<string>>(new Set());
+  // Identifies the current view. A response from an earlier language must not
+  // be written into the map after the user has switched again.
+  const translationRunRef = useRef(0);
+
+  /**
+   * The page-wide lookup. Everything rendered anywhere — a card, a recap line,
+   * a chat bubble — passes through here. Strings with no translation yet are
+   * queued, and the original shows until the translation lands.
+   *
+   * Enumerating every translatable string up front is not workable across the
+   * map and the Control Room, so translation is demand-driven instead.
+   */
+  const translate = useCallback(
+    (text: string): string => {
+      if (!pageNeedsTranslation || !text || !text.trim()) return text;
+      const hit = translations.get(text);
+      if (hit !== undefined) return hit;
+      pendingTranslationRef.current.add(text);
+      return text;
+    },
+    [pageNeedsTranslation, translations],
+  );
+
+  // Drop everything when the view changes, so text in one language is never
+  // left on screen while another is being fetched.
+  useEffect(() => {
+    pendingTranslationRef.current.clear();
+    translationRunRef.current += 1;
+    setTranslations(new Map());
+    setTranslateError("");
+    setTranslating(false);
+  }, [pageNeedsTranslation, displayLanguageCode]);
+
+  // Deliberately dependency-free: it runs after every render and flushes what
+  // that render asked for. It exits immediately when the queue is empty, which
+  // is the steady state once everything on screen has been translated.
+  useEffect(() => {
+    if (!pageNeedsTranslation) return;
+    const pending = Array.from(pendingTranslationRef.current).filter(
+      (text) => !translations.has(text),
+    );
+    if (pending.length === 0) return;
+    pendingTranslationRef.current.clear();
+
+    const run = translationRunRef.current;
+    setTranslating(true);
+    translateStrings(pending, displayLanguageCode, (entries) => {
+      // Show each batch as it lands rather than holding the whole screen back
+      // until the slowest one returns.
+      if (translationRunRef.current !== run) return;
+      setTranslations((current) => {
+        const next = new Map(current);
+        for (const [original, translated] of entries) next.set(original, translated);
+        return next;
+      });
+    })
+      .catch((error: unknown) => {
+        if (translationRunRef.current !== run) return;
+        setTranslateError(error instanceof Error ? error.message : "Translation failed.");
+      })
+      .finally(() => {
+        if (translationRunRef.current === run) setTranslating(false);
+      });
+  });
+
+  // Translating the rendered page covers interface copy — section headers,
+  // buttons, Control Room labels — that no per-string call site could reach.
+  const translationRoot = useCallback(() => document.body, []);
+  const handleTranslateError = useCallback((message: string) => setTranslateError(message), []);
+  const handleTranslateBusy = useCallback((busy: boolean) => setTranslating(busy), []);
+  useFullPageTranslation({
+    root: translationRoot,
+    active: pageNeedsTranslation,
+    target: displayLanguageCode,
+    onError: handleTranslateError,
+    onBusyChange: handleTranslateBusy,
+  });
+
+  const translationView = useMemo(
+    () => ({ readOnly: readOnlyView, translate }),
+    [readOnlyView, translate],
+  );
 
   // The coach's question-anchor highlight is drawn with a REAL DOM selection (to
   // reveal/scroll the span). That must never be mistaken for a selection the user
@@ -3838,7 +4017,9 @@ export default function App() {
     if (editor.innerHTML !== draftHtml && (draftHtml === "" || document.activeElement !== editor)) {
       editor.innerHTML = draftHtml;
     }
-  }, [draftCollapsed, draftHtml]);
+    // readOnlyView is a dependency because leaving the translated view remounts
+    // an empty editor; without a re-sync the draft would render blank.
+  }, [draftCollapsed, draftHtml, readOnlyView]);
 
   // Position draft panel once window is available
   useEffect(() => {
@@ -4376,6 +4557,12 @@ export default function App() {
   async function send() {
     const text = input.trim();
     if (!text || loading) return;
+    // The map and the draft are built from the writer's own words in one
+    // language; accepting another would put untraceable wording into both.
+    if (!matchesWritingLanguage(text, language.draftLanguage)) {
+      setLanguageMismatch(true);
+      return;
+    }
     const nonce = ++turnNonceRef.current;
     const selectedCardIds = Array.from(contextSelectedCardIds).filter((id) => {
       const card = mapStoreRef.current.get(id);
@@ -4790,7 +4977,7 @@ export default function App() {
   }
 
   return (
-    <>
+    <TranslationContext.Provider value={translationView}>
       <style>{css}</style>
       <div className="layout">
         {/* Chat panel */}
@@ -4842,7 +5029,55 @@ export default function App() {
               <input type="checkbox" checked={compareMode} onChange={(event) => setCompareMode(event.target.checked)} />
               <span>Compare 3 levels</span>
             </label>
+            <label className="writing-language" data-no-translate title="The language you write in. Detected from your text, and overridable — a translation is made from this language.">
+              <span>Writing</span>
+              <select
+                aria-label="Writing language"
+                value={language.draftLanguage}
+                onChange={(event) => {
+                  setLanguage((current) => setDraftLanguage(current, event.target.value));
+                  setLanguageMismatch(false);
+                }}
+              >
+                {LANGUAGE_PICKER_OPTIONS.map((option) => (
+                  <option key={option.code} value={option.code}>{optionText(option)}</option>
+                ))}
+              </select>
+            </label>
+            <label className="view-language" data-no-translate title="Show a read-only translation for a teacher or reader who does not read your writing language. Nothing you see here is written back.">
+              <span>Show in</span>
+              <select
+                aria-label="Translation language"
+                value={effectiveLanguage(language)}
+                onChange={(event) =>
+                  setLanguage((current) => selectViewLanguage(current, event.target.value))
+                }
+              >
+                {LANGUAGE_PICKER_OPTIONS.map((option) => (
+                  <option key={option.code} value={option.code}>{optionText(option)}</option>
+                ))}
+              </select>
+            </label>
           </div>
+
+          {readOnlyView && (
+            <div className="translation-banner" data-no-translate>
+              <span>
+                Read-only translation into {languageLabel(effectiveLanguage(language))}
+                {translating ? " · translating…" : ""}
+                {" · "}your {languageLabel(language.draftLanguage)} words are unchanged.
+              </span>
+              <button
+                type="button"
+                onClick={() => setLanguage((current) => selectViewLanguage(current, null))}
+              >
+                ← Back to {languageLabel(language.draftLanguage)} to continue
+              </button>
+            </div>
+          )}
+          {readOnlyView && translateError && (
+            <div className="error-banner">{translateError}</div>
+          )}
 
           {!ledgerAvailable && <div className="error-banner">Local audit storage is unavailable in this browser.</div>}
 
@@ -4930,16 +5165,31 @@ export default function App() {
                 <button className="focus-chip-dismiss" type="button" onClick={() => setStickyDraftFocus(undefined)} aria-label="Stop focusing on selected text">×</button>
               </div>
             )}
+            {languageMismatch && (
+              <div className="language-mismatch" data-no-translate>
+                Please write in {languageLabel(language.draftLanguage)} — this is your
+                writing language. Change it above if you want to write in another.
+              </div>
+            )}
             <div className="input-row">
               <textarea
                 ref={textareaRef}
                 className={`composer-textarea ${composerScrollable ? "composer-scroll" : ""}`}
                 rows={2}
-                placeholder="Say what's on your mind…"
+                placeholder={
+                  readOnlyView
+                    ? `Switch back to ${languageLabel(language.draftLanguage)} to continue writing…`
+                    : "Say what's on your mind…"
+                }
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value);
+                  if (languageMismatch) setLanguageMismatch(false);
+                }}
                 onKeyDown={onKey}
-                disabled={loading}
+                // A translation is not the writer's own words, so nothing may be
+                // composed or sent while it is on screen.
+                disabled={loading || readOnlyView}
               />
               <div className="composer-toolbar">
                 <div className="composer-left-tools">
@@ -5093,20 +5343,29 @@ export default function App() {
           {!draftCollapsed && (
             <div className="draft-body">
               <div className="draft-editor-wrap">
-                <div
-                  ref={draftRef}
-                  className="draft-editor"
-                  contentEditable
-                  suppressContentEditableWarning
-                  role="textbox"
-                  aria-multiline="true"
-                  data-placeholder="Paste or type your draft here..."
-                  onInput={handleDraftInput}
-                  onSelect={updateDraftSelectionFocus}
-                  onKeyUp={updateDraftSelectionFocus}
-                  onMouseUp={updateDraftSelectionFocus}
-                  onPaste={handleDraftPaste}
-                />
+                {readOnlyView ? (
+                  // Render the translation in a separate, non-editable node.
+                  // Writing it into the contentEditable above would fire
+                  // onInput and overwrite the real draft with the translation.
+                  <div className="draft-editor draft-editor-translated">
+                    {draftText}
+                  </div>
+                ) : (
+                  <div
+                    ref={draftRef}
+                    className="draft-editor"
+                    contentEditable
+                    suppressContentEditableWarning
+                    role="textbox"
+                    aria-multiline="true"
+                    data-placeholder="Paste or type your draft here..."
+                    onInput={handleDraftInput}
+                    onSelect={updateDraftSelectionFocus}
+                    onKeyUp={updateDraftSelectionFocus}
+                    onMouseUp={updateDraftSelectionFocus}
+                    onPaste={handleDraftPaste}
+                  />
+                )}
               </div>
             </div>
           )}
@@ -5167,7 +5426,7 @@ export default function App() {
           />
         </div>
       </div>
-    </>
+    </TranslationContext.Provider>
   );
 }
 
