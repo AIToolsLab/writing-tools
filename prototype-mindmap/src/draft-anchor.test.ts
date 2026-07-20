@@ -16,6 +16,19 @@ describe("passive draft anchors", () => {
     expect(findDraftAnchorRange(editor, "classes did matter")).toBeUndefined();
   });
 
+  it("matches a passage that spans a block boundary (as the model sees it)", () => {
+    const editor = document.createElement("div");
+    editor.innerHTML = "<p>Language is a current way.</p><p>Not the definitive one.</p>";
+    // The model anchors against the plain-text draft, which carries newlines
+    // between paragraphs; the DOM text nodes do not. This must still match.
+    const range = findDraftAnchorRange(editor, "current way.\n\nNot the definitive");
+    expect(range).toBeDefined();
+    expect(range?.toString()).toContain("current way");
+    expect(range?.toString()).toContain("Not the definitive");
+    // A non-contiguous phrase must still fail.
+    expect(findDraftAnchorRange(editor, "Language definitive one")).toBeUndefined();
+  });
+
   it("measures a passive overlay without changing the user's native selection", () => {
     const selected = document.createTextNode("user-selected text");
     const editor = document.createElement("div");

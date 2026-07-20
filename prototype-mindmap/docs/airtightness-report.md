@@ -123,12 +123,22 @@ consequential.
   ask the user which card — never to execute structure without confirmation.
 - **Candidate grouping / turn-shape** are model-interpreted advisories; bad
   advice is bounded by validation, the gateway, and confirmation.
-- **Open-threads subsystem** (`open-threads.ts`) is currently **dormant**: its
-  functions are not called from the live turn path, `state.openThreads` is never
-  populated, and its marker-based splitter must not be reactivated as an
-  interpretation layer (see `refactor-plan.md` "Open-thread quarantine"). The
-  capability manifest still advertises parked-phrase memory; reconcile before
-  relying on it.
+- **Cross-turn memory / recall is model-owned, code-supported.** The
+  `open-threads` subsystem was deleted (2026-07-20) and replaced by working-memory
+  recall built on the `CandidateStore`: the model nominates candidates, code
+  persists them with a `status` (active/parked/ignored) and a factual `ageInTurns`
+  staleness signal (`currentUserTurn` − `lastTouchedTurn`), and the model decides
+  when to recall. Held and ignored ideas are surfaced in the Control Room using the
+  user's own evidence wording. Code never matches user text to held items or
+  decides that the user "returned" to a topic — recall stays a model move, and any
+  recalled idea still crosses the gateway before placement.
+- **Draft anchoring is model-chosen and passive.** The model may name an exact
+  `anchor` substring; `draft-anchor.ts` measures it as a read-only overlay that
+  never creates a native selection or mutates the draft. There is no code length
+  cap. `findDraftAnchorRange` inserts block/`<br>` separators and matches on
+  normalized whitespace, so multi-sentence and cross-paragraph anchors resolve
+  (non-contiguous word phrases still fail). Anchor *scope* (short phrase vs.
+  passage) remains the model's prompt-level judgment.
 - **Stemming/normalization** is intentionally simple.
 
 ## File Responsibility Summary
@@ -147,9 +157,9 @@ consequential.
 | `config.ts` | Deterministic thresholds and product facts (no interpretation). |
 | `normalize.ts` | Whole-phrase/word-boundary matching and stemming. |
 | `turn-shape.ts` | Deterministic size-only turn classification (advisory). |
+| `draft-anchor.ts` | Read-only measurement of a model-named draft anchor span (overlay rects + scroll); never mutates the draft or creates a selection. |
 | `event-ledger.ts` | Local full-fidelity events; allowlisted outbound metadata. |
 | `api.ts` | Prompt, provider transports, defensive parsing into the typed union. |
 | `App.tsx` | Session state, persistence/migration, proposal UI, Control Room, undo, voice, draft. |
 | `Map.tsx` | Visual concept map and diagnostics surface. |
 | `types.ts`, `llm-contract.ts`, `assistant-response.ts` | Domain and response-contract types. |
-| `open-threads.ts` | Dormant parked-phrase subsystem (not wired to the live turn path). |
