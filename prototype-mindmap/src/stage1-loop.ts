@@ -246,6 +246,11 @@ function prepareEnvelope(envelope: AssistantResponseEnvelope, state: Conversatio
   const contractRejection = contractRejectsResponse(envelope, activeContract, state.bank.getAll());
   const advisory = prepareAdvisory(state, envelope);
   if (contractRejection) return { candidates: advisory.store, lifecycleChanges: advisory.changes, rejection: contractRejection, diagnostics: [diagnostic("validation", "rejected", contractRejection.code, contractRejection.detail), ...advisory.diagnostics] };
+  const anchor = envelope.response.kind === "question" ? envelope.response.anchor : undefined;
+  if (anchor && !state.draft.includes(anchor)) {
+    const rejection = { code: "draft_anchor_not_exact", detail: "The question anchor must be an exact substring of the current draft." };
+    return { candidates: advisory.store, lifecycleChanges: advisory.changes, rejection, diagnostics: [diagnostic("validation", "rejected", rejection.code, rejection.detail), ...advisory.diagnostics] };
+  }
   const recalled = validateRecall(envelope, state);
   if (recalled.rejection) return { candidates: advisory.store, lifecycleChanges: advisory.changes, rejection: recalled.rejection, diagnostics: [diagnostic("validation", "rejected", recalled.rejection.code, recalled.rejection.detail), ...advisory.diagnostics] };
   const proposal = createProposal(envelope, state, advisory.store, options, config, contractSnapshot);

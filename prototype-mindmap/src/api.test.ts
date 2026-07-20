@@ -141,6 +141,8 @@ describe("typed assistant response parser", () => {
     expect(second[0].content).toContain("Pointer was not exact.");
     expect(second[0].content).toContain("context-specific conversational move");
     expect(second[0].content).toContain("Do not mention validation");
+    expect(first[0].content).toContain("Treat the full draft as background context and a user selection as explicit focus.");
+    expect(first[0].content).toContain("Use draft anchors selectively, and distinguish model-chosen anchors from user-selected focus.");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 

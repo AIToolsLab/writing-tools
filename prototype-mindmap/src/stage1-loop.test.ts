@@ -32,6 +32,34 @@ describe("typed Stage 1 controller", () => {
     expect(store.getAll()).toHaveLength(0);
   });
 
+  it("repairs a question whose draft anchor is not an exact current-draft substring", async () => {
+    const state = createConversationState();
+    state.draft = "Those classes probably did matter.";
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (_context, rejection) => rejection
+      ? { response: { kind: "question" as const, text: "What should the reader understand?", stance: "narrow" as const } }
+      : { response: { kind: "question" as const, text: "Why does this matter?", stance: "deepen" as const, anchor: "Those classes definitely mattered." } });
+
+    const result = await processTurn(state, "Help me think through this draft.", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+
+    expect(model).toHaveBeenCalledTimes(2);
+    expect(model.mock.calls[1]?.[1]).toMatchObject({ code: "draft_anchor_not_exact" });
+    expect(result.response).toMatchObject({ kind: "question", stance: "narrow" });
+    expect(result.diagnostics.some((event) => event.code === "draft_anchor_not_exact")).toBe(true);
+  });
+
+  it("accepts a selective question anchor that is exact draft wording", async () => {
+    const state = createConversationState();
+    state.draft = "Those classes probably did matter.";
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async () => ({ response: { kind: "question" as const, text: "What changed here?", stance: "deepen" as const, anchor: "classes probably did matter" } }));
+
+    const result = await processTurn(state, "I am struggling to explain why this result matters.", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+
+    expect(model).toHaveBeenCalledTimes(1);
+    expect(result.response).toMatchObject({ kind: "question", anchor: "classes probably did matter" });
+  });
+
   it("repairs one rejected map proposal and still leaves it inert", async () => {
     const state = createConversationState();
     const store = new ThoughtUnitStore();

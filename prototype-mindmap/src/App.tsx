@@ -14,6 +14,7 @@ import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./t
 import { validateMirror } from "./validator";
 import { buildDiagnosticSnapshot, type SafetyCheck, type TrackedIdea, type UnderhoodEvent, type UnderstandingSnapshot } from "./understanding";
 import { useSpeechToText } from "./useSpeechToText";
+import { measureDraftAnchorRects, scrollDraftAnchorIntoView, type DraftAnchorRect } from "./draft-anchor";
 import { ASSISTANCE_CONTRACTS, contractForLevel, DEFAULT_ASSISTANCE_CONTRACT, normalizeInfluenceTrace, snapshotContract, type AssistanceLevel } from "./assistance-contract";
 import { EventLedger, mirrorSanitizedEvent, type LedgerEventKind } from "./event-ledger";
 
@@ -1748,6 +1749,20 @@ const css = `
     margin: 0.15em 0;
   }
 
+  .draft-anchor-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    overflow: hidden;
+    pointer-events: none;
+  }
+  .draft-anchor-mark {
+    position: absolute;
+    border-radius: 3px;
+    background: rgba(255, 213, 79, 0.48);
+    box-shadow: inset 0 -1px 0 rgba(166, 116, 0, 0.35);
+  }
+
   .rh { position: absolute; z-index: 10; }
   .rh-n  { top: 0; left: 8px; right: 8px; height: 6px; cursor: n-resize; }
   .rh-s  { bottom: 0; left: 8px; right: 8px; height: 6px; cursor: s-resize; }
@@ -2594,37 +2609,6 @@ export function draftHtmlToPlainText(html: string): string {
     .trimEnd();
 }
 
-function selectTextInElement(root: HTMLElement, searchText: string): boolean {
-  const needle = searchText.trim();
-  if (!needle) return false;
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-  const textNodes: Array<{ node: Text; start: number; end: number }> = [];
-  let fullText = "";
-  let current: Node | null;
-  while ((current = walker.nextNode())) {
-    const node = current as Text;
-    const start = fullText.length;
-    fullText += node.data;
-    textNodes.push({ node, start, end: fullText.length });
-  }
-  const start = fullText.indexOf(needle);
-  if (start < 0) return false;
-  const end = start + needle.length;
-  const startNode = textNodes.find((entry) => start >= entry.start && start <= entry.end);
-  const endNode = textNodes.find((entry) => end >= entry.start && end <= entry.end);
-  if (!startNode || !endNode) return false;
-  const range = document.createRange();
-  range.setStart(startNode.node, Math.max(0, start - startNode.start));
-  range.setEnd(endNode.node, Math.max(0, end - endNode.start));
-  const selection = window.getSelection();
-  selection?.removeAllRanges();
-  selection?.addRange(range);
-  const rect = range.getBoundingClientRect();
-  const editorRect = root.getBoundingClientRect();
-  root.scrollTop += rect.top - editorRect.top - 24;
-  return true;
-}
-
 function targetLabel(target: TrackedIdea["target"]): string {
   return target === "idea" ? "idea" : target === "hierarchy" ? "nesting" : "connection";
 }
@@ -3362,6 +3346,10 @@ export default function App() {
   const [draftHtml, setDraftHtml] = useState(initialDraftHtml);
   const [draftCollapsed, setDraftCollapsed] = useState(initialDraftCollapsed);
   const [draftDocked, setDraftDocked] = useState(initialDraftDocked);
+  const [highlightAnchor, setHighlightAnchor] = useState<string | undefined>(undefined);
+  const [anchorRects, setAnchorRects] = useState<DraftAnchorRect[]>([]);
+  const [anchorRevealRequest, setAnchorRevealRequest] = useState<{ id: number; anchor: string } | null>(null);
+  const anchorRevealSequenceRef = useRef(0);
   const [draftDockTargetActive, setDraftDockTargetActive] = useState(false);
   const [draftPos, setDraftPos] = useState<DraftPanelPos>(initialDraftPos);
   const [draftSize, setDraftSize] = useState<DraftPanelSize>(initialDraftSize);
@@ -3371,10 +3359,11 @@ export default function App() {
   const draftPanelRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLDivElement>(null);
 
-  // The coach's question-anchor highlight is drawn with a REAL DOM selection (to
-  // reveal/scroll the span). That must never be mistaken for a selection the user
-  // made — otherwise "Reflect this back" reflects a span the user never touched.
-  const anchorSelectionTextRef = useRef<string | undefined>(undefined);
+  const requestDraftAnchorReveal = useCallback((anchor: string | undefined) => {
+    const text = anchor?.trim();
+    if (!text) return;
+    setAnchorRevealRequest({ id: ++anchorRevealSequenceRef.current, anchor: text });
+  }, []);
 
   const updateDraftSelectionFocus = useCallback(() => {
     const editor = draftRef.current;
@@ -3389,12 +3378,6 @@ export default function App() {
       return;
     }
     const text = selection.toString().trim();
-    const anchor = anchorSelectionTextRef.current?.trim();
-    if (text && anchor && text === anchor) {
-      // This is the coach's anchor highlight, not the user's own selection.
-      setDraftSelectionFocus(undefined);
-      return;
-    }
     setDraftSelectionFocus(text ? { text } : undefined);
   }, []);
 
@@ -3523,6 +3506,7 @@ export default function App() {
           return clampBoxPosition(prev, draftSize.w, draftSize.h);
         });
         setDraftCollapsed(false);
+        requestDraftAnchorReveal(highlightAnchor);
       }
     };
     window.addEventListener("mousemove", onMove);
@@ -3577,6 +3561,7 @@ export default function App() {
       if (!moved) {
         setDraftDocked(false);
         setDraftCollapsed(false);
+        requestDraftAnchorReveal(highlightAnchor);
         return;
       }
 
@@ -3597,7 +3582,7 @@ export default function App() {
 
     window.addEventListener("mousemove", onMove);
     window.addEventListener("mouseup", onUp);
-  }, []);
+  }, [highlightAnchor, requestDraftAnchorReveal]);
 
   const startResize = useCallback((
     e: React.MouseEvent,
@@ -3634,20 +3619,42 @@ export default function App() {
   // An unsolicited model anchor is a quiet offer, not permission to open or
   // move the user's draft. If the draft is already open, it is highlighted;
   // otherwise the visible dot and "View passage" control let the user opt in.
-  const [highlightAnchor, setHighlightAnchor] = useState<string | undefined>(undefined);
   useEffect(() => {
     setHighlightAnchor(activeAnchor);
   }, [activeAnchor]);
 
-  // When the highlight lands, select and scroll the rich draft text into view.
-  // Record the anchor text so the selection handler can tell this app-created
-  // selection apart from one the user actually made.
+  // Model-chosen anchors are passive range-measured overlays. They never mutate
+  // draft HTML or create a native selection, so they cannot become user focus.
   useEffect(() => {
-    anchorSelectionTextRef.current = highlightAnchor;
-    if (!highlightAnchor || draftDocked || draftCollapsed) return;
+    if (!highlightAnchor || draftDocked || draftCollapsed) {
+      setAnchorRects([]);
+      return undefined;
+    }
     const editor = draftRef.current;
-    if (editor) selectTextInElement(editor, highlightAnchor);
+    if (!editor) return undefined;
+    const measure = () => setAnchorRects(measureDraftAnchorRects(editor, highlightAnchor));
+    const frame = window.requestAnimationFrame(measure);
+    editor.addEventListener("scroll", measure, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(measure);
+    observer?.observe(editor);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      editor.removeEventListener("scroll", measure);
+      observer?.disconnect();
+    };
   }, [highlightAnchor, draftHtml, draftDocked, draftCollapsed]);
+
+  // Scrolling is user-triggered: either an explicit "View passage" action or
+  // reopening a collapsed/docked draft that has an active model anchor.
+  useEffect(() => {
+    if (!anchorRevealRequest || draftDocked || draftCollapsed) return undefined;
+    const frame = window.requestAnimationFrame(() => {
+      const editor = draftRef.current;
+      if (editor) scrollDraftAnchorIntoView(editor, anchorRevealRequest.anchor);
+      setAnchorRevealRequest((current) => current?.id === anchorRevealRequest.id ? null : current);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [anchorRevealRequest, draftDocked, draftCollapsed]);
 
   // Cards the current coach turn refers to (by #ref) - highlighted on the map.
   const referencedCardIds = useMemo(() => {
@@ -4128,6 +4135,7 @@ export default function App() {
     setHighlightAnchor(anchor);
     setDraftDocked(false);
     setDraftCollapsed(false);
+    requestDraftAnchorReveal(anchor);
   }
 
   function pinDraftSelection() {
@@ -4147,6 +4155,7 @@ export default function App() {
     if (draftDocked) {
       setDraftDocked(false);
       setDraftCollapsed(false);
+      requestDraftAnchorReveal(highlightAnchor);
       return;
     }
     setDraftDocked(true);
@@ -4431,8 +4440,6 @@ export default function App() {
             width: draftSize.w,
             height: draftSize.h,
           }}
-          // Clicking anywhere inside the draft dismisses the anchor highlight.
-          onMouseDown={() => setHighlightAnchor(undefined)}
         >
           <div className="draft-panel-header" onMouseDown={onDragStart}>
             <span className="draft-panel-title">Draft</span>
@@ -4476,6 +4483,15 @@ export default function App() {
           {!draftCollapsed && (
             <div className="draft-body">
               <div className="draft-editor-wrap">
+                <div className="draft-anchor-overlay" aria-hidden="true">
+                  {anchorRects.map((rect, index) => (
+                    <span
+                      className="draft-anchor-mark"
+                      key={`${rect.left}:${rect.top}:${index}`}
+                      style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}
+                    />
+                  ))}
+                </div>
                 <div
                   ref={draftRef}
                   className="draft-editor"
@@ -4484,6 +4500,7 @@ export default function App() {
                   role="textbox"
                   aria-multiline="true"
                   data-placeholder="Paste or type your draft here..."
+                  onMouseDown={() => setHighlightAnchor(undefined)}
                   onInput={handleDraftInput}
                   onSelect={updateDraftSelectionFocus}
                   onKeyUp={updateDraftSelectionFocus}
