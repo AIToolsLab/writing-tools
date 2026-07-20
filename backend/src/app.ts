@@ -8,14 +8,44 @@ import {
 	filterExtraDataForConsent,
 	isConsentLevel,
 } from './consent.js';
-import { gitCommit, logSecret } from './config.js';
+import { deviceClientIds, gitCommit, logSecret } from './config.js';
 import { eraseLoggedData } from './erasure.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
 import { openaiProxy } from './openaiProxy.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 import { costUsd } from './pricing.js';
+import {
+	createToolGrant,
+	DEFAULT_TOOL_SCOPES,
+	exchangeToolGrant,
+	getToolTokenDoc,
+	isToolScope,
+	resolveToolToken,
+	revokeToolToken,
+	type ToolScope,
+} from './toolGrants.js';
 import { summarizeUsage } from './usage.js';
 import { isUserAllowed } from './userAllowlist.js';
+
+/** Extract the raw bearer token from the Authorization header, or null. */
+function bearerToken(c: Context): string | null {
+	const header = c.req.header('Authorization') ?? '';
+	const match = header.match(/^Bearer\s+(.+)$/i);
+	return match?.[1] ? match[1].trim() : null;
+}
+
+/**
+ * Which client this request identifies itself as, for attribution only. A tool
+ * launched via the pure device flow (or the add-in itself) names its registered
+ * client with an `X-Client-Id` header; we honour it only when it's in the device
+ * allowlist, so an arbitrary label can't be injected into billing/study data. Tool
+ * grant tokens don't use this path — their client_id is authoritative from the grant.
+ */
+function headerClientId(c: Context): string | null {
+	const claimed = c.req.header('X-Client-Id')?.trim();
+	if (claimed && deviceClientIds().includes(claimed)) return claimed;
+	return null;
+}
 
 // Shared gate for the researcher/operator routes (log viewer + usage summary).
 // Returns an error Response to short-circuit, or null when the secret is valid.
@@ -79,6 +109,17 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	async function resolveUser(
 		c: Context,
 	): Promise<SessionUser | null> {
+		// Tool grant tokens (see toolGrants.ts) are our own opaque credential, tagged
+		// with a `wtk_` prefix so they're resolved locally and never handed to Better
+		// Auth. They already carry the tool's client_id, so an external tool's proxy
+		// and log calls flow through under the user's account, attributed to the tool.
+		// Resolved independent of `auth` — a grant can only have been minted while auth
+		// was on, but the token itself verifies against our own table.
+		const bearer = bearerToken(c);
+		if (bearer?.startsWith('wtk_')) {
+			return resolveToolToken(bearer)?.user ?? null;
+		}
+
 		if (!auth) return null;
 		const session = await auth.api.getSession({ headers: c.req.raw.headers });
 		if (!session) return null;
@@ -102,6 +143,9 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 				isAnonymous,
 				alwaysAllow: u.alwaysAllow === true,
 			}),
+			// A session-authenticated request is the add-in itself (clientId null)
+			// unless it self-identifies as a device-flow tool via X-Client-Id.
+			clientId: headerClientId(c),
 		};
 	}
 
@@ -159,6 +203,7 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 				event,
 				schema_version: schemaVersion,
 				page,
+				client_id: user.clientId,
 				extra_data: gated,
 			});
 		} catch (e) {
@@ -218,6 +263,115 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			return c.json({ detail: 'Failed to erase logged activity' }, 500);
 		}
 		return c.json({ message: 'Your logged activity has been erased.' });
+	});
+
+	// --- Tool launcher: handoff grant flow (see toolGrants.ts) -------------------
+
+	// Mint a launch grant for a sidebar-launched tool. Authenticated: the signed-in
+	// taskpane vouches for the user and chooses which tool + scopes to grant, and may
+	// include a read-only document snapshot (only the taskpane can read Office.js).
+	// Returns a single-use grant_id the taskpane puts in the tool URL fragment.
+	app.post('/api/handoff', async (c) => {
+		const user = await resolveUser(c);
+		if (!user) return c.json({ detail: 'Unauthorized' }, 401);
+
+		const body = (await c.req.json().catch(() => ({}))) as {
+			tool_client_id?: unknown;
+			scopes?: unknown;
+			doc?: unknown;
+		};
+
+		const toolClientId = body.tool_client_id;
+		// A tool is registered exactly as a device client is — reusing the allowlist
+		// keeps "who may receive a grant" in one place (see the plan's auth section).
+		if (typeof toolClientId !== 'string' || !deviceClientIds().includes(toolClientId)) {
+			return c.json(
+				{ detail: 'Unknown tool_client_id.', allowed: deviceClientIds() },
+				400,
+			);
+		}
+
+		// Scopes: default the common read-only set; otherwise every requested scope
+		// must be one we recognize.
+		let scopes: ToolScope[];
+		if (body.scopes === undefined) {
+			scopes = DEFAULT_TOOL_SCOPES;
+		} else if (
+			Array.isArray(body.scopes) &&
+			body.scopes.every((s) => isToolScope(s))
+		) {
+			scopes = body.scopes as ToolScope[];
+		} else {
+			return c.json({ detail: 'Invalid scopes.' }, 400);
+		}
+
+		const { grantId, expiresIn } = createToolGrant({
+			user: {
+				id: user.id,
+				loggingConsent: user.loggingConsent,
+				isAnonymous: user.isAnonymous,
+				isAllowed: user.isAllowed,
+			},
+			toolClientId,
+			scopes,
+			docSnapshot: body.doc,
+		});
+		return c.json({ grant_id: grantId, expires_in: expiresIn });
+	});
+
+	// Exchange a grant_id for a bearer token (+ the document snapshot). Unauthenticated
+	// by design — the grant_id itself is the credential, and the tool has no session
+	// yet. Single-use and short-lived (see toolGrants.ts).
+	app.post('/api/handoff/exchange', async (c) => {
+		const { grant_id } = (await c.req.json().catch(() => ({}))) as {
+			grant_id?: unknown;
+		};
+		if (typeof grant_id !== 'string' || grant_id === '') {
+			return c.json({ detail: 'Missing grant_id.' }, 400);
+		}
+
+		const result = exchangeToolGrant(grant_id);
+		if (!result.ok) {
+			// A consumed/expired/unknown grant is all a 400 to the tool — it can only
+			// restart the flow. The distinct `error` code aids debugging.
+			return c.json({ detail: 'Grant not exchangeable.', error: result.error }, 400);
+		}
+		return c.json({
+			access_token: result.accessToken,
+			token_type: 'bearer',
+			expires_in: result.expiresIn,
+			client_id: result.clientId,
+			scopes: result.scopes,
+			user: { id: result.user.id, loggingConsent: result.user.loggingConsent },
+			doc: result.doc,
+		});
+	});
+
+	// Re-fetch the document snapshot while the tool's token lives (the plan's optional
+	// GET /api/handoff/:id/doc). Keyed by the token, gated by the doc:read scope.
+	app.get('/api/handoff/doc', (c) => {
+		const token = bearerToken(c);
+		if (!token || !token.startsWith('wtk_')) {
+			return c.json({ detail: 'Unauthorized' }, 401);
+		}
+		const resolved = resolveToolToken(token);
+		if (!resolved) return c.json({ detail: 'Unauthorized' }, 401);
+		if (!resolved.scopes.includes('doc:read')) {
+			return c.json({ detail: 'Forbidden: doc:read not granted.' }, 403);
+		}
+		const snapshot = getToolTokenDoc(token);
+		// resolveToolToken already proved the token is live; snapshot can't be undefined.
+		return c.json({ doc: snapshot?.doc ?? null });
+	});
+
+	// Disconnect: a tool (or the sidebar acting for it) revokes its own token.
+	app.post('/api/handoff/revoke', (c) => {
+		const token = bearerToken(c);
+		if (!token || !token.startsWith('wtk_')) {
+			return c.json({ detail: 'Unauthorized' }, 401);
+		}
+		const revoked = revokeToolToken(token);
+		return c.json({ revoked });
 	});
 
 	app.get('/api/ping', (c) =>

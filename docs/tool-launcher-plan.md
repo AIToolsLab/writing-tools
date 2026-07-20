@@ -5,9 +5,30 @@ writing tools (first-party prototypes now, community research tools later),
 without merging them into the add-in or supporting them as first-class
 features.
 
-> **Status:** Exploration/proposal. Nothing here is implemented. Depends on
-> the Better Auth integration described in `auth-plan.md` actually being
-> enforced on the proxy routes (it currently is not).
+> **Status:** Phases 0 and 1 are implemented; Phases 2+ remain proposal.
+> Implemented so far:
+> - **Phase 0** — the proxy and `/api/log` already require a Bearer session and
+>   fail closed for sessionless traffic (this predated the launcher work). On top
+>   of that, every metered request and log line now carries a `client_id`
+>   attributing it to `(user, tool)`: external tools via their grant token, the
+>   first-party add-in via an allowlisted `X-Client-Id` header, null otherwise.
+>   See `backend/src/openaiProxy.ts`, `usage.ts` (`llm_usage.client_id`, db v2),
+>   `logging.ts`, and `app.ts` `resolveUser`.
+> - **Phase 1** — the handoff grant flow (`backend/src/toolGrants.ts`, `tool_grant`
+>   table db v3; routes `POST /api/handoff`, `/api/handoff/exchange`,
+>   `GET /api/handoff/doc`, `POST /api/handoff/revoke`) and a "Tools" page in the
+>   sidebar (`frontend/src/pages/tools/`, `PageName.Tools`) that launches a
+>   registered tool in the browser with a token + read-only doc snapshot, plus a
+>   paste-a-URL field for device-flow tools. One deviation from the sketch below:
+>   the tool's bearer token is our own opaque `wtk_` credential (a `tool_grant`
+>   row), not a Better Auth session — Better Auth has no server-side session-mint
+>   primitive, and a parallel token keeps the tool's scopes and per-token revoke
+>   explicit. Revocation is per-token, not Better Auth session revocation.
+>
+> Everything below Phase 1 (rooms, panel tools, scoped tokens/quotas/manifests) is
+> still exploration. Scope enforcement on tool tokens is deferred to Phase 3: a
+> valid tool token is currently treated as a full session token, except the doc
+> re-fetch, which requires `doc:read`.
 
 ## Motivating examples
 
@@ -115,18 +136,16 @@ normal session schedule; a "Disconnect" row per tool in the sidebar calls
 Better Auth session revocation. Nothing needs the taskpane to stay open
 after launch *unless* a live document channel is granted (below).
 
-### Prerequisite: the proxy must actually check tokens
+### Prerequisite: the proxy must actually check tokens — done
 
-Today `/api/openai/chat/completions` and `/api/log` are unauthenticated
-(`auth-plan.md` documents this). "Proxy access under their account" is
-meaningless until the backend:
-
-- requires a valid Bearer session on `/api/openai/*` and `/api/log`;
-- attributes each call to `(user, client_id)` — which also gives research
-  provenance ("which tool generated this completion") for free;
-- (later) enforces per-user/per-tool quotas before third parties arrive.
-
-This is the first implementation step regardless of everything else.
+`/api/openai/*` and `/api/log` require a valid Bearer session and fail closed for
+sessionless traffic (`app.ts` `resolveUser`, `openaiProxy.ts` `attributeRequest`).
+Each call is attributed to `(user, client_id)`: the `client_id` is the tool's id
+when the request carries a `wtk_` grant token, an allowlisted `X-Client-Id` header
+otherwise (the add-in stamps its own), and null for unlabelled first-party traffic.
+That gives research provenance ("which tool generated this completion") for free —
+it's a column on both `llm_usage` and the JSONL log envelope. Per-user/per-tool
+quotas remain deferred to Phase 3.
 
 ## Document access: brokered, snapshot-first
 
@@ -281,13 +300,14 @@ origins.
 
 ## Phasing
 
-1. **Phase 0 (prereq):** enable Better Auth in production per
-   `auth-plan.md`; require Bearer on `/api/openai/*` and `/api/log`;
-   attribute logs/usage to the session user.
-2. **Phase 1:** "Tools" page in the sidebar; hardcoded tool list + URL
-   field; browser launch with handoff grant (token + read-only doc
-   snapshot); mindmap ported to consume it. Device-flow fallback for
-   direct visits.
+1. **Phase 0 (prereq) — done:** Bearer required on `/api/openai/*` and
+   `/api/log`, failing closed for sessionless traffic; usage and logs attributed
+   to the session user *and* to a `client_id` (add-in vs. tool). See the Status
+   note above.
+2. **Phase 1 — done:** "Tools" page in the sidebar; hardcoded tool list + URL
+   field; browser launch with handoff grant (token + read-only doc snapshot);
+   device-flow fallback for direct visits. (Porting the mindmap to actually
+   consume the grant is tracked separately — it lives on `feat/uist`.)
 3. **Phase 2:** rooms — WebSocket switchboard with membership + scopes
    (`doc:read` / `doc:write`, patch-with-confirm writes), `rpc` /
    `broadcast` / `presence` message types, room list + QR/short-URL join.

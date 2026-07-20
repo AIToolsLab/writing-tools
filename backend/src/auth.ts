@@ -175,4 +175,11 @@ export interface SessionUser {
 	 * "not allowed" screen by hitting the API directly.
 	 */
 	isAllowed: boolean;
+	/**
+	 * Which client this request came through: a registered tool's client_id when the
+	 * request carries a tool grant token (toolGrants.ts) or a self-identifying
+	 * `X-Client-Id` header, or null for the first-party add-in. Attribution only — it
+	 * never widens what the identity can do.
+	 */
+	clientId: string | null;
 }

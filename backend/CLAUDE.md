@@ -31,8 +31,10 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   26 otherwise surface as silent empty 200s — see the comment in `openaiProxy.ts`; run
   Node 24 LTS).
 - **Usage metering** (`src/usage.ts`, `src/pricing.ts`): every proxied model request
-  writes a content-free row (user, model, token counts, status) to the `llm_usage`
-  table. Streaming responses are `tee()`d so usage can be read from the
+  writes a content-free row (user, `client_id`, model, token counts, status) to the
+  `llm_usage` table. `client_id` attributes the request to the tool that made it (a
+  registered tool's id, or null for the first-party add-in) — the billing/provenance
+  counterpart of the same field on study logs. Streaming responses are `tee()`d so usage can be read from the
   terminal SSE event — which is also why the proxy forces `stream_options.include_usage`
   on Chat Completions requests. Metering sits *outside* the consent levels in
   `consent.ts`: it's billing data, kept even at level `none`. `GET /api/usage_summary`
@@ -54,6 +56,18 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
   `POSTHOG_PROJECT_TOKEN` is unset. `deletePosthogPerson` (used by both erasure
   paths) hits the PostHog *management* API and needs `POSTHOG_PERSONAL_API_KEY` +
   `POSTHOG_PROJECT_ID`; without them it warns and no-ops.
+- **Tool launcher** (`src/toolGrants.ts`): the handoff grant flow for launching
+  external writing tools from the sidebar (see `docs/tool-launcher-plan.md`, Phase 1).
+  The signed-in taskpane mints a single-use, short-TTL grant (`POST /api/handoff`)
+  carrying the user, the tool's `client_id`, requested scopes, and an optional
+  read-only document snapshot; the tool — on its own foreign origin — swaps the
+  grant_id for a `wtk_`-prefixed bearer token (`POST /api/handoff/exchange`). That
+  token is our own credential (a `tool_grant` row, not a Better Auth session):
+  `app.ts` `resolveUser` recognizes the `wtk_` prefix and resolves it here, so the
+  tool's proxy/log calls run under the user's account, attributed to the tool.
+  `GET /api/handoff/doc` re-fetches the snapshot (gated by `doc:read`);
+  `POST /api/handoff/revoke` disconnects a token. Scope enforcement beyond the doc
+  re-fetch is deferred (Phase 3).
 - **Auth** (`src/auth.ts`): Better Auth (Google sign-in + device-code flow for the
   add-in), on the shared `app.db`, enabled by `BETTER_AUTH_ENABLED=true`. Carries the
   user's `loggingConsent` level as a user field; `beforeDelete` purges study logs and

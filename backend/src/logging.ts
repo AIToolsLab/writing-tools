@@ -13,6 +13,11 @@ import { dataDir } from './config.js';
  * are added by the frontend event-logging layer; entries written before it
  * existed omit both fields — readers should treat a missing `schema_version` as
  * 0 and a missing `page` as `null`.
+ *
+ * `client_id` is the tool that produced the event — a registered tool's client_id
+ * when the log line came in over a tool grant token, or null for the first-party
+ * add-in. It's the logging counterpart of the same column on `llm_usage`, keying
+ * study events by (user, tool) so a per-study export can scope to its own tool.
  */
 export interface LogEntry {
 	timestamp: number;
@@ -21,6 +26,7 @@ export interface LogEntry {
 	event: string;
 	schema_version: number;
 	page: string | null;
+	client_id: string | null;
 	extra_data: Record<string, unknown>;
 }
 

@@ -25,6 +25,7 @@ import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import Chat from '../chat';
 import Draft from '../draft';
 import Revise from '../revise';
+import Tools from '../tools';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
@@ -91,7 +92,13 @@ function DeviceAuthStatus({
 			</p>
 			{authorization.verificationUri ? (
 				<p style={{ margin: '0.25rem 0 0.75rem' }}>
-					<a href={authorization.verificationUri} target="_blank" rel="noopener">Open approval page</a>
+					<a
+						href={authorization.verificationUri}
+						target="_blank"
+						rel="noopener"
+					>
+						Open approval page
+					</a>
 				</p>
 			) : null}
 			<p>Open the approval page and enter the code above to continue.</p>
@@ -103,8 +110,14 @@ function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
 	const noAuthMode = mode !== OverallMode.full;
 	const session = useAppAuth();
-	const { isLoading, isAuthorizing, error, isAuthenticated, user, authorization } =
-		session;
+	const {
+		isLoading,
+		isAuthorizing,
+		error,
+		isAuthenticated,
+		user,
+		authorization,
+	} = session;
 	const [width, _height] = useWindowSize();
 	const page = useAtomValue(pageNameAtom);
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
@@ -302,6 +315,8 @@ function AppInner() {
 				return <Chat />;
 			case PageName.Draft:
 				return <Draft />;
+			case PageName.Tools:
+				return <Tools />;
 		}
 		return null;
 	}
@@ -429,7 +444,8 @@ function PostHogConsentBridge(): null {
 	useEffect(() => {
 		if (!posthog) return;
 		const analyticsAllowed =
-			isAuthenticated && consentRank(loggingConsent) >= consentRank('usage');
+			isAuthenticated &&
+			consentRank(loggingConsent) >= consentRank('usage');
 
 		// Require a stable id before opting in, so we never capture untethered
 		// anonymous events that can't be tied to a deletable account identity.

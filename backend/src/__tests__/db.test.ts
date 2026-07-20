@@ -22,7 +22,7 @@ afterEach(() => {
 describe('migrations', () => {
 	it('creates our schema and records the version', () => {
 		const conn = db();
-		expect(conn.pragma('user_version', { simple: true })).toBe(1);
+		expect(conn.pragma('user_version', { simple: true })).toBe(3);
 
 		// The table is usable, not merely declared.
 		const table = conn
@@ -31,6 +31,20 @@ describe('migrations', () => {
 			)
 			.get();
 		expect(table).toBeDefined();
+
+		// v2 added the client_id attribution column...
+		const usageCols = (
+			conn.prepare(`PRAGMA table_info(llm_usage)`).all() as { name: string }[]
+		).map((c) => c.name);
+		expect(usageCols).toContain('client_id');
+
+		// ...and v3 added the tool_grant launcher table.
+		const grantTable = conn
+			.prepare(
+				`SELECT name FROM sqlite_master WHERE type='table' AND name='tool_grant'`,
+			)
+			.get();
+		expect(grantTable).toBeDefined();
 	});
 
 	it('is idempotent across reopens — a second open re-runs nothing', () => {
@@ -44,7 +58,7 @@ describe('migrations', () => {
 
 		// Reopening must not drop or recreate the table (CREATE TABLE would throw).
 		const conn = db();
-		expect(conn.pragma('user_version', { simple: true })).toBe(1);
+		expect(conn.pragma('user_version', { simple: true })).toBe(3);
 		const rows = conn.prepare(`SELECT COUNT(*) AS n FROM llm_usage`).get() as {
 			n: number;
 		};
@@ -73,7 +87,7 @@ describe('legacy auth.db rename', () => {
 		expect(user).toEqual({ email: 'a@b.c' });
 
 		// ...and our migrations then run on top of the adopted database.
-		expect(conn.pragma('user_version', { simple: true })).toBe(1);
+		expect(conn.pragma('user_version', { simple: true })).toBe(3);
 	});
 
 	it('leaves an existing app.db alone when a stray auth.db is also present', async () => {

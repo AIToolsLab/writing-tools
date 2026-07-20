@@ -72,6 +72,52 @@ const MIGRATIONS: Array<(conn: Database.Database) => void> = [
 			CREATE INDEX llm_usage_user_ts ON llm_usage (user_id, ts);
 		`);
 	},
+	// v2 — attribute each metered request to the client that made it (the add-in
+	// itself, or an external writing tool launched from the sidebar). Nullable: rows
+	// written before this migration, and add-in traffic that doesn't identify itself,
+	// stay NULL — read as "the first-party add-in". Tool traffic carries the tool's
+	// registered client_id, giving research provenance ("which tool generated this
+	// completion") for free. See usage.ts / openaiProxy.ts.
+	(conn) => {
+		conn.exec(`ALTER TABLE llm_usage ADD COLUMN client_id TEXT;`);
+	},
+	// v3 — launch grants for the tool launcher (see toolGrants.ts). A sidebar-launched
+	// tool never touches Office.js or the user's cookies; the taskpane mints a
+	// single-use, short-TTL grant that the tool exchanges (on its own foreign origin)
+	// for a bearer token scoped to that tool, plus an optional read-only document
+	// snapshot. The row is the persistent record; the access token authenticates the
+	// tool's later calls to the LLM proxy and log endpoints. No foreign key to `user`:
+	// the token outlives nothing important, but a cascade is needless coupling and the
+	// grant is validated against a live session at creation time regardless.
+	(conn) => {
+		conn.exec(`
+			CREATE TABLE tool_grant (
+				grant_id TEXT PRIMARY KEY,
+				-- Bearer token handed back on exchange (prefixed 'wtk_'); NULL until then.
+				access_token TEXT UNIQUE,
+				-- The full authenticated identity captured at creation time (JSON of the
+				-- SessionUser minus client_id), so exchange/proxy never depend on the
+				-- auth user table still holding the row.
+				user_snapshot TEXT NOT NULL,
+				-- The tool this grant authorizes — a registered device/tool client_id.
+				tool_client_id TEXT NOT NULL,
+				-- JSON array of granted scopes (openai:chat, log:write, doc:read, …).
+				scopes TEXT NOT NULL,
+				-- JSON DocContext snapshot handed to the tool, or NULL when none was shared.
+				doc_snapshot TEXT,
+				created_at INTEGER NOT NULL,
+				-- Grant TTL: the window in which the grant_id may be exchanged (~2 min).
+				expires_at INTEGER NOT NULL,
+				-- Single-use marker: set to the exchange time; a second exchange is refused.
+				exchanged_at INTEGER,
+				-- Access-token validity, set at exchange time.
+				token_expires_at INTEGER,
+				-- Disconnect: set when the token is revoked (tool or user teardown).
+				revoked_at INTEGER
+			);
+			CREATE INDEX tool_grant_user ON tool_grant (json_extract(user_snapshot, '$.id'));
+		`);
+	},
 ];
 
 function migrate(conn: Database.Database): void {

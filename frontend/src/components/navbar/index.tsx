@@ -1,7 +1,4 @@
-import {
-	PageName,
-	pageNameAtom,
-} from '@/contexts/pageContext';
+import { PageName, pageNameAtom } from '@/contexts/pageContext';
 
 import { useAtom } from 'jotai';
 import classes from './styles.module.css';
@@ -24,6 +21,7 @@ const pageNames: Page[] = [
 	{ name: PageName.Draft, title: 'Draft', hint: 'Generate suggestions' },
 	{ name: PageName.Revise, title: 'Revise', hint: 'Improve your text' },
 	{ name: PageName.Chat, title: 'Chat', hint: 'Ask about your doc' },
+	{ name: PageName.Tools, title: 'Tools', hint: 'Launch writing tools' },
 ];
 
 export default function Navbar() {
@@ -43,5 +41,5 @@ export default function Navbar() {
 				</button>
 			))}
 		</div>
-		);
+	);
 }

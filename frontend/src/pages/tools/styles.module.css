@@ -1,0 +1,99 @@
+.container {
+	padding: 0.75rem 1rem 1.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.intro {
+	margin: 0;
+	font-size: 0.9rem;
+	color: var(--rs-color-foreground-neutral-faded, #555);
+	line-height: 1.4;
+}
+
+.error {
+	background: #fdecea;
+	color: #b71c1c;
+	border: 1px solid #f5c6cb;
+	border-radius: 6px;
+	padding: 0.5rem 0.75rem;
+	font-size: 0.85rem;
+}
+
+.toolList {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.tool {
+	border: 1px solid var(--rs-color-border-neutral, #e0e0e0);
+	border-radius: 8px;
+	padding: 0.85rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.toolHeader {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+}
+
+.toolName {
+	font-weight: 600;
+	font-size: 1rem;
+}
+
+.toolDesc {
+	margin: 0;
+	font-size: 0.85rem;
+	line-height: 1.4;
+	color: var(--rs-color-foreground-neutral-faded, #555);
+}
+
+.scopes {
+	font-size: 0.78rem;
+	color: var(--rs-color-foreground-neutral-faded, #777);
+	margin-bottom: 0.25rem;
+}
+
+.adhoc {
+	border-top: 1px solid var(--rs-color-border-neutral-faded, #eee);
+	padding-top: 1rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.35rem;
+}
+
+.adhocLabel {
+	font-weight: 600;
+	font-size: 0.9rem;
+}
+
+.adhocHint {
+	margin: 0;
+	font-size: 0.78rem;
+	color: var(--rs-color-foreground-neutral-faded, #777);
+	line-height: 1.4;
+}
+
+.adhocRow {
+	display: flex;
+	gap: 0.5rem;
+	align-items: center;
+}
+
+.adhocInput {
+	flex: 1;
+	min-width: 0;
+	padding: 0.45rem 0.6rem;
+	border: 1px solid var(--rs-color-border-neutral, #ccc);
+	border-radius: 6px;
+	font-size: 0.85rem;
+}

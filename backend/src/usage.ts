@@ -43,6 +43,12 @@ export const ANONYMOUS_USER_ID = 'anonymous';
  */
 export interface UsageRecord {
 	userId: string;
+	/**
+	 * Which client made the request: a registered tool's client_id, or null for the
+	 * first-party add-in (which doesn't need to name itself). Pure provenance — the
+	 * paying identity is still `userId`.
+	 */
+	clientId: string | null;
 	provider: string;
 	endpoint: string;
 	model: string;
@@ -61,14 +67,15 @@ export function recordUsage(record: UsageRecord): void {
 	db()
 		.prepare(
 			`INSERT INTO llm_usage (
-				ts, user_id, provider, endpoint, model,
+				ts, user_id, client_id, provider, endpoint, model,
 				input_tokens, cached_input_tokens, output_tokens, reasoning_tokens,
 				status, streamed, duration_ms, ttft_ms
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		)
 		.run(
 			Date.now(),
 			record.userId,
+			record.clientId,
 			record.provider,
 			record.endpoint,
 			record.model,
@@ -102,6 +109,8 @@ export function anonymizeUserUsage(userId: string): void {
 export interface UsageSummaryRow {
 	userId: string;
 	email: string | null;
+	/** Registered tool client_id, or null for first-party add-in traffic. */
+	clientId: string | null;
 	provider: string;
 	model: string;
 	requests: number;
@@ -123,7 +132,7 @@ export function summarizeUsage(
 ): UsageSummaryRow[] {
 	const rows = db()
 		.prepare(
-			`SELECT user_id, provider, model,
+			`SELECT user_id, client_id, provider, model,
 				COUNT(*) AS requests,
 				SUM(input_tokens) AS input_tokens,
 				SUM(cached_input_tokens) AS cached_input_tokens,
@@ -131,15 +140,16 @@ export function summarizeUsage(
 				SUM(reasoning_tokens) AS reasoning_tokens
 			FROM llm_usage
 			WHERE ts >= ? AND ts < ?
-			GROUP BY user_id, provider, model
-			ORDER BY user_id, provider, model`,
+			GROUP BY user_id, client_id, provider, model
+			ORDER BY user_id, client_id, provider, model`,
 		)
-		.all(since, until) as Array<Record<string, string | number>>;
+		.all(since, until) as Array<Record<string, string | number | null>>;
 
 	const emails = userEmails();
 	return rows.map((r) => ({
 		userId: String(r.user_id),
 		email: emails.get(String(r.user_id)) ?? null,
+		clientId: r.client_id == null ? null : String(r.client_id),
 		provider: String(r.provider),
 		model: String(r.model),
 		requests: Number(r.requests),
