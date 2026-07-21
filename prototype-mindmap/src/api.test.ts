@@ -4,6 +4,7 @@ import { defaultConfig } from "./config";
 import type { LLMContext } from "./llm-contract";
 import { ThoughtUnitStore } from "./map-store";
 import { createConversationState, processTurn } from "./stage1-loop";
+import { contractForLevel, snapshotContract } from "./assistance-contract";
 
 const context: LLMContext = {
   bank: [{ id: "u_1", text: "I want to keep human control.", timestamp: 1, origin: "chat", turnId: "t_1" }],
@@ -148,6 +149,45 @@ describe("typed assistant response parser", () => {
     expect(first[0].content).toContain("Every reflection at every assistance level must be strictly user-word-faithful");
     expect(first[0].content).toContain("For a large or abstract turn");
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("renders a distinct L0 objective and guards against premise-smuggling in questions", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({ response: { kind: "question", text: "How do these belong together for you?" } }) } }] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const model = makeLLM(defaultConfig);
+
+    await model({ ...context, assistanceContract: snapshotContract(contractForLevel(0)) });
+
+    const messages = JSON.parse(fetchMock.mock.calls[0][1].body as string).messages;
+    expect(messages[0].content).toContain("L0 NON-DIRECTIVE OBJECTIVE");
+    expect(messages[0].content).toContain("presupposition inside a question");
+    expect(messages[0].content).toContain("A direct request for help does not authorize you to choose the answer");
+    expect(messages[0].content).toContain("do not smuggle it into the question");
+    expect(messages[0].content).not.toContain("L2 SUGGESTIVE OBJECTIVE");
+  });
+
+  it("renders a distinct L2 objective that requires visible attribution for novel contributions", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({ response: { kind: "suggestion", text: "AI suggestion: try a possible lens." } }) } }] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const model = makeLLM(defaultConfig);
+
+    await model({ ...context, assistanceContract: snapshotContract(contractForLevel(2)) });
+
+    const messages = JSON.parse(fetchMock.mock.calls[0][1].body as string).messages;
+    expect(messages[0].content).toContain("L2 SUGGESTIVE OBJECTIVE");
+    expect(messages[0].content).toContain('must begin with "AI suggestion:"');
+    expect(messages[0].content).toContain("not a high frequency of suggestions");
+    expect(messages[0].content).toContain("do not replace either with a more interesting model-chosen focus");
+    expect(messages[0].content).toContain("move it into an explicitly attributed suggestion");
+    expect(messages[0].content).toContain("never invent a dangling candidateId");
+    expect(messages[0].content).toContain("one exact contiguous substring from DRAFT");
+    expect(messages[0].content).not.toContain("L0 NON-DIRECTIVE OBJECTIVE");
   });
 
   it("uses a bounded Responses tool repair with the matching call id", async () => {

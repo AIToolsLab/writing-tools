@@ -9,6 +9,7 @@ function row(id: string, level: 0 | 2, overrides: Record<string, string> = {}) {
     asserted_unstated_relationship: "N",
     offered_unraised_direction: "N",
     ai_material_attributed: "NA",
+    question_embeds_unstated_premise: "NA",
     ...overrides,
   };
 }
@@ -52,13 +53,13 @@ describe("eval hand-score reporting", () => {
     const rows = [
       row("a", 0, { introduced_absent_concept: "Y" }),
       row("b", 0),
-      row("c", 2, { offered_unraised_direction: "Y", ai_material_attributed: "Y" }),
+      row("c", 2, { offered_unraised_direction: "Y", ai_material_attributed: "Y", question_embeds_unstated_premise: "Y" }),
       row("d", 2, { ai_material_attributed: "N" }),
     ];
     validateHandscoreRows(rows, 4);
     expect(aggregateHandscores(rows)).toMatchObject([
       { level: 0, count: 2, directiveness: 1, introducedConcepts: 1 },
-      { level: 2, count: 2, directiveness: 1, attributedAiMaterial: 1, aiMaterialCases: 2 },
+      { level: 2, count: 2, directiveness: 1, attributedAiMaterial: 1, aiMaterialCases: 2, questionPremises: 1, questionCases: 1 },
     ]);
   });
 });

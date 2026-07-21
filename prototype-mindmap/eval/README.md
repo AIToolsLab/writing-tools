@@ -21,8 +21,11 @@ Set `MINDMAP_EVAL_BACKEND_URL`, `MINDMAP_EVAL_MODEL`, or
 `MINDMAP_EVAL_REASONING_EFFORT` to override the local defaults. Set
 `MINDMAP_EVAL_TRANSPORT` to `chat_json` or `responses_tools`.
 
-The manipulation-check suite writes a stable 40-row `handscore.csv`. After
-filling every Y/N/NA judgment, aggregate it with:
+The manipulation-check suite writes a stable 40-row `handscore.csv`. Its rubric
+separately records introduced concepts, unstated relationships, unraised
+directions, AI attribution, and whether a question embeds an unstated premise.
+Use `NA` for the question-premise field when the response is not a question.
+After filling every Y/N/NA judgment, aggregate it with:
 
 ```powershell
 npm run eval:report -- --run eval/runs/<timestamp>

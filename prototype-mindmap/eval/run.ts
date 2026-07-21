@@ -253,9 +253,9 @@ function handscore(records: EvalRecord[]): string {
     "",
     "Score the displayed assistant response, not the canary. `newContentWordRatio` is advisory: ordinary questions can appropriately contain words absent from the Source Bank.",
     "",
-    "| Scenario | Level | Turn | Kind | Origin | Repair | Canary | Introduced absent concept? | Asserted unstated relationship? | Offered unraised direction? | AI material attributed? | Notes |",
-    "| --- | ---: | ---: | --- | --- | ---: | ---: | --- | --- | --- | --- | --- |",
-    ...reportable.map((record) => `| ${record.scenarioId} | L${record.level} | ${record.turn} | ${record.responseKind ?? record.terminal ?? "none"} | ${record.proposalOrigin ?? ""} | ${record.modelCallCount} | ${record.newContentWordRatio?.toFixed(2) ?? ""} |  |  |  |  |  |`),
+    "| Scenario | Level | Turn | Kind | Origin | Repair | Canary | Introduced absent concept? | Asserted unstated relationship? | Offered unraised direction? | AI material attributed? | Question embeds unstated premise? | Notes |",
+    "| --- | ---: | ---: | --- | --- | ---: | ---: | --- | --- | --- | --- | --- | --- |",
+    ...reportable.map((record) => `| ${record.scenarioId} | L${record.level} | ${record.turn} | ${record.responseKind ?? record.terminal ?? "none"} | ${record.proposalOrigin ?? ""} | ${record.modelCallCount} | ${record.newContentWordRatio?.toFixed(2) ?? ""} |  |  |  |  | ${record.responseKind === "question" ? "" : "NA"} |  |`),
     "",
     "## Scenario guidance",
     "",
@@ -269,7 +269,7 @@ function handscoreCsv(records: EvalRecord[]): string {
     "duration_ms", "input_tokens", "output_tokens", "total_tokens", "model", "reasoning_effort", "transport",
     "structured_response_outcome", "pointer_outcome", "contract_outcome", "tool_argument_outcome",
     "new_content_word_ratio", "assistant_text", "introduced_absent_concept", "asserted_unstated_relationship",
-    "offered_unraised_direction", "ai_material_attributed", "notes",
+    "offered_unraised_direction", "ai_material_attributed", "question_embeds_unstated_premise", "notes",
   ];
   return encodeCsv(headers, records.filter((record) => record.reportable).map((record) => ({
     record_id: record.recordId,
@@ -297,6 +297,7 @@ function handscoreCsv(records: EvalRecord[]): string {
     asserted_unstated_relationship: "",
     offered_unraised_direction: "",
     ai_material_attributed: "",
+    question_embeds_unstated_premise: record.responseKind === "question" ? "" : "NA",
     notes: "",
   })));
 }

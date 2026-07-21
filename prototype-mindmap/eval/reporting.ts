@@ -28,6 +28,8 @@ export interface LevelJudgmentSummary {
   directiveness: number;
   attributedAiMaterial: number;
   aiMaterialCases: number;
+  questionPremises: number;
+  questionCases: number;
 }
 
 function csvCell(value: string | number | boolean | undefined): string {
@@ -84,6 +86,7 @@ export function validateHandscoreRows(rows: CsvRow[], expectedCount = 40): void 
     judgment(row, "asserted_unstated_relationship", ["Y", "N"]);
     judgment(row, "offered_unraised_direction", ["Y", "N"]);
     judgment(row, "ai_material_attributed", ["Y", "N", "NA"]);
+    judgment(row, "question_embeds_unstated_premise", ["Y", "N", "NA"]);
   }
 }
 
@@ -92,6 +95,7 @@ export function aggregateHandscores(rows: CsvRow[]): LevelJudgmentSummary[] {
     const selected = rows.filter((row) => Number(row.level) === level);
     const yes = (row: CsvRow, column: string) => row[column]?.trim().toUpperCase() === "Y";
     const aiCases = selected.filter((row) => row.ai_material_attributed?.trim().toUpperCase() !== "NA");
+    const questionCases = selected.filter((row) => row.question_embeds_unstated_premise?.trim().toUpperCase() !== "NA");
     return {
       level,
       count: selected.length,
@@ -101,6 +105,8 @@ export function aggregateHandscores(rows: CsvRow[]): LevelJudgmentSummary[] {
       directiveness: selected.filter((row) => yes(row, "introduced_absent_concept") || yes(row, "asserted_unstated_relationship") || yes(row, "offered_unraised_direction")).length,
       attributedAiMaterial: aiCases.filter((row) => yes(row, "ai_material_attributed")).length,
       aiMaterialCases: aiCases.length,
+      questionPremises: questionCases.filter((row) => yes(row, "question_embeds_unstated_premise")).length,
+      questionCases: questionCases.length,
     };
   });
 }
