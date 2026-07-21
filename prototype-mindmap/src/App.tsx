@@ -17,6 +17,7 @@ import { useSpeechToText } from "./useSpeechToText";
 import { measureDraftAnchorRects, scrollDraftAnchorIntoView, type DraftAnchorRect } from "./draft-anchor";
 import { ASSISTANCE_CONTRACTS, contractForLevel, DEFAULT_ASSISTANCE_CONTRACT, normalizeInfluenceTrace, snapshotContract, type AssistanceLevel } from "./assistance-contract";
 import { EventLedger, mirrorSanitizedEvent, type LedgerEventKind } from "./event-ledger";
+import { reconcileSuggestionAdoption, type VisibleSuggestion } from "./suggestion-adoption";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -3130,6 +3131,7 @@ export default function App() {
   const undoStackRef = useRef<MapUndoSnapshot[]>([]);
 
   const [msgs, setMsgs] = useState<ChatMsg[]>(initialMsgs);
+  const msgsRef = useRef<ChatMsg[]>(initialMsgs);
   const [proposals, setProposals] = useState(initialProposals);
   const [confirmed, setConfirmed] = useState<ConfirmedReflection[]>(initialConfirmed);
   const [lastCoachDebug, setLastCoachDebug] = useState<CoachDebugInfo | null>(initialCoachDebug);
@@ -3160,6 +3162,8 @@ export default function App() {
     void mirrorSanitizedEvent(event, { responseKind: extra?.responseKind, outcome: extra?.outcome, code: extra?.code, providerTransport: extra?.providerTransport, toolName: extra?.toolName, repairCount: extra?.repairCount, candidateStatus: extra?.candidateStatus, ageInTurns: extra?.ageInTurns });
   }, [contract]);
 
+  useEffect(() => { msgsRef.current = msgs; }, [msgs]);
+
   useEffect(() => {
     void recordEvent(persistedSession ? "contract_selected" : "contract_initialized", { reason: persistedSession ? "migration" : "new_session" });
   // The first mount records initial contract only. Level changes have their own event below.
@@ -3186,9 +3190,21 @@ export default function App() {
     setCanUndoMap(true);
   }, []);
 
-  const markMapChanged = useCallback(() => {
-    setMapRevision((v) => v + 1);
+  const reconcileMapSuggestionProvenance = useCallback(() => {
+    const suggestions: VisibleSuggestion[] = msgsRef.current
+      .filter((message) => message.role === "assistant" && message.responseKind === "suggestion")
+      .map((message) => ({ id: message.id, text: message.text }));
+    for (const unit of mapStoreRef.current.getAll()) {
+      const next = reconcileSuggestionAdoption(unit, suggestions);
+      if (next === unit) continue;
+      mapStoreRef.current.update(unit.id, { source: next.source });
+    }
   }, []);
+
+  const markMapChanged = useCallback(() => {
+    reconcileMapSuggestionProvenance();
+    setMapRevision((v) => v + 1);
+  }, [reconcileMapSuggestionProvenance]);
 
   const markUserMapChanged = useCallback(() => {
     setCommandAck(null);

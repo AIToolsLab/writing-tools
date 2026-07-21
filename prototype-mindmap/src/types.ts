@@ -191,6 +191,17 @@ export interface ThoughtUnit {
     createdBy: "user" | "ai_from_reflection";
     origin?: import("./assistance-contract").ContributionOrigin | "user_canvas";
     contract?: import("./assistance-contract").AssistanceContractSnapshot;
+    /** Deterministic text-overlap history for user adoption of coach suggestions. */
+    suggestionAdoption?: SuggestionAdoptionTrace;
   };
   roleHistory: RoleHistoryEntry[];
+}
+
+export interface SuggestionAdoptionTrace {
+  /** The suggestion that first pushed this card to the inclusive adoption threshold. */
+  adoptedFromMessageId: number;
+  /** Best visible suggestion for the card's current wording. */
+  currentBestSuggestionMessageId?: number;
+  currentOverlapRatio: number;
+  peakOverlapRatio: number;
 }

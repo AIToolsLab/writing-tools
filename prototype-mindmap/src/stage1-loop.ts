@@ -192,6 +192,21 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
     if (citesDraft && contract.level < 1) {
       return { rejection: { code: "reflection_cites_draft_at_l0", detail: "Draft evidence is available for mirrors at L1 and L2 only." }, diagnostics: [diagnostic("validation", "rejected", "reflection_cites_draft_at_l0", "A non-directive reflection cited draft evidence.")] };
     }
+    if (citesDraft) {
+      const citesEligibleChat = response.reflection.claims.some((claim) => {
+        const evidenceIds = [
+          ...claim.sourceSpans.flatMap((span) => span.utteranceIds),
+          ...(claim.relationSpan ? [claim.relationSpan.utteranceId] : []),
+        ];
+        return evidenceIds.some((id) => {
+          const utterance = state.bank.get(id);
+          return utterance?.origin === "chat" && !utterance.commandOnly && !utterance.nonHarvestable;
+        });
+      });
+      if (!citesEligibleChat) {
+        return { rejection: { code: "reflection_draft_without_chat_anchor", detail: "A draft-grounded reflection must also cite the chat wording it juxtaposes." }, diagnostics: [diagnostic("validation", "rejected", "reflection_draft_without_chat_anchor", "A draft-grounded reflection did not cite eligible chat wording.")] };
+      }
+    }
     const validation = validateMirror(response.reflection, state.bank.getAll(), config);
     if (!validation.ok) return { rejection: { code: "reflection_validation_failed", detail: validation.claims.filter((claim) => !claim.ok).map((claim) => claim.message).join(" ") }, diagnostics: [diagnostic("validation", "rejected", "reflection_validation_failed", "Reflection evidence pointers did not validate.")] };
     const attributions = response.reflection.claims.map((claim) => deriveClaimAttribution(claim, state.bank.getAll()));

@@ -83,13 +83,54 @@ describe("typed Stage 1 controller", () => {
     const store = new ThoughtUnitStore();
     const result = await processTurn(state, "I keep thinking about belonging.", async (context: import("./llm-contract").LLMContext) => {
       const draftId = context.bank.find((u) => u.origin === "draft")!.id;
+      const chatId = context.bank.find((u) => u.origin === "chat")!.id;
       return { response: { kind: "reflection" as const, text: "A mirror.", reflection: { claims: [{
-        id: "c1", text: "language shapes belonging", candidateId: "c1", target: "idea" as const,
-        sourceSpans: [{ claimText: "language shapes belonging", userPhrase: "language shapes belonging", utteranceIds: [draftId] }],
-      }] } }, advisory: { candidateUpserts: [{ id: "c1", target: "idea" as const, gist: "belonging", addEvidenceIds: [draftId], status: "active" as const }] } };
+        id: "c1", text: "language shapes belonging; I keep thinking about belonging", candidateId: "c1", target: "idea" as const,
+        sourceSpans: [
+          { claimText: "language shapes belonging", userPhrase: "language shapes belonging", utteranceIds: [draftId] },
+          { claimText: "I keep thinking about belonging", userPhrase: "I keep thinking about belonging", utteranceIds: [chatId] },
+        ],
+      }] } }, advisory: { candidateUpserts: [{ id: "c1", target: "idea" as const, gist: "belonging", addEvidenceIds: [draftId, chatId], status: "active" as const }] } };
     }, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[1] });
     expect(result.response).toMatchObject({ kind: "reflection" });
     expect(result.proposal?.origin).toBe("ai_connected");
+  });
+
+  it("repairs an L1 draft-only reflection before ordinary pointer validation", async () => {
+    const state = createConversationState();
+    state.draft = "Language shapes belonging.";
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (context: import("./llm-contract").LLMContext, rejection) => rejection
+      ? { response: { kind: "question" as const, text: "What part of belonging matters here?" } }
+      : { response: { kind: "reflection" as const, text: "A mirror.", reflection: { claims: [{
+        id: "c1", text: "language shapes belonging", candidateId: "c1", target: "idea" as const,
+        sourceSpans: [{ claimText: "language shapes belonging", userPhrase: "language shapes belonging", utteranceIds: [context.bank.find((u) => u.origin === "draft")!.id] }],
+      }] } } });
+    const result = await processTurn(state, "Help me think.", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[1] });
+    expect(model.mock.calls[1]?.[1]).toMatchObject({ code: "reflection_draft_without_chat_anchor" });
+    expect(result.response).toMatchObject({ kind: "question" });
+  });
+
+  it("rejects a relationship assembled across draft and chat evidence", async () => {
+    const state = createConversationState();
+    state.draft = "Language shapes belonging.";
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (context: import("./llm-contract").LLMContext, rejection) => {
+      if (rejection) return { response: { kind: "question" as const, text: "How do those ideas relate in your view?" } };
+      const draftId = context.bank.find((u) => u.origin === "draft")!.id;
+      const chatId = context.bank.find((u) => u.origin === "chat")!.id;
+      return { response: { kind: "reflection" as const, text: "A mirror.", reflection: { claims: [{
+        id: "c1", text: "language shapes belonging supports human control", candidateId: "c1", target: "connection" as const,
+        sourceSpans: [
+          { claimText: "language shapes belonging", userPhrase: "language shapes belonging", utteranceIds: [draftId] },
+          { claimText: "human control", userPhrase: "human control", utteranceIds: [chatId] },
+        ],
+        relationSpan: { utteranceId: draftId, text: "shapes" },
+      }] } } };
+    });
+    const result = await processTurn(state, "Human control matters.", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[1] });
+    expect(model.mock.calls[1]?.[1]).toMatchObject({ code: "reflection_validation_failed" });
+    expect(result.response).toMatchObject({ kind: "question" });
   });
 
   it("keeps only the latest draft snapshot in model context", async () => {
