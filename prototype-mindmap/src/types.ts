@@ -11,7 +11,7 @@
 // Source Bank — the ground truth of user language
 // ---------------------------------------------------------------------------
 
-export type UtteranceOrigin = "chat" | "node_edit" | "declaration";
+export type UtteranceOrigin = "chat" | "node_edit" | "declaration" | "draft";
 
 /** A single thing the user said or wrote. Never edited by the AI. */
 export interface SourceUtterance {
@@ -21,6 +21,8 @@ export interface SourceUtterance {
   origin: UtteranceOrigin;
   /** Groups sentence-level units that came from one input (one turn / paste). */
   turnId?: string;
+  /** Immutable draft snapshot identity; only the current snapshot is model-visible. */
+  draftSnapshotId?: string;
   /** Ground-truth command wording kept for provenance, but excluded from mirrors. */
   commandOnly?: boolean;
   /**

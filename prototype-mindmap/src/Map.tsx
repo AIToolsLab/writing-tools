@@ -284,6 +284,7 @@ function sourceLabel(unit: ThoughtUnit): string {
     ? unit.source.utteranceIds.join(", ")
     : "none";
   if (unit.source.origin === "ai_suggested") return `AI suggestion; source utterances: ${utterances}`;
+  if (unit.source.origin === "ai_connected") return `drawn from your draft; source utterances: ${utterances}`;
   if (unit.source.origin === "legacy_confirmed") return `confirmed in an earlier version; source utterances: ${utterances}`;
   if (unit.source.reflectionId) {
     return `reflection ${unit.source.reflectionId}; source utterances: ${utterances}`;
@@ -461,7 +462,9 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
       <div className="map-embed-actions nodrag">
         <span className="map-embed-ref" title="Card reference">{cardRef(unit.id)}</span>
         {unit.parentProvenance?.origin === "ai_suggested" && <span className="map-origin-badge" aria-label="AI-suggested nesting">AI nesting</span>}
+        {unit.parentProvenance?.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label="Nesting drawn from your draft">Draft connection</span>}
         {unit.source.origin === "ai_suggested" && <span className="map-origin-badge" aria-label="AI suggestion">AI suggestion</span>}
+        {unit.source.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label="Drawn from your draft">Drawn from draft</span>}
         <button type="button" onClick={() => setExpanded((value) => !value)} title={expanded ? "Collapse card text" : "Expand card text"}>
           {expanded ? "Less" : "More"}
         </button>

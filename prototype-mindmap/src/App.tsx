@@ -131,6 +131,8 @@ interface PersistedSession {
     lastAssistantText: string;
     draft: string;
     currentUserTurn?: number;
+    currentDraftSnapshotId?: string;
+    draftSnapshotText?: string;
     legacyIgnoredCandidateIds?: string[];
     /** v1-v5 migration input only. */
     dismissedCandidateIds?: string[];
@@ -1032,6 +1034,7 @@ const css = `
     margin-left: auto;
   }
   .map-origin-badge { padding: 2px 5px; border-radius: 8px; background: #f1e7ff; color: #70459a; font-size: 10px; font-weight: 700; }
+  .map-origin-badge-connected { background: #e8f2ee; color: #356b56; }
   .assistance-contract { display: flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: #666; }
   .assistance-contract select {
     appearance: none;
@@ -3077,6 +3080,8 @@ export default function App() {
     state.turnsSinceLastReflection = persistedSession.conversation?.turnsSinceLastReflection ?? persistedSession.controller?.turnsSinceLastMirror ?? 0;
     state.lastAssistantText = persistedSession.conversation?.lastAssistantText ?? persistedSession.controller?.lastAiText ?? "";
     state.draft = persistedSession.conversation?.draft ?? persistedSession.controller?.draft ?? persistedSession.draftText;
+    state.currentDraftSnapshotId = persistedSession.conversation?.currentDraftSnapshotId;
+    state.draftSnapshotText = persistedSession.conversation?.draftSnapshotText;
     return state;
   }, [persistedSession]);
 
@@ -3854,6 +3859,8 @@ export default function App() {
         lastAssistantText: stateRef.current.lastAssistantText,
         draft: stateRef.current.draft,
         currentUserTurn: stateRef.current.currentUserTurn,
+        currentDraftSnapshotId: stateRef.current.currentDraftSnapshotId,
+        draftSnapshotText: stateRef.current.draftSnapshotText,
         legacyIgnoredCandidateIds: stateRef.current.legacyIgnoredCandidateIds,
       },
       diagnostics,

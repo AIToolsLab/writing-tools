@@ -2,7 +2,7 @@ import type { SourceSpan } from "./types";
 
 export type AssistanceLevel = 0 | 1 | 2;
 export type AssistantResponseKind = "question" | "reflection" | "aside" | "map_proposal" | "options" | "suggestion";
-export type ContributionOrigin = "user_asserted" | "ai_suggested" | "unresolved" | "legacy_confirmed";
+export type ContributionOrigin = "user_asserted" | "ai_connected" | "ai_suggested" | "unresolved" | "legacy_confirmed";
 
 export interface AssistanceContract {
   id: "non_directive_v1" | "grounded_options_v1" | "suggestive_v1";

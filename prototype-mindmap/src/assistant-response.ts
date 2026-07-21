@@ -40,6 +40,8 @@ export interface ConversationState {
   bank: SourceBank;
   candidates: CandidateStore;
   draft: string;
+  currentDraftSnapshotId?: string;
+  draftSnapshotText?: string;
   turnsSinceLastReflection: number;
   lastAssistantText: string;
   currentUserTurn: number;

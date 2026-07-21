@@ -59,6 +59,8 @@ export function cloneConversationState(state: ConversationState): ConversationSt
   clone.bank.replaceAll(state.bank.getAll());
   clone.candidates.replaceAll(state.candidates.getAll());
   clone.draft = state.draft;
+  clone.currentDraftSnapshotId = state.currentDraftSnapshotId;
+  clone.draftSnapshotText = state.draftSnapshotText;
   clone.turnsSinceLastReflection = state.turnsSinceLastReflection;
   clone.lastAssistantText = state.lastAssistantText;
   clone.currentUserTurn = state.currentUserTurn;
@@ -180,6 +182,16 @@ function targetForAction(kind: import("./action-gateway").ProposedAction["kind"]
 function createProposal(envelope: AssistantResponseEnvelope, state: ConversationState, candidates: CandidateStore, options: ProcessTurnOptions, config: MindmapConfig, contract: AssistanceContractSnapshot): { proposal?: Proposal; rejection?: StructuredRejection; diagnostics: DiagnosticEvent[] } {
   const response = envelope.response;
   if (response.kind === "reflection") {
+    const citesDraft = response.reflection.claims.some((claim) => {
+      const evidenceIds = [
+        ...claim.sourceSpans.flatMap((span) => span.utteranceIds),
+        ...(claim.relationSpan ? [claim.relationSpan.utteranceId] : []),
+      ];
+      return evidenceIds.some((id) => state.bank.get(id)?.origin === "draft");
+    });
+    if (citesDraft && contract.level < 1) {
+      return { rejection: { code: "reflection_cites_draft_at_l0", detail: "Draft evidence is available for mirrors at L1 and L2 only." }, diagnostics: [diagnostic("validation", "rejected", "reflection_cites_draft_at_l0", "A non-directive reflection cited draft evidence.")] };
+    }
     const validation = validateMirror(response.reflection, state.bank.getAll(), config);
     if (!validation.ok) return { rejection: { code: "reflection_validation_failed", detail: validation.claims.filter((claim) => !claim.ok).map((claim) => claim.message).join(" ") }, diagnostics: [diagnostic("validation", "rejected", "reflection_validation_failed", "Reflection evidence pointers did not validate.")] };
     const attributions = response.reflection.claims.map((claim) => deriveClaimAttribution(claim, state.bank.getAll()));
@@ -194,7 +206,7 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
       id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       mapRevision: options.mapRevision,
       referencedCardIds: [],
-      origin: "user_asserted",
+      origin: citesDraft ? "ai_connected" : "user_asserted",
       influenceTrace: trace,
       contract,
       state: "shown",
@@ -261,7 +273,7 @@ export function buildContext(state: ConversationState, userText: string, added: 
   const shape = detectTurnShape(userText, added);
   const cardCount = map.thoughtUnits.filter((unit) => unit.role !== "connection_label").length;
   return {
-    bank: state.bank.getAll().filter((utterance) => !utterance.nonHarvestable),
+    bank: state.bank.getAll().filter((utterance) => !utterance.nonHarvestable && (utterance.origin !== "draft" || utterance.draftSnapshotId === state.currentDraftSnapshotId)),
     candidates: state.candidates.getAll().map((candidate) => ({
       id: candidate.id,
       target: candidate.target,
@@ -286,6 +298,10 @@ export function buildContext(state: ConversationState, userText: string, added: 
 }
 
 export async function processTurn(state: ConversationState, userText: string, model: AssistantModel, config: MindmapConfig, map: LLMMapContext, options: ProcessTurnOptions): Promise<TurnResult> {
+  if (state.draft.trim() && state.draft !== state.draftSnapshotText) {
+    state.currentDraftSnapshotId = state.bank.addDraftSnapshot(state.draft).snapshotId;
+    state.draftSnapshotText = state.draft;
+  }
   if (userText.trim()) state.currentUserTurn++;
   const added = userText.trim() ? state.bank.addSegmented(userText, "chat") : [];
   const turnOptions: ProcessTurnOptions = { ...options, turnUtteranceIds: added.map((utterance) => utterance.id) };

@@ -60,6 +60,54 @@ describe("typed Stage 1 controller", () => {
     expect(result.response).toMatchObject({ kind: "question", anchor: "classes probably did matter" });
   });
 
+  it("rejects an L0 reflection that cites draft evidence", async () => {
+    const state = createConversationState();
+    state.draft = "Language shapes belonging.";
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (context: import("./llm-contract").LLMContext, rejection) => rejection
+      ? { response: { kind: "question" as const, text: "What feels connected here?" } }
+      : { response: { kind: "reflection" as const, text: "A mirror.", reflection: { claims: [{
+        id: "c1", text: "language shapes belonging", candidateId: "c1", target: "idea" as const,
+        sourceSpans: [{ claimText: "language shapes belonging", userPhrase: "language shapes belonging", utteranceIds: [context.bank.find((u) => u.origin === "draft")!.id] }],
+      }] } } });
+
+    const result = await processTurn(state, "Help with this draft.", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[0] });
+    expect(model).toHaveBeenCalledTimes(2);
+    expect(result.response).toMatchObject({ kind: "question" });
+    expect(result.diagnostics.some((event) => event.code === "reflection_cites_draft_at_l0")).toBe(true);
+  });
+
+  it("accepts an L1 draft-grounded mirror and records ai_connected provenance", async () => {
+    const state = createConversationState();
+    state.draft = "Language shapes belonging.";
+    const store = new ThoughtUnitStore();
+    const result = await processTurn(state, "I keep thinking about belonging.", async (context: import("./llm-contract").LLMContext) => {
+      const draftId = context.bank.find((u) => u.origin === "draft")!.id;
+      return { response: { kind: "reflection" as const, text: "A mirror.", reflection: { claims: [{
+        id: "c1", text: "language shapes belonging", candidateId: "c1", target: "idea" as const,
+        sourceSpans: [{ claimText: "language shapes belonging", userPhrase: "language shapes belonging", utteranceIds: [draftId] }],
+      }] } }, advisory: { candidateUpserts: [{ id: "c1", target: "idea" as const, gist: "belonging", addEvidenceIds: [draftId], status: "active" as const }] } };
+    }, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[1] });
+    expect(result.response).toMatchObject({ kind: "reflection" });
+    expect(result.proposal?.origin).toBe("ai_connected");
+  });
+
+  it("keeps only the latest draft snapshot in model context", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    state.draft = "First draft wording.";
+    await processTurn(state, "One.", async () => ({ response: { kind: "question" as const, text: "What matters?" } }), defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+    state.draft = "Second draft wording.";
+    let latestContext: Awaited<ReturnType<typeof processTurn>> | undefined;
+    const model = vi.fn(async (context: import("./llm-contract").LLMContext) => {
+      expect(context.bank.some((u) => u.text === "First draft wording.")).toBe(false);
+      expect(context.bank.some((u) => u.text === "Second draft wording.")).toBe(true);
+      return { response: { kind: "question" as const, text: "What changed?" } };
+    });
+    latestContext = await processTurn(state, "Two.", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+    expect(latestContext.response).toMatchObject({ kind: "question" });
+  });
+
   it("repairs one rejected map proposal and still leaves it inert", async () => {
     const state = createConversationState();
     const store = new ThoughtUnitStore();

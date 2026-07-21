@@ -15,6 +15,7 @@ import type {
 
 let _nextId = 0;
 let _nextTurn = 0;
+let _nextDraftSnapshot = 0;
 export function nextId(prefix: string): string {
   return `${prefix}_${++_nextId}`;
 }
@@ -22,6 +23,7 @@ export function nextId(prefix: string): string {
 export function resetIdCounter(): void {
   _nextId = 0;
   _nextTurn = 0;
+  _nextDraftSnapshot = 0;
 }
 
 function trailingNumber(value: string | undefined): number {
@@ -86,6 +88,20 @@ export class SourceBank {
       this._utterances.set(u.id, u);
       return u;
     });
+  }
+
+  /** Capture draft wording as immutable, sentence-level evidence. */
+  addDraftSnapshot(text: string): { snapshotId: string; utterances: SourceUtterance[] } {
+    const snapshotId = `draft_${++_nextDraftSnapshot}`;
+    const parts = segment(text);
+    const pieces = parts.length > 0 ? parts : [text.trim()].filter(Boolean);
+    const now = Date.now();
+    const utterances = pieces.map((piece) => {
+      const utterance: SourceUtterance = { id: nextId("u"), text: piece, timestamp: now, origin: "draft", draftSnapshotId: snapshotId };
+      this._utterances.set(utterance.id, utterance);
+      return utterance;
+    });
+    return { snapshotId, utterances };
   }
 
   get(id: string): SourceUtterance | undefined {
