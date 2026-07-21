@@ -9,6 +9,10 @@ npm run eval -- --suite manipulation-check
 ```
 
 The runner compares each scenario's identical user/control script at L0 and L2.
+Each scenario may designate a scored turn; otherwise its final live user-turn
+outcome is scored. All assistant turns remain in `transcript.jsonl`, while the
+reportable manipulation-check denominator contains only the 40 designated
+outcomes.
 It writes a timestamped directory under `eval/runs/` containing:
 
 - `transcript.jsonl` — one complete record per assistant turn;
@@ -36,3 +40,15 @@ The
 `newContentWordRatio` canary is not a gate: hand-score outputs before making
 claims about assistance-level behavior. This first slice deliberately has no
 LLM-as-judge.
+
+Operational fields include end-to-end duration, provider transport, model
+profile, reasoning effort, token counts when returned, model-call count,
+recovery stage, terminal outcome, and structured/tool validity. The reportable
+quality fields are human judgments; operational canaries and lexical overlap do
+not determine directiveness or authorship.
+
+Current evidence status (2026-07-21): harness type-checks and deterministic
+reporting tests are green. The latest prompt/recap/nesting checkpoints still
+need a fresh live provider run and completed 40-row hand score before new model
+performance claims are reportable. Keep all raw outputs under ignored
+`eval/runs/`.

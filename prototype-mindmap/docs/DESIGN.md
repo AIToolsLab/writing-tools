@@ -7,10 +7,11 @@ briefs were removed after they became stale.
 ## Aim
 
 This is a writing-thinking tool, not a writing-production tool. The user
-externalizes their own thinking into a concept map. The AI helps by questioning,
-reflecting the user's own words, noticing when clarification is needed, and
-capturing confirmed structure. It never authors ideas, names relationships, or
-decides what belongs where.
+externalizes their thinking into a concept map. The AI helps by questioning,
+reflecting and recapping the user's words, noticing when clarification is
+needed, and offering reviewable structure. L0 and L1 remain strictly
+user-word-faithful. L2 may originate visibly attributed suggestions, but no
+model contribution becomes map structure without explicit user confirmation.
 
 The central bet is that constrained dialogue plus a user-grounded external map
 helps a person construct and recognize their own thinking more deeply than
@@ -18,18 +19,22 @@ freeform chat or AI-generated prose.
 
 ## Invariants
 
-1. **The user authors every idea, label, hierarchy, role, and connection.**
-2. **The AI never authors ungrounded structure.** It questions and reflects the
-   user's own words; it does not invent ideas or relationships.
+1. **The user controls every committed idea, label, hierarchy, role, and
+   connection.** Direct user structure is user-authored; confirmed L2 material
+   retains visible AI provenance.
+2. **L0 and L1 never author ungrounded structure.** L2 may suggest new content or
+   structure only with explicit attribution and the same confirmation gateway.
 3. **Validation gates the AI, never the user.** The map is the user's sovereign
    workspace.
-4. **Selection is authorship.** The AI never decides which ideas become cards.
+4. **Selection creates influence.** Model-chosen connections among the user's
+   words are recorded as `ai_connected`; AI-authored wording is recorded as
+   `ai_suggested`. Neither is disguised as purely user-authored.
 5. **The slider moves eagerness, never the authorship gate.**
 6. **Enforcement lives in code; calibration lives in config.**
 
-Useful corollary: the AI may interpret freely, but the consequential act that
-creates structure is either fenced by grounding plus user confirmation, or is a
-direct user action.
+Useful corollary: the AI may interpret freely, but a consequential act that
+creates structure is either source-grounded and confirmed, explicitly
+AI-attributed and confirmed at L2, or a direct user action.
 
 ## Required Behavior
 
@@ -43,18 +48,38 @@ not classify the user's intent or rewrite the model's language.
 
 ### Questioning
 
-The coach makes one move per turn: at most a short grounding clause followed by a
-single question, ending on that question. It chooses stance (`settle`, `narrow`,
-`deepen`, `organize`, `challenge`) based on the user's state. It does not re-ask
-settled points, validate as the whole reply, or offer inferred structure for the
-user to approve.
+The coach makes one coherent move per turn. That move may be a question,
+reflection, grounded recap, aside, options, suggestion, or map proposal when the
+active assistance contract permits it. Questions must not smuggle an unstated
+answer, relationship, or direction into their premise. Direct quotation is used
+only when it makes the question clearer; exact but confusing fragments are not a
+quality success.
 
 ### Mirroring
 
-A mirror restates structure in the user's own words. It is offered only when a
-candidate is ready and only after validator checks pass. Failed mirrors become
-clarifying questions. A mirror is split into confirmable chunks; only confirmed
-chunks become cards.
+A mirror restates structure in the user's own words. Its visible text is derived
+from validated claims, so an uncited model-authored wrapper cannot leak into the
+proposal. At L0 it draws from one recorded user moment; at L1/L2 it may bring
+together eligible wording across turns or chat plus the current draft snapshot,
+and that model-chosen synthesis is recorded as `ai_connected`. A mirror is split
+into confirmable chunks; only confirmed chunks become cards.
+
+Reflection-grounding failures use a named, capped recovery ladder: initial
+response, one informed repair supplied with the rejected reflection and exact
+unsupported words, and—only if the repair is another grounding-failed
+reflection—one forced-question call. The third call accepts only a valid typed
+question. All other rejection paths retain one repair call. There is never a
+fourth model call; exhausted paths render application-owned recovery UI.
+
+### Grounded Recaps
+
+A grounded recap is conversational consolidation, not a map proposal. Its
+visible text is derived from validated, source-backed claims and it cannot
+nominate candidate structure. L0 recaps only the current user turn. L1/L2 may
+synthesize eligible user wording across turns or juxtapose chat with current
+draft wording; cross-source or cross-turn selection is recorded as
+`ai_connected`. Novel L2 interpretation belongs in an attributed suggestion,
+not in a recap.
 
 ### Carry-Forward
 
@@ -70,7 +95,11 @@ infer an imperative from wording. Every chat-derived structural change is shown
 as a proposal and requires an explicit click before it can mutate the map.
 The action gateway verifies user wording, references, duplicates, and graph
 integrity. Missing labels and ambiguous references are completed in the proposal
-card, never by parsing a later chat turn.
+card, never by parsing a later chat turn. A current-turn instruction that
+explicitly names both cards in a nesting action may support that exact nesting:
+the model cites the complete instruction, code verifies the span, recency, and
+both references, and the user still confirms. Code does not infer this intent
+with keywords or a semantic command parser.
 
 The composer has an explicit "Add as card" affordance for intentional capture.
 Direct canvas manipulation remains immediate because it is already an explicit
@@ -95,6 +124,40 @@ questioning. Until the map has enough structure to compare or connect, code
 supplies a factual sparse-map pacing advisory asking the model to prefer capture
 or clarification. This is deliberately prompt-advised rather than a controller
 rewrite: pacing is a conversational judgment, not an authorship or safety gate.
+
+### Draft Context and Focus
+
+The complete draft is background context; a real user selection is stronger,
+explicit focus evidence. The model uses the request, recent dialogue, and draft
+to judge whether a passage-specific move is useful. A model-chosen anchor is a
+passive overlay, never a browser-native selection and never `selectedFocus`.
+`View passage`, or reopening the draft after it was docked/minimized, reveals and
+scrolls to the anchor without changing its authorship status.
+
+Draft evidence is stored as immutable snapshots. Only the current snapshot is
+model-visible. L0 cannot cite draft wording in reflections or recaps; L1/L2 may
+juxtapose it only with eligible chat wording, and the result is `ai_connected`.
+
+### Controlled Working Memory
+
+Candidate ideas are deterministic lifecycle records (`active`, `parked`,
+`ignored`, `promoted`) backed by exact Source Bank evidence and user-turn ages.
+The model decides whether recall is conversationally useful; code does not match
+topics or impose a minimum age. Recall is limited to validated questions and
+asides using exact user phrases. Ignore and promotion prevent model
+resurrection; Restore is an explicit Control Room action that returns an idea to
+parked. Recall UI and terminal recovery UI never enter provider history or the
+Source Bank.
+
+### Provenance and Suggestion Adoption
+
+User-authored material has no prominent badge. Model-selected synthesis of the
+user's words is shown as `AI-connected · your words`. L2-originated structure is
+shown as an AI suggestion. If a card's distinct stemmed content words overlap a
+visible prior suggestion by at least 50% on creation or edit, it becomes
+persistently `ai_suggested`; later edits update its current percentage and peak
+without laundering the original influence. Suggestions that occur after the
+card text was established cannot retroactively claim adoption.
 
 ### Sovereign Map
 
@@ -123,15 +186,15 @@ invent explanations from a legacy controller mode.
 | --- | --- | --- |
 | Capture | `store.ts`, `normalize.ts` | `SourceBank.addSegmented`, sentence/newline segmentation |
 | Questioning | `api.ts`, `stage1-loop.ts`, `llm-contract.ts` | Typed response prompt plus factual, advisory turn/map context |
-| Validation | `validator.ts` | Lexical grounding + span/relationship grounding |
+| Validation | `validator.ts` | Strict visible-word grounding + span/relationship grounding for reflections and recaps |
 | Confirmation | `App.tsx`, `proposal-store.ts` | Reflections and map actions remain inert until an explicit proposal decision |
 | Chat proposals | `stage1-loop.ts`, `action-gateway.ts` | Model proposes; code verifies pointers/references; user confirms |
 | Direct canvas actions | `Map.tsx`, `action-gateway.ts` | Immediate explicit-user actions retain graph/store checks |
 | Assistance contracts | `assistance-contract.ts`, `stage1-loop.ts` | L0/L1/L2 contribution permissions are snapshotted per turn; they never authorize a write |
-| Provenance | `proposal-store.ts`, `map-store.ts`, `Map.tsx` | User-asserted, AI-suggested, and legacy-confirmed material remain distinguishable |
+| Provenance | `proposal-store.ts`, `map-store.ts`, `suggestion-adoption.ts`, `Map.tsx` | User-authored, AI-connected, and AI-suggested material remain distinguishable; adopted suggestions retain current and peak overlap |
 | Audit ledger | `event-ledger.ts`, backend `/api/mindmap/events` | Full local events; outbound allowlisted metadata only |
 | Map | `map-store.ts`, `Map.tsx` | One primitive: `ThoughtUnit` card; nesting is `parentId`; connections have label cards |
-| Draft anchoring | `App.tsx`, `api.ts` | Read-only draft + verbatim `questionAnchor` highlight |
+| Draft grounding and anchoring | `App.tsx`, `api.ts`, `draft-anchor.ts` | Immutable current draft snapshots plus a passive model anchor overlay; model anchors never create `selectedFocus` |
 | Voice dictation | `App.tsx`, `useSpeechToText.ts` | Browser speech recognition fills the composer for manual review before send |
 | Slider | `config.ts` | `withQuestionIntentBias` changes pacing thresholds only |
 | Diagnostics | `understanding.ts`, `trace.ts`, `Map.tsx` | Structured response, validation, repair, gateway, proposal, and application events |
@@ -177,8 +240,9 @@ through that instance.
 - **Local transcript remains authoritative.** The Responses adapter uses
   `store: false`, disables parallel tool calls, and replays provider items only
   inside the bounded recovery attempt currently in flight. Reflection grounding
-  alone may use the capped third forced-question call. `chat_json` remains the default
-  transport until browser smoke testing is available.
+  alone may use the capped third forced-question call. `chat_json` remains the
+  default until `responses_tools` matches or improves validity and passes a live
+  propose-only authority smoke test.
 
 - **No ghost structure.** An AI proposal is reviewed in chat only. It never
   stages a tentative card, edge, nesting, layout shift, or relationship visual
@@ -210,17 +274,28 @@ through that instance.
 Built and tested:
 
 - capture/segmentation
-- typed question/reflection/aside/map-proposal/options/suggestion responses
+- typed question/reflection/grounded-recap/aside/map-proposal/options/suggestion responses
 - pointer validation and attribution derivation
+- visible reflection/recap text derived from validated claims
 - per-chunk mirror confirmation
+- reflection-specific informed repair and forced-question recovery, with
+  application-owned terminal UI
 - proposal-first chat structure and direct canvas integrity actions
+- explicit current-turn card-reference nesting intent without semantic routing
 - concept map cards, nesting, connections, delete, undo
-- draft anchoring
+- immutable draft snapshots and passive draft anchoring
 - Think-to-Map slider
 - structured diagnostics
+- controlled working-memory candidate lifecycle and source-backed recall
+- three-tier provenance plus persistent suggestion-adoption percentages
 - browser voice dictation into the chat composer with manual review before send
-- persisted contracts, provenance, local ledger, and v4 session migration
+- persisted contracts, provenance, local ledger, and v6 session migration
 - command-only exclusion from mirror eligibility
+
+Current verification checkpoint (2026-07-21): TypeScript and eval type-checks,
+270 Vitest tests, and the production build are green. Browser smoke verified the
+application shell and assistance-level switching. Live-model recap, explicit
+nesting, and tuned reportable-eval verification remain the next evidence pass.
 
 Known tradeoff: questions can still carry framing that code cannot reliably
 classify. The system protects autonomous map authorship, provenance, and visual

@@ -1,7 +1,11 @@
 # Refactor Plan: De-Brittle, then Assistance Contracts
 
-Status: Stage 1 implemented 2026-07-15. A required Stage 1.5 conversation-context
-stabilization pass precedes Stage 2 and the GPT-5.6 bakeoff.
+Status (2026-07-21): Stages 1, 1.5, and the three assistance contracts are
+implemented. The eval harness, bounded reflection recovery, draft grounding,
+working-memory recall, three-tier provenance, suggestion-adoption tracing,
+grounded recaps, and explicit current-turn nesting intent are also implemented.
+The remaining evidence pass is live-model verification and reportable eval
+scoring; later cosmetic work and provider-default changes remain deferred.
 Companion to `DESIGN.md` (canonical invariants) and `airtightness-report.md`.
 
 Stage 1 landed as a hard cutover: the live app consumes the typed response union,
@@ -10,10 +14,10 @@ a bounded structured recovery, and routes chat confirmations and direct canvas
 intents through the action gateway. Legacy routing/fallback tests were replaced
 with response, gateway, proposal, and repair contract tests.
 
-## Next implementation pass - recovery and draft-focus stabilization (locked)
+## Implemented pass - recovery and draft-focus stabilization
 
-This is the next runtime pass. It is deliberately separate from LiveKit, model
-bakeoffs, and further provider-tool optimization.
+This section records the runtime pass that shipped. It remains here as design
+rationale, not as an outstanding checklist.
 
 ### Reflection recovery
 
@@ -54,18 +58,19 @@ bakeoffs, and further provider-tool optimization.
   should make draft anchors selective rather than routine, without a code rule
   that interprets when a passage is semantically necessary.
 
-### Open-thread quarantine
+### Open-thread resolution
 
-- The current discourse-marker splitter in `open-threads.ts` is not part of the
-  live turn path. Do not reactivate it as an interpretation layer. Before the
-  subsystem returns to live orchestration, replace marker-based semantic
-  inference with model-nominated exact spans and deterministic pointer checks.
+- The discourse-marker `open-threads` subsystem was deleted. Working memory now
+  uses model-nominated candidate evidence plus deterministic lifecycle facts;
+  code never semantically matches user wording to decide that a topic returned.
 
 ### Non-goals and preserved invariants
 
 - No LiveKit work in this pass.
-- No second repair call, canned coach fallback, forced Map proposal, regex
-  routing, chat yes/no proposal resolution, or direct model map mutation.
+- No additional ordinary repair call, canned coach fallback, forced Map
+  proposal, regex routing, chat yes/no proposal resolution, or direct model map
+  mutation. The only three-call exception is the capped reflection-grounding
+  ladder described above.
 - Think/Map remains prompt advice. Assistance contracts, provenance, explicit
   proposal confirmation, no-ghost-structure, and the action gateway remain
   unchanged.
@@ -73,8 +78,9 @@ bakeoffs, and further provider-tool optimization.
 ### Required regression evidence
 
 - A rejected reflection can repair into a valid question or aside and render it.
-- Repair receives the rejected payload, structured reason, grounded material,
-  and recent assistant turns; it still runs at most once.
+- Recovery receives the rejected payload, structured reason, grounded material,
+  and recent assistant turns. Ordinary rejection paths repair once; repeated
+  reflection-grounding failure may make the final forced-question call.
 - An unusable repair ends loading and displays transparent retry UI without an
   invented coach response.
 - Conversational "I think" no longer triggers code-level uncertainty
@@ -104,7 +110,7 @@ cards/draft text, explicit UI requests, capabilities, and measured turn size.
   message synchronously in `send`; the current dialogue history must end in
   that user message exactly once.
 - Remove the long-lived transcript closure as durable conversation state. Keep
-  repair-local history so the one repair request still sees its rejected
+  repair-local history so bounded recovery requests still see the rejected
   assistant response, alongside the structured rejection supplied in the
   system context.
 - Apply the same call-time construction to Under-the-Hood requests and reset
@@ -201,14 +207,13 @@ The controller becomes a thin orchestrator. It is not an English parser.
 - `normalize.ts`, `map-layout.ts`, `Map.tsx`, `map-commands.ts`
 - reference resolution logic (relocated into the gateway, logic intact)
 - `understanding.ts` / UTH (gains better events to show)
-- `open-threads.ts`
 
 **Dies:**
 - the regex intent router in `controller.ts` (~most of the top 3,000 lines)
 - all canned fallback question builders
 - 4 pending-command types + `isAffirmative`/`isNegative`/`awaitingCorrection`
-- `RELATION_TERMS`/`CONTAINMENT_TERMS` **in the enforcement path** (they stay in
-  `signals.ts` for readiness scoring — that's calibration, brittleness is cheap there)
+- `RELATION_TERMS`/`CONTAINMENT_TERMS` and readiness word banks in the
+  enforcement or calibration path
 - most of `loop.test.ts` (266KB, coupled to exact strings and branch order)
 
 **Current cutover note:** the remaining `signals.ts`, `readiness.ts`, and
@@ -325,6 +330,7 @@ tool calls — reserve actual tools for consequences.
 type AssistantResponse =
   | { kind: "question"; text: string; stance: QuestionStance; anchor?: string }
   | { kind: "reflection"; text: string; claims: MirrorClaim[] }
+  | { kind: "grounded_recap"; text: string; recap: GroundedRecap }
   | { kind: "options"; text: string; options: VerbatimSpan[] }   // gated: L1+
   | { kind: "suggestion"; text: string; suggestions: Suggestion[] } // gated: L2+
   | { kind: "aside"; text: string }
@@ -368,7 +374,8 @@ All of these become model-supplied context fields, none of them gate authorship:
 `detectTypedModeOverride`, `questionConceptOverlap`.
 
 Keep as **calibration only** (advisory input to the model, never a gate):
-`turn-shape.ts`, `readiness.ts`, `signals.ts`, sparse-map signal.
+`turn-shape.ts` and the deterministic sparse-map signal. `readiness.ts` and
+`signals.ts` were deleted.
 
 ## 1.6 — Structured errors replace canned prose
 
@@ -416,8 +423,9 @@ write-off; `fuzz.loop.test.ts` is the model to follow.
 
 **The invariant spine (these must never fail):**
 1. No card exists without user confirmation or an explicit user canvas action.
-2. No card text that isn't verbatim user words.
-3. No reflection shown that fails the validator.
+2. No non-verbatim card text is recorded as user-authored; L2 material remains
+   visibly `ai_suggested`.
+3. No reflection or grounded recap is shown if its validated claims fail.
 4. No `inferred` structure at L0.
 5. No proposal executes against a map revision it wasn't created for.
 
@@ -441,9 +449,10 @@ typed response plus deterministic gateway already provides a safer consequence
 boundary. Revisit read-only tools only when local traces show a concrete
 context-retrieval failure.
 
-**Fixed at every level — never varies:** provenance, validation, verbatim
-requirements, map-write authorization, confirmation, reference and graph checks.
-The contract varies *only* what the AI may contribute.
+**Fixed at every level — never varies:** provenance, response validation,
+map-write authorization, confirmation, reference checks, and graph integrity.
+L0/L1 impose source-word fidelity; L2 may originate only with visible
+`ai_suggested` provenance. The contract varies *only* what the AI may contribute.
 
 ## Two-level shape (comparison only; not selected for this build)
 
@@ -459,8 +468,8 @@ cleanest research contrast and the easiest to explain at a poster.
 
 | Level | Adds | Code-enforceable boundary |
 |---|---|---|
-| **0 — Non-directive** | `question`, `reflection` (asserted), `aside`, `map_proposal` (asserted) | every claim passes assertion grounding; `inferred` rejected at the response gate |
-| **1 — Grounded options** | + `kind: "options"` | **every option must be a verbatim span of user material.** AI may select and juxtapose the user's own words; it may not originate |
+| **0 — Non-directive** | `question`, `reflection` (asserted), `grounded_recap`, `aside`, `map_proposal` (asserted) | recaps use the current user turn; reflections use one recorded user moment; `inferred` is rejected |
+| **1 — Grounded options** | + `kind: "options"` | every option is verbatim; recaps/reflections may synthesize eligible turns or draft+chat as `ai_connected`, but may not originate wording |
 | **2 — Suggestive** | + `kind: "suggestion"`, `inferred` structure | no verbatim requirement, but attribution + same-map provenance badge enforced; promotion preserves origin |
 
 The reason 3-level is worth it: **each boundary is a real code check, not a
@@ -482,7 +491,7 @@ Versioned and immutable:
 {
   id: "grounded-options-v1",
   level: 1,
-  allowedKinds: ["question", "reflection", "aside", "map_proposal", "options"],
+  allowedKinds: ["question", "reflection", "grounded_recap", "aside", "map_proposal", "options"],
   allowedAttribution: ["asserted"],
   optionsMustBeVerbatim: true,
   mapWritePolicy: "user_confirmation_required",
@@ -631,14 +640,16 @@ level is the only isolated variable.
 
 Scored properties: did the turn introduce a concept absent from the user's prior
 turns? assert a relationship the user hadn't stated? offer a direction the user
-hadn't raised? was AI-originated material attributed? The code-checkable ones
+hadn't raised? was AI-originated material attributed? Did a question embed an
+unstated premise or use quotation in a confusing way? The code-checkable ones
 (attribution, verbatim options) are plain unit tests; the rest need judgment.
 
 ## Scoring
 
-1. **Hand-score first.** ~20 scenarios × 3 levels = 60 turns. Tedious once, and
-   it's the number you report. Do this before automating — otherwise you don't
-   know whether the rubric or the judge is wrong.
+1. **Hand-score first.** The reportable manipulation check uses exactly 20
+   scenarios × {L0, L2} = 40 designated outcomes. Every live turn remains in the
+   transcript, but only the configured outcome enters the scoring denominator.
+   Do this before automating so rubric and judge errors remain distinguishable.
 2. **LLM-as-judge for regression**, validated against the hand scores, reporting
    agreement. This is the CI artifact.
 3. **Code canary, not a gate**: new-content-word ratio against the bank flags
@@ -682,16 +693,15 @@ the AI contribute" — genuinely orthogonal axes. The open question is whether u
 
 ---
 
-# Decisions for Nhyira
+# Resolved implementation decisions
 
-1. **Two-level or three-level?** Recommendation: build three, run L0 vs L2 as
-   study conditions, keep L1 as a demo affordance.
-2. **Does `CandidateStore` survive 1.7?** Once readiness is calibration rather
-   than a gate, its job shrinks a lot. Needs a look before 1.7.
-3. **Composer "Add as card" affordance** to offset the two-act cost of 1.4 — in
-   Stage 1 or deferred?
-4. **L2 provenance layer** — separate visual layer on the map, or same cards with
-   an origin badge? Affects `Map.tsx` scope.
+1. Three public levels are built; reportable study comparison uses L0 vs L2 and
+   L1 remains the grounded-synthesis product tier.
+2. `CandidateStore` survives as controlled working memory with lifecycle,
+   evidence, aging, dismissal, restoration, recall, and promotion.
+3. The composer includes an explicit "Add as card" affordance.
+4. Provenance uses the same map with user-authored, `ai_connected`, and
+   `ai_suggested` treatments; adoption-traced AI suggestions display a percentage.
 
 ---
 
@@ -705,10 +715,10 @@ npm.cmd test -- --run
 npm.cmd run build
 ```
 
-Known: the full suite may report all assertions passing (`568 passed`) but exit
-`1` with `[vitest-worker]: Timeout calling "onTaskUpdate"` after the long
-`fuzz.loop.test.ts` run. That is a runner/IPC timing artifact, not a failing
-assertion — say so explicitly if it happens.
+Current verified checkpoint (2026-07-21): TypeScript and eval type-checks, 270
+Vitest tests, and the production build pass. Treat any future runner timeout as
+an actual verification issue to investigate rather than relying on an obsolete
+historical test count.
 
 Commit hooks may fail with `/usr/bin/env: 'sh': No such file or directory`. Use
 `git -c core.hooksPath=NUL commit ...` **only after** tests/build have run.
