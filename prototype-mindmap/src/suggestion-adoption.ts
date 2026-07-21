@@ -1,5 +1,6 @@
 import { contentTokens, stem } from "./normalize";
 import type { SuggestionAdoptionTrace, ThoughtUnit } from "./types";
+import type { ThoughtUnitStore } from "./map-store";
 
 export const SUGGESTION_ADOPTION_THRESHOLD = 0.5;
 
@@ -28,6 +29,7 @@ export function bestSuggestionMatch(cardText: string, suggestions: VisibleSugges
     const suggestionStems = new Set(distinctContentStems(suggestion.text));
     const matchedStems = cardStems.filter((token) => suggestionStems.has(token));
     const overlapRatio = matchedStems.length / cardStems.length;
+    if (overlapRatio === 0) continue;
     if (overlapRatio > best.overlapRatio || (overlapRatio === best.overlapRatio && suggestion.id > (best.messageId ?? -Infinity))) {
       best = { messageId: suggestion.id, overlapRatio, matchedStems, cardStems };
     }
@@ -59,4 +61,26 @@ export function reconcileSuggestionAdoption(unit: ThoughtUnit, suggestions: Visi
     ...unit,
     source: { ...unit.source, origin: "ai_suggested", suggestionAdoption: adoption },
   };
+}
+
+export interface SuggestionAdoptionChange {
+  cardId: string;
+  before?: SuggestionAdoptionTrace;
+  after: SuggestionAdoptionTrace;
+}
+
+/** Sweep after any map mutation so every creation and editing route shares one rule. */
+export function reconcileStoreSuggestionAdoption(store: ThoughtUnitStore, suggestions: VisibleSuggestion[]): SuggestionAdoptionChange[] {
+  const changes: SuggestionAdoptionChange[] = [];
+  for (const unit of store.getAll()) {
+    const next = reconcileSuggestionAdoption(unit, suggestions);
+    if (next === unit) continue;
+    const before = unit.source.suggestionAdoption;
+    const after = next.source.suggestionAdoption!;
+    store.update(unit.id, { source: next.source });
+    if (!before || before.currentOverlapRatio !== after.currentOverlapRatio || before.currentBestSuggestionMessageId !== after.currentBestSuggestionMessageId) {
+      changes.push({ cardId: unit.id, before, after });
+    }
+  }
+  return changes;
 }

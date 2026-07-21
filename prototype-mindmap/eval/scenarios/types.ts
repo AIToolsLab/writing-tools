@@ -26,6 +26,16 @@ export interface EvalScenario {
   expectedBehavior?: string;
   recallNote?: string;
   anchorGuidance?: "avoid" | "optional" | "prefer";
+  provenanceExpectation?:
+    | "draft_chat_accept"
+    | "draft_only_reject"
+    | "cross_source_relation_reject"
+    | "adoption_below_threshold"
+    | "adoption_at_threshold"
+    | "adoption_on_edit"
+    | "adoption_absorbing_after_rewrite"
+    | "adoption_switches_best_suggestion"
+    | "unbounded_suggestion_length";
 }
 
 export const EVAL_LEVELS = [0, 2] as const;

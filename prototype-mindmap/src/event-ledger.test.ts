@@ -24,6 +24,13 @@ describe("event ledger", () => {
     });
   });
 
+  it("sanitizes adoption telemetry to origin, outcome, and percentages", () => {
+    const event = { sessionId: "s", sequence: 4, at: 4, kind: "suggestion_adoption_changed" as const, origin: "ai_suggested" as const, detail: { cardId: "private", trace: { adoptedFromMessageId: 9 } } };
+    expect(sanitizedEvent(event, { outcome: "updated", currentPercentage: 42, peakPercentage: 75 })).toEqual({
+      sessionId: "s", sequence: 4, at: 4, kind: "suggestion_adoption_changed", origin: "ai_suggested", outcome: "updated", currentPercentage: 42, peakPercentage: 75,
+    });
+  });
+
   it("keeps monotonically increasing in-memory sequence when IndexedDB is unavailable", async () => {
     vi.stubGlobal("indexedDB", undefined);
     const ledger = new EventLedger("s");

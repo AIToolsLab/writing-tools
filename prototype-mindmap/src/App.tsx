@@ -17,7 +17,8 @@ import { useSpeechToText } from "./useSpeechToText";
 import { measureDraftAnchorRects, scrollDraftAnchorIntoView, type DraftAnchorRect } from "./draft-anchor";
 import { ASSISTANCE_CONTRACTS, contractForLevel, DEFAULT_ASSISTANCE_CONTRACT, normalizeInfluenceTrace, snapshotContract, type AssistanceLevel } from "./assistance-contract";
 import { EventLedger, mirrorSanitizedEvent, type LedgerEventKind } from "./event-ledger";
-import { reconcileSuggestionAdoption, type VisibleSuggestion } from "./suggestion-adoption";
+import { reconcileStoreSuggestionAdoption, type VisibleSuggestion } from "./suggestion-adoption";
+import { provenanceTotals, type ProvenanceTotals } from "./provenance-summary";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -2677,6 +2678,7 @@ const NEXT_MOVE_OPTIONS: { mode: UserRequestedMode; label: string; hint: string 
 
 type UnderhoodSectionId =
   | "nextMove"
+  | "provenance"
   | "latest"
   | "mattered"
   | "ideas"
@@ -2734,6 +2736,7 @@ export function UnderTheHoodPanel({
   busy = false,
   open: controlledOpen,
   onOpenChange,
+  provenance,
 }: {
   snapshot: UnderstandingSnapshot | null;
   onDraftAnchor: (anchor: string) => void;
@@ -2743,6 +2746,7 @@ export function UnderTheHoodPanel({
   busy?: boolean;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  provenance?: ProvenanceTotals;
 }) {
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
@@ -2869,6 +2873,15 @@ export function UnderTheHoodPanel({
         </div>
       ) : (
         <div className="underhood-body">
+          {provenance && provenance.total > 0 && (
+            <UnderhoodSection title="Map provenance" meta={provenance.total} collapsed={sectionIsCollapsed("provenance")} onToggle={() => toggleSection("provenance")}>
+              <div className="event-list">
+                <div className="event-row revealed"><span className="event-title">Your contributions</span><span className="section-meta">{provenance.userAuthored}</span></div>
+                <div className="event-row revealed"><span className="event-title">Drawn from draft</span><span className="section-meta">{provenance.drawnFromDraft}</span></div>
+                <div className="event-row revealed"><span className="event-title">AI suggestions</span><span className="section-meta">{provenance.aiSuggested}</span></div>
+              </div>
+            </UnderhoodSection>
+          )}
           <UnderhoodSection
             title="Latest move"
             collapsed={sectionIsCollapsed("latest")}
@@ -3156,10 +3169,10 @@ export default function App() {
   const ledgerRef = useRef(new EventLedger(initialSessionId));
   const contract = contractForLevel(assistanceLevel);
 
-  const recordEvent = useCallback(async (kind: LedgerEventKind, detail?: unknown, extra?: { origin?: import("./assistance-contract").ContributionOrigin; responseKind?: string; outcome?: string; code?: string; contract?: import("./assistance-contract").AssistanceContractSnapshot; providerTransport?: "chat_json" | "responses_tools"; toolName?: "propose_reflection_v1" | "propose_map_action_v1"; repairCount?: number; candidateStatus?: "active" | "parked" | "ignored" | "promoted"; ageInTurns?: number }) => {
+  const recordEvent = useCallback(async (kind: LedgerEventKind, detail?: unknown, extra?: { origin?: import("./assistance-contract").ContributionOrigin; responseKind?: string; outcome?: string; code?: string; contract?: import("./assistance-contract").AssistanceContractSnapshot; providerTransport?: "chat_json" | "responses_tools"; toolName?: "propose_reflection_v1" | "propose_map_action_v1"; repairCount?: number; candidateStatus?: "active" | "parked" | "ignored" | "promoted"; ageInTurns?: number; currentPercentage?: number; peakPercentage?: number }) => {
     const event = await ledgerRef.current.record(kind, detail, { contract: extra?.contract ?? snapshotContract(contract), origin: extra?.origin });
     setLedgerAvailable(ledgerRef.current.isAvailable);
-    void mirrorSanitizedEvent(event, { responseKind: extra?.responseKind, outcome: extra?.outcome, code: extra?.code, providerTransport: extra?.providerTransport, toolName: extra?.toolName, repairCount: extra?.repairCount, candidateStatus: extra?.candidateStatus, ageInTurns: extra?.ageInTurns });
+    void mirrorSanitizedEvent(event, { responseKind: extra?.responseKind, outcome: extra?.outcome, code: extra?.code, providerTransport: extra?.providerTransport, toolName: extra?.toolName, repairCount: extra?.repairCount, candidateStatus: extra?.candidateStatus, ageInTurns: extra?.ageInTurns, currentPercentage: extra?.currentPercentage, peakPercentage: extra?.peakPercentage });
   }, [contract]);
 
   useEffect(() => { msgsRef.current = msgs; }, [msgs]);
@@ -3194,12 +3207,13 @@ export default function App() {
     const suggestions: VisibleSuggestion[] = msgsRef.current
       .filter((message) => message.role === "assistant" && message.responseKind === "suggestion")
       .map((message) => ({ id: message.id, text: message.text }));
-    for (const unit of mapStoreRef.current.getAll()) {
-      const next = reconcileSuggestionAdoption(unit, suggestions);
-      if (next === unit) continue;
-      mapStoreRef.current.update(unit.id, { source: next.source });
+    for (const change of reconcileStoreSuggestionAdoption(mapStoreRef.current, suggestions)) {
+      void recordEvent("suggestion_adoption_changed", { cardId: change.cardId, trace: change.after }, {
+        origin: "ai_suggested", outcome: change.before ? "updated" : "adopted",
+        currentPercentage: Math.round(change.after.currentOverlapRatio * 100), peakPercentage: Math.round(change.after.peakOverlapRatio * 100),
+      });
     }
-  }, []);
+  }, [recordEvent]);
 
   const markMapChanged = useCallback(() => {
     reconcileMapSuggestionProvenance();
@@ -4586,6 +4600,7 @@ export default function App() {
             busy={loading}
             open={underhoodOpen}
             onOpenChange={setUnderhoodOpen}
+            provenance={provenanceTotals(mapStoreRef.current.getAll(), mapStoreRef.current.getConnections())}
           />
         </div>
       </div>

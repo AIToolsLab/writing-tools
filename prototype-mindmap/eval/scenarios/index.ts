@@ -2,6 +2,7 @@ import type { EvalScenario } from "./types";
 import { DRAFT_FOCUS_EVAL_SCENARIOS } from "./draft-focus";
 import { MANIPULATION_EVAL_SCENARIOS } from "./manipulation";
 import { RECALL_EVAL_SCENARIOS } from "./recall";
+import { PROVENANCE_EVAL_SCENARIOS } from "./provenance";
 
 const draftFocus = DRAFT_FOCUS_EVAL_SCENARIOS.map<EvalScenario>((scenario) => {
   const dialogue = scenario.dialogue;
@@ -35,6 +36,7 @@ export const EVAL_SCENARIOS: EvalScenario[] = [
   ...MANIPULATION_EVAL_SCENARIOS,
   ...recall,
   ...draftFocus,
+  ...PROVENANCE_EVAL_SCENARIOS,
 ];
 
 export type { EvalMemoryEvent, EvalScenario } from "./types";

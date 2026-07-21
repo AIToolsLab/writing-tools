@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { bestSuggestionMatch, reconcileSuggestionAdoption } from "./suggestion-adoption";
+import { bestSuggestionMatch, reconcileStoreSuggestionAdoption, reconcileSuggestionAdoption } from "./suggestion-adoption";
 import type { ThoughtUnit } from "./types";
+import { ThoughtUnitStore } from "./map-store";
 
 function unit(text: string, origin: ThoughtUnit["source"]["origin"] = "user_canvas"): ThoughtUnit {
   return { id: "tu_1", text, role: "node", source: { utteranceIds: [], createdBy: "user", origin }, roleHistory: [] };
@@ -39,5 +40,17 @@ describe("suggestion adoption", () => {
 
   it("upgrades ai_connected provenance when adoption crosses the threshold", () => {
     expect(reconcileSuggestionAdoption(unit("draft idea reframed", "ai_connected"), [{ id: 4, text: "reframe the draft idea" }]).source.origin).toBe("ai_suggested");
+  });
+
+  it("sweeps created and edited cards and preserves traces through snapshot restore", () => {
+    const store = new ThoughtUnitStore();
+    store.add(unit("human control"));
+    expect(reconcileStoreSuggestionAdoption(store, [{ id: 3, text: "human control" }])).toHaveLength(1);
+    const snapshot = store.snapshot();
+    store.update("tu_1", { text: "different language" });
+    reconcileStoreSuggestionAdoption(store, [{ id: 3, text: "human control" }]);
+    expect(store.get("tu_1")?.source.suggestionAdoption?.currentOverlapRatio).toBe(0);
+    store.loadSnapshot(snapshot);
+    expect(store.get("tu_1")?.source.suggestionAdoption).toMatchObject({ adoptedFromMessageId: 3, currentOverlapRatio: 1, peakOverlapRatio: 1 });
   });
 });
