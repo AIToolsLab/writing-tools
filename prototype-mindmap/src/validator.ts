@@ -3,7 +3,7 @@
  *
  * Before any mirror reflection can be shown to the user, it must pass two
  * grounding checks against the Source Bank. This is *code*, not prompting: a
- * reflection that fails cannot be displayed. The single structured-repair path
+ * reflection that fails cannot be displayed. The bounded recovery path
  * (see stage1-loop) decides what conversational move to make instead; code does
  * not interpret epistemic meaning (e.g. treating "I think" as uncertainty) —
  * that judgment belongs to the model.
@@ -62,9 +62,16 @@ function citedTexts(span: SourceSpan, bank: Map<string, SourceUtterance>): strin
 function checkLexicalGrounding(
   claim: MirrorClaim,
   citedStems: Set<string>,
-): MirrorCheckResult {
+): { result: MirrorCheckResult; ungroundedContentWords: string[] } {
   const content = contentTokens(claim.text);
   const owned = content.filter((tok) => citedStems.has(stem(tok)));
+  const seenUngrounded = new Set<string>();
+  const ungroundedContentWords = content.filter((token) => {
+    const tokenStem = stem(token);
+    if (citedStems.has(tokenStem) || seenUngrounded.has(tokenStem)) return false;
+    seenUngrounded.add(tokenStem);
+    return true;
+  });
   const overlap = ratio(owned.length, content.length);
   const additions = ratio(content.length - owned.length, content.length);
 
@@ -73,14 +80,17 @@ function checkLexicalGrounding(
   const additionsOk = !noContent && additions === 0;
 
   return {
-    check: "lexical_grounding",
-    ok: broadOk && additionsOk,
-    score: overlap,
-    threshold: 1,
-    parts: [
-      { name: "all_content_words_cited", ok: broadOk, score: overlap, threshold: 1 },
-      { name: "additions", ok: additionsOk, score: additions, threshold: 0 },
-    ],
+    ungroundedContentWords,
+    result: {
+      check: "lexical_grounding",
+      ok: broadOk && additionsOk,
+      score: overlap,
+      threshold: 1,
+      parts: [
+        { name: "all_content_words_cited", ok: broadOk, score: overlap, threshold: 1 },
+        { name: "additions", ok: additionsOk, score: additions, threshold: 0 },
+      ],
+    },
   };
 }
 
@@ -226,7 +236,7 @@ function validateClaim(
   const lexical = checkLexicalGrounding(claim, citedStemSet(claim, bank));
   const grounding = checkSpanGrounding(claim, bank, cfg.mirror.spanGroundingMin);
 
-  const checks = [lexical, grounding.result];
+  const checks = [lexical.result, grounding.result];
   const ok = checks.every((c) => c.ok);
 
   // The Clarify-Mode hint comes from the weakest span when grounding failed;
@@ -238,7 +248,7 @@ function validateClaim(
     ? "Reflection is grounded in the user's words."
     : `Reflection not grounded in the user's words — failed checks: ${failed.join(", ")}.`;
 
-  return { claimId: claim.id, ok, checks, weakestSpan, message };
+  return { claimId: claim.id, ok, checks, weakestSpan, ungroundedContentWords: lexical.ungroundedContentWords, message };
 }
 
 /**

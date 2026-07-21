@@ -96,7 +96,8 @@ requirements, map-write authorization, confirmation, and graph checks.
 `chat_json` is the default; `responses_tools` is feature-flagged. Both parse into
 the same typed `AssistantResponseEnvelope`. The Responses adapter uses
 `store: false`, disables parallel tool calls, and replays provider items only in
-the single repair attempt. Live-turn dialogue history is built call-time
+the current bounded recovery attempt. Reflection grounding alone may escalate
+to a capped forced-question call. Live-turn dialogue history is built call-time
 (`historyForCurrentTurn`) so the model never sees a transcript that ends on its
 own unanswered question.
 
@@ -149,7 +150,7 @@ consequential.
 | `action-gateway.ts` | The sole map-write consequence boundary (AI proposals and direct canvas actions), reference/graph/verbatim/pairing checks, origin derivation. |
 | `proposal-store.ts` | Proposal type and state machine; revision-stamped invalidation. |
 | `assistance-contract.ts` | L0/L1/L2 contracts and snapshots; contribution allowlist. |
-| `stage1-loop.ts` | Thin orchestrator: contract check → validate/gateway → proposal; one structured repair. |
+| `stage1-loop.ts` | Thin orchestrator: contract check → validate/gateway → proposal; one ordinary repair or a capped reflection-recovery ladder. |
 | `store.ts` | Source Bank (ground truth) and Candidate Store. |
 | `map-store.ts` | Thought units, nesting, connections, endpoint normalization, sizes, snapshots. |
 | `map-commands.ts` | Deprecated compatibility seam re-exporting the gateway. |

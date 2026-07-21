@@ -64,6 +64,22 @@ export interface StructuredRejection {
   code: string;
   detail: string;
   fields?: string[];
+  reflectionRecovery?: ReflectionRecoveryContext;
+}
+
+export type ReflectionRecoveryStage = "informed_repair" | "forced_question";
+
+export interface ReflectionRecoveryContext {
+  stage: ReflectionRecoveryStage;
+  ungroundedContentWords: string[];
+  rejectedReflections: Array<Extract<AssistantResponse, { kind: "reflection" }>>;
+}
+
+export type TurnProgressStage = "initial_attempt" | "grounding_repair" | "forced_question";
+
+export interface TurnProgressEvent {
+  stage: TurnProgressStage;
+  modelCall: 1 | 2 | 3;
 }
 
 /** A provider answered successfully, but its model output could not enter the typed union. */
@@ -79,7 +95,7 @@ export type AssistantModel = (
   repair?: StructuredRejection,
 ) => Promise<AssistantResponseEnvelope>;
 
-/** Application-owned terminal state after the single permitted repair also fails. */
+/** Application-owned terminal state after the permitted bounded recovery fails. */
 export interface RepairFailureTerminal {
   kind: "repair_failed";
   message: string;

@@ -4,6 +4,7 @@ export type MindmapToolName = "propose_reflection_v1" | "propose_map_action_v1";
 type JsonSchema = Record<string, unknown>;
 
 const stringArray: JsonSchema = { type: "array", items: { type: "string" } };
+const stringLiteral = (value: string): JsonSchema => ({ type: "string", const: value });
 const sourceSpanSchema: JsonSchema = {
   type: "object",
   properties: {
@@ -51,23 +52,23 @@ const actionSchema: JsonSchema = {
   anyOf: [
     {
       type: "object",
-      properties: { kind: { const: "create_card" }, text: { type: "string" }, sourceUtteranceIds: stringArray },
+      properties: { kind: stringLiteral("create_card"), text: { type: "string" }, sourceUtteranceIds: stringArray },
       required: ["kind", "text", "sourceUtteranceIds"], additionalProperties: false,
     },
     {
       type: "object",
-      properties: { kind: { const: "edit_card" }, id: { type: "string" }, text: { type: "string" }, sourceUtteranceIds: stringArray },
+      properties: { kind: stringLiteral("edit_card"), id: { type: "string" }, text: { type: "string" }, sourceUtteranceIds: stringArray },
       required: ["kind", "id", "text", "sourceUtteranceIds"], additionalProperties: false,
     },
     {
       type: "object",
-      properties: { kind: { const: "nest_card" }, child: proposedRefSchema, parent: proposedRefSchema, relationEvidence: relationEvidenceSchema },
+      properties: { kind: stringLiteral("nest_card"), child: proposedRefSchema, parent: proposedRefSchema, relationEvidence: relationEvidenceSchema },
       required: ["kind", "child", "parent", "relationEvidence"], additionalProperties: false,
     },
     {
       type: "object",
       properties: {
-        kind: { const: "connect_cards" }, source: proposedRefSchema, target: proposedRefSchema,
+        kind: stringLiteral("connect_cards"), source: proposedRefSchema, target: proposedRefSchema,
         labelText: { type: ["string", "null"] }, labelSourceUtteranceIds: stringArray,
         relationEvidence: relationEvidenceSchema,
       },
@@ -156,18 +157,18 @@ const conversationalResponseSchema: JsonSchema = {
     {
       type: "object",
       properties: {
-        kind: { const: "question" }, text: { type: "string" },
+        kind: stringLiteral("question"), text: { type: "string" },
         stance: { type: ["string", "null"], enum: ["settle", "narrow", "deepen", "organize", "challenge", null] },
         anchor: { type: ["string", "null"] },
         recall: recallSchema,
       },
       required: ["kind", "text", "stance", "anchor", "recall"], additionalProperties: false,
     },
-    { type: "object", properties: { kind: { const: "aside" }, text: { type: "string" }, recall: recallSchema }, required: ["kind", "text", "recall"], additionalProperties: false },
+    { type: "object", properties: { kind: stringLiteral("aside"), text: { type: "string" }, recall: recallSchema }, required: ["kind", "text", "recall"], additionalProperties: false },
     {
       type: "object",
       properties: {
-        kind: { const: "options" }, text: { type: "string" },
+        kind: stringLiteral("options"), text: { type: "string" },
         options: {
           type: "array", minItems: 1, items: {
             type: "object",
@@ -178,7 +179,7 @@ const conversationalResponseSchema: JsonSchema = {
       },
       required: ["kind", "text", "options"], additionalProperties: false,
     },
-    { type: "object", properties: { kind: { const: "suggestion" }, text: { type: "string" } }, required: ["kind", "text"], additionalProperties: false },
+    { type: "object", properties: { kind: stringLiteral("suggestion"), text: { type: "string" } }, required: ["kind", "text"], additionalProperties: false },
   ],
 };
 

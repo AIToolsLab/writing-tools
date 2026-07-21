@@ -191,6 +191,40 @@ describe("mirror validator — 2 grounding checks", () => {
     const result = validateMirror(reflection, bank, defaultConfig);
     expect(result.ok).toBe(false);
     expect(partOf(checkOf(result.claims[0], "lexical_grounding"), "additions")?.ok).toBe(false);
+    expect(result.claims[0].ungroundedContentWords).toEqual(["necessarily"]);
+  });
+
+  it("reports distinct unsupported content words in displayed order", () => {
+    const bank = [u("language shapes thought")];
+    const reflection = {
+      claims: [
+        claim("language necessarily transforms transformed thought", [{
+          claimText: "language thought",
+          utteranceIds: [bank[0].id],
+          userPhrase: "language shapes thought",
+        }]),
+      ],
+    };
+
+    const result = validateMirror(reflection, bank, defaultConfig);
+    expect(result.claims[0].ungroundedContentWords).toEqual(["necessarily", "transforms"]);
+  });
+
+  it("does not report ordinary function-word glue as ungrounded content", () => {
+    const bank = [u("language shapes thought")];
+    const reflection = {
+      claims: [
+        claim("language is what shapes the thought", [{
+          claimText: "language shapes thought",
+          utteranceIds: [bank[0].id],
+          userPhrase: "language shapes thought",
+        }]),
+      ],
+    };
+
+    const result = validateMirror(reflection, bank, defaultConfig);
+    expect(result.ok).toBe(true);
+    expect(result.claims[0].ungroundedContentWords).toEqual([]);
   });
 
   it("validates chunks independently — one passes while another fails", () => {

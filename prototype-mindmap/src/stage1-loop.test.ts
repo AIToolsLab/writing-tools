@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultConfig, withQuestionIntentBias } from "./config";
 import { ThoughtUnitStore } from "./map-store";
-import { buildContext, createConversationState, deriveClaimAttribution, processTurn } from "./stage1-loop";
+import { buildContext, createConversationState, deriveClaimAttribution, MAX_MODEL_CALLS_PER_TURN, MAX_REFLECTION_ATTEMPTS, processTurn } from "./stage1-loop";
 import { resetIdCounter } from "./store";
 import { ASSISTANCE_CONTRACTS } from "./assistance-contract";
 import { ModelResponseValidationError } from "./assistant-response";
@@ -276,6 +276,83 @@ describe("typed Stage 1 controller", () => {
     expect(result.response).toMatchObject({ kind: "reflection" });
     expect(result.proposal).toMatchObject({ origin: "user_asserted", state: "shown" });
     expect(result.terminal).toBeUndefined();
+  });
+
+  it("uses the capped two-reflection ladder and renders the forced question", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const progress: Array<{ stage: string; modelCall: number }> = [];
+    const model = vi.fn(async (context, rejection) => {
+      if (rejection?.reflectionRecovery?.stage === "forced_question") {
+        return { response: { kind: "question" as const, text: "What makes control feel necessary here?", stance: "deepen" as const } };
+      }
+      const sourceId = context.bank[0]!.id;
+      const second = Boolean(rejection);
+      return {
+        response: {
+          kind: "reflection" as const,
+          text: "A possible mirror.",
+          reflection: { claims: [{
+            id: `c${second ? 2 : 1}`,
+            text: second ? "human control inevitably matters" : "human control necessarily matters",
+            candidateId: `c${second ? 2 : 1}`,
+            target: "idea" as const,
+            sourceSpans: [{ claimText: "human control matters", userPhrase: "human control matters", utteranceIds: [sourceId] }],
+          }] },
+        },
+        advisory: { candidateUpserts: [{ id: `c${second ? 2 : 1}`, target: "idea" as const, gist: "human control", addEvidenceIds: [sourceId], status: "active" as const }] },
+      };
+    });
+
+    const result = await processTurn(state, "human control matters", model, defaultConfig, store.toLLMContext(), {
+      mapRevision: 0, requireConnectionLabel: true, store, onProgress: (event) => progress.push(event),
+    });
+
+    expect(MAX_REFLECTION_ATTEMPTS).toBe(2);
+    expect(MAX_MODEL_CALLS_PER_TURN).toBe(3);
+    expect(model).toHaveBeenCalledTimes(3);
+    expect(progress).toEqual([
+      { stage: "initial_attempt", modelCall: 1 },
+      { stage: "grounding_repair", modelCall: 2 },
+      { stage: "forced_question", modelCall: 3 },
+    ]);
+    expect(model.mock.calls[1]?.[1]?.reflectionRecovery).toMatchObject({
+      stage: "informed_repair",
+      ungroundedContentWords: ["necessarily"],
+      rejectedReflections: [{ kind: "reflection" }],
+    });
+    expect(model.mock.calls[2]?.[1]?.reflectionRecovery).toMatchObject({
+      stage: "forced_question",
+      ungroundedContentWords: ["necessarily", "inevitably"],
+    });
+    expect(model.mock.calls[2]?.[1]?.reflectionRecovery?.rejectedReflections).toHaveLength(2);
+    expect(result.response).toMatchObject({ kind: "question" });
+    expect(result.terminal).toBeUndefined();
+    expect(state.candidates.getAll()).toHaveLength(0);
+  });
+
+  it("ends recovery when the forced-question call returns another response kind", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (context, rejection) => {
+      if (rejection?.reflectionRecovery?.stage === "forced_question") {
+        return { response: { kind: "aside" as const, text: "Let us pause here." } };
+      }
+      return { response: {
+        kind: "reflection" as const,
+        text: "A possible mirror.",
+        reflection: { claims: [{
+          id: "c1", text: "human control necessarily matters", candidateId: "c1", target: "idea" as const,
+          sourceSpans: [{ claimText: "human control matters", userPhrase: "human control matters", utteranceIds: [context.bank[0]!.id] }],
+        }] },
+      } };
+    });
+
+    const result = await processTurn(state, "human control matters", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+
+    expect(model).toHaveBeenCalledTimes(3);
+    expect(result.terminal).toMatchObject({ kind: "repair_failed" });
+    expect(result.diagnostics.some((event) => event.code === "forced_question_kind_invalid")).toBe(true);
   });
 
   it("returns a terminal when a contract rejection is rejected again", async () => {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { containsWholePhrase } from "../../src/normalize";
-import { EVAL_SCENARIOS } from "./index";
+import { EVAL_SCENARIOS, MANIPULATION_CHECK_SCENARIOS } from "./index";
 
 describe("combined evaluation scenario set", () => {
   it("keeps the compared L0 and L2 scripts identical and includes the agreed probes", () => {
@@ -20,5 +20,16 @@ describe("combined evaluation scenario set", () => {
         expect(containsWholePhrase(scenario.userTurns[event.evidenceTurn - 1] ?? "", event.userPhrase)).toBe(true);
       }
     }
+  });
+
+  it("defines exactly twenty paired manipulation-check outcomes", () => {
+    expect(MANIPULATION_CHECK_SCENARIOS).toHaveLength(20);
+    for (const scenario of MANIPULATION_CHECK_SCENARIOS) {
+      expect(scenario.levels).toEqual([0, 2]);
+      const scoredTurn = scenario.scoredTurn ?? scenario.userTurns.length;
+      expect(scoredTurn).toBeGreaterThan(0);
+      expect(scoredTurn).toBeLessThanOrEqual(scenario.userTurns.length);
+    }
+    expect(MANIPULATION_CHECK_SCENARIOS.some((scenario) => scenario.provenanceExpectation === "adoption_at_threshold")).toBe(false);
   });
 });

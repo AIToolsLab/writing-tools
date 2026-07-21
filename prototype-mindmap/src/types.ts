@@ -129,6 +129,8 @@ export interface ClaimValidation {
   checks: MirrorCheckResult[];
   /** When a claim fails, the span the AI should ask about in Clarify Mode. */
   weakestSpan?: SourceSpan;
+  /** Distinct unsupported content words, in their first displayed order. */
+  ungroundedContentWords: string[];
   message: string;
 }
 

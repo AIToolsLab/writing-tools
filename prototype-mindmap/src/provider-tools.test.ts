@@ -14,6 +14,16 @@ function assertStrictObjects(value: unknown): void {
   }
 }
 
+function assertTypedConstants(value: unknown): void {
+  if (!value || typeof value !== "object") return;
+  const record = value as Record<string, unknown>;
+  if ("const" in record) expect(record.type).toBe("string");
+  for (const child of Object.values(record)) {
+    if (Array.isArray(child)) child.forEach(assertTypedConstants);
+    else assertTypedConstants(child);
+  }
+}
+
 describe("provider proposal tools", () => {
   it("uses strict, closed schemas for every tool and conversational object", () => {
     for (const tool of MINDMAP_PROVIDER_TOOLS) {
@@ -22,6 +32,7 @@ describe("provider proposal tools", () => {
     }
     expect(CONVERSATIONAL_TEXT_FORMAT.strict).toBe(true);
     assertStrictObjects(CONVERSATIONAL_TEXT_FORMAT.schema);
+    assertTypedConstants([MINDMAP_PROVIDER_TOOLS, CONVERSATIONAL_TEXT_FORMAT]);
     const schemas = JSON.stringify([MINDMAP_PROVIDER_TOOLS, CONVERSATIONAL_TEXT_FORMAT]);
     expect(schemas).toContain('"status"');
     expect(schemas).toContain('"recall"');

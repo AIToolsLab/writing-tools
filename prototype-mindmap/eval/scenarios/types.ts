@@ -26,6 +26,9 @@ export interface EvalScenario {
   expectedBehavior?: string;
   recallNote?: string;
   anchorGuidance?: "avoid" | "optional" | "prefer";
+  reportableSuite?: "manipulation_check";
+  /** One-based live user turn whose resulting assistant response is hand-scored. Defaults to the final turn. */
+  scoredTurn?: number;
   provenanceExpectation?:
     | "draft_chat_accept"
     | "draft_only_reject"

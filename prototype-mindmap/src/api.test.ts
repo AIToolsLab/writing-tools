@@ -190,6 +190,47 @@ describe("typed assistant response parser", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(result.response).toMatchObject({ kind: "question" });
   });
+
+  it("records provider timing and token usage without changing the parsed response", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        choices: [{ message: { content: JSON.stringify({ response: { kind: "question", text: "What matters?" } }) } }],
+        usage: { prompt_tokens: 12, completion_tokens: 5, total_tokens: 17 },
+      }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const trace = vi.fn();
+    const model = makeLLM(defaultConfig, [], trace);
+
+    expect((await model(context)).response.kind).toBe("question");
+    expect(trace).toHaveBeenCalledWith(expect.objectContaining({
+      durationMs: expect.any(Number), inputTokens: 12, outputTokens: 5, totalTokens: 17,
+      structuredResponseOutcome: "accepted", toolArgumentOutcome: "not_applicable",
+    }));
+  });
+
+  it("forces the third recovery prompt to request exactly one question", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ choices: [{ message: { content: JSON.stringify({ response: { kind: "question", text: "What is missing?" } }) } }] }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const model = makeLLM(defaultConfig);
+    await model(context, {
+      code: "reflection_forced_question",
+      detail: "Two attempts failed.",
+      reflectionRecovery: {
+        stage: "forced_question",
+        ungroundedContentWords: ["necessarily"],
+        rejectedReflections: [],
+      },
+    });
+    const messages = JSON.parse(fetchMock.mock.calls[0][1].body as string).messages;
+    expect(messages[0].content).toContain("Return exactly one question response now");
+    expect(messages[0].content).toContain("necessarily");
+    expect(messages[0].content).toContain("Do not return a reflection");
+  });
 });
 
 describe("calibration context", () => {

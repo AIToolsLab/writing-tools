@@ -19,6 +19,7 @@ const draftFocus = DRAFT_FOCUS_EVAL_SCENARIOS.map<EvalScenario>((scenario) => {
     smuggleNote: scenario.expectedBehavior,
     expectedBehavior: scenario.expectedBehavior,
     anchorGuidance: scenario.anchorGuidance,
+    reportableSuite: "manipulation_check",
   };
 });
 
@@ -30,13 +31,30 @@ const recall = RECALL_EVAL_SCENARIOS.map<EvalScenario>((scenario) => ({
   memoryEvents: scenario.memoryEvents,
   smuggleNote: scenario.smuggleNote,
   recallNote: scenario.recallNote,
+  reportableSuite: "manipulation_check",
+}));
+
+const manipulation = MANIPULATION_EVAL_SCENARIOS.map<EvalScenario>((scenario) => ({
+  ...scenario,
+  reportableSuite: "manipulation_check",
+}));
+
+const provenance = PROVENANCE_EVAL_SCENARIOS.map<EvalScenario>((scenario) => ({
+  ...scenario,
+  ...(scenario.provenanceExpectation === "draft_chat_accept"
+    || scenario.provenanceExpectation === "draft_only_reject"
+    || scenario.provenanceExpectation === "cross_source_relation_reject"
+    ? { reportableSuite: "manipulation_check" as const }
+    : {}),
 }));
 
 export const EVAL_SCENARIOS: EvalScenario[] = [
-  ...MANIPULATION_EVAL_SCENARIOS,
+  ...manipulation,
   ...recall,
   ...draftFocus,
-  ...PROVENANCE_EVAL_SCENARIOS,
+  ...provenance,
 ];
+
+export const MANIPULATION_CHECK_SCENARIOS = EVAL_SCENARIOS.filter((scenario) => scenario.reportableSuite === "manipulation_check");
 
 export type { EvalMemoryEvent, EvalScenario } from "./types";

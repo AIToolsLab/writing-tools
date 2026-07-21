@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent, type ReactNode } from "react";
 import { historyForCurrentTurn, makeLLM, type ConversationMessage } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
-import type { AssistantResponse, ConversationState, DiagnosticEvent, RepairFailureTerminal, TurnResult } from "./assistant-response";
+import type { AssistantResponse, ConversationState, DiagnosticEvent, RepairFailureTerminal, TurnProgressStage, TurnResult } from "./assistant-response";
 import type { ProposalOutcomeContext, QuestionStance, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
 import { pruneContextSelection, ThoughtMap, toggleContextSelection, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
@@ -88,6 +88,12 @@ const DRAFT_MIN_VISIBLE_HEIGHT = 120;
 const DRAFT_CHIP_WIDTH = 56;
 const DRAFT_CHIP_HEIGHT = 44;
 const SESSION_STORAGE_KEY = "prototype-mindmap-session-v1";
+
+export const TURN_PROGRESS_COPY: Record<TurnProgressStage, string> = {
+  initial_attempt: "Trying to reflect your words...",
+  grounding_repair: "Making sure this stays in your words...",
+  forced_question: "Asking a focused question instead...",
+};
 
 // The Think<->Map slider snaps to five fixed stops. Initial/persisted values (which
 // predate snapping, or a legacy default like 35) are snapped to the nearest stop
@@ -3159,6 +3165,7 @@ export default function App() {
   const [canUndoMap, setCanUndoMap] = useState(false);
   const [commandAck, setCommandAck] = useState<MapCommandAcknowledgement | null>(null);
   const [loading, setLoading] = useState(false);
+  const [turnProgress, setTurnProgress] = useState<TurnProgressStage | null>(null);
   const [input, setInput] = useState("");
   const [composerScrollable, setComposerScrollable] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -3959,6 +3966,7 @@ export default function App() {
     setMsgs((prev) => [...prev.filter((message) => message.role !== "application" || message.terminal !== "repair_failed"), userMessage]);
 
     setLoading(true);
+    setTurnProgress("initial_attempt");
     try {
       const workingState = cloneConversationState(stateRef.current);
       void recordEvent("user_message", { text });
@@ -3975,7 +3983,11 @@ export default function App() {
         }),
         configRef.current,
         mapStoreRef.current.toLLMContext(),
-        { mapRevision, requireConnectionLabel, selectedFocus, selectedCardIds, store: mapStoreRef.current, contract, priorAssistant: [...msgs].reverse().find((message) => message.role === "assistant") },
+        {
+          mapRevision, requireConnectionLabel, selectedFocus, selectedCardIds, store: mapStoreRef.current, contract,
+          priorAssistant: [...msgs].reverse().find((message) => message.role === "assistant"),
+          onProgress: (event) => { if (nonce === turnNonceRef.current) setTurnProgress(event.stage); },
+        },
       );
       const last = out.diagnostics[out.diagnostics.length - 1];
       const firstRejection = out.diagnostics.find((event) => event.outcome === "rejected");
@@ -3994,7 +4006,7 @@ export default function App() {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
     } finally {
-      if (nonce === turnNonceRef.current) setLoading(false);
+      if (nonce === turnNonceRef.current) { setLoading(false); setTurnProgress(null); }
     }
   }
 
@@ -4008,6 +4020,7 @@ export default function App() {
     setError(null);
 
     setLoading(true);
+    setTurnProgress("initial_attempt");
     try {
       const workingState = cloneConversationState(stateRef.current);
       // The Stage 1 loop has no regex-routed forced modes. This remains a
@@ -4025,7 +4038,12 @@ export default function App() {
         }),
         configRef.current,
         mapStoreRef.current.toLLMContext(),
-        { mapRevision: currentMapRevision, requireConnectionLabel, selectedFocus, requestedSupport: mode, proposalOutcome, store: mapStoreRef.current, contract, priorAssistant: [...msgs].reverse().find((message) => message.role === "assistant") },
+        {
+          mapRevision: currentMapRevision, requireConnectionLabel, selectedFocus, requestedSupport: mode, proposalOutcome,
+          store: mapStoreRef.current, contract,
+          priorAssistant: [...msgs].reverse().find((message) => message.role === "assistant"),
+          onProgress: (event) => { if (nonce === turnNonceRef.current) setTurnProgress(event.stage); },
+        },
       );
       const last = out.diagnostics[out.diagnostics.length - 1];
       const firstRejection = out.diagnostics.find((event) => event.outcome === "rejected");
@@ -4043,7 +4061,7 @@ export default function App() {
       const msg = e instanceof Error ? e.message : String(e);
       setError(msg);
     } finally {
-      if (nonce === turnNonceRef.current) setLoading(false);
+      if (nonce === turnNonceRef.current) { setLoading(false); setTurnProgress(null); }
     }
   }
 
@@ -4346,11 +4364,11 @@ export default function App() {
                   ))}
               </div>
             ))}
-            {loading && (
+            {loading && turnProgress && (
               <div className="msg assistant">
                 <span className="msg-label">coach</span>
                 <div className="msg-bubble" style={{ color: "#aaa", fontStyle: "italic" }}>
-                  thinking...
+                  {TURN_PROGRESS_COPY[turnProgress]}
                 </div>
               </div>
             )}

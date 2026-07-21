@@ -6,7 +6,7 @@ Companion to `DESIGN.md` (canonical invariants) and `airtightness-report.md`.
 
 Stage 1 landed as a hard cutover: the live app consumes the typed response union,
 uses one persisted proposal lifecycle for reflections and map actions, performs
-one structured repair at most, and routes chat confirmations and direct canvas
+a bounded structured recovery, and routes chat confirmations and direct canvas
 intents through the action gateway. Legacy routing/fallback tests were replaced
 with response, gateway, proposal, and repair contract tests.
 
@@ -17,10 +17,10 @@ bakeoffs, and further provider-tool optimization.
 
 ### Reflection recovery
 
-- Keep exactly one repair call. A rejected reflection may be repaired as a
-  reflection or may change strategy to any conversational response kind allowed
-  by the active assistance contract, especially a context-specific question or
-  aside.
+- Keep one repair call for every rejection except reflection grounding. A
+  grounding-failed reflection may make one informed repair attempt and, only if
+  that attempt is another grounding-failed reflection, one final forced-question
+  call. The hard cap is two reflection attempts and three model calls total.
 - Tell the repair model declaratively: when a requested reflection cannot be
   repaired faithfully, briefly acknowledge uncertainty in natural language and
   make one context-specific move using established conversation content. It must
@@ -30,7 +30,7 @@ bakeoffs, and further provider-tool optimization.
   turns, and currently available grounded material to the repair call.
 - Questions and asides do not undergo reflection-pointer validation. They still
   pass response parsing and the active assistance-contract allowlist.
-- If the single repair is unusable - malformed or still rejected by its
+- If the bounded recovery is unusable - malformed or still rejected by its
   applicable checks - do not make another model call and do not silently render
   nothing. Show a minimal transparent application recovery with a retry
   affordance. This is terminal UI state, not a fabricated coach turn.
@@ -374,8 +374,10 @@ Keep as **calibration only** (advisory input to the model, never a gate):
 
 When a gate fires, return the gateway's machine-readable reason **to the model
 in-turn** ("claim 2 failed relation assertion: connective 'supports' not present
-in utterance u17"). The model re-emits or asks its own honest question. Bounded
-to one repair round, then an honest "I couldn't ground that in your words."
+in utterance u17"). The model re-emits or asks its own honest question. Ordinary
+rejections remain bounded to one repair round. Reflection grounding alone may
+escalate through the capped informed-repair/forced-question ladder before honest
+application-owned recovery.
 
 Deletes every `*FallbackQuestion` builder. Validation failure stops being a
 controller state transition and becomes a tool error the model handles

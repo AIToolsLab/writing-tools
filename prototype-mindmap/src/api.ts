@@ -44,7 +44,24 @@ function providerRuntime(overrides?: ProviderRuntimeConfig): Required<ProviderRu
 
 export interface OpenAIMessage { role: "system" | "user" | "assistant"; content: string }
 
-async function postChat(messages: OpenAIMessage[], runtime: Required<ProviderRuntimeConfig>): Promise<string> {
+interface ProviderUsage {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+}
+
+function providerUsage(value: unknown): ProviderUsage {
+  const body = object(value);
+  const usage = object(body?.usage);
+  const number = (candidate: unknown): number | undefined => typeof candidate === "number" && Number.isFinite(candidate) ? candidate : undefined;
+  return {
+    inputTokens: number(usage?.input_tokens) ?? number(usage?.prompt_tokens),
+    outputTokens: number(usage?.output_tokens) ?? number(usage?.completion_tokens),
+    totalTokens: number(usage?.total_tokens),
+  };
+}
+
+async function postChat(messages: OpenAIMessage[], runtime: Required<ProviderRuntimeConfig>): Promise<{ content: string; body: unknown }> {
   const response = await fetch(`${runtime.backendUrl}/openai/chat/completions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -54,7 +71,7 @@ async function postChat(messages: OpenAIMessage[], runtime: Required<ProviderRun
   const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = body.choices?.[0]?.message?.content;
   if (!content) throw new Error("Backend returned an empty model response.");
-  return content;
+  return { content, body };
 }
 
 interface ResponsesTurnState {
@@ -113,8 +130,10 @@ export function renderContext(context: LLMContext): string {
 
 function systemPrompt(context: LLMContext, _config: MindmapConfig, repair?: StructuredRejection, transport: ProviderTransport = "chat_json"): string {
   const repairNote = repair
-    ? repair.code === "reflection_validation_failed"
-      ? `\nYour previous response was rejected by code: ${JSON.stringify(repair)}. Repair that exact issue once. First try a fully grounded mirror using only content words from the cited user wording. If that is not possible faithfully, make one targeted, context-specific question that fills the missing substantive gap. Do not switch to generic grilling, expose validation, repeat a recent question, or use stock recovery wording.`
+    ? repair.reflectionRecovery?.stage === "forced_question"
+      ? `\nTwo reflection attempts could not stay fully grounded. Here is the accumulated local recovery context: ${JSON.stringify(repair.reflectionRecovery)}. Return exactly one question response now. Ask a natural, targeted question for the specific missing substantive gap. Do not return a reflection or any other response kind, mention validation, repeat a recent question, use generic grilling, or use stock recovery wording.`
+      : repair.code === "reflection_validation_failed"
+      ? `\nYour previous response was rejected by code: ${JSON.stringify(repair)}. The reflection could not be shown faithfully. Use the included unsupported content words and rejected reflection when available. First try a fully grounded mirror by tightening it so every content word comes from its cited user wording. If that is not faithful, make one targeted, context-specific question or another contract-allowed conversational move such as an aside. Do not expose validation, repeat a recent question, use generic grilling, or use stock recovery wording.`
       : `\nYour previous response was rejected by code: ${JSON.stringify(repair)}. Repair that exact issue once. If a reflection cannot be repaired faithfully, you may briefly acknowledge uncertainty and make one context-specific conversational move allowed by the active contract, such as a question or aside. Do not mention validation, repeat a recent question, or use stock recovery wording.`
     : "";
   const transportInstruction = transport === "responses_tools"
@@ -236,6 +255,12 @@ export interface ProviderTrace {
   outputItemTypes?: string[];
   toolName?: MindmapToolName;
   toolCallId?: string;
+  durationMs: number;
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  structuredResponseOutcome: "accepted" | "rejected";
+  toolArgumentOutcome: "accepted" | "rejected" | "not_applicable";
 }
 
 /**
@@ -262,16 +287,24 @@ export async function callLLM(
   const runtime = providerRuntime(runtimeOverrides);
   if (transport === "chat_json") {
     const messages: OpenAIMessage[] = [{ role: "system", content: systemPrompt(context, config, repair, transport) }, ...history];
-    const rawProviderResponse = await postChat(messages, runtime);
+    const startedAt = Date.now();
+    const chatResponse = await postChat(messages, runtime);
+    const durationMs = Date.now() - startedAt;
+    const rawProviderResponse = chatResponse.content;
+    const usage = providerUsage(chatResponse.body);
     let parsedProviderResponse: unknown;
     try { parsedProviderResponse = JSON.parse(rawProviderResponse) as unknown; }
     catch {
-      onTrace?.({ transport, model: runtime.model, reasoningEffort: runtime.reasoningEffort, messages, parsedProviderResponse: rawProviderResponse });
+      onTrace?.({ transport, model: runtime.model, reasoningEffort: runtime.reasoningEffort, messages, parsedProviderResponse: rawProviderResponse, durationMs, structuredResponseOutcome: "rejected", toolArgumentOutcome: "not_applicable", ...usage });
       throw new ModelResponseValidationError("invalid_provider_json");
     }
-    onTrace?.({ transport, model: runtime.model, reasoningEffort: runtime.reasoningEffort, messages, parsedProviderResponse });
-    try { return parseAssistantResponse(parsedProviderResponse); }
+    try {
+      const envelope = parseAssistantResponse(parsedProviderResponse);
+      onTrace?.({ transport, model: runtime.model, reasoningEffort: runtime.reasoningEffort, messages, parsedProviderResponse, durationMs, structuredResponseOutcome: "accepted", toolArgumentOutcome: "not_applicable", ...usage });
+      return envelope;
+    }
     catch (error) {
+      onTrace?.({ transport, model: runtime.model, reasoningEffort: runtime.reasoningEffort, messages, parsedProviderResponse, durationMs, structuredResponseOutcome: "rejected", toolArgumentOutcome: "not_applicable", ...usage });
       if (error instanceof ModelResponseValidationError) throw error;
       throw new ModelResponseValidationError(error instanceof Error ? error.message : "invalid_provider_response");
     }
@@ -286,25 +319,33 @@ export async function callLLM(
       input.push({ role: "user", content: `Repair the rejected response once: ${JSON.stringify(repair)}` });
     }
   }
+  const startedAt = Date.now();
   const providerResponse = await postResponses(input, systemPrompt(context, config, repair, transport), runtime);
+  const durationMs = Date.now() - startedAt;
+  const usage = providerUsage(providerResponse);
   let parsed: ReturnType<typeof parseResponsesOutput>;
   try { parsed = parseResponsesOutput(providerResponse); }
   catch (error) {
     const body = object(providerResponse);
     const rawOutput = Array.isArray(body?.output) ? body.output : [];
+    const code = error instanceof Error ? error.message : "invalid_provider_response";
     onTrace?.({
       transport, model: runtime.model, reasoningEffort: runtime.reasoningEffort, messages: input,
       parsedProviderResponse: providerResponse,
       responseId: typeof body?.id === "string" ? body.id : undefined,
       outputItemTypes: rawOutput.map((item) => object(item)?.type).filter((item): item is string => typeof item === "string"),
+      durationMs,
+      structuredResponseOutcome: "rejected",
+      toolArgumentOutcome: code === "invalid_provider_tool_arguments" ? "rejected" : "not_applicable",
+      ...usage,
     });
-    throw new ModelResponseValidationError(error instanceof Error ? error.message : "invalid_provider_response");
+    throw new ModelResponseValidationError(code);
   }
   if (responseState) {
     responseState.output = parsed.output;
     responseState.toolCallId = parsed.toolCall?.callId;
   }
-  onTrace?.({
+  const trace = {
     transport,
     model: runtime.model,
     reasoningEffort: runtime.reasoningEffort,
@@ -314,9 +355,19 @@ export async function callLLM(
     outputItemTypes: parsed.output.map((item) => object(item)?.type).filter((item): item is string => typeof item === "string"),
     toolName: parsed.toolCall?.name,
     toolCallId: parsed.toolCall?.callId,
-  });
-  try { return parseAssistantResponse(parsed.rawEnvelope); }
-  catch (error) { throw new ModelResponseValidationError(error instanceof Error ? error.message : "invalid_provider_response"); }
+    durationMs,
+    toolArgumentOutcome: parsed.toolCall ? "accepted" as const : "not_applicable" as const,
+    ...usage,
+  };
+  try {
+    const envelope = parseAssistantResponse(parsed.rawEnvelope);
+    onTrace?.({ ...trace, structuredResponseOutcome: "accepted" });
+    return envelope;
+  }
+  catch (error) {
+    onTrace?.({ ...trace, structuredResponseOutcome: "rejected" });
+    throw new ModelResponseValidationError(error instanceof Error ? error.message : "invalid_provider_response");
+  }
 }
 
 export function makeLLM(

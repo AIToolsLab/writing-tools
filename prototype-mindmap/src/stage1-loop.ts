@@ -9,6 +9,7 @@ import type {
   ConversationState,
   DiagnosticEvent,
   StructuredRejection,
+  TurnProgressEvent,
   TurnResult,
   VerifiedRecall,
 } from "./assistant-response";
@@ -34,7 +35,11 @@ export interface ProcessTurnOptions {
   /** Captured before the composer consumes canvas selection. */
   selectedCardIds?: string[];
   turnUtteranceIds?: string[];
+  onProgress?: (event: TurnProgressEvent) => void;
 }
+
+export const MAX_REFLECTION_ATTEMPTS = 2;
+export const MAX_MODEL_CALLS_PER_TURN = 3;
 
 function diagnostic(stage: DiagnosticEvent["stage"], outcome: DiagnosticEvent["outcome"], code: string, detail: string): DiagnosticEvent {
   return { id: `d_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, at: Date.now(), stage, outcome, code, detail };
@@ -208,7 +213,17 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
       }
     }
     const validation = validateMirror(response.reflection, state.bank.getAll(), config);
-    if (!validation.ok) return { rejection: { code: "reflection_validation_failed", detail: validation.claims.filter((claim) => !claim.ok).map((claim) => claim.message).join(" ") }, diagnostics: [diagnostic("validation", "rejected", "reflection_validation_failed", "Reflection evidence pointers did not validate.")] };
+    if (!validation.ok) {
+      const ungroundedContentWords = Array.from(new Set(validation.claims.flatMap((claim) => claim.ungroundedContentWords)));
+      return {
+        rejection: {
+          code: "reflection_validation_failed",
+          detail: validation.claims.filter((claim) => !claim.ok).map((claim) => claim.message).join(" "),
+          reflectionRecovery: { stage: "informed_repair", ungroundedContentWords, rejectedReflections: [response] },
+        },
+        diagnostics: [diagnostic("validation", "rejected", "reflection_validation_failed", "Reflection evidence pointers did not validate.")],
+      };
+    }
     const attributions = response.reflection.claims.map((claim) => deriveClaimAttribution(claim, state.bank.getAll()));
     if (!attributions.every((value) => value === "asserted")) return { rejection: { code: "reflection_not_user_asserted", detail: "Reflections must remain grounded in user assertions; use a suggestion for new material." }, diagnostics: [diagnostic("validation", "rejected", "reflection_not_user_asserted", "Reflection was not fully asserted.")] };
     const invalidCandidate = response.reflection.claims.find((claim) => {
@@ -324,51 +339,129 @@ export async function processTurn(state: ConversationState, userText: string, mo
   const contractSnapshot = snapshotContract(activeContract);
   const context = buildContext(state, userText, added, map, config, options.selectedFocus, options.requestedSupport, activeContract, options.proposalOutcome);
   const diagnostics: DiagnosticEvent[] = [];
-  let repairUsed = false;
   let envelope: AssistantResponseEnvelope;
+  let prepared: ReturnType<typeof prepareEnvelope> | undefined;
+  let modelCall: 1 | 2 | 3 = 1;
+  let recoveryUsed = false;
+
+  const callModel = async (call: 1 | 2 | 3, rejection?: StructuredRejection, progressStage?: TurnProgressEvent["stage"]): Promise<AssistantResponseEnvelope> => {
+    modelCall = call;
+    if (progressStage) options.onProgress?.({ modelCall: call, stage: progressStage });
+    return model(context, rejection);
+  };
+
+  const recordResponse = (responseEnvelope: AssistantResponseEnvelope): void => {
+    diagnostics.push(diagnostic("response", "accepted", responseEnvelope.response.kind, `Model call ${modelCall} returned ${responseEnvelope.response.kind}.`));
+  };
+
   try {
-    envelope = await model(context);
+    envelope = await callModel(1, undefined, "initial_attempt");
   } catch (error) {
     if (!(error instanceof ModelResponseValidationError)) throw error;
     const detail = error instanceof Error ? error.message : "The provider response could not be parsed.";
     const rejection: StructuredRejection = { code: "provider_response_invalid", detail };
     diagnostics.push(diagnostic("response", "rejected", rejection.code, rejection.detail));
     diagnostics.push(diagnostic("repair", "needs_input", "repair_requested", "One structured repair call was requested."));
-    repairUsed = true;
+    recoveryUsed = true;
     try {
-      envelope = await model(context, rejection);
-    } catch (repairError) {
-      if (!(repairError instanceof ModelResponseValidationError)) throw repairError;
-      const repairDetail = repairError instanceof Error ? repairError.message : "The repaired provider response could not be parsed.";
-      diagnostics.push(diagnostic("repair", "rejected", "repair_failed", repairDetail));
-      return exhaustedRepair(state, diagnostics);
-    }
-  }
-  diagnostics.push(diagnostic("response", "accepted", envelope.response.kind, `Model returned ${envelope.response.kind}.`));
-  let prepared = prepareEnvelope(envelope, state, turnOptions, config, activeContract, contractSnapshot);
-  diagnostics.push(...prepared.diagnostics);
-  if (prepared.rejection) {
-    if (repairUsed) {
-      diagnostics.push(diagnostic("repair", "rejected", "repair_failed", prepared.rejection.detail));
-      return exhaustedRepair(state, diagnostics);
-    }
-    diagnostics.push(diagnostic("repair", "needs_input", "repair_requested", "One structured repair call was requested."));
-    try {
-      envelope = await model(context, prepared.rejection);
+      envelope = await callModel(2, rejection);
     } catch (repairError) {
       if (!(repairError instanceof ModelResponseValidationError)) throw repairError;
       diagnostics.push(diagnostic("repair", "rejected", "repair_failed", repairError.message));
       return exhaustedRepair(state, diagnostics);
     }
+    recordResponse(envelope);
     prepared = prepareEnvelope(envelope, state, turnOptions, config, activeContract, contractSnapshot);
     diagnostics.push(...prepared.diagnostics);
     if (prepared.rejection) {
       diagnostics.push(diagnostic("repair", "rejected", "repair_failed", prepared.rejection.detail));
       return exhaustedRepair(state, diagnostics);
     }
-    diagnostics.push(diagnostic("repair", "repaired", "repair_succeeded", "The repaired typed response passed validation."));
   }
-  if (repairUsed) diagnostics.push(diagnostic("repair", "repaired", "repair_succeeded", "The repaired typed response passed validation."));
+
+  if (!recoveryUsed) {
+    recordResponse(envelope);
+    prepared = prepareEnvelope(envelope, state, turnOptions, config, activeContract, contractSnapshot);
+    diagnostics.push(...prepared.diagnostics);
+
+    if (prepared.rejection?.code === "reflection_validation_failed") {
+      const firstReflectionRejection = prepared.rejection;
+      diagnostics.push(diagnostic("repair", "needs_input", "repair_requested", "An informed reflection repair was requested."));
+      diagnostics.push(diagnostic("repair", "needs_input", "grounding_repair_requested", "The model received the rejected reflection and its ungrounded content words."));
+      recoveryUsed = true;
+      try {
+        envelope = await callModel(2, firstReflectionRejection, "grounding_repair");
+      } catch (repairError) {
+        if (!(repairError instanceof ModelResponseValidationError)) throw repairError;
+        diagnostics.push(diagnostic("repair", "rejected", "repair_failed", repairError.message));
+        return exhaustedRepair(state, diagnostics);
+      }
+      recordResponse(envelope);
+      prepared = prepareEnvelope(envelope, state, turnOptions, config, activeContract, contractSnapshot);
+      diagnostics.push(...prepared.diagnostics);
+
+      if (prepared.rejection?.code === "reflection_validation_failed" && envelope.response.kind === "reflection") {
+        const secondRecovery = prepared.rejection.reflectionRecovery;
+        const firstRecovery = firstReflectionRejection.reflectionRecovery;
+        const forcedQuestionRejection: StructuredRejection = {
+          code: "reflection_forced_question",
+          detail: "Two reflection attempts could not be grounded. Return one targeted question instead.",
+          reflectionRecovery: {
+            stage: "forced_question",
+            ungroundedContentWords: Array.from(new Set([
+              ...(firstRecovery?.ungroundedContentWords ?? []),
+              ...(secondRecovery?.ungroundedContentWords ?? []),
+            ])),
+            rejectedReflections: [
+              ...(firstRecovery?.rejectedReflections ?? []),
+              ...(secondRecovery?.rejectedReflections ?? []),
+            ].slice(0, MAX_REFLECTION_ATTEMPTS),
+          },
+        };
+        diagnostics.push(diagnostic("repair", "needs_input", "forced_question_requested", "The capped recovery ladder requested one targeted question."));
+        try {
+          envelope = await callModel(3, forcedQuestionRejection, "forced_question");
+        } catch (forcedError) {
+          if (!(forcedError instanceof ModelResponseValidationError)) throw forcedError;
+          diagnostics.push(diagnostic("repair", "rejected", "repair_failed", forcedError.message));
+          return exhaustedRepair(state, diagnostics);
+        }
+        recordResponse(envelope);
+        if (envelope.response.kind !== "question") {
+          diagnostics.push(diagnostic("repair", "rejected", "forced_question_kind_invalid", `The final recovery call returned ${envelope.response.kind}, not a question.`));
+          diagnostics.push(diagnostic("repair", "rejected", "repair_failed", "The final recovery response was not a question."));
+          return exhaustedRepair(state, diagnostics);
+        }
+        prepared = prepareEnvelope(envelope, state, turnOptions, config, activeContract, contractSnapshot);
+        diagnostics.push(...prepared.diagnostics);
+      }
+
+      if (prepared.rejection) {
+        diagnostics.push(diagnostic("repair", "rejected", "repair_failed", prepared.rejection.detail));
+        return exhaustedRepair(state, diagnostics);
+      }
+    } else if (prepared.rejection) {
+      diagnostics.push(diagnostic("repair", "needs_input", "repair_requested", "One structured repair call was requested."));
+      recoveryUsed = true;
+      try {
+        envelope = await callModel(2, prepared.rejection);
+      } catch (repairError) {
+        if (!(repairError instanceof ModelResponseValidationError)) throw repairError;
+        diagnostics.push(diagnostic("repair", "rejected", "repair_failed", repairError.message));
+        return exhaustedRepair(state, diagnostics);
+      }
+      recordResponse(envelope);
+      prepared = prepareEnvelope(envelope, state, turnOptions, config, activeContract, contractSnapshot);
+      diagnostics.push(...prepared.diagnostics);
+      if (prepared.rejection) {
+        diagnostics.push(diagnostic("repair", "rejected", "repair_failed", prepared.rejection.detail));
+        return exhaustedRepair(state, diagnostics);
+      }
+    }
+  }
+
+  if (!prepared) throw new Error("Turn completed without a prepared response.");
+  if (recoveryUsed) diagnostics.push(diagnostic("repair", "repaired", "repair_succeeded", `The typed response passed after ${modelCall} model calls.`));
   state.candidates = prepared.candidates;
   if (prepared.recall) {
     state.candidates.markRecalled(prepared.recall.candidateId, state.currentUserTurn);

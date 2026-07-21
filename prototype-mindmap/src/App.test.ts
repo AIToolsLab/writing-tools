@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AssistantResponseKindBadge, buildConversationHistory, deriveCurrentUserTurn, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateCandidateMemory, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, UnderTheHoodPanel } from "./App";
+import { AssistantResponseKindBadge, buildConversationHistory, deriveCurrentUserTurn, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateCandidateMemory, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, TURN_PROGRESS_COPY, UnderTheHoodPanel } from "./App";
 import { ASSISTANCE_CONTRACTS, snapshotContract } from "./assistance-contract";
 import { ThoughtUnitStore } from "./map-store";
 import type { Proposal } from "./proposal-store";
@@ -59,6 +59,14 @@ describe("session migration", () => {
 });
 
 describe("application recovery history", () => {
+  it("uses plain-language copy for each real recovery stage", () => {
+    expect(TURN_PROGRESS_COPY).toEqual({
+      initial_attempt: "Trying to reflect your words...",
+      grounding_repair: "Making sure this stays in your words...",
+      forced_question: "Asking a focused question instead...",
+    });
+  });
+
   it("excludes terminal recovery UI from provider dialogue history", () => {
     expect(buildConversationHistory([
       { id: 1, role: "user", text: "human control matters" },

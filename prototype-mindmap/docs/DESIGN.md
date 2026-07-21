@@ -176,7 +176,8 @@ through that instance.
 
 - **Local transcript remains authoritative.** The Responses adapter uses
   `store: false`, disables parallel tool calls, and replays provider items only
-  inside the existing single repair attempt. `chat_json` remains the default
+  inside the bounded recovery attempt currently in flight. Reflection grounding
+  alone may use the capped third forced-question call. `chat_json` remains the default
   transport until browser smoke testing is available.
 
 - **No ghost structure.** An AI proposal is reviewed in chat only. It never
