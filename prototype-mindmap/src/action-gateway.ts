@@ -5,7 +5,6 @@ import type { ConfirmedReflection, ThoughtUnit, ThoughtUnitRole } from "./types"
 import type { ContributionOrigin } from "./assistance-contract";
 
 export type GatewayActor = "ai_proposal" | "user_canvas";
-export type ProposedActionKind = "create_card" | "edit_card" | "nest_card" | "connect_cards";
 
 export interface ProposedRef {
   id?: string;
@@ -42,7 +41,9 @@ export type GatewayReason =
   | "nest_cycle"
   | "duplicate_connection"
   | "nested_endpoint"
-  | "ungrounded_relationship";
+  | "ungrounded_relationship"
+  /** A translated view is a reader's projection, so it may not be written to. */
+  | "read_only_view";
 
 export type GatewayResult =
   | { status: "ready"; action: ExecutableAction; referencedCardIds: string[]; origin?: ContributionOrigin; pairingProof?: VerifiedPairingProof }

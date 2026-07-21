@@ -1,29 +1,28 @@
 /**
- * Whole-page read-only translation.
+ * Interface copy, rendered in the language the page is being shown in.
  *
- * Interface copy lives as hundreds of literals spread across the app, so it is
- * translated where it ends up rather than at each call site: this walks the
- * rendered DOM, translates every visible string, and re-applies after React
- * re-renders (React rewrites text nodes it owns, which would otherwise undo the
- * translation on the next state change).
+ * The app renders hundreds of English literals, so rather than rewriting every
+ * call site this walks the rendered DOM and swaps each one for its entry in the
+ * checked-in dictionary (see ./ui-strings.ts). It re-applies after React
+ * re-renders, which rewrite the text nodes React owns.
+ *
+ * Every lookup is synchronous and offline: interface copy NEVER reaches the
+ * translation engine, so changing the write or the view language re-skins the
+ * page instantly and for free. Copy with no dictionary entry stays in English.
  *
  * Card text is the one exception — it lives in a textarea's `value` property
- * rather than in a text node, so those are translated in the component itself.
+ * rather than in a text node, and it is writer content, so it goes through the
+ * engine in the component itself.
  */
 
 import { useEffect, useRef } from "react";
-import { translateStrings } from "./translate";
+import { noteMissingUiString, uiString } from "./ui-strings";
 
-/** Elements whose text is markup or writer-owned input, never UI copy. */
+/** Elements whose text is markup or writer-owned input, never interface copy. */
 const SKIPPED_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEXTAREA", "OPTION"]);
 
 /** Attributes that carry user-visible copy. */
 const TEXT_ATTRIBUTES = ["placeholder", "title", "aria-label"] as const;
-
-interface AttributeTarget {
-  element: Element;
-  attribute: string;
-}
 
 function isTranslatable(value: string): boolean {
   const trimmed = value.trim();
@@ -52,40 +51,23 @@ function collectTextNodes(root: Element): Text[] {
   return nodes;
 }
 
-function collectAttributeTargets(root: Element): AttributeTarget[] {
-  const targets: AttributeTarget[] = [];
-  for (const attribute of TEXT_ATTRIBUTES) {
-    for (const element of root.querySelectorAll(`[${attribute}]`)) {
-      if (element.closest("[data-no-translate]")) continue;
-      const value = element.getAttribute(attribute) ?? "";
-      if (isTranslatable(value)) targets.push({ element, attribute });
-    }
-  }
-  return targets;
-}
-
 /**
- * Translate everything rendered under `root` while `active` is true, and put the
- * original copy back when it is turned off.
+ * Render the interface under `root` in `target` while `active` is true, and put
+ * the English copy back when it is turned off.
  */
-export function useFullPageTranslation({
+export function useInterfaceLanguage({
   root,
   active,
   target,
-  onError,
-  onBusyChange,
 }: {
   root: () => Element | null;
   active: boolean;
   target: string;
-  onError: (message: string) => void;
-  onBusyChange: (busy: boolean) => void;
 }): void {
-  // Original copy, so the page can be restored exactly rather than
-  // re-translated back — a round trip would not return the writer's wording.
+  // The English copy, so the page is restored exactly rather than translated
+  // back — a round trip would not return the original wording.
   const textOriginals = useRef(new Map<Text, string>());
   const attributeOriginals = useRef(new Map<string, string>());
-  const cache = useRef(new Map<string, string>());
 
   useEffect(() => {
     const texts = textOriginals.current;
@@ -96,46 +78,36 @@ export function useFullPageTranslation({
       texts.clear();
       for (const [key, original] of attributes) {
         const [attribute, ...rest] = key.split("|");
-        const element = document.querySelector(`[data-i18n-id="${rest.join("|")}"]`);
-        element?.setAttribute(attribute, original);
+        document
+          .querySelector(`[data-i18n-id="${rest.join("|")}"]`)
+          ?.setAttribute(attribute, original);
       }
       attributes.clear();
     }
 
-    if (!active) {
-      restore();
-      cache.current.clear();
-      return;
-    }
+    // Restoring first means a language switch starts from the English copy
+    // rather than from the previous language's words.
+    restore();
+    if (!active) return;
 
-    let cancelled = false;
     let scheduled = 0;
     let observer: MutationObserver | null = null;
-    let flushing = false;
-    let flushAgain = false;
 
-    /** Put known translations on screen; return whatever is still missing. */
-    function apply(): { visible: string[]; offscreen: string[] } {
+    function apply() {
       const element = root();
-      if (!element) return { visible: [], offscreen: [] };
-      const missing = new Set<string>();
-      const visible = new Set<string>();
+      if (!element) return;
 
       for (const node of collectTextNodes(element)) {
         const original = texts.get(node) ?? node.nodeValue ?? "";
-        if (!texts.has(node)) texts.set(node, original);
-        const key = original.trim();
-        const translated = cache.current.get(key);
+        const translated = uiString(original, target);
+        // Anything without a dictionary entry is not interface copy — it is the
+        // writer's content, which the engine renders. Touching it here would
+        // overwrite that translation with the original on the next re-render.
         if (translated === undefined) {
-          missing.add(key);
-          // Text the reader is looking at right now goes in the first batch; a
-          // closed panel or a scrolled-away message can wait its turn.
-          const box = node.parentElement?.getBoundingClientRect();
-          if (box && box.bottom > 0 && box.top < window.innerHeight && box.width > 0) {
-            visible.add(key);
-          }
+          noteMissingUiString(original);
           continue;
         }
+        if (!texts.has(node)) texts.set(node, original);
         // Preserve the original leading/trailing spacing so inline text does
         // not run together with adjacent elements.
         const leading = original.match(/^\s*/)?.[0] ?? "";
@@ -144,119 +116,62 @@ export function useFullPageTranslation({
         if (node.nodeValue !== next) node.nodeValue = next;
       }
 
-      for (const { element: node, attribute } of collectAttributeTargets(element)) {
-        const current = node.getAttribute(attribute) ?? "";
-        let id = node.getAttribute("data-i18n-id");
-        if (!id) {
-          id = Math.random().toString(36).slice(2);
-          node.setAttribute("data-i18n-id", id);
+      for (const attribute of TEXT_ATTRIBUTES) {
+        for (const node of element.querySelectorAll(`[${attribute}]`)) {
+          if (node.closest("[data-no-translate]")) continue;
+          const current = node.getAttribute(attribute) ?? "";
+          if (!isTranslatable(current)) continue;
+          const id = node.getAttribute("data-i18n-id");
+          const key = id ? `${attribute}|${id}` : undefined;
+          const original = (key && attributes.get(key)) || current;
+          const next = uiString(original, target);
+          if (next === undefined) continue;
+          if (!key) {
+            const fresh = Math.random().toString(36).slice(2);
+            node.setAttribute("data-i18n-id", fresh);
+            attributes.set(`${attribute}|${fresh}`, original);
+          } else if (!attributes.has(key)) {
+            attributes.set(key, original);
+          }
+          if (current !== next) node.setAttribute(attribute, next);
         }
-        const key = `${attribute}|${id}`;
-        const original = attributes.get(key) ?? current;
-        if (!attributes.has(key)) attributes.set(key, original);
-        const translated = cache.current.get(original.trim());
-        if (translated === undefined) missing.add(original.trim());
-        else if (current !== translated) node.setAttribute(attribute, translated);
       }
-
-      return {
-        visible: Array.from(visible),
-        offscreen: Array.from(missing).filter((text) => !visible.has(text)),
-      };
     }
 
     /**
-     * Apply, without the observer hearing our own writes — otherwise each
-     * mutation re-fires the observer that scheduled this pass, a loop that only
-     * ends when nothing is left to translate and keeps opening requests meanwhile.
+     * Apply without the observer hearing our own writes, which would otherwise
+     * schedule a fresh pass for every swap we just made.
      */
-    function applyQuietly(): { visible: string[]; offscreen: string[] } {
+    function applyQuietly() {
       observer?.disconnect();
       try {
-        return apply();
+        apply();
       } finally {
         const element = root();
-        if (!cancelled && observer && element) {
+        if (observer && element) {
           observer.observe(element, { subtree: true, childList: true, characterData: true });
         }
       }
     }
 
-    async function flush() {
-      // One pass at a time: overlapping passes each opened batches and reported
-      // "done" separately, flickering the indicator while requests multiplied.
-      if (flushing) {
-        flushAgain = true;
-        return;
-      }
-      flushing = true;
-      try {
-        const { visible, offscreen } = applyQuietly();
-        if (cancelled || (visible.length === 0 && offscreen.length === 0)) {
-          onBusyChange(false);
-          return;
-        }
-        onBusyChange(true);
-        function absorb(entries: Array<[string, string]>) {
-          if (cancelled) return;
-          for (const [original, translated] of entries) {
-            cache.current.set(original, translated);
-          }
-          applyQuietly();
-        }
-        try {
-          // On-screen text first, so the page stops looking half-translated
-          // while long off-screen passages are still in flight.
-          if (visible.length > 0) await translateStrings(visible, target, absorb);
-          if (!cancelled && offscreen.length > 0) {
-            await translateStrings(offscreen, target, absorb);
-          }
-        } catch (error) {
-          if (!cancelled) {
-            onError(error instanceof Error ? error.message : "Translation failed.");
-          }
-        } finally {
-          if (!cancelled) onBusyChange(false);
-        }
-      } finally {
-        flushing = false;
-        // Real changes that arrived mid-pass (a new message, a reopened panel)
-        // are picked up once, after.
-        if (flushAgain && !cancelled) {
-          flushAgain = false;
-          schedule();
-        }
-      }
-    }
-
-    // Each landed batch mutates the DOM and re-fires the observer, so a single
-    // frame is too eager — passes would keep interrupting each other. Let the
-    // burst settle first.
+    // React rewrites its own text nodes on re-render, so re-apply on tree
+    // changes. A little debounce lets a burst of them settle first.
     function schedule() {
-      if (cancelled) return;
       window.clearTimeout(scheduled);
       scheduled = window.setTimeout(() => {
         scheduled = 0;
-        void flush();
-      }, 200);
+        applyQuietly();
+      }, 50);
     }
 
-    // React rewrites its text nodes on re-render, so re-apply on tree changes.
-    // Created before the first flush so flush can pause it while it writes.
     observer = new MutationObserver(schedule);
-    const observed = root();
-    if (observed) {
-      observer.observe(observed, { subtree: true, childList: true, characterData: true });
-    }
-
-    void flush();
+    applyQuietly();
 
     return () => {
-      cancelled = true;
       if (scheduled) window.clearTimeout(scheduled);
       observer?.disconnect();
       observer = null;
       restore();
     };
-  }, [active, target, root, onError, onBusyChange]);
+  }, [active, target, root]);
 }

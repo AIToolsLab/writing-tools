@@ -142,12 +142,6 @@ export function activateOpenThread(
   );
 }
 
-export function ignoreActiveOpenThreads(threads: ParkedThread[], now = Date.now()): ParkedThread[] {
-  return threads.map((thread) =>
-    thread.status === "active" ? { ...thread, status: "ignored", updatedAt: now } : thread,
-  );
-}
-
 export function promoteOpenThreadsForUtterances(
   threads: ParkedThread[],
   utteranceIds: Iterable<string>,
@@ -168,33 +162,4 @@ export function reopenPromotedOpenThreads(threads: ParkedThread[], now = Date.no
   return threads.map((thread) =>
     thread.status === "promoted" ? { ...thread, status: "parked", updatedAt: now } : thread,
   );
-}
-
-export function markStaleOpenThreads(
-  threads: ParkedThread[],
-  existingUtteranceIds: Iterable<string>,
-  now = Date.now(),
-): ParkedThread[] {
-  const existing = new Set(existingUtteranceIds);
-  return threads.map((thread) =>
-    thread.sourceUtteranceIds.every((id) => !existing.has(id))
-      ? { ...thread, status: "stale", updatedAt: now }
-      : thread,
-  );
-}
-
-export function unresolvedOpenThreadContext(
-  threads: ParkedThread[],
-  limit = 3,
-): OpenThreadContext[] {
-  return threads
-    .filter((thread) => thread.status === "parked" || thread.status === "active")
-    .slice(-limit)
-    .reverse()
-    .map((thread) => ({
-      id: thread.id,
-      text: thread.text,
-      status: thread.status,
-      sourceUtteranceIds: thread.sourceUtteranceIds,
-    }));
 }

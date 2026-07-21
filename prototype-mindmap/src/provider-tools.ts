@@ -184,13 +184,6 @@ export const CONVERSATIONAL_TEXT_FORMAT = {
   },
 } as const;
 
-export interface ResponsesFunctionCall {
-  type: "function_call";
-  name: string;
-  call_id: string;
-  arguments: string;
-}
-
 export interface ParsedResponsesOutput {
   responseId?: string;
   output: unknown[];

@@ -22,11 +22,9 @@ import type { MindmapConfig } from "./config";
 import {
   containsWholePhrase,
   contentTokens,
-  isStopword,
   normalize,
   stem,
   stemSet,
-  tokenize,
 } from "./normalize";
 import type {
   ClaimValidation,
@@ -306,19 +304,6 @@ export function validateMirror(
   );
 
   return { ok: claims.length > 0 && claims.every((c) => c.ok), claims };
-}
-
-/** Exposed for tests/debugging: normalized view of how a claim grounds out. */
-export function explainClaim(
-  claim: MirrorClaim,
-  bankUtterances: SourceUtterance[],
-): { token: string; owned: boolean; glue: boolean }[] {
-  const bankStems = stemSet(bankUtterances.map((u) => u.text));
-  return tokenize(claim.text).map((tok) => ({
-    token: tok,
-    glue: isStopword(tok),
-    owned: bankStems.has(stem(tok)),
-  }));
 }
 
 export { normalize };

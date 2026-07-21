@@ -22,7 +22,6 @@ export interface LLMMapConnection {
 }
 
 export interface LLMMapContext { thoughtUnits: ThoughtUnit[]; connections: LLMMapConnection[] }
-export interface MapQuestionAnchor { ref: string; text: string; neighbors: Array<{ ref: string; text: string }> }
 export interface SelectedFocusContext {
   cards?: Array<{ id: string; ref: string; text: string; role: Exclude<ThoughtUnitRole, "connection_label"> }>;
   draftText?: string;

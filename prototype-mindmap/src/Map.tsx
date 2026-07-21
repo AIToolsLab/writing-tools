@@ -25,7 +25,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { computeAutoCleanPositions, computeConnectionHandles } from "./map-layout";
-import { executeCanvasAction, type CanvasAction } from "./action-gateway";
+import { executeCanvasAction, type CanvasAction, type CanvasGatewayResult } from "./action-gateway";
 import type { ConnectionLayoutDirection, ThoughtUnitStore, XYBounds, XYPosition, XYSize } from "./map-store";
 import type { SourceBank } from "./store";
 import { useTranslation } from "./translation-context";
@@ -786,10 +786,24 @@ function ThoughtMapInner({
 }: ThoughtMapProps) {
   const flow = useReactFlow();
   const canvasRef = useRef<HTMLDivElement | null>(null);
+  // Reading a translation is navigation; changing the map is not (see below).
+  const { readOnly: mapReadOnly } = useTranslation();
   const visibleCardCount = store.getAll().filter((unit) => unit.role !== "connection_label").length;
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [connectionPanelKey, setConnectionPanelKey] = useState(0);
-  const dispatchCanvas = useCallback((action: CanvasAction) => executeCanvasAction(action, { store, bank }), [bank, store]);
+  /**
+   * The one place every structural change to the map passes through, and so the
+   * one place a translated view has to be refused. Guarding here rather than at
+   * each button means an action added later is locked by default instead of
+   * quietly staying writable.
+   */
+  const dispatchCanvas = useCallback(
+    (action: CanvasAction): CanvasGatewayResult =>
+      mapReadOnly
+        ? { status: "rejected", reason: "read_only_view", detail: "Switch back to the writing language to edit." }
+        : executeCanvasAction(action, { store, bank }),
+    [bank, mapReadOnly, store],
+  );
 
   const commitText = useCallback(
     (id: string, text: string) => {
@@ -1563,10 +1577,10 @@ function ThoughtMapInner({
 
         <div className="map-left-tools">
           {draftDockSlot ?? draftDock}
-          <button type="button" className="map-clear-draft" onClick={onClearDraft} title="Clear the draft only">
+          <button type="button" className="map-clear-draft" onClick={onClearDraft} disabled={mapReadOnly} title="Clear the draft only">
             Clear draft
           </button>
-          <button type="button" className="map-add-card" onClick={addCard}>
+          <button type="button" className="map-add-card" onClick={addCard} disabled={mapReadOnly}>
             + New card
           </button>
 
@@ -1578,20 +1592,20 @@ function ThoughtMapInner({
           >
             Label {requireConnectionLabel ? "on" : "off"}
           </button>
+
+          {languageTools}
         </div>
 
         <div className="map-right-tools">
-          {languageTools}
-
-          <button type="button" className="map-clean" onClick={autoClean} title="Tidy the map: lay connected cards into clean trees and spread the rest across the canvas">
+          <button type="button" className="map-clean" onClick={autoClean} disabled={mapReadOnly} title="Tidy the map: lay connected cards into clean trees and spread the rest across the canvas">
             Auto-clean
           </button>
 
-          <button type="button" className="map-clear-map" onClick={onClearMap} title="Clear the map only">
+          <button type="button" className="map-clear-map" onClick={onClearMap} disabled={mapReadOnly} title="Clear the map only">
             Clear map
           </button>
 
-          <button type="button" className="map-undo" onClick={onUndo} disabled={!canUndo} title="Undo map change">
+          <button type="button" className="map-undo" onClick={onUndo} disabled={!canUndo || mapReadOnly} title="Undo map change">
             Undo
           </button>
 
@@ -1632,10 +1646,16 @@ function ThoughtMapInner({
           onConnectEnd={onConnectEnd}
           onReconnect={onReconnect}
           connectionMode={ConnectionMode.Loose}
-          edgesReconnectable
+          edgesReconnectable={!mapReadOnly}
           reconnectRadius={14}
           fitView
           fitViewOptions={{ padding: 0.2 }}
+          // Moving a card is a change; moving the viewport is navigation. A
+          // reader keeps pan, zoom and selection, and loses everything that
+          // would edit the map — the dispatch guard refuses those anyway, but
+          // withdrawing the affordance stops a card snapping back mid-drag.
+          nodesDraggable={!mapReadOnly}
+          nodesConnectable={!mapReadOnly}
         >
           <Background gap={28} size={1} />
           <MiniMap pannable zoomable />

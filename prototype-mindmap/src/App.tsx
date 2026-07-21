@@ -17,9 +17,10 @@ import { buildDiagnosticSnapshot, type SafetyCheck, type TrackedIdea, type Under
 import { useSpeechToText } from "./useSpeechToText";
 import { ASSISTANCE_CONTRACTS, contractForLevel, DEFAULT_ASSISTANCE_CONTRACT, normalizeInfluenceTrace, snapshotContract, type AssistanceLevel } from "./assistance-contract";
 import { EventLedger, mirrorSanitizedEvent, type LedgerEventKind } from "./event-ledger";
-import { effectiveLanguage, initialLanguageState, isReadOnlyView, languageLabel, languageOptions, matchesWritingLanguage, selectViewLanguage, setDraftLanguage, settleDraftLanguage, type LanguageOption, type LanguageState } from "./language";
-import { translateStrings } from "./translate";
-import { useFullPageTranslation } from "./dom-translation";
+import { effectiveLanguage, isReadOnlyView, languageLabel, languageOptions, restoreLanguageState, selectViewLanguage, setWriteLanguage, type LanguageOption, type LanguageState } from "./language";
+import { translateContent } from "./translate";
+import { useInterfaceLanguage } from "./dom-translation";
+import { openAiEngine } from "./translation-engine";
 import { TranslationContext } from "./translation-context";
 
 const LANGUAGE_PICKER_OPTIONS = languageOptions();
@@ -224,8 +225,7 @@ interface PersistedSession {
   version: 1 | 2 | 3 | 4 | 5 | 6;
   sessionId?: string;
   assistanceLevel?: AssistanceLevel;
-  /** Absent before the language was settled (old sessions, or a reload before
-   *  the first message); those resume on a fresh guess. */
+  /** Absent until the writer picks one; those sessions resume on a fresh guess. */
   writingLanguage?: string;
   msgs: ChatMsg[];
   pendingMirrors?: PersistedPendingMirror[];
@@ -596,7 +596,14 @@ const css = `
     cursor: pointer;
     transition: background-color 0.15s;
   }
-  .lang-field select:hover { background-color: #eef2f7; }
+  .lang-field select:hover:not(:disabled) { background-color: #eef2f7; }
+  .lang-field.is-locked { color: #aeb5bf; }
+  .lang-field select:disabled {
+    color: #8d95a1;
+    cursor: not-allowed;
+    background-image: none;
+    padding-right: 4px;
+  }
   .lang-field select:focus-visible {
     outline: none;
     background-color: #eef2f7;
@@ -975,9 +982,9 @@ const css = `
   }
 
   /* Writing-language and read-only translation controls */
-  .language-mismatch {
+  .read-only-note {
     margin: 0 0 6px;
-    padding: 6px 8px;
+    padding: 5px 8px;
     font-size: 11px;
     line-height: 1.4;
     color: #8a5a1f;
@@ -4074,25 +4081,31 @@ export default function App() {
     );
   }, []);
 
-  // Writing language + read-only translated view. The draft language is the
-  // source of truth; a translation is a projection shown to readers and is
-  // never written back (see ./language.ts).
-  const [language, setLanguage] = useState<LanguageState>(() => {
-    const remembered = persistedSession?.writingLanguage;
-    const fresh = initialLanguageState();
-    return remembered ? setDraftLanguage(fresh, remembered) : fresh;
-  });
+  // What the interface renders in, plus the read-only translated view over it.
+  // The write language never restricts input (see ./language.ts).
+  const [language, setLanguage] = useState<LanguageState>(() =>
+    restoreLanguageState(persistedSession?.writingLanguage),
+  );
   const [translations, setTranslations] = useState<Map<string, string>>(new Map());
   // Two translators (per-string lookup, whole-page DOM pass) finish at different
   // times; separate flags stop one clearing the banner while the other runs.
   const [lookupTranslating, setLookupTranslating] = useState(false);
-  const [pageTranslating, setPageTranslating] = useState(false);
-  const translating = lookupTranslating || pageTranslating;
+  // Interface copy is instant, so only content translation can be "in progress".
+  const translating = lookupTranslating;
   const [translateError, setTranslateError] = useState("");
-  // Input the writer tried to send in the wrong language.
-  const [languageMismatch, setLanguageMismatch] = useState(false);
+  /** The one boolean that gates editing: a translated view is a reader's copy. */
   const readOnlyView = isReadOnlyView(language);
 
+  /**
+   * Content is only ever stored in the write language, so the write language may
+   * only move while there is nothing stored. It locks on the first card or the
+   * first chat message and unlocks again once both are empty — derived, never
+   * tracked, so clearing by any route unlocks it without extra bookkeeping.
+   */
+  const isWriteLocked = useMemo(
+    () => msgs.length > 0 || mapStoreRef.current.getAll().length > 0,
+    [msgs.length, mapRevision],
+  );
 
   // Draft panel state
   const [draftText, setDraftText] = useState(initialDraftText);
@@ -4111,15 +4124,19 @@ export default function App() {
   // What the entire page renders in: the writing language by default, or a
   // reader's language while a translation is being shown.
   const displayLanguageCode = effectiveLanguage(language);
-  // Interface copy is authored in English, so anything other than an English
-  // page needs translating even when nothing is being 'shown in' another
-  // language.
-  const pageNeedsTranslation = displayLanguageCode !== "en" || readOnlyView;
+  // Only the writer's content is paid for, and only while a reader's view is on
+  // screen. Interface copy is handled separately and for free (useInterfaceLanguage).
+  const pageNeedsTranslation = readOnlyView;
+
+  // Held in a ref so a re-render never rebuilds it.
+  const engineRef = useRef(openAiEngine());
 
   // Strings asked for during render but not translated yet. Held in a ref so
   // that asking costs nothing; the flush effect below picks them up after the
   // render completes.
   const pendingTranslationRef = useRef<Set<string>>(new Set());
+  // Strings already sent to the engine, so re-renders do not ask again.
+  const inFlightTranslationRef = useRef<Set<string>>(new Set());
   // Identifies the current view. A response from an earlier language must not
   // be written into the map after the user has switched again.
   const translationRunRef = useRef(0);
@@ -4147,6 +4164,7 @@ export default function App() {
   // left on screen while another is being fetched.
   useEffect(() => {
     pendingTranslationRef.current.clear();
+    inFlightTranslationRef.current.clear();
     translationRunRef.current += 1;
     setTranslations(new Map());
     setTranslateError("");
@@ -4158,16 +4176,20 @@ export default function App() {
   // is the steady state once everything on screen has been translated.
   useEffect(() => {
     if (!pageNeedsTranslation) return;
+    // Renders keep happening while a request is open, and each one re-queues the
+    // strings it still has no translation for. Without the in-flight set every
+    // piece of content is paid for twice.
     const pending = Array.from(pendingTranslationRef.current).filter(
-      (text) => !translations.has(text),
+      (text) => !translations.has(text) && !inFlightTranslationRef.current.has(text),
     );
     if (pending.length === 0) return;
     pendingTranslationRef.current.clear();
+    for (const text of pending) inFlightTranslationRef.current.add(text);
 
     const run = translationRunRef.current;
     setLookupTranslating(true);
-    translateStrings(pending, displayLanguageCode, (entries) => {
-      // Show each batch as it lands rather than holding the whole screen back
+    translateContent(pending, displayLanguageCode, engineRef.current, (entries) => {
+      // Show each piece as it lands rather than holding the whole screen back
       // until the slowest one returns.
       if (translationRunRef.current !== run) return;
       setTranslations((current) => {
@@ -4181,21 +4203,18 @@ export default function App() {
         setTranslateError(error instanceof Error ? error.message : "Translation failed.");
       })
       .finally(() => {
+        for (const text of pending) inFlightTranslationRef.current.delete(text);
         if (translationRunRef.current === run) setLookupTranslating(false);
       });
   });
 
-  // Translating the rendered page covers interface copy — section headers,
-  // buttons, Control Room labels — that no per-string call site could reach.
+  // Interface copy — section headers, buttons, Control Room labels — that no
+  // per-string call site could reach. Static dictionary only: free and instant.
   const translationRoot = useCallback(() => document.body, []);
-  const handleTranslateError = useCallback((message: string) => setTranslateError(message), []);
-  const handleTranslateBusy = useCallback((busy: boolean) => setPageTranslating(busy), []);
-  useFullPageTranslation({
+  useInterfaceLanguage({
     root: translationRoot,
-    active: pageNeedsTranslation,
+    active: displayLanguageCode !== "en",
     target: displayLanguageCode,
-    onError: handleTranslateError,
-    onBusyChange: handleTranslateBusy,
   });
 
   const translationView = useMemo(
@@ -4742,9 +4761,9 @@ export default function App() {
       version: 6,
       sessionId: initialSessionId,
       assistanceLevel,
-      // Persist only once settled; the view language is dropped so a reload
-      // resumes on the writer's words, not inside a read-only projection.
-      writingLanguage: language.settled ? language.draftLanguage : undefined,
+      // Only a chosen language is worth storing; the view language is dropped so
+      // a reload resumes on the writer's own words, not in a read-only projection.
+      writingLanguage: language.chosen ? language.writeLanguage : undefined,
       msgs,
       proposals: Array.from(proposals.values()),
       confirmed,
@@ -4802,16 +4821,13 @@ export default function App() {
 
   async function send() {
     const text = input.trim();
-    if (!text || loading) return;
-    // The first message sets the writing language (enforcing the browser guess
-    // would reject it); after that, input in another language is blocked so the
-    // map and draft stay in one language.
-    if (!language.settled) {
-      setLanguage((current) => settleDraftLanguage(current, text));
-    } else if (!matchesWritingLanguage(text, language.draftLanguage)) {
-      setLanguageMismatch(true);
-      return;
-    }
+    // Sending is a content change, so it is refused in a translated view for the
+    // same reason every map mutation is (see Map.tsx's dispatch guard).
+    if (!text || loading || readOnlyView) return;
+    // Input is never constrained by language. The writing language chooses what
+    // the interface is rendered in — it is a display setting the writer owns,
+    // not a rule about what they may type. The only state that stops input is a
+    // translated view (write !== view), which is read-only by construction.
     const nonce = ++turnNonceRef.current;
     const selectedCardIds = Array.from(contextSelectedCardIds).filter((id) => {
       const card = mapStoreRef.current.get(id);
@@ -5175,6 +5191,7 @@ export default function App() {
   }
 
   function clearMapOnly() {
+    if (readOnlyView) return;
     turnNonceRef.current++;
     setLoading(false);
     mapStoreRef.current = new ThoughtUnitStore();
@@ -5190,6 +5207,7 @@ export default function App() {
   }
 
   function clearDraftOnly() {
+    if (readOnlyView) return;
     turnNonceRef.current++;
     setLoading(false);
     setDraftText("");
@@ -5201,6 +5219,7 @@ export default function App() {
   }
 
   function clearChatOnly() {
+    if (readOnlyView) return;
     turnNonceRef.current++;
     setLoading(false);
     const draft = draftText;
@@ -5310,13 +5329,13 @@ export default function App() {
               <span>
                 Read-only translation into {languageLabel(effectiveLanguage(language))}
                 {translating ? " · translating…" : ""}
-                {" · "}your {languageLabel(language.draftLanguage)} words are unchanged.
+                {" · "}your {languageLabel(language.writeLanguage)} words are unchanged.
               </span>
               <button
                 type="button"
                 onClick={() => setLanguage((current) => selectViewLanguage(current, null))}
               >
-                ← Back to {languageLabel(language.draftLanguage)} to continue
+                ← Back to {languageLabel(language.writeLanguage)} to continue
               </button>
             </div>
           )}
@@ -5368,7 +5387,9 @@ export default function App() {
                     ))}
                   </div>
                 ) : (
-                  <div className="msg-bubble">{m.text}</div>
+                  // Writer content, so it goes through the engine — the
+                  // interface pass only ever swaps dictionary copy.
+                  <div className="msg-bubble">{translate(m.text)}</div>
                 )}
                 {m.role === "assistant" && m.questionAnchor && (
                   <button className="anchor-view-btn" type="button" onClick={() => revealDraftAnchor(m.questionAnchor!)}>
@@ -5410,10 +5431,11 @@ export default function App() {
                 <button className="focus-chip-dismiss" type="button" onClick={() => setStickyDraftFocus(undefined)} aria-label="Stop focusing on selected text">×</button>
               </div>
             )}
-            {languageMismatch && (
-              <div className="language-mismatch" data-no-translate>
-                Please write in {languageLabel(language.draftLanguage)} — this is your
-                writing language. Change it above if you want to write in another.
+            {readOnlyView && (
+              // §6.3: say why typing is refused, right where the user would type.
+              <div className="read-only-note" data-no-translate>
+                Viewing in {languageLabel(effectiveLanguage(language))} {"·"} switch back to{" "}
+                {languageLabel(language.writeLanguage)} to edit
               </div>
             )}
             <div className="input-row">
@@ -5423,14 +5445,11 @@ export default function App() {
                 rows={2}
                 placeholder={
                   readOnlyView
-                    ? `Switch back to ${languageLabel(language.draftLanguage)} to continue writing…`
+                    ? `Switch back to ${languageLabel(language.writeLanguage)} to continue writing…`
                     : "Say what's on your mind…"
                 }
                 value={input}
-                onChange={(e) => {
-                  setInput(e.target.value);
-                  if (languageMismatch) setLanguageMismatch(false);
-                }}
+                onChange={(e) => setInput(e.target.value)}
                 onKeyDown={onKey}
                 // A translation is not the writer's own words, so nothing may be
                 // composed or sent while it is on screen.
@@ -5509,7 +5528,7 @@ export default function App() {
                   >
                     <MicIcon />
                   </button>
-                  <button className="send-btn" onClick={() => void send()} disabled={loading || !input.trim()}>
+                  <button className="send-btn" onClick={() => void send()} disabled={loading || readOnlyView || !input.trim()}>
                     {"\u2191"}
                   </button>
                 </div>
@@ -5517,7 +5536,7 @@ export default function App() {
             </div>
             <div className="input-hint">
               <span>Enter to send {"\u00b7"} Shift+Enter for newline</span>
-              <button type="button" className="clear-chat-btn" onClick={clearChatOnly} title="Clear the chat conversation only">
+              <button type="button" className="clear-chat-btn" onClick={clearChatOnly} disabled={readOnlyView} title="Clear the chat conversation only">
                 Clear chat
               </button>
             </div>
@@ -5633,7 +5652,12 @@ export default function App() {
             commandAck={commandAck}
             languageTools={
               <div className={`language-bar${readOnlyView ? " is-translated" : ""}`} data-no-translate>
-                <label className="lang-field" title="The language you write in. Detected from your first message, and overridable — a translation is made from this language.">
+                <label
+                  className={`lang-field${isWriteLocked ? " is-locked" : ""}`}
+                  title={isWriteLocked
+                    ? "Locked: this session already has content, and content is only ever stored in one language. Clear the map and the chat to change it."
+                    : "The language you write in — the whole interface renders in it. It locks once this session has content."}
+                >
                   <span className="lang-field-icon" aria-hidden="true">
                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M11.5 2.5l2 2L6 12l-2.5.5L4 10z" />
@@ -5642,11 +5666,13 @@ export default function App() {
                   </span>
                   <select
                     aria-label="Writing language"
-                    value={language.draftLanguage}
-                    onChange={(event) => {
-                      setLanguage((current) => setDraftLanguage(current, event.target.value));
-                      setLanguageMismatch(false);
-                    }}
+                    value={language.writeLanguage}
+                    // Greyed rather than silently inert, so a click reads as
+                    // "locked for a reason" instead of a broken control.
+                    disabled={isWriteLocked}
+                    onChange={(event) =>
+                      setLanguage((current) => setWriteLanguage(current, event.target.value))
+                    }
                   >
                     {LANGUAGE_PICKER_OPTIONS.map((option) => (
                       <option key={option.code} value={option.code}>{optionText(option)}</option>
