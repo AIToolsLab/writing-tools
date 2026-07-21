@@ -215,13 +215,16 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
     const validation = validateMirror(response.reflection, state.bank.getAll(), config);
     if (!validation.ok) {
       const ungroundedContentWords = Array.from(new Set(validation.claims.flatMap((claim) => claim.ungroundedContentWords)));
+      const diagnosticDetail = ungroundedContentWords.length
+        ? `Reflection evidence pointers did not validate. Unsupported content words: ${ungroundedContentWords.join(", ")}.`
+        : "Reflection evidence pointers did not validate.";
       return {
         rejection: {
           code: "reflection_validation_failed",
           detail: validation.claims.filter((claim) => !claim.ok).map((claim) => claim.message).join(" "),
           reflectionRecovery: { stage: "informed_repair", ungroundedContentWords, rejectedReflections: [response] },
         },
-        diagnostics: [diagnostic("validation", "rejected", "reflection_validation_failed", "Reflection evidence pointers did not validate.")],
+        diagnostics: [diagnostic("validation", "rejected", "reflection_validation_failed", diagnosticDetail)],
       };
     }
     const attributions = response.reflection.claims.map((claim) => deriveClaimAttribution(claim, state.bank.getAll()));
@@ -282,6 +285,21 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
     return { proposal, diagnostics: [diagnostic("gateway", checked.status === "ready" ? "accepted" : "needs_input", checked.status === "ready" ? "action_ready" : "inline_completion_required", checked.status === "ready" ? "Map action passed deterministic checks." : checked.detail), diagnostic("proposal", "accepted", "proposal_shown", "Map action is awaiting an explicit user decision.")] };
   }
   return { diagnostics: [] };
+}
+
+/**
+ * A reflection historically carried two independently model-authored prose
+ * surfaces: `response.text` in chat and the pointer-validated claim text in the
+ * review card. Only the claims cross the grounding validator. Derive the chat
+ * text from those accepted claims so an unvalidated wrapper can never become a
+ * second visible reflection. The provider field remains parse-compatible.
+ */
+function acceptedVisibleResponse(response: AssistantResponseEnvelope["response"]): AssistantResponseEnvelope["response"] {
+  if (response.kind !== "reflection") return response;
+  return {
+    ...response,
+    text: response.reflection.claims.map((claim) => claim.text).join("\n"),
+  };
 }
 
 function prepareEnvelope(envelope: AssistantResponseEnvelope, state: ConversationState, options: ProcessTurnOptions, config: MindmapConfig, activeContract: AssistanceContract, contractSnapshot: AssistanceContractSnapshot): { proposal?: Proposal; recall?: VerifiedRecall; candidates: CandidateStore; lifecycleChanges: CandidateLifecycleChange[]; rejection?: StructuredRejection; diagnostics: DiagnosticEvent[] } {
@@ -467,8 +485,9 @@ export async function processTurn(state: ConversationState, userText: string, mo
     state.candidates.markRecalled(prepared.recall.candidateId, state.currentUserTurn);
     diagnostics.push(diagnostic("application", "accepted", "candidate_recalled", `Candidate ${prepared.recall.candidateId} was recalled from user wording.`));
   }
-  state.lastAssistantText = envelope.response.text;
-  if (envelope.response.kind === "reflection") state.turnsSinceLastReflection = 0;
+  const acceptedResponse = acceptedVisibleResponse(envelope.response);
+  state.lastAssistantText = acceptedResponse.text;
+  if (acceptedResponse.kind === "reflection") state.turnsSinceLastReflection = 0;
   else state.turnsSinceLastReflection++;
-  return { response: envelope.response, proposal: prepared.proposal, recall: prepared.recall, lifecycleChanges: prepared.lifecycleChanges, diagnostics };
+  return { response: acceptedResponse, proposal: prepared.proposal, recall: prepared.recall, lifecycleChanges: prepared.lifecycleChanges, diagnostics };
 }

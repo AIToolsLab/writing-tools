@@ -278,6 +278,76 @@ describe("typed Stage 1 controller", () => {
     expect(result.terminal).toBeUndefined();
   });
 
+  it("rejects the reported writer-for-I authorship leak with the exact unsupported word", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (context, rejection) => {
+      if (rejection) return { response: { kind: "question" as const, text: "What does that phrase help you understand?", stance: "deepen" as const } };
+      const sourceId = context.bank[0]!.id;
+      return {
+        response: {
+          kind: "reflection" as const,
+          text: "You identify a useful phrase.",
+          reflection: { claims: [{
+            id: "c1",
+            text: "more adequate to capture the nature intensity and mood of my inquiry is a good representation of what the writer is trying to understand",
+            candidateId: "c1",
+            target: "idea" as const,
+            sourceSpans: [{
+              claimText: "more adequate to capture the nature intensity and mood of my inquiry is a good representation of what I am trying to understand",
+              userPhrase: "more adequate to capture the nature intensity and mood of my inquiry is a good representation of what I am trying to understand",
+              utteranceIds: [sourceId],
+            }],
+          }] },
+        },
+        advisory: { candidateUpserts: [{ id: "c1", target: "idea" as const, gist: "nature intensity and mood", addEvidenceIds: [sourceId], status: "active" as const }] },
+      };
+    });
+
+    const result = await processTurn(
+      state,
+      "more adequate to capture the nature intensity and mood of my inquiry is a good representation of what I am trying to understand",
+      model,
+      defaultConfig,
+      store.toLLMContext(),
+      { mapRevision: 0, requireConnectionLabel: true, store },
+    );
+
+    expect(model.mock.calls[1]?.[1]?.reflectionRecovery?.ungroundedContentWords).toEqual(["writer"]);
+    expect(result.response).toMatchObject({ kind: "question" });
+    expect(result.proposal).toBeUndefined();
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({
+      code: "reflection_validation_failed",
+      detail: expect.stringContaining("Unsupported content words: writer"),
+    }));
+  });
+
+  it("derives displayed reflection text from the same validated claims used by the proposal", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const result = await processTurn(state, "human control matters", async (context) => {
+      const sourceId = context.bank[0]!.id;
+      return {
+        response: {
+          kind: "reflection" as const,
+          text: "This free-form wrapper invents an interpretation that was never validated.",
+          reflection: { claims: [{
+            id: "c1", text: "human control matters", candidateId: "c1", target: "idea" as const,
+            sourceSpans: [{ claimText: "human control matters", userPhrase: "human control matters", utteranceIds: [sourceId] }],
+          }] },
+        },
+        advisory: { candidateUpserts: [{ id: "c1", target: "idea" as const, gist: "human control", addEvidenceIds: [sourceId], status: "active" as const }] },
+      };
+    }, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+
+    expect(result.response).toMatchObject({ kind: "reflection", text: "human control matters" });
+    expect(result.proposal?.detail.kind).toBe("reflection");
+    if (result.proposal?.detail.kind === "reflection") {
+      expect(result.proposal.detail.editedTexts.c1).toBe(result.response?.text);
+    }
+    expect(state.lastAssistantText).toBe("human control matters");
+  });
+
   it("uses the capped two-reflection ladder and renders the forced question", async () => {
     const state = createConversationState();
     const store = new ThoughtUnitStore();
