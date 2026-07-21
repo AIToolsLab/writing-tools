@@ -3203,11 +3203,11 @@ export default function App() {
     setCanUndoMap(true);
   }, []);
 
-  const reconcileMapSuggestionProvenance = useCallback(() => {
+  const reconcileMapSuggestionProvenance = useCallback((textChangedCardIds: readonly string[] = []) => {
     const suggestions: VisibleSuggestion[] = msgsRef.current
       .filter((message) => message.role === "assistant" && message.responseKind === "suggestion")
       .map((message) => ({ id: message.id, text: message.text }));
-    for (const change of reconcileStoreSuggestionAdoption(mapStoreRef.current, suggestions)) {
+    for (const change of reconcileStoreSuggestionAdoption(mapStoreRef.current, suggestions, new Set(textChangedCardIds))) {
       void recordEvent("suggestion_adoption_changed", { cardId: change.cardId, trace: change.after }, {
         origin: "ai_suggested", outcome: change.before ? "updated" : "adopted",
         currentPercentage: Math.round(change.after.currentOverlapRatio * 100), peakPercentage: Math.round(change.after.peakOverlapRatio * 100),
@@ -3215,14 +3215,14 @@ export default function App() {
     }
   }, [recordEvent]);
 
-  const markMapChanged = useCallback(() => {
-    reconcileMapSuggestionProvenance();
+  const markMapChanged = useCallback((textChangedCardIds: readonly string[] = []) => {
+    reconcileMapSuggestionProvenance(textChangedCardIds);
     setMapRevision((v) => v + 1);
   }, [reconcileMapSuggestionProvenance]);
 
-  const markUserMapChanged = useCallback(() => {
+  const markUserMapChanged = useCallback((textChangedCardIds: readonly string[] = []) => {
     setCommandAck(null);
-    markMapChanged();
+    markMapChanged(textChangedCardIds);
   }, [markMapChanged]);
 
   const undoMapChange = useCallback(() => {
@@ -3329,7 +3329,13 @@ export default function App() {
     const appliedOrigin = relationshipProvenance && (relationshipProvenance.pairingOrigin === "ai_suggested" || relationshipProvenance.labelOrigin === "ai_suggested")
       ? "ai_suggested" as const
       : proposal.origin ?? "legacy_confirmed";
-    applyGatewayActions([checked.action], mapStoreRef.current, stateRef.current.bank, { origin: appliedOrigin, contract: proposal.contract, relationshipProvenance });
+    const existingCardIds = new Set(mapStoreRef.current.getAll().map((unit) => unit.id));
+    const changedUnits = applyGatewayActions([checked.action], mapStoreRef.current, stateRef.current.bank, { origin: appliedOrigin, contract: proposal.contract, relationshipProvenance });
+    const textChangedCardIds = checked.action.kind === "edit_card"
+      ? changedUnits.filter((unit) => unit.role !== "connection_label").map((unit) => unit.id)
+      : checked.action.kind === "create_card"
+        ? changedUnits.filter((unit) => unit.role !== "connection_label" && !existingCardIds.has(unit.id)).map((unit) => unit.id)
+        : [];
     const promotedCandidateId = proposal.detail.candidateId;
     if (promotedCandidateId && stateRef.current.candidates.transition(promotedCandidateId, "promoted", stateRef.current.currentUserTurn)) {
       void recordEvent("candidate_lifecycle_changed", { candidateId: promotedCandidateId, status: "promoted", turn: stateRef.current.currentUserTurn }, { outcome: "promoted", candidateStatus: "promoted" });
@@ -3341,7 +3347,7 @@ export default function App() {
     setCommandAck({ text: "Map change confirmed." });
     const event: DiagnosticEvent = { id: `d_${Date.now()}`, at: Date.now(), stage: "application", outcome: "applied", code: "map_action_applied", detail: "The confirmed proposal was revalidated against the current map and applied." };
     setDiagnostics((current) => [...current, event].slice(-100));
-    markMapChanged();
+    markMapChanged(textChangedCardIds);
     // A confirmation is meaningful user steering. Give the coach a fresh turn
     // against the already-updated map, without manufacturing chat text or
     // treating the decision as new source material.
@@ -4084,13 +4090,13 @@ export default function App() {
           return;
         }
         captureMapUndo();
-        applyConfirmedReflection(confirmedReflection, mapStoreRef.current);
+        const applied = applyConfirmedReflection(confirmedReflection, mapStoreRef.current);
         setConfirmed((prev) => [...prev, confirmedReflection]);
         if (stateRef.current.candidates.transition(confirmedReflection.candidateId, "promoted", stateRef.current.currentUserTurn)) {
           void recordEvent("candidate_lifecycle_changed", { candidateId: confirmedReflection.candidateId, status: "promoted", turn: stateRef.current.currentUserTurn }, { outcome: "promoted", candidateStatus: "promoted" });
           setUnderstandingSnapshot((prev) => prev ? { ...prev, trackedIdeas: prev.trackedIdeas.filter((idea) => idea.id !== confirmedReflection.candidateId), ignoredIdeas: (prev.ignoredIdeas ?? []).filter((idea) => idea.id !== confirmedReflection.candidateId) } : prev);
         }
-        markUserMapChanged();
+        markUserMapChanged(applied.status === "applied" && applied.cardId ? [applied.cardId] : []);
         const event: DiagnosticEvent = { id: `d_${Date.now()}`, at: Date.now(), stage: "application", outcome: "applied", code: "reflection_claim_applied", detail: "Confirmed reflection claim passed the gateway and was added to the map." };
         setDiagnostics((current) => [...current, event].slice(-100));
         void recordEvent("map_mutated", { proposalId, claimId }, { origin: proposal.origin, outcome: "applied" });
@@ -4100,13 +4106,13 @@ export default function App() {
         const action: ProposedAction = { kind: "create_card", text: appliedText, sourceUtteranceIds: ids };
         const checked = inspectAction(action, { actor: "user_canvas", store: mapStoreRef.current, bank: stateRef.current.bank });
         if (checked.status === "ready") {
-          applyGatewayActions([checked.action], mapStoreRef.current, stateRef.current.bank);
+          const changedUnits = applyGatewayActions([checked.action], mapStoreRef.current, stateRef.current.bank);
           setConfirmed((prev) => [...prev, { ...confirmedReflection, sourceUtteranceIds: ids }]);
           if (stateRef.current.candidates.transition(confirmedReflection.candidateId, "promoted", stateRef.current.currentUserTurn)) {
             void recordEvent("candidate_lifecycle_changed", { candidateId: confirmedReflection.candidateId, status: "promoted", turn: stateRef.current.currentUserTurn }, { outcome: "promoted", candidateStatus: "promoted" });
             setUnderstandingSnapshot((prev) => prev ? { ...prev, trackedIdeas: prev.trackedIdeas.filter((idea) => idea.id !== confirmedReflection.candidateId), ignoredIdeas: (prev.ignoredIdeas ?? []).filter((idea) => idea.id !== confirmedReflection.candidateId) } : prev);
           }
-          markUserMapChanged();
+          markUserMapChanged(changedUnits.filter((unit) => unit.role !== "connection_label").map((unit) => unit.id));
         }
       }
     }

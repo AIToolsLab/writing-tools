@@ -113,8 +113,10 @@ type ThoughtFlowNode = Node<ThoughtNodeData, "thought">;
 type AnchorProxyFlowNode = Node<Record<string, unknown>, "anchorProxy">;
 type MapFlowNode = ThoughtFlowNode | AnchorProxyFlowNode;
 
-function suggestionBadge(unit: ThoughtUnit): string {
+export function suggestionBadge(unit: ThoughtUnit): string {
   const ratio = unit.source.suggestionAdoption?.currentOverlapRatio;
+  const peak = unit.source.suggestionAdoption?.peakOverlapRatio;
+  if (ratio !== undefined && peak !== undefined && ratio < 0.5 && peak >= 0.5) return "AI-influenced";
   return `AI suggestion${ratio === undefined ? "" : ` · ${Math.round(ratio * 100)}%`}`;
 }
 
@@ -182,7 +184,7 @@ interface ThoughtMapProps {
   onContextCardToggle?: (id: string) => void;
   onClearContextSelection?: () => void;
   onBeforeMapChange: () => void;
-  onStoreChange: () => void;
+  onStoreChange: (textChangedCardIds?: readonly string[]) => void;
 }
 
 export interface MapCommandAcknowledgement {
@@ -288,7 +290,7 @@ function sourceLabel(unit: ThoughtUnit): string {
   const utterances = unit.source.utteranceIds.length
     ? unit.source.utteranceIds.join(", ")
     : "none";
-  if (unit.source.origin === "ai_suggested") return `AI suggestion; source utterances: ${utterances}`;
+  if (unit.source.origin === "ai_suggested") return `${suggestionBadge(unit)}; source utterances: ${utterances}`;
   if (unit.source.origin === "ai_connected") return `drawn from your draft; source utterances: ${utterances}`;
   if (unit.source.origin === "legacy_confirmed") return `confirmed in an earlier version; source utterances: ${utterances}`;
   if (unit.source.reflectionId) {
@@ -794,7 +796,7 @@ function ThoughtMapInner({
     (id: string, text: string) => {
       onBeforeMapChange();
       dispatchCanvas({ kind: "edit_card", id, text });
-      onStoreChange();
+      onStoreChange([id]);
     },
     [dispatchCanvas, onBeforeMapChange, onStoreChange],
   );

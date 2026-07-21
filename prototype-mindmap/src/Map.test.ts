@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { groupDragPositions, pruneContextSelection, proxyAnchorSpecs, renderedEndpointCenter, toggleContextSelection } from "./Map";
+import { groupDragPositions, pruneContextSelection, proxyAnchorSpecs, renderedEndpointCenter, suggestionBadge, toggleContextSelection } from "./Map";
 import { ThoughtUnitStore } from "./map-store";
 import type { ThoughtUnit, ThoughtUnitRole } from "./types";
 
@@ -72,6 +72,16 @@ describe("proxyAnchorSpecs", () => {
         { sourceId: "ghost", targetId: "root" },
       ]),
     ).toEqual([]);
+  });
+});
+
+describe("suggestion badge", () => {
+  it("uses a non-contradictory influence label after a full rewrite", () => {
+    const adopted = {
+      ...unit("rewritten"),
+      source: { utteranceIds: [], createdBy: "user" as const, origin: "ai_suggested" as const, suggestionAdoption: { adoptedFromMessageId: 1, currentOverlapRatio: 0, peakOverlapRatio: 1 } },
+    };
+    expect(suggestionBadge(adopted)).toBe("AI-influenced");
   });
 });
 

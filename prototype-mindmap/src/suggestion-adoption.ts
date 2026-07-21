@@ -37,11 +37,11 @@ export function bestSuggestionMatch(cardText: string, suggestions: VisibleSugges
   return best;
 }
 
-export function reconcileSuggestionAdoption(unit: ThoughtUnit, suggestions: VisibleSuggestion[]): ThoughtUnit {
+export function reconcileSuggestionAdoption(unit: ThoughtUnit, suggestions: VisibleSuggestion[], allowNewAdoption = false): ThoughtUnit {
   if (unit.role === "connection_label") return unit;
   const match = bestSuggestionMatch(unit.text, suggestions);
   const previous = unit.source.suggestionAdoption;
-  if (!previous && (match.messageId === undefined || match.overlapRatio < SUGGESTION_ADOPTION_THRESHOLD)) return unit;
+  if (!previous && (!allowNewAdoption || match.messageId === undefined || match.overlapRatio < SUGGESTION_ADOPTION_THRESHOLD)) return unit;
 
   const adoption: SuggestionAdoptionTrace = previous
     ? {
@@ -69,11 +69,14 @@ export interface SuggestionAdoptionChange {
   after: SuggestionAdoptionTrace;
 }
 
-/** Sweep after any map mutation so every creation and editing route shares one rule. */
-export function reconcileStoreSuggestionAdoption(store: ThoughtUnitStore, suggestions: VisibleSuggestion[]): SuggestionAdoptionChange[] {
+/**
+ * Sweep after any map mutation. Only wording changed in this mutation may newly
+ * adopt a prior suggestion; untouched cards can only update an existing trace.
+ */
+export function reconcileStoreSuggestionAdoption(store: ThoughtUnitStore, suggestions: VisibleSuggestion[], textChangedCardIds: ReadonlySet<string> = new Set()): SuggestionAdoptionChange[] {
   const changes: SuggestionAdoptionChange[] = [];
   for (const unit of store.getAll()) {
-    const next = reconcileSuggestionAdoption(unit, suggestions);
+    const next = reconcileSuggestionAdoption(unit, suggestions, textChangedCardIds.has(unit.id));
     if (next === unit) continue;
     const before = unit.source.suggestionAdoption;
     const after = next.source.suggestionAdoption!;
