@@ -194,6 +194,15 @@ function claimEvidenceIds(claim: GroundedClaim): string[] {
   ];
 }
 
+function connectsSeparateUserMoments(claims: GroundedClaim[], bank: SourceBank): boolean {
+  const moments = new Set(claims.flatMap(claimEvidenceIds).flatMap((id) => {
+    const utterance = bank.get(id);
+    if (!utterance || utterance.origin === "draft") return [];
+    return [utterance.turnId ?? utterance.id];
+  }));
+  return moments.size > 1;
+}
+
 function createProposal(envelope: AssistantResponseEnvelope, state: ConversationState, candidates: CandidateStore, options: ProcessTurnOptions, config: MindmapConfig, contract: AssistanceContractSnapshot): { proposal?: Proposal; rejection?: StructuredRejection; diagnostics: DiagnosticEvent[] } {
   const response = envelope.response;
   if (response.kind === "grounded_recap") {
@@ -223,6 +232,7 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
     return { diagnostics: [diagnostic("validation", "accepted", "grounded_recap_valid", "Grounded recap evidence pointers validated; no map proposal was created.")] };
   }
   if (response.kind === "reflection") {
+    const connectsTurns = connectsSeparateUserMoments(response.reflection.claims, state.bank);
     const citesDraft = response.reflection.claims.some((claim) => {
       const evidenceIds = [
         ...claim.sourceSpans.flatMap((span) => span.utteranceIds),
@@ -247,6 +257,9 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
       if (!citesEligibleChat) {
         return { rejection: { code: "reflection_draft_without_chat_anchor", detail: "A draft-grounded reflection must also cite the chat wording it juxtaposes." }, diagnostics: [diagnostic("validation", "rejected", "reflection_draft_without_chat_anchor", "A draft-grounded reflection did not cite eligible chat wording.")] };
       }
+    }
+    if (connectsTurns && contract.level < 1) {
+      return { rejection: { code: "reflection_connects_turns_at_l0", detail: "Bringing together wording from separate user turns is available at L1 and L2." }, diagnostics: [diagnostic("validation", "rejected", "reflection_connects_turns_at_l0", "A non-directive reflection combined evidence from separate user turns.")] };
     }
     const validation = validateMirror(response.reflection, state.bank.getAll(), config);
     if (!validation.ok) {
@@ -275,7 +288,7 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
       id: `p_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       mapRevision: options.mapRevision,
       referencedCardIds: [],
-      origin: citesDraft ? "ai_connected" : "user_asserted",
+      origin: citesDraft || connectsTurns ? "ai_connected" : "user_asserted",
       influenceTrace: trace,
       contract,
       state: "shown",

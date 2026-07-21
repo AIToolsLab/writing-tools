@@ -16,6 +16,6 @@ describe("provenance totals", () => {
       { ...unit("label", "ai_suggested"), role: "connection_label" as const },
     ];
     const connections = [{ id: "e", sourceId: "a", targetId: "b", labelUnitId: "label", confirmedAt: 1, createdBy: "user" as const, layoutDirection: "none" as const, origin: "legacy_confirmed" as const } satisfies ThoughtConnection];
-    expect(provenanceTotals(units, connections)).toEqual({ userAuthored: 2, drawnFromDraft: 1, aiSuggested: 1, total: 4 });
+    expect(provenanceTotals(units, connections)).toEqual({ userAuthored: 2, aiConnected: 1, aiSuggested: 1, total: 4 });
   });
 });

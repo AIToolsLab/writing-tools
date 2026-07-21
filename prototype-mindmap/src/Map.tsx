@@ -291,7 +291,7 @@ function sourceLabel(unit: ThoughtUnit): string {
     ? unit.source.utteranceIds.join(", ")
     : "none";
   if (unit.source.origin === "ai_suggested") return `${suggestionBadge(unit)}; source utterances: ${utterances}`;
-  if (unit.source.origin === "ai_connected") return `drawn from your draft; source utterances: ${utterances}`;
+  if (unit.source.origin === "ai_connected") return `AI-connected from your words; source utterances: ${utterances}`;
   if (unit.source.origin === "legacy_confirmed") return `confirmed in an earlier version; source utterances: ${utterances}`;
   if (unit.source.reflectionId) {
     return `reflection ${unit.source.reflectionId}; source utterances: ${utterances}`;
@@ -469,9 +469,9 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
       <div className="map-embed-actions nodrag">
         <span className="map-embed-ref" title="Card reference">{cardRef(unit.id)}</span>
         {unit.parentProvenance?.origin === "ai_suggested" && <span className="map-origin-badge" aria-label="AI-suggested nesting">AI nesting</span>}
-        {unit.parentProvenance?.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label="Nesting drawn from your draft">Drawn from draft</span>}
+        {unit.parentProvenance?.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label="AI-connected nesting from your words">AI-connected · your words</span>}
         {unit.source.origin === "ai_suggested" && <span className="map-origin-badge" aria-label={suggestionBadge(unit)}>{suggestionBadge(unit)}</span>}
-        {unit.source.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label="Drawn from your draft">Drawn from draft</span>}
+        {unit.source.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label="AI-connected from your words">AI-connected · your words</span>}
         <button type="button" onClick={() => setExpanded((value) => !value)} title={expanded ? "Collapse card text" : "Expand card text"}>
           {expanded ? "Less" : "More"}
         </button>
@@ -601,7 +601,7 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
       <div className="map-card-actions nodrag">
         <span className="map-source-dot" aria-label={data.sourceLabel} />
         {unit.source.origin === "ai_suggested" && <span className="map-origin-badge" aria-label={suggestionBadge(unit)}>{suggestionBadge(unit)}</span>}
-        {unit.source.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label="Drawn from your draft">Drawn from draft</span>}
+        {unit.source.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label="AI-connected from your words">AI-connected · your words</span>}
       </div>
 
       {children.length > 0 && (
@@ -707,7 +707,7 @@ function ConnectionEdge({
           {open && (
             <div className="edge-popover" role="dialog" aria-label="Connection">
               {aiSuggested && <span className="map-origin-badge" aria-label="AI-suggested connection">AI suggestion</span>}
-              {aiConnected && <span className="map-origin-badge map-origin-badge-connected" aria-label="Connection drawn from your draft">Drawn from draft</span>}
+              {aiConnected && <span className="map-origin-badge map-origin-badge-connected" aria-label="AI-connected connection from your words">AI-connected · your words</span>}
               <div className="edge-popover-cards">
                 <span className="edge-popover-card"><b>{sourceRef}</b> {shortenEdgeText(sourceText)}</span>
                 <span className="edge-popover-card"><b>{targetRef}</b> {shortenEdgeText(targetText)}</span>

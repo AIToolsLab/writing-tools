@@ -2883,7 +2883,7 @@ export function UnderTheHoodPanel({
             <UnderhoodSection title="Map provenance" meta={provenance.total} collapsed={sectionIsCollapsed("provenance")} onToggle={() => toggleSection("provenance")}>
               <div className="event-list">
                 <div className="event-row revealed"><span className="event-title">Your contributions</span><span className="section-meta">{provenance.userAuthored}</span></div>
-                <div className="event-row revealed"><span className="event-title">Drawn from draft</span><span className="section-meta">{provenance.drawnFromDraft}</span></div>
+                <div className="event-row revealed"><span className="event-title">AI-connected from your words</span><span className="section-meta">{provenance.aiConnected}</span></div>
                 <div className="event-row revealed"><span className="event-title">AI suggestions</span><span className="section-meta">{provenance.aiSuggested}</span></div>
               </div>
             </UnderhoodSection>

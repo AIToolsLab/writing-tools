@@ -171,6 +171,62 @@ describe("typed Stage 1 controller", () => {
     expect(result.proposal?.origin).toBe("ai_connected");
   });
 
+  it("reserves cross-turn reflection synthesis for L1 and records it as ai_connected", async () => {
+    const makeState = () => {
+      const state = createConversationState();
+      state.bank.addSegmented("language communicates ideas imperfectly", "chat");
+      state.bank.addSegmented("memories contribute to meaning", "chat");
+      return state;
+    };
+    const responseFor = (context: import("./llm-contract").LLMContext) => {
+      const chat = context.bank.filter((utterance) => utterance.origin === "chat");
+      return {
+        response: { kind: "reflection" as const, text: "mirror", reflection: { claims: [{
+          id: "c1", candidateId: "c1", target: "idea" as const,
+          text: "language communicates ideas imperfectly and memories contribute to meaning",
+          sourceSpans: [
+            { claimText: chat[0]!.text, userPhrase: chat[0]!.text, utteranceIds: [chat[0]!.id] },
+            { claimText: chat[1]!.text, userPhrase: chat[1]!.text, utteranceIds: [chat[1]!.id] },
+          ],
+        }] } },
+        advisory: { candidateUpserts: [{ id: "c1", target: "idea" as const, gist: "language and meaning", addEvidenceIds: chat.map((utterance) => utterance.id), status: "active" as const }] },
+      };
+    };
+
+    const l0State = makeState();
+    const l0Store = new ThoughtUnitStore();
+    const l0Model = vi.fn(async (context: import("./llm-contract").LLMContext, rejection?: import("./assistant-response").StructuredRejection) => rejection
+      ? { response: { kind: "question" as const, text: "Which part do you want to stay with?" } }
+      : responseFor(context));
+    const l0 = await processTurn(l0State, "", l0Model, defaultConfig, l0Store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store: l0Store, contract: ASSISTANCE_CONTRACTS[0] });
+    expect(l0Model.mock.calls[1]?.[1]).toMatchObject({ code: "reflection_connects_turns_at_l0" });
+    expect(l0.response).toMatchObject({ kind: "question" });
+
+    const l1State = makeState();
+    const l1Store = new ThoughtUnitStore();
+    const l1 = await processTurn(l1State, "", async (context) => responseFor(context), defaultConfig, l1Store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store: l1Store, contract: ASSISTANCE_CONTRACTS[1] });
+    expect(l1.response).toMatchObject({ kind: "reflection" });
+    expect(l1.proposal?.origin).toBe("ai_connected");
+  });
+
+  it("keeps sentence pieces from one user turn user_asserted", async () => {
+    const state = createConversationState();
+    state.bank.addSegmented("language communicates ideas imperfectly. memories contribute to meaning.", "chat");
+    const store = new ThoughtUnitStore();
+    const result = await processTurn(state, "", async (context) => {
+      const chat = context.bank.filter((utterance) => utterance.origin === "chat");
+      return {
+        response: { kind: "reflection" as const, text: "mirror", reflection: { claims: [{
+          id: "c1", candidateId: "c1", target: "idea" as const,
+          text: "language communicates ideas imperfectly and memories contribute to meaning",
+          sourceSpans: chat.map((utterance) => ({ claimText: utterance.text, userPhrase: utterance.text, utteranceIds: [utterance.id] })),
+        }] } },
+        advisory: { candidateUpserts: [{ id: "c1", target: "idea" as const, gist: "language and meaning", addEvidenceIds: chat.map((utterance) => utterance.id), status: "active" as const }] },
+      };
+    }, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[0] });
+    expect(result.proposal?.origin).toBe("user_asserted");
+  });
+
   it("repairs an L1 draft-only reflection before ordinary pointer validation", async () => {
     const state = createConversationState();
     state.draft = "Language shapes belonging.";
