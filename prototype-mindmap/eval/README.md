@@ -23,8 +23,9 @@ Set `MINDMAP_EVAL_BACKEND_URL`, `MINDMAP_EVAL_MODEL`, or
 
 The manipulation-check suite writes a stable 40-row `handscore.csv`. Its rubric
 separately records introduced concepts, unstated relationships, unraised
-directions, AI attribution, and whether a question embeds an unstated premise.
-Use `NA` for the question-premise field when the response is not a question.
+directions, AI attribution, whether a question embeds an unstated premise, and
+whether literal quotation makes a question's referent or syntax confusing. Use
+`NA` for both question-only fields when the response is not a question.
 After filling every Y/N/NA judgment, aggregate it with:
 
 ```powershell

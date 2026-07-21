@@ -3852,7 +3852,7 @@ export default function App() {
       id: ++msgId,
       role: "assistant",
       text: out.response.text,
-      mode: out.response.kind === "reflection" ? "mirror" : "question",
+      mode: out.response.kind === "reflection" || out.response.kind === "grounded_recap" ? "mirror" : "question",
       responseKind: out.response.kind,
       questionAnchor: out.response.kind === "question" ? out.response.anchor : undefined,
       questionStance: out.response.kind === "question" ? out.response.stance : undefined,
@@ -4656,8 +4656,9 @@ export function InfluenceBadge({ influence }: { influence?: import("./assistance
 }
 
 export function AssistantResponseKindBadge({ kind }: { kind?: AssistantResponse["kind"] }) {
-  if (kind !== "suggestion") return null;
-  return <span className="ai-suggestion-badge">AI suggestion</span>;
+  if (kind === "suggestion") return <span className="ai-suggestion-badge">AI suggestion</span>;
+  if (kind === "grounded_recap") return <span className="stance-chip">recap from your words</span>;
+  return null;
 }
 
 export function MirrorCard({

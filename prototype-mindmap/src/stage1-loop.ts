@@ -20,8 +20,8 @@ import type { AssistanceContract, AssistanceContractSnapshot, InfluenceTrace } f
 import { DEFAULT_ASSISTANCE_CONTRACT, snapshotContract } from "./assistance-contract";
 import { CandidateStore, SourceBank } from "./store";
 import { detectTurnShape } from "./turn-shape";
-import type { CandidateThought, CandidateTarget, MirrorClaim, SourceUtterance } from "./types";
-import { validateMirror } from "./validator";
+import type { CandidateThought, CandidateTarget, GroundedClaim, SourceUtterance } from "./types";
+import { validateGroundedClaims, validateMirror } from "./validator";
 
 export interface ProcessTurnOptions {
   mapRevision: number;
@@ -87,7 +87,7 @@ function phraseIsExact(phrase: string, ids: string[], bank: SourceUtterance[]): 
   return ids.some((id) => containsWholePhrase(bank.find((item) => item.id === id)?.text ?? "", phrase));
 }
 
-export function deriveClaimAttribution(claim: MirrorClaim, bank: SourceUtterance[]): ProposalAttribution {
+export function deriveClaimAttribution(claim: GroundedClaim, bank: SourceUtterance[]): ProposalAttribution {
   const spansAsserted = claim.sourceSpans.length > 0 && claim.sourceSpans.every((span) => phraseIsExact(span.userPhrase, span.utteranceIds, bank));
   const relationAsserted = claim.target === "idea" || Boolean(claim.relationSpan && phraseIsExact(claim.relationSpan.text, [claim.relationSpan.utteranceId], bank));
   return spansAsserted && relationAsserted ? "asserted" : "inferred";
@@ -115,6 +115,9 @@ function contractRejectsResponse(envelope: AssistantResponseEnvelope, contract: 
   }
   if (envelope.response.kind === "options" && contract.optionsMustBeVerbatim && !envelope.response.options.every((option) => optionIsVerbatim(option, bank))) {
     return { code: "contract_options_not_verbatim", detail: "Every option must be grounded in exact user wording." };
+  }
+  if (envelope.response.kind === "grounded_recap" && envelope.advisory?.candidateUpserts?.length) {
+    return { code: "grounded_recap_candidate_advisory_not_allowed", detail: "A conversational recap cannot nominate capturable structure." };
   }
   return undefined;
 }
@@ -184,8 +187,41 @@ function targetForAction(kind: import("./action-gateway").ProposedAction["kind"]
   return "idea";
 }
 
+function claimEvidenceIds(claim: GroundedClaim): string[] {
+  return [
+    ...claim.sourceSpans.flatMap((span) => span.utteranceIds),
+    ...(claim.relationSpan ? [claim.relationSpan.utteranceId] : []),
+  ];
+}
+
 function createProposal(envelope: AssistantResponseEnvelope, state: ConversationState, candidates: CandidateStore, options: ProcessTurnOptions, config: MindmapConfig, contract: AssistanceContractSnapshot): { proposal?: Proposal; rejection?: StructuredRejection; diagnostics: DiagnosticEvent[] } {
   const response = envelope.response;
+  if (response.kind === "grounded_recap") {
+    const claims = response.recap.claims;
+    const evidenceIds = Array.from(new Set(claims.flatMap(claimEvidenceIds)));
+    const evidence = evidenceIds.map((id) => state.bank.get(id));
+    const citesDraft = evidence.some((utterance) => utterance?.origin === "draft");
+    const citesEligibleChat = evidence.some((utterance) => utterance?.origin === "chat" && !utterance.commandOnly && !utterance.nonHarvestable);
+
+    if (!evidenceIds.length || evidence.some((utterance) => !utterance || utterance.commandOnly || utterance.nonHarvestable)) {
+      return { rejection: { code: "grounded_recap_evidence_ineligible", detail: "A recap may cite only existing, harvestable user wording." }, diagnostics: [diagnostic("validation", "rejected", "grounded_recap_evidence_ineligible", "A grounded recap cited missing or ineligible evidence.")] };
+    }
+
+    if (contract.level === 0 && evidenceIds.some((id) => !options.turnUtteranceIds?.includes(id))) {
+      return { rejection: { code: "grounded_recap_not_current_turn", detail: "At L0, a recap may only restate the current user turn." }, diagnostics: [diagnostic("validation", "rejected", "grounded_recap_not_current_turn", "A non-directive recap cited wording outside the current user turn.")] };
+    }
+    if (citesDraft && contract.level < 1) {
+      return { rejection: { code: "grounded_recap_cites_draft_at_l0", detail: "Draft evidence is available for recaps at L1 and L2 only." }, diagnostics: [diagnostic("validation", "rejected", "grounded_recap_cites_draft_at_l0", "A non-directive recap cited draft evidence.")] };
+    }
+    if (citesDraft && !citesEligibleChat) {
+      return { rejection: { code: "grounded_recap_draft_without_chat_anchor", detail: "A draft-grounded recap must also cite the chat wording it brings together." }, diagnostics: [diagnostic("validation", "rejected", "grounded_recap_draft_without_chat_anchor", "A draft-grounded recap did not cite eligible chat wording.")] };
+    }
+    const validation = validateGroundedClaims(claims, state.bank.getAll(), config);
+    if (!validation.ok || !claims.every((claim) => deriveClaimAttribution(claim, state.bank.getAll()) === "asserted")) {
+      return { rejection: { code: "grounded_recap_validation_failed", detail: "The recap must use exact, source-backed user wording." }, diagnostics: [diagnostic("validation", "rejected", "grounded_recap_validation_failed", "Grounded recap evidence pointers did not validate.")] };
+    }
+    return { diagnostics: [diagnostic("validation", "accepted", "grounded_recap_valid", "Grounded recap evidence pointers validated; no map proposal was created.")] };
+  }
   if (response.kind === "reflection") {
     const citesDraft = response.reflection.claims.some((claim) => {
       const evidenceIds = [
@@ -295,6 +331,9 @@ function createProposal(envelope: AssistantResponseEnvelope, state: Conversation
  * second visible reflection. The provider field remains parse-compatible.
  */
 function acceptedVisibleResponse(response: AssistantResponseEnvelope["response"]): AssistantResponseEnvelope["response"] {
+  if (response.kind === "grounded_recap") {
+    return { ...response, text: response.recap.claims.map((claim) => claim.text).join("\n") };
+  }
   if (response.kind !== "reflection") return response;
   return {
     ...response,
@@ -487,7 +526,7 @@ export async function processTurn(state: ConversationState, userText: string, mo
   }
   const acceptedResponse = acceptedVisibleResponse(envelope.response);
   state.lastAssistantText = acceptedResponse.text;
-  if (acceptedResponse.kind === "reflection") state.turnsSinceLastReflection = 0;
+  if (acceptedResponse.kind === "reflection" || acceptedResponse.kind === "grounded_recap") state.turnsSinceLastReflection = 0;
   else state.turnsSinceLastReflection++;
   return { response: acceptedResponse, proposal: prepared.proposal, recall: prepared.recall, lifecycleChanges: prepared.lifecycleChanges, diagnostics };
 }

@@ -114,12 +114,14 @@ describe("proposal UI", () => {
     expect(container.querySelector("button")).toBeNull();
   });
 
-  it("marks conversational AI suggestions and omits unavailable legacy echo percentages", () => {
+  it("marks AI suggestions and source-backed recaps while omitting unavailable legacy echo percentages", () => {
     act(() => root.render(createElement("div", undefined,
       createElement(AssistantResponseKindBadge, { kind: "suggestion" }),
+      createElement(AssistantResponseKindBadge, { kind: "grounded_recap" }),
       createElement(InfluenceBadge, { influence: { exactOverlapPhrases: ["human control"] } }),
     )));
     expect(container.textContent).toContain("AI suggestion");
+    expect(container.textContent).toContain("recap from your words");
     expect(container.textContent).toContain("Echoes coach");
     expect(container.textContent).not.toContain("NaN");
   });

@@ -50,6 +50,12 @@ describe("typed assistant response parser", () => {
     ]);
   });
 
+  it("parses a grounded recap without a candidate or proposal payload", () => {
+    const parsed = parseAssistantResponse({ response: { kind: "grounded_recap", text: "A recap.", recap: { claims: [{ id: "r1", text: "human control matters", target: "idea", sourceSpans: [{ claimText: "human control matters", utteranceIds: ["u_1"], userPhrase: "human control matters" }] }] } } });
+    expect(parsed.response).toMatchObject({ kind: "grounded_recap", recap: { claims: [{ id: "r1", text: "human control matters" }] } });
+    if (parsed.response.kind === "grounded_recap") expect(parsed.response.recap.claims[0]).not.toHaveProperty("candidateId");
+  });
+
   it("parses structured question and aside recall plus explicit map candidate linkage", () => {
     const recall = { candidateId: "memory", sourceUtteranceId: "u_1", userPhrase: "human control" };
     expect(parseAssistantResponse({ response: { kind: "question", text: "Return to human control?", recall } }).response).toMatchObject({ kind: "question", recall });
@@ -146,7 +152,9 @@ describe("typed assistant response parser", () => {
     expect(second[0].content).toContain("targeted, context-specific question");
     expect(first[0].content).toContain("Treat the full draft as background context and a user selection as explicit focus.");
     expect(first[0].content).toContain("Use draft anchors selectively, and distinguish model-chosen anchors from user-selected focus.");
-    expect(first[0].content).toContain("Every reflection at every assistance level must be strictly user-word-faithful");
+    expect(first[0].content).toContain("Every reflection and grounded recap at every assistance level must be strictly user-word-faithful");
+    expect(first[0].content).toContain("Use a grounded recap when conversational consolidation is useful");
+    expect(first[0].content).toContain("Use direct quotation only when it makes the referent clearer");
     expect(first[0].content).toContain("For a large or abstract turn");
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

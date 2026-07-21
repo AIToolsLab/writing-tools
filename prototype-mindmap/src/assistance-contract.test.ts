@@ -5,6 +5,7 @@ import { defaultConfig } from "./config";
 
 describe("assistance contracts", () => {
   it("defines three immutable contribution boundaries", () => {
+    expect(ASSISTANCE_CONTRACTS[0].allowedResponseKinds).toContain("grounded_recap");
     expect(ASSISTANCE_CONTRACTS[0].allowedResponseKinds).not.toContain("options");
     expect(ASSISTANCE_CONTRACTS[1].optionsMustBeVerbatim).toBe(true);
     expect(ASSISTANCE_CONTRACTS[2].allowsAiSuggestedStructure).toBe(true);

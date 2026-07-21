@@ -32,6 +32,81 @@ describe("typed Stage 1 controller", () => {
     expect(store.getAll()).toHaveLength(0);
   });
 
+  it("renders an L0 current-turn recap from validated user wording without creating capturable structure", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const result = await processTurn(state, "language communicates ideas imperfectly", async (context) => {
+      const sourceId = context.bank.find((utterance) => utterance.origin === "chat")!.id;
+      return { response: { kind: "grounded_recap" as const, text: "The model-authored wrapper is not displayed.", recap: { claims: [{
+        id: "r1", text: "language communicates ideas imperfectly", target: "idea" as const,
+        sourceSpans: [{ claimText: "language communicates ideas imperfectly", userPhrase: "language communicates ideas imperfectly", utteranceIds: [sourceId] }],
+      }] } } };
+    }, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[0] });
+
+    expect(result.response).toMatchObject({ kind: "grounded_recap", text: "language communicates ideas imperfectly" });
+    expect(result.proposal).toBeUndefined();
+    expect(state.candidates.getAll()).toHaveLength(0);
+    expect(result.diagnostics).toContainEqual(expect.objectContaining({ code: "grounded_recap_valid" }));
+  });
+
+  it("keeps L0 recaps on the current user turn while allowing L1 to bring user turns together", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    await processTurn(state, "language communicates ideas imperfectly", async () => ({ response: { kind: "question" as const, text: "What contributes to meaning?" } }), defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+
+    const recapModel = vi.fn(async (context: import("./llm-contract").LLMContext, rejection?: import("./assistant-response").StructuredRejection) => {
+      if (rejection) return { response: { kind: "question" as const, text: "What belongs together for you?" } };
+      const chat = context.bank.filter((utterance) => utterance.origin === "chat");
+      return { response: { kind: "grounded_recap" as const, text: "recap", recap: { claims: [
+        { id: "r1", text: "language communicates ideas imperfectly", target: "idea" as const, sourceSpans: [{ claimText: chat[0]!.text, userPhrase: chat[0]!.text, utteranceIds: [chat[0]!.id] }] },
+        { id: "r2", text: "memories contribute to meaning", target: "idea" as const, sourceSpans: [{ claimText: chat[1]!.text, userPhrase: chat[1]!.text, utteranceIds: [chat[1]!.id] }] },
+      ] } } };
+    });
+
+    const l0 = await processTurn(state, "memories contribute to meaning", recapModel, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[0] });
+    expect(l0.response).toMatchObject({ kind: "question" });
+    expect(recapModel.mock.calls[1]?.[1]).toMatchObject({ code: "grounded_recap_not_current_turn" });
+
+    const l1 = await processTurn(state, "memories contribute to meaning", recapModel, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[1] });
+    expect(l1.response).toMatchObject({ kind: "grounded_recap", text: "language communicates ideas imperfectly\nmemories contribute to meaning" });
+    expect(l1.proposal).toBeUndefined();
+  });
+
+  it("rejects recap wording and candidate nominations that cross the conversational-only boundary", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (context: import("./llm-contract").LLMContext, rejection?: import("./assistant-response").StructuredRejection) => {
+      if (rejection) return { response: { kind: "question" as const, text: "What are you trying to understand?" } };
+      const sourceId = context.bank.find((utterance) => utterance.origin === "chat")!.id;
+      return {
+        response: { kind: "grounded_recap" as const, text: "recap", recap: { claims: [{ id: "r1", text: "what the writer is trying to understand", target: "idea" as const, sourceSpans: [{ claimText: "what I am trying to understand", userPhrase: "what I am trying to understand", utteranceIds: [sourceId] }] }] } },
+        advisory: { candidateUpserts: [{ id: "r1", target: "idea" as const, gist: "understanding", addEvidenceIds: [sourceId], status: "active" as const }] },
+      };
+    });
+
+    const result = await processTurn(state, "what I am trying to understand", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+    expect(result.response).toMatchObject({ kind: "question" });
+    expect(model.mock.calls[1]?.[1]).toMatchObject({ code: "grounded_recap_candidate_advisory_not_allowed" });
+    expect(state.candidates.getAll()).toHaveLength(0);
+  });
+
+  it("rejects unsupported recap substitutions such as writer for I", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (context: import("./llm-contract").LLMContext, rejection?: import("./assistant-response").StructuredRejection) => {
+      if (rejection) return { response: { kind: "question" as const, text: "What are you trying to understand?" } };
+      const sourceId = context.bank.find((utterance) => utterance.origin === "chat")!.id;
+      return { response: { kind: "grounded_recap" as const, text: "recap", recap: { claims: [{
+        id: "r1", text: "what the writer is trying to understand", target: "idea" as const,
+        sourceSpans: [{ claimText: "what I am trying to understand", userPhrase: "what I am trying to understand", utteranceIds: [sourceId] }],
+      }] } } };
+    });
+
+    const result = await processTurn(state, "what I am trying to understand", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+    expect(model.mock.calls[1]?.[1]).toMatchObject({ code: "grounded_recap_validation_failed" });
+    expect(result.response).toMatchObject({ kind: "question" });
+  });
+
   it("repairs a question whose draft anchor is not an exact current-draft substring", async () => {
     const state = createConversationState();
     state.draft = "Those classes probably did matter.";

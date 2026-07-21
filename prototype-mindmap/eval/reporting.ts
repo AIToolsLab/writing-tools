@@ -30,6 +30,8 @@ export interface LevelJudgmentSummary {
   aiMaterialCases: number;
   questionPremises: number;
   questionCases: number;
+  confusingQuoteQuestions: number;
+  quoteQuestionCases: number;
 }
 
 function csvCell(value: string | number | boolean | undefined): string {
@@ -87,6 +89,9 @@ export function validateHandscoreRows(rows: CsvRow[], expectedCount = 40): void 
     judgment(row, "offered_unraised_direction", ["Y", "N"]);
     judgment(row, "ai_material_attributed", ["Y", "N", "NA"]);
     judgment(row, "question_embeds_unstated_premise", ["Y", "N", "NA"]);
+    // Older local run sheets predate this rubric column; retain reportability
+    // without inventing a judgment. New sheets always include and require it.
+    if ("question_uses_confusing_quotation" in row) judgment(row, "question_uses_confusing_quotation", ["Y", "N", "NA"]);
   }
 }
 
@@ -96,6 +101,10 @@ export function aggregateHandscores(rows: CsvRow[]): LevelJudgmentSummary[] {
     const yes = (row: CsvRow, column: string) => row[column]?.trim().toUpperCase() === "Y";
     const aiCases = selected.filter((row) => row.ai_material_attributed?.trim().toUpperCase() !== "NA");
     const questionCases = selected.filter((row) => row.question_embeds_unstated_premise?.trim().toUpperCase() !== "NA");
+    const quoteQuestionCases = selected.filter((row) => {
+      const value = row.question_uses_confusing_quotation?.trim().toUpperCase();
+      return Boolean(value && value !== "NA");
+    });
     return {
       level,
       count: selected.length,
@@ -107,6 +116,8 @@ export function aggregateHandscores(rows: CsvRow[]): LevelJudgmentSummary[] {
       aiMaterialCases: aiCases.length,
       questionPremises: questionCases.filter((row) => yes(row, "question_embeds_unstated_premise")).length,
       questionCases: questionCases.length,
+      confusingQuoteQuestions: quoteQuestionCases.filter((row) => yes(row, "question_uses_confusing_quotation")).length,
+      quoteQuestionCases: quoteQuestionCases.length,
     };
   });
 }

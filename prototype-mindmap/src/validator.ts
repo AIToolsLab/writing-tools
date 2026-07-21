@@ -31,6 +31,7 @@ import {
 } from "./normalize";
 import type {
   ClaimValidation,
+  GroundedClaim,
   MirrorCheckResult,
   MirrorClaim,
   MirrorReflection,
@@ -60,7 +61,7 @@ function citedTexts(span: SourceSpan, bank: Map<string, SourceUtterance>): strin
  * both enforce the same zero-addition boundary.
  */
 function checkLexicalGrounding(
-  claim: MirrorClaim,
+  claim: GroundedClaim,
   citedStems: Set<string>,
 ): { result: MirrorCheckResult; ungroundedContentWords: string[] } {
   const content = contentTokens(claim.text);
@@ -94,7 +95,7 @@ function checkLexicalGrounding(
   };
 }
 
-function citedStemSet(claim: MirrorClaim, bank: Map<string, SourceUtterance>): Set<string> {
+function citedStemSet(claim: GroundedClaim, bank: Map<string, SourceUtterance>): Set<string> {
   const ids = new Set(claim.sourceSpans.flatMap((span) => span.utteranceIds));
   if (claim.relationSpan) ids.add(claim.relationSpan.utteranceId);
   return stemSet([...ids].flatMap((id) => {
@@ -150,7 +151,7 @@ function spanGroundedInSingleUtterance(
  * short stitched-on tail rides along.
  */
 function claimRelationStatedInOneUtterance(
-  claim: MirrorClaim,
+  claim: GroundedClaim,
   bank: Map<string, SourceUtterance>,
   threshold: number,
 ): boolean {
@@ -171,7 +172,7 @@ function claimRelationStatedInOneUtterance(
   return ratio(grounded.length, content.length) >= threshold;
 }
 function checkSpanGrounding(
-  claim: MirrorClaim,
+  claim: GroundedClaim,
   bank: Map<string, SourceUtterance>,
   threshold: number,
 ): { result: MirrorCheckResult; weakest?: SourceSpan } {
@@ -229,7 +230,7 @@ function checkSpanGrounding(
 }
 
 function validateClaim(
-  claim: MirrorClaim,
+  claim: GroundedClaim,
   bank: Map<string, SourceUtterance>,
   cfg: MindmapConfig,
 ): ClaimValidation {
@@ -263,12 +264,18 @@ export function validateMirror(
   bankUtterances: SourceUtterance[],
   cfg: MindmapConfig,
 ): MirrorValidationResult {
-  const bank = new Map(bankUtterances.map((u) => [u.id, u]));
-  const claims = reflection.claims.map((claim) =>
-    validateClaim(claim, bank, cfg),
-  );
+  return validateGroundedClaims(reflection.claims, bankUtterances, cfg);
+}
 
-  return { ok: claims.length > 0 && claims.every((c) => c.ok), claims };
+/** Apply the mirror's exact word-and-pointer boundary without map semantics. */
+export function validateGroundedClaims(
+  groundedClaims: GroundedClaim[],
+  bankUtterances: SourceUtterance[],
+  cfg: MindmapConfig,
+): MirrorValidationResult {
+  const bank = new Map(bankUtterances.map((u) => [u.id, u]));
+  const claims = groundedClaims.map((claim) => validateClaim(claim, bank, cfg));
+  return { ok: claims.length > 0 && claims.every((claim) => claim.ok), claims };
 }
 
 /** Exposed for tests/debugging: normalized view of how a claim grounds out. */

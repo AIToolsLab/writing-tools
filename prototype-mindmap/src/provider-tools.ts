@@ -101,6 +101,29 @@ const reflectionSchema: JsonSchema = {
   additionalProperties: false,
 };
 
+const groundedRecapSchema: JsonSchema = {
+  type: "object",
+  properties: {
+    claims: {
+      type: "array",
+      minItems: 1,
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" }, text: { type: "string" },
+          target: { type: "string", enum: ["idea", "hierarchy", "connection"] },
+          sourceSpans: { type: "array", minItems: 1, items: sourceSpanSchema },
+          relationSpan: relationEvidenceSchema,
+        },
+        required: ["id", "text", "target", "sourceSpans", "relationSpan"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["claims"],
+  additionalProperties: false,
+};
+
 const toolAdvisorySchema: JsonSchema = {
   anyOf: [
     {
@@ -165,6 +188,11 @@ const conversationalResponseSchema: JsonSchema = {
       required: ["kind", "text", "stance", "anchor", "recall"], additionalProperties: false,
     },
     { type: "object", properties: { kind: stringLiteral("aside"), text: { type: "string" }, recall: recallSchema }, required: ["kind", "text", "recall"], additionalProperties: false },
+    {
+      type: "object",
+      properties: { kind: stringLiteral("grounded_recap"), text: { type: "string" }, recap: groundedRecapSchema },
+      required: ["kind", "text", "recap"], additionalProperties: false,
+    },
     {
       type: "object",
       properties: {

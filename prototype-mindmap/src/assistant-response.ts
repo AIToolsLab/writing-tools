@@ -1,7 +1,7 @@
 import type { LLMContext, QuestionStance } from "./llm-contract";
 import type { CandidateStore, SourceBank } from "./store";
 import type { ProposedAction } from "./action-gateway";
-import type { MirrorReflection } from "./types";
+import type { GroundedRecap, MirrorReflection } from "./types";
 import type { Proposal } from "./proposal-store";
 import type { SourceBackedOption } from "./assistance-contract";
 
@@ -14,6 +14,7 @@ export interface RecallAnnotation {
 export type AssistantResponse =
   | { kind: "question"; text: string; stance?: QuestionStance; anchor?: string; recall?: RecallAnnotation }
   | { kind: "reflection"; text: string; reflection: MirrorReflection }
+  | { kind: "grounded_recap"; text: string; recap: GroundedRecap }
   | { kind: "aside"; text: string; recall?: RecallAnnotation }
   | { kind: "map_proposal"; text: string; action: ProposedAction; candidateId?: string }
   | { kind: "options"; text: string; options: SourceBackedOption[] }

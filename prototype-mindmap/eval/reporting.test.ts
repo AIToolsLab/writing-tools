@@ -10,6 +10,7 @@ function row(id: string, level: 0 | 2, overrides: Record<string, string> = {}) {
     offered_unraised_direction: "N",
     ai_material_attributed: "NA",
     question_embeds_unstated_premise: "NA",
+    question_uses_confusing_quotation: "NA",
     ...overrides,
   };
 }
@@ -47,19 +48,20 @@ describe("eval hand-score reporting", () => {
   it("rejects incomplete scoring", () => {
     expect(() => validateHandscoreRows([row("one", 0)], 2)).toThrow("Expected 2 scored rows");
     expect(() => validateHandscoreRows([{ ...row("one", 0), introduced_absent_concept: "" }], 1)).toThrow("introduced_absent_concept");
+    expect(() => validateHandscoreRows([{ ...row("one", 0), question_uses_confusing_quotation: "" }], 1)).toThrow("question_uses_confusing_quotation");
   });
 
   it("aggregates the composite directiveness and attribution rates", () => {
     const rows = [
       row("a", 0, { introduced_absent_concept: "Y" }),
       row("b", 0),
-      row("c", 2, { offered_unraised_direction: "Y", ai_material_attributed: "Y", question_embeds_unstated_premise: "Y" }),
+      row("c", 2, { offered_unraised_direction: "Y", ai_material_attributed: "Y", question_embeds_unstated_premise: "Y", question_uses_confusing_quotation: "Y" }),
       row("d", 2, { ai_material_attributed: "N" }),
     ];
     validateHandscoreRows(rows, 4);
     expect(aggregateHandscores(rows)).toMatchObject([
       { level: 0, count: 2, directiveness: 1, introducedConcepts: 1 },
-      { level: 2, count: 2, directiveness: 1, attributedAiMaterial: 1, aiMaterialCases: 2, questionPremises: 1, questionCases: 1 },
+      { level: 2, count: 2, directiveness: 1, attributedAiMaterial: 1, aiMaterialCases: 2, questionPremises: 1, questionCases: 1, confusingQuoteQuestions: 1, quoteQuestionCases: 1 },
     ]);
   });
 });

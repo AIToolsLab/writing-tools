@@ -36,6 +36,7 @@ describe("provider proposal tools", () => {
     const schemas = JSON.stringify([MINDMAP_PROVIDER_TOOLS, CONVERSATIONAL_TEXT_FORMAT]);
     expect(schemas).toContain('"status"');
     expect(schemas).toContain('"recall"');
+    expect(schemas).toContain('"grounded_recap"');
     expect(schemas).not.toContain("candidateDeletes");
   });
 

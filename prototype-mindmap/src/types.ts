@@ -76,12 +76,11 @@ export interface SourceSpan {
   userPhrase: string;
 }
 
-/** One independently confirmable structural claim in a mirror reflection. */
-export interface MirrorClaim {
+/** One independently checkable piece of source-backed assistant prose. */
+export interface GroundedClaim {
   id: string;
-  /** Phenomenological wording shown to the user — never the word "node". */
+  /** Wording shown to the user. */
   text: string;
-  candidateId: string;
   target: CandidateTarget;
   sourceSpans: SourceSpan[];
   /**
@@ -92,9 +91,19 @@ export interface MirrorClaim {
   relationSpan?: { utteranceId: string; text: string };
 }
 
+/** A grounded claim that may become structure only after confirmation. */
+export interface MirrorClaim extends GroundedClaim {
+  candidateId: string;
+}
+
 /** A full mirror attempt: one or more chunked claims submitted to the validator. */
 export interface MirrorReflection {
   claims: MirrorClaim[];
+}
+
+/** Source-backed conversational synthesis with no map-placement authority. */
+export interface GroundedRecap {
+  claims: GroundedClaim[];
 }
 
 export type MirrorCheckName = "lexical_grounding" | "span_grounding";
