@@ -1,6 +1,6 @@
 import { containsWholePhrase, normalize } from "./normalize";
 import type { ConnectionLayoutDirection, ThoughtUnitStore, ThoughtUnitStoreSnapshot, XYPosition, XYSize } from "./map-store";
-import type { SourceBank } from "./store";
+import { cardRef, type SourceBank } from "./store";
 import type { ConfirmedReflection, ThoughtUnit, ThoughtUnitRole } from "./types";
 import type { ContributionOrigin } from "./assistance-contract";
 
@@ -230,7 +230,8 @@ export function inspectAction(action: ProposedAction, context: GatewayContext): 
     if (firstId && context.store.wouldCycle(firstId, second.ref.id)) {
       return { status: "rejected", reason: "nest_cycle", detail: "That nesting would create a cycle." };
     }
-    const relation = relationshipIsAsserted(first.ref, second.ref, action.relationEvidence, context);
+    const relation = relationshipIsAsserted(first.ref, second.ref, action.relationEvidence, context)
+      || explicitNestingIntentIsAsserted(first.ref, second.ref, action.relationEvidence, context);
     if (ai && !relation && !suggested) return { status: "rejected", reason: "ungrounded_relationship", detail: "Nesting needs relationship evidence from one user utterance." };
     return { status: "ready", action: { kind: "nest_card", child: first.ref, parentId: second.ref.id }, referencedCardIds: ids, origin: ai && !relation ? "ai_suggested" : "user_asserted" };
   }
@@ -279,6 +280,15 @@ function relationshipIsAsserted(first: ExecutableRef, second: ExecutableRef, evi
     && containsWholePhrase(utterance, firstText)
     && containsWholePhrase(utterance, secondText)
     && containsWholePhrase(utterance, evidence.text));
+}
+
+function explicitNestingIntentIsAsserted(child: ExecutableRef, parent: ExecutableRef, evidence: RelationEvidence | undefined, context: GatewayContext): boolean {
+  if (!("id" in child) || !("id" in parent) || !evidence?.text.trim()) return false;
+  if (!context.turnUtteranceIds?.includes(evidence.utteranceId)) return false;
+  const utterance = context.bank.get(evidence.utteranceId)?.text ?? "";
+  return containsWholePhrase(utterance, evidence.text)
+    && containsWholePhrase(evidence.text, cardRef(child.id))
+    && containsWholePhrase(evidence.text, cardRef(parent.id));
 }
 
 function ensureExecutableCard(

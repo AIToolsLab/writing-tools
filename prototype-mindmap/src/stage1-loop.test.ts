@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { defaultConfig, withQuestionIntentBias } from "./config";
 import { ThoughtUnitStore } from "./map-store";
 import { buildContext, createConversationState, deriveClaimAttribution, MAX_MODEL_CALLS_PER_TURN, MAX_REFLECTION_ATTEMPTS, processTurn } from "./stage1-loop";
-import { resetIdCounter } from "./store";
+import { cardRef, resetIdCounter } from "./store";
 import { ASSISTANCE_CONTRACTS } from "./assistance-contract";
 import { ModelResponseValidationError } from "./assistant-response";
 
@@ -781,6 +781,28 @@ describe("typed Stage 1 controller", () => {
     expect(model).toHaveBeenCalledTimes(1);
     expect(result.proposal).toMatchObject({ origin: "user_asserted", detail: { kind: "map_action", completion: { kind: "relationship_label", pairingProof: { kind: "selection_pair" } } } });
     expect(result.diagnostics.some((event) => event.code === "repair_requested")).toBe(false);
+  });
+
+  it("proposes an explicitly instructed card-reference nesting without asking for another relationship description", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const parentUtterance = state.bank.add("language communicates ideas", "chat");
+    const childUtterance = state.bank.add("memories contribute to meaning", "chat");
+    const parent = store.addFromUserUtterance(parentUtterance);
+    const child = store.addFromUserUtterance(childUtterance);
+    const userText = `I want to nest ${cardRef(child.id)} in ${cardRef(parent.id)} without linking them`;
+    const model = vi.fn(async (context: import("./llm-contract").LLMContext) => {
+      const instruction = context.bank.find((utterance) => utterance.text === userText)!;
+      return { response: { kind: "map_proposal" as const, text: "Review this nesting.", action: {
+        kind: "nest_card" as const,
+        child: { id: child.id }, parent: { id: parent.id },
+        relationEvidence: { utteranceId: instruction.id, text: userText },
+      } } };
+    });
+
+    const result = await processTurn(state, userText, model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[0] });
+    expect(model).toHaveBeenCalledTimes(1);
+    expect(result.proposal).toMatchObject({ state: "shown", origin: "user_asserted", detail: { kind: "map_action", executable: { kind: "nest_card", child: { id: child.id }, parentId: parent.id } } });
   });
 
   it("derives relational attribution from verified pointers", () => {

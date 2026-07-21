@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { applyConfirmedReflection, applyGatewayActions, executeCanvasAction, inspectAction } from "./action-gateway";
 import { ThoughtUnitStore } from "./map-store";
-import { resetIdCounter, SourceBank } from "./store";
+import { cardRef, resetIdCounter, SourceBank } from "./store";
 
 beforeEach(() => resetIdCounter());
 
@@ -86,6 +86,33 @@ describe("action gateway", () => {
     applyGatewayActions([result.action], store, bank, { origin: "ai_suggested" });
     expect(store.get(b.id)?.source).toEqual(originalSource);
     expect(store.get(b.id)?.parentProvenance).toMatchObject({ origin: "ai_suggested" });
+  });
+
+  it("accepts an explicit current-turn nesting instruction that cites both card references", () => {
+    const { bank, store, a, b } = setup();
+    const instruction = `I want to nest ${cardRef(b.id)} in ${cardRef(a.id)} without linking them`;
+    const utterance = bank.add(instruction, "chat");
+    const result = inspectAction(
+      { kind: "nest_card", child: { id: b.id }, parent: { id: a.id }, relationEvidence: { utteranceId: utterance.id, text: instruction } },
+      { actor: "ai_proposal", store, bank, turnUtteranceIds: [utterance.id] },
+    );
+    expect(result).toMatchObject({ status: "ready", origin: "user_asserted", action: { kind: "nest_card", child: { id: b.id }, parentId: a.id } });
+  });
+
+  it("does not treat an old or partial card-reference span as current explicit nesting intent", () => {
+    const { bank, store, a, b } = setup();
+    const instruction = `nest ${cardRef(b.id)} in ${cardRef(a.id)}`;
+    const utterance = bank.add(instruction, "chat");
+    const oldTurn = inspectAction(
+      { kind: "nest_card", child: { id: b.id }, parent: { id: a.id }, relationEvidence: { utteranceId: utterance.id, text: instruction } },
+      { actor: "ai_proposal", store, bank, turnUtteranceIds: [] },
+    );
+    const partial = inspectAction(
+      { kind: "nest_card", child: { id: b.id }, parent: { id: a.id }, relationEvidence: { utteranceId: utterance.id, text: `nest ${cardRef(b.id)}` } },
+      { actor: "ai_proposal", store, bank, turnUtteranceIds: [utterance.id] },
+    );
+    expect(oldTurn).toMatchObject({ status: "rejected", reason: "ungrounded_relationship" });
+    expect(partial).toMatchObject({ status: "rejected", reason: "ungrounded_relationship" });
   });
 
   it("requires one-utterance relationship evidence outside suggestive mode", () => {

@@ -155,6 +155,7 @@ describe("typed assistant response parser", () => {
     expect(first[0].content).toContain("Every reflection and grounded recap at every assistance level must be strictly user-word-faithful");
     expect(first[0].content).toContain("Use a grounded recap when conversational consolidation is useful");
     expect(first[0].content).toContain("a reflection may draw from only one recorded user moment");
+    expect(first[0].content).toContain("explicitly instructs you to nest one referenced card in another");
     expect(first[0].content).toContain("Use direct quotation only when it makes the referent clearer");
     expect(first[0].content).toContain("For a large or abstract turn");
     expect(fetchMock).toHaveBeenCalledTimes(2);
