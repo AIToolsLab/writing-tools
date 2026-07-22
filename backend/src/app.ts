@@ -185,15 +185,14 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			);
 		}
 
-		await auth.api.updateUser({
-			// loggingConsent/consentUpdatedAt are `input: false`, so Better Auth
-			// strips them from the client-input type even though updateUser writes
-			// them server-side. Cast past that purely-type restriction.
-			body: {
-				loggingConsent: level,
-				consentUpdatedAt: new Date(),
-			} as unknown as never,
-			headers: c.req.raw.headers,
+		// loggingConsent/consentUpdatedAt are `input: false`, which the public
+		// updateUser endpoint enforces at runtime (FIELD_NOT_ALLOWED) — not just
+		// in the types. Server-controlled fields are written through the internal
+		// adapter instead: that's the server-side path the declaration intends.
+		const ctx = await auth.$context;
+		await ctx.internalAdapter.updateUser(user.id, {
+			loggingConsent: level,
+			consentUpdatedAt: new Date(),
 		});
 		return c.json({ loggingConsent: level });
 	});

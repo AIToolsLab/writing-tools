@@ -19,12 +19,20 @@ function makeAuthApp(user: { id: string; loggingConsent?: string } | null) {
 	};
 	const auth = {
 		handler: async () => new Response(null),
+		// The consent route writes server-controlled fields through the internal
+		// adapter (the public updateUser endpoint rejects input:false fields at
+		// runtime with FIELD_NOT_ALLOWED — a live-server behaviour this mock
+		// deliberately mirrors by not exposing api.updateUser at all).
+		$context: Promise.resolve({
+			internalAdapter: {
+				updateUser: async (userId: string, data: unknown) => {
+					calls.updateUser.push({ userId, data });
+					return {};
+				},
+			},
+		}),
 		api: {
 			getSession: async () => (user ? { user } : null),
-			updateUser: async (args: unknown) => {
-				calls.updateUser.push(args);
-				return { status: true };
-			},
 			deleteUser: async (args: unknown) => {
 				calls.deleteUser.push(args);
 				return { success: true, message: 'ok' };
@@ -195,7 +203,12 @@ describe('POST /api/me/consent', () => {
 		});
 		expect(good.status).toBe(200);
 		expect(await good.json()).toEqual({ loggingConsent: 'ai_output' });
-		expect(calls.updateUser).toHaveLength(1);
+		expect(calls.updateUser).toEqual([
+			{
+				userId: 'usr-1',
+				data: expect.objectContaining({ loggingConsent: 'ai_output' }),
+			},
+		]);
 	});
 
 	it('401s without a session', async () => {
