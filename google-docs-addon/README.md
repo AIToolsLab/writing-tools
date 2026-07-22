@@ -196,12 +196,3 @@ don't re-add them unless you introduce a `UrlFetchApp` call in `Code.gs`.
 
 ### Quota limits
 - Script runtime: 6 minutes max per execution
-
-
-### Scopes we probably need
-
-| Name | Oauth Scope |
-|---|---|
-| See, edit, create, and delete all your Google Docs documents | https://www.googleapis.com/auth/documents |
-| Display and run third-party web content in prompts and sidebars inside Google applications | https://www.googleapis.com/auth/script.container.ui |
-| See your primary Google Account email address	| https://www.googleapis.com/auth/userinfo.email |
