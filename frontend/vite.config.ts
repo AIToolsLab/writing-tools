@@ -67,10 +67,11 @@ export default defineConfig(async ({ mode }) => {
 		}
 	};
 
-	// Google Docs add-on: a single self-contained IIFE with every asset inlined as
-	// base64 (like the old webpack `asset/inline`), so there is just one JS file to
-	// load. Emits into the shared dist/ with emptyOutDir:false so it co-exists with
-	// the main build's output — run `vite build` first, then this.
+	// Google Docs add-on: an IIFE with every image/font inlined as base64 (like the
+	// old webpack `asset/inline`). The sidebar loads two files by URL — the JS bundle
+	// plus google-docs.css (CSS is extracted, not inlined; see assetFileNames below).
+	// Emits into the shared dist/ with emptyOutDir:false so it co-exists with the
+	// main build's output — run `vite build` first, then this.
 	if (isGoogleDocs) {
 		return {
 			plugins: [react()],
@@ -93,6 +94,16 @@ export default defineConfig(async ({ mode }) => {
 					formats: ['iife'],
 					name: 'GoogleDocsAddon',
 					fileName: () => 'google-docs.bundle.js'
+				},
+				rollupOptions: {
+					// The extracted CSS is the only emitted asset (everything else is
+					// inlined above). Name it google-docs.css to match the <link> the
+					// Apps Script sidebar injects — lib mode otherwise names it after the
+					// package (thoughtful-ai-app.css), which 404s and ships an unstyled
+					// sidebar.
+					output: {
+						assetFileNames: 'google-docs.[ext]'
+					}
 				}
 			}
 		};
