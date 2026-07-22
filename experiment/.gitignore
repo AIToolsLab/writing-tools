@@ -47,3 +47,12 @@ next-env.d.ts
 
 # Scenario design outputs
 scripts/scenario_design/outputs/
+scripts/scenario_design/experiments/
+
+# Claude Code chat history
+.cc-history
+
+# Playwright files
+.playwright-mcp
+
+archetype-simulation*
