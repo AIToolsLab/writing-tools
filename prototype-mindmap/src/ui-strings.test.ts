@@ -26,6 +26,13 @@ describe("uiString", () => {
     expect(uiString("  Clear map  ", "zh")).toBe(uiString("Clear map", "zh"));
   });
 
+  it("ignores casing, so one entry covers a phrase however it is styled", () => {
+    // CSS renders `Framing` as FRAMING and the recap says "cards" where the
+    // heading says "Cards" — one dictionary entry has to answer all of them.
+    expect(uiString("CLEAR MAP", "zh")).toBe(uiString("Clear map", "zh"));
+    expect(uiString("Cards", "zh")).toBe(uiString("cards", "zh"));
+  });
+
   it("ships a dictionary for every language the picker offers", () => {
     expect(translatedLanguages().length).toBeGreaterThan(30);
     expect(translatedLanguages()).toContain("zh");

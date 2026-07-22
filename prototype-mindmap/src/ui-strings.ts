@@ -30,6 +30,22 @@ const BY_LANGUAGE = new Map<string, Record<string, string>>(
   }),
 );
 
+/**
+ * The same, keyed by the lowercased source.
+ *
+ * Case is an English styling choice, not a difference in meaning: the recap
+ * says "cards" where the panel heading says "Cards", and CSS renders `Framing`
+ * as FRAMING. Folding case keeps one entry per phrase instead of one per
+ * casing, and stops copy from going untranslated because the key was written
+ * the way the screen shows it.
+ */
+const FOLDED_BY_LANGUAGE = new Map(
+  [...BY_LANGUAGE].map(([code, entries]) => [
+    code,
+    Object.fromEntries(Object.entries(entries).map(([source, text]) => [source.toLowerCase(), text])),
+  ]),
+);
+
 /** Languages that have a checked-in dictionary. */
 export function translatedLanguages(): string[] {
   return [...BY_LANGUAGE.keys()].sort();
@@ -43,7 +59,8 @@ export function translatedLanguages(): string[] {
  */
 export function uiString(source: string, target: string): string | undefined {
   if (target === "en") return undefined;
-  return BY_LANGUAGE.get(target)?.[source.trim()];
+  const key = source.trim();
+  return BY_LANGUAGE.get(target)?.[key] ?? FOLDED_BY_LANGUAGE.get(target)?.[key.toLowerCase()];
 }
 
 /** Whether any interface copy at all is available for a language. */

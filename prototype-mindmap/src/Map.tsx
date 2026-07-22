@@ -1620,10 +1620,19 @@ function ThoughtMapInner({
         </div>
       </div>
 
+      {/* One span per clause: the interface dictionary is keyed by whole text
+          nodes, so a single run-on sentence matches no entry and stays English.
+          The separators carry no language, so they are skipped either way. */}
       <p className="map-hint">
-        Drag a card onto another to nest it inside · use "Out" to separate ·
-        drag a card dot to connect · drag a line end to move a connector ·
-        shift-click a card to select it
+        <span>Drag a card onto another to nest it inside</span>
+        {" · "}
+        <span>use "Out" to separate</span>
+        {" · "}
+        <span>drag a card dot to connect</span>
+        {" · "}
+        <span>drag a line end to move a connector</span>
+        {" · "}
+        <span>shift-click a card to select it</span>
       </p>
 
       <div className="map-canvas" ref={canvasRef}>

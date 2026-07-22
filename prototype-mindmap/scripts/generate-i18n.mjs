@@ -46,6 +46,7 @@ async function translateBatch(items, code) {
     `You are translating the interface copy of a writing app into ${languageName(code)}.`,
     "These are buttons, labels, and short hints. Keep them short — interface copy must fit its control.",
     "Preserve leading symbols such as '+' and any capitalisation convention.",
+    "Leave the button name \"Out\" in English — other strings quote it by name.",
     `Reply with JSON: {"translations": [...]} containing exactly ${items.length} strings, in the input order.`,
   ].join(" ");
 

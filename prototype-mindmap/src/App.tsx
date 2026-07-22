@@ -5381,7 +5381,7 @@ export default function App() {
                           disabled={loading}
                           onClick={() => void continueWithLevel(m.id, v.level, m.comparisonUserText ?? "")}
                         >
-                          Continue with this →
+                          Continue with this{" →"}
                         </button>
                       </div>
                     ))}
@@ -5427,7 +5427,7 @@ export default function App() {
             {error && <div className="error-banner">{error}</div>}
             {stickyDraftFocus && (
               <div className="focus-chip" role="status">
-                <span className="focus-chip-text">Focusing on selected text: “{focusSummary(stickyDraftFocus.text)}”</span>
+                <span className="focus-chip-text">Focusing on selected text:{` “${focusSummary(stickyDraftFocus.text)}”`}</span>
                 <button className="focus-chip-dismiss" type="button" onClick={() => setStickyDraftFocus(undefined)} aria-label="Stop focusing on selected text">×</button>
               </div>
             )}
