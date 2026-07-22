@@ -156,15 +156,17 @@ There is no runtime dev/prod flag — the two modes are just two versions of
 
 ## OAuth Scopes
 
-The add-on requests these scopes (auto-detected from API usage; no explicit
-`oauthScopes` block in `appsscript.json`):
+The add-on requests these scopes, declared explicitly in the `oauthScopes` block
+of `appsscript.json`:
 
-- `documents.currentonly` - Access only the current document
-- `script.container.ui` - Display sidebars and dialogs
-- `userinfo.email` - Identify the current user
+- `documents.currentonly` — read/edit only the current document (`DocumentApp`)
+- `script.container.ui` — show the add-on menu and sidebar (`DocumentApp.getUi()`)
+- `userinfo.email` — identify the current user (`Session.getActiveUser()`)
 
-Apps Script no longer makes outbound HTTP calls (the backend is called directly by
-the React app), so `script.external_request` is no longer requested.
+Apps Script makes no outbound HTTP calls: the React sidebar fetches the backend
+(and its own JS/CSS bundle) directly from the browser, which needs no Apps Script
+scope. So `script.external_request` and `urlFetchWhitelist` are **not** declared —
+don't re-add them unless you introduce a `UrlFetchApp` call in `Code.gs`.
 
 ## Deployment
 
