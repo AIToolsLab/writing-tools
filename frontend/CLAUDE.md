@@ -16,7 +16,7 @@ TypeScript/React Microsoft Office Add-in for Word + standalone editor
 - **Entry Points** (HTML lives at the frontend root, as Vite build inputs):
   - `taskpane.html` - Word task pane
   - `editor.html` - Standalone demo editor
-  - `logs.html`, `popup.html`, `commands.html`, `index.html` (landing page)
+  - `logs.html`, `commands.html`, `index.html` (landing page)
 - **Static assets**: `public/` (copied to `dist/` root; includes `manifest.xml`
   and `public/assets/`). Images imported in code live in `src/assets/`.
 - **Manifest**: `frontend/public/manifest.xml` for Office Add-in configuration
