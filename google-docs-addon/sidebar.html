@@ -1,18 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Writing Tools</title>
-  
-  <!-- 
-    This is the sidebar entry point for the Google Docs add-on.
-    
-    In development, it loads the React app from a local dev server.
-    In production, this file should be replaced with a bundled version
-    that includes all the React code inline.
-  -->
   
   <style>
     /* Base styles while loading */
@@ -242,59 +234,5 @@
         .catch(function () { loadFrom(SOURCES.prod); });
     })();
   </script>
-  
-  <!-- 
-    PRODUCTION: The bundled React app code goes here.
-    Run the build script to generate this:
-    
-    npm run build:google-docs
-    
-    This will inline all JS/CSS into this file.
-  -->
-  <!--
-  <script>
-    // Placeholder for production bundle
-    // The build process will replace this with the actual bundled code
-    
-    // For now, show a message about development setup
-    setTimeout(function() {
-      if (!window.__REACT_APP_LOADED__) {
-        document.getElementById('root').innerHTML = `
-          <div style="padding: 20px; font-family: sans-serif;">
-            <h2>Writing Tools</h2>
-            <p>The app bundle needs to be built and included here.</p>
-            <h3>Development Setup:</h3>
-            <ol>
-              <li>Run <code>npm run dev</code> in the frontend folder</li>
-              <li>Uncomment the development script section above</li>
-              <li>Reload the sidebar</li>
-            </ol>
-            <h3>Production Build:</h3>
-            <ol>
-              <li>Run <code>npm run build:google-docs</code></li>
-              <li>The build script will inline the bundle into this file</li>
-            </ol>
-            <hr>
-            <h3>Test Apps Script Functions:</h3>
-            <button onclick="testGetDocContext()">Test getDocContext()</button>
-            <pre id="test-output" style="background: #f5f5f5; padding: 10px; margin-top: 10px;"></pre>
-          </div>
-        `;
-      }
-    }, 2000);
-    
-    // Test function for development
-    function testGetDocContext() {
-      document.getElementById('test-output').textContent = 'Loading...';
-      window.GoogleAppsScript.getDocContext()
-        .then(function(result) {
-          document.getElementById('test-output').textContent = JSON.stringify(result, null, 2);
-        })
-        .catch(function(error) {
-          document.getElementById('test-output').textContent = 'Error: ' + error;
-        });
-    }
-  </script>
-  -->
 </body>
 </html>
