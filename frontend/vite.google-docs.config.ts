@@ -33,6 +33,13 @@ export default defineConfig(({ mode }) => {
 			// the dev server's /api proxy); the deployed origin in prod.
 			'process.env.GDOCS_BACKEND_URL': JSON.stringify(
 				isDev ? '' : 'https://app.thoughtful-ai.com'
+			),
+			// Device-flow client ID; must match a value in the backend's
+			// BETTER_AUTH_DEVICE_CLIENT_IDS allowlist. Kept in sync with vite.config.ts
+			// — deviceAuth.ts reads this, and without the define the gdocs IIFE ships a
+			// bare `process.env.…` reference (process is not defined in the browser).
+			'process.env.BETTER_AUTH_DEVICE_CLIENT_ID': JSON.stringify(
+				process.env.BETTER_AUTH_DEVICE_CLIENT_ID || 'writing-tools-editor-dev'
 			)
 		},
 		build: {
