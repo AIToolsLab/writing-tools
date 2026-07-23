@@ -141,6 +141,7 @@ interface PersistedSession {
     lastAssistantText: string;
     draft: string;
     currentUserTurn?: number;
+    latestUserLanguagePattern?: "single" | "mixed" | "unknown";
     currentDraftSnapshotId?: string;
     draftSnapshotText?: string;
     legacyIgnoredCandidateIds?: string[];
@@ -3104,7 +3105,7 @@ export function UnderTheHoodPanel({
 }
 
 export default function App() {
-  const { t } = useUiLocale();
+  const { locale, t } = useUiLocale();
   const mutationAccess = useMutationAccess();
   const readOnly = mutationAccess.mode === "translated_view";
   const persistedSession = useMemo(() => loadPersistedSession(), []);
@@ -3121,6 +3122,7 @@ export default function App() {
       ?? persistedSession.controller?.dismissedCandidateIds
       ?? [];
     state.currentUserTurn = currentUserTurn;
+    state.latestUserLanguagePattern = persistedSession.conversation?.latestUserLanguagePattern ?? "unknown";
     state.legacyIgnoredCandidateIds = legacyIgnoredCandidateIds;
     state.candidates.replaceAll(migrateCandidateMemory(persistedSession.candidates, currentUserTurn, legacyIgnoredCandidateIds));
     state.candidates.setLegacyIgnoredIds(legacyIgnoredCandidateIds);
@@ -3948,6 +3950,7 @@ export default function App() {
         lastAssistantText: stateRef.current.lastAssistantText,
         draft: stateRef.current.draft,
         currentUserTurn: stateRef.current.currentUserTurn,
+        latestUserLanguagePattern: stateRef.current.latestUserLanguagePattern,
         currentDraftSnapshotId: stateRef.current.currentDraftSnapshotId,
         draftSnapshotText: stateRef.current.draftSnapshotText,
         legacyIgnoredCandidateIds: stateRef.current.legacyIgnoredCandidateIds,
@@ -4031,7 +4034,7 @@ export default function App() {
         configRef.current,
         mapStoreRef.current.toLLMContext(),
         {
-          mapRevision, requireConnectionLabel, selectedFocus, selectedCardIds, store: mapStoreRef.current, contract,
+          mapRevision, requireConnectionLabel, selectedFocus, selectedCardIds, store: mapStoreRef.current, contract, uiLocale: locale,
           priorAssistant: [...msgs].reverse().find((message) => message.role === "assistant"),
           onProgress: (event) => { if (nonce === turnNonceRef.current) setTurnProgress(event.stage); },
         },
@@ -4086,7 +4089,7 @@ export default function App() {
         configRef.current,
         mapStoreRef.current.toLLMContext(),
         {
-          mapRevision: currentMapRevision, requireConnectionLabel, selectedFocus, requestedSupport: mode, proposalOutcome,
+          mapRevision: currentMapRevision, requireConnectionLabel, selectedFocus, requestedSupport: mode, proposalOutcome, uiLocale: locale,
           store: mapStoreRef.current, contract,
           priorAssistant: [...msgs].reverse().find((message) => message.role === "assistant"),
           onProgress: (event) => { if (nonce === turnNonceRef.current) setTurnProgress(event.stage); },

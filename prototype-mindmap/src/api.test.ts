@@ -7,6 +7,7 @@ import { createConversationState, processTurn } from "./stage1-loop";
 import { contractForLevel, snapshotContract } from "./assistance-contract";
 
 const context: LLMContext = {
+  language: { uiLocale: "en", latestUserLanguagePattern: "single" },
   bank: [{ id: "u_1", text: "I want to keep human control.", timestamp: 1, origin: "chat", turnId: "t_1" }],
   candidates: [],
   turnShape: { kind: "compact", reasons: [], utteranceCount: 1, contentTokenCount: 5, characterCount: 29 },
@@ -112,6 +113,9 @@ describe("typed assistant response parser", () => {
     expect(rendered).toContain("sparse=true");
     expect(rendered).toContain("value=75 on a 0 (Think) to 100 (Map) control");
     expect(rendered).toContain("TURN SHAPE (measurement only)");
+    expect(rendered).toContain("LANGUAGE GUIDANCE (advisory, never evidence)");
+    expect(rendered).toContain("Interface display locale=en; this is presentation-only and is not a response-language preference.");
+    expect(rendered).toContain("Latest user language pattern=single.");
     expect(rendered).toContain("kind=compact; utterances=1; contentTokens=5; characters=29");
     expect(rendered).toContain(`Can do: ${defaultConfig.capabilities.canDo.join("; ")}`);
     expect(rendered).toContain(`Cannot do: ${defaultConfig.capabilities.cantDo.join("; ")}`);
@@ -152,6 +156,8 @@ describe("typed assistant response parser", () => {
     expect(second[0].content).toContain("targeted, context-specific question");
     expect(first[0].content).toContain("Treat the full draft as background context and a user selection as explicit focus.");
     expect(first[0].content).toContain("Use draft anchors selectively, and distinguish model-chosen anchors from user-selected focus.");
+    expect(first[0].content).toContain("The interface display locale is never an instruction to translate or change reply language.");
+    expect(first[0].content).toContain("Preserve authored passages and quoted evidence in their original language.");
     expect(first[0].content).toContain("Every reflection and grounded recap at every assistance level must be strictly user-word-faithful");
     expect(first[0].content).toContain("Use a grounded recap when conversational consolidation is useful");
     expect(first[0].content).toContain("a reflection may draw from only one recorded user moment");

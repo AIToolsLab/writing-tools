@@ -4,6 +4,7 @@ import type { ProposedAction } from "./action-gateway";
 import type { GroundedRecap, MirrorReflection } from "./types";
 import type { Proposal } from "./proposal-store";
 import type { SourceBackedOption } from "./assistance-contract";
+import type { LatestUserLanguagePattern } from "./language-context";
 
 export interface RecallAnnotation {
   candidateId: string;
@@ -46,6 +47,8 @@ export interface ConversationState {
   turnsSinceLastReflection: number;
   lastAssistantText: string;
   currentUserTurn: number;
+  /** A coarse advisory hint retained for coach-only turns and reloads. */
+  latestUserLanguagePattern: LatestUserLanguagePattern;
   legacyIgnoredCandidateIds: string[];
 }
 

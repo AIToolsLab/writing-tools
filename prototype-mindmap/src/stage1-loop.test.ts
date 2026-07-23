@@ -23,6 +23,53 @@ describe("typed Stage 1 controller", () => {
     expect(context.reflectionRhythm).toEqual({ turnsSinceLastReflection: 0, sourceUtteranceCount: 0 });
   });
 
+  it("keeps a user-language pattern through coach-only turns without treating it as evidence", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const firstModel = vi.fn(async () => ({ response: { kind: "question" as const, text: "你最在意什么？", stance: "deepen" as const } }));
+    await processTurn(state, "我在想作者身份", firstModel, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, uiLocale: "ar" });
+    expect(state.latestUserLanguagePattern).toBe("single");
+    expect(firstModel).toHaveBeenCalledWith(expect.objectContaining({ language: { uiLocale: "ar", latestUserLanguagePattern: "single" } }), undefined);
+
+    const continuation = vi.fn(async () => ({ response: { kind: "question" as const, text: "还想从哪里开始？", stance: "deepen" as const } }));
+    await processTurn(state, "", continuation, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, uiLocale: "zh" });
+    expect(continuation).toHaveBeenCalledWith(expect.objectContaining({ language: { uiLocale: "zh", latestUserLanguagePattern: "single" } }), undefined);
+    expect(state.bank.getAll().map((item) => item.text)).toEqual(["我在想作者身份"]);
+  });
+
+  it("keeps a direct language request as authored conversation rather than a stored preference", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (_context: import("./llm-contract").LLMContext) => ({ response: { kind: "question" as const, text: "What should the response focus on?", stance: "deepen" as const } }));
+    const request = "Please respond in Chinese.";
+    await processTurn(state, request, model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, uiLocale: "en" });
+
+    expect(state.bank.getAll().map((item) => item.text)).toEqual([request]);
+    expect(model).toHaveBeenCalledWith(expect.objectContaining({ language: { uiLocale: "en", latestUserLanguagePattern: "single" } }), undefined);
+    expect(model.mock.calls[0]?.[0].language.preferredCoachLanguage).toBeUndefined();
+  });
+
+  it("leaves validation outcomes unchanged by the advisory language pattern", async () => {
+    const run = async (pattern: "single" | "mixed" | "unknown", claimText: string) => {
+      const state = createConversationState();
+      state.latestUserLanguagePattern = pattern;
+      const utterance = state.bank.add("original wording", "chat");
+      const store = new ThoughtUnitStore();
+      const result = await processTurn(state, "", async () => ({ response: {
+        kind: "grounded_recap" as const,
+        text: claimText,
+        recap: { claims: [{ id: "r1", text: claimText, target: "idea" as const, sourceSpans: [{ claimText, userPhrase: claimText, utteranceIds: [utterance.id] }] }] },
+      } }), defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+      return { response: result.response, proposal: result.proposal, diagnostics: result.diagnostics.map((event) => [event.outcome, event.code]) };
+    };
+
+    const patterns: Array<"single" | "mixed" | "unknown"> = ["single", "mixed", "unknown"];
+    const valid = await Promise.all(patterns.map((pattern) => run(pattern, "original wording")));
+    const invalid = await Promise.all(patterns.map((pattern) => run(pattern, "ungrounded wording")));
+    expect(valid).toEqual([valid[0], valid[0], valid[0]]);
+    expect(invalid).toEqual([invalid[0], invalid[0], invalid[0]]);
+  });
+
   it("renders a typed question without creating proposal or map state", async () => {
     const state = createConversationState();
     const store = new ThoughtUnitStore();
