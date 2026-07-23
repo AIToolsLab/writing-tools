@@ -25,6 +25,7 @@
 		"validate": "office-addin-manifest validate manifest.xml",
 		"validate:prod": "office-addin-manifest validate -p dist/manifest.xml",
 		"watch": "vite build --watch --mode development",
+		"typecheck": "tsc --noEmit",
 		"lint": "eslint . --ext .js,.jsx,.ts,.tsx",
 		"lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
 		"office-lint": "office-addin-lint check",
