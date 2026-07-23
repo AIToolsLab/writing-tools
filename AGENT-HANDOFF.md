@@ -2,7 +2,7 @@
 
 Last updated: 2026-07-23 America/New_York. Tracked successor to the old
 untracked `CODEX-HANDOFF-next-chat-untracked.md` (retired). Audience: any
-agent or human building features on `feat/mindmap-provenance-completion`.
+agent or human building features on `mindmap-main`.
 This doc tells you what's here, **what is about to land** (so you don't
 collide with it), and what must never change without asking.
 

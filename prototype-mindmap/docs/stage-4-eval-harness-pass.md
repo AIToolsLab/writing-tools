@@ -18,7 +18,7 @@ second level exists (it does). Its crisp scenarios also become the demo script.
 place. Do **not** try to build the whole thing (LLM-as-judge automation is a
 later pass — hand-score first).
 
-**Branch:** `feat/mindmap-provenance-completion`. Prerequisite Stage 1.5 gate is
+**Branch:** `mindmap-main`. Prerequisite Stage 1.5 gate is
 closed; open-threads was deleted. The contracts (`assistance-contract.ts`, L0/L1/
 L2) are code-complete and enforced — this pass measures them, it does not change
 enforcement.

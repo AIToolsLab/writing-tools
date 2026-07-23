@@ -15,7 +15,7 @@ manual browser smoke test, which is the gate blocking the GPT-5.6 bakeoff and th
 doc is the *do-this-now* checklist. If the two ever disagree, `refactor-plan.md`
 and `DESIGN.md` win.
 
-**Branch:** `feat/mindmap-provenance-completion`. The working tree already has
+**Branch:** `mindmap-main`. The working tree already has
 uncommitted changes from the prior pass (doc rewrites + the
 `tentativeEvidencePattern` removal). **Commit those first** (after `tsc` + tests),
 then build on top — do not redo them.

@@ -64,7 +64,7 @@ Reimplement or substantially revise (anything touching the pre-cutover runtime):
 Create a new branch from the current authoritative branch:
 
 ```
-feat/mindmap-provenance-completion HEAD
+mindmap-main HEAD
 └── feat/mindmap-multilingual-grounding
 ```
 
