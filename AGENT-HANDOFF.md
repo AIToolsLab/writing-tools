@@ -124,14 +124,58 @@ each item will touch.
    - `preferredCoachLanguage` stays an unused extension point; a direct
      language request remains ordinary authored conversation (test-pinned).
 
-   **Next: checkpoint 3 — English/Chinese/mixed-language grounding** (pass
-   doc §5): the language-neutral normalizer (NFC + width/quote folding for
-   `，。！？` and `「」『』`), `Intl.Segmenter` zh word segmentation with a
-   full-ICU canary test, the en and zh `GroundingLanguageProfile`s (zh:
-   identity normalization + closed particle list, e.g. 的了是就吗呢), the
-   decided Simplified↔Traditional fail-safe behavior, and the §10 zh/mixed
-   test set. Grounding stays exact-authorship checking — no semantic
-   similarity, no embeddings.
+   **Checkpoint 3 review — English/Chinese exact-phrase grounding (ACCEPTED
+   2026-07-23; commit before starting checkpoint 4).** Independently verified
+   by Claude: `tsc` clean, 311 Vitest tests pass, build green, plus a full
+   audit sweep (regex inventory, consumer-by-consumer regression trace,
+   rigidity assessment). What landed:
+   - `normalize.ts` rebuilt: NFKC + smart-quote/corner-bracket folding
+     (`foldWidthAndQuotes`), `Intl.Segmenter` word tokenization (zh segmenter
+     when any CJK present, full-ICU canary test), grapheme-accurate
+     **code-owned offsets** (`findWholePhraseRange` maps folded matches back
+     to UTF-16 ranges in the unchanged original — the model never computes
+     offsets), `stem()` identity for non-Latin, closed zh particle list in
+     STOPWORDS. Shared `CJK_SCRIPT_RE` extracted to `unicode-scripts.ts`.
+   - `validator.ts`: span grounding is now binary exact-phrase presence
+     (`containsWholePhrase` after folding), and lexical grounding draws from
+     the **cited evidence phrases** (`citedPhraseStemSet`), not whole cited
+     utterances. Citation is verbatim (mod folding); mirror prose keeps
+     stem-level inflection freedom for English. Simplified↔Traditional
+     substitution deliberately fails (test-pinned). The checkpoint-2
+     advisory-invariant test is untouched — the validator imports nothing
+     from `language-context`.
+   - One regression was caught in review and fixed: `segment()` briefly split
+     ASCII `.!?` without following whitespace, corrupting English SourceBank
+     units (`3.5`, `example.com`); now only CJK `。！？` split without
+     whitespace, with regression tests pinning decimals/domains/parenthesized
+     punctuation. Known cosmetic nit (decided, not a bug): a CJK terminator
+     inside quotes splits before the closing `」`; fix if ever needed is
+     `(?<=[。！？])(?![」』"'）])`.
+   - `spanGroundingMin` semantics clarified in `config.ts` (span scores are
+     binary; the threshold governs relational same-utterance coverage only).
+   - **Acknowledged intended rigidity:** mirrors are stricter in both
+     languages — content words must come from cited phrases, citations must
+     be exact. All new rigidity gates the AI, never the user. Watch-item
+     recorded in the pass doc: compare the **English** first-pass
+     grounded-mirror rate against the pre-checkpoint-3 baseline in Stage 4;
+     if it drops materially, tune the prompt to cite more precise evidence —
+     never loosen the validator.
+   - Documented later-cleanups (not now): the redundant whole-utterance
+     stem-ratio path in `claimRelationStatedInOneUtterance` (strictly weaker
+     than the phrase-based lexical check, harmless), and the Japanese
+     per-grapheme NFKC composition edge (ja is not a grounding target).
+   - Silent improvements worth knowing: Chinese turn-shape token counts and
+     suggestion-adoption overlap were previously near-meaningless (a whole
+     zh sentence tokenized as one blob) and are now real.
+
+   **Next: checkpoint 4 — explicit translation behavior** (pass doc §8): the
+   `TranslationResponse` kind (`ai_translated`, visibly labeled, never a
+   grounded reflection, never auto-entering the SourceBank or the map without
+   a separate user adoption action), plus the donor display-only translation
+   overlay for the read-only view. This checkpoint also inherits the two
+   checkpoint-1 carry-forwards, since it makes `translated_view` reachable:
+   gateway-level read-only enforcement + user-visible rejection feedback, and
+   the `source.json`/`zh.json` "Enter to send" dedupe.
 
 2. **[SPEC AGREED] Graceful reflection recovery + staged progress** (Parts A+B
    ship together, before the reportable hand-scoring pass). Capped

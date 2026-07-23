@@ -104,15 +104,18 @@ donor's `isReadOnlyView` pattern), covering direct card creation/editing, "Add
 as card", proposal confirmation/editing, nesting and connections, candidate
 restoration/dismissal, and assistance-level continuation actions.
 
-**[STATUS 2026-07-23]** Checkpoints 1 and 2 are accepted on
+**[STATUS 2026-07-23]** Checkpoints 1–3 are accepted on
 `feat/mindmap-multilingual-grounding` (rebased onto `mindmap-main`;
-checkpoint 1 is now `7448891`). Reviews and carry-forward items live in
-`AGENT-HANDOFF.md` under this pass's collision-map entry. Carry-forwards for
-the checkpoint that makes `translated_view` reachable: gateway-level
-read-only enforcement + user-visible rejection feedback, and the
-`source.json`/`zh.json` "Enter to send" dedupe. Checkpoint 3 (§5 grounding)
-is next; it must not consult `latestUserLanguagePattern` in validation — the
-advisory-invariant test in `stage1-loop.test.ts` pins this.
+checkpoint 1 `7448891`, checkpoint 2 `47e2999`, checkpoint 3 reviewed and
+awaiting its commit). Reviews, audit findings, and carry-forward items live
+in `AGENT-HANDOFF.md` under this pass's collision-map entry. Checkpoint 4
+(§8 explicit translation) is next; it makes `translated_view` reachable and
+therefore also owns the checkpoint-1 carry-forwards: gateway-level read-only
+enforcement + user-visible rejection feedback, and the
+`source.json`/`zh.json` "Enter to send" dedupe. Standing invariants:
+grounding never consults `latestUserLanguagePattern` (advisory-invariant
+test pins it), and the English mirror-rate watch-item in §6 applies before
+any validator loosening is even discussed.
 
 ## 3. Original multilingual coach context
 
