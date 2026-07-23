@@ -168,14 +168,46 @@ each item will touch.
      suggestion-adoption overlap were previously near-meaningless (a whole
      zh sentence tokenized as one blob) and are now real.
 
-   **Next: checkpoint 4 — explicit translation behavior** (pass doc §8): the
+   **Next: checkpoint 4 — explicit translation behavior** (pass doc §8;
+   product decisions RATIFIED 2026-07-23, recorded there). Two slices, each
+   landing independently green:
+
+   **4a — coach translation response (build first).** The
    `TranslationResponse` kind (`ai_translated`, visibly labeled, never a
-   grounded reflection, never auto-entering the SourceBank or the map without
-   a separate user adoption action), plus the donor display-only translation
-   overlay for the read-only view. This checkpoint also inherits the two
-   checkpoint-1 carry-forwards, since it makes `translated_view` reachable:
-   gateway-level read-only enforcement + user-visible rejection feedback, and
-   the `source.json`/`zh.json` "Enter to send" dedupe.
+   grounded reflection, never auto-entering the SourceBank or the map).
+   Decided: the request is **model-classified + schema-validated** — a direct
+   natural-language ask in chat ("translate that for me" / "把这个翻译成英文")
+   yields the labeled translation card; there is **no chat-side Translate
+   button**. Misclassification is low-harm by construction (conversational
+   only, labeled, enters nothing); add a Stage 4 precision scenario (a turn
+   that *mentions* translation without requesting one must not yield a
+   translation response). Adoption of translated wording needs no new UI:
+   the user typing/saying it themselves makes it authored; a dedicated
+   "adopt this wording" affordance is deferred polish.
+
+   **4b — reader view.** Everything translated **including user words** →
+   read-only, activating `translated_view`. The visible language picker
+   lives here (a mode change is a control; a conversational request is not).
+   Port the donor display-only overlay (`translate.ts`,
+   `translation-memory.ts`, `translation-context.ts`). This slice owns the
+   two checkpoint-1 carry-forwards: gateway-level read-only enforcement +
+   user-visible rejection feedback, and the `source.json`/`zh.json`
+   "Enter to send" dedupe.
+
+   **Considered and REJECTED (do not re-propose without new evidence):** a
+   third "coach-language" mode (chrome + coach speech translated, user words
+   untouched, editable). The mainstream case is already covered — the coach
+   follows the user's turn language natively (checkpoint 2), so the normal
+   screen is monolingual with zero translation; the niche
+   write-in-X-coached-in-Y case is reachable today via the conversational
+   override ("honor a direct user request for another response language"),
+   which does not persist across reloads — if users complain about
+   re-asking, that is the demand signal to wire the reserved
+   `preferredCoachLanguage` picker (build then, not now). Back-translating
+   *historical* coach messages is rejected outright: it needs the runtime
+   engine plus span-level care for embedded verbatim user evidence (mirrors
+   must never display translated user wording), and buys retroactive
+   transcript consistency that human conversation doesn't have either.
 
 2. **[SPEC AGREED] Graceful reflection recovery + staged progress** (Parts A+B
    ship together, before the reportable hand-scoring pass). Capped

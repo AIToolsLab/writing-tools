@@ -311,6 +311,61 @@ is generally avoided at all levels.
 compatible with this — it is a *view*, not a response. The `TranslationResponse`
 kind governs the coach channel; the overlay governs the read-only reader view.)
 
+### §8 product decisions — RATIFIED 2026-07-23
+
+Checkpoint 4 ships as **two independently green slices**:
+
+**4a — coach translation response (first).** Exactly the `TranslationResponse`
+contract above. Decided:
+
+- The request is **model-classified and schema-validated**. A direct
+  natural-language ask in chat ("translate that for me" / "把这个翻译成英文")
+  yields the labeled translation card. There is **no chat-side Translate
+  button** — the model decides the conversational move, code decides
+  validity, same as every other response kind. Misclassification is low-harm
+  by construction: the response is conversational only, visibly labeled, and
+  enters nothing. Add a Stage 4 precision scenario: a turn that *mentions*
+  translation without requesting one must not yield a translation response.
+- Adoption needs no new UI in this slice: the user typing/saying the
+  translated wording themselves makes it authored. A dedicated "adopt this
+  wording" affordance is deferred polish.
+
+**4b — reader view (second).** Everything translated **including user
+words**, therefore read-only (`translated_view` becomes reachable). The
+visible language picker lives here — switching the whole screen is a mode
+change and deserves a control; a per-utterance translation is a
+conversational request and does not. Port the donor overlay. This slice owns
+the two checkpoint-1 carry-forwards: gateway-level read-only enforcement +
+user-visible rejection feedback, and the `source.json`/`zh.json`
+"Enter to send" dedupe.
+
+**The read-only dividing line (philosophy, binding):** the lock follows
+*whose words are displayed non-authoritatively*. Translating AI-authored
+chrome or speech never requires a lock; the moment **user words** are
+displayed in translation, the screen no longer shows the authoritative text
+and every write path must refuse.
+
+**Considered and REJECTED — do not re-propose without new user evidence:**
+
+- A third "coach-language" mode (chrome + coach speech in a chosen language,
+  user words untouched, editable). Unnecessary: the coach already follows
+  the user's turn language natively (§3), so the normal screen is
+  monolingual with zero translation; the niche write-in-X-coached-in-Y case
+  is reachable via the conversational override, which the prompt already
+  honors. That override does not persist across reloads — recurring user
+  complaints about re-asking are the demand signal to wire the reserved
+  `preferredCoachLanguage` picker; build it then, not now. Note that even
+  then, quoted user evidence inside mirrors/recaps/verbatim options always
+  displays in the user's original language — a translated mirror is exactly
+  the masquerade this section forbids, and the §5 validator rejects it
+  mechanically.
+- **Back-translating historical coach messages** (rejected outright, not
+  deferred): requires the runtime engine plus span-level care for embedded
+  verbatim user evidence, and buys retroactive transcript consistency that
+  human conversation does not have either. Switching languages mid-session
+  leaves earlier turns in their original language, like any real
+  conversation.
+
 ## 9. Bound model context without weakening validation
 
 Do not send an indefinitely growing SourceBank every turn. Build the working
