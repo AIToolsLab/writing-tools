@@ -3,12 +3,18 @@ import type { Context } from 'hono';
 // Browser-facing device authorization approval page at GET /api/device.
 // Must be on the backend's origin so Google session cookies reach Better Auth.
 // Registered whenever auth is enabled (see index.ts).
+
+// User-facing product name, in one place so it's tunable. Interpolated into the
+// template below (static HTML and the inline script alike). Cross-app naming
+// (manifest DisplayName, frontend) is a broader cleanup tracked separately.
+const PRODUCT_NAME = 'Thoughtful AI Tools';
+
 const DEVICE_HTML = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Authorize Writing Tools</title>
+  <title>Authorize ${PRODUCT_NAME}</title>
   <style>
     body { font-family: sans-serif; max-width: 520px; margin: 3rem auto; padding: 0 1.5rem; line-height: 1.5; }
     h1 { font-size: 1.4rem; }
@@ -25,8 +31,8 @@ const DEVICE_HTML = `<!DOCTYPE html>
   </style>
 </head>
 <body>
-  <h1>Authorize Writing Tools</h1>
-  <p class="muted">A device is requesting access to your Writing Tools account.</p>
+  <h1>Authorize ${PRODUCT_NAME}</h1>
+  <p class="muted">A device is requesting access to your ${PRODUCT_NAME} account.</p>
   <div id="content">Loading…</div>
   <div id="status"></div>
 
@@ -118,6 +124,10 @@ const DEVICE_HTML = `<!DOCTYPE html>
     // the user clicking Approve (e.g. a slow 2FA detour during Google sign-in).
     function renderDeviceError(data, action) {
       const desc = String((data && (data.error_description || data.error)) || '');
+      // Better Auth's device endpoint returns OAuth-style errors. Observed live for
+      // a dead/wrong code: { error: 'invalid_request', error_description: 'Invalid
+      // user code' }; an expired code surfaces error: 'expired_token'. Match those
+      // codes; the description regex is a defensive fallback only.
       const codeGone =
         data?.error === 'expired_token' ||
         data?.error === 'invalid_request' ||
@@ -126,7 +136,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
         showContent(); // the Approve/Deny buttons are useless for a dead code
         setStatus(
           el('p', 'err', action + ' failed: this code is no longer valid — it likely expired.'),
-          el('p', null, 'Codes only last a few minutes. Start sign-in again in Writing Tools to get a fresh code, then enter it here.'),
+          el('p', null, 'Codes only last a few minutes. Start sign-in again in ${PRODUCT_NAME} to get a fresh code, then enter it here.'),
           btn('approve', 'Enter a new code', () => init()),
         );
       } else {
@@ -145,7 +155,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
       const data = await res.json();
       if (res.ok && data?.success) {
         showContent();
-        setStatus(el('p', 'ok', 'Authorization complete. You can close this tab and return to Writing Tools.'));
+        setStatus(el('p', 'ok', 'Authorization complete. You can close this tab and return to ${PRODUCT_NAME}.'));
       } else {
         renderDeviceError(data, 'Approve');
       }
@@ -228,7 +238,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
       const switchP = el('p');
       switchP.append(linkButton('Use a different account', switchAccount));
 
-      const p = el('p', null, 'Enter the code shown in Writing Tools:');
+      const p = el('p', null, 'Enter the code shown in ${PRODUCT_NAME}:');
       const input = el('input', 'code-input');
       input.type = 'text';
       input.setAttribute('autocomplete', 'one-time-code');
@@ -253,7 +263,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
       const session = await getSession();
       if (!session) {
         const nodes = [
-          el('p', null, 'Sign in with Google, then enter the code shown in Writing Tools.'),
+          el('p', null, 'Sign in with Google, then enter the code shown in ${PRODUCT_NAME}.'),
           btn('approve', 'Sign in with Google', signIn),
         ];
         if (authError) {

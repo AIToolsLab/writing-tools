@@ -47,8 +47,8 @@ function CodeCountdown({ expiresAt }: { expiresAt?: number }) {
 
 	const remaining = Math.max(0, Math.round((expiresAt - now) / 1000));
 	if (remaining === 0) {
-		// The polling loop surfaces the terminal 'expired' error shortly after;
-		// this just keeps the countdown honest in the gap.
+		// The polling loop surfaces the terminal 'expired' error within one poll
+		// interval (~5s); this keeps the countdown honest in that gap.
 		return <p style={{ margin: '0.25rem 0' }}>Code expired.</p>;
 	}
 	const m = Math.floor(remaining / 60);
@@ -62,8 +62,8 @@ function CodeCountdown({ expiresAt }: { expiresAt?: number }) {
 
 // Device-flow status surfaced during Better Auth sign-in. Shows the user code, a
 // link that opens the approval page in a new window/tab, the expiry countdown, and
-// a Cancel that aborts the in-flight flow (abandoned attempts left polling forever
-// are what produced overlapping sign-ins).
+// a Cancel that aborts the in-flight flow, so an abandoned attempt stops polling
+// immediately instead of running until the code expires.
 // Rendered inside the not-logged-in screen, NOT gated by the isLoading "Waiting" screen.
 function DeviceAuthStatus({
 	authorization,
