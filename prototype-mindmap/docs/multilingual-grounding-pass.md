@@ -104,12 +104,15 @@ donor's `isReadOnlyView` pattern), covering direct card creation/editing, "Add
 as card", proposal confirmation/editing, nesting and connections, candidate
 restoration/dismissal, and assistance-level continuation actions.
 
-**[STATUS 2026-07-23]** Checkpoint 1 landed as `f0c99d3` on
-`feat/mindmap-multilingual-grounding` and is accepted. Two carry-forward items
-are recorded in `AGENT-HANDOFF.md` under the collision-map entry for this pass
-and belong to the checkpoint that makes `translated_view` reachable:
-gateway-level read-only enforcement + user-visible rejection feedback, and the
-`source.json`/`zh.json` "Enter to send" dedupe.
+**[STATUS 2026-07-23]** Checkpoints 1 and 2 are accepted on
+`feat/mindmap-multilingual-grounding` (rebased onto `mindmap-main`;
+checkpoint 1 is now `7448891`). Reviews and carry-forward items live in
+`AGENT-HANDOFF.md` under this pass's collision-map entry. Carry-forwards for
+the checkpoint that makes `translated_view` reachable: gateway-level
+read-only enforcement + user-visible rejection feedback, and the
+`source.json`/`zh.json` "Enter to send" dedupe. Checkpoint 3 (§5 grounding)
+is next; it must not consult `latestUserLanguagePattern` in validation — the
+advisory-invariant test in `stage1-loop.test.ts` pins this.
 
 ## 3. Original multilingual coach context
 

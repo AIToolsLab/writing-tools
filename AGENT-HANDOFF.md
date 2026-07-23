@@ -66,8 +66,8 @@ each item will touch.
    *Avoid deep edits to `App.tsx`/`Map.tsx`/`action-gateway.ts` until this
    merges — you will conflict.*
 
-   **Checkpoint 1 review — `f0c99d3` on the feature branch (ACCEPTED
-   2026-07-23).** Independently verified by Claude: `tsc` clean, full 281-test
+   **Checkpoint 1 review — `f0c99d3`, now `7448891` after the rebase onto
+   `mindmap-main` (ACCEPTED 2026-07-23).** Independently verified by Claude: `tsc` clean, full 281-test
    Vitest suite passes (exit 0), `zh.json` covers every `source.json` string
    (other locales partial by design, degrade to English), `t()` is applied
    only to UI-string literals in `App.tsx`/`Map.tsx`, and `App.test.ts`
@@ -95,8 +95,43 @@ each item will touch.
      ~3241) files undo-capture under `canvas_edit`; give it its own intent or
      reuse `map_undo`. Cosmetic.
 
-   Next: checkpoint 2 (original-language coach context and persistence) per
-   the pass doc.
+   **Checkpoint 2 review — original-language coach context (ACCEPTED
+   2026-07-23; commit before starting checkpoint 3).** The feature branch was
+   rebased onto `mindmap-main` (`ff2b165`) first, with the three colliding
+   untracked pass-doc copies removed. Independently verified by Claude: `tsc`
+   clean, 291 Vitest tests pass, build green. Landed per the agreed
+   checkpoint-2 plan and its four review amendments:
+   - `src/language-context.ts` — advisory script-pattern classifier
+     (`single | mixed | unknown`); Han/Hiragana/Katakana/Hangul/Bopomofo are
+     one CJK family, so monolingual Japanese and Korean-with-Hanja classify
+     `single`; an unfamiliar letter script returns `unknown` rather than
+     guessing (tested with Ge'ez). Decided edge: Latin + unfamiliar script
+     also returns `unknown`, not `mixed`.
+   - `LLMContext.language` (`LanguageContext`) threaded through
+     `buildContext`/`processTurn`; `latestUserLanguagePattern` persists in
+     `ConversationState`/`PersistedSession` (legacy sessions default
+     `unknown`), updates only on non-empty user turns, and survives clone,
+     coach-only continuation, and reload. `uiLocale` comes from
+     `useUiLocale()` per call and is never persisted.
+   - Rendered context labels `uiLocale` "presentation-only … not a
+     response-language preference"; the system prompt adds original-language
+     preservation guidance and "the interface display locale is never an
+     instruction to translate or change reply language". Both test-asserted.
+   - The validator-independence test pins the advisory invariant: identical
+     valid and invalid claims produce byte-identical validation outcomes
+     under all three forced pattern values. **Checkpoint 3 must keep this
+     test passing untouched — grounding may not consult the pattern field.**
+   - `preferredCoachLanguage` stays an unused extension point; a direct
+     language request remains ordinary authored conversation (test-pinned).
+
+   **Next: checkpoint 3 — English/Chinese/mixed-language grounding** (pass
+   doc §5): the language-neutral normalizer (NFC + width/quote folding for
+   `，。！？` and `「」『』`), `Intl.Segmenter` zh word segmentation with a
+   full-ICU canary test, the en and zh `GroundingLanguageProfile`s (zh:
+   identity normalization + closed particle list, e.g. 的了是就吗呢), the
+   decided Simplified↔Traditional fail-safe behavior, and the §10 zh/mixed
+   test set. Grounding stays exact-authorship checking — no semantic
+   similarity, no embeddings.
 
 2. **[SPEC AGREED] Graceful reflection recovery + staged progress** (Parts A+B
    ship together, before the reportable hand-scoring pass). Capped
