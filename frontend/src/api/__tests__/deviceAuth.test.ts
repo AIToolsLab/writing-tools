@@ -51,6 +51,19 @@ describe('requestDeviceCode', () => {
 		fetchMock.mockResolvedValueOnce(resp({ error: 'invalid_client' }));
 		await expect(requestDeviceCode()).rejects.toThrow(/device\/code failed/);
 	});
+
+	it('surfaces a readable error on a non-ok response with an unparseable body', async () => {
+		// A proxy 502 with an empty body used to crash with "Unexpected end of
+		// JSON input", masking the real failure.
+		fetchMock.mockResolvedValueOnce({
+			ok: false,
+			status: 502,
+			json: () => Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+		} as unknown as Response);
+		await expect(requestDeviceCode()).rejects.toThrow(
+			/device\/code failed \(502\).*backend running/,
+		);
+	});
 });
 
 describe('pollForToken', () => {
@@ -105,6 +118,21 @@ describe('pollForToken', () => {
 		await vi.runAllTimersAsync();
 		const result = await promise;
 		expect(result.type).toBe('error');
+	});
+
+	it('returns a readable poll error on an unparseable body instead of crashing', async () => {
+		vi.useFakeTimers();
+		fetchMock.mockResolvedValueOnce({
+			ok: false,
+			status: 502,
+			json: () => Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+		} as unknown as Response);
+		const promise = pollForToken('dev', 1);
+		await vi.runAllTimersAsync();
+		await expect(promise).resolves.toEqual({
+			type: 'error',
+			message: expect.stringMatching(/device\/token failed \(502\).*backend running/),
+		});
 	});
 
 	it('returns aborted when the signal is already aborted', async () => {

@@ -48,10 +48,19 @@ export interface AppAuthSession {
 		status: 'pending' | 'polling' | 'error';
 		userCode?: string;
 		verificationUri?: string;
+		/** Epoch ms when the user code expires; drives the sign-in countdown. */
+		expiresAt?: number;
 		error?: string;
 	};
 	getAccessToken: () => Promise<string>;
 	login: () => Promise<void>;
+	/**
+	 * Abort an in-flight device sign-in and return to the idle login screen.
+	 * Abandoned attempts left polling forever are what produced overlapping
+	 * flows (and the state_mismatch artifacts) — always render a Cancel while
+	 * `isAuthorizing` so the user has a clean way out.
+	 */
+	cancelLogin: () => void;
 	logout: () => Promise<void>;
 }
 
@@ -68,6 +77,7 @@ const DEFAULT_SESSION: AppAuthSession = {
 		return Promise.resolve('');
 	},
 	login: () => Promise.resolve(),
+	cancelLogin: () => {},
 	logout: () => Promise.resolve(),
 };
 
@@ -94,6 +104,7 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 				status: 'polling',
 				userCode: device.userCode,
 				verificationUri: device.verificationUri,
+				expiresAt: device.expiresAt,
 			};
 		} else if (device.status === 'error') {
 			authorization = { status: 'error', error: device.error };
@@ -121,6 +132,7 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 				);
 			},
 			login: device.start,
+			cancelLogin: device.reset,
 			logout: device.logout,
 		};
 	}, [device]);
@@ -157,6 +169,7 @@ function DemoAuthProvider({ children }: { children: ReactNode }) {
 					: undefined,
 			getAccessToken: anon.getAccessToken,
 			login: () => Promise.resolve(),
+			cancelLogin: () => {},
 			logout: () => Promise.resolve(),
 		}),
 		[anon],
