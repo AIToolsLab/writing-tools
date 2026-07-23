@@ -207,7 +207,7 @@ const makeAnchorWithCallback = (
 
 export default function Revise() {
 	const editorAPI = useContext(EditorContext);
-	const docContext = useDocContext(editorAPI);
+	const { docContext, refresh: refreshDocContext } = useDocContext(editorAPI);
 	const log = useLog();
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const [_loading, setLoading] = useState(false);
@@ -276,16 +276,20 @@ export default function Revise() {
 				? prompt.prompt
 				: `Go part-by-part through the document. For each part, please do the following: ${prompt.prompt}`;
 
-			const newViz = new Visualization(request, docContext);
+			// Pull the current document context at request time rather than
+			// tracking it continuously.
+			const currentContext = await refreshDocContext();
+
+			const newViz = new Visualization(request, currentContext);
 			setVisualizations((prev) => [...prev, newViz]);
 
 			reviseLog.visualizationRequested(log, {
 				feature: prompt.keyword,
 				isOverall: Boolean(prompt.isOverall),
-				docContext,
+				docContext: currentContext,
 			});
 
-			const docTextAsPrompt = getDocTextAsPrompt(docContext);
+			const docTextAsPrompt = getDocTextAsPrompt(currentContext);
 
 			const messages: ModelMessage[] = [
 				{
@@ -344,7 +348,7 @@ ${request}
 				}
 			}
 		},
-		[docContext, log],
+		[refreshDocContext, log],
 	);
 
 	const toggleFeature = useCallback(

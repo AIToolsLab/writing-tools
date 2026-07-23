@@ -45,63 +45,149 @@ declare global {
 
 /**
  * Selection change handlers.
- * Note: Google Docs doesn't have real-time selection change events like Word.
- * We implement polling as a workaround.
+ *
+ * Google Docs has no real-time selection-change event like Word, and the only
+ * way to observe a change is to re-fetch the entire document through Apps
+ * Script (a slow, quota-metered round-trip). So most of the app is pull-based
+ * (it calls `getDocContext()` on demand) and does not register here at all.
+ *
+ * A handler is registered only by the rare feature that genuinely needs to
+ * react to the user's selection as they move it (e.g. the tag linker). For
+ * those, we poll — but only while the sidebar is actually in front of the user
+ * (visible and focused). When the user is editing the document (sidebar
+ * blurred) or the tab is hidden, polling pauses, so we never re-fetch the whole
+ * document in the background.
  */
 const selectionChangeHandlers: Set<() => void> = new Set();
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
 let lastDocContext: DocContext | null = null;
+let lifecycleListenersAttached = false;
+
+const POLL_INTERVAL_MS = 1000;
 
 /**
- * Starts polling for selection changes.
- * This is a workaround since Google Docs doesn't provide selection change events.
+ * Whether the sidebar is currently in front of the user. We only poll while
+ * this is true — polling while the user is elsewhere just burns Apps Script
+ * quota re-fetching a document they're not looking at through the sidebar.
  */
-function startPolling() {
-	if (pollingInterval) return;
-
-	const pollForChanges = async () => {
-		if (selectionChangeHandlers.size === 0) {
-			stopPolling();
-			return;
-		}
-
-		try {
-			const newContext = await window.GoogleAppsScript.getDocContext();
-
-			// Check if selection changed
-			if (
-				!lastDocContext ||
-				lastDocContext.selectedText !== newContext.selectedText ||
-				lastDocContext.beforeCursor !== newContext.beforeCursor
-			) {
-				lastDocContext = newContext;
-				// Notify all handlers
-				for (const handler of selectionChangeHandlers) {
-					try {
-						handler();
-					} catch (e) {
-						console.error('Selection change handler error:', e);
-					}
-				}
-			}
-		} catch (e) {
-			console.error('Error polling for selection changes:', e);
-		}
-	};
-
-	pollingInterval = setInterval(() => {
-		void pollForChanges();
-	}, 1000); // Poll every second
+function sidebarIsActive(): boolean {
+	if (typeof document === 'undefined') return false;
+	if (document.visibilityState !== 'visible') return false;
+	// hasFocus() may be undefined in some embedded contexts; treat that as active.
+	return typeof document.hasFocus !== 'function' || document.hasFocus();
 }
 
 /**
- * Stops polling for selection changes.
+ * Fetches the current context and, if the selection/cursor changed since the
+ * last fetch, notifies every registered handler.
  */
-function stopPolling() {
+async function pollForChanges(): Promise<void> {
+	if (selectionChangeHandlers.size === 0) {
+		stopPolling();
+		return;
+	}
+
+	try {
+		const newContext = await window.GoogleAppsScript.getDocContext();
+
+		if (
+			!lastDocContext ||
+			lastDocContext.selectedText !== newContext.selectedText ||
+			lastDocContext.beforeCursor !== newContext.beforeCursor
+		) {
+			lastDocContext = newContext;
+			for (const handler of selectionChangeHandlers) {
+				try {
+					handler();
+				} catch (e) {
+					console.error('Selection change handler error:', e);
+				}
+			}
+		}
+	} catch (e) {
+		console.error('Error polling for selection changes:', e);
+	}
+}
+
+/**
+ * Starts the polling interval, if it isn't already running and the sidebar is
+ * active. Does nothing while the sidebar is in the background.
+ */
+function runInterval(): void {
+	if (pollingInterval || selectionChangeHandlers.size === 0) return;
+	if (!sidebarIsActive()) return;
+
+	pollingInterval = setInterval(() => {
+		void pollForChanges();
+	}, POLL_INTERVAL_MS);
+}
+
+/**
+ * Stops the polling interval without tearing down the handler registration or
+ * lifecycle listeners, so polling can resume when the sidebar becomes active.
+ */
+function pauseInterval(): void {
 	if (pollingInterval) {
 		clearInterval(pollingInterval);
 		pollingInterval = null;
 	}
+}
+
+/**
+ * Resumes or pauses polling in response to focus/visibility changes.
+ */
+function handleLifecycleChange(): void {
+	if (selectionChangeHandlers.size === 0) return;
+
+	if (sidebarIsActive()) {
+		// The user just came back to the sidebar — refresh immediately so a
+		// selection they made while away is picked up without waiting a tick.
+		void pollForChanges();
+		runInterval();
+	} else {
+		pauseInterval();
+	}
+}
+
+function attachLifecycleListeners(): void {
+	if (lifecycleListenersAttached || typeof window === 'undefined') return;
+	window.addEventListener('focus', handleLifecycleChange);
+	window.addEventListener('blur', handleLifecycleChange);
+	document.addEventListener('visibilitychange', handleLifecycleChange);
+	lifecycleListenersAttached = true;
+}
+
+function detachLifecycleListeners(): void {
+	if (!lifecycleListenersAttached || typeof window === 'undefined') return;
+	window.removeEventListener('focus', handleLifecycleChange);
+	window.removeEventListener('blur', handleLifecycleChange);
+	document.removeEventListener('visibilitychange', handleLifecycleChange);
+	lifecycleListenersAttached = false;
+}
+
+/**
+ * Begins reacting to selection changes for the newly-registered handler:
+ * pull once immediately, then poll only while the sidebar is active.
+ */
+function startPolling(): void {
+	attachLifecycleListeners();
+	// Pull once right away so a freshly-registered listener gets current state,
+	// but only if the sidebar is in front of the user — otherwise the first pull
+	// waits until they return (handled by the focus/visibility listener).
+	if (sidebarIsActive()) {
+		void pollForChanges();
+	}
+	runInterval();
+}
+
+/**
+ * Stops polling entirely and removes lifecycle listeners. Called once the last
+ * handler is removed.
+ */
+function stopPolling(): void {
+	pauseInterval();
+	detachLifecycleListeners();
+	lastDocContext = null;
 }
 
 /**
