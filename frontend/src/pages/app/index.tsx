@@ -336,7 +336,7 @@ function AppInner() {
 		);
 	}
 
-	function getComponent(pageName: PageName): JSX.Element | null {
+	function getComponent(pageName: PageName): React.JSX.Element | null {
 		switch (pageName) {
 			case PageName.Revise:
 				return <Revise />;
@@ -429,7 +429,7 @@ function AppWithProviders({
 	children,
 }: {
 	children: React.ReactNode;
-}): JSX.Element {
+}): React.JSX.Element {
 	console.log('PostHog enabled:', POSTHOG_ENABLED);
 	// Wrap with PostHog if enabled, otherwise just render children
 	if (!POSTHOG_ENABLED) {

@@ -5,7 +5,7 @@ import { ControlledInput, OptionsInput, NextBtn, LikertInput, inputStateAtom } f
 import { useAtomValue } from "jotai";
 
 export interface QuestionHeaderType {
-  text: string | JSX.Element;
+  text: string | React.JSX.Element;
 };
 
 interface TextQuestionFlags {
@@ -15,7 +15,7 @@ interface TextQuestionFlags {
 }
 
 export interface QuestionBodyType {
-  text: string | JSX.Element;
+  text: string | React.JSX.Element;
   name: string;
   responseType: string;
   levels?: string[];
@@ -30,7 +30,7 @@ function classNames(...args: (string | null | undefined)[]) {
   return args.filter(Boolean).join(" ");
 }
 
-export function likert(name: string, text: (string | JSX.Element), degrees: number, labels: [string, string]): QuestionBodyType {
+export function likert(name: string, text: (string | React.JSX.Element), degrees: number, labels: [string, string]): QuestionBodyType {
   const levels: string[] = Array(degrees).fill("");
   levels[0] = labels[0];
   levels[degrees - 1] = labels[1];

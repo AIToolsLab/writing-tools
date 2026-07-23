@@ -7,6 +7,7 @@ import {
 	useCallback,
 	useContext,
 	useEffect,
+	useEffectEvent,
 	useRef,
 	useState,
 } from 'react';
@@ -199,39 +200,25 @@ function SavedGenerations({
  * @returns A function to reset the interval.
  */
 function useResettableInterval(callback: () => void, interval: number) {
-	const timerRef = useRef<NodeJS.Timeout | null>(null);
-	const callbackRef = useRef(callback);
+	// `callback` changes identity on every render, but it should NOT resubscribe the
+	// interval. useEffectEvent gives us a stable tick that always invokes the latest
+	// callback, so the effect depends only on the actual reactive inputs. This replaces
+	// the old callbackRef + mirror-effect dance (fragile: easy to read a stale ref).
+	const onTick = useEffectEvent(callback);
+
+	// Reset re-runs the effect (tearing down and recreating the interval) by bumping a
+	// nonce, keeping every setInterval call inside the single effect.
+	const [resetNonce, setResetNonce] = useState(0);
 
 	useEffect(() => {
-		callbackRef.current = callback;
-	}, [callback]);
-
-	useEffect(() => {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-		}
-		if (interval <= 0) {
-			timerRef.current = null;
-			return;
-		}
-		timerRef.current = setInterval(() => {
-			callbackRef.current();
+		if (interval <= 0) return;
+		const timer = setInterval(() => {
+			onTick();
 		}, interval);
-		return () => {
-			if (timerRef.current) {
-				clearInterval(timerRef.current);
-			}
-		};
-	}, [interval]);
+		return () => clearInterval(timer);
+	}, [interval, resetNonce]);
 
-	return useCallback(() => {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-		}
-		timerRef.current = setInterval(() => {
-			callbackRef.current();
-		}, interval);
-	}, [interval]);
+	return useCallback(() => setResetNonce((n) => n + 1), []);
 }
 
 export default function Draft() {
