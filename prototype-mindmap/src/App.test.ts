@@ -9,6 +9,8 @@ import { ThoughtUnitStore } from "./map-store";
 import type { Proposal } from "./proposal-store";
 import { createConversationState } from "./stage1-loop";
 import type { UnderstandingSnapshot } from "./understanding";
+import { MutationPolicyProvider } from "./mutation-policy";
+import { UiLocaleProvider } from "./ui-locale";
 
 describe("resolveMirrorDecision", () => {
   it("waits to continue until every claim in the mirror is confirmed", () => {
@@ -140,6 +142,40 @@ describe("proposal UI", () => {
     const state = createConversationState();
     const migrated = migrateStoredProposals([proposal], state.bank, new ThoughtUnitStore());
     expect(migrated[0]?.influenceTrace).toEqual({ priorAssistantMessageId: 2, exactOverlapPhrases: ["human control"], overlapRatio: undefined });
+  });
+
+  it("localizes proposal chrome without translating authored proposal text", () => {
+    const proposal = {
+      id: "localized-proposal",
+      mapRevision: 1,
+      referencedCardIds: [],
+      origin: "user_asserted" as const,
+      contract: snapshotContract(ASSISTANCE_CONTRACTS[0]),
+      state: "shown" as const,
+      detail: {
+        kind: "map_action" as const,
+        action: { kind: "create_card" as const, text: "Clear map", sourceUtteranceIds: ["u1"] },
+      },
+    };
+    act(() => root.render(
+      createElement(
+        UiLocaleProvider,
+        { initialLocale: "zh" },
+        createElement(
+          MutationPolicyProvider,
+          { mode: "translated_view" },
+          createElement(MapActionProposalCard, {
+            proposal,
+            cards: [],
+            onEdit: vi.fn(),
+            onDecide: vi.fn(),
+          }),
+        ),
+      ),
+    ));
+    expect((container.querySelector("textarea") as HTMLTextAreaElement).value).toBe("Clear map");
+    expect(Array.from(container.querySelectorAll("button")).every((button) => button.disabled)).toBe(true);
+    expect(container.textContent).toContain("确认");
   });
 });
 

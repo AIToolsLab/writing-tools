@@ -42,7 +42,8 @@ export type GatewayReason =
   | "nest_cycle"
   | "duplicate_connection"
   | "nested_endpoint"
-  | "ungrounded_relationship";
+  | "ungrounded_relationship"
+  | "read_only_view";
 
 export type GatewayResult =
   | { status: "ready"; action: ExecutableAction; referencedCardIds: string[]; origin?: ContributionOrigin; pairingProof?: VerifiedPairingProof }

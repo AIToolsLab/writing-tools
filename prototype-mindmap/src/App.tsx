@@ -19,6 +19,8 @@ import { ASSISTANCE_CONTRACTS, contractForLevel, DEFAULT_ASSISTANCE_CONTRACT, no
 import { EventLedger, mirrorSanitizedEvent, type LedgerEventKind } from "./event-ledger";
 import { reconcileStoreSuggestionAdoption, type VisibleSuggestion } from "./suggestion-adoption";
 import { provenanceTotals, type ProvenanceTotals } from "./provenance-summary";
+import { useMutationAccess } from "./mutation-policy";
+import { useUiLocale } from "./ui-locale";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1389,6 +1391,26 @@ const css = `
   .edge-delete:hover { background: #8a352f; }
 
   /* ---- map header extras ---- */
+  .ui-locale-control {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: #57606a;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .ui-locale-control select {
+    max-width: 168px;
+    border: 1px solid #d0d7de;
+    border-radius: 7px;
+    background: #fff;
+    color: #24292f;
+    padding: 5px 7px;
+    font: inherit;
+  }
+  [dir="rtl"] .ui-locale-control select {
+    text-align: right;
+  }
   .map-clear-draft,
   .map-add-card {
     font-size: 11px;
@@ -2754,6 +2776,8 @@ export function UnderTheHoodPanel({
   onOpenChange?: (open: boolean) => void;
   provenance?: ProvenanceTotals;
 }) {
+  const { t } = useUiLocale();
+  const readOnly = useMutationAccess().mode === "translated_view";
   const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
   const open = controlledOpen ?? uncontrolledOpen;
   const setOpen = useCallback(
@@ -2825,7 +2849,7 @@ export function UnderTheHoodPanel({
         type="button"
         className={`underhood-tab ${snapshot ? "live" : ""}`}
         onClick={() => setOpen(true)}
-        aria-label="Open Control Room panel"
+        aria-label={t("Open Control Room panel")}
       >
         {underhoodTabLabel(snapshot)}
       </button>
@@ -2833,17 +2857,17 @@ export function UnderTheHoodPanel({
   }
 
   return (
-    <aside className="underhood-panel" aria-label="Control Room">
+    <aside className="underhood-panel" aria-label={t("Control Room")}>
       <div className="underhood-head">
         <div className="underhood-title">
-          <strong>Control Room</strong>
-          <span>{snapshot?.banner ?? "This will show what the coach is considering as we talk."}</span>
+          <strong>{t("Control Room")}</strong>
+          <span>{snapshot?.banner ?? t("This will show what the coach is considering as we talk.")}</span>
         </div>
         <button
           type="button"
           className="underhood-close"
           onClick={() => setOpen(false)}
-          aria-label="Close Control Room panel"
+          aria-label={t("Close Control Room panel")}
         >
           x
         </button>
@@ -2851,7 +2875,7 @@ export function UnderTheHoodPanel({
 
       {onRequestMode && (
         <UnderhoodSection
-          title="Steer the coach"
+          title={t("Steer the coach")}
           collapsed={sectionIsCollapsed("nextMove")}
           onToggle={() => toggleSection("nextMove")}
           className="underhood-nextmove"
@@ -2863,10 +2887,10 @@ export function UnderTheHoodPanel({
                 type="button"
                 className={`nextmove-button mode-${option.mode}`}
                 onClick={() => onRequestMode(option.mode)}
-                disabled={busy}
-                title={option.hint}
+                disabled={readOnly || busy}
+                title={t(option.hint)}
               >
-                {option.label}
+                {t(option.label)}
               </button>
             ))}
           </div>
@@ -2875,21 +2899,21 @@ export function UnderTheHoodPanel({
 
       {!snapshot ? (
         <div className="underhood-empty">
-          Start a turn and I'll show the read-only checks, tracked ideas, and safety gates here.
+          {t("Start a turn and I'll show the read-only checks, tracked ideas, and safety gates here.")}
         </div>
       ) : (
         <div className="underhood-body">
           {provenance && provenance.total > 0 && (
-            <UnderhoodSection title="Map provenance" meta={provenance.total} collapsed={sectionIsCollapsed("provenance")} onToggle={() => toggleSection("provenance")}>
+            <UnderhoodSection title={t("Map provenance")} meta={provenance.total} collapsed={sectionIsCollapsed("provenance")} onToggle={() => toggleSection("provenance")}>
               <div className="event-list">
-                <div className="event-row revealed"><span className="event-title">Your contributions</span><span className="section-meta">{provenance.userAuthored}</span></div>
-                <div className="event-row revealed"><span className="event-title">AI-connected from your words</span><span className="section-meta">{provenance.aiConnected}</span></div>
-                <div className="event-row revealed"><span className="event-title">AI suggestions</span><span className="section-meta">{provenance.aiSuggested}</span></div>
+                <div className="event-row revealed"><span className="event-title">{t("Your contributions")}</span><span className="section-meta">{provenance.userAuthored}</span></div>
+                <div className="event-row revealed"><span className="event-title">{t("AI-connected from your words")}</span><span className="section-meta">{provenance.aiConnected}</span></div>
+                <div className="event-row revealed"><span className="event-title">{t("AI suggestions")}</span><span className="section-meta">{provenance.aiSuggested}</span></div>
               </div>
             </UnderhoodSection>
           )}
           <UnderhoodSection
-            title="Latest move"
+            title={t("Latest move")}
             collapsed={sectionIsCollapsed("latest")}
             onToggle={() => toggleSection("latest")}
           >
@@ -2906,7 +2930,7 @@ export function UnderTheHoodPanel({
 
           {events.length > 0 && (
           <UnderhoodSection
-            title="What mattered this turn"
+            title={t("What mattered this turn")}
             meta={`${Math.min(activeEvent, events.length)}/${events.length}`}
             collapsed={sectionIsCollapsed("mattered")}
             onToggle={() => toggleSection("mattered")}
@@ -2937,7 +2961,7 @@ export function UnderTheHoodPanel({
                             onClick={() => toggleEventDetail(event.id)}
                             aria-expanded={expanded}
                           >
-                            {expanded ? "Hide detail" : "Show detail"}
+                            {expanded ? t("Hide detail") : t("Show detail")}
                           </button>
                           {expanded && (
                             <div className="event-technical">
@@ -2949,7 +2973,7 @@ export function UnderTheHoodPanel({
                         </>
                       )}
                     </span>
-                    <span className="event-state">{revealed ? event.stateLabel : "checking"}</span>
+                    <span className="event-state">{revealed ? event.stateLabel : t("checking")}</span>
                   </div>
                 );
               })}
@@ -2958,13 +2982,13 @@ export function UnderTheHoodPanel({
           )}
 
           <UnderhoodSection
-            title="Ideas I'm tracking"
+            title={t("Ideas I'm tracking")}
             meta={snapshot.trackedIdeas.length}
             collapsed={sectionIsCollapsed("ideas", snapshot.trackedIdeas.length > 3)}
             onToggle={() => toggleSection("ideas", snapshot.trackedIdeas.length > 3)}
           >
             {snapshot.trackedIdeas.length === 0 ? (
-              <div className="waiting-card">No user-grounded ideas are being held right now.</div>
+              <div className="waiting-card">{t("No user-grounded ideas are being held right now.")}</div>
             ) : (
               <div className="idea-list">
                 {snapshot.trackedIdeas.map((idea) => (
@@ -2980,9 +3004,9 @@ export function UnderTheHoodPanel({
                             type="button"
                             className="idea-dismiss"
                             onClick={() => onDismissIdea(idea.id)}
-                            disabled={busy}
+                            disabled={readOnly || busy}
                           >
-                            Dismiss
+                            {t("Dismiss")}
                           </button>
                         )}
                       </div>
@@ -2995,7 +3019,7 @@ export function UnderTheHoodPanel({
 
           {(snapshot.ignoredIdeas?.length ?? 0) > 0 && (
             <UnderhoodSection
-              title="Ignored ideas"
+              title={t("Ignored ideas")}
               meta={snapshot.ignoredIdeas.length}
               collapsed={sectionIsCollapsed("ignoredIdeas", true)}
               onToggle={() => toggleSection("ignoredIdeas", true)}
@@ -3009,7 +3033,7 @@ export function UnderTheHoodPanel({
                         <span className="anchor-kind">{targetLabel(idea.target)}</span>
                       </div>
                       {onRestoreIdea && (
-                        <button type="button" className="idea-dismiss" onClick={() => onRestoreIdea(idea.id)} disabled={busy}>Restore</button>
+                        <button type="button" className="idea-dismiss" onClick={() => onRestoreIdea(idea.id)} disabled={readOnly || busy}>{t("Restore")}</button>
                       )}
                     </div>
                   </div>
@@ -3080,6 +3104,9 @@ export function UnderTheHoodPanel({
 }
 
 export default function App() {
+  const { t } = useUiLocale();
+  const mutationAccess = useMutationAccess();
+  const readOnly = mutationAccess.mode === "translated_view";
   const persistedSession = useMemo(() => loadPersistedSession(), []);
   const initialContract = contractForLevel(persistedSession?.assistanceLevel ?? 0);
   const initialSessionId = persistedSession?.sessionId ?? newSessionId();
@@ -3210,6 +3237,14 @@ export default function App() {
     setCanUndoMap(true);
   }, []);
 
+  const captureUserMapUndo = useCallback(() => {
+    mutationAccess.run("canvas_edit", captureMapUndo);
+  }, [captureMapUndo, mutationAccess]);
+
+  const changeConnectionSetting = useCallback((value: boolean) => {
+    mutationAccess.run("connection_setting", () => setRequireConnectionLabel(value));
+  }, [mutationAccess]);
+
   const reconcileMapSuggestionProvenance = useCallback((textChangedCardIds: readonly string[] = []) => {
     const suggestions: VisibleSuggestion[] = msgsRef.current
       .filter((message) => message.role === "assistant" && message.responseKind === "suggestion")
@@ -3228,11 +3263,13 @@ export default function App() {
   }, [reconcileMapSuggestionProvenance]);
 
   const markUserMapChanged = useCallback((textChangedCardIds: readonly string[] = []) => {
+    if (!mutationAccess.allows("canvas_edit")) return;
     setCommandAck(null);
     markMapChanged(textChangedCardIds);
-  }, [markMapChanged]);
+  }, [markMapChanged, mutationAccess]);
 
   const undoMapChange = useCallback(() => {
+    if (!mutationAccess.allows("map_undo")) return;
     const previous = undoStackRef.current.pop();
     if (!previous) return;
     executeCanvasAction({ kind: "restore_snapshot", snapshot: previous.map }, { store: mapStoreRef.current, bank: stateRef.current.bank });
@@ -3240,9 +3277,10 @@ export default function App() {
     setCanUndoMap(undoStackRef.current.length > 0);
     setCommandAck(null);
     markMapChanged();
-  }, [markMapChanged]);
+  }, [markMapChanged, mutationAccess]);
 
   const updateActionProposal = useCallback((proposalId: string, action: ProposedAction) => {
+    if (!mutationAccess.allows("proposal_edit")) return;
     setProposals((current) => {
       const proposal = current.get(proposalId);
       if (!proposal || proposal.detail.kind !== "map_action") return current;
@@ -3251,7 +3289,7 @@ export default function App() {
         detail: { ...proposal.detail, action, executable: undefined, completion: undefined },
       });
     });
-  }, []);
+  }, [mutationAccess]);
 
   const groundEditedAction = useCallback((action: ProposedAction): ProposedAction => {
     const sourceFor = (text: string, ids: string[] | undefined): string[] => {
@@ -3273,6 +3311,7 @@ export default function App() {
   }, []);
 
   const decideActionProposal = useCallback((proposalId: string, decision: "confirmed" | "declined") => {
+    if (!mutationAccess.allows("proposal_resolve")) return;
     const proposal = proposals.get(proposalId);
     if (!proposal || proposal.detail.kind !== "map_action") return;
     if (decision === "declined") {
@@ -3359,9 +3398,10 @@ export default function App() {
     // against the already-updated map, without manufacturing chat text or
     // treating the decision as new source material.
     void requestMode(undefined, { proposalKind: "map_action", decision: "confirmed" }, mapRevision + 1);
-  }, [captureMapUndo, groundEditedAction, mapRevision, markMapChanged, proposals, recordEvent, requestMode, requireConnectionLabel]);
+  }, [captureMapUndo, groundEditedAction, mapRevision, markMapChanged, mutationAccess, proposals, recordEvent, requestMode, requireConnectionLabel]);
 
   const dismissTrackedIdea = useCallback((ideaId: string) => {
+    if (!mutationAccess.allows("candidate_transition")) return;
     if (!stateRef.current.candidates.transition(ideaId, "ignored", stateRef.current.currentUserTurn)) return;
     void recordEvent("candidate_lifecycle_changed", { candidateId: ideaId, status: "ignored", turn: stateRef.current.currentUserTurn }, { outcome: "ignored", candidateStatus: "ignored" });
     setUnderstandingSnapshot((prev) =>
@@ -3373,9 +3413,10 @@ export default function App() {
           }
         : prev,
     );
-  }, [recordEvent]);
+  }, [mutationAccess, recordEvent]);
 
   const restoreTrackedIdea = useCallback((ideaId: string) => {
+    if (!mutationAccess.allows("candidate_transition")) return;
     if (!stateRef.current.candidates.transition(ideaId, "parked", stateRef.current.currentUserTurn)) return;
     void recordEvent("candidate_lifecycle_changed", { candidateId: ideaId, status: "parked", turn: stateRef.current.currentUserTurn }, { outcome: "restored", candidateStatus: "parked" });
     setUnderstandingSnapshot((prev) =>
@@ -3387,7 +3428,7 @@ export default function App() {
           }
         : prev,
     );
-  }, [recordEvent]);
+  }, [mutationAccess, recordEvent]);
 
   // Draft panel state
   const [draftText, setDraftText] = useState(initialDraftText);
@@ -3436,11 +3477,16 @@ export default function App() {
   }, []);
 
   const handleDraftInput = useCallback((event: FormEvent<HTMLDivElement>) => {
+    if (!mutationAccess.allows("draft_edit")) return;
     syncDraftFromEditor(event.currentTarget);
     setDraftSelectionFocus(undefined);
-  }, [syncDraftFromEditor]);
+  }, [mutationAccess, syncDraftFromEditor]);
 
   const handleDraftPaste = useCallback((event: ClipboardEvent<HTMLDivElement>) => {
+    if (!mutationAccess.allows("draft_edit")) {
+      event.preventDefault();
+      return;
+    }
     const plainText = event.clipboardData.getData("text/plain");
     const html = event.clipboardData.getData("text/html");
     const pastedHtml = normalizeDraftPasteHtml(plainText, html);
@@ -3450,7 +3496,7 @@ export default function App() {
     insertDraftHtmlAtSelection(event.currentTarget, pastedHtml);
     syncDraftFromEditor(event.currentTarget);
     setDraftSelectionFocus(undefined);
-  }, [syncDraftFromEditor]);
+  }, [mutationAccess, syncDraftFromEditor]);
 
   useEffect(() => {
     const editor = draftRef.current;
@@ -3939,6 +3985,7 @@ export default function App() {
   ]);
 
   async function send() {
+    if (!mutationAccess.allows("chat_send")) return;
     const text = input.trim();
     if (!text || loading) return;
     const nonce = ++turnNonceRef.current;
@@ -4066,11 +4113,13 @@ export default function App() {
   }
 
   function retryRecovery(recoveryId: number) {
+    if (!mutationAccess.allows("recovery_retry")) return;
     if (loading) return;
     void requestMode(undefined, undefined, mapRevision, recoveryId);
   }
 
   async function decideClaim(proposalId: string, claimId: string, decision: "confirmed" | "declined") {
+    if (!mutationAccess.allows("reflection_resolve")) return;
     if (loading) return;
     const proposal = proposals.get(proposalId);
     if (!proposal || proposal.detail.kind !== "reflection" || proposal.detail.decisions[claimId] !== "pending") return;
@@ -4147,6 +4196,7 @@ export default function App() {
     }
   }
   function editMirrorClaim(proposalId: string, claimId: string, text: string) {
+    if (!mutationAccess.allows("proposal_edit")) return;
     setProposals((current) => {
       const proposal = current.get(proposalId);
       if (!proposal || proposal.detail.kind !== "reflection" || proposal.detail.decisions[claimId] !== "pending") return current;
@@ -4155,6 +4205,7 @@ export default function App() {
   }
 
   function addComposerAsCard() {
+    if (!mutationAccess.allows("add_as_card")) return;
     const text = input.trim();
     if (!text || loading) return;
     const utterances = stateRef.current.bank.addSegmented(text, "chat");
@@ -4224,6 +4275,7 @@ export default function App() {
   }
 
   function clearMapOnly() {
+    if (!mutationAccess.allows("map_clear")) return;
     turnNonceRef.current++;
     setLoading(false);
     mapStoreRef.current = new ThoughtUnitStore();
@@ -4239,6 +4291,7 @@ export default function App() {
   }
 
   function clearDraftOnly() {
+    if (!mutationAccess.allows("draft_clear")) return;
     turnNonceRef.current++;
     setLoading(false);
     setDraftText("");
@@ -4250,6 +4303,7 @@ export default function App() {
   }
 
   function clearChatOnly() {
+    if (!mutationAccess.allows("chat_clear")) return;
     turnNonceRef.current++;
     setLoading(false);
     const draft = draftText;
@@ -4282,12 +4336,12 @@ export default function App() {
         <div className="chat-panel">
           <div className="chat-header">
             <div className="chat-header-actions chat-header-actions-left">
-              <button className="reset-btn" onClick={clearChatOnly} title="Clear the chat conversation only">
-                Clear chat
+              <button className="reset-btn" disabled={readOnly} onClick={clearChatOnly} title={t("Clear the chat conversation only")}>
+                {t("Clear chat")}
               </button>
             </div>
             <label className="question-bias chat-question-bias">
-              <span>Think</span>
+              <span>{t("Think")}</span>
               <input
                 type="range"
                 min={0}
@@ -4295,8 +4349,9 @@ export default function App() {
                 step={25}
                 list="question-bias-ticks"
                 value={questionBias}
-                aria-label="Question framing bias"
-                onChange={(event) => setQuestionBias(Number(event.target.value))}
+                aria-label={t("Question framing bias")}
+                disabled={readOnly}
+                onChange={(event) => mutationAccess.run("assistance_change", () => setQuestionBias(Number(event.target.value)))}
               />
               <datalist id="question-bias-ticks">
                 <option value="0" />
@@ -4305,47 +4360,51 @@ export default function App() {
                 <option value="75" />
                 <option value="100" />
               </datalist>
-              <span>Map</span>
+              <span>{t("Map")}</span>
             </label>
             <label className="assistance-contract">
-              <span>Help</span>
+              <span>{t("Help")}</span>
               <select
-                aria-label="Assistance level"
+                aria-label={t("Assistance level")}
                 value={assistanceLevel}
+                disabled={readOnly}
                 onChange={(event) => {
+                  if (!mutationAccess.allows("assistance_change")) return;
                   const next = Number(event.target.value) as AssistanceLevel;
                   setAssistanceLevel(next);
                   void recordEvent("contract_changed", { from: assistanceLevel, to: next }, { contract: snapshotContract(contractForLevel(next)) });
                 }}
               >
                 {([0, 1, 2] as AssistanceLevel[]).map((level) => (
-                  <option key={level} value={level}>{ASSISTANCE_CONTRACTS[level].label}</option>
+                  <option key={level} value={level}>{t(ASSISTANCE_CONTRACTS[level].label)}</option>
                 ))}
               </select>
             </label>
           </div>
 
-          {!ledgerAvailable && <div className="error-banner">Local audit storage is unavailable in this browser.</div>}
+          {!ledgerAvailable && <div className="error-banner">{t("Local audit storage is unavailable in this browser.")}</div>}
 
           <div className="messages">
             {msgs.map((m) => (
               <div key={m.id} className={`msg ${m.role} ${m.mode ?? ""}`}>
                 <span className="msg-label">
-                  {m.role === "user" ? "you" : m.role === "assistant" ? "coach" : "recovery"}
+                  {m.role === "user" ? t("you") : m.role === "assistant" ? t("coach") : t("recovery")}
                   {m.role === "assistant" && <AssistantResponseKindBadge kind={m.responseKind} />}
                   {m.questionStance && (
-                    <span className={`stance-chip stance-${m.questionStance}`}>{m.questionStance}</span>
+                    <span className={`stance-chip stance-${m.questionStance}`}>{t(m.questionStance)}</span>
                   )}
                 </span>
-                <div className="msg-bubble">{m.text}</div>
+                <div className="msg-bubble">
+                  {m.role === "application" && m.terminal === "repair_failed" ? t(m.text) : m.text}
+                </div>
                 {m.role === "application" && m.terminal === "repair_failed" && (
                   <div className="recovery-actions">
-                    <button type="button" className="btn btn-confirm-sm" onClick={() => retryRecovery(m.id)} disabled={loading}>Try again</button>
+                    <button type="button" className="btn btn-confirm-sm" onClick={() => retryRecovery(m.id)} disabled={readOnly || loading}>{t("Try again")}</button>
                   </div>
                 )}
                 {m.role === "assistant" && m.questionAnchor && (
                   <button className="anchor-view-btn" type="button" onClick={() => revealDraftAnchor(m.questionAnchor!)}>
-                    View passage
+                    {t("View passage")}
                   </button>
                 )}
                 {m.proposalId && proposals.has(m.proposalId) && (proposals.get(m.proposalId)!.detail.kind === "reflection" ? (
@@ -4366,9 +4425,9 @@ export default function App() {
             ))}
             {loading && turnProgress && (
               <div className="msg assistant">
-                <span className="msg-label">coach</span>
+                <span className="msg-label">{t("coach")}</span>
                 <div className="msg-bubble" style={{ color: "#aaa", fontStyle: "italic" }}>
-                  {TURN_PROGRESS_COPY[turnProgress]}
+                  {t(TURN_PROGRESS_COPY[turnProgress])}
                 </div>
               </div>
             )}
@@ -4388,33 +4447,35 @@ export default function App() {
                 ref={textareaRef}
                 className={`composer-textarea ${composerScrollable ? "composer-scroll" : ""}`}
                 rows={2}
-                placeholder="Say what's on your mind…"
+                placeholder={t("Say what's on your mind…")}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  if (mutationAccess.allows("chat_send")) setInput(e.target.value);
+                }}
                 onKeyDown={onKey}
-                disabled={loading}
+                disabled={readOnly || loading}
               />
               <div className="composer-toolbar">
                 <div className="composer-left-tools">
                   <button
                     className={`uth-toggle-btn ${underhoodOpen ? "active" : ""}`}
                     type="button"
-                    title={underhoodOpen ? "Close Control Room" : "Open Control Room"}
-                    aria-label={underhoodOpen ? "Close Control Room panel" : "Open Control Room panel"}
+                    title={underhoodOpen ? t("Close Control Room") : t("Open Control Room")}
+                    aria-label={underhoodOpen ? t("Close Control Room panel") : t("Open Control Room panel")}
                     aria-pressed={underhoodOpen}
                     onClick={() => setUnderhoodOpen((value) => !value)}
                   >
                     <UnderhoodIcon />
-                    <span>Control Room</span>
+                    <span>{t("Control Room")}</span>
                   </button>
                   <button
                     className="draft-toggle-btn"
                     type="button"
-                    title={draftDocked ? "Open draft" : "Dock draft"}
-                    aria-label={draftDocked ? "Open draft" : "Dock draft"}
+                    title={draftDocked ? t("Open draft") : t("Dock draft")}
+                    aria-label={draftDocked ? t("Open draft") : t("Dock draft")}
                     onClick={toggleDraftFromComposer}
                   >
-                    Draft
+                    {t("Draft")}
                   </button>
                 </div>
                 <div className="composer-action-tools">
@@ -4434,9 +4495,9 @@ export default function App() {
                     type="button"
                     title="Create a confirmable card from this wording"
                     onClick={addComposerAsCard}
-                    disabled={loading || !input.trim()}
+                      disabled={readOnly || loading || !input.trim()}
                   >
-                    Add as card
+                    {t("Add as card")}
                   </button>
                   <button
                     className={`mic-btn ${speech.listening ? "live" : ""}`}
@@ -4444,19 +4505,19 @@ export default function App() {
                     title={
                       speech.supported
                         ? speech.listening
-                          ? "Stop voice dictation"
-                          : "Start voice dictation"
-                        : "Voice dictation is unavailable in this browser"
+                          ? t("Stop voice dictation")
+                          : t("Start voice dictation")
+                        : t("Voice dictation is unavailable in this browser")
                     }
                     aria-label={
                       speech.supported
                         ? speech.listening
-                          ? "Stop voice dictation"
-                          : "Start voice dictation"
-                        : "Voice dictation is unavailable in this browser"
+                          ? t("Stop voice dictation")
+                          : t("Start voice dictation")
+                        : t("Voice dictation is unavailable in this browser")
                     }
                     aria-pressed={speech.listening}
-                    disabled={!speech.supported || loading}
+                    disabled={readOnly || !speech.supported || loading}
                     onClick={() => {
                       if (speech.listening) {
                         speech.stop();
@@ -4467,13 +4528,13 @@ export default function App() {
                   >
                     <MicIcon />
                   </button>
-                  <button className="send-btn" onClick={() => void send()} disabled={loading || !input.trim()}>
+                  <button className="send-btn" onClick={() => void send()} disabled={readOnly || loading || !input.trim()} aria-label={t("Send")}>
                     {"\u2191"}
                   </button>
                 </div>
               </div>
             </div>
-            <div className="input-hint">Enter to send {"\u00b7"} Shift+Enter for newline</div>
+            <div className="input-hint">{t("Enter to send")} {"\u00b7"} {t("Shift+Enter for newline")}</div>
           </div>
         </div>
 
@@ -4486,9 +4547,9 @@ export default function App() {
             className="draft-chip"
             style={{ left: draftPos.x, top: draftPos.y }}
             onMouseDown={onChipMouseDown}
-            title="Open draft - drag to move, click to expand"
+            title={t("Open draft - drag to move, click to expand")}
           >
-            <span className="draft-chip-label">DRAFT</span>
+            <span className="draft-chip-label">{t("DRAFT")}</span>
             {highlightAnchor && <span className="draft-chip-dot" aria-label="anchored" />}
           </button>
         ) : (
@@ -4503,14 +4564,14 @@ export default function App() {
           }}
         >
           <div className="draft-panel-header" onMouseDown={onDragStart}>
-            <span className="draft-panel-title">Draft</span>
+            <span className="draft-panel-title">{t("Draft")}</span>
             <button
               className="draft-panel-btn"
               type="button"
               onClick={() => setDraftDocked(true)}
-              title="Dock the draft into the map toolbar"
+              title={t("Dock the draft into the map toolbar")}
             >
-              Dock
+              {t("Dock")}
             </button>
             <button
               className="draft-panel-btn draft-panel-btn-icon"
@@ -4520,8 +4581,8 @@ export default function App() {
                 if (back) setDraftPos(clampBoxPosition(back, DRAFT_CHIP_WIDTH, DRAFT_CHIP_HEIGHT));
                 setDraftCollapsed(true);
               }}
-              aria-label="Collapse draft"
-              title="Collapse to icon"
+              aria-label={t("Collapse draft")}
+              title={t("Collapse to icon")}
             >
               <span className="draft-chevron-down" aria-hidden="true" />
             </button>
@@ -4556,11 +4617,11 @@ export default function App() {
                 <div
                   ref={draftRef}
                   className="draft-editor"
-                  contentEditable
+                  contentEditable={!readOnly}
                   suppressContentEditableWarning
                   role="textbox"
                   aria-multiline="true"
-                  data-placeholder="Paste or type your draft here..."
+                  data-placeholder={t("Paste or type your draft here...")}
                   onMouseDown={() => setHighlightAnchor(undefined)}
                   onInput={handleDraftInput}
                   onSelect={updateDraftSelectionFocus}
@@ -4590,13 +4651,13 @@ export default function App() {
                   type="button"
                   className="map-draft-dock"
                   onMouseDown={onDockedDraftMouseDown}
-                  title="Click to open draft, or drag out to undock"
+                  title={t("Click to open draft, or drag out to undock")}
                 >
-                  <span className="map-draft-dock-label">DRAFT</span>
+                  <span className="map-draft-dock-label">{t("DRAFT")}</span>
                   {highlightAnchor && <span className="map-draft-dock-dot" aria-hidden="true" />}
                 </button>
                 ) : (
-                  <span className="map-draft-slot-label">Draft</span>
+                  <span className="map-draft-slot-label">{t("Draft")}</span>
                 )}
               </div>
             }
@@ -4605,20 +4666,22 @@ export default function App() {
             contextSelectedCardIds={contextSelectedCardIds}
             revision={mapRevision}
             requireConnectionLabel={requireConnectionLabel}
-            onRequireConnectionLabelChange={setRequireConnectionLabel}
+            onRequireConnectionLabelChange={changeConnectionSetting}
             canUndo={canUndoMap}
             onUndo={undoMapChange}
             onClearDraft={clearDraftOnly}
             onClearMap={clearMapOnly}
             onContextCardToggle={toggleContextCard}
             onClearContextSelection={clearContextSelection}
-            onBeforeMapChange={captureMapUndo}
+            onBeforeMapChange={captureUserMapUndo}
             onStoreChange={markUserMapChanged}
           />
           <UnderTheHoodPanel
             snapshot={understandingSnapshot}
             onDraftAnchor={revealDraftAnchor}
-            onRequestMode={requestMode}
+            onRequestMode={(mode) => {
+              if (mutationAccess.allows("conversation_continue")) void requestMode(mode);
+            }}
             onDismissIdea={dismissTrackedIdea}
             onRestoreIdea={restoreTrackedIdea}
             busy={loading}
@@ -4656,8 +4719,9 @@ export function InfluenceBadge({ influence }: { influence?: import("./assistance
 }
 
 export function AssistantResponseKindBadge({ kind }: { kind?: AssistantResponse["kind"] }) {
-  if (kind === "suggestion") return <span className="ai-suggestion-badge">AI suggestion</span>;
-  if (kind === "grounded_recap") return <span className="stance-chip">recap from your words</span>;
+  const { t } = useUiLocale();
+  if (kind === "suggestion") return <span className="ai-suggestion-badge">{t("AI suggestion")}</span>;
+  if (kind === "grounded_recap") return <span className="stance-chip">{t("recap from your words")}</span>;
   return null;
 }
 
@@ -4670,14 +4734,16 @@ export function MirrorCard({
   onDecide: (claimId: string, decision: "confirmed" | "declined") => void;
   onEdit: (claimId: string, text: string) => void;
 }) {
+  const { t } = useUiLocale();
+  const readOnly = useMutationAccess().mode === "translated_view";
   if (proposal.detail.kind !== "reflection") return null;
-  if (proposal.state === "invalidated") return <div className="mirror-card"><span className="mirror-card-label">This proposal is no longer valid: {proposal.invalidReason}</span></div>;
+  if (proposal.state === "invalidated") return <div className="mirror-card"><span className="mirror-card-label">{t("This proposal is no longer valid:")} {proposal.invalidReason}</span></div>;
   if (proposal.state === "confirmed" || proposal.state === "declined" || proposal.state === "cancelled") return null;
   const reflection = proposal.detail;
   return (
     <div className="mirror-card">
       <div className="mirror-card-head">
-        <span className="mirror-card-label">Here&apos;s the structure in your words — edit if needed, then confirm</span>
+        <span className="mirror-card-label">{t("Here's the structure in your words — edit if needed, then confirm")}</span>
         <InfluenceBadge influence={proposal.influenceTrace} />
       </div>
       <div className="mirror-claims">
@@ -4691,6 +4757,7 @@ export function MirrorCard({
                 <textarea
                   className="claim-text claim-editor"
                   value={text}
+                  readOnly={readOnly}
                   rows={Math.max(5, Math.min(10, text.split(/\n/).length + Math.ceil(text.length / 42)))}
                   onChange={(event) => onEdit(claim.id, event.target.value)}
                   aria-label={`Editable mirrored wording ${claimNumber}`}
@@ -4702,23 +4769,24 @@ export function MirrorCard({
                 <div className="claim-btns">
                   <button
                     className="btn btn-confirm-sm"
-                    disabled={!text.trim()}
+                    disabled={readOnly || !text.trim()}
                     onClick={() => onDecide(claim.id, "confirmed")}
                     aria-label={`Confirm mirrored wording ${claimNumber}`}
                   >
-                    Yes
+                    {t("Yes")}
                   </button>
                   <button
                     className="btn btn-decline-sm"
+                    disabled={readOnly}
                     onClick={() => onDecide(claim.id, "declined")}
                     aria-label={`Reject mirrored wording ${claimNumber}`}
                   >
-                    Not quite
+                    {t("Not quite")}
                   </button>
                 </div>
               ) : (
                 <span className={`claim-badge ${decision}`}>
-                  {decision === "confirmed" ? " confirmed" : " not quite"}
+                  {decision === "confirmed" ? t("confirmed") : t("not quite")}
                 </span>
               )}
             </div>
@@ -4781,18 +4849,20 @@ export function MapActionProposalCard({
   onEdit: (id: string, action: ProposedAction) => void;
   onDecide: (id: string, decision: "confirmed" | "declined") => void;
 }) {
+  const { t } = useUiLocale();
+  const readOnly = useMutationAccess().mode === "translated_view";
   if (proposal.detail.kind !== "map_action") return null;
   const { action } = proposal.detail;
   const completion = proposal.detail.completion;
   if (proposal.state === "confirmed" || proposal.state === "declined" || proposal.state === "cancelled") return null;
   if (proposal.state === "invalidated") {
-    return <div className="mirror-card"><span className="mirror-card-label">This proposal is no longer valid: {proposal.invalidReason}</span></div>;
+    return <div className="mirror-card"><span className="mirror-card-label">{t("This proposal is no longer valid:")} {proposal.invalidReason}</span></div>;
   }
   const visibleCards = completion?.kind === "reference_choice"
     ? cards.filter((card) => completion.candidates.some((candidate) => candidate.id === card.id))
     : cards;
   const cardOptions = (
-    <option value="">Choose an existing card…</option>
+    <option value="">{t("Choose an existing card…")}</option>
   );
   const selectRef = (
     value: string | undefined,
@@ -4801,18 +4871,18 @@ export function MapActionProposalCard({
   ) => (
     <label className="claim-row">
       <span className="claim-text">{label}</span>
-      <select value={value ?? ""} onChange={(event) => onChange(event.target.value)}>
+      <select disabled={readOnly} value={value ?? ""} onChange={(event) => onChange(event.target.value)}>
         {cardOptions}
-        {visibleCards.map((card) => <option key={card.id} value={card.id}>{card.text || "Untitled card"}</option>)}
+        {visibleCards.map((card) => <option key={card.id} value={card.id}>{card.text || t("Untitled card")}</option>)}
       </select>
     </label>
   );
   const renderEditor = () => {
     if (action.kind === "create_card") {
-      return <textarea className="claim-text claim-editor" value={action.text} rows={3} onChange={(event) => onEdit(proposal.id, { ...action, text: event.target.value })} />;
+      return <textarea className="claim-text claim-editor" readOnly={readOnly} value={action.text} rows={3} onChange={(event) => onEdit(proposal.id, { ...action, text: event.target.value })} />;
     }
     if (action.kind === "edit_card") {
-      return <textarea className="claim-text claim-editor" value={action.text} rows={3} onChange={(event) => onEdit(proposal.id, { ...action, text: event.target.value })} />;
+      return <textarea className="claim-text claim-editor" readOnly={readOnly} value={action.text} rows={3} onChange={(event) => onEdit(proposal.id, { ...action, text: event.target.value })} />;
     }
     if (action.kind === "nest_card") {
       return <>
@@ -4823,7 +4893,7 @@ export function MapActionProposalCard({
     return <>
       {selectRef(action.source.id, (id) => onEdit(proposal.id, { ...action, source: { id } }), "From")}
       {selectRef(action.target.id, (id) => onEdit(proposal.id, { ...action, target: { id } }), "To")}
-      <textarea className="claim-text claim-editor" value={action.labelText ?? ""} placeholder="Relationship wording" rows={2} onChange={(event) => onEdit(proposal.id, { ...action, labelText: event.target.value, labelOrigin: action.labelOrigin === "ai_suggested" ? "ai_suggested" : "user_asserted" })} />
+      <textarea className="claim-text claim-editor" readOnly={readOnly} value={action.labelText ?? ""} placeholder={t("Relationship wording")} rows={2} onChange={(event) => onEdit(proposal.id, { ...action, labelText: event.target.value, labelOrigin: action.labelOrigin === "ai_suggested" ? "ai_suggested" : "user_asserted" })} />
       {completion?.kind === "relationship_label" && completion.options.length > 0 && (
         <div className="claim-btns">
           {completion.options.map((option, index) => <button key={`${option.text}-${index}`} className="btn btn-decline-sm" onClick={() => onEdit(proposal.id, { ...action, labelText: option.text, labelSourceUtteranceIds: option.sourceUtteranceIds, labelOrigin: option.origin })}>{option.origin === "ai_suggested" ? `AI suggestion: ${option.text}` : option.text}</button>)}
@@ -4839,13 +4909,13 @@ export function MapActionProposalCard({
   return (
     <div className="mirror-card">
       <div className="mirror-card-head">
-        <span className="mirror-card-label">{proposal.origin === "ai_suggested" ? "AI suggestion — review before adding" : "Review this map change"}</span>
+        <span className="mirror-card-label">{proposal.origin === "ai_suggested" ? t("AI suggestion — review before adding") : t("Review this map change")}</span>
         <InfluenceBadge influence={proposal.influenceTrace} />
       </div>
       {renderEditor()}
       <div className="claim-btns">
-        <button className="btn btn-confirm-sm" disabled={!complete} onClick={() => onDecide(proposal.id, "confirmed")}>Confirm</button>
-        <button className="btn btn-decline-sm" onClick={() => onDecide(proposal.id, "declined")}>Dismiss</button>
+        <button className="btn btn-confirm-sm" disabled={readOnly || !complete} onClick={() => onDecide(proposal.id, "confirmed")}>{t("Confirm")}</button>
+        <button className="btn btn-decline-sm" disabled={readOnly} onClick={() => onDecide(proposal.id, "declined")}>{t("Dismiss")}</button>
       </div>
     </div>
   );
