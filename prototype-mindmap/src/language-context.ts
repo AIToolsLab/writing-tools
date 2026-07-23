@@ -1,3 +1,5 @@
+import { CJK_SCRIPT_RE } from "./unicode-scripts";
+
 /**
  * Conversational language hints are deliberately separate from evidence and
  * grounding. They may help the coach choose a natural reply register, but never
@@ -18,7 +20,7 @@ type ScriptFamily = "cjk" | "latin" | "arabic" | "cyrillic" | "hebrew" | "devana
 const LETTER = /\p{L}/u;
 const SCRIPT_FAMILIES: ReadonlyArray<readonly [ScriptFamily, RegExp]> = [
   // Han commonly co-occurs with Kana, Hangul, or Bopomofo in one language.
-  ["cjk", /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\p{Script=Bopomofo}]/u],
+  ["cjk", CJK_SCRIPT_RE],
   ["latin", /\p{Script=Latin}/u],
   ["arabic", /\p{Script=Arabic}/u],
   ["cyrillic", /\p{Script=Cyrillic}/u],

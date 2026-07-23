@@ -5,7 +5,10 @@
  */
 
 export interface MirrorThresholds {
-  /** Minimum grounding ratio for each cited source span. */
+  /**
+   * Minimum same-utterance coverage for relational claims. Evidence phrases
+   * themselves are exact-present or absent and therefore score only 1 or 0.
+   */
   spanGroundingMin: number;
 }
 
