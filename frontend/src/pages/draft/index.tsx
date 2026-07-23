@@ -3,14 +3,7 @@
  */
 
 import { streamText, type ModelMessage } from 'ai';
-import {
-	useCallback,
-	useContext,
-	useEffect,
-	useEffectEvent,
-	useRef,
-	useState,
-} from 'react';
+import { useCallback, useContext, useRef, useState } from 'react';
 import { Remark } from 'react-remark';
 import { draftLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
@@ -19,6 +12,7 @@ import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import { iconFunc } from './iconFunc';
+import { useResettableInterval } from './useResettableInterval';
 import classes from './styles.module.css';
 
 const visibleNameForMode = {
@@ -190,35 +184,6 @@ function SavedGenerations({
 			))}
 		</div>
 	);
-}
-
-/**
- * Call a callback function at a specified interval, with the ability to reset the interval.
- *
- * @param callback The function to be called on each interval.
- * @param interval The interval duration in milliseconds.
- * @returns A function to reset the interval.
- */
-function useResettableInterval(callback: () => void, interval: number) {
-	// `callback` changes identity on every render, but it should NOT resubscribe the
-	// interval. useEffectEvent gives us a stable tick that always invokes the latest
-	// callback, so the effect depends only on the actual reactive inputs. This replaces
-	// the old callbackRef + mirror-effect dance (fragile: easy to read a stale ref).
-	const onTick = useEffectEvent(callback);
-
-	// Reset re-runs the effect (tearing down and recreating the interval) by bumping a
-	// nonce, keeping every setInterval call inside the single effect.
-	const [resetNonce, setResetNonce] = useState(0);
-
-	useEffect(() => {
-		if (interval <= 0) return;
-		const timer = setInterval(() => {
-			onTick();
-		}, interval);
-		return () => clearInterval(timer);
-	}, [interval, resetNonce]);
-
-	return useCallback(() => setResetNonce((n) => n + 1), []);
 }
 
 export default function Draft() {
