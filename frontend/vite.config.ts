@@ -1,4 +1,4 @@
-import { defineConfig, Plugin } from 'vite';
+import { defineConfig, type Plugin, type UserConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
 import fs from 'fs';
@@ -40,7 +40,7 @@ function manifestPlugin(): Plugin {
 	};
 }
 
-export default defineConfig(async ({ mode }) => {
+export default defineConfig(async ({ mode }): Promise<UserConfig> => {
 	const isDev = mode === 'development';
 
 	// Shared compile-time substitutions, declared once so the two build targets can
