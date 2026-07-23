@@ -339,6 +339,34 @@ the two checkpoint-1 carry-forwards: gateway-level read-only enforcement +
 user-visible rejection feedback, and the `source.json`/`zh.json`
 "Enter to send" dedupe.
 
+**Control Room in the translated view — RATIFIED 2026-07-23.** The Control
+Room is a *mixed* surface; do not blanket-translate it. Split by layer:
+
+- **Translate (it is chrome):** app-authored narration and labels — section
+  titles ("What mattered this turn"), causal-event titles ("Idea is ready to
+  reflect"), safety-check copy, buttons. Same category as the rest of the
+  interface; a reader gets it in their language so the panel is not
+  conspicuously untranslated.
+- **Leave byte-for-byte (it is the audit layer, not presentation):** machine
+  codes (`lexical_grounding`, `reflection_validation_failed`, …) are
+  identifiers, not prose, and the honest-to-user / jargon-in-Control-Room
+  split already puts raw technical truth here; **evidence snippets** are the
+  writer's verbatim words shown *as proof* that an exact string grounded a
+  claim — translating one falsifies the audit (it would assert the validator
+  matched text it never saw) and violates the §8 rule that quoted user
+  wording is never translated; payloads are the literal record likewise.
+
+Rationale: reading surfaces (cards, chat, map, proposals) translate as
+*presentation* for comprehension, kept honest by the read-only lock. The
+Control Room's job is *fidelity*, not comprehension — the reader understands
+the map through the translated cards, not through the Control Room, which is
+the proof layer behind them. Proof you have translated is no longer proof.
+
+**Deferred nicety (not v1):** where a reader needs the meaning of a raw
+snippet, show a translation as a *gloss beside* the verbatim (tooltip /
+subtext), never replacing it — the same "label it, don't launder it" pattern
+as the `ai_translated` card.
+
 **The read-only dividing line (philosophy, binding):** the lock follows
 *whose words are displayed non-authoritatively*. Translating AI-authored
 chrome or speech never requires a lock; the moment **user words** are

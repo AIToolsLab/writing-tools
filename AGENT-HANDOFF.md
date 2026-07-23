@@ -194,6 +194,16 @@ each item will touch.
    user-visible rejection feedback, and the `source.json`/`zh.json`
    "Enter to send" dedupe.
 
+   *Control Room in the translated view (ratified):* it is a mixed surface —
+   translate app-authored narration/labels/section-titles (chrome), but
+   leave machine codes, evidence snippets, and payloads **byte-for-byte**.
+   Evidence snippets are verbatim user words shown as audit proof;
+   translating one falsifies the audit and breaks the §8 no-translated-user-
+   wording rule. Reading surfaces translate for comprehension; the Control
+   Room is the fidelity/proof layer and stays raw. Verbatim-with-optional-
+   gloss (tooltip beside, never replacing) is deferred, not v1. Full spec in
+   pass doc §8 4b.
+
    **Considered and REJECTED (do not re-propose without new evidence):** a
    third "coach-language" mode (chrome + coach speech translated, user words
    untouched, editable). The mainstream case is already covered — the coach
