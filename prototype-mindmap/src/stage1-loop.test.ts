@@ -256,6 +256,41 @@ describe("typed Stage 1 controller", () => {
     expect(l1.proposal?.origin).toBe("ai_connected");
   });
 
+  it("keeps cross-language synthesis behind the same L0/L1 provenance boundary", async () => {
+    const makeState = () => {
+      const state = createConversationState();
+      state.bank.addSegmented("human control", "chat");
+      state.bank.addSegmented("写作自由", "chat");
+      return state;
+    };
+    const responseFor = (context: import("./llm-contract").LLMContext) => {
+      const chat = context.bank.filter((utterance) => utterance.origin === "chat");
+      return {
+        response: { kind: "reflection" as const, text: "human control 写作自由", reflection: { claims: [{
+          id: "cross-language", candidateId: "cross-language", target: "idea" as const, text: "human control 写作自由",
+          sourceSpans: [
+            { claimText: "human control", userPhrase: "human control", utteranceIds: [chat[0]!.id] },
+            { claimText: "写作自由", userPhrase: "写作自由", utteranceIds: [chat[1]!.id] },
+          ],
+        }] } },
+        advisory: { candidateUpserts: [{ id: "cross-language", target: "idea" as const, gist: "cross-language", addEvidenceIds: chat.map((utterance) => utterance.id), status: "active" as const }] },
+      };
+    };
+
+    const l0State = makeState();
+    const l0Store = new ThoughtUnitStore();
+    const l0Model = vi.fn(async (context: import("./llm-contract").LLMContext, rejection?: import("./assistant-response").StructuredRejection) =>
+      rejection ? { response: { kind: "question" as const, text: "这两部分怎样联系？" } } : responseFor(context));
+    const l0 = await processTurn(l0State, "", l0Model, defaultConfig, l0Store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store: l0Store, contract: ASSISTANCE_CONTRACTS[0] });
+    expect(l0Model.mock.calls[1]?.[1]).toMatchObject({ code: "reflection_connects_turns_at_l0" });
+    expect(l0.response).toMatchObject({ kind: "question" });
+
+    const l1State = makeState();
+    const l1Store = new ThoughtUnitStore();
+    const l1 = await processTurn(l1State, "", async (context) => responseFor(context), defaultConfig, l1Store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store: l1Store, contract: ASSISTANCE_CONTRACTS[1] });
+    expect(l1.proposal).toMatchObject({ origin: "ai_connected", state: "shown" });
+  });
+
   it("keeps sentence pieces from one user turn user_asserted", async () => {
     const state = createConversationState();
     state.bank.addSegmented("language communicates ideas imperfectly. memories contribute to meaning.", "chat");
@@ -454,6 +489,58 @@ describe("typed Stage 1 controller", () => {
     expect(result.response).toMatchObject({ kind: "reflection" });
     expect(result.proposal).toMatchObject({ origin: "user_asserted", state: "shown" });
     expect(result.terminal).toBeUndefined();
+  });
+
+  it("repairs a Chinese paraphrase into an exact original-language reflection", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (context, rejection) => {
+      const sourceId = context.bank[0]!.id;
+      const text = rejection ? "语言塑造思想" : "语言改变认知";
+      return {
+        response: {
+          kind: "reflection" as const,
+          text,
+          reflection: { claims: [{
+            id: "c-zh", text, candidateId: "c-zh", target: "idea" as const,
+            sourceSpans: [{ claimText: text, userPhrase: "语言塑造思想", utteranceIds: [sourceId] }],
+          }] },
+        },
+        advisory: { candidateUpserts: [{ id: "c-zh", target: "idea" as const, gist: "语言与思想", addEvidenceIds: [sourceId], status: "active" as const }] },
+      };
+    });
+
+    const result = await processTurn(state, "语言塑造思想", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+
+    expect(model).toHaveBeenCalledTimes(2);
+    expect(model.mock.calls[1]?.[1]?.reflectionRecovery?.ungroundedContentWords).toEqual(["改变", "认知"]);
+    expect(result.response).toMatchObject({ kind: "reflection", text: "语言塑造思想" });
+    expect(result.proposal).toMatchObject({ origin: "user_asserted", state: "shown" });
+  });
+
+  it("repairs a translated Chinese mirror into a context-specific Chinese question", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (context, rejection) => {
+      if (rejection) return { response: { kind: "question" as const, text: "语言怎样塑造你的思想？", stance: "deepen" as const } };
+      const sourceId = context.bank[0]!.id;
+      return {
+        response: {
+          kind: "reflection" as const,
+          text: "language shapes thought",
+          reflection: { claims: [{
+            id: "c-zh", text: "language shapes thought", candidateId: "c-zh", target: "idea" as const,
+            sourceSpans: [{ claimText: "language shapes thought", userPhrase: "语言塑造思想", utteranceIds: [sourceId] }],
+          }] },
+        },
+      };
+    });
+
+    const result = await processTurn(state, "语言塑造思想", model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+
+    expect(model).toHaveBeenCalledTimes(2);
+    expect(result.response).toMatchObject({ kind: "question", text: "语言怎样塑造你的思想？" });
+    expect(result.proposal).toBeUndefined();
   });
 
   it("rejects the reported writer-for-I authorship leak with the exact unsupported word", async () => {
@@ -920,6 +1007,87 @@ describe("typed Stage 1 controller", () => {
     expect(result.response).toMatchObject({ kind: "map_proposal" });
     expect(result.proposal).toMatchObject({ state: "shown", origin: "ai_suggested", contract: { level: 2 } });
     expect(store.getAll()).toHaveLength(0);
+  });
+
+  it("returns an explicitly attributed translation without harvesting it into source, candidates, or map state", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const request = "Please translate 人类控制 into English.";
+    const result = await processTurn(state, request, async (context) => {
+      const source = context.bank.find((utterance) => utterance.text.includes("人类控制"))!;
+      return { response: {
+        kind: "translation" as const,
+        text: "human control",
+        sourceEvidence: [{ utteranceIds: [source.id], userPhrase: "人类控制" }],
+        targetLanguage: "English",
+        translatedText: "human control",
+        provenance: "ai_translated" as const,
+      } };
+    }, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[0] });
+
+    expect(result.response).toMatchObject({ kind: "translation", text: "human control", provenance: "ai_translated" });
+    expect(result.proposal).toBeUndefined();
+    expect(state.bank.getAll().map((utterance) => utterance.text)).toEqual([request]);
+    expect(state.bank.getAll().some((utterance) => utterance.text === "human control")).toBe(false);
+    expect(state.candidates.getAll()).toHaveLength(0);
+    expect(store.getAll()).toHaveLength(0);
+  });
+
+  it("repairs a translation whose claimed source phrase is not exact and keeps its text out of authored state", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const model = vi.fn(async (_context: import("./llm-contract").LLMContext, rejection?: import("./assistant-response").StructuredRejection) => {
+      if (rejection) return { response: { kind: "question" as const, text: "Which passage should I translate?" } };
+      return { response: {
+        kind: "translation" as const,
+        text: "human control",
+        sourceEvidence: [{ utteranceIds: ["missing"], userPhrase: "人类控制" }],
+        targetLanguage: "English",
+        translatedText: "human control",
+        provenance: "ai_translated" as const,
+      } };
+    });
+
+    const request = "Please translate 人类控制 into English.";
+    const result = await processTurn(state, request, model, defaultConfig, store.toLLMContext(), { mapRevision: 0, requireConnectionLabel: true, store });
+    expect(model.mock.calls[1]?.[1]).toMatchObject({ code: "translation_evidence_not_exact" });
+    expect(result.response).toMatchObject({ kind: "question" });
+    expect(state.bank.getAll().map((utterance) => utterance.text)).toEqual([request]);
+    expect(state.candidates.getAll()).toHaveLength(0);
+    expect(store.getAll()).toHaveLength(0);
+  });
+
+  it("keeps a novel cross-language relationship visibly AI-suggested at L2", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const english = state.bank.add("human control", "chat");
+    const chinese = state.bank.add("写作自由", "chat");
+    const relation = state.bank.add("human control 写作自由", "chat");
+    const source = store.addFromUserUtterance(english);
+    const target = store.addFromUserUtterance(chinese);
+
+    const result = await processTurn(
+      state,
+      "",
+      async () => ({ response: {
+        kind: "map_proposal" as const,
+        text: "AI suggestion: review this possible relationship.",
+        action: {
+          kind: "connect_cards" as const,
+          source: { id: source.id },
+          target: { id: target.id },
+          labelText: "supports",
+          relationEvidence: { utteranceId: relation.id, text: relation.text },
+        },
+      } }),
+      defaultConfig,
+      store.toLLMContext(),
+      { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[2] },
+    );
+
+    expect(result.response).toMatchObject({ kind: "map_proposal" });
+    expect(result.proposal).toMatchObject({ origin: "ai_suggested", state: "shown", contract: { level: 2 } });
+    expect(store.snapshot().connections).toHaveLength(0);
   });
 
   it("does not relax reflection faithfulness at L2", async () => {

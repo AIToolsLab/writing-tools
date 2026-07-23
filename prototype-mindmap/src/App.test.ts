@@ -80,6 +80,18 @@ describe("application recovery history", () => {
     ]);
   });
 
+  it("retains an AI translation as assistant output without replacing its original user passage", () => {
+    expect(buildConversationHistory([
+      { id: 1, role: "user", text: "人类控制" },
+      { id: 2, role: "assistant", text: "human control", responseKind: "translation" },
+      { id: 3, role: "user", text: "How does that fit here?" },
+    ])).toEqual([
+      { role: "user", content: "人类控制" },
+      { role: "assistant", content: "human control" },
+      { role: "user", content: "How does that fit here?" },
+    ]);
+  });
+
   it("migrates legacy candidates to fresh active memory and preserves known dismissals", () => {
     expect(deriveCurrentUserTurn([{ turnId: "t_2" }, { turnId: "t_7" }, {}])).toBe(7);
     const migrated = migrateCandidateMemory([{
@@ -119,10 +131,12 @@ describe("proposal UI", () => {
   it("marks AI suggestions and source-backed recaps while omitting unavailable legacy echo percentages", () => {
     act(() => root.render(createElement("div", undefined,
       createElement(AssistantResponseKindBadge, { kind: "suggestion" }),
+      createElement(AssistantResponseKindBadge, { kind: "translation" }),
       createElement(AssistantResponseKindBadge, { kind: "grounded_recap" }),
       createElement(InfluenceBadge, { influence: { exactOverlapPhrases: ["human control"] } }),
     )));
     expect(container.textContent).toContain("AI suggestion");
+    expect(container.textContent).toContain("AI-translated");
     expect(container.textContent).toContain("recap from your words");
     expect(container.textContent).toContain("Echoes coach");
     expect(container.textContent).not.toContain("NaN");

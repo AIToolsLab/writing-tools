@@ -57,6 +57,34 @@ describe("typed assistant response parser", () => {
     if (parsed.response.kind === "grounded_recap") expect(parsed.response.recap.claims[0]).not.toHaveProperty("candidateId");
   });
 
+  it("parses an explicitly attributed translation without a second visible-text field", () => {
+    const parsed = parseAssistantResponse({ response: {
+      kind: "translation",
+      sourceEvidence: [{ utteranceIds: ["u_1"], userPhrase: "人类控制" }],
+      targetLanguage: "English",
+      translatedText: "human control",
+      provenance: "ai_translated",
+    } });
+    expect(parsed.response).toEqual({
+      kind: "translation",
+      text: "human control",
+      sourceEvidence: [{ utteranceIds: ["u_1"], userPhrase: "人类控制" }],
+      targetLanguage: "English",
+      translatedText: "human control",
+      provenance: "ai_translated",
+    });
+  });
+
+  it("rejects translations without the fixed AI-translation provenance", () => {
+    expect(() => parseAssistantResponse({ response: {
+      kind: "translation",
+      sourceEvidence: [{ utteranceIds: ["u_1"], userPhrase: "人类控制" }],
+      targetLanguage: "English",
+      translatedText: "human control",
+      provenance: "user_asserted",
+    } })).toThrow("invalid_translation_payload");
+  });
+
   it("parses structured question and aside recall plus explicit map candidate linkage", () => {
     const recall = { candidateId: "memory", sourceUtteranceId: "u_1", userPhrase: "human control" };
     expect(parseAssistantResponse({ response: { kind: "question", text: "Return to human control?", recall } }).response).toMatchObject({ kind: "question", recall });
@@ -153,12 +181,17 @@ describe("typed assistant response parser", () => {
     expect(second[0].content).toContain("targeted, context-specific question");
     expect(second[0].content).toContain("expose validation");
     expect(second[0].content).toContain("First try a fully grounded mirror");
+    expect(second[0].content).toContain("Do not translate, convert scripts, or modernize quoted evidence.");
     expect(second[0].content).toContain("targeted, context-specific question");
     expect(first[0].content).toContain("Treat the full draft as background context and a user selection as explicit focus.");
     expect(first[0].content).toContain("Use draft anchors selectively, and distinguish model-chosen anchors from user-selected focus.");
     expect(first[0].content).toContain("The interface display locale is never an instruction to translate or change reply language.");
     expect(first[0].content).toContain("Preserve authored passages and quoted evidence in their original language.");
     expect(first[0].content).toContain("Every reflection and grounded recap at every assistance level must be strictly user-word-faithful");
+    expect(first[0].content).toContain("exact original-language userPhrase evidence");
+    expect(first[0].content).toContain("Never translate substantive evidence inside a mirror.");
+    expect(first[0].content).toContain("Only emit a translation response when the user directly asks you to translate.");
+    expect(first[0].content).toContain("Do not create candidates, a proposal, a card, a relationship, or an adoption path from a translation.");
     expect(first[0].content).toContain("Use a grounded recap when conversational consolidation is useful");
     expect(first[0].content).toContain("a reflection may draw from only one recorded user moment");
     expect(first[0].content).toContain("explicitly instructs you to nest one referenced card in another");

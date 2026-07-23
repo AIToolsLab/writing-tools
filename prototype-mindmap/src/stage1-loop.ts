@@ -123,6 +123,15 @@ function contractRejectsResponse(envelope: AssistantResponseEnvelope, contract: 
   if (envelope.response.kind === "grounded_recap" && envelope.advisory?.candidateUpserts?.length) {
     return { code: "grounded_recap_candidate_advisory_not_allowed", detail: "A conversational recap cannot nominate capturable structure." };
   }
+  if (envelope.response.kind === "translation") {
+    if (envelope.advisory?.candidateUpserts?.length || envelope.advisory?.affect) {
+      return { code: "translation_advisory_not_allowed", detail: "An AI translation cannot update candidate or affect bookkeeping." };
+    }
+    const evidenceIsExact = envelope.response.sourceEvidence.every((evidence) => phraseIsExact(evidence.userPhrase, evidence.utteranceIds, bank));
+    if (!evidenceIsExact) {
+      return { code: "translation_evidence_not_exact", detail: "A translation must identify an exact original-language source phrase." };
+    }
+  }
   return undefined;
 }
 

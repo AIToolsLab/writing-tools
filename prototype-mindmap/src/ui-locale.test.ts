@@ -56,6 +56,7 @@ describe("UI locale", () => {
     expect(uiString("Clear map", "zh")).not.toBe("Clear map");
     expect(uiString("CLEAR MAP", "zh")).toBe(uiString("Clear map", "zh"));
     expect(uiString("writer-authored Clear map", "zh")).toBeUndefined();
+    expect(uiString("AI-translated", "zh")).toBe("AI 翻译");
   });
 
   it("has Chinese coverage for every literal explicitly opted into UI localization", () => {

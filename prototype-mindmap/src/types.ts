@@ -76,6 +76,14 @@ export interface SourceSpan {
   userPhrase: string;
 }
 
+/** An exact authored phrase that an AI translation identifies as its source. */
+export interface TranslationEvidencePhrase {
+  /** User utterances containing the untranslated source phrase. */
+  utteranceIds: string[];
+  /** Exact original-language phrase selected for translation. */
+  userPhrase: string;
+}
+
 /** One independently checkable piece of source-backed assistant prose. */
 export interface GroundedClaim {
   id: string;

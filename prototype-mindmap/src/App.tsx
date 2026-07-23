@@ -4724,6 +4724,7 @@ export function InfluenceBadge({ influence }: { influence?: import("./assistance
 export function AssistantResponseKindBadge({ kind }: { kind?: AssistantResponse["kind"] }) {
   const { t } = useUiLocale();
   if (kind === "suggestion") return <span className="ai-suggestion-badge">{t("AI suggestion")}</span>;
+  if (kind === "translation") return <span className="ai-suggestion-badge">{t("AI-translated")}</span>;
   if (kind === "grounded_recap") return <span className="stance-chip">{t("recap from your words")}</span>;
   return null;
 }

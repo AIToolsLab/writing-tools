@@ -37,6 +37,8 @@ describe("provider proposal tools", () => {
     expect(schemas).toContain('"status"');
     expect(schemas).toContain('"recall"');
     expect(schemas).toContain('"grounded_recap"');
+    expect(schemas).toContain('"translation"');
+    expect(schemas).toContain('"ai_translated"');
     expect(schemas).not.toContain("candidateDeletes");
   });
 
