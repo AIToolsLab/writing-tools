@@ -66,6 +66,38 @@ each item will touch.
    *Avoid deep edits to `App.tsx`/`Map.tsx`/`action-gateway.ts` until this
    merges — you will conflict.*
 
+   **Checkpoint 1 review — `f0c99d3` on the feature branch (ACCEPTED
+   2026-07-23).** Independently verified by Claude: `tsc` clean, full 281-test
+   Vitest suite passes (exit 0), `zh.json` covers every `source.json` string
+   (other locales partial by design, degrade to English), `t()` is applied
+   only to UI-string literals in `App.tsx`/`Map.tsx`, and `App.test.ts`
+   covers the key trap — authored text `"Clear map"` stays verbatim while
+   surrounding chrome localizes to 确认, all buttons disabled in
+   `translated_view`. Session schema and provider contracts unchanged
+   (`action-gateway.ts` gained only the `read_only_view` reason code).
+
+   *Carry-forward — fold into the checkpoint that makes `translated_view`
+   reachable (translation overlay); do not rework now:*
+   - **Gateway-level read-only enforcement + rejection feedback.**
+     `translated_view` is latent (`main.tsx` hard-codes `mode="authoring"`;
+     only tests exercise it), and enforcement is ~30 distributed
+     `if (!mutationAccess.allows(...)) return;` call-site checks — a future
+     mutation path that forgets the check silently bypasses policy, and most
+     App-side rejections are silent early-returns (only Map's `dispatchCanvas`
+     returns a localized detail). Before the view ships: (a) also enforce at
+     the gateway/store layer — the `read_only_view` reason code exists but
+     nothing emits it — or add a test enumerating every mutation entry point;
+     (b) give rejected mutations user-visible feedback (reuse the "Switch back
+     to the writing view to edit." pattern).
+   - **Cleanup (anytime):** `source.json` duplicates `"Enter to send"`
+     (lines 35/95), propagated into `zh.json` as a duplicate key — dedupe
+     both. `mutationAccess.run("canvas_edit", captureMapUndo)` (`App.tsx`
+     ~3241) files undo-capture under `canvas_edit`; give it its own intent or
+     reuse `map_undo`. Cosmetic.
+
+   Next: checkpoint 2 (original-language coach context and persistence) per
+   the pass doc.
+
 2. **[SPEC AGREED] Graceful reflection recovery + staged progress** (Parts A+B
    ship together, before the reportable hand-scoring pass). Capped
    mirror → informed-repair → forced-question ladder (≤3 model calls; only the

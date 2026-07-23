@@ -104,6 +104,13 @@ donor's `isReadOnlyView` pattern), covering direct card creation/editing, "Add
 as card", proposal confirmation/editing, nesting and connections, candidate
 restoration/dismissal, and assistance-level continuation actions.
 
+**[STATUS 2026-07-23]** Checkpoint 1 landed as `f0c99d3` on
+`feat/mindmap-multilingual-grounding` and is accepted. Two carry-forward items
+are recorded in `AGENT-HANDOFF.md` under the collision-map entry for this pass
+and belong to the checkpoint that makes `translated_view` reachable:
+gateway-level read-only enforcement + user-visible rejection feedback, and the
+`source.json`/`zh.json` "Enter to send" dedupe.
+
 ## 3. Original multilingual coach context
 
 The coach receives original user content, not derived translations. Add:
