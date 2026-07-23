@@ -185,6 +185,20 @@ each item will touch.
    the user typing/saying it themselves makes it authored; a dedicated
    "adopt this wording" affordance is deferred polish.
 
+   **Checkpoint 3 + 4a status: COMMITTED and ACCEPTED** — `028e430` (grounding
+   profiles) and `6f4d820` (explicit AI translation) as two separate commits;
+   feature branch HEAD is `6f4d820`. 4a independently verified by Claude
+   (`tsc`, 316 tests, build) and audited: `translation` kind typed + allowlisted
+   at L0/L1/L2, `translation_evidence_not_exact` reuses checkpoint-3
+   `containsWholePhrase` so a translation cannot cite a phrase the user did not
+   write, `translation_advisory_not_allowed` blocks candidate/affect bookkeeping,
+   `invalid_translation_text` pins displayed text == `translatedText`, original
+   stays in the SourceBank untouched, visible `AI-translated` badge + dictionary
+   key. Two non-blocking notes: the badge reuses the purple `ai-suggestion-badge`
+   class (give translation a distinct style in the 4b UI pass), and the
+   mention-vs-request precision guardrail is prompt-only pending its Stage 4 eval
+   scenario (owed there, not in 4a).
+
    **4b — reader view.** Everything translated **including user words** →
    read-only, activating `translated_view`. The visible language picker
    lives here (a mode change is a control; a conversational request is not).
@@ -254,6 +268,78 @@ each item will touch.
 7. **[POST-MERGE] `App.tsx` decomposition** (~4,700 lines): `useMindmapSession`
    hook, `session-persistence.ts`, `ControlRoom.tsx` fed by a diagnostics
    selector. Only when no parallel mindmap branch is mid-flight.
+
+8. **[AGREED 2026-07-23 — POST-4b] Checkpoint 6: session digest + donor
+   reclamation.** Reclaim three donor features
+   (`origin/feat/mindmap_translation`, donor-only, never merge) plus one new
+   deliverable. Ranked slices, each landing independently green:
+
+   **6a — `generate-i18n` script (small; may precede 4b, no `App.tsx`
+   touch).** Port `scripts/generate-i18n.mjs` + the `i18n` npm script. It
+   translates `src/i18n/source.json` into every locale via the backend proxy
+   (`npm run i18n [-- --force | <codes>]`). `mindmap-main` has the 34
+   dictionaries but not the generator, so every hand-added chrome key
+   (checkpoints 1/4a already added some) drifts the files out of sync with no
+   tool to regenerate. Low-glamour, high-leverage; port early.
+
+   **6b — session digest engine → Recap panel + exportable report.** ONE pure
+   deterministic function `buildSessionDigest(ledger, mapSnapshot,
+   sourceBank) → Digest`, rendered two ways. Substrate already exists: the
+   `EventLedger` on `mindmap-main` records timestamped typed events
+   (`contract_selected` = level switches, `assistant_response`,
+   `proposal_created/resolved`, `map_mutated`, `candidate_lifecycle_changed`,
+   `suggestion_adoption_changed`, `application_recovery`, `user_message`) with
+   contract snapshot, origin, outcome, response kind, repair count, adoption
+   percentages. Rebuild the donor's deterministic `RecapData` concept on the
+   *current* provenance fields (do not copy donor internals).
+   - **Determinism contract (pin as a test):** pure function of ledger + map
+     + bank, **zero AI calls**; same session in → byte-identical output.
+   - **Zero AI paraphrase (RATIFIED):** no generated prose anywhere, TLDR
+     included. TLDR is **template + deterministic slots** ("14 turns. 6 of 9
+     cards are your words. Worked mostly at L1; switched to L2 at turn 7.").
+     User content appears only as **verbatim extractive snippets**, never
+     paraphrased — a report about authorship must not launder user words
+     through an AI.
+   - **Render target 1 — Recap panel (user-facing, priority).** Live,
+     glanceable Control Room view; both audiences in one panel (writer's
+     trajectory + teacher's authorship/AI-usage split).
+   - **Render target 2 — exportable report (RATIFIED).** Client-side
+     generated from in-memory ledger + state (no backend dependency).
+     **Markdown primary deliverable + optional JSON sidecar**; no PDF/docx.
+     Sections: TLDR (counts + authorship split + level headline) → usage
+     timeline (the `contract_selected` sequence as a turn/level/change table)
+     → thinking trajectory (verbatim user turns) → what was built (cards with
+     provenance) → optional raw appendix. **Audience: both** (one document,
+     both sections — not two exports).
+   - Guardrail: the digest is a faithful mirror of what the ledger already
+     knows. It must never summarize, score, or analyze — the moment it does,
+     it becomes the thing the app resists. Note: an exported copy embeds the
+     user's verbatim words (deliberate deliverable; fine in their own report).
+
+   **6c — compare-3-levels (last; heaviest `App.tsx` surface).** Reclaim the
+   donor's `compareAssistanceLevels` + `comparisonSystemPrompt` + three-hued
+   `.compare3` UI: answer the same user turn once under each of L0/L1/L2, show
+   all three, user selects one to continue. **Surface behind a build-time
+   feature flag** (`config.ts`, e.g. `features.compareLevels`) — surfaced in
+   the UI for demo/dev now, flip the flag to unsurface for prod later (no code
+   removal; same latent-behind-flag pattern as `translated_view`). Rebuild the
+   plumbing on the current runtime: each level's response crosses the current
+   contract allowlist + validator, and "select one" routes the chosen response
+   through the current loop (the donor version predates the typed runtime —
+   concept/prompt/UI reused, plumbing rebuilt). Surface per-level
+   `rejectionReasons` for honesty.
+
+   **6d — port donor e2e specs into checkpoint-5 browser QA.** The donor's
+   `e2e/i18n.spec.ts` + `language.spec.ts` (translated-view read-only, only
+   writer content reaches the engine, dictionary completeness, chrome re-skin
+   without touching the engine) were dropped when `mindmap-main` kept only
+   `smoke.spec.ts`. Adapt them against the current `translated_view` /
+   `mutation-policy` (not the donor's `language.ts`). Fold into checkpoint 5.
+
+   **Explicitly skip (already decided):** `dom-translation.ts` (no DOM
+   MutationObserver layer — pass uses typed lookup), donor `language.ts`
+   write/view model (superseded by `ui-locale` + 4b reader view),
+   `open-threads.ts` (deliberately deleted from `mindmap-main`; do not revive).
 
 ## Deferred (do not start unless asked)
 
