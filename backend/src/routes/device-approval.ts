@@ -72,13 +72,20 @@ const DEVICE_HTML = `<!DOCTYPE html>
     }
 
     async function signIn() {
-      // Return to this same page (without any query) after Google sign-in.
+      // Return to this same page (without any query) after Google sign-in. OAuth
+      // failures come back here too, tagged ?auth_error=1 (errorCallbackURL) —
+      // without it, Better Auth renders its default error page whose "Go Home"
+      // link points at the backend root, a 404 dead end for the user.
       const callbackURL = window.location.origin + window.location.pathname;
       const res = await fetch(BASE + '/api/auth/sign-in/social', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ provider: 'google', callbackURL }),
+        body: JSON.stringify({
+          provider: 'google',
+          callbackURL,
+          errorCallbackURL: callbackURL + '?auth_error=1',
+        }),
       });
       const data = await res.json();
       if (data?.url) window.location.href = data.url;
@@ -103,6 +110,31 @@ const DEVICE_HTML = `<!DOCTYPE html>
       await signIn();
     }
 
+    // Render a device-endpoint failure. Expired/invalid codes replace the
+    // approval UI (retrying a dead code is pointless) with guidance plus a
+    // restart button. Unknown errors leave the Approve/Deny buttons in place so
+    // a transient failure (network blip, momentary 500) stays retryable — the
+    // common case here is a code that expired between the device showing it and
+    // the user clicking Approve (e.g. a slow 2FA detour during Google sign-in).
+    function renderDeviceError(data, action) {
+      const desc = String((data && (data.error_description || data.error)) || '');
+      const codeGone =
+        data?.error === 'expired_token' ||
+        data?.error === 'invalid_request' ||
+        /invalid user code|expired/i.test(desc);
+      if (codeGone) {
+        showContent(); // the Approve/Deny buttons are useless for a dead code
+        setStatus(
+          el('p', 'err', action + ' failed: this code is no longer valid — it likely expired.'),
+          el('p', null, 'Codes only last a few minutes. Start sign-in again in Writing Tools to get a fresh code, then enter it here.'),
+          btn('approve', 'Enter a new code', () => init()),
+        );
+      } else {
+        // Leave content (Approve/Deny) intact so the user can simply retry.
+        setStatus(el('span', 'err', action + ' failed: ' + JSON.stringify(data)));
+      }
+    }
+
     async function approve(userCode) {
       const res = await fetch(BASE + '/api/auth/device/approve', {
         method: 'POST',
@@ -115,7 +147,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
         showContent();
         setStatus(el('p', 'ok', 'Authorization complete. You can close this tab and return to Writing Tools.'));
       } else {
-        setStatus(el('span', 'err', 'Approve failed: ' + JSON.stringify(data)));
+        renderDeviceError(data, 'Approve');
       }
     }
 
@@ -131,7 +163,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
         showContent();
         setStatus(el('p', 'err', 'Authorization denied. The device will not be granted access.'));
       } else {
-        setStatus(el('span', 'err', 'Deny failed: ' + JSON.stringify(data)));
+        renderDeviceError(data, 'Deny');
       }
     }
 
@@ -211,14 +243,26 @@ const DEVICE_HTML = `<!DOCTYPE html>
     }
 
     async function init() {
+      // An OAuth failure routed back via errorCallbackURL lands here with
+      // ?auth_error=1. Show an honest retry UI, and clean the URL so a refresh
+      // doesn't re-show a stale error.
+      const authError = new URLSearchParams(window.location.search).has('auth_error');
+      if (authError) {
+        history.replaceState(null, '', window.location.pathname);
+      }
       const session = await getSession();
       if (!session) {
-        showContent(
+        const nodes = [
           el('p', null, 'Sign in with Google, then enter the code shown in Writing Tools.'),
           btn('approve', 'Sign in with Google', signIn),
-        );
+        ];
+        if (authError) {
+          nodes.unshift(el('p', 'err', "Google sign-in didn't complete. Nothing was authorized — you can try again."));
+        }
+        showContent(...nodes);
         return;
       }
+      setStatus();
       showCodeEntry(session);
     }
 
