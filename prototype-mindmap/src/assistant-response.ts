@@ -81,7 +81,7 @@ export interface ReflectionRecoveryContext {
   rejectedReflections: Array<Extract<AssistantResponse, { kind: "reflection" }>>;
 }
 
-export type TurnProgressStage = "initial_attempt" | "grounding_repair" | "forced_question";
+export type TurnProgressStage = "grounding_repair" | "forced_question";
 
 export interface TurnProgressEvent {
   stage: TurnProgressStage;

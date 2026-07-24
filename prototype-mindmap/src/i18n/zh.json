@@ -160,7 +160,8 @@
   "Connection": "连接",
   "connection": "连接",
   "Delete connection": "删除连接",
-  "Trying to reflect your words...": "正在复述你的话…",
+  "was AI-suggested": "曾由 AI 建议",
+  "Working...": "处理中…",
   "Making sure this stays in your words...": "正在确保内容仍然来自你的话…",
   "Asking a focused question instead...": "改为提出一个聚焦问题…",
   "I couldn’t complete that response reliably. You can rephrase or try again.": "我无法可靠地完成该回复。你可以换一种说法或重试。"

@@ -91,9 +91,9 @@ const DRAFT_MIN_VISIBLE_HEIGHT = 120;
 const DRAFT_CHIP_WIDTH = 56;
 const DRAFT_CHIP_HEIGHT = 44;
 const SESSION_STORAGE_KEY = "prototype-mindmap-session-v1";
+const WORKING_INDICATOR_DELAY_MS = 700;
 
 export const TURN_PROGRESS_COPY: Record<TurnProgressStage, string> = {
-  initial_attempt: "Trying to reflect your words...",
   grounding_repair: "Making sure this stays in your words...",
   forced_question: "Asking a focused question instead...",
 };
@@ -3240,6 +3240,7 @@ export default function App() {
   const [canUndoMap, setCanUndoMap] = useState(false);
   const [commandAck, setCommandAck] = useState<MapCommandAcknowledgement | null>(null);
   const [loading, setLoading] = useState(false);
+  const [showWorking, setShowWorking] = useState(false);
   const [turnProgress, setTurnProgress] = useState<TurnProgressStage | null>(null);
   const [input, setInput] = useState("");
   const [composerScrollable, setComposerScrollable] = useState(false);
@@ -3258,6 +3259,15 @@ export default function App() {
   }, [contract]);
 
   useEffect(() => { msgsRef.current = msgs; }, [msgs]);
+
+  useEffect(() => {
+    if (!loading) {
+      setShowWorking(false);
+      return;
+    }
+    const timer = window.setTimeout(() => setShowWorking(true), WORKING_INDICATOR_DELAY_MS);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
     void recordEvent(persistedSession ? "contract_selected" : "contract_initialized", { reason: persistedSession ? "migration" : "new_session" });
@@ -4070,7 +4080,6 @@ export default function App() {
     setMsgs((prev) => [...prev.filter((message) => message.role !== "application" || message.terminal !== "repair_failed"), userMessage]);
 
     setLoading(true);
-    setTurnProgress("initial_attempt");
     try {
       const workingState = cloneConversationState(stateRef.current);
       void recordEvent("user_message", { text });
@@ -4124,7 +4133,6 @@ export default function App() {
     setError(null);
 
     setLoading(true);
-    setTurnProgress("initial_attempt");
     try {
       const workingState = cloneConversationState(stateRef.current);
       // The Stage 1 loop has no regex-routed forced modes. This remains a
@@ -4494,11 +4502,11 @@ export default function App() {
                   ))}
               </div>
             ))}
-            {loading && turnProgress && (
+            {loading && (turnProgress || showWorking) && (
               <div className="msg assistant">
                 <span className="msg-label">{t("coach")}</span>
                 <div className="msg-bubble" style={{ color: "#aaa", fontStyle: "italic" }}>
-                  {t(TURN_PROGRESS_COPY[turnProgress])}
+                  {t(turnProgress ? TURN_PROGRESS_COPY[turnProgress] : "Working...")}
                 </div>
               </div>
             )}
@@ -4783,14 +4791,18 @@ export default function App() {
  * coach, and the tooltip lists them.
  */
 export function InfluenceBadge({ influence }: { influence?: import("./assistance-contract").InfluenceTrace }) {
+  const { t } = useUiLocale();
   if (!influence || !influence.exactOverlapPhrases.length) return null;
   const pct = Number.isFinite(influence.overlapRatio) ? Math.round(influence.overlapRatio! * 100) : undefined;
+  // A trace that once echoed the coach but now rounds to 0% is a decayed
+  // influence, not a live echo: label it past-tense instead of "· 0%".
+  const label = pct === 0 ? t("was AI-suggested") : `Echoes coach${pct === undefined ? "" : ` · ${pct}%`}`;
   return (
     <span
       className="influence-badge"
       title={`This wording echoes your coach's previous message: "${influence.exactOverlapPhrases.join('", "')}"`}
     >
-      Echoes coach{pct === undefined ? "" : ` · ${pct}%`}
+      {label}
     </span>
   );
 }

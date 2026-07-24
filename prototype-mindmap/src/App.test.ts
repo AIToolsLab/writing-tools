@@ -63,7 +63,6 @@ describe("session migration", () => {
 describe("application recovery history", () => {
   it("uses plain-language copy for each real recovery stage", () => {
     expect(TURN_PROGRESS_COPY).toEqual({
-      initial_attempt: "Trying to reflect your words...",
       grounding_repair: "Making sure this stays in your words...",
       forced_question: "Asking a focused question instead...",
     });

@@ -69,7 +69,7 @@ describe("UI locale", () => {
       for (const match of source.matchAll(/\bt\('([^']+)'\)/g)) keys.add(match[1]);
     }
     [
-      "Trying to reflect your words...",
+      "Working...",
       "Making sure this stays in your words...",
       "Asking a focused question instead...",
       "I couldn’t complete that response reliably. You can rephrase or try again.",

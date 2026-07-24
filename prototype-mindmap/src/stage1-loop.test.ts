@@ -647,7 +647,6 @@ describe("typed Stage 1 controller", () => {
     expect(MAX_MODEL_CALLS_PER_TURN).toBe(3);
     expect(model).toHaveBeenCalledTimes(3);
     expect(progress).toEqual([
-      { stage: "initial_attempt", modelCall: 1 },
       { stage: "grounding_repair", modelCall: 2 },
       { stage: "forced_question", modelCall: 3 },
     ]);
@@ -664,6 +663,30 @@ describe("typed Stage 1 controller", () => {
     expect(result.response).toMatchObject({ kind: "question" });
     expect(result.terminal).toBeUndefined();
     expect(state.candidates.getAll()).toHaveLength(0);
+  });
+
+  it("does not report progress for a successful first model call", async () => {
+    const state = createConversationState();
+    const store = new ThoughtUnitStore();
+    const progress: Array<{ stage: string; modelCall: number }> = [];
+    const model = vi.fn(async () => ({
+      response: {
+        kind: "question" as const,
+        text: "What feels most important to explore next?",
+        stance: "deepen" as const,
+      },
+    }));
+
+    const result = await processTurn(state, "I am weighing two options.", model, defaultConfig, store.toLLMContext(), {
+      mapRevision: 0,
+      requireConnectionLabel: true,
+      store,
+      onProgress: (event) => progress.push(event),
+    });
+
+    expect(model).toHaveBeenCalledTimes(1);
+    expect(progress).toEqual([]);
+    expect(result.response).toMatchObject({ kind: "question" });
   });
 
   it("ends recovery when the forced-question call returns another response kind", async () => {

@@ -442,7 +442,7 @@ export async function processTurn(state: ConversationState, userText: string, mo
   };
 
   try {
-    envelope = await callModel(1, undefined, "initial_attempt");
+    envelope = await callModel(1);
   } catch (error) {
     if (!(error instanceof ModelResponseValidationError)) throw error;
     const detail = error instanceof Error ? error.message : "The provider response could not be parsed.";
