@@ -9,7 +9,11 @@
  * browser at `verification_uri_complete`, which Better Auth builds from the backend's
  * BETTER_AUTH_URL. This module only requests the code and polls for the token.
  */
-import { type ConsentLevel, DEFAULT_CONSENT_LEVEL, isConsentLevel } from '@/consent';
+import {
+	type ConsentLevel,
+	DEFAULT_CONSENT_LEVEL,
+	isConsentLevel,
+} from '@/consent';
 import { SERVER_URL } from './index';
 
 // Supplied at build time via webpack DefinePlugin; must match a value in the backend's
@@ -159,6 +163,12 @@ export interface UserInfo {
 	 * the allowlist policy.
 	 */
 	isAllowed?: boolean;
+	/**
+	 * Demo/anonymous session (see the anonymous plugin in backend/src/auth.ts).
+	 * Surfaces so account/consent surfaces can steer these users to real sign-in
+	 * rather than letting them manage consent on a throwaway identity.
+	 */
+	isAnonymous?: boolean;
 }
 
 /**
@@ -173,6 +183,7 @@ interface GetSessionResponse {
 		name?: string;
 		loggingConsent?: unknown;
 		isAllowed?: unknown;
+		isAnonymous?: unknown;
 	};
 }
 
@@ -204,7 +215,14 @@ export async function fetchUserInfo(
 	if (!data?.user) {
 		throw new Error('get-session: no active session');
 	}
-	const { id, email, name, loggingConsent: raw, isAllowed } = data.user;
+	const {
+		id,
+		email,
+		name,
+		loggingConsent: raw,
+		isAllowed,
+		isAnonymous,
+	} = data.user;
 	return {
 		id,
 		email,
@@ -213,6 +231,7 @@ export async function fetchUserInfo(
 		// normalize server-side, so we replicate that guard client-side.
 		loggingConsent: isConsentLevel(raw) ? raw : DEFAULT_CONSENT_LEVEL,
 		isAllowed: isAllowed === true,
+		isAnonymous: isAnonymous === true,
 	};
 }
 

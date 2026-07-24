@@ -60,8 +60,9 @@ export const auth = betterAuth({
 	secret: betterAuthSecret(),
 	trustedOrigins: betterAuthTrustedOrigins(),
 	// Logging-consent level lives on the user record so it's available on every
-	// session. Server-controlled (`input: false`): set only via auth.api.updateUser
-	// from our /api/me/consent route, never accepted from sign-up input. The enum and
+	// session. Server-controlled (`input: false`): set only via the internal adapter
+	// from our /api/me/consent route (the public updateUser endpoint rejects
+	// input:false fields at runtime), never accepted from sign-up input. The enum and
 	// default come straight from consent.ts (the single source of truth). New users
 	// default to 'usage' (content-free); content logging requires opting up.
 	user: {

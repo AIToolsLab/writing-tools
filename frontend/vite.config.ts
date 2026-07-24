@@ -36,7 +36,7 @@ function manifestPlugin(): Plugin {
 					.replace(new RegExp(urlDev, 'g'), urlProd);
 			}
 			fs.writeFileSync(manifestPath, content);
-		}
+		},
 	};
 }
 
@@ -117,7 +117,7 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => {
 			httpsOptions = {
 				key: serverOptions.key,
 				cert: serverOptions.cert,
-				ca: serverOptions.ca
+				ca: serverOptions.ca,
 			};
 		} catch (error) {
 			console.warn('Failed to get HTTPS options, using HTTP:', error);
@@ -142,32 +142,33 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => {
 					taskpane: path.resolve(__dirname, 'taskpane.html'),
 					editor: path.resolve(__dirname, 'editor.html'),
 					logs: path.resolve(__dirname, 'logs.html'),
-					commands: path.resolve(__dirname, 'commands.html')
+					commands: path.resolve(__dirname, 'commands.html'),
+					account: path.resolve(__dirname, 'account.html'),
 				},
 				output: {
 					manualChunks: {
-						'react-vendor': ['react', 'react-dom']
-					}
-				}
-			}
+						'react-vendor': ['react', 'react-dom'],
+					},
+				},
+			},
 		},
 		server: {
 			port: 3000,
 			https: httpsOptions,
 			cors: true,
 			headers: {
-				'Access-Control-Allow-Origin': '*'
+				'Access-Control-Allow-Origin': '*',
 			},
 			proxy: {
 				'/api': {
 					target: backendDev,
 					changeOrigin: true,
-					secure: false
-				}
-			}
+					secure: false,
+				},
+			},
 		},
 		optimizeDeps: {
-			include: ['react', 'react-dom']
-		}
+			include: ['react', 'react-dom'],
+		},
 	};
 });

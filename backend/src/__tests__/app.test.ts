@@ -19,12 +19,21 @@ function makeAuthApp(user: { id: string; loggingConsent?: string } | null) {
 	};
 	const auth = {
 		handler: async () => new Response(null),
+		// The consent route writes through internalAdapter, not api.updateUser
+		// (see app.ts for why: the public updateUser rejects input:false fields at
+		// runtime). This mock therefore exposes internalAdapter.updateUser and
+		// deliberately omits api.updateUser, matching what the live route can and
+		// cannot call.
+		$context: Promise.resolve({
+			internalAdapter: {
+				updateUser: async (userId: string, data: unknown) => {
+					calls.updateUser.push({ userId, data });
+					return {};
+				},
+			},
+		}),
 		api: {
 			getSession: async () => (user ? { user } : null),
-			updateUser: async (args: unknown) => {
-				calls.updateUser.push(args);
-				return { status: true };
-			},
 			deleteUser: async (args: unknown) => {
 				calls.deleteUser.push(args);
 				return { success: true, message: 'ok' };
@@ -195,7 +204,12 @@ describe('POST /api/me/consent', () => {
 		});
 		expect(good.status).toBe(200);
 		expect(await good.json()).toEqual({ loggingConsent: 'ai_output' });
-		expect(calls.updateUser).toHaveLength(1);
+		expect(calls.updateUser).toEqual([
+			{
+				userId: 'usr-1',
+				data: expect.objectContaining({ loggingConsent: 'ai_output' }),
+			},
+		]);
 	});
 
 	it('401s without a session', async () => {

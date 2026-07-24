@@ -5,11 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../index', () => ({ SERVER_URL: '/api' }));
 
 import { DEFAULT_CONSENT_LEVEL } from '@/consent';
-import {
-	pollForToken,
-	requestDeviceCode,
-	fetchUserInfo,
-} from '../deviceAuth';
+import { pollForToken, requestDeviceCode, fetchUserInfo } from '../deviceAuth';
 
 type Json = Record<string, unknown>;
 const resp = (data: Json, ok = false) =>
@@ -35,7 +31,8 @@ describe('requestDeviceCode', () => {
 					device_code: 'dev',
 					user_code: 'ABCD-1234',
 					verification_uri: '/api/device',
-					verification_uri_complete: '/api/device?user_code=ABCD-1234',
+					verification_uri_complete:
+						'/api/device?user_code=ABCD-1234',
 					expires_in: 600,
 					interval: 5,
 				},
@@ -49,7 +46,9 @@ describe('requestDeviceCode', () => {
 
 	it('throws on a non-ok response', async () => {
 		fetchMock.mockResolvedValueOnce(resp({ error: 'invalid_client' }));
-		await expect(requestDeviceCode()).rejects.toThrow(/device\/code failed/);
+		await expect(requestDeviceCode()).rejects.toThrow(
+			/device\/code failed/,
+		);
 	});
 });
 
@@ -129,6 +128,7 @@ describe('fetchUserInfo', () => {
 						name: 'A',
 						loggingConsent: 'document',
 						isAllowed: true,
+						isAnonymous: true,
 					},
 				},
 				true,
@@ -140,6 +140,7 @@ describe('fetchUserInfo', () => {
 			name: 'A',
 			loggingConsent: 'document',
 			isAllowed: true,
+			isAnonymous: true,
 		});
 		// hits the framework endpoint on the token-only path, no cookies
 		expect(fetchMock).toHaveBeenCalledWith(
@@ -172,6 +173,8 @@ describe('fetchUserInfo', () => {
 			loggingConsent: DEFAULT_CONSENT_LEVEL, // 'usage'
 			// server omitted isAllowed → client coerces to false, never derives it
 			isAllowed: false,
+			// Same fail-closed mapping for the anonymous marker.
+			isAnonymous: false,
 		});
 	});
 
@@ -189,6 +192,8 @@ describe('fetchUserInfo', () => {
 			status: 500,
 			json: () => Promise.resolve({}),
 		} as Response);
-		await expect(fetchUserInfo('tok')).rejects.toThrow(/get-session failed/);
+		await expect(fetchUserInfo('tok')).rejects.toThrow(
+			/get-session failed/,
+		);
 	});
 });

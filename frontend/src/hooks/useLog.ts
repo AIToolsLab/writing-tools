@@ -44,15 +44,26 @@ export function useLog(): LogFn {
 			}
 
 			try {
-				await fetch(`${SERVER_URL}/log`, {
+				const res = await fetch(`${SERVER_URL}/log`, {
 					method: 'POST',
 					credentials: 'omit',
 					headers: {
 						'Content-Type': 'application/json',
 						Authorization: `Bearer ${token}`,
 					},
-					body: JSON.stringify({ ...filtered, timestamp: Date.now() / 1000 }),
+					body: JSON.stringify({
+						...filtered,
+						timestamp: Date.now() / 1000,
+					}),
 				});
+				// fetch only rejects on network failure, so a rejected auth (e.g. a 401
+				// after a session/consent regression) would otherwise be invisible.
+				// Surface non-2xx instead of silently dropping the event.
+				if (!res.ok) {
+					console.warn(
+						`event logging rejected: /api/log returned ${res.status}`,
+					);
+				}
 			} catch {
 				// Best-effort; never disrupt the UI on a logging failure.
 			}

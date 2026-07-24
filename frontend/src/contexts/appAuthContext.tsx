@@ -40,6 +40,8 @@ export interface AppAuthSession {
 		loggingConsent?: ConsentLevel;
 		/** Beta access decision, computed server-side (see backend userAllowlist.ts). */
 		isAllowed?: boolean;
+		/** Demo/anonymous session — account surfaces steer these to real sign-in. */
+		isAnonymous?: boolean;
 	};
 	/** Resolved consent level (defaults applied) — gate analytics/logging on this. */
 	loggingConsent: ConsentLevel;
