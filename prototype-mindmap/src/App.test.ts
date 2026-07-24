@@ -3,7 +3,8 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AssistantResponseKindBadge, buildConversationHistory, deriveCurrentUserTurn, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateCandidateMemory, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, TURN_PROGRESS_COPY, UnderTheHoodPanel } from "./App";
+import { AssistantResponseKindBadge, buildConversationHistory, deriveCurrentUserTurn, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateCandidateMemory, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, TURN_PROGRESS_COPY } from "./App";
+import { UnderTheHoodPanel } from "./ControlRoom";
 import { ASSISTANCE_CONTRACTS, snapshotContract } from "./assistance-contract";
 import { ThoughtUnitStore } from "./map-store";
 import type { Proposal } from "./proposal-store";
