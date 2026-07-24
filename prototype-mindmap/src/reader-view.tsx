@@ -5,7 +5,7 @@ import { isSupportedUiLocale, normalizeUiLocale, uiLocaleOptions, type UiLocaleO
 
 export const READER_LANGUAGE_STORAGE_KEY = "prototype-mindmap-reader-language-v1";
 export const DISPLAY_CACHE_STORAGE_KEY = "prototype-mindmap-reader-display-cache-v1";
-export const READER_DISPLAY_CACHE_MAX_BYTES = 512 * 1024;
+export const READER_DISPLAY_CACHE_MAX_BYTES = 1024 * 1024;
 
 type ReaderRejectionCode = "return_to_original_to_edit";
 
