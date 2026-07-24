@@ -400,4 +400,108 @@ describe("mirror validator — 2 grounding checks", () => {
     const result = validateMirror(reflection, bank, defaultConfig);
     expect(result.ok).toBe(false);
   });
+
+  it("validates a Chinese reflection using only closed-class particle glue", () => {
+    const source = u("语言塑造思想");
+    const result = validateMirror({
+      claims: [claim("语言也塑造思想", [{
+        claimText: "语言也塑造思想",
+        utteranceIds: [source.id],
+        userPhrase: "语言塑造思想",
+      }])],
+    }, [source], defaultConfig);
+
+    expect(result.ok).toBe(true);
+    expect(result.claims[0].ungroundedContentWords).toEqual([]);
+  });
+
+  it("validates mixed Chinese and English evidence in one utterance", () => {
+    const source = u("language 影响我的 identity");
+    const result = validateMirror({
+      claims: [claim("language 影响 identity", [{
+        claimText: "language 影响 identity",
+        utteranceIds: [source.id],
+        userPhrase: "language 影响我的 identity",
+      }])],
+    }, [source], defaultConfig);
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("requires the nominated evidence phrase to occur in the cited original utterance", () => {
+    const source = u("我想保留人的控制权");
+    const result = validateMirror({
+      claims: [claim("控制权很重要", [{
+        claimText: "控制权很重要",
+        utteranceIds: [source.id],
+        userPhrase: "控制权很重要",
+      }])],
+    }, [source], defaultConfig);
+
+    expect(result.ok).toBe(false);
+    expect(checkOf(result.claims[0], "span_grounding")?.ok).toBe(false);
+  });
+
+  it.each([
+    ["语言塑造思想", "language shapes thought"],
+    ["language shapes thought", "语言塑造思想"],
+  ])("rejects translated substantive wording as a mirror: %s -> %s", (sourceText, translatedText) => {
+    const source = u(sourceText);
+    const result = validateMirror({
+      claims: [claim(translatedText, [{
+        claimText: translatedText,
+        utteranceIds: [source.id],
+        userPhrase: sourceText,
+      }])],
+    }, [source], defaultConfig);
+
+    expect(result.ok).toBe(false);
+    expect(checkOf(result.claims[0], "lexical_grounding")?.ok).toBe(false);
+  });
+
+  it("accepts equivalent full-width punctuation and CJK quotation styles", () => {
+    const source = u("我说：「控制权，很重要！」");
+    const result = validateMirror({
+      claims: [claim("控制权很重要", [{
+        claimText: "控制权很重要",
+        utteranceIds: [source.id],
+        userPhrase: "\"控制权,很重要!\"",
+      }])],
+    }, [source], defaultConfig);
+
+    expect(result.ok).toBe(true);
+  });
+
+  it("deliberately rejects Simplified and Traditional substitutions", () => {
+    const source = u("我想保留控制权");
+    const result = validateMirror({
+      claims: [claim("我想保留控制權", [{
+        claimText: "我想保留控制權",
+        utteranceIds: [source.id],
+        userPhrase: "我想保留控制權",
+      }])],
+    }, [source], defaultConfig);
+
+    expect(result.ok).toBe(false);
+    expect(checkOf(result.claims[0], "span_grounding")?.ok).toBe(false);
+  });
+
+  it("validates an explicitly stated cross-language relationship through one utterance", () => {
+    const english = u("human control");
+    const chinese = u("写作自由");
+    const relation = u("human control 支持 写作自由");
+    const result = validateMirror({
+      claims: [claim(
+        "human control 支持 写作自由",
+        [
+          { claimText: "human control", utteranceIds: [english.id, relation.id], userPhrase: "human control" },
+          { claimText: "写作自由", utteranceIds: [chinese.id, relation.id], userPhrase: "写作自由" },
+        ],
+        "connection",
+        { utteranceId: relation.id, text: "支持" },
+      )],
+    }, [english, chinese, relation], defaultConfig);
+
+    expect(result.ok).toBe(true);
+  });
 });

@@ -1,54 +1,112 @@
 /**
- * Text normalization and tokenization for grounding checks.
- *
- * The normalizer mirrors prototype-uist's `ownership.ts` so the two prototypes
- * agree on what "the same words" means. On top of it we add a light stemmer and
- * a stopword list, which the 3-check mirror validator needs to tell content
- * words apart from structural glue and to match word *variants*.
- *
- * The stemmer is intentionally crude (suffix stripping). Real lemmatization
- * would be better; this is a swappable stub. It is good enough to treat
- * "organizing" and "organized" as the same root for a prototype.
+ * Language-neutral normalization plus narrow English and Chinese grounding
+ * profiles. These functions compare text only; stored authored text is never
+ * rewritten.
  */
 
-const SMART_QUOTES_RE = /[‘’‚‛]/g;
-const SMART_DOUBLE_QUOTES_RE = /[“”„‟]/g;
-const NON_ALPHANUMERIC_RE = /[^\p{L}\p{N}\s]/gu;
-const MULTISPACE_RE = /\s+/g;
+import { CJK_SCRIPT_RE } from "./unicode-scripts";
 
-/** Same normalization contract as ownership.ts: quotes, punctuation, case, spacing. */
-export function normalize(text: string): string {
+const segmenters = new Map<string, Intl.Segmenter>();
+const graphemeSegmenter = new Intl.Segmenter("und", { granularity: "grapheme" });
+
+interface TokenRecord {
+  text: string;
+  rawStart: number;
+  rawEnd: number;
+}
+
+export interface PhraseRange {
+  /** UTF-16 offsets into the unchanged original string. */
+  start: number;
+  end: number;
+}
+
+/** Fold compatibility-width forms and equivalent quotation marks for matching. */
+export function foldWidthAndQuotes(text: string): string {
   return text
-    .replace(SMART_QUOTES_RE, "'")
-    .replace(SMART_DOUBLE_QUOTES_RE, '"')
-    .replace(NON_ALPHANUMERIC_RE, " ")
-    .replace(MULTISPACE_RE, " ")
-    .trim()
-    .toLowerCase();
+    .normalize("NFKC")
+    .replace(/[\u2018\u2019\u201A\u201B]/g, "'")
+    .replace(/[\u201C\u201D\u201E\u201F\u300C\u300D\u300E\u300F]/g, "\"");
+}
+
+function wordSegmenter(locale: "en" | "zh"): Intl.Segmenter {
+  const cached = segmenters.get(locale);
+  if (cached) return cached;
+  const created = new Intl.Segmenter(locale, { granularity: "word" });
+  segmenters.set(locale, created);
+  return created;
+}
+
+function foldedWithRawOffsets(text: string): { text: string; rawOffsets: Array<{ start: number; end: number }> } {
+  let folded = "";
+  const rawOffsets: Array<{ start: number; end: number }> = [];
+  for (const grapheme of graphemeSegmenter.segment(text)) {
+    const normalized = foldWidthAndQuotes(grapheme.segment).toLocaleLowerCase("und");
+    folded += normalized;
+    for (let index = 0; index < normalized.length; index++) {
+      rawOffsets.push({ start: grapheme.index, end: grapheme.index + grapheme.segment.length });
+    }
+  }
+  return { text: folded, rawOffsets };
+}
+
+function normalizedTokenRecords(text: string): TokenRecord[] {
+  const folded = foldedWithRawOffsets(text);
+  if (!folded.text) return [];
+  const locale = CJK_SCRIPT_RE.test(folded.text) ? "zh" : "en";
+  return Array.from(wordSegmenter(locale).segment(folded.text))
+    .filter((part) => part.isWordLike)
+    .flatMap((part) => Array.from(part.segment.matchAll(/[\p{L}\p{N}]+/gu)).map((match) => {
+      const foldedStart = part.index + (match.index ?? 0);
+      const foldedEnd = foldedStart + match[0].length;
+      return {
+        text: match[0],
+        rawStart: folded.rawOffsets[foldedStart]?.start ?? 0,
+        rawEnd: folded.rawOffsets[foldedEnd - 1]?.end ?? text.length,
+      };
+    }));
+}
+
+function normalizedWordTokens(text: string): string[] {
+  return normalizedTokenRecords(text).map((token) => token.text);
+}
+
+/** Canonical comparison form: folded, segmented words separated by spaces. */
+export function normalize(text: string): string {
+  return normalizedWordTokens(text).join(" ");
 }
 
 export function tokenize(text: string): string[] {
-  const n = normalize(text);
-  return n ? n.split(" ").filter(Boolean) : [];
+  return normalizedWordTokens(text);
 }
 
 /**
- * Tests whether a normalized phrase occurs as a run of complete tokens.
- *
- * This deliberately does not use raw substring matching: "under" must not
- * validate against "thunder" or "underrated". Normalization still permits
- * harmless case, punctuation, quote, and spacing differences.
+ * Tests whether a normalized phrase occurs as a run of complete segmented
+ * words. This prevents `under` matching `thunder` while supporting Chinese
+ * text without whitespace and harmless punctuation-width differences.
  */
 export function containsWholePhrase(haystack: string, phrase: string): boolean {
-  const normalizedHaystack = normalize(haystack);
-  const normalizedPhrase = normalize(phrase);
-  return Boolean(normalizedPhrase) && ` ${normalizedHaystack} `.includes(` ${normalizedPhrase} `);
+  return Boolean(findWholePhraseRange(haystack, phrase));
+}
+
+/** Locate a verified evidence phrase without accepting model-computed offsets. */
+export function findWholePhraseRange(haystack: string, phrase: string): PhraseRange | undefined {
+  const haystackTokens = normalizedTokenRecords(haystack);
+  const phraseTokens = normalizedWordTokens(phrase);
+  if (phraseTokens.length === 0 || phraseTokens.length > haystackTokens.length) return undefined;
+  for (let start = 0; start <= haystackTokens.length - phraseTokens.length; start++) {
+    if (!phraseTokens.every((token, offset) => haystackTokens[start + offset]?.text === token)) continue;
+    return {
+      start: haystackTokens[start]!.rawStart,
+      end: haystackTokens[start + phraseTokens.length - 1]!.rawEnd,
+    };
+  }
+  return undefined;
 }
 
 /**
- * Function words and common conversational glue. A word classified as a
- * stopword is "structural glue": the AI may use it freely without it counting
- * against the unsupported-word budget, because it carries no idea.
+ * English function words plus a closed class of Chinese particles/glue. This
+ * list may permit grammar, never new substantive claims.
  */
 export const STOPWORDS = new Set<string>([
   "a", "an", "the", "and", "or", "but", "if", "then", "so", "as", "of", "to",
@@ -61,6 +119,7 @@ export const STOPWORDS = new Set<string>([
   "thing", "things", "would", "could", "should", "can", "will", "also", "very",
   "more", "some", "any", "not", "no", "yes", "up", "out", "down", "over", "say",
   "said", "sounds", "seem", "seems",
+  "的", "了", "是", "就", "吗", "呢", "也", "和", "在", "着", "过", "呀", "吧", "啊",
 ]);
 
 export function isStopword(token: string): boolean {
@@ -68,15 +127,11 @@ export function isStopword(token: string): boolean {
 }
 
 /**
- * Light suffix-stripping stemmer. Swappable stub for a real lemmatizer.
- *
- * Two phases so variants converge consistently:
- *   1. strip a single inflectional suffix (longest first)
- *   2. always strip a trailing "e"
- * This makes node/nodes -> "nod" and organize/organizing -> "organiz" agree,
- * which the one-rule-then-break approach could not.
+ * Light English suffix stripping. Tokens in other scripts pass through
+ * unchanged, so Chinese substantive terms still require exact token support.
  */
 export function stem(token: string): string {
+  if (!/^\p{Script=Latin}+$/u.test(token)) return token;
   let t = token;
   const rules: Array<[RegExp, string]> = [
     [/ies$/, "y"],
@@ -88,47 +143,32 @@ export function stem(token: string): string {
     [/ly$/, ""],
     [/s$/, ""],
   ];
-  for (const [re, repl] of rules) {
-    if (re.test(t) && t.replace(re, repl).length >= 3) {
-      t = t.replace(re, repl);
+  for (const [rule, replacement] of rules) {
+    if (rule.test(t) && t.replace(rule, replacement).length >= 3) {
+      t = t.replace(rule, replacement);
       break;
     }
   }
-  if (t.length > 3 && t.endsWith("e")) {
-    t = t.slice(0, -1);
-  }
+  if (t.length > 3 && t.endsWith("e")) t = t.slice(0, -1);
   return t;
 }
 
-/** Content tokens = non-stopword tokens. These carry the ideas. */
 export function contentTokens(text: string): string[] {
-  return tokenize(text).filter((t) => !isStopword(t));
+  return tokenize(text).filter((token) => !isStopword(token));
 }
 
-/**
- * Split a block of input (a long voice chunk or a pasted draft) into
- * sentence-level units. Each unit becomes its own Source Bank entry, so:
- *   - grounding stays meaningful (a relationship must live in ONE sentence,
- *     not be assembled across a whole rant or document);
- *   - readiness density reflects distinct ideas, not turn count;
- *   - each unit is an addressable region the UI can highlight/anchor to.
- * Splits on sentence terminators and newlines. A block with no terminator
- * stays a single unit.
- */
+/** Split authored input into addressable sentence-level Source Bank entries. */
 export function segment(text: string): string[] {
   return text
-    .split(/(?<=[.!?])\s+|\n+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+    .split(/(?<=[.!?])\s+|(?<=[。！？])|\n+/u)
+    .map((part) => part.trim())
+    .filter(Boolean);
 }
 
-/** A set of stems for fast membership testing. */
 export function stemSet(texts: string[]): Set<string> {
   const set = new Set<string>();
   for (const text of texts) {
-    for (const tok of tokenize(text)) {
-      set.add(stem(tok));
-    }
+    for (const token of tokenize(text)) set.add(stem(token));
   }
   return set;
 }

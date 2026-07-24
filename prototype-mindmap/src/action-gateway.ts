@@ -3,6 +3,7 @@ import type { ConnectionLayoutDirection, ThoughtUnitStore, ThoughtUnitStoreSnaps
 import { cardRef, type SourceBank } from "./store";
 import type { ConfirmedReflection, ThoughtUnit, ThoughtUnitRole } from "./types";
 import type { ContributionOrigin } from "./assistance-contract";
+import type { InteractionMode } from "./mutation-policy";
 
 export type GatewayActor = "ai_proposal" | "user_canvas";
 export type ProposedActionKind = "create_card" | "edit_card" | "nest_card" | "connect_cards";
@@ -42,7 +43,9 @@ export type GatewayReason =
   | "nest_cycle"
   | "duplicate_connection"
   | "nested_endpoint"
-  | "ungrounded_relationship";
+  | "ungrounded_relationship"
+  | "read_only_view"
+  | "origin_not_permitted";
 
 export type GatewayResult =
   | { status: "ready"; action: ExecutableAction; referencedCardIds: string[]; origin?: ContributionOrigin; pairingProof?: VerifiedPairingProof }
@@ -84,10 +87,28 @@ export type CanvasGatewayResult =
   | { status: "applied"; cardId?: string; connectionId?: string }
   | { status: "rejected"; reason: GatewayReason; detail: string };
 
+export type CanvasExecutionOrigin = "user" | "system_restore";
+export interface CanvasExecutionContext {
+  store: ThoughtUnitStore;
+  bank: SourceBank;
+  interactionMode?: InteractionMode;
+  /** System restoration is deliberately narrow: it cannot execute a user edit. */
+  origin?: CanvasExecutionOrigin;
+}
+
 /** Sole execution point for immediate, explicitly user-authored canvas actions. */
-export function executeCanvasAction(action: CanvasAction, context: { store: ThoughtUnitStore; bank: SourceBank }): CanvasGatewayResult {
+export function executeCanvasAction(action: CanvasAction, context: CanvasExecutionContext): CanvasGatewayResult {
   const { store, bank } = context;
-  if (action.kind === "restore_snapshot") { store.loadSnapshot(action.snapshot); return { status: "applied" }; }
+  const origin = context.origin ?? "user";
+  if (origin === "system_restore") {
+    if (action.kind !== "restore_snapshot") return { status: "rejected", reason: "origin_not_permitted", detail: "System restoration may only restore a snapshot." };
+    store.loadSnapshot(action.snapshot);
+    return { status: "applied" };
+  }
+  if (action.kind === "restore_snapshot") return { status: "rejected", reason: "origin_not_permitted", detail: "Snapshot restoration is a system-only operation." };
+  if (context.interactionMode === "translated_view") {
+    return { status: "rejected", reason: "read_only_view", detail: "Switch back to the original view to edit." };
+  }
   const card = "id" in action ? store.get(action.id) : undefined;
   if (["edit_card", "delete_card", "set_parent", "set_role", "swap_title", "move_card", "resize_card"].includes(action.kind) && (!card || card.role === "connection_label")) {
     return { status: "rejected", reason: "unknown_card", detail: "Card no longer exists." };

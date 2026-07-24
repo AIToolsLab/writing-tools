@@ -15,6 +15,15 @@ const sourceSpanSchema: JsonSchema = {
   required: ["claimText", "userPhrase", "utteranceIds"],
   additionalProperties: false,
 };
+const translationEvidenceSchema: JsonSchema = {
+  type: "object",
+  properties: {
+    utteranceIds: stringArray,
+    userPhrase: { type: "string" },
+  },
+  required: ["utteranceIds", "userPhrase"],
+  additionalProperties: false,
+};
 const relationEvidenceSchema: JsonSchema = {
   anyOf: [
     {
@@ -208,6 +217,17 @@ const conversationalResponseSchema: JsonSchema = {
       required: ["kind", "text", "options"], additionalProperties: false,
     },
     { type: "object", properties: { kind: stringLiteral("suggestion"), text: { type: "string" } }, required: ["kind", "text"], additionalProperties: false },
+    {
+      type: "object",
+      properties: {
+        kind: stringLiteral("translation"),
+        sourceEvidence: { type: "array", minItems: 1, items: translationEvidenceSchema },
+        targetLanguage: { type: "string" },
+        translatedText: { type: "string" },
+        provenance: stringLiteral("ai_translated"),
+      },
+      required: ["kind", "sourceEvidence", "targetLanguage", "translatedText", "provenance"], additionalProperties: false,
+    },
   ],
 };
 

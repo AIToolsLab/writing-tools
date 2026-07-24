@@ -20,6 +20,7 @@ describe("assistance contracts", () => {
 
   it("renders the active contract as a prompt constraint rather than a write authorization", () => {
     const rendered = renderContext({
+      language: { uiLocale: "en", latestUserLanguagePattern: "unknown" },
       bank: [], candidates: [], turnShape: { kind: "compact", reasons: [], utteranceCount: 1, contentTokenCount: 1, characterCount: 1 }, capabilities: defaultConfig.capabilities,
       mapPacing: { cardCount: 0, connectionCount: 0, isSparse: true }, reflectionRhythm: { turnsSinceLastReflection: 0, sourceUtteranceCount: 0 }, thinkMapBias: 50, map: { thoughtUnits: [], connections: [] },
       assistanceContract: snapshotContract(ASSISTANCE_CONTRACTS[1]),

@@ -262,6 +262,11 @@ audience does; if the first-pass grounded-mirror rate in Chinese is
 materially worse than English, that is a prompt-tuning/model-capability
 signal, not a reason to loosen validation.
 
+Because Checkpoint 3 also limits lexical support to the exact evidence phrases
+the model nominates, compare the English first-pass grounded-mirror rate against
+the pre-Checkpoint-3 baseline. If it drops materially, tune the prompt to cite
+enough precise original-language evidence; do not loosen the validator.
+
 ## 7. Cross-language relationships through provenance
 
 Given `u1` (English: A), `u2` (Chinese: B), `u3` (Chinese: explicit

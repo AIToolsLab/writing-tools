@@ -40,3 +40,59 @@ test("a chat-derived card remains off the map until confirm", async ({ page }) =
   await page.getByRole("button", { name: "Confirm" }).click();
   await expect(page.locator("textarea.map-card-editor")).toHaveValue("human control");
 });
+
+test("reader-language switching keeps populated cards mounted throughout translation", async ({ page }) => {
+  const pageErrors: string[] = [];
+  const consoleErrors: string[] = [];
+  let translationRequests = 0;
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  await page.route("**/openai/chat/completions", async (route) => {
+    const body = route.request().postDataJSON() as { messages?: Array<{ content?: string }> };
+    const system = body.messages?.[0]?.content ?? "";
+    if (!system.startsWith("Translate the supplied display text")) {
+      await route.fulfill({ contentType: "application/json", body: JSON.stringify(envelope({ response: { kind: "question", text: "unused", stance: "deepen" } })) });
+      return;
+    }
+    translationRequests += 1;
+    // Keep requests pending long enough to prove the controlled React Flow
+    // nodes stay mounted before, during, and after display translation.
+    await new Promise((resolve) => setTimeout(resolve, 180));
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify(envelope({ translation: `ZH:${body.messages?.[1]?.content ?? ""}` })) });
+  });
+
+  await page.goto("/");
+  const addCard = page.getByRole("button", { name: "+ New card" });
+  const cards = page.locator("textarea.map-card-editor");
+  await addCard.click();
+  await expect(cards).toHaveCount(1);
+  await cards.nth(0).fill("first authored card");
+  await cards.nth(0).blur();
+  await addCard.click();
+  await expect(cards).toHaveCount(2);
+  await cards.nth(1).fill("second authored card");
+  await cards.nth(1).blur();
+  const originalValues = await cards.evaluateAll((elements) => elements.map((element) => (element as HTMLTextAreaElement).value));
+  const nodeIds = await page.locator(".react-flow__node").evaluateAll((elements) => elements.map((element) => element.getAttribute("data-id")));
+  expect(originalValues).toEqual(["first authored card", "second authored card"]);
+  expect(nodeIds).toHaveLength(2);
+
+  await page.getByLabel("Reader language").selectOption("zh");
+  await expect.poll(() => translationRequests).toBeGreaterThan(0);
+  await expect(cards).toHaveCount(2);
+  expect(await page.locator(".react-flow__node").evaluateAll((elements) => elements.map((element) => element.getAttribute("data-id")))).toEqual(nodeIds);
+  await page.waitForTimeout(50);
+  await expect(cards).toHaveCount(2);
+  expect(await page.locator(".react-flow__node").evaluateAll((elements) => elements.map((element) => element.getAttribute("data-id")))).toEqual(nodeIds);
+  await expect(cards.nth(0)).toHaveValue("ZH:first authored card");
+  await expect(cards).toHaveCount(2);
+  expect(await page.locator(".react-flow__node").evaluateAll((elements) => elements.map((element) => element.getAttribute("data-id")))).toEqual(nodeIds);
+
+  await page.getByLabel("Reader language").selectOption("");
+  await expect(cards).toHaveCount(2);
+  expect(await page.locator(".react-flow__node").evaluateAll((elements) => elements.map((element) => element.getAttribute("data-id")))).toEqual(nodeIds);
+  await expect(cards.nth(0)).toHaveValue(originalValues[0]!);
+  await expect(cards.nth(1)).toHaveValue(originalValues[1]!);
+  expect(pageErrors).toEqual([]);
+  expect(consoleErrors).toEqual([]);
+});

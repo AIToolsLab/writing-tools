@@ -1,6 +1,9 @@
 import type { TurnShape } from "./turn-shape";
 import type { CandidateStatus, CandidateTarget, SourceUtterance, ThoughtUnit, ThoughtUnitRole } from "./types";
 import type { AssistanceContractSnapshot } from "./assistance-contract";
+import type { LanguageContext } from "./language-context";
+
+export type { LanguageContext } from "./language-context";
 
 export type QuestionStance = "settle" | "narrow" | "deepen" | "organize" | "challenge";
 export type UserRequestedMode = "mirror" | "deepen" | "organize" | "pivot";
@@ -39,6 +42,8 @@ export interface CandidateMemoryFact {
 
 /** Read-only context for a typed assistant response. Every calibration field is advisory. */
 export interface LLMContext {
+  /** Advisory presentation and reply-language hints; never evidence. */
+  language: LanguageContext;
   bank: SourceUtterance[];
   candidates: CandidateMemoryFact[];
   turnShape: TurnShape;

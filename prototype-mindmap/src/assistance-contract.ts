@@ -1,7 +1,7 @@
 import type { SourceSpan } from "./types";
 
 export type AssistanceLevel = 0 | 1 | 2;
-export type AssistantResponseKind = "question" | "reflection" | "grounded_recap" | "aside" | "map_proposal" | "options" | "suggestion";
+export type AssistantResponseKind = "question" | "reflection" | "grounded_recap" | "aside" | "map_proposal" | "options" | "suggestion" | "translation";
 export type ContributionOrigin = "user_asserted" | "ai_connected" | "ai_suggested" | "unresolved" | "legacy_confirmed";
 
 export interface AssistanceContract {
@@ -24,21 +24,21 @@ export const ASSISTANCE_CONTRACTS: Record<AssistanceLevel, AssistanceContract> =
   0: {
     id: "non_directive_v1", version: 1, level: 0, label: "Non-directive",
     description: "I ask and reflect your stated ideas.",
-    allowedResponseKinds: ["question", "reflection", "grounded_recap", "aside", "map_proposal"],
+    allowedResponseKinds: ["question", "reflection", "grounded_recap", "aside", "map_proposal", "translation"],
     allowsAiSuggestedStructure: false, optionsMustBeVerbatim: false,
     mapWritePolicy: "user_confirmation_required", visualStagingPolicy: "no_unconfirmed_structure",
   },
   1: {
     id: "grounded_options_v1", version: 1, level: 1, label: "Grounded options",
     description: "I can offer choices using your words.",
-    allowedResponseKinds: ["question", "reflection", "grounded_recap", "aside", "map_proposal", "options"],
+    allowedResponseKinds: ["question", "reflection", "grounded_recap", "aside", "map_proposal", "options", "translation"],
     allowsAiSuggestedStructure: false, optionsMustBeVerbatim: true,
     mapWritePolicy: "user_confirmation_required", visualStagingPolicy: "no_unconfirmed_structure",
   },
   2: {
     id: "suggestive_v1", version: 1, level: 2, label: "Suggestive",
     description: "I can introduce ideas, marked as AI suggestions.",
-    allowedResponseKinds: ["question", "reflection", "grounded_recap", "aside", "map_proposal", "options", "suggestion"],
+    allowedResponseKinds: ["question", "reflection", "grounded_recap", "aside", "map_proposal", "options", "suggestion", "translation"],
     allowsAiSuggestedStructure: true, optionsMustBeVerbatim: true,
     mapWritePolicy: "user_confirmation_required", visualStagingPolicy: "no_unconfirmed_structure",
   },

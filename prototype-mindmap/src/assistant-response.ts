@@ -1,9 +1,10 @@
 import type { LLMContext, QuestionStance } from "./llm-contract";
 import type { CandidateStore, SourceBank } from "./store";
 import type { ProposedAction } from "./action-gateway";
-import type { GroundedRecap, MirrorReflection } from "./types";
+import type { GroundedRecap, MirrorReflection, TranslationEvidencePhrase } from "./types";
 import type { Proposal } from "./proposal-store";
 import type { SourceBackedOption } from "./assistance-contract";
+import type { LatestUserLanguagePattern } from "./language-context";
 
 export interface RecallAnnotation {
   candidateId: string;
@@ -18,7 +19,9 @@ export type AssistantResponse =
   | { kind: "aside"; text: string; recall?: RecallAnnotation }
   | { kind: "map_proposal"; text: string; action: ProposedAction; candidateId?: string }
   | { kind: "options"; text: string; options: SourceBackedOption[] }
-  | { kind: "suggestion"; text: string };
+  | { kind: "suggestion"; text: string }
+  /** Explicitly requested assistant translation; never source or map material. */
+  | { kind: "translation"; text: string; sourceEvidence: TranslationEvidencePhrase[]; targetLanguage: string; translatedText: string; provenance: "ai_translated" };
 
 export interface AssistantAdvisory {
   candidateUpserts?: Array<{
@@ -46,6 +49,8 @@ export interface ConversationState {
   turnsSinceLastReflection: number;
   lastAssistantText: string;
   currentUserTurn: number;
+  /** A coarse advisory hint retained for coach-only turns and reloads. */
+  latestUserLanguagePattern: LatestUserLanguagePattern;
   legacyIgnoredCandidateIds: string[];
 }
 

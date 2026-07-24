@@ -9,6 +9,8 @@ import { ThoughtUnitStore } from "./map-store";
 import type { Proposal } from "./proposal-store";
 import { createConversationState } from "./stage1-loop";
 import type { UnderstandingSnapshot } from "./understanding";
+import { MutationPolicyProvider } from "./mutation-policy";
+import { UiLocaleProvider } from "./ui-locale";
 
 describe("resolveMirrorDecision", () => {
   it("waits to continue until every claim in the mirror is confirmed", () => {
@@ -78,6 +80,18 @@ describe("application recovery history", () => {
     ]);
   });
 
+  it("retains an AI translation as assistant output without replacing its original user passage", () => {
+    expect(buildConversationHistory([
+      { id: 1, role: "user", text: "人类控制" },
+      { id: 2, role: "assistant", text: "human control", responseKind: "translation" },
+      { id: 3, role: "user", text: "How does that fit here?" },
+    ])).toEqual([
+      { role: "user", content: "人类控制" },
+      { role: "assistant", content: "human control" },
+      { role: "user", content: "How does that fit here?" },
+    ]);
+  });
+
   it("migrates legacy candidates to fresh active memory and preserves known dismissals", () => {
     expect(deriveCurrentUserTurn([{ turnId: "t_2" }, { turnId: "t_7" }, {}])).toBe(7);
     const migrated = migrateCandidateMemory([{
@@ -117,10 +131,12 @@ describe("proposal UI", () => {
   it("marks AI suggestions and source-backed recaps while omitting unavailable legacy echo percentages", () => {
     act(() => root.render(createElement("div", undefined,
       createElement(AssistantResponseKindBadge, { kind: "suggestion" }),
+      createElement(AssistantResponseKindBadge, { kind: "translation" }),
       createElement(AssistantResponseKindBadge, { kind: "grounded_recap" }),
       createElement(InfluenceBadge, { influence: { exactOverlapPhrases: ["human control"] } }),
     )));
     expect(container.textContent).toContain("AI suggestion");
+    expect(container.textContent).toContain("AI-translated");
     expect(container.textContent).toContain("recap from your words");
     expect(container.textContent).toContain("Echoes coach");
     expect(container.textContent).not.toContain("NaN");
@@ -140,6 +156,40 @@ describe("proposal UI", () => {
     const state = createConversationState();
     const migrated = migrateStoredProposals([proposal], state.bank, new ThoughtUnitStore());
     expect(migrated[0]?.influenceTrace).toEqual({ priorAssistantMessageId: 2, exactOverlapPhrases: ["human control"], overlapRatio: undefined });
+  });
+
+  it("localizes proposal chrome without translating authored proposal text", () => {
+    const proposal = {
+      id: "localized-proposal",
+      mapRevision: 1,
+      referencedCardIds: [],
+      origin: "user_asserted" as const,
+      contract: snapshotContract(ASSISTANCE_CONTRACTS[0]),
+      state: "shown" as const,
+      detail: {
+        kind: "map_action" as const,
+        action: { kind: "create_card" as const, text: "Clear map", sourceUtteranceIds: ["u1"] },
+      },
+    };
+    act(() => root.render(
+      createElement(
+        UiLocaleProvider,
+        { initialLocale: "zh" },
+        createElement(
+          MutationPolicyProvider,
+          { mode: "translated_view" },
+          createElement(MapActionProposalCard, {
+            proposal,
+            cards: [],
+            onEdit: vi.fn(),
+            onDecide: vi.fn(),
+          }),
+        ),
+      ),
+    ));
+    expect((container.querySelector("textarea") as HTMLTextAreaElement).value).toBe("Clear map");
+    expect(Array.from(container.querySelectorAll("button")).every((button) => button.disabled)).toBe(true);
+    expect(container.textContent).toContain("确认");
   });
 });
 

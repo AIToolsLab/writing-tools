@@ -95,13 +95,11 @@ function checkLexicalGrounding(
   };
 }
 
-function citedStemSet(claim: GroundedClaim, bank: Map<string, SourceUtterance>): Set<string> {
-  const ids = new Set(claim.sourceSpans.flatMap((span) => span.utteranceIds));
-  if (claim.relationSpan) ids.add(claim.relationSpan.utteranceId);
-  return stemSet([...ids].flatMap((id) => {
-    const text = bank.get(id)?.text;
-    return text ? [text] : [];
-  }));
+function citedPhraseStemSet(claim: GroundedClaim): Set<string> {
+  return stemSet([
+    ...claim.sourceSpans.map((span) => span.userPhrase),
+    ...(claim.relationSpan ? [claim.relationSpan.text] : []),
+  ]);
 }
 
 /**
@@ -112,16 +110,12 @@ function citedStemSet(claim: GroundedClaim, bank: Map<string, SourceUtterance>):
 function spanGroundedInSingleUtterance(
   span: SourceSpan,
   bank: Map<string, SourceUtterance>,
-  threshold: number,
 ): boolean {
-  const phraseContent = contentTokens(span.userPhrase);
-  if (phraseContent.length === 0) return false;
+  if (contentTokens(span.userPhrase).length === 0) return false;
   for (const id of span.utteranceIds) {
     const text = bank.get(id)?.text;
     if (!text) continue;
-    const uStems = stemSet([text]);
-    const grounded = phraseContent.filter((tok) => uStems.has(stem(tok)));
-    if (ratio(grounded.length, phraseContent.length) >= threshold) return true;
+    if (containsWholePhrase(text, span.userPhrase)) return true;
   }
   return false;
 }
@@ -187,14 +181,14 @@ function checkSpanGrounding(
 
   for (const span of claim.sourceSpans) {
     const sources = citedTexts(span, bank);
-    const sourceStems = stemSet(sources);
     const phraseContent = contentTokens(span.userPhrase);
-    const grounded = phraseContent.filter((tok) => sourceStems.has(stem(tok)));
-    // Empty user phrase or no citation => fully ungrounded span.
+    // The model nominates a precise phrase; code verifies that phrase occurs
+    // in one original utterance after neutral width/quote folding.
     const spanScore =
-      sources.length === 0 || phraseContent.length === 0
-        ? 0
-        : ratio(grounded.length, phraseContent.length);
+      phraseContent.length > 0 &&
+      sources.some((source) => containsWholePhrase(source, span.userPhrase))
+        ? 1
+        : 0;
     if (spanScore < weakestScore) {
       weakestScore = spanScore;
       weakest = span;
@@ -210,7 +204,7 @@ function checkSpanGrounding(
       claim.sourceSpans.some(
         (span) =>
           span.utteranceIds.includes(relation.utteranceId) &&
-          spanGroundedInSingleUtterance(span, bank, threshold),
+          spanGroundedInSingleUtterance(span, bank),
       ) &&
       claimRelationStatedInOneUtterance(claim, bank, threshold);
     if (!relationshipOk) {
@@ -234,7 +228,7 @@ function validateClaim(
   bank: Map<string, SourceUtterance>,
   cfg: MindmapConfig,
 ): ClaimValidation {
-  const lexical = checkLexicalGrounding(claim, citedStemSet(claim, bank));
+  const lexical = checkLexicalGrounding(claim, citedPhraseStemSet(claim));
   const grounding = checkSpanGrounding(claim, bank, cfg.mirror.spanGroundingMin);
 
   const checks = [lexical.result, grounding.result];

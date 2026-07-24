@@ -20,6 +20,7 @@ import type { AssistanceContract, AssistanceContractSnapshot, InfluenceTrace } f
 import { DEFAULT_ASSISTANCE_CONTRACT, snapshotContract } from "./assistance-contract";
 import { CandidateStore, SourceBank } from "./store";
 import { detectTurnShape } from "./turn-shape";
+import { detectLatestUserLanguagePattern, type LanguageContext } from "./language-context";
 import type { CandidateThought, CandidateTarget, GroundedClaim, SourceUtterance } from "./types";
 import { validateGroundedClaims, validateMirror } from "./validator";
 
@@ -29,6 +30,8 @@ export interface ProcessTurnOptions {
   selectedFocus?: SelectedFocusContext;
   requestedSupport?: UserRequestedMode;
   proposalOutcome?: ProposalOutcomeContext;
+  /** Current display locale, supplied by the UI but never persisted in the session. */
+  uiLocale?: string;
   store: ThoughtUnitStore;
   contract?: AssistanceContract;
   priorAssistant?: { id: number; text: string };
@@ -56,7 +59,7 @@ function exhaustedRepair(state: ConversationState, diagnostics: DiagnosticEvent[
 }
 
 export function createConversationState(): ConversationState {
-  return { bank: new SourceBank(), candidates: new CandidateStore(), draft: "", turnsSinceLastReflection: 0, lastAssistantText: "", currentUserTurn: 0, legacyIgnoredCandidateIds: [] };
+  return { bank: new SourceBank(), candidates: new CandidateStore(), draft: "", turnsSinceLastReflection: 0, lastAssistantText: "", currentUserTurn: 0, latestUserLanguagePattern: "unknown", legacyIgnoredCandidateIds: [] };
 }
 
 export function cloneConversationState(state: ConversationState): ConversationState {
@@ -69,6 +72,7 @@ export function cloneConversationState(state: ConversationState): ConversationSt
   clone.turnsSinceLastReflection = state.turnsSinceLastReflection;
   clone.lastAssistantText = state.lastAssistantText;
   clone.currentUserTurn = state.currentUserTurn;
+  clone.latestUserLanguagePattern = state.latestUserLanguagePattern;
   clone.legacyIgnoredCandidateIds = [...state.legacyIgnoredCandidateIds];
   clone.candidates.setLegacyIgnoredIds(clone.legacyIgnoredCandidateIds);
   return clone;
@@ -118,6 +122,15 @@ function contractRejectsResponse(envelope: AssistantResponseEnvelope, contract: 
   }
   if (envelope.response.kind === "grounded_recap" && envelope.advisory?.candidateUpserts?.length) {
     return { code: "grounded_recap_candidate_advisory_not_allowed", detail: "A conversational recap cannot nominate capturable structure." };
+  }
+  if (envelope.response.kind === "translation") {
+    if (envelope.advisory?.candidateUpserts?.length || envelope.advisory?.affect) {
+      return { code: "translation_advisory_not_allowed", detail: "An AI translation cannot update candidate or affect bookkeeping." };
+    }
+    const evidenceIsExact = envelope.response.sourceEvidence.every((evidence) => phraseIsExact(evidence.userPhrase, evidence.utteranceIds, bank));
+    if (!evidenceIsExact) {
+      return { code: "translation_evidence_not_exact", detail: "A translation must identify an exact original-language source phrase." };
+    }
   }
   return undefined;
 }
@@ -369,10 +382,11 @@ function prepareEnvelope(envelope: AssistantResponseEnvelope, state: Conversatio
   return { ...proposal, recall: recalled.recall, candidates: advisory.store, lifecycleChanges: advisory.changes, diagnostics: [...advisory.diagnostics, ...proposal.diagnostics] };
 }
 
-export function buildContext(state: ConversationState, userText: string, added: SourceUtterance[], map: LLMMapContext, config: MindmapConfig, selectedFocus?: SelectedFocusContext, requestedSupport?: UserRequestedMode, contract?: AssistanceContract, proposalOutcome?: ProposalOutcomeContext): LLMContext {
+export function buildContext(state: ConversationState, userText: string, added: SourceUtterance[], map: LLMMapContext, config: MindmapConfig, selectedFocus?: SelectedFocusContext, requestedSupport?: UserRequestedMode, contract?: AssistanceContract, proposalOutcome?: ProposalOutcomeContext, uiLocale = "en"): LLMContext {
   const shape = detectTurnShape(userText, added);
   const cardCount = map.thoughtUnits.filter((unit) => unit.role !== "connection_label").length;
   return {
+    language: { uiLocale, latestUserLanguagePattern: state.latestUserLanguagePattern } satisfies LanguageContext,
     bank: state.bank.getAll().filter((utterance) => !utterance.nonHarvestable && (utterance.origin !== "draft" || utterance.draftSnapshotId === state.currentDraftSnapshotId)),
     candidates: state.candidates.getAll().map((candidate) => ({
       id: candidate.id,
@@ -402,12 +416,15 @@ export async function processTurn(state: ConversationState, userText: string, mo
     state.currentDraftSnapshotId = state.bank.addDraftSnapshot(state.draft).snapshotId;
     state.draftSnapshotText = state.draft;
   }
-  if (userText.trim()) state.currentUserTurn++;
+  if (userText.trim()) {
+    state.currentUserTurn++;
+    state.latestUserLanguagePattern = detectLatestUserLanguagePattern(userText);
+  }
   const added = userText.trim() ? state.bank.addSegmented(userText, "chat") : [];
   const turnOptions: ProcessTurnOptions = { ...options, turnUtteranceIds: added.map((utterance) => utterance.id) };
   const activeContract = options.contract ?? DEFAULT_ASSISTANCE_CONTRACT;
   const contractSnapshot = snapshotContract(activeContract);
-  const context = buildContext(state, userText, added, map, config, options.selectedFocus, options.requestedSupport, activeContract, options.proposalOutcome);
+  const context = buildContext(state, userText, added, map, config, options.selectedFocus, options.requestedSupport, activeContract, options.proposalOutcome, options.uiLocale);
   const diagnostics: DiagnosticEvent[] = [];
   let envelope: AssistantResponseEnvelope;
   let prepared: ReturnType<typeof prepareEnvelope> | undefined;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
 import {
   Background,
   BaseEdge,
@@ -22,6 +22,7 @@ import {
   type OnConnectEnd,
   type OnReconnect,
   useNodesState,
+  useUpdateNodeInternals,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { computeAutoCleanPositions, computeConnectionHandles } from "./map-layout";
@@ -30,6 +31,9 @@ import type { ConnectionLayoutDirection, ThoughtUnitStore, XYBounds, XYPosition,
 import type { SourceBank } from "./store";
 import { cardRef } from "./store";
 import type { ConfirmedReflection, ThoughtUnit } from "./types";
+import { useMutationAccess, type MutationIntent } from "./mutation-policy";
+import { useUiLocale } from "./ui-locale";
+import { useReaderView } from "./reader-view";
 
 const CARD_WIDTH = 260;
 const CARD_HEIGHT = 140;
@@ -425,6 +429,9 @@ function ConnectionHandles() {
  * visual instead of a card sitting on top of another.
  */
 function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActions }) {
+  const { t } = useUiLocale();
+  const reader = useReaderView();
+  const readOnly = useMutationAccess().mode === "translated_view";
   const [draft, setDraft] = useState(unit.text);
   const [dragging, setDragging] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -436,8 +443,8 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
     <div
       className={`map-embed role-${unit.role} ${dragging ? "dragging" : ""} ${expanded ? "expanded" : ""}`}
       data-card-id={unit.id}
-      draggable
-      title="Drag to the canvas to pull this card out"
+      draggable={!readOnly}
+      title={t("Drag to the canvas to pull this card out")}
       onDragStart={(event) => {
         event.stopPropagation();
         if (event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLButtonElement) {
@@ -454,12 +461,13 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
         setDragging(false);
       }}
     >
-      <span className="map-embed-drag-grip" role="img" aria-label="Drag nested card" title="Drag nested card" />
+      <span className="map-embed-drag-grip" role="img" aria-label={t("Drag nested card")} title={t("Drag nested card")} />
       <textarea
         className="map-embed-editor nodrag nowheel"
-        value={draft}
+        value={readOnly ? reader.translate(unit.text) : draft}
+        readOnly={readOnly}
         rows={rows}
-        placeholder="(empty)"
+        placeholder={t("(empty)")}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => {
           if (draft !== unit.text) actions.onCommitText(unit.id, draft);
@@ -467,21 +475,21 @@ function EmbeddedCard({ unit, actions }: { unit: ThoughtUnit; actions: CardActio
         onMouseDown={(event) => event.stopPropagation()}
       />
       <div className="map-embed-actions nodrag">
-        <span className="map-embed-ref" title="Card reference">{cardRef(unit.id)}</span>
-        {unit.parentProvenance?.origin === "ai_suggested" && <span className="map-origin-badge" aria-label="AI-suggested nesting">AI nesting</span>}
-        {unit.parentProvenance?.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label="AI-connected nesting from your words">AI-connected · your words</span>}
+        <span className="map-embed-ref" title={t("Card reference")}>{cardRef(unit.id)}</span>
+        {unit.parentProvenance?.origin === "ai_suggested" && <span className="map-origin-badge" aria-label={t("AI-suggested nesting")}>{t("AI nesting")}</span>}
+        {unit.parentProvenance?.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label={t("AI-connected nesting from your words")}>{t("AI-connected · your words")}</span>}
         {unit.source.origin === "ai_suggested" && <span className="map-origin-badge" aria-label={suggestionBadge(unit)}>{suggestionBadge(unit)}</span>}
-        {unit.source.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label="AI-connected from your words">AI-connected · your words</span>}
-        <button type="button" onClick={() => setExpanded((value) => !value)} title={expanded ? "Collapse card text" : "Expand card text"}>
-          {expanded ? "Less" : "More"}
+        {unit.source.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label={t("AI-connected from your words")}>{t("AI-connected · your words")}</span>}
+        <button type="button" onClick={() => setExpanded((value) => !value)} title={expanded ? t("Collapse card text") : t("Expand card text")}>
+          {expanded ? t("Less") : t("More")}
         </button>
-        <button type="button" onClick={() => actions.onPromote(unit.id)} title="Make this the title">
-          Title
+        <button type="button" disabled={readOnly} onClick={() => actions.onPromote(unit.id)} title={t("Make this the title")}>
+          {t("Title")}
         </button>
-        <button type="button" onClick={() => actions.onPullOut(unit.id)} title="Pull out to its own card">
-          Out
+        <button type="button" disabled={readOnly} onClick={() => actions.onPullOut(unit.id)} title={t("Pull out to its own card")}>
+          {t("Out")}
         </button>
-        <button type="button" onClick={() => actions.onDelete(unit.id)} title="Delete">
+        <button type="button" disabled={readOnly} onClick={() => actions.onDelete(unit.id)} title={t("Delete")}>
           ✕
         </button>
       </div>
@@ -505,6 +513,9 @@ function embeddedTextareaRows(text: string): number {
 }
 
 function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
+  const { t } = useUiLocale();
+  const reader = useReaderView();
+  const readOnly = useMutationAccess().mode === "translated_view";
   const { unit, actions, size } = data;
   const [draft, setDraft] = useState(unit.text);
 
@@ -572,21 +583,23 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
       <button
         type="button"
         className="map-card-close nodrag"
+        disabled={readOnly}
         onClick={() => actions.onDelete(unit.id)}
-        title="Delete card"
+        title={t("Delete card")}
       >
         ✕
       </button>
 
       <div className="map-card-drag">
-        <span className="map-drag-grip" role="img" aria-label="Drag card" title="Drag card" />
-        <span className="map-role-chip">{roleLabel(unit, children.length)}</span>
+        <span className="map-drag-grip" role="img" aria-label={t("Drag card")} title={t("Drag card")} />
+        <span className="map-role-chip">{t(roleLabel(unit, children.length))}</span>
       </div>
 
       <textarea
         className="map-card-editor nodrag nowheel"
-        value={draft}
-        placeholder="(empty card — type your idea)"
+        value={readOnly ? reader.translate(unit.text) : draft}
+        readOnly={readOnly}
+        placeholder={t("(empty card — type your idea)")}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={commit}
         onKeyDown={(event) => {
@@ -601,7 +614,7 @@ function ThoughtCardNode({ data, selected }: NodeProps<ThoughtFlowNode>) {
       <div className="map-card-actions nodrag">
         <span className="map-source-dot" aria-label={data.sourceLabel} />
         {unit.source.origin === "ai_suggested" && <span className="map-origin-badge" aria-label={suggestionBadge(unit)}>{suggestionBadge(unit)}</span>}
-        {unit.source.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label="AI-connected from your words">AI-connected · your words</span>}
+        {unit.source.origin === "ai_connected" && <span className="map-origin-badge map-origin-badge-connected" aria-label={t("AI-connected from your words")}>{t("AI-connected · your words")}</span>}
       </div>
 
       {children.length > 0 && (
@@ -646,6 +659,9 @@ function ConnectionEdge({
   markerStart,
   markerEnd,
 }: EdgeProps) {
+  const { t } = useUiLocale();
+  const reader = useReaderView();
+  const readOnly = useMutationAccess().mode === "translated_view";
   const [edgePath, labelX, labelY] = getSmoothStepPath({
     sourceX,
     sourceY,
@@ -699,27 +715,28 @@ function ConnectionEdge({
           <button
             type="button"
             className={`edge-badge ${open ? "active" : ""}`}
-            title={`${aiSuggested ? "AI-suggested connection" : "connection"}${label ? `: ${label}` : ""}`}
+            title={`${aiSuggested ? t("AI-suggested connection") : t("connection")}${label ? `: ${reader.translate(label)}` : ""}`}
             onClick={() => setOpen((o) => !o)}
           >
             {open ? "×" : aiSuggested ? "AI" : "↔"}
           </button>
           {open && (
-            <div className="edge-popover" role="dialog" aria-label="Connection">
-              {aiSuggested && <span className="map-origin-badge" aria-label="AI-suggested connection">AI suggestion</span>}
-              {aiConnected && <span className="map-origin-badge map-origin-badge-connected" aria-label="AI-connected connection from your words">AI-connected · your words</span>}
+            <div className="edge-popover" role="dialog" aria-label={t("Connection")}>
+              {aiSuggested && <span className="map-origin-badge" aria-label={t("AI-suggested connection")}>{t("AI suggestion")}</span>}
+              {aiConnected && <span className="map-origin-badge map-origin-badge-connected" aria-label={t("AI-connected connection from your words")}>{t("AI-connected · your words")}</span>}
               <div className="edge-popover-cards">
-                <span className="edge-popover-card"><b>{sourceRef}</b> {shortenEdgeText(sourceText)}</span>
-                <span className="edge-popover-card"><b>{targetRef}</b> {shortenEdgeText(targetText)}</span>
+                <span className="edge-popover-card"><b>{sourceRef}</b> {shortenEdgeText(reader.translate(sourceText))}</span>
+                <span className="edge-popover-card"><b>{targetRef}</b> {shortenEdgeText(reader.translate(targetText))}</span>
               </div>
-              {label && <div className="edge-popover-text">"{label}"</div>}
+              {label && <div className="edge-popover-text">"{reader.translate(label)}"</div>}
               {onDirectionChange && (
                 <div className="edge-direction">
-                  <span className="edge-direction-title">Arrow direction</span>
-                  <div className="edge-direction-buttons" role="group" aria-label="Arrow direction">
+                  <span className="edge-direction-title">{t("Arrow direction")}</span>
+                  <div className="edge-direction-buttons" role="group" aria-label={t("Arrow direction")}>
                     {directionOptions.map((option) => (
                       <button
                         key={option.value}
+                        disabled={readOnly}
                         type="button"
                         className={layoutDirection === option.value ? "active" : ""}
                         onClick={() => onDirectionChange(id, option.value)}
@@ -734,8 +751,8 @@ function ConnectionEdge({
               )}
               <div className="edge-move-hint">Drag a line end to move it; drag a card dot for a new connection.</div>
               {onDelete && (
-                <button type="button" className="edge-delete" onClick={() => onDelete(id)}>
-                  Delete connection
+                    <button type="button" className="edge-delete" disabled={readOnly} onClick={() => onDelete(id)}>
+                      {t("Delete connection")}
                 </button>
               )}
             </div>
@@ -754,6 +771,50 @@ function shortenEdgeText(text: string): string {
 
 const edgeTypes = { connection: ConnectionEdge };
 
+class MapCanvasBoundary extends Component<{ resetKey: string; onRetry: () => void; message: string; retryLabel: string; children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError(): { failed: boolean } { return { failed: true }; }
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    // Map-only containment; the rest of the workspace remains usable. This is
+    // deliberately not an application-wide error boundary or telemetry system.
+    console.error("[prototype-mindmap:map-canvas-boundary]", error, info);
+  }
+  componentDidUpdate(previous: Readonly<{ resetKey: string }>) {
+    if (previous.resetKey !== this.props.resetKey && this.state.failed) this.setState({ failed: false });
+  }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return <div className="map-render-recovery" role="alert">{this.props.message} <button type="button" onClick={() => { this.setState({ failed: false }); this.props.onRetry(); }}>{this.props.retryLabel}</button></div>;
+  }
+}
+
+function canvasMutationIntent(action: CanvasAction): MutationIntent {
+  switch (action.kind) {
+    case "create_blank_card":
+      return "canvas_create";
+    case "edit_card":
+      return "canvas_edit";
+    case "delete_card":
+    case "delete_connection":
+      return "canvas_delete";
+    case "move_card":
+      return "canvas_move";
+    case "resize_card":
+      return "canvas_resize";
+    case "set_parent":
+    case "set_role":
+    case "swap_title":
+      return "canvas_nest";
+    case "connect_cards_direct":
+    case "reconnect":
+    case "set_connection_direction":
+    case "set_connection_handles":
+      return "canvas_connect";
+    case "restore_snapshot":
+      return "map_undo";
+  }
+}
+
 export function ThoughtMap(props: ThoughtMapProps) {
   // Provider so child controls (e.g. "New card") can read the viewport via
   // useReactFlow even though they sit outside the <ReactFlow> subtree.
@@ -762,6 +823,12 @@ export function ThoughtMap(props: ThoughtMapProps) {
       <ThoughtMapInner {...props} />
     </ReactFlowProvider>
   );
+}
+
+/** Rebuild controlled nodes without dropping React Flow's ordinary selection. */
+export function resyncFlowNodes<T extends Node>(current: readonly T[], next: readonly T[]): T[] {
+  const selected = new Map(current.map((node) => [node.id, node.selected]));
+  return next.map((node) => ({ ...node, selected: selected.get(node.id) ?? node.selected }));
 }
 
 function ThoughtMapInner({
@@ -785,70 +852,98 @@ function ThoughtMapInner({
   onBeforeMapChange,
   onStoreChange,
 }: ThoughtMapProps) {
+  const { locale, setLocale, options: localeOptions, t } = useUiLocale();
+  const reader = useReaderView();
+  const mutationAccess = useMutationAccess();
+  const readOnly = mutationAccess.mode === "translated_view";
+  const readOnlyTitle = t("Switch back to the original view to edit.");
   const flow = useReactFlow();
+  const updateNodeInternals = useUpdateNodeInternals();
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const visibleCardCount = store.getAll().filter((unit) => unit.role !== "connection_label").length;
+  useEffect(() => {
+    reader.prefetch([
+      ...store.getAll().map((unit) => unit.text),
+      ...store.getConnections().flatMap((connection) => [store.get(connection.labelUnitId)?.text ?? "", store.get(connection.sourceId)?.text ?? "", store.get(connection.targetId)?.text ?? ""]),
+      commandAck?.text ?? "",
+    ]);
+  }, [commandAck?.text, reader.prefetch, revision, store]);
   const [pendingConnection, setPendingConnection] = useState<PendingConnection | null>(null);
   const [connectionPanelKey, setConnectionPanelKey] = useState(0);
-  const dispatchCanvas = useCallback((action: CanvasAction) => executeCanvasAction(action, { store, bank }), [bank, store]);
+  const dispatchCanvas = useCallback((action: CanvasAction) => {
+    const result = mutationAccess.run(
+      canvasMutationIntent(action),
+      () => executeCanvasAction(action, { store, bank, interactionMode: mutationAccess.mode, origin: "user" }),
+    );
+    return result.status === "applied"
+      ? result.value
+      : { status: "rejected" as const, reason: "read_only_view" as const, detail: t("Switch back to the original view to edit.") };
+  }, [bank, mutationAccess, store, t]);
 
   const commitText = useCallback(
     (id: string, text: string) => {
+      if (readOnly) return;
       onBeforeMapChange();
       dispatchCanvas({ kind: "edit_card", id, text });
       onStoreChange([id]);
     },
-    [dispatchCanvas, onBeforeMapChange, onStoreChange],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange, readOnly],
   );
 
   const pullOut = useCallback(
     (id: string) => {
+      if (readOnly) return;
       onBeforeMapChange();
       dispatchCanvas({ kind: "set_parent", id, role: "node" });
       onStoreChange();
     },
-    [dispatchCanvas, onBeforeMapChange, onStoreChange],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange, readOnly],
   );
 
   const promote = useCallback(
     (id: string) => {
+      if (readOnly) return;
       onBeforeMapChange();
       dispatchCanvas({ kind: "swap_title", id });
       onStoreChange();
     },
-    [dispatchCanvas, onBeforeMapChange, onStoreChange],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange, readOnly],
   );
 
   const deleteCard = useCallback(
     (id: string) => {
+      if (readOnly) return;
       onBeforeMapChange();
       dispatchCanvas({ kind: "delete_card", id });
       onStoreChange();
     },
-    [dispatchCanvas, onBeforeMapChange, onStoreChange],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange, readOnly],
   );
 
   const deleteConnection = useCallback(
     (id: string) => {
+      if (readOnly) return;
       onBeforeMapChange();
       dispatchCanvas({ kind: "delete_connection", id });
       onStoreChange();
     },
-    [dispatchCanvas, onBeforeMapChange, onStoreChange],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange, readOnly],
   );
 
   const setConnectionDirection = useCallback(
     (id: string, direction: ConnectionLayoutDirection) => {
+      if (readOnly) return;
       onBeforeMapChange();
       dispatchCanvas({ kind: "set_connection_direction", id, layoutDirection: direction });
       onStoreChange();
     },
-    [dispatchCanvas, onBeforeMapChange, onStoreChange],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange, readOnly],
   );
 
   // Auto-clean: tidy scattered root-level cards using direction-aware placement.
   // Nested cards are not positioned directly; they travel with their parent.
   const autoClean = useCallback(() => {
+    if (readOnly) return;
     const units = store.getAll();
     const connections = store.getConnections();
     const sizes = measuredRootSizes(flow, store);
@@ -895,7 +990,7 @@ function ThoughtMapInner({
 
     // Re-frame the tidied map after the nodes re-render.
     setTimeout(() => flow.fitView({ padding: 0.2 }), 0);
-  }, [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, store]);
+  }, [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, readOnly, store]);
 
   const resizeStart = useCallback(
     (
@@ -903,6 +998,7 @@ function ThoughtMapInner({
       edges: { top?: boolean; right?: boolean; bottom?: boolean; left?: boolean },
       event: React.MouseEvent,
     ) => {
+      if (readOnly) return;
       event.preventDefault();
       event.stopPropagation();
 
@@ -950,7 +1046,7 @@ function ThoughtMapInner({
       window.addEventListener("mousemove", onMove);
       window.addEventListener("mouseup", onUp);
     },
-    [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, readOnly, store],
   );
 
   const getChildren = useCallback(
@@ -973,6 +1069,7 @@ function ThoughtMapInner({
   );
 
   const addCard = useCallback(() => {
+    if (readOnly) return;
     onBeforeMapChange();
     const viewportBounds = visibleFlowBounds(flow, canvasRef.current);
     const visibleSlot = viewportBounds ? store.nextRootPositionWithin(viewportBounds) : undefined;
@@ -998,7 +1095,7 @@ function ThoughtMapInner({
     if (!fullyVisible) {
       setTimeout(() => flow.fitView({ padding: 0.2 }), 0);
     }
-  }, [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, store]);
+  }, [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, readOnly, store]);
 
   const onPaneDragOver = useCallback((event: React.DragEvent) => {
     if (!event.dataTransfer.types.includes(EMBEDDED_CARD_DRAG_TYPE)) return;
@@ -1008,6 +1105,7 @@ function ThoughtMapInner({
 
   const onPaneDrop = useCallback(
     (event: React.DragEvent) => {
+      if (readOnly) return;
       const id = event.dataTransfer.getData(EMBEDDED_CARD_DRAG_TYPE);
       if (!id) return;
       const unit = store.get(id);
@@ -1020,7 +1118,7 @@ function ThoughtMapInner({
       dispatchCanvas({ kind: "move_card", id, position });
       onStoreChange();
     },
-    [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, flow, onBeforeMapChange, onStoreChange, readOnly, store],
   );
 
   const [proxyGeometry, setProxyGeometry] = useState<Record<string, ProxyGeometry>>({});
@@ -1082,9 +1180,49 @@ function ThoughtMapInner({
 
   const [nodes, setNodes, onNodesChange] = useNodesState<MapFlowNode>(flowNodes);
 
+  const recoverMapDisplay = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || canvas.clientWidth <= 0 || canvas.clientHeight <= 0) return;
+    const viewport = flow.getViewport();
+    setNodes((current) => resyncFlowNodes(current, flowNodes));
+    requestAnimationFrame(() => {
+      updateNodeInternals(flowNodes.map((node) => node.id));
+      flow.setViewport(viewport);
+    });
+  }, [flow, flowNodes, setNodes, updateNodeInternals]);
+
   useEffect(() => {
-    setNodes(flowNodes);
+    setNodes((current) => resyncFlowNodes(current, flowNodes));
   }, [flowNodes, setNodes]);
+
+  const recoverMapDisplayRef = useRef(recoverMapDisplay);
+  useEffect(() => { recoverMapDisplayRef.current = recoverMapDisplay; }, [recoverMapDisplay]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    let frame: number | undefined;
+    let lastSize: string | undefined;
+    const schedule = (force = false) => {
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        frame = undefined;
+        const size = `${canvas.clientWidth}x${canvas.clientHeight}`;
+        if (!force && size === lastSize) return;
+        lastSize = size;
+        recoverMapDisplayRef.current();
+      });
+    };
+    schedule(true);
+    const observer = typeof ResizeObserver === "undefined" ? undefined : new ResizeObserver(() => schedule());
+    observer?.observe(canvas);
+    return () => { if (frame !== undefined) cancelAnimationFrame(frame); observer?.disconnect(); };
+  }, []);
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => recoverMapDisplayRef.current());
+    return () => cancelAnimationFrame(frame);
+  }, [reader.targetLocale]);
 
   // Legacy proxy geometry path. `proxyAnchorSpecs` now returns no specs because
   // connection endpoints normalize to root cards in the store.
@@ -1318,6 +1456,7 @@ function ThoughtMapInner({
 
   const onNodeDragStop = useCallback(
     (_event: MouseEvent | TouchEvent, node: MapFlowNode) => {
+      if (readOnly) return;
       if (node.type !== "thought") return;
       setDropTargetId(undefined);
       const groupDrag = groupDragRef.current;
@@ -1361,11 +1500,12 @@ function ThoughtMapInner({
 
       onStoreChange();
     },
-    [contextSelectedCardIds, dispatchCanvas, nodes, onBeforeMapChange, onStoreChange, store],
+    [contextSelectedCardIds, dispatchCanvas, nodes, onBeforeMapChange, onStoreChange, readOnly, store],
   );
 
   const onConnect = useCallback(
     (connection: Connection) => {
+      if (readOnly) return;
       if (!connection.source || !connection.target || connection.source === connection.target) return;
       // Connection-label cards are not valid relationship endpoints.
       const originId = connectingFrom.current?.nodeId;
@@ -1403,7 +1543,7 @@ function ThoughtMapInner({
       });
       setConnectionPanelKey((key) => key + 1);
     },
-    [dispatchCanvas, onBeforeMapChange, onStoreChange, requireConnectionLabel, store],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange, readOnly, requireConnectionLabel, store],
   );
 
   // Dragging a connector from a card and releasing on the empty canvas spawns a
@@ -1430,6 +1570,7 @@ function ThoughtMapInner({
 
   const onConnectEnd = useCallback<OnConnectEnd>(
     (event, connectionState) => {
+      if (readOnly) return;
       const from = connectingFrom.current;
       connectingFrom.current = null;
       if (!from) return;
@@ -1481,11 +1622,12 @@ function ThoughtMapInner({
       onStoreChange();
       focusNewCard(created.cardId);
     },
-    [dispatchCanvas, flow, focusNewCard, onBeforeMapChange, onStoreChange, requireConnectionLabel, store],
+    [dispatchCanvas, flow, focusNewCard, onBeforeMapChange, onStoreChange, readOnly, requireConnectionLabel, store],
   );
 
   const onReconnect = useCallback<OnReconnect<Edge>>(
     (oldEdge, connection) => {
+      if (readOnly) return;
       if (!connection.source || !connection.target || connection.source === connection.target) return;
       const source = store.get(connection.source);
       const target = store.get(connection.target);
@@ -1495,7 +1637,7 @@ function ThoughtMapInner({
       dispatchCanvas({ kind: "reconnect", id: oldEdge.id, sourceId: connection.source, targetId: connection.target, sourceHandleId: anchorHandleId(connection.sourceHandle), targetHandleId: anchorHandleId(connection.targetHandle) });
       onStoreChange();
     },
-    [dispatchCanvas, onBeforeMapChange, onStoreChange, store],
+    [dispatchCanvas, onBeforeMapChange, onStoreChange, readOnly, store],
   );
 
   const cancelConnection = useCallback(() => {
@@ -1506,6 +1648,7 @@ function ThoughtMapInner({
   // to the bank (registerConnection handles that). For a deferred connector-to-
   // canvas card, the new card is created here so card + connection are one action.
   const confirmConnection = useCallback(() => {
+    if (readOnly) return;
     if (!pendingConnection) return;
     const pc = pendingConnection;
     // Validate the endpoint(s) that must already exist BEFORE mutating anything,
@@ -1546,7 +1689,7 @@ function ThoughtMapInner({
     setPendingConnection(null);
     onStoreChange();
     if (createdCardId) focusNewCard(createdCardId);
-  }, [dispatchCanvas, focusNewCard, onBeforeMapChange, onStoreChange, pendingConnection, store]);
+  }, [dispatchCanvas, focusNewCard, onBeforeMapChange, onStoreChange, pendingConnection, readOnly, store]);
 
   const sourceUnit = pendingConnection ? store.get(pendingConnection.sourceId) : undefined;
   const targetUnit = pendingConnection ? store.get(pendingConnection.targetId) : undefined;
@@ -1559,46 +1702,66 @@ function ThoughtMapInner({
     <section className="map-panel">
       <div className={`map-header ${draftDockActive ? "draft-dock-target" : ""}`}>
         <div className="map-heading">
-          <span className="map-count">{visibleCardCount} cards</span>
+          <span className="map-count">{visibleCardCount} {t("cards")}</span>
         </div>
 
         <div className="map-left-tools">
           {draftDockSlot ?? draftDock}
-          <button type="button" className="map-clear-draft" onClick={onClearDraft} title="Clear the draft only">
-            Clear draft
+          <button type="button" disabled={readOnly} className="map-clear-draft" onClick={onClearDraft} title={readOnly ? readOnlyTitle : t("Clear the draft only")} aria-describedby={readOnly ? "reader-view-status" : undefined}>
+            {t("Clear draft")}
           </button>
-          <button type="button" className="map-add-card" onClick={addCard}>
-            + New card
+          <button type="button" disabled={readOnly} className="map-add-card" onClick={addCard} title={readOnly ? readOnlyTitle : undefined} aria-describedby={readOnly ? "reader-view-status" : undefined}>
+            {t("+ New card")}
           </button>
 
           <button
             type="button"
+            disabled={readOnly}
             className={`map-label-toggle ${requireConnectionLabel ? "active" : ""}`}
             onClick={() => onRequireConnectionLabelChange(!requireConnectionLabel)}
-            title={requireConnectionLabel ? "Ask for relationship wording on new connections" : "Create unlabeled connections immediately"}
+            title={readOnly ? readOnlyTitle : requireConnectionLabel ? t("Ask for relationship wording on new connections") : t("Create unlabeled connections immediately")}
+            aria-describedby={readOnly ? "reader-view-status" : undefined}
           >
-            Label {requireConnectionLabel ? "on" : "off"}
+            {t("Label")} {requireConnectionLabel ? t("on") : t("off")}
           </button>
         </div>
 
         <div className="map-right-tools">
-          <button type="button" className="map-clean" onClick={autoClean} title="Tidy the map: lay connected cards into clean trees and spread the rest across the canvas">
-            Auto-clean
+          <label className="ui-locale-control">
+            <span>{t("Interface language")}</span>
+            <select aria-label={t("Interface language")} value={locale} onChange={(event) => setLocale(event.target.value)}>
+              {localeOptions.map((option) => (
+                <option key={option.code} value={option.code}>
+                  {option.label === option.nativeLabel ? option.label : `${option.label} (${option.nativeLabel})`}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="ui-locale-control">
+            <span>{t("Reader language")}</span>
+            <select aria-label={t("Reader language")} value={reader.targetLocale ?? ""} onChange={(event) => reader.setTargetLocale(event.target.value || null)}>
+              <option value="">{t("Original view")}</option>
+              {reader.options.map((option) => <option key={option.code} value={option.code}>{option.label === option.nativeLabel ? option.label : `${option.label} (${option.nativeLabel})`}</option>)}
+            </select>
+          </label>
+
+          <button type="button" disabled={readOnly} className="map-clean" onClick={autoClean} title={readOnly ? readOnlyTitle : t("Tidy the map: lay connected cards into clean trees and spread the rest across the canvas")} aria-describedby={readOnly ? "reader-view-status" : undefined}>
+            {t("Auto-clean")}
           </button>
 
-          <button type="button" className="map-clear-map" onClick={onClearMap} title="Clear the map only">
-            Clear map
+          <button type="button" disabled={readOnly} className="map-clear-map" onClick={onClearMap} title={readOnly ? readOnlyTitle : t("Clear the map only")} aria-describedby={readOnly ? "reader-view-status" : undefined}>
+            {t("Clear map")}
           </button>
 
-          <button type="button" className="map-undo" onClick={onUndo} disabled={!canUndo} title="Undo map change">
-            Undo
+          <button type="button" className="map-undo" onClick={onUndo} disabled={readOnly || !canUndo} title={readOnly ? readOnlyTitle : t("Undo map change")} aria-describedby={readOnly ? "reader-view-status" : undefined}>
+            {t("Undo")}
           </button>
 
           {commandAck && (
             <div className="map-command-ack" role="status">
-              <span>{commandAck.text}</span>
-              <button type="button" onClick={onUndo} disabled={!canUndo} title="Undo this map command">
-                Undo
+              <span>{reader.translate(commandAck.text)}</span>
+              <button type="button" onClick={onUndo} disabled={readOnly || !canUndo} title={readOnly ? readOnlyTitle : t("Undo this map command")} aria-describedby={readOnly ? "reader-view-status" : undefined}>
+                {t("Undo")}
               </button>
             </div>
           )}
@@ -1606,13 +1769,14 @@ function ThoughtMapInner({
       </div>
 
       <p className="map-hint">
-        Drag a card onto another to nest it inside · use "Out" to separate ·
-        drag a card dot to connect · drag a line end to move a connector ·
-        shift-click a card to select it
+        {t("Drag a card onto another to nest it inside")} · {t('use "Out" to separate')} ·
+        {t("drag a card dot to connect")} · {t("drag a line end to move a connector")} ·
+        {t("shift-click a card to select it")}
       </p>
 
       <div className="map-canvas" ref={canvasRef}>
-        {visibleCardCount === 0 && <div className="map-empty">No cards yet</div>}
+        {visibleCardCount === 0 && <div className="map-empty">{t("No cards yet")}</div>}
+        <MapCanvasBoundary resetKey={reader.targetLocale ?? "original"} onRetry={recoverMapDisplay} message={t("The map display needs to refresh.")} retryLabel={t("Retry map display")}>
         <ReactFlow
           nodes={displayNodes}
           edges={edges}
@@ -1632,6 +1796,8 @@ function ThoughtMapInner({
           onReconnect={onReconnect}
           connectionMode={ConnectionMode.Loose}
           edgesReconnectable
+          nodesDraggable={!readOnly}
+          nodesConnectable={!readOnly}
           reconnectRadius={14}
           fitView
           fitViewOptions={{ padding: 0.2 }}
@@ -1640,6 +1806,7 @@ function ThoughtMapInner({
           <MiniMap pannable zoomable />
           <Controls />
         </ReactFlow>
+        </MapCanvasBoundary>
 
         {pendingConnection && (
           <div key={connectionPanelKey} className="connection-panel blink">
@@ -1652,17 +1819,18 @@ function ThoughtMapInner({
               className="connection-input"
               value={pendingConnection.text}
               autoFocus
+              readOnly={readOnly}
               onChange={(event) =>
                 setPendingConnection({ ...pendingConnection, text: event.target.value })
               }
-              placeholder="Relationship wording (optional)"
+              placeholder={t("Relationship wording (optional)")}
             />
             <div className="connection-actions">
-              <button type="button" onClick={confirmConnection}>
-                Connect
+              <button type="button" disabled={readOnly} onClick={confirmConnection}>
+                {t("Connect")}
               </button>
               <button type="button" className="connection-cancel" onClick={cancelConnection}>
-                Cancel
+                {t("Cancel")}
               </button>
             </div>
           </div>
