@@ -14,8 +14,10 @@ Prototype path: `prototype-mindmap/`
 2. `prototype-mindmap/docs/airtightness-report.md` — enforcement appendix.
 3. `prototype-mindmap/docs/refactor-plan.md` — staged rationale + resolved decisions.
 4. Pass docs:
+   - `docs/6c-turn-progress-narration-pass.md` — self-contained impl spec for
+     the ONE remaining Tier-2 code change (item 6c). Build this next.
    - `docs/stage-4-eval-harness-pass.md` — the ACTIVE eval track.
-   - `docs/multilingual-grounding-pass.md` — the pass IN FLIGHT right now.
+   - `docs/multilingual-grounding-pass.md` — multilingual pass (landed/accepted).
    - `docs/stage-1_5-fix-pass.md` — historical; context for recent changes.
 
 ## Current verified state (HEAD `9ec90e6`)
@@ -503,7 +505,9 @@ first, and finishing the coach work de-risks it.
    (`grid-template-columns: 1fr auto`) plus `min-width: 0` on the title.
 
 6c. **[SPEC READY — decided 2026-07-24; THE ONE REMAINING TIER-2 CODE CHANGE]
-   Turn-progress narration: stop the eager first-phase claim.** `App.tsx:4073`
+   Turn-progress narration: stop the eager first-phase claim.**
+   **Buildable spec: `docs/6c-turn-progress-narration-pass.md` (self-contained
+   change list + verification + gate).** Summary below. `App.tsx:4073`
    and `App.tsx:4127` both call `setTurnProgress("initial_attempt")` before any
    model call, and `TURN_PROGRESS_COPY.initial_attempt` (`App.tsx:96`) reads
    "Trying to reflect your words…" — so every turn claims a reflection before
