@@ -1,6 +1,6 @@
 # Agent Handoff — Mindmap Prototype
 
-Last updated: 2026-07-23 America/New_York. Tracked successor to the old
+Last updated: 2026-07-24 America/New_York. Tracked successor to the old
 untracked `CODEX-HANDOFF-next-chat-untracked.md` (retired). Audience: any
 agent or human building features on `mindmap-main`.
 This doc tells you what's here, **what is about to land** (so you don't
@@ -281,6 +281,161 @@ each item will touch.
    engine plus span-level care for embedded verbatim user evidence (mirrors
    must never display translated user wording), and buys retroactive
    transcript consistency that human conversation doesn't have either.
+
+   **4b remediation review (2026-07-24) — STILL DOES NOT COMMIT until the
+   must-fix items below land.** The implementer addressed the four blockers;
+   changes remain uncommitted in the working tree. Independently verified by
+   Claude: `tsc` clean, **327 Vitest pass** (exit 0, no fuzz-timeout
+   artifact), build green (known chunk warning). **Live browser QA re-run by
+   Claude today** (the implementer could not — local process spawning was
+   denied in that session): dev server on **port 5182** (5181 was a stale
+   pre-existing server — the exact cross-branch hazard from 2026-07-22; check
+   PIDs, don't trust the port). With 3 cards, toggling reader language
+   zh→original→bn with the Control Room open showed **node count constant at
+   3, canvas 860×607, zero console errors, no error#004, recovery boundary
+   never triggered** — blockers 1 and 2 are genuinely fixed. QA scope caveat:
+   1280×720, 3 cards, docked draft; not stress-tested at narrow widths or
+   with many cards. `.map-panel` now resolves full-height via `height:auto` +
+   `min-height:0` flex stretch.
+
+   > **FINAL STATUS (2026-07-24): the preceding "STILL DOES NOT COMMIT" gate
+   > is historical and superseded. Remediation + residuals landed,
+   > independently verified (`tsc` / **334 Vitest** / production build /
+   > Playwright), and accepted.** `feat/mindmap-multilingual-grounding` now
+   > contains the successful-results-only reader cache, 512 KiB FIFO eviction
+   > and purge-on-clear, guarded request deduplication, stable proposal hooks,
+   > stable selection/resize recovery, origin-specific gateway reasons, and the
+   > durable populated-map reader-switch regression. The Playwright assertion
+   > passes; its Windows parent can time out only while tearing down the
+   > already-passed web server.
+   >
+   > **Second residual review, also landed:** the visible rejection alert is
+   > defense-in-depth and is not claimed as live-browser-verified because all
+   > current translated-view authoring controls are disabled or return early.
+   > The standing banner plus `aria-describedby` are the actual user feedback.
+   > Rejection state clears on every reader-view change, `main.tsx` passes the
+   > stable callback directly, all copy says "original view", FIFO eviction is
+   > linear-time, and legacy source-equals-translation entries are harmlessly
+   > retried rather than retained.
+
+   *Verified GOOD (do not rework):* gateway emits `read_only_view` on the
+   canvas path (carry-forward a closed); `system_restore` origin is narrow
+   both directions (cannot execute a user edit; user origin cannot restore a
+   snapshot) and reachable only from session-restore + undo, never AI
+   proposals; Control Room left byte-for-byte raw (no `reader.translate` in
+   `UnderTheHoodPanel`); display cache touches only its two localStorage keys;
+   `protectReaderText` guards code/URL/email/marker spans with byte-for-byte
+   restore; `"Enter to send"` deduped; provenance-row grid fixed (was 6b);
+   distinct `.ai-translation-badge` added (was 4a's note); and the deliberate
+   no-reopen-in-read-only guard at `reader-view.tsx:63` (a remembered locale
+   must not reopen a session in a read-only display mode) — good catch.
+
+   *Historical must-fix findings (all resolved; retained for rationale):*
+   1. **Failed translations are cached permanently** — `reader-view.tsx:100`
+      `catch` writes `additions[key] = source` into the persisted cache;
+      `enqueueReaderRequests` then skips any defined key forever, so one
+      transient backend failure pins a string to its untranslated form until
+      localStorage is hand-cleared. The prior 4b QA `Backend 401` was exactly
+      this trigger. Fix: do **not** cache failures — leave the key absent so
+      `translate()` falls back to source at render and a later prefetch can
+      retry. Tension to accept: retry re-bills the shared key (see the
+      translation-cost note below); bounded by prefetch cadence, not a loop.
+   2. **Rules-of-hooks violation, two places** — `useEffect` sits *after* an
+      early `return null` in `MirrorCard` (`App.tsx:4800`) and
+      `MapActionProposalCard` (`App.tsx:4919`). Latent today (the call site
+      branches on `detail.kind` and the two are different component types, so
+      React remounts rather than reusing), and there is **no ESLint** to catch
+      it — but item 7's `App.tsx` decomposition will move this code, a bad
+      seed to carry into a refactor. Move the effect above the early return.
+   3. **The blocker-4 regression test does not cover the regression.** As
+      landed it calls `resyncFlowNodes` with plain object literals and asserts
+      returned ids == input ids — near-tautological given the implementation
+      (`next.map(n => ({...n, selected}))`); it cannot fail if the blank-map
+      bug returns (no render, no locale switch, no React Flow). `Map.test.ts`
+      is pure-function-only by design, so real before/during/after node-count
+      coverage belongs in `e2e/smoke.spec.ts` (already exists). Claude
+      verified this path manually today, but that does not persist.
+
+   *AGREED design change — gateway reason-code split (2026-07-24).* In
+   `executeCanvasAction`, branches a (`origin === "system_restore"` +
+   non-restore action, line 103) and b (`user` origin + `restore_snapshot`,
+   line 107) both report `reason: "read_only_view"`, but they are **authority**
+   refusals (wrong origin for the operation / wrong operation for the origin),
+   not read-only-display refusals — both fire even in `authoring` mode (the
+   `origin: "user"` restore test proves it). Only branch c (translated_view,
+   line 108) is a genuine read-only refusal. In a provenance-audit product the
+   trail must distinguish "user typed while reading a translation" from
+   "something routed a snapshot-restore through the user path." Change lines
+   103 and 107 to a new `reason: "origin_not_permitted"`; add it to
+   `GatewayReason`; update the two test expectations. **Do NOT touch the
+   control flow** — the `system_restore` block must stay above the
+   translated-view check, and branch a is precisely what stops that early
+   return from becoming an edit bypass. Label-only change.
+
+   *AGREED — rejection feedback (checkpoint-1 carry-forward b, decided
+   2026-07-24).* What landed is `.sr-only` at `App.tsx:4440` and
+   `rejectionMessage` is never cleared, so a repeat rejection does not change
+   the DOM and is not re-announced. Decision: **alert on a blocked attempt
+   where the architecture allows it, and make the standing banner unmissable
+   for everything else.** Honest constraint: in translated view most controls
+   are DOM-`disabled`/`readOnly`, so they fire **no event** for `onRejected`
+   to hook — a per-attempt alert can only reach the non-disabled paths
+   (map-canvas drag/connect). So do both: (1) make `.reader-status-banner` the
+   always-on, unmissable "why can't I edit" signal (it already carries the
+   same sentence); (2) for the live-but-gated drag/connect paths, make
+   `onRejected` feedback **visible** (not `.sr-only`) and **re-announcing**
+   (clear `rejectionMessage` on the next state change / a short transient so
+   repeats fire). Do not remove the `disabled`/`readOnly` attributes to force
+   universal alerts — that is a worse affordance and a larger change.
+
+   *NEW durable item — reader display-cache growth + hygiene (AGREED to track
+   2026-07-24).* `prototype-mindmap-reader-display-cache-v1` grows unbounded:
+   one entry per (locale, string), no eviction, re-serialized O(n) on every
+   batch, quota errors swallowed (in-memory keeps growing while persistence
+   silently stops), and the keys embed **verbatim user text**. Worse for
+   authorship/privacy: **none of `clearMapOnly`/`clearDraftOnly`/`clearChatOnly`
+   purge it** (`App.tsx:4326`+), so content the user explicitly cleared
+   survives as translated copies in localStorage. Two independent fixes, both
+   wanted: (a) **purge on clear** — clear-map/draft/chat also drop the matching
+   cache entries (correctness/privacy); (b) **bounded eviction** — a
+   FIFO/LRU cap by **byte budget** (~1–2 MB, under the ~5 MB quota), evicting
+   oldest on write until under budget ("clear from behind, keep enough-ish
+   recent"). FIFO is trivial on object insertion order; LRU needs access-time
+   tracking. Decision knob left to Nhyira: cap size + FIFO-vs-LRU. Composes
+   with must-fix 1 — once failures aren't cached, only successes are stored,
+   so less churn to evict. (Draft read-only in translated view already avoids
+   the per-keystroke blowup.)
+
+   *VERIFIED — translation-call routing (was an open "verify" item).*
+   `translateReaderText` → `postChat` → `POST /api/openai/chat/completions`
+   (`api.ts:64`). (1) **Study logging: clean** — that endpoint is a pure
+   proxy that injects the key and streams back (`backend/src/app.ts:37`);
+   JSONL study logging is the *separate* `/api/mindmap/events` endpoint driven
+   by explicit `recordEvent`, which the reader path never calls. Translation
+   traffic does not pollute study logs. (2) **Shared key: it spends it,
+   uncapped** — same proxy, same `OPENAI_API_KEY`, one billed chat-completion
+   per unique (locale, source) string, concurrency 4, no per-user cap. A
+   many-card map opened in a fresh locale is a burst of billed calls. Not a
+   blocker; demo/budget awareness, and the reason must-fix-1's retry behavior
+   is worth bounding.
+
+   *POLISH (same pass ok):* `main.tsx:10` passes a fresh inline arrow for
+   `onRejected` every render, defeating `createMutationAccess`'s memo — pass
+   the already-stable `reader.reportReadOnlyRejection` directly. ResizeObserver
+   effect depends on `recoverMapDisplay`→`flowNodes`, so it disconnects/rebuilds
+   + fires a fresh rAF + full `setNodes` on every card edit (no loop, just
+   churn). `enqueueReaderRequests` only checks `cache`, not in-flight requests,
+   so a re-prefetch mid-flight re-translates the same string. The error
+   boundary **cannot catch error#004** (React Flow logs `console.error`, not a
+   throw, so `getDerivedStateFromError` never fires) and `componentDidCatch`
+   swallows silently — worth keeping (the app had none) but at minimum log,
+   and **record accurately that `recoverMapDisplay` + the ResizeObserver is
+   what fixed blockers 1 & 2, not the boundary**. `t(reader.rejectionMessage)`
+   translates a dynamic string (duplicates the literal across two files,
+   degrades to English on drift — checkpoint 1 was praised for `t()`-on-
+   literals-only). Selection-preservation is inconsistent: `resyncFlowNodes`
+   keeps `selected` but the ordinary `setNodes(flowNodes)` sync path drops it,
+   so the new test asserts a property the main path lacks.
 
 2. **[SPEC AGREED] Graceful reflection recovery + staged progress** (Parts A+B
    ship together, before the reportable hand-scoring pass). Capped
