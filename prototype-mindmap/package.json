@@ -10,6 +10,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "eval": "tsx eval/run.ts",
+    "i18n": "node scripts/generate-i18n.mjs",
     "eval:typecheck": "tsc -p tsconfig.eval.json",
     "eval:report": "tsx eval/report.ts",
     "test:e2e": "playwright test",
