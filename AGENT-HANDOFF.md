@@ -534,8 +534,38 @@ first, and finishing the coach work de-risks it.
    Playwright 3/3) against a delayed-response mock — the mock covers the
    narration/timing (pure frontend); **criterion (c)** (real coach reaches a
    grounded mirror OR targeted question, never a dead-end, against a **live
-   provider**) is the one gate item still owed, deferred until the backend
-   (`:8000`, two-process launch) is up. Original spec preserved below.
+   provider**) is **DONE 2026-07-24: verified live** — with the two-process
+   backend up (`:8000` / Vite `:5181`), three varied L1 turns each reached a
+   targeted question or a grounded mirror (first-call reflection validated in
+   the Control Room), zero dead-ends, no console errors. The **6a i18n smoke**
+   also passed live (165 strings → throwaway `sw` locale via the proxy, then
+   deleted).
+
+   **L0 recap follow-up fix — `afce738` (2026-07-24, prompt-only).** Live use
+   surfaced that the L0 `grounded_recap` could fire on a single brief/hedged
+   turn and echo it back verbatim (a parrot). Not a bug — `grounded_recap` is
+   validated to exact user wording and at L0 is restricted to the current turn
+   — but poor move-selection + degenerate output. Fix (in `api.ts` recap
+   guidance): a recap must **synthesize in the coach's own connective prose**
+   (content words from cited evidence, never a verbatim echo), and at L0 fires
+   **only when the current turn holds several distinct points**; a single
+   brief/tentative thought gets a focusing question. **L0 stays single-moment
+   on purpose — cross-turn/draft reach is the deliberate L0→L1 distinction and
+   must NOT be added to L0.** OWED: live QA of this fix + a Stage 4 precision
+   scenario (lone hedged turn → question, not parrot; rich turn → synthesized
+   recap).
+
+   **Design decisions ratified this session (do not re-litigate):** (a)
+   proposing a *relationship* between the user's own ideas is a *contribution*
+   → stays **L2** (`allowsAiSuggestedStructure`), not L1. (b) L1 ("grounded
+   options") is NOT changing — its felt difference from L0 is *reach without
+   contribution* (cross-turn + draft juxtaposition + verbatim options, recorded
+   as AI-connected provenance); whether users feel it is a **Stage 4
+   measurable** (% L1 turns referencing ≥2 user moments / draft vs L0), not a
+   redesign. (c) A broader "work-with-your-words" reframe of L1 was considered
+   and **declined** — current in-app L1 stands.
+
+   Original spec preserved below.
    **Buildable spec: `docs/6c-turn-progress-narration-pass.md` (self-contained
    change list + verification + gate).** Summary below. `App.tsx:4073`
    and `App.tsx:4127` both call `setTurnProgress("initial_attempt")` before any
@@ -580,9 +610,19 @@ first, and finishing the coach work de-risks it.
 7. **[POST-MERGE] `App.tsx` decomposition** (**4,852 lines** on
    `mindmap-main`; 4,941 with 4b in the working tree — the "~4,700" figure
    was stale): `useMindmapSession` hook, `session-persistence.ts`,
-   `ControlRoom.tsx` fed by a diagnostics selector. Only when no parallel
-   mindmap branch is mid-flight (4b is mid-flight now, so it cannot start
-   yet).
+   `ControlRoom.tsx` fed by a diagnostics selector.
+
+   **[SLICE 1 DONE 2026-07-24 — `ControlRoom.tsx` extracted.]** On branch
+   `feat/mindmap-controlroom-extraction` (worktree `writing-tools-controlroom`,
+   commit `b37b1df`; **NOT pushed, NOT merged**). Moved `UnderTheHoodPanel` +
+   its panel-only helpers out of `App.tsx` (−439 lines → 4,610); the
+   diagnostics selector (`buildDiagnosticSnapshot`) stays in App and feeds the
+   panel via props; `MicIcon`/`UnderhoodIcon` stayed in App (toolbar-only, not
+   panel deps). Behaviour-neutral: tsc clean, 335 Vitest, build green.
+   **The branch sits on `4fcc425` and is now 1 commit behind `mindmap-main`
+   (`afce738`, the recap fix) — rebase/merge before continuing.** Remaining
+   item-7 slices: `session-persistence.ts`, then the `useMindmapSession` hook,
+   after which 6b (Recap) builds cleanly into the extracted ControlRoom.
 
    **Sequencing (recommended 2026-07-23): do this BEFORE Checkpoint 6, not
    after.** Checkpoint 6 adds two large surfaces to this same file — the
@@ -605,7 +645,8 @@ first, and finishing the coach work de-risks it.
    `scripts/generate-i18n.mjs` + the `i18n` npm script, adapted so
    `supportedLanguages()` globs `src/i18n/*.json` (no `LANGUAGE_CODES` on
    `mindmap-main`) and the donor "Out" prompt line is dropped. Dry-run verified;
-   live-backend translation smoke deferred (needs `:8000`). Original note:
+   **live-backend smoke DONE 2026-07-24** (165 strings → throwaway `sw` locale
+   via the `:8000` proxy, then deleted). Original note:
    Port `scripts/generate-i18n.mjs` + the `i18n` npm script. It
    translates `src/i18n/source.json` into every locale via the backend proxy
    (`npm run i18n [-- --force | <codes>]`). `mindmap-main` has the 34
