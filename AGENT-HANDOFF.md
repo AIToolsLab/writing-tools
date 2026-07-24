@@ -390,8 +390,15 @@ each item will touch.
    repeats fire). Do not remove the `disabled`/`readOnly` attributes to force
    universal alerts — that is a worse affordance and a larger change.
 
-   *NEW durable item — reader display-cache growth + hygiene (AGREED to track
-   2026-07-24).* `prototype-mindmap-reader-display-cache-v1` grows unbounded:
+   *NEW durable item — reader display-cache growth + hygiene.* **[DONE except
+   cap — verified 2026-07-24.]** FIFO byte-budget eviction
+   (`READER_DISPLAY_CACHE_MAX_BYTES`, `reader-view.tsx` ~8/106–123) + purge-on-
+   clear (`reader.clearDisplayCache()` from all three clear fns) + successful-
+   results-only all landed. Only residual: Nhyira chose a **~1 MB cap** (current
+   512 KiB) — **DONE 2026-07-24 (`7b6d0c5`), now 1 MiB.** Spec in
+   `docs/polish-sweeps-pass.md` Branch B1. The original problem description
+   follows for rationale:
+   `prototype-mindmap-reader-display-cache-v1` grew unbounded:
    one entry per (locale, string), no eviction, re-serialized O(n) on every
    batch, quota errors swallowed (in-memory keeps growing while persistence
    silently stops), and the keys embed **verbatim user text**. Worse for
@@ -491,21 +498,34 @@ first, and finishing the coach work de-risks it.
    Manipulation checks must also run in Chinese once (1) lands. LLM-judge
    automation comes only after hand-scoring.
 
-6. **[POLISH] "AI suggestion · 0%" relabel** — surface `peakOverlapRatio`
-   ("was AI-suggested" / "AI-influenced") when current overlap has decayed.
-   Demo-facing.
+6. **[DONE 2026-07-24 — `07c89f4`] "AI suggestion · 0%" relabel.** Decided
+   (Nhyira 2026-07-24): copy is **"was AI-suggested"**; scope is the
+   `InfluenceBadge` (`App.tsx` ~4793) — when `exactOverlapPhrases` exist but
+   `overlapRatio` is 0, show "was AI-suggested" instead of "Echoes coach · 0%".
+   Note `InfluenceTrace` does NOT carry `peakOverlapRatio` (that lives only on
+   the suggestion-adoption ledger path); do not thread it in this pass. Full
+   spec: `docs/polish-sweeps-pass.md` Branch B2.
+   *Deferred richer surface (may revisit):* the badge is a one-time snapshot, not
+   real current-vs-peak adoption decay. Surfacing genuine decay (fed by the
+   suggestion-adoption trace, currently ledger-only/unrendered) is a
+   Checkpoint-6-sized add — not done in the polish pass.
 
-6b. **[BUG — pre-existing, found in 4b QA 2026-07-23] Map provenance panel
-   layout.** The Control Room's provenance rows render one word (or one CJK
-   character) per line with the counts misaligned. Cause: `.event-row` is
-   `display: grid; grid-template-columns: 24px 1fr auto`, expecting a leading
-   icon cell, but the provenance rows supply only two children — so the label
-   lands in the **24px** column and is crushed. Present on `mindmap-main`;
-   4b never touches it. Fix: give these rows a two-column variant
-   (`grid-template-columns: 1fr auto`) plus `min-width: 0` on the title.
+6b. **[DONE — verified in code 2026-07-24] Map provenance panel layout.**
+   Fixed: `App.tsx` inline styles already carry
+   `.event-row.provenance-row { grid-template-columns: minmax(0, 1fr) auto; }` +
+   `.event-row.provenance-row .event-title { min-width: 0; }` (~2144–2146).
+   Landed with the 4b remediation ("provenance-row grid fixed" at the Verified-
+   GOOD list). No work remaining.
 
-6c. **[SPEC READY — decided 2026-07-24; THE ONE REMAINING TIER-2 CODE CHANGE]
-   Turn-progress narration: stop the eager first-phase claim.**
+6c. **[DONE 2026-07-24 — `07c89f4`; browser-QA PASSED] Turn-progress
+   narration: stop the eager first-phase claim.** Landed: `initial_attempt`
+   retired, call 1 emits no progress event, neutral ~700 ms "Working…" indicator
+   off `loading`, escalation stages unchanged. Browser QA passed (EN/ZH/RTL,
+   Playwright 3/3) against a delayed-response mock — the mock covers the
+   narration/timing (pure frontend); **criterion (c)** (real coach reaches a
+   grounded mirror OR targeted question, never a dead-end, against a **live
+   provider**) is the one gate item still owed, deferred until the backend
+   (`:8000`, two-process launch) is up. Original spec preserved below.
    **Buildable spec: `docs/6c-turn-progress-narration-pass.md` (self-contained
    change list + verification + gate).** Summary below. `App.tsx:4073`
    and `App.tsx:4127` both call `setTurnProgress("initial_attempt")` before any
@@ -571,8 +591,12 @@ first, and finishing the coach work de-risks it.
    **Prerequisite (recommended): land item 7's `App.tsx` decomposition first**
    — 6b and 6c are both large additions to that file. See item 7.
 
-   **6a — `generate-i18n` script (small; may precede 4b, no `App.tsx`
-   touch).** Port `scripts/generate-i18n.mjs` + the `i18n` npm script. It
+   **6a — `generate-i18n` script. [DONE 2026-07-24 — `aaaadcb`.]** Ported
+   `scripts/generate-i18n.mjs` + the `i18n` npm script, adapted so
+   `supportedLanguages()` globs `src/i18n/*.json` (no `LANGUAGE_CODES` on
+   `mindmap-main`) and the donor "Out" prompt line is dropped. Dry-run verified;
+   live-backend translation smoke deferred (needs `:8000`). Original note:
+   Port `scripts/generate-i18n.mjs` + the `i18n` npm script. It
    translates `src/i18n/source.json` into every locale via the backend proxy
    (`npm run i18n [-- --force | <codes>]`). `mindmap-main` has the 34
    dictionaries but not the generator, so every hand-added chrome key
@@ -642,6 +666,39 @@ first, and finishing the coach work de-risks it.
 
 LiveKit/voice-native conversation; fast map mode (draft → proposed cards,
 opt-in only); save/export/multi-user collaboration.
+
+**Backend reconciliation: mindmap-main → main's backend (PARKED, analyzed
+2026-07-24).** The prototype talks to `mindmap-main`'s old thin, auth-less
+backend; `main`'s backend is ~156 commits ahead (Better Auth device flow,
+sqlite `db`, consent, erasure, usage metering, pricing, `openaiProxy.ts`).
+Merge-base analysis: **mindmap-main's *only* unique backend work is 74 lines in
+`app.ts` (the `/api/mindmap/events` narrow study-logging endpoint) + 56 test
+lines** — everything else the prototype does is frontend. `main` already exposes
+**both** routes the mindmap needs (`/api/openai/chat/completions` **and**
+`/api/openai/responses`, both through `openaiProxy` with `resolveUser` +
+metering). So reconciliation is *not* a big backend port; it is:
+- **Port one endpoint (~0.5–1 day, low risk):** re-home `/api/mindmap/events`
+  onto `main`'s auth model — gate with `resolveUser`, key JSONL by Better Auth
+  user id, rebase its 56 tests. Its narrow schema (no draft/prompt/user text)
+  already matches `main`'s consent-stripping posture, which is why it is cheap.
+- **The real work (~2–4 days):** `main`'s proxy **requires an authenticated
+  identity** (`resolveUser` null → 401; sessionless traffic gets the capped demo
+  key or is refused), and the mindmap frontend currently sends **zero auth** on
+  `postChat`/`postResponses`/events. Must wire an identity onto those three
+  `fetch`es, handle CORS (prototype runs on its own Vite origin), handle
+  401/token-expiry (sessions outlive a 1-hr token), and **verify `main`'s
+  metered proxy passes the mindmap body through unchanged** (`response_format:
+  json_object`, `reasoning_effort`, `stream:false`) — a must-confirm.
+- **Decision that swings it (OPEN, ask Nhyira):** which identity?
+  (a) **Better Auth session** (mindmap as an authenticated first-party page) —
+  needs nothing from PR #533; session + CORS only; cheaper, self-contained.
+  (b) **`wtk_` handoff token** (mindmap as a *launched tool* per PR #533) —
+  needs PR #533 merged first (different branch's territory; scope with Kenneth).
+- **Realistic total: ~3–5 focused days** via the Better-Auth-session route,
+  running the two backends convergently rather than merging the whole 156-commit
+  branch (full merge = ~1–2 wks, risky, NOT step one). See the mindmap-as-a-tool
+  frontend trace in chat 2026-07-24 for the per-call mapping. Relates to the
+  parked tool-launcher/PR #533 work.
 
 ## Product philosophy (binding — ask before deviating)
 
