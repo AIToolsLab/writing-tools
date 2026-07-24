@@ -176,6 +176,7 @@ ${transport === "responses_tools" ? "For this transport, reflection and map_prop
     OR {"kind":"translation","sourceEvidence":[{"utteranceIds":["..."],"userPhrase":"exact original-language phrase"}],"targetLanguage":"...","translatedText":"...","provenance":"ai_translated"},
   "advisory":{"candidateUpserts":[{"id":"...","target":"idea|hierarchy|connection","gist":"...","addEvidenceIds":["..."],"status":"active|parked"}],"affect":"exhausted|frustrated|overwhelmed|energized"}
 }
+
 Action fields: create_card={text,sourceUtteranceIds}; edit_card={id,text,sourceUtteranceIds}; nest_card={child:{id or text+sourceUtteranceIds},parent:{id or text+sourceUtteranceIds},relationEvidence:{utteranceId,text}}; connect_cards={source:{...},target:{...},labelText,labelSourceUtteranceIds,labelOptions?:[{text,sourceUtteranceIds}],relationEvidence:{utteranceId,text},pairingProof?:{kind:"co_mentioned"|"selection_and_named_card",utteranceId}}. Pairing proof only nominates evidence; code verifies it.
 Emit exactly one visible response. Advisory data never authorizes structure or a write.
 
@@ -234,6 +235,17 @@ function parseOptions(value: unknown): SourceBackedOption[] | undefined {
     return [{ text: optionText, sourceSpans: (Array.isArray(raw.sourceSpans) ? raw.sourceSpans : []).map(parseSpan).filter((span): span is SourceSpan => Boolean(span)) }];
   });
   return options.length === value.length ? options : undefined;
+}
+
+/** A display-only reader translation request. Its result is never session data. */
+export async function translateReaderText(text: string, targetLanguage: string): Promise<string> {
+  const response = await postChat([
+    { role: "system", content: `Translate the supplied display text into ${targetLanguage}. Return JSON only: {"translation":"..."}. Preserve [[[number]]] markers exactly; do not explain, add content, or translate them.` },
+    { role: "user", content: text },
+  ], providerRuntime());
+  const parsed = JSON.parse(response.content) as { translation?: unknown };
+  if (typeof parsed.translation !== "string") throw new Error("Translation response was missing translation text.");
+  return parsed.translation;
 }
 
 function parseTranslationEvidence(value: unknown): TranslationEvidencePhrase[] | undefined {

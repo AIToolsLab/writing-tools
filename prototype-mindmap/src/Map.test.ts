@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { groupDragPositions, pruneContextSelection, proxyAnchorSpecs, renderedEndpointCenter, suggestionBadge, toggleContextSelection } from "./Map";
+import { groupDragPositions, pruneContextSelection, proxyAnchorSpecs, renderedEndpointCenter, resyncFlowNodes, suggestionBadge, toggleContextSelection } from "./Map";
 import { ThoughtUnitStore } from "./map-store";
 import type { ThoughtUnit, ThoughtUnitRole } from "./types";
 
@@ -130,5 +130,16 @@ describe("context selection helpers", () => {
     expect(next.get("a")).toEqual({ x: 25, y: 15 });
     expect(next.get("b")).toEqual({ x: 115, y: 115 });
     expect(next.get("c")).toEqual({ x: -25, y: -5 });
+  });
+});
+
+describe("reader-view map resync", () => {
+  it("retains every node and ordinary selection through a reader-language remeasure", () => {
+    const before = [{ id: "a", position: { x: 0, y: 0 }, data: {}, selected: true }, { id: "b", position: { x: 20, y: 0 }, data: {} }];
+    const translated = resyncFlowNodes(before, before.map((node) => ({ ...node })));
+    const restored = resyncFlowNodes(translated, before.map((node) => ({ ...node })));
+    expect(translated.map((node) => node.id)).toEqual(["a", "b"]);
+    expect(restored.map((node) => node.id)).toEqual(["a", "b"]);
+    expect(restored.find((node) => node.id === "a")?.selected).toBe(true);
   });
 });

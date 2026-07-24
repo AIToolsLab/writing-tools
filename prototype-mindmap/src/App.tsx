@@ -21,6 +21,7 @@ import { reconcileStoreSuggestionAdoption, type VisibleSuggestion } from "./sugg
 import { provenanceTotals, type ProvenanceTotals } from "./provenance-summary";
 import { useMutationAccess } from "./mutation-policy";
 import { useUiLocale } from "./ui-locale";
+import { useReaderView } from "./reader-view";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -192,6 +193,7 @@ const css = `
     display: flex;
     width: 100%;
     height: 100vh;
+    min-height: 0;
     gap: 0;
   }
 
@@ -281,7 +283,8 @@ const css = `
     text-transform: uppercase;
     color: #999;
   }
-  .ai-suggestion-badge {
+  .ai-suggestion-badge,
+  .ai-translation-badge {
     display: inline-block;
     margin-left: 5px;
     padding: 2px 5px;
@@ -294,6 +297,7 @@ const css = `
     letter-spacing: 0.02em;
     text-transform: none;
   }
+  .ai-translation-badge { border-color: #92c8d4; background: #eaf8fa; color: #176c7a; }
   .focus-chip {
     display: flex;
     align-items: center;
@@ -644,7 +648,9 @@ const css = `
     flex: 1;
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: auto;
+    min-height: 0;
+    min-width: 0;
     overflow: hidden;
     background: #f5f4f0;
   }
@@ -709,6 +715,10 @@ const css = `
     overflow-x: auto;
     overflow-y: hidden;
     scrollbar-width: thin;
+  }
+  @media (max-width: 1320px) {
+    .map-header { grid-template-columns: auto minmax(0, 1fr); }
+    .map-right-tools { grid-column: 1 / -1; justify-self: stretch; justify-content: flex-end; }
   }
   .map-right-tools {
     justify-self: end;
@@ -871,6 +881,7 @@ const css = `
     position: relative;
     flex: 1;
     min-height: 0;
+    min-width: 0;
   }
 
   .map-empty {
@@ -1618,6 +1629,36 @@ const css = `
     border-radius: 8px;
     border: 1px solid #f5c6cb;
   }
+  .map-render-recovery {
+    position: absolute;
+    inset: 18px;
+    display: grid;
+    place-content: center;
+    gap: 10px;
+    text-align: center;
+    color: #5d5a54;
+    background: rgba(255,255,252,0.92);
+    border: 1px solid #d8d4ca;
+    border-radius: 10px;
+    z-index: 5;
+  }
+  .reader-status-banner {
+    background: #eef7fd;
+    color: #1a5b82;
+    font-size: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #c8e0ef;
+  }
+  .reader-rejection {
+    margin-top: 7px;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: #fff8e5;
+    color: #734d00;
+    border: 1px solid #e8c675;
+    font-weight: 650;
+  }
 
   /* ---- draft panel ---- */
   .draft-panel {
@@ -1818,6 +1859,7 @@ const css = `
     flex: 1;
     min-width: 0;
     min-height: 0;
+    display: flex;
   }
 
   .underhood-tab {
@@ -2099,6 +2141,9 @@ const css = `
     transition: opacity 0.2s, transform 0.2s, background 0.2s, border-color 0.2s;
     border: 1px solid transparent;
   }
+  .event-row.provenance-row { grid-template-columns: minmax(0, 1fr) auto; }
+  .event-row.provenance-row::after { display: none; }
+  .event-row.provenance-row .event-title { min-width: 0; }
   .event-row:not(:last-child)::after {
     content: "";
     position: absolute;
@@ -2907,9 +2952,9 @@ export function UnderTheHoodPanel({
           {provenance && provenance.total > 0 && (
             <UnderhoodSection title={t("Map provenance")} meta={provenance.total} collapsed={sectionIsCollapsed("provenance")} onToggle={() => toggleSection("provenance")}>
               <div className="event-list">
-                <div className="event-row revealed"><span className="event-title">{t("Your contributions")}</span><span className="section-meta">{provenance.userAuthored}</span></div>
-                <div className="event-row revealed"><span className="event-title">{t("AI-connected from your words")}</span><span className="section-meta">{provenance.aiConnected}</span></div>
-                <div className="event-row revealed"><span className="event-title">{t("AI suggestions")}</span><span className="section-meta">{provenance.aiSuggested}</span></div>
+                <div className="event-row provenance-row revealed"><span className="event-title">{t("Your contributions")}</span><span className="section-meta">{provenance.userAuthored}</span></div>
+                <div className="event-row provenance-row revealed"><span className="event-title">{t("AI-connected from your words")}</span><span className="section-meta">{provenance.aiConnected}</span></div>
+                <div className="event-row provenance-row revealed"><span className="event-title">{t("AI suggestions")}</span><span className="section-meta">{provenance.aiSuggested}</span></div>
               </div>
             </UnderhoodSection>
           )}
@@ -3106,6 +3151,7 @@ export function UnderTheHoodPanel({
 
 export default function App() {
   const { locale, t } = useUiLocale();
+  const reader = useReaderView();
   const mutationAccess = useMutationAccess();
   const readOnly = mutationAccess.mode === "translated_view";
   const persistedSession = useMemo(() => loadPersistedSession(), []);
@@ -3137,7 +3183,7 @@ export default function App() {
   const initialMapStore = useMemo(() => {
     const store = new ThoughtUnitStore();
     if (persistedSession) {
-      executeCanvasAction({ kind: "restore_snapshot", snapshot: persistedSession.map }, { store, bank: initialState.bank });
+      executeCanvasAction({ kind: "restore_snapshot", snapshot: persistedSession.map }, { store, bank: initialState.bank, interactionMode: "authoring", origin: "system_restore" });
       for (const unit of store.getAll()) {
         if (!unit.source.origin) store.update(unit.id, { source: { ...unit.source, origin: unit.source.reflectionId ? "legacy_confirmed" : "user_canvas" } });
       }
@@ -3274,7 +3320,7 @@ export default function App() {
     if (!mutationAccess.allows("map_undo")) return;
     const previous = undoStackRef.current.pop();
     if (!previous) return;
-    executeCanvasAction({ kind: "restore_snapshot", snapshot: previous.map }, { store: mapStoreRef.current, bank: stateRef.current.bank });
+    executeCanvasAction({ kind: "restore_snapshot", snapshot: previous.map }, { store: mapStoreRef.current, bank: stateRef.current.bank, interactionMode: mutationAccess.mode, origin: "system_restore" });
     stateRef.current.bank.replaceAll(previous.bank);
     setCanUndoMap(undoStackRef.current.length > 0);
     setCommandAck(null);
@@ -3449,6 +3495,14 @@ export default function App() {
   const preExpandChipPosRef = useRef<DraftPanelPos | null>(null);
   const draftPanelRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    reader.prefetch([
+      ...msgs.map((message) => message.terminal === "repair_failed" ? "" : message.text),
+      draftText,
+      stickyDraftFocus ? focusSummary(stickyDraftFocus.text) : "",
+    ]);
+  }, [draftText, msgs, reader.prefetch, stickyDraftFocus]);
 
   const requestDraftAnchorReveal = useCallback((anchor: string | undefined) => {
     const text = anchor?.trim();
@@ -4279,6 +4333,7 @@ export default function App() {
 
   function clearMapOnly() {
     if (!mutationAccess.allows("map_clear")) return;
+    reader.clearDisplayCache();
     turnNonceRef.current++;
     setLoading(false);
     mapStoreRef.current = new ThoughtUnitStore();
@@ -4295,6 +4350,7 @@ export default function App() {
 
   function clearDraftOnly() {
     if (!mutationAccess.allows("draft_clear")) return;
+    reader.clearDisplayCache();
     turnNonceRef.current++;
     setLoading(false);
     setDraftText("");
@@ -4307,6 +4363,7 @@ export default function App() {
 
   function clearChatOnly() {
     if (!mutationAccess.allows("chat_clear")) return;
+    reader.clearDisplayCache();
     turnNonceRef.current++;
     setLoading(false);
     const draft = draftText;
@@ -4339,7 +4396,7 @@ export default function App() {
         <div className="chat-panel">
           <div className="chat-header">
             <div className="chat-header-actions chat-header-actions-left">
-              <button className="reset-btn" disabled={readOnly} onClick={clearChatOnly} title={t("Clear the chat conversation only")}>
+              <button className="reset-btn" disabled={readOnly} onClick={clearChatOnly} title={readOnly ? t("Switch back to the original view to edit.") : t("Clear the chat conversation only")} aria-describedby={readOnly ? "reader-view-status" : undefined}>
                 {t("Clear chat")}
               </button>
             </div>
@@ -4386,6 +4443,17 @@ export default function App() {
           </div>
 
           {!ledgerAvailable && <div className="error-banner">{t("Local audit storage is unavailable in this browser.")}</div>}
+          {reader.isTranslatedView && (
+            <div id="reader-view-status" className="reader-status-banner" role="status">
+              {t("Viewing a translation. Switch back to the original view to edit.")}
+              <button type="button" onClick={reader.returnToOriginal}>{t("Back to original")}</button>
+              {reader.rejection && (
+                <div key={reader.rejection.id} className="reader-rejection" role="alert">
+                  {t("Switch back to the original view to edit.")}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="messages">
             {msgs.map((m) => (
@@ -4398,7 +4466,7 @@ export default function App() {
                   )}
                 </span>
                 <div className="msg-bubble">
-                  {m.role === "application" && m.terminal === "repair_failed" ? t(m.text) : m.text}
+                  {m.role === "application" && m.terminal === "repair_failed" ? t(m.text) : reader.translate(m.text)}
                 </div>
                 {m.role === "application" && m.terminal === "repair_failed" && (
                   <div className="recovery-actions">
@@ -4441,8 +4509,8 @@ export default function App() {
             {error && <div className="error-banner">{error}</div>}
             {stickyDraftFocus && (
               <div className="focus-chip" role="status">
-                <span className="focus-chip-text">Focusing on selected text: “{focusSummary(stickyDraftFocus.text)}”</span>
-                <button className="focus-chip-dismiss" type="button" onClick={() => setStickyDraftFocus(undefined)} aria-label="Stop focusing on selected text">×</button>
+                <span className="focus-chip-text">{t("Focusing on selected text:")} “{reader.translate(focusSummary(stickyDraftFocus.text))}”</span>
+                <button className="focus-chip-dismiss" type="button" onClick={() => setStickyDraftFocus(undefined)} aria-label={t("Stop focusing on selected text")}>×</button>
               </div>
             )}
             <div className="input-row">
@@ -4457,6 +4525,7 @@ export default function App() {
                 }}
                 onKeyDown={onKey}
                 disabled={readOnly || loading}
+                aria-describedby={readOnly ? "reader-view-status" : undefined}
               />
               <div className="composer-toolbar">
                 <div className="composer-left-tools">
@@ -4496,9 +4565,10 @@ export default function App() {
                   <button
                     className="draft-toggle-btn"
                     type="button"
-                    title="Create a confirmable card from this wording"
+                    title={readOnly ? t("Switch back to the original view to edit.") : "Create a confirmable card from this wording"}
                     onClick={addComposerAsCard}
-                      disabled={readOnly || loading || !input.trim()}
+                    disabled={readOnly || loading || !input.trim()}
+                    aria-describedby={readOnly ? "reader-view-status" : undefined}
                   >
                     {t("Add as card")}
                   </button>
@@ -4531,7 +4601,7 @@ export default function App() {
                   >
                     <MicIcon />
                   </button>
-                  <button className="send-btn" onClick={() => void send()} disabled={readOnly || loading || !input.trim()} aria-label={t("Send")}>
+                  <button className="send-btn" onClick={() => void send()} disabled={readOnly || loading || !input.trim()} aria-label={t("Send")} title={readOnly ? t("Switch back to the original view to edit.") : undefined} aria-describedby={readOnly ? "reader-view-status" : undefined}>
                     {"\u2191"}
                   </button>
                 </div>
@@ -4617,21 +4687,25 @@ export default function App() {
                     />
                   ))}
                 </div>
-                <div
-                  ref={draftRef}
-                  className="draft-editor"
-                  contentEditable={!readOnly}
-                  suppressContentEditableWarning
-                  role="textbox"
-                  aria-multiline="true"
-                  data-placeholder={t("Paste or type your draft here...")}
-                  onMouseDown={() => setHighlightAnchor(undefined)}
-                  onInput={handleDraftInput}
-                  onSelect={updateDraftSelectionFocus}
-                  onKeyUp={updateDraftSelectionFocus}
-                  onMouseUp={updateDraftSelectionFocus}
-                  onPaste={handleDraftPaste}
-                />
+                {reader.isTranslatedView ? (
+                  <div className="draft-editor" role="textbox" aria-readonly="true">{reader.translate(draftText)}</div>
+                ) : (
+                  <div
+                    ref={draftRef}
+                    className="draft-editor"
+                    contentEditable={!readOnly}
+                    suppressContentEditableWarning
+                    role="textbox"
+                    aria-multiline="true"
+                    data-placeholder={t("Paste or type your draft here...")}
+                    onMouseDown={() => setHighlightAnchor(undefined)}
+                    onInput={handleDraftInput}
+                    onSelect={updateDraftSelectionFocus}
+                    onKeyUp={updateDraftSelectionFocus}
+                    onMouseUp={updateDraftSelectionFocus}
+                    onPaste={handleDraftPaste}
+                  />
+                )}
               </div>
             </div>
           )}
@@ -4724,7 +4798,7 @@ export function InfluenceBadge({ influence }: { influence?: import("./assistance
 export function AssistantResponseKindBadge({ kind }: { kind?: AssistantResponse["kind"] }) {
   const { t } = useUiLocale();
   if (kind === "suggestion") return <span className="ai-suggestion-badge">{t("AI suggestion")}</span>;
-  if (kind === "translation") return <span className="ai-suggestion-badge">{t("AI-translated")}</span>;
+  if (kind === "translation") return <span className="ai-translation-badge">{t("AI-translated")}</span>;
   if (kind === "grounded_recap") return <span className="stance-chip">{t("recap from your words")}</span>;
   return null;
 }
@@ -4738,12 +4812,29 @@ export function MirrorCard({
   onDecide: (claimId: string, decision: "confirmed" | "declined") => void;
   onEdit: (claimId: string, text: string) => void;
 }) {
-  const { t } = useUiLocale();
-  const readOnly = useMutationAccess().mode === "translated_view";
   if (proposal.detail.kind !== "reflection") return null;
-  if (proposal.state === "invalidated") return <div className="mirror-card"><span className="mirror-card-label">{t("This proposal is no longer valid:")} {proposal.invalidReason}</span></div>;
+  return <ReflectionProposalCard proposal={proposal} reflection={proposal.detail} onDecide={onDecide} onEdit={onEdit} />;
+}
+
+function ReflectionProposalCard({
+  proposal,
+  reflection,
+  onDecide,
+  onEdit,
+}: {
+  proposal: Proposal;
+  reflection: Extract<Proposal["detail"], { kind: "reflection" }>;
+  onDecide: (claimId: string, decision: "confirmed" | "declined") => void;
+  onEdit: (claimId: string, text: string) => void;
+}) {
+  const { t } = useUiLocale();
+  const reader = useReaderView();
+  const readOnly = useMutationAccess().mode === "translated_view";
+  useEffect(() => {
+    reader.prefetch([proposal.invalidReason ?? "", ...reflection.reflection.claims.map((claim) => reflection.editedTexts[claim.id] ?? claim.text)]);
+  }, [proposal.invalidReason, reader.prefetch, reflection]);
+  if (proposal.state === "invalidated") return <div className="mirror-card"><span className="mirror-card-label">{t("This proposal is no longer valid:")} {reader.translate(proposal.invalidReason ?? "")}</span></div>;
   if (proposal.state === "confirmed" || proposal.state === "declined" || proposal.state === "cancelled") return null;
-  const reflection = proposal.detail;
   return (
     <div className="mirror-card">
       <div className="mirror-card-head">
@@ -4760,14 +4851,14 @@ export function MirrorCard({
               {decision === "pending" ? (
                 <textarea
                   className="claim-text claim-editor"
-                  value={text}
+                  value={readOnly ? reader.translate(text) : text}
                   readOnly={readOnly}
                   rows={Math.max(5, Math.min(10, text.split(/\n/).length + Math.ceil(text.length / 42)))}
                   onChange={(event) => onEdit(claim.id, event.target.value)}
                   aria-label={`Editable mirrored wording ${claimNumber}`}
                 />
               ) : (
-                <span className="claim-text">{text}</span>
+                <span className="claim-text">{reader.translate(text)}</span>
               )}
               {decision === "pending" ? (
                 <div className="claim-btns">
@@ -4853,14 +4944,35 @@ export function MapActionProposalCard({
   onEdit: (id: string, action: ProposedAction) => void;
   onDecide: (id: string, decision: "confirmed" | "declined") => void;
 }) {
-  const { t } = useUiLocale();
-  const readOnly = useMutationAccess().mode === "translated_view";
   if (proposal.detail.kind !== "map_action") return null;
-  const { action } = proposal.detail;
-  const completion = proposal.detail.completion;
+  return <MapActionProposalContent proposal={proposal} detail={proposal.detail} cards={cards} onEdit={onEdit} onDecide={onDecide} />;
+}
+
+function MapActionProposalContent({
+  proposal,
+  detail,
+  cards,
+  onEdit,
+  onDecide,
+}: {
+  proposal: Proposal;
+  detail: Extract<Proposal["detail"], { kind: "map_action" }>;
+  cards: ThoughtUnit[];
+  onEdit: (id: string, action: ProposedAction) => void;
+  onDecide: (id: string, decision: "confirmed" | "declined") => void;
+}) {
+  const { t } = useUiLocale();
+  const reader = useReaderView();
+  const readOnly = useMutationAccess().mode === "translated_view";
+  const { action } = detail;
+  const completion = detail.completion;
+  useEffect(() => {
+    const actionText = action.kind === "create_card" || action.kind === "edit_card" ? [action.text] : action.kind === "connect_cards" ? [action.labelText ?? "", ...(completion?.kind === "relationship_label" ? completion.options.map((option) => option.text) : [])] : [];
+    reader.prefetch([proposal.invalidReason ?? "", ...cards.map((card) => card.text), ...actionText]);
+  }, [action, cards, completion, proposal.invalidReason, reader.prefetch]);
   if (proposal.state === "confirmed" || proposal.state === "declined" || proposal.state === "cancelled") return null;
   if (proposal.state === "invalidated") {
-    return <div className="mirror-card"><span className="mirror-card-label">{t("This proposal is no longer valid:")} {proposal.invalidReason}</span></div>;
+    return <div className="mirror-card"><span className="mirror-card-label">{t("This proposal is no longer valid:")} {reader.translate(proposal.invalidReason ?? "")}</span></div>;
   }
   const visibleCards = completion?.kind === "reference_choice"
     ? cards.filter((card) => completion.candidates.some((candidate) => candidate.id === card.id))
@@ -4877,16 +4989,16 @@ export function MapActionProposalCard({
       <span className="claim-text">{label}</span>
       <select disabled={readOnly} value={value ?? ""} onChange={(event) => onChange(event.target.value)}>
         {cardOptions}
-        {visibleCards.map((card) => <option key={card.id} value={card.id}>{card.text || t("Untitled card")}</option>)}
+        {visibleCards.map((card) => <option key={card.id} value={card.id}>{reader.translate(card.text) || t("Untitled card")}</option>)}
       </select>
     </label>
   );
   const renderEditor = () => {
     if (action.kind === "create_card") {
-      return <textarea className="claim-text claim-editor" readOnly={readOnly} value={action.text} rows={3} onChange={(event) => onEdit(proposal.id, { ...action, text: event.target.value })} />;
+      return <textarea className="claim-text claim-editor" readOnly={readOnly} value={readOnly ? reader.translate(action.text) : action.text} rows={3} onChange={(event) => onEdit(proposal.id, { ...action, text: event.target.value })} />;
     }
     if (action.kind === "edit_card") {
-      return <textarea className="claim-text claim-editor" readOnly={readOnly} value={action.text} rows={3} onChange={(event) => onEdit(proposal.id, { ...action, text: event.target.value })} />;
+      return <textarea className="claim-text claim-editor" readOnly={readOnly} value={readOnly ? reader.translate(action.text) : action.text} rows={3} onChange={(event) => onEdit(proposal.id, { ...action, text: event.target.value })} />;
     }
     if (action.kind === "nest_card") {
       return <>
@@ -4897,10 +5009,10 @@ export function MapActionProposalCard({
     return <>
       {selectRef(action.source.id, (id) => onEdit(proposal.id, { ...action, source: { id } }), "From")}
       {selectRef(action.target.id, (id) => onEdit(proposal.id, { ...action, target: { id } }), "To")}
-      <textarea className="claim-text claim-editor" readOnly={readOnly} value={action.labelText ?? ""} placeholder={t("Relationship wording")} rows={2} onChange={(event) => onEdit(proposal.id, { ...action, labelText: event.target.value, labelOrigin: action.labelOrigin === "ai_suggested" ? "ai_suggested" : "user_asserted" })} />
+      <textarea className="claim-text claim-editor" readOnly={readOnly} value={readOnly ? reader.translate(action.labelText ?? "") : action.labelText ?? ""} placeholder={t("Relationship wording")} rows={2} onChange={(event) => onEdit(proposal.id, { ...action, labelText: event.target.value, labelOrigin: action.labelOrigin === "ai_suggested" ? "ai_suggested" : "user_asserted" })} />
       {completion?.kind === "relationship_label" && completion.options.length > 0 && (
         <div className="claim-btns">
-          {completion.options.map((option, index) => <button key={`${option.text}-${index}`} className="btn btn-decline-sm" onClick={() => onEdit(proposal.id, { ...action, labelText: option.text, labelSourceUtteranceIds: option.sourceUtteranceIds, labelOrigin: option.origin })}>{option.origin === "ai_suggested" ? `AI suggestion: ${option.text}` : option.text}</button>)}
+          {completion.options.map((option, index) => <button key={`${option.text}-${index}`} disabled={readOnly} className="btn btn-decline-sm" onClick={() => onEdit(proposal.id, { ...action, labelText: option.text, labelSourceUtteranceIds: option.sourceUtteranceIds, labelOrigin: option.origin })}>{option.origin === "ai_suggested" ? `${t("AI suggestion")}: ${reader.translate(option.text)}` : reader.translate(option.text)}</button>)}
         </div>
       )}
     </>;

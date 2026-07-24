@@ -60,13 +60,18 @@ export function inspectMutation(
     : null;
 }
 
-export function createMutationAccess(mode: InteractionMode): MutationAccess {
+export function createMutationAccess(mode: InteractionMode, onRejected?: (rejection: MutationRejection) => void): MutationAccess {
   return {
     mode,
-    allows: (intent) => inspectMutation(mode, intent) === null,
+    allows: (intent) => {
+      const rejection = inspectMutation(mode, intent);
+      if (rejection) onRejected?.(rejection);
+      return rejection === null;
+    },
     run: (intent, mutation) => {
       const rejection = inspectMutation(mode, intent);
-      return rejection ?? { status: "applied", value: mutation() };
+      if (rejection) { onRejected?.(rejection); return rejection; }
+      return { status: "applied", value: mutation() };
     },
   };
 }
@@ -76,11 +81,13 @@ const MutationAccessContext = createContext<MutationAccess>(createMutationAccess
 export function MutationPolicyProvider({
   children,
   mode = "authoring",
+  onRejected,
 }: {
   children?: ReactNode;
   mode?: InteractionMode;
+  onRejected?: (rejection: MutationRejection) => void;
 }) {
-  const access = useMemo(() => createMutationAccess(mode), [mode]);
+  const access = useMemo(() => createMutationAccess(mode, onRejected), [mode, onRejected]);
   return (
     <MutationAccessContext.Provider value={access}>
       {children}

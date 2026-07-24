@@ -34,4 +34,13 @@ describe("mutation policy", () => {
       value: "changed",
     });
   });
+
+  it("reports a translated-view rejection while leaving the mutation untouched", () => {
+    const rejected: string[] = [];
+    const access = createMutationAccess("translated_view", (event) => rejected.push(event.intent));
+    let changed = false;
+    expect(access.run("chat_send", () => { changed = true; })).toMatchObject({ status: "rejected", reason: "read_only_view" });
+    expect(changed).toBe(false);
+    expect(rejected).toEqual(["chat_send"]);
+  });
 });

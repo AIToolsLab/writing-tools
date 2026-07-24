@@ -232,6 +232,30 @@ describe("action gateway", () => {
     expect(store.get(a.id)?.text).toBe("my direct edit");
   });
 
+  it("rejects a translated-view canvas write before touching the store", () => {
+    const { bank, store, a } = setup();
+    const result = executeCanvasAction({ kind: "edit_card", id: a.id, text: "blocked" }, { store, bank, interactionMode: "translated_view" });
+    expect(result).toMatchObject({ status: "rejected", reason: "read_only_view" });
+    expect(store.get(a.id)?.text).not.toBe("blocked");
+  });
+
+  it("permits only snapshot restoration through the explicit system origin", () => {
+    const { bank, store, a } = setup();
+    const snapshot = store.snapshot();
+    const edit = executeCanvasAction({ kind: "edit_card", id: a.id, text: "escape" }, { store, bank, interactionMode: "translated_view", origin: "system_restore" });
+    expect(edit).toMatchObject({ status: "rejected", reason: "origin_not_permitted" });
+    expect(store.get(a.id)?.text).not.toBe("escape");
+    const restored = executeCanvasAction({ kind: "restore_snapshot", snapshot }, { store, bank, interactionMode: "translated_view", origin: "system_restore" });
+    expect(restored.status).toBe("applied");
+    expect(store.get(a.id)?.text).toBe(a.text);
+  });
+
+  it("does not expose snapshot restoration to a user canvas execution", () => {
+    const { bank, store } = setup();
+    const result = executeCanvasAction({ kind: "restore_snapshot", snapshot: store.snapshot() }, { store, bank, interactionMode: "authoring", origin: "user" });
+    expect(result).toMatchObject({ status: "rejected", reason: "origin_not_permitted" });
+  });
+
   it("rejects invalid direct canvas cycles before mutation", () => {
     const { bank, store, a, b } = setup();
     executeCanvasAction({ kind: "set_parent", id: b.id, parentId: a.id, role: "content" }, { store, bank });
