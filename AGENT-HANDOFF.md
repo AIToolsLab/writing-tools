@@ -218,6 +218,55 @@ each item will touch.
    gloss (tooltip beside, never replacing) is deferred, not v1. Full spec in
    pass doc §8 4b.
 
+   **4b browser-QA results (2026-07-23) — DOES NOT COMMIT until 1–4 land.**
+   Implementation is otherwise complete and green (`tsc`, 323 Vitest, build),
+   and static review confirmed the good parts: gateway now emits
+   `read_only_view` for the canvas path, `onRejected` feedback is wired, the
+   display cache touches only its own two localStorage keys (never bank /
+   session / history / `recordEvent` / `toLLMContext`), protected spans +
+   byte-for-byte restore present, dedupe done. Browser QA then found:
+
+   *BLOCKERS:*
+   1. **Blank map on reader-language switch.** Console:
+      `[React Flow]: The parent container needs a width and a height to
+      render the graph` (error#004, ×4). The map container measured
+      zero-width/height and React Flow bailed; **data was never lost** (the
+      "6 cards" counter stayed correct and a refresh restored everything) —
+      this is a render failure, not a mutation. Likely trigger: the reader
+      banner is inserted into the layout and reflows the panel containers
+      while React Flow measures. The map container needs a height that
+      cannot collapse when siblings are inserted.
+   2. **The failure is sticky.** Returning to Original view did NOT restore
+      the map — `flowNodes` is memoized and `setNodes` syncs via an effect
+      whose deps don't change on reader-state change, so an emptied node
+      array never recovers until remount (refresh). Needs a re-measure path
+      **plus an error boundary — there is none anywhere in the app**, a
+      pre-existing gap this exposed.
+   3. **`reader-view.tsx` queueing correctness.** `useEffect(() => { void
+      flush(); })` has **no dependency array** (runs every render), and
+      `translate()` mutates `queued.current` **during the render phase**.
+      NOTE: this was initially suspected as the blank-map cause and is *not*
+      — `flush` early-returns when the queue is empty or a run is in flight.
+      Still fix both: render-phase ref mutation can drop or duplicate queued
+      translations (notably under StrictMode double-render).
+   4. **Regression test:** map node count identical before / during / after
+      a reader-language switch. Current tests do not cover it.
+
+   *POLISH (same pass):* the read-only banner reuses `className="error-banner"`
+   so a `role="status"` message wears the error skin — give it its own calm
+   informational class; the top toolbar does not wrap/overflow, so the new
+   Reader-language selector makes controls overlap when the panel is slid with
+   Control Room open; give the `AI-translated` badge a distinct style (it
+   currently reuses the purple `ai-suggestion-badge`, indistinguishable from
+   AI suggestions).
+
+   *VERIFIED WORKING in QA:* checkpoint-2 language matching is excellent —
+   the coach held a full conversation in **Twi** (no grounding profile, no
+   dictionary), including mixed Twi/English turns, and answered Spanish in
+   Spanish. Reader translation itself worked (chat projected to Bengali).
+   Translation-half QA should be re-run after the fixes; the earlier
+   `Backend 401` was an unrelated stale backend process holding port 8000.
+
    **Considered and REJECTED (do not re-propose without new evidence):** a
    third "coach-language" mode (chrome + coach speech translated, user words
    untouched, editable). The mainstream case is already covered — the coach
@@ -265,14 +314,56 @@ each item will touch.
    ("was AI-suggested" / "AI-influenced") when current overlap has decayed.
    Demo-facing.
 
-7. **[POST-MERGE] `App.tsx` decomposition** (~4,700 lines): `useMindmapSession`
-   hook, `session-persistence.ts`, `ControlRoom.tsx` fed by a diagnostics
-   selector. Only when no parallel mindmap branch is mid-flight.
+6b. **[BUG — pre-existing, found in 4b QA 2026-07-23] Map provenance panel
+   layout.** The Control Room's provenance rows render one word (or one CJK
+   character) per line with the counts misaligned. Cause: `.event-row` is
+   `display: grid; grid-template-columns: 24px 1fr auto`, expecting a leading
+   icon cell, but the provenance rows supply only two children — so the label
+   lands in the **24px** column and is crushed. Present on `mindmap-main`;
+   4b never touches it. Fix: give these rows a two-column variant
+   (`grid-template-columns: 1fr auto`) plus `min-width: 0` on the title.
+
+6c. **[BUG — Part B deviation, found in 4b QA 2026-07-23] Turn-progress
+   narration is scripted, not event-driven.** `App.tsx` sets
+   `setTurnProgress("initial_attempt")` unconditionally at the start of every
+   turn (~L4021 and ~L4075), before any model call, so "Trying to reflect
+   your words…" shows on **every** turn. This contradicts the agreed Part B
+   spec ("show a stage only when it actually happens; a turn whose first
+   mirror grounds shows little/none; narration appears exactly when the
+   multi-attempt path runs"). Two harms: it is repetitive enough to stop
+   carrying information, and it is often **inaccurate** — at that moment the
+   model has not chosen its move, so turns that end as a question, answer,
+   aside, or suggestion were all announced as reflections (observed live on
+   plain-answer and question turns). Fix: drop the eager `initial_attempt`
+   and reserve narration for stages that genuinely occur
+   (`grounding_repair`, `forced_question`). If a bare spinner feels dead,
+   show a delayed (~600–800ms) indicator with **neutral** copy instead of
+   claiming a reflection. Confirm what plain `loading` renders on its own
+   before removing the stage, so fast turns keep some feedback.
+
+7. **[POST-MERGE] `App.tsx` decomposition** (**4,852 lines** on
+   `mindmap-main`; 4,941 with 4b in the working tree — the "~4,700" figure
+   was stale): `useMindmapSession` hook, `session-persistence.ts`,
+   `ControlRoom.tsx` fed by a diagnostics selector. Only when no parallel
+   mindmap branch is mid-flight (4b is mid-flight now, so it cannot start
+   yet).
+
+   **Sequencing (recommended 2026-07-23): do this BEFORE Checkpoint 6, not
+   after.** Checkpoint 6 adds two large surfaces to this same file — the
+   Recap panel (6b) and the compare-3-levels UI (6c) — so building them into
+   a ~5,000-line component makes both the implementation and its review
+   harder, and every checkpoint so far has grown the file further. The 4b QA
+   also strengthened the structural case: the blank-map failure came from
+   layout fragility in this file, and there is **no error boundary anywhere
+   in the app**. The `ControlRoom.tsx` extraction in particular would isolate
+   the provenance-grid bug (6b above) and the Control Room translation logic.
 
 8. **[AGREED 2026-07-23 — POST-4b] Checkpoint 6: session digest + donor
    reclamation.** Reclaim three donor features
    (`origin/feat/mindmap_translation`, donor-only, never merge) plus one new
-   deliverable. Ranked slices, each landing independently green:
+   deliverable. Ranked slices, each landing independently green.
+   **Prerequisite (recommended): land item 7's `App.tsx` decomposition first**
+   — 6b and 6c are both large additions to that file. See item 7.
 
    **6a — `generate-i18n` script (small; may precede 4b, no `App.tsx`
    touch).** Port `scripts/generate-i18n.mjs` + the `i18n` npm script. It
