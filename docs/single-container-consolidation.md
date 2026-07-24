@@ -23,7 +23,8 @@ explains exactly which rule actually matters.
 - `experiment` container: separate Next.js app. **Left completely untouched.**
 - Two persistent volumes on the backend: study **logs** and the auth **SQLite DB**.
 - Orchestration: `docker-compose.yml` + `docker-compose-{dev,staging,prod}.yml`,
-  built/deployed by `Jenkinsfile`; new GitHub Actions build runs in parallel (§9).
+  built and deployed by `Jenkinsfile` (the deploy path at the time; since retired in
+  favour of the GHCR image + k8s CD described in §9).
 
 ## 2. After
 
@@ -175,10 +176,6 @@ mv /opt/thoughtful/logs/*       /opt/thoughtful/data/logs/
   `ghcr.io/aitoolslab/writing-tools-addin`, SHA-tagged + `latest`, on push to `main`
   (paths: `frontend/**`, `backend/**`, `Dockerfile`, `.dockerignore`, the workflow).
   Mirrors `build-experiment-image.yml`; CD (Infrastructure_k8s_* repo) pins the SHA.
-- **Jenkins (kept for now):** `Jenkinsfile` still runs `docker compose … build`/`up`
-  and keeps working with the consolidated compose — it builds the combined image and
-  brings up one fewer service. Runs **in parallel** with GHA during the deployment
-  migration; remove it once CD fully moves to the GHCR image.
 - Other workflows unchanged: `add-in.yml` (lint), `frontend-tests.yml` (Vitest +
   Playwright), `build-experiment-image.yml`.
 
