@@ -156,15 +156,17 @@ There is no runtime dev/prod flag — the two modes are just two versions of
 
 ## OAuth Scopes
 
-The add-on requests these scopes (auto-detected from API usage; no explicit
-`oauthScopes` block in `appsscript.json`):
+The add-on requests these scopes, declared explicitly in the `oauthScopes` block
+of `appsscript.json`:
 
-- `documents.currentonly` - Access only the current document
-- `script.container.ui` - Display sidebars and dialogs
-- `userinfo.email` - Identify the current user
+- `documents.currentonly` — read/edit only the current document (`DocumentApp`)
+- `script.container.ui` — show the add-on menu and sidebar (`DocumentApp.getUi()`)
+- `userinfo.email` — identify the current user (`Session.getActiveUser()`)
 
-Apps Script no longer makes outbound HTTP calls (the backend is called directly by
-the React app), so `script.external_request` is no longer requested.
+Apps Script makes no outbound HTTP calls: the React sidebar fetches the backend
+(and its own JS/CSS bundle) directly from the browser, which needs no Apps Script
+scope. So `script.external_request` and `urlFetchWhitelist` are **not** declared —
+don't re-add them unless you introduce a `UrlFetchApp` call in `Code.gs`.
 
 ## Deployment
 
@@ -194,12 +196,3 @@ the React app), so `script.external_request` is no longer requested.
 
 ### Quota limits
 - Script runtime: 6 minutes max per execution
-
-
-### Scopes we probably need
-
-| Name | Oauth Scope |
-|---|---|
-| See, edit, create, and delete all your Google Docs documents | https://www.googleapis.com/auth/documents |
-| Display and run third-party web content in prompts and sidebars inside Google applications | https://www.googleapis.com/auth/script.container.ui |
-| See your primary Google Account email address	| https://www.googleapis.com/auth/userinfo.email |

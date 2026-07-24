@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /**
  * Converts a Word paragraph object into a usable string by removing leading and trailing
@@ -23,14 +23,24 @@ export function handleAutoResize(textarea: HTMLTextAreaElement): void {
 }
 
 /**
- * Hook to manage the document context in the editor.
+ * Hook that exposes the current document context with a pull-based API.
+ *
+ * Rather than subscribing to pushed selection-change events, this pulls the
+ * context on mount and whenever the user returns to the sidebar (focus /
+ * visibility) — the moments a displayed context can go stale. This matters for
+ * the Google Docs surface, where there is no native selection event and the
+ * only way to observe changes is to re-fetch the whole document through Apps
+ * Script; an always-on poll there is expensive and slow. Callers that act on
+ * the document (send a message, run a feature, generate a suggestion) should
+ * call `refresh()` at that moment to get the freshest value instead of relying
+ * on the last displayed one.
+ *
+ * @returns `docContext` — the last pulled context (for display), and
+ *   `refresh` — pulls the latest context, updates `docContext`, and resolves
+ *   with the fresh value.
  */
 export function useDocContext(editorAPI: EditorAPI) {
-	const {
-		addSelectionChangeHandler,
-		removeSelectionChangeHandler,
-		getDocContext,
-	} = editorAPI;
+	const { getDocContext } = editorAPI;
 
 	const [docContext, updateDocContext] = useState<DocContext>({
 		beforeCursor: '',
@@ -38,29 +48,30 @@ export function useDocContext(editorAPI: EditorAPI) {
 		afterCursor: '',
 	});
 
-	 // Register event handlers for selection changes in the document.
+	const refresh = useCallback(async (): Promise<DocContext> => {
+		const latest = await getDocContext();
+		updateDocContext(latest);
+		return latest;
+	}, [getDocContext]);
+
+	// Pull on mount, and again whenever the sidebar regains focus / becomes
+	// visible (i.e. the user came back from editing the document).
 	useEffect(() => {
-		function handleSelectionChanged(): void {
-			// Get the document context (before cursor, selected text, after cursor)
-			getDocContext().then((docInfo: DocContext) => {
-				updateDocContext(docInfo);
-			});
+		void refresh();
+
+		function handleReturnToSidebar(): void {
+			if (document.visibilityState === 'visible') {
+				void refresh();
+			}
 		}
 
-		// Handle initial selection change
-		handleSelectionChanged();
-
-		// Handle subsequent selection changes
-		addSelectionChangeHandler(handleSelectionChanged);
-
-		// Cleanup
+		window.addEventListener('focus', handleReturnToSidebar);
+		document.addEventListener('visibilitychange', handleReturnToSidebar);
 		return () => {
-			removeSelectionChangeHandler(handleSelectionChanged);
+			window.removeEventListener('focus', handleReturnToSidebar);
+			document.removeEventListener('visibilitychange', handleReturnToSidebar);
 		};
-	}, [
-		addSelectionChangeHandler,
-		getDocContext,
-		removeSelectionChangeHandler,
-	]);
-	return docContext;
+	}, [refresh]);
+
+	return { docContext, refresh };
 }

@@ -14,8 +14,8 @@
 	"scripts": {
 		"build": "vite build",
 		"build:dev": "vite build --mode development",
-		"build:google-docs": "vite build --config vite.google-docs.config.ts",
-		"build:google-docs:dev": "vite build --config vite.google-docs.config.ts --mode development",
+		"build:google-docs": "BUILD_TARGET=google-docs vite build",
+		"build:google-docs:dev": "BUILD_TARGET=google-docs vite build --mode development",
 		"dev-server": "vite",
 		"prod-server": "http-server ./dist -p 3000",
 		"start": "office-addin-debugging start manifest.xml",
@@ -25,6 +25,7 @@
 		"validate": "office-addin-manifest validate manifest.xml",
 		"validate:prod": "office-addin-manifest validate -p dist/manifest.xml",
 		"watch": "vite build --watch --mode development",
+		"typecheck": "tsc --noEmit",
 		"lint": "eslint . --ext .js,.jsx,.ts,.tsx",
 		"lint:fix": "eslint . --ext .js,.jsx,.ts,.tsx --fix",
 		"office-lint": "office-addin-lint check",

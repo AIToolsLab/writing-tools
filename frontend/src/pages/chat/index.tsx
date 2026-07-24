@@ -18,6 +18,46 @@ const suggestionPrompts = [
 	'What am I missing?',
 ];
 
+const CHAT_SYSTEM_MESSAGE: ChatMessage = {
+	role: 'system',
+	content:
+		'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.',
+};
+
+const CHAT_GREETING_MESSAGE: ChatMessage = {
+	role: 'assistant',
+	content: 'What do you think about your document so far?',
+};
+
+/** Renders the document context into the message the model reads. */
+export function docContextMessageContent(docContext: DocContext): string {
+	return docContext.selectedText === ''
+		? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
+		: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
+}
+
+/**
+ * Builds the base conversation with the freshest document context as its
+ * second message. When the chat is empty it seeds the system + doc-context +
+ * greeting messages; otherwise it replaces the existing doc-context message so
+ * the model always sees the current document state at send time.
+ */
+export function withCurrentDocContext(
+	chatMessages: ChatMessage[],
+	docContext: DocContext,
+): ChatMessage[] {
+	const docContextMessage: ChatMessage = {
+		role: 'user',
+		content: docContextMessageContent(docContext),
+	};
+	if (chatMessages.length === 0) {
+		return [CHAT_SYSTEM_MESSAGE, docContextMessage, CHAT_GREETING_MESSAGE];
+	}
+	const updated = chatMessages.slice();
+	updated[1] = docContextMessage;
+	return updated;
+}
+
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const editorAPI = useContext(EditorContext);
@@ -54,50 +94,25 @@ export default function Chat() {
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [chatMessages]);
 
-	const docContext = useDocContext(editorAPI);
+	const { refresh: refreshDocContext } = useDocContext(editorAPI);
 
-	const docContextMessageContent =
-		docContext.selectedText === ''
-			? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
-			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
-
-	let messagesWithCurDocContext = chatMessages;
-	if (chatMessages.length === 0) {
-		// Initialize the chat with the system message and the document-context message.
-		const systemMessage = {
-			role: 'system',
-			content:
-				'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.',
-		};
-
-		const docContextMessage = {
-			role: 'user',
-			content: docContextMessageContent,
-		};
-
-		const initialAssistantMessage = {
-			role: 'assistant',
-			content: 'What do you think about your document so far?',
-		};
-		messagesWithCurDocContext = [
-			systemMessage,
-			docContextMessage,
-			initialAssistantMessage,
-		];
-	} else {
-		// Update the document context message with the current selection.
-		messagesWithCurDocContext[1].content = docContextMessageContent;
-	}
+	// Seed the conversation once (system + doc-context + greeting) when empty.
+	// The document context is pulled here and refreshed again at send time, so
+	// there's no need to track selection changes continuously.
 	useEffect(() => {
-		updateChatMessages(messagesWithCurDocContext);
-	}, [messagesWithCurDocContext, updateChatMessages]);
+		if (chatMessages.length !== 0) return;
+		void (async () => {
+			const docContext = await refreshDocContext();
+			updateChatMessages(withCurrentDocContext([], docContext));
+		})();
+	}, [chatMessages.length, refreshDocContext, updateChatMessages]);
 
 	const [isSendingMessage, updateSendingMessage] = useState(false);
 
 	const [message, updateMessage] = useState('');
 
 	const visibleMessages =
-		messagesWithCurDocContext.length > 3 ? messagesWithCurDocContext.slice(3) : [];
+		chatMessages.length > 3 ? chatMessages.slice(3) : [];
 
 	const resizeTextarea = useCallback(() => {
 		const textarea = textareaRef.current;
@@ -126,8 +141,11 @@ export default function Chat() {
 		chatLog.messageSent(log, { message: text, source });
 		updateSendingMessage(true);
 
+		// Pull the current document context at send time so the model sees the
+		// document as it is now, then inject it as the doc-context message.
+		const docContext = await refreshDocContext();
 		let newMessages = [
-			...messagesWithCurDocContext,
+			...withCurrentDocContext(chatMessages, docContext),
 			{ role: 'user', content: text },
 			{ role: 'assistant', content: '' },
 		];
