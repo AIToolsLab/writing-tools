@@ -40,6 +40,16 @@ interface FirstPartyTool {
  */
 const FIRST_PARTY_TOOLS: FirstPartyTool[] = [
 	{
+		// Throwaway tool for exercising the handoff flow end-to-end in dev.
+		// Served from sandbox/test-tool/ (see that dir's README). Remove before merge.
+		id: 'test-tool',
+		name: 'Platform API test tool',
+		description:
+			'Dev-only. Exchanges the handoff grant and lets you fire each Platform API v0 call (LLM proxy, log, doc re-fetch, revoke).',
+		url: 'http://localhost:4000/',
+		scopes: ['openai:chat', 'log:write', 'doc:read'],
+	},
+	{
 		id: 'mindmap',
 		name: 'Mindmap',
 		description:
