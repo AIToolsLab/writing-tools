@@ -437,26 +437,50 @@ each item will touch.
    keeps `selected` but the ordinary `setNodes(flowNodes)` sync path drops it,
    so the new test asserts a property the main path lacks.
 
-2. **[SPEC AGREED] Graceful reflection recovery + staged progress** (Parts A+B
-   ship together, before the reportable hand-scoring pass). Capped
-   mirror → informed-repair → forced-question ladder (≤3 model calls; only the
-   `reflection_validation_failed` path escalates — every other rejection keeps
-   single-repair) + event-driven progress line in chat (plain-language copy;
-   jargon stays in the Control Room). Files: `stage1-loop.ts`, `api.ts`,
-   `validator.ts` (expose ungrounded words), `App.tsx`, tests. Also update the
-   "exactly one repair" wording in `refactor-plan.md` when it lands.
+**Reflection-recovery arc (items 2–4) — AUDIT 2026-07-24: ALREADY BUILT.** An
+independent code read (Claude, 2026-07-24) found the entire agreed
+reflection-quality arc is implemented and unit-tested on `mindmap-main`; the
+collision-map entries below were stale ("SPEC AGREED"/"AGREED TODO") and are
+corrected here. The **only** genuine remaining code work is the Part-B
+narration bug (item 6c); everything else is verification + one doc fix. **Not
+yet validated live** — the live QA is owed and deferred to the next chat (see
+6c). Tier-2 sequencing decided (Nhyira 2026-07-24): do this arc before the
+`App.tsx` decomposition (item 7) — the teardown's safety net is too thin to run
+first, and finishing the coach work de-risks it.
 
-3. **[SPEC AGREED — ships with 2] Mirror faithfulness: zero ungrounded content
-   words.** An `asserted` reflection's displayed claim text must contain no
-   content tokens absent from cited sources (kills meaning-shifting adds like
-   "necessarily"). No hedging word-bank. Prompt tells the model to aim for it;
-   the validator is the backstop. First-pass grounded-mirror rate becomes a
-   model-capability metric in the Stage 4 harness.
+2. **[BUILT — verify only] Graceful reflection recovery + staged progress.**
+   Capped ladder is in `stage1-loop.ts` (`callModel(1|2|3)`,
+   `MAX_REFLECTION_ATTEMPTS`; attempt-1 reflection → `reflection_validation_failed`
+   → attempt-2 `grounding_repair` fed the ungrounded words + rejected reflection
+   → attempt-3 `forced_question` with a code guard rejecting a non-question;
+   `exhaustedRepair` only on a malformed call; only the grounding path escalates,
+   every other rejection keeps single-repair). Stage prompts: `api.ts:135`
+   (forced question) / `api.ts:137` (informed repair). Progress events
+   (`onProgress`; stages `initial_attempt`/`grounding_repair`/`forced_question`)
+   plumbed + rendered. Tests: stage1-loop.test.ts "uses the capped two-reflection
+   ladder and renders the forced question" (616), "ends recovery when the
+   forced-question call returns another response kind" (669), plus
+   repair/terminal cases (381/406/425/439/454). **Doc wording already
+   reconciled** — `refactor-plan.md:24,385` and `DESIGN.md:71` already state the
+   capped-ladder rule (reflection grounding may reach the ladder; all other
+   paths keep one repair). Remaining: fix 6c; live QA.
 
-4. **[AGREED TODO] Chat anchor for draft-grounded reflections.** A reflection
-   citing draft-origin evidence must also cite ≥1 chat-origin utterance
-   (`reflection_draft_without_chat_anchor`); pure-draft mirrors are rejected.
-   Check sits beside the `citesDraft` gate in `createProposal`.
+3. **[BUILT — verify only] Mirror faithfulness: zero ungrounded content words.**
+   `validator.ts:81` — `additionsOk = !noContent && additions === 0`
+   (`threshold: 0`); `ungroundedContentWords` surfaced. Prompt guidance present
+   (`api.ts:163`: "reuse only content words from the exact original-language
+   userPhrase evidence"). Tests: validator.test.ts "blocks unsupported modal or
+   hedge content without a special word bank" (179, the "necessarily" case),
+   "passes a reflection made of the user's own words, lightly rearranged" (42),
+   "reports distinct unsupported content words in displayed order" (197).
+   Remaining: NONE here. The first-pass grounded-mirror-**rate metric** is still
+   owed to the Stage 4 harness (item 5) — Nhyira scoped it OUT of this pass
+   (2026-07-24).
+
+4. **[BUILT — done] Chat anchor for draft-grounded reflections.** Gate at
+   `stage1-loop.ts:271` (`reflection_draft_without_chat_anchor`; recap variant
+   at :239). Test: stage1-loop.test.ts "repairs an L1 draft-only reflection
+   before ordinary pointer validation" (312). No remaining work.
 
 5. **[ACTIVE] Stage 4 eval:** run the fixed 20-scenario L0-vs-L2 suite live,
    retain all transcripts, hand-score the designated 40 outcomes
@@ -478,23 +502,46 @@ each item will touch.
    4b never touches it. Fix: give these rows a two-column variant
    (`grid-template-columns: 1fr auto`) plus `min-width: 0` on the title.
 
-6c. **[BUG — Part B deviation, found in 4b QA 2026-07-23] Turn-progress
-   narration is scripted, not event-driven.** `App.tsx` sets
-   `setTurnProgress("initial_attempt")` unconditionally at the start of every
-   turn (~L4021 and ~L4075), before any model call, so "Trying to reflect
-   your words…" shows on **every** turn. This contradicts the agreed Part B
-   spec ("show a stage only when it actually happens; a turn whose first
-   mirror grounds shows little/none; narration appears exactly when the
-   multi-attempt path runs"). Two harms: it is repetitive enough to stop
-   carrying information, and it is often **inaccurate** — at that moment the
-   model has not chosen its move, so turns that end as a question, answer,
-   aside, or suggestion were all announced as reflections (observed live on
-   plain-answer and question turns). Fix: drop the eager `initial_attempt`
-   and reserve narration for stages that genuinely occur
-   (`grounding_repair`, `forced_question`). If a bare spinner feels dead,
-   show a delayed (~600–800ms) indicator with **neutral** copy instead of
-   claiming a reflection. Confirm what plain `loading` renders on its own
-   before removing the stage, so fast turns keep some feedback.
+6c. **[SPEC READY — decided 2026-07-24; THE ONE REMAINING TIER-2 CODE CHANGE]
+   Turn-progress narration: stop the eager first-phase claim.** `App.tsx:4073`
+   and `App.tsx:4127` both call `setTurnProgress("initial_attempt")` before any
+   model call, and `TURN_PROGRESS_COPY.initial_attempt` (`App.tsx:96`) reads
+   "Trying to reflect your words…" — so every turn claims a reflection before
+   the model has chosen its move (inaccurate on question/answer/aside/suggestion
+   turns; repetitive). `stage1-loop.ts:445` also emits
+   `onProgress({stage:"initial_attempt"})` on call 1.
+
+   **Decided behavior (Nhyira 2026-07-24):**
+   - *First-call phase* — **no eager narration, no reflection claim.** Show a
+     **neutral, delayed (~700 ms) indicator** driven off `loading` via a timer,
+     with neutral copy (recommend **"Working…"** as a new localized
+     `source.json`/`zh.json` string; a wordless dot/spinner is also acceptable).
+     A turn that finishes before ~700 ms shows nothing.
+   - *Escalation stages* render **immediately** with their existing honest copy,
+     unchanged — `grounding_repair` "Making sure this stays in your words…" and
+     `forced_question` "Asking a focused question instead…". These already fire
+     only on genuine escalation, so they stay event-driven and accurate.
+   - *Retire the `initial_attempt` claim.* Preferred: **drop** the
+     `initial_attempt` emission at `stage1-loop.ts:445` and drive the neutral
+     indicator purely from `loading` + timer (the loop should narrate only real
+     escalations); remove the stage from the `TurnProgressStage` union in
+     `assistant-response.ts` and retire the "Trying to reflect your words…"
+     string. Acceptable alternative: keep the stage but map it in the UI to the
+     neutral-delayed indicator (never render the old claim).
+   - Files: `App.tsx` (two eager sets ~4073/4127; `TURN_PROGRESS_COPY:96`;
+     render ~4497; add the ~700 ms timer), `stage1-loop.ts:445`,
+     `assistant-response.ts` (`TurnProgressStage`), i18n dicts (add "Working…";
+     retire the old string), tests.
+
+   **Live QA — OWED, DEFERRED to the next chat** (Nhyira is switching chats;
+   write it there per the numbered-steps + "what to look for / what would be a
+   bug" browser-QA preference). Must confirm: (a) a fast grounding turn shows
+   only the neutral delayed indicator, never a false "reflecting" claim; (b) a
+   genuinely hard/abstract turn surfaces "Making sure…" then "Asking a focused
+   question…" in order; (c) the coach reaches a grounded mirror OR a targeted
+   question, **never a dead-end** — the original item-2 motivation, still
+   unverified live. This live pass is the real acceptance gate for the whole
+   reflection-recovery arc, not just 6c.
 
 7. **[POST-MERGE] `App.tsx` decomposition** (**4,852 lines** on
    `mindmap-main`; 4,941 with 4b in the working tree — the "~4,700" figure
