@@ -186,9 +186,15 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		}
 
 		// loggingConsent/consentUpdatedAt are `input: false`, which the public
-		// updateUser endpoint enforces at runtime (FIELD_NOT_ALLOWED) — not just
-		// in the types. Server-controlled fields are written through the internal
-		// adapter instead: that's the server-side path the declaration intends.
+		// updateUser endpoint enforces at RUNTIME (FIELD_NOT_ALLOWED), not just in
+		// the types — so a server-controlled field can't be written through it.
+		// We use the same write path Better Auth uses internally for its OWN
+		// /update-user route (ctx.context.internalAdapter.updateUser — see
+		// better-auth/dist/api/routes/update-user.mjs); the public endpoint is that
+		// call plus the client-input guard we intentionally skip here. Not part of
+		// Better Auth's documented public API, but its own mechanism. A raw SQL
+		// UPDATE via our db() connection was rejected as more fragile — it would
+		// bypass Better Auth's date serialization and any user hooks.
 		const ctx = await auth.$context;
 		await ctx.internalAdapter.updateUser(user.id, {
 			loggingConsent: level,

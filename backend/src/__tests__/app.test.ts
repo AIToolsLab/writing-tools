@@ -19,10 +19,11 @@ function makeAuthApp(user: { id: string; loggingConsent?: string } | null) {
 	};
 	const auth = {
 		handler: async () => new Response(null),
-		// The consent route writes server-controlled fields through the internal
-		// adapter (the public updateUser endpoint rejects input:false fields at
-		// runtime with FIELD_NOT_ALLOWED — a live-server behaviour this mock
-		// deliberately mirrors by not exposing api.updateUser at all).
+		// The consent route writes through internalAdapter, not api.updateUser
+		// (see app.ts for why: the public updateUser rejects input:false fields at
+		// runtime). This mock therefore exposes internalAdapter.updateUser and
+		// deliberately omits api.updateUser, matching what the live route can and
+		// cannot call.
 		$context: Promise.resolve({
 			internalAdapter: {
 				updateUser: async (userId: string, data: unknown) => {
