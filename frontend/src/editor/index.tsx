@@ -64,6 +64,22 @@ export function EditorScreen({
 				console.warn('selectPhrase is not implemented yet');
 				return new Promise<void>((resolve) => resolve());
 			},
+
+			getDocText: async (): Promise<string> => {
+				const ctx = docContextRef.current;
+				return `${ctx.beforeCursor}${ctx.selectedText}${ctx.afterCursor}`;
+			},
+			getParagraphs: async (): Promise<string[]> => {
+				const ctx = docContextRef.current;
+				const text = `${ctx.beforeCursor}${ctx.selectedText}${ctx.afterCursor}`;
+				return text.split('\n');
+			},
+			applyEdit(_edit) {
+				console.warn('applyEdit is not implemented yet');
+				return Promise.reject(
+					new Error('applyEdit is not implemented for the standalone editor yet'),
+				);
+			},
 		}),
 		[],
 	);

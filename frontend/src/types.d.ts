@@ -22,11 +22,52 @@ interface SavedItem {
 	dateSaved: Date;
 }
 
+/**
+ * A structured, host-agnostic document edit. Editor API implementations lower
+ * this to their host's primitives (Office.js for Word, the Apps Script bridge
+ * for Google Docs). Callers build these; each host validates and applies them.
+ */
+type DocEdit =
+	| {
+			type: 'str_replace';
+			oldStr: string;
+			newStr: string;
+			/**
+			 * Optional 1-based paragraph number (from `view`) to scope the search
+			 * to. Far less fragile than searching the whole body — it disambiguates
+			 * repeated text and dodges the host search-length limit. If oldStr isn't
+			 * in that paragraph (e.g. numbers shifted), the edit fails loudly.
+			 */
+			paragraph?: number;
+	  }
+	| {
+			type: 'insert';
+			text: string;
+			/** Insert right after this existing text (within a paragraph). */
+			after?: string;
+			/**
+			 * 1-based paragraph number (as shown by the `view` tool) to position a
+			 * new paragraph relative to. More robust than `after` for placement.
+			 */
+			paragraph?: number;
+			/** Where to insert relative to `paragraph`. Defaults to 'after'. */
+			position?: 'before' | 'after';
+	  };
+
 interface EditorAPI {
 	getDocContext(this: void): Promise<DocContext>;
 	addSelectionChangeHandler: (handler: () => void) => void;
 	removeSelectionChangeHandler: (handler: () => void) => void;
 	selectPhrase: (text: string) => Promise<void>;
+	/** Full document text. Host-agnostic accessor for the corpus + `view` tool. */
+	getDocText(this: void): Promise<string>;
+	/**
+	 * Document split into paragraphs, in order. This is the shared coordinate
+	 * system the `view` tool numbers and paragraph-targeted inserts index into.
+	 */
+	getParagraphs(this: void): Promise<string[]>;
+	/** Apply a validated edit to the document. */
+	applyEdit(this: void, edit: DocEdit): Promise<void>;
 }
 
 interface ReflectionResponseItem {

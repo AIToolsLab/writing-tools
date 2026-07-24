@@ -169,3 +169,42 @@ describe('googleDocsEditorAPI selection polling', () => {
 		expect(getDocContextMock).toHaveBeenCalledTimes(callsBeforeRemoval);
 	});
 });
+
+describe('googleDocsEditorAPI document accessors', () => {
+	it('getDocText concatenates the document context in reading order', async () => {
+		getDocContextMock.mockResolvedValue({
+			beforeCursor: 'one\ntwo',
+			selectedText: '\nthree',
+			afterCursor: '\nfour',
+		} satisfies DocContext);
+
+		await expect(googleDocsEditorAPI.getDocText()).resolves.toBe(
+			'one\ntwo\nthree\nfour',
+		);
+	});
+
+	it('getParagraphs splits the full document on newlines', async () => {
+		getDocContextMock.mockResolvedValue({
+			beforeCursor: 'one\ntwo',
+			selectedText: '\nthree',
+			afterCursor: '\nfour',
+		} satisfies DocContext);
+
+		await expect(googleDocsEditorAPI.getParagraphs()).resolves.toEqual([
+			'one',
+			'two',
+			'three',
+			'four',
+		]);
+	});
+
+	it('applyEdit rejects until the Apps Script bridge is wired up', async () => {
+		await expect(
+			googleDocsEditorAPI.applyEdit({
+				type: 'str_replace',
+				oldStr: 'a',
+				newStr: 'b',
+			}),
+		).rejects.toThrow(/not implemented for Google Docs/);
+	});
+});

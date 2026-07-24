@@ -236,6 +236,30 @@ export const googleDocsEditorAPI: EditorAPI = {
 			throw new Error('Phrase not found');
 		}
 	},
+
+	/** Full document text, used for the corpus and the `view` tool. */
+	async getDocText(): Promise<string> {
+		const ctx = await window.GoogleAppsScript.getDocContext();
+		return `${ctx.beforeCursor || ''}${ctx.selectedText || ''}${ctx.afterCursor || ''}`;
+	},
+
+	/** Paragraphs in order — the coordinate system for `view` and inserts. */
+	async getParagraphs(): Promise<string[]> {
+		const ctx = await window.GoogleAppsScript.getDocContext();
+		const text = `${ctx.beforeCursor || ''}${ctx.selectedText || ''}${ctx.afterCursor || ''}`;
+		return text.split('\n');
+	},
+
+	/**
+	 * Not yet implemented for Google Docs. The Word host applies edits via
+	 * Office.js; wiring the Apps Script bridge (selectPhrase + replaceSelection
+	 * for str_replace, insertTextAtCursor for insert) is the follow-up.
+	 */
+	applyEdit(_edit: DocEdit): Promise<void> {
+		return Promise.reject(
+			new Error('applyEdit is not implemented for Google Docs yet'),
+		);
+	},
 };
 
 /**
