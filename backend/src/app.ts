@@ -44,6 +44,9 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	}
 
 	app.onError(async (err, c) => {
+		// Also log to stderr: PostHog alone made route errors invisible during
+		// development (and container logs are the first place anyone looks).
+		console.error(`[${c.req.method} ${c.req.path}]`, err);
 		await captureException(err, { path: c.req.path, method: c.req.method });
 		return c.json({ detail: 'Internal server error' }, 500);
 	});

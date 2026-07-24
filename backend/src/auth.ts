@@ -126,7 +126,11 @@ export const auth = betterAuth({
 			verificationUri: '/api/device', // nginx forwards /api/* to Hono
 			// Short expiry shrinks the brute-force window for the manually-entered
 			// user code (default length 8). No per-code attempt lockout yet.
-			expiresIn: '4m',
+			// 6m (was 4m): a Google 2FA detour was observed to outlive 4 minutes,
+			// and the user only learned at Approve time. The client's countdown
+			// reads expires_in from the device-code response, so it tracks this
+			// value automatically — no client-side duration to keep in sync.
+			expiresIn: '6m',
 			interval: '5s',
 			schema: {}, // workaround for https://github.com/better-auth/better-auth/issues/9422
 			validateClient: (clientId) => deviceClientIds().includes(clientId),

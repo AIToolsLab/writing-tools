@@ -57,13 +57,17 @@ export async function requestDeviceCode(
 		}),
 		signal,
 	});
-	const data = await res.json();
+	// Check ok before parsing: a proxy 502 with an empty body used to throw
+	// "Unexpected end of JSON input" here, masking the real failure (backend
+	// down/unreachable) behind a parse error.
 	if (!res.ok) {
-		throw new Error(
-			`device/code failed (${res.status}): ${JSON.stringify(data)}`,
-		);
+		const detail = await res
+			.json()
+			.then((d) => JSON.stringify(d))
+			.catch(() => 'no response body — is the backend running?');
+		throw new Error(`device/code failed (${res.status}): ${detail}`);
 	}
-	return data as DeviceCodeResponse;
+	return (await res.json()) as DeviceCodeResponse;
 }
 
 const sleep = (ms: number, signal?: AbortSignal): Promise<void> =>
@@ -124,7 +128,18 @@ export async function pollForToken(
 			return { type: 'error', message: (e as Error).message };
 		}
 
-		const data = await res.json();
+		// Same parse-safety as requestDeviceCode: an empty/non-JSON body (proxy
+		// error, backend restart) must surface as a readable poll error, not a
+		// JSON parse crash.
+		let data: { access_token?: unknown; error?: unknown };
+		try {
+			data = await res.json();
+		} catch {
+			return {
+				type: 'error',
+				message: `device/token failed (${res.status}): no response body — is the backend running?`,
+			};
+		}
 
 		if (res.ok && data.access_token) {
 			return { type: 'token', accessToken: data.access_token as string };
