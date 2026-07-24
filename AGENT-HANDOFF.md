@@ -498,7 +498,17 @@ first, and finishing the coach work de-risks it.
    Manipulation checks must also run in Chinese once (1) lands. LLM-judge
    automation comes only after hand-scoring.
 
-6. **[DONE 2026-07-24 — `07c89f4`] "AI suggestion · 0%" relabel.** Decided
+6. **[DONE 2026-07-24 — `07c89f4`, corrected in follow-up] "AI suggestion ·
+   0%" relabel.** SHIPPED FIX: for `pct === 0` the `InfluenceBadge` now drops the
+   bare "· 0%" and shows just "Echoes coach". The earlier "was AI-suggested"
+   copy was reverted on review — `influenceTrace` rides **user-authored**
+   proposals too (e.g. `origin: "user_asserted"`, see stage1-loop.test.ts:1148),
+   so it is an **echo/influence** signal, not an authorship claim; calling it
+   "AI-suggested" would misattribute the user's own words and collide with the
+   genuine `ai_suggested` "AI suggestion" label. A real AI-suggested-then-decayed
+   surface (fed by `peakOverlapRatio` on actual `ai_suggested` cards) stays the
+   deferred Checkpoint-6 item. Historical decision context below.
+   *(superseded)* Decided
    (Nhyira 2026-07-24): copy is **"was AI-suggested"**; scope is the
    `InfluenceBadge` (`App.tsx` ~4793) — when `exactOverlapPhrases` exist but
    `overlapRatio` is 0, show "was AI-suggested" instead of "Echoes coach · 0%".

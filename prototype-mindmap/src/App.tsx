@@ -4791,18 +4791,17 @@ export default function App() {
  * coach, and the tooltip lists them.
  */
 export function InfluenceBadge({ influence }: { influence?: import("./assistance-contract").InfluenceTrace }) {
-  const { t } = useUiLocale();
   if (!influence || !influence.exactOverlapPhrases.length) return null;
   const pct = Number.isFinite(influence.overlapRatio) ? Math.round(influence.overlapRatio! * 100) : undefined;
-  // A trace that once echoed the coach but now rounds to 0% is a decayed
-  // influence, not a live echo: label it past-tense instead of "· 0%".
-  const label = pct === 0 ? t("was AI-suggested") : `Echoes coach${pct === undefined ? "" : ` · ${pct}%`}`;
+  // Echo is an influence signal, not an authorship claim — this trace also
+  // rides user-authored proposals, so it must never say "AI-suggested". When
+  // the ratio rounds to 0% we drop the count instead of showing a bare "· 0%".
   return (
     <span
       className="influence-badge"
       title={`This wording echoes your coach's previous message: "${influence.exactOverlapPhrases.join('", "')}"`}
     >
-      {label}
+      Echoes coach{pct ? ` · ${pct}%` : ""}
     </span>
   );
 }
