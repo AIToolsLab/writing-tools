@@ -13,8 +13,8 @@ import { useInteraction } from './interaction/useInteraction';
 import { VoiceSession } from './voice/VoiceSession';
 
 type StrategyKey = keyof typeof MODE_PROMPTS;
-// Voice is a peer of the strategy tabs but runs its own turn-loop (the LiveKit
-// agent drives turns), so it doesn't go through the Responder/strategy path.
+// Voice is a peer of the strategy tabs but runs its own turn-loop (the realtime
+// voice model drives turns), so it doesn't go through the Responder/strategy path.
 type TabKey = StrategyKey | 'voice';
 
 const STRATEGIES: Record<StrategyKey, () => InteractionStrategy> = {

@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
-import { AccessToken } from 'livekit-server-sdk';
 import type { Auth, SessionUser } from './auth.js'; // type-only import, no runtime cost
 import {
 	CONSENT_LEVELS,
@@ -9,14 +8,7 @@ import {
 	filterExtraDataForConsent,
 	isConsentLevel,
 } from './consent.js';
-import {
-	gitCommit,
-	livekitApiKey,
-	livekitApiSecret,
-	livekitUrl,
-	logSecret,
-	openaiApiKey,
-} from './config.js';
+import { gitCommit, logSecret, openaiApiKey } from './config.js';
 import { eraseLoggedData } from './erasure.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
 import { openaiProxy } from './openaiProxy.js';
@@ -26,8 +18,10 @@ import { summarizeUsage } from './usage.js';
 import { isUserAllowed } from './userAllowlist.js';
 
 // Mints short-lived ephemeral credentials so a browser can open a WebRTC
-// Realtime session without ever seeing the server API key. See the voice spike
-// (frontend/src/pages/my-words/voice-spike) and docs/my-words-voice-native-research.md.
+// Realtime session without ever seeing the server API key. This is the only
+// server involvement in the voice tab: audio and tool calls run browser →
+// OpenAI directly (frontend/src/pages/my-words/voice/, and
+// docs/my-words-voice-native-research.md).
 const OPENAI_REALTIME_SESSION_URL =
 	'https://api.openai.com/v1/realtime/client_secrets';
 // The realtime-capable model the ephemeral session is bound to. Override via env
@@ -124,42 +118,6 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			status: upstream.status,
 			headers: { 'Content-Type': 'application/json' },
 		});
-	});
-
-	// Mint a LiveKit room-join token for the My Words voice tab. The browser gets
-	// a short-lived JWT; the API secret stays here. A Python worker (voice-agent/)
-	// is auto-dispatched to whatever room the browser joins, so we don't name an
-	// agent in the grant. Body: optional { room, identity }. (Later: gate on
-	// Better Auth like the other authenticated routes once past the spike.)
-	app.post('/api/livekit/token', async (c) => {
-		const url = livekitUrl();
-		const apiKey = livekitApiKey();
-		const apiSecret = livekitApiSecret();
-		if (!url || !apiKey || !apiSecret) {
-			return c.json(
-				{ detail: 'LIVEKIT_URL/LIVEKIT_API_KEY/LIVEKIT_API_SECRET not set' },
-				500,
-			);
-		}
-
-		const body = (await c.req.json().catch(() => ({}))) as {
-			room?: string;
-			identity?: string;
-		};
-		const room = body.room?.trim() || `my-words-${crypto.randomUUID()}`;
-		const identity =
-			body.identity?.trim() || `writer-${crypto.randomUUID().slice(0, 8)}`;
-
-		const at = new AccessToken(apiKey, apiSecret, { identity, ttl: '15m' });
-		at.addGrant({
-			roomJoin: true,
-			room,
-			canPublish: true,
-			canSubscribe: true,
-			canPublishData: true,
-		});
-		const token = await at.toJwt();
-		return c.json({ token, url, room, identity });
 	});
 
 	// Resolve the authenticated user from the request's session, or null. Returns

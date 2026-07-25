@@ -1,8 +1,8 @@
 /**
  * The My Words "Voice" tab: a spoken conversation over the writer's real
  * document. It reuses the durable edit path (EditorAPI + validateOp + the five
- * tool shapes) but owns its own turn-loop — the LiveKit agent drives turns, so
- * the pull-based Responder/strategy machinery is deliberately bypassed here.
+ * tool shapes) but owns its own turn-loop — the voice model drives turns, so the
+ * pull-based Responder/strategy machinery is deliberately bypassed here.
  *
  * The writer's spoken words must be able to be shaped, so their rolling
  * transcript is fed into the corpus's `userMessages` slot — the voice analogue
@@ -12,8 +12,13 @@
  * Layout: the scratchpad (a second document the agent edits with the same
  * tools) takes most of the space; a compact "You said" strip shows the
  * writer's recent turns; the raw tool/system log lives behind a Debug
- * disclosure. The header carries Undo (pops the agent-edit undo stack) and,
- * during a pre-edit reveal, a ✕ chip that vetoes the pending edit.
+ * disclosure. The header carries Undo — labelled with the move it would revert,
+ * so the writer knows what they're reverting — and, during a pre-edit reveal, a
+ * ✕ chip that vetoes the pending edit.
+ *
+ * Failed attempts (a blocked edit, a cancelled one, one that wouldn't apply)
+ * surface in a notice strip rather than only in the debug log: silence after a
+ * refusal reads as broken. See invariant 3 in `session.ts`.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -23,17 +28,21 @@ import {
 	startVoiceSession,
 	type TranscriptSpeaker,
 	type VoiceSession as Session,
-} from './liveVoice';
+} from './session';
 import { VoiceScratchpad } from './VoiceScratchpad';
 
 type Status = 'idle' | 'connecting' | 'live' | 'error';
 // `id` is the transcript segment id, so interim → final updates replace the same
-// line. Tool/system entries have no id and always append.
+// line. Tool/system/notice entries have no id and always append.
 type LogEntry = {
-	kind: TranscriptSpeaker | 'tool' | 'system';
+	kind: TranscriptSpeaker | 'tool' | 'system' | 'notice';
 	text: string;
 	id?: string;
 };
+
+/** Clip a describeOp string to something that fits a narrow taskpane button. */
+const clipLabel = (s: string, n = 30) =>
+	s.length > n ? `${s.slice(0, n - 1)}…` : s;
 
 export function VoiceSession(props: {
 	editor: EditorAPI;
@@ -71,7 +80,15 @@ export function VoiceSession(props: {
 		anchor?: string;
 		cancel: () => void;
 	} | null>(null);
-	const [undoDepth, setUndoDepth] = useState(0);
+	// The most recent thing that didn't happen, shown until it's replaced or
+	// dismissed. Every notice also lands in the log.
+	const [notice, setNotice] = useState<string | null>(null);
+	// Depth drives the button's presence; description tells the writer what
+	// pressing it would revert.
+	const [undoState, setUndoState] = useState<{
+		depth: number;
+		description?: string;
+	}>({ depth: 0 });
 	const pushLog = useCallback((entry: LogEntry) => {
 		setLog((prev) => [...prev, entry]);
 	}, []);
@@ -104,7 +121,8 @@ export function VoiceSession(props: {
 		setStatus('connecting');
 		setLog([]);
 		spokenRef.current = new Map();
-		setUndoDepth(0);
+		setUndoState({ depth: 0 });
+		setNotice(null);
 		try {
 			const session = await startVoiceSession({
 				editor,
@@ -122,9 +140,14 @@ export function VoiceSession(props: {
 				},
 				onTool: (text) => pushLog({ kind: 'tool', text }),
 				onStatus: (text) => pushLog({ kind: 'system', text }),
+				// Writer-visible: an attempt that didn't land (see invariant 3).
+				onNotice: (text) => {
+					setNotice(text);
+					pushLog({ kind: 'notice', text });
+				},
 				onScratchpadHighlight: setAgentHighlight,
 				onReveal: setReveal,
-				onUndoDepth: setUndoDepth,
+				onUndoChange: setUndoState,
 			});
 			sessionRef.current = session;
 			setStatus('live');
@@ -175,14 +198,22 @@ export function VoiceSession(props: {
 						✕ cancel edit
 					</button>
 				) : null}
-				{status === 'live' && undoDepth > 0 ? (
+				{status === 'live' && undoState.depth > 0 ? (
 					<button
 						type="button"
 						style={S.undoBtn}
-						title="Undo the partner's last edit"
+						// Naming the move matters: an unlabelled Undo makes the writer
+						// guess what they're about to revert.
+						title={
+							undoState.description
+								? `Undo — ${undoState.description}`
+								: "Undo the partner's last edit"
+						}
 						onClick={() => void undo()}
 					>
-						Undo
+						{undoState.description
+							? `Undo: ${clipLabel(undoState.description)}`
+							: 'Undo'}
 					</button>
 				) : null}
 				{status === 'live' ? (
@@ -200,6 +231,17 @@ export function VoiceSession(props: {
 					</button>
 				)}
 			</div>
+
+			{notice ? (
+				<button
+					type="button"
+					style={S.notice}
+					title="Dismiss"
+					onClick={() => setNotice(null)}
+				>
+					{notice}
+				</button>
+			) : null}
 
 			<VoiceScratchpad
 				value={scratchpad}
@@ -303,6 +345,21 @@ const S = {
 		maxHeight: '5.5rem',
 		overflowY: 'auto',
 	} as const,
+	// A failed attempt, in the main flow rather than the debug log: an agent that
+	// goes quiet after a refusal reads as broken. Click to dismiss.
+	notice: {
+		display: 'block',
+		width: '100%',
+		textAlign: 'left',
+		padding: '0.4rem 0.75rem',
+		border: 'none',
+		borderBottom: '1px solid #fde68a',
+		background: '#fffbeb',
+		color: '#92400e',
+		fontSize: '0.75rem',
+		fontFamily: 'inherit',
+		cursor: 'pointer',
+	} as const,
 	saidRow: { margin: '0 0 0.25rem', color: '#065f46' } as const,
 	saidEmpty: { color: '#6b7280', fontStyle: 'italic' } as const,
 	debug: {
@@ -326,11 +383,13 @@ const S = {
 			color:
 				kind === 'tool'
 					? '#4338ca'
-					: kind === 'system'
-						? '#6b7280'
-						: kind === 'you'
-							? '#065f46'
-							: '#111827',
+					: kind === 'notice'
+						? '#92400e'
+						: kind === 'system'
+							? '#6b7280'
+							: kind === 'you'
+								? '#065f46'
+								: '#111827',
 		}) as const,
 	logTag: {
 		fontSize: '0.65rem',

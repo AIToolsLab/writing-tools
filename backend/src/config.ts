@@ -40,14 +40,6 @@ export const openaiDemoApiKey = () =>
 
 export const logSecret = () => (process.env.LOG_SECRET ?? '').trim();
 
-// LiveKit — used to mint room-join tokens for the My Words voice tab. The
-// browser gets a short-lived JWT; the API secret never leaves the server. See
-// voice-agent/ (the Python worker) and docs/my-words-voice-native-research.md.
-export const livekitUrl = () => (process.env.LIVEKIT_URL ?? '').trim();
-export const livekitApiKey = () => (process.env.LIVEKIT_API_KEY ?? '').trim();
-export const livekitApiSecret = () =>
-	(process.env.LIVEKIT_API_SECRET ?? '').trim();
-
 // Auth — opt-in via BETTER_AUTH_ENABLED=true
 export const authEnabled = () =>
 	(process.env.BETTER_AUTH_ENABLED ?? '').toLowerCase() === 'true';

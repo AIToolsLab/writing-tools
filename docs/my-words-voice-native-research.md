@@ -253,6 +253,12 @@ contingent scaffolding, repair — and make each audio-native:
 - **Review-out-loud** — how the writer inspects *what changed* without reading a
   slab: spoken diff summaries, "read me the new version," highlight-and-narrate.
 
+Status of these axes after v1: turn-taking has answers in code (the control
+invariants in `voice/session.ts`); content-vs-command and review-out-loud are
+still open, and are tracked concretely as the first two entries under
+**Deliberately deferred** in
+[my-words-voice-scratchpad.md](my-words-voice-scratchpad.md).
+
 ---
 
 ## 5. Platform / stack options
@@ -264,9 +270,45 @@ contingent scaffolding, repair — and make each audio-native:
 | **AssemblyAI Voice Agent API** | Single managed connection (STT+LLM+TTS), ~$4.50/hr, strong **semantic turn detection** | Fastest path to a feelable demo; least architectural control. Good for a throwaway "does this feel collaborative?" probe. |
 | **OpenAI Realtime (gpt-realtime-2)** / **Gemini Live (native audio)** | The S2S engines themselves | Highest responsiveness, lowest reasoning ceiling — exactly what the upfront brief shores up. Consumed *inside* LiveKit/Pipecat rather than adopted raw. |
 
-**Recommendation:** LiveKit for v1 — it lets us start S2S (fast to feel) and swap
-toward hybrid/cascaded (smarter) without changing the app, and it's a stack the
-team already knows.
+**Original recommendation:** LiveKit for v1 — it lets us start S2S (fast to feel)
+and swap toward hybrid/cascaded (smarter) without changing the app, and it's a
+stack the team already knows.
+
+### 5a. What we actually shipped (supersedes the recommendation above)
+
+We built the LiveKit version, then removed it. The voice tab now talks to
+**OpenAI Realtime directly over WebRTC from the browser**
+(`frontend/src/pages/my-words/voice/realtime.ts`), with no server-side agent.
+Read this before re-adding a voice service.
+
+Why the worker went away:
+
+- **It never held the tools.** Because the browser owns the real document
+  (`EditorAPI`) and the word bank, all six tools always executed client-side; the
+  Python worker's `@function_tool`s were `perform_rpc` stubs forwarding each call
+  back to the browser. It was a relay, and it cost a network hop, a 10s RPC
+  timeout, and a deploy target.
+- **Direct Realtime gives finer turn events.** `input_audio_buffer.speech_started`
+  is what makes "the writer starts talking → cancel the pending edit" work
+  (invariant 2 in `voice/session.ts`). The LiveKit plugin abstracted that away.
+  The control mechanics got *better* by dropping the abstraction.
+- **The abstraction we were paying for isn't the one we needed.** LiveKit's real
+  value here was not locking in S2S-vs-cascaded — but a cascaded STT→LLM→TTS
+  pipeline needs a process holding the turn loop no matter what, so no
+  browser-side interface avoids that cost. What is worth keeping is the *app-side*
+  seam, so the session doesn't care which engine is speaking.
+
+What replaces it: `voice/transport.ts`, a ~20-line `VoiceTransport` interface.
+A second S2S engine (Gemini Live) is a new implementation of it. A cascaded
+pipeline still means standing a service back up — do that deliberately, not by
+default. The cheaper and more valuable seams are `onTranscript` (a dedicated
+streaming STT can feed the word bank without touching the turn loop, and ASR
+quality is load-bearing here in a way it isn't in most voice apps) and mic
+gating.
+
+The trade accepted: no reconnection or session resumption (a dropped call
+surfaces as a status; the writer presses Start again), and voice is now committed
+to OpenAI Realtime until someone writes a second transport.
 
 **Host constraint to verify early.** My Words runs both inside a **Microsoft
 Office add-in taskpane** (a webview) and **standalone via Vite**
@@ -308,13 +350,16 @@ WebRTC inside the Office webview is not guaranteed and needs a spike; the
 
 ## 7. Recommendation & staged path
 
-**v1 — brief-then-converse**, on **LiveKit**, in the **standalone** build:
-a single realtime voice model handed one **upfront strategy brief**, reusing the
-existing `view/str_replace/insert/move/highlight` tools, `ops.ts`, and
-`validateText`, behind a new `VoiceResponder` that satisfies the current
-`Responder` seam. Spend the design effort on the three things that actually make
-it collaborative: **turn-taking fluency**, **content-vs-command disambiguation**,
-and **on-screen deixis**.
+**v1 — brief-then-converse** (shipped, though on direct OpenAI Realtime rather
+than LiveKit — see §5a): a single realtime voice model handed one **upfront
+strategy brief**, reusing the existing
+`view/str_replace/insert/move/highlight` tools, `ops.ts`, and `validateText`.
+It runs its own turn-loop rather than the `Responder` seam the plan assumed,
+because turn-taking is pushed by the model, not pulled by the app. Spend the
+design effort on the three things that actually make it collaborative:
+**turn-taking fluency**, **content-vs-command disambiguation**, and **on-screen
+deixis** — the first is partly addressed (the control invariants in
+`voice/session.ts`), the other two are still open.
 
 **Later — additive stages:** re-brief periodically (v2) → a continuous,
 interruptible AsyncVoice-style reasoning sidecar (v3).

@@ -12,13 +12,13 @@ why it's shaped this way, and how it sits against related work.
 The Voice tab now has two surfaces the agent reaches with the **same five
 tools** (`view`, `str_replace`, `insert`, `move`, `highlight`) plus a `target`
 parameter: the **document** (the piece itself) and the **scratchpad** (the
-writer's thinking space). Alongside that, three commitment mechanics:
+writer's thinking space). Alongside that, five commitment mechanics:
 
 1. **Reveal-then-apply.** Every edit first highlights its landing site and
    waits a beat before applying — ~750 ms for in-place changes, ~1.8 s for
    `move` (restructuring costs more to be wrong about). During the beat a ✕
-   chip can veto the edit; the model is told the writer cancelled and asked to
-   re-orient, not retry.
+   chip *or the writer starting to speak* vetoes the edit; the model is told the
+   writer cancelled and asked to re-orient, not retry.
 2. **Undo.** Each applied edit pushes its inverse (as paragraph-range splices,
    captured at apply time — never re-derived) onto a session stack. The agent
    has an `undo` tool and the header has an Undo button; both freshness-check
@@ -30,6 +30,21 @@ writer's thinking space). Alongside that, three commitment mechanics:
    which is also what undo inverts and what each editor host applies (the
    Lexical host node-incrementally, Word as a short sequence of scoped
    primitives).
+4. **One applied edit per writer turn.** Enforced in code, not asked for in the
+   prompt: the budget resets when the writer starts speaking, and only a
+   *successful* apply spends it (a rejected or vetoed edit stays retryable). A
+   burst of edits inside one model response is the "it ran off with my document"
+   feeling in its purest form, and the reveal beat is too short to catch three of
+   them. Scoping the budget to the writer's turn also makes the backchannel
+   continuer real: "yeah, go on" is what releases the next move.
+5. **Visible refusals.** Every path where an edit doesn't land — word-bank
+   rejection, unusable arguments, veto, apply failure, stale undo — puts one
+   short line in front of the writer, not just in the debug log. An agent that
+   silently goes quiet after being blocked reads as broken rather than as
+   principled, and mis-transcribed words make blocking routine.
+
+The four control invariants (1, 2, 4, 5 above) are stated at the top of
+`voice/session.ts` and covered by `__tests__/voiceControl.test.ts`.
 
 The scratchpad panel renders lightweight Markdown conventions — `#` heading =
 one idea, `-` lines = related notes, `[[idea words]]` = a writer-owned link to
@@ -117,7 +132,9 @@ open to promote a convention into structure later if usage proves it out.
 - Paragraph identity is positional. Stable IDs (Word's newer
   `Paragraph.uniqueLocalId`) would end paragraph-number drift; numbers + text
   anchors are good enough for the prototype.
-- The veto window is effectively tap-only; spoken cancellation lands as undo.
+- A veto needs the writer's speech to *start* within the window (or a tap on the
+  ✕ chip). An objection formed after the beat still lands as undo — which is the
+  common case for anything the writer has to read before reacting to.
 - Whether the Lexical host scrolls the selection into view when unfocused is
   still to be verified per-surface; if it doesn't, add a
   `scrollSelectionIntoView` to `EditorAPI` (kept out until the gap is
@@ -125,6 +142,42 @@ open to promote a convention into structure later if usage proves it out.
 - The `[[link]]` and quoted-anchor conventions are unvalidated hunches about
   how writers will actually mark relationships; watch usage before promoting
   them into anything structural.
+
+### Deliberately deferred
+
+Four gaps we identified, decided not to close yet, and should not rediscover
+from scratch. The first two are design work and are tracked as issues #555 and
+#556; the last two are known holes recorded here only.
+
+- **No persistent record of what changed.** (#555) The reveal highlight is transient
+  and the next edit's selection overwrites it; the labelled Undo button names
+  only the top of the stack; the rest is behind the Debug disclosure. So a writer
+  who looks away for ten seconds cannot answer "what did it change?" — the
+  awareness half of the dual-channel story only works if you were watching.
+  The substrate is already there: each undo entry carries
+  `{ target, splices, description }`, and a splice holds both the old and new
+  text of the affected paragraph range, so a diff/history sidebar needs
+  *retention* (the stack caps at 10 and discards on undo) rather than new
+  plumbing. Pairs with **Review-out-loud** in the research note's open axes —
+  the spoken and visible halves of the same question, worth designing together.
+- **No floor control.** (#556) The mic is open the whole session: no mute, and no way
+  to think out loud without the partner treating it as material to act on.
+  Candidates, in rising cost: a dictate/converse switch, push-to-talk for
+  commands, or a spoken address marker ("computer, …"). This is the
+  content-vs-command axis in its cheapest form, and probably the largest single
+  lever on whether the writer feels like the conductor. Left unbuilt on purpose:
+  it wants a session with a real writer, not more code.
+- **Two undo histories that don't know about each other.** The session stack and
+  the host's native Ctrl-Z are independent. Freshness-checking makes the failure
+  safe — a hand-edited region is refused, not clobbered — but "Undo did nothing"
+  is still confusing. Decide what Ctrl-Z should mean during a voice session
+  before using this in a study.
+- **Interim transcripts license words the writer never said.** Interims feed the
+  word bank so the model isn't rejected for shaping something just spoken, which
+  is the right trade for fluency — but ASR guesses thereby become licensed words,
+  and interims are later revised. So the partner can place a word the writer
+  never actually said: a small breach of the one invariant the project rests on.
+  Look at real transcripts before deciding whether it matters.
 
 ## Implementation map
 
@@ -134,7 +187,10 @@ open to promote a convention into structure later if usage proves it out.
 | Reveal/veto + splice adapter (per-host) | `frontend/src/pages/my-words/interaction/editor.ts` |
 | Lexical node-incremental `applySplice` | `frontend/src/editor/editor.tsx` (+ `index.tsx`) |
 | Word `delete_paragraph` | `frontend/src/api/wordEditorAPI.ts` |
-| Voice tool routing, undo stack | `frontend/src/pages/my-words/voice/liveVoice.ts` |
+| Voice tool routing, undo stack, control invariants | `frontend/src/pages/my-words/voice/session.ts` |
+| Spoken-channel seam / OpenAI Realtime transport | `frontend/src/pages/my-words/voice/transport.ts`, `voice/realtime.ts` |
+| Tool schemas | `frontend/src/pages/my-words/voice/tools.ts` |
+| Stance (the prompt) | `frontend/src/pages/my-words/voice/prompt.ts` |
 | Scratchpad panel | `frontend/src/pages/my-words/voice/VoiceScratchpad.tsx` |
-| Voice UI (You-said strip, Undo, ✕) | `frontend/src/pages/my-words/voice/VoiceSession.tsx` |
-| Tool schemas + stance | `voice-agent/agent.py` |
+| Voice UI (You-said strip, labelled Undo, ✕, notices) | `frontend/src/pages/my-words/voice/VoiceSession.tsx` |
+| Control-invariant tests | `frontend/src/pages/my-words/__tests__/voiceControl.test.ts` |
