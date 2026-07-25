@@ -19,7 +19,7 @@ export function EditorScreen({
 	contextData,
 }: {
 	taskID?: string;
-	editorPreamble?: JSX.Element;
+	editorPreamble?: React.JSX.Element;
 	contextData?: ContextSection[];
 }) {
 	const mode = useAtomValue(overallModeAtom);

@@ -21,6 +21,30 @@ TypeScript/React Microsoft Office Add-in for Word + standalone editor
   and `public/assets/`). Images imported in code live in `src/assets/`.
 - **Manifest**: `frontend/public/manifest.xml` for Office Add-in configuration
 
+### Pages and the navbar
+
+`src/pages/registry.tsx` is the single source of truth for which pages exist and
+where they appear. Adding a page is one `PageName` member (`src/contexts/
+pageContext.tsx`) plus one registry entry — the navbar and `pages/app` both read
+from the registry, so neither needs editing.
+
+- `tier: 'core'` — an inline tab. **Capped at three** (`MAX_CORE_PAGES`), which
+  `src/pages/__tests__/registry.test.ts` enforces.
+- `tier: 'lab'` — in progress; reachable from the Labs (···) menu instead. Every
+  lab page shares that one button, so the strip's width doesn't grow with the
+  number of experiments in flight.
+
+The cap is a platform constraint, not a style rule: the Google Docs sidebar is
+locked at ~300px with no splitter, which leaves 57.3px of label per tab beside the
+Labs button. A fourth core tab drops that to 37.0px, under the widest label
+("Revise", 39.8px). In-progress work belongs in `lab`.
+
+`enabled` (optional) hides a page entirely — see `src/pages/flags.ts`. Note the
+URL override there only reaches the standalone editor and dev server: the Word
+task pane's URL comes from `manifest.xml`, and the Google Docs bundle runs inside
+an Apps Script sandbox iframe with no addressable URL. The Labs menu is the
+cross-surface way in; flags are for keeping something out of even that.
+
 ### Testing
 
 Two runners own two disjoint directories — never mix them:

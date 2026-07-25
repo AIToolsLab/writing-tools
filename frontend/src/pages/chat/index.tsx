@@ -1,5 +1,12 @@
 import { streamText, type ModelMessage } from 'ai';
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import {
+	useCallback,
+	useContext,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from 'react';
 import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 
@@ -83,15 +90,21 @@ export default function Chat() {
 		}
 	}, []);
 
-	// Auto-scroll when new messages arrive
-	useEffect(() => {
+	// Auto-scroll when new messages arrive. `showScrollButton` is read but must stay
+	// non-reactive — a scroll should fire on new messages, not when the button toggles.
+	// useEffectEvent keeps that read out of the dependency array, so the effect runs
+	// only on chatMessages and no exhaustive-deps suppression is needed.
+	const scrollOnNewMessages = useEffectEvent(() => {
 		if (!showScrollButton) {
 			messagesContainerRef.current?.scrollTo({
 				top: messagesContainerRef.current.scrollHeight,
 				behavior: 'smooth',
 			});
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+	});
+
+	useEffect(() => {
+		scrollOnNewMessages();
 	}, [chatMessages]);
 
 	const { refresh: refreshDocContext } = useDocContext(editorAPI);

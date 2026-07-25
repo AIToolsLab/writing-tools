@@ -3,13 +3,7 @@
  */
 
 import { streamText, type ModelMessage } from 'ai';
-import {
-	useCallback,
-	useContext,
-	useEffect,
-	useRef,
-	useState,
-} from 'react';
+import { useCallback, useContext, useRef, useState } from 'react';
 import { Remark } from 'react-remark';
 import { draftLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
@@ -18,6 +12,7 @@ import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import { iconFunc } from './iconFunc';
+import { useResettableInterval } from './useResettableInterval';
 import classes from './styles.module.css';
 
 const visibleNameForMode = {
@@ -189,49 +184,6 @@ function SavedGenerations({
 			))}
 		</div>
 	);
-}
-
-/**
- * Call a callback function at a specified interval, with the ability to reset the interval.
- *
- * @param callback The function to be called on each interval.
- * @param interval The interval duration in milliseconds.
- * @returns A function to reset the interval.
- */
-function useResettableInterval(callback: () => void, interval: number) {
-	const timerRef = useRef<NodeJS.Timeout | null>(null);
-	const callbackRef = useRef(callback);
-
-	useEffect(() => {
-		callbackRef.current = callback;
-	}, [callback]);
-
-	useEffect(() => {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-		}
-		if (interval <= 0) {
-			timerRef.current = null;
-			return;
-		}
-		timerRef.current = setInterval(() => {
-			callbackRef.current();
-		}, interval);
-		return () => {
-			if (timerRef.current) {
-				clearInterval(timerRef.current);
-			}
-		};
-	}, [interval]);
-
-	return useCallback(() => {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-		}
-		timerRef.current = setInterval(() => {
-			callbackRef.current();
-		}, interval);
-	}, [interval]);
 }
 
 export default function Draft() {

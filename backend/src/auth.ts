@@ -60,8 +60,9 @@ export const auth = betterAuth({
 	secret: betterAuthSecret(),
 	trustedOrigins: betterAuthTrustedOrigins(),
 	// Logging-consent level lives on the user record so it's available on every
-	// session. Server-controlled (`input: false`): set only via auth.api.updateUser
-	// from our /api/me/consent route, never accepted from sign-up input. The enum and
+	// session. Server-controlled (`input: false`): set only via the internal adapter
+	// from our /api/me/consent route (the public updateUser endpoint rejects
+	// input:false fields at runtime), never accepted from sign-up input. The enum and
 	// default come straight from consent.ts (the single source of truth). New users
 	// default to 'usage' (content-free); content logging requires opting up.
 	user: {
@@ -125,7 +126,11 @@ export const auth = betterAuth({
 			verificationUri: '/api/device', // nginx forwards /api/* to Hono
 			// Short expiry shrinks the brute-force window for the manually-entered
 			// user code (default length 8). No per-code attempt lockout yet.
-			expiresIn: '4m',
+			// 6m (was 4m): a Google 2FA detour was observed to outlive 4 minutes,
+			// and the user only learned at Approve time. The client's countdown
+			// reads expires_in from the device-code response, so it tracks this
+			// value automatically — no client-side duration to keep in sync.
+			expiresIn: '6m',
 			interval: '5s',
 			schema: {}, // workaround for https://github.com/better-auth/better-auth/issues/9422
 			validateClient: (clientId) => deviceClientIds().includes(clientId),
