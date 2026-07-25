@@ -1,4 +1,8 @@
-import { createOpenAI } from '@ai-sdk/openai';
+import {
+	createOpenAI,
+	type OpenAIResponsesProviderOptions,
+} from '@ai-sdk/openai';
+import { DEVICE_CLIENT_ID } from './deviceAuth';
 import { SERVER_URL } from './index';
 
 /**
@@ -24,6 +28,10 @@ async function authorizedFetch(
 	init?: RequestInit,
 ): Promise<Response> {
 	const headers = new Headers(init?.headers);
+	// Identify this traffic as the first-party add-in so the proxy attributes its
+	// usage to (user, add-in). External tools send their own client_id via a tool
+	// grant token; the backend honours this header only for allowlisted ids.
+	headers.set('X-Client-Id', DEVICE_CLIENT_ID);
 	try {
 		const token = await tokenProvider?.();
 		// Overwrites the placeholder `apiKey` Bearer header the SDK sets.
@@ -42,4 +50,19 @@ export const openai = createOpenAI({
 	fetch: authorizedFetch,
 });
 
-export const OPENAI_MODEL = 'gpt-4o';
+export const OPENAI_MODEL = 'gpt-5.6-terra';
+
+/**
+ * The shared language model for all generation. `openai.responses()` selects the
+ * Responses API (rather than `openai.chat()` / Chat Completions), which is what
+ * the reasoning models expect.
+ */
+export const languageModel = openai.responses(OPENAI_MODEL);
+
+/**
+ * Passed as `providerOptions` on every `streamText` call. Low reasoning effort
+ * keeps latency down for the interactive writing-help flows.
+ */
+export const openaiProviderOptions = {
+	openai: { reasoningEffort: 'low' } satisfies OpenAIResponsesProviderOptions,
+};

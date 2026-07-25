@@ -6,7 +6,6 @@ import { createApp } from '../app.js';
 import type { Auth } from '../auth.js';
 
 const app = createApp();
-const env = { ...process.env };
 
 /**
  * Minimal Better Auth stub: getSession returns the given user (or null), and
@@ -20,12 +19,21 @@ function makeAuthApp(user: { id: string; loggingConsent?: string } | null) {
 	};
 	const auth = {
 		handler: async () => new Response(null),
+		// The consent route writes through internalAdapter, not api.updateUser
+		// (see app.ts for why: the public updateUser rejects input:false fields at
+		// runtime). This mock therefore exposes internalAdapter.updateUser and
+		// deliberately omits api.updateUser, matching what the live route can and
+		// cannot call.
+		$context: Promise.resolve({
+			internalAdapter: {
+				updateUser: async (userId: string, data: unknown) => {
+					calls.updateUser.push({ userId, data });
+					return {};
+				},
+			},
+		}),
 		api: {
 			getSession: async () => (user ? { user } : null),
-			updateUser: async (args: unknown) => {
-				calls.updateUser.push(args);
-				return { status: true };
-			},
 			deleteUser: async (args: unknown) => {
 				calls.deleteUser.push(args);
 				return { success: true, message: 'ok' };
@@ -36,12 +44,11 @@ function makeAuthApp(user: { id: string; loggingConsent?: string } | null) {
 }
 
 beforeEach(async () => {
-	process.env.LOG_DIR = await mkdtemp(path.join(tmpdir(), 'wt-app-'));
+	vi.stubEnv("LOG_DIR", await mkdtemp(path.join(tmpdir(), 'wt-app-')));
 });
 
 afterEach(() => {
-	process.env = { ...env };
-	vi.restoreAllMocks();
+	// unstub mocks and env are set in vitest.config.ts.
 });
 
 describe('GET /api/ping', () => {
@@ -197,7 +204,12 @@ describe('POST /api/me/consent', () => {
 		});
 		expect(good.status).toBe(200);
 		expect(await good.json()).toEqual({ loggingConsent: 'ai_output' });
-		expect(calls.updateUser).toHaveLength(1);
+		expect(calls.updateUser).toEqual([
+			{
+				userId: 'usr-1',
+				data: expect.objectContaining({ loggingConsent: 'ai_output' }),
+			},
+		]);
 	});
 
 	it('401s without a session', async () => {
@@ -239,7 +251,7 @@ describe('DELETE /api/me/activity', () => {
 
 describe('POST /api/openai/chat/completions', () => {
 	it('injects the API key and forwards the body', async () => {
-		process.env.OPENAI_API_KEY = 'sk-test-123';
+		vi.stubEnv("OPENAI_API_KEY", 'sk-test-123');
 		const fetchMock = vi
 			.fn()
 			.mockResolvedValue(new Response('data: ok\n\n', { status: 200 }));
@@ -264,7 +276,7 @@ describe('POST /api/openai/chat/completions', () => {
 
 describe('log-viewer secret gate', () => {
 	it('rejects logs_poll with a wrong secret and accepts the right one', async () => {
-		process.env.LOG_SECRET = 'super-secret';
+		vi.stubEnv("LOG_SECRET", 'super-secret');
 
 		const bad = await app.request('/api/logs_poll', {
 			method: 'POST',
@@ -283,7 +295,7 @@ describe('log-viewer secret gate', () => {
 	});
 
 	it('returns 500 when LOG_SECRET is unset', async () => {
-		delete process.env.LOG_SECRET;
+		vi.stubEnv("LOG_SECRET", undefined);
 		const res = await app.request('/api/download_logs');
 		expect(res.status).toBe(500);
 	});

@@ -71,7 +71,12 @@ export function VoiceScratchpad(props: {
 		return (
 			<span key={key}>
 				{text.slice(0, at)}
-				<mark ref={(el) => (markRef.current = el)} style={S.mark}>
+				<mark
+					ref={(el) => {
+						markRef.current = el;
+					}}
+					style={S.mark}
+				>
 					{highlight}
 				</mark>
 				{text.slice(at + highlight.length)}

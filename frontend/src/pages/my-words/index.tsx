@@ -140,7 +140,7 @@ function LiveSession(props: {
 	const sessionRef = useRef<{
 		strategy: InteractionStrategy;
 		responder: ReturnType<typeof createLiveResponder>;
-	}>();
+	} | null>(null);
 	if (!sessionRef.current) {
 		sessionRef.current = {
 			strategy: STRATEGIES[strategyKey](),

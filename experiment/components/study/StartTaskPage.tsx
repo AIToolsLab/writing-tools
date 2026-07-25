@@ -56,6 +56,12 @@ export default function StartTaskPage() {
               You may see AI-generated writing suggestions on the right side of the screen. If so, feel free to use them, edit them, or ignore them — it&apos;s entirely up to you.
             </li>
             <li>
+              <b>The AI can make mistakes. Check important info.</b>
+            </li>
+            <li>
+              Please don&apos;t use any <em>other</em> writing aids, like Grammarly or ChatGPT, for the writing task. (Normal text entry features like spell check and autocomplete are <em>allowed</em>.)
+            </li>
+            <li>
               When you&apos;re satisfied with your response, click the
               &ldquo;Send&rdquo; button
             </li>

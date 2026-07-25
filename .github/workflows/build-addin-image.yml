@@ -5,9 +5,6 @@ name: Build add-in image
 # on every push to main, tagged with the commit SHA. CD (in the
 # Infrastructure_k8s_* repo) pins a deploy by reading main's current SHA and
 # selecting that image tag — same pattern as build-experiment-image.yml.
-#
-# This runs in parallel with the existing Jenkins docker-compose build during
-# the deployment migration; either path produces a working image.
 on:
   push:
     branches:

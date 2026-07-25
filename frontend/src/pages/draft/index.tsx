@@ -3,21 +3,16 @@
  */
 
 import { streamText, type ModelMessage } from 'ai';
-import {
-	useCallback,
-	useContext,
-	useEffect,
-	useRef,
-	useState,
-} from 'react';
+import { useCallback, useContext, useRef, useState } from 'react';
 import { Remark } from 'react-remark';
 import { draftLog } from '@/api/logging';
-import { OPENAI_MODEL, openai } from '@/api/openai';
+import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { buildMessages } from '@/api/prompts';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import { iconFunc } from './iconFunc';
+import { useResettableInterval } from './useResettableInterval';
 import classes from './styles.module.css';
 
 const visibleNameForMode = {
@@ -72,7 +67,8 @@ class Fetcher {
 			) as ModelMessage[];
 
 			const stream = streamText({
-				model: openai.chat(OPENAI_MODEL),
+				model: languageModel,
+				providerOptions: openaiProviderOptions,
 				messages,
 				abortSignal: AbortSignal.timeout(20000),
 			});
@@ -190,52 +186,9 @@ function SavedGenerations({
 	);
 }
 
-/**
- * Call a callback function at a specified interval, with the ability to reset the interval.
- *
- * @param callback The function to be called on each interval.
- * @param interval The interval duration in milliseconds.
- * @returns A function to reset the interval.
- */
-function useResettableInterval(callback: () => void, interval: number) {
-	const timerRef = useRef<NodeJS.Timeout | null>(null);
-	const callbackRef = useRef(callback);
-
-	useEffect(() => {
-		callbackRef.current = callback;
-	}, [callback]);
-
-	useEffect(() => {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-		}
-		if (interval <= 0) {
-			timerRef.current = null;
-			return;
-		}
-		timerRef.current = setInterval(() => {
-			callbackRef.current();
-		}, interval);
-		return () => {
-			if (timerRef.current) {
-				clearInterval(timerRef.current);
-			}
-		};
-	}, [interval]);
-
-	return useCallback(() => {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-		}
-		timerRef.current = setInterval(() => {
-			callbackRef.current();
-		}, interval);
-	}, [interval]);
-}
-
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
-	const docContextSnapshot = useDocContext(editorAPI);
+	const { refresh: refreshDocContext } = useDocContext(editorAPI);
 	const log = useLog();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
@@ -249,14 +202,6 @@ export default function Draft() {
 		}
 		return fetcherRef.current;
 	}, []);
-	const docContextRef = useRef<DocContext>(docContextSnapshot);
-	docContextRef.current = docContextSnapshot;
-
-	// console.log({
-	// 	before: docContextSnapshot.beforeCursor.slice(-50),
-	// 	selected: docContextSnapshot.selectedText,
-	// 	after: docContextSnapshot.afterCursor.slice(0, 50),
-	// });
 
 	const autoRefreshInterval = 0;
 	const modesToShow = modes;
@@ -369,24 +314,27 @@ export default function Draft() {
 		[getFetcher, save, log],
 	);
 
-	const autoRefreshCallback = useCallback(() => {
+	const autoRefreshCallback = useCallback(async () => {
 		if (!shouldAutoRefresh) {
 			return;
 		}
-		const request = {
-			docContext: docContextRef.current,
-			type: modesToShow[0],
-		};
 		if (getFetcher().requestInFlight) {
 			console.warn(
 				'Auto-refresh skipped because a request is already in flight.',
 			);
 			return;
 		}
+		// Pull the current document context at refresh time rather than tracking
+		// it continuously.
+		const docContext = await refreshDocContext();
+		const request = {
+			docContext,
+			type: modesToShow[0],
+		};
 		const prevRequest = getFetcher().previousRequest;
 		if (
 			prevRequest &&
-			JSON.stringify(prevRequest.docContext) === JSON.stringify(docContextRef.current) &&
+			JSON.stringify(prevRequest.docContext) === JSON.stringify(docContext) &&
 			prevRequest.type === modesToShow[0]
 		) {
 			console.warn(
@@ -396,10 +344,10 @@ export default function Draft() {
 		}
 		draftLog.autoRefresh(log, {
 			generationType: modesToShow[0],
-			docContext: docContextRef.current,
+			docContext,
 		});
 		getSuggestion(request, false);
-	}, [getFetcher, getSuggestion, shouldAutoRefresh, log]);
+	}, [getFetcher, getSuggestion, shouldAutoRefresh, log, refreshDocContext]);
 
 	const resetAutoRefresh = useResettableInterval(
 		autoRefreshCallback,
@@ -429,17 +377,17 @@ export default function Draft() {
 										key={mode}
 										className={`${classes.featureCard} ${isActive ? classes.active : ''}`}
 										onClick={() => {
-											setActiveMode(mode);
-											draftLog.suggestionRequested(log, {
-												generationType: mode,
-												docContext: docContextRef.current,
-											});
-											resetAutoRefresh();
-											const request = {
-												docContext: docContextRef.current,
-												type: mode,
-											};
-											getSuggestion(request, true);
+											void (async () => {
+												setActiveMode(mode);
+												// Pull the current document context at click time.
+												const docContext = await refreshDocContext();
+												draftLog.suggestionRequested(log, {
+													generationType: mode,
+													docContext,
+												});
+												resetAutoRefresh();
+												getSuggestion({ docContext, type: mode }, true);
+											})();
 										}}
 										disabled={isLoading}
 										type="button"

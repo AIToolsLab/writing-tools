@@ -22,10 +22,7 @@ import {
 	pageNameAtom,
 } from '@/contexts/pageContext';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
-import Chat from '../chat';
-import Draft from '../draft';
-import MyWords from '../my-words';
-import Revise from '../revise';
+import { resolvePage } from '../registry';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
@@ -36,20 +33,56 @@ const POSTHOG_KEY = 'phc_p3Br0zRnw7PdTVpdNI92vvBTWcBBY0jvkHO8dNvkCTl';
 const POSTHOG_HOST = 'https://e.thoughtful-ai.com/';
 const POSTHOG_ENABLED = true;
 
-// Device-flow status surfaced during Better Auth sign-in. Shows the user code and a
-// button that opens the approval page in a new window/tab.
+// Live countdown to the device code's expiry. Codes are short-lived (minutes) and
+// the user only used to find out at Approve time — show the clock up front.
+function CodeCountdown({ expiresAt }: { expiresAt?: number }) {
+	const [now, setNow] = useState(() => Date.now());
+	useEffect(() => {
+		const timer = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(timer);
+	}, []);
+	if (!expiresAt) return null;
+
+	const remaining = Math.max(0, Math.round((expiresAt - now) / 1000));
+	if (remaining === 0) {
+		// The polling loop surfaces the terminal 'expired' error within one poll
+		// interval (~5s); this keeps the countdown honest in that gap.
+		return <p style={{ margin: '0.25rem 0' }}>Code expired.</p>;
+	}
+	const m = Math.floor(remaining / 60);
+	const s = String(remaining % 60).padStart(2, '0');
+	return (
+		<p style={{ margin: '0.25rem 0', opacity: 0.75 }}>
+			Code expires in {m}:{s}
+		</p>
+	);
+}
+
+// Device-flow status surfaced during Better Auth sign-in. Shows the user code, a
+// link that opens the approval page in a new window/tab, the expiry countdown, and
+// a Cancel that aborts the in-flight flow, so an abandoned attempt stops polling
+// immediately instead of running until the code expires.
 // Rendered inside the not-logged-in screen, NOT gated by the isLoading "Waiting" screen.
 function DeviceAuthStatus({
 	authorization,
+	onCancel,
 }: {
 	authorization?: {
 		status: 'pending' | 'polling' | 'error';
 		userCode?: string;
 		verificationUri?: string;
+		expiresAt?: number;
 		error?: string;
 	};
+	onCancel?: () => void;
 }) {
 	if (!authorization) return null;
+
+	const cancelButton = onCancel ? (
+		<Button variant="ghost" size="small" onClick={onCancel}>
+			Cancel
+		</Button>
+	) : null;
 
 	if (authorization.status === 'error') {
 		return (
@@ -63,6 +96,7 @@ function DeviceAuthStatus({
 		return (
 			<div className={classes.loginInfoContainer}>
 				<p>Requesting device code…</p>
+				{cancelButton}
 			</div>
 		);
 	}
@@ -90,12 +124,20 @@ function DeviceAuthStatus({
 			>
 				{authorization.userCode}
 			</p>
+			<CodeCountdown expiresAt={authorization.expiresAt} />
 			{authorization.verificationUri ? (
 				<p style={{ margin: '0.25rem 0 0.75rem' }}>
-					<a href={authorization.verificationUri} target="_blank" rel="noopener">Open approval page</a>
+					<a
+						href={authorization.verificationUri}
+						target="_blank"
+						rel="noopener"
+					>
+						Open approval page
+					</a>
 				</p>
 			) : null}
 			<p>Open the approval page and enter the code above to continue.</p>
+			{cancelButton}
 		</div>
 	);
 }
@@ -104,8 +146,14 @@ function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
 	const noAuthMode = mode !== OverallMode.full;
 	const session = useAppAuth();
-	const { isLoading, isAuthorizing, error, isAuthenticated, user, authorization } =
-		session;
+	const {
+		isLoading,
+		isAuthorizing,
+		error,
+		isAuthenticated,
+		user,
+		authorization,
+	} = session;
 	const [width, _height] = useWindowSize();
 	const page = useAtomValue(pageNameAtom);
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
@@ -199,7 +247,10 @@ function AppInner() {
 							Login
 						</Button>
 
-						<DeviceAuthStatus authorization={authorization} />
+						<DeviceAuthStatus
+							authorization={authorization}
+							onCancel={session.cancelLogin}
+						/>
 
 						<div className={classes.loginInfoContainer}>
 							<p>
@@ -295,18 +346,13 @@ function AppInner() {
 		);
 	}
 
-	function getComponent(pageName: PageName): JSX.Element | null {
-		switch (pageName) {
-			case PageName.Revise:
-				return <Revise />;
-			case PageName.Chat:
-				return <Chat />;
-			case PageName.Draft:
-				return <Draft />;
-			case PageName.MyWords:
-				return <MyWords />;
-		}
-		return null;
+	// Which page renders is the registry's call, not a switch here — see
+	// pages/registry.tsx. resolvePage also handles a stored selection that is no
+	// longer visible (a lab page whose flag was turned off) by falling back to the
+	// default page; the navbar highlights the same resolved page, so the strip and
+	// the content can't disagree.
+	function getComponent(pageName: PageName): React.JSX.Element | null {
+		return resolvePage(pageName)?.render() ?? null;
 	}
 
 	return (
@@ -390,7 +436,7 @@ function AppWithProviders({
 	children,
 }: {
 	children: React.ReactNode;
-}): JSX.Element {
+}): React.JSX.Element {
 	console.log('PostHog enabled:', POSTHOG_ENABLED);
 	// Wrap with PostHog if enabled, otherwise just render children
 	if (!POSTHOG_ENABLED) {
@@ -432,7 +478,8 @@ function PostHogConsentBridge(): null {
 	useEffect(() => {
 		if (!posthog) return;
 		const analyticsAllowed =
-			isAuthenticated && consentRank(loggingConsent) >= consentRank('usage');
+			isAuthenticated &&
+			consentRank(loggingConsent) >= consentRank('usage');
 
 		// Require a stable id before opting in, so we never capture untethered
 		// anonymous events that can't be tied to a deletable account identity.

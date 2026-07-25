@@ -371,7 +371,7 @@ function LexicalEditor({
 	updateDocContext: (docContext: DocContext) => void;
 	initialState?: InitialEditorStateType | undefined;
 	storageKey?: string;
-	preamble?: JSX.Element;
+	preamble?: React.JSX.Element;
 	onReady?: (controls: EditorControls) => void;
 }) {
 	return (

@@ -36,11 +36,12 @@ import type { LogFn } from '@/hooks/useLog';
  *
  * History:
  *   1 — Initial page-scoped schema (Draft / Revise / Chat).
+ *   2 — Added the Tools page (external tool launcher) and its events.
  */
-export const LOG_SCHEMA_VERSION = 1;
+export const LOG_SCHEMA_VERSION = 2;
 
 /** Pages that emit events. Matches the user-facing tabs. */
-export type LogPage = 'draft' | 'revise' | 'chat';
+export type LogPage = 'draft' | 'revise' | 'chat' | 'tools';
 
 /**
  * Emit one event through the page's {@link LogFn}, stamping the schema version,
@@ -70,14 +71,22 @@ export const draftLog = {
 	/** A generated suggestion was shown to (and saved for) the writer. */
 	suggestionShown(
 		log: LogFn,
-		data: { generationType: string; docContext: DocContext; result: GenerationResult },
+		data: {
+			generationType: string;
+			docContext: DocContext;
+			result: GenerationResult;
+		},
 	) {
 		return emit(log, 'draft', 'suggestion_shown', data);
 	},
 	/** The writer deleted a saved suggestion. */
 	suggestionDeleted(
 		log: LogFn,
-		data: { generationType: string; docContext: DocContext; result: GenerationResult },
+		data: {
+			generationType: string;
+			docContext: DocContext;
+			result: GenerationResult;
+		},
 	) {
 		return emit(log, 'draft', 'suggestion_deleted', data);
 	},
@@ -159,5 +168,28 @@ export const chatLog = {
 	/** The assistant response failed to stream (and was not cancelled). */
 	responseError(log: LogFn, data: { error: string }) {
 		return emit(log, 'chat', 'response_error', data);
+	},
+};
+
+/**
+ * Tools page: the writer launches an external writing tool from the sidebar. The
+ * document snapshot itself is never logged here (only whether one was shared); the
+ * tool's own events are attributed to it server-side via its client_id.
+ */
+export const toolsLog = {
+	/** The writer launched a registered first-party tool via a handoff grant. */
+	toolLaunched(
+		log: LogFn,
+		data: { tool: string; sharedDoc: boolean; scopes: string[] },
+	) {
+		return emit(log, 'tools', 'tool_launched', data);
+	},
+	/** A handoff grant could not be minted (launch aborted). */
+	launchError(log: LogFn, data: { tool: string; error: string }) {
+		return emit(log, 'tools', 'launch_error', data);
+	},
+	/** The writer opened an ad-hoc pasted URL directly (no grant; device-flow tool). */
+	adhocOpened(log: LogFn) {
+		return emit(log, 'tools', 'adhoc_opened', {});
 	},
 };

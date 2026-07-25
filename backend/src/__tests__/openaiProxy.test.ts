@@ -18,8 +18,6 @@ import {
 } from '../usage.js';
 import { CONSENT_LEVELS, FULL_CONSENT_LEVEL } from '../consent.js';
 
-const env = { ...process.env };
-
 /** Better Auth stub: a session for `user`, or none when null. */
 function appWithUser(user: SessionUser | null) {
 	const auth = {
@@ -38,6 +36,7 @@ const real = (id: string) =>
 		isAnonymous: false,
 		loggingConsent: CONSENT_LEVELS[2],
 		isAllowed: true,
+		clientId: null,
 	}) as SessionUser;
 const anon = (id: string) =>
 	({
@@ -45,6 +44,7 @@ const anon = (id: string) =>
 		isAnonymous: true,
 		loggingConsent: FULL_CONSENT_LEVEL,
 		isAllowed: true,
+		clientId: null,
 	}) as SessionUser;
 
 
@@ -110,15 +110,16 @@ function timingRow(): { duration_ms: number; ttft_ms: number | null } {
 }
 
 beforeEach(async () => {
-	process.env.DATA_DIR = await mkdtemp(path.join(tmpdir(), 'wt-proxy-'));
-	process.env.OPENAI_API_KEY = 'test-key';
-	process.env.LOG_SECRET = 'test-secret';
+	vi.stubEnv("DATA_DIR", await mkdtemp(path.join(tmpdir(), 'wt-proxy-')));
+	vi.stubEnv("OPENAI_API_KEY", 'test-key');
+	vi.stubEnv("LOG_SECRET", 'test-secret');
+	// OPENAI_DEMO_API_KEY is left unset by default: the tests that exercise the
+	// "no demo key configured" fail-closed path depend on its absence. Only the
+	// tests that need it stub it in.
 });
 
 afterEach(() => {
 	closeDb();
-	vi.unstubAllGlobals();
-	process.env = { ...env };
 });
 
 describe('parseUsage', () => {
@@ -203,7 +204,7 @@ describe('attributeRequest', () => {
 	it('bills an anonymous (demo) user to the capped demo key, metered to their own id', () => {
 		// The key is capped, but metering stays per-user so a future per-demo-user cap
 		// can read it — NOT collapsed into the shared `demo` bucket.
-		process.env.OPENAI_DEMO_API_KEY = 'demo-key';
+		vi.stubEnv("OPENAI_DEMO_API_KEY", 'demo-key');
 		expect(attributeRequest(anon('anon-1'), true)).toEqual({
 			apiKey: 'demo-key',
 			userId: 'anon-1',
@@ -216,7 +217,7 @@ describe('attributeRequest', () => {
 	});
 
 	it('sends sessionless traffic to the capped demo key, shared `demo` bucket', () => {
-		process.env.OPENAI_DEMO_API_KEY = 'demo-key';
+		vi.stubEnv("OPENAI_DEMO_API_KEY", 'demo-key');
 		expect(attributeRequest(null, true)).toEqual({
 			apiKey: 'demo-key',
 			userId: DEMO_USER_ID,
@@ -286,7 +287,7 @@ describe('POST /api/openai/chat/completions', () => {
 	it('serves a sessionless request on the demo key and meters it to `demo`', async () => {
 		// Demo mode sends a token that isn't a session, so it lands here — the path
 		// that would otherwise 401 once the proxy started requiring auth.
-		process.env.OPENAI_DEMO_API_KEY = 'demo-key';
+		vi.stubEnv("OPENAI_DEMO_API_KEY", 'demo-key');
 		const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
 			sseResponse(),
 		);
@@ -321,7 +322,7 @@ describe('POST /api/openai/chat/completions', () => {
 		// A real anonymous session (Better Auth anonymous plugin): spends the capped
 		// demo key like sessionless demo traffic, but meters to the user's own id so
 		// per-demo-user spend is attributable.
-		process.env.OPENAI_DEMO_API_KEY = 'demo-key';
+		vi.stubEnv("OPENAI_DEMO_API_KEY", 'demo-key');
 		const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
 			sseResponse(),
 		);

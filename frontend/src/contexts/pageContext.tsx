@@ -6,6 +6,7 @@ export enum PageName {
 	Draft = 'draft',
 	TagLinker = 'tag-linker',
 	MyWords = 'my-words',
+	Tools = 'tools',
 }
 
 export enum OverallMode {

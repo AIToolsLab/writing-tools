@@ -10,7 +10,8 @@
  *   3. The build emits JS + CSS bundles, and images land in dist/assets/.
  *   4. Static files from the public site are copied to the dist root.
  *   5. manifest.xml is present (and looks transformed).
- *   6. The Google Docs bundle is emitted as dist/google-docs.bundle.js.
+ *   6. The Google Docs add-on emits dist/google-docs.bundle.js + google-docs.css
+ *      (the sidebar loads both by name).
  *
  * Run after a build: `npm run test:build` (assumes `dist/` already exists).
  */
@@ -47,7 +48,6 @@ const expectedHtmlFiles = [
 	'taskpane.html',
 	'editor.html',
 	'logs.html',
-	'popup.html',
 	'commands.html',
 	'index.html'
 ];
@@ -136,13 +136,22 @@ if (fs.existsSync(manifestPath)) {
 	error('manifest.xml NOT FOUND in dist');
 }
 
-// Test 6: Google Docs bundle must be emitted into dist/.
+// Test 6: Google Docs add-on must emit both files the sidebar loads by name —
+// google-docs.bundle.js and google-docs.css (the CSS is extracted, not inlined,
+// and the sidebar injects a <link> to it; a name mismatch ships an unstyled UI).
 console.log('\nTest 6: Google Docs bundle');
 const gdocsBundlePath = path.join(distDir, 'google-docs.bundle.js');
 if (fs.existsSync(gdocsBundlePath)) {
 	success('google-docs.bundle.js exists at dist root');
 } else {
 	error('google-docs.bundle.js NOT FOUND at dist root (run npm run build:google-docs)');
+}
+
+const gdocsCssPath = path.join(distDir, 'google-docs.css');
+if (fs.existsSync(gdocsCssPath)) {
+	success('google-docs.css exists at dist root');
+} else {
+	error('google-docs.css NOT FOUND at dist root (run npm run build:google-docs)');
 }
 
 // Final report

@@ -30,6 +30,8 @@ export interface DeviceAuthState {
 	status: DeviceAuthStatus;
 	userCode?: string;
 	verificationUri?: string;
+	/** Epoch ms when the user code expires (from expires_in); drives the countdown. */
+	expiresAt?: number;
 	/** Present only on status==='success'. Held in memory only. */
 	token?: string;
 	user?: UserInfo;
@@ -100,6 +102,7 @@ export function useDeviceAuth(): UseDeviceAuth {
 			// Generic page with NO code in the URL — the user reads the code from here
 			// and types it on the approval page (intent/anti-phishing hardening).
 			verificationUri: code.verification_uri,
+			expiresAt: Date.now() + code.expires_in * 1000,
 		});
 
 		const result = await pollForToken(
