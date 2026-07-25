@@ -7,6 +7,21 @@
 	flex-shrink: 0;
 	/* Anchors the Labs dropdown, which is positioned against this strip. */
 	position: relative;
+	/*
+	 * Makes the strip itself the thing the hint breakpoint below measures.
+	 *
+	 * A media query would ask the viewport, which is only the same question in
+	 * the Word task pane and the Google Docs sidebar — there the pane *is* the
+	 * viewport. In the standalone editor the strip sits in a sidebar that is
+	 * `flex: 0 1 28rem` with `min-width: 14rem` (editor/styles.module.css), so it
+	 * can be 224px wide inside a 1400px window: the viewport says "wide", the
+	 * strip is anything but, and the hints come back and overflow.
+	 *
+	 * Containment here is inline-size only — no paint containment — so the Labs
+	 * dropdown still draws outside the strip. `.labs` stays the containing block
+	 * for the absolutely-positioned menu, being the nearer positioned ancestor.
+	 */
+	container-type: inline-size;
 }
 
 .tabBtn {
@@ -70,18 +85,29 @@
 /*
  * Drop the hints when the strip is too narrow to hold them on one line.
  *
- * Measured, not guessed: the widest hint ("Generate suggestions") is ~98px, and
- * three tabs beside the 32px Labs button only clear that at ~422px of viewport.
- * 440 is that number with headroom, since the exact figure moves with font
- * loading. Below it the hints wrapped into a ragged multi-line strip of uneven
- * heights — which is what the Google Docs sidebar, locked by the platform at
- * ~300px, has been showing all along.
+ * Measured, not guessed. The widest hint ("Generate suggestions") is ~97.8px,
+ * and each tab gets `(C - 32px Labs - 12px gaps) / 3 - 20px padding` of label
+ * room, so the hints need C >= 397.4px. 416 is that with headroom, since the
+ * exact figure moves with font loading. Below it they wrapped into a ragged
+ * multi-line strip of uneven heights — which is what the Google Docs sidebar,
+ * locked by the platform at ~300px, has been showing all along.
+ *
+ * A @container query, not @media: the width that matters is the strip's, and the
+ * two only coincide where the pane is the viewport. See `container-type` on
+ * .tabs. Container queries are Baseline (Chrome 105 / Safari 16 / Firefox 110),
+ * comfortably inside what this add-in already requires — pages/app warns Trident
+ * and EdgeHTML users the add-in won't run correctly at all.
+ *
+ * C is the strip's CONTENT box: a container query excludes the queried element's
+ * own padding, where a media query would have counted it. That is why this reads
+ * 415 and not the 439 an equivalent viewport breakpoint used — .tabs carries
+ * 24px of horizontal padding, so a 440px-wide strip queries as 416px.
  *
  * The hint is still on every tab as a `title` tooltip, so nothing is lost that
  * a hover can't recover; the Labs menu shows its entries' hints unconditionally,
  * because a dropdown has width the strip doesn't.
  */
-@media (max-width: 439px) {
+@container (max-width: 415px) {
 	/* Scoped to the strip: the Labs menu reuses .tabHint and must keep it. */
 	.tabBtn .tabHint {
 		display: none;
