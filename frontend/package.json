@@ -101,7 +101,7 @@
 		"office-addin-prettier-config": "^1.2.1",
 		"office-addin-test-helpers": "^1.5.5",
 		"office-addin-test-server": "^1.5.5",
-		"postcss": "^8.5.13",
+		"postcss": "^8.5.23",
 		"tailwindcss": "^4.1.8",
 		"ts-node": "^10.9.2",
 		"typescript": "^5.4.2",
