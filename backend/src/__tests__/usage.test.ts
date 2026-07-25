@@ -27,6 +27,7 @@ afterEach(() => {
 function record(overrides: Partial<UsageRecord> = {}): void {
 	recordUsage({
 		userId: 'usr-1',
+		clientId: null,
 		provider: 'openai',
 		endpoint: 'chat/completions',
 		model: 'gpt-4o',

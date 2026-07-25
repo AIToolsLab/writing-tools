@@ -127,7 +127,13 @@ function DeviceAuthStatus({
 			<CodeCountdown expiresAt={authorization.expiresAt} />
 			{authorization.verificationUri ? (
 				<p style={{ margin: '0.25rem 0 0.75rem' }}>
-					<a href={authorization.verificationUri} target="_blank" rel="noopener">Open approval page</a>
+					<a
+						href={authorization.verificationUri}
+						target="_blank"
+						rel="noopener"
+					>
+						Open approval page
+					</a>
 				</p>
 			) : null}
 			<p>Open the approval page and enter the code above to continue.</p>
@@ -140,8 +146,14 @@ function AppInner() {
 	const mode = useAtomValue(overallModeAtom);
 	const noAuthMode = mode !== OverallMode.full;
 	const session = useAppAuth();
-	const { isLoading, isAuthorizing, error, isAuthenticated, user, authorization } =
-		session;
+	const {
+		isLoading,
+		isAuthorizing,
+		error,
+		isAuthenticated,
+		user,
+		authorization,
+	} = session;
 	const [width, _height] = useWindowSize();
 	const page = useAtomValue(pageNameAtom);
 	const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState(() => {
@@ -466,7 +478,8 @@ function PostHogConsentBridge(): null {
 	useEffect(() => {
 		if (!posthog) return;
 		const analyticsAllowed =
-			isAuthenticated && consentRank(loggingConsent) >= consentRank('usage');
+			isAuthenticated &&
+			consentRank(loggingConsent) >= consentRank('usage');
 
 		// Require a stable id before opting in, so we never capture untethered
 		// anonymous events that can't be tied to a deletable account identity.

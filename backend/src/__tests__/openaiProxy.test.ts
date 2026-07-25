@@ -36,6 +36,7 @@ const real = (id: string) =>
 		isAnonymous: false,
 		loggingConsent: CONSENT_LEVELS[2],
 		isAllowed: true,
+		clientId: null,
 	}) as SessionUser;
 const anon = (id: string) =>
 	({
@@ -43,6 +44,7 @@ const anon = (id: string) =>
 		isAnonymous: true,
 		loggingConsent: FULL_CONSENT_LEVEL,
 		isAllowed: true,
+		clientId: null,
 	}) as SessionUser;
 
 

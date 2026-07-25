@@ -13,6 +13,7 @@
  */
 import { useCallback } from 'react';
 import { SERVER_URL } from '@/api';
+import { DEVICE_CLIENT_ID } from '@/api/deviceAuth';
 import { filterPayloadForConsent } from '@/consent';
 import { useAppAuth } from '@/contexts/appAuthContext';
 
@@ -50,6 +51,8 @@ export function useLog(): LogFn {
 					headers: {
 						'Content-Type': 'application/json',
 						Authorization: `Bearer ${token}`,
+						// Attribute first-party add-in events to (user, add-in).
+						'X-Client-Id': DEVICE_CLIENT_ID,
 					},
 					body: JSON.stringify({
 						...filtered,

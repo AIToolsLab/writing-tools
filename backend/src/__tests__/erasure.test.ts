@@ -43,6 +43,7 @@ async function logSomething(userId: string) {
 		event: 'saved',
 		schema_version: 1,
 		page: null,
+		client_id: null,
 		extra_data: {},
 	});
 }
@@ -50,6 +51,7 @@ async function logSomething(userId: string) {
 function meterSomething(userId: string) {
 	recordUsage({
 		userId,
+		clientId: null,
 		provider: 'openai',
 		endpoint: 'chat/completions',
 		model: 'gpt-4o',

@@ -31,7 +31,9 @@ import type React from 'react';
 import { PageName } from '@/contexts/pageContext';
 import Chat from './chat';
 import Draft from './draft';
+import { isFlagEnabled } from './flags';
 import Revise from './revise';
+import Tools from './tools';
 
 export type PageTier = 'core' | 'lab';
 
@@ -79,6 +81,14 @@ export const PAGES: PageDef[] = [
 		hint: 'Ask about your doc',
 		tier: 'core',
 		render: () => <Chat />,
+	},
+	{
+		name: PageName.Tools,
+		title: 'Tools',
+		hint: 'Launch writing tools',
+		tier: 'lab',
+		enabled: () => isFlagEnabled('tool-launcher'),
+		render: () => <Tools />,
 	},
 ];
 

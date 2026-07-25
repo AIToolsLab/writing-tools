@@ -2,6 +2,7 @@ import {
 	createOpenAI,
 	type OpenAIResponsesProviderOptions,
 } from '@ai-sdk/openai';
+import { DEVICE_CLIENT_ID } from './deviceAuth';
 import { SERVER_URL } from './index';
 
 /**
@@ -27,6 +28,10 @@ async function authorizedFetch(
 	init?: RequestInit,
 ): Promise<Response> {
 	const headers = new Headers(init?.headers);
+	// Identify this traffic as the first-party add-in so the proxy attributes its
+	// usage to (user, add-in). External tools send their own client_id via a tool
+	// grant token; the backend honours this header only for allowlisted ids.
+	headers.set('X-Client-Id', DEVICE_CLIENT_ID);
 	try {
 		const token = await tokenProvider?.();
 		// Overwrites the placeholder `apiKey` Bearer header the SDK sets.

@@ -34,7 +34,10 @@ export type OpenAIEndpoint = 'chat/completions' | 'responses';
  * The subset of the session identity the proxy needs to decide who pays — see
  * SessionUser in auth.ts (the canonical shape).
  */
-export type ProxyUser = Pick<SessionUser, 'id' | 'isAnonymous' | 'isAllowed'>;
+export type ProxyUser = Pick<
+	SessionUser,
+	'id' | 'isAnonymous' | 'isAllowed' | 'clientId'
+>;
 
 export interface ProxyOptions {
 	/** Authenticated user for this request, or null if there's no session. */
@@ -229,6 +232,10 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 		if (user && !user.isAllowed) return c.json({ detail: 'Forbidden' }, 403);
 		const attribution = attributeRequest(user, options.authEnabled);
 		if (!attribution) return c.json({ detail: 'Unauthorized' }, 401);
+		// Which client the tokens are provenance-tagged to (a tool's client_id, or
+		// null for the first-party add-in). Independent of who pays: a demo user's
+		// spend goes to the capped key but the row still names their tool.
+		const clientId = user?.clientId ?? null;
 
 		const body = await c.req.text();
 		const parsedBody = parseBody(body);
@@ -268,6 +275,7 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 			try {
 				recordUsage({
 					userId: attribution.userId,
+					clientId,
 					provider: 'openai',
 					endpoint,
 					model: model ?? requestedModel(parsedBody),
