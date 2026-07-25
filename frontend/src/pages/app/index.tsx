@@ -22,9 +22,7 @@ import {
 	pageNameAtom,
 } from '@/contexts/pageContext';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
-import Chat from '../chat';
-import Draft from '../draft';
-import Revise from '../revise';
+import { resolvePage } from '../registry';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
@@ -336,16 +334,13 @@ function AppInner() {
 		);
 	}
 
+	// Which page renders is the registry's call, not a switch here — see
+	// pages/registry.tsx. resolvePage also handles a stored selection that is no
+	// longer visible (a lab page whose flag was turned off) by falling back to the
+	// default page; the navbar highlights the same resolved page, so the strip and
+	// the content can't disagree.
 	function getComponent(pageName: PageName): React.JSX.Element | null {
-		switch (pageName) {
-			case PageName.Revise:
-				return <Revise />;
-			case PageName.Chat:
-				return <Chat />;
-			case PageName.Draft:
-				return <Draft />;
-		}
-		return null;
+		return resolvePage(pageName)?.render() ?? null;
 	}
 
 	return (
