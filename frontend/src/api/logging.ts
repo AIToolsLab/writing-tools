@@ -37,8 +37,15 @@ import type { LogFn } from '@/hooks/useLog';
  * History:
  *   1 — Initial page-scoped schema (Draft / Revise / Chat).
  *   2 — Added the Tools page (external tool launcher) and its events.
+ *   3 — Error events carry an optional `code` (the provider's error code, e.g.
+ *       `insufficient_quota`), and their `error` field now holds the provider's
+ *       message rather than the sentence shown to the user.
+ *   4 — Added the document-scoped brief (audience / purpose / constraints) and
+ *       its `brief_edited` event, which any page can emit. Revise emits
+ *       `reference_resolved` after each clicked doctext link, recording whether
+ *       the quote was found and how long the search took.
  */
-export const LOG_SCHEMA_VERSION = 2;
+export const LOG_SCHEMA_VERSION = 4;
 
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat' | 'tools';
@@ -100,7 +107,12 @@ export const draftLog = {
 	/** A suggestion request failed (timeout or model error). */
 	generationError(
 		log: LogFn,
-		data: { generationType: string; docContext: DocContext; error: string },
+		data: {
+			generationType: string;
+			docContext: DocContext;
+			error: string;
+			code?: string;
+		},
 	) {
 		return emit(log, 'draft', 'generation_error', data);
 	},
@@ -141,12 +153,32 @@ export const reviseLog = {
 		return emit(log, 'revise', 'visualization_completed', data);
 	},
 	/** A visualization request failed (and was not merely cancelled). */
-	visualizationError(log: LogFn, data: { feature: string; error: string }) {
+	visualizationError(
+		log: LogFn,
+		data: { feature: string; error: string; code?: string },
+	) {
 		return emit(log, 'revise', 'visualization_error', data);
 	},
 	/** The writer clicked a document reference (doctext link) in a result. */
 	referenceClicked(log: LogFn, data: { target: string }) {
 		return emit(log, 'revise', 'reference_clicked', data);
+	},
+	/**
+	 * A clicked reference finished resolving. `found` records whether the quote
+	 * was located at all; `attempts` and `durationMs` measure what the writer
+	 * waited through (each attempt is a round-trip to the editor), which is the
+	 * only way to see from the logs that a link felt broken.
+	 */
+	referenceResolved(
+		log: LogFn,
+		data: {
+			target: string;
+			found: boolean;
+			attempts: number;
+			durationMs: number;
+		},
+	) {
+		return emit(log, 'revise', 'reference_resolved', data);
 	},
 };
 
@@ -166,8 +198,29 @@ export const chatLog = {
 		return emit(log, 'chat', 'response_completed', data);
 	},
 	/** The assistant response failed to stream (and was not cancelled). */
-	responseError(log: LogFn, data: { error: string }) {
+	responseError(log: LogFn, data: { error: string; code?: string }) {
 		return emit(log, 'chat', 'response_error', data);
+	},
+};
+
+/**
+ * The document brief (audience / purpose / constraints), which is edited from a
+ * section shared by every page rather than owned by one of them — so unlike the
+ * helpers above, the page is a parameter.
+ *
+ * Only whether a field ended up with content is recorded, never what the writer
+ * typed. The text is document-level context and there is no consent-gated key
+ * for it (see `@/consent` `KEY_MIN_LEVEL`); it reaches the study logs anyway as
+ * part of the `docContext`-adjacent prompts each page already logs.
+ */
+export const docBriefLog = {
+	/** The writer left a brief field after changing it. */
+	fieldEdited(
+		log: LogFn,
+		page: LogPage,
+		data: { field: string; hasContent: boolean },
+	) {
+		return emit(log, page, 'brief_edited', data);
 	},
 };
 

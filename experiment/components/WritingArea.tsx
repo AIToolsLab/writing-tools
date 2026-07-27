@@ -11,8 +11,8 @@ export interface WritingAreaRef {
 }
 
 interface WritingAreaProps {
-  onSend?: (content: string) => Promise<void>;
-  onUpdate?: (state: TextEditorState) => Promise<void>;
+  onSend?: (content: string, subject: string) => Promise<void>;
+  onUpdate?: (state: TextEditorState, subject: string) => Promise<void>;
   showSendButton?: boolean;
 }
 
@@ -54,7 +54,17 @@ const WritingArea = forwardRef<WritingAreaRef, WritingAreaProps>(
       const newBody = e.target.value;
       setBody(newBody);
       if (onUpdate) {
-        onUpdate(getEditorState()).catch((e) =>
+        onUpdate(getEditorState(), subject).catch((e) =>
+          console.error('Failed to log document update:', e)
+        );
+      }
+    };
+
+    const handleSubjectChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const newSubject = e.target.value;
+      setSubject(newSubject);
+      if (onUpdate) {
+        onUpdate(getEditorState(), newSubject).catch((e) =>
           console.error('Failed to log document update:', e)
         );
       }
@@ -64,7 +74,7 @@ const WritingArea = forwardRef<WritingAreaRef, WritingAreaProps>(
       if (onSend) {
         setIsSending(true);
         try {
-          await onSend(body);
+          await onSend(body, subject);
         } catch (error) {
           console.error('Failed to send:', error);
         } finally {
@@ -106,7 +116,7 @@ const WritingArea = forwardRef<WritingAreaRef, WritingAreaProps>(
                   className="flex-1 border border-gray-300 px-2 py-1 rounded text-sm bg-white text-gray-900 placeholder-gray-400"
                   placeholder="Enter subject..."
                   value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
+                  onChange={handleSubjectChange}
                 />
               </div>
             </div>
