@@ -40,8 +40,10 @@ import type { LogFn } from '@/hooks/useLog';
  *   3 — Error events carry an optional `code` (the provider's error code, e.g.
  *       `insufficient_quota`), and their `error` field now holds the provider's
  *       message rather than the sentence shown to the user.
+ *   4 — Added the document-scoped brief (audience / purpose / constraints) and
+ *       its `brief_edited` event, which any page can emit.
  */
-export const LOG_SCHEMA_VERSION = 3;
+export const LOG_SCHEMA_VERSION = 4;
 
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat' | 'tools';
@@ -179,6 +181,27 @@ export const chatLog = {
 	/** The assistant response failed to stream (and was not cancelled). */
 	responseError(log: LogFn, data: { error: string; code?: string }) {
 		return emit(log, 'chat', 'response_error', data);
+	},
+};
+
+/**
+ * The document brief (audience / purpose / constraints), which is edited from a
+ * section shared by every page rather than owned by one of them — so unlike the
+ * helpers above, the page is a parameter.
+ *
+ * Only whether a field ended up with content is recorded, never what the writer
+ * typed. The text is document-level context and there is no consent-gated key
+ * for it (see `@/consent` `KEY_MIN_LEVEL`); it reaches the study logs anyway as
+ * part of the `docContext`-adjacent prompts each page already logs.
+ */
+export const docBriefLog = {
+	/** The writer left a brief field after changing it. */
+	fieldEdited(
+		log: LogFn,
+		page: LogPage,
+		data: { field: string; hasContent: boolean },
+	) {
+		return emit(log, page, 'brief_edited', data);
 	},
 };
 

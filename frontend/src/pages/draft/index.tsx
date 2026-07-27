@@ -14,6 +14,8 @@ import { draftLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { buildMessages } from '@/api/prompts';
 import { ErrorNotice, GenerationErrorNotice } from '@/components/errorNotice';
+import BriefSection from '@/components/briefSection';
+import { formatDocBriefForPrompt, useDocBrief } from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
@@ -53,6 +55,8 @@ const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advi
 interface SuggestionRequest {
 	docContext: DocContext;
 	type: string;
+	/** The document's brief, prompt-formatted; null when the writer set none. */
+	brief: string | null;
 }
 
 class Fetcher {
@@ -70,6 +74,7 @@ class Fetcher {
 			const messages = buildMessages(
 				request.type,
 				request.docContext,
+				request.brief,
 			) as ModelMessage[];
 
 			// generateFullText, not `streamText(...).text`: the latter resolves to
@@ -190,7 +195,12 @@ function SavedGenerations({
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const { refresh: refreshDocContext } = useDocContext(editorAPI);
+	const { brief } = useDocBrief();
 	const log = useLog();
+	// Read when a suggestion is requested, alongside the document context, so a
+	// brief edited moments ago is the one that applies.
+	const briefRef = useRef(brief);
+	briefRef.current = brief;
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 	const [errorInfo, updateErrorInfo] = useState<GenerationErrorInfo | null>(
@@ -346,6 +356,7 @@ export default function Draft() {
 		const request = {
 			docContext,
 			type: modesToShow[0],
+			brief: formatDocBriefForPrompt(briefRef.current),
 		};
 		const prevRequest = getFetcher().previousRequest;
 		if (
@@ -376,6 +387,11 @@ export default function Draft() {
 					
 				<div className="flex flex-col flex-1 overflow-hidden">
 					<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
+						{/* The document's brief — same section as on Revise, same
+						    stored values; collapsed here since this page's job is
+						    the buttons below it. */}
+						<BriefSection page="draft" />
+
 						{/* Instruction */}
 						<div className={classes.instruction}>
 							CLICK A DESIRED BUTTON
@@ -402,7 +418,16 @@ export default function Draft() {
 													docContext,
 												});
 												resetAutoRefresh();
-												getSuggestion({ docContext, type: mode }, true);
+												getSuggestion(
+													{
+														docContext,
+														type: mode,
+														brief: formatDocBriefForPrompt(
+															briefRef.current,
+														),
+													},
+													true,
+												);
 											})();
 										}}
 										disabled={isLoading}

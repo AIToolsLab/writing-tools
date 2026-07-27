@@ -15,6 +15,7 @@ import {
 } from '@/contexts/appAuthContext';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import ChatContextWrapper from '@/contexts/chatContext';
+import { DocBriefProvider } from '@/contexts/docBriefContext';
 import {
 	OverallMode,
 	overallModeAtom,
@@ -506,7 +507,13 @@ export default function App() {
 					<AppAuthProvider>
 						<PostHogConsentBridge />
 						<AppAuthTokenBridge>
-							<AppInner />
+							{/* The document's brief is shared by every page, so it
+							    is loaded once here rather than per page. Inside the
+							    auth providers because the section it feeds logs
+							    edits. */}
+							<DocBriefProvider>
+								<AppInner />
+							</DocBriefProvider>
 						</AppAuthTokenBridge>
 					</AppAuthProvider>
 				</Reshaped>

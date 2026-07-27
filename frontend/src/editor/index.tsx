@@ -1,5 +1,6 @@
 import { useRef, useState, StrictMode, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
+import { localStorageDocumentSettings } from '@/api/documentSettings';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 
 import * as SidebarInner from '@/pages/app';
@@ -24,6 +25,10 @@ export function EditorScreen({
 }) {
 	const mode = useAtomValue(overallModeAtom);
 	const isDemo = mode === OverallMode.demo;
+
+	// Identifies "this document" for both the Lexical draft and the sidebar's
+	// document settings, so a per-task editor keeps its own brief.
+	const storageKey = taskID ? `doc-${taskID}` : 'doc';
 
 	// This is a reference to the current document context
 	const docContextRef = useRef<DocContext>({
@@ -64,8 +69,12 @@ export function EditorScreen({
 				console.warn('selectPhrase is not implemented yet');
 				return new Promise<void>((resolve) => resolve());
 			},
+
+			// There is no host document here to embed settings in, so they live
+			// in localStorage under this editor's own document key.
+			...localStorageDocumentSettings(storageKey),
 		}),
-		[],
+		[storageKey],
 	);
 
 	const docUpdated = (docContext: DocContext) => {
@@ -90,14 +99,7 @@ export function EditorScreen({
 		handleSelectionChange();
 	};
 
-	//Determine storage keys based on the task
-	const getStorageKey = () => {
-		return taskID ? `doc-${taskID}` : 'doc';
-	};
-
 	const getInitialState = () => {
-		const storageKey = getStorageKey();
-
 		// if (taskPrompt) {
 		// 	localStorage.removeItem(storageKey);
 		// 	localStorage.removeItem(`${storageKey}-date`);
@@ -119,7 +121,7 @@ export function EditorScreen({
 					<LexicalEditor
 						initialState={getInitialState()}
 						updateDocContext={docUpdated}
-						storageKey={getStorageKey()}
+						storageKey={storageKey}
 						preamble={editorPreamble}
 					/>
 					{isDemo ? (
