@@ -8,8 +8,6 @@
  * all document operations here go through Apps Script on Google's servers.
  */
 
-import type { Auth0ContextInterface } from '@auth0/auth0-react';
-
 // Declare the global GoogleAppsScript bridge (defined in sidebar.html)
 declare global {
 	interface Window {
@@ -47,59 +45,88 @@ declare global {
 
 /**
  * Selection change handlers.
- * Note: Google Docs doesn't have real-time selection change events like Word.
- * We implement polling as a workaround.
+ *
+ * Google Docs has no real-time selection-change event like Word, and the only
+ * way to observe a change is to re-fetch the entire document through Apps
+ * Script (a slow, quota-metered round-trip). So most of the app is pull-based
+ * (it calls `getDocContext()` on demand) and does not register here at all.
+ *
+ * A handler is registered only by the rare feature that genuinely needs to
+ * react to the user's selection as they move it (e.g. the tag linker). For
+ * those, we poll — but only while the sidebar is actually in front of the user
+ * (visible and focused). When the user is editing the document (sidebar
+ * blurred) or the tab is hidden, polling pauses, so we never re-fetch the whole
+ * document in the background.
  */
 const selectionChangeHandlers: Set<() => void> = new Set();
 let pollingInterval: ReturnType<typeof setInterval> | null = null;
 let lastDocContext: DocContext | null = null;
+let lifecycleListenersAttached = false;
+
+const POLL_INTERVAL_MS = 1000;
 
 /**
- * Starts polling for selection changes.
- * This is a workaround since Google Docs doesn't provide selection change events.
+ * Whether the sidebar is currently in front of the user. We only poll while
+ * this is true — polling while the user is elsewhere just burns Apps Script
+ * quota re-fetching a document they're not looking at through the sidebar.
  */
-function startPolling() {
-	if (pollingInterval) return;
-
-	const pollForChanges = async () => {
-		if (selectionChangeHandlers.size === 0) {
-			stopPolling();
-			return;
-		}
-
-		try {
-			const newContext = await window.GoogleAppsScript.getDocContext();
-
-			// Check if selection changed
-			if (
-				!lastDocContext ||
-				lastDocContext.selectedText !== newContext.selectedText ||
-				lastDocContext.beforeCursor !== newContext.beforeCursor
-			) {
-				lastDocContext = newContext;
-				// Notify all handlers
-				for (const handler of selectionChangeHandlers) {
-					try {
-						handler();
-					} catch (e) {
-						console.error('Selection change handler error:', e);
-					}
-				}
-			}
-		} catch (e) {
-			console.error('Error polling for selection changes:', e);
-		}
-	};
-
-	pollingInterval = setInterval(() => {
-		void pollForChanges();
-	}, 1000); // Poll every second
+function sidebarIsActive(): boolean {
+	if (typeof document === 'undefined') return false;
+	if (document.visibilityState !== 'visible') return false;
+	// hasFocus() may be undefined in some embedded contexts; treat that as active.
+	return typeof document.hasFocus !== 'function' || document.hasFocus();
 }
 
 /**
- * Stops polling for selection changes.
+ * Fetches the current context and, if the selection/cursor changed since the
+ * last fetch, notifies every registered handler.
  */
-function stopPolling() {
+async function pollForChanges(): Promise<void> {
+	if (selectionChangeHandlers.size === 0) {
+		stopPolling();
+		return;
+	}
+
+	try {
+		const newContext = await window.GoogleAppsScript.getDocContext();
+
+		if (
+			!lastDocContext ||
+			lastDocContext.selectedText !== newContext.selectedText ||
+			lastDocContext.beforeCursor !== newContext.beforeCursor
+		) {
+			lastDocContext = newContext;
+			for (const handler of selectionChangeHandlers) {
+				try {
+					handler();
+				} catch (e) {
+					console.error('Selection change handler error:', e);
+				}
+			}
+		}
+	} catch (e) {
+		console.error('Error polling for selection changes:', e);
+	}
+}
+
+/**
+ * Starts the polling interval, if it isn't already running and the sidebar is
+ * active. Does nothing while the sidebar is in the background.
+ */
+function runInterval(): void {
+	if (pollingInterval || selectionChangeHandlers.size === 0) return;
+	if (!sidebarIsActive()) return;
+
+	pollingInterval = setInterval(() => {
+		void pollForChanges();
+	}, POLL_INTERVAL_MS);
+}
+
+/**
+ * Stops the polling interval without tearing down the handler registration or
+ * lifecycle listeners, so polling can resume when the sidebar becomes active.
+ */
+function pauseInterval(): void {
 	if (pollingInterval) {
 		clearInterval(pollingInterval);
 		pollingInterval = null;
@@ -107,88 +134,66 @@ function stopPolling() {
 }
 
 /**
+ * Resumes or pauses polling in response to focus/visibility changes.
+ */
+function handleLifecycleChange(): void {
+	if (selectionChangeHandlers.size === 0) return;
+
+	if (sidebarIsActive()) {
+		// The user just came back to the sidebar — refresh immediately so a
+		// selection they made while away is picked up without waiting a tick.
+		void pollForChanges();
+		runInterval();
+	} else {
+		pauseInterval();
+	}
+}
+
+function attachLifecycleListeners(): void {
+	if (lifecycleListenersAttached || typeof window === 'undefined') return;
+	window.addEventListener('focus', handleLifecycleChange);
+	window.addEventListener('blur', handleLifecycleChange);
+	document.addEventListener('visibilitychange', handleLifecycleChange);
+	lifecycleListenersAttached = true;
+}
+
+function detachLifecycleListeners(): void {
+	if (!lifecycleListenersAttached || typeof window === 'undefined') return;
+	window.removeEventListener('focus', handleLifecycleChange);
+	window.removeEventListener('blur', handleLifecycleChange);
+	document.removeEventListener('visibilitychange', handleLifecycleChange);
+	lifecycleListenersAttached = false;
+}
+
+/**
+ * Begins reacting to selection changes for the newly-registered handler:
+ * pull once immediately, then poll only while the sidebar is active.
+ */
+function startPolling(): void {
+	attachLifecycleListeners();
+	// Pull once right away so a freshly-registered listener gets current state,
+	// but only if the sidebar is in front of the user — otherwise the first pull
+	// waits until they return (handled by the focus/visibility listener).
+	if (sidebarIsActive()) {
+		void pollForChanges();
+	}
+	runInterval();
+}
+
+/**
+ * Stops polling entirely and removes lifecycle listeners. Called once the last
+ * handler is removed.
+ */
+function stopPolling(): void {
+	pauseInterval();
+	detachLifecycleListeners();
+	lastDocContext = null;
+}
+
+/**
  * Google Docs implementation of the EditorAPI interface.
  */
 export const googleDocsEditorAPI: EditorAPI = {
-	/**
-	 * Handles login for Google Docs.
-	 * Since users are already authenticated with Google, we use their Google identity.
-	 * For Auth0 integration, we could implement a popup flow similar to Word.
-	 */
-	async doLogin(auth0Client: Auth0ContextInterface): Promise<void> {
-		// Option 1: Use Google identity directly (simpler)
-		// The user is already logged into Google, so we can use their email
-		// as the identifier and skip Auth0 entirely for Google Docs.
-
-		// Option 2: Implement Auth0 popup flow (for consistency with Word)
-		// This would require opening a popup window and handling the OAuth flow.
-
-		// For now, we'll use a simplified approach that works with Google identity
-		console.log(
-			'Google Docs login: Using Google identity. Auth0 integration pending.',
-		);
-
-		// If Auth0 is required, we could implement a similar popup flow:
-		// 1. Open a popup to Auth0 login URL
-		// 2. Have the popup redirect back with tokens
-		// 3. Store tokens via Apps Script user properties
-
-		// Placeholder: trigger Auth0 login if needed
-		try {
-			await auth0Client.loginWithRedirect({
-				openUrl: (url: string) => {
-					// Open in a new window since we can't do redirects in an iframe
-					const popup = window.open(
-						url,
-						'auth0-login',
-						'width=500,height=600',
-					);
-
-					// Poll for completion (the popup should post a message when done)
-					const pollTimer = setInterval(() => {
-						if (popup?.closed) {
-							clearInterval(pollTimer);
-							// Check if we're now logged in
-							auth0Client.getAccessTokenSilently().catch(() => {
-								console.log('Auth0 login was cancelled or failed');
-							});
-						}
-					}, 500);
-				},
-			});
-		} catch (error) {
-			console.error('Auth0 login error:', error);
-		}
-	},
-
-	/**
-	 * Handles logout for Google Docs.
-	 */
-	async doLogout(auth0Client: Auth0ContextInterface): Promise<void> {
-		try {
-			await auth0Client.logout({
-				openUrl: (url: string) => {
-					// Open logout URL in a popup
-					const popup = window.open(
-						url,
-						'auth0-logout',
-						'width=500,height=400',
-					);
-
-					// Close popup after a brief delay
-					setTimeout(() => {
-						popup?.close();
-					}, 2000);
-				},
-				logoutParams: {
-					returnTo: window.location.origin,
-				},
-			});
-		} catch (error) {
-			console.error('Auth0 logout error:', error);
-		}
-	},
-
 	/**
 	 * Adds a handler for selection changes.
 	 * Uses polling since Google Docs doesn't provide native selection events.
@@ -246,7 +251,7 @@ export function isRunningInGoogleDocs(): boolean {
 
 /**
  * Gets the current user's email from Google.
- * This can be used as a fallback identifier if Auth0 is not configured.
+ * Used as the identifier for the Google Docs surface (which runs in demo mode).
  */
 export async function getGoogleUserEmail(): Promise<string | null> {
 	if (!isRunningInGoogleDocs()) {

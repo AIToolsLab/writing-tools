@@ -1,4 +1,4 @@
-import * as ReactDOM from 'react-dom';
+import { createRoot } from 'react-dom/client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { SERVER_URL } from '@/api';
@@ -497,6 +497,6 @@ function App() {
 	);
 }
 
-ReactDOM.render(<App />, document.getElementById('container'));
+createRoot(document.getElementById('container')!).render(<App />);
 
 // Add styles for collapsible

@@ -111,7 +111,7 @@ const adviceLocator = 'button[title="Get suggestions for next words"]';
   const adviceButton = frame.locator(adviceLocator);
 
   // Mock backend with delay and realistic streamed response
-  await page.route('**/openai/chat/completions', async (route) => {
+  await page.route('**/openai/responses', async (route) => {
     await page.waitForTimeout(1000); // simulate network delay
     await fulfillOpenAI(
       route,

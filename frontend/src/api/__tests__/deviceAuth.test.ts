@@ -1,0 +1,227 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Keep the service off the real ./index (which pulls Office/Google editor APIs);
+// only SERVER_URL is needed.
+vi.mock('../index', () => ({ SERVER_URL: '/api' }));
+
+import { DEFAULT_CONSENT_LEVEL } from '@/consent';
+import { pollForToken, requestDeviceCode, fetchUserInfo } from '../deviceAuth';
+
+type Json = Record<string, unknown>;
+const resp = (data: Json, ok = false) =>
+	({ ok, json: () => Promise.resolve(data) }) as Response;
+
+let fetchMock: ReturnType<typeof vi.fn>;
+
+beforeEach(() => {
+	fetchMock = vi.fn();
+	vi.stubGlobal('fetch', fetchMock);
+});
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+	vi.useRealTimers();
+});
+
+describe('requestDeviceCode', () => {
+	it('returns the parsed code on success', async () => {
+		fetchMock.mockResolvedValueOnce(
+			resp(
+				{
+					device_code: 'dev',
+					user_code: 'ABCD-1234',
+					verification_uri: '/api/device',
+					verification_uri_complete:
+						'/api/device?user_code=ABCD-1234',
+					expires_in: 600,
+					interval: 5,
+				},
+				true,
+			),
+		);
+		const code = await requestDeviceCode();
+		expect(code.user_code).toBe('ABCD-1234');
+		expect(code.device_code).toBe('dev');
+	});
+
+	it('throws on a non-ok response', async () => {
+		fetchMock.mockResolvedValueOnce(resp({ error: 'invalid_client' }));
+		await expect(requestDeviceCode()).rejects.toThrow(
+			/device\/code failed/,
+		);
+	});
+
+	it('surfaces a readable error on a non-ok response with an unparseable body', async () => {
+		// A proxy 502 with an empty body used to crash with "Unexpected end of
+		// JSON input", masking the real failure.
+		fetchMock.mockResolvedValueOnce({
+			ok: false,
+			status: 502,
+			json: () => Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+		} as unknown as Response);
+		await expect(requestDeviceCode()).rejects.toThrow(
+			/device\/code failed \(502\).*backend running/,
+		);
+	});
+});
+
+describe('pollForToken', () => {
+	it('resolves with the token after authorization_pending', async () => {
+		vi.useFakeTimers();
+		fetchMock
+			.mockResolvedValueOnce(resp({ error: 'authorization_pending' }))
+			.mockResolvedValueOnce(resp({ access_token: 'tok-123' }, true));
+
+		const promise = pollForToken('dev', 1);
+		await vi.runAllTimersAsync();
+		await expect(promise).resolves.toEqual({
+			type: 'token',
+			accessToken: 'tok-123',
+		});
+	});
+
+	it('keeps polling after slow_down and still resolves with the token', async () => {
+		vi.useFakeTimers();
+		fetchMock
+			.mockResolvedValueOnce(resp({ error: 'slow_down' }))
+			.mockResolvedValueOnce(resp({ access_token: 'tok' }, true));
+
+		const promise = pollForToken('dev', 5);
+		await vi.runAllTimersAsync();
+		await expect(promise).resolves.toEqual({
+			type: 'token',
+			accessToken: 'tok',
+		});
+	});
+
+	it('returns denied on access_denied', async () => {
+		vi.useFakeTimers();
+		fetchMock.mockResolvedValueOnce(resp({ error: 'access_denied' }));
+		const promise = pollForToken('dev', 1);
+		await vi.runAllTimersAsync();
+		await expect(promise).resolves.toEqual({ type: 'denied' });
+	});
+
+	it('returns expired on expired_token', async () => {
+		vi.useFakeTimers();
+		fetchMock.mockResolvedValueOnce(resp({ error: 'expired_token' }));
+		const promise = pollForToken('dev', 1);
+		await vi.runAllTimersAsync();
+		await expect(promise).resolves.toEqual({ type: 'expired' });
+	});
+
+	it('returns error on an unexpected error code', async () => {
+		vi.useFakeTimers();
+		fetchMock.mockResolvedValueOnce(resp({ error: 'boom' }));
+		const promise = pollForToken('dev', 1);
+		await vi.runAllTimersAsync();
+		const result = await promise;
+		expect(result.type).toBe('error');
+	});
+
+	it('returns a readable poll error on an unparseable body instead of crashing', async () => {
+		vi.useFakeTimers();
+		fetchMock.mockResolvedValueOnce({
+			ok: false,
+			status: 502,
+			json: () => Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+		} as unknown as Response);
+		const promise = pollForToken('dev', 1);
+		await vi.runAllTimersAsync();
+		await expect(promise).resolves.toEqual({
+			type: 'error',
+			message: expect.stringMatching(/device\/token failed \(502\).*backend running/),
+		});
+	});
+
+	it('returns aborted when the signal is already aborted', async () => {
+		const controller = new AbortController();
+		controller.abort();
+		await expect(
+			pollForToken('dev', 1, controller.signal),
+		).resolves.toEqual({ type: 'aborted' });
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+});
+
+describe('fetchUserInfo', () => {
+	it('maps the nested get-session user to UserInfo on 200', async () => {
+		fetchMock.mockResolvedValueOnce(
+			resp(
+				{
+					session: { id: 'sess_1' },
+					user: {
+						id: 'user_1',
+						email: 'a@calvin.edu',
+						name: 'A',
+						loggingConsent: 'document',
+						isAllowed: true,
+						isAnonymous: true,
+					},
+				},
+				true,
+			),
+		);
+		await expect(fetchUserInfo('tok')).resolves.toEqual({
+			id: 'user_1',
+			email: 'a@calvin.edu',
+			name: 'A',
+			loggingConsent: 'document',
+			isAllowed: true,
+			isAnonymous: true,
+		});
+		// hits the framework endpoint on the token-only path, no cookies
+		expect(fetchMock).toHaveBeenCalledWith(
+			'/api/auth/get-session',
+			expect.objectContaining({
+				credentials: 'omit',
+				headers: { Authorization: 'Bearer tok' },
+			}),
+		);
+	});
+
+	it('defaults an invalid loggingConsent to DEFAULT_CONSENT_LEVEL', async () => {
+		fetchMock.mockResolvedValueOnce(
+			resp(
+				{
+					user: {
+						id: 'u',
+						email: 'a@calvin.edu',
+						name: 'A',
+						loggingConsent: 'bogus',
+					},
+				},
+				true,
+			),
+		);
+		await expect(fetchUserInfo('tok')).resolves.toEqual({
+			id: 'u',
+			email: 'a@calvin.edu',
+			name: 'A',
+			loggingConsent: DEFAULT_CONSENT_LEVEL, // 'usage'
+			// server omitted isAllowed → client coerces to false, never derives it
+			isAllowed: false,
+			// Same fail-closed mapping for the anonymous marker.
+			isAnonymous: false,
+		});
+	});
+
+	it('throws on 200 + null body (expired/invalid Bearer session)', async () => {
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			json: () => Promise.resolve(null),
+		} as Response);
+		await expect(fetchUserInfo('tok')).rejects.toThrow(/no active session/);
+	});
+
+	it('throws on a non-2xx transport error', async () => {
+		fetchMock.mockResolvedValueOnce({
+			ok: false,
+			status: 500,
+			json: () => Promise.resolve({}),
+		} as Response);
+		await expect(fetchUserInfo('tok')).rejects.toThrow(
+			/get-session failed/,
+		);
+	});
+});

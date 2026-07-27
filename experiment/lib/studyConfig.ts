@@ -74,14 +74,26 @@ export interface ScenarioConfig {
     companyFraming: string; // Company reputation reminder
   };
   chat: {
+    model: string;              // Colleague LLM model id (e.g. "gpt-5.5")
+    reasoningEffort: ReasoningEffort; // Reasoning effort for the colleague model
     initialMessages: string[];  // Opening messages from colleague
     followUpMessage: string;    // Proactive nudge if user doesn't engage
     systemPrompt: string;       // Full scenario context for AI
   };
 }
 
+// Reasoning effort levels accepted by the OpenAI provider (see AI SDK docs)
+export type ReasoningEffort =
+  | 'none'
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh';
+
 // Available scenarios (imported from JSON, cast to correct type)
 // The JSON includes an 'analysis' field for Python scripts that we exclude from the runtime type
+// The JSON stores systemPromptLines as an array for readability; we join them here
 export const SCENARIOS: Record<string, ScenarioConfig> = Object.fromEntries(
   Object.entries(scenariosData).map(([key, value]) => [
     key,
@@ -91,7 +103,10 @@ export const SCENARIOS: Record<string, ScenarioConfig> = Object.fromEntries(
       colleague: value.colleague,
       recipient: value.recipient,
       taskInstructions: value.taskInstructions,
-      chat: value.chat,
+      chat: {
+        ...value.chat,
+        systemPrompt: value.chat.systemPromptLines.join('\n'),
+      },
     } as ScenarioConfig,
   ])
 );

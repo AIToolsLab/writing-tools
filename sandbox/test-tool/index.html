@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Platform API v0 — Test Tool</title>
+		<style>
+			:root {
+				color-scheme: light dark;
+				--ok: #1a7f37;
+				--err: #cf222e;
+				--muted: #656d76;
+				--border: #d0d7de;
+				--bg-soft: rgba(127, 127, 127, 0.08);
+			}
+			body {
+				font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+				max-width: 760px;
+				margin: 2rem auto;
+				padding: 0 1rem;
+				line-height: 1.5;
+			}
+			h1 {
+				font-size: 1.4rem;
+				margin-bottom: 0.2rem;
+			}
+			.sub {
+				color: var(--muted);
+				margin-top: 0;
+			}
+			fieldset {
+				border: 1px solid var(--border);
+				border-radius: 8px;
+				margin: 1rem 0;
+				padding: 0.75rem 1rem 1rem;
+			}
+			legend {
+				font-weight: 600;
+				padding: 0 0.4rem;
+			}
+			label {
+				display: block;
+				font-size: 0.85rem;
+				color: var(--muted);
+				margin-top: 0.5rem;
+			}
+			input {
+				width: 100%;
+				box-sizing: border-box;
+				padding: 0.4rem 0.5rem;
+				border: 1px solid var(--border);
+				border-radius: 6px;
+				font: inherit;
+			}
+			button {
+				font: inherit;
+				padding: 0.4rem 0.9rem;
+				border: 1px solid var(--border);
+				border-radius: 6px;
+				background: var(--bg-soft);
+				cursor: pointer;
+				margin: 0.25rem 0.25rem 0 0;
+			}
+			button:disabled {
+				opacity: 0.5;
+				cursor: not-allowed;
+			}
+			pre {
+				background: var(--bg-soft);
+				padding: 0.6rem;
+				border-radius: 6px;
+				overflow-x: auto;
+				white-space: pre-wrap;
+				word-break: break-word;
+				font-size: 0.82rem;
+			}
+			.status {
+				font-weight: 600;
+			}
+			.ok {
+				color: var(--ok);
+			}
+			.err {
+				color: var(--err);
+			}
+			.row {
+				display: flex;
+				gap: 0.5rem;
+				align-items: end;
+			}
+			.row input {
+				flex: 1;
+			}
+			code {
+				background: var(--bg-soft);
+				padding: 0.1rem 0.3rem;
+				border-radius: 4px;
+			}
+		</style>
+	</head>
+	<body>
+		<h1>Platform API v0 — Test Tool</h1>
+		<p class="sub">
+			A throwaway external tool that exercises the Phase 1 handoff grant
+			flow: exchange the launch grant, then use the token against the LLM
+			proxy, the log endpoint, the doc re-fetch, and revoke.
+		</p>
+
+		<fieldset>
+			<legend>1. Backend</legend>
+			<label for="api">API base URL (where the backend runs)</label>
+			<div class="row">
+				<input id="api" value="http://localhost:8000" />
+				<button id="reload">Reload</button>
+			</div>
+		</fieldset>
+
+		<fieldset>
+			<legend>2. Exchange the grant</legend>
+			<p>
+				Grant from URL fragment:
+				<code id="grant">(none — open me via the sidebar's Launch button)</code>
+			</p>
+			<button id="exchange">Exchange grant → token</button>
+			<p class="status" id="exchange-status">Waiting.</p>
+			<pre id="exchange-out"></pre>
+		</fieldset>
+
+		<fieldset>
+			<legend>3. Use the token (Platform API v0)</legend>
+			<button id="llm" disabled>Call LLM proxy</button>
+			<button id="log" disabled>Write a log line</button>
+			<button id="doc" disabled>Re-fetch document</button>
+			<button id="revoke" disabled>Revoke token</button>
+			<p class="status" id="use-status"></p>
+			<pre id="use-out"></pre>
+		</fieldset>
+
+		<script>
+			const $ = (id) => document.getElementById(id);
+			const api = () => $("api").value.replace(/\/$/, "");
+
+			// The grant rides in the URL fragment (#wt_grant=...), never the
+			// query string — fragments aren't sent to servers or logged.
+			const grantId = new URLSearchParams(
+				location.hash.replace(/^#/, ""),
+			).get("wt_grant");
+			$("grant").textContent = grantId ?? "(none)";
+
+			let token = null;
+			let docSnapshot = null;
+
+			function setStatus(el, ok, msg) {
+				el.className = "status " + (ok ? "ok" : "err");
+				el.textContent = msg;
+			}
+			function show(el, data) {
+				el.textContent =
+					typeof data === "string" ? data : JSON.stringify(data, null, 2);
+			}
+			function enableUse(on) {
+				for (const id of ["llm", "log", "doc"])
+					$(id).disabled = !on;
+				$("revoke").disabled = !on;
+			}
+
+			$("reload").onclick = () => location.reload();
+
+			$("exchange").onclick = async () => {
+				if (!grantId) {
+					setStatus($("exchange-status"), false, "No grant in URL.");
+					return;
+				}
+				setStatus($("exchange-status"), true, "Exchanging…");
+				try {
+					const r = await fetch(api() + "/api/handoff/exchange", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						// Bearer-only contract: never send cookies.
+						credentials: "omit",
+						body: JSON.stringify({ grant_id: grantId }),
+					});
+					const body = await r.json();
+					if (!r.ok) throw new Error(JSON.stringify(body));
+					token = body.access_token;
+					docSnapshot = body.doc;
+					setStatus(
+						$("exchange-status"),
+						true,
+						`Got token (${token.slice(0, 10)}…), scopes: ${(body.scopes || []).join(", ")}`,
+					);
+					show($("exchange-out"), body);
+					enableUse(true);
+				} catch (e) {
+					setStatus($("exchange-status"), false, "Exchange failed.");
+					show($("exchange-out"), String(e.message || e));
+				}
+			};
+
+			async function withToken(path, init) {
+				const r = await fetch(api() + path, {
+					...init,
+					credentials: "omit",
+					headers: {
+						...(init && init.headers),
+						Authorization: "Bearer " + token,
+					},
+				});
+				return r;
+			}
+
+			$("llm").onclick = async () => {
+				setStatus($("use-status"), true, "Calling LLM proxy…");
+				try {
+					const r = await withToken("/api/openai/chat/completions", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							model: "gpt-4o-mini",
+							messages: [
+								{
+									role: "user",
+									content:
+										"Reply with exactly: platform api works",
+								},
+							],
+						}),
+					});
+					const body = await r.json();
+					if (!r.ok) throw new Error(JSON.stringify(body));
+					const text = body.choices?.[0]?.message?.content ?? body;
+					setStatus($("use-status"), true, "LLM proxy OK.");
+					show($("use-out"), text);
+				} catch (e) {
+					setStatus($("use-status"), false, "LLM proxy failed.");
+					show($("use-out"), String(e.message || e));
+				}
+			};
+
+			$("log").onclick = async () => {
+				setStatus($("use-status"), true, "Writing log…");
+				try {
+					const r = await withToken("/api/log", {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							page: "test-tool",
+							event: "hello_from_tool",
+							timestamp: new Date().toISOString(),
+						}),
+					});
+					const body = await r.text();
+					if (!r.ok) throw new Error(body);
+					setStatus($("use-status"), true, "Log written.");
+					show($("use-out"), body || "(ok)");
+				} catch (e) {
+					setStatus($("use-status"), false, "Log failed.");
+					show($("use-out"), String(e.message || e));
+				}
+			};
+
+			$("doc").onclick = async () => {
+				setStatus($("use-status"), true, "Re-fetching document…");
+				try {
+					const r = await withToken("/api/handoff/doc", {
+						method: "GET",
+					});
+					const body = await r.json();
+					if (!r.ok) throw new Error(JSON.stringify(body));
+					setStatus($("use-status"), true, "Doc re-fetch OK.");
+					show($("use-out"), body);
+				} catch (e) {
+					setStatus($("use-status"), false, "Doc re-fetch failed.");
+					show($("use-out"), String(e.message || e));
+				}
+			};
+
+			$("revoke").onclick = async () => {
+				setStatus($("use-status"), true, "Revoking…");
+				try {
+					const r = await withToken("/api/handoff/revoke", {
+						method: "POST",
+					});
+					const body = await r.text();
+					if (!r.ok) throw new Error(body);
+					setStatus(
+						$("use-status"),
+						true,
+						"Revoked. Further calls should now 401.",
+					);
+					show($("use-out"), body || "(ok)");
+				} catch (e) {
+					setStatus($("use-status"), false, "Revoke failed.");
+					show($("use-out"), String(e.message || e));
+				}
+			};
+
+			// Auto-exchange on load if a grant is present.
+			if (grantId) $("exchange").click();
+		</script>
+	</body>
+</html>

@@ -152,7 +152,7 @@
 	width: 5px;
 	height: 5px;
 	border-radius: 50%;
-	background: #fafaf8;
+	background: #9b958a;
 	animation: bounce 1.2s infinite ease-in-out;
 }
 
@@ -231,9 +231,9 @@
 }
 
 .chatSendBtn:disabled {
-	background: #fafaf8;
+	background: #1c1c1c;
 	cursor: default;
-	opacity: 1;
+	opacity: 0.35;
 }
 
 .scrollButton {

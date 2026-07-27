@@ -3,22 +3,16 @@
  */
 
 import { streamText, type ModelMessage } from 'ai';
-import { useAtomValue } from 'jotai';
-import {
-	useCallback,
-	useContext,
-	useEffect,
-	useRef,
-	useState,
-} from 'react';
+import { useCallback, useContext, useRef, useState } from 'react';
 import { Remark } from 'react-remark';
-import { log } from '@/api';
-import { OPENAI_MODEL, openai } from '@/api/openai';
+import { draftLog } from '@/api/logging';
+import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { buildMessages } from '@/api/prompts';
 import { EditorContext } from '@/contexts/editorContext';
-import { usernameAtom } from '@/contexts/userContext';
+import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import { iconFunc } from './iconFunc';
+import { useResettableInterval } from './useResettableInterval';
 import classes from './styles.module.css';
 
 const visibleNameForMode = {
@@ -73,7 +67,8 @@ class Fetcher {
 			) as ModelMessage[];
 
 			const stream = streamText({
-				model: openai.chat(OPENAI_MODEL),
+				model: languageModel,
+				providerOptions: openaiProviderOptions,
 				messages,
 				abortSignal: AbortSignal.timeout(20000),
 			});
@@ -191,53 +186,10 @@ function SavedGenerations({
 	);
 }
 
-/**
- * Call a callback function at a specified interval, with the ability to reset the interval.
- *
- * @param callback The function to be called on each interval.
- * @param interval The interval duration in milliseconds.
- * @returns A function to reset the interval.
- */
-function useResettableInterval(callback: () => void, interval: number) {
-	const timerRef = useRef<NodeJS.Timeout | null>(null);
-	const callbackRef = useRef(callback);
-
-	useEffect(() => {
-		callbackRef.current = callback;
-	}, [callback]);
-
-	useEffect(() => {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-		}
-		if (interval <= 0) {
-			timerRef.current = null;
-			return;
-		}
-		timerRef.current = setInterval(() => {
-			callbackRef.current();
-		}, interval);
-		return () => {
-			if (timerRef.current) {
-				clearInterval(timerRef.current);
-			}
-		};
-	}, [interval]);
-
-	return useCallback(() => {
-		if (timerRef.current) {
-			clearInterval(timerRef.current);
-		}
-		timerRef.current = setInterval(() => {
-			callbackRef.current();
-		}, interval);
-	}, [interval]);
-}
-
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
-	const docContextSnapshot = useDocContext(editorAPI);
-	const username = useAtomValue(usernameAtom);
+	const { refresh: refreshDocContext } = useDocContext(editorAPI);
+	const log = useLog();
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
 	const [errorMsg, updateErrorMsg] = useState('');
@@ -250,14 +202,6 @@ export default function Draft() {
 		}
 		return fetcherRef.current;
 	}, []);
-	const docContextRef = useRef<DocContext>(docContextSnapshot);
-	docContextRef.current = docContextSnapshot;
-
-	// console.log({
-	// 	before: docContextSnapshot.beforeCursor.slice(-50),
-	// 	selected: docContextSnapshot.selectedText,
-	// 	after: docContextSnapshot.afterCursor.slice(0, 50),
-	// });
 
 	const autoRefreshInterval = 0;
 	const modesToShow = modes;
@@ -266,10 +210,9 @@ export default function Draft() {
 
 	const save = useCallback(
 		(generation: GenerationResult, document: DocContext) => {
-			log({
-				username: username,
-				event: 'ShowSuggestion',
-				prompt: document,
+			draftLog.suggestionShown(log, {
+				generationType: generation.generation_type,
+				docContext: document,
 				result: generation,
 			});
 			updateSavedItems((savedItems) => [
@@ -281,7 +224,7 @@ export default function Draft() {
 				...savedItems,
 			]);
 		},
-		[username],
+		[log],
 	);
 
 	function deleteSavedItem(dateSaved: Date) {
@@ -303,10 +246,9 @@ export default function Draft() {
 				(savedItem) => savedItem.dateSaved !== dateSaved,
 			);
 
-			log({
-				username: username,
-				event: 'Delete',
-				prompt: savedItems[savedItemIdx].document,
+			draftLog.suggestionDeleted(log, {
+				generationType: savedItems[savedItemIdx].generation.generation_type,
+				docContext: savedItems[savedItemIdx].document,
 				result: savedItems[savedItemIdx].generation,
 			});
 			return newSaved;
@@ -348,6 +290,10 @@ export default function Draft() {
 				const isEmpty = suggestion.result.trim() === '' || suggestion.result.trim() === '[]';
 				if (isEmpty) {
 					console.warn('Received empty suggestion.');
+					draftLog.suggestionEmpty(log, {
+						generationType: suggestionRequest.type,
+						docContext: suggestionRequest.docContext,
+					});
 				} else {
 					save(suggestion, suggestionRequest.docContext);
 				}
@@ -355,40 +301,40 @@ export default function Draft() {
 				const errMsg: string =
 					err.message ||
 					'An error occurred while generating the suggestion.';
-				log({
-					username: username,
-					event: 'generation_error',
-
-					generation_type: suggestionRequest.type,
+				draftLog.generationError(log, {
+					generationType: suggestionRequest.type,
 					docContext: suggestionRequest.docContext,
-					result: errMsg,
+					error: errMsg,
 				});
 				updateErrorMsg(errMsg);
 			}
 
 			setIsLoading(false);
 		},
-		[getFetcher, save, username],
+		[getFetcher, save, log],
 	);
 
-	const autoRefreshCallback = useCallback(() => {
+	const autoRefreshCallback = useCallback(async () => {
 		if (!shouldAutoRefresh) {
 			return;
 		}
-		const request = {
-			docContext: docContextRef.current,
-			type: modesToShow[0],
-		};
 		if (getFetcher().requestInFlight) {
 			console.warn(
 				'Auto-refresh skipped because a request is already in flight.',
 			);
 			return;
 		}
+		// Pull the current document context at refresh time rather than tracking
+		// it continuously.
+		const docContext = await refreshDocContext();
+		const request = {
+			docContext,
+			type: modesToShow[0],
+		};
 		const prevRequest = getFetcher().previousRequest;
 		if (
 			prevRequest &&
-			JSON.stringify(prevRequest.docContext) === JSON.stringify(docContextRef.current) &&
+			JSON.stringify(prevRequest.docContext) === JSON.stringify(docContext) &&
 			prevRequest.type === modesToShow[0]
 		) {
 			console.warn(
@@ -396,15 +342,12 @@ export default function Draft() {
 			);
 			return;
 		}
-		log({
-			username: username,
-			event: 'auto_refresh',
-
-			generation_type: modesToShow[0],
-			docContext: docContextRef.current,
+		draftLog.autoRefresh(log, {
+			generationType: modesToShow[0],
+			docContext,
 		});
 		getSuggestion(request, false);
-	}, [getFetcher, getSuggestion, modesToShow, shouldAutoRefresh, username]);
+	}, [getFetcher, getSuggestion, shouldAutoRefresh, log, refreshDocContext]);
 
 	const resetAutoRefresh = useResettableInterval(
 		autoRefreshCallback,
@@ -432,21 +375,19 @@ export default function Draft() {
 								return (
 									<button
 										key={mode}
-										className={`${classes.featureCard} ${isActive ? 'active' : ''}`}
+										className={`${classes.featureCard} ${isActive ? classes.active : ''}`}
 										onClick={() => {
-											setActiveMode(mode);
-											log({
-												username: username,
-												event: 'request_suggestion',
-												generation_type: mode,
-												docContext: docContextRef.current,
-											});
-											resetAutoRefresh();
-											const request = {
-												docContext: docContextRef.current,
-												type: mode,
-											};
-											getSuggestion(request, true);
+											void (async () => {
+												setActiveMode(mode);
+												// Pull the current document context at click time.
+												const docContext = await refreshDocContext();
+												draftLog.suggestionRequested(log, {
+													generationType: mode,
+													docContext,
+												});
+												resetAutoRefresh();
+												getSuggestion({ docContext, type: mode }, true);
+											})();
 										}}
 										disabled={isLoading}
 										type="button"

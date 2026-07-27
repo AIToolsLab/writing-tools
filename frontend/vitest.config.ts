@@ -13,5 +13,8 @@ export default defineConfig({
 		// Logic-layer tests run in node. Switch specific files to jsdom (via a
 		// `// @vitest-environment jsdom` docblock) once we add component tests.
 		environment: 'node',
+		restoreMocks: true,
+		unstubGlobals: true,
+		unstubEnvs: true,
 	},
 });

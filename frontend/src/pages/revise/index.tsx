@@ -21,8 +21,10 @@ import {
 	AiOutlineQuestionCircle
 } from 'react-icons/ai';
 import { isRunningInGoogleDocs } from '@/api';
-import { OPENAI_MODEL, openai } from '@/api/openai';
+import { reviseLog } from '@/api/logging';
+import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
+import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import TagLinker from '../tag-linker';
 import classes from './styles.module.css';
@@ -205,7 +207,8 @@ const makeAnchorWithCallback = (
 
 export default function Revise() {
 	const editorAPI = useContext(EditorContext);
-	const docContext = useDocContext(editorAPI);
+	const { docContext, refresh: refreshDocContext } = useDocContext(editorAPI);
+	const log = useLog();
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const [_loading, setLoading] = useState(false);
 	const [_customPrompts, _setCustomPrompts] = useState<Prompt[]>([]);
@@ -222,6 +225,7 @@ export default function Revise() {
 	const clickCallbackRef = useRef((href: string) => {
 		if (href.startsWith('doctext:')) {
 			const text = decodeURIComponent(href.slice('doctext:'.length));
+			reviseLog.referenceClicked(log, { target: text });
 			(async () => {
 				let currentlySearchingForText = text;
 				while (currentlySearchingForText.length > 0) {
@@ -272,10 +276,20 @@ export default function Revise() {
 				? prompt.prompt
 				: `Go part-by-part through the document. For each part, please do the following: ${prompt.prompt}`;
 
-			const newViz = new Visualization(request, docContext);
+			// Pull the current document context at request time rather than
+			// tracking it continuously.
+			const currentContext = await refreshDocContext();
+
+			const newViz = new Visualization(request, currentContext);
 			setVisualizations((prev) => [...prev, newViz]);
 
-			const docTextAsPrompt = getDocTextAsPrompt(docContext);
+			reviseLog.visualizationRequested(log, {
+				feature: prompt.keyword,
+				isOverall: Boolean(prompt.isOverall),
+				docContext: currentContext,
+			});
+
+			const docTextAsPrompt = getDocTextAsPrompt(currentContext);
 
 			const messages: ModelMessage[] = [
 				{
@@ -292,10 +306,11 @@ ${request}
 
 			try {
 				const result = streamText({
-					model: openai.chat(OPENAI_MODEL),
+					model: languageModel,
+					providerOptions: openaiProviderOptions,
 					system: systemPrompt,
 					messages,
-					maxOutputTokens: 1024,
+					maxOutputTokens: 5000,
 					abortSignal: requestController.signal,
 				});
 
@@ -312,11 +327,19 @@ ${request}
 				}
 
 				console.log('Visualization response complete:', newViz.response);
+				reviseLog.visualizationCompleted(log, {
+					feature: prompt.keyword,
+					response: newViz.response,
+				});
 			} catch (err) {
 				if (requestController.signal.aborted) {
 					return;
 				}
 				console.error('Error fetching visualization:', err);
+				reviseLog.visualizationError(log, {
+					feature: prompt.keyword,
+					error: err instanceof Error ? err.message : String(err),
+				});
 			} finally {
 				// Ignore stale completions from older requests that were already replaced.
 				if (activeRequestControllerRef.current === requestController) {
@@ -325,20 +348,28 @@ ${request}
 				}
 			}
 		},
-		[docContext],
+		[refreshDocContext, log],
 	);
 
-	const toggleFeature = useCallback((keyword: string) => {
-		setSelectedFeatures(prev => 
-			prev.includes(keyword) 
-				? prev.filter(f => f !== keyword)
-				: [...prev, keyword]
-		);
-	}, []);
+	const toggleFeature = useCallback(
+		(keyword: string) => {
+			// Log outside the state updater — updaters must stay pure (StrictMode
+			// runs them twice in dev, which would double-log).
+			const selected = !selectedFeatures.includes(keyword);
+			reviseLog.featureToggled(log, { feature: keyword, selected });
+			setSelectedFeatures((prev) =>
+				prev.includes(keyword)
+					? prev.filter((f) => f !== keyword)
+					: [...prev, keyword],
+			);
+		},
+		[selectedFeatures, log],
+	);
 
 	const runSelectedFeatures = useCallback(() => {
 		if (selectedFeatures.length === 0) return;
-		
+
+		reviseLog.featuresRun(log, { features: selectedFeatures });
 		setIsRunning(true);
 		const selectedPrompts = promptList.filter(p => selectedFeatures.includes(p.keyword));
 		
@@ -355,7 +386,7 @@ ${request}
 		};
 		
 		runNext();
-	}, [selectedFeatures, requestVisualization]);
+	}, [selectedFeatures, requestVisualization, log]);
 
 	if (
 		docContext.beforeCursor.length === 0 &&

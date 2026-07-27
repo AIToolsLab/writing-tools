@@ -1,23 +1,40 @@
-import { appendFile, mkdir, readdir, readFile } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { zipSync } from 'fflate';
+import { dataDir } from './config.js';
 
 /**
  * Structured study log. Mirrors the `Log` shape written by the former FastAPI
  * backend so existing JSONL files and the Python analysis tooling in `scripts/`
  * keep working unchanged.
+ *
+ * `schema_version` and `page` are first-class columns (not buried in
+ * `extra_data`) so readers can version-branch and filter per page cheaply. They
+ * are added by the frontend event-logging layer; entries written before it
+ * existed omit both fields — readers should treat a missing `schema_version` as
+ * 0 and a missing `page` as `null`.
+ *
+ * `client_id` is the tool that produced the event — a registered tool's client_id
+ * when the log line came in over a tool grant token, or null for the first-party
+ * add-in. It's the logging counterpart of the same column on `llm_usage`, keying
+ * study events by (user, tool) so a per-study export can scope to its own tool.
  */
 export interface LogEntry {
 	timestamp: number;
 	ok: boolean;
 	username: string;
 	event: string;
+	schema_version: number;
+	page: string | null;
+	client_id: string | null;
 	extra_data: Record<string, unknown>;
 }
 
-// Resolved lazily so tests can point LOG_DIR at a temp directory.
+// Resolved lazily so tests can point LOG_DIR at a temp directory. Defaults to a
+// `logs` subdir of the shared DATA_DIR; LOG_DIR overrides just this location.
 function logDir(): string {
-	return path.resolve(process.env.LOG_DIR ?? './logs');
+	const explicit = (process.env.LOG_DIR ?? '').trim();
+	return explicit ? path.resolve(explicit) : path.join(dataDir(), 'logs');
 }
 
 /**
@@ -48,6 +65,16 @@ export async function appendLog(entry: LogEntry): Promise<void> {
 	const dir = logDir();
 	await mkdir(dir, { recursive: true });
 	await appendFile(logFilePath(entry.username), `${JSON.stringify(entry)}\n`);
+}
+
+/**
+ * Delete a user's entire log file. Backs the "delete my data" request — the
+ * caller passes the same identity (Better Auth user id) used as the log key.
+ * No-op if the file doesn't exist. `logFilePath` applies the path-traversal
+ * guard, so an unexpected id can't escape the log directory.
+ */
+export async function deleteUserLogs(userId: string): Promise<void> {
+	await rm(logFilePath(userId), { force: true });
 }
 
 export interface LogUpdate {

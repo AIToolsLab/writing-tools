@@ -78,12 +78,13 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 - `lib/logging.ts` - Event logging utilities
 
 ### API Routes
-- `app/api/chat/route.ts` - Chat endpoint (GPT-5.2 with scenario-specific system prompt)
+- `app/api/chat/route.ts` - Chat endpoint (colleague model + reasoning effort come from the scenario config, with scenario-specific system prompt)
 - `app/api/writing-support/route.ts` - AI writing suggestions
 - `app/api/log/route.ts` - Event logging endpoint
 
 ### Pages (IMPORTANT: Don't confuse these!)
-- `app/page.tsx` - **Standalone demo** for AI writing assistance only (NO chat, NOT used in study)
+- `app/page.tsx` - **Landing/index page** (dev navigation only; links to the study and the demo)
+- `app/demo/page.tsx` - **Standalone demo** for AI writing assistance only (NO chat, NOT used in study)
 - `components/study/TaskPage.tsx` - **Actual study task page** with collapsible chat + AI panel
 
 ### Timing for the Simulated Colleague
@@ -92,13 +93,23 @@ Realistic timing works as follows: The colleague finds a moment to read your mes
 
 ### Adding New Scenarios
 
-To add a new scenario, edit `lib/studyConfig.ts` and add a new entry to the `SCENARIOS` object. Each scenario requires:
+To add a new scenario, edit `lib/scenarios.json` and add a new entry (`lib/studyConfig.ts` derives the typed `SCENARIOS` object from it). Each scenario requires:
 - **colleague**: name, firstName, role
 - **recipient**: name, email
 - **taskInstructions**: title, description, companyFraming
-- **chat**: initialMessages, followUpMessage, systemPrompt
+- **chat**: model, reasoningEffort, initialMessages, followUpMessage, systemPromptLines (joined into `systemPrompt` at runtime)
+- **analysis** (eval-only): context, keyFacts; optionally **chat.probes** (eval-only single-turn probes)
+
+The colleague **model and reasoning effort come from `chat.model` / `chat.reasoningEffort`** (read by both `app/api/chat/route.ts` and the validation pipeline — not hardcoded).
 
 Then pass the scenario ID via URL: `?scenario=yourScenarioId`
+
+### Scenario design & validation pipeline
+
+`scripts/scenario_design/` validates that a scenario's system prompt keeps the colleague in character
+(answers when asked, never volunteers info or drafts the email). `criteria.md` is the single source of
+truth for the behavioral criteria. See `scripts/scenario_design/README.md` for the phases
+(generate → simulate → judge → probe). These scripts make billable OpenAI calls.
 
 
 ## Getting Started
@@ -118,7 +129,7 @@ Run dev server:
 npm run dev
 ```
 
-Open http://localhost:3000
+Open http://localhost:3000 (landing page; the study is at `/study?...`, the demo at `/demo`)
 
 ## Project Structure
 
@@ -126,8 +137,10 @@ Open http://localhost:3000
 experiment/
 ├── app/
 │   ├── api/           # API routes (chat, writing-support)
+│   ├── demo/          # Standalone AI-suggestions demo (no chat)
+│   ├── study/         # The actual study flow (consent → task → surveys)
 │   ├── layout.tsx     # Root layout
-│   └── page.tsx       # Main page
+│   └── page.tsx       # Landing/index page (links to study + demo)
 ├── components/        # React components
 ├── contexts/          # Context providers
 ├── lib/               # Utilities
@@ -157,7 +170,8 @@ npm test            # Run tests
 ## Key Files
 
 - **API Routes**: `app/api/` (chat, writing-support endpoints)
-- **Demo Page**: `app/page.tsx` (standalone AI demo, NO chat)
+- **Landing Page**: `app/page.tsx` (dev index; links to study + demo)
+- **Demo Page**: `app/demo/page.tsx` (standalone AI demo, NO chat)
 - **Study Task Page**: `components/study/TaskPage.tsx` (the actual study with chat)
 - **Components**: `components/` folder
 

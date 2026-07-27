@@ -37,7 +37,7 @@ function buildDebugDeviceHtml(serializedClientId: string) {
 
   <div>
     <button class="primary" id="start">Start device login</button>
-    <button id="check">Call /api/protected with token</button>
+    <button id="check">Verify session with token</button>
     <button id="clear">Clear token</button>
   </div>
 
@@ -90,14 +90,16 @@ function buildDebugDeviceHtml(serializedClientId: string) {
       log('device/code →\\n' + JSON.stringify(data, null, 2));
 
       // Show the approval link — user clicks to open in external browser.
-      // In production Word opens new tab in the external system browser
+      // In production Word opens new tab in the external system browser.
+      // Open the generic verification_uri (no code) so the user must read the code
+      // here and type it on the approval page — matches the manual-entry flow.
       const codeSpan = el('span', 'code', data.user_code);
       const link = document.createElement('a');
-      link.href = data.verification_uri_complete;
+      link.href = data.verification_uri;
       link.target = '_blank';
       link.rel = 'noopener';
       link.textContent = 'Open approval page →';
-      const muted = el('span', 'muted', 'Polling every ' + data.interval + 's once you approve…');
+      const muted = el('span', 'muted', 'Enter the code above on the approval page, then polling continues every ' + data.interval + 's…');
       const p1 = document.createElement('span'); p1.append('User code: ', codeSpan);
       setStatus(p1, document.createElement('br'), link, document.createElement('br'), muted);
 
@@ -123,7 +125,7 @@ function buildDebugDeviceHtml(serializedClientId: string) {
           accessToken = data.access_token;
           // Log success without rendering the raw token value.
           log('device/token → SUCCESS (token held in memory)');
-          setStatus(el('span', 'ok', 'Token received.'), ' Now click "Call /api/protected with token".');
+          setStatus(el('span', 'ok', 'Token received.'), ' Now click "Verify session with token".');
           return;
         }
 
@@ -153,19 +155,20 @@ function buildDebugDeviceHtml(serializedClientId: string) {
       setTimeout(tick, interval * 1000);
     }
 
-    async function callProtected() {
+    async function verifySession() {
       if (!accessToken) {
         setStatus(el('span', 'err', 'No token.'), ' Run the device login first.');
         return;
       }
-      const res = await fetch(BASE + '/api/protected', {
+      const res = await fetch(BASE + '/api/auth/get-session', {
         credentials: 'omit',
         headers: { Authorization: 'Bearer ' + accessToken },
       });
       const data = await res.json();
-      log('/api/protected → ' + res.status + '\\n' + JSON.stringify(data, null, 2));
-      if (res.ok) {
-        setStatus(el('span', 'ok', String(res.status)), ' — authenticated as ' + data.email);
+      log('/api/auth/get-session → ' + res.status + '\\n' + JSON.stringify(data, null, 2));
+      // get-session returns 200 + null when the Bearer token doesn't verify (no 401).
+      if (res.ok && data && data.user) {
+        setStatus(el('span', 'ok', String(res.status)), ' — authenticated as ' + data.user.email);
       } else {
         setStatus(el('span', 'err', String(res.status)), ' — ' + JSON.stringify(data));
       }
@@ -178,7 +181,7 @@ function buildDebugDeviceHtml(serializedClientId: string) {
     }
 
     document.getElementById('start').onclick = startFlow;
-    document.getElementById('check').onclick = callProtected;
+    document.getElementById('check').onclick = verifySession;
     document.getElementById('clear').onclick = clearToken;
   </script>
 </body>

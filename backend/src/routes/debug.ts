@@ -30,8 +30,8 @@ const DEBUG_HTML = `<!DOCTYPE html>
 
   <div id="signed-in" style="display:none">
     <p id="user-info"></p>
-    <button onclick="callProtected('cookie')">Call /api/protected (cookie)</button>
-    <button onclick="callProtected('bearer')">Call /api/protected (Bearer)</button>
+    <button onclick="verifySession('cookie')">Verify session (cookie)</button>
+    <button onclick="verifySession('bearer')">Verify session (Bearer)</button>
     <button onclick="signOut()">Sign out</button>
   </div>
 
@@ -75,7 +75,7 @@ const DEBUG_HTML = `<!DOCTYPE html>
       else show('Sign-out failed: ' + res.status, true);
     }
 
-    async function callProtected(mode) {
+    async function verifySession(mode) {
       const opts = { credentials: mode === 'cookie' ? 'include' : 'omit' };
       if (mode === 'bearer') {
         // Read the session token fresh and send it as a Bearer header.
@@ -85,9 +85,11 @@ const DEBUG_HTML = `<!DOCTYPE html>
         if (!token) { show('No session token available — sign in first.', true); return; }
         opts.headers = { Authorization: 'Bearer ' + token };
       }
-      const res = await fetch(BASE + '/api/protected', opts);
+      const res = await fetch(BASE + '/api/auth/get-session', opts);
       const data = await res.json();
-      show(res.status + ': ' + JSON.stringify(data), !res.ok);
+      // get-session returns 200 + null when the session doesn't verify (no 401).
+      const ok = res.ok && data && data.user;
+      show(res.status + ': ' + JSON.stringify(data), !ok);
     }
 
     function show(text, isErr) {

@@ -14,10 +14,10 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.13.7",
-    "better-auth": "1.6.14",
+    "better-auth": "1.6.22",
     "better-sqlite3": "^12.0.0",
     "fflate": "^0.8.2",
-    "hono": "^4.6.14",
+    "hono": "^4.12.31",
     "posthog-node": "^4.3.2"
   },
   "devDependencies": {

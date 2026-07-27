@@ -1,24 +1,20 @@
 /**
- * Writing Tools - Google Docs Add-on
- * 
- * This Apps Script serves as a thin proxy layer between:
- * 1. The sidebar UI (HTML/JS/React)
- * 2. The Google Docs document (via DocumentApp)
- * 3. The Python backend (via UrlFetchApp)
+ * @OnlyCurrentDoc
+ *
+ * The above comment directs Apps Script to limit the scope of file
+ * access for this add-on. It specifies that this add-on will only
+ * attempt to read or modify the files in which the add-on is used,
+ * and not all of the user's files. The authorization request message
+ * presented to users will reflect this limited scope.
  */
-
-// =============================================================================
-// Configuration
-// =============================================================================
-
+ 
 /**
- * Get the backend URL. In production, this should be your deployed backend.
- * For development, you can use ngrok or similar to expose your local server.
+ * Writing Tools - Google Docs Add-on
+ *
+ * This Apps Script bridges the sidebar UI (HTML/JS/React) and the Google Docs
+ * document (via DocumentApp), providing document operations only. The React app
+ * talks to the Python backend directly; Apps Script does not proxy backend calls.
  */
-function getBackendUrl() {
-  // TODO: Update this to your production backend URL
-  return PropertiesService.getScriptProperties().getProperty('BACKEND_URL') || 'http://localhost:5001';
-}
 
 // =============================================================================
 // Add-on Entry Points
@@ -72,6 +68,27 @@ function createHomepageCard() {
             .setText('Open Sidebar')
             .setOnClickAction(
               CardService.newAction().setFunctionName('showSidebar')
+            )
+        )
+    )
+    .addSection(
+      CardService.newCardSection()
+        .addWidget(
+          CardService.newTextButton()
+            .setText('Visit thoughtful-ai.com')
+            .setOpenLink(
+              CardService.newOpenLink().setUrl('https://thoughtful-ai.com/')
+            )
+        )
+        .addWidget(
+          CardService.newTextParagraph()
+            .setText(
+              'Built by the Thoughtful AI Lab at Calvin University. This material ' +
+              'is based upon work supported by the U.S. National Science Foundation ' +
+              'under Grant No. <a href="https://www.nsf.gov/awardsearch/show-award/?AWD_ID=2246145">2246145</a>. ' +
+              'Any opinions, findings, and conclusions or recommendations expressed ' +
+              'are those of the authors and do not necessarily reflect the views of ' +
+              'the National Science Foundation.'
             )
         )
     )
@@ -368,92 +385,6 @@ function replaceSelection(newText) {
   }
   
   return false;
-}
-
-// =============================================================================
-// Backend Proxy Functions
-// =============================================================================
-
-/**
- * Forwards a request to the Python backend.
- * 
- * @param {string} endpoint - The API endpoint (e.g., '/analyze', '/chat')
- * @param {Object} payload - The request payload
- * @param {string} method - HTTP method (default: 'POST')
- * @returns {Object} The parsed JSON response
- */
-function proxyToBackend(endpoint, payload, method) {
-  method = method || 'POST';
-  const backendUrl = getBackendUrl();
-  const url = backendUrl + '/api' + endpoint;
-  
-  const options = {
-    method: method,
-    contentType: 'application/json',
-    muteHttpExceptions: true,
-    payload: method !== 'GET' ? JSON.stringify(payload) : undefined
-  };
-  
-  try {
-    const response = UrlFetchApp.fetch(url, options);
-    const responseCode = response.getResponseCode();
-    const responseText = response.getContentText();
-    
-    if (responseCode >= 200 && responseCode < 300) {
-      return JSON.parse(responseText);
-    } else {
-      return {
-        error: true,
-        status: responseCode,
-        message: responseText
-      };
-    }
-  } catch (error) {
-    return {
-      error: true,
-      message: error.toString()
-    };
-  }
-}
-
-/**
- * Logs an event to the backend.
- * 
- * @param {Object} logPayload - The log data
- */
-function logEvent(logPayload) {
-  logPayload.timestamp = Date.now() / 1000;
-  return proxyToBackend('/log', logPayload);
-}
-
-/**
- * Sends a chat message to the backend.
- * 
- * @param {Array} messages - The chat message history
- * @param {Object} docContext - The document context
- * @param {string} username - The username
- */
-function sendChatMessage(messages, docContext, username) {
-  return proxyToBackend('/chat', {
-    messages: messages,
-    doc_context: docContext,
-    username: username
-  });
-}
-
-/**
- * Requests text analysis/revision from the backend.
- * 
- * @param {Object} docContext - The document context
- * @param {string} username - The username
- * @param {Object} options - Additional options
- */
-function analyzeText(docContext, username, options) {
-  return proxyToBackend('/revise', {
-    doc_context: docContext,
-    username: username,
-    ...options
-  });
 }
 
 // =============================================================================

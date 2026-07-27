@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 
 import * as SidebarInner from '@/pages/app';
-import type { Auth0ContextInterface } from '@auth0/auth0-react';
 import { useAtomValue, useSetAtom } from 'jotai';
 import LexicalEditor from './editor';
 import './styles.css';
@@ -20,7 +19,7 @@ export function EditorScreen({
 	contextData,
 }: {
 	taskID?: string;
-	editorPreamble?: JSX.Element;
+	editorPreamble?: React.JSX.Element;
 	contextData?: ContextSection[];
 }) {
 	const mode = useAtomValue(overallModeAtom);
@@ -40,49 +39,34 @@ export function EditorScreen({
 	const [wordCount, setWordCount] = useState<number>(0);
 
 	const handleSelectionChange = () => {
-		selectionChangeHandlers.current.forEach((handler) => { handler(); });
+		selectionChangeHandlers.current.forEach((handler) => {
+			handler();
+		});
 	};
 
-	const editorAPI: EditorAPI = useMemo(() => ({
-		doLogin: async (auth0Client: Auth0ContextInterface) => {
-			try {
-				await auth0Client.loginWithPopup();
-			} catch (error) {
+	const editorAPI: EditorAPI = useMemo(
+		() => ({
+			getDocContext: async (): Promise<DocContext> => {
+				return Promise.resolve(docContextRef.current);
+			},
+			addSelectionChangeHandler: (handler: () => void) => {
+				selectionChangeHandlers.current.push(handler);
+			},
+			removeSelectionChangeHandler: (handler: () => void) => {
+				const index = selectionChangeHandlers.current.indexOf(handler);
 
-				console.error('auth0Client.loginWithPopup Error:', error);
-			}
-		},
-		doLogout: async (auth0Client: Auth0ContextInterface) => {
-			try {
-				await auth0Client.logout({
-					logoutParams: {
-						returnTo: `${location.origin}/editor.html`,
-					},
-				});
-			} catch (error) {
+				if (index !== -1)
+					selectionChangeHandlers.current.splice(index, 1);
+				else console.warn('Handler not found');
+			},
 
-				console.error('auth0Client.logout Error:', error);
-			}
-		},
-		getDocContext: async (): Promise<DocContext> => {
-			return Promise.resolve(docContextRef.current);
-		},
-		addSelectionChangeHandler: (handler: () => void) => {
-			selectionChangeHandlers.current.push(handler);
-		},
-		removeSelectionChangeHandler: (handler: () => void) => {
-			const index = selectionChangeHandlers.current.indexOf(handler);
-
-			if (index !== -1) selectionChangeHandlers.current.splice(index, 1);
-
-			else console.warn('Handler not found');
-		},
-
-		selectPhrase(_text) {
-			console.warn('selectPhrase is not implemented yet');
-			return new Promise<void>((resolve) => resolve());
-		},
-	}), []);
+			selectPhrase(_text) {
+				console.warn('selectPhrase is not implemented yet');
+				return new Promise<void>((resolve) => resolve());
+			},
+		}),
+		[],
+	);
 
 	const docUpdated = (docContext: DocContext) => {
 		docContextRef.current = docContext;
@@ -123,30 +107,35 @@ export function EditorScreen({
 	};
 
 	return (
-		<div className={isDemo ? classes.democontainer : classes.container}>
-			<div className={isDemo ? classes.demoeditor : classes.editor}>
-				<LexicalEditor
-					// @ts-expect-error initialState needs to actually be `undefined`, not null, see see https://github.com/facebook/lexical/issues/5079
-					initialState={getInitialState()}
-					updateDocContext={docUpdated}
-					storageKey={getStorageKey()}
-					preamble={editorPreamble}
-				/>
-				{isDemo ? (
-					<div className={`${classes.wordCount}`}>
-						Words: {wordCount}
-					</div>
-				) : null}
-			</div>
+		<>
+			{isDemo ? (
+				<div className={classes.demoDisclosure}>
+					All demo usage is logged. Demo may be unavailable during
+					times of high usage.
+				</div>
+			) : null}
+			<div className={isDemo ? classes.democontainer : classes.container}>
+				<div className={isDemo ? classes.demoeditor : classes.editor}>
+					<LexicalEditor
+						initialState={getInitialState()}
+						updateDocContext={docUpdated}
+						storageKey={getStorageKey()}
+						preamble={editorPreamble}
+					/>
+					{isDemo ? (
+						<div className={`${classes.wordCount}`}>
+							Words: {wordCount}
+						</div>
+					) : null}
+				</div>
 
-			<div
-				className={isDemo ? classes.demosidebar : classes.sidebar}
-			>
-				<EditorContext.Provider value={editorAPI}>
-					<Sidebar />
-				</EditorContext.Provider>
+				<div className={isDemo ? classes.demosidebar : classes.sidebar}>
+					<EditorContext.Provider value={editorAPI}>
+						<Sidebar />
+					</EditorContext.Provider>
+				</div>
 			</div>
-		</div>
+		</>
 	);
 }
 

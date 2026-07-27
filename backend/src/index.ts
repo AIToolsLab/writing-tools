@@ -11,6 +11,7 @@ import {
 	PORT,
 } from './config.js';
 import { shutdownPosthog } from './posthog.js';
+import { serveFrontend } from './static.js';
 
 if (!openaiApiKey()) {
 	console.warn('OPENAI_API_KEY is not set; /api/openai/* requests will fail.');
@@ -65,6 +66,11 @@ if (auth && DEBUG) {
 	}
 
 }
+
+// Serve the built frontend (production single-container deploy). Registered
+// last so every /api/* route above — including the dynamic device/debug ones —
+// takes precedence. No-op in local dev, where the static root doesn't exist.
+serveFrontend(app);
 
 const server = serve(
 	{ fetch: app.fetch, port: PORT, hostname: '0.0.0.0' },

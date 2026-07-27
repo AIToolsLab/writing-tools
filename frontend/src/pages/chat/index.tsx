@@ -1,11 +1,20 @@
 import { streamText, type ModelMessage } from 'ai';
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import {
+	useCallback,
+	useContext,
+	useEffect,
+	useEffectEvent,
+	useRef,
+	useState,
+} from 'react';
 import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 
-import { OPENAI_MODEL, openai } from '@/api/openai';
+import { chatLog } from '@/api/logging';
+import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { ChatContext } from '@/contexts/chatContext';
 import { EditorContext } from '@/contexts/editorContext';
+import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import classes from './styles.module.css';
 
@@ -16,9 +25,50 @@ const suggestionPrompts = [
 	'What am I missing?',
 ];
 
+const CHAT_SYSTEM_MESSAGE: ChatMessage = {
+	role: 'system',
+	content:
+		'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.',
+};
+
+const CHAT_GREETING_MESSAGE: ChatMessage = {
+	role: 'assistant',
+	content: 'What do you think about your document so far?',
+};
+
+/** Renders the document context into the message the model reads. */
+export function docContextMessageContent(docContext: DocContext): string {
+	return docContext.selectedText === ''
+		? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
+		: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
+}
+
+/**
+ * Builds the base conversation with the freshest document context as its
+ * second message. When the chat is empty it seeds the system + doc-context +
+ * greeting messages; otherwise it replaces the existing doc-context message so
+ * the model always sees the current document state at send time.
+ */
+export function withCurrentDocContext(
+	chatMessages: ChatMessage[],
+	docContext: DocContext,
+): ChatMessage[] {
+	const docContextMessage: ChatMessage = {
+		role: 'user',
+		content: docContextMessageContent(docContext),
+	};
+	if (chatMessages.length === 0) {
+		return [CHAT_SYSTEM_MESSAGE, docContextMessage, CHAT_GREETING_MESSAGE];
+	}
+	const updated = chatMessages.slice();
+	updated[1] = docContextMessage;
+	return updated;
+}
+
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const editorAPI = useContext(EditorContext);
+	const log = useLog();
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -40,61 +90,42 @@ export default function Chat() {
 		}
 	}, []);
 
-	// Auto-scroll when new messages arrive
-	useEffect(() => {
+	// Auto-scroll when new messages arrive. `showScrollButton` is read but must stay
+	// non-reactive — a scroll should fire on new messages, not when the button toggles.
+	// useEffectEvent keeps that read out of the dependency array, so the effect runs
+	// only on chatMessages and no exhaustive-deps suppression is needed.
+	const scrollOnNewMessages = useEffectEvent(() => {
 		if (!showScrollButton) {
 			messagesContainerRef.current?.scrollTo({
 				top: messagesContainerRef.current.scrollHeight,
 				behavior: 'smooth',
 			});
 		}
-		// eslint-disable-next-line react-hooks/exhaustive-deps
+	});
+
+	useEffect(() => {
+		scrollOnNewMessages();
 	}, [chatMessages]);
 
-	const docContext = useDocContext(editorAPI);
+	const { refresh: refreshDocContext } = useDocContext(editorAPI);
 
-	const docContextMessageContent =
-		docContext.selectedText === ''
-			? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
-			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
-
-	let messagesWithCurDocContext = chatMessages;
-	if (chatMessages.length === 0) {
-		// Initialize the chat with the system message and the document-context message.
-		const systemMessage = {
-			role: 'system',
-			content:
-				'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.',
-		};
-
-		const docContextMessage = {
-			role: 'user',
-			content: docContextMessageContent,
-		};
-
-		const initialAssistantMessage = {
-			role: 'assistant',
-			content: 'What do you think about your document so far?',
-		};
-		messagesWithCurDocContext = [
-			systemMessage,
-			docContextMessage,
-			initialAssistantMessage,
-		];
-	} else {
-		// Update the document context message with the current selection.
-		messagesWithCurDocContext[1].content = docContextMessageContent;
-	}
+	// Seed the conversation once (system + doc-context + greeting) when empty.
+	// The document context is pulled here and refreshed again at send time, so
+	// there's no need to track selection changes continuously.
 	useEffect(() => {
-		updateChatMessages(messagesWithCurDocContext);
-	}, [messagesWithCurDocContext, updateChatMessages]);
+		if (chatMessages.length !== 0) return;
+		void (async () => {
+			const docContext = await refreshDocContext();
+			updateChatMessages(withCurrentDocContext([], docContext));
+		})();
+	}, [chatMessages.length, refreshDocContext, updateChatMessages]);
 
 	const [isSendingMessage, updateSendingMessage] = useState(false);
 
 	const [message, updateMessage] = useState('');
 
 	const visibleMessages =
-		messagesWithCurDocContext.length > 3 ? messagesWithCurDocContext.slice(3) : [];
+		chatMessages.length > 3 ? chatMessages.slice(3) : [];
 
 	const resizeTextarea = useCallback(() => {
 		const textarea = textareaRef.current;
@@ -114,16 +145,20 @@ export default function Chat() {
 		};
 	}, []);
 
-	async function submitMessage(text: string) {
+	async function submitMessage(text: string, source: 'input' | 'suggested') {
 		// Only one active request is allowed; cancel any previous stream first.
 		activeRequestControllerRef.current?.abort();
 		const requestController = new AbortController();
 		activeRequestControllerRef.current = requestController;
 
+		chatLog.messageSent(log, { message: text, source });
 		updateSendingMessage(true);
 
+		// Pull the current document context at send time so the model sees the
+		// document as it is now, then inject it as the doc-context message.
+		const docContext = await refreshDocContext();
 		let newMessages = [
-			...messagesWithCurDocContext,
+			...withCurrentDocContext(chatMessages, docContext),
 			{ role: 'user', content: text },
 			{ role: 'assistant', content: '' },
 		];
@@ -134,7 +169,8 @@ export default function Chat() {
 
 		try {
 			const result = streamText({
-				model: openai.chat(OPENAI_MODEL),
+				model: languageModel,
+				providerOptions: openaiProviderOptions,
 				messages: newMessages.slice(0, -1) as ModelMessage[],
 				maxOutputTokens: 1024,
 				abortSignal: requestController.signal,
@@ -146,11 +182,17 @@ export default function Chat() {
 				newMessages[newMessages.length - 1].content += delta;
 				updateChatMessages(newMessages);
 			}
+			chatLog.responseCompleted(log, {
+				responseLength: newMessages[newMessages.length - 1].content.length,
+			});
 		} catch (error) {
 			if (requestController.signal.aborted) {
 				return;
 			}
 			console.error('Error while streaming chat response:', error);
+			chatLog.responseError(log, {
+				error: error instanceof Error ? error.message : String(error),
+			});
 		} finally {
 			// Ignore stale completions from older requests that were already replaced.
 			if (activeRequestControllerRef.current === requestController) {
@@ -166,12 +208,12 @@ export default function Chat() {
 		const trimmedMessage = message.trim();
 		if (!trimmedMessage) return;
 
-		await submitMessage(trimmedMessage);
+		await submitMessage(trimmedMessage, 'input');
 	}
 
 	async function sendSuggestedMessage(text: string) {
 		updateMessage(text);
-		await submitMessage(text);
+		await submitMessage(text, 'suggested');
 	}
 
 	return (
