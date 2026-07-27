@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { translateReaderText } from "./api";
+import { translateReaderText, type ProviderRuntimeConfig } from "./api";
 import { mapWithConcurrency, protectReaderText, readerCacheKey } from "./reader-translation";
 import { isSupportedUiLocale, normalizeUiLocale, uiLocaleOptions, type UiLocaleOption } from "./ui-locale";
 
@@ -149,7 +149,7 @@ export function useReaderText(source: string): string {
   return reader.translate(source);
 }
 
-export function ReaderViewProvider({ children }: { children?: ReactNode }) {
+export function ReaderViewProvider({ children, providerRuntime }: { children?: ReactNode; providerRuntime?: ProviderRuntimeConfig }) {
   const [lastTargetLocale, setLastTargetLocale] = useState<string | null>(() => restoreReaderLanguage(typeof window === "undefined" ? undefined : window.localStorage));
   // A remembered preference must never reopen a session in a read-only display mode.
   const [targetLocale, setActiveTargetLocale] = useState<string | null>(null);
@@ -196,7 +196,7 @@ export function ReaderViewProvider({ children }: { children?: ReactNode }) {
         const key = readerCacheKey(locale, source);
         try {
           const protectedText = protectReaderText(source);
-          additions.set(key, protectedText.restore(await translateReaderText(protectedText.text, locale)));
+          additions.set(key, protectedText.restore(await translateReaderText(protectedText.text, locale, providerRuntime)));
         } catch {
           // The authoritative source is the only fallback. A failure never becomes cache data.
           requestFailed.add(key);
@@ -219,7 +219,7 @@ export function ReaderViewProvider({ children }: { children?: ReactNode }) {
       running.current = false;
       setQueueTick((value) => value + 1);
     })();
-  }, [queueTick, queued, targetLocale]);
+  }, [providerRuntime, queueTick, queued, targetLocale]);
 
   const translate = useCallback((source: string) => {
     if (!targetLocale || !source) return source;

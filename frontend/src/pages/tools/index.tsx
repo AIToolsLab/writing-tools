@@ -23,7 +23,7 @@ import { useAppAuth } from '@/contexts/appAuthContext';
 import { useLog } from '@/hooks/useLog';
 import classes from './styles.module.css';
 
-interface FirstPartyTool {
+export interface FirstPartyTool {
 	/** Tool client_id — must also be listed in the backend device allowlist. */
 	id: string;
 	name: string;
@@ -38,7 +38,24 @@ interface FirstPartyTool {
  * backend's BETTER_AUTH_DEVICE_CLIENT_IDS allowlist, and the URL points at wherever
  * the tool is hosted. A manifest-driven registry replaces this list in a later phase.
  */
-const FIRST_PARTY_TOOLS: FirstPartyTool[] = [
+export function resolveMindmapToolUrl(
+	explicit: string | undefined,
+	isDevelopment: boolean,
+): string {
+	return (
+		explicit ||
+		(isDevelopment
+			? 'http://localhost:5181/'
+			: 'https://mindmap.thoughtful-ai.com/')
+	);
+}
+
+export const MINDMAP_TOOL_URL = resolveMindmapToolUrl(
+	import.meta.env.VITE_MINDMAP_TOOL_URL,
+	import.meta.env.DEV,
+);
+
+export const FIRST_PARTY_TOOLS: FirstPartyTool[] = [
 	{
 		// Throwaway tool for exercising the handoff flow end-to-end in dev.
 		// Served from sandbox/test-tool/ (see that dir's README). Remove before merge.
@@ -54,8 +71,8 @@ const FIRST_PARTY_TOOLS: FirstPartyTool[] = [
 		name: 'Mindmap',
 		description:
 			'Explore your draft as a client-side mindmap. Opens in your browser with a read-only snapshot of your current document.',
-		url: 'https://mindmap.thoughtful-ai.com/',
-		scopes: ['openai:chat', 'log:write', 'doc:read'],
+		url: MINDMAP_TOOL_URL,
+		scopes: ['openai:chat', 'doc:read'],
 	},
 ];
 

@@ -9,6 +9,28 @@ Sibling to `prototype-word-bank` (the document-insertion coach); it reuses that
 prototype's deterministic-grounding philosophy but externalizes into a mind map
 instead of a draft. Uses the repo's `backend/` OpenAI proxy for AI calls.
 
+## Writing Tools launcher
+
+Production builds require a launch from the Writing Tools tool launcher by
+default. The launcher passes a short-lived `wt_grant` in the URL fragment; the
+mindmap exchanges it for a scoped bearer token and removes the grant from the
+URL. Development and test builds remain usable without a launcher token.
+
+```text
+VITE_BACKEND_URL=http://localhost:8000/api
+VITE_REQUIRE_LAUNCH=false
+```
+
+`VITE_REQUIRE_LAUNCH` can explicitly enable or disable the gate. When it is
+unset, the gate is enabled for production builds and disabled for development
+and tests. A grant present in the URL is processed in every mode.
+
+The Writing Tools registry uses `VITE_MINDMAP_TOOL_URL`. Its development default
+is `http://localhost:5181/`; its production default is
+`https://mindmap.thoughtful-ai.com/`. The existing Playwright smoke suite
+continues to use Vite's development server at port 4173, so production-gate
+verification remains a separate build check.
+
 ## Design principle: typed proposals with deterministic consequences
 
 - **Enforcement (code, not configurable):** a mirror must pass validation before

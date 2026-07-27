@@ -6,8 +6,9 @@ Ensures OPENAI_API_KEY, LOG_SECRET, POSTHOG_PROJECT_TOKEN, and the Better Auth
 keys exist in backend/.env, which the Hono backend loads via process.loadEnvFile()
 in dev. (In Docker these are injected by docker-compose instead.)
 
-This is non-destructive: existing keys are left untouched, and only missing keys
-are appended. Run it again any time new keys are added.
+This is non-destructive: missing keys are appended, and required local device
+client IDs are merged into the existing allowlist without removing custom IDs.
+Run it again any time new keys or local clients are added.
 
 Auth is written disabled by default (BETTER_AUTH_ENABLED=false). BETTER_AUTH_SECRET
 is generated automatically — it's only used for local dev sessions (and prod doesn't
@@ -20,6 +21,11 @@ from pathlib import Path
 
 repo_root = Path(__file__).parent.parent
 env_file = repo_root / "backend" / ".env"
+required_device_clients = [
+    "writing-tools-device-poc",
+    "writing-tools-editor-dev",
+    "mindmap",
+]
 
 
 def existing_keys(path: Path) -> set[str]:
@@ -77,17 +83,13 @@ entries = [
     ("BETTER_AUTH_TRUSTED_ORIGINS", "http://localhost:8000,https://localhost:3000", None),
     ("GOOGLE_CLIENT_ID", "", None),
     ("GOOGLE_CLIENT_SECRET", "", None),
-    ("BETTER_AUTH_DEVICE_CLIENT_IDS", "writing-tools-device-poc", [
-        "Device flow client IDs (comma-separated). Use writing-tools-device-poc for local dev.",
+    ("BETTER_AUTH_DEVICE_CLIENT_IDS", ",".join(required_device_clients), [
+        "Device flow/tool client IDs (comma-separated).",
         "Set to your real client ID(s) externally before enabling in production.",
     ]),
 ]
 
 missing = [e for e in entries if e[0] not in present]
-
-if not missing:
-    print(f".env already has all expected keys ({env_file}). Nothing to do.")
-    exit(0)
 
 lines = []
 for key, value, comments in missing:
@@ -103,12 +105,45 @@ for key, value, comments in missing:
         lines.append(f"{key}={resolved}")
 
 # Append, preserving anything already in the file.
-needs_leading_newline = env_file.exists() and env_file.read_text() and not env_file.read_text().endswith("\n")
-with open(env_file, "a") as f:
-    if needs_leading_newline:
-        f.write("\n")
-    f.write("\n".join(lines) + "\n")
+if lines:
+    current = env_file.read_text() if env_file.exists() else ""
+    needs_leading_newline = bool(current) and not current.endswith("\n")
+    with open(env_file, "a") as f:
+        if needs_leading_newline:
+            f.write("\n")
+        f.write("\n".join(lines) + "\n")
 
-print(f"Added {len(missing)} missing key(s) to {env_file}:")
-for key, *_ in missing:
-    print(f"  - {key}")
+
+def merge_csv_values(path: Path, key: str, required: list[str]) -> list[str]:
+    """Append missing CSV values to an existing unquoted dotenv assignment."""
+    source = path.read_text()
+    output = []
+    added: list[str] = []
+    for line in source.splitlines():
+        if line.startswith(f"{key}="):
+            raw = line.split("=", 1)[1].strip().strip("\"'")
+            values = [value.strip() for value in raw.split(",") if value.strip()]
+            for value in required:
+                if value not in values:
+                    values.append(value)
+                    added.append(value)
+            line = f"{key}={','.join(values)}"
+        output.append(line)
+    path.write_text("\n".join(output) + "\n")
+    return added
+
+
+added_clients = merge_csv_values(
+    env_file, "BETTER_AUTH_DEVICE_CLIENT_IDS", required_device_clients
+)
+
+if missing:
+    print(f"Added {len(missing)} missing key(s) to {env_file}:")
+    for key, *_ in missing:
+        print(f"  - {key}")
+if added_clients:
+    print("Added local device/tool client IDs:")
+    for client in added_clients:
+        print(f"  - {client}")
+if not missing and not added_clients:
+    print(f".env already has all expected keys and clients ({env_file}). Nothing to do.")

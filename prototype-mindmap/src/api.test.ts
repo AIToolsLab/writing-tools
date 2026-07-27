@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { historyForCurrentTurn, makeLLM, parseAssistantResponse, PROVIDER_TRANSPORT, renderContext } from "./api";
+import { historyForCurrentTurn, makeLLM, parseAssistantResponse, PROVIDER_TRANSPORT, renderContext, translateReaderText } from "./api";
 import { defaultConfig } from "./config";
 import type { LLMContext } from "./llm-contract";
 import { ThoughtUnitStore } from "./map-store";
@@ -162,9 +162,9 @@ describe("typed assistant response parser", () => {
       .mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ response: { kind: "question", text: "What is at stake?", stance: "deepen" } }) } }] }) })
       .mockResolvedValueOnce({ ok: true, json: async () => ({ choices: [{ message: { content: JSON.stringify({ response: { kind: "question", text: "What would make that clearer?", stance: "narrow" } }) } }] }) });
     vi.stubGlobal("fetch", fetchMock);
-    const model = makeLLM(defaultConfig, historyForCurrentTurn([
+    const model = makeLLM(defaultConfig, { initialHistory: historyForCurrentTurn([
       { role: "assistant", content: "What relationship are you testing?" },
-    ], "It is about human control."));
+    ], "It is about human control.") });
 
     await model(context);
     await model(context, { code: "reflection_validation_failed", detail: "Pointer was not exact." });
@@ -250,7 +250,11 @@ describe("typed assistant response parser", () => {
         output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify({ response: { kind: "question", text: "Which words should become the card?", stance: "narrow", anchor: null }, advisory: null }) }] }],
       }) });
     vi.stubGlobal("fetch", fetchMock);
-    const model = makeLLM(defaultConfig, historyForCurrentTurn([], "Human control matters."), undefined, "responses_tools");
+    const model = makeLLM(defaultConfig, {
+      initialHistory: historyForCurrentTurn([], "Human control matters."),
+      transport: "responses_tools",
+      runtime: { bearerToken: "wtk_responses" },
+    });
 
     expect((await model(context)).response.kind).toBe("map_proposal");
     expect((await model(context, { code: "non_verbatim_text", detail: "Not user wording." })).response.kind).toBe("question");
@@ -258,6 +262,13 @@ describe("typed assistant response parser", () => {
     const first = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     const second = JSON.parse(fetchMock.mock.calls[1][1].body as string);
     expect(fetchMock.mock.calls[0][0]).toContain("/openai/responses");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      credentials: "omit",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer wtk_responses",
+      },
+    });
     expect(first).toMatchObject({ store: false, parallel_tool_calls: false, tool_choice: "auto" });
     expect(second.input).toContainEqual({ type: "function_call_output", call_id: "call_1", output: JSON.stringify({ status: "rejected", rejection: { code: "non_verbatim_text", detail: "Not user wording." } }) });
   });
@@ -271,7 +282,7 @@ describe("typed assistant response parser", () => {
     const result = await processTurn(
       createConversationState(),
       "human control matters",
-      makeLLM(defaultConfig, [{ role: "user", content: "human control matters" }], undefined, "chat_json"),
+      makeLLM(defaultConfig, { initialHistory: [{ role: "user", content: "human control matters" }], transport: "chat_json" }),
       defaultConfig,
       store.toLLMContext(),
       { mapRevision: 0, requireConnectionLabel: true, store },
@@ -290,13 +301,32 @@ describe("typed assistant response parser", () => {
     });
     vi.stubGlobal("fetch", fetchMock);
     const trace = vi.fn();
-    const model = makeLLM(defaultConfig, [], trace);
+    const model = makeLLM(defaultConfig, { onTrace: trace });
 
     expect((await model(context)).response.kind).toBe("question");
     expect(trace).toHaveBeenCalledWith(expect.objectContaining({
       durationMs: expect.any(Number), inputTokens: 12, outputTokens: 5, totalTokens: 17,
       structuredResponseOutcome: "accepted", toolArgumentOutcome: "not_applicable",
     }));
+  });
+
+  it("injects bearer auth through runtime options and reports 401 without reading browser storage", async () => {
+    const onAccessError = vi.fn();
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const model = makeLLM(defaultConfig, {
+      runtime: { bearerToken: "wtk_runtime", onAccessError },
+    });
+
+    await expect(model(context)).rejects.toThrow("Backend 401");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      credentials: "omit",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer wtk_runtime",
+      },
+    });
+    expect(onAccessError).toHaveBeenCalledWith(401);
   });
 
   it("forces the third recovery prompt to request exactly one question", async () => {
@@ -319,6 +349,26 @@ describe("typed assistant response parser", () => {
     expect(messages[0].content).toContain("Return exactly one question response now");
     expect(messages[0].content).toContain("necessarily");
     expect(messages[0].content).toContain("Do not return a reflection");
+  });
+});
+
+describe("reader translation transport", () => {
+  it("uses the injected bearer without requiring browser storage", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({ translation: "hola" }) } }],
+    }), { status: 200, headers: { "Content-Type": "application/json" } }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(translateReaderText("hello", "Spanish", {
+      bearerToken: "wtk_reader",
+    })).resolves.toBe("hola");
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      credentials: "omit",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer wtk_reader",
+      },
+    });
   });
 });
 

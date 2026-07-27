@@ -32,13 +32,25 @@ export interface ProviderRuntimeConfig {
   backendUrl?: string;
   model?: string;
   reasoningEffort?: string;
+  bearerToken?: string;
+  onAccessError?: (status: 401 | 403) => void;
 }
 
-function providerRuntime(overrides?: ProviderRuntimeConfig): Required<ProviderRuntimeConfig> {
+interface ResolvedProviderRuntimeConfig {
+  backendUrl: string;
+  model: string;
+  reasoningEffort: string;
+  bearerToken?: string;
+  onAccessError?: (status: 401 | 403) => void;
+}
+
+function providerRuntime(overrides?: ProviderRuntimeConfig): ResolvedProviderRuntimeConfig {
   return {
     backendUrl: overrides?.backendUrl ?? BACKEND_URL,
     model: overrides?.model ?? MODEL,
     reasoningEffort: overrides?.reasoningEffort ?? REASONING_EFFORT,
+    bearerToken: overrides?.bearerToken,
+    onAccessError: overrides?.onAccessError,
   };
 }
 
@@ -61,12 +73,25 @@ function providerUsage(value: unknown): ProviderUsage {
   };
 }
 
-async function postChat(messages: OpenAIMessage[], runtime: Required<ProviderRuntimeConfig>): Promise<{ content: string; body: unknown }> {
+function providerHeaders(runtime: ResolvedProviderRuntimeConfig): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    ...(runtime.bearerToken ? { Authorization: `Bearer ${runtime.bearerToken}` } : {}),
+  };
+}
+
+function reportAccessError(response: Response, runtime: ResolvedProviderRuntimeConfig): void {
+  if (response.status === 401 || response.status === 403) runtime.onAccessError?.(response.status);
+}
+
+async function postChat(messages: OpenAIMessage[], runtime: ResolvedProviderRuntimeConfig): Promise<{ content: string; body: unknown }> {
   const response = await fetch(`${runtime.backendUrl}/openai/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    credentials: "omit",
+    headers: providerHeaders(runtime),
     body: JSON.stringify({ model: runtime.model, reasoning_effort: runtime.reasoningEffort, messages, stream: false, response_format: { type: "json_object" } }),
   });
+  reportAccessError(response, runtime);
   if (!response.ok) throw new Error(`Backend ${response.status}: ${(await response.text()).slice(0, 300)}`);
   const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = body.choices?.[0]?.message?.content;
@@ -79,10 +104,11 @@ interface ResponsesTurnState {
   toolCallId?: string;
 }
 
-async function postResponses(input: unknown[], instructions: string, runtime: Required<ProviderRuntimeConfig>): Promise<unknown> {
+async function postResponses(input: unknown[], instructions: string, runtime: ResolvedProviderRuntimeConfig): Promise<unknown> {
   const response = await fetch(`${runtime.backendUrl}/openai/responses`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    credentials: "omit",
+    headers: providerHeaders(runtime),
     body: JSON.stringify({
       model: runtime.model,
       reasoning: { effort: runtime.reasoningEffort },
@@ -95,6 +121,7 @@ async function postResponses(input: unknown[], instructions: string, runtime: Re
       store: false,
     }),
   });
+  reportAccessError(response, runtime);
   if (!response.ok) throw new Error(`Backend ${response.status}: ${(await response.text()).slice(0, 300)}`);
   return response.json() as Promise<unknown>;
 }
@@ -238,11 +265,11 @@ function parseOptions(value: unknown): SourceBackedOption[] | undefined {
 }
 
 /** A display-only reader translation request. Its result is never session data. */
-export async function translateReaderText(text: string, targetLanguage: string): Promise<string> {
+export async function translateReaderText(text: string, targetLanguage: string, runtimeOverrides?: ProviderRuntimeConfig): Promise<string> {
   const response = await postChat([
     { role: "system", content: `Translate the supplied display text into ${targetLanguage}. Return JSON only: {"translation":"..."}. Preserve [[[number]]] markers exactly; do not explain, add content, or translate them.` },
     { role: "user", content: text },
-  ], providerRuntime());
+  ], providerRuntime(runtimeOverrides));
   const parsed = JSON.parse(response.content) as { translation?: unknown };
   if (typeof parsed.translation !== "string") throw new Error("Translation response was missing translation text.");
   return parsed.translation;
@@ -437,17 +464,24 @@ export async function callLLM(
   }
 }
 
+export interface MakeLLMOptions {
+  initialHistory?: ConversationMessage[];
+  onTrace?: (trace: ProviderTrace) => void;
+  transport?: ProviderTransport;
+  runtime?: ProviderRuntimeConfig;
+}
+
 export function makeLLM(
   config: MindmapConfig | (() => MindmapConfig) = defaultConfig,
-  initialHistory: ConversationMessage[] = [],
-  onTrace?: (trace: ProviderTrace) => void,
-  transport: ProviderTransport = PROVIDER_TRANSPORT,
-  runtimeOverrides?: ProviderRuntimeConfig,
+  options: MakeLLMOptions = {},
 ): AssistantModel {
+  const initialHistory = options.initialHistory ?? [];
+  const onTrace = options.onTrace;
+  const transport = options.transport ?? PROVIDER_TRANSPORT;
   const history = initialHistory.slice(-20);
   const responseState: ResponsesTurnState = {};
   return async (context, repair) => {
-    const envelope = await callLLM(context, history, typeof config === "function" ? config() : config, repair, onTrace, transport, responseState, runtimeOverrides);
+    const envelope = await callLLM(context, history, typeof config === "function" ? config() : config, repair, onTrace, transport, responseState, options.runtime);
     if (transport === "chat_json") {
       history.push({ role: "assistant", content: envelope.response.text });
       if (history.length > 20) history.splice(0, history.length - 20);

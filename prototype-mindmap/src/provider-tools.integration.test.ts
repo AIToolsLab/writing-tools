@@ -25,7 +25,7 @@ describe("Responses tool pipeline", () => {
     const result = await processTurn(
       state,
       "human control matters",
-      makeLLM(defaultConfig, [{ role: "user", content: "human control matters" }], undefined, "responses_tools"),
+      makeLLM(defaultConfig, { initialHistory: [{ role: "user", content: "human control matters" }], transport: "responses_tools" }),
       defaultConfig,
       store.toLLMContext(),
       { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[0] },
@@ -53,7 +53,7 @@ describe("Responses tool pipeline", () => {
     const result = await processTurn(
       state,
       "human control matters",
-      makeLLM(defaultConfig, [{ role: "user", content: "human control matters" }], undefined, "responses_tools"),
+      makeLLM(defaultConfig, { initialHistory: [{ role: "user", content: "human control matters" }], transport: "responses_tools" }),
       defaultConfig,
       store.toLLMContext(),
       { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[0] },
@@ -76,7 +76,7 @@ describe("Responses tool pipeline", () => {
     const result = await processTurn(
       state,
       "I am exploring control",
-      makeLLM(defaultConfig, [{ role: "user", content: "I am exploring control" }], undefined, "responses_tools"),
+      makeLLM(defaultConfig, { initialHistory: [{ role: "user", content: "I am exploring control" }], transport: "responses_tools" }),
       defaultConfig,
       store.toLLMContext(),
       { mapRevision: 0, requireConnectionLabel: true, store, contract: ASSISTANCE_CONTRACTS[2] },

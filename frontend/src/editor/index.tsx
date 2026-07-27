@@ -47,7 +47,12 @@ export function EditorScreen({
 	const editorAPI: EditorAPI = useMemo(
 		() => ({
 			getDocContext: async (): Promise<DocContext> => {
-				return Promise.resolve(docContextRef.current);
+				return Promise.resolve({
+					...docContextRef.current,
+					documentLabel:
+						docContextRef.current.documentLabel ??
+						'Standalone editor draft',
+				});
 			},
 			addSelectionChangeHandler: (handler: () => void) => {
 				selectionChangeHandlers.current.push(handler);

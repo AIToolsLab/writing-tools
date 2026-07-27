@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent } from "react";
-import { historyForCurrentTurn, makeLLM, type ConversationMessage } from "./api";
+import { historyForCurrentTurn, makeLLM, type ConversationMessage, type ProviderRuntimeConfig } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
 import type { AssistantResponse, ConversationState, DiagnosticEvent, RepairFailureTerminal, TurnProgressStage, TurnResult } from "./assistant-response";
 import type { ProposalOutcomeContext, QuestionStance, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
@@ -16,7 +16,7 @@ import { buildDiagnosticSnapshot, type UnderstandingSnapshot } from "./understan
 import { useSpeechToText } from "./useSpeechToText";
 import { measureDraftAnchorRects, scrollDraftAnchorIntoView, type DraftAnchorRect } from "./draft-anchor";
 import { ASSISTANCE_CONTRACTS, contractForLevel, DEFAULT_ASSISTANCE_CONTRACT, normalizeInfluenceTrace, snapshotContract, type AssistanceLevel } from "./assistance-contract";
-import { EventLedger, mirrorSanitizedEvent, type LedgerEventKind } from "./event-ledger";
+import { EventLedger, type LedgerEventKind } from "./event-ledger";
 import { reconcileStoreSuggestionAdoption, type VisibleSuggestion } from "./suggestion-adoption";
 import { provenanceTotals } from "./provenance-summary";
 import { useMutationAccess } from "./mutation-policy";
@@ -91,7 +91,7 @@ const DRAFT_MIN_VISIBLE_WIDTH = 220;
 const DRAFT_MIN_VISIBLE_HEIGHT = 120;
 const DRAFT_CHIP_WIDTH = 56;
 const DRAFT_CHIP_HEIGHT = 44;
-const SESSION_STORAGE_KEY = "prototype-mindmap-session-v1";
+export const SESSION_STORAGE_KEY = "prototype-mindmap-session-v1";
 const WORKING_INDICATOR_DELAY_MS = 700;
 
 export const TURN_PROGRESS_COPY: Record<TurnProgressStage, string> = {
@@ -118,8 +118,14 @@ export interface PersistedPendingMirror {
   editedTexts?: Record<string, string>;
 }
 
+export interface DraftSourceMetadata {
+  kind: "launch_snapshot";
+  documentLabel: string;
+  capturedAt: number;
+}
+
 interface PersistedSession {
-  version: 1 | 2 | 3 | 4 | 5 | 6;
+  version: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   sessionId?: string;
   assistanceLevel?: AssistanceLevel;
   msgs: ChatMsg[];
@@ -137,6 +143,8 @@ interface PersistedSession {
   draftDocked?: boolean;
   draftPos: DraftPanelPos;
   draftSize: DraftPanelSize;
+  draftSource?: DraftSourceMetadata;
+  lastSavedAt?: number;
   stickyDraftFocus?: DraftSelectionFocus;
   conversation?: {
     turnsSinceLastReflection: number;
@@ -156,6 +164,11 @@ interface PersistedSession {
   bank: ReturnType<ConversationState["bank"]["getAll"]>;
   candidates: ReturnType<ConversationState["candidates"]["getAll"]>;
   map: ThoughtUnitStoreSnapshot;
+}
+
+export interface SavedMindmapSummary {
+  documentLabel: string;
+  lastSavedAt?: number;
 }
 
 export function migrateLegacyMirrors(pending: PersistedPendingMirror[], mapRevision: number): Proposal[] {
@@ -1733,6 +1746,14 @@ const css = `
     color: #666;
     flex: 1;
   }
+  .draft-source-label {
+    margin-left: auto;
+    max-width: 260px;
+    font-size: 10px;
+    line-height: 1.2;
+    color: #76694f;
+    text-align: right;
+  }
 
   .draft-panel-btn {
     background: #fff;
@@ -2480,16 +2501,30 @@ function defaultDraftPosition(size: DraftPanelSize): DraftPanelPos {
   );
 }
 
-function loadPersistedSession(): PersistedSession | null {
-  if (typeof window === "undefined") return null;
+function loadPersistedSession(storage?: Pick<Storage, "getItem">): PersistedSession | null {
+  const source = storage ?? (typeof window === "undefined" ? undefined : window.localStorage);
+  if (!source) return null;
   try {
-    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
+    const raw = source.getItem(SESSION_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PersistedSession;
-    return parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4 || parsed.version === 5 || parsed.version === 6 ? parsed : null;
+    return parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4 || parsed.version === 5 || parsed.version === 6 || parsed.version === 7 ? parsed : null;
   } catch {
     return null;
   }
+}
+
+export function savedMindmapSummary(storage: Pick<Storage, "getItem">): SavedMindmapSummary | null {
+  const saved = loadPersistedSession(storage);
+  if (!saved) return null;
+  return {
+    documentLabel: saved.draftSource?.documentLabel || "Saved mindmap",
+    lastSavedAt: saved.lastSavedAt,
+  };
+}
+
+export function clearSavedMindmap(storage: Pick<Storage, "removeItem">): void {
+  storage.removeItem(SESSION_STORAGE_KEY);
 }
 
 export function buildConversationHistory(msgs: ChatMsg[]): ConversationMessage[] {
@@ -2711,7 +2746,13 @@ function UnderhoodIcon() {
   );
 }
 
-export default function App() {
+export interface AppProps {
+  providerRuntime?: ProviderRuntimeConfig;
+  initialDraft?: { text: string; source?: DraftSourceMetadata };
+  aiAccessDenied?: boolean;
+}
+
+export default function App({ providerRuntime, initialDraft, aiAccessDenied = false }: AppProps) {
   const { locale, t } = useUiLocale();
   const reader = useReaderView();
   const mutationAccess = useMutationAccess();
@@ -2722,7 +2763,10 @@ export default function App() {
 
   const initialState = useMemo(() => {
     const state = createConversationState();
-    if (!persistedSession) return state;
+    if (!persistedSession) {
+      state.draft = initialDraft?.text ?? "";
+      return state;
+    }
     state.bank.replaceAll(persistedSession.bank);
     const currentUserTurn = persistedSession.conversation?.currentUserTurn ?? deriveCurrentUserTurn(persistedSession.bank);
     const legacyIgnoredCandidateIds = persistedSession.conversation?.legacyIgnoredCandidateIds
@@ -2740,7 +2784,7 @@ export default function App() {
     state.currentDraftSnapshotId = persistedSession.conversation?.currentDraftSnapshotId;
     state.draftSnapshotText = persistedSession.conversation?.draftSnapshotText;
     return state;
-  }, [persistedSession]);
+  }, [initialDraft?.text, persistedSession]);
 
   const initialMapStore = useMemo(() => {
     const store = new ThoughtUnitStore();
@@ -2769,7 +2813,7 @@ export default function App() {
   const initialMapRevision = persistedSession?.mapRevision ?? 0;
   const initialQuestionBias = snapQuestionBias(persistedSession?.questionBias ?? 35);
   const initialRequireConnectionLabel = persistedSession?.requireConnectionLabel ?? true;
-  const initialDraftText = persistedSession?.draftText ?? "";
+  const initialDraftText = persistedSession?.draftText ?? initialDraft?.text ?? "";
   const initialDraftHtml = persistedSession?.draftHtml ?? plainTextToDraftHtml(initialDraftText);
   const initialDraftCollapsed = persistedSession?.draftCollapsed ?? false;
   const initialDraftDocked = persistedSession?.draftDocked ?? false;
@@ -2780,6 +2824,7 @@ export default function App() {
     ? clampDraftPosition(persistedSession.draftPos, initialDraftSize)
     : { x: 0, y: 0 };
   const initialStickyDraftFocus = persistedSession?.stickyDraftFocus;
+  const initialDraftSource = persistedSession?.draftSource ?? initialDraft?.source;
 
   const stateRef = useRef<ConversationState>(initialState);
   const configRef = useRef<MindmapConfig>(withQuestionIntentBias(defaultConfig, initialQuestionBias));
@@ -2811,13 +2856,13 @@ export default function App() {
   const [contextSelectedCardIds, setContextSelectedCardIds] = useState<Set<string>>(new Set());
   const [draftSelectionFocus, setDraftSelectionFocus] = useState<DraftSelectionFocus | undefined>(undefined);
   const [stickyDraftFocus, setStickyDraftFocus] = useState<DraftSelectionFocus | undefined>(initialStickyDraftFocus);
+  const [draftSource, setDraftSource] = useState<DraftSourceMetadata | undefined>(initialDraftSource);
   const ledgerRef = useRef(new EventLedger(initialSessionId));
   const contract = contractForLevel(assistanceLevel);
 
   const recordEvent = useCallback(async (kind: LedgerEventKind, detail?: unknown, extra?: { origin?: import("./assistance-contract").ContributionOrigin; responseKind?: string; outcome?: string; code?: string; contract?: import("./assistance-contract").AssistanceContractSnapshot; providerTransport?: "chat_json" | "responses_tools"; toolName?: "propose_reflection_v1" | "propose_map_action_v1"; repairCount?: number; candidateStatus?: "active" | "parked" | "ignored" | "promoted"; ageInTurns?: number; currentPercentage?: number; peakPercentage?: number }) => {
-    const event = await ledgerRef.current.record(kind, detail, { contract: extra?.contract ?? snapshotContract(contract), origin: extra?.origin });
+    await ledgerRef.current.record(kind, detail, { contract: extra?.contract ?? snapshotContract(contract), origin: extra?.origin });
     setLedgerAvailable(ledgerRef.current.isAvailable);
-    void mirrorSanitizedEvent(event, { responseKind: extra?.responseKind, outcome: extra?.outcome, code: extra?.code, providerTransport: extra?.providerTransport, toolName: extra?.toolName, repairCount: extra?.repairCount, candidateStatus: extra?.candidateStatus, ageInTurns: extra?.ageInTurns, currentPercentage: extra?.currentPercentage, peakPercentage: extra?.peakPercentage });
   }, [contract]);
 
   useEffect(() => { msgsRef.current = msgs; }, [msgs]);
@@ -3553,7 +3598,7 @@ export default function App() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const snapshot: PersistedSession = {
-      version: 6,
+      version: 7,
       sessionId: initialSessionId,
       assistanceLevel,
       msgs,
@@ -3570,6 +3615,8 @@ export default function App() {
       draftDocked,
       draftPos,
       draftSize,
+      draftSource,
+      lastSavedAt: Date.now(),
       stickyDraftFocus,
       conversation: {
         turnsSinceLastReflection: stateRef.current.turnsSinceLastReflection,
@@ -3602,6 +3649,7 @@ export default function App() {
     draftPos,
     draftSize,
     draftText,
+    draftSource,
     lastCoachDebug,
     understandingSnapshot,
     mapRevision,
@@ -3614,7 +3662,7 @@ export default function App() {
   ]);
 
   async function send() {
-    if (!mutationAccess.allows("chat_send")) return;
+    if (aiAccessDenied || !mutationAccess.allows("chat_send")) return;
     const text = input.trim();
     if (!text || loading) return;
     const nonce = ++turnNonceRef.current;
@@ -3650,11 +3698,15 @@ export default function App() {
       const out = await processTurn(
         workingState,
         text,
-        makeLLM(() => configRef.current, turnHistory, (trace) => {
-          const round = providerResponseCount++;
-          void recordEvent("model_request", { messages: trace.messages, model: trace.model, reasoningEffort: trace.reasoningEffort, responseId: trace.responseId }, { providerTransport: trace.transport });
-          if (trace.toolName) { requestedTools.push({ name: trace.toolName, callId: trace.toolCallId, round }); void recordEvent("provider_tool_requested", { toolName: trace.toolName, callId: trace.toolCallId, providerResponse: trace.parsedProviderResponse }, { providerTransport: trace.transport, toolName: trace.toolName }); }
-          void recordEvent("assistant_response", { parsedProviderResponse: trace.parsedProviderResponse, responseId: trace.responseId, outputItemTypes: trace.outputItemTypes }, { providerTransport: trace.transport, toolName: trace.toolName });
+        makeLLM(() => configRef.current, {
+          initialHistory: turnHistory,
+          runtime: providerRuntime,
+          onTrace: (trace) => {
+            const round = providerResponseCount++;
+            void recordEvent("model_request", { messages: trace.messages, model: trace.model, reasoningEffort: trace.reasoningEffort, responseId: trace.responseId }, { providerTransport: trace.transport });
+            if (trace.toolName) { requestedTools.push({ name: trace.toolName, callId: trace.toolCallId, round }); void recordEvent("provider_tool_requested", { toolName: trace.toolName, callId: trace.toolCallId, providerResponse: trace.parsedProviderResponse }, { providerTransport: trace.transport, toolName: trace.toolName }); }
+            void recordEvent("assistant_response", { parsedProviderResponse: trace.parsedProviderResponse, responseId: trace.responseId, outputItemTypes: trace.outputItemTypes }, { providerTransport: trace.transport, toolName: trace.toolName });
+          },
         }),
         configRef.current,
         mapStoreRef.current.toLLMContext(),
@@ -3688,7 +3740,7 @@ export default function App() {
   // Runs a coach-only turn without synthetic user text. A panel request replaces
   // its prior coach move; a completed proposal appends a genuine continuation.
   async function requestMode(mode?: UserRequestedMode, proposalOutcome?: ProposalOutcomeContext, currentMapRevision = mapRevision, recoveryId?: number) {
-    if (loading) return;
+    if (loading || aiAccessDenied) return;
     const nonce = ++turnNonceRef.current;
 
     speech.stop();
@@ -3704,11 +3756,15 @@ export default function App() {
       const out = await processTurn(
         workingState,
         "",
-        makeLLM(() => configRef.current, buildConversationHistory(msgs), (trace) => {
-          const round = providerResponseCount++;
-          void recordEvent("model_request", { messages: trace.messages, model: trace.model, reasoningEffort: trace.reasoningEffort, responseId: trace.responseId }, { providerTransport: trace.transport });
-          if (trace.toolName) { requestedTools.push({ name: trace.toolName, callId: trace.toolCallId, round }); void recordEvent("provider_tool_requested", { toolName: trace.toolName, callId: trace.toolCallId, providerResponse: trace.parsedProviderResponse }, { providerTransport: trace.transport, toolName: trace.toolName }); }
-          void recordEvent("assistant_response", { parsedProviderResponse: trace.parsedProviderResponse, responseId: trace.responseId, outputItemTypes: trace.outputItemTypes }, { providerTransport: trace.transport, toolName: trace.toolName });
+        makeLLM(() => configRef.current, {
+          initialHistory: buildConversationHistory(msgs),
+          runtime: providerRuntime,
+          onTrace: (trace) => {
+            const round = providerResponseCount++;
+            void recordEvent("model_request", { messages: trace.messages, model: trace.model, reasoningEffort: trace.reasoningEffort, responseId: trace.responseId }, { providerTransport: trace.transport });
+            if (trace.toolName) { requestedTools.push({ name: trace.toolName, callId: trace.toolCallId, round }); void recordEvent("provider_tool_requested", { toolName: trace.toolName, callId: trace.toolCallId, providerResponse: trace.parsedProviderResponse }, { providerTransport: trace.transport, toolName: trace.toolName }); }
+            void recordEvent("assistant_response", { parsedProviderResponse: trace.parsedProviderResponse, responseId: trace.responseId, outputItemTypes: trace.outputItemTypes }, { providerTransport: trace.transport, toolName: trace.toolName });
+          },
         }),
         configRef.current,
         mapStoreRef.current.toLLMContext(),
@@ -3928,6 +3984,7 @@ export default function App() {
     setHighlightAnchor(undefined);
     setDraftSelectionFocus(undefined);
     setStickyDraftFocus(undefined);
+    setDraftSource(undefined);
     stateRef.current.draft = "";
   }
 
@@ -4076,6 +4133,7 @@ export default function App() {
           </div>
 
           <div className="input-area">
+            {aiAccessDenied && <div className="error-banner" role="alert">This account is not permitted to use AI features. Your draft and map remain available.</div>}
             {error && <div className="error-banner">{error}</div>}
             {stickyDraftFocus && (
               <div className="focus-chip" role="status">
@@ -4171,7 +4229,7 @@ export default function App() {
                   >
                     <MicIcon />
                   </button>
-                  <button className="send-btn" onClick={() => void send()} disabled={readOnly || loading || !input.trim()} aria-label={t("Send")} title={readOnly ? t("Switch back to the original view to edit.") : undefined} aria-describedby={readOnly ? "reader-view-status" : undefined}>
+                  <button className="send-btn" onClick={() => void send()} disabled={readOnly || aiAccessDenied || loading || !input.trim()} aria-label={t("Send")} title={readOnly ? t("Switch back to the original view to edit.") : undefined} aria-describedby={readOnly ? "reader-view-status" : undefined}>
                     {"\u2191"}
                   </button>
                 </div>
@@ -4208,6 +4266,11 @@ export default function App() {
         >
           <div className="draft-panel-header" onMouseDown={onDragStart}>
             <span className="draft-panel-title">{t("Draft")}</span>
+            {draftSource && (
+              <span className="draft-source-label">
+                Snapshot of {draftSource.documentLabel} captured at launch. Edits here do not sync back.
+              </span>
+            )}
             <button
               className="draft-panel-btn"
               type="button"

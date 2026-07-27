@@ -1,3 +1,17 @@
+export function wordDocumentLabel(url: string | undefined): string {
+	if (!url) return 'Word document';
+	try {
+		const pathname = new URL(url).pathname;
+		const segments = pathname.split('/').filter(Boolean);
+		const filename = segments[segments.length - 1];
+		return filename ? decodeURIComponent(filename) : 'Word document';
+	} catch {
+		const segments = url.split(/[\\/]/).filter(Boolean);
+		const filename = segments[segments.length - 1];
+		return filename || 'Word document';
+	}
+}
+
 export const wordEditorAPI: EditorAPI = {
 
 	addSelectionChangeHandler: (handler: () => void) => {
@@ -21,6 +35,7 @@ export const wordEditorAPI: EditorAPI = {
 			Word.run(async (context: Word.RequestContext) => {
 				const body: Word.Body = context.document.body;
 				const docContext: DocContext = {
+					documentLabel: wordDocumentLabel(Office.context.document.url),
 					beforeCursor: '',
 					selectedText: '',
 					afterCursor: '',

@@ -55,6 +55,7 @@ interface EvalRuntime {
   backendUrl: string;
   model: string;
   reasoningEffort: string;
+  bearerToken?: string;
   transport: ProviderTransport;
 }
 
@@ -123,13 +124,12 @@ async function runScenario(
     const knownBeforeResponse = state.bank.getAll().map((utterance) => utterance.text);
     const traces: ProviderTrace[] = [];
     const recoveryStages: TurnProgressStage[] = [];
-    const model = makeLLM(
-      defaultConfig,
-      historyForCurrentTurn(history, userText),
-      (trace) => traces.push(trace),
-      runtime.transport,
+    const model = makeLLM(defaultConfig, {
+      initialHistory: historyForCurrentTurn(history, userText),
+      onTrace: (trace) => traces.push(trace),
+      transport: runtime.transport,
       runtime,
-    );
+    });
     const result = await processTurn(
       state,
       userText,
@@ -315,6 +315,7 @@ async function main(): Promise<void> {
     backendUrl: process.env.MINDMAP_EVAL_BACKEND_URL ?? "http://localhost:8000/api",
     model: process.env.MINDMAP_EVAL_MODEL ?? "gpt-5.6-terra",
     reasoningEffort: process.env.MINDMAP_EVAL_REASONING_EFFORT ?? "low",
+    bearerToken: process.env.MINDMAP_EVAL_BEARER_TOKEN,
     transport: transportValue,
   };
   const runDirectory = resolve("eval", "runs", timestamp());

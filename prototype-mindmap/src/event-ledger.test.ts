@@ -49,4 +49,12 @@ describe("event ledger", () => {
     ]);
     expect(events.map((event) => event.sequence)).toEqual([1, 2, 3]);
   });
+
+  it("records locally without making a telemetry request", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    vi.stubGlobal("indexedDB", undefined);
+    await new EventLedger("local-only").record("model_request", { private: "prompt" });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });

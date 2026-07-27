@@ -49,6 +49,8 @@ interface ContextSection {
 
 interface DocContext {
 	contextData?: ContextSection[];
+	/** Human-readable source label carried with launcher document snapshots. */
+	documentLabel?: string;
 	beforeCursor: string;
 	selectedText: string;
 	afterCursor: string;

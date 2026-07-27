@@ -66,7 +66,10 @@ beforeEach(() => {
 	getDocContextMock = vi.fn().mockResolvedValue(CONTEXT_A);
 
 	fakeWindow = Object.assign(makeEmitter(), {
-		GoogleAppsScript: { getDocContext: getDocContextMock },
+		GoogleAppsScript: {
+			getDocContext: getDocContextMock,
+			getDocumentName: vi.fn().mockResolvedValue('Research notes'),
+		},
 	});
 	fakeDocument = Object.assign(makeEmitter(), {
 		hasFocus: () => focused,
@@ -88,6 +91,13 @@ afterEach(() => {
 });
 
 describe('googleDocsEditorAPI selection polling', () => {
+	it('includes the Google document title in an explicit context fetch', async () => {
+		await expect(googleDocsEditorAPI.getDocContext()).resolves.toEqual({
+			...CONTEXT_A,
+			documentLabel: 'Research notes',
+		});
+	});
+
 	it('pulls immediately and notifies handlers when the selection changes', async () => {
 		getDocContextMock
 			.mockResolvedValueOnce(CONTEXT_A) // initial pull

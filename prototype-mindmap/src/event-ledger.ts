@@ -98,10 +98,3 @@ export class EventLedger {
 export function sanitizedEvent(event: LocalLedgerEvent, extra: Omit<SanitizedMindmapEvent, "sessionId" | "sequence" | "at" | "kind" | "contractId" | "contractLevel" | "origin"> = {}): SanitizedMindmapEvent {
   return { sessionId: event.sessionId, sequence: event.sequence, at: event.at, kind: event.kind, contractId: event.contract?.id, contractLevel: event.contract?.level, origin: event.origin, ...extra };
 }
-
-export async function mirrorSanitizedEvent(event: LocalLedgerEvent, extra?: Parameters<typeof sanitizedEvent>[1]): Promise<void> {
-  try {
-    const base = (import.meta.env.VITE_BACKEND_URL as string | undefined) ?? "http://localhost:8000/api";
-    await fetch(`${base}/mindmap/events`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(sanitizedEvent(event, extra)) });
-  } catch { /* local audit is authoritative; network telemetry is best effort */ }
-}
