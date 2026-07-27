@@ -115,8 +115,8 @@
 }
 
 /*
- * The "set your to-do" blocks that used to live here moved to
- * components/toDoSection, which every page renders — including the bare
+ * The "set your brief" blocks that used to live here moved to
+ * components/briefSection, which every page renders — including the bare
  * `textarea` rule, which was never scoped by CSS modules and so had been
  * styling every textarea in the add-in.
  */

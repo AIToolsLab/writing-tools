@@ -29,12 +29,12 @@ import { streamTextDeltas } from '@/api/generate';
 import { reviseLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice, ErrorNotice } from '@/components/errorNotice';
-import ToDoSection from '@/components/toDoSection';
+import BriefSection from '@/components/briefSection';
 import {
-	type DocGoals,
-	formatDocGoalsForPrompt,
-	useDocGoals,
-} from '@/contexts/docGoalsContext';
+	type DocBrief,
+	formatDocBriefForPrompt,
+	useDocBrief,
+} from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
@@ -156,15 +156,15 @@ When generating a visualization, it is critical that we remain faithful to the d
 
 function getDocTextAsPrompt(
 	docContext: DocContext,
-	goals: DocGoals,
+	brief: DocBrief,
 	contextChars = 100,
 ) {
 	let prompt = ``;
 
-	// The writer's to-do comes first: it frames how to read everything below it.
-	const goalsBlock = formatDocGoalsForPrompt(goals);
-	if (goalsBlock) {
-		prompt += `${goalsBlock}\n\n`;
+	// The writer's brief comes first: it frames how to read everything below it.
+	const briefBlock = formatDocBriefForPrompt(brief);
+	if (briefBlock) {
+		prompt += `${briefBlock}\n\n`;
 	}
 
 	if (docContext.contextData && docContext.contextData.length > 0) {
@@ -250,14 +250,14 @@ export default function Revise() {
 	>(null);
 	const [visualizations, setVisualizations] = useState<Visualization[]>([]);
 	const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
-	const { goals } = useDocGoals();
+	const { brief } = useDocBrief();
 	const [isRunning, setIsRunning] = useState(false);
 
 	// Read at request time, like the document context is, so a run always uses
-	// the to-do as it stands — without rebuilding the request callbacks on every
-	// keystroke in the to-do section.
-	const goalsRef = useRef(goals);
-	goalsRef.current = goals;
+	// the brief as it stands — without rebuilding the request callbacks on every
+	// keystroke in the brief section.
+	const briefRef = useRef(brief);
+	briefRef.current = brief;
 	
 	const clickCallbackRef = useRef((href: string) => {
 		if (href.startsWith('doctext:')) {
@@ -326,7 +326,7 @@ export default function Revise() {
 				docContext: currentContext,
 			});
 
-			const docTextAsPrompt = getDocTextAsPrompt(currentContext, goalsRef.current);
+			const docTextAsPrompt = getDocTextAsPrompt(currentContext, briefRef.current);
 
 			const messages: ModelMessage[] = [
 				{
@@ -469,9 +469,9 @@ ${request}
 				{/* Cross-tab helper — only meaningful in Google Docs, which has tabs */}
 				{isRunningInGoogleDocs() ? <TagLinker /> : null}
 
-				{/* Section 1: Set your to-do. Lives on the document and is shared
-				    with every other page — see components/toDoSection. */}
-				<ToDoSection page="revise" step={1} defaultOpen />
+				{/* Section 1: Set your brief. Lives on the document and is shared
+				    with every other page — see components/briefSection. */}
+				<BriefSection page="revise" step={1} defaultOpen />
 
 				{/* Section 2: Choose features to run */}
 				<div className={classes.featuresSection}>

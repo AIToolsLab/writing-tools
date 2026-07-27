@@ -10,9 +10,9 @@ describe('localStorageDocumentSettings', () => {
 	it('reads back what it wrote', async () => {
 		const settings = localStorageDocumentSettings('doc-1');
 
-		await settings.setDocumentSetting('writerToDo', '{"audience":"peers"}');
+		await settings.setDocumentSetting('writerBrief', '{"audience":"peers"}');
 
-		expect(await settings.getDocumentSetting('writerToDo')).toBe(
+		expect(await settings.getDocumentSetting('writerBrief')).toBe(
 			'{"audience":"peers"}',
 		);
 	});
@@ -20,18 +20,18 @@ describe('localStorageDocumentSettings', () => {
 	it('resolves to null for a key that was never written', async () => {
 		const settings = localStorageDocumentSettings('doc-1');
 
-		expect(await settings.getDocumentSetting('writerToDo')).toBeNull();
+		expect(await settings.getDocumentSetting('writerBrief')).toBeNull();
 	});
 
-	// Two documents open in one browser must not share one to-do.
+	// Two documents open in one browser must not share one brief.
 	it('keeps each document namespace separate', async () => {
 		const first = localStorageDocumentSettings('doc-1');
 		const second = localStorageDocumentSettings('doc-2');
 
-		await first.setDocumentSetting('writerToDo', 'first');
+		await first.setDocumentSetting('writerBrief', 'first');
 
-		expect(await second.getDocumentSetting('writerToDo')).toBeNull();
-		expect(await first.getDocumentSetting('writerToDo')).toBe('first');
+		expect(await second.getDocumentSetting('writerBrief')).toBeNull();
+		expect(await first.getDocumentSetting('writerBrief')).toBe('first');
 	});
 
 	// A full or unavailable store is a lost preference, never a thrown error
@@ -44,7 +44,7 @@ describe('localStorageDocumentSettings', () => {
 		const settings = localStorageDocumentSettings('doc-1');
 
 		await expect(
-			settings.setDocumentSetting('writerToDo', 'value'),
+			settings.setDocumentSetting('writerBrief', 'value'),
 		).resolves.toBeUndefined();
 		expect(warn).toHaveBeenCalled();
 	});

@@ -2,40 +2,40 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
-	DocGoalsContext,
-	type DocGoalsContextValue,
-	EMPTY_DOC_GOALS,
-} from '@/contexts/docGoalsContext';
-import ToDoSection from '../toDoSection';
+	DocBriefContext,
+	type DocBriefContextValue,
+	EMPTY_DOC_BRIEF,
+} from '@/contexts/docBriefContext';
+import BriefSection from '../briefSection';
 
 vi.mock('@/hooks/useLog', () => ({ useLog: () => vi.fn() }));
 
 function renderSection(
-	value: Partial<DocGoalsContextValue> = {},
+	value: Partial<DocBriefContextValue> = {},
 	props: { step?: number; defaultOpen?: boolean } = {},
 ) {
-	const contextValue: DocGoalsContextValue = {
-		goals: EMPTY_DOC_GOALS,
-		setGoal: vi.fn(),
+	const contextValue: DocBriefContextValue = {
+		brief: EMPTY_DOC_BRIEF,
+		setField: vi.fn(),
 		status: 'ready',
 		...value,
 	};
 	render(
-		<DocGoalsContext.Provider value={contextValue}>
-			<ToDoSection page="revise" {...props} />
-		</DocGoalsContext.Provider>,
+		<DocBriefContext.Provider value={contextValue}>
+			<BriefSection page="revise" {...props} />
+		</DocBriefContext.Provider>,
 	);
 	return contextValue;
 }
 
-describe('ToDoSection', () => {
+describe('BriefSection', () => {
 	afterEach(cleanup);
 
 	it('starts collapsed, so it costs one line on pages that are not Revise', () => {
 		renderSection();
 
 		expect(screen.queryByLabelText('Audience')).toBeNull();
-		expect(screen.getByRole('button', { name: /Set your to-do/ })).toHaveProperty(
+		expect(screen.getByRole('button', { name: /Set your brief/ })).toHaveProperty(
 			'ariaExpanded',
 			'false',
 		);
@@ -45,38 +45,38 @@ describe('ToDoSection', () => {
 		renderSection({}, { defaultOpen: true, step: 1 });
 
 		expect(screen.getByLabelText('Audience')).toBeTruthy();
-		expect(screen.getByLabelText('Guardrails')).toBeTruthy();
-		expect(screen.getByLabelText('Additional comments')).toBeTruthy();
+		expect(screen.getByLabelText('Purpose')).toBeTruthy();
+		expect(screen.getByLabelText('Constraints')).toBeTruthy();
 	});
 
-	// Collapsed, the header is the only signal that a to-do is in effect.
+	// Collapsed, the header is the only signal that a brief is in effect.
 	it('names the filled fields in the collapsed header', () => {
 		renderSection({
-			goals: {
+			brief: {
 				audience: 'First-year students',
-				guardrails: '',
-				comments: 'Peer review draft',
+				purpose: '',
+				constraints: 'Under 400 words',
 			},
 		});
 
-		const header = screen.getByRole('button', { name: /Set your to-do/ });
+		const header = screen.getByRole('button', { name: /Set your brief/ });
 		expect(header.textContent).toContain('Audience');
-		expect(header.textContent).toContain('Additional comments');
-		expect(header.textContent).not.toContain('Guardrails');
+		expect(header.textContent).toContain('Constraints');
+		expect(header.textContent).not.toContain('Purpose');
 	});
 
 	it('says so when nothing is set', () => {
 		renderSection();
 
 		expect(
-			screen.getByRole('button', { name: /Set your to-do/ }).textContent,
+			screen.getByRole('button', { name: /Set your brief/ }).textContent,
 		).toContain('Not set yet');
 	});
 
 	it('expands on click', () => {
 		renderSection();
 
-		fireEvent.click(screen.getByRole('button', { name: /Set your to-do/ }));
+		fireEvent.click(screen.getByRole('button', { name: /Set your brief/ }));
 
 		expect(screen.getByLabelText('Audience')).toBeTruthy();
 	});
@@ -84,10 +84,10 @@ describe('ToDoSection', () => {
 	it('shows the stored values and reports edits to the shared context', () => {
 		const context = renderSection(
 			{
-				goals: {
+				brief: {
 					audience: 'First-year students',
-					guardrails: '',
-					comments: '',
+					purpose: '',
+					constraints: '',
 				},
 			},
 			{ defaultOpen: true },
@@ -99,12 +99,12 @@ describe('ToDoSection', () => {
 
 		fireEvent.change(audience, { target: { value: 'Reviewers' } });
 
-		expect(context.setGoal).toHaveBeenCalledWith('audience', 'Reviewers');
+		expect(context.setField).toHaveBeenCalledWith('audience', 'Reviewers');
 	});
 
 	// Typing into a field that is about to be replaced by the stored value would
 	// lose the keystrokes.
-	it('locks the fields until the stored to-do has loaded', () => {
+	it('locks the fields until the stored brief has loaded', () => {
 		renderSection({ status: 'loading' }, { defaultOpen: true });
 
 		expect(
@@ -112,9 +112,9 @@ describe('ToDoSection', () => {
 		).toBe(true);
 	});
 
-	it('tells the writer when the to-do could not be saved', () => {
+	it('tells the writer when the brief could not be saved', () => {
 		renderSection({ status: 'error' }, { defaultOpen: true });
 
-		expect(document.body.textContent).toContain("Couldn't save your to-do");
+		expect(document.body.textContent).toContain("Couldn't save your brief");
 	});
 });

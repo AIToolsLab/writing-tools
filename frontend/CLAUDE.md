@@ -59,14 +59,22 @@ document. The Google Docs surface falls back to it too when the installed Apps
 Script deployment predates the document-property bridge — the bundle and the
 add-on are deployed separately, so their versions drift.
 
-The writer's to-do (audience / guardrails / additional comments) is the first
-consumer: `contexts/docGoalsContext.tsx` loads it once under `DocGoalsProvider`
-(mounted in `pages/app`), debounces writes back to the document, and flushes on
-unmount and `pagehide`. Pages read it with `useDocGoals()`, render
-`<ToDoSection>` to let the writer edit it from wherever they are, and fold it
-into their requests with `formatDocGoalsForPrompt` — which returns null when
-nothing is set, because telling the model about an empty to-do reads as a
-constraint of its own.
+The writer's **brief** (audience / purpose / constraints) is the first consumer:
+`contexts/docBriefContext.tsx` loads it once under `DocBriefProvider` (mounted
+in `pages/app`), debounces writes back to the document, and flushes on unmount
+and `pagehide`. Pages read it with `useDocBrief()`, render `<BriefSection>` to
+let the writer edit it from wherever they are, and fold it into their requests
+with `formatDocBriefForPrompt` — which returns null when nothing is set, because
+telling the model about an empty brief reads as a constraint of its own.
+
+Two naming constraints, both from `docs/design/interface-concepts.md`. **"Goal"
+and "to-do" are reserved**: a goal there is a Charter criterion the writer grades
+and renegotiates, and a to-do is the Charter's Worklist. A brief is *stated*, so
+it doesn't squat on either. And the fields are deliberately facts about the
+document (the rhetorical situation), never instructions to the model — nothing in
+the add-in rewrites the writer's prose, so "don't touch my opening" has nothing to
+bite on, and asking for it frames the writer as a supervisor of an output machine.
+Add a field only if a human collaborator would want to know it too.
 
 ### Generation calls and failures
 

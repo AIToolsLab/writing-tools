@@ -3,76 +3,76 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useContext } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-	DOC_GOALS_SETTING_KEY,
-	DocGoalsContext,
-	DocGoalsProvider,
-	EMPTY_DOC_GOALS,
-	filledDocGoalFields,
-	formatDocGoalsForPrompt,
-	hasDocGoals,
-	parseDocGoals,
-} from '../docGoalsContext';
+	DOC_BRIEF_SETTING_KEY,
+	DocBriefContext,
+	DocBriefProvider,
+	EMPTY_DOC_BRIEF,
+	filledBriefFields,
+	formatDocBriefForPrompt,
+	hasDocBrief,
+	parseDocBrief,
+} from '../docBriefContext';
 import { EditorContext } from '../editorContext';
 
-describe('parseDocGoals', () => {
+describe('parseDocBrief', () => {
 	it('reads back what the provider wrote', () => {
-		const goals = {
+		const brief = {
 			audience: 'First-year students',
-			guardrails: "Don't touch the intro",
-			comments: 'Draft for peer review',
+			purpose: 'Get them to try the technique once',
+			constraints: 'Under 400 words, for the course blog',
 		};
-		expect(parseDocGoals(JSON.stringify(goals))).toEqual(goals);
+		expect(parseDocBrief(JSON.stringify(brief))).toEqual(brief);
 	});
 
-	it('treats a never-written setting as an empty to-do', () => {
-		expect(parseDocGoals(null)).toEqual(EMPTY_DOC_GOALS);
+	it('treats a never-written setting as an empty brief', () => {
+		expect(parseDocBrief(null)).toEqual(EMPTY_DOC_BRIEF);
 	});
 
 	// A document can carry a value written by a different build of the add-in,
 	// so nothing stored is trusted to have the shape we expect.
 	it('degrades to empty rather than throwing on unreadable JSON', () => {
 		vi.spyOn(console, 'warn').mockImplementation(() => {});
-		expect(parseDocGoals('not json at all')).toEqual(EMPTY_DOC_GOALS);
+		expect(parseDocBrief('not json at all')).toEqual(EMPTY_DOC_BRIEF);
 	});
 
 	it('keeps recognized string fields and drops everything else', () => {
-		const parsed = parseDocGoals(
-			JSON.stringify({ audience: 'Reviewers', guardrails: 7, extra: 'x' }),
+		const parsed = parseDocBrief(
+			JSON.stringify({ audience: 'Reviewers', purpose: 7, extra: 'x' }),
 		);
 		expect(parsed).toEqual({
 			audience: 'Reviewers',
-			guardrails: '',
-			comments: '',
+			purpose: '',
+			constraints: '',
 		});
 	});
 });
 
-describe('formatDocGoalsForPrompt', () => {
-	it('returns null when nothing is set, so pages send no to-do block', () => {
-		expect(formatDocGoalsForPrompt(EMPTY_DOC_GOALS)).toBeNull();
-		expect(hasDocGoals(EMPTY_DOC_GOALS)).toBe(false);
+describe('formatDocBriefForPrompt', () => {
+	it('returns null when nothing is set, so pages send no brief block', () => {
+		expect(formatDocBriefForPrompt(EMPTY_DOC_BRIEF)).toBeNull();
+		expect(hasDocBrief(EMPTY_DOC_BRIEF)).toBe(false);
 	});
 
 	it('lists only the fields the writer filled in', () => {
-		const prompt = formatDocGoalsForPrompt({
+		const prompt = formatDocBriefForPrompt({
 			audience: 'First-year students',
-			guardrails: '   ',
-			comments: '',
+			purpose: '   ',
+			constraints: '',
 		});
 
 		expect(prompt).toContain('- Audience: First-year students');
-		expect(prompt).not.toContain('Guardrails');
-		expect(prompt).not.toContain('Additional comments');
+		expect(prompt).not.toContain('Purpose');
+		expect(prompt).not.toContain('Constraints');
 	});
 
 	it('ignores whitespace-only fields when reporting what is set', () => {
 		expect(
-			filledDocGoalFields({
+			filledBriefFields({
 				audience: '  ',
-				guardrails: 'Keep it under 400 words',
-				comments: '',
+				purpose: '',
+				constraints: 'Under 400 words',
 			}),
-		).toEqual(['guardrails']);
+		).toEqual(['constraints']);
 	});
 });
 
@@ -106,21 +106,21 @@ function stubEditorAPI(stored: Record<string, string> = {}) {
 	};
 }
 
-/** Exposes the context so a test can read the goals and drive an edit. */
+/** Exposes the context so a test can read the brief and drive an edit. */
 function Probe() {
-	const { goals, setGoal, status } = useContext(DocGoalsContext);
+	const { brief, setField, status } = useContext(DocBriefContext);
 	return (
 		<div>
-			<span data-testid="audience">{goals.audience}</span>
+			<span data-testid="audience">{brief.audience}</span>
 			<span data-testid="status">{status}</span>
-			<button type="button" onClick={() => setGoal('audience', 'Reviewers')}>
+			<button type="button" onClick={() => setField('audience', 'Reviewers')}>
 				edit
 			</button>
 		</div>
 	);
 }
 
-describe('DocGoalsProvider', () => {
+describe('DocBriefProvider', () => {
 	beforeEach(() => {
 		vi.useFakeTimers({ shouldAdvanceTime: true });
 	});
@@ -133,20 +133,20 @@ describe('DocGoalsProvider', () => {
 		vi.useRealTimers();
 	});
 
-	it('loads the to-do stored with the document', async () => {
+	it('loads the brief stored with the document', async () => {
 		const editor = stubEditorAPI({
-			[DOC_GOALS_SETTING_KEY]: JSON.stringify({
+			[DOC_BRIEF_SETTING_KEY]: JSON.stringify({
 				audience: 'First-year students',
-				guardrails: '',
-				comments: '',
+				purpose: '',
+				constraints: '',
 			}),
 		});
 
 		render(
 			<EditorContext.Provider value={editor.api}>
-				<DocGoalsProvider>
+				<DocBriefProvider>
 					<Probe />
-				</DocGoalsProvider>
+				</DocBriefProvider>
 			</EditorContext.Provider>,
 		);
 
@@ -156,7 +156,7 @@ describe('DocGoalsProvider', () => {
 			);
 		});
 		expect(editor.getDocumentSetting).toHaveBeenCalledWith(
-			DOC_GOALS_SETTING_KEY,
+			DOC_BRIEF_SETTING_KEY,
 		);
 	});
 
@@ -165,9 +165,9 @@ describe('DocGoalsProvider', () => {
 
 		render(
 			<EditorContext.Provider value={editor.api}>
-				<DocGoalsProvider>
+				<DocBriefProvider>
 					<Probe />
-				</DocGoalsProvider>
+				</DocBriefProvider>
 			</EditorContext.Provider>,
 		);
 		await waitFor(() => {
@@ -187,27 +187,27 @@ describe('DocGoalsProvider', () => {
 		});
 
 		expect(editor.setDocumentSetting).toHaveBeenCalledTimes(1);
-		expect(parseDocGoals(editor.stored[DOC_GOALS_SETTING_KEY])).toEqual({
+		expect(parseDocBrief(editor.stored[DOC_BRIEF_SETTING_KEY])).toEqual({
 			audience: 'Reviewers',
-			guardrails: '',
-			comments: '',
+			purpose: '',
+			constraints: '',
 		});
 		expect(screen.getByTestId('status').textContent).toBe('ready');
 	});
 
 	// The empty initial state must never reach the document: it would blank out
-	// a to-do the writer saved in an earlier session.
+	// a brief the writer saved in an earlier session.
 	it('does not write anything before the stored value has loaded', async () => {
 		const editor = stubEditorAPI();
 		// A read that hasn't come back yet — the window in which an edit could
-		// otherwise overwrite a to-do saved in an earlier session.
+		// otherwise overwrite a brief saved in an earlier session.
 		editor.getDocumentSetting.mockReturnValue(new Promise(() => {}));
 
 		render(
 			<EditorContext.Provider value={editor.api}>
-				<DocGoalsProvider>
+				<DocBriefProvider>
 					<Probe />
-				</DocGoalsProvider>
+				</DocBriefProvider>
 			</EditorContext.Provider>,
 		);
 		expect(screen.getByTestId('status').textContent).toBe('loading');
@@ -227,9 +227,9 @@ describe('DocGoalsProvider', () => {
 
 		const view = render(
 			<EditorContext.Provider value={editor.api}>
-				<DocGoalsProvider>
+				<DocBriefProvider>
 					<Probe />
-				</DocGoalsProvider>
+				</DocBriefProvider>
 			</EditorContext.Provider>,
 		);
 		await waitFor(() => {
@@ -246,16 +246,16 @@ describe('DocGoalsProvider', () => {
 		});
 	});
 
-	it('reports a failed write so the writer knows the to-do is session-only', async () => {
+	it('reports a failed write so the writer knows the brief is session-only', async () => {
 		vi.spyOn(console, 'error').mockImplementation(() => {});
 		const editor = stubEditorAPI();
 		editor.setDocumentSetting.mockRejectedValue(new Error('read-only doc'));
 
 		render(
 			<EditorContext.Provider value={editor.api}>
-				<DocGoalsProvider>
+				<DocBriefProvider>
 					<Probe />
-				</DocGoalsProvider>
+				</DocBriefProvider>
 			</EditorContext.Provider>,
 		);
 		await waitFor(() => {

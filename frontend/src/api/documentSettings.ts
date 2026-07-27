@@ -23,7 +23,7 @@ export type DocumentSettingsAPI = Pick<
 
 /**
  * @param namespace Identifies the document these settings belong to, so two
- *   documents open in the same browser don't share one to-do.
+ *   documents open in the same browser don't share one brief.
  */
 export function localStorageDocumentSettings(
 	namespace: string,

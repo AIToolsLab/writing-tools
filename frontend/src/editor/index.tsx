@@ -27,7 +27,7 @@ export function EditorScreen({
 	const isDemo = mode === OverallMode.demo;
 
 	// Identifies "this document" for both the Lexical draft and the sidebar's
-	// document settings, so a per-task editor keeps its own to-do.
+	// document settings, so a per-task editor keeps its own brief.
 	const storageKey = taskID ? `doc-${taskID}` : 'doc';
 
 	// This is a reference to the current document context

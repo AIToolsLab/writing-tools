@@ -11,11 +11,11 @@
 }
 
 /*
- * The shared to-do section, above the transcript. It keeps its own height (one
+ * The shared brief section, above the transcript. It keeps its own height (one
  * header line collapsed) and never squeezes the messages; expanded, it scrolls
  * inside this bar rather than pushing the conversation off screen.
  */
-.todoBar {
+.briefBar {
 	flex-shrink: 0;
 	padding: 12px 16px 0;
 	border-bottom: 1px solid rgba(0, 0, 0, 0.08);
@@ -23,7 +23,7 @@
 	overflow-y: auto;
 }
 
-.todoBar > section {
+.briefBar > section {
 	margin-bottom: 12px;
 }
 

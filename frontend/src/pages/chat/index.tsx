@@ -18,9 +18,9 @@ import { streamTextDeltas } from '@/api/generate';
 import { chatLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice } from '@/components/errorNotice';
-import ToDoSection from '@/components/toDoSection';
+import BriefSection from '@/components/briefSection';
 import { ChatContext } from '@/contexts/chatContext';
-import { formatDocGoalsForPrompt, useDocGoals } from '@/contexts/docGoalsContext';
+import { formatDocBriefForPrompt, useDocBrief } from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
@@ -47,20 +47,20 @@ const CHAT_GREETING_MESSAGE: ChatMessage = {
 /**
  * Renders the document context into the message the model reads.
  *
- * `goals` is the writer's document to-do, already prompt-formatted (null when
+ * `brief` is the writer's document brief, already prompt-formatted (null when
  * they haven't set one). It rides along with the document context because both
  * describe the document rather than the turn, and both are refreshed together
  * on every send.
  */
 export function docContextMessageContent(
 	docContext: DocContext,
-	goals: string | null = null,
+	brief: string | null = null,
 ): string {
 	const document =
 		docContext.selectedText === ''
 			? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
 			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
-	return goals ? `${goals}\n\n${document}` : document;
+	return brief ? `${brief}\n\n${document}` : document;
 }
 
 /**
@@ -72,11 +72,11 @@ export function docContextMessageContent(
 export function withCurrentDocContext(
 	chatMessages: ChatMessage[],
 	docContext: DocContext,
-	goals: string | null = null,
+	brief: string | null = null,
 ): ChatMessage[] {
 	const docContextMessage: ChatMessage = {
 		role: 'user',
-		content: docContextMessageContent(docContext, goals),
+		content: docContextMessageContent(docContext, brief),
 	};
 	if (chatMessages.length === 0) {
 		return [CHAT_SYSTEM_MESSAGE, docContextMessage, CHAT_GREETING_MESSAGE];
@@ -89,12 +89,12 @@ export function withCurrentDocContext(
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const editorAPI = useContext(EditorContext);
-	const { goals } = useDocGoals();
+	const { brief } = useDocBrief();
 	const log = useLog();
-	// Read at send time, like the document context is, so a to-do the writer
+	// Read at send time, like the document context is, so a brief the writer
 	// just edited applies to the very next message.
-	const goalsRef = useRef(goals);
-	goalsRef.current = goals;
+	const briefRef = useRef(brief);
+	briefRef.current = brief;
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -156,7 +156,7 @@ export default function Chat() {
 				withCurrentDocContext(
 					[],
 					docContext,
-					formatDocGoalsForPrompt(goalsRef.current),
+					formatDocBriefForPrompt(briefRef.current),
 				),
 			);
 		})();
@@ -205,7 +205,7 @@ export default function Chat() {
 			...withCurrentDocContext(
 				chatMessages,
 				docContext,
-				formatDocGoalsForPrompt(goalsRef.current),
+				formatDocBriefForPrompt(briefRef.current),
 			),
 			{ role: 'user', content: text },
 			{ role: 'assistant', content: '' },
@@ -278,10 +278,10 @@ export default function Chat() {
 
 	return (
 		<div className={classes.app}>
-			{/* The document's to-do — same section as on Revise, same stored
+			{/* The document's brief — same section as on Revise, same stored
 			    values; collapsed here so it costs one line above the transcript. */}
-			<div className={classes.todoBar}>
-				<ToDoSection page="chat" />
+			<div className={classes.briefBar}>
+				<BriefSection page="chat" />
 			</div>
 
 			<div className={classes.chatPanel}>

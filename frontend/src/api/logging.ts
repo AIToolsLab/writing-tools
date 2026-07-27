@@ -40,8 +40,8 @@ import type { LogFn } from '@/hooks/useLog';
  *   3 — Error events carry an optional `code` (the provider's error code, e.g.
  *       `insufficient_quota`), and their `error` field now holds the provider's
  *       message rather than the sentence shown to the user.
- *   4 — Added the document-scoped to-do (audience / guardrails / comments) and
- *       its `goal_edited` event, which any page can emit.
+ *   4 — Added the document-scoped brief (audience / purpose / constraints) and
+ *       its `brief_edited` event, which any page can emit.
  */
 export const LOG_SCHEMA_VERSION = 4;
 
@@ -185,7 +185,7 @@ export const chatLog = {
 };
 
 /**
- * The document to-do (audience / guardrails / comments), which is edited from a
+ * The document brief (audience / purpose / constraints), which is edited from a
  * section shared by every page rather than owned by one of them — so unlike the
  * helpers above, the page is a parameter.
  *
@@ -194,14 +194,14 @@ export const chatLog = {
  * for it (see `@/consent` `KEY_MIN_LEVEL`); it reaches the study logs anyway as
  * part of the `docContext`-adjacent prompts each page already logs.
  */
-export const docGoalsLog = {
-	/** The writer left a to-do field after editing it. */
-	goalEdited(
+export const docBriefLog = {
+	/** The writer left a brief field after changing it. */
+	fieldEdited(
 		log: LogFn,
 		page: LogPage,
 		data: { field: string; hasContent: boolean },
 	) {
-		return emit(log, page, 'goal_edited', data);
+		return emit(log, page, 'brief_edited', data);
 	},
 };
 
