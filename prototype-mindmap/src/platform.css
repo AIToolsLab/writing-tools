@@ -37,33 +37,93 @@
 }
 
 .platform-choice {
-  grid-template-columns: minmax(240px, 360px) minmax(240px, 360px);
+  grid-template-columns: minmax(260px, 368px) minmax(260px, 368px);
+  gap: 18px;
 }
 
 .platform-choice h1 {
   grid-column: 1 / -1;
+  margin-bottom: 6px;
 }
 
+/* Two rows so the timestamp pins to the bottom of both cards regardless of how
+   many lines the document name wraps to — otherwise the meta line floats and the
+   pair reads as ragged. */
 .platform-choice button {
   display: grid;
-  gap: 8px;
+  grid-template-rows: 1fr auto;
+  gap: 12px;
   width: 100%;
-  min-height: 110px;
+  min-height: 132px;
+  padding: 18px;
   text-align: left;
+  border-radius: 14px;
+  border-color: #ddd7c9;
+  box-shadow: 0 1px 2px rgba(37, 35, 31, 0.04);
+  transition:
+    border-color 120ms ease,
+    box-shadow 120ms ease,
+    transform 120ms ease;
+}
+
+.platform-choice strong {
+  align-self: start;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.platform-choice span {
+  align-self: end;
+  color: #6e695f;
+  font-size: 12px;
+  /* Times sit at the same optical width, so the two cards line up. */
+  font-variant-numeric: tabular-nums;
+}
+
+/* Continuing is the safe, expected path; starting new silently discards the saved
+   mindmap. The accent marks the recoverable choice rather than shouting about the
+   destructive one — a warning would need a new i18n string. */
+.platform-choice-continue {
+  border-color: #c3cdd4;
+}
+
+.platform-choice-continue strong {
+  color: #1c5f83;
 }
 
 .platform-choice button:hover {
   border-color: #2679a8;
-  box-shadow: 0 5px 18px rgba(39, 83, 106, 0.12);
+  box-shadow: 0 6px 20px rgba(39, 83, 106, 0.14);
+  transform: translateY(-1px);
 }
 
-.platform-choice span {
-  color: #6e695f;
-  font-size: 12px;
+/* Keyboard parity: the old rule styled hover only, leaving tab navigation with
+   nothing but the UA default against a tinted background. */
+.platform-choice button:focus-visible {
+  outline: 2px solid #2679a8;
+  outline-offset: 2px;
+  border-color: #2679a8;
+}
+
+.platform-choice button:active {
+  transform: translateY(0);
+  box-shadow: 0 1px 2px rgba(37, 35, 31, 0.08);
 }
 
 @media (max-width: 680px) {
   .platform-choice {
     grid-template-columns: minmax(240px, 1fr);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platform-choice button {
+    transition: none;
+  }
+
+  .platform-choice button:hover,
+  .platform-choice button:active {
+    transform: none;
   }
 }

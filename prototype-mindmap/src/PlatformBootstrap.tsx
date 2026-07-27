@@ -283,7 +283,7 @@ function PlatformBootstrapContent() {
     return (
       <main className="platform-gate platform-choice">
         <h1>{t("Which mindmap would you like to open?")}</h1>
-        <button type="button" onClick={() => chooseContinue(boot.session)}>
+        <button type="button" className="platform-choice-continue" onClick={() => chooseContinue(boot.session)}>
           <strong>{t("Continue “{document}”").replace("{document}", t(boot.saved.documentLabel))}</strong>
           <span>{t("Last saved {time}").replace("{time}", formatTime(boot.saved.lastSavedAt, t("time unknown")))}</span>
         </button>
