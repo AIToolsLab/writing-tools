@@ -128,6 +128,16 @@ describe("reader translation scheduling", () => {
     expect(parseReaderDisplayCache(window.localStorage.getItem(DISPLAY_CACHE_STORAGE_KEY)).entries).toEqual([["zh\u0000author wording", "译文"]]);
   });
 
+  it("does not schedule reader translation when AI access is disabled", async () => {
+    translateMock.mockResolvedValue("译文");
+    act(() => root.render(createElement(ReaderViewProvider, { disabled: true }, createElement(ReaderProbe, { source: "author wording", onReader }))));
+    await flushReaderEffects();
+    act(() => current!.setTargetLocale("zh"));
+    await flushReaderEffects();
+    expect(translateMock).not.toHaveBeenCalled();
+    expect(current?.targetLocale).toBeNull();
+  });
+
   it("discards a stale language completion before it can enter the display cache", async () => {
     let resolveTranslation: ((value: string) => void) | undefined;
     translateMock.mockImplementationOnce(() => new Promise<string>((resolve) => { resolveTranslation = resolve; }));

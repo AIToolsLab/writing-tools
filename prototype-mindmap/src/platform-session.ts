@@ -68,8 +68,15 @@ export function grantFromHash(hash: string): string | null {
   const parts = hash.replace(/^#/, "").split("&");
   for (const part of parts) {
     const [rawKey, ...rawValue] = part.split("=");
-    if (decodeURIComponent(rawKey || "") !== "wt_grant") continue;
-    const value = decodeURIComponent(rawValue.join("="));
+    let key: string;
+    let value: string;
+    try {
+      key = decodeURIComponent(rawKey || "");
+      value = decodeURIComponent(rawValue.join("="));
+    } catch {
+      continue;
+    }
+    if (key !== "wt_grant") continue;
     return value || null;
   }
   return null;
@@ -79,7 +86,13 @@ export function hashWithoutGrant(hash: string): string {
   const kept = hash
     .replace(/^#/, "")
     .split("&")
-    .filter((part) => decodeURIComponent(part.split("=")[0] || "") !== "wt_grant")
+    .filter((part) => {
+      try {
+        return decodeURIComponent(part.split("=")[0] || "") !== "wt_grant";
+      } catch {
+        return true;
+      }
+    })
     .filter(Boolean);
   return kept.length ? `#${kept.join("&")}` : "";
 }
@@ -207,8 +220,8 @@ export async function exchangeGrant(
   }
 
   const hasDocRead = scopes.includes("doc:read");
-  const doc = hasDocRead && body.doc !== null ? validDocContext(body.doc) : null;
-  if (hasDocRead && body.doc !== null && !doc) {
+  const doc = hasDocRead && body.doc != null ? validDocContext(body.doc) : null;
+  if (hasDocRead && body.doc != null && !doc) {
     throw new GrantExchangeError("invalid", "Writing Tools returned an invalid document snapshot.");
   }
   const now = (options.now ?? Date.now)();

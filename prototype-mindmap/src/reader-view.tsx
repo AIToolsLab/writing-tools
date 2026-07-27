@@ -149,7 +149,7 @@ export function useReaderText(source: string): string {
   return reader.translate(source);
 }
 
-export function ReaderViewProvider({ children, providerRuntime }: { children?: ReactNode; providerRuntime?: ProviderRuntimeConfig }) {
+export function ReaderViewProvider({ children, providerRuntime, disabled = false }: { children?: ReactNode; providerRuntime?: ProviderRuntimeConfig; disabled?: boolean }) {
   const [lastTargetLocale, setLastTargetLocale] = useState<string | null>(() => restoreReaderLanguage(typeof window === "undefined" ? undefined : window.localStorage));
   // A remembered preference must never reopen a session in a read-only display mode.
   const [targetLocale, setActiveTargetLocale] = useState<string | null>(null);
@@ -165,17 +165,17 @@ export function ReaderViewProvider({ children, providerRuntime }: { children?: R
   const cacheValues = useMemo(() => readerCacheRecord(cache), [cache]);
 
   const prefetch = useCallback((sources: readonly string[]) => {
-    if (!targetLocale) return;
+    if (disabled || !targetLocale) return;
     setQueued((current) => {
       const unavailable = new Set([...inFlight.current, ...failed.current]);
       const next = enqueueReaderRequests(current, sources, targetLocale, cacheValues, unavailable);
       return next.size === current.size ? current : next;
     });
-  }, [cacheValues, targetLocale]);
+  }, [cacheValues, disabled, targetLocale]);
 
   useEffect(() => {
     const locale = targetLocale;
-    if (!locale || running.current || queued.size === 0) return;
+    if (disabled || !locale || running.current || queued.size === 0) return;
     running.current = true;
     const requestGeneration = generation.current;
     const requestInFlight = inFlight.current;
@@ -219,7 +219,7 @@ export function ReaderViewProvider({ children, providerRuntime }: { children?: R
       running.current = false;
       setQueueTick((value) => value + 1);
     })();
-  }, [providerRuntime, queueTick, queued, targetLocale]);
+  }, [disabled, providerRuntime, queueTick, queued, targetLocale]);
 
   const translate = useCallback((source: string) => {
     if (!targetLocale || !source) return source;
@@ -237,12 +237,19 @@ export function ReaderViewProvider({ children, providerRuntime }: { children?: R
   const setTargetLocale = useCallback((locale: string | null) => {
     resetRequestGeneration();
     setRejection(null);
-    setActiveTargetLocale(locale);
+    setActiveTargetLocale(disabled ? null : locale);
+    if (disabled) return;
     if (locale) {
       setLastTargetLocale(locale);
       try { if (typeof window !== "undefined") window.localStorage.setItem(READER_LANGUAGE_STORAGE_KEY, locale); } catch { /* preference is optional */ }
     }
-  }, [resetRequestGeneration]);
+  }, [disabled, resetRequestGeneration]);
+  useEffect(() => {
+    if (!disabled) return;
+    resetRequestGeneration();
+    setRejection(null);
+    setActiveTargetLocale(null);
+  }, [disabled, resetRequestGeneration]);
   const returnToOriginal = useCallback(() => setTargetLocale(null), [setTargetLocale]);
   const clearDisplayCache = useCallback(() => {
     resetRequestGeneration();

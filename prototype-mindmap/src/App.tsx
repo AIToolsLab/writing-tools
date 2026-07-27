@@ -2517,6 +2517,14 @@ function loadPersistedSession(storage?: Pick<Storage, "getItem">): PersistedSess
 export function savedMindmapSummary(storage: Pick<Storage, "getItem">): SavedMindmapSummary | null {
   const saved = loadPersistedSession(storage);
   if (!saved) return null;
+  const hasMessages = Array.isArray(saved.msgs) && saved.msgs.length > 0;
+  const hasDraft = typeof saved.draftText === "string" && saved.draftText.trim().length > 0;
+  const hasMap =
+    saved.map !== null &&
+    typeof saved.map === "object" &&
+    ((Array.isArray(saved.map.units) && saved.map.units.length > 0) ||
+      (Array.isArray(saved.map.connections) && saved.map.connections.length > 0));
+  if (!hasMessages && !hasDraft && !hasMap) return null;
   return {
     documentLabel: saved.draftSource?.documentLabel || "Saved mindmap",
     lastSavedAt: saved.lastSavedAt,
@@ -4133,7 +4141,7 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
           </div>
 
           <div className="input-area">
-            {aiAccessDenied && <div className="error-banner" role="alert">This account is not permitted to use AI features. Your draft and map remain available.</div>}
+            {aiAccessDenied && <div className="error-banner" role="alert">{t("This account is not permitted to use AI features. Your draft and map remain available.")}</div>}
             {error && <div className="error-banner">{error}</div>}
             {stickyDraftFocus && (
               <div className="focus-chip" role="status">
@@ -4268,7 +4276,7 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
             <span className="draft-panel-title">{t("Draft")}</span>
             {draftSource && (
               <span className="draft-source-label">
-                Snapshot of {draftSource.documentLabel} captured at launch. Edits here do not sync back.
+                {t("Snapshot of {document} captured at launch. Edits here do not sync back.").replace("{document}", t(draftSource.documentLabel))}
               </span>
             )}
             <button

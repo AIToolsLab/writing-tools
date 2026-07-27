@@ -65,6 +65,7 @@ describe("persisted launcher snapshot metadata", () => {
           documentLabel: "Essay.docx",
           capturedAt: 10,
         },
+        draftText: "A real saved draft",
         lastSavedAt: 20,
       }) : null,
     };
@@ -76,11 +77,38 @@ describe("persisted launcher snapshot metadata", () => {
 
   it("migrates older saved sessions to a safe fallback label", () => {
     const storage = {
-      getItem: () => JSON.stringify({ version: 6 }),
+      getItem: () => JSON.stringify({ version: 6, draftText: "Legacy work" }),
     };
     expect(savedMindmapSummary(storage)).toEqual({
       documentLabel: "Saved mindmap",
       lastSavedAt: undefined,
+    });
+  });
+
+  it("does not offer an untouched auto-persisted session as saved work", () => {
+    const storage = {
+      getItem: () => JSON.stringify({
+        version: 7,
+        msgs: [],
+        draftText: "",
+        map: { units: [], positions: {}, connections: [] },
+        lastSavedAt: 20,
+      }),
+    };
+    expect(savedMindmapSummary(storage)).toBeNull();
+  });
+
+  it("recognizes a map as real work even when chat and draft are empty", () => {
+    const storage = {
+      getItem: () => JSON.stringify({
+        version: 7,
+        msgs: [],
+        draftText: "",
+        map: { units: [{ id: "card-1" }], positions: {}, connections: [] },
+      }),
+    };
+    expect(savedMindmapSummary(storage)).toMatchObject({
+      documentLabel: "Saved mindmap",
     });
   });
 });

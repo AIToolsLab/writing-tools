@@ -20,7 +20,7 @@ import {
   type PlatformSession,
 } from "./platform-session";
 import { ReaderViewProvider, useReaderView } from "./reader-view";
-import { UiLocaleProvider } from "./ui-locale";
+import { UiLocaleProvider, useUiLocale } from "./ui-locale";
 
 type BlockingReason =
   | "launch_required"
@@ -52,8 +52,8 @@ function ReaderMutationBoundary({ children }: { children: ReactNode }) {
   );
 }
 
-function formatTime(value: number | undefined): string {
-  if (!value) return "time unknown";
+function formatTime(value: number | undefined, unknownLabel: string): string {
+  if (!value) return unknownLabel;
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -133,6 +133,15 @@ function initialBootState(): BootState {
 }
 
 export default function PlatformBootstrap() {
+  return (
+    <UiLocaleProvider>
+      <PlatformBootstrapContent />
+    </UiLocaleProvider>
+  );
+}
+
+function PlatformBootstrapContent() {
+  const { t } = useUiLocale();
   const [boot, setBoot] = useState<BootState>(initialBootState);
   const [accessDenied, setAccessDenied] = useState(false);
   const exchangeStarted = useRef(false);
@@ -202,18 +211,18 @@ export default function PlatformBootstrap() {
   }, [boot, onAccessError]);
 
   if (boot.kind === "connecting") {
-    return <main className="platform-gate"><h1>Connecting to Writing Tools…</h1></main>;
+    return <main className="platform-gate"><h1>{t("Connecting to Writing Tools…")}</h1></main>;
   }
 
   if (boot.kind === "blocked") {
     const copy = blockedCopy(boot.reason);
     return (
       <main className="platform-gate">
-        <h1>{copy.title}</h1>
-        <p>{copy.body}</p>
+        <h1>{t(copy.title)}</h1>
+        <p>{t(copy.body)}</p>
         {boot.detail && <p className="platform-detail">{boot.detail}</p>}
         {boot.reason === "network" && (
-          <button type="button" onClick={() => window.location.reload()}>Retry</button>
+          <button type="button" onClick={() => window.location.reload()}>{t("Retry")}</button>
         )}
       </main>
     );
@@ -223,34 +232,32 @@ export default function PlatformBootstrap() {
     const hasIncomingDocument = boot.session.doc !== null;
     return (
       <main className="platform-gate platform-choice">
-        <h1>Which mindmap would you like to open?</h1>
+        <h1>{t("Which mindmap would you like to open?")}</h1>
         <button type="button" onClick={() => chooseContinue(boot.session)}>
-          <strong>Continue “{boot.saved.documentLabel}”</strong>
-          <span>Last saved {formatTime(boot.saved.lastSavedAt)}</span>
+          <strong>{t("Continue “{document}”").replace("{document}", t(boot.saved.documentLabel))}</strong>
+          <span>{t("Last saved {time}").replace("{time}", formatTime(boot.saved.lastSavedAt, t("time unknown")))}</span>
         </button>
         <button type="button" onClick={() => chooseStartNew(boot.session)}>
           <strong>
             {hasIncomingDocument
-              ? `Start new from “${incomingLabel(boot.session)}”`
-              : "Start a new empty mindmap—no document shared"}
+              ? t("Start new from “{document}”").replace("{document}", t(incomingLabel(boot.session)))
+              : t("Start a new empty mindmap—no document shared")}
           </strong>
-          <span>Launched {formatTime(boot.session.capturedAt)}</span>
+          <span>{t("Launched {time}").replace("{time}", formatTime(boot.session.capturedAt, t("time unknown")))}</span>
         </button>
       </main>
     );
   }
 
   return (
-    <UiLocaleProvider>
-      <ReaderViewProvider providerRuntime={providerRuntime}>
-        <ReaderMutationBoundary>
-          <App
-            providerRuntime={providerRuntime}
-            initialDraft={boot.initialDraft}
-            aiAccessDenied={accessDenied}
-          />
-        </ReaderMutationBoundary>
-      </ReaderViewProvider>
-    </UiLocaleProvider>
+    <ReaderViewProvider providerRuntime={providerRuntime} disabled={accessDenied}>
+      <ReaderMutationBoundary>
+        <App
+          providerRuntime={providerRuntime}
+          initialDraft={boot.initialDraft}
+          aiAccessDenied={accessDenied}
+        />
+      </ReaderMutationBoundary>
+    </ReaderViewProvider>
   );
 }

@@ -31,7 +31,6 @@ import type React from 'react';
 import { PageName } from '@/contexts/pageContext';
 import Chat from './chat';
 import Draft from './draft';
-import { isFlagEnabled } from './flags';
 import Revise from './revise';
 import Tools from './tools';
 
@@ -87,7 +86,6 @@ export const PAGES: PageDef[] = [
 		title: 'Tools',
 		hint: 'Launch writing tools',
 		tier: 'lab',
-		enabled: () => isFlagEnabled('tool-launcher'),
 		render: () => <Tools />,
 	},
 ];

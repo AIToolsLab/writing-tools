@@ -163,5 +163,7 @@
   "Working...": "处理中…",
   "Making sure this stays in your words...": "正在确保内容仍然来自你的话…",
   "Asking a focused question instead...": "改为提出一个聚焦问题…",
-  "I couldn’t complete that response reliably. You can rephrase or try again.": "我无法可靠地完成该回复。你可以换一种说法或重试。"
+  "I couldn’t complete that response reliably. You can rephrase or try again.": "我无法可靠地完成该回复。你可以换一种说法或重试。",
+  "This account is not permitted to use AI features. Your draft and map remain available.": "此账户无权使用 AI 功能。你的草稿和思维导图仍然可用。",
+  "Snapshot of {document} captured at launch. Edits here do not sync back.": "启动时捕获的 {document} 快照。此处的编辑不会同步回原文档。"
 }

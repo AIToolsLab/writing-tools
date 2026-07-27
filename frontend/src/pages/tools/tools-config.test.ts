@@ -21,5 +21,6 @@ describe('mindmap tool registration', () => {
 		const mindmap = FIRST_PARTY_TOOLS.find((tool) => tool.id === 'mindmap');
 		expect(mindmap?.scopes).toEqual(['openai:chat', 'doc:read']);
 		expect(mindmap?.scopes).not.toContain('log:write');
+		expect(FIRST_PARTY_TOOLS.map((tool) => tool.id)).toEqual(['mindmap']);
 	});
 });

@@ -38,6 +38,12 @@ describe("platform launcher session", () => {
     expect(hashWithoutGrant("#view=map&wt_grant=a%20b&lang=en")).toBe("#view=map&lang=en");
   });
 
+  it("ignores malformed fragment encoding instead of throwing during boot", () => {
+    expect(() => grantFromHash("#%")).not.toThrow();
+    expect(grantFromHash("#%")).toBeNull();
+    expect(hashWithoutGrant("#%&view=map")).toBe("#%&view=map");
+  });
+
   it("exchanges with omitted credentials and accepts a nullable document", async () => {
     const fetcher = vi.fn().mockResolvedValue(response({
       access_token: "wtk_token",
@@ -85,6 +91,18 @@ describe("platform launcher session", () => {
         doc: null,
       })),
     })).rejects.toMatchObject({ code: "invalid" });
+  });
+
+  it("accepts a missing document field as an empty optional snapshot", async () => {
+    const session = await exchangeGrant("wtg_grant", {
+      fetcher: vi.fn().mockResolvedValue(response({
+        access_token: "wtk_token",
+        expires_in: 60,
+        client_id: "mindmap",
+        scopes: ["openai:chat", "doc:read"],
+      })),
+    });
+    expect(session.doc).toBeNull();
   });
 
   it("validates and concatenates a granted document while dropping contextData", async () => {
