@@ -82,8 +82,12 @@ export interface AppAuthSession {
 	refreshUser: () => Promise<void>;
 	/** Apply the authoritative result of a consent update without re-fetching. */
 	applyConsentSnapshot: (snapshot: ConsentSnapshot) => void;
-	/** Temporarily use no logging while another tab's update is re-fetched. */
-	invalidateConsent: () => void;
+	/**
+	 * True while `loggingConsent` is the provisional `none` held during another
+	 * tab's consent change, rather than a level the user chose. Gate anything
+	 * irreversible-on-withdrawal (not capture itself — that must stop either way).
+	 */
+	consentPending: boolean;
 	logout: () => Promise<void>;
 }
 
@@ -104,7 +108,7 @@ const DEFAULT_SESSION: AppAuthSession = {
 	cancelLogin: () => {},
 	refreshUser: () => Promise.resolve(),
 	applyConsentSnapshot: () => {},
-	invalidateConsent: () => {},
+	consentPending: false,
 	logout: () => Promise.resolve(),
 };
 
@@ -116,19 +120,21 @@ export const useAppAuth = (): AppAuthSession => useContext(AppAuthContext);
 
 function BetterAuthProvider({ children }: { children: ReactNode }) {
 	const device = useDeviceAuth();
-	const { refreshUser, invalidateConsent } = device;
+	const { reconcileConsentFromOtherTab } = device;
 
 	// Cross-tab consent propagation. A consent change on the standalone account page
 	// (a separate tab) would otherwise leave this tab's session — and thus the PostHog
 	// bridge and useLog — logging at the pre-change level. Refresh when another tab
-	// broadcasts a change. refreshUser no-ops when there's no active session.
+	// broadcasts a change. Fails closed for the duration: the reconcile drops this
+	// tab to `none` before re-fetching, so a refresh that never lands leaves the
+	// tab silent rather than logging at the pre-change level. No-ops when there's
+	// no active session.
 	useEffect(
 		() =>
 			onConsentChangeFromOtherTab(() => {
-				invalidateConsent();
-				void refreshUser();
+				void reconcileConsentFromOtherTab();
 			}),
-		[invalidateConsent, refreshUser],
+		[reconcileConsentFromOtherTab],
 	);
 
 	const session = useMemo<AppAuthSession>(() => {
@@ -178,7 +184,7 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 			cancelLogin: device.reset,
 			refreshUser: device.refreshUser,
 			applyConsentSnapshot: device.applyConsentSnapshot,
-			invalidateConsent: device.invalidateConsent,
+			consentPending: device.consentPending,
 			logout: device.logout,
 		};
 	}, [device]);
@@ -221,7 +227,7 @@ function DemoAuthProvider({ children }: { children: ReactNode }) {
 			cancelLogin: () => {},
 			refreshUser: () => Promise.resolve(),
 			applyConsentSnapshot: () => {},
-			invalidateConsent: () => {},
+			consentPending: false,
 			logout: () => Promise.resolve(),
 		}),
 		[anon],

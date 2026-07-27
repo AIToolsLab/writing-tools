@@ -492,12 +492,13 @@ function AppWithProviders({
  * Bridges logging consent → PostHog. Mounted inside both PostHogProvider and
  * AppAuthProvider. Opts capturing in and identifies the user (by stable Better
  * Auth id, matching server-side log keying + deletion) once an authenticated
- * session at consent >= 'usage' loads; otherwise stays opted out and clears any
- * prior identity. Renders nothing.
+ * session at consent >= 'usage' loads; otherwise stays opted out. Renders
+ * nothing.
  */
 function PostHogConsentBridge(): null {
 	const posthog = usePostHog();
-	const { isAuthenticated, loggingConsent, user } = useAppAuth();
+	const { isAuthenticated, loggingConsent, user, consentPending } =
+		useAppAuth();
 
 	useEffect(() => {
 		if (!posthog) return;
@@ -510,11 +511,25 @@ function PostHogConsentBridge(): null {
 		if (analyticsAllowed && user?.id) {
 			posthog.identify(user.id);
 			posthog.opt_in_capturing();
-		} else {
-			posthog.opt_out_capturing();
-			posthog.reset(); // drop any identity captured under a prior session
+			return;
 		}
-	}, [posthog, isAuthenticated, loggingConsent, user?.id]);
+
+		// Opting out is unconditional — whatever the reason for being here, this
+		// tab must stop capturing now.
+		posthog.opt_out_capturing();
+
+		// reset() is a separate question, because it is about *identity*, not
+		// capture: it rotates the anonymous distinct_id and drops feature flags and
+		// any session recording. Skip it while a cross-tab change is still being
+		// reconciled, where `loggingConsent` is a provisional `none` this tab
+		// assumed rather than a level the user chose. Every ping passes through
+		// that state, including a consent *raise*, so resetting on it would churn
+		// a person profile for a user who withdrew nothing. Once the refresh lands
+		// and `none` turns out to be real, this effect re-runs and does reset.
+		if (!consentPending) {
+			posthog.reset(); // drop identity for a withdrawn or ended session
+		}
+	}, [posthog, isAuthenticated, loggingConsent, user?.id, consentPending]);
 
 	return null;
 }

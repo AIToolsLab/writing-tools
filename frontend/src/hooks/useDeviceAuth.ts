@@ -54,8 +54,17 @@ export interface UseDeviceAuth extends DeviceAuthState {
 	refreshUser: () => Promise<void>;
 	/** Apply the authoritative consent response from this session's own save. */
 	applyConsentSnapshot: (snapshot: ConsentSnapshot) => void;
-	/** Fail closed while a consent change from another tab is being reconciled. */
-	invalidateConsent: () => void;
+	/**
+	 * Fail closed, then re-fetch, after another tab changed consent. Resolves once
+	 * the level in `user` is authoritative again.
+	 */
+	reconcileConsentFromOtherTab: () => Promise<void>;
+	/**
+	 * True while the above is in flight — i.e. `loggingConsent` is the provisional
+	 * `none`, not a level the user chose. Consumers that do something irreversible
+	 * on withdrawal (PostHog identity reset) must wait this out.
+	 */
+	consentPending: boolean;
 	/** Best-effort server sign-out, then clear local state. */
 	logout: () => Promise<void>;
 }
@@ -64,6 +73,9 @@ const INITIAL: DeviceAuthState = { status: 'idle' };
 
 export function useDeviceAuth(): UseDeviceAuth {
 	const [state, setState] = useState<DeviceAuthState>(INITIAL);
+	// Kept outside DeviceAuthState: it describes how much to trust the consent
+	// level in `user`, not where the device flow is.
+	const [consentPending, setConsentPending] = useState(false);
 	const abortRef = useRef<AbortController | null>(null);
 	// Mirror the token in a ref so logout() can read it without a stale closure.
 	const tokenRef = useRef<string | undefined>(undefined);
@@ -115,10 +127,19 @@ export function useDeviceAuth(): UseDeviceAuth {
 		});
 	}, []);
 
-	// A different tab may have lowered consent. Until its session refresh returns,
-	// use the most privacy-protective level so this tab cannot keep analytics on
-	// because of a stale cached user.
-	const invalidateConsent = useCallback(() => {
+	// A different tab changed consent, possibly lowering it. Drop to the most
+	// privacy-protective level first so this tab cannot keep logging on a stale
+	// cached user, then re-fetch the authoritative one.
+	//
+	// The two steps are one function rather than two calls at the call site so the
+	// provisional window has a defined end: `consentPending` brackets it exactly.
+	// A consumer cannot otherwise distinguish this transient `none` from a level
+	// the user actually chose, and acting on the difference matters (see the
+	// PostHog bridge in pages/app/index.tsx).
+	const pendingReconciles = useRef(0);
+	const reconcileConsentFromOtherTab = useCallback(async () => {
+		pendingReconciles.current += 1;
+		setConsentPending(true);
 		setState((s) => {
 			if (s.status !== 'success' || !s.user) return s;
 			return {
@@ -126,7 +147,17 @@ export function useDeviceAuth(): UseDeviceAuth {
 				user: { ...s.user, loggingConsent: 'none' },
 			};
 		});
-	}, []);
+		try {
+			await refreshUser();
+		} finally {
+			// Counted, not a bare boolean: with two pings in flight the first to
+			// finish would otherwise declare the level authoritative while the
+			// second is still provisional. A failed refresh still clears — we stay
+			// at `none`, and that is now a settled answer, not a pending one.
+			pendingReconciles.current -= 1;
+			if (pendingReconciles.current === 0) setConsentPending(false);
+		}
+	}, [refreshUser]);
 
 	const start = useCallback(async () => {
 		// Abort any prior attempt and open a fresh controller.
@@ -265,7 +296,8 @@ export function useDeviceAuth(): UseDeviceAuth {
 		reset,
 		refreshUser,
 		applyConsentSnapshot,
-		invalidateConsent,
+		reconcileConsentFromOtherTab,
+		consentPending,
 		logout,
 	};
 }
