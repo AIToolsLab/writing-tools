@@ -45,6 +45,56 @@ task pane's URL comes from `manifest.xml`, and the Google Docs bundle runs insid
 an Apps Script sandbox iframe with no addressable URL. The Labs menu is the
 cross-surface way in; flags are for keeping something out of even that.
 
+### Document-scoped settings
+
+`EditorAPI` has `getDocumentSetting`/`setDocumentSetting` for small values that
+belong to the *document* rather than the user or the browser: they survive a
+reload and follow the file to whoever opens it next. Word backs them with
+`Office.context.document.settings` (`set` alone only touches the in-memory copy —
+`saveAsync` is what writes the file), Google Docs with Apps Script document
+properties (`google-docs-addon/Code.gs`, bridged in `sidebar.html`). The
+standalone editor and the bare context default fall back to
+`localStorageDocumentSettings` (`src/api/documentSettings.ts`), namespaced per
+document. The Google Docs surface falls back to it too when the installed Apps
+Script deployment predates the document-property bridge — the bundle and the
+add-on are deployed separately, so their versions drift.
+
+The writer's **brief** (audience / purpose / constraints) is the first consumer:
+`contexts/docBriefContext.tsx` loads it once under `DocBriefProvider` (mounted
+in `pages/app`), debounces writes back to the document, and flushes on unmount
+and `pagehide`. Pages read it with `useDocBrief()`, render `<BriefSection>` to
+let the writer edit it from wherever they are, and fold it into their requests
+with `formatDocBriefForPrompt` — which returns null when nothing is set, because
+telling the model about an empty brief reads as a constraint of its own.
+
+Two naming constraints, both from `docs/design/interface-concepts.md`. **"Goal"
+and "to-do" are reserved**: a goal there is a Charter criterion the writer grades
+and renegotiates, and a to-do is the Charter's Worklist. A brief is *stated*, so
+it doesn't squat on either. And the fields are deliberately facts about the
+document (the rhetorical situation), never instructions to the model — nothing in
+the add-in rewrites the writer's prose, so "don't touch my opening" has nothing to
+bite on, and asking for it frames the writer as a supervisor of an output machine.
+Add a field only if a human collaborator would want to know it too.
+
+### Generation calls and failures
+
+Pages must generate through `src/api/generate.ts` (`streamTextDeltas`,
+`generateFullText`), never by calling `streamText` directly. `streamText` does not
+throw on model or transport errors: it puts them in the stream as an `error` part,
+and `result.textStream` forwards only `text-delta` parts. A failed generation is
+therefore indistinguishable from an empty successful one — the loop ends, `await
+result.text` gives `''`, and the surrounding `try/catch` never runs. That is how a
+quota failure reached writers as a blank panel. The helpers read `fullStream`
+instead and throw a `GenerationError`.
+
+Catch it, run the value through `describeGenerationError` (`src/api/errors.ts`),
+and render the result with `<GenerationErrorNotice>`
+(`src/components/errorNotice/`) — one writer-facing sentence, the provider's own
+text behind a "Technical details" toggle, and Retry only when `info.retryable`.
+Log `info.detail` (provider text) and `info.code`, not the sentence shown on
+screen. A successful-but-empty generation is also a visible outcome (`tone="info"`
+notice), never silence.
+
 ### Testing
 
 Two runners own two disjoint directories — never mix them:
@@ -55,7 +105,8 @@ Two runners own two disjoint directories — never mix them:
   test through headless APIs (e.g. Lexical's `createEditor` with
   `{ discrete: true }` updates) rather than rendering components.
   - LLM calls are tested by passing a `MockLanguageModelV2` (from `ai/test`) as the
-    `model` arg to `streamText`/`generateText` — see `src/api/__tests__/generate.test.ts`.
+    `model` arg to `streamTextDeltas`/`generateFullText` — see
+    `src/api/__tests__/generate.test.ts`, including how to stream an `error` part.
 - **Playwright** (E2E/visual) — `tests/`, files named `*.spec.ts`. Scoped via
   `testDir` in `playwright.config.ts`. Run with `npx playwright test`.
 

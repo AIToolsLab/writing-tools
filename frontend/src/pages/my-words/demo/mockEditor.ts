@@ -48,18 +48,18 @@ export class MockEditor implements EditorAPI {
 		} else {
 			const op =
 				edit.type === 'str_replace'
-					? ({
+					? {
 							kind: 'str_replace' as const,
 							oldStr: edit.oldStr,
 							newStr: edit.newStr,
-					  })
-					: ({
+						}
+					: {
 							kind: 'insert' as const,
 							text: edit.text,
 							after: edit.after,
 							paragraph: edit.paragraph,
 							position: edit.position,
-					  });
+						};
 			this.paragraphs = applyOp(this.paragraphs, op);
 		}
 		this.selection = ''; // a fresh edit clears the prior highlight
@@ -75,6 +75,20 @@ export class MockEditor implements EditorAPI {
 	// The demo seeds the scratchpad from its scenario; no persistence.
 	loadScratchpad = async () => '';
 	saveScratchpad = async () => {};
+
+	/**
+	 * Document settings live in memory for the life of the harness — the demo
+	 * has no file to write into, but the brief has to round-trip or the panels
+	 * that read it render empty.
+	 */
+	private settings = new Map<string, string>();
+
+	getDocumentSetting = async (key: string): Promise<string | null> =>
+		this.settings.get(key) ?? null;
+
+	setDocumentSetting = async (key: string, value: string): Promise<void> => {
+		this.settings.set(key, value);
+	};
 
 	/** Subscribe to document/selection changes; returns an unsubscribe. */
 	subscribe = (cb: () => void): (() => void) => {

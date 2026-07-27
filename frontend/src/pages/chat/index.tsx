@@ -1,4 +1,4 @@
-import { streamText, type ModelMessage } from 'ai';
+import { type ModelMessage } from 'ai';
 import {
 	useCallback,
 	useContext,
@@ -10,9 +10,17 @@ import {
 import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
 import { Remark } from 'react-remark';
 
+import {
+	describeGenerationError,
+	type GenerationErrorInfo,
+} from '@/api/errors';
+import { streamTextDeltas } from '@/api/generate';
 import { chatLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
+import { GenerationErrorNotice } from '@/components/errorNotice';
+import BriefSection from '@/components/briefSection';
 import { ChatContext } from '@/contexts/chatContext';
+import { formatDocBriefForPrompt, useDocBrief } from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
@@ -36,11 +44,23 @@ const CHAT_GREETING_MESSAGE: ChatMessage = {
 	content: 'What do you think about your document so far?',
 };
 
-/** Renders the document context into the message the model reads. */
-export function docContextMessageContent(docContext: DocContext): string {
-	return docContext.selectedText === ''
-		? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
-		: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
+/**
+ * Renders the document context into the message the model reads.
+ *
+ * `brief` is the writer's document brief, already prompt-formatted (null when
+ * they haven't set one). It rides along with the document context because both
+ * describe the document rather than the turn, and both are refreshed together
+ * on every send.
+ */
+export function docContextMessageContent(
+	docContext: DocContext,
+	brief: string | null = null,
+): string {
+	const document =
+		docContext.selectedText === ''
+			? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
+			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
+	return brief ? `${brief}\n\n${document}` : document;
 }
 
 /**
@@ -52,10 +72,11 @@ export function docContextMessageContent(docContext: DocContext): string {
 export function withCurrentDocContext(
 	chatMessages: ChatMessage[],
 	docContext: DocContext,
+	brief: string | null = null,
 ): ChatMessage[] {
 	const docContextMessage: ChatMessage = {
 		role: 'user',
-		content: docContextMessageContent(docContext),
+		content: docContextMessageContent(docContext, brief),
 	};
 	if (chatMessages.length === 0) {
 		return [CHAT_SYSTEM_MESSAGE, docContextMessage, CHAT_GREETING_MESSAGE];
@@ -68,11 +89,26 @@ export function withCurrentDocContext(
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const editorAPI = useContext(EditorContext);
+	const { brief } = useDocBrief();
 	const log = useLog();
+	// Read at send time, like the document context is, so a brief the writer
+	// just edited applies to the very next message.
+	const briefRef = useRef(brief);
+	briefRef.current = brief;
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [showScrollButton, setShowScrollButton] = useState(false);
+	const [errorInfo, setErrorInfo] = useState<GenerationErrorInfo | null>(null);
+	/**
+	 * The message of a failed turn that was rolled back out of the transcript.
+	 * Only such a turn can be retried — retrying one still in the transcript
+	 * would send it twice.
+	 */
+	const [failedMessage, setFailedMessage] = useState<{
+		text: string;
+		source: 'input' | 'suggested';
+	} | null>(null);
 
 	// Show the "scroll to bottom" button when the user scrolls up, and hide it when they are near the bottom.
 	const handleScroll = useCallback(() => {
@@ -116,7 +152,13 @@ export default function Chat() {
 		if (chatMessages.length !== 0) return;
 		void (async () => {
 			const docContext = await refreshDocContext();
-			updateChatMessages(withCurrentDocContext([], docContext));
+			updateChatMessages(
+				withCurrentDocContext(
+					[],
+					docContext,
+					formatDocBriefForPrompt(briefRef.current),
+				),
+			);
 		})();
 	}, [chatMessages.length, refreshDocContext, updateChatMessages]);
 
@@ -153,12 +195,18 @@ export default function Chat() {
 
 		chatLog.messageSent(log, { message: text, source });
 		updateSendingMessage(true);
+		setErrorInfo(null);
+		setFailedMessage(null);
 
 		// Pull the current document context at send time so the model sees the
 		// document as it is now, then inject it as the doc-context message.
 		const docContext = await refreshDocContext();
 		let newMessages = [
-			...withCurrentDocContext(chatMessages, docContext),
+			...withCurrentDocContext(
+				chatMessages,
+				docContext,
+				formatDocBriefForPrompt(briefRef.current),
+			),
 			{ role: 'user', content: text },
 			{ role: 'assistant', content: '' },
 		];
@@ -168,7 +216,7 @@ export default function Chat() {
 		updateMessage('');
 
 		try {
-			const result = streamText({
+			const deltas = streamTextDeltas({
 				model: languageModel,
 				providerOptions: openaiProviderOptions,
 				messages: newMessages.slice(0, -1) as ModelMessage[],
@@ -176,7 +224,7 @@ export default function Chat() {
 				abortSignal: requestController.signal,
 			});
 
-			for await (const delta of result.textStream) {
+			for await (const delta of deltas) {
 				// Need to make a new object to force React to update.
 				newMessages = newMessages.slice();
 				newMessages[newMessages.length - 1].content += delta;
@@ -189,9 +237,21 @@ export default function Chat() {
 			if (requestController.signal.aborted) {
 				return;
 			}
+			const info = describeGenerationError(error);
 			console.error('Error while streaming chat response:', error);
+			// Nothing streamed: roll the turn back (empty assistant bubble + the
+			// user message it was answering) and hand the text back to the input
+			// box, so Retry re-sends it once rather than duplicating the turn.
+			// If part of a reply did arrive, keep it and just show the error under it.
+			if (newMessages[newMessages.length - 1].content === '') {
+				updateChatMessages(newMessages.slice(0, -2));
+				updateMessage(text);
+				setFailedMessage({ text, source });
+			}
+			setErrorInfo(info);
 			chatLog.responseError(log, {
-				error: error instanceof Error ? error.message : String(error),
+				error: info.detail,
+				code: info.code,
 			});
 		} finally {
 			// Ignore stale completions from older requests that were already replaced.
@@ -218,6 +278,12 @@ export default function Chat() {
 
 	return (
 		<div className={classes.app}>
+			{/* The document's brief — same section as on Revise, same stored
+			    values; collapsed here so it costs one line above the transcript. */}
+			<div className={classes.briefBar}>
+				<BriefSection page="chat" />
+			</div>
+
 			<div className={classes.chatPanel}>
 				<div
 					ref={messagesContainerRef}
@@ -281,6 +347,19 @@ export default function Chat() {
 							);
 						})
 					)}
+
+					{errorInfo ? (
+						<GenerationErrorNotice
+							info={errorInfo}
+							title="Couldn't get a reply"
+							onRetry={
+								failedMessage
+									? () =>
+											void submitMessage(failedMessage.text, failedMessage.source)
+									: undefined
+							}
+						/>
+					) : null}
 				</div>
 
 				{showScrollButton ? (

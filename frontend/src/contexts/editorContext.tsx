@@ -1,6 +1,10 @@
 import { createContext } from 'react';
+import { localStorageDocumentSettings } from '@/api/documentSettings';
 
-import { loadScratchpadLocal, saveScratchpadLocal } from '@/api/scratchpadStore';
+import {
+	loadScratchpadLocal,
+	saveScratchpadLocal,
+} from '@/api/scratchpadStore';
 
 // Provides editor API functionality through context
 export const EditorContext = createContext<EditorAPI>({
@@ -26,4 +30,7 @@ export const EditorContext = createContext<EditorAPI>({
 	},
 	loadScratchpad: () => loadScratchpadLocal(),
 	saveScratchpad: (text: string) => saveScratchpadLocal(text),
+	// No host document to write into without a provider, so document settings
+	// fall back to this browser. Real surfaces override this whole object.
+	...localStorageDocumentSettings('default'),
 });

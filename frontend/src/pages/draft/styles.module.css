@@ -436,12 +436,6 @@
 }
 
 /* Results States */
-.errorMessage {
-	color: var(--text-tertiary);
-	font-size: 13px;
-	margin-bottom: 8px;
-}
-
 .emptyStateContainer {
 	text-align: center;
 }
