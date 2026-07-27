@@ -20,16 +20,26 @@ type EventTargetLike = Pick<
 	'addEventListener' | 'removeEventListener'
 >;
 
-/** Poke other tabs to re-fetch the user after this tab commits a consent change. */
-export function broadcastConsentChange(
-	storage: StorageLike = localStorage,
-): void {
+/**
+ * Poke other tabs to re-fetch the user after this tab commits a consent change.
+ *
+ * `storage` deliberately has no default parameter: a default is evaluated at call
+ * time *outside* this function's `try`, and merely touching `localStorage` throws
+ * where storage is partitioned or blocked — the Office task-pane iframe, Safari
+ * private mode. That throw would escape into the caller, and the caller here is
+ * useConsent.save's try block, whose catch rolls the level back and reports
+ * failure. The POST has already succeeded at that point, so the user would be told
+ * their choice failed (and the onboarding gate would stay up) while the server had
+ * recorded it. Resolving storage inside the try keeps this best-effort.
+ */
+export function broadcastConsentChange(storage?: StorageLike): void {
 	try {
+		const target = storage ?? localStorage;
 		// The value must change each call so the `storage` event actually fires.
-		storage.setItem(CONSENT_CHANGED_KEY, String(Date.now()));
+		target.setItem(CONSENT_CHANGED_KEY, String(Date.now()));
 	} catch {
-		// localStorage unavailable (private mode / quota). Cross-tab sync is a
-		// best-effort enhancement; the writing tab already refreshed directly.
+		// Storage unavailable (partitioned iframe / private mode / quota). Cross-tab
+		// sync is an enhancement; this tab already refreshed its own session directly.
 	}
 }
 

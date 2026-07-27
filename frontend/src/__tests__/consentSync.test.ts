@@ -19,6 +19,42 @@ describe('consentSync', () => {
 		);
 	});
 
+	it('swallows a storage write that throws', () => {
+		const setItem = vi.fn(() => {
+			throw new Error('quota exceeded');
+		});
+		expect(() => broadcastConsentChange({ setItem })).not.toThrow();
+	});
+
+	// Regression: `storage` must not be a default parameter. A default is evaluated
+	// outside this function's try, and merely *touching* localStorage throws where
+	// storage is partitioned or blocked (the Office task-pane iframe, Safari private
+	// mode). That escaping throw lands in useConsent.save's catch, which rolls the
+	// level back and reports failure — after the POST has already succeeded. The user
+	// would be told their choice failed, and the onboarding gate would stay up, while
+	// the server had recorded it.
+	it('swallows a throw from merely accessing localStorage', () => {
+		const original = Object.getOwnPropertyDescriptor(
+			globalThis,
+			'localStorage',
+		);
+		Object.defineProperty(globalThis, 'localStorage', {
+			configurable: true,
+			get() {
+				throw new Error('access denied in a partitioned context');
+			},
+		});
+		try {
+			expect(() => broadcastConsentChange()).not.toThrow();
+		} finally {
+			if (original) {
+				Object.defineProperty(globalThis, 'localStorage', original);
+			} else {
+				delete (globalThis as { localStorage?: unknown }).localStorage;
+			}
+		}
+	});
+
 	it('fires the handler only for the consent key, and stops after unsubscribe', () => {
 		const target = new EventTarget();
 		const handler = vi.fn();

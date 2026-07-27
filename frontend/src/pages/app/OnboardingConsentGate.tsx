@@ -29,7 +29,15 @@ export function OnboardingConsentGate() {
 				How much this app records about your usage. You can change this
 				anytime from Account &amp; privacy.
 			</p>
-			<ConsentLevelChooser value={level} onChange={setLevel} />
+			{/* Frozen while the save is in flight: Continue committed the level as
+			    it read at click time, so a pick made mid-request would be shown as
+			    selected while the server records the earlier one — and on success
+			    the gate unmounts, hiding the divergence. Matches the account page. */}
+			<ConsentLevelChooser
+				value={level}
+				onChange={setLevel}
+				disabled={status === 'saving'}
+			/>
 			{status === 'error' ? (
 				<p>Could not save your choice. Please try again.</p>
 			) : null}
