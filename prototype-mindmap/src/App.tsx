@@ -3645,6 +3645,14 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
     } catch (e) {
       if (nonce !== turnNonceRef.current) return;
       const msg = e instanceof Error ? e.message : String(e);
+      // Roll back the optimistic user bubble. It was never answered, and `msgs` is both
+      // persisted and the source `buildConversationHistory` rebuilds the provider
+      // transcript from — so leaving it replays a dangling, unanswered user turn into
+      // every later request for the life of the saved mindmap. Restoring the text makes
+      // retry one keystroke; deliberately not auto-resent, since by the time a relaunch
+      // completes the message is often stale and resending spends a real call.
+      setMsgs((prev) => prev.filter((message) => message.id !== userMessage.id));
+      setInput((current) => current || text);
       setError(msg);
     } finally {
       if (nonce === turnNonceRef.current) { setLoading(false); setTurnProgress(null); }
