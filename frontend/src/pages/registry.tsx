@@ -96,6 +96,10 @@ export const PAGES: PageDef[] = [
 		title: 'My Words',
 		hint: 'Shape your own words',
 		tier: 'lab',
+		// Kept out of even the Labs menu: the voice tab opens a realtime session
+		// that spends a model key, and its per-session cost is not yet metered to
+		// `llm_usage` the way proxied generations are. Off until it is.
+		enabled: () => isFlagEnabled('my-words'),
 		render: () => <MyWords />,
 	},
 ];
@@ -131,7 +135,10 @@ export function visiblePages(pages: PageDef[] = PAGES): PageDef[] {
 }
 
 /** Visible pages in one tier — what the navbar renders from. */
-export function pagesByTier(tier: PageTier, pages: PageDef[] = PAGES): PageDef[] {
+export function pagesByTier(
+	tier: PageTier,
+	pages: PageDef[] = PAGES,
+): PageDef[] {
 	return visiblePages(pages).filter((page) => page.tier === tier);
 }
 

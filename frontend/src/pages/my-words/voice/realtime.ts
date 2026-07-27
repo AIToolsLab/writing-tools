@@ -21,6 +21,7 @@
  */
 
 import { SERVER_URL } from '@/api';
+import { authorizedFetch } from '@/api/openai';
 
 import type {
 	TranscriptSegment,
@@ -36,7 +37,10 @@ const DEFAULT_VOICE = 'marin';
 
 /** Mint an ephemeral client secret from our backend. */
 async function mintEphemeralKey(): Promise<string> {
-	const res = await fetch(`${SERVER_URL}/openai/realtime/session`, {
+	// Authorized like every other model request: the route decides which key pays
+	// from the session, and refuses rather than billing the main key for traffic
+	// it can't attribute.
+	const res = await authorizedFetch(`${SERVER_URL}/openai/realtime/session`, {
 		method: 'POST',
 	});
 	const data = (await res.json().catch(() => ({}))) as {

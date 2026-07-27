@@ -8,10 +8,10 @@ import {
 	filterExtraDataForConsent,
 	isConsentLevel,
 } from './consent.js';
-import { deviceClientIds, gitCommit, logSecret, openaiApiKey } from './config.js';
+import { deviceClientIds, gitCommit, logSecret } from './config.js';
 import { eraseLoggedData } from './erasure.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
-import { openaiProxy } from './openaiProxy.js';
+import { attributeRequest, openaiProxy } from './openaiProxy.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 import { costUsd } from './pricing.js';
 import {
@@ -119,7 +119,27 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	// server key stays here; the browser receives only the short-lived secret it
 	// uses to open the WebRTC session directly with OpenAI.
 	app.post('/api/openai/realtime/session', async (c) => {
-		const key = openaiApiKey();
+		// A realtime session spends a model key just like a proxied generation, so
+		// it answers to the same attribution: a real session spends the main key, a
+		// demo session the capped one, and sessionless traffic is refused wherever
+		// auth is on rather than quietly billing the main key. Without this the
+		// route was open — anyone who could reach it could mint a token against
+		// OPENAI_API_KEY.
+		//
+		// Metering is still missing, and can't be done here: the audio runs
+		// browser → OpenAI over WebRTC, so no tokens pass through this server to
+		// count. Recording it means reading `usage` off the client's `response.done`
+		// events and reporting them back. Until then a voice session is billable but
+		// absent from `llm_usage`, which is why the page stays behind a flag.
+		const user = await resolveUser(c);
+		// Same beta allowlist the proxy enforces — otherwise voice is a way around
+		// it that also happens to spend a model key.
+		if (user && !user.isAllowed) return c.json({ detail: 'Forbidden' }, 403);
+		const attribution = attributeRequest(user, !!auth);
+		if (!attribution) {
+			return c.json({ detail: 'Sign in to use voice.' }, 401);
+		}
+		const key = attribution.apiKey;
 		if (!key) {
 			return c.json({ detail: 'OPENAI_API_KEY not set' }, 500);
 		}

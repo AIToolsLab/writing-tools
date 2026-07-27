@@ -12,7 +12,14 @@ const app = createApp();
  * updateUser/deleteUser record their calls. Cast to Auth — we only touch the
  * surface the app handlers use.
  */
-function makeAuthApp(user: { id: string; loggingConsent?: string } | null) {
+function makeAuthApp(
+	user: {
+		id: string;
+		loggingConsent?: string;
+		isAnonymous?: boolean;
+		email?: string;
+	} | null,
+) {
 	const calls: { updateUser: unknown[]; deleteUser: unknown[] } = {
 		updateUser: [],
 		deleteUser: [],
@@ -271,6 +278,88 @@ describe('POST /api/openai/chat/completions', () => {
 			'Bearer sk-test-123',
 		);
 		expect(init.body).toContain('gpt-4o');
+	});
+});
+
+describe('POST /api/openai/realtime/session', () => {
+	/** The mint call never reaches OpenAI when the route refuses first. */
+	function stubUpstream() {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				new Response(JSON.stringify({ value: 'ek_test' }), { status: 200 }),
+			);
+		vi.stubGlobal('fetch', fetchMock);
+		return fetchMock;
+	}
+
+	it('401s without a session when auth is on, without minting', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		const fetchMock = stubUpstream();
+		const { app: authApp } = makeAuthApp(null);
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(401);
+		// The point of the gate: no ephemeral credential was minted against our key.
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('mints against the main key for a signed-in user', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		const fetchMock = stubUpstream();
+		// Allowlisted address — the route enforces the same beta gate as the proxy.
+		const { app: authApp } = makeAuthApp({
+			id: 'user-1',
+			email: 'writer@calvin.edu',
+		});
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledOnce();
+		const [url, init] = fetchMock.mock.calls[0]!;
+		expect(url).toContain('realtime/client_secrets');
+		expect((init.headers as Record<string, string>).Authorization).toBe(
+			'Bearer sk-main',
+		);
+	});
+
+	it('403s a signed-in user outside the beta allowlist', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		const fetchMock = stubUpstream();
+		const { app: authApp } = makeAuthApp({
+			id: 'user-2',
+			email: 'someone@example.com',
+		});
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(403);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('spends the capped demo key for an anonymous session', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		vi.stubEnv('OPENAI_DEMO_API_KEY', 'sk-demo');
+		const fetchMock = stubUpstream();
+		const { app: authApp } = makeAuthApp({ id: 'anon-1', isAnonymous: true });
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(200);
+		const [, init] = fetchMock.mock.calls[0]!;
+		expect((init.headers as Record<string, string>).Authorization).toBe(
+			'Bearer sk-demo',
+		);
 	});
 });
 
