@@ -1,6 +1,6 @@
 # Writing Coach with Hard Authorship Guardrails — Evaluation Log
 
-**Prototype:** `prototype-uist/` (branch `feat/uist`)
+**Prototype:** `prototype-word-bank/` (originally `prototype-uist`, branch `feat/uist`)
 **Status:** living document — exploratory evaluation during iterative development
 **Last updated:** 2026-06-22
 

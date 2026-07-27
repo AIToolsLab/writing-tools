@@ -33,7 +33,7 @@ cd backend
 npm run dev
 
 # 2. In another terminal, run the standalone prototype
-cd prototype-uist
+cd prototype-word-bank
 npm install
 npm run dev
 ```

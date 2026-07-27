@@ -5,7 +5,7 @@ thinking into a node graph. Assistance contracts distinguish grounded reflection
 from visibly AI-suggested contribution; every chat-derived structural change is
 inert until explicit confirmation and retains its provenance.
 
-Sibling to `prototype-uist` (the document-insertion coach); it reuses that
+Sibling to `prototype-word-bank` (the document-insertion coach); it reuses that
 prototype's deterministic-grounding philosophy but externalizes into a mind map
 instead of a draft. Uses the repo's `backend/` OpenAI proxy for AI calls.
 
@@ -47,7 +47,7 @@ though the prototype now includes a UI and provider adapters.
 | --- | --- |
 | `config.ts` | Pointer-validation thresholds, explicit UI pacing, and capability facts. |
 | `types.ts` | Domain model: source utterances, candidate thoughts, mirror claims, confirmed reflections, thought units. |
-| `normalize.ts` | Normalizer (matches `prototype-uist/ownership.ts`) + stopwords + light stemmer. |
+| `normalize.ts` | Normalizer (matches `prototype-word-bank/ownership.ts`) + stopwords + light stemmer. |
 | `validator.ts` | **The 3-check mirror validator.** Content overlap, source-span grounding, unsupported-word budget. |
 | `stage1-loop.ts` | Typed model orchestration, one repair attempt, and proposal creation. |
 | `action-gateway.ts` | Sole deterministic boundary for map-changing actions. |
