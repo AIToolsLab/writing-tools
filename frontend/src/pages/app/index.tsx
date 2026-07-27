@@ -397,7 +397,7 @@ function AppInner() {
 								id="account-browser-note"
 								className={classes.accountBrowserNote}
 							>
-								Opens in your browser; you may need to sign in again.
+								Opens in browser; sign-in may be required.
 							</span>
 						</div>
 					</div>
