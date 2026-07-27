@@ -23,6 +23,7 @@ import {
 } from '@/contexts/pageContext';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { resolvePage } from '../registry';
+import { OnboardingConsentGate } from './OnboardingConsentGate';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
@@ -344,6 +345,15 @@ function AppInner() {
 				</Button>
 			</div>
 		);
+	}
+
+	// First-run consent gate: right after sign-in (and the allowlist check), while
+	// the user has never set a consent level. Derived straight from the session — a
+	// successful save updates hasSetConsent directly, so there is no dismissal state
+	// to leak across a logout → different-user login. Demo/no-auth modes are never
+	// gated.
+	if (!noAuthMode && !session.hasSetConsent) {
+		return <OnboardingConsentGate />;
 	}
 
 	// Which page renders is the registry's call, not a switch here — see

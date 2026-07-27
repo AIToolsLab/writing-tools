@@ -43,6 +43,14 @@ export interface UseDeviceAuth extends DeviceAuthState {
 	start: () => Promise<void>;
 	/** Cancel any in-flight flow and return to idle, clearing the token. */
 	reset: () => void;
+	/**
+	 * Re-fetch the signed-in user with the current token and update state.user,
+	 * without a re-login. Call after a server-side change to the user record
+	 * (e.g. consent) so derived values reflect it live. A failed refresh is a
+	 * no-op (keeps the last-known user); stale-token handling stays with
+	 * hydrate-on-mount and the 401 path on real API calls, not this refresh.
+	 */
+	refreshUser: () => Promise<void>;
 	/** Best-effort server sign-out, then clear local state. */
 	logout: () => Promise<void>;
 }
@@ -74,6 +82,20 @@ export function useDeviceAuth(): UseDeviceAuth {
 		clearToken();
 		setState(INITIAL);
 	}, [abortInFlight]);
+
+	// Re-pull the user with the current token; leave state untouched on failure or
+	// if there's no token / no active success state. Only patches the user of an
+	// existing success state, so it can't resurrect a signed-out session.
+	const refreshUser = useCallback(async () => {
+		const token = tokenRef.current;
+		if (!token) return;
+		try {
+			const user = await fetchUserInfo(token);
+			setState((s) => (s.status === 'success' ? { ...s, user } : s));
+		} catch {
+			// Non-critical: keep the last-known user rather than disrupting the UI.
+		}
+	}, []);
 
 	const start = useCallback(async () => {
 		// Abort any prior attempt and open a fresh controller.
@@ -206,5 +228,5 @@ export function useDeviceAuth(): UseDeviceAuth {
 		};
 	}, [safeSet]);
 
-	return { ...state, start, reset, logout };
+	return { ...state, start, reset, refreshUser, logout };
 }

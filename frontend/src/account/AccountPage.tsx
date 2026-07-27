@@ -14,15 +14,14 @@
  */
 import { useState } from 'react';
 import { Button } from 'reshaped';
-import { changeConsent, deleteAccount, eraseActivity } from '@/api/account';
+import { deleteAccount, eraseActivity } from '@/api/account';
 import { clearToken, loadToken } from '@/api/authTokenStore';
 import { ConsentLevelChooser } from '@/components/ConsentLevelChooser';
-import type { ConsentLevel } from '@/consent';
 import { useAppAuth } from '@/contexts/appAuthContext';
+import { useConsent } from '@/hooks/useConsent';
 import { DeviceCodePanel } from './DeviceCodePanel';
 import classes from './styles.module.css';
 
-type ConsentStatus = 'idle' | 'saving' | 'saved' | 'error';
 type EraseStatus = 'idle' | 'confirm' | 'working' | 'done' | 'error';
 type DeleteStatus =
 	| 'idle'
@@ -35,29 +34,19 @@ type DeleteStatus =
 export function AccountPage() {
 	const session = useAppAuth();
 
-	const [level, setLevel] = useState<ConsentLevel>(session.loggingConsent);
-	const [consentStatus, setConsentStatus] = useState<ConsentStatus>('idle');
+	// Consent state + persistence shared with the onboarding gate. onChange saves
+	// immediately here (each pick persists); the gate stages and commits later.
+	const {
+		level,
+		status: consentStatus,
+		save: onChangeLevel,
+	} = useConsent(session.loggingConsent);
 
 	const [eraseStatus, setEraseStatus] = useState<EraseStatus>('idle');
 	const [eraseError, setEraseError] = useState<string | null>(null);
 
 	const [deleteStatus, setDeleteStatus] = useState<DeleteStatus>('idle');
 	const [deleteError, setDeleteError] = useState<string | null>(null);
-
-	// --- change logging level -------------------------------------------------
-	const onChangeLevel = async (next: ConsentLevel) => {
-		const previous = level;
-		setLevel(next); // optimistic
-		setConsentStatus('saving');
-		try {
-			const token = await session.getAccessToken();
-			await changeConsent(token, next);
-			setConsentStatus('saved');
-		} catch {
-			setLevel(previous); // roll back on failure
-			setConsentStatus('error');
-		}
-	};
 
 	// --- erase activity (withdrawal) ------------------------------------------
 	const onErase = async () => {

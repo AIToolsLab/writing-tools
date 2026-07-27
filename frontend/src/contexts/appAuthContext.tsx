@@ -23,6 +23,7 @@ import {
 } from 'react';
 import { setOpenAITokenProvider } from '@/api/openai';
 import { type ConsentLevel, DEFAULT_CONSENT_LEVEL } from '@/consent';
+import { onConsentChangeFromOtherTab } from '@/consentSync';
 import { AccessTokenProvider } from '@/contexts/authTokenContext';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 import { useAnonymousAuth } from '@/hooks/useAnonymousAuth';
@@ -42,9 +43,18 @@ export interface AppAuthSession {
 		isAllowed?: boolean;
 		/** Demo/anonymous session — account surfaces steer these to real sign-in. */
 		isAnonymous?: boolean;
+		/** When consent was last set (ISO string), or null if never. */
+		consentUpdatedAt?: string | null;
 	};
 	/** Resolved consent level (defaults applied) — gate analytics/logging on this. */
 	loggingConsent: ConsentLevel;
+	/**
+	 * Whether the user has ever set a consent level. False until they do (a fresh
+	 * real user has consentUpdatedAt === null); the onboarding consent gate shows
+	 * once while this is false. Always true for demo/anonymous (consent set on
+	 * create) and never blocks no-auth modes.
+	 */
+	hasSetConsent: boolean;
 	error?: Error; // provider-level error
 	authorization?: {
 		status: 'pending' | 'polling' | 'error';
@@ -63,6 +73,12 @@ export interface AppAuthSession {
 	 * `isAuthorizing` so the user has a clean way out.
 	 */
 	cancelLogin: () => void;
+	/**
+	 * Re-fetch the signed-in user without a re-login, so a server-side change to
+	 * the user record (consent now; usage/key on the future account surface)
+	 * reflects in `user`/`hasSetConsent` live. No-op for the demo provider.
+	 */
+	refreshUser: () => Promise<void>;
 	logout: () => Promise<void>;
 }
 
@@ -72,6 +88,7 @@ const DEFAULT_SESSION: AppAuthSession = {
 	isAuthorizing: false,
 	isAuthenticated: false,
 	loggingConsent: DEFAULT_CONSENT_LEVEL,
+	hasSetConsent: false,
 	getAccessToken: () => {
 		console.warn(
 			'getAccessToken called before AppAuthProvider initialized',
@@ -80,6 +97,7 @@ const DEFAULT_SESSION: AppAuthSession = {
 	},
 	login: () => Promise.resolve(),
 	cancelLogin: () => {},
+	refreshUser: () => Promise.resolve(),
 	logout: () => Promise.resolve(),
 };
 
@@ -91,6 +109,16 @@ export const useAppAuth = (): AppAuthSession => useContext(AppAuthContext);
 
 function BetterAuthProvider({ children }: { children: ReactNode }) {
 	const device = useDeviceAuth();
+	const { refreshUser } = device;
+
+	// Cross-tab consent propagation. A consent change on the standalone account page
+	// (a separate tab) would otherwise leave this tab's session — and thus the PostHog
+	// bridge and useLog — logging at the pre-change level. Refresh when another tab
+	// broadcasts a change. refreshUser no-ops when there's no active session.
+	useEffect(
+		() => onConsentChangeFromOtherTab(() => void refreshUser()),
+		[refreshUser],
+	);
 
 	const session = useMemo<AppAuthSession>(() => {
 		const isAuthorizing =
@@ -122,6 +150,8 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 			user: device.user,
 			loggingConsent:
 				device.user?.loggingConsent ?? DEFAULT_CONSENT_LEVEL,
+			// null (or an unauthenticated session) → false → the consent gate shows.
+			hasSetConsent: !!device.user?.consentUpdatedAt,
 			authorization,
 			getAccessToken: () => {
 				if (device.token) return Promise.resolve(device.token);
@@ -135,6 +165,7 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 			},
 			login: device.start,
 			cancelLogin: device.reset,
+			refreshUser: device.refreshUser,
 			logout: device.logout,
 		};
 	}, [device]);
@@ -165,6 +196,9 @@ function DemoAuthProvider({ children }: { children: ReactNode }) {
 			// once the session loads. The fallback only applies during the brief
 			// pre-load window, where nothing is logged (isAuthenticated is false).
 			loggingConsent: anon.user?.loggingConsent ?? DEFAULT_CONSENT_LEVEL,
+			// Anonymous users are created at full consent server-side, so they've
+			// effectively "set" it — never prompt the demo with the consent gate.
+			hasSetConsent: true,
 			error:
 				anon.status === 'error'
 					? new Error(anon.error ?? 'Demo sign-in failed')
@@ -172,6 +206,7 @@ function DemoAuthProvider({ children }: { children: ReactNode }) {
 			getAccessToken: anon.getAccessToken,
 			login: () => Promise.resolve(),
 			cancelLogin: () => {},
+			refreshUser: () => Promise.resolve(),
 			logout: () => Promise.resolve(),
 		}),
 		[anon],
