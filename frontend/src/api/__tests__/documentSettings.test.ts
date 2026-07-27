@@ -10,7 +10,10 @@ describe('localStorageDocumentSettings', () => {
 	it('reads back what it wrote', async () => {
 		const settings = localStorageDocumentSettings('doc-1');
 
-		await settings.setDocumentSetting('writerBrief', '{"audience":"peers"}');
+		await settings.setDocumentSetting(
+			'writerBrief',
+			'{"audience":"peers"}',
+		);
 
 		expect(await settings.getDocumentSetting('writerBrief')).toBe(
 			'{"audience":"peers"}',

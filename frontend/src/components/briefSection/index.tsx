@@ -132,17 +132,23 @@ export default function BriefSection({
 								// typing into something about to be replaced.
 								disabled={status === 'loading'}
 								value={brief[field]}
-								onChange={(e) => setField(field, e.target.value)}
+								onChange={(e) =>
+									setField(field, e.target.value)
+								}
 								onFocus={(e) => {
 									valueOnFocusRef.current = e.target.value;
 								}}
 								onBlur={(e) => {
-									if (e.target.value === valueOnFocusRef.current) {
+									if (
+										e.target.value ===
+										valueOnFocusRef.current
+									) {
 										return;
 									}
 									docBriefLog.fieldEdited(log, page, {
 										field,
-										hasContent: e.target.value.trim() !== '',
+										hasContent:
+											e.target.value.trim() !== '',
 									});
 								}}
 							/>

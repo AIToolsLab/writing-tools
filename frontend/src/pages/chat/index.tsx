@@ -20,7 +20,10 @@ import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice } from '@/components/errorNotice';
 import BriefSection from '@/components/briefSection';
 import { ChatContext } from '@/contexts/chatContext';
-import { formatDocBriefForPrompt, useDocBrief } from '@/contexts/docBriefContext';
+import {
+	formatDocBriefForPrompt,
+	useDocBrief,
+} from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
@@ -99,7 +102,9 @@ export default function Chat() {
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 	const [showScrollButton, setShowScrollButton] = useState(false);
-	const [errorInfo, setErrorInfo] = useState<GenerationErrorInfo | null>(null);
+	const [errorInfo, setErrorInfo] = useState<GenerationErrorInfo | null>(
+		null,
+	);
 	/**
 	 * The message of a failed turn that was rolled back out of the transcript.
 	 * Only such a turn can be retried — retrying one still in the transcript
@@ -114,7 +119,11 @@ export default function Chat() {
 	const handleScroll = useCallback(() => {
 		const container = messagesContainerRef.current;
 		if (!container) return;
-		const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+		const isNearBottom =
+			container.scrollHeight -
+				container.scrollTop -
+				container.clientHeight <
+			100;
 		setShowScrollButton(!isNearBottom);
 	}, []);
 
@@ -231,7 +240,8 @@ export default function Chat() {
 				updateChatMessages(newMessages);
 			}
 			chatLog.responseCompleted(log, {
-				responseLength: newMessages[newMessages.length - 1].content.length,
+				responseLength:
+					newMessages[newMessages.length - 1].content.length,
 			});
 		} catch (error) {
 			if (requestController.signal.aborted) {
@@ -292,8 +302,9 @@ export default function Chat() {
 				>
 					{visibleMessages.length === 0 ? (
 						<div className={classes.chatWelcome}>
-							
-							<div className={classes.chatWelcomeTitle}>What do you think about your document so far?</div>
+							<div className={classes.chatWelcomeTitle}>
+								What do you think about your document so far?
+							</div>
 
 							<div className={classes.chatSuggestions}>
 								{suggestionPrompts.map((prompt) => (
@@ -313,7 +324,9 @@ export default function Chat() {
 					) : (
 						visibleMessages.map((chatMessage, index) => {
 							const isAssistantTyping =
-								chatMessage.role === 'assistant' && chatMessage.content === '' && isSendingMessage;
+								chatMessage.role === 'assistant' &&
+								chatMessage.content === '' &&
+								isSendingMessage;
 
 							return (
 								<div
@@ -321,19 +334,26 @@ export default function Chat() {
 									className={`${classes.chatMsg} ${chatMessage.role === 'user' ? classes.user : classes.ai}`}
 								>
 									{chatMessage.role === 'assistant' ? (
-										<div className={classes.chatMeta}>Assistant</div>
+										<div className={classes.chatMeta}>
+											Assistant
+										</div>
 									) : null}
 
 									{isAssistantTyping ? (
-										<div className={classes.typingIndicator}>
+										<div
+											className={classes.typingIndicator}
+										>
 											<span />
 											<span />
 											<span />
 										</div>
 									) : (
 										<div className={classes.chatBubble}>
-											{chatMessage.role === 'assistant' ? (
-												<Remark>{chatMessage.content}</Remark>
+											{chatMessage.role ===
+											'assistant' ? (
+												<Remark>
+													{chatMessage.content}
+												</Remark>
 											) : (
 												chatMessage.content
 											)}
@@ -341,7 +361,9 @@ export default function Chat() {
 									)}
 
 									{chatMessage.role === 'user' ? (
-										<div className={classes.chatMeta}>You</div>
+										<div className={classes.chatMeta}>
+											You
+										</div>
 									) : null}
 								</div>
 							);
@@ -355,7 +377,10 @@ export default function Chat() {
 							onRetry={
 								failedMessage
 									? () =>
-											void submitMessage(failedMessage.text, failedMessage.source)
+											void submitMessage(
+												failedMessage.text,
+												failedMessage.source,
+											)
 									: undefined
 							}
 						/>

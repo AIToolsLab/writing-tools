@@ -236,7 +236,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	transition: opacity 0.15s, transform 0.1s;
+	transition:
+		opacity 0.15s,
+		transform 0.1s;
 }
 
 .chatSendBtn:hover {

@@ -41,7 +41,9 @@ describe('chat document-context message', () => {
 			expect(result).toHaveLength(3);
 			expect(result[0].role).toBe('system');
 			expect(result[1].role).toBe('user');
-			expect(result[1].content).toBe(docContextMessageContent(docContext));
+			expect(result[1].content).toBe(
+				docContextMessageContent(docContext),
+			);
 			expect(result[2].role).toBe('assistant');
 		});
 
@@ -56,7 +58,9 @@ describe('chat document-context message', () => {
 			const result = withCurrentDocContext(existing, docContext);
 
 			// Fresh context injected at index 1...
-			expect(result[1].content).toBe(docContextMessageContent(docContext));
+			expect(result[1].content).toBe(
+				docContextMessageContent(docContext),
+			);
 			// ...without disturbing the rest of the conversation.
 			expect(result[0]).toEqual(existing[0]);
 			expect(result[2]).toEqual(existing[2]);

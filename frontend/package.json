@@ -61,7 +61,6 @@
 		"reshaped": "^3.5.3"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.0.6",
 		"@eslint/eslintrc": "^3.3.1",
 		"@playwright/test": "^1.60",
 		"@tailwindcss/cli": "^4.1.8",

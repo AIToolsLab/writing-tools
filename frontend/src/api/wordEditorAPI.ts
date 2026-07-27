@@ -1,5 +1,4 @@
 export const wordEditorAPI: EditorAPI = {
-
 	addSelectionChangeHandler: (handler: () => void) => {
 		Office.context.document.addHandlerAsync(
 			Office.EventType.DocumentSelectionChanged,
@@ -27,19 +26,19 @@ export const wordEditorAPI: EditorAPI = {
 				};
 
 				const wordSelection = context.document.getSelection();
-				const beforeCursor = wordSelection.getRange('Start').expandTo(
-					body.getRange('Start'),
-				);
-				const afterCursor = wordSelection.getRange('End').expandTo(
-					body.getRange('End'),
-				);
+				const beforeCursor = wordSelection
+					.getRange('Start')
+					.expandTo(body.getRange('Start'));
+				const afterCursor = wordSelection
+					.getRange('End')
+					.expandTo(body.getRange('End'));
 
 				// Request the content of these items from Word
 				context.load(wordSelection, 'text');
 				context.load(beforeCursor, 'text');
 				context.load(afterCursor, 'text');
 				await context.sync();
-				
+
 				docContext.beforeCursor = beforeCursor.text;
 				docContext.selectedText = wordSelection.text;
 				docContext.afterCursor = afterCursor.text;
@@ -59,7 +58,6 @@ export const wordEditorAPI: EditorAPI = {
 				);
 				resolve(docContext);
 			}).catch((error) => {
-				 
 				console.error('Error getting document context:', error);
 				reject(error as Error);
 			});

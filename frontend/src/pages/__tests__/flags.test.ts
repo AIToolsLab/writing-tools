@@ -77,7 +77,10 @@ describe('feature flags', () => {
 	});
 
 	it('lets the URL override a stored flag', () => {
-		vi.stubGlobal('localStorage', fakeStorage({ featureFlags: 'my-words' }));
+		vi.stubGlobal(
+			'localStorage',
+			fakeStorage({ featureFlags: 'my-words' }),
+		);
 		setSearch('?ff=tool-launcher');
 
 		expect(enabledFlags()).toEqual(['tool-launcher']);

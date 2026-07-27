@@ -1,86 +1,95 @@
 // From https://github.com/kcarnold/textrec/blob/master/src/frontend/src/SurveyViews.js
 
-import React from "react";
-import { ControlledInput, OptionsInput, NextBtn, LikertInput, inputStateAtom } from "./ControlledInput";
-import { useAtomValue } from "jotai";
+import React from 'react';
+import {
+	ControlledInput,
+	OptionsInput,
+	NextBtn,
+	LikertInput,
+	inputStateAtom,
+} from './ControlledInput';
+import { useAtomValue } from 'jotai';
 
 export interface QuestionHeaderType {
-  text: string | React.JSX.Element;
-};
+	text: string | React.JSX.Element;
+}
 
 interface TextQuestionFlags {
-  multiline?: boolean;
-  type?: string;
-  placeholder?: string;
+	multiline?: boolean;
+	type?: string;
+	placeholder?: string;
 }
 
 export interface QuestionBodyType {
-  text: string | React.JSX.Element;
-  name: string;
-  responseType: string;
-  levels?: string[];
-  optional?: boolean;
-  options?: string[] | { key: string, value: string }[];
-  flags?: TextQuestionFlags;
-};
+	text: string | React.JSX.Element;
+	name: string;
+	responseType: string;
+	levels?: string[];
+	optional?: boolean;
+	options?: string[] | { key: string; value: string }[];
+	flags?: TextQuestionFlags;
+}
 
 export type QuestionType = QuestionHeaderType | QuestionBodyType;
 
 function classNames(...args: (string | null | undefined)[]) {
-  return args.filter(Boolean).join(" ");
+	return args.filter(Boolean).join(' ');
 }
 
-export function likert(name: string, text: (string | React.JSX.Element), degrees: number, labels: [string, string]): QuestionBodyType {
-  const levels: string[] = Array(degrees).fill("");
-  levels[0] = labels[0];
-  levels[degrees - 1] = labels[1];
-  return {
-    text,
-    name,
-    responseType: "likert",
-    levels,
-  };
+export function likert(
+	name: string,
+	text: string | React.JSX.Element,
+	degrees: number,
+	labels: [string, string],
+): QuestionBodyType {
+	const levels: string[] = Array(degrees).fill('');
+	levels[0] = labels[0];
+	levels[degrees - 1] = labels[1];
+	return {
+		text,
+		name,
+		responseType: 'likert',
+		levels,
+	};
 }
 
 export const agreeLikert = (name: string, prompt: string, n = 7) =>
-  likert(name, prompt, n, ["Strongly disagree", "Strongly agree"]);
+	likert(name, prompt, n, ['Strongly disagree', 'Strongly agree']);
 
-function TextResponse({ name, question }: { name: string, question: any }) {
-  return <ControlledInput name={name} {...(question.flags || {})} />;
+function TextResponse({ name, question }: { name: string; question: any }) {
+	return <ControlledInput name={name} {...(question.flags || {})} />;
 }
 
 export const OptionsResponse = ({
-    name,
-    question,
-    spying,
-  }: {
-    name: string;
-    question: any;
-    spying: boolean;
-  }) => {
-    return <OptionsInput
-      name={name}
-      options={question.options}
-      spying={spying}
-    />;
-  }
+	name,
+	question,
+	spying,
+}: {
+	name: string;
+	question: any;
+	spying: boolean;
+}) => {
+	return (
+		<OptionsInput name={name} options={question.options} spying={spying} />
+	);
+};
 
 export const LikertResponse = ({
-  name,
-  question,
-  spying,
-  }: {
-    name: string;
-    question: any;
-    spying: boolean;
-  }) => {
-    return <LikertInput name={name} levels={question.levels} spying={spying} />;
-  }
+	name,
+	question,
+	spying,
+}: {
+	name: string;
+	question: any;
+	spying: boolean;
+}) => {
+	return <LikertInput name={name} levels={question.levels} spying={spying} />;
+};
 
 const responseTypes: Record<string, any> = {
-  text: TextResponse,
-  options: OptionsResponse,
-  likert: LikertResponse,
+	text: TextResponse,
+	options: OptionsResponse,
+	likert: LikertResponse,
 };
 
 const allQuestions: Record<string, any> = {};
@@ -116,94 +125,107 @@ export const ColumnDictionary = inject("state")(() => (
 
 */
 
-const Question = ({ basename, question }: {
-  basename: string;
-  question: QuestionType
+const Question = ({
+	basename,
+	question,
+}: {
+	basename: string;
+	question: QuestionType;
 }) => {
-  const state = useAtomValue(inputStateAtom);
-    let responseType = null;
-    let responseVarName = null;
-    let responseClass = null;
-    if ('responseType' in question) {
-      console.assert(question.responseType in responseTypes);
-      responseType = responseTypes[question.responseType];
-      responseVarName = `${basename}-${question.name}`;
-      responseClass =
-        state[responseVarName] !== undefined
-          ? "complete"
-          : "missing";
-      allQuestions[responseVarName] = question;
-    } else {
-      console.assert(!!question.text);
-    }
-    return (
-      <div
-        className={classNames("Question", responseClass)}
-        style={{
-          margin: "5px",
-          borderTop: "1px solid #aaa",
-          padding: "5px",
-        }}
-      >
-        <div className="QText">{question.text}</div>
-        {responseType ? (
-          React.createElement(responseType, {
-            question,
-            name: responseVarName,
-          })
-        ) : null}
-      </div>
-    );
-  };
+	const state = useAtomValue(inputStateAtom);
+	let responseType = null;
+	let responseVarName = null;
+	let responseClass = null;
+	if ('responseType' in question) {
+		console.assert(question.responseType in responseTypes);
+		responseType = responseTypes[question.responseType];
+		responseVarName = `${basename}-${question.name}`;
+		responseClass =
+			state[responseVarName] !== undefined ? 'complete' : 'missing';
+		allQuestions[responseVarName] = question;
+	} else {
+		console.assert(!!question.text);
+	}
+	return (
+		<div
+			className={classNames('Question', responseClass)}
+			style={{
+				margin: '5px',
+				borderTop: '1px solid #aaa',
+				padding: '5px',
+			}}
+		>
+			<div className="QText">{question.text}</div>
+			{responseType
+				? React.createElement(responseType, {
+						question,
+						name: responseVarName,
+					})
+				: null}
+		</div>
+	);
+};
 
 export const surveyBody = (basename: string, questions: any[]) =>
-  questions.map((question, idx) => (
-    <Question
-      key={question.name || idx}
-      basename={basename}
-      question={question}
-    />
-  ));
+	questions.map((question, idx) => (
+		<Question
+			key={question.name || idx}
+			basename={basename}
+			question={question}
+		/>
+	));
 
-export const allQuestionsAnswered = (basename: string, questions: any[]) => (state: Record<string, any>) =>
-  questions.every(
-    (question: any) =>
-      question.type === "text" ||
-      !question.responseType ||
-      question.optional ||
-      state[basename + "-" + question.name] !== undefined
-  );
+export const allQuestionsAnswered =
+	(basename: string, questions: any[]) => (state: Record<string, any>) =>
+		questions.every(
+			(question: any) =>
+				question.type === 'text' ||
+				!question.responseType ||
+				question.optional ||
+				state[basename + '-' + question.name] !== undefined,
+		);
 
 interface SurveyProps {
-  title: string;
-  basename: string;
-  questions: any[];
-  onAdvance: (surveyData: Record<string, string>) => void;
+	title: string;
+	basename: string;
+	questions: any[];
+	onAdvance: (surveyData: Record<string, string>) => void;
 }
 
-export const Survey = ({ title, basename, questions, onAdvance }: SurveyProps) => {
-  const state = useAtomValue(inputStateAtom);
-  const surveyData = questions.reduce((acc: Record<string, string>, question) => {
-      const responseVarName = `${basename}-${question.name}`;
-      if (question.responseType) {
-        acc[responseVarName] = state[responseVarName];
-      }
-      return acc;
-    }, {} as Record<string, string>);
+export const Survey = ({
+	title,
+	basename,
+	questions,
+	onAdvance,
+}: SurveyProps) => {
+	const state = useAtomValue(inputStateAtom);
+	const surveyData = questions.reduce(
+		(acc: Record<string, string>, question) => {
+			const responseVarName = `${basename}-${question.name}`;
+			if (question.responseType) {
+				acc[responseVarName] = state[responseVarName];
+			}
+			return acc;
+		},
+		{} as Record<string, string>,
+	);
 
-  const handleAdvance = () => {
-    onAdvance(surveyData);
-  };
+	const handleAdvance = () => {
+		onAdvance(surveyData);
+	};
 
-  return (
-    <div className="Survey">
-      <h1>{title}</h1>
-      {surveyBody(basename, questions)}
-      <NextBtn enabledFn={allQuestionsAnswered(basename, questions)} advance={handleAdvance} />
-    </div>
-  );
+	return (
+		<div className="Survey">
+			<h1>{title}</h1>
+			{surveyBody(basename, questions)}
+			<NextBtn
+				enabledFn={allQuestionsAnswered(basename, questions)}
+				advance={handleAdvance}
+			/>
+		</div>
+	);
 };
 
 export function surveyView(props: SurveyProps) {
-  return () => React.createElement(Survey, props);
+	return () => React.createElement(Survey, props);
 }

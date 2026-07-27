@@ -3,7 +3,14 @@
  */
 
 import { type ModelMessage } from 'ai';
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import {
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react';
 import { Remark } from 'react-remark';
 import {
 	AiOutlineFileText,
@@ -18,7 +25,7 @@ import {
 	AiOutlinePlus,
 	AiOutlineThunderbolt,
 	AiOutlineEdit,
-	AiOutlineQuestionCircle
+	AiOutlineQuestionCircle,
 } from 'react-icons/ai';
 import { isRunningInGoogleDocs } from '@/api';
 import {
@@ -65,8 +72,8 @@ const promptList: Prompt[] = [
 		category: 'structure',
 	},
 	{
-		keyword: "Possible Structure",
-		prompt: 'Imagine 3 possible overall structures for this document. For each structure, provide a short description of the structure and then a two-level outline of the structure. For each outline point, provide a reference (in link format) to material in the writer\'s current (provided) document that could be used as a starting point for that section.',
+		keyword: 'Possible Structure',
+		prompt: "Imagine 3 possible overall structures for this document. For each structure, provide a short description of the structure and then a two-level outline of the structure. For each outline point, provide a reference (in link format) to material in the writer's current (provided) document that could be used as a starting point for that section.",
 		isOverall: true,
 		icon: AiOutlineProject,
 		category: 'structure',
@@ -79,8 +86,8 @@ const promptList: Prompt[] = [
 		category: 'structure',
 	},
 	{
-		keyword: "Related parts",
-		prompt: "Consider the part of the document near the cursor. List other parts of the document that are related to this part. Organize the list by type of relationship.",
+		keyword: 'Related parts',
+		prompt: 'Consider the part of the document near the cursor. List other parts of the document that are related to this part. Organize the list by type of relationship.',
 		isOverall: true,
 		icon: AiOutlineLink,
 		category: 'structure',
@@ -153,7 +160,6 @@ Our response MUST reference specific parts of the document. We use Markdown link
 
 When generating a visualization, it is critical that we remain faithful to the document provided. If we ever realize that we've deviated from the document text, even slightly, we must include a remark to that effect in [square brackets] as soon as possible after the deviation.`;
 
-
 function getDocTextAsPrompt(
 	docContext: DocContext,
 	brief: DocBrief,
@@ -168,9 +174,11 @@ function getDocTextAsPrompt(
 	}
 
 	if (docContext.contextData && docContext.contextData.length > 0) {
-		const contextSections = docContext.contextData.map(section => {
-			return `<context title="${section.title}">\n${section.content}</context>`;
-		}).join("\n\n");
+		const contextSections = docContext.contextData
+			.map((section) => {
+				return `<context title="${section.title}">\n${section.content}</context>`;
+			})
+			.join('\n\n');
 		prompt += `<additional-context><!-- Note: will *not* be visible to the reader of the document -->\n\n${contextSections}</additional-context>`;
 	}
 
@@ -258,7 +266,7 @@ export default function Revise() {
 	// keystroke in the brief section.
 	const briefRef = useRef(brief);
 	briefRef.current = brief;
-	
+
 	const clickCallbackRef = useRef((href: string) => {
 		if (href.startsWith('doctext:')) {
 			const text = decodeURIComponent(href.slice('doctext:'.length));
@@ -326,7 +334,10 @@ export default function Revise() {
 				docContext: currentContext,
 			});
 
-			const docTextAsPrompt = getDocTextAsPrompt(currentContext, briefRef.current);
+			const docTextAsPrompt = getDocTextAsPrompt(
+				currentContext,
+				briefRef.current,
+			);
 
 			const messages: ModelMessage[] = [
 				{
@@ -430,8 +441,10 @@ ${request}
 
 		reviseLog.featuresRun(log, { features: selectedFeatures });
 		setIsRunning(true);
-		const selectedPrompts = promptList.filter(p => selectedFeatures.includes(p.keyword));
-		
+		const selectedPrompts = promptList.filter((p) =>
+			selectedFeatures.includes(p.keyword),
+		);
+
 		// For now, run them sequentially
 		let index = 0;
 		const runNext = async () => {
@@ -443,7 +456,7 @@ ${request}
 				setIsRunning(false);
 			}
 		};
-		
+
 		runNext();
 	}, [selectedFeatures, requestVisualization, log]);
 
@@ -463,7 +476,7 @@ ${request}
 	return (
 		<div className={classes.app}>
 			{/* Tab bar - assuming this is handled at a higher level */}
-			
+
 			{/* Scrollable body */}
 			<div className={classes.body}>
 				{/* Cross-tab helper — only meaningful in Google Docs, which has tabs */}
@@ -482,7 +495,9 @@ ${request}
 
 					{/* Document structure */}
 					<div className={classes.featGroup}>
-						<div className={classes.featGroupLabel}>Document structure</div>
+						<div className={classes.featGroupLabel}>
+							Document structure
+						</div>
 						<div className={classes.featGrid}>
 							{promptList
 								.filter((p) => p.category === 'structure')
@@ -490,10 +505,16 @@ ${request}
 									<button
 										key={prompt.keyword}
 										className={`${classes.featBtn} ${selectedFeatures.includes(prompt.keyword) ? classes.on : ''}`}
-										onClick={() => toggleFeature(prompt.keyword)}
+										onClick={() =>
+											toggleFeature(prompt.keyword)
+										}
 									>
-										<span className={classes.featDot}></span>
-										<span className={classes.featLabel}>{prompt.keyword}</span>
+										<span
+											className={classes.featDot}
+										></span>
+										<span className={classes.featLabel}>
+											{prompt.keyword}
+										</span>
 									</button>
 								))}
 						</div>
@@ -501,7 +522,9 @@ ${request}
 
 					{/* Content analysis */}
 					<div className={classes.featGroup}>
-						<div className={classes.featGroupLabel}>Content analysis</div>
+						<div className={classes.featGroupLabel}>
+							Content analysis
+						</div>
 						<div className={classes.featGrid}>
 							{promptList
 								.filter((p) => p.category === 'content')
@@ -509,10 +532,16 @@ ${request}
 									<button
 										key={prompt.keyword}
 										className={`${classes.featBtn} ${selectedFeatures.includes(prompt.keyword) ? classes.on : ''}`}
-										onClick={() => toggleFeature(prompt.keyword)}
+										onClick={() =>
+											toggleFeature(prompt.keyword)
+										}
 									>
-										<span className={classes.featDot}></span>
-										<span className={classes.featLabel}>{prompt.keyword}</span>
+										<span
+											className={classes.featDot}
+										></span>
+										<span className={classes.featLabel}>
+											{prompt.keyword}
+										</span>
 									</button>
 								))}
 						</div>
@@ -520,7 +549,9 @@ ${request}
 
 					{/* Critical analysis */}
 					<div className={classes.featGroup}>
-						<div className={classes.featGroupLabel}>Critical analysis</div>
+						<div className={classes.featGroupLabel}>
+							Critical analysis
+						</div>
 						<div className={classes.featGrid}>
 							{promptList
 								.filter((p) => p.category === 'analysis')
@@ -528,28 +559,48 @@ ${request}
 									<button
 										key={prompt.keyword}
 										className={`${classes.featBtn} ${selectedFeatures.includes(prompt.keyword) ? classes.on : ''}`}
-										onClick={() => toggleFeature(prompt.keyword)}
+										onClick={() =>
+											toggleFeature(prompt.keyword)
+										}
 									>
-										<span className={classes.featDot}></span>
-										<span className={classes.featLabel}>{prompt.keyword}</span>
+										<span
+											className={classes.featDot}
+										></span>
+										<span className={classes.featLabel}>
+											{prompt.keyword}
+										</span>
 									</button>
 								))}
 						</div>
 					</div>
 
 					{/* Result panel */}
-					<div className={`${classes.resultPanel} ${visualizations.length > 0 ? classes.visible : ''}`}>
-						{isRunning ? <div className={classes.loadingState}>
+					<div
+						className={`${classes.resultPanel} ${visualizations.length > 0 ? classes.visible : ''}`}
+					>
+						{isRunning ? (
+							<div className={classes.loadingState}>
 								<div className={classes.loaderDots}>
-									<span></span><span></span><span></span>
+									<span></span>
+									<span></span>
+									<span></span>
 								</div>
-								Running {selectedFeatures.length} feature{selectedFeatures.length > 1 ? 's' : ''}...
-							</div> : null}
+								Running {selectedFeatures.length} feature
+								{selectedFeatures.length > 1 ? 's' : ''}...
+							</div>
+						) : null}
 						{visualizations.map((viz, index) => {
 							const lineCount = viz.response.split('\n').length;
 							return (
 								<div key={viz.id}>
-									{index > 0 && <div style={{ borderTop: '1.5px solid var(--border)' }}></div>}
+									{index > 0 && (
+										<div
+											style={{
+												borderTop:
+													'1.5px solid var(--border)',
+											}}
+										></div>
+									)}
 									<div className={classes.resultHeader}>
 										<span className={classes.resultTag}>
 											{viz.feature.keyword}
@@ -560,7 +611,12 @@ ${request}
 												: `${lineCount} result${lineCount > 1 ? 's' : ''}`}
 										</span>
 									</div>
-									<div className={classes.resultItem} style={{ animationDelay: `${index * 0.04}s` }}>
+									<div
+										className={classes.resultItem}
+										style={{
+											animationDelay: `${index * 0.04}s`,
+										}}
+									>
 										{viz.response ? (
 											<Remark
 												rehypeReactOptions={{
@@ -576,16 +632,22 @@ ${request}
 											<GenerationErrorNotice
 												info={viz.error}
 												title={`${viz.feature.keyword} failed`}
-												onRetry={() => retryVisualization(viz)}
+												onRetry={() =>
+													retryVisualization(viz)
+												}
 											/>
 										) : null}
 										{/* A finished-but-empty run is a real outcome, not a blank card. */}
-										{!viz.error && viz.done && viz.response.trim() === '' ? (
+										{!viz.error &&
+										viz.done &&
+										viz.response.trim() === '' ? (
 											<ErrorNotice
 												tone="info"
 												title="Nothing came back"
 												message="The model returned an empty response for this feature. Running it again often helps."
-												onRetry={() => retryVisualization(viz)}
+												onRetry={() =>
+													retryVisualization(viz)
+												}
 											/>
 										) : null}
 									</div>
@@ -599,23 +661,22 @@ ${request}
 			{/* Sticky footer */}
 			<div className={classes.footer}>
 				<div className={classes.summaryRow}>
-					{selectedFeatures.length === 0 ? (
-						'Select features above to get started'
-					) : (
-						selectedFeatures.map(f => (
-							<span key={f} className={classes.selectedTag}>{f}</span>
-						))
-					)}
+					{selectedFeatures.length === 0
+						? 'Select features above to get started'
+						: selectedFeatures.map((f) => (
+								<span key={f} className={classes.selectedTag}>
+									{f}
+								</span>
+							))}
 				</div>
-				<button 
-					className={classes.runBtn} 
+				<button
+					className={classes.runBtn}
 					disabled={selectedFeatures.length === 0 || isRunning}
 					onClick={runSelectedFeatures}
 				>
-					{selectedFeatures.length > 0 
+					{selectedFeatures.length > 0
 						? `Run ${selectedFeatures.length} feature${selectedFeatures.length > 1 ? 's' : ''}`
-						: 'Run selected features'
-					}
+						: 'Run selected features'}
 				</button>
 			</div>
 		</div>

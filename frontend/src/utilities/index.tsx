@@ -69,7 +69,10 @@ export function useDocContext(editorAPI: EditorAPI) {
 		document.addEventListener('visibilitychange', handleReturnToSidebar);
 		return () => {
 			window.removeEventListener('focus', handleReturnToSidebar);
-			document.removeEventListener('visibilitychange', handleReturnToSidebar);
+			document.removeEventListener(
+				'visibilitychange',
+				handleReturnToSidebar,
+			);
 		};
 	}, [refresh]);
 

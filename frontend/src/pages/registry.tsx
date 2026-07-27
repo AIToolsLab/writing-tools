@@ -123,7 +123,10 @@ export function visiblePages(pages: PageDef[] = PAGES): PageDef[] {
 }
 
 /** Visible pages in one tier — what the navbar renders from. */
-export function pagesByTier(tier: PageTier, pages: PageDef[] = PAGES): PageDef[] {
+export function pagesByTier(
+	tier: PageTier,
+	pages: PageDef[] = PAGES,
+): PageDef[] {
 	return visiblePages(pages).filter((page) => page.tier === tier);
 }
 

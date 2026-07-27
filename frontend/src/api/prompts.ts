@@ -91,7 +91,9 @@ export function buildMessages(
 
 	// Send the full document text so the AI can see everything the writer has written
 	const documentText =
-		docContext.beforeCursor + docContext.selectedText + docContext.afterCursor;
+		docContext.beforeCursor +
+		docContext.selectedText +
+		docContext.afterCursor;
 	userContent += `\n\n# Writer's Document So Far\n\n<document>\n${documentText}</document>\n\n`;
 
 	// Also highlight exactly where the cursor is (or what text is selected),
@@ -109,8 +111,12 @@ export function buildMessages(
 	// These two prompts say "return an empty list" which causes the AI to output "[]"
 	// as plain text instead of a proper bullet list. This line tells the AI to use
 	// bullet format so we get readable results like "- item" instead of ["item"].
-	if (gtype === 'analysis_readerPerspective' || gtype === 'example_rewording') {
-		userContent += '\n\nFormat your response as a plain bulleted list, one item per line starting with "- ". Do not use JSON or array notation.';
+	if (
+		gtype === 'analysis_readerPerspective' ||
+		gtype === 'example_rewording'
+	) {
+		userContent +=
+			'\n\nFormat your response as a plain bulleted list, one item per line starting with "- ". Do not use JSON or array notation.';
 	}
 
 	return [

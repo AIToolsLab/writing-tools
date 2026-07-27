@@ -118,14 +118,14 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 			body: JSON.stringify({
 				username: 'regenerate',
 				gtype,
-				 
+
 				doc_context: docContext,
 			}),
 		});
 		if (!resp.ok) throw new Error(`Error: ${resp.status}`);
 		const data = await resp.json();
 		return data && typeof data === 'object' && 'result' in data
-			? (data as {result: string}).result
+			? (data as { result: string }).result
 			: JSON.stringify(data, null, 2);
 	};
 
@@ -179,8 +179,8 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 				<button
 					className="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition duration-150"
 					onClick={() => {
-					void handleRegenerateAll();
-				}}
+						void handleRegenerateAll();
+					}}
 					disabled={annotatedEntries.length === 0}
 				>
 					Regenerate All
@@ -206,7 +206,9 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 								</td>
 								<td className="p-2">
 									{entry.event}
-									{entry.interaction ? ` (${entry.interaction})` : null}
+									{entry.interaction
+										? ` (${entry.interaction})`
+										: null}
 								</td>
 								<td className="p-2">{entry.generation_type}</td>
 								<td className="p-2">
@@ -224,33 +226,36 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 											Regenerating...
 										</div>
 									)}
-									{regenResults[i] ? <div className="mb-2 p-2 bg-gray-100 rounded text-sm text-gray-800 whitespace-pre-wrap">
+									{regenResults[i] ? (
+										<div className="mb-2 p-2 bg-gray-100 rounded text-sm text-gray-800 whitespace-pre-wrap">
 											{regenResults[i]}
-										</div> : null}
+										</div>
+									) : null}
 									<button
 										className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-150"
 										onClick={() => {
-										void (async () => {
-											setRegenResults((prev) => ({
-												...prev,
-												[i]: null,
-											}));
-											let result: string;
-											try {
-												result =
-													await regenerateSuggestion(
-														regenType,
-														entry.currentDocumentState,
-													);
-											} catch (err) {
-												result = (err as Error).message;
-											}
-											setRegenResults((prev) => ({
-												...prev,
-												[i]: result,
-											}));
-										})();
-									}}
+											void (async () => {
+												setRegenResults((prev) => ({
+													...prev,
+													[i]: null,
+												}));
+												let result: string;
+												try {
+													result =
+														await regenerateSuggestion(
+															regenType,
+															entry.currentDocumentState,
+														);
+												} catch (err) {
+													result = (err as Error)
+														.message;
+												}
+												setRegenResults((prev) => ({
+													...prev,
+													[i]: result,
+												}));
+											})();
+										}}
 										disabled={regenResults[i] === null}
 									>
 										Regenerate
@@ -320,14 +325,16 @@ function App() {
 					headers: {
 						'Content-Type': 'application/json',
 					},
-					 
+
 					body: JSON.stringify({
 						log_positions: logCounts,
 						secret: logSecret,
 					}),
 				});
 				if (resp.ok) {
-					const updates = await resp.json() as Array<{ logs: Log[] }>;
+					const updates = (await resp.json()) as Array<{
+						logs: Log[];
+					}>;
 					const newLogs: Log[] = updates
 						.map((log: { logs: Log[] }) => log.logs)
 						.flat()
@@ -342,8 +349,8 @@ function App() {
 			}
 			if (!stopped) {
 				pollingRef.current = setTimeout(() => {
-				void pollLogs();
-			}, 2000);
+					void pollLogs();
+				}, 2000);
 			}
 		}
 		pollLogs();
@@ -407,7 +414,7 @@ function App() {
 				{} as Record<string, number>,
 			),
 		)
-			.sort((a, b) => (b[1]) - (a[1]))
+			.sort((a, b) => b[1] - a[1])
 			.map(([k, v]) => ({ generationType: k, count: v }));
 	}, [desiredEntries]);
 
@@ -419,12 +426,16 @@ function App() {
 			onDrop={handleDrop}
 			style={{ minHeight: 400 }}
 		>
-			{dragActive ? <div className="absolute inset-0 flex items-center justify-center bg-blue-100 bg-opacity-80 z-10 border-2 border-blue-400 rounded">
+			{dragActive ? (
+				<div className="absolute inset-0 flex items-center justify-center bg-blue-100 bg-opacity-80 z-10 border-2 border-blue-400 rounded">
 					<span className="text-lg font-bold text-blue-700">
 						Drop a log file to view it
 					</span>
-				</div> : null}
-			{dragError ? <div className="mb-4 text-red-600">{dragError}</div> : null}
+				</div>
+			) : null}
+			{dragError ? (
+				<div className="mb-4 text-red-600">{dragError}</div>
+			) : null}
 			<div className="mb-4">
 				<label className="flex items-center gap-2">
 					Log Secret:
@@ -440,10 +451,12 @@ function App() {
 						disabled={fileMode}
 					/>
 				</label>
-				{fileMode ? <span className="ml-4 text-sm text-blue-700">
+				{fileMode ? (
+					<span className="ml-4 text-sm text-blue-700">
 						Viewing logs from file. Drag a new file to replace, or
 						reload to return to server mode.
-					</span> : null}
+					</span>
+				) : null}
 			</div>
 			<div className="mb-4 flex items-center gap-6">
 				<label className="flex items-center gap-2">

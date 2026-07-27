@@ -43,7 +43,9 @@ declare global {
 			setDocumentProperty?: (key: string, value: string) => Promise<void>;
 			getDocumentProperty?: (key: string) => Promise<string | null>;
 			getDocumentId: () => Promise<string>;
-			getAllTabs: () => Promise<{ id: string; title: string; text: string }[]>;
+			getAllTabs: () => Promise<
+				{ id: string; title: string; text: string }[]
+			>;
 			selectInTab: (
 				tabId: string,
 				phrase: string,
@@ -212,7 +214,8 @@ function stopPolling(): void {
  * comes back for this writer, and re-deploying the add-on restores the real
  * behavior.
  */
-const localDocumentSettingsFallback = localStorageDocumentSettings('google-docs');
+const localDocumentSettingsFallback =
+	localStorageDocumentSettings('google-docs');
 
 let warnedAboutMissingBridge = false;
 
@@ -280,7 +283,8 @@ export const googleDocsEditorAPI: EditorAPI = {
 	 * Reads a setting stored on the document (see {@link documentPropertyBridge}).
 	 */
 	async getDocumentSetting(key: string): Promise<string | null> {
-		const settings = documentPropertyBridge() ?? localDocumentSettingsFallback;
+		const settings =
+			documentPropertyBridge() ?? localDocumentSettingsFallback;
 		try {
 			return (await settings.getDocumentSetting(key)) ?? null;
 		} catch (error) {
@@ -293,7 +297,8 @@ export const googleDocsEditorAPI: EditorAPI = {
 	 * Writes a setting onto the document, where everyone who opens it sees it.
 	 */
 	async setDocumentSetting(key: string, value: string): Promise<void> {
-		const settings = documentPropertyBridge() ?? localDocumentSettingsFallback;
+		const settings =
+			documentPropertyBridge() ?? localDocumentSettingsFallback;
 		await settings.setDocumentSetting(key, value);
 	},
 

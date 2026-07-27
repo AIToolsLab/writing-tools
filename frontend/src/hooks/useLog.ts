@@ -19,7 +19,6 @@ import { useAppAuth } from '@/contexts/appAuthContext';
 
 export interface LogEvent {
 	event: string;
-	// biome-ignore lint/suspicious/noExplicitAny: events carry arbitrary serializable fields
 	[key: string]: any;
 }
 
