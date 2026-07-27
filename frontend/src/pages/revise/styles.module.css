@@ -114,49 +114,12 @@
 	flex-shrink: 0;
 }
 
-.todoSection { margin-bottom: 24px; }
-
-.block {
-	background: var(--surface);
-	border: 1.5px solid var(--border);
-	border-radius: var(--radius);
-	margin-bottom: 10px;
-	overflow: hidden;
-	transition: border-color 0.15s;
-	animation: fadeUp 0.2s ease both;
-}
-
-.block:focus-within { border-color: var(--accent); }
-
-.blockHead { padding: 12px 14px 0; }
-
-.blockTitle {
-	font-size: 13px;
-	font-weight: 600;
-	color: var(--text-primary);
-	margin-bottom: 2px;
-}
-
-.blockHint {
-	font-size: 11px;
-	color: var(--text-tertiary);
-	margin-bottom: 6px;
-}
-
-textarea {
-	width: 100%;
-	border: none;
-	outline: none;
-	background: transparent;
-	font-size: 13px;
-	color: var(--text-primary);
-	font-family: 'DM Sans', sans-serif;
-	resize: none;
-	line-height: 1.6;
-	padding: 8px 14px 14px;
-}
-
-textarea::placeholder { color: #c5bfb8; }
+/*
+ * The "set your brief" blocks that used to live here moved to
+ * components/briefSection, which every page renders — including the bare
+ * `textarea` rule, which was never scoped by CSS modules and so had been
+ * styling every textarea in the add-in.
+ */
 
 .featuresSection { margin-bottom: 16px; }
 

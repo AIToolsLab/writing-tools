@@ -37,6 +37,12 @@ import { streamTextDeltas } from '@/api/generate';
 import { reviseLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice, ErrorNotice } from '@/components/errorNotice';
+import BriefSection from '@/components/briefSection';
+import {
+	type DocBrief,
+	formatDocBriefForPrompt,
+	useDocBrief,
+} from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
@@ -157,8 +163,18 @@ Our response MUST reference specific parts of the document. We use Markdown link
 When generating a visualization, it is critical that we remain faithful to the document provided. If we ever realize that we've deviated from the document text, even slightly, we must include a remark to that effect in [square brackets] as soon as possible after the deviation.`;
 
 
-function getDocTextAsPrompt(docContext: DocContext, contextChars = 100) {
+function getDocTextAsPrompt(
+	docContext: DocContext,
+	brief: DocBrief,
+	contextChars = 100,
+) {
 	let prompt = ``;
+
+	// The writer's brief comes first: it frames how to read everything below it.
+	const briefBlock = formatDocBriefForPrompt(brief);
+	if (briefBlock) {
+		prompt += `${briefBlock}\n\n`;
+	}
 
 	if (docContext.contextData && docContext.contextData.length > 0) {
 		const contextSections = docContext.contextData.map(section => {
@@ -289,15 +305,19 @@ export default function Revise() {
 	>(null);
 	const [visualizations, setVisualizations] = useState<Visualization[]>([]);
 	const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
-	const [audience, setAudience] = useState('');
-	const [guardrails, setGuardrails] = useState('');
-	const [comments, setComments] = useState('');
+	const { brief } = useDocBrief();
 	const [isRunning, setIsRunning] = useState(false);
 	const [pendingHref, setPendingHref] = useState<string | null>(null);
 	const [failedHref, setFailedHref] = useState<string | null>(null);
 	// Only the newest click owns the shared pending/failed state; an earlier,
 	// slower search must not clear the indicator out from under it.
 	const jumpSeqRef = useRef(0);
+
+	// Read at request time, like the document context is, so a run always uses
+	// the brief as it stands — without rebuilding the request callbacks on every
+	// keystroke in the brief section.
+	const briefRef = useRef(brief);
+	briefRef.current = brief;
 
 	const handleJump = useCallback(
 		(href: string) => {
@@ -370,7 +390,7 @@ export default function Revise() {
 				docContext: currentContext,
 			});
 
-			const docTextAsPrompt = getDocTextAsPrompt(currentContext);
+			const docTextAsPrompt = getDocTextAsPrompt(currentContext, briefRef.current);
 
 			const messages: ModelMessage[] = [
 				{
@@ -529,55 +549,9 @@ ${request}
 				{/* Cross-tab helper — only meaningful in Google Docs, which has tabs */}
 				{isRunningInGoogleDocs() ? <TagLinker /> : null}
 
-				{/* Section 1: Set your to-do */}
-				<div className={classes.todoSection}>
-					<div className={classes.sectionLabel}>
-						<span className={classes.sectionNumber}>1</span>
-						Set your to-do
-					</div>
-
-					<div className={classes.block}>
-						<div className={classes.blockHead}>
-							<div className={classes.blockTitle}>Audience</div>
-							<div className={classes.blockHint}>Who are you writing this for?</div>
-						</div>
-						<textarea 
-							id="audienceInput" 
-							rows={2} 
-							placeholder="e.g. First-year college students with no background in the topic..."
-							value={audience}
-							onChange={(e) => setAudience(e.target.value)}
-						/>
-					</div>
-
-					<div className={classes.block}>
-						<div className={classes.blockHead}>
-							<div className={classes.blockTitle}>Guardrails</div>
-							<div className={classes.blockHint}>What should the AI avoid or preserve?</div>
-						</div>
-						<textarea 
-							id="guardrailInput" 
-							rows={2} 
-							placeholder="e.g. Don't change the opening paragraph, keep it under 400 words..."
-							value={guardrails}
-							onChange={(e) => setGuardrails(e.target.value)}
-						/>
-					</div>
-
-					<div className={classes.block}>
-						<div className={classes.blockHead}>
-							<div className={classes.blockTitle}>Additional comments</div>
-							<div className={classes.blockHint}>Anything else the AI should know before running?</div>
-						</div>
-						<textarea 
-							id="commentsInput" 
-							rows={3} 
-							placeholder="e.g. This is a draft for peer review. The argument isn't finished yet so don't flag gaps as errors..."
-							value={comments}
-							onChange={(e) => setComments(e.target.value)}
-						/>
-					</div>
-				</div>
+				{/* Section 1: Set your brief. Lives on the document and is shared
+				    with every other page — see components/briefSection. */}
+				<BriefSection page="revise" step={1} defaultOpen />
 
 				{/* Section 2: Choose features to run */}
 				<div className={classes.featuresSection}>

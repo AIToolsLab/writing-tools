@@ -131,6 +131,21 @@
       },
 
       /**
+       * Stores a property on the document (shared by everyone who opens it),
+       * as opposed to on the user.
+       */
+      setDocumentProperty: function(key, value) {
+        return this.run('setDocumentProperty', key, value);
+      },
+
+      /**
+       * Gets a document property.
+       */
+      getDocumentProperty: function(key) {
+        return this.run('getDocumentProperty', key);
+      },
+
+      /**
        * Gets the document ID of the active document.
        */
       getDocumentId: function() {

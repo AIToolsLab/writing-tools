@@ -26,6 +26,8 @@ function makeEditorAPI(getDocContext: () => Promise<DocContext>): EditorAPI {
 		removeSelectionChangeHandler: () => {},
 		getDocContext,
 		selectPhrase: () => Promise.resolve(),
+		getDocumentSetting: () => Promise.resolve(null),
+		setDocumentSetting: () => Promise.resolve(),
 	};
 }
 

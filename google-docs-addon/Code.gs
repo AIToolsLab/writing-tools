@@ -442,6 +442,37 @@ function deleteUserProperty(key) {
   PropertiesService.getUserProperties().deleteProperty(key);
 }
 
+// =============================================================================
+// Document Properties (for settings that belong to the document, not the user)
+// =============================================================================
+//
+// User properties above are per-user and follow the person across every
+// document. Document properties are the opposite: scoped to this document and
+// shared by everyone who opens it, which is what settings like the writer's
+// to-do (audience / guardrails / comments) need — they describe the document,
+// so they must travel with it rather than with whoever typed them.
+
+/**
+ * Stores a document property.
+ */
+function setDocumentProperty(key, value) {
+  PropertiesService.getDocumentProperties().setProperty(key, value);
+}
+
+/**
+ * Gets a document property. Returns null if it was never set.
+ */
+function getDocumentProperty(key) {
+  return PropertiesService.getDocumentProperties().getProperty(key);
+}
+
+/**
+ * Deletes a document property.
+ */
+function deleteDocumentProperty(key) {
+  PropertiesService.getDocumentProperties().deleteProperty(key);
+}
+
 /**
  * Gets the current user's email (for identification).
  */
