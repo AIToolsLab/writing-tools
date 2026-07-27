@@ -374,9 +374,23 @@ function AppInner() {
 			{!noAuthMode && user ? (
 				<div className={classes.container}>
 					<div className={classes.profileContainer}>
-						<div className={classes.userNameContainer}>
+						{/* The identity chip doubles as the entry point to account &
+						    privacy — account affordances belong next to identity, and the
+						    nav strip switches in-app pages, so an outbound link had no
+						    business there. Same-origin, so /account.html shares the
+						    persisted auth token and there is no second sign-in. The
+						    eventual direction is an in-sidebar account screen sharing
+						    this app's auth directly; this is the interim door. */}
+						<a
+							href="/account.html"
+							target="_blank"
+							rel="noopener"
+							className={classes.userNameContainer}
+							title="Account &amp; privacy"
+							aria-label={`Account and privacy settings for ${user.name}`}
+						>
 							User: {user.name}
-						</div>
+						</a>
 					</div>
 					{authErrorType !== null && (
 						<Button
