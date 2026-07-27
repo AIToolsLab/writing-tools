@@ -17,6 +17,7 @@ use .env), so there's nothing sensitive to protect here.
 
 import secrets
 import string
+import re
 from pathlib import Path
 
 repo_root = Path(__file__).parent.parent
@@ -65,8 +66,6 @@ def prompt_posthog_token() -> str:
     ).strip()
 
 
-present = existing_keys(env_file)
-
 # (key, value-or-callable, optional comment lines to write before it).
 # Callables are only invoked when the key is actually missing, so we only
 # prompt for what we still need.
@@ -89,61 +88,105 @@ entries = [
     ]),
 ]
 
-missing = [e for e in entries if e[0] not in present]
-
-lines = []
-for key, value, comments in missing:
-    if comments:
-        lines.append("")
-        lines.extend(f"# {c}" for c in comments)
-    resolved = value() if callable(value) else value
-    # Quote prompted/generated string values; leave plain literals (booleans,
-    # URLs, empty defaults) unquoted to match the original file's style.
-    if key in ("OPENAI_API_KEY", "LOG_SECRET", "POSTHOG_PROJECT_TOKEN"):
-        lines.append(f'{key}="{resolved}"')
+def merge_csv_assignment(
+    source: str, key: str, required: list[str]
+) -> tuple[str, list[str]]:
+    """Merge a dotenv CSV assignment without disturbing its presentation."""
+    pattern = re.compile(
+        rf"^(\s*{re.escape(key)}\s*=\s*)(.*?)(\r?\n|$)", re.MULTILINE
+    )
+    match = pattern.search(source)
+    if not match:
+        return source, []
+    raw = match.group(2)
+    leading = raw[: len(raw) - len(raw.lstrip())]
+    value_and_suffix = raw[len(leading) :]
+    quote = value_and_suffix[:1] if value_and_suffix[:1] in ("'", '"') else ""
+    suffix = ""
+    if quote:
+        close = value_and_suffix.find(quote, 1)
+        if close == -1:
+            return source, []
+        value = value_and_suffix[1:close]
+        suffix = value_and_suffix[close + 1 :]
     else:
-        lines.append(f"{key}={resolved}")
-
-# Append, preserving anything already in the file.
-if lines:
-    current = env_file.read_text() if env_file.exists() else ""
-    needs_leading_newline = bool(current) and not current.endswith("\n")
-    with open(env_file, "a") as f:
-        if needs_leading_newline:
-            f.write("\n")
-        f.write("\n".join(lines) + "\n")
-
-
-def merge_csv_values(path: Path, key: str, required: list[str]) -> list[str]:
-    """Append missing CSV values to an existing unquoted dotenv assignment."""
-    source = path.read_text()
-    output = []
+        comment = re.search(r"(\s+#.*)$", value_and_suffix)
+        if comment:
+            value = value_and_suffix[: comment.start()].rstrip()
+            suffix = value_and_suffix[comment.start() :]
+        else:
+            value = value_and_suffix.rstrip()
+            suffix = value_and_suffix[len(value) :]
+    values = [item.strip() for item in value.split(",") if item.strip()]
     added: list[str] = []
-    for line in source.splitlines():
-        if line.startswith(f"{key}="):
-            raw = line.split("=", 1)[1].strip().strip("\"'")
-            values = [value.strip() for value in raw.split(",") if value.strip()]
-            for value in required:
-                if value not in values:
-                    values.append(value)
-                    added.append(value)
-            line = f"{key}={','.join(values)}"
-        output.append(line)
-    path.write_text("\n".join(output) + "\n")
-    return added
+    for required_value in required:
+        if required_value not in values:
+            values.append(required_value)
+            added.append(required_value)
+    if not added:
+        return source, []
+    replacement = (
+        match.group(1)
+        + leading
+        + quote
+        + ",".join(values)
+        + quote
+        + suffix
+        + match.group(3)
+    )
+    return source[: match.start()] + replacement + source[match.end() :], added
 
 
-added_clients = merge_csv_values(
-    env_file, "BETTER_AUTH_DEVICE_CLIENT_IDS", required_device_clients
-)
+def read_preserving_newlines(path: Path) -> str:
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return handle.read()
 
-if missing:
-    print(f"Added {len(missing)} missing key(s) to {env_file}:")
-    for key, *_ in missing:
-        print(f"  - {key}")
-if added_clients:
-    print("Added local device/tool client IDs:")
-    for client in added_clients:
-        print(f"  - {client}")
-if not missing and not added_clients:
-    print(f".env already has all expected keys and clients ({env_file}). Nothing to do.")
+
+def write_preserving_newlines(path: Path, source: str) -> None:
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        handle.write(source)
+
+
+def main() -> None:
+    present = existing_keys(env_file)
+    missing = [entry for entry in entries if entry[0] not in present]
+    lines = []
+    for key, value, comments in missing:
+        if comments:
+            lines.append("")
+            lines.extend(f"# {comment}" for comment in comments)
+        resolved = value() if callable(value) else value
+        if key in ("OPENAI_API_KEY", "LOG_SECRET", "POSTHOG_PROJECT_TOKEN"):
+            lines.append(f'{key}="{resolved}"')
+        else:
+            lines.append(f"{key}={resolved}")
+
+    if lines:
+        current = read_preserving_newlines(env_file) if env_file.exists() else ""
+        newline = "\r\n" if "\r\n" in current else "\n"
+        if current and not current.endswith(("\n", "\r")):
+            current += newline
+        current += newline.join(lines) + newline
+        write_preserving_newlines(env_file, current)
+
+    source = read_preserving_newlines(env_file)
+    merged, added_clients = merge_csv_assignment(
+        source, "BETTER_AUTH_DEVICE_CLIENT_IDS", required_device_clients
+    )
+    if merged != source:
+        write_preserving_newlines(env_file, merged)
+
+    if missing:
+        print(f"Added {len(missing)} missing key(s) to {env_file}:")
+        for key, *_ in missing:
+            print(f"  - {key}")
+    if added_clients:
+        print("Added local device/tool client IDs:")
+        for client in added_clients:
+            print(f"  - {client}")
+    if not missing and not added_clients:
+        print(f".env already has all expected keys and clients ({env_file}). Nothing to do.")
+
+
+if __name__ == "__main__":
+    main()

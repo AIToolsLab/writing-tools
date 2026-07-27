@@ -11,7 +11,11 @@ import {
 import { deviceClientIds, gitCommit, logSecret } from './config.js';
 import { eraseLoggedData } from './erasure.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
-import { openaiProxy } from './openaiProxy.js';
+import {
+	openaiProxy,
+	PLATFORM_AUTH_ERROR_HEADER,
+	type ProxyIdentity,
+} from './openaiProxy.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 import { costUsd } from './pricing.js';
 import {
@@ -63,7 +67,7 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	const app = new Hono();
 
 	// CORS stays fully permissive for now to preserve existing behaviour.
-	app.use('*', cors());
+	app.use('*', cors({ exposeHeaders: [PLATFORM_AUTH_ERROR_HEADER] }));
 	app.use('*', posthogMiddleware);
 
 	if (auth) {
@@ -90,7 +94,7 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		openaiProxy('chat/completions', {
 			// The proxy only reads { id, isAnonymous }; resolveUser also returns
 			// loggingConsent, which is structurally compatible and simply ignored here.
-			resolveUser,
+			resolveIdentity: resolveProxyIdentity,
 			authEnabled: !!auth,
 		}),
 	);
@@ -99,7 +103,7 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	app.post(
 		'/api/openai/responses',
 		openaiProxy('responses', {
-			resolveUser,
+			resolveIdentity: resolveProxyIdentity,
 			authEnabled: !!auth,
 		}),
 	);
@@ -150,6 +154,20 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			// unless it self-identifies as a device-flow tool via X-Client-Id.
 			clientId: headerClientId(c),
 		};
+	}
+
+	async function resolveProxyIdentity(c: Context): Promise<ProxyIdentity> {
+		const bearer = bearerToken(c);
+		if (bearer?.startsWith('wtk_')) {
+			const tool = resolveToolToken(bearer);
+			return tool
+				? { kind: 'authenticated', user: tool.user }
+				: { kind: 'rejected_tool_credential' };
+		}
+		const user = await resolveUser(c);
+		return user
+			? { kind: 'authenticated', user }
+			: { kind: 'sessionless' };
 	}
 
 	// Client event logging. Requires an authenticated session: the log is keyed by

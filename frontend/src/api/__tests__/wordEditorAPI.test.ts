@@ -12,4 +12,14 @@ describe('wordDocumentLabel', () => {
 		expect(wordDocumentLabel('')).toBe('Word document');
 		expect(wordDocumentLabel(undefined)).toBe('Word document');
 	});
+
+	it.each([
+		['C:\\Users\\writer\\OneDrive\\Essay.docx', 'Essay.docx'],
+		['C:/Users/writer/OneDrive/Essay%20Draft.docx', 'Essay Draft.docx'],
+		['\\\\server\\private\\team\\Shared.docx', 'Shared.docx'],
+		['https://example.test/private/folder/Final%20Draft.docx', 'Final Draft.docx'],
+		['https://example.test/private/folder/Bad%ZZ.docx', 'Bad%ZZ.docx'],
+	])('never exposes directory components from %s', (input, expected) => {
+		expect(wordDocumentLabel(input)).toBe(expected);
+	});
 });

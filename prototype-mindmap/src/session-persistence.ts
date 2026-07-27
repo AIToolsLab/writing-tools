@@ -26,6 +26,8 @@ import type { UnderstandingSnapshot } from "./understanding";
 /** Unchanged since v1 despite the schema reaching version 7 — renaming it would strand
  *  every existing session. The version lives in the payload, not the key. */
 export const SESSION_STORAGE_KEY = "prototype-mindmap-session-v1";
+export const SUPPORTED_SESSION_VERSIONS = [1, 2, 3, 4, 5, 6, 7] as const;
+export type PersistedSessionVersion = (typeof SUPPORTED_SESSION_VERSIONS)[number];
 
 export interface ChatMsg {
   id: number;
@@ -44,6 +46,8 @@ export interface ChatMsg {
   responseKind?: AssistantResponse["kind"];
   /** Application-owned terminal recovery; never sent to the model as dialogue. */
   terminal?: RepairFailureTerminal["kind"];
+  /** Missing means delivered for sessions written before optimistic-state tracking. */
+  deliveryStatus?: "pending" | "delivered" | "failed";
 }
 
 export interface DraftPanelPos { x: number; y: number; }
@@ -70,7 +74,7 @@ export interface DraftSourceMetadata {
 }
 
 export interface PersistedSession {
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  version: PersistedSessionVersion;
   sessionId?: string;
   assistanceLevel?: AssistanceLevel;
   msgs: ChatMsg[];
@@ -117,7 +121,23 @@ export interface SavedMindmapSummary {
   lastSavedAt?: number;
 }
 
-const SUPPORTED_VERSIONS: ReadonlySet<number> = new Set([1, 2, 3, 4, 5, 6, 7]);
+const SUPPORTED_VERSIONS: ReadonlySet<number> = new Set(SUPPORTED_SESSION_VERSIONS);
+
+export function hasPersistableWork(
+  session: Pick<PersistedSession, "msgs" | "draftText" | "map">,
+): boolean {
+  const hasMessages =
+    Array.isArray(session.msgs) &&
+    session.msgs.some((message) => message.deliveryStatus !== "pending");
+  const hasDraft =
+    typeof session.draftText === "string" && session.draftText.trim().length > 0;
+  const hasMap =
+    session.map !== null &&
+    typeof session.map === "object" &&
+    ((Array.isArray(session.map.units) && session.map.units.length > 0) ||
+      (Array.isArray(session.map.connections) && session.map.connections.length > 0));
+  return hasMessages || hasDraft || hasMap;
+}
 
 export function loadPersistedSession(storage?: Pick<Storage, "getItem">): PersistedSession | null {
   const source = storage ?? (typeof window === "undefined" ? undefined : window.localStorage);
@@ -126,17 +146,27 @@ export function loadPersistedSession(storage?: Pick<Storage, "getItem">): Persis
     const raw = source.getItem(SESSION_STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PersistedSession;
-    return SUPPORTED_VERSIONS.has(parsed.version) ? parsed : null;
+    return SUPPORTED_VERSIONS.has(parsed.version) && hasPersistableWork(parsed)
+      ? parsed
+      : null;
   } catch {
     return null;
   }
 }
 
 export function writePersistedSession(
-  storage: Pick<Storage, "setItem">,
+  storage: Pick<Storage, "setItem" | "removeItem">,
   session: PersistedSession,
 ): void {
-  storage.setItem(SESSION_STORAGE_KEY, JSON.stringify(session));
+  const persistable = {
+    ...session,
+    msgs: session.msgs.filter((message) => message.deliveryStatus !== "pending"),
+  };
+  if (!hasPersistableWork(persistable)) {
+    storage.removeItem(SESSION_STORAGE_KEY);
+    return;
+  }
+  storage.setItem(SESSION_STORAGE_KEY, JSON.stringify(persistable));
 }
 
 /**
@@ -150,14 +180,6 @@ export function writePersistedSession(
 export function savedMindmapSummary(storage: Pick<Storage, "getItem">): SavedMindmapSummary | null {
   const saved = loadPersistedSession(storage);
   if (!saved) return null;
-  const hasMessages = Array.isArray(saved.msgs) && saved.msgs.length > 0;
-  const hasDraft = typeof saved.draftText === "string" && saved.draftText.trim().length > 0;
-  const hasMap =
-    saved.map !== null &&
-    typeof saved.map === "object" &&
-    ((Array.isArray(saved.map.units) && saved.map.units.length > 0) ||
-      (Array.isArray(saved.map.connections) && saved.map.connections.length > 0));
-  if (!hasMessages && !hasDraft && !hasMap) return null;
   return {
     documentLabel: saved.draftSource?.documentLabel || "Saved mindmap",
     lastSavedAt: saved.lastSavedAt,

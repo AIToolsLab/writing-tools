@@ -1,14 +1,20 @@
 export function wordDocumentLabel(url: string | undefined): string {
 	if (!url) return 'Word document';
+	let value = url;
+	if (/^https?:\/\//i.test(url)) {
+		try {
+			value = new URL(url).pathname;
+		} catch {
+			// Treat malformed HTTP(S) values as opaque paths below.
+		}
+	}
+	const segments = value.split(/[\\/]/).filter(Boolean);
+	const filename = segments[segments.length - 1];
+	if (!filename) return 'Word document';
 	try {
-		const pathname = new URL(url).pathname;
-		const segments = pathname.split('/').filter(Boolean);
-		const filename = segments[segments.length - 1];
-		return filename ? decodeURIComponent(filename) : 'Word document';
+		return decodeURIComponent(filename);
 	} catch {
-		const segments = url.split(/[\\/]/).filter(Boolean);
-		const filename = segments[segments.length - 1];
-		return filename || 'Word document';
+		return filename;
 	}
 }
 

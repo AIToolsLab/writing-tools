@@ -16,19 +16,7 @@ export interface LocalLedgerEvent {
   contract?: AssistanceContractSnapshot;
   origin?: ContributionOrigin;
   influenceTrace?: InfluenceTrace;
-  /** Full local-only payload: may contain user and provider content. */
-  detail?: unknown;
-}
-
-export interface SanitizedMindmapEvent {
-  sessionId: string;
-  sequence: number;
-  at: number;
-  kind: LedgerEventKind;
-  contractId?: string;
-  contractLevel?: number;
   responseKind?: string;
-  origin?: ContributionOrigin;
   outcome?: string;
   code?: string;
   durationMs?: number;
@@ -39,6 +27,8 @@ export interface SanitizedMindmapEvent {
   ageInTurns?: number;
   currentPercentage?: number;
   peakPercentage?: number;
+  /** Full local-only payload: may contain user and provider content. */
+  detail?: unknown;
 }
 
 const DB = "mindmap-assistance-ledger";
@@ -52,13 +42,13 @@ export class EventLedger {
   constructor(readonly sessionId: string) {}
   get isAvailable(): boolean { return !this.unavailable; }
 
-  record(kind: LedgerEventKind, detail?: unknown, meta?: Pick<LocalLedgerEvent, "contract" | "origin" | "influenceTrace">): Promise<LocalLedgerEvent> {
+  record(kind: LedgerEventKind, detail?: unknown, meta?: Omit<LocalLedgerEvent, "sessionId" | "sequence" | "at" | "kind" | "detail">): Promise<LocalLedgerEvent> {
     const operation = this.tail.then(() => this.writeRecord(kind, detail, meta));
     this.tail = operation.then(() => undefined, () => undefined);
     return operation;
   }
 
-  private async writeRecord(kind: LedgerEventKind, detail?: unknown, meta?: Pick<LocalLedgerEvent, "contract" | "origin" | "influenceTrace">): Promise<LocalLedgerEvent> {
+  private async writeRecord(kind: LedgerEventKind, detail?: unknown, meta?: Omit<LocalLedgerEvent, "sessionId" | "sequence" | "at" | "kind" | "detail">): Promise<LocalLedgerEvent> {
     if (typeof indexedDB === "undefined") {
       this.unavailable = true;
       return { sessionId: this.sessionId, sequence: ++this.sequence, at: Date.now(), kind, detail, ...meta };
@@ -93,8 +83,4 @@ export class EventLedger {
       return { sessionId: this.sessionId, sequence: ++this.sequence, at: Date.now(), kind, detail, ...meta };
     }
   }
-}
-
-export function sanitizedEvent(event: LocalLedgerEvent, extra: Omit<SanitizedMindmapEvent, "sessionId" | "sequence" | "at" | "kind" | "contractId" | "contractLevel" | "origin"> = {}): SanitizedMindmapEvent {
-  return { sessionId: event.sessionId, sequence: event.sequence, at: event.at, kind: event.kind, contractId: event.contract?.id, contractLevel: event.contract?.level, origin: event.origin, ...extra };
 }

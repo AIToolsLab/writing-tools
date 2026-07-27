@@ -310,9 +310,12 @@ describe("typed assistant response parser", () => {
     }));
   });
 
-  it("injects bearer auth through runtime options and reports 401 without reading browser storage", async () => {
+  it("injects bearer auth and reports a platform-marked 401", async () => {
     const onAccessError = vi.fn();
-    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }));
+    const fetchMock = vi.fn().mockResolvedValueOnce(new Response("Unauthorized", {
+      status: 401,
+      headers: { "X-Writing-Tools-Error": "platform-auth" },
+    }));
     vi.stubGlobal("fetch", fetchMock);
     const model = makeLLM(defaultConfig, {
       runtime: { bearerToken: "wtk_runtime", onAccessError },
@@ -327,6 +330,19 @@ describe("typed assistant response parser", () => {
       },
     });
     expect(onAccessError).toHaveBeenCalledWith(401);
+  });
+
+  it("leaves unmarked upstream 401 and 403 errors retryable", async () => {
+    const onAccessError = vi.fn();
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response("Provider unauthorized", { status: 401 }))
+      .mockResolvedValueOnce(new Response("Provider forbidden", { status: 403 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const model = makeLLM(defaultConfig, { runtime: { onAccessError } });
+
+    await expect(model(context)).rejects.toThrow("Backend 401");
+    await expect(model(context)).rejects.toThrow("Backend 403");
+    expect(onAccessError).not.toHaveBeenCalled();
   });
 
   it("forces the third recovery prompt to request exactly one question", async () => {

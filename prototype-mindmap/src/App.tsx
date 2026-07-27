@@ -20,14 +20,11 @@ import { EventLedger, type LedgerEventKind } from "./event-ledger";
 import { reconcileStoreSuggestionAdoption, type VisibleSuggestion } from "./suggestion-adoption";
 import { provenanceTotals } from "./provenance-summary";
 import { useMutationAccess } from "./mutation-policy";
-import { useUiLocale } from "./ui-locale";
+import { interpolateUi, useUiLocale } from "./ui-locale";
 import { useReaderView } from "./reader-view";
 import { UnderTheHoodPanel } from "./ControlRoom";
 import {
-  clearSavedMindmap,
   loadPersistedSession,
-  savedMindmapSummary,
-  SESSION_STORAGE_KEY,
   writePersistedSession,
   type ChatMsg,
   type ClaimDecision,
@@ -37,19 +34,7 @@ import {
   type DraftSourceMetadata,
   type PersistedPendingMirror,
   type PersistedSession,
-  type SavedMindmapSummary,
 } from "./session-persistence";
-
-// The persisted session shape and its storage operations live in
-// `session-persistence.ts`; re-exported here so existing importers keep working.
-export {
-  clearSavedMindmap,
-  savedMindmapSummary,
-  SESSION_STORAGE_KEY,
-  type DraftSourceMetadata,
-  type PersistedPendingMirror,
-  type SavedMindmapSummary,
-};
 
 // ---------------------------------------------------------------------------
 // Types
@@ -2443,10 +2428,51 @@ function defaultDraftPosition(size: DraftPanelSize): DraftPanelPos {
 
 export function buildConversationHistory(msgs: ChatMsg[]): ConversationMessage[] {
   return msgs.flatMap((msg) =>
-    msg.role === "user" || msg.role === "assistant"
+    (msg.role === "user" || msg.role === "assistant") &&
+    msg.deliveryStatus !== "pending" &&
+    msg.deliveryStatus !== "failed"
       ? [{ role: msg.role, content: msg.text }]
       : [],
   );
+}
+
+export function restoreFailedMessageToComposer(
+  msgs: ChatMsg[],
+  input: string,
+  messageId: number,
+): { msgs: ChatMsg[]; input: string } {
+  const failed = msgs.find(
+    (message) =>
+      message.id === messageId &&
+      message.role === "user" &&
+      message.deliveryStatus === "failed",
+  );
+  if (!failed) return { msgs, input };
+  return {
+    msgs: msgs.filter((message) => message.id !== messageId),
+    input: input ? `${failed.text}\n\n${input}` : failed.text,
+  };
+}
+
+export function recoverFailedTurn(
+  msgs: ChatMsg[],
+  input: string,
+  message: ChatMsg,
+): { msgs: ChatMsg[]; input: string } {
+  if (!input) {
+    return {
+      msgs: msgs.filter((candidate) => candidate.id !== message.id),
+      input: message.text,
+    };
+  }
+  return {
+    msgs: msgs.map((candidate) =>
+      candidate.id === message.id
+        ? { ...candidate, deliveryStatus: "failed" }
+        : candidate,
+    ),
+    input,
+  };
 }
 
 export function deriveCurrentUserTurn(bank: Array<{ turnId?: string }>): number {
@@ -2764,6 +2790,8 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
   const [showWorking, setShowWorking] = useState(false);
   const [turnProgress, setTurnProgress] = useState<TurnProgressStage | null>(null);
   const [input, setInput] = useState("");
+  const inputRef = useRef(input);
+  inputRef.current = input;
   const [composerScrollable, setComposerScrollable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [underhoodOpen, setUnderhoodOpen] = useState(false);
@@ -2774,8 +2802,8 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
   const ledgerRef = useRef(new EventLedger(initialSessionId));
   const contract = contractForLevel(assistanceLevel);
 
-  const recordEvent = useCallback(async (kind: LedgerEventKind, detail?: unknown, extra?: { origin?: import("./assistance-contract").ContributionOrigin; responseKind?: string; outcome?: string; code?: string; contract?: import("./assistance-contract").AssistanceContractSnapshot; providerTransport?: "chat_json" | "responses_tools"; toolName?: "propose_reflection_v1" | "propose_map_action_v1"; repairCount?: number; candidateStatus?: "active" | "parked" | "ignored" | "promoted"; ageInTurns?: number; currentPercentage?: number; peakPercentage?: number }) => {
-    await ledgerRef.current.record(kind, detail, { contract: extra?.contract ?? snapshotContract(contract), origin: extra?.origin });
+  const recordEvent = useCallback(async (kind: LedgerEventKind, detail?: unknown, extra?: { origin?: import("./assistance-contract").ContributionOrigin; responseKind?: string; outcome?: string; code?: string; durationMs?: number; contract?: import("./assistance-contract").AssistanceContractSnapshot; providerTransport?: "chat_json" | "responses_tools"; toolName?: "propose_reflection_v1" | "propose_map_action_v1"; repairCount?: number; candidateStatus?: "active" | "parked" | "ignored" | "promoted"; ageInTurns?: number; currentPercentage?: number; peakPercentage?: number }) => {
+    await ledgerRef.current.record(kind, detail, { ...extra, contract: extra?.contract ?? snapshotContract(contract) });
     setLedgerAvailable(ledgerRef.current.isAvailable);
   }, [contract]);
 
@@ -3515,7 +3543,7 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
       version: 7,
       sessionId: initialSessionId,
       assistanceLevel,
-      msgs,
+      msgs: msgs.filter((message) => message.deliveryStatus !== "pending"),
       proposals: Array.from(proposals.values()),
       confirmed,
       lastCoachDebug,
@@ -3586,6 +3614,7 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
     });
 
     speech.stop();
+    inputRef.current = "";
     setInput("");
     setError(null);
     speech.reset();
@@ -3596,12 +3625,28 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
     setContextSelectedCardIds(new Set());
     setDraftSelectionFocus(undefined);
 
-    const userMessage: ChatMsg = { id: ++msgId, role: "user", text };
+    const userMessage: ChatMsg = {
+      id: ++msgId,
+      role: "user",
+      text,
+      deliveryStatus: "pending",
+    };
     // React state is asynchronous. Construct the provider transcript here so
     // this exact user turn is present once, in final dialogue position, on the
     // very request it triggered.
     const turnHistory = historyForCurrentTurn(buildConversationHistory(msgs), text);
-    setMsgs((prev) => [...prev.filter((message) => message.role !== "application" || message.terminal !== "repair_failed"), userMessage]);
+    setMsgs((prev) => {
+      const next = [
+        ...prev.filter(
+          (message) =>
+            message.role !== "application" ||
+            message.terminal !== "repair_failed",
+        ),
+        userMessage,
+      ];
+      msgsRef.current = next;
+      return next;
+    });
 
     setLoading(true);
     try {
@@ -3640,6 +3685,13 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
       if (nonce !== turnNonceRef.current) return;
       mergeConversationBank(workingState, stateRef.current);
       stateRef.current = workingState;
+      setMsgs((previous) =>
+        previous.map((message) =>
+          message.id === userMessage.id
+            ? { ...message, deliveryStatus: "delivered" }
+            : message,
+        ),
+      );
       for (const event of out.diagnostics) void recordEvent("contract_decision", event, { outcome: event.outcome, code: event.code });
       appendCoachOutput(out);
     } catch (e) {
@@ -3651,8 +3703,17 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
       // every later request for the life of the saved mindmap. Restoring the text makes
       // retry one keystroke; deliberately not auto-resent, since by the time a relaunch
       // completes the message is often stale and resending spends a real call.
-      setMsgs((prev) => prev.filter((message) => message.id !== userMessage.id));
-      setInput((current) => current || text);
+      const recovery = recoverFailedTurn(
+        msgsRef.current,
+        inputRef.current,
+        userMessage,
+      );
+      msgsRef.current = recovery.msgs;
+      setMsgs(recovery.msgs);
+      if (recovery.input !== inputRef.current) {
+        inputRef.current = recovery.input;
+        setInput(recovery.input);
+      }
       setError(msg);
     } finally {
       if (nonce === turnNonceRef.current) { setLoading(false); setTurnProgress(null); }
@@ -4022,6 +4083,27 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
                     <button type="button" className="btn btn-confirm-sm" onClick={() => retryRecovery(m.id)} disabled={readOnly || loading}>{t("Try again")}</button>
                   </div>
                 )}
+                {m.role === "user" && m.deliveryStatus === "failed" && (
+                  <div className="recovery-actions">
+                    <button
+                      type="button"
+                      className="btn btn-confirm-sm"
+                      onClick={() => {
+                        const restored = restoreFailedMessageToComposer(
+                          msgsRef.current,
+                          inputRef.current,
+                          m.id,
+                        );
+                        msgsRef.current = restored.msgs;
+                        inputRef.current = restored.input;
+                        setMsgs(restored.msgs);
+                        setInput(restored.input);
+                      }}
+                    >
+                      {t("Restore to composer")}
+                    </button>
+                  </div>
+                )}
                 {m.role === "assistant" && m.questionAnchor && (
                   <button className="anchor-view-btn" type="button" onClick={() => revealDraftAnchor(m.questionAnchor!)}>
                     {t("View passage")}
@@ -4190,7 +4272,10 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
             <span className="draft-panel-title">{t("Draft")}</span>
             {draftSource && (
               <span className="draft-source-label">
-                {t("Snapshot of {document} captured at launch. Edits here do not sync back.").replace("{document}", t(draftSource.documentLabel))}
+                {interpolateUi(
+                  t("Snapshot of {document} captured at launch. Edits here do not sync back."),
+                  { document: draftSource.documentLabel },
+                )}
               </span>
             )}
             <button

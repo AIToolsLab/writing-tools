@@ -27,6 +27,18 @@ export interface UiLocaleValue {
   t: (source: string) => string;
 }
 
+/** Interpolate translated UI templates without replacement-string semantics.
+ * Filenames containing `$&`, `$'`, backticks, or braces remain literal. */
+export function interpolateUi(
+  template: string,
+  replacements: Record<string, string>,
+): string {
+  return Object.entries(replacements).reduce(
+    (result, [name, value]) => result.split(`{${name}}`).join(value),
+    template,
+  );
+}
+
 interface StorageReader {
   getItem(key: string): string | null;
 }

@@ -188,5 +188,8 @@
   "Start a new empty mindmap—no document shared",
   "Launched {time}",
   "Document snapshot",
-  "Saved mindmap"
+  "Saved mindmap",
+  "Restore to composer",
+  "Mindmap needs browser storage",
+  "Browser storage is unavailable, so Mindmap cannot safely preserve your access or local work. Enable storage for this site and launch again."
 ]

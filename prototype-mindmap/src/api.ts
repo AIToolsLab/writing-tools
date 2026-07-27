@@ -35,6 +35,8 @@ const BACKEND_URL = (() => {
 })();
 const MODEL = viteEnv?.VITE_MINDMAP_MODEL ?? "gpt-5.6-terra";
 const REASONING_EFFORT = viteEnv?.VITE_MINDMAP_REASONING_EFFORT ?? "low";
+const PLATFORM_AUTH_ERROR_HEADER = "X-Writing-Tools-Error";
+const PLATFORM_AUTH_ERROR_VALUE = "platform-auth";
 export const PROVIDER_TRANSPORT: ProviderTransport = viteEnv?.VITE_MINDMAP_PROVIDER_TRANSPORT === "responses_tools" ? "responses_tools" : "chat_json";
 
 /** Runtime transport settings. The browser uses Vite values; the eval runner
@@ -92,7 +94,12 @@ function providerHeaders(runtime: ResolvedProviderRuntimeConfig): Record<string,
 }
 
 function reportAccessError(response: Response, runtime: ResolvedProviderRuntimeConfig): void {
-  if (response.status === 401 || response.status === 403) runtime.onAccessError?.(response.status);
+  if (
+    (response.status === 401 || response.status === 403) &&
+    response.headers.get(PLATFORM_AUTH_ERROR_HEADER) === PLATFORM_AUTH_ERROR_VALUE
+  ) {
+    runtime.onAccessError?.(response.status);
+  }
 }
 
 async function postChat(messages: OpenAIMessage[], runtime: ResolvedProviderRuntimeConfig): Promise<{ content: string; body: unknown }> {

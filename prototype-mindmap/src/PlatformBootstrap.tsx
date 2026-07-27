@@ -5,6 +5,7 @@ import { MutationPolicyProvider } from "./mutation-policy";
 import {
   clearSavedMindmap,
   savedMindmapSummary,
+  SESSION_STORAGE_KEY,
   type DraftSourceMetadata,
   type SavedMindmapSummary,
 } from "./session-persistence";
@@ -14,6 +15,7 @@ import {
   grantFromHash,
   GrantExchangeError,
   launchRequired,
+  PLATFORM_SESSION_STORAGE_KEY,
   readPlatformSession,
   scrubGrantFromUrl,
   snapshotText,
@@ -21,7 +23,7 @@ import {
   type PlatformSession,
 } from "./platform-session";
 import { ReaderViewProvider, useReaderView } from "./reader-view";
-import { UiLocaleProvider, useUiLocale } from "./ui-locale";
+import { interpolateUi, UiLocaleProvider, useUiLocale } from "./ui-locale";
 
 type BlockingReason =
   | "launch_required"
@@ -29,7 +31,8 @@ type BlockingReason =
   | "grant_expired"
   | "grant_used"
   | "grant_invalid"
-  | "network";
+  | "network"
+  | "storage_unavailable";
 
 type BootState =
   | { kind: "connecting" }
@@ -104,6 +107,11 @@ function blockedCopy(reason: BlockingReason): { title: string; body: string } {
         title: "Mindmap could not reach Writing Tools",
         body: "Check the connection and retry. If the link was consumed, launch Mindmap again.",
       };
+    case "storage_unavailable":
+      return {
+        title: "Mindmap needs browser storage",
+        body: "Browser storage is unavailable, so Mindmap cannot safely preserve your access or local work. Enable storage for this site and launch again.",
+      };
     default:
       return {
         title: "Launch Mindmap from Writing Tools",
@@ -153,13 +161,18 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { faile
   }
 }
 
-function initialBootState(): BootState {
+export function initialBootState(): BootState {
   if (typeof window === "undefined") return { kind: "connecting" };
   const hasGrant = Boolean(grantFromHash(window.location.hash));
-  const stored = readPlatformSession(window.sessionStorage);
   if (hasGrant) return { kind: "connecting" };
+  const storage = browserStorage();
+  if (!storage) return { kind: "blocked", reason: "storage_unavailable" };
+  const stored = readPlatformSession(storage.session);
   if (stored) {
-    const saved = savedMindmapSummary(window.localStorage);
+    if (stored.expiresAt <= Date.now()) {
+      return { kind: "blocked", reason: "token_expired" };
+    }
+    const saved = savedMindmapSummary(storage.local);
     if (!stored.decision && saved) return { kind: "choice", session: stored, saved };
     return {
       kind: "ready",
@@ -176,10 +189,32 @@ function initialBootState(): BootState {
 
 export default function PlatformBootstrap() {
   return (
-    <UiLocaleProvider>
-      <PlatformBootstrapContent />
-    </UiLocaleProvider>
+    <AppErrorBoundary>
+      <UiLocaleProvider>
+        <PlatformBootstrapContent />
+      </UiLocaleProvider>
+    </AppErrorBoundary>
   );
+}
+
+interface BrowserStorage {
+  session: Storage;
+  local: Storage;
+}
+
+export function browserStorage(): BrowserStorage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const session = window.sessionStorage;
+    const local = window.localStorage;
+    // Property access and getItem can fail independently in privacy-restricted
+    // contexts. Probe both stores before accepting a launch snapshot.
+    session.getItem(PLATFORM_SESSION_STORAGE_KEY);
+    local.getItem(SESSION_STORAGE_KEY);
+    return { session, local };
+  } catch {
+    return null;
+  }
 }
 
 function PlatformBootstrapContent() {
@@ -187,25 +222,67 @@ function PlatformBootstrapContent() {
   const [boot, setBoot] = useState<BootState>(initialBootState);
   const [accessDenied, setAccessDenied] = useState(false);
   const exchangeStarted = useRef(false);
+  const capturedGrant = useRef<string | null>(null);
 
-  useEffect(() => {
-    const grant = grantFromHash(window.location.hash);
-    if (!grant || exchangeStarted.current) return;
-    exchangeStarted.current = true;
-    void exchangeGrant(grant)
-      .then((session) => {
-        writePlatformSession(window.sessionStorage, session);
-        scrubGrantFromUrl(window.location, window.history);
-        const saved = savedMindmapSummary(window.localStorage);
+  const commitDecision = useCallback(
+    (session: PlatformSession, decision: "continue_saved" | "start_new") => {
+      const storage = browserStorage();
+      if (!storage) {
+        setBoot({ kind: "blocked", reason: "storage_unavailable" });
+        return;
+      }
+      const decided = { ...session, decision };
+      try {
+        // Persist the decision before clearing anything. A quota/security failure
+        // must leave the existing mindmap untouched.
+        writePlatformSession(storage.session, decided);
+        if (decision === "start_new") clearSavedMindmap(storage.local);
+      } catch (error) {
+        setBoot({
+          kind: "blocked",
+          reason: "storage_unavailable",
+          detail: error instanceof Error ? error.message : String(error),
+        });
+        return;
+      }
+      setBoot({
+        kind: "ready",
+        session: decided,
+        ...(decision === "start_new"
+          ? { initialDraft: initialDraft(decided) }
+          : {}),
+      });
+    },
+    [],
+  );
+
+  const beginExchange = useCallback(
+    async (grant: string) => {
+      const storage = browserStorage();
+      if (!storage) {
+        setBoot({ kind: "blocked", reason: "storage_unavailable" });
+        return;
+      }
+      setBoot({ kind: "connecting" });
+      try {
+        const session = await exchangeGrant(grant);
+        try {
+          writePlatformSession(storage.session, session);
+        } catch (error) {
+          setBoot({
+            kind: "blocked",
+            reason: "storage_unavailable",
+            detail: error instanceof Error ? error.message : String(error),
+          });
+          return;
+        }
+        const saved = savedMindmapSummary(storage.local);
         if (saved) {
           setBoot({ kind: "choice", session, saved });
           return;
         }
-        const decided = { ...session, decision: "start_new" as const };
-        writePlatformSession(window.sessionStorage, decided);
-        setBoot({ kind: "ready", session: decided, initialDraft: initialDraft(decided) });
-      })
-      .catch((error: unknown) => {
+        commitDecision(session, "start_new");
+      } catch (error: unknown) {
         if (error instanceof GrantExchangeError) {
           const reason: BlockingReason =
             error.code === "expired"
@@ -219,28 +296,46 @@ function PlatformBootstrapContent() {
           return;
         }
         setBoot({ kind: "blocked", reason: "network", detail: String(error) });
-      });
-  }, []);
+      }
+    },
+    [commitDecision],
+  );
+
+  useEffect(() => {
+    const grant = grantFromHash(window.location.hash);
+    if (!grant || exchangeStarted.current) return;
+    exchangeStarted.current = true;
+    capturedGrant.current = grant;
+    try {
+      scrubGrantFromUrl(window.location, window.history);
+    } catch {
+      // The grant is already captured in memory; an unusual history wrapper must
+      // not force a reload-based retry or expose the document a second time.
+    }
+    void beginExchange(grant);
+  }, [beginExchange]);
 
   const chooseContinue = useCallback((session: PlatformSession) => {
-    const decided = { ...session, decision: "continue_saved" as const };
-    writePlatformSession(window.sessionStorage, decided);
-    setBoot({ kind: "ready", session: decided });
-  }, []);
+    commitDecision(session, "continue_saved");
+  }, [commitDecision]);
 
   const chooseStartNew = useCallback((session: PlatformSession) => {
-    clearSavedMindmap(window.localStorage);
-    const decided = { ...session, decision: "start_new" as const };
-    writePlatformSession(window.sessionStorage, decided);
-    setBoot({ kind: "ready", session: decided, initialDraft: initialDraft(decided) });
-  }, []);
+    commitDecision(session, "start_new");
+  }, [commitDecision]);
 
   const onAccessError = useCallback((status: 401 | 403) => {
     if (status === 403) {
       setAccessDenied(true);
       return;
     }
-    clearPlatformSession(window.sessionStorage);
+    const storage = browserStorage();
+    if (storage) {
+      try {
+        clearPlatformSession(storage.session);
+      } catch {
+        // The blocking screen remains honest; local mindmap work is never cleared.
+      }
+    }
     setBoot((current) => ({
       kind: "blocked",
       // A standalone session never held a token, so "expired" would be a lie. The
@@ -272,7 +367,14 @@ function PlatformBootstrapContent() {
         <p>{t(copy.body)}</p>
         {boot.detail && <p className="platform-detail">{boot.detail}</p>}
         {boot.reason === "network" && (
-          <button type="button" onClick={() => window.location.reload()}>{t("Retry")}</button>
+          <button
+            type="button"
+            onClick={() => {
+              if (capturedGrant.current) void beginExchange(capturedGrant.current);
+            }}
+          >
+            {t("Retry")}
+          </button>
         )}
       </main>
     );
@@ -284,32 +386,30 @@ function PlatformBootstrapContent() {
       <main className="platform-gate platform-choice">
         <h1>{t("Which mindmap would you like to open?")}</h1>
         <button type="button" className="platform-choice-continue" onClick={() => chooseContinue(boot.session)}>
-          <strong>{t("Continue “{document}”").replace("{document}", t(boot.saved.documentLabel))}</strong>
-          <span>{t("Last saved {time}").replace("{time}", formatTime(boot.saved.lastSavedAt, t("time unknown")))}</span>
+          <strong>{interpolateUi(t("Continue “{document}”"), { document: boot.saved.documentLabel })}</strong>
+          <span>{interpolateUi(t("Last saved {time}"), { time: formatTime(boot.saved.lastSavedAt, t("time unknown")) })}</span>
         </button>
         <button type="button" onClick={() => chooseStartNew(boot.session)}>
           <strong>
             {hasIncomingDocument
-              ? t("Start new from “{document}”").replace("{document}", t(incomingLabel(boot.session)))
+              ? interpolateUi(t("Start new from “{document}”"), { document: incomingLabel(boot.session) })
               : t("Start a new empty mindmap—no document shared")}
           </strong>
-          <span>{t("Launched {time}").replace("{time}", formatTime(boot.session.capturedAt, t("time unknown")))}</span>
+          <span>{interpolateUi(t("Launched {time}"), { time: formatTime(boot.session.capturedAt, t("time unknown")) })}</span>
         </button>
       </main>
     );
   }
 
   return (
-    <AppErrorBoundary>
-      <ReaderViewProvider providerRuntime={providerRuntime} disabled={accessDenied}>
-        <ReaderMutationBoundary>
-          <App
-            providerRuntime={providerRuntime}
-            initialDraft={boot.initialDraft}
-            aiAccessDenied={accessDenied}
-          />
-        </ReaderMutationBoundary>
-      </ReaderViewProvider>
-    </AppErrorBoundary>
+    <ReaderViewProvider providerRuntime={providerRuntime} disabled={accessDenied}>
+      <ReaderMutationBoundary>
+        <App
+          providerRuntime={providerRuntime}
+          initialDraft={boot.initialDraft}
+          aiAccessDenied={accessDenied}
+        />
+      </ReaderMutationBoundary>
+    </ReaderViewProvider>
   );
 }

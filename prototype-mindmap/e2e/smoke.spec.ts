@@ -85,6 +85,7 @@ test("reader-language switching keeps populated cards mounted throughout transla
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
   let translationRequests = 0;
+  let releaseFirstTranslation: (() => void) | undefined;
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
   await page.route("**/openai/chat/completions", async (route) => {
@@ -95,9 +96,13 @@ test("reader-language switching keeps populated cards mounted throughout transla
       return;
     }
     translationRequests += 1;
-    // Keep requests pending long enough to prove the controlled React Flow
-    // nodes stay mounted before, during, and after display translation.
-    await new Promise((resolve) => setTimeout(resolve, 180));
+    // Hold only the first request. Delaying every queued UI/card translation
+    // leaves route handlers alive during Playwright's page teardown.
+    if (translationRequests === 1) {
+      await new Promise<void>((resolve) => {
+        releaseFirstTranslation = resolve;
+      });
+    }
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(envelope({ translation: `ZH:${body.messages?.[1]?.content ?? ""}` })) });
   });
 
@@ -121,7 +126,7 @@ test("reader-language switching keeps populated cards mounted throughout transla
   await expect.poll(() => translationRequests).toBeGreaterThan(0);
   await expect(cards).toHaveCount(2);
   expect(await page.locator(".react-flow__node").evaluateAll((elements) => elements.map((element) => element.getAttribute("data-id")))).toEqual(nodeIds);
-  await page.waitForTimeout(50);
+  releaseFirstTranslation?.();
   await expect(cards).toHaveCount(2);
   expect(await page.locator(".react-flow__node").evaluateAll((elements) => elements.map((element) => element.getAttribute("data-id")))).toEqual(nodeIds);
   await expect(cards.nth(0)).toHaveValue("ZH:first authored card");

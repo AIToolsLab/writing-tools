@@ -39,9 +39,16 @@ export type ProxyUser = Pick<
 	'id' | 'isAnonymous' | 'isAllowed' | 'clientId'
 >;
 
+export type ProxyIdentity =
+	| { kind: 'authenticated'; user: ProxyUser }
+	| { kind: 'sessionless' }
+	| { kind: 'rejected_tool_credential' };
+
+export const PLATFORM_AUTH_ERROR_HEADER = 'X-Writing-Tools-Error';
+export const PLATFORM_AUTH_ERROR_VALUE = 'platform-auth';
+
 export interface ProxyOptions {
-	/** Authenticated user for this request, or null if there's no session. */
-	resolveUser: (c: Context) => Promise<ProxyUser | null>;
+	resolveIdentity: (c: Context) => Promise<ProxyIdentity>;
 	/**
 	 * Whether auth is configured at all. When it isn't (local dev with
 	 * BETTER_AUTH_ENABLED unset), unauthenticated requests are served rather than
@@ -223,15 +230,23 @@ function requestedModel(parsed: Record<string, unknown> | null): string {
 
 export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 	return async (c: Context): Promise<Response> => {
-		const user = await options.resolveUser(c);
+		const identity = await options.resolveIdentity(c);
+		if (identity.kind === 'rejected_tool_credential') {
+			return platformAuthError(c, 401, 'Tool access token is invalid or expired.');
+		}
+		const user = identity.kind === 'authenticated' ? identity.user : null;
 		// Enforce the beta allowlist server-side. The client also shows a "not allowed"
 		// screen, but that's UX — this is the gate a disallowed user can't bypass by
 		// calling the proxy directly. isAllowed already folds in anonymous/demo users
 		// (always allowed) and the per-user alwaysAllow grant, so this one check covers
 		// every authenticated case; sessionless traffic is left to attributeRequest.
-		if (user && !user.isAllowed) return c.json({ detail: 'Forbidden' }, 403);
+		if (user && !user.isAllowed) {
+			return platformAuthError(c, 403, 'This account is not permitted.');
+		}
 		const attribution = attributeRequest(user, options.authEnabled);
-		if (!attribution) return c.json({ detail: 'Unauthorized' }, 401);
+		if (!attribution) {
+			return platformAuthError(c, 401, 'Authentication is required.');
+		}
 		// Which client the tokens are provenance-tagged to (a tool's client_id, or
 		// null for the first-party add-in). Independent of who pays: a demo user's
 		// spend goes to the capped key but the row still names their tool.
@@ -368,4 +383,16 @@ export function openaiProxy(endpoint: OpenAIEndpoint, options: ProxyOptions) {
 			headers: { 'Content-Type': contentType },
 		});
 	};
+}
+
+function platformAuthError(
+	c: Context,
+	status: 401 | 403,
+	detail: string,
+): Response {
+	return c.json(
+		{ error: { code: 'platform_auth' }, detail },
+		status,
+		{ [PLATFORM_AUTH_ERROR_HEADER]: PLATFORM_AUTH_ERROR_VALUE },
+	);
 }

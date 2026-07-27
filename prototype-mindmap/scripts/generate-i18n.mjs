@@ -30,6 +30,7 @@ const i18nDir = join(here, "..", "src", "i18n");
 
 const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:8000/api";
 const MODEL = process.env.VITE_MINDMAP_MODEL ?? "gpt-5.6-terra";
+const BEARER_TOKEN = process.env.MINDMAP_I18N_BEARER_TOKEN;
 /** Small enough that a long reply is never truncated mid-array. */
 const BATCH_SIZE = 25;
 
@@ -53,12 +54,16 @@ async function translateBatch(items, code) {
     `You are translating the interface copy of a writing app into ${languageName(code)}.`,
     "These are buttons, labels, and short hints. Keep them short — interface copy must fit its control.",
     "Preserve leading symbols such as '+' and any capitalisation convention.",
+    "Preserve placeholders such as {document} and {time} exactly.",
     `Reply with JSON: {"translations": [...]} containing exactly ${items.length} strings, in the input order.`,
   ].join(" ");
 
   const response = await fetch(`${BACKEND_URL}/openai/chat/completions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(BEARER_TOKEN ? { Authorization: `Bearer ${BEARER_TOKEN}` } : {}),
+    },
     body: JSON.stringify({
       model: MODEL,
       messages: [
@@ -83,16 +88,23 @@ async function translateBatch(items, code) {
   return translations.map(String);
 }
 
-async function generate(code, sources) {
-  const entries = {};
-  for (let start = 0; start < sources.length; start += BATCH_SIZE) {
-    const items = sources.slice(start, start + BATCH_SIZE);
+async function generate(code, sources, redo) {
+  const path = join(i18nDir, `${code}.json`);
+  const current = !redo && existsSync(path)
+    ? JSON.parse(readFileSync(path, "utf8"))
+    : {};
+  const missing = redo
+    ? sources
+    : sources.filter((source) => typeof current[source] !== "string");
+  for (let start = 0; start < missing.length; start += BATCH_SIZE) {
+    const items = missing.slice(start, start + BATCH_SIZE);
     const translations = await translateBatch(items, code);
     items.forEach((item, index) => {
-      entries[item] = translations[index];
+      current[item] = translations[index];
     });
   }
-  writeFileSync(join(i18nDir, `${code}.json`), `${JSON.stringify(entries, null, 2)}\n`);
+  const entries = Object.fromEntries(sources.map((source) => [source, current[source]]));
+  writeFileSync(path, `${JSON.stringify(entries, null, 2)}\n`);
 }
 
 const args = process.argv.slice(2);
@@ -100,9 +112,12 @@ const force = args.includes("--force");
 const only = args.filter((arg) => !arg.startsWith("--"));
 
 const sources = JSON.parse(readFileSync(join(i18nDir, "source.json"), "utf8"));
-const languages = (only.length > 0 ? only : supportedLanguages()).filter(
-  (code) => force || !existsSync(join(i18nDir, `${code}.json`)),
-);
+const languages = (only.length > 0 ? only : supportedLanguages()).filter((code) => {
+  const path = join(i18nDir, `${code}.json`);
+  if (force || !existsSync(path)) return true;
+  const current = JSON.parse(readFileSync(path, "utf8"));
+  return sources.some((source) => typeof current[source] !== "string");
+});
 
 if (languages.length === 0) {
   console.log("Every language already has a dictionary. Use --force to redo them.");
@@ -113,7 +128,7 @@ console.log(`Translating ${sources.length} interface strings into ${languages.le
 let failed = 0;
 for (const code of languages) {
   try {
-    await generate(code, sources);
+    await generate(code, sources, force);
     console.log(`  ✓ ${code}.json (${languageName(code)})`);
   } catch (error) {
     failed += 1;

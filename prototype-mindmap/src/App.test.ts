@@ -3,8 +3,8 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AssistantResponseKindBadge, buildConversationHistory, deriveCurrentUserTurn, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateCandidateMemory, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, TURN_PROGRESS_COPY } from "./App";
-import { savedMindmapSummary, SESSION_STORAGE_KEY } from "./session-persistence";
+import { AssistantResponseKindBadge, buildConversationHistory, deriveCurrentUserTurn, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateCandidateMemory, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, recoverFailedTurn, resolveMirrorDecision, restoreFailedMessageToComposer, TURN_PROGRESS_COPY } from "./App";
+import { hasPersistableWork, savedMindmapSummary, SESSION_STORAGE_KEY } from "./session-persistence";
 import { UnderTheHoodPanel } from "./ControlRoom";
 import { ASSISTANCE_CONTRACTS, snapshotContract } from "./assistance-contract";
 import { ThoughtUnitStore } from "./map-store";
@@ -138,6 +138,53 @@ describe("application recovery history", () => {
       { role: "user", content: "human control matters" },
       { role: "assistant", content: "What matters about control?" },
     ]);
+  });
+
+  it("excludes pending and failed optimistic messages from provider history", () => {
+    expect(buildConversationHistory([
+      { id: 1, role: "user", text: "delivered" },
+      { id: 2, role: "user", text: "pending", deliveryStatus: "pending" },
+      { id: 3, role: "user", text: "failed", deliveryStatus: "failed" },
+    ])).toEqual([{ role: "user", content: "delivered" }]);
+  });
+
+  it("restores a failed message without overwriting newer composer text", () => {
+    const messages = [
+      { id: 1, role: "user" as const, text: "failed turn", deliveryStatus: "failed" as const },
+    ];
+    expect(restoreFailedMessageToComposer(messages, "", 1)).toEqual({
+      msgs: [],
+      input: "failed turn",
+    });
+    expect(restoreFailedMessageToComposer(messages, "new thought", 1)).toEqual({
+      msgs: [],
+      input: "failed turn\n\nnew thought",
+    });
+  });
+
+  it("automatically restores a failed turn only when the composer is empty", () => {
+    const pending = {
+      id: 1,
+      role: "user" as const,
+      text: "failed turn",
+      deliveryStatus: "pending" as const,
+    };
+    expect(recoverFailedTurn([pending], "", pending)).toEqual({
+      msgs: [],
+      input: "failed turn",
+    });
+    expect(recoverFailedTurn([pending], "new thought", pending)).toEqual({
+      msgs: [{ ...pending, deliveryStatus: "failed" }],
+      input: "new thought",
+    });
+  });
+
+  it("does not count pending-only shells as persistable work", () => {
+    expect(hasPersistableWork({
+      msgs: [{ id: 1, role: "user", text: "pending", deliveryStatus: "pending" }],
+      draftText: "",
+      map: { units: [], positions: {}, connections: [] },
+    })).toBe(false);
   });
 
   it("retains an AI translation as assistant output without replacing its original user passage", () => {
