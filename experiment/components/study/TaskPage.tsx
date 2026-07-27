@@ -43,13 +43,14 @@ export default function TaskPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  const handleSendTask = async (content: string) => {
+  const handleSendTask = async (content: string, subject: string) => {
     // Log task completion
     await log({
       username,
       event: 'taskComplete',
       extra_data: {
         finalText: content,
+        subject,
         wordCount: content.split(/\s+/).length,
         documentLength: content.length,
       },
@@ -61,13 +62,14 @@ export default function TaskPage() {
     window.location.href = `/study?${params.toString()}`;
   };
 
-  const handleDocumentUpdate = async (editorState: TextEditorState) => {
+  const handleDocumentUpdate = async (editorState: TextEditorState, subject: string) => {
     const fullContent = editorState.beforeCursor + editorState.selectedText + editorState.afterCursor;
     await log({
       username,
       event: 'documentUpdate',
       extra_data: {
         editorState,
+        subject,
         wordCount: fullContent.split(/\s+/).length,
         documentLength: fullContent.length,
       },
