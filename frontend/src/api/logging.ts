@@ -41,7 +41,9 @@ import type { LogFn } from '@/hooks/useLog';
  *       `insufficient_quota`), and their `error` field now holds the provider's
  *       message rather than the sentence shown to the user.
  *   4 — Added the document-scoped brief (audience / purpose / constraints) and
- *       its `brief_edited` event, which any page can emit.
+ *       its `brief_edited` event, which any page can emit. Revise emits
+ *       `reference_resolved` after each clicked doctext link, recording whether
+ *       the quote was found and how long the search took.
  */
 export const LOG_SCHEMA_VERSION = 4;
 
@@ -160,6 +162,23 @@ export const reviseLog = {
 	/** The writer clicked a document reference (doctext link) in a result. */
 	referenceClicked(log: LogFn, data: { target: string }) {
 		return emit(log, 'revise', 'reference_clicked', data);
+	},
+	/**
+	 * A clicked reference finished resolving. `found` records whether the quote
+	 * was located at all; `attempts` and `durationMs` measure what the writer
+	 * waited through (each attempt is a round-trip to the editor), which is the
+	 * only way to see from the logs that a link felt broken.
+	 */
+	referenceResolved(
+		log: LogFn,
+		data: {
+			target: string;
+			found: boolean;
+			attempts: number;
+			durationMs: number;
+		},
+	) {
+		return emit(log, 'revise', 'reference_resolved', data);
 	},
 };
 
