@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import App, {
+import { Component, useCallback, useEffect, useMemo, useRef, useState, type ErrorInfo, type ReactNode } from "react";
+import App from "./App";
+import type { ProviderRuntimeConfig } from "./api";
+import { MutationPolicyProvider } from "./mutation-policy";
+import {
   clearSavedMindmap,
   savedMindmapSummary,
   type DraftSourceMetadata,
   type SavedMindmapSummary,
-} from "./App";
-import type { ProviderRuntimeConfig } from "./api";
-import { MutationPolicyProvider } from "./mutation-policy";
+} from "./session-persistence";
 import {
   clearPlatformSession,
   exchangeGrant,
@@ -108,6 +109,47 @@ function blockedCopy(reason: BlockingReason): { title: string; body: string } {
         title: "Launch Mindmap from Writing Tools",
         body: "Open the Tools page in Writing Tools and launch Mindmap to connect your account.",
       };
+  }
+}
+
+/**
+ * Root error boundary. `Map.tsx` guards the canvas, but nothing sat above `App`, so any
+ * throw during render blanked the page with no way back — the failure shape behind the
+ * blank-map incident.
+ *
+ * It deliberately does NOT clear storage. A render crash must leave the saved mindmap
+ * exactly as intact as a token expiry does, so reloading resumes the session rather
+ * than starting the user over. If the crash is itself caused by bad persisted state,
+ * that is a bug to fix in the loader's validation, not something to paper over here by
+ * destroying the user's work.
+ *
+ * Class component because React exposes no hook equivalent for `componentDidCatch`.
+ */
+export class AppErrorBoundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+
+  static getDerivedStateFromError(): { failed: boolean } {
+    return { failed: true };
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error("Mindmap crashed during render.", error, info.componentStack);
+  }
+
+  render() {
+    if (!this.state.failed) return this.props.children;
+    // Plain strings, not `t()`: the locale provider sits inside this boundary, and a
+    // crash there would make the fallback itself throw.
+    return (
+      <main className="platform-gate">
+        <h1>Mindmap hit an unexpected error</h1>
+        <p>
+          Your saved mindmap has not been changed. Reloading should bring it back — if
+          this keeps happening, relaunch Mindmap from Writing Tools.
+        </p>
+        <button type="button" onClick={() => window.location.reload()}>Reload</button>
+      </main>
+    );
   }
 }
 
@@ -250,14 +292,16 @@ function PlatformBootstrapContent() {
   }
 
   return (
-    <ReaderViewProvider providerRuntime={providerRuntime} disabled={accessDenied}>
-      <ReaderMutationBoundary>
-        <App
-          providerRuntime={providerRuntime}
-          initialDraft={boot.initialDraft}
-          aiAccessDenied={accessDenied}
-        />
-      </ReaderMutationBoundary>
-    </ReaderViewProvider>
+    <AppErrorBoundary>
+      <ReaderViewProvider providerRuntime={providerRuntime} disabled={accessDenied}>
+        <ReaderMutationBoundary>
+          <App
+            providerRuntime={providerRuntime}
+            initialDraft={boot.initialDraft}
+            aiAccessDenied={accessDenied}
+          />
+        </ReaderMutationBoundary>
+      </ReaderViewProvider>
+    </AppErrorBoundary>
   );
 }

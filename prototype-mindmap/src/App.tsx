@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent } from "react";
 import { historyForCurrentTurn, makeLLM, type ConversationMessage, type ProviderRuntimeConfig } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
-import type { AssistantResponse, ConversationState, DiagnosticEvent, RepairFailureTerminal, TurnProgressStage, TurnResult } from "./assistant-response";
-import type { ProposalOutcomeContext, QuestionStance, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
+import type { AssistantResponse, ConversationState, DiagnosticEvent, TurnProgressStage, TurnResult } from "./assistant-response";
+import type { ProposalOutcomeContext, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
 import { pruneContextSelection, ThoughtMap, toggleContextSelection, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
 import { applyConfirmedReflection, applyGatewayActions, executeCanvasAction, inspectAction, type ProposedAction } from "./action-gateway";
@@ -10,7 +10,7 @@ import { createProposalStore, resolveProposal, updateProposal, type Proposal } f
 import { cloneConversationState, createConversationState, mergeConversationBank, processTurn } from "./stage1-loop";
 import { cardRef } from "./store";
 import type { CandidateThought, ThoughtUnit, ThoughtUnitRole } from "./types";
-import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
+import type { ConfirmedReflection } from "./types";
 import { validateMirror } from "./validator";
 import { buildDiagnosticSnapshot, type UnderstandingSnapshot } from "./understanding";
 import { useSpeechToText } from "./useSpeechToText";
@@ -23,39 +23,42 @@ import { useMutationAccess } from "./mutation-policy";
 import { useUiLocale } from "./ui-locale";
 import { useReaderView } from "./reader-view";
 import { UnderTheHoodPanel } from "./ControlRoom";
+import {
+  clearSavedMindmap,
+  loadPersistedSession,
+  savedMindmapSummary,
+  SESSION_STORAGE_KEY,
+  writePersistedSession,
+  type ChatMsg,
+  type ClaimDecision,
+  type DraftPanelPos,
+  type DraftPanelSize,
+  type DraftSelectionFocus,
+  type DraftSourceMetadata,
+  type PersistedPendingMirror,
+  type PersistedSession,
+  type SavedMindmapSummary,
+} from "./session-persistence";
+
+// The persisted session shape and its storage operations live in
+// `session-persistence.ts`; re-exported here so existing importers keep working.
+export {
+  clearSavedMindmap,
+  savedMindmapSummary,
+  SESSION_STORAGE_KEY,
+  type DraftSourceMetadata,
+  type PersistedPendingMirror,
+  type SavedMindmapSummary,
+};
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface ChatMsg {
-  id: number;
-  role: "user" | "assistant" | "application";
-  text: string;
-  mode?: "question" | "mirror" | "clarify";
-  /** A typed proposal awaiting an explicit UI decision. */
-  proposalId?: string;
-  /** v1/v2 migration input only. */
-  mirrorId?: string;
-  /** Verbatim draft substring this question is anchored to, if any. */
-  questionAnchor?: string;
-  /** The coaching stance the AI chose for this turn, if any. */
-  questionStance?: QuestionStance;
-  /** Preserves the typed response kind for visible provenance in the transcript. */
-  responseKind?: AssistantResponse["kind"];
-  /** Application-owned terminal recovery; never sent to the model as dialogue. */
-  terminal?: RepairFailureTerminal["kind"];
-}
-
-interface DraftPanelPos { x: number; y: number; }
-interface DraftPanelSize { w: number; h: number; }
-
 interface MapUndoSnapshot {
   map: ThoughtUnitStoreSnapshot;
   bank: ReturnType<ConversationState["bank"]["getAll"]>;
 }
-
-type ClaimDecision = "pending" | "confirmed" | "declined";
 
 export interface MirrorDecisionResolution {
   nextDecisions: Record<string, ClaimDecision>;
@@ -91,7 +94,6 @@ const DRAFT_MIN_VISIBLE_WIDTH = 220;
 const DRAFT_MIN_VISIBLE_HEIGHT = 120;
 const DRAFT_CHIP_WIDTH = 56;
 const DRAFT_CHIP_HEIGHT = 44;
-export const SESSION_STORAGE_KEY = "prototype-mindmap-session-v1";
 const WORKING_INDICATOR_DELAY_MS = 700;
 
 export const TURN_PROGRESS_COPY: Record<TurnProgressStage, string> = {
@@ -110,67 +112,6 @@ function snapQuestionBias(value: number): number {
   );
 }
 
-export interface PersistedPendingMirror {
-  id: string;
-  reflection: MirrorReflection;
-  claims: ClaimValidation[];
-  decisions: Record<string, ClaimDecision>;
-  editedTexts?: Record<string, string>;
-}
-
-export interface DraftSourceMetadata {
-  kind: "launch_snapshot";
-  documentLabel: string;
-  capturedAt: number;
-}
-
-interface PersistedSession {
-  version: 1 | 2 | 3 | 4 | 5 | 6 | 7;
-  sessionId?: string;
-  assistanceLevel?: AssistanceLevel;
-  msgs: ChatMsg[];
-  pendingMirrors?: PersistedPendingMirror[];
-  proposals?: Proposal[];
-  confirmed: ConfirmedReflection[];
-  lastCoachDebug?: CoachDebugInfo | null;
-  understandingSnapshot?: UnderstandingSnapshot | null;
-  mapRevision: number;
-  questionBias: number;
-  requireConnectionLabel?: boolean;
-  draftText: string;
-  draftHtml?: string;
-  draftCollapsed: boolean;
-  draftDocked?: boolean;
-  draftPos: DraftPanelPos;
-  draftSize: DraftPanelSize;
-  draftSource?: DraftSourceMetadata;
-  lastSavedAt?: number;
-  stickyDraftFocus?: DraftSelectionFocus;
-  conversation?: {
-    turnsSinceLastReflection: number;
-    lastAssistantText: string;
-    draft: string;
-    currentUserTurn?: number;
-    latestUserLanguagePattern?: "single" | "mixed" | "unknown";
-    currentDraftSnapshotId?: string;
-    draftSnapshotText?: string;
-    legacyIgnoredCandidateIds?: string[];
-    /** v1-v5 migration input only. */
-    dismissedCandidateIds?: string[];
-  };
-  /** Read only by the v1/v2 migration and never restored into live routing state. */
-  controller?: { turnsSinceLastMirror?: number; lastAiText?: string; draft?: string; dismissedCandidateIds?: string[] };
-  diagnostics?: DiagnosticEvent[];
-  bank: ReturnType<ConversationState["bank"]["getAll"]>;
-  candidates: ReturnType<ConversationState["candidates"]["getAll"]>;
-  map: ThoughtUnitStoreSnapshot;
-}
-
-export interface SavedMindmapSummary {
-  documentLabel: string;
-  lastSavedAt?: number;
-}
-
 export function migrateLegacyMirrors(pending: PersistedPendingMirror[], mapRevision: number): Proposal[] {
   return pending.map((mirror) => ({
     id: mirror.id,
@@ -184,7 +125,6 @@ export function migrateLegacyMirrors(pending: PersistedPendingMirror[], mapRevis
   }));
 }
 
-interface DraftSelectionFocus { text: string; }
 
 // ---------------------------------------------------------------------------
 // Styles (no build step needed, just a style tag approach via CSS-in-JS)
@@ -2501,40 +2441,6 @@ function defaultDraftPosition(size: DraftPanelSize): DraftPanelPos {
   );
 }
 
-function loadPersistedSession(storage?: Pick<Storage, "getItem">): PersistedSession | null {
-  const source = storage ?? (typeof window === "undefined" ? undefined : window.localStorage);
-  if (!source) return null;
-  try {
-    const raw = source.getItem(SESSION_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as PersistedSession;
-    return parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4 || parsed.version === 5 || parsed.version === 6 || parsed.version === 7 ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
-export function savedMindmapSummary(storage: Pick<Storage, "getItem">): SavedMindmapSummary | null {
-  const saved = loadPersistedSession(storage);
-  if (!saved) return null;
-  const hasMessages = Array.isArray(saved.msgs) && saved.msgs.length > 0;
-  const hasDraft = typeof saved.draftText === "string" && saved.draftText.trim().length > 0;
-  const hasMap =
-    saved.map !== null &&
-    typeof saved.map === "object" &&
-    ((Array.isArray(saved.map.units) && saved.map.units.length > 0) ||
-      (Array.isArray(saved.map.connections) && saved.map.connections.length > 0));
-  if (!hasMessages && !hasDraft && !hasMap) return null;
-  return {
-    documentLabel: saved.draftSource?.documentLabel || "Saved mindmap",
-    lastSavedAt: saved.lastSavedAt,
-  };
-}
-
-export function clearSavedMindmap(storage: Pick<Storage, "removeItem">): void {
-  storage.removeItem(SESSION_STORAGE_KEY);
-}
-
 export function buildConversationHistory(msgs: ChatMsg[]): ConversationMessage[] {
   return msgs.flatMap((msg) =>
     msg.role === "user" || msg.role === "assistant"
@@ -3642,7 +3548,7 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
       map: mapStoreRef.current.snapshot(),
     };
     try {
-      window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(snapshot));
+      writePersistedSession(window.localStorage, snapshot);
     } catch {
       // Persistence is best-effort. A full quota (long session, large draft
       // HTML/map) or a storage-blocked context (private mode) must not throw
