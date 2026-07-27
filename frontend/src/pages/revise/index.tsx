@@ -2,8 +2,16 @@
  * @format
  */
 
-import { streamText, type ModelMessage } from 'ai';
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { type ModelMessage } from 'ai';
+import {
+	createContext,
+	useCallback,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react';
 import { Remark } from 'react-remark';
 import {
 	AiOutlineFileText,
@@ -21,12 +29,25 @@ import {
 	AiOutlineQuestionCircle
 } from 'react-icons/ai';
 import { isRunningInGoogleDocs } from '@/api';
+import {
+	describeGenerationError,
+	type GenerationErrorInfo,
+} from '@/api/errors';
+import { streamTextDeltas } from '@/api/generate';
 import { reviseLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
+import { GenerationErrorNotice, ErrorNotice } from '@/components/errorNotice';
+import BriefSection from '@/components/briefSection';
+import {
+	type DocBrief,
+	formatDocBriefForPrompt,
+	useDocBrief,
+} from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import TagLinker from '../tag-linker';
+import { jumpToDocText, parseDocTextHref } from './docTextJump';
 import classes from './styles.module.css';
 
 interface Prompt {
@@ -142,8 +163,18 @@ Our response MUST reference specific parts of the document. We use Markdown link
 When generating a visualization, it is critical that we remain faithful to the document provided. If we ever realize that we've deviated from the document text, even slightly, we must include a remark to that effect in [square brackets] as soon as possible after the deviation.`;
 
 
-function getDocTextAsPrompt(docContext: DocContext, contextChars = 100) {
+function getDocTextAsPrompt(
+	docContext: DocContext,
+	brief: DocBrief,
+	contextChars = 100,
+) {
 	let prompt = ``;
+
+	// The writer's brief comes first: it frames how to read everything below it.
+	const briefBlock = formatDocBriefForPrompt(brief);
+	if (briefBlock) {
+		prompt += `${briefBlock}\n\n`;
+	}
 
 	if (docContext.contextData && docContext.contextData.length > 0) {
 		const contextSections = docContext.contextData.map(section => {
@@ -172,42 +203,99 @@ class Visualization {
 	response: string;
 	id: string;
 	references: string[] = [];
+	/** Set when the generation failed; rendered in place of a result. */
+	error: GenerationErrorInfo | null = null;
+	/** False until the stream ends, so the panel can show per-feature progress. */
+	done = false;
 
 	constructor(
 		public prompt: string,
 		public docContext: DocContext,
+		/** The feature this came from — for the result's label and its Retry. */
+		public feature: Prompt,
 	) {
 		this.prompt = prompt;
 		this.docContext = docContext;
 		this.response = '';
-		this.id = Date.now().toString();
+		// Counter, not a timestamp: features run back-to-back and two created in
+		// the same millisecond would collide as React keys (an immediate failure
+		// takes almost no time at all).
+		this.id = `viz-${++visualizationCounter}`;
 	}
 }
 
-const makeAnchorWithCallback = (
-	clickCallbackRef: React.MutableRefObject<(href: string) => void>,
-) => {
-	return (props: React.ComponentProps<'a'>) => {
-		const { href, children, ...rest } = props;
-		return (
-			<a
-				{...rest}
-				href={href}
-				className="text-blue-500 hover:underline"
-				onClick={(e) => {
-					e.preventDefault();
-					if (href) clickCallbackRef.current?.(href);
-				}}
-			>
-				{children}
-			</a>
-		);
-	};
-};
+let visualizationCounter = 0;
+
+/**
+ * State of the one in-flight jump, shared with every rendered doctext link.
+ *
+ * Clicking a link is not instant — on the Google Docs surface finding and
+ * selecting the quoted text is an Apps Script round-trip — so the link that was
+ * clicked has to say so, or the click reads as a dead link and the writer
+ * clicks again. Passing this through context (rather than closing over it) is
+ * what lets the anchor component be defined once at module scope: `<Remark>`
+ * re-parses and remounts its output whenever the component identity it is given
+ * changes, which would throw away the result the writer is reading.
+ */
+interface DocJump {
+	onJump: (href: string) => void;
+	/** The link currently being resolved, if any. */
+	pendingHref: string | null;
+	/** The link whose text could not be found on the last attempt. */
+	failedHref: string | null;
+}
+
+const DocJumpContext = createContext<DocJump>({
+	onJump: () => {},
+	pendingHref: null,
+	failedHref: null,
+});
+
+function DocTextAnchor(props: React.ComponentProps<'a'>) {
+	const { href, children, ...rest } = props;
+	const { onJump, pendingHref, failedHref } = useContext(DocJumpContext);
+	const isPending = Boolean(href) && href === pendingHref;
+	const hasFailed = Boolean(href) && href === failedHref;
+
+	return (
+		<a
+			{...rest}
+			href={href}
+			className={`text-blue-500 hover:underline ${classes.docLink} ${
+				isPending ? classes.docLinkPending : ''
+			}`}
+			aria-busy={isPending || undefined}
+			onClick={(e) => {
+				e.preventDefault();
+				if (href) onJump(href);
+			}}
+		>
+			{children}
+			{/*
+			 * Decoration only: what a screen reader hears comes from the one
+			 * live region in the result panel, which is in the DOM before the
+			 * jump starts. A live region inserted at the same moment its text
+			 * appears is not reliably announced.
+			 */}
+			{isPending ? (
+				<span className={classes.linkSpinner} aria-hidden="true" />
+			) : null}
+			{hasFailed ? (
+				<span className={classes.linkFailed} aria-hidden="true">
+					not found in the document
+				</span>
+			) : null}
+		</a>
+	);
+}
 
 export default function Revise() {
 	const editorAPI = useContext(EditorContext);
-	const { docContext, refresh: refreshDocContext } = useDocContext(editorAPI);
+	const {
+		docContext,
+		isLoading: docContextLoading,
+		refresh: refreshDocContext,
+	} = useDocContext(editorAPI);
 	const log = useLog();
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const [_loading, setLoading] = useState(false);
@@ -217,45 +305,58 @@ export default function Revise() {
 	>(null);
 	const [visualizations, setVisualizations] = useState<Visualization[]>([]);
 	const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
-	const [audience, setAudience] = useState('');
-	const [guardrails, setGuardrails] = useState('');
-	const [comments, setComments] = useState('');
+	const { brief } = useDocBrief();
 	const [isRunning, setIsRunning] = useState(false);
-	
-	const clickCallbackRef = useRef((href: string) => {
-		if (href.startsWith('doctext:')) {
-			const text = decodeURIComponent(href.slice('doctext:'.length));
+	const [pendingHref, setPendingHref] = useState<string | null>(null);
+	const [failedHref, setFailedHref] = useState<string | null>(null);
+	// Only the newest click owns the shared pending/failed state; an earlier,
+	// slower search must not clear the indicator out from under it.
+	const jumpSeqRef = useRef(0);
+
+	// Read at request time, like the document context is, so a run always uses
+	// the brief as it stands — without rebuilding the request callbacks on every
+	// keystroke in the brief section.
+	const briefRef = useRef(brief);
+	briefRef.current = brief;
+
+	const handleJump = useCallback(
+		(href: string) => {
+			const text = parseDocTextHref(href);
+			if (text === null) return;
 			reviseLog.referenceClicked(log, { target: text });
-			(async () => {
-				let currentlySearchingForText = text;
-				while (currentlySearchingForText.length > 0) {
-					try {
-						await editorAPI.selectPhrase(currentlySearchingForText);
-						return;
-					} catch {
-						// If selection fails, trim off a word on each side.
-						const nextSearchText = currentlySearchingForText
-							.split(' ')
-							.slice(1, -1)
-							.join(' ');
-						if (nextSearchText === currentlySearchingForText) {
-							// If trimming didn't change the text, break to avoid infinite loop.
-							break;
-						}
-						currentlySearchingForText = nextSearchText;
-						console.warn(
-							'Falling back to shorter text:',
-							currentlySearchingForText,
-						);
-					}
-				}
-				console.warn('Failed to select phrase:', text);
+
+			const seq = ++jumpSeqRef.current;
+			setPendingHref(href);
+			setFailedHref(null);
+			const startedAt = Date.now();
+
+			void (async (): Promise<void> => {
+				const { found, attempts } = await jumpToDocText(
+					(phrase) => editorAPI.selectPhrase(phrase),
+					text,
+				);
+
+				if (!found) console.warn('Failed to select phrase:', text);
+				reviseLog.referenceResolved(log, {
+					target: text,
+					found,
+					attempts,
+					durationMs: Date.now() - startedAt,
+				});
+
+				// A click the writer has already replaced with another one no
+				// longer owns the indicator.
+				if (jumpSeqRef.current !== seq) return;
+				setPendingHref(null);
+				setFailedHref(found ? null : href);
 			})();
-		}
-	});
-	const AnchorWithCallback = useMemo(
-		() => makeAnchorWithCallback(clickCallbackRef),
-		[],
+		},
+		[editorAPI, log],
+	);
+
+	const docJump = useMemo<DocJump>(
+		() => ({ onJump: handleJump, pendingHref, failedHref }),
+		[handleJump, pendingHref, failedHref],
 	);
 
 	useEffect(() => {
@@ -280,7 +381,7 @@ export default function Revise() {
 			// tracking it continuously.
 			const currentContext = await refreshDocContext();
 
-			const newViz = new Visualization(request, currentContext);
+			const newViz = new Visualization(request, currentContext, prompt);
 			setVisualizations((prev) => [...prev, newViz]);
 
 			reviseLog.visualizationRequested(log, {
@@ -289,7 +390,7 @@ export default function Revise() {
 				docContext: currentContext,
 			});
 
-			const docTextAsPrompt = getDocTextAsPrompt(currentContext);
+			const docTextAsPrompt = getDocTextAsPrompt(currentContext, briefRef.current);
 
 			const messages: ModelMessage[] = [
 				{
@@ -304,8 +405,20 @@ ${request}
 
 			setLoading(true);
 
+			// Re-publish the (mutated) visualization so React re-renders it.
+			const publish = () => {
+				setVisualizations((prev) => {
+					const updated = [...prev];
+					const index = updated.findIndex((v) => v.id === newViz.id);
+					if (index !== -1) {
+						updated[index] = newViz;
+					}
+					return updated;
+				});
+			};
+
 			try {
-				const result = streamText({
+				const deltas = streamTextDeltas({
 					model: languageModel,
 					providerOptions: openaiProviderOptions,
 					system: systemPrompt,
@@ -314,19 +427,13 @@ ${request}
 					abortSignal: requestController.signal,
 				});
 
-				for await (const delta of result.textStream) {
+				for await (const delta of deltas) {
 					newViz.response += delta;
-					setVisualizations((prev) => {
-						const updated = [...prev];
-						const index = updated.findIndex((v) => v.id === newViz.id);
-						if (index !== -1) {
-							updated[index] = newViz;
-						}
-						return updated;
-					});
+					publish();
 				}
 
-				console.log('Visualization response complete:', newViz.response);
+				newViz.done = true;
+				publish();
 				reviseLog.visualizationCompleted(log, {
 					feature: prompt.keyword,
 					response: newViz.response,
@@ -335,10 +442,17 @@ ${request}
 				if (requestController.signal.aborted) {
 					return;
 				}
+				const info = describeGenerationError(err);
 				console.error('Error fetching visualization:', err);
+				// Show the failure on the feature that failed, keeping whatever text
+				// had already streamed in.
+				newViz.error = info;
+				newViz.done = true;
+				publish();
 				reviseLog.visualizationError(log, {
 					feature: prompt.keyword,
-					error: err instanceof Error ? err.message : String(err),
+					error: info.detail,
+					code: info.code,
 				});
 			} finally {
 				// Ignore stale completions from older requests that were already replaced.
@@ -349,6 +463,15 @@ ${request}
 			}
 		},
 		[refreshDocContext, log],
+	);
+
+	/** Re-run one feature, dropping the card that failed so it isn't duplicated. */
+	const retryVisualization = useCallback(
+		(viz: Visualization) => {
+			setVisualizations((prev) => prev.filter((v) => v.id !== viz.id));
+			void requestVisualization(viz.feature);
+		},
+		[requestVisualization],
 	);
 
 	const toggleFeature = useCallback(
@@ -388,6 +511,22 @@ ${request}
 		runNext();
 	}, [selectedFeatures, requestVisualization, log]);
 
+	// Until the first read of the document lands, "empty" is not yet knowable —
+	// on the Google Docs surface that read is an Apps Script round-trip, and
+	// claiming the document is empty in the meantime is both wrong and alarming.
+	if (docContextLoading) {
+		return (
+			<div className={classes.loadingState} role="status">
+				<div className={classes.loaderDots}>
+					<span></span>
+					<span></span>
+					<span></span>
+				</div>
+				Reading your document…
+			</div>
+		);
+	}
+
 	if (
 		docContext.beforeCursor.length === 0 &&
 		docContext.selectedText.length === 0 &&
@@ -395,8 +534,8 @@ ${request}
 	) {
 		return (
 			<div className="text-gray-500">
-				The document seems to be empty. Either you haven't written
-				anything yet, or the text is still loading.
+				The document seems to be empty. Write something first, and this
+				panel will have material to work with.
 			</div>
 		);
 	}
@@ -404,61 +543,15 @@ ${request}
 	return (
 		<div className={classes.app}>
 			{/* Tab bar - assuming this is handled at a higher level */}
-			
+
 			{/* Scrollable body */}
 			<div className={classes.body}>
 				{/* Cross-tab helper — only meaningful in Google Docs, which has tabs */}
 				{isRunningInGoogleDocs() ? <TagLinker /> : null}
 
-				{/* Section 1: Set your to-do */}
-				<div className={classes.todoSection}>
-					<div className={classes.sectionLabel}>
-						<span className={classes.sectionNumber}>1</span>
-						Set your to-do
-					</div>
-
-					<div className={classes.block}>
-						<div className={classes.blockHead}>
-							<div className={classes.blockTitle}>Audience</div>
-							<div className={classes.blockHint}>Who are you writing this for?</div>
-						</div>
-						<textarea 
-							id="audienceInput" 
-							rows={2} 
-							placeholder="e.g. First-year college students with no background in the topic..."
-							value={audience}
-							onChange={(e) => setAudience(e.target.value)}
-						/>
-					</div>
-
-					<div className={classes.block}>
-						<div className={classes.blockHead}>
-							<div className={classes.blockTitle}>Guardrails</div>
-							<div className={classes.blockHint}>What should the AI avoid or preserve?</div>
-						</div>
-						<textarea 
-							id="guardrailInput" 
-							rows={2} 
-							placeholder="e.g. Don't change the opening paragraph, keep it under 400 words..."
-							value={guardrails}
-							onChange={(e) => setGuardrails(e.target.value)}
-						/>
-					</div>
-
-					<div className={classes.block}>
-						<div className={classes.blockHead}>
-							<div className={classes.blockTitle}>Additional comments</div>
-							<div className={classes.blockHint}>Anything else the AI should know before running?</div>
-						</div>
-						<textarea 
-							id="commentsInput" 
-							rows={3} 
-							placeholder="e.g. This is a draft for peer review. The argument isn't finished yet so don't flag gaps as errors..."
-							value={comments}
-							onChange={(e) => setComments(e.target.value)}
-						/>
-					</div>
-				</div>
+				{/* Section 1: Set your brief. Lives on the document and is shared
+				    with every other page — see components/briefSection. */}
+				<BriefSection page="revise" step={1} defaultOpen />
 
 				{/* Section 2: Choose features to run */}
 				<div className={classes.featuresSection}>
@@ -526,36 +619,77 @@ ${request}
 
 					{/* Result panel */}
 					<div className={`${classes.resultPanel} ${visualizations.length > 0 ? classes.visible : ''}`}>
+						{/*
+						 * Announces what a clicked document link is doing. It lives
+						 * here, always mounted, so the announcement fires when the
+						 * text changes rather than when the element appears.
+						 */}
+						<div
+							className={classes.visuallyHidden}
+							role="status"
+							aria-live="polite"
+						>
+							{pendingHref
+								? 'Finding that text in your document…'
+								: failedHref
+									? "Couldn't find that text in your document."
+									: ''}
+						</div>
 						{isRunning ? <div className={classes.loadingState}>
 								<div className={classes.loaderDots}>
 									<span></span><span></span><span></span>
 								</div>
 								Running {selectedFeatures.length} feature{selectedFeatures.length > 1 ? 's' : ''}...
 							</div> : null}
-						{visualizations.map((viz, index) => (
-							<div key={viz.id}>
-								{index > 0 && <div style={{ borderTop: '1.5px solid var(--border)' }}></div>}
-								<div className={classes.resultHeader}>
-									<span className={classes.resultTag}>
-										{promptList.find(p => p.prompt === viz.prompt)?.keyword || 'Feature'}
-									</span>
-									<span className={classes.resultMeta}>
-										{viz.response.split('\n').length} result{viz.response.split('\n').length > 1 ? 's' : ''}
-									</span>
+						{visualizations.map((viz, index) => {
+							const lineCount = viz.response.split('\n').length;
+							return (
+								<div key={viz.id}>
+									{index > 0 && <div style={{ borderTop: '1.5px solid var(--border)' }}></div>}
+									<div className={classes.resultHeader}>
+										<span className={classes.resultTag}>
+											{viz.feature.keyword}
+										</span>
+										<span className={classes.resultMeta}>
+											{viz.error
+												? 'Failed'
+												: `${lineCount} result${lineCount > 1 ? 's' : ''}`}
+										</span>
+									</div>
+									<div className={classes.resultItem} style={{ animationDelay: `${index * 0.04}s` }}>
+										{viz.response ? (
+											<DocJumpContext.Provider value={docJump}>
+												<Remark
+													rehypeReactOptions={{
+														components: {
+															a: DocTextAnchor,
+														},
+													}}
+												>
+													{viz.response}
+												</Remark>
+											</DocJumpContext.Provider>
+										) : null}
+										{viz.error ? (
+											<GenerationErrorNotice
+												info={viz.error}
+												title={`${viz.feature.keyword} failed`}
+												onRetry={() => retryVisualization(viz)}
+											/>
+										) : null}
+										{/* A finished-but-empty run is a real outcome, not a blank card. */}
+										{!viz.error && viz.done && viz.response.trim() === '' ? (
+											<ErrorNotice
+												tone="info"
+												title="Nothing came back"
+												message="The model returned an empty response for this feature. Running it again often helps."
+												onRetry={() => retryVisualization(viz)}
+											/>
+										) : null}
+									</div>
 								</div>
-								<div className={classes.resultItem} style={{ animationDelay: `${index * 0.04}s` }}>
-									<Remark
-										rehypeReactOptions={{
-											components: {
-												a: AnchorWithCallback,
-											},
-										}}
-									>
-										{viz.response}
-									</Remark>
-								</div>
-							</div>
-						))}
+							);
+						})}
 					</div>
 				</div>
 			</div>

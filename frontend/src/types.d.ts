@@ -27,6 +27,14 @@ interface EditorAPI {
 	addSelectionChangeHandler: (handler: () => void) => void;
 	removeSelectionChangeHandler: (handler: () => void) => void;
 	selectPhrase: (text: string) => Promise<void>;
+	/**
+	 * Reads a value stored *with the document*, not with the user or the
+	 * browser: it survives a reload, and it follows the file to whoever opens
+	 * it next. Resolves to null when the key has never been written.
+	 */
+	getDocumentSetting: (key: string) => Promise<string | null>;
+	/** Writes a value into the document. See {@link getDocumentSetting}. */
+	setDocumentSetting: (key: string, value: string) => Promise<void>;
 }
 
 interface ReflectionResponseItem {

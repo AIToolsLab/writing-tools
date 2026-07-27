@@ -87,6 +87,48 @@ export const wordEditorAPI: EditorAPI = {
 		});
 	},
 
+	/**
+	 * Reads an add-in setting stored inside the .docx itself.
+	 *
+	 * `settings.get` reads the copy Office loaded with the document, so this is
+	 * synchronous despite the Promise — there is no round-trip to make.
+	 */
+	getDocumentSetting(key: string): Promise<string | null> {
+		try {
+			const value: unknown = Office.context.document.settings.get(key);
+			return Promise.resolve(typeof value === 'string' ? value : null);
+		} catch (error) {
+			console.warn(`Could not read document setting "${key}":`, error);
+			return Promise.resolve(null);
+		}
+	},
+
+	/**
+	 * Writes an add-in setting into the .docx.
+	 *
+	 * `set` only updates Office's in-memory copy; `saveAsync` is what commits it
+	 * to the document, which is what makes the value survive a reload and follow
+	 * the file to the next person who opens it.
+	 */
+	setDocumentSetting(key: string, value: string): Promise<void> {
+		return new Promise<void>((resolve, reject) => {
+			const settings = Office.context.document.settings;
+			settings.set(key, value);
+			settings.saveAsync((result) => {
+				if (result.status === Office.AsyncResultStatus.Succeeded) {
+					resolve();
+				} else {
+					reject(
+						new Error(
+							result.error?.message ??
+								`Failed to save document setting "${key}"`,
+						),
+					);
+				}
+			});
+		});
+	},
+
 	/** Select a phrase in the document. */
 	selectPhrase(phrase: string): Promise<void> {
 		return Word.run(async (context: Word.RequestContext) => {

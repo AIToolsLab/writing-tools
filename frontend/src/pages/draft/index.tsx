@@ -2,12 +2,20 @@
  * @format
  */
 
-import { streamText, type ModelMessage } from 'ai';
+import { type ModelMessage } from 'ai';
 import { useCallback, useContext, useRef, useState } from 'react';
 import { Remark } from 'react-remark';
+import {
+	describeGenerationError,
+	type GenerationErrorInfo,
+} from '@/api/errors';
+import { generateFullText } from '@/api/generate';
 import { draftLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { buildMessages } from '@/api/prompts';
+import { ErrorNotice, GenerationErrorNotice } from '@/components/errorNotice';
+import BriefSection from '@/components/briefSection';
+import { formatDocBriefForPrompt, useDocBrief } from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
@@ -47,6 +55,8 @@ const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advi
 interface SuggestionRequest {
 	docContext: DocContext;
 	type: string;
+	/** The document's brief, prompt-formatted; null when the writer set none. */
+	brief: string | null;
 }
 
 class Fetcher {
@@ -64,25 +74,21 @@ class Fetcher {
 			const messages = buildMessages(
 				request.type,
 				request.docContext,
+				request.brief,
 			) as ModelMessage[];
 
-			const stream = streamText({
+			// generateFullText, not `streamText(...).text`: the latter resolves to
+			// an empty string when the generation failed, which is how a quota
+			// error used to surface as "No suggestions yet".
+			const result = await generateFullText({
 				model: languageModel,
 				providerOptions: openaiProviderOptions,
 				messages,
 				abortSignal: AbortSignal.timeout(20000),
 			});
 
-			const result = await stream.text;
-
 			this.previousRequest = request;
 			return { generation_type: request.type, result, extra_data: {} };
-		} catch (err: any) {
-			let errMsg = '';
-			if (err.name === 'AbortError')
-				errMsg = `Generating a suggestion took too long, please try again.`;
-			else errMsg = `${err.name}: ${err.message}. Please try again.`;
-			throw new Error(errMsg);
 		} finally {
 			this.requestInFlight = null;
 		}
@@ -189,12 +195,23 @@ function SavedGenerations({
 export default function Draft() {
 	const editorAPI = useContext(EditorContext);
 	const { refresh: refreshDocContext } = useDocContext(editorAPI);
+	const { brief } = useDocBrief();
 	const log = useLog();
+	// Read when a suggestion is requested, alongside the document context, so a
+	// brief edited moments ago is the one that applies.
+	const briefRef = useRef(brief);
+	briefRef.current = brief;
 	const [isLoading, setIsLoading] = useState(false);
 	const [savedItems, updateSavedItems] = useState<SavedItem[]>([]);
-	const [errorMsg, updateErrorMsg] = useState('');
+	const [errorInfo, updateErrorInfo] = useState<GenerationErrorInfo | null>(
+		null,
+	);
+	/** Set when a request succeeded but the model had nothing to say. */
+	const [emptyResult, setEmptyResult] = useState(false);
 	const [activeMode, setActiveMode] = useState<string | null>(null);
 	const fetcherRef = useRef<Fetcher | null>(null);
+	/** The last request, so the notice's Retry button can re-run it. */
+	const lastRequestRef = useRef<SuggestionRequest | null>(null);
 
 	const getFetcher = useCallback((): Fetcher => {
 		if (!fetcherRef.current) {
@@ -261,7 +278,9 @@ export default function Draft() {
 			suggestionRequest: SuggestionRequest,
 			isUserInitiated = true,
 		) {
-			updateErrorMsg('');
+			updateErrorInfo(null);
+			setEmptyResult(false);
+			lastRequestRef.current = suggestionRequest;
 			if (isUserInitiated) {
 				setIsLoading(true);
 			}
@@ -289,7 +308,9 @@ export default function Draft() {
 				// so we don't show a useless "[]" bullet to the user.
 				const isEmpty = suggestion.result.trim() === '' || suggestion.result.trim() === '[]';
 				if (isEmpty) {
+					// Nothing to show, but say so — silence reads as a broken button.
 					console.warn('Received empty suggestion.');
+					setEmptyResult(true);
 					draftLog.suggestionEmpty(log, {
 						generationType: suggestionRequest.type,
 						docContext: suggestionRequest.docContext,
@@ -297,22 +318,27 @@ export default function Draft() {
 				} else {
 					save(suggestion, suggestionRequest.docContext);
 				}
-			} catch (err: any) {
-				const errMsg: string =
-					err.message ||
-					'An error occurred while generating the suggestion.';
+			} catch (err) {
+				const info = describeGenerationError(err);
+				console.error('Error fetching suggestion:', err);
 				draftLog.generationError(log, {
 					generationType: suggestionRequest.type,
 					docContext: suggestionRequest.docContext,
-					error: errMsg,
+					error: info.detail,
+					code: info.code,
 				});
-				updateErrorMsg(errMsg);
+				updateErrorInfo(info);
 			}
 
 			setIsLoading(false);
 		},
 		[getFetcher, save, log],
 	);
+
+	const retryLastRequest = useCallback(() => {
+		const request = lastRequestRef.current;
+		if (request) void getSuggestion(request, true);
+	}, [getSuggestion]);
 
 	const autoRefreshCallback = useCallback(async () => {
 		if (!shouldAutoRefresh) {
@@ -330,6 +356,7 @@ export default function Draft() {
 		const request = {
 			docContext,
 			type: modesToShow[0],
+			brief: formatDocBriefForPrompt(briefRef.current),
 		};
 		const prevRequest = getFetcher().previousRequest;
 		if (
@@ -360,6 +387,11 @@ export default function Draft() {
 					
 				<div className="flex flex-col flex-1 overflow-hidden">
 					<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
+						{/* The document's brief — same section as on Revise, same
+						    stored values; collapsed here since this page's job is
+						    the buttons below it. */}
+						<BriefSection page="draft" />
+
 						{/* Instruction */}
 						<div className={classes.instruction}>
 							CLICK A DESIRED BUTTON
@@ -386,7 +418,16 @@ export default function Draft() {
 													docContext,
 												});
 												resetAutoRefresh();
-												getSuggestion({ docContext, type: mode }, true);
+												getSuggestion(
+													{
+														docContext,
+														type: mode,
+														brief: formatDocBriefForPrompt(
+															briefRef.current,
+														),
+													},
+													true,
+												);
 											})();
 										}}
 										disabled={isLoading}
@@ -408,12 +449,21 @@ export default function Draft() {
 						</div>
 						{/* Results Area */}
 						<div className={`${classes.resultsArea} ${savedItems.length > 0 ? classes.hasContent : ''}`}>
-							{errorMsg ? (
-								<div className={classes.errorMessage}>
-									{errorMsg}
-								</div>
+							{errorInfo ? (
+								<GenerationErrorNotice
+									info={errorInfo}
+									onRetry={retryLastRequest}
+								/>
 							) : null}
-							{!errorMsg && savedItems.length === 0 && !isLoading ? (
+							{emptyResult && !errorInfo ? (
+								<ErrorNotice
+									tone="info"
+									title="Nothing to suggest"
+									message="The assistant had nothing to add for this text. Try again, select a different part of your document, or pick another option above."
+									onRetry={retryLastRequest}
+								/>
+							) : null}
+							{!errorInfo && !emptyResult && savedItems.length === 0 && !isLoading ? (
 								<div className={classes.emptyStateContainer}>
 									<div className={classes.emptyTitle}>No suggestions yet</div>
 									<div className={classes.emptyHint}>

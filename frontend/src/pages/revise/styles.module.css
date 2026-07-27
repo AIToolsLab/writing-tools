@@ -114,49 +114,12 @@
 	flex-shrink: 0;
 }
 
-.todoSection { margin-bottom: 24px; }
-
-.block {
-	background: var(--surface);
-	border: 1.5px solid var(--border);
-	border-radius: var(--radius);
-	margin-bottom: 10px;
-	overflow: hidden;
-	transition: border-color 0.15s;
-	animation: fadeUp 0.2s ease both;
-}
-
-.block:focus-within { border-color: var(--accent); }
-
-.blockHead { padding: 12px 14px 0; }
-
-.blockTitle {
-	font-size: 13px;
-	font-weight: 600;
-	color: var(--text-primary);
-	margin-bottom: 2px;
-}
-
-.blockHint {
-	font-size: 11px;
-	color: var(--text-tertiary);
-	margin-bottom: 6px;
-}
-
-textarea {
-	width: 100%;
-	border: none;
-	outline: none;
-	background: transparent;
-	font-size: 13px;
-	color: var(--text-primary);
-	font-family: 'DM Sans', sans-serif;
-	resize: none;
-	line-height: 1.6;
-	padding: 8px 14px 14px;
-}
-
-textarea::placeholder { color: #c5bfb8; }
+/*
+ * The "set your brief" blocks that used to live here moved to
+ * components/briefSection, which every page renders — including the bare
+ * `textarea` rule, which was never scoped by CSS modules and so had been
+ * styling every textarea in the add-in.
+ */
 
 .featuresSection { margin-bottom: 16px; }
 
@@ -368,4 +331,66 @@ textarea::placeholder { color: #c5bfb8; }
 @keyframes fadeUp {
 	from { opacity: 0; transform: translateY(5px); }
 	to   { opacity: 1; transform: translateY(0); }
+}
+
+/*
+ * Doctext links: clicking one asks the editor to find and select the quoted
+ * text, which is a round-trip on the Google Docs surface. The link itself
+ * carries the progress — a link that looks unchanged for a second reads as a
+ * broken link, and the writer clicks again.
+ */
+.docLink {
+	cursor: pointer;
+}
+
+.docLinkPending {
+	cursor: progress;
+	opacity: 0.75;
+}
+
+.linkSpinner {
+	display: inline-block;
+	width: 9px;
+	height: 9px;
+	margin-left: 5px;
+	vertical-align: baseline;
+	border: 1.5px solid currentColor;
+	border-top-color: transparent;
+	border-radius: 50%;
+	animation: linkSpin 0.7s linear infinite;
+}
+
+.linkFailed {
+	margin-left: 6px;
+	font-size: 11px;
+	font-style: italic;
+	color: var(--text-secondary);
+	white-space: nowrap;
+}
+
+@keyframes linkSpin {
+	to { transform: rotate(360deg); }
+}
+
+/* Announced by screen readers, invisible on screen. */
+.visuallyHidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* Respect a reduced-motion preference: keep the state, drop the animation. */
+@media (prefers-reduced-motion: reduce) {
+	.linkSpinner {
+		animation: none;
+		border-top-color: currentColor;
+		opacity: 0.5;
+	}
 }
