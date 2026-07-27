@@ -4466,9 +4466,21 @@ function ReflectionProposalCard({
 }
 
 function newSessionId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto
-    ? crypto.randomUUID()
-    : `session_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  const secureCrypto = globalThis.crypto;
+
+  if (typeof secureCrypto?.randomUUID === "function") {
+    return secureCrypto.randomUUID();
+  }
+
+  if (typeof secureCrypto?.getRandomValues !== "function") {
+    throw new Error("Secure randomness is unavailable.");
+  }
+
+  const bytes = secureCrypto.getRandomValues(new Uint8Array(16));
+  const value = Array.from(bytes, (byte) =>
+    byte.toString(16).padStart(2, "0"),
+  ).join("");
+  return `session_${value}`;
 }
 
 export function migrateStoredProposals(items: Proposal[], bank: ConversationState["bank"], store: ThoughtUnitStore): Proposal[] {
