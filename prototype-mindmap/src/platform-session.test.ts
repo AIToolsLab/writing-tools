@@ -159,7 +159,13 @@ describe("platform launcher session", () => {
   it("defaults launch enforcement by build mode and honors explicit overrides", () => {
     expect(launchRequired({ PROD: true })).toBe(true);
     expect(launchRequired({ PROD: false })).toBe(false);
-    expect(launchRequired({ PROD: true, VITE_REQUIRE_LAUNCH: "false" })).toBe(false);
     expect(launchRequired({ PROD: false, VITE_REQUIRE_LAUNCH: "true" })).toBe(true);
+  });
+
+  it("ignores VITE_REQUIRE_LAUNCH=false in production builds", () => {
+    // Fail closed: a misconfigured deploy env must not be able to ship an ungated
+    // production bundle. The override stays available for dev and Playwright.
+    expect(launchRequired({ PROD: true, VITE_REQUIRE_LAUNCH: "false" })).toBe(true);
+    expect(launchRequired({ PROD: false, VITE_REQUIRE_LAUNCH: "false" })).toBe(false);
   });
 });

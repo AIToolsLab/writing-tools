@@ -241,13 +241,21 @@ function PlatformBootstrapContent() {
       return;
     }
     clearPlatformSession(window.sessionStorage);
-    setBoot({ kind: "blocked", reason: "token_expired" });
+    setBoot((current) => ({
+      kind: "blocked",
+      // A standalone session never held a token, so "expired" would be a lie. The
+      // honest instruction is the same one an ungated visitor needs: go launch it.
+      reason: current.kind === "ready" && !current.session ? "launch_required" : "token_expired",
+    }));
   }, []);
 
+  // Supplied whenever the app renders, with or without a session. Returning `undefined`
+  // for the standalone case left 401s with no handler at all, so they surfaced as a raw
+  // "Backend 401" chat banner instead of a blocking screen.
   const providerRuntime = useMemo<ProviderRuntimeConfig | undefined>(() => {
-    if (boot.kind !== "ready" || !boot.session) return undefined;
+    if (boot.kind !== "ready") return undefined;
     return {
-      bearerToken: boot.session.accessToken,
+      ...(boot.session ? { bearerToken: boot.session.accessToken } : {}),
       onAccessError,
     };
   }, [boot, onAccessError]);

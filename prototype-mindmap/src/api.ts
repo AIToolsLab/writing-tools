@@ -21,7 +21,18 @@ import {
 } from "./provider-tools";
 
 const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
-const BACKEND_URL = viteEnv?.VITE_BACKEND_URL ?? "http://localhost:8000/api";
+// Deliberately duplicated from `platform-session.ts` rather than imported: this module
+// stays environment-neutral so the Node eval runner can import it without pulling in
+// browser storage/Location types. Under Node `viteEnv` is undefined, so the dev default
+// applies and nothing throws.
+const BACKEND_URL = (() => {
+  const configured = viteEnv?.VITE_BACKEND_URL?.trim();
+  if (configured) return configured;
+  if ((viteEnv as { PROD?: boolean } | undefined)?.PROD === true) {
+    throw new Error("VITE_BACKEND_URL must be set for production builds of the mindmap.");
+  }
+  return "http://localhost:8000/api";
+})();
 const MODEL = viteEnv?.VITE_MINDMAP_MODEL ?? "gpt-5.6-terra";
 const REASONING_EFFORT = viteEnv?.VITE_MINDMAP_REASONING_EFFORT ?? "low";
 export const PROVIDER_TRANSPORT: ProviderTransport = viteEnv?.VITE_MINDMAP_PROVIDER_TRANSPORT === "responses_tools" ? "responses_tools" : "chat_json";

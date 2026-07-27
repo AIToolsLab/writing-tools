@@ -21,9 +21,16 @@ VITE_BACKEND_URL=http://localhost:8000/api
 VITE_REQUIRE_LAUNCH=false
 ```
 
-`VITE_REQUIRE_LAUNCH` can explicitly enable or disable the gate. When it is
-unset, the gate is enabled for production builds and disabled for development
-and tests. A grant present in the URL is processed in every mode.
+`VITE_REQUIRE_LAUNCH` enables the gate for a development or test build. When it
+is unset, the gate is enabled for production builds and disabled for development
+and tests. **Production builds always require a launch:** `VITE_REQUIRE_LAUNCH=false`
+is ignored when `PROD` is set, so a misconfigured deploy environment cannot ship an
+ungated bundle. A grant present in the URL is processed in every mode.
+
+`VITE_BACKEND_URL` is **required** for production builds and throws at startup if
+missing. Development and test builds fall back to `http://localhost:8000/api`; a
+production bundle carrying that fallback would point every user's browser at their
+own machine.
 
 The Writing Tools registry uses `VITE_MINDMAP_TOOL_URL`. Its development default
 is `http://localhost:5181/`; its production default is

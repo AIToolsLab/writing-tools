@@ -4,8 +4,24 @@ export const PLATFORM_SESSION_STORAGE_KEY = "prototype-mindmap-platform-session-
 export const PLATFORM_SESSION_VERSION = 1;
 
 const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | boolean | undefined> }).env;
-export const PLATFORM_BACKEND_URL =
-  (viteEnv?.VITE_BACKEND_URL as string | undefined) ?? "http://localhost:8000/api";
+
+/**
+ * A production bundle that quietly falls back to localhost points every user's browser
+ * at their own machine — a confusing per-request failure rather than an obvious one.
+ * Fail at module load so a misconfigured deploy is caught by the first smoke check.
+ */
+export function resolveBackendUrl(
+  env: { PROD?: boolean; VITE_BACKEND_URL?: string | boolean } = viteEnv ?? {},
+): string {
+  const configured = typeof env?.VITE_BACKEND_URL === "string" ? env.VITE_BACKEND_URL.trim() : "";
+  if (configured) return configured;
+  if (env?.PROD === true) {
+    throw new Error("VITE_BACKEND_URL must be set for production builds of the mindmap.");
+  }
+  return "http://localhost:8000/api";
+}
+
+export const PLATFORM_BACKEND_URL = resolveBackendUrl();
 
 export interface PlatformDocContext {
   documentLabel?: string;
@@ -111,10 +127,12 @@ export function scrubGrantFromUrl(
 export function launchRequired(
   env: { PROD?: boolean; VITE_REQUIRE_LAUNCH?: string | boolean } = viteEnv ?? {},
 ): boolean {
-  const explicit = env?.VITE_REQUIRE_LAUNCH;
-  if (explicit === "true") return true;
-  if (explicit === "false") return false;
-  return env?.PROD === true;
+  // Production always requires a launch, and `VITE_REQUIRE_LAUNCH=false` cannot turn
+  // that off. The override exists for dev servers and Playwright; honouring it in a
+  // PROD build would let one stray env var ship an ungated bundle, with nothing at
+  // runtime to signal that the gate was disabled.
+  if (env?.PROD === true) return true;
+  return env?.VITE_REQUIRE_LAUNCH === "true";
 }
 
 export function readPlatformSession(storage: Pick<Storage, "getItem">): PlatformSession | null {
