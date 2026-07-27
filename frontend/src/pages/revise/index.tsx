@@ -2,7 +2,7 @@
  * @format
  */
 
-import { streamText, type ModelMessage } from 'ai';
+import { type ModelMessage } from 'ai';
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Remark } from 'react-remark';
 import {
@@ -21,8 +21,14 @@ import {
 	AiOutlineQuestionCircle
 } from 'react-icons/ai';
 import { isRunningInGoogleDocs } from '@/api';
+import {
+	describeGenerationError,
+	type GenerationErrorInfo,
+} from '@/api/errors';
+import { streamTextDeltas } from '@/api/generate';
 import { reviseLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
+import { GenerationErrorNotice, ErrorNotice } from '@/components/errorNotice';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
@@ -172,17 +178,28 @@ class Visualization {
 	response: string;
 	id: string;
 	references: string[] = [];
+	/** Set when the generation failed; rendered in place of a result. */
+	error: GenerationErrorInfo | null = null;
+	/** False until the stream ends, so the panel can show per-feature progress. */
+	done = false;
 
 	constructor(
 		public prompt: string,
 		public docContext: DocContext,
+		/** The feature this came from — for the result's label and its Retry. */
+		public feature: Prompt,
 	) {
 		this.prompt = prompt;
 		this.docContext = docContext;
 		this.response = '';
-		this.id = Date.now().toString();
+		// Counter, not a timestamp: features run back-to-back and two created in
+		// the same millisecond would collide as React keys (an immediate failure
+		// takes almost no time at all).
+		this.id = `viz-${++visualizationCounter}`;
 	}
 }
+
+let visualizationCounter = 0;
 
 const makeAnchorWithCallback = (
 	clickCallbackRef: React.MutableRefObject<(href: string) => void>,
@@ -280,7 +297,7 @@ export default function Revise() {
 			// tracking it continuously.
 			const currentContext = await refreshDocContext();
 
-			const newViz = new Visualization(request, currentContext);
+			const newViz = new Visualization(request, currentContext, prompt);
 			setVisualizations((prev) => [...prev, newViz]);
 
 			reviseLog.visualizationRequested(log, {
@@ -304,8 +321,20 @@ ${request}
 
 			setLoading(true);
 
+			// Re-publish the (mutated) visualization so React re-renders it.
+			const publish = () => {
+				setVisualizations((prev) => {
+					const updated = [...prev];
+					const index = updated.findIndex((v) => v.id === newViz.id);
+					if (index !== -1) {
+						updated[index] = newViz;
+					}
+					return updated;
+				});
+			};
+
 			try {
-				const result = streamText({
+				const deltas = streamTextDeltas({
 					model: languageModel,
 					providerOptions: openaiProviderOptions,
 					system: systemPrompt,
@@ -314,19 +343,13 @@ ${request}
 					abortSignal: requestController.signal,
 				});
 
-				for await (const delta of result.textStream) {
+				for await (const delta of deltas) {
 					newViz.response += delta;
-					setVisualizations((prev) => {
-						const updated = [...prev];
-						const index = updated.findIndex((v) => v.id === newViz.id);
-						if (index !== -1) {
-							updated[index] = newViz;
-						}
-						return updated;
-					});
+					publish();
 				}
 
-				console.log('Visualization response complete:', newViz.response);
+				newViz.done = true;
+				publish();
 				reviseLog.visualizationCompleted(log, {
 					feature: prompt.keyword,
 					response: newViz.response,
@@ -335,10 +358,17 @@ ${request}
 				if (requestController.signal.aborted) {
 					return;
 				}
+				const info = describeGenerationError(err);
 				console.error('Error fetching visualization:', err);
+				// Show the failure on the feature that failed, keeping whatever text
+				// had already streamed in.
+				newViz.error = info;
+				newViz.done = true;
+				publish();
 				reviseLog.visualizationError(log, {
 					feature: prompt.keyword,
-					error: err instanceof Error ? err.message : String(err),
+					error: info.detail,
+					code: info.code,
 				});
 			} finally {
 				// Ignore stale completions from older requests that were already replaced.
@@ -349,6 +379,15 @@ ${request}
 			}
 		},
 		[refreshDocContext, log],
+	);
+
+	/** Re-run one feature, dropping the card that failed so it isn't duplicated. */
+	const retryVisualization = useCallback(
+		(viz: Visualization) => {
+			setVisualizations((prev) => prev.filter((v) => v.id !== viz.id));
+			void requestVisualization(viz.feature);
+		},
+		[requestVisualization],
 	);
 
 	const toggleFeature = useCallback(
@@ -532,30 +571,53 @@ ${request}
 								</div>
 								Running {selectedFeatures.length} feature{selectedFeatures.length > 1 ? 's' : ''}...
 							</div> : null}
-						{visualizations.map((viz, index) => (
-							<div key={viz.id}>
-								{index > 0 && <div style={{ borderTop: '1.5px solid var(--border)' }}></div>}
-								<div className={classes.resultHeader}>
-									<span className={classes.resultTag}>
-										{promptList.find(p => p.prompt === viz.prompt)?.keyword || 'Feature'}
-									</span>
-									<span className={classes.resultMeta}>
-										{viz.response.split('\n').length} result{viz.response.split('\n').length > 1 ? 's' : ''}
-									</span>
+						{visualizations.map((viz, index) => {
+							const lineCount = viz.response.split('\n').length;
+							return (
+								<div key={viz.id}>
+									{index > 0 && <div style={{ borderTop: '1.5px solid var(--border)' }}></div>}
+									<div className={classes.resultHeader}>
+										<span className={classes.resultTag}>
+											{viz.feature.keyword}
+										</span>
+										<span className={classes.resultMeta}>
+											{viz.error
+												? 'Failed'
+												: `${lineCount} result${lineCount > 1 ? 's' : ''}`}
+										</span>
+									</div>
+									<div className={classes.resultItem} style={{ animationDelay: `${index * 0.04}s` }}>
+										{viz.response ? (
+											<Remark
+												rehypeReactOptions={{
+													components: {
+														a: AnchorWithCallback,
+													},
+												}}
+											>
+												{viz.response}
+											</Remark>
+										) : null}
+										{viz.error ? (
+											<GenerationErrorNotice
+												info={viz.error}
+												title={`${viz.feature.keyword} failed`}
+												onRetry={() => retryVisualization(viz)}
+											/>
+										) : null}
+										{/* A finished-but-empty run is a real outcome, not a blank card. */}
+										{!viz.error && viz.done && viz.response.trim() === '' ? (
+											<ErrorNotice
+												tone="info"
+												title="Nothing came back"
+												message="The model returned an empty response for this feature. Running it again often helps."
+												onRetry={() => retryVisualization(viz)}
+											/>
+										) : null}
+									</div>
 								</div>
-								<div className={classes.resultItem} style={{ animationDelay: `${index * 0.04}s` }}>
-									<Remark
-										rehypeReactOptions={{
-											components: {
-												a: AnchorWithCallback,
-											},
-										}}
-									>
-										{viz.response}
-									</Remark>
-								</div>
-							</div>
-						))}
+							);
+						})}
 					</div>
 				</div>
 			</div>
