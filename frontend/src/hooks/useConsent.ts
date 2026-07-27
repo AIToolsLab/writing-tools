@@ -32,10 +32,11 @@ export function useConsent(initial: ConsentLevel) {
 			setStatus('saving');
 			try {
 				const token = await session.getAccessToken();
-				await changeConsent(token, next);
-				// Propagate consentUpdatedAt/hasSetConsent into the session without a
-				// re-login (non-critical: a failed refresh leaves the last-known user).
-				await session.refreshUser();
+				const snapshot = await changeConsent(token, next);
+				// The save endpoint returns the values it just persisted, so update this
+				// session directly. A transient get-session failure can no longer leave a
+				// successfully-consented user trapped behind the onboarding gate.
+				session.applyConsentSnapshot(snapshot);
 				// Tell other same-origin tabs (e.g. the app tab, when this save happens
 				// on the standalone account page) to refresh, so none keeps logging at a
 				// level the user just lowered.

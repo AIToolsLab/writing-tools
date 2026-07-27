@@ -22,6 +22,7 @@ import {
 	type ReactNode,
 } from 'react';
 import { setOpenAITokenProvider } from '@/api/openai';
+import type { ConsentSnapshot } from '@/api/account';
 import { type ConsentLevel, DEFAULT_CONSENT_LEVEL } from '@/consent';
 import { onConsentChangeFromOtherTab } from '@/consentSync';
 import { AccessTokenProvider } from '@/contexts/authTokenContext';
@@ -79,6 +80,10 @@ export interface AppAuthSession {
 	 * reflects in `user`/`hasSetConsent` live. No-op for the demo provider.
 	 */
 	refreshUser: () => Promise<void>;
+	/** Apply the authoritative result of a consent update without re-fetching. */
+	applyConsentSnapshot: (snapshot: ConsentSnapshot) => void;
+	/** Temporarily use no logging while another tab's update is re-fetched. */
+	invalidateConsent: () => void;
 	logout: () => Promise<void>;
 }
 
@@ -98,6 +103,8 @@ const DEFAULT_SESSION: AppAuthSession = {
 	login: () => Promise.resolve(),
 	cancelLogin: () => {},
 	refreshUser: () => Promise.resolve(),
+	applyConsentSnapshot: () => {},
+	invalidateConsent: () => {},
 	logout: () => Promise.resolve(),
 };
 
@@ -109,15 +116,19 @@ export const useAppAuth = (): AppAuthSession => useContext(AppAuthContext);
 
 function BetterAuthProvider({ children }: { children: ReactNode }) {
 	const device = useDeviceAuth();
-	const { refreshUser } = device;
+	const { refreshUser, invalidateConsent } = device;
 
 	// Cross-tab consent propagation. A consent change on the standalone account page
 	// (a separate tab) would otherwise leave this tab's session — and thus the PostHog
 	// bridge and useLog — logging at the pre-change level. Refresh when another tab
 	// broadcasts a change. refreshUser no-ops when there's no active session.
 	useEffect(
-		() => onConsentChangeFromOtherTab(() => void refreshUser()),
-		[refreshUser],
+		() =>
+			onConsentChangeFromOtherTab(() => {
+				invalidateConsent();
+				void refreshUser();
+			}),
+		[invalidateConsent, refreshUser],
 	);
 
 	const session = useMemo<AppAuthSession>(() => {
@@ -166,6 +177,8 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 			login: device.start,
 			cancelLogin: device.reset,
 			refreshUser: device.refreshUser,
+			applyConsentSnapshot: device.applyConsentSnapshot,
+			invalidateConsent: device.invalidateConsent,
 			logout: device.logout,
 		};
 	}, [device]);
@@ -207,6 +220,8 @@ function DemoAuthProvider({ children }: { children: ReactNode }) {
 			login: () => Promise.resolve(),
 			cancelLogin: () => {},
 			refreshUser: () => Promise.resolve(),
+			applyConsentSnapshot: () => {},
+			invalidateConsent: () => {},
 			logout: () => Promise.resolve(),
 		}),
 		[anon],

@@ -203,7 +203,10 @@ describe('POST /api/me/consent', () => {
 			body: JSON.stringify({ level: 'ai_output' }),
 		});
 		expect(good.status).toBe(200);
-		expect(await good.json()).toEqual({ loggingConsent: 'ai_output' });
+		expect(await good.json()).toEqual({
+			loggingConsent: 'ai_output',
+			consentUpdatedAt: expect.any(String),
+		});
 		expect(calls.updateUser).toEqual([
 			{
 				userId: 'usr-1',

@@ -17,6 +17,7 @@ import {
 	signOut as signOutRequest,
 } from '@/api/deviceAuth';
 import { clearToken, loadToken, persistToken } from '@/api/authTokenStore';
+import type { ConsentSnapshot } from '@/api/account';
 
 export type DeviceAuthStatus =
 	| 'idle'
@@ -51,6 +52,10 @@ export interface UseDeviceAuth extends DeviceAuthState {
 	 * hydrate-on-mount and the 401 path on real API calls, not this refresh.
 	 */
 	refreshUser: () => Promise<void>;
+	/** Apply the authoritative consent response from this session's own save. */
+	applyConsentSnapshot: (snapshot: ConsentSnapshot) => void;
+	/** Fail closed while a consent change from another tab is being reconciled. */
+	invalidateConsent: () => void;
 	/** Best-effort server sign-out, then clear local state. */
 	logout: () => Promise<void>;
 }
@@ -95,6 +100,32 @@ export function useDeviceAuth(): UseDeviceAuth {
 		} catch {
 			// Non-critical: keep the last-known user rather than disrupting the UI.
 		}
+	}, []);
+
+	// The consent endpoint returns exactly the values it persisted. Apply that
+	// snapshot synchronously so an onboarding gate never depends on a follow-up
+	// get-session request succeeding.
+	const applyConsentSnapshot = useCallback((snapshot: ConsentSnapshot) => {
+		setState((s) => {
+			if (s.status !== 'success' || !s.user) return s;
+			return {
+				...s,
+				user: { ...s.user, ...snapshot },
+			};
+		});
+	}, []);
+
+	// A different tab may have lowered consent. Until its session refresh returns,
+	// use the most privacy-protective level so this tab cannot keep analytics on
+	// because of a stale cached user.
+	const invalidateConsent = useCallback(() => {
+		setState((s) => {
+			if (s.status !== 'success' || !s.user) return s;
+			return {
+				...s,
+				user: { ...s.user, loggingConsent: 'none' },
+			};
+		});
 	}, []);
 
 	const start = useCallback(async () => {
@@ -228,5 +259,13 @@ export function useDeviceAuth(): UseDeviceAuth {
 		};
 	}, [safeSet]);
 
-	return { ...state, start, reset, refreshUser, logout };
+	return {
+		...state,
+		start,
+		reset,
+		refreshUser,
+		applyConsentSnapshot,
+		invalidateConsent,
+		logout,
+	};
 }

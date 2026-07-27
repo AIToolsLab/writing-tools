@@ -17,9 +17,19 @@ afterEach(() => {
 
 describe('account API', () => {
 	it('uses the bearer-only path for consent changes', async () => {
-		fetchMock.mockResolvedValueOnce({ ok: true } as Response);
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			json: () =>
+				Promise.resolve({
+					loggingConsent: 'ai_output',
+					consentUpdatedAt: '2026-07-27T00:00:00.000Z',
+				}),
+		} as Response);
 
-		await changeConsent('tok', 'ai_output');
+		await expect(changeConsent('tok', 'ai_output')).resolves.toEqual({
+			loggingConsent: 'ai_output',
+			consentUpdatedAt: '2026-07-27T00:00:00.000Z',
+		});
 
 		expect(fetchMock).toHaveBeenCalledWith('/api/me/consent', {
 			method: 'POST',
