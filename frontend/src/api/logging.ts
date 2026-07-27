@@ -37,8 +37,11 @@ import type { LogFn } from '@/hooks/useLog';
  * History:
  *   1 — Initial page-scoped schema (Draft / Revise / Chat).
  *   2 — Added the Tools page (external tool launcher) and its events.
+ *   3 — Error events carry an optional `code` (the provider's error code, e.g.
+ *       `insufficient_quota`), and their `error` field now holds the provider's
+ *       message rather than the sentence shown to the user.
  */
-export const LOG_SCHEMA_VERSION = 2;
+export const LOG_SCHEMA_VERSION = 3;
 
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat' | 'tools';
@@ -100,7 +103,12 @@ export const draftLog = {
 	/** A suggestion request failed (timeout or model error). */
 	generationError(
 		log: LogFn,
-		data: { generationType: string; docContext: DocContext; error: string },
+		data: {
+			generationType: string;
+			docContext: DocContext;
+			error: string;
+			code?: string;
+		},
 	) {
 		return emit(log, 'draft', 'generation_error', data);
 	},
@@ -141,7 +149,10 @@ export const reviseLog = {
 		return emit(log, 'revise', 'visualization_completed', data);
 	},
 	/** A visualization request failed (and was not merely cancelled). */
-	visualizationError(log: LogFn, data: { feature: string; error: string }) {
+	visualizationError(
+		log: LogFn,
+		data: { feature: string; error: string; code?: string },
+	) {
 		return emit(log, 'revise', 'visualization_error', data);
 	},
 	/** The writer clicked a document reference (doctext link) in a result. */
@@ -166,7 +177,7 @@ export const chatLog = {
 		return emit(log, 'chat', 'response_completed', data);
 	},
 	/** The assistant response failed to stream (and was not cancelled). */
-	responseError(log: LogFn, data: { error: string }) {
+	responseError(log: LogFn, data: { error: string; code?: string }) {
 		return emit(log, 'chat', 'response_error', data);
 	},
 };

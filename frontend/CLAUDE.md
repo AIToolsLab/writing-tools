@@ -45,6 +45,25 @@ task pane's URL comes from `manifest.xml`, and the Google Docs bundle runs insid
 an Apps Script sandbox iframe with no addressable URL. The Labs menu is the
 cross-surface way in; flags are for keeping something out of even that.
 
+### Generation calls and failures
+
+Pages must generate through `src/api/generate.ts` (`streamTextDeltas`,
+`generateFullText`), never by calling `streamText` directly. `streamText` does not
+throw on model or transport errors: it puts them in the stream as an `error` part,
+and `result.textStream` forwards only `text-delta` parts. A failed generation is
+therefore indistinguishable from an empty successful one — the loop ends, `await
+result.text` gives `''`, and the surrounding `try/catch` never runs. That is how a
+quota failure reached writers as a blank panel. The helpers read `fullStream`
+instead and throw a `GenerationError`.
+
+Catch it, run the value through `describeGenerationError` (`src/api/errors.ts`),
+and render the result with `<GenerationErrorNotice>`
+(`src/components/errorNotice/`) — one writer-facing sentence, the provider's own
+text behind a "Technical details" toggle, and Retry only when `info.retryable`.
+Log `info.detail` (provider text) and `info.code`, not the sentence shown on
+screen. A successful-but-empty generation is also a visible outcome (`tone="info"`
+notice), never silence.
+
 ### Testing
 
 Two runners own two disjoint directories — never mix them:
@@ -54,7 +73,8 @@ Two runners own two disjoint directories — never mix them:
   (or `npm run test:watch`). Node environment by default; for a component test add
   `// @vitest-environment jsdom` at the top of that file.
   - LLM calls are tested by passing a `MockLanguageModelV2` (from `ai/test`) as the
-    `model` arg to `streamText`/`generateText` — see `src/api/__tests__/generate.test.ts`.
+    `model` arg to `streamTextDeltas`/`generateFullText` — see
+    `src/api/__tests__/generate.test.ts`, including how to stream an `error` part.
 - **Playwright** (E2E/visual) — `tests/`, files named `*.spec.ts`. Scoped via
   `testDir` in `playwright.config.ts`. Run with `npx playwright test`.
 

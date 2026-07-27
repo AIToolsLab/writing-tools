@@ -103,6 +103,38 @@ export async function fulfillOpenAI(route: Route, result: string) {
   });
 }
 
+/**
+ * The failure mode that motivated the error-visibility work: OpenAI answers 200
+ * and then reports the failure as an `error` event inside the SSE stream. The
+ * AI SDK forwards it as an error part rather than throwing, so a page that
+ * ignores those parts renders nothing at all.
+ */
+export const QUOTA_ERROR_MESSAGE =
+  'You exceeded your current quota, please check your plan and billing details.';
+
+export async function fulfillOpenAIStreamError(route: Route) {
+  const event = (payload: object) => `data: ${JSON.stringify(payload)}\n\n`;
+  await route.fulfill({
+    status: 200,
+    headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+    body:
+      event({
+        type: 'response.created',
+        response: { id: 'resp-mock', created_at: 0, model: 'gpt-5.6-terra' },
+      }) +
+      event({
+        type: 'error',
+        sequence_number: 2,
+        error: {
+          type: 'insufficient_quota',
+          code: 'insufficient_quota',
+          message: QUOTA_ERROR_MESSAGE,
+        },
+      }) +
+      'data: [DONE]\n\n',
+  });
+}
+
 export async function setupMockBackend(page: Page) {
   // Demo pages mint an anonymous Better Auth session on load (src/api/anonymousAuth.ts).
   // The Playwright "backend" is just http-server over dist/, which 405s a POST, so the
