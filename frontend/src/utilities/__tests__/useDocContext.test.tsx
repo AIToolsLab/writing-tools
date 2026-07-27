@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { noopEditorAPI } from '@/api/__fixtures__/editorAPI';
 import { useDocContext } from '..';
 
 /** A deferred promise, so a test can hold the first pull open. */
@@ -21,14 +22,7 @@ const emptyContext: DocContext = {
 };
 
 function makeEditorAPI(getDocContext: () => Promise<DocContext>): EditorAPI {
-	return {
-		addSelectionChangeHandler: () => {},
-		removeSelectionChangeHandler: () => {},
-		getDocContext,
-		selectPhrase: () => Promise.resolve(),
-		getDocumentSetting: () => Promise.resolve(null),
-		setDocumentSetting: () => Promise.resolve(),
-	};
+	return noopEditorAPI({ getDocContext });
 }
 
 describe('useDocContext', () => {

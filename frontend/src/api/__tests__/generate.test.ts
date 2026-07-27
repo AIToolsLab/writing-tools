@@ -1,9 +1,22 @@
-import type { LanguageModelV2StreamPart } from '@ai-sdk/provider';
-import { MockLanguageModelV2 } from 'ai/test';
+import { MockLanguageModelV3 } from 'ai/test';
 import { convertArrayToReadableStream } from '@ai-sdk/provider-utils/test';
 import { describe, expect, it, vi } from 'vitest';
 import { GenerationError } from '../errors';
 import { generateFullText, streamTextDeltas } from '../generate';
+
+/**
+ * The stream-part shape the installed `ai` expects, read off the mock instead of
+ * imported by name. The top-level `@ai-sdk/provider` is the v2 copy that
+ * `@ai-sdk/openai` still depends on, so it is a spec behind what `ai` itself
+ * bundles, and its `LanguageModelV2StreamPart` no longer fits. Deriving keeps
+ * this file correct across the next provider-spec bump too.
+ */
+type StreamPart =
+	Awaited<
+		ReturnType<MockLanguageModelV3['doStream']>
+	>['stream'] extends ReadableStream<infer Part>
+		? Part
+		: never;
 
 /**
  * The quota failure that motivated these helpers: OpenAI's Responses API sends
@@ -21,30 +34,39 @@ const QUOTA_ERROR = {
 	},
 };
 
-function modelStreaming(parts: LanguageModelV2StreamPart[]) {
-	return new MockLanguageModelV2({
+function modelStreaming(parts: StreamPart[]) {
+	return new MockLanguageModelV3({
 		doStream: () =>
 			Promise.resolve({ stream: convertArrayToReadableStream(parts) }),
 	});
 }
 
-function textParts(...deltas: string[]): LanguageModelV2StreamPart[] {
+function textParts(...deltas: string[]): StreamPart[] {
 	return [
 		{ type: 'stream-start', warnings: [] },
 		{ type: 'text-start', id: '1' },
-		...deltas.map((delta): LanguageModelV2StreamPart => ({
-			type: 'text-delta',
-			id: '1',
-			delta,
-		})),
+		...deltas.map(
+			(delta): StreamPart => ({
+				type: 'text-delta',
+				id: '1',
+				delta,
+			}),
+		),
 		{ type: 'text-end', id: '1' },
 	];
 }
 
-const FINISH: LanguageModelV2StreamPart = {
+const FINISH: StreamPart = {
 	type: 'finish',
-	finishReason: 'stop',
-	usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+	// v3 splits the finish reason into the unified value and the provider's own
+	// raw string, which a mock has none of.
+	finishReason: { unified: 'stop', raw: undefined },
+	// The v3 spec breaks each side of the token count down (cache reads,
+	// reasoning tokens); these helpers only care that a finish part arrives.
+	usage: {
+		inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+		outputTokens: { total: 1, text: 1, reasoning: 0 },
+	},
 };
 
 async function collect(deltas: AsyncIterable<string>): Promise<string[]> {

@@ -421,7 +421,7 @@ ${request}
 				const deltas = streamTextDeltas({
 					model: languageModel,
 					providerOptions: openaiProviderOptions,
-					system: systemPrompt,
+					instructions: systemPrompt,
 					messages,
 					maxOutputTokens: 5000,
 					abortSignal: requestController.signal,
