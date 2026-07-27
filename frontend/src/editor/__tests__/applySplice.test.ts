@@ -38,14 +38,18 @@ function makeEditor(paras: string[]): LexicalEditor {
 }
 
 const paragraphs = (editor: LexicalEditor) =>
-	editor
-		.getEditorState()
-		.read(() => $getRoot().getChildren().map((n) => n.getTextContent()));
+	editor.getEditorState().read(() =>
+		$getRoot()
+			.getChildren()
+			.map((n) => n.getTextContent()),
+	);
 
 const paragraphKeys = (editor: LexicalEditor) =>
-	editor
-		.getEditorState()
-		.read(() => $getRoot().getChildren().map((n) => n.getKey()));
+	editor.getEditorState().read(() =>
+		$getRoot()
+			.getChildren()
+			.map((n) => n.getKey()),
+	);
 
 const apply = (editor: LexicalEditor, splice: ParagraphSplice) =>
 	editor.update(() => $applySplice(splice), { discrete: true });
@@ -111,7 +115,11 @@ describe('$applySplice', () => {
 			newStr: 'FIVE',
 		}))
 			apply(editor, splice);
-		expect(paragraphs(editor)).toEqual(['one two three', 'four FIVE', 'six']);
+		expect(paragraphs(editor)).toEqual([
+			'one two three',
+			'four FIVE',
+			'six',
+		]);
 		expect(paragraphs(editor)).toHaveLength(3);
 	});
 });

@@ -152,7 +152,8 @@ export function createLiveResponder(opts: LiveResponderOptions): Responder {
 				toolName: c.toolName,
 			}));
 			const primary = calls[0];
-			const action = toAction(primary.toolName, primary.input) ?? undefined;
+			const action =
+				toAction(primary.toolName, primary.input) ?? undefined;
 			return { say, action };
 		},
 

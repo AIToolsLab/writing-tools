@@ -10,9 +10,15 @@
 import { validateText, type Corpus } from '../corpus';
 import { applyEditOp } from './editor';
 import { describeOp } from './ops';
-import type { AssistantMove, EditOp, Responder, StrategyContext } from './types';
+import type {
+	AssistantMove,
+	EditOp,
+	Responder,
+	StrategyContext,
+} from './types';
 
-const clip = (s: string, n = 40) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+const clip = (s: string, n = 40) =>
+	s.length > n ? `${s.slice(0, n - 1)}…` : s;
 
 /**
  * For a staged edit, decide what to point at in the document and how to describe
@@ -39,7 +45,8 @@ export async function locateProposal(
 			};
 		}
 		if (op.paragraph !== undefined) {
-			const target = (await editor.getParagraphs())[op.paragraph - 1] ?? '';
+			const target =
+				(await editor.getParagraphs())[op.paragraph - 1] ?? '';
 			return {
 				highlight: target || undefined,
 				summary: target
@@ -127,7 +134,8 @@ export function appliedReport(
 ): string {
 	const probe = probeFor(op).trim().slice(0, 40);
 	const center =
-		paragraphs.findIndex((p) => probe && p.includes(probe)) + 1 || undefined;
+		paragraphs.findIndex((p) => probe && p.includes(probe)) + 1 ||
+		undefined;
 	return `Applied. The ${surface} now has ${paragraphs.length} paragraph(s); numbers may have shifted. Around the change:\n${numberedWindow(paragraphs, center)}`;
 }
 

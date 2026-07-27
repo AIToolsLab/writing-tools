@@ -154,18 +154,14 @@ function ControlsPlugin({
 
 		const controls: EditorControls = {
 			getText: () =>
-				editor
-					.getEditorState()
-					.read(() => $getRoot().getTextContent()),
+				editor.getEditorState().read(() => $getRoot().getTextContent()),
 
 			getParagraphs: () =>
-				editor
-					.getEditorState()
-					.read(() =>
-						$getRoot()
-							.getChildren()
-							.map((node) => node.getTextContent()),
-					),
+				editor.getEditorState().read(() =>
+					$getRoot()
+						.getChildren()
+						.map((node) => node.getTextContent()),
+				),
 
 			setText: (text: string) => {
 				editor.update(() => {
@@ -381,18 +377,26 @@ function LexicalEditor({
 				theme: {
 					paragraph: classes.paragraph,
 				},
-				onError(_error, _editor) { },
+				onError(_error, _editor) {},
 				editorState: initialState,
 			}}
 		>
 			<div className={classes.editorContainer}>
-				<div className={"resize-none text-base caret-zinc-900 relative outline-none overflow-y-auto h-full editor-scrollbar"}>
+				<div
+					className={
+						'resize-none text-base caret-zinc-900 relative outline-none overflow-y-auto h-full editor-scrollbar'
+					}
+				>
 					{preamble ? (
 						<div className="whitespace-pre-line">{preamble}</div>
 					) : null}
 					<RichTextPlugin
 						contentEditable={
-							<ContentEditable className={"resize-none text-base caret-zinc-900 relative outline-none"} />
+							<ContentEditable
+								className={
+									'resize-none text-base caret-zinc-900 relative outline-none'
+								}
+							/>
 						}
 						placeholder={<div className={classes.placeholder} />}
 						ErrorBoundary={LexicalErrorBoundary}

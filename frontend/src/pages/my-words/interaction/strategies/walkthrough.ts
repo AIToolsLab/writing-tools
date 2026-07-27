@@ -19,8 +19,7 @@ import type { InteractionStrategy } from '../types';
 export function createWalkthroughStrategy(): InteractionStrategy {
 	return {
 		name: 'Walkthrough',
-		blurb:
-			'Optimistic — edits land as the model goes; you steer, and a tap carries out the next move.',
+		blurb: 'Optimistic — edits land as the model goes; you steer, and a tap carries out the next move.',
 
 		async run(input, ctx) {
 			ctx.responder.pushWriter(

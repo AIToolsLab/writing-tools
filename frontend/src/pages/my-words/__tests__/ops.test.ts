@@ -115,7 +115,11 @@ describe('newline lowering (splits and merges)', () => {
 
 	it('runs of newlines count as one paragraph break', () => {
 		expect(
-			applyOp(['a'], { kind: 'insert', text: 'x\n\n\ny\n', paragraph: 1 }),
+			applyOp(['a'], {
+				kind: 'insert',
+				text: 'x\n\n\ny\n',
+				paragraph: 1,
+			}),
 		).toEqual(['a', 'x', 'y']);
 	});
 
@@ -230,6 +234,8 @@ describe('previewOp', () => {
 		});
 		expect(paragraphs).toEqual(['a B c']);
 		expect(paras).toEqual(['a b c']); // untouched
-		expect(summary).toBe(describeOp({ kind: 'str_replace', oldStr: 'b', newStr: 'B' }));
+		expect(summary).toBe(
+			describeOp({ kind: 'str_replace', oldStr: 'b', newStr: 'B' }),
+		);
 	});
 });

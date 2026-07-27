@@ -79,9 +79,8 @@ describe('formatDocBriefForPrompt', () => {
 
 /** A stub editor whose document settings live in a plain object. */
 function stubEditorAPI(stored: Record<string, string> = {}) {
-	const getDocumentSetting = vi.fn(
-		(key: string): Promise<string | null> =>
-			Promise.resolve(stored[key] ?? null),
+	const getDocumentSetting = vi.fn((key: string): Promise<string | null> =>
+		Promise.resolve(stored[key] ?? null),
 	);
 	const setDocumentSetting = vi.fn((key: string, value: string) => {
 		stored[key] = value;

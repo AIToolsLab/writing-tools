@@ -24,7 +24,10 @@ function strategyFromUrl(): StrategyKey {
 
 function DocumentView({ editor }: { editor: MockEditor }) {
 	const [snap, setSnap] = useState(() => editor.snapshot());
-	useEffect(() => editor.subscribe(() => setSnap(editor.snapshot())), [editor]);
+	useEffect(
+		() => editor.subscribe(() => setSnap(editor.snapshot())),
+		[editor],
+	);
 
 	const renderParagraph = (text: string, key: number) => {
 		const sel = snap.selection;

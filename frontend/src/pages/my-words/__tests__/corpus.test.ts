@@ -20,7 +20,10 @@ describe('buildCorpus', () => {
 	it('does not let phrases span across separate sources', () => {
 		// "sat" ends docText and "dog" begins scratchpad; their adjacency is an
 		// artifact of concatenation and must not count as a corpus phrase.
-		const corpus = buildCorpus({ docText: 'cat sat', scratchpad: 'dog run' });
+		const corpus = buildCorpus({
+			docText: 'cat sat',
+			scratchpad: 'dog run',
+		});
 		expect(validateText('cat sat', corpus).ok).toBe(true);
 		expect(validateText('sat dog', corpus).ok).toBe(false);
 	});
@@ -28,7 +31,9 @@ describe('buildCorpus', () => {
 
 describe('validateText — phrase-level rule', () => {
 	it('accepts a verbatim phrase lifted from the corpus', () => {
-		const corpus = corpusOf('The quick brown fox jumped over the lazy dog.');
+		const corpus = corpusOf(
+			'The quick brown fox jumped over the lazy dog.',
+		);
 		expect(validateText('the quick brown fox', corpus).ok).toBe(true);
 		expect(validateText('lazy dog', corpus).ok).toBe(true);
 	});

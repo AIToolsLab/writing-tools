@@ -50,7 +50,8 @@ function findSpan(
 	const needle = normalizeBreaks(rawNeedle);
 	const scopeMiss = () =>
 		new Error(`"${rawNeedle}" not found in paragraph ${paragraph}.`);
-	const docMiss = () => new Error(`"${rawNeedle}" not found in the document.`);
+	const docMiss = () =>
+		new Error(`"${rawNeedle}" not found in the document.`);
 
 	if (!needle.includes('\n')) {
 		// Single-paragraph needle: first paragraph containing it (or the scoped one).
@@ -154,10 +155,7 @@ function insertionIndex(
  * computed against the array as earlier ones leave it (only `move` needs two).
  * Throws on misses, before anything is applied.
  */
-export function lowerOp(
-	paragraphs: string[],
-	op: EditOp,
-): ParagraphSplice[] {
+export function lowerOp(paragraphs: string[], op: EditOp): ParagraphSplice[] {
 	switch (op.kind) {
 		case 'str_replace':
 			return [
@@ -171,7 +169,11 @@ export function lowerOp(
 			if (op.after !== undefined) {
 				// Inline insert after anchor text, within its paragraph(s).
 				const span = findSpan(paragraphs, op.after);
-				const anchored = { ...span, startPara: span.endPara, startOffset: span.endOffset };
+				const anchored = {
+					...span,
+					startPara: span.endPara,
+					startOffset: span.endOffset,
+				};
 				return [spliceForSpan(paragraphs, anchored, op.text)];
 			}
 			const at =
@@ -221,7 +223,11 @@ export function applySplice(
 
 /** Swap `remove`/`insert`: the splice that undoes this one. */
 export function invertSplice(splice: ParagraphSplice): ParagraphSplice {
-	return { index: splice.index, remove: splice.insert, insert: splice.remove };
+	return {
+		index: splice.index,
+		remove: splice.insert,
+		insert: splice.remove,
+	};
 }
 
 /**
@@ -237,7 +243,10 @@ export function spliceIsFresh(
 	paragraphs: string[],
 	splice: ParagraphSplice,
 ): boolean {
-	if (splice.index < 0 || splice.index + splice.remove.length > paragraphs.length)
+	if (
+		splice.index < 0 ||
+		splice.index + splice.remove.length > paragraphs.length
+	)
 		return false;
 	return splice.remove.every((p, i) => paragraphs[splice.index + i] === p);
 }

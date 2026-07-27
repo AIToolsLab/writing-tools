@@ -16,10 +16,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildCorpus } from '../corpus';
 import { MockEditor } from '../demo/mockEditor';
 import { startVoiceSession } from '../voice/session';
-import type {
-	VoiceTransport,
-	VoiceTransportOptions,
-} from '../voice/transport';
+import type { VoiceTransport, VoiceTransportOptions } from '../voice/transport';
 
 const SEED = [
 	'I have been putting off writing this note for weeks.',
@@ -138,7 +135,9 @@ describe('invariant 1: one applied edit per writer turn', () => {
 	it('refuses a second edit, then allows one after the writer speaks', async () => {
 		const h = await harness();
 
-		const first = await callThroughBeat(h.fake.call('str_replace', TIGHTEN));
+		const first = await callThroughBeat(
+			h.fake.call('str_replace', TIGHTEN),
+		);
 		expect(first).toMatch(/^Applied/);
 		const afterFirst = h.paragraphs();
 
@@ -151,7 +150,9 @@ describe('invariant 1: one applied edit per writer turn', () => {
 		h.fake.speak();
 		const third = await callThroughBeat(h.fake.call('str_replace', TRIM));
 		expect(third).toMatch(/^Applied/);
-		expect(h.paragraphs()[0]).toBe('I have been putting off writing this note.');
+		expect(h.paragraphs()[0]).toBe(
+			'I have been putting off writing this note.',
+		);
 	});
 
 	it('does not spend the turn on a rejected edit', async () => {
@@ -164,21 +165,28 @@ describe('invariant 1: one applied edit per writer turn', () => {
 		expect(rejected).toMatch(/^REJECTED/);
 
 		// No speech in between: the budget must still be there.
-		const applied = await callThroughBeat(h.fake.call('str_replace', TIGHTEN));
+		const applied = await callThroughBeat(
+			h.fake.call('str_replace', TIGHTEN),
+		);
 		expect(applied).toMatch(/^Applied/);
 	});
 
 	it('does not spend the turn on an edit the writer vetoed with the chip', async () => {
 		const h = await harness();
 
-		const vetoed = await callThroughBeat(h.fake.call('str_replace', TIGHTEN), {
-			before: 200,
-			during: () => h.reveal()?.cancel(),
-		});
+		const vetoed = await callThroughBeat(
+			h.fake.call('str_replace', TIGHTEN),
+			{
+				before: 200,
+				during: () => h.reveal()?.cancel(),
+			},
+		);
 		expect(vetoed).toMatch(/cancelled that edit/);
 		expect(h.paragraphs()).toEqual(SEED);
 
-		const applied = await callThroughBeat(h.fake.call('str_replace', TIGHTEN));
+		const applied = await callThroughBeat(
+			h.fake.call('str_replace', TIGHTEN),
+		);
 		expect(applied).toMatch(/^Applied/);
 	});
 });
@@ -187,10 +195,13 @@ describe('invariant 2: speech during the veto window', () => {
 	it('cancels the pending edit and leaves the document untouched', async () => {
 		const h = await harness();
 
-		const result = await callThroughBeat(h.fake.call('str_replace', TIGHTEN), {
-			before: 200,
-			during: () => h.fake.speak(),
-		});
+		const result = await callThroughBeat(
+			h.fake.call('str_replace', TIGHTEN),
+			{
+				before: 200,
+				during: () => h.fake.speak(),
+			},
+		);
 
 		expect(result).toMatch(/cancelled that edit/);
 		expect(result).toMatch(/Don't retry it/);
@@ -207,7 +218,9 @@ describe('invariant 2: speech during the veto window', () => {
 		h.fake.speak();
 		h.fake.speak();
 
-		const result = await callThroughBeat(h.fake.call('str_replace', TIGHTEN));
+		const result = await callThroughBeat(
+			h.fake.call('str_replace', TIGHTEN),
+		);
 		expect(result).toMatch(/^Applied/);
 		expect(h.paragraphs()[1]).toBe(
 			'Every time I sit down, the words come out stiff.',
@@ -272,7 +285,10 @@ describe('invariant 3: no silent failure', () => {
 			const modelText = await c.run(h);
 			expect(modelText, `model text for ${c.name}`).toMatch(c.model);
 			expect(h.notices, `writer notices for ${c.name}`).toHaveLength(1);
-			expect(h.notices[0].length, `notice text for ${c.name}`).toBeGreaterThan(0);
+			expect(
+				h.notices[0].length,
+				`notice text for ${c.name}`,
+			).toBeGreaterThan(0);
 		}
 	});
 
@@ -333,7 +349,9 @@ describe('invariant 5: highlighting is not an edit', () => {
 		expect(second).toBe('Highlighted.');
 
 		// The budget is still there for a real edit, same turn.
-		const applied = await callThroughBeat(h.fake.call('str_replace', TIGHTEN));
+		const applied = await callThroughBeat(
+			h.fake.call('str_replace', TIGHTEN),
+		);
 		expect(applied).toMatch(/^Applied/);
 
 		// And highlighting still works after the turn's move is spent.
@@ -348,7 +366,10 @@ describe('invariant 5: highlighting is not an edit', () => {
 	it('works the same way on the scratchpad target', async () => {
 		const h = await harness([], 'A note about the weeks.');
 		await callThroughBeat(
-			h.fake.call('highlight', { phrase: 'A note', target: 'scratchpad' }),
+			h.fake.call('highlight', {
+				phrase: 'A note',
+				target: 'scratchpad',
+			}),
 		);
 		const second = await callThroughBeat(
 			h.fake.call('highlight', {
@@ -388,7 +409,9 @@ describe('invariant 5: highlighting is not an edit', () => {
 		expect(result).toBe('Highlighted.');
 		expect(h.notices).toHaveLength(0);
 		// The writer's speech still opened a fresh edit budget, same as any speech.
-		const applied = await callThroughBeat(h.fake.call('str_replace', TIGHTEN));
+		const applied = await callThroughBeat(
+			h.fake.call('str_replace', TIGHTEN),
+		);
 		expect(applied).toMatch(/^Applied/);
 	});
 });

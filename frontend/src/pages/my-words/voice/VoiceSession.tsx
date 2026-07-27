@@ -108,7 +108,9 @@ export function VoiceSession(props: {
 	// always append.
 	const upsertLog = useCallback((entry: LogEntry) => {
 		setLog((prev) => {
-			const idx = entry.id ? prev.findIndex((e) => e.id === entry.id) : -1;
+			const idx = entry.id
+				? prev.findIndex((e) => e.id === entry.id)
+				: -1;
 			if (idx === -1) return [...prev, entry];
 			const next = prev.slice();
 			next[idx] = entry;
@@ -135,7 +137,8 @@ export function VoiceSession(props: {
 				onTranscript: (seg) => {
 					// Feed the writer's words (interim included) into the corpus,
 					// replacing this segment's prior text as ASR refines it.
-					if (seg.who === 'you') spokenRef.current.set(seg.id, seg.text);
+					if (seg.who === 'you')
+						spokenRef.current.set(seg.id, seg.text);
 					upsertLog({ kind: seg.who, text: seg.text, id: seg.id });
 				},
 				onTool: (text) => pushLog({ kind: 'tool', text }),
@@ -153,7 +156,10 @@ export function VoiceSession(props: {
 			setStatus('live');
 		} catch (e) {
 			setStatus('error');
-			pushLog({ kind: 'system', text: `failed: ${(e as Error).message}` });
+			pushLog({
+				kind: 'system',
+				text: `failed: ${(e as Error).message}`,
+			});
 		}
 	}, [editor, corpus, pushLog, upsertLog, setScratchpad]);
 
@@ -217,7 +223,11 @@ export function VoiceSession(props: {
 					</button>
 				) : null}
 				{status === 'live' ? (
-					<button type="button" style={S.btn} onClick={() => void stop()}>
+					<button
+						type="button"
+						style={S.btn}
+						onClick={() => void stop()}
+					>
 						Stop
 					</button>
 				) : (
@@ -247,14 +257,17 @@ export function VoiceSession(props: {
 				value={scratchpad}
 				onChange={setScratchpad}
 				highlight={agentHighlight}
-				onQuoteClick={(phrase) => void editor.selectPhrase(phrase).catch(() => {})}
+				onQuoteClick={(phrase) =>
+					void editor.selectPhrase(phrase).catch(() => {})
+				}
 			/>
 
 			<div style={S.said}>
 				{said.length === 0 ? (
 					<div style={S.saidEmpty}>
-						Click “Start talking”, grant mic access, and say something like
-						“read what I have, then help me tighten the first line.”
+						Click “Start talking”, grant mic access, and say
+						something like “read what I have, then help me tighten
+						the first line.”
 					</div>
 				) : (
 					said.map((e, i) => (
@@ -266,7 +279,9 @@ export function VoiceSession(props: {
 			</div>
 
 			<details style={S.debug}>
-				<summary style={S.debugSummary}>Debug log ({log.length})</summary>
+				<summary style={S.debugSummary}>
+					Debug log ({log.length})
+				</summary>
 				<div style={S.log}>
 					{log.map((e, i) => (
 						<div key={i} style={S.logRow(e.kind)}>

@@ -4,53 +4,53 @@
 /* Custom styles */
 /** Survey Views */
 .Question textarea {
-  width: 100%;
+	width: 100%;
 }
 
 @keyframes complete {
-  from,
-  to {
-    transform: scale(1);
-  }
+	from,
+	to {
+		transform: scale(1);
+	}
 
-  50% {
-    transform: scale(0.75);
-  }
+	50% {
+		transform: scale(0.75);
+	}
 }
 
 .Question.missing {
-  /*background: hsl(0, 81%, 94%);*/
-  /*border-left: 2px dashed red;*/
-  border-left: 2px solid transparent;
+	/*background: hsl(0, 81%, 94%);*/
+	/*border-left: 2px dashed red;*/
+	border-left: 2px solid transparent;
 }
 
 .Question.complete {
-  border-left: 2px solid green;
-  /*hsl(150, 77%, 95%);*/
-  /*opacity: .7;*/
-  transition: border-left-color .25s ease-in-out;
+	border-left: 2px solid green;
+	/*hsl(150, 77%, 95%);*/
+	/*opacity: .7;*/
+	transition: border-left-color 0.25s ease-in-out;
 }
 
 @layer base {
-  .editor-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
-  }
+	.editor-scrollbar {
+		scrollbar-width: thin;
+		scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+	}
 
-  .editor-scrollbar::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
-  }
-  .editor-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
-    margin-right: -4px;
-  }
-  .editor-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.1);
-    border-radius: 4px;
-    margin-right: -4px;
-  }
-  .editor-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.4);
-  }
+	.editor-scrollbar::-webkit-scrollbar {
+		width: 4px;
+		height: 4px;
+	}
+	.editor-scrollbar::-webkit-scrollbar-track {
+		background: transparent;
+		margin-right: -4px;
+	}
+	.editor-scrollbar::-webkit-scrollbar-thumb {
+		background: rgba(0, 0, 0, 0.1);
+		border-radius: 4px;
+		margin-right: -4px;
+	}
+	.editor-scrollbar::-webkit-scrollbar-thumb:hover {
+		background: rgba(0, 0, 0, 0.4);
+	}
 }

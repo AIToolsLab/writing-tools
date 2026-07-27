@@ -45,13 +45,11 @@ function textParts(...deltas: string[]): StreamPart[] {
 	return [
 		{ type: 'stream-start', warnings: [] },
 		{ type: 'text-start', id: '1' },
-		...deltas.map(
-			(delta): StreamPart => ({
-				type: 'text-delta',
-				id: '1',
-				delta,
-			}),
-		),
+		...deltas.map((delta): StreamPart => ({
+			type: 'text-delta',
+			id: '1',
+			delta,
+		})),
 		{ type: 'text-end', id: '1' },
 	];
 }

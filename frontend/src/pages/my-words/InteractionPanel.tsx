@@ -55,7 +55,10 @@ export function InteractionPanel(props: InteractionPanelProps) {
 
 	return (
 		<div className={classes.page}>
-			<label className={classes.scratchLabel} htmlFor="mywords-scratchpad">
+			<label
+				className={classes.scratchLabel}
+				htmlFor="mywords-scratchpad"
+			>
 				Your words — scratchpad
 			</label>
 			<textarea
@@ -72,7 +75,9 @@ export function InteractionPanel(props: InteractionPanelProps) {
 				    is staged the card below carries its words instead. */}
 				{!showProposal ? (
 					<div className={classes.aiUtterance} aria-live="polite">
-						<span className={classes.aiUtteranceText}>{caption}</span>
+						<span className={classes.aiUtteranceText}>
+							{caption}
+						</span>
 						{isThinking ? (
 							<span className={classes.captionDots} aria-hidden>
 								<span />
@@ -89,7 +94,8 @@ export function InteractionPanel(props: InteractionPanelProps) {
 						<div className={classes.proposalSummary}>
 							{pending.summary}
 							<span className={classes.proposalWhere}>
-								{' '}— highlighted in your document
+								{' '}
+								— highlighted in your document
 							</span>
 						</div>
 						<div className={classes.proposalActions}>
@@ -115,7 +121,8 @@ export function InteractionPanel(props: InteractionPanelProps) {
 
 				{awaiting === 'continue' ? (
 					<div className={classes.continueHint}>
-						Press Enter to let it make the next move — or type to steer.
+						Press Enter to let it make the next move — or type to
+						steer.
 					</div>
 				) : null}
 
@@ -151,7 +158,8 @@ export function InteractionPanel(props: InteractionPanelProps) {
 						className={classes.sendBtn}
 						title="Send"
 						disabled={
-							blocked || (!input.trim() && awaiting !== 'continue')
+							blocked ||
+							(!input.trim() && awaiting !== 'continue')
 						}
 					>
 						<AiOutlineSend size={18} />

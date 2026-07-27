@@ -55,7 +55,8 @@ export function revealAnchorFor(
 	if (op.kind === 'str_replace') return op.oldStr;
 	if (op.kind === 'move') return op.phrase;
 	if (op.after !== undefined) return op.after;
-	if (op.paragraph !== undefined) return paragraphs[op.paragraph - 1] || undefined;
+	if (op.paragraph !== undefined)
+		return paragraphs[op.paragraph - 1] || undefined;
 	return undefined;
 }
 
@@ -132,7 +133,8 @@ export function minimalReplace(
 	let suffix = 0;
 	while (
 		suffix < maxPrefix - prefix &&
-		oldText[oldText.length - 1 - suffix] === newText[newText.length - 1 - suffix]
+		oldText[oldText.length - 1 - suffix] ===
+			newText[newText.length - 1 - suffix]
 	)
 		suffix++;
 	let start = prefix;
@@ -210,7 +212,12 @@ export async function applySpliceToEditor(
 	for (let k = overlap; k < insert.length; k++) {
 		await editor.applyEdit(
 			index + k === 0
-				? { type: 'insert', text: insert[k], paragraph: 1, position: 'before' }
+				? {
+						type: 'insert',
+						text: insert[k],
+						paragraph: 1,
+						position: 'before',
+					}
 				: {
 						type: 'insert',
 						text: insert[k],

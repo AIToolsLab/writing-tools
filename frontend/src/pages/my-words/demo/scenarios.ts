@@ -96,7 +96,11 @@ export const SCENARIOS: Record<StrategyKey, DemoScenario> = {
 			},
 		],
 		writerScript: [
-			{ delayMs: 1400, input: { type: 'message', text: FIRST_MESSAGE }, display: FIRST_MESSAGE },
+			{
+				delayMs: 1400,
+				input: { type: 'message', text: FIRST_MESSAGE },
+				display: FIRST_MESSAGE,
+			},
 			{ delayMs: 2600, input: { type: 'continue' } },
 			{ delayMs: 2600, input: { type: 'continue' } },
 			{ delayMs: 2600, input: { type: 'continue' } },
@@ -127,7 +131,11 @@ export const SCENARIOS: Record<StrategyKey, DemoScenario> = {
 			},
 		],
 		writerScript: [
-			{ delayMs: 1400, input: { type: 'message', text: FIRST_MESSAGE }, display: FIRST_MESSAGE },
+			{
+				delayMs: 1400,
+				input: { type: 'message', text: FIRST_MESSAGE },
+				display: FIRST_MESSAGE,
+			},
 			{ delayMs: 2600, input: { type: 'accept' } },
 			{ delayMs: 2600, input: { type: 'accept' } },
 			{ delayMs: 2800, input: { type: 'reject' } },

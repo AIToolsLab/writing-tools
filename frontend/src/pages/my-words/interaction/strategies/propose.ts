@@ -26,8 +26,7 @@ export function createProposeStrategy(): InteractionStrategy {
 
 	return {
 		name: 'Propose',
-		blurb:
-			'Pessimistic — nothing changes until you accept. Each edit is a proposal you approve or decline.',
+		blurb: 'Pessimistic — nothing changes until you accept. Each edit is a proposal you approve or decline.',
 
 		async run(input, ctx) {
 			// Resolve any standing proposal first — this also delivers the verdict

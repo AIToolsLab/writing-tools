@@ -1,11 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { LogFn } from '@/hooks/useLog';
-import {
-	chatLog,
-	draftLog,
-	LOG_SCHEMA_VERSION,
-	reviseLog,
-} from '../logging';
+import { chatLog, draftLog, LOG_SCHEMA_VERSION, reviseLog } from '../logging';
 
 // The page helpers stamp the envelope and forward to a LogFn (from useLog).
 // Pass a mock LogFn and inspect the payload it receives — transport, identity,

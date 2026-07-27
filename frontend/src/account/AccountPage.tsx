@@ -25,12 +25,7 @@ import classes from './styles.module.css';
 type ConsentStatus = 'idle' | 'saving' | 'saved' | 'error';
 type EraseStatus = 'idle' | 'confirm' | 'working' | 'done' | 'error';
 type DeleteStatus =
-	| 'idle'
-	| 'confirm'
-	| 'working'
-	| 'needs-reauth'
-	| 'done'
-	| 'error';
+	'idle' | 'confirm' | 'working' | 'needs-reauth' | 'done' | 'error';
 
 export function AccountPage() {
 	const session = useAppAuth();

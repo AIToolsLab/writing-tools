@@ -32,7 +32,10 @@ export function VoiceScratchpad(props: {
 	// Bring the agent's focus into view when it changes.
 	useEffect(() => {
 		if (highlight)
-			markRef.current?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+			markRef.current?.scrollIntoView({
+				block: 'center',
+				behavior: 'smooth',
+			});
 	}, [highlight]);
 
 	if (editing) {
