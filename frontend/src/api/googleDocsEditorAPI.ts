@@ -8,7 +8,6 @@
  * all document operations here go through Apps Script on Google's servers.
  */
 
-import { loadScratchpadLocal, saveScratchpadLocal } from './scratchpadStore';
 import {
 	type DocumentSettingsAPI,
 	localStorageDocumentSettings,
@@ -333,12 +332,6 @@ export const googleDocsEditorAPI: EditorAPI = {
 		return Promise.reject(
 			new Error('applyEdit is not implemented for Google Docs yet'),
 		);
-	},
-	loadScratchpad(): Promise<string> {
-		return loadScratchpadLocal();
-	},
-	saveScratchpad(text: string): Promise<void> {
-		return saveScratchpadLocal(text);
 	},
 };
 

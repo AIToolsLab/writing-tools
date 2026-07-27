@@ -17,11 +17,12 @@ export class MockEditor implements EditorAPI {
 		this.paragraphs = [...initial];
 	}
 
-	getDocContext = async (): Promise<DocContext> => ({
-		beforeCursor: '',
-		selectedText: this.selection,
-		afterCursor: '',
-	});
+	getDocContext = (): Promise<DocContext> =>
+		Promise.resolve({
+			beforeCursor: '',
+			selectedText: this.selection,
+			afterCursor: '',
+		});
 
 	addSelectionChangeHandler = (h: () => void) => {
 		this.selectionHandlers.add(h);
@@ -30,16 +31,19 @@ export class MockEditor implements EditorAPI {
 		this.selectionHandlers.delete(h);
 	};
 
-	selectPhrase = async (text: string) => {
+	selectPhrase = (text: string): Promise<void> => {
 		this.selection = text;
 		this.emit();
 		this.selectionHandlers.forEach((h) => h());
+		return Promise.resolve();
 	};
 
-	getDocText = async () => this.paragraphs.join('\n\n');
-	getParagraphs = async () => [...this.paragraphs];
+	getDocText = (): Promise<string> =>
+		Promise.resolve(this.paragraphs.join('\n\n'));
+	getParagraphs = (): Promise<string[]> =>
+		Promise.resolve([...this.paragraphs]);
 
-	applyEdit = async (edit: DocEdit) => {
+	applyEdit = (edit: DocEdit): Promise<void> => {
 		if (edit.type === 'delete_paragraph') {
 			this.paragraphs = [
 				...this.paragraphs.slice(0, edit.paragraph - 1),
@@ -64,30 +68,30 @@ export class MockEditor implements EditorAPI {
 		}
 		this.selection = ''; // a fresh edit clears the prior highlight
 		this.emit();
+		return Promise.resolve();
 	};
 
-	applySplice = async (splice: ParagraphSplice) => {
+	applySplice = (splice: ParagraphSplice): Promise<void> => {
 		this.paragraphs = applySplice(this.paragraphs, splice);
 		this.selection = '';
 		this.emit();
+		return Promise.resolve();
 	};
-
-	// The demo seeds the scratchpad from its scenario; no persistence.
-	loadScratchpad = async () => '';
-	saveScratchpad = async () => {};
 
 	/**
 	 * Document settings live in memory for the life of the harness — the demo
-	 * has no file to write into, but the brief has to round-trip or the panels
-	 * that read it render empty.
+	 * has no file to write into, but the scratchpad and brief have to round-trip
+	 * or the panels that read them render empty. The demo seeds the scratchpad
+	 * from its scenario, so nothing needs to outlive the page.
 	 */
 	private settings = new Map<string, string>();
 
-	getDocumentSetting = async (key: string): Promise<string | null> =>
-		this.settings.get(key) ?? null;
+	getDocumentSetting = (key: string): Promise<string | null> =>
+		Promise.resolve(this.settings.get(key) ?? null);
 
-	setDocumentSetting = async (key: string, value: string): Promise<void> => {
+	setDocumentSetting = (key: string, value: string): Promise<void> => {
 		this.settings.set(key, value);
+		return Promise.resolve();
 	};
 
 	/** Subscribe to document/selection changes; returns an unsubscribe. */

@@ -9,10 +9,6 @@ import LexicalEditor, { type EditorControls } from './editor';
 import './styles.css';
 import classes from './styles.module.css';
 import { EditorContext } from '@/contexts/editorContext';
-import {
-	loadScratchpadLocal,
-	saveScratchpadLocal,
-} from '@/api/scratchpadStore';
 import { lowerOp } from '@/pages/my-words/interaction/ops';
 import type { EditOp } from '@/pages/my-words/interaction/types';
 
@@ -147,9 +143,6 @@ export function EditorScreen({
 				controls.applySplice(splice);
 				return Promise.resolve();
 			},
-			loadScratchpad: () => loadScratchpadLocal(),
-			saveScratchpad: (text: string) => saveScratchpadLocal(text),
-
 			// There is no host document here to embed settings in, so they live
 			// in localStorage under this editor's own document key.
 			...localStorageDocumentSettings(storageKey),

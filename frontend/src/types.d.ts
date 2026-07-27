@@ -98,14 +98,6 @@ interface EditorAPI {
 	 */
 	applySplice?(this: void, splice: ParagraphSplice): Promise<void>;
 	/**
-	 * Load the persisted "My Words" scratchpad, or '' if none. Each host picks
-	 * its own store — Word uses document.settings (travels with the file), other
-	 * hosts use localStorage. Survives add-in reloads.
-	 */
-	loadScratchpad(this: void): Promise<string>;
-	/** Persist the scratchpad text. Callers should debounce. */
-	saveScratchpad(this: void, text: string): Promise<void>;
-	/**
 	 * Reads a value stored *with the document*, not with the user or the
 	 * browser: it survives a reload, and it follows the file to whoever opens
 	 * it next. Resolves to null when the key has never been written.

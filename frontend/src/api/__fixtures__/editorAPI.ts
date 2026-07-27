@@ -24,8 +24,6 @@ export function noopEditorAPI(overrides: Partial<EditorAPI> = {}): EditorAPI {
 		getDocText: () => Promise.resolve(''),
 		getParagraphs: () => Promise.resolve([]),
 		applyEdit: () => Promise.resolve(),
-		loadScratchpad: () => Promise.resolve(''),
-		saveScratchpad: () => Promise.resolve(),
 		getDocumentSetting: () => Promise.resolve(null),
 		setDocumentSetting: () => Promise.resolve(),
 		...overrides,

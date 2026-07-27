@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	applySpliceToEditor,
-	minimalReplace,
-} from '../interaction/editor';
+import { applySpliceToEditor, minimalReplace } from '../interaction/editor';
 import { applyOp, applySplice, lowerOp } from '../interaction/ops';
 
 /**
@@ -14,15 +11,19 @@ import { applyOp, applySplice, lowerOp } from '../interaction/ops';
 function primitiveHost(initial: string[]) {
 	let paragraphs = [...initial];
 	const editor = {
-		applyEdit: async (edit: DocEdit) => {
+		applyEdit: (edit: DocEdit): Promise<void> => {
 			if (edit.type === 'delete_paragraph') {
+				// Rejects rather than throwing synchronously, so the fallback path
+				// sees the same failure shape a real host would produce.
 				if (edit.paragraph < 1 || edit.paragraph > paragraphs.length)
-					throw new Error(`Paragraph ${edit.paragraph} out of range.`);
+					return Promise.reject(
+						new Error(`Paragraph ${edit.paragraph} out of range.`),
+					);
 				paragraphs = [
 					...paragraphs.slice(0, edit.paragraph - 1),
 					...paragraphs.slice(edit.paragraph),
 				];
-				return;
+				return Promise.resolve();
 			}
 			paragraphs = applyOp(
 				paragraphs,
@@ -41,68 +42,79 @@ function primitiveHost(initial: string[]) {
 							position: edit.position,
 						},
 			);
+			return Promise.resolve();
 		},
-		getParagraphs: async () => [...paragraphs],
+		getParagraphs: (): Promise<string[]> =>
+			Promise.resolve([...paragraphs]),
 	} as unknown as EditorAPI;
 	return { editor, current: () => paragraphs };
 }
 
 describe('applySpliceToEditor fallback (DocEdit primitives)', () => {
-	const cases: { name: string; before: string[]; splice: ParagraphSplice }[] = [
-		{
-			name: 'in-place text change',
-			before: ['the cat sat', 'tail'],
-			splice: { index: 0, remove: ['the cat sat'], insert: ['the dog sat'] },
-		},
-		{
-			name: 'replace a repeated span (second occurrence)',
-			before: ['aa b aa', 'tail'],
-			splice: { index: 0, remove: ['aa b aa'], insert: ['aa b cc'] },
-		},
-		{
-			name: 'pure insertion in the middle of a paragraph',
-			before: ['hello world'],
-			splice: { index: 0, remove: ['hello world'], insert: ['hello big world'] },
-		},
-		{
-			name: 'split: one paragraph becomes two',
-			before: ['intro. And the rest', 'tail'],
-			splice: {
-				index: 0,
-				remove: ['intro. And the rest'],
-				insert: ['intro.', 'And the rest'],
+	const cases: { name: string; before: string[]; splice: ParagraphSplice }[] =
+		[
+			{
+				name: 'in-place text change',
+				before: ['the cat sat', 'tail'],
+				splice: {
+					index: 0,
+					remove: ['the cat sat'],
+					insert: ['the dog sat'],
+				},
 			},
-		},
-		{
-			name: 'merge: two paragraphs become one',
-			before: ['first half', 'second half', 'tail'],
-			splice: {
-				index: 0,
-				remove: ['first half', 'second half'],
-				insert: ['first half, second half'],
+			{
+				name: 'replace a repeated span (second occurrence)',
+				before: ['aa b aa', 'tail'],
+				splice: { index: 0, remove: ['aa b aa'], insert: ['aa b cc'] },
 			},
-		},
-		{
-			name: 'grow at the very start',
-			before: ['b'],
-			splice: { index: 0, remove: [], insert: ['a'] },
-		},
-		{
-			name: 'append at the end',
-			before: ['a'],
-			splice: { index: 1, remove: [], insert: ['b', 'c'] },
-		},
-		{
-			name: 'delete a paragraph outright',
-			before: ['a', 'gone', 'b'],
-			splice: { index: 1, remove: ['gone'], insert: [] },
-		},
-		{
-			name: 'empty paragraph gaining text',
-			before: ['a', '', 'b'],
-			splice: { index: 1, remove: [''], insert: ['filled'] },
-		},
-	];
+			{
+				name: 'pure insertion in the middle of a paragraph',
+				before: ['hello world'],
+				splice: {
+					index: 0,
+					remove: ['hello world'],
+					insert: ['hello big world'],
+				},
+			},
+			{
+				name: 'split: one paragraph becomes two',
+				before: ['intro. And the rest', 'tail'],
+				splice: {
+					index: 0,
+					remove: ['intro. And the rest'],
+					insert: ['intro.', 'And the rest'],
+				},
+			},
+			{
+				name: 'merge: two paragraphs become one',
+				before: ['first half', 'second half', 'tail'],
+				splice: {
+					index: 0,
+					remove: ['first half', 'second half'],
+					insert: ['first half, second half'],
+				},
+			},
+			{
+				name: 'grow at the very start',
+				before: ['b'],
+				splice: { index: 0, remove: [], insert: ['a'] },
+			},
+			{
+				name: 'append at the end',
+				before: ['a'],
+				splice: { index: 1, remove: [], insert: ['b', 'c'] },
+			},
+			{
+				name: 'delete a paragraph outright',
+				before: ['a', 'gone', 'b'],
+				splice: { index: 1, remove: ['gone'], insert: [] },
+			},
+			{
+				name: 'empty paragraph gaining text',
+				before: ['a', '', 'b'],
+				splice: { index: 1, remove: [''], insert: ['filled'] },
+			},
+		];
 
 	for (const { name, before, splice } of cases) {
 		it(name, async () => {
@@ -117,7 +129,11 @@ describe('applySpliceToEditor fallback (DocEdit primitives)', () => {
 		const ops = [
 			{ kind: 'str_replace', oldStr: 'two', newStr: 'TWO' },
 			{ kind: 'str_replace', oldStr: ' two ', newStr: '\n' },
-			{ kind: 'str_replace', oldStr: 'three\nfour', newStr: 'three four' },
+			{
+				kind: 'str_replace',
+				oldStr: 'three\nfour',
+				newStr: 'three four',
+			},
 			{ kind: 'insert', text: 'zero', paragraph: 1, position: 'before' },
 			{ kind: 'move', phrase: 'six', paragraph: 1, position: 'before' },
 		] as const;

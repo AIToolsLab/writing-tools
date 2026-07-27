@@ -12,7 +12,6 @@ function supportsReviewedText(): boolean {
 }
 
 export const wordEditorAPI: EditorAPI = {
-
 	addSelectionChangeHandler: (handler: () => void) => {
 		Office.context.document.addHandlerAsync(
 			Office.EventType.DocumentSelectionChanged,
@@ -40,19 +39,19 @@ export const wordEditorAPI: EditorAPI = {
 				};
 
 				const wordSelection = context.document.getSelection();
-				const beforeCursor = wordSelection.getRange('Start').expandTo(
-					body.getRange('Start'),
-				);
-				const afterCursor = wordSelection.getRange('End').expandTo(
-					body.getRange('End'),
-				);
+				const beforeCursor = wordSelection
+					.getRange('Start')
+					.expandTo(body.getRange('Start'));
+				const afterCursor = wordSelection
+					.getRange('End')
+					.expandTo(body.getRange('End'));
 
 				// Request the content of these items from Word
 				context.load(wordSelection, 'text');
 				context.load(beforeCursor, 'text');
 				context.load(afterCursor, 'text');
 				await context.sync();
-				
+
 				docContext.beforeCursor = beforeCursor.text;
 				docContext.selectedText = wordSelection.text;
 				docContext.afterCursor = afterCursor.text;
@@ -72,7 +71,6 @@ export const wordEditorAPI: EditorAPI = {
 				);
 				resolve(docContext);
 			}).catch((error) => {
-				 
 				console.error('Error getting document context:', error);
 				reject(error as Error);
 			});
@@ -304,27 +302,6 @@ export const wordEditorAPI: EditorAPI = {
 					.insertText(edit.text, Word.InsertLocation.replace);
 			}
 			await context.sync();
-		});
-	},
-
-	/**
-	 * Persist the scratchpad in the document's add-in settings, so it travels
-	 * with the .docx and survives reloads. Plain text is well within the size
-	 * settings comfortably hold.
-	 */
-	async loadScratchpad(): Promise<string> {
-		const v = Office.context.document.settings.get('mywords-scratchpad');
-		return typeof v === 'string' ? v : '';
-	},
-
-	saveScratchpad(text: string): Promise<void> {
-		return new Promise<void>((resolve, reject) => {
-			const settings = Office.context.document.settings;
-			settings.set('mywords-scratchpad', text);
-			settings.saveAsync((res) => {
-				if (res.status === Office.AsyncResultStatus.Succeeded) resolve();
-				else reject(res.error);
-			});
 		});
 	},
 };
