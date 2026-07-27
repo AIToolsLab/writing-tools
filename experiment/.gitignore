@@ -53,6 +53,8 @@ scripts/scenario_design/experiments/
 .cc-history
 
 # Playwright files
-.playwright-mcp
+.playwright-mcp/
 
 archetype-simulation*
+.cc-history/
+.claude/
