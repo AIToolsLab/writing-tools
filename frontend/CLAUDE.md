@@ -45,6 +45,29 @@ task pane's URL comes from `manifest.xml`, and the Google Docs bundle runs insid
 an Apps Script sandbox iframe with no addressable URL. The Labs menu is the
 cross-surface way in; flags are for keeping something out of even that.
 
+### Document-scoped settings
+
+`EditorAPI` has `getDocumentSetting`/`setDocumentSetting` for small values that
+belong to the *document* rather than the user or the browser: they survive a
+reload and follow the file to whoever opens it next. Word backs them with
+`Office.context.document.settings` (`set` alone only touches the in-memory copy —
+`saveAsync` is what writes the file), Google Docs with Apps Script document
+properties (`google-docs-addon/Code.gs`, bridged in `sidebar.html`). The
+standalone editor and the bare context default fall back to
+`localStorageDocumentSettings` (`src/api/documentSettings.ts`), namespaced per
+document. The Google Docs surface falls back to it too when the installed Apps
+Script deployment predates the document-property bridge — the bundle and the
+add-on are deployed separately, so their versions drift.
+
+The writer's to-do (audience / guardrails / additional comments) is the first
+consumer: `contexts/docGoalsContext.tsx` loads it once under `DocGoalsProvider`
+(mounted in `pages/app`), debounces writes back to the document, and flushes on
+unmount and `pagehide`. Pages read it with `useDocGoals()`, render
+`<ToDoSection>` to let the writer edit it from wherever they are, and fold it
+into their requests with `formatDocGoalsForPrompt` — which returns null when
+nothing is set, because telling the model about an empty to-do reads as a
+constraint of its own.
+
 ### Generation calls and failures
 
 Pages must generate through `src/api/generate.ts` (`streamTextDeltas`,

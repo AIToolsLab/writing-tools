@@ -63,10 +63,23 @@ Guidelines:
 // Builds the messages array that gets sent to OpenAI.
 // Previously this was done in the backend (nlp.py). Now the frontend does it,
 // so the backend only needs to forward the messages to OpenAI.
-export function buildMessages(gtype: string, docContext: DocContext) {
+//
+// `goals` is the writer's document-level to-do (audience, guardrails, extra
+// comments), already formatted by formatDocGoalsForPrompt; null when they
+// haven't set one.
+export function buildMessages(
+	gtype: string,
+	docContext: DocContext,
+	goals: string | null = null,
+) {
 	const basePrompt = prompts[gtype];
 
 	let userContent = basePrompt;
+
+	// Before the document, so the model reads the document in light of it.
+	if (goals) {
+		userContent += `\n\n${goals}`;
+	}
 
 	// If the user has extra context sections (e.g. assignment instructions), append them
 	if (docContext.contextData?.length) {

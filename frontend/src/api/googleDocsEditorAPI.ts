@@ -8,6 +8,11 @@
  * all document operations here go through Apps Script on Google's servers.
  */
 
+import {
+	type DocumentSettingsAPI,
+	localStorageDocumentSettings,
+} from './documentSettings';
+
 // Declare the global GoogleAppsScript bridge (defined in sidebar.html)
 declare global {
 	interface Window {
@@ -31,6 +36,12 @@ declare global {
 			getCurrentUserEmail: () => Promise<string>;
 			setUserProperty: (key: string, value: string) => Promise<void>;
 			getUserProperty: (key: string) => Promise<string | null>;
+			// Document properties are optional on the type because the bundle is
+			// loaded into an Apps Script deployment we don't version together with
+			// it — an older sidebar.html simply won't have them. See
+			// `documentPropertyBridge` below.
+			setDocumentProperty?: (key: string, value: string) => Promise<void>;
+			getDocumentProperty?: (key: string) => Promise<string | null>;
 			getDocumentId: () => Promise<string>;
 			getAllTabs: () => Promise<{ id: string; title: string; text: string }[]>;
 			selectInTab: (
@@ -191,6 +202,44 @@ function stopPolling(): void {
 }
 
 /**
+ * Document-scoped settings, backed by Apps Script document properties.
+ *
+ * The React bundle is loaded from our own host into whatever Apps Script
+ * deployment the user installed, so the two versions can drift: a sidebar
+ * deployed before document properties existed has no bridge for them. Rather
+ * than throw (or silently drop what the writer typed), fall back to
+ * localStorage — the value stops travelling with the document, but it still
+ * comes back for this writer, and re-deploying the add-on restores the real
+ * behavior.
+ */
+const localDocumentSettingsFallback = localStorageDocumentSettings('google-docs');
+
+let warnedAboutMissingBridge = false;
+
+function documentPropertyBridge(): DocumentSettingsAPI | null {
+	const bridge = window.GoogleAppsScript;
+	if (
+		typeof bridge?.getDocumentProperty !== 'function' ||
+		typeof bridge.setDocumentProperty !== 'function'
+	) {
+		if (!warnedAboutMissingBridge) {
+			warnedAboutMissingBridge = true;
+			console.warn(
+				'This Google Docs add-on deployment has no document-property bridge; ' +
+					'document settings will be kept in this browser only. Re-deploy the ' +
+					'add-on to store them with the document.',
+			);
+		}
+		return null;
+	}
+	const { getDocumentProperty, setDocumentProperty } = bridge;
+	return {
+		getDocumentSetting: (key) => getDocumentProperty(key),
+		setDocumentSetting: (key, value) => setDocumentProperty(key, value),
+	};
+}
+
+/**
  * Google Docs implementation of the EditorAPI interface.
  */
 export const googleDocsEditorAPI: EditorAPI = {
@@ -225,6 +274,27 @@ export const googleDocsEditorAPI: EditorAPI = {
 			selectedText: context.selectedText || '',
 			afterCursor: context.afterCursor || '',
 		};
+	},
+
+	/**
+	 * Reads a setting stored on the document (see {@link documentPropertyBridge}).
+	 */
+	async getDocumentSetting(key: string): Promise<string | null> {
+		const settings = documentPropertyBridge() ?? localDocumentSettingsFallback;
+		try {
+			return (await settings.getDocumentSetting(key)) ?? null;
+		} catch (error) {
+			console.warn(`Could not read document setting "${key}":`, error);
+			return null;
+		}
+	},
+
+	/**
+	 * Writes a setting onto the document, where everyone who opens it sees it.
+	 */
+	async setDocumentSetting(key: string, value: string): Promise<void> {
+		const settings = documentPropertyBridge() ?? localDocumentSettingsFallback;
+		await settings.setDocumentSetting(key, value);
 	},
 
 	/**

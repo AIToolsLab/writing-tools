@@ -18,7 +18,9 @@ import { streamTextDeltas } from '@/api/generate';
 import { chatLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice } from '@/components/errorNotice';
+import ToDoSection from '@/components/toDoSection';
 import { ChatContext } from '@/contexts/chatContext';
+import { formatDocGoalsForPrompt, useDocGoals } from '@/contexts/docGoalsContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
@@ -42,11 +44,23 @@ const CHAT_GREETING_MESSAGE: ChatMessage = {
 	content: 'What do you think about your document so far?',
 };
 
-/** Renders the document context into the message the model reads. */
-export function docContextMessageContent(docContext: DocContext): string {
-	return docContext.selectedText === ''
-		? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
-		: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
+/**
+ * Renders the document context into the message the model reads.
+ *
+ * `goals` is the writer's document to-do, already prompt-formatted (null when
+ * they haven't set one). It rides along with the document context because both
+ * describe the document rather than the turn, and both are refreshed together
+ * on every send.
+ */
+export function docContextMessageContent(
+	docContext: DocContext,
+	goals: string | null = null,
+): string {
+	const document =
+		docContext.selectedText === ''
+			? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
+			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
+	return goals ? `${goals}\n\n${document}` : document;
 }
 
 /**
@@ -58,10 +72,11 @@ export function docContextMessageContent(docContext: DocContext): string {
 export function withCurrentDocContext(
 	chatMessages: ChatMessage[],
 	docContext: DocContext,
+	goals: string | null = null,
 ): ChatMessage[] {
 	const docContextMessage: ChatMessage = {
 		role: 'user',
-		content: docContextMessageContent(docContext),
+		content: docContextMessageContent(docContext, goals),
 	};
 	if (chatMessages.length === 0) {
 		return [CHAT_SYSTEM_MESSAGE, docContextMessage, CHAT_GREETING_MESSAGE];
@@ -74,7 +89,12 @@ export function withCurrentDocContext(
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
 	const editorAPI = useContext(EditorContext);
+	const { goals } = useDocGoals();
 	const log = useLog();
+	// Read at send time, like the document context is, so a to-do the writer
+	// just edited applies to the very next message.
+	const goalsRef = useRef(goals);
+	goalsRef.current = goals;
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -132,7 +152,13 @@ export default function Chat() {
 		if (chatMessages.length !== 0) return;
 		void (async () => {
 			const docContext = await refreshDocContext();
-			updateChatMessages(withCurrentDocContext([], docContext));
+			updateChatMessages(
+				withCurrentDocContext(
+					[],
+					docContext,
+					formatDocGoalsForPrompt(goalsRef.current),
+				),
+			);
 		})();
 	}, [chatMessages.length, refreshDocContext, updateChatMessages]);
 
@@ -176,7 +202,11 @@ export default function Chat() {
 		// document as it is now, then inject it as the doc-context message.
 		const docContext = await refreshDocContext();
 		let newMessages = [
-			...withCurrentDocContext(chatMessages, docContext),
+			...withCurrentDocContext(
+				chatMessages,
+				docContext,
+				formatDocGoalsForPrompt(goalsRef.current),
+			),
 			{ role: 'user', content: text },
 			{ role: 'assistant', content: '' },
 		];
@@ -248,6 +278,12 @@ export default function Chat() {
 
 	return (
 		<div className={classes.app}>
+			{/* The document's to-do — same section as on Revise, same stored
+			    values; collapsed here so it costs one line above the transcript. */}
+			<div className={classes.todoBar}>
+				<ToDoSection page="chat" />
+			</div>
+
 			<div className={classes.chatPanel}>
 				<div
 					ref={messagesContainerRef}
