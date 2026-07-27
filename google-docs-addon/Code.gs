@@ -242,29 +242,59 @@ function extractTextOnly(element) {
 }
 
 /**
+ * Escapes a literal string for findText, which takes a regular expression
+ * rather than plain text. Without this, any quote containing punctuation the
+ * regex engine claims — parentheses, `?`, `.`, `+`, `[`, `$` — either fails to
+ * match or matches the wrong span.
+ *
+ * @param {string} text - Literal text to search for
+ * @returns {string} The text as a pattern matching itself literally
+ */
+function escapeForFindText(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Selects a phrase in the document by searching for it.
- * 
+ *
+ * The phrase comes from the model quoting the writer's document, so it is often
+ * slightly off at the edges — a word too many, punctuation the model
+ * normalized. When the whole phrase isn't found we trim a word off each end and
+ * search again, and that retrying happens *here* rather than in the sidebar:
+ * every sidebar attempt is a google.script.run round-trip of roughly a second,
+ * while the same loop inside one Apps Script call costs milliseconds per pass.
+ * A quote that used to take several seconds of dead-feeling clicking now
+ * resolves in a single call.
+ *
  * @param {string} phrase - The text to find and select
- * @returns {boolean} True if found and selected, false otherwise
+ * @returns {boolean} True if the phrase (or a trimmed form of it) was selected
  */
 function selectPhrase(phrase) {
   const doc = DocumentApp.getActiveDocument();
   const body = doc.getBody();
-  
-  const searchResult = body.findText(phrase);
-  
-  if (searchResult) {
-    const element = searchResult.getElement();
-    const startOffset = searchResult.getStartOffset();
-    const endOffset = searchResult.getEndOffsetInclusive();
 
-    // Create a range for the found text
-    const rangeBuilder = doc.newRange();
-    rangeBuilder.addElement(element, startOffset, endOffset);
+  let candidate = phrase;
+  while (candidate.length > 0) {
+    const searchResult = body.findText(escapeForFindText(candidate));
 
-    // Set the selection
-    doc.setSelection(rangeBuilder.build());
-    return true;
+    if (searchResult) {
+      const element = searchResult.getElement();
+      const startOffset = searchResult.getStartOffset();
+      const endOffset = searchResult.getEndOffsetInclusive();
+
+      // Create a range for the found text
+      const rangeBuilder = doc.newRange();
+      rangeBuilder.addElement(element, startOffset, endOffset);
+
+      // Set the selection
+      doc.setSelection(rangeBuilder.build());
+      return true;
+    }
+
+    // Drop the first and last word and try the narrower quote.
+    const trimmed = candidate.split(' ').slice(1, -1).join(' ');
+    if (trimmed === candidate) break; // Nothing left to trim.
+    candidate = trimmed;
   }
 
   return false;
@@ -309,7 +339,7 @@ function selectInTab(tabId, phrase, occurrenceIndex) {
   // its argument as a regex, so escape the phrase to match it literally and keep
   // occurrence counting aligned with the frontend's plain-text search.
   const body = targetTab ? targetTab.asDocumentTab().getBody() : doc.getBody();
-  const pattern = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = escapeForFindText(phrase);
 
   let match = body.findText(pattern);
   for (let n = 0; n < occurrenceIndex && match; n++) {

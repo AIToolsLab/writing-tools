@@ -40,8 +40,10 @@ import type { LogFn } from '@/hooks/useLog';
  *   3 — Error events carry an optional `code` (the provider's error code, e.g.
  *       `insufficient_quota`), and their `error` field now holds the provider's
  *       message rather than the sentence shown to the user.
+ *   4 — Revise emits `reference_resolved` after each clicked doctext link,
+ *       recording whether the quote was found and how long the search took.
  */
-export const LOG_SCHEMA_VERSION = 3;
+export const LOG_SCHEMA_VERSION = 4;
 
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat' | 'tools';
@@ -158,6 +160,23 @@ export const reviseLog = {
 	/** The writer clicked a document reference (doctext link) in a result. */
 	referenceClicked(log: LogFn, data: { target: string }) {
 		return emit(log, 'revise', 'reference_clicked', data);
+	},
+	/**
+	 * A clicked reference finished resolving. `found` records whether the quote
+	 * was located at all; `attempts` and `durationMs` measure what the writer
+	 * waited through (each attempt is a round-trip to the editor), which is the
+	 * only way to see from the logs that a link felt broken.
+	 */
+	referenceResolved(
+		log: LogFn,
+		data: {
+			target: string;
+			found: boolean;
+			attempts: number;
+			durationMs: number;
+		},
+	) {
+		return emit(log, 'revise', 'reference_resolved', data);
 	},
 };
 
