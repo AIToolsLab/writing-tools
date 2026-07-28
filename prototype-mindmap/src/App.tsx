@@ -2528,6 +2528,9 @@ function plainTextToDraftHtml(text: string): string {
 function sanitizeDraftHtml(html: string): string {
   if (!html.trim() || typeof DOMParser === "undefined") return "";
   const parser = new DOMParser();
+  // Parsing happens in an inert document; renderNode then rebuilds the result
+  // from fixed tags and escapeDraftHtml-escaped text, discarding all attributes.
+  // codeql[js/xss-through-dom]
   const doc = parser.parseFromString(html, "text/html");
 
   const renderChildren = (node: Node): string =>
