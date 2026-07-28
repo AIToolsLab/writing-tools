@@ -2598,6 +2598,10 @@ function sanitizeDraftHtml(html: string): string {
   return sanitized;
 }
 
+export function restoreDraftHtml(storedHtml: string | undefined, plainText: string): string {
+  return sanitizeDraftHtml(storedHtml ?? plainTextToDraftHtml(plainText));
+}
+
 function insertDraftHtmlAtSelection(root: HTMLElement, html: string): void {
   const template = document.createElement("template");
   template.innerHTML = html;
@@ -2754,7 +2758,7 @@ export default function App({ providerRuntime, initialDraft, aiAccessDenied = fa
   const initialQuestionBias = snapQuestionBias(persistedSession?.questionBias ?? 35);
   const initialRequireConnectionLabel = persistedSession?.requireConnectionLabel ?? true;
   const initialDraftText = persistedSession?.draftText ?? initialDraft?.text ?? "";
-  const initialDraftHtml = persistedSession?.draftHtml ?? plainTextToDraftHtml(initialDraftText);
+  const initialDraftHtml = restoreDraftHtml(persistedSession?.draftHtml, initialDraftText);
   const initialDraftCollapsed = persistedSession?.draftCollapsed ?? false;
   const initialDraftDocked = persistedSession?.draftDocked ?? false;
   const initialDraftSize = persistedSession
