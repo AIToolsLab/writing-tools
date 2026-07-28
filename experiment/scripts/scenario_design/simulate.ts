@@ -106,14 +106,24 @@ export async function callColleague(
   const result = await generateText({
     model: openai(modelConfig.model),
     system: systemPrompt,
-    messages: history.map((m) => ({ role: m.role, content: m.content })),
+    // Send the colleague its OWN prior turns verbatim (the raw JSON array it emitted), exactly as
+    // the live app does: ChatPanel keeps each assistant UIMessage's raw text and posts the whole
+    // array back through convertToModelMessages. Passing the harness's joined-plaintext rendering
+    // instead put non-JSON assistant turns in the model's own context, which taught it to answer
+    // in plain text — manufacturing Response Format failures the live app never sees.
+    messages: history.map((m) => ({
+      role: m.role,
+      content: m.role === 'assistant' ? (m.raw ?? m.content) : m.content,
+    })),
     maxOutputTokens: 300,
     providerOptions: {
       openai: { reasoningEffort: modelConfig.reasoningEffort },
     },
   });
   const latencyMs = Date.now() - start;
-  const reasoningTokens = result.providerMetadata?.openai?.reasoningTokens as number | undefined;
+  const reasoningTokens =
+    (result.providerMetadata?.openai?.reasoningTokens as number | undefined) ??
+    result.usage?.reasoningTokens;
 
   const raw = result.text.trim();
   let messages: string[] = [raw];
@@ -139,8 +149,11 @@ You are chatting with your colleague to gather information before writing an ema
 Respond with a single short chat message (plain text, not JSON). Keep it natural.`;
 
   const result = await generateText({
-    model: openai('gpt-4o'),
+    model: openai('gpt-5.6-terra'),
     system,
+    providerOptions: {
+      openai: { reasoningEffort: 'low' }
+    },
     messages: history.map((m) => ({
       // Flip roles: the participant sees colleague messages as "assistant" and their own as "user",
       // but from the participant-LLM's perspective, the colleague messages are incoming (user) and
@@ -148,7 +161,11 @@ Respond with a single short chat message (plain text, not JSON). Keep it natural
       role: m.role === 'assistant' ? 'user' as const : 'assistant' as const,
       content: m.content,
     })),
-    maxOutputTokens: 150,
+    // The participant simulator is a reasoning model, and reasoning tokens bill against this same
+    // budget — at 150 the allowance can be consumed before a single visible token is emitted,
+    // yielding an empty participant turn. 1500 leaves headroom; replies stay short because the
+    // archetype prompt asks for a single short chat message, not because the budget truncates them.
+    maxOutputTokens: 1500,
   });
 
   return result.text.trim();
@@ -158,19 +175,26 @@ async function simulateConversation(
   scenarioId: string,
   scenario: Record<string, unknown>,
   archetype: typeof ARCHETYPES[number],
+  modelOverride?: string,
+  reasoningEffortOverride?: string,
 ): Promise<ConversationLog> {
   const systemPrompt = getSystemPrompt(scenario);
-  const modelConfig = getColleagueModelConfig(scenario);
+  const modelConfig = {
+    ...getColleagueModelConfig(scenario),
+    ...(modelOverride ? { model: modelOverride } : {}),
+    ...(reasoningEffortOverride ? { reasoningEffort: reasoningEffortOverride } : {}),
+  };
   const chat = scenario.chat as Record<string, unknown>;
   const taskInstructions = scenario.taskInstructions as Record<string, string>;
 
-  // Seed with initial messages from the colleague
-  const messages: Message[] = [];
-  for (const msg of chat.initialMessages as string[]) {
-    // Seed messages are scripted scenario content; the live app delivers them as a
-    // JSON-stringified array, so record their raw form that way for format judging.
-    messages.push({ role: 'assistant', content: msg, raw: JSON.stringify([msg]) });
-  }
+  // Seed with the colleague's opening messages. The live app sets these as a SINGLE assistant
+  // message whose text is JSON.stringify(initialMessages) (ChatPanel.tsx) — not one message per
+  // line — so mirror that here. Splitting them produced a history of N plain-text assistant turns,
+  // which is both the wrong shape and the wrong format versus production.
+  const seeds = chat.initialMessages as string[];
+  const messages: Message[] = [
+    { role: 'assistant', content: seeds.join(' | '), raw: JSON.stringify(seeds) },
+  ];
 
   console.log(`\n--- ${archetype.name} ---`);
   for (const msg of messages) {
@@ -209,15 +233,59 @@ async function simulateConversation(
   };
 }
 
+// Parse positional args plus optional `--label <name>`, `--model <id>`, and `--reasoning-effort
+// <level>`. The label namespaces a run's output files (see main), so its characters are restricted
+// to what's safe in a filename prefix — no `_` (would collide with the archetype separator) and no
+// path characters. `--model`/`--reasoning-effort` override the colleague config from the scenario
+// for this invocation only (does not touch scenarios.json), for A/B testing colleague models/effort
+// without risking the live study config.
+function parseArgs(argv: string[]): { args: string[]; label?: string; model?: string; reasoningEffort?: string } {
+  const positional: string[] = [];
+  let label: string | undefined;
+  let model: string | undefined;
+  let reasoningEffort: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === '--label') {
+      label = argv[++i];
+      if (!label || !/^[A-Za-z0-9-]+$/.test(label)) {
+        console.error('--label must be a non-empty name using only letters, digits, and hyphens.');
+        process.exit(1);
+      }
+    } else if (argv[i] === '--model') {
+      model = argv[++i];
+      if (!model) {
+        console.error('--model requires a value.');
+        process.exit(1);
+      }
+    } else if (argv[i] === '--reasoning-effort') {
+      reasoningEffort = argv[++i];
+      if (!reasoningEffort) {
+        console.error('--reasoning-effort requires a value (e.g. low, medium, high, xhigh).');
+        process.exit(1);
+      }
+    } else {
+      positional.push(argv[i]);
+    }
+  }
+  return { args: positional, label, model, reasoningEffort };
+}
+
 async function main() {
-  const args = process.argv.slice(2);
+  const { args, label, model, reasoningEffort } = parseArgs(process.argv.slice(2));
   if (args.length < 1) {
-    console.error('Usage: npx tsx scripts/scenario_design/simulate.ts <scenario-id> [archetype-id]');
+    console.error(
+      'Usage: npx tsx scripts/scenario_design/simulate.ts <scenario-id> [archetype-id] ' +
+        '[--label <name>] [--model <id>] [--reasoning-effort <level>]',
+    );
     process.exit(1);
   }
 
   const scenarioId = args[0];
   const archetypeFilter = args[1];
+  // `--label test` writes to outputs/<scenario>.<label>_<archetype>.json instead of clobbering the
+  // real logs. judge.ts reads the same namespace via its own --label. A normal (unlabeled) run
+  // ignores labeled files, and vice-versa, because the prefixes differ (`.` vs `_` after the id).
+  const ns = label ? `${scenarioId}.${label}` : scenarioId;
   const scenario = loadScenario(scenarioId);
 
   const archetypes = archetypeFilter
@@ -232,16 +300,23 @@ async function main() {
 
   mkdirSync(OUTPUTS_DIR, { recursive: true });
 
-  console.log(`Simulating ${archetypes.length} archetype(s) for "${scenarioId}"...`);
+  const overrideNote = [
+    model ? `model: ${model}` : null,
+    reasoningEffort ? `reasoning: ${reasoningEffort}` : null,
+  ].filter(Boolean).join(', ');
+  console.log(
+    `Simulating ${archetypes.length} archetype(s) for "${scenarioId}"${overrideNote ? ` (override — ${overrideNote})` : ''}...`,
+  );
 
   for (const archetype of archetypes) {
-    const log = await simulateConversation(scenarioId, scenario, archetype);
-    const outPath = resolve(OUTPUTS_DIR, `${scenarioId}_${archetype.id}.json`);
+    const log = await simulateConversation(scenarioId, scenario, archetype, model, reasoningEffort);
+    const outPath = resolve(OUTPUTS_DIR, `${ns}_${archetype.id}.json`);
     writeFileSync(outPath, JSON.stringify(log, null, 2) + '\n');
     console.log(`  Wrote ${outPath}`);
   }
 
-  console.log('\nDone. Run judge.ts to evaluate the conversations.');
+  const judgeCmd = `npx tsx scripts/scenario_design/judge.ts ${scenarioId}${label ? ` --label ${label}` : ''}`;
+  console.log(`\nDone. Evaluate the conversations with:\n  ${judgeCmd}`);
 }
 
 // Only run when executed directly, not when imported (e.g. by probe.ts).
