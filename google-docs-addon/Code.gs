@@ -9,7 +9,7 @@
  */
  
 /**
- * Writing Tools - Google Docs Add-on
+ * Thoughtful AI Tools - Google Docs Add-on
  *
  * This Apps Script bridges the sidebar UI (HTML/JS/React) and the Google Docs
  * document (via DocumentApp), providing document operations only. The React app
@@ -26,7 +26,7 @@
 function onOpen(e) {
   DocumentApp.getUi()
     .createAddonMenu()
-    .addItem('Open Writing Tools', 'showSidebar')
+    .addItem('Open Thoughtful AI Tools', 'showSidebar')
     .addToUi();
 }
 
@@ -56,12 +56,12 @@ function onFileScopeGranted(e) {
  */
 function createHomepageCard() {
   const card = CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle('Writing Tools'))
+    .setHeader(CardService.newCardHeader().setTitle('Thoughtful AI Tools'))
     .addSection(
       CardService.newCardSection()
         .addWidget(
           CardService.newTextParagraph()
-            .setText('Click the button below to open Writing Tools in a sidebar for the full experience.')
+            .setText('Click the button below to open Thoughtful AI Tools in a sidebar for the full experience.')
         )
         .addWidget(
           CardService.newTextButton()
@@ -97,11 +97,11 @@ function createHomepageCard() {
 }
 
 /**
- * Shows the sidebar with the Writing Tools UI.
+ * Shows the sidebar with the Thoughtful AI Tools UI.
  */
 function showSidebar() {
   const html = HtmlService.createHtmlOutputFromFile('sidebar')
-    .setTitle('Writing Tools')
+    .setTitle('Thoughtful AI Tools')
     .setWidth(400);
   DocumentApp.getUi().showSidebar(html);
 }
