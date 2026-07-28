@@ -7,7 +7,7 @@
 	gap: 0.5rem;
 }
 
-.loginContainer>h3 {
+.loginContainer > h3 {
 	font-size: 1rem;
 	font-weight: 300;
 	margin: 0 0 1rem 0;
@@ -22,7 +22,7 @@ hr {
 	border-top: 1px solid #f1f1f1;
 }
 
-.loginContainer>p {
+.loginContainer > p {
 	font-size: 0.8rem;
 	font-weight: 300;
 }
@@ -33,7 +33,7 @@ hr {
 	background-color: #f1f1f1;
 }
 
-.loginInfoContainer>p {
+.loginInfoContainer > p {
 	font-size: 0.8rem;
 	font-weight: 300;
 	text-align: center;

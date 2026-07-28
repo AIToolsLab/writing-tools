@@ -161,7 +161,9 @@ describe('googleDocsEditorAPI selection polling', () => {
 		setSidebar(true, true);
 		fakeWindow.emit('focus');
 		await vi.advanceTimersByTimeAsync(1000);
-		expect(getDocContextMock.mock.calls.length).toBeGreaterThan(callsWhileActive);
+		expect(getDocContextMock.mock.calls.length).toBeGreaterThan(
+			callsWhileActive,
+		);
 	});
 
 	it('stops polling entirely once the last handler is removed', async () => {

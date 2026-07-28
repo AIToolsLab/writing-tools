@@ -150,7 +150,8 @@ export function DocBriefProvider({
 }: {
 	children: React.ReactNode;
 }): React.JSX.Element {
-	const { getDocumentSetting, setDocumentSetting } = useContext(EditorContext);
+	const { getDocumentSetting, setDocumentSetting } =
+		useContext(EditorContext);
 
 	const [brief, setBrief] = useState<DocBrief>(EMPTY_DOC_BRIEF);
 	const [status, setStatus] = useState<DocBriefStatus>('loading');

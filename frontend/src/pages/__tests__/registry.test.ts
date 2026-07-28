@@ -38,7 +38,9 @@ describe('page registry', () => {
 			// constraint that can't be fixed by resizing, so it's asserted rather
 			// than left as a comment. If this fails, the new page belongs in the
 			// Labs menu (tier: 'lab'), not the strip.
-			expect(pagesByTier('core').length).toBeLessThanOrEqual(MAX_CORE_PAGES);
+			expect(pagesByTier('core').length).toBeLessThanOrEqual(
+				MAX_CORE_PAGES,
+			);
 		});
 
 		it('can render whatever the default selection resolves to', () => {
@@ -93,33 +95,39 @@ describe('page registry', () => {
 		];
 
 		it('keeps lab pages out of the inline strip', () => {
-			expect(pagesByTier('core', pages).map((entry) => entry.name)).toEqual([
-				PageName.Draft,
-				PageName.Revise,
-			]);
+			expect(
+				pagesByTier('core', pages).map((entry) => entry.name),
+			).toEqual([PageName.Draft, PageName.Revise]);
 		});
 
 		it('lists only enabled lab pages in the Labs menu', () => {
-			expect(pagesByTier('lab', pages).map((entry) => entry.name)).toEqual([
-				PageName.TagLinker,
-			]);
+			expect(
+				pagesByTier('lab', pages).map((entry) => entry.name),
+			).toEqual([PageName.TagLinker]);
 		});
 
 		it('preserves registration order within a tier', () => {
-			const reversed = [page(PageName.Revise, 'core'), page(PageName.Draft, 'core')];
+			const reversed = [
+				page(PageName.Revise, 'core'),
+				page(PageName.Draft, 'core'),
+			];
 
-			expect(pagesByTier('core', reversed).map((entry) => entry.name)).toEqual([
-				PageName.Revise,
-				PageName.Draft,
-			]);
+			expect(
+				pagesByTier('core', reversed).map((entry) => entry.name),
+			).toEqual([PageName.Revise, PageName.Draft]);
 		});
 	});
 
 	describe('resolvePage', () => {
 		it('returns the selected page when it is visible', () => {
-			const pages = [page(PageName.Draft, 'core'), page(PageName.Revise, 'core')];
+			const pages = [
+				page(PageName.Draft, 'core'),
+				page(PageName.Revise, 'core'),
+			];
 
-			expect(resolvePage(PageName.Revise, pages)?.name).toBe(PageName.Revise);
+			expect(resolvePage(PageName.Revise, pages)?.name).toBe(
+				PageName.Revise,
+			);
 		});
 
 		it('falls back to the default when the selection was flagged off', () => {
@@ -130,13 +138,17 @@ describe('page registry', () => {
 				page(PageName.TagLinker, 'lab', () => false),
 			];
 
-			expect(resolvePage(PageName.TagLinker, pages)?.name).toBe(DEFAULT_PAGE);
+			expect(resolvePage(PageName.TagLinker, pages)?.name).toBe(
+				DEFAULT_PAGE,
+			);
 		});
 
 		it('falls back to the first visible page when even the default is gone', () => {
 			const pages = [page(PageName.Chat, 'core')];
 
-			expect(resolvePage(PageName.TagLinker, pages)?.name).toBe(PageName.Chat);
+			expect(resolvePage(PageName.TagLinker, pages)?.name).toBe(
+				PageName.Chat,
+			);
 		});
 
 		it('returns undefined when nothing is visible', () => {

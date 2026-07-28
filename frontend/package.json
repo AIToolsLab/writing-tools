@@ -32,10 +32,6 @@
 		"format:check": "prettier --check \"src/**/*.{js,ts,tsx,json,css,md}\"",
 		"format:file": "prettier --write",
 		"lint:file": "eslint --fix",
-		"format:staged": "prettier --write $(git diff --cached --name-only --diff-filter=ACMR | grep -E '\\.(js|ts|tsx)$' | xargs)",
-		"lint:staged": "eslint --fix $(git diff --cached --name-only --diff-filter=ACMR | grep -E '\\.(js|ts|tsx)$' | xargs)",
-		"add-pragma": "prettier --insert-pragma --write",
-		"remove-pragma": "prettier --require-pragma false --write",
 		"style": "npm run lint && npm run format:check",
 		"style:fix": "npm run lint:fix && npm run format",
 		"prepare": "husky",
@@ -45,12 +41,14 @@
 		"test:dev-server": "node test-dev-server.mjs"
 	},
 	"dependencies": {
-		"@ai-sdk/openai": "^2.0.0",
+		"@ai-sdk/openai": "^2.0.109",
+		"@ai-sdk/otel": "^1.0.0",
+		"@ai-sdk/react": "^4.0.0",
 		"@lexical/react": "^0.45.0",
 		"@posthog/react": "^1.9.0",
 		"@react-hook/window-size": "^3.1.1",
 		"@types/node": "^24.6.2",
-		"ai": "^5.0.0",
+		"ai": "^7.0.0",
 		"jotai": "^2.12.5",
 		"lexical": "^0.45.0",
 		"posthog-js": "^1.388.1",
@@ -58,10 +56,10 @@
 		"react-dom": "^19.2.0",
 		"react-icons": "^5.2.1",
 		"react-remark": "^2.1.0",
-		"reshaped": "^3.5.3"
+		"reshaped": "^3.5.3",
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.0.6",
 		"@eslint/eslintrc": "^3.3.1",
 		"@playwright/test": "^1.60",
 		"@tailwindcss/cli": "^4.1.8",

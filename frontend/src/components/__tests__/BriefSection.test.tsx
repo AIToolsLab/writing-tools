@@ -35,10 +35,9 @@ describe('BriefSection', () => {
 		renderSection();
 
 		expect(screen.queryByLabelText('Audience')).toBeNull();
-		expect(screen.getByRole('button', { name: /Set your brief/ })).toHaveProperty(
-			'ariaExpanded',
-			'false',
-		);
+		expect(
+			screen.getByRole('button', { name: /Set your brief/ }),
+		).toHaveProperty('ariaExpanded', 'false');
 	});
 
 	it('opens by default where the caller asks for it', () => {
@@ -93,8 +92,7 @@ describe('BriefSection', () => {
 			{ defaultOpen: true },
 		);
 
-		const audience =
-			screen.getByLabelText<HTMLTextAreaElement>('Audience');
+		const audience = screen.getByLabelText<HTMLTextAreaElement>('Audience');
 		expect(audience.value).toBe('First-year students');
 
 		fireEvent.change(audience, { target: { value: 'Reviewers' } });

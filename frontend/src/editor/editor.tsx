@@ -6,20 +6,226 @@ import {
 	type InitialEditorStateType,
 	LexicalComposer,
 } from '@lexical/react/LexicalComposer';
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { OnChangePlugin } from '@lexical/react/LexicalOnChangePlugin';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import {
+	$createParagraphNode,
+	$createRangeSelection,
+	$createTextNode,
 	$getRoot,
 	$getSelection,
+	$isElementNode,
 	$isRangeSelection,
+	$isTextNode,
+	$setSelection,
 	type ElementNode,
 	type LexicalNode,
+	type TextNode,
 } from 'lexical';
+import { useEffect } from 'react';
 
 import classes from './editor.module.css';
+
+/**
+ * Imperative handle the "My Words" page uses to read and edit the standalone
+ * Lexical document. Mirrors the host-agnostic operations on EditorAPI; Word and
+ * Google Docs implement the same shape with their native APIs.
+ */
+export interface EditorControls {
+	getText: () => string;
+	/** Top-level paragraphs in order — the coordinate system for `view`. */
+	getParagraphs: () => string[];
+	/** Replace the whole document with plain text (paragraphs split on \n). */
+	setText: (text: string) => void;
+	/**
+	 * Apply a paragraph-range splice by mutating only the affected paragraph
+	 * nodes. Untouched nodes keep their keys, so the writer's cursor survives
+	 * edits elsewhere and each splice is one undo entry — unlike `setText`,
+	 * which rebuilds the whole document.
+	 */
+	applySplice: (splice: ParagraphSplice) => void;
+	/** Select the first occurrence of `phrase` within a single paragraph. */
+	selectPhrase: (phrase: string) => boolean;
+}
+
+/**
+ * Set a paragraph's plain text in place. For the common single-text-node
+ * paragraph, splices just the changed middle (common prefix/suffix preserved)
+ * so the node key — and any cursor inside the untouched parts — survives.
+ * Formatted/multi-node paragraphs fall back to rebuilding only this paragraph.
+ */
+export function $setParagraphText(node: ElementNode, text: string) {
+	const kids = node.getChildren();
+	if (kids.length === 1 && $isTextNode(kids[0])) {
+		const textNode = kids[0];
+		const old = textNode.getTextContent();
+		if (old === text) return;
+		if (text.length === 0) {
+			textNode.remove();
+			return;
+		}
+		let prefix = 0;
+		const maxPrefix = Math.min(old.length, text.length);
+		while (prefix < maxPrefix && old[prefix] === text[prefix]) prefix++;
+		let suffix = 0;
+		while (
+			suffix < maxPrefix - prefix &&
+			old[old.length - 1 - suffix] === text[text.length - 1 - suffix]
+		)
+			suffix++;
+		textNode.spliceText(
+			prefix,
+			old.length - prefix - suffix,
+			text.slice(prefix, text.length - suffix),
+		);
+		return;
+	}
+	node.clear();
+	if (text.length > 0) node.append($createTextNode(text));
+}
+
+/**
+ * Apply a paragraph-range splice by mutating only the affected paragraph
+ * nodes. Must run inside `editor.update()`. Untouched nodes keep their keys,
+ * so the writer's cursor survives edits elsewhere; one update per splice keeps
+ * a split or merge a single undo entry.
+ */
+export function $applySplice(splice: ParagraphSplice) {
+	const root = $getRoot();
+	const children = root.getChildren();
+	const { index, remove, insert } = splice;
+	if (index < 0 || index + remove.length > children.length) {
+		throw new Error(
+			`Splice out of range: ${index}+${remove.length} of ${children.length} paragraph(s).`,
+		);
+	}
+	// Overlapping positions: update text in place.
+	const overlap = Math.min(remove.length, insert.length);
+	for (let k = 0; k < overlap; k++) {
+		const node = children[index + k];
+		if ($isElementNode(node)) {
+			$setParagraphText(node, insert[k]);
+		} else {
+			const paragraph = $createParagraphNode();
+			if (insert[k].length > 0)
+				paragraph.append($createTextNode(insert[k]));
+			node.replace(paragraph);
+		}
+	}
+	// Shrinkage: remove the leftover paragraphs (marks included).
+	for (let k = overlap; k < remove.length; k++) {
+		children[index + k].remove();
+	}
+	// Growth: append the extra paragraphs after the last touched one (or
+	// anchor at the insertion point when nothing overlapped).
+	let anchor: LexicalNode | null =
+		overlap > 0
+			? children[index + overlap - 1]
+			: index > 0
+				? (children[index - 1] ?? null)
+				: null;
+	for (let k = overlap; k < insert.length; k++) {
+		const paragraph = $createParagraphNode();
+		if (insert[k].length > 0) paragraph.append($createTextNode(insert[k]));
+		if (anchor) anchor.insertAfter(paragraph);
+		else if (children.length > 0) children[0].insertBefore(paragraph);
+		else root.append(paragraph);
+		anchor = paragraph;
+	}
+}
+
+/**
+ * Lives inside LexicalComposer so it can grab the editor instance and hand a
+ * small imperative control surface back up to the EditorScreen.
+ */
+function ControlsPlugin({
+	onReady,
+}: {
+	onReady?: (controls: EditorControls) => void;
+}) {
+	const [editor] = useLexicalComposerContext();
+
+	useEffect(() => {
+		if (!onReady) return;
+
+		const controls: EditorControls = {
+			getText: () =>
+				editor.getEditorState().read(() => $getRoot().getTextContent()),
+
+			getParagraphs: () =>
+				editor.getEditorState().read(() =>
+					$getRoot()
+						.getChildren()
+						.map((node) => node.getTextContent()),
+				),
+
+			setText: (text: string) => {
+				editor.update(() => {
+					const root = $getRoot();
+					root.clear();
+					for (const line of text.split('\n')) {
+						const paragraph = $createParagraphNode();
+						if (line.length > 0) {
+							paragraph.append($createTextNode(line));
+						}
+						root.append(paragraph);
+					}
+				});
+			},
+
+			applySplice: (splice: ParagraphSplice) => {
+				editor.update(() => $applySplice(splice));
+			},
+
+			selectPhrase: (phrase: string) => {
+				let found = false;
+				editor.update(() => {
+					const textNodes: TextNode[] = [];
+					const collect = (node: LexicalNode) => {
+						if ($isTextNode(node)) {
+							textNodes.push(node);
+						} else if ('getChildren' in node) {
+							for (const child of (
+								node as ElementNode
+							).getChildren()) {
+								collect(child);
+							}
+						}
+					};
+					collect($getRoot());
+
+					const needle = phrase.toLowerCase();
+					for (const node of textNodes) {
+						const idx = node
+							.getTextContent()
+							.toLowerCase()
+							.indexOf(needle);
+						if (idx === -1) continue;
+						const selection = $createRangeSelection();
+						selection.anchor.set(node.getKey(), idx, 'text');
+						selection.focus.set(
+							node.getKey(),
+							idx + phrase.length,
+							'text',
+						);
+						$setSelection(selection);
+						found = true;
+						return;
+					}
+				});
+				return found;
+			},
+		};
+
+		onReady(controls);
+	}, [editor, onReady]);
+
+	return null;
+}
 
 function $getDocContext(): DocContext {
 	// Initialize default empty context
@@ -156,11 +362,13 @@ function LexicalEditor({
 	initialState,
 	storageKey = 'doc',
 	preamble,
+	onReady,
 }: {
 	updateDocContext: (docContext: DocContext) => void;
 	initialState?: InitialEditorStateType | undefined;
 	storageKey?: string;
 	preamble?: React.JSX.Element;
+	onReady?: (controls: EditorControls) => void;
 }) {
 	return (
 		<LexicalComposer // Main editor component
@@ -169,18 +377,26 @@ function LexicalEditor({
 				theme: {
 					paragraph: classes.paragraph,
 				},
-				onError(_error, _editor) { },
+				onError(_error, _editor) {},
 				editorState: initialState,
 			}}
 		>
 			<div className={classes.editorContainer}>
-				<div className={"resize-none text-base caret-zinc-900 relative outline-none overflow-y-auto h-full editor-scrollbar"}>
+				<div
+					className={
+						'resize-none text-base caret-zinc-900 relative outline-none overflow-y-auto h-full editor-scrollbar'
+					}
+				>
 					{preamble ? (
 						<div className="whitespace-pre-line">{preamble}</div>
 					) : null}
 					<RichTextPlugin
 						contentEditable={
-							<ContentEditable className={"resize-none text-base caret-zinc-900 relative outline-none"} />
+							<ContentEditable
+								className={
+									'resize-none text-base caret-zinc-900 relative outline-none'
+								}
+							/>
 						}
 						placeholder={<div className={classes.placeholder} />}
 						ErrorBoundary={LexicalErrorBoundary}
@@ -209,6 +425,8 @@ function LexicalEditor({
 					<AutoFocusPlugin />
 
 					<HistoryPlugin />
+
+					<ControlsPlugin onReady={onReady} />
 				</div>
 			</div>
 		</LexicalComposer>

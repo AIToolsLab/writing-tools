@@ -12,6 +12,7 @@ import { deviceClientIds, gitCommit, logSecret } from './config.js';
 import { eraseLoggedData } from './erasure.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
 import {
+	attributeRequest,
 	openaiProxy,
 	PLATFORM_AUTH_ERROR_HEADER,
 	type ProxyIdentity,
@@ -30,6 +31,17 @@ import {
 } from './toolGrants.js';
 import { summarizeUsage } from './usage.js';
 import { isUserAllowed } from './userAllowlist.js';
+
+// Mints short-lived ephemeral credentials so a browser can open a WebRTC
+// Realtime session without ever seeing the server API key. This is the only
+// server involvement in the voice tab: audio and tool calls run browser →
+// OpenAI directly (frontend/src/pages/my-words/voice/, and
+// docs/my-words-voice-native-research.md).
+const OPENAI_REALTIME_SESSION_URL =
+	'https://api.openai.com/v1/realtime/client_secrets';
+// The realtime-capable model the ephemeral session is bound to. Override via env
+// as OpenAI ships new ids (gpt-realtime, gpt-realtime-2, …).
+const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2';
 
 /** Extract the raw bearer token from the Authorization header, or null. */
 function bearerToken(c: Context): string | null {
@@ -107,6 +119,64 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			authEnabled: !!auth,
 		}),
 	);
+
+	// Mint an ephemeral Realtime session token for the browser voice spike. The
+	// server key stays here; the browser receives only the short-lived secret it
+	// uses to open the WebRTC session directly with OpenAI.
+	app.post('/api/openai/realtime/session', async (c) => {
+		// A realtime session spends a model key just like a proxied generation, so
+		// it answers to the same attribution: a real session spends the main key, a
+		// demo session the capped one, and sessionless traffic is refused wherever
+		// auth is on rather than quietly billing the main key. Without this the
+		// route was open — anyone who could reach it could mint a token against
+		// OPENAI_API_KEY.
+		//
+		// Metering is still missing, and can't be done here: the audio runs
+		// browser → OpenAI over WebRTC, so no tokens pass through this server to
+		// count. Recording it means reading `usage` off the client's `response.done`
+		// events and reporting them back. Until then a voice session is billable but
+		// absent from `llm_usage`, which is why the page stays behind a flag.
+		const user = await resolveUser(c);
+		// Same beta allowlist the proxy enforces — otherwise voice is a way around
+		// it that also happens to spend a model key.
+		if (user && !user.isAllowed) return c.json({ detail: 'Forbidden' }, 403);
+		const attribution = attributeRequest(user, !!auth);
+		if (!attribution) {
+			return c.json({ detail: 'Sign in to use voice.' }, 401);
+		}
+		const key = attribution.apiKey;
+		if (!key) {
+			return c.json({ detail: 'OPENAI_API_KEY not set' }, 500);
+		}
+		let upstream: Response;
+		try {
+			upstream = await fetch(OPENAI_REALTIME_SESSION_URL, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${key}`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					session: { type: 'realtime', model: REALTIME_MODEL },
+				}),
+			});
+		} catch (e) {
+			console.error(
+				'[realtime-session] upstream fetch failed:',
+				(e as Error).message,
+			);
+			throw e; // -> onError -> 500 JSON
+		}
+
+		const text = await upstream.text();
+		if (!upstream.ok) {
+			console.warn(`[realtime-session] ${upstream.status} ${text.slice(0, 200)}`);
+		}
+		return new Response(text, {
+			status: upstream.status,
+			headers: { 'Content-Type': 'application/json' },
+		});
+	});
 
 	// Resolve the authenticated user from the request's session, or null. Returns
 	// null when auth is disabled (dev/tests without BETTER_AUTH_ENABLED) so the
