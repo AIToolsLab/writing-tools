@@ -3,7 +3,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AssistantResponseKindBadge, buildConversationHistory, deriveCurrentUserTurn, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateCandidateMemory, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, TURN_PROGRESS_COPY } from "./App";
+import { AssistantResponseKindBadge, buildConversationHistory, deriveCurrentUserTurn, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateCandidateMemory, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, restoreDraftHtml, TURN_PROGRESS_COPY } from "./App";
 import { UnderTheHoodPanel } from "./ControlRoom";
 import { ASSISTANCE_CONTRACTS, snapshotContract } from "./assistance-contract";
 import { ThoughtUnitStore } from "./map-store";
@@ -243,6 +243,16 @@ describe("rich draft paste helpers", () => {
     expect(draftHtmlToPlainText(normalizeDraftPasteHtml("First paragraph\n\nSecond paragraph"))).toBe(
       "First paragraph\n\nSecond paragraph",
     );
+  });
+
+  it("re-sanitizes persisted draft HTML before restoring it into the editor", () => {
+    const restored = restoreDraftHtml(
+      '<p onclick="alert(1)"><strong>Safe</strong><img src="x" onerror="alert(2)"><script>alert(3)</script> text</p>',
+      "fallback",
+    );
+
+    expect(restored).toBe("<p><strong>Safe</strong>alert(3) text</p>");
+    expect(restored).not.toMatch(/onclick|onerror|<img|<script/i);
   });
 });
 
