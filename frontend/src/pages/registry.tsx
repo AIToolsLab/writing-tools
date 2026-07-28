@@ -32,6 +32,7 @@ import { PageName } from '@/contexts/pageContext';
 import Chat from './chat';
 import Draft from './draft';
 import { isFlagEnabled } from './flags';
+import MyWords from './my-words';
 import Revise from './revise';
 import Tools from './tools';
 
@@ -90,6 +91,17 @@ export const PAGES: PageDef[] = [
 		enabled: () => isFlagEnabled('tool-launcher'),
 		render: () => <Tools />,
 	},
+	{
+		name: PageName.MyWords,
+		title: 'My Words',
+		hint: 'Shape your own words',
+		tier: 'lab',
+		// Kept out of even the Labs menu: the voice tab opens a realtime session
+		// that spends a model key, and its per-session cost is not yet metered to
+		// `llm_usage` the way proxied generations are. Off until it is.
+		enabled: () => isFlagEnabled('my-words'),
+		render: () => <MyWords />,
+	},
 ];
 
 /** The page shown when nothing is selected, or when the selection isn't visible. */
@@ -123,7 +135,10 @@ export function visiblePages(pages: PageDef[] = PAGES): PageDef[] {
 }
 
 /** Visible pages in one tier — what the navbar renders from. */
-export function pagesByTier(tier: PageTier, pages: PageDef[] = PAGES): PageDef[] {
+export function pagesByTier(
+	tier: PageTier,
+	pages: PageDef[] = PAGES,
+): PageDef[] {
 	return visiblePages(pages).filter((page) => page.tier === tier);
 }
 

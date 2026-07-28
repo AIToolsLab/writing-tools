@@ -2,6 +2,7 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { useContext } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { noopEditorAPI } from '@/api/__fixtures__/editorAPI';
 import {
 	DOC_BRIEF_SETTING_KEY,
 	DocBriefContext,
@@ -78,9 +79,8 @@ describe('formatDocBriefForPrompt', () => {
 
 /** A stub editor whose document settings live in a plain object. */
 function stubEditorAPI(stored: Record<string, string> = {}) {
-	const getDocumentSetting = vi.fn(
-		(key: string): Promise<string | null> =>
-			Promise.resolve(stored[key] ?? null),
+	const getDocumentSetting = vi.fn((key: string): Promise<string | null> =>
+		Promise.resolve(stored[key] ?? null),
 	);
 	const setDocumentSetting = vi.fn((key: string, value: string) => {
 		stored[key] = value;
@@ -90,19 +90,7 @@ function stubEditorAPI(stored: Record<string, string> = {}) {
 		stored,
 		getDocumentSetting,
 		setDocumentSetting,
-		api: {
-			getDocContext: () =>
-				Promise.resolve({
-					beforeCursor: '',
-					selectedText: '',
-					afterCursor: '',
-				}),
-			addSelectionChangeHandler: () => {},
-			removeSelectionChangeHandler: () => {},
-			selectPhrase: () => Promise.resolve(),
-			getDocumentSetting,
-			setDocumentSetting,
-		} satisfies EditorAPI,
+		api: noopEditorAPI({ getDocumentSetting, setDocumentSetting }),
 	};
 }
 
@@ -113,7 +101,10 @@ function Probe() {
 		<div>
 			<span data-testid="audience">{brief.audience}</span>
 			<span data-testid="status">{status}</span>
-			<button type="button" onClick={() => setField('audience', 'Reviewers')}>
+			<button
+				type="button"
+				onClick={() => setField('audience', 'Reviewers')}
+			>
 				edit
 			</button>
 		</div>

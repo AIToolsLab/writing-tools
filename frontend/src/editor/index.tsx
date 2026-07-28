@@ -1,14 +1,16 @@
-import { useRef, useState, StrictMode, useMemo } from 'react';
+import { useCallback, useRef, useState, StrictMode, useMemo } from 'react';
 import { createRoot } from 'react-dom/client';
 import { localStorageDocumentSettings } from '@/api/documentSettings';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 
 import * as SidebarInner from '@/pages/app';
 import { useAtomValue, useSetAtom } from 'jotai';
-import LexicalEditor from './editor';
+import LexicalEditor, { type EditorControls } from './editor';
 import './styles.css';
 import classes from './styles.module.css';
 import { EditorContext } from '@/contexts/editorContext';
+import { lowerOp } from '@/pages/my-words/interaction/ops';
+import type { EditOp } from '@/pages/my-words/interaction/types';
 
 function Sidebar() {
 	return <SidebarInner.default />;
@@ -36,6 +38,12 @@ export function EditorScreen({
 		selectedText: '',
 		afterCursor: '',
 	});
+
+	// Imperative handle into the Lexical document, populated once it mounts.
+	const controlsRef = useRef<EditorControls | null>(null);
+	const handleEditorReady = useCallback((controls: EditorControls) => {
+		controlsRef.current = controls;
+	}, []);
 
 	// Since this is a list, a useState would have worked as well
 	const selectionChangeHandlers = useRef<(() => void)[]>([]);
@@ -65,11 +73,76 @@ export function EditorScreen({
 				else console.warn('Handler not found');
 			},
 
-			selectPhrase(_text) {
-				console.warn('selectPhrase is not implemented yet');
-				return new Promise<void>((resolve) => resolve());
+			selectPhrase(text) {
+				const found = controlsRef.current?.selectPhrase(text) ?? false;
+				return found
+					? Promise.resolve()
+					: Promise.reject(new Error('Phrase not found'));
 			},
-
+			getDocText: (): Promise<string> => {
+				return Promise.resolve(controlsRef.current?.getText() ?? '');
+			},
+			getParagraphs: (): Promise<string[]> => {
+				return Promise.resolve(
+					controlsRef.current?.getParagraphs() ?? [],
+				);
+			},
+			applyEdit: (edit: DocEdit): Promise<void> => {
+				const controls = controlsRef.current;
+				if (!controls) {
+					return Promise.reject(new Error('Editor is not ready yet'));
+				}
+				// Lower to paragraph-range splices and apply them node-by-node —
+				// never a whole-document rewrite (setText), which would destroy the
+				// cursor, collapse undo, and double paragraph breaks.
+				const paras = controls.getParagraphs();
+				if (edit.type === 'delete_paragraph') {
+					if (edit.paragraph < 1 || edit.paragraph > paras.length) {
+						return Promise.reject(
+							new Error(
+								`Paragraph ${edit.paragraph} is out of range (1–${paras.length}).`,
+							),
+						);
+					}
+					controls.applySplice({
+						index: edit.paragraph - 1,
+						remove: [paras[edit.paragraph - 1]],
+						insert: [],
+					});
+					return Promise.resolve();
+				}
+				const op: EditOp =
+					edit.type === 'str_replace'
+						? {
+								kind: 'str_replace',
+								oldStr: edit.oldStr,
+								newStr: edit.newStr,
+								paragraph: edit.paragraph,
+							}
+						: {
+								kind: 'insert',
+								text: edit.text,
+								after: edit.after,
+								paragraph: edit.paragraph,
+								position: edit.position,
+							};
+				try {
+					for (const splice of lowerOp(paras, op)) {
+						controls.applySplice(splice);
+					}
+				} catch (e) {
+					return Promise.reject(e as Error);
+				}
+				return Promise.resolve();
+			},
+			applySplice: (splice: ParagraphSplice): Promise<void> => {
+				const controls = controlsRef.current;
+				if (!controls) {
+					return Promise.reject(new Error('Editor is not ready yet'));
+				}
+				controls.applySplice(splice);
+				return Promise.resolve();
+			},
 			// There is no host document here to embed settings in, so they live
 			// in localStorage under this editor's own document key.
 			...localStorageDocumentSettings(storageKey),
@@ -123,6 +196,7 @@ export function EditorScreen({
 						updateDocContext={docUpdated}
 						storageKey={storageKey}
 						preamble={editorPreamble}
+						onReady={handleEditorReady}
 					/>
 					{isDemo ? (
 						<div className={`${classes.wordCount}`}>

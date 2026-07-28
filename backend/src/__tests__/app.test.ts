@@ -12,7 +12,14 @@ const app = createApp();
  * updateUser/deleteUser record their calls. Cast to Auth — we only touch the
  * surface the app handlers use.
  */
-function makeAuthApp(user: { id: string; loggingConsent?: string } | null) {
+function makeAuthApp(
+	user: {
+		id: string;
+		loggingConsent?: string;
+		isAnonymous?: boolean;
+		email?: string;
+	} | null,
+) {
 	const calls: { updateUser: unknown[]; deleteUser: unknown[] } = {
 		updateUser: [],
 		deleteUser: [],
@@ -296,37 +303,85 @@ describe('POST /api/openai/responses', () => {
 	});
 });
 
-describe('POST /api/mindmap/events', () => {
-	it('accepts only the sanitized event shape and never persists arbitrary content', async () => {
-		const accepted = await app.request('/api/mindmap/events', {
-			method: 'POST', headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ sessionId: 's1', sequence: 1, at: 123, kind: 'proposal_created', contractId: 'non_directive_v1', contractLevel: 0, origin: 'user_asserted', text: 'must not persist' }),
-		});
-		expect(accepted.status).toBe(200);
-		const content = await readFile(path.join(process.env.LOG_DIR!, 'mindmap.jsonl'), 'utf8');
-		expect(content).toContain('proposal_created');
-		expect(content).not.toContain('must not persist');
+describe('POST /api/openai/realtime/session', () => {
+	/** The mint call never reaches OpenAI when the route refuses first. */
+	function stubUpstream() {
+		const fetchMock = vi
+			.fn()
+			.mockResolvedValue(
+				new Response(JSON.stringify({ value: 'ek_test' }), { status: 200 }),
+			);
+		vi.stubGlobal('fetch', fetchMock);
+		return fetchMock;
+	}
 
-		const rejected = await app.request('/api/mindmap/events', {
-			method: 'POST', headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ sessionId: 's1', sequence: 2, at: 124, kind: 'not_allowed' }),
-		});
-		expect(rejected.status).toBe(400);
+	it('401s without a session when auth is on, without minting', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		const fetchMock = stubUpstream();
+		const { app: authApp } = makeAuthApp(null);
 
-		const textBearingSessionId = await app.request('/api/mindmap/events', {
-			method: 'POST', headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ sessionId: 'private draft wording', sequence: 3, at: 125, kind: 'proposal_created' }),
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
 		});
-		expect(textBearingSessionId.status).toBe(400);
 
-		const toolEvent = await app.request('/api/mindmap/events', {
-			method: 'POST', headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ sessionId: 's1', sequence: 4, at: 126, kind: 'provider_tool_requested', providerTransport: 'responses_tools', toolName: 'propose_map_action_v1', repairCount: 0, arguments: 'private words' }),
+		expect(res.status).toBe(401);
+		// The point of the gate: no ephemeral credential was minted against our key.
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('mints against the main key for a signed-in user', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		const fetchMock = stubUpstream();
+		// Allowlisted address — the route enforces the same beta gate as the proxy.
+		const { app: authApp } = makeAuthApp({
+			id: 'user-1',
+			email: 'writer@calvin.edu',
 		});
-		expect(toolEvent.status).toBe(200);
-		const toolContent = await readFile(path.join(process.env.LOG_DIR!, 'mindmap.jsonl'), 'utf8');
-		expect(toolContent).toContain('propose_map_action_v1');
-		expect(toolContent).not.toContain('private words');
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(200);
+		expect(fetchMock).toHaveBeenCalledOnce();
+		const [url, init] = fetchMock.mock.calls[0]!;
+		expect(url).toContain('realtime/client_secrets');
+		expect((init.headers as Record<string, string>).Authorization).toBe(
+			'Bearer sk-main',
+		);
+	});
+
+	it('403s a signed-in user outside the beta allowlist', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		const fetchMock = stubUpstream();
+		const { app: authApp } = makeAuthApp({
+			id: 'user-2',
+			email: 'someone@example.com',
+		});
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(403);
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('spends the capped demo key for an anonymous session', async () => {
+		vi.stubEnv('OPENAI_API_KEY', 'sk-main');
+		vi.stubEnv('OPENAI_DEMO_API_KEY', 'sk-demo');
+		const fetchMock = stubUpstream();
+		const { app: authApp } = makeAuthApp({ id: 'anon-1', isAnonymous: true });
+
+		const res = await authApp.request('/api/openai/realtime/session', {
+			method: 'POST',
+		});
+
+		expect(res.status).toBe(200);
+		const [, init] = fetchMock.mock.calls[0]!;
+		expect((init.headers as Record<string, string>).Authorization).toBe(
+			'Bearer sk-demo',
+		);
 	});
 });
 

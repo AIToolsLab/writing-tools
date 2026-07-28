@@ -15,7 +15,10 @@ import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { buildMessages } from '@/api/prompts';
 import { ErrorNotice, GenerationErrorNotice } from '@/components/errorNotice';
 import BriefSection from '@/components/briefSection';
-import { formatDocBriefForPrompt, useDocBrief } from '@/contexts/docBriefContext';
+import {
+	formatDocBriefForPrompt,
+	useDocBrief,
+} from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
@@ -50,7 +53,12 @@ const modeMeta: Record<string, { name: string; description: string }> = {
 	},
 };
 
-const modes = ['example_sentences', 'analysis_readerPerspective', 'proposal_advice', 'example_rewording'];
+const modes = [
+	'example_sentences',
+	'analysis_readerPerspective',
+	'proposal_advice',
+	'example_rewording',
+];
 
 interface SuggestionRequest {
 	docContext: DocContext;
@@ -68,7 +76,9 @@ class Fetcher {
 		this.previousRequest = null;
 	}
 
-	async fetchSuggestion(request: SuggestionRequest): Promise<GenerationResult> {
+	async fetchSuggestion(
+		request: SuggestionRequest,
+	): Promise<GenerationResult> {
 		this.requestInFlight = request;
 		try {
 			const messages = buildMessages(
@@ -129,7 +139,11 @@ function _GenerationResult({ generation }: { generation: GenerationResult }) {
 		<div className={classes.generationResult}>
 			{showTitle ? (
 				<div className={classes.generationTitle}>
-					{visibleNameForMode[generation.generation_type as keyof typeof visibleNameForMode]}
+					{
+						visibleNameForMode[
+							generation.generation_type as keyof typeof visibleNameForMode
+						]
+					}
 				</div>
 			) : null}
 			<div className={classes.generationContent}>
@@ -147,24 +161,44 @@ function SavedGenerations({
 	deleteSavedItem: (dateSaved: Date) => void;
 }) {
 	return (
-		<div style={{ display: 'flex', flexDirection: 'column', gap: '6px', width: '100%' }}>
+		<div
+			style={{
+				display: 'flex',
+				flexDirection: 'column',
+				gap: '6px',
+				width: '100%',
+			}}
+		>
 			{savedItems.map((savedItem, index) => (
 				<div
 					key={savedItem.dateSaved.toString()}
 					className={classes.resultItem}
 					style={{ animationDelay: `${index * 0.05}s` }}
 					onMouseEnter={(e) => {
-						const deleteBtn = e.currentTarget.querySelector('[data-delete]') as HTMLElement;
+						const deleteBtn = e.currentTarget.querySelector(
+							'[data-delete]',
+						) as HTMLElement;
 						if (deleteBtn) deleteBtn.style.opacity = '1';
 					}}
 					onMouseLeave={(e) => {
-						const deleteBtn = e.currentTarget.querySelector('[data-delete]') as HTMLElement;
+						const deleteBtn = e.currentTarget.querySelector(
+							'[data-delete]',
+						) as HTMLElement;
 						if (deleteBtn) deleteBtn.style.opacity = '0';
 					}}
 				>
-					<div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', width: '100%' }}>
+					<div
+						style={{
+							display: 'flex',
+							alignItems: 'flex-start',
+							gap: '8px',
+							width: '100%',
+						}}
+					>
 						<div style={{ flex: 1, minWidth: 0 }}>
-							<_GenerationResult generation={savedItem.generation} />
+							<_GenerationResult
+								generation={savedItem.generation}
+							/>
 						</div>
 						<button
 							data-delete
@@ -264,7 +298,8 @@ export default function Draft() {
 			);
 
 			draftLog.suggestionDeleted(log, {
-				generationType: savedItems[savedItemIdx].generation.generation_type,
+				generationType:
+					savedItems[savedItemIdx].generation.generation_type,
 				docContext: savedItems[savedItemIdx].document,
 				result: savedItems[savedItemIdx].generation,
 			});
@@ -302,11 +337,14 @@ export default function Draft() {
 				return;
 			}
 			try {
-				const suggestion = await getFetcher().fetchSuggestion(suggestionRequest);
+				const suggestion =
+					await getFetcher().fetchSuggestion(suggestionRequest);
 				// The AI sometimes returns "[]" (an empty JSON array) as plain text
 				// when it has nothing to say. Treat that the same as an empty response
 				// so we don't show a useless "[]" bullet to the user.
-				const isEmpty = suggestion.result.trim() === '' || suggestion.result.trim() === '[]';
+				const isEmpty =
+					suggestion.result.trim() === '' ||
+					suggestion.result.trim() === '[]';
 				if (isEmpty) {
 					// Nothing to show, but say so — silence reads as a broken button.
 					console.warn('Received empty suggestion.');
@@ -361,7 +399,8 @@ export default function Draft() {
 		const prevRequest = getFetcher().previousRequest;
 		if (
 			prevRequest &&
-			JSON.stringify(prevRequest.docContext) === JSON.stringify(docContext) &&
+			JSON.stringify(prevRequest.docContext) ===
+				JSON.stringify(docContext) &&
 			prevRequest.type === modesToShow[0]
 		) {
 			console.warn(
@@ -384,7 +423,6 @@ export default function Draft() {
 	return (
 		<div className={classes.app}>
 			<div className={classes.body}>
-					
 				<div className="flex flex-col flex-1 overflow-hidden">
 					<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
 						{/* The document's brief — same section as on Revise, same
@@ -412,11 +450,15 @@ export default function Draft() {
 											void (async () => {
 												setActiveMode(mode);
 												// Pull the current document context at click time.
-												const docContext = await refreshDocContext();
-												draftLog.suggestionRequested(log, {
-													generationType: mode,
-													docContext,
-												});
+												const docContext =
+													await refreshDocContext();
+												draftLog.suggestionRequested(
+													log,
+													{
+														generationType: mode,
+														docContext,
+													},
+												);
 												resetAutoRefresh();
 												getSuggestion(
 													{
@@ -435,20 +477,36 @@ export default function Draft() {
 										aria-label={meta?.name}
 										title={meta?.description}
 									>
-										{Icon ? <Icon className={classes.featIcon} /> : null}
+										{Icon ? (
+											<Icon
+												className={classes.featIcon}
+											/>
+										) : null}
 										{meta ? (
 											<>
-												<div className={classes.featName}>{meta.name}</div>
-												<div className={classes.featDesc}>{meta.description}</div>
+												<div
+													className={classes.featName}
+												>
+													{meta.name}
+												</div>
+												<div
+													className={classes.featDesc}
+												>
+													{meta.description}
+												</div>
 											</>
 										) : null}
-										<div className={classes.activeDot}></div>
+										<div
+											className={classes.activeDot}
+										></div>
 									</button>
 								);
 							})}
 						</div>
 						{/* Results Area */}
-						<div className={`${classes.resultsArea} ${savedItems.length > 0 ? classes.hasContent : ''}`}>
+						<div
+							className={`${classes.resultsArea} ${savedItems.length > 0 ? classes.hasContent : ''}`}
+						>
 							{errorInfo ? (
 								<GenerationErrorNotice
 									info={errorInfo}
@@ -463,11 +521,17 @@ export default function Draft() {
 									onRetry={retryLastRequest}
 								/>
 							) : null}
-							{!errorInfo && !emptyResult && savedItems.length === 0 && !isLoading ? (
+							{!errorInfo &&
+							!emptyResult &&
+							savedItems.length === 0 &&
+							!isLoading ? (
 								<div className={classes.emptyStateContainer}>
-									<div className={classes.emptyTitle}>No suggestions yet</div>
+									<div className={classes.emptyTitle}>
+										No suggestions yet
+									</div>
 									<div className={classes.emptyHint}>
-										Click a button above to generate suggestions for your text
+										Click a button above to generate
+										suggestions for your text
 									</div>
 								</div>
 							) : null}
@@ -488,12 +552,11 @@ export default function Draft() {
 					</div>
 
 					<div className={classes.disclaimer}>
-						Please note that AI suggestions may vary in quality. Always review suggestions carefully before using them.
+						Please note that AI suggestions may vary in quality.
+						Always review suggestions carefully before using them.
 					</div>
 				</div>
-
 			</div>
 		</div>
-			);
-		}
-		
+	);
+}

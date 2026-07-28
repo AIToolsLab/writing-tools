@@ -57,7 +57,8 @@ describe('requestDeviceCode', () => {
 		fetchMock.mockResolvedValueOnce({
 			ok: false,
 			status: 502,
-			json: () => Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+			json: () =>
+				Promise.reject(new SyntaxError('Unexpected end of JSON input')),
 		} as unknown as Response);
 		await expect(requestDeviceCode()).rejects.toThrow(
 			/device\/code failed \(502\).*backend running/,
@@ -124,13 +125,16 @@ describe('pollForToken', () => {
 		fetchMock.mockResolvedValueOnce({
 			ok: false,
 			status: 502,
-			json: () => Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+			json: () =>
+				Promise.reject(new SyntaxError('Unexpected end of JSON input')),
 		} as unknown as Response);
 		const promise = pollForToken('dev', 1);
 		await vi.runAllTimersAsync();
 		await expect(promise).resolves.toEqual({
 			type: 'error',
-			message: expect.stringMatching(/device\/token failed \(502\).*backend running/),
+			message: expect.stringMatching(
+				/device\/token failed \(502\).*backend running/,
+			),
 		});
 	});
 

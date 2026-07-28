@@ -23,7 +23,13 @@ export function setOpenAITokenProvider(provider: () => Promise<string>): void {
 	tokenProvider = provider;
 }
 
-async function authorizedFetch(
+/**
+ * `fetch` carrying the session token and the first-party client id. The SDK uses
+ * it for every model request; export it so hand-written calls to our proxy (the
+ * realtime token mint) authenticate the same way rather than growing a second,
+ * subtly different copy of this.
+ */
+export async function authorizedFetch(
 	input: RequestInfo | URL,
 	init?: RequestInit,
 ): Promise<Response> {

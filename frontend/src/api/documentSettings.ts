@@ -35,7 +35,10 @@ export function localStorageDocumentSettings(
 			try {
 				return Promise.resolve(localStorage.getItem(storageKey(key)));
 			} catch (error) {
-				console.warn(`Could not read document setting "${key}":`, error);
+				console.warn(
+					`Could not read document setting "${key}":`,
+					error,
+				);
 				return Promise.resolve(null);
 			}
 		},
@@ -44,7 +47,10 @@ export function localStorageDocumentSettings(
 			try {
 				localStorage.setItem(storageKey(key), value);
 			} catch (error) {
-				console.warn(`Could not save document setting "${key}":`, error);
+				console.warn(
+					`Could not save document setting "${key}":`,
+					error,
+				);
 			}
 			return Promise.resolve();
 		},
