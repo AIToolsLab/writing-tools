@@ -60,6 +60,13 @@ Guidelines:
 `,
 };
 
+// The system prompt for every Draft suggestion. It is passed as the
+// `instructions` option on the generation call, never as a system message in
+// `messages`: ai@7 rejects a system-role message there with "System messages
+// are not allowed in the prompt or messages fields."
+export const DRAFT_INSTRUCTIONS =
+	'You are a helpful and insightful writing assistant.';
+
 // Builds the messages array that gets sent to OpenAI.
 // Previously this was done in the backend (nlp.py). Now the frontend does it,
 // so the backend only needs to forward the messages to OpenAI.
@@ -119,11 +126,7 @@ export function buildMessages(
 			'\n\nFormat your response as a plain bulleted list, one item per line starting with "- ". Do not use JSON or array notation.';
 	}
 
-	return [
-		{
-			role: 'system' as const,
-			content: 'You are a helpful and insightful writing assistant.',
-		},
-		{ role: 'user' as const, content: userContent },
-	];
+	// User messages only — the system prompt travels separately as
+	// DRAFT_INSTRUCTIONS.
+	return [{ role: 'user' as const, content: userContent }];
 }
