@@ -62,17 +62,21 @@ describe('mindmap tool registration', () => {
 	it('reserves before reading a document and completes a granted launch', async () => {
 		const calls: string[] = [];
 		const result = await launchFirstPartyTool(mindmap, {
-			getAccessToken: async () => {
+			getAccessToken: () => {
 				calls.push('token');
-				return 'token';
+				return Promise.resolve('token');
 			},
-			getDocContext: async () => {
+			getDocContext: () => {
 				calls.push('doc');
-				return { beforeCursor: 'draft', selectedText: '', afterCursor: '' };
+				return Promise.resolve({
+					beforeCursor: 'draft',
+					selectedText: '',
+					afterCursor: '',
+				});
 			},
-			createGrant: async () => {
+			createGrant: () => {
 				calls.push('grant');
-				return { grantId: 'grant', expiresIn: 120 };
+				return Promise.resolve({ grantId: 'grant', expiresIn: 120 });
 			},
 			reserveLaunch: () => {
 				calls.push('reserve');
