@@ -1,0 +1,97 @@
+name: Mindmap launcher tests
+
+on:
+  pull_request:
+    paths:
+      - "prototype-mindmap/**"
+      - "frontend/src/api/handoff.ts"
+      - "frontend/src/api/wordEditorAPI.ts"
+      - "frontend/src/pages/tools/**"
+      - "frontend/src/vite-env.d.ts"
+      - "backend/src/app.ts"
+      - "backend/src/openaiProxy.ts"
+      - "backend/src/toolGrants.ts"
+      - "backend/src/__tests__/handoff.test.ts"
+      - "backend/src/__tests__/openaiProxy.test.ts"
+      - "scripts/get_env.py"
+      - "scripts/test_get_env.py"
+      - ".github/workflows/mindmap-tests.yml"
+  push:
+    branches: [main, mindmap-main]
+    paths:
+      - "prototype-mindmap/**"
+      - "frontend/src/api/handoff.ts"
+      - "frontend/src/api/wordEditorAPI.ts"
+      - "frontend/src/pages/tools/**"
+      - "backend/src/app.ts"
+      - "backend/src/openaiProxy.ts"
+      - "backend/src/toolGrants.ts"
+      - "scripts/get_env.py"
+      - ".github/workflows/mindmap-tests.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  integration-units:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+      - name: Backend dependencies
+        working-directory: backend
+        run: npm ci
+      - name: Backend typecheck and tests
+        working-directory: backend
+        run: npm run typecheck && npm test
+      - name: Frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Frontend typecheck and tests
+        working-directory: frontend
+        run: npm run typecheck && npm test
+      - name: get_env formatting and idempotency tests
+        run: python -m unittest scripts/test_get_env.py
+
+  mindmap:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prototype-mindmap
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: prototype-mindmap/package-lock.json
+      - run: npm ci
+      - name: TypeScript
+        run: npx tsc --noEmit
+      - name: Vitest
+        run: npm test
+      - name: Eval typecheck
+        run: npm run eval:typecheck
+      - name: Production build
+        env:
+          VITE_BACKEND_URL: https://ci.invalid/api
+          VITE_REQUIRE_LAUNCH: "true"
+        run: npm run build
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Playwright mocked smoke
+        run: npm run test:e2e
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v6
+        with:
+          name: mindmap-playwright-report
+          path: prototype-mindmap/playwright-report
+          if-no-files-found: ignore
+          retention-days: 7

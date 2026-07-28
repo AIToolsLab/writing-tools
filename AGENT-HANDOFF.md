@@ -20,7 +20,7 @@ Prototype path: `prototype-mindmap/`
    - `docs/multilingual-grounding-pass.md` — multilingual pass (landed/accepted).
    - `docs/stage-1_5-fix-pass.md` — historical; context for recent changes.
 
-## Current verified state (HEAD `9ec90e6`)
+## Current verified state (baseline `9ec90e6`; see the 2026-07-27 note below for the current branch tip)
 
 Stage 1/1.5 typed-proposal runtime, all three assistance contracts (L0/L1/L2),
 passive draft anchors, immutable draft snapshots, controlled recall, terminal
@@ -33,6 +33,28 @@ Verification at this checkpoint: `tsc` and eval type-checks pass, 270 Vitest
 tests pass, production build passes, browser smoke green. Outstanding: a live
 provider run for recap/explicit-nesting and the tuned 20-scenario reportable
 eval.
+
+**[2026-07-27] Tool-launcher integration landed on
+`feat/mindmap-tool-integration`** (`04e3324` + review fixes in `df44321`; **not
+pushed, not merged**). The mindmap is now a launched tool: it exchanges a
+`wt_grant` fragment for a `wtk_` bearer at `/api/handoff/exchange`
+(`platform-session.ts`), gates boot on that session (`PlatformBootstrap.tsx`),
+hydrates a read-only draft snapshot from the handed-off `DocContext`, and sends
+the bearer on both provider transports plus reader translation via
+`ProviderRuntimeConfig`. `makeLLM` now takes an options object, not five
+positional params. Server telemetry is gone: `mirrorSanitizedEvent` and
+`/api/mindmap/events` were dropped, and the `EventLedger` is IndexedDB-only.
+Persisted session schema is at **version 7** (`draftSource`, `lastSavedAt`);
+the storage key is unchanged at `prototype-mindmap-session-v1`. 352 Vitest,
+typecheck, eval typecheck, production build, Playwright green.
+
+**Outstanding before that branch is PR-ready: a live end-to-end launch has
+never been run.** Every check so far is mocked — the Playwright spec stubs
+`/handoff/exchange` and `/openai/chat/completions` with `page.route`. The live
+run needs `BETTER_AUTH_ENABLED=true` (`get_env.py` writes `false`) and a
+non-anonymous `@calvin.edu` sign-in; an anonymous session with no
+`OPENAI_DEMO_API_KEY` makes `attributeRequest` return null, so the proxy 401s
+and the mindmap misreports it as an expired token.
 
 Live pipeline:
 
@@ -607,22 +629,34 @@ first, and finishing the coach work de-risks it.
    unverified live. This live pass is the real acceptance gate for the whole
    reflection-recovery arc, not just 6c.
 
-7. **[POST-MERGE] `App.tsx` decomposition** (**4,852 lines** on
-   `mindmap-main`; 4,941 with 4b in the working tree — the "~4,700" figure
-   was stale): `useMindmapSession` hook, `session-persistence.ts`,
-   `ControlRoom.tsx` fed by a diagnostics selector.
+7. **`App.tsx` decomposition** (**4,682 lines** as of `df44321`, after the
+   ControlRoom extraction and the launcher integration): `session-persistence.ts`,
+   then the `useMindmapSession` hook, with `ControlRoom.tsx` already out.
+   Slice 2 is now pre-PR; slice 3 stays post-merge.
 
-   **[SLICE 1 DONE 2026-07-24 — `ControlRoom.tsx` extracted.]** On branch
-   `feat/mindmap-controlroom-extraction` (worktree `writing-tools-controlroom`,
-   commit `b37b1df`; **NOT pushed, NOT merged**). Moved `UnderTheHoodPanel` +
-   its panel-only helpers out of `App.tsx` (−439 lines → 4,610); the
-   diagnostics selector (`buildDiagnosticSnapshot`) stays in App and feeds the
-   panel via props; `MicIcon`/`UnderhoodIcon` stayed in App (toolbar-only, not
-   panel deps). Behaviour-neutral: tsc clean, 335 Vitest, build green.
-   **The branch sits on `4fcc425` and is now 1 commit behind `mindmap-main`
-   (`afce738`, the recap fix) — rebase/merge before continuing.** Remaining
-   item-7 slices: `session-persistence.ts`, then the `useMindmapSession` hook,
-   after which 6b (Recap) builds cleanly into the extracted ControlRoom.
+   **[SLICE 1 DONE — `ControlRoom.tsx` extracted, MERGED 2026-07-24.]**
+   Extracted on `feat/mindmap-controlroom-extraction` (`b37b1df`) and **merged
+   into `mindmap-main` as `e0115e1`** — the branch is done; do not redo it.
+   Moved `UnderTheHoodPanel` + its panel-only helpers out of `App.tsx`
+   (−439 lines); the diagnostics selector (`buildDiagnosticSnapshot`) stays in
+   App and feeds the panel via props; `MicIcon`/`UnderhoodIcon` stayed in App
+   (toolbar-only, not panel deps). Behaviour-neutral: tsc clean, 335 Vitest,
+   build green.
+
+   **[SLICE 2 — NEXT, do before opening the launcher PR.]**
+   `session-persistence.ts`. The launcher integration sharpened the case: as of
+   `df44321`, `PlatformBootstrap.tsx` imports `savedMindmapSummary`,
+   `clearSavedMindmap`, and `DraftSourceMetadata` **from `./App`**, so the boot
+   layer now depends on the 4,682-line component it renders purely for storage
+   helpers; `App.test.ts` reaches in for `SESSION_STORAGE_KEY` too. Move
+   `loadPersistedSession`, `savedMindmapSummary`, `clearSavedMindmap`,
+   `SESSION_STORAGE_KEY`, the `PersistedSession` type, and the version-1–7
+   migration into one module and re-point both importers. Behaviour-neutral;
+   no schema change (stay at version 7, key unchanged).
+
+   **[SLICE 3 — after slice 2.]** The `useMindmapSession` hook. This is the
+   large one; it stays post-merge. 6b (Recap) then builds cleanly into the
+   extracted ControlRoom.
 
    **Sequencing (recommended 2026-07-23): do this BEFORE Checkpoint 6, not
    after.** Checkpoint 6 adds two large surfaces to this same file — the
@@ -630,9 +664,11 @@ first, and finishing the coach work de-risks it.
    a ~5,000-line component makes both the implementation and its review
    harder, and every checkpoint so far has grown the file further. The 4b QA
    also strengthened the structural case: the blank-map failure came from
-   layout fragility in this file, and there is **no error boundary anywhere
-   in the app**. The `ControlRoom.tsx` extraction in particular would isolate
-   the provenance-grid bug (6b above) and the Control Room translation logic.
+   layout fragility in this file, and there is **no *root* error boundary** —
+   `Map.tsx:776` has one scoped to the canvas, but nothing above it, so a throw
+   in `App` still blanks the page (see item 9). The `ControlRoom.tsx`
+   extraction in particular would isolate the provenance-grid bug (6b above)
+   and the Control Room translation logic.
 
 8. **[AGREED 2026-07-23 — POST-4b] Checkpoint 6: session digest + donor
    reclamation.** Reclaim three donor features
@@ -712,6 +748,17 @@ first, and finishing the coach work de-risks it.
    MutationObserver layer — pass uses typed lookup), donor `language.ts`
    write/view model (superseded by `ui-locale` + 4b reader view),
    `open-threads.ts` (deliberately deleted from `mindmap-main`; do not revive).
+
+9. **Root error boundary.** `Map.tsx:776` guards the canvas only; nothing sits
+   above `App`, so any throw during render blanks the page with no recovery
+   affordance — the failure shape behind the 4b blank-map incident. Now that
+   `PlatformBootstrap.tsx` is the render root (it already owns the gate,
+   connecting, and blocked screens and their `platform-gate` styling), it is
+   the natural host: wrap the `ready` branch, reuse the existing gate markup
+   for the fallback, and offer reload. Small (~30 lines) and worth landing with
+   the launcher PR — it protects a demo far more than any further file split.
+   Do **not** let the fallback clear `localStorage`; the saved mindmap must
+   survive a render crash exactly as it survives token expiry.
 
 ## Deferred (do not start unless asked)
 

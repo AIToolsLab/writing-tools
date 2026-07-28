@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ClipboardEvent, type FormEvent } from "react";
-import { historyForCurrentTurn, makeLLM, type ConversationMessage } from "./api";
+import { historyForCurrentTurn, makeLLM, type ConversationMessage, type ProviderRuntimeConfig } from "./api";
 import { defaultConfig, withQuestionIntentBias, type MindmapConfig } from "./config";
-import type { AssistantResponse, ConversationState, DiagnosticEvent, RepairFailureTerminal, TurnProgressStage, TurnResult } from "./assistant-response";
-import type { ProposalOutcomeContext, QuestionStance, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
+import type { AssistantResponse, ConversationState, DiagnosticEvent, TurnProgressStage, TurnResult } from "./assistant-response";
+import type { ProposalOutcomeContext, SelectedFocusContext, UserRequestedMode } from "./llm-contract";
 import { pruneContextSelection, ThoughtMap, toggleContextSelection, type CoachDebugInfo, type MapCommandAcknowledgement } from "./Map";
 import { ThoughtUnitStore, type ThoughtUnitStoreSnapshot } from "./map-store";
 import { applyConfirmedReflection, applyGatewayActions, executeCanvasAction, inspectAction, type ProposedAction } from "./action-gateway";
@@ -10,52 +10,40 @@ import { createProposalStore, resolveProposal, updateProposal, type Proposal } f
 import { cloneConversationState, createConversationState, mergeConversationBank, processTurn } from "./stage1-loop";
 import { cardRef } from "./store";
 import type { CandidateThought, ThoughtUnit, ThoughtUnitRole } from "./types";
-import type { ClaimValidation, ConfirmedReflection, MirrorReflection } from "./types";
+import type { ConfirmedReflection } from "./types";
 import { validateMirror } from "./validator";
 import { buildDiagnosticSnapshot, type UnderstandingSnapshot } from "./understanding";
 import { useSpeechToText } from "./useSpeechToText";
 import { measureDraftAnchorRects, scrollDraftAnchorIntoView, type DraftAnchorRect } from "./draft-anchor";
 import { ASSISTANCE_CONTRACTS, contractForLevel, DEFAULT_ASSISTANCE_CONTRACT, normalizeInfluenceTrace, snapshotContract, type AssistanceLevel } from "./assistance-contract";
-import { EventLedger, mirrorSanitizedEvent, type LedgerEventKind } from "./event-ledger";
+import { EventLedger, type LedgerEventKind } from "./event-ledger";
 import { reconcileStoreSuggestionAdoption, type VisibleSuggestion } from "./suggestion-adoption";
 import { provenanceTotals } from "./provenance-summary";
 import { useMutationAccess } from "./mutation-policy";
-import { useUiLocale } from "./ui-locale";
+import { interpolateUi, useUiLocale } from "./ui-locale";
 import { useReaderView } from "./reader-view";
 import { UnderTheHoodPanel } from "./ControlRoom";
+import {
+  loadPersistedSession,
+  writePersistedSession,
+  type ChatMsg,
+  type ClaimDecision,
+  type DraftPanelPos,
+  type DraftPanelSize,
+  type DraftSelectionFocus,
+  type DraftSourceMetadata,
+  type PersistedPendingMirror,
+  type PersistedSession,
+} from "./session-persistence";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-interface ChatMsg {
-  id: number;
-  role: "user" | "assistant" | "application";
-  text: string;
-  mode?: "question" | "mirror" | "clarify";
-  /** A typed proposal awaiting an explicit UI decision. */
-  proposalId?: string;
-  /** v1/v2 migration input only. */
-  mirrorId?: string;
-  /** Verbatim draft substring this question is anchored to, if any. */
-  questionAnchor?: string;
-  /** The coaching stance the AI chose for this turn, if any. */
-  questionStance?: QuestionStance;
-  /** Preserves the typed response kind for visible provenance in the transcript. */
-  responseKind?: AssistantResponse["kind"];
-  /** Application-owned terminal recovery; never sent to the model as dialogue. */
-  terminal?: RepairFailureTerminal["kind"];
-}
-
-interface DraftPanelPos { x: number; y: number; }
-interface DraftPanelSize { w: number; h: number; }
-
 interface MapUndoSnapshot {
   map: ThoughtUnitStoreSnapshot;
   bank: ReturnType<ConversationState["bank"]["getAll"]>;
 }
-
-type ClaimDecision = "pending" | "confirmed" | "declined";
 
 export interface MirrorDecisionResolution {
   nextDecisions: Record<string, ClaimDecision>;
@@ -91,7 +79,6 @@ const DRAFT_MIN_VISIBLE_WIDTH = 220;
 const DRAFT_MIN_VISIBLE_HEIGHT = 120;
 const DRAFT_CHIP_WIDTH = 56;
 const DRAFT_CHIP_HEIGHT = 44;
-const SESSION_STORAGE_KEY = "prototype-mindmap-session-v1";
 const WORKING_INDICATOR_DELAY_MS = 700;
 
 export const TURN_PROGRESS_COPY: Record<TurnProgressStage, string> = {
@@ -110,54 +97,6 @@ function snapQuestionBias(value: number): number {
   );
 }
 
-export interface PersistedPendingMirror {
-  id: string;
-  reflection: MirrorReflection;
-  claims: ClaimValidation[];
-  decisions: Record<string, ClaimDecision>;
-  editedTexts?: Record<string, string>;
-}
-
-interface PersistedSession {
-  version: 1 | 2 | 3 | 4 | 5 | 6;
-  sessionId?: string;
-  assistanceLevel?: AssistanceLevel;
-  msgs: ChatMsg[];
-  pendingMirrors?: PersistedPendingMirror[];
-  proposals?: Proposal[];
-  confirmed: ConfirmedReflection[];
-  lastCoachDebug?: CoachDebugInfo | null;
-  understandingSnapshot?: UnderstandingSnapshot | null;
-  mapRevision: number;
-  questionBias: number;
-  requireConnectionLabel?: boolean;
-  draftText: string;
-  draftHtml?: string;
-  draftCollapsed: boolean;
-  draftDocked?: boolean;
-  draftPos: DraftPanelPos;
-  draftSize: DraftPanelSize;
-  stickyDraftFocus?: DraftSelectionFocus;
-  conversation?: {
-    turnsSinceLastReflection: number;
-    lastAssistantText: string;
-    draft: string;
-    currentUserTurn?: number;
-    latestUserLanguagePattern?: "single" | "mixed" | "unknown";
-    currentDraftSnapshotId?: string;
-    draftSnapshotText?: string;
-    legacyIgnoredCandidateIds?: string[];
-    /** v1-v5 migration input only. */
-    dismissedCandidateIds?: string[];
-  };
-  /** Read only by the v1/v2 migration and never restored into live routing state. */
-  controller?: { turnsSinceLastMirror?: number; lastAiText?: string; draft?: string; dismissedCandidateIds?: string[] };
-  diagnostics?: DiagnosticEvent[];
-  bank: ReturnType<ConversationState["bank"]["getAll"]>;
-  candidates: ReturnType<ConversationState["candidates"]["getAll"]>;
-  map: ThoughtUnitStoreSnapshot;
-}
-
 export function migrateLegacyMirrors(pending: PersistedPendingMirror[], mapRevision: number): Proposal[] {
   return pending.map((mirror) => ({
     id: mirror.id,
@@ -171,7 +110,6 @@ export function migrateLegacyMirrors(pending: PersistedPendingMirror[], mapRevis
   }));
 }
 
-interface DraftSelectionFocus { text: string; }
 
 // ---------------------------------------------------------------------------
 // Styles (no build step needed, just a style tag approach via CSS-in-JS)
@@ -1733,6 +1671,14 @@ const css = `
     color: #666;
     flex: 1;
   }
+  .draft-source-label {
+    margin-left: auto;
+    max-width: 260px;
+    font-size: 10px;
+    line-height: 1.2;
+    color: #76694f;
+    text-align: right;
+  }
 
   .draft-panel-btn {
     background: #fff;
@@ -2480,24 +2426,53 @@ function defaultDraftPosition(size: DraftPanelSize): DraftPanelPos {
   );
 }
 
-function loadPersistedSession(): PersistedSession | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(SESSION_STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as PersistedSession;
-    return parsed.version === 1 || parsed.version === 2 || parsed.version === 3 || parsed.version === 4 || parsed.version === 5 || parsed.version === 6 ? parsed : null;
-  } catch {
-    return null;
-  }
-}
-
 export function buildConversationHistory(msgs: ChatMsg[]): ConversationMessage[] {
   return msgs.flatMap((msg) =>
-    msg.role === "user" || msg.role === "assistant"
+    (msg.role === "user" || msg.role === "assistant") &&
+    msg.deliveryStatus !== "pending" &&
+    msg.deliveryStatus !== "failed"
       ? [{ role: msg.role, content: msg.text }]
       : [],
   );
+}
+
+export function restoreFailedMessageToComposer(
+  msgs: ChatMsg[],
+  input: string,
+  messageId: number,
+): { msgs: ChatMsg[]; input: string } {
+  const failed = msgs.find(
+    (message) =>
+      message.id === messageId &&
+      message.role === "user" &&
+      message.deliveryStatus === "failed",
+  );
+  if (!failed) return { msgs, input };
+  return {
+    msgs: msgs.filter((message) => message.id !== messageId),
+    input: input ? `${failed.text}\n\n${input}` : failed.text,
+  };
+}
+
+export function recoverFailedTurn(
+  msgs: ChatMsg[],
+  input: string,
+  message: ChatMsg,
+): { msgs: ChatMsg[]; input: string } {
+  if (!input) {
+    return {
+      msgs: msgs.filter((candidate) => candidate.id !== message.id),
+      input: message.text,
+    };
+  }
+  return {
+    msgs: msgs.map((candidate) =>
+      candidate.id === message.id
+        ? { ...candidate, deliveryStatus: "failed" }
+        : candidate,
+    ),
+    input,
+  };
 }
 
 export function deriveCurrentUserTurn(bank: Array<{ turnId?: string }>): number {
@@ -2718,7 +2693,13 @@ function UnderhoodIcon() {
   );
 }
 
-export default function App() {
+export interface AppProps {
+  providerRuntime?: ProviderRuntimeConfig;
+  initialDraft?: { text: string; source?: DraftSourceMetadata };
+  aiAccessDenied?: boolean;
+}
+
+export default function App({ providerRuntime, initialDraft, aiAccessDenied = false }: AppProps) {
   const { locale, t } = useUiLocale();
   const reader = useReaderView();
   const mutationAccess = useMutationAccess();
@@ -2729,7 +2710,10 @@ export default function App() {
 
   const initialState = useMemo(() => {
     const state = createConversationState();
-    if (!persistedSession) return state;
+    if (!persistedSession) {
+      state.draft = initialDraft?.text ?? "";
+      return state;
+    }
     state.bank.replaceAll(persistedSession.bank);
     const currentUserTurn = persistedSession.conversation?.currentUserTurn ?? deriveCurrentUserTurn(persistedSession.bank);
     const legacyIgnoredCandidateIds = persistedSession.conversation?.legacyIgnoredCandidateIds
@@ -2747,7 +2731,7 @@ export default function App() {
     state.currentDraftSnapshotId = persistedSession.conversation?.currentDraftSnapshotId;
     state.draftSnapshotText = persistedSession.conversation?.draftSnapshotText;
     return state;
-  }, [persistedSession]);
+  }, [initialDraft?.text, persistedSession]);
 
   const initialMapStore = useMemo(() => {
     const store = new ThoughtUnitStore();
@@ -2776,7 +2760,7 @@ export default function App() {
   const initialMapRevision = persistedSession?.mapRevision ?? 0;
   const initialQuestionBias = snapQuestionBias(persistedSession?.questionBias ?? 35);
   const initialRequireConnectionLabel = persistedSession?.requireConnectionLabel ?? true;
-  const initialDraftText = persistedSession?.draftText ?? "";
+  const initialDraftText = persistedSession?.draftText ?? initialDraft?.text ?? "";
   const initialDraftHtml = restoreDraftHtml(persistedSession?.draftHtml, initialDraftText);
   const initialDraftCollapsed = persistedSession?.draftCollapsed ?? false;
   const initialDraftDocked = persistedSession?.draftDocked ?? false;
@@ -2787,6 +2771,7 @@ export default function App() {
     ? clampDraftPosition(persistedSession.draftPos, initialDraftSize)
     : { x: 0, y: 0 };
   const initialStickyDraftFocus = persistedSession?.stickyDraftFocus;
+  const initialDraftSource = persistedSession?.draftSource ?? initialDraft?.source;
 
   const stateRef = useRef<ConversationState>(initialState);
   const configRef = useRef<MindmapConfig>(withQuestionIntentBias(defaultConfig, initialQuestionBias));
@@ -2812,19 +2797,21 @@ export default function App() {
   const [showWorking, setShowWorking] = useState(false);
   const [turnProgress, setTurnProgress] = useState<TurnProgressStage | null>(null);
   const [input, setInput] = useState("");
+  const inputRef = useRef(input);
+  inputRef.current = input;
   const [composerScrollable, setComposerScrollable] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [underhoodOpen, setUnderhoodOpen] = useState(false);
   const [contextSelectedCardIds, setContextSelectedCardIds] = useState<Set<string>>(new Set());
   const [draftSelectionFocus, setDraftSelectionFocus] = useState<DraftSelectionFocus | undefined>(undefined);
   const [stickyDraftFocus, setStickyDraftFocus] = useState<DraftSelectionFocus | undefined>(initialStickyDraftFocus);
+  const [draftSource, setDraftSource] = useState<DraftSourceMetadata | undefined>(initialDraftSource);
   const ledgerRef = useRef(new EventLedger(initialSessionId));
   const contract = contractForLevel(assistanceLevel);
 
-  const recordEvent = useCallback(async (kind: LedgerEventKind, detail?: unknown, extra?: { origin?: import("./assistance-contract").ContributionOrigin; responseKind?: string; outcome?: string; code?: string; contract?: import("./assistance-contract").AssistanceContractSnapshot; providerTransport?: "chat_json" | "responses_tools"; toolName?: "propose_reflection_v1" | "propose_map_action_v1"; repairCount?: number; candidateStatus?: "active" | "parked" | "ignored" | "promoted"; ageInTurns?: number; currentPercentage?: number; peakPercentage?: number }) => {
-    const event = await ledgerRef.current.record(kind, detail, { contract: extra?.contract ?? snapshotContract(contract), origin: extra?.origin });
+  const recordEvent = useCallback(async (kind: LedgerEventKind, detail?: unknown, extra?: { origin?: import("./assistance-contract").ContributionOrigin; responseKind?: string; outcome?: string; code?: string; durationMs?: number; contract?: import("./assistance-contract").AssistanceContractSnapshot; providerTransport?: "chat_json" | "responses_tools"; toolName?: "propose_reflection_v1" | "propose_map_action_v1"; repairCount?: number; candidateStatus?: "active" | "parked" | "ignored" | "promoted"; ageInTurns?: number; currentPercentage?: number; peakPercentage?: number }) => {
+    await ledgerRef.current.record(kind, detail, { ...extra, contract: extra?.contract ?? snapshotContract(contract) });
     setLedgerAvailable(ledgerRef.current.isAvailable);
-    void mirrorSanitizedEvent(event, { responseKind: extra?.responseKind, outcome: extra?.outcome, code: extra?.code, providerTransport: extra?.providerTransport, toolName: extra?.toolName, repairCount: extra?.repairCount, candidateStatus: extra?.candidateStatus, ageInTurns: extra?.ageInTurns, currentPercentage: extra?.currentPercentage, peakPercentage: extra?.peakPercentage });
   }, [contract]);
 
   useEffect(() => { msgsRef.current = msgs; }, [msgs]);
@@ -3560,10 +3547,10 @@ export default function App() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const snapshot: PersistedSession = {
-      version: 6,
+      version: 7,
       sessionId: initialSessionId,
       assistanceLevel,
-      msgs,
+      msgs: msgs.filter((message) => message.deliveryStatus !== "pending"),
       proposals: Array.from(proposals.values()),
       confirmed,
       lastCoachDebug,
@@ -3577,6 +3564,8 @@ export default function App() {
       draftDocked,
       draftPos,
       draftSize,
+      draftSource,
+      lastSavedAt: Date.now(),
       stickyDraftFocus,
       conversation: {
         turnsSinceLastReflection: stateRef.current.turnsSinceLastReflection,
@@ -3594,7 +3583,7 @@ export default function App() {
       map: mapStoreRef.current.snapshot(),
     };
     try {
-      window.localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(snapshot));
+      writePersistedSession(window.localStorage, snapshot);
     } catch {
       // Persistence is best-effort. A full quota (long session, large draft
       // HTML/map) or a storage-blocked context (private mode) must not throw
@@ -3609,6 +3598,7 @@ export default function App() {
     draftPos,
     draftSize,
     draftText,
+    draftSource,
     lastCoachDebug,
     understandingSnapshot,
     mapRevision,
@@ -3621,7 +3611,7 @@ export default function App() {
   ]);
 
   async function send() {
-    if (!mutationAccess.allows("chat_send")) return;
+    if (aiAccessDenied || !mutationAccess.allows("chat_send")) return;
     const text = input.trim();
     if (!text || loading) return;
     const nonce = ++turnNonceRef.current;
@@ -3631,6 +3621,7 @@ export default function App() {
     });
 
     speech.stop();
+    inputRef.current = "";
     setInput("");
     setError(null);
     speech.reset();
@@ -3641,12 +3632,28 @@ export default function App() {
     setContextSelectedCardIds(new Set());
     setDraftSelectionFocus(undefined);
 
-    const userMessage: ChatMsg = { id: ++msgId, role: "user", text };
+    const userMessage: ChatMsg = {
+      id: ++msgId,
+      role: "user",
+      text,
+      deliveryStatus: "pending",
+    };
     // React state is asynchronous. Construct the provider transcript here so
     // this exact user turn is present once, in final dialogue position, on the
     // very request it triggered.
     const turnHistory = historyForCurrentTurn(buildConversationHistory(msgs), text);
-    setMsgs((prev) => [...prev.filter((message) => message.role !== "application" || message.terminal !== "repair_failed"), userMessage]);
+    setMsgs((prev) => {
+      const next = [
+        ...prev.filter(
+          (message) =>
+            message.role !== "application" ||
+            message.terminal !== "repair_failed",
+        ),
+        userMessage,
+      ];
+      msgsRef.current = next;
+      return next;
+    });
 
     setLoading(true);
     try {
@@ -3657,11 +3664,15 @@ export default function App() {
       const out = await processTurn(
         workingState,
         text,
-        makeLLM(() => configRef.current, turnHistory, (trace) => {
-          const round = providerResponseCount++;
-          void recordEvent("model_request", { messages: trace.messages, model: trace.model, reasoningEffort: trace.reasoningEffort, responseId: trace.responseId }, { providerTransport: trace.transport });
-          if (trace.toolName) { requestedTools.push({ name: trace.toolName, callId: trace.toolCallId, round }); void recordEvent("provider_tool_requested", { toolName: trace.toolName, callId: trace.toolCallId, providerResponse: trace.parsedProviderResponse }, { providerTransport: trace.transport, toolName: trace.toolName }); }
-          void recordEvent("assistant_response", { parsedProviderResponse: trace.parsedProviderResponse, responseId: trace.responseId, outputItemTypes: trace.outputItemTypes }, { providerTransport: trace.transport, toolName: trace.toolName });
+        makeLLM(() => configRef.current, {
+          initialHistory: turnHistory,
+          runtime: providerRuntime,
+          onTrace: (trace) => {
+            const round = providerResponseCount++;
+            void recordEvent("model_request", { messages: trace.messages, model: trace.model, reasoningEffort: trace.reasoningEffort, responseId: trace.responseId }, { providerTransport: trace.transport });
+            if (trace.toolName) { requestedTools.push({ name: trace.toolName, callId: trace.toolCallId, round }); void recordEvent("provider_tool_requested", { toolName: trace.toolName, callId: trace.toolCallId, providerResponse: trace.parsedProviderResponse }, { providerTransport: trace.transport, toolName: trace.toolName }); }
+            void recordEvent("assistant_response", { parsedProviderResponse: trace.parsedProviderResponse, responseId: trace.responseId, outputItemTypes: trace.outputItemTypes }, { providerTransport: trace.transport, toolName: trace.toolName });
+          },
         }),
         configRef.current,
         mapStoreRef.current.toLLMContext(),
@@ -3681,11 +3692,35 @@ export default function App() {
       if (nonce !== turnNonceRef.current) return;
       mergeConversationBank(workingState, stateRef.current);
       stateRef.current = workingState;
+      setMsgs((previous) =>
+        previous.map((message) =>
+          message.id === userMessage.id
+            ? { ...message, deliveryStatus: "delivered" }
+            : message,
+        ),
+      );
       for (const event of out.diagnostics) void recordEvent("contract_decision", event, { outcome: event.outcome, code: event.code });
       appendCoachOutput(out);
     } catch (e) {
       if (nonce !== turnNonceRef.current) return;
       const msg = e instanceof Error ? e.message : String(e);
+      // Roll back the optimistic user bubble. It was never answered, and `msgs` is both
+      // persisted and the source `buildConversationHistory` rebuilds the provider
+      // transcript from — so leaving it replays a dangling, unanswered user turn into
+      // every later request for the life of the saved mindmap. Restoring the text makes
+      // retry one keystroke; deliberately not auto-resent, since by the time a relaunch
+      // completes the message is often stale and resending spends a real call.
+      const recovery = recoverFailedTurn(
+        msgsRef.current,
+        inputRef.current,
+        userMessage,
+      );
+      msgsRef.current = recovery.msgs;
+      setMsgs(recovery.msgs);
+      if (recovery.input !== inputRef.current) {
+        inputRef.current = recovery.input;
+        setInput(recovery.input);
+      }
       setError(msg);
     } finally {
       if (nonce === turnNonceRef.current) { setLoading(false); setTurnProgress(null); }
@@ -3695,7 +3730,7 @@ export default function App() {
   // Runs a coach-only turn without synthetic user text. A panel request replaces
   // its prior coach move; a completed proposal appends a genuine continuation.
   async function requestMode(mode?: UserRequestedMode, proposalOutcome?: ProposalOutcomeContext, currentMapRevision = mapRevision, recoveryId?: number) {
-    if (loading) return;
+    if (loading || aiAccessDenied) return;
     const nonce = ++turnNonceRef.current;
 
     speech.stop();
@@ -3711,11 +3746,15 @@ export default function App() {
       const out = await processTurn(
         workingState,
         "",
-        makeLLM(() => configRef.current, buildConversationHistory(msgs), (trace) => {
-          const round = providerResponseCount++;
-          void recordEvent("model_request", { messages: trace.messages, model: trace.model, reasoningEffort: trace.reasoningEffort, responseId: trace.responseId }, { providerTransport: trace.transport });
-          if (trace.toolName) { requestedTools.push({ name: trace.toolName, callId: trace.toolCallId, round }); void recordEvent("provider_tool_requested", { toolName: trace.toolName, callId: trace.toolCallId, providerResponse: trace.parsedProviderResponse }, { providerTransport: trace.transport, toolName: trace.toolName }); }
-          void recordEvent("assistant_response", { parsedProviderResponse: trace.parsedProviderResponse, responseId: trace.responseId, outputItemTypes: trace.outputItemTypes }, { providerTransport: trace.transport, toolName: trace.toolName });
+        makeLLM(() => configRef.current, {
+          initialHistory: buildConversationHistory(msgs),
+          runtime: providerRuntime,
+          onTrace: (trace) => {
+            const round = providerResponseCount++;
+            void recordEvent("model_request", { messages: trace.messages, model: trace.model, reasoningEffort: trace.reasoningEffort, responseId: trace.responseId }, { providerTransport: trace.transport });
+            if (trace.toolName) { requestedTools.push({ name: trace.toolName, callId: trace.toolCallId, round }); void recordEvent("provider_tool_requested", { toolName: trace.toolName, callId: trace.toolCallId, providerResponse: trace.parsedProviderResponse }, { providerTransport: trace.transport, toolName: trace.toolName }); }
+            void recordEvent("assistant_response", { parsedProviderResponse: trace.parsedProviderResponse, responseId: trace.responseId, outputItemTypes: trace.outputItemTypes }, { providerTransport: trace.transport, toolName: trace.toolName });
+          },
         }),
         configRef.current,
         mapStoreRef.current.toLLMContext(),
@@ -3935,6 +3974,7 @@ export default function App() {
     setHighlightAnchor(undefined);
     setDraftSelectionFocus(undefined);
     setStickyDraftFocus(undefined);
+    setDraftSource(undefined);
     stateRef.current.draft = "";
   }
 
@@ -4050,6 +4090,27 @@ export default function App() {
                     <button type="button" className="btn btn-confirm-sm" onClick={() => retryRecovery(m.id)} disabled={readOnly || loading}>{t("Try again")}</button>
                   </div>
                 )}
+                {m.role === "user" && m.deliveryStatus === "failed" && (
+                  <div className="recovery-actions">
+                    <button
+                      type="button"
+                      className="btn btn-confirm-sm"
+                      onClick={() => {
+                        const restored = restoreFailedMessageToComposer(
+                          msgsRef.current,
+                          inputRef.current,
+                          m.id,
+                        );
+                        msgsRef.current = restored.msgs;
+                        inputRef.current = restored.input;
+                        setMsgs(restored.msgs);
+                        setInput(restored.input);
+                      }}
+                    >
+                      {t("Restore to composer")}
+                    </button>
+                  </div>
+                )}
                 {m.role === "assistant" && m.questionAnchor && (
                   <button className="anchor-view-btn" type="button" onClick={() => revealDraftAnchor(m.questionAnchor!)}>
                     {t("View passage")}
@@ -4083,6 +4144,7 @@ export default function App() {
           </div>
 
           <div className="input-area">
+            {aiAccessDenied && <div className="error-banner" role="alert">{t("This account is not permitted to use AI features. Your draft and map remain available.")}</div>}
             {error && <div className="error-banner">{error}</div>}
             {stickyDraftFocus && (
               <div className="focus-chip" role="status">
@@ -4178,7 +4240,7 @@ export default function App() {
                   >
                     <MicIcon />
                   </button>
-                  <button className="send-btn" onClick={() => void send()} disabled={readOnly || loading || !input.trim()} aria-label={t("Send")} title={readOnly ? t("Switch back to the original view to edit.") : undefined} aria-describedby={readOnly ? "reader-view-status" : undefined}>
+                  <button className="send-btn" onClick={() => void send()} disabled={readOnly || aiAccessDenied || loading || !input.trim()} aria-label={t("Send")} title={readOnly ? t("Switch back to the original view to edit.") : undefined} aria-describedby={readOnly ? "reader-view-status" : undefined}>
                     {"\u2191"}
                   </button>
                 </div>
@@ -4215,6 +4277,14 @@ export default function App() {
         >
           <div className="draft-panel-header" onMouseDown={onDragStart}>
             <span className="draft-panel-title">{t("Draft")}</span>
+            {draftSource && (
+              <span className="draft-source-label">
+                {interpolateUi(
+                  t("Snapshot of {document} captured at launch. Edits here do not sync back."),
+                  { document: draftSource.documentLabel },
+                )}
+              </span>
+            )}
             <button
               className="draft-panel-btn"
               type="button"

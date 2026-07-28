@@ -1,3 +1,23 @@
+export function wordDocumentLabel(url: string | undefined): string {
+	if (!url) return 'Word document';
+	let value = url;
+	if (/^https?:\/\//i.test(url)) {
+		try {
+			value = new URL(url).pathname;
+		} catch {
+			// Treat malformed HTTP(S) values as opaque paths below.
+		}
+	}
+	const segments = value.split(/[\\/]/).filter(Boolean);
+	const filename = segments[segments.length - 1];
+	if (!filename) return 'Word document';
+	try {
+		return decodeURIComponent(filename);
+	} catch {
+		return filename;
+	}
+}
+
 /**
  * Whether the host supports `getReviewedText` (WordApi 1.4). We use it to read
  * the document as if tracked changes were accepted, so the AI never sees deleted
@@ -33,6 +53,7 @@ export const wordEditorAPI: EditorAPI = {
 			Word.run(async (context: Word.RequestContext) => {
 				const body: Word.Body = context.document.body;
 				const docContext: DocContext = {
+					documentLabel: wordDocumentLabel(Office.context.document.url),
 					beforeCursor: '',
 					selectedText: '',
 					afterCursor: '',

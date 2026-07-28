@@ -3,7 +3,8 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { AssistantResponseKindBadge, buildConversationHistory, deriveCurrentUserTurn, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateCandidateMemory, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, resolveMirrorDecision, restoreDraftHtml, TURN_PROGRESS_COPY } from "./App";
+import { AssistantResponseKindBadge, buildConversationHistory, deriveCurrentUserTurn, draftHtmlToPlainText, InfluenceBadge, MapActionProposalCard, migrateCandidateMemory, migrateLegacyMirrors, migrateStoredProposals, normalizeDraftPasteHtml, recoverFailedTurn, resolveMirrorDecision, restoreDraftHtml, restoreFailedMessageToComposer, TURN_PROGRESS_COPY } from "./App";
+import { hasPersistableWork, savedMindmapSummary, SESSION_STORAGE_KEY } from "./session-persistence";
 import { UnderTheHoodPanel } from "./ControlRoom";
 import { ASSISTANCE_CONTRACTS, snapshotContract } from "./assistance-contract";
 import { ThoughtUnitStore } from "./map-store";
@@ -54,6 +55,65 @@ describe("resolveMirrorDecision", () => {
   });
 });
 
+describe("persisted launcher snapshot metadata", () => {
+  it("keeps the historical storage key while reading version 7 document labels", () => {
+    expect(SESSION_STORAGE_KEY).toBe("prototype-mindmap-session-v1");
+    const storage = {
+      getItem: (key: string) => key === SESSION_STORAGE_KEY ? JSON.stringify({
+        version: 7,
+        draftSource: {
+          kind: "launch_snapshot",
+          documentLabel: "Essay.docx",
+          capturedAt: 10,
+        },
+        draftText: "A real saved draft",
+        lastSavedAt: 20,
+      }) : null,
+    };
+    expect(savedMindmapSummary(storage)).toEqual({
+      documentLabel: "Essay.docx",
+      lastSavedAt: 20,
+    });
+  });
+
+  it("migrates older saved sessions to a safe fallback label", () => {
+    const storage = {
+      getItem: () => JSON.stringify({ version: 6, draftText: "Legacy work" }),
+    };
+    expect(savedMindmapSummary(storage)).toEqual({
+      documentLabel: "Saved mindmap",
+      lastSavedAt: undefined,
+    });
+  });
+
+  it("does not offer an untouched auto-persisted session as saved work", () => {
+    const storage = {
+      getItem: () => JSON.stringify({
+        version: 7,
+        msgs: [],
+        draftText: "",
+        map: { units: [], positions: {}, connections: [] },
+        lastSavedAt: 20,
+      }),
+    };
+    expect(savedMindmapSummary(storage)).toBeNull();
+  });
+
+  it("recognizes a map as real work even when chat and draft are empty", () => {
+    const storage = {
+      getItem: () => JSON.stringify({
+        version: 7,
+        msgs: [],
+        draftText: "",
+        map: { units: [{ id: "card-1" }], positions: {}, connections: [] },
+      }),
+    };
+    expect(savedMindmapSummary(storage)).toMatchObject({
+      documentLabel: "Saved mindmap",
+    });
+  });
+});
+
 describe("session migration", () => {
   it("invalidates unresolved legacy pending mirrors instead of granting current-contract provenance", () => {
     const migrated = migrateLegacyMirrors([{ id: "m1", reflection: { claims: [{ id: "c1", text: "human control", candidateId: "candidate", target: "idea", sourceSpans: [] }] }, claims: [], decisions: { c1: "pending" } }], 7);
@@ -78,6 +138,53 @@ describe("application recovery history", () => {
       { role: "user", content: "human control matters" },
       { role: "assistant", content: "What matters about control?" },
     ]);
+  });
+
+  it("excludes pending and failed optimistic messages from provider history", () => {
+    expect(buildConversationHistory([
+      { id: 1, role: "user", text: "delivered" },
+      { id: 2, role: "user", text: "pending", deliveryStatus: "pending" },
+      { id: 3, role: "user", text: "failed", deliveryStatus: "failed" },
+    ])).toEqual([{ role: "user", content: "delivered" }]);
+  });
+
+  it("restores a failed message without overwriting newer composer text", () => {
+    const messages = [
+      { id: 1, role: "user" as const, text: "failed turn", deliveryStatus: "failed" as const },
+    ];
+    expect(restoreFailedMessageToComposer(messages, "", 1)).toEqual({
+      msgs: [],
+      input: "failed turn",
+    });
+    expect(restoreFailedMessageToComposer(messages, "new thought", 1)).toEqual({
+      msgs: [],
+      input: "failed turn\n\nnew thought",
+    });
+  });
+
+  it("automatically restores a failed turn only when the composer is empty", () => {
+    const pending = {
+      id: 1,
+      role: "user" as const,
+      text: "failed turn",
+      deliveryStatus: "pending" as const,
+    };
+    expect(recoverFailedTurn([pending], "", pending)).toEqual({
+      msgs: [],
+      input: "failed turn",
+    });
+    expect(recoverFailedTurn([pending], "new thought", pending)).toEqual({
+      msgs: [{ ...pending, deliveryStatus: "failed" }],
+      input: "new thought",
+    });
+  });
+
+  it("does not count pending-only shells as persistable work", () => {
+    expect(hasPersistableWork({
+      msgs: [{ id: 1, role: "user", text: "pending", deliveryStatus: "pending" }],
+      draftText: "",
+      map: { units: [], positions: {}, connections: [] },
+    })).toBe(false);
   });
 
   it("retains an AI translation as assistant output without replacing its original user passage", () => {

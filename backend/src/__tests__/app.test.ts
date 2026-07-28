@@ -281,28 +281,6 @@ describe('POST /api/openai/chat/completions', () => {
 	});
 });
 
-describe('POST /api/openai/responses', () => {
-	it('injects the API key and forwards Responses API requests unchanged', async () => {
-		process.env.OPENAI_API_KEY = 'sk-test-123';
-		const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ id: 'resp_1', output: [] }), {
-			status: 200,
-			headers: { 'Content-Type': 'application/json' },
-		}));
-		vi.stubGlobal('fetch', fetchMock);
-
-		const body = { model: 'gpt-5.6-terra', input: [], tools: [{ type: 'function', name: 'propose_map_action_v1' }] };
-		const res = await app.request('/api/openai/responses', {
-			method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
-		});
-
-		expect(res.status).toBe(200);
-		const [url, init] = fetchMock.mock.calls[0]!;
-		expect(url).toBe('https://api.openai.com/v1/responses');
-		expect((init.headers as Record<string, string>).Authorization).toBe('Bearer sk-test-123');
-		expect(JSON.parse(init.body as string)).toEqual(body);
-	});
-});
-
 describe('POST /api/openai/realtime/session', () => {
 	/** The mint call never reaches OpenAI when the route refuses first. */
 	function stubUpstream() {

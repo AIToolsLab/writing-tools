@@ -41,10 +41,51 @@ test("a chat-derived card remains off the map until confirm", async ({ page }) =
   await expect(page.locator("textarea.map-card-editor")).toHaveValue("human control");
 });
 
+test("a launcher grant hydrates a labelled snapshot and authenticates the provider call", async ({ page }) => {
+  await page.route("**/handoff/exchange", async (route) => {
+    expect(route.request().postDataJSON()).toEqual({ grant_id: "grant-local" });
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        access_token: "wtk_local",
+        expires_in: 3600,
+        client_id: "mindmap",
+        scopes: ["openai:chat", "doc:read"],
+        doc: {
+          documentLabel: "Launcher Essay.docx",
+          beforeCursor: "First ",
+          selectedText: "selected",
+          afterCursor: " paragraph.",
+        },
+      }),
+    });
+  });
+  await page.route("**/openai/chat/completions", async (route) => {
+    expect(route.request().headers().authorization).toBe("Bearer wtk_local");
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(envelope({
+        response: { kind: "question", text: "What matters in this snapshot?", stance: "deepen" },
+      })),
+    });
+  });
+
+  await page.goto("/#wt_grant=grant-local");
+  await expect(page.getByText(/Snapshot of Launcher Essay\.docx captured at launch/)).toBeVisible();
+  await expect(page.locator(".draft-editor")).toContainText("First selected paragraph.");
+  await expect.poll(() => new URL(page.url()).hash).toBe("");
+
+  const composer = page.locator("textarea.composer-textarea");
+  await composer.fill("Help me think about this.");
+  await composer.press("Enter");
+  await expect(page.getByText("What matters in this snapshot?")).toBeVisible();
+});
+
 test("reader-language switching keeps populated cards mounted throughout translation", async ({ page }) => {
   const pageErrors: string[] = [];
   const consoleErrors: string[] = [];
   let translationRequests = 0;
+  let releaseFirstTranslation: (() => void) | undefined;
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
   await page.route("**/openai/chat/completions", async (route) => {
@@ -55,9 +96,13 @@ test("reader-language switching keeps populated cards mounted throughout transla
       return;
     }
     translationRequests += 1;
-    // Keep requests pending long enough to prove the controlled React Flow
-    // nodes stay mounted before, during, and after display translation.
-    await new Promise((resolve) => setTimeout(resolve, 180));
+    // Hold only the first request. Delaying every queued UI/card translation
+    // leaves route handlers alive during Playwright's page teardown.
+    if (translationRequests === 1) {
+      await new Promise<void>((resolve) => {
+        releaseFirstTranslation = resolve;
+      });
+    }
     await route.fulfill({ contentType: "application/json", body: JSON.stringify(envelope({ translation: `ZH:${body.messages?.[1]?.content ?? ""}` })) });
   });
 
@@ -81,7 +126,7 @@ test("reader-language switching keeps populated cards mounted throughout transla
   await expect.poll(() => translationRequests).toBeGreaterThan(0);
   await expect(cards).toHaveCount(2);
   expect(await page.locator(".react-flow__node").evaluateAll((elements) => elements.map((element) => element.getAttribute("data-id")))).toEqual(nodeIds);
-  await page.waitForTimeout(50);
+  releaseFirstTranslation?.();
   await expect(cards).toHaveCount(2);
   expect(await page.locator(".react-flow__node").evaluateAll((elements) => elements.map((element) => element.getAttribute("data-id")))).toEqual(nodeIds);
   await expect(cards.nth(0)).toHaveValue("ZH:first authored card");

@@ -7,6 +7,7 @@ import {
   normalizeUiLocale,
   persistUiLocale,
   restoreUiLocale,
+  interpolateUi,
   uiDirection,
   uiLocaleOptions,
 } from "./ui-locale";
@@ -59,8 +60,15 @@ describe("UI locale", () => {
     expect(uiString("AI-translated", "zh")).toBe("AI 翻译");
   });
 
+  it("interpolates filenames literally without replacement-string semantics", () => {
+    const filename = "$&-$'-$`-{document}.docx";
+    expect(interpolateUi("Open {document}", { document: filename })).toBe(
+      `Open ${filename}`,
+    );
+  });
+
   it("has Chinese coverage for every literal explicitly opted into UI localization", () => {
-    const sources = ["App.tsx", "Map.tsx"].map((file) =>
+    const sources = ["App.tsx", "Map.tsx", "PlatformBootstrap.tsx"].map((file) =>
       readFileSync(new URL(`./${file}`, import.meta.url), "utf8"),
     );
     const keys = new Set<string>();

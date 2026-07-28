@@ -88,7 +88,6 @@ export const PAGES: PageDef[] = [
 		title: 'Tools',
 		hint: 'Launch writing tools',
 		tier: 'lab',
-		enabled: () => isFlagEnabled('tool-launcher'),
 		render: () => <Tools />,
 	},
 	{

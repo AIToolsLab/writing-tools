@@ -192,7 +192,7 @@ invent explanations from a legacy controller mode.
 | Direct canvas actions | `Map.tsx`, `action-gateway.ts` | Immediate explicit-user actions retain graph/store checks |
 | Assistance contracts | `assistance-contract.ts`, `stage1-loop.ts` | L0/L1/L2 contribution permissions are snapshotted per turn; they never authorize a write |
 | Provenance | `proposal-store.ts`, `map-store.ts`, `suggestion-adoption.ts`, `Map.tsx` | User-authored, AI-connected, and AI-suggested material remain distinguishable; adopted suggestions retain current and peak overlap |
-| Audit ledger | `event-ledger.ts`, backend `/api/mindmap/events` | Full local events; outbound allowlisted metadata only |
+| Audit ledger | `event-ledger.ts` | Full local events in IndexedDB; no server telemetry |
 | Map | `map-store.ts`, `Map.tsx` | One primitive: `ThoughtUnit` card; nesting is `parentId`; connections have label cards |
 | Draft grounding and anchoring | `App.tsx`, `api.ts`, `draft-anchor.ts` | Immutable current draft snapshots plus a passive model anchor overlay; model anchors never create `selectedFocus` |
 | Voice dictation | `App.tsx`, `useSpeechToText.ts` | Browser speech recognition fills the composer for manual review before send |

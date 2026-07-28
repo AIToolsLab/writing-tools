@@ -59,6 +59,12 @@ describe('page registry', () => {
 				expect(entry.hint.length).toBeGreaterThan(0);
 			}
 		});
+
+		it('ships the Tools lab page without a feature-flag predicate', () => {
+			const tools = PAGES.find((entry) => entry.name === PageName.Tools);
+			expect(tools?.tier).toBe('lab');
+			expect(tools?.enabled).toBeUndefined();
+		});
 	});
 
 	describe('visibility', () => {
