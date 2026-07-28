@@ -35,21 +35,19 @@ describe('chat document-context message', () => {
 			afterCursor: 'b',
 		};
 
-		it('seeds system + doc-context + greeting when the chat is empty', () => {
+		it('seeds doc-context + greeting when the chat is empty', () => {
 			const result = withCurrentDocContext([], docContext);
 
-			expect(result).toHaveLength(3);
-			expect(result[0].role).toBe('system');
-			expect(result[1].role).toBe('user');
-			expect(result[1].content).toBe(
+			expect(result).toHaveLength(2);
+			expect(result[0].role).toBe('user');
+			expect(result[0].content).toBe(
 				docContextMessageContent(docContext),
 			);
-			expect(result[2].role).toBe('assistant');
+			expect(result[1].role).toBe('assistant');
 		});
 
-		it('replaces only the doc-context message (index 1) on an existing chat', () => {
+		it('replaces only the doc-context message (index 0) on an existing chat', () => {
 			const existing: ChatMessage[] = [
-				{ role: 'system', content: 'sys' },
 				{ role: 'user', content: 'STALE CONTEXT' },
 				{ role: 'assistant', content: 'greeting' },
 				{ role: 'user', content: 'a real question' },
@@ -57,19 +55,32 @@ describe('chat document-context message', () => {
 
 			const result = withCurrentDocContext(existing, docContext);
 
-			// Fresh context injected at index 1...
-			expect(result[1].content).toBe(
+			// Fresh context injected at index 0...
+			expect(result[0].content).toBe(
 				docContextMessageContent(docContext),
 			);
 			// ...without disturbing the rest of the conversation.
-			expect(result[0]).toEqual(existing[0]);
+			expect(result[1]).toEqual(existing[1]);
 			expect(result[2]).toEqual(existing[2]);
-			expect(result[3]).toEqual(existing[3]);
+		});
+
+		// ai@7 throws InvalidPromptError ("System messages are not allowed in
+		// the prompt or messages fields") when a system message reaches
+		// `messages`; the chat's system prompt goes in `instructions` instead.
+		it('never puts a system message in the transcript', () => {
+			const seeded = withCurrentDocContext([], docContext);
+			const continued = withCurrentDocContext(
+				[...seeded, { role: 'user', content: 'a real question' }],
+				docContext,
+			);
+
+			expect(
+				[...seeded, ...continued].some((m) => m.role === 'system'),
+			).toBe(false);
 		});
 
 		it('does not mutate the input array', () => {
 			const existing: ChatMessage[] = [
-				{ role: 'system', content: 'sys' },
 				{ role: 'user', content: 'STALE CONTEXT' },
 				{ role: 'assistant', content: 'greeting' },
 			];
