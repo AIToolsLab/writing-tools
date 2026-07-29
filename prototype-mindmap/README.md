@@ -28,9 +28,10 @@ is ignored when `PROD` is set, so a misconfigured deploy environment cannot ship
 ungated bundle. A grant present in the URL is processed in every mode.
 
 `VITE_BACKEND_URL` is **required** for production builds and throws at startup if
-missing. Development and test builds fall back to `http://localhost:8000/api`; a
-production bundle carrying that fallback would point every user's browser at their
-own machine.
+missing. The committed `.env.production` contains the public Pages backend and
+launch requirement; Vite loads it automatically on production builds.
+Development and test builds fall back to `http://localhost:8000/api`; a production
+bundle carrying that fallback would point every user's browser at their own machine.
 
 The Writing Tools registry uses `VITE_MINDMAP_TOOL_URL`. Its development default
 is `http://localhost:5181/`; its production default is
@@ -49,20 +50,26 @@ never provide an OpenAI key, Better Auth secret, database credential, or
 Build and verify the exact production artifact with:
 
 ```sh
-VITE_BACKEND_URL=https://app.thoughtful-ai.com/api \
-VITE_REQUIRE_LAUNCH=true \
-npm run build
-VITE_BACKEND_URL=https://app.thoughtful-ai.com/api npm run verify:pages
+npm run build:pages
+npm run verify:pages
 npm run test:e2e:pages
 ```
 
-`verify:pages` requires an HTTPS backend, checks that `dist/index.html` and the
-configured backend are present, and refuses published `.env` files. The source
+The normal `test:e2e:pages` command rebuilds and verifies first, so it cannot
+silently exercise a stale `dist`; CI uses `test:e2e:pages:built` after its
+existing production build. `verify:pages` requires an HTTPS backend, checks that
+`dist/index.html` and the configured backend are present, and refuses published
+`.env` files. The source
 retains its intentional development fallback string, so the production
 Playwright suite—not a raw string scan—proves that the built app actually sends
 exchange and provider requests to the configured HTTPS backend. It serves that
 same `dist` directory with `vite preview`; the normal `test:e2e` command
 continues to exercise the development server.
+
+Every supported entry point is the site root with launch state in the URL
+fragment. Fragments are handled entirely in the browser and are not sent to
+GitHub Pages, so this build has no path-based SPA route and needs no `404.html`
+fallback.
 
 The workflow at `.github/workflows/deploy-mindmap-pages.yml` builds on relevant
 pull requests but cannot publish them. A deployment is a manual workflow run

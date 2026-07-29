@@ -81,20 +81,15 @@ jobs:
       - name: Eval typecheck
         run: npm run eval:typecheck
       - name: Production build
-        env:
-          VITE_BACKEND_URL: https://app.thoughtful-ai.com/api
-          VITE_REQUIRE_LAUNCH: "true"
-        run: npm run build
+        run: npm run build:pages
       - name: Verify Pages artifact
-        env:
-          VITE_BACKEND_URL: https://app.thoughtful-ai.com/api
         run: npm run verify:pages
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
       - name: Playwright development smoke
         run: npm run test:e2e
       - name: Playwright production artifact smoke
-        run: npm run test:e2e:pages
+        run: npm run test:e2e:pages:built
       - name: Upload Playwright report
         if: failure()
         uses: actions/upload-artifact@v6

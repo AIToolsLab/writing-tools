@@ -1,10 +1,12 @@
 import { readdir, readFile, stat } from "node:fs/promises";
 import { dirname, extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { loadEnv } from "vite";
 
 const projectRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const distRoot = join(projectRoot, "dist");
-const expectedBackendUrl = process.env.VITE_BACKEND_URL?.trim() ?? "";
+const productionEnv = loadEnv("production", projectRoot, "VITE_");
+const expectedBackendUrl = productionEnv.VITE_BACKEND_URL?.trim() ?? "";
 const searchableExtensions = new Set([".css", ".html", ".js", ".json", ".map", ".svg", ".txt"]);
 
 function fail(message) {
@@ -12,7 +14,7 @@ function fail(message) {
 }
 
 function validateBackendUrl(raw) {
-  if (!raw) fail("VITE_BACKEND_URL is required.");
+  if (!raw) fail("VITE_BACKEND_URL is missing from .env.production.");
   let parsed;
   try {
     parsed = new URL(raw);

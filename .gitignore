@@ -18,6 +18,7 @@ MANIFEST
 
 # Environments
 .env*
+!prototype-mindmap/.env.production
 .venv
 env/
 venv/

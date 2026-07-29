@@ -17,9 +17,6 @@ jobs:
     defaults:
       run:
         working-directory: prototype-mindmap
-    env:
-      VITE_BACKEND_URL: https://app.thoughtful-ai.com/api
-      VITE_REQUIRE_LAUNCH: "true"
     steps:
       - name: Require main for a deployment
         if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' }}
@@ -35,7 +32,7 @@ jobs:
           cache-dependency-path: prototype-mindmap/package-lock.json
       - run: npm ci
       - name: Production build
-        run: npm run build
+        run: npm run build:pages
       - name: Verify Pages artifact
         run: npm run verify:pages
       - name: Configure Pages
