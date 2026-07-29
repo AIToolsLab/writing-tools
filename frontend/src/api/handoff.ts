@@ -84,3 +84,52 @@ export function openInBrowser(url: string): void {
 	}
 	window.open(url, '_blank', 'noopener,noreferrer');
 }
+
+export type BrowserLaunchReservation =
+	| { kind: 'office' }
+	| { kind: 'window'; popup: Window };
+
+function officeBrowserOpener(): ((url: string) => void) | undefined {
+	const officeUi = (
+		globalThis as {
+			Office?: {
+				context?: { ui?: { openBrowserWindow?: (u: string) => void } };
+			};
+		}
+	).Office?.context?.ui;
+	return officeUi?.openBrowserWindow?.bind(officeUi);
+}
+
+/**
+ * Reserve a browser popup before any asynchronous work or document access.
+ * Office's system-browser API does not use popup blocking, so it remains deferred
+ * until the final URL is ready.
+ */
+export function reserveBrowserLaunch(): BrowserLaunchReservation | null {
+	if (officeBrowserOpener()) return { kind: 'office' };
+	const popup = window.open('about:blank', '_blank');
+	if (!popup) return null;
+	try {
+		popup.opener = null;
+	} catch {
+		// Some browser wrappers expose a read-only opener.
+	}
+	return { kind: 'window', popup };
+}
+
+export function completeBrowserLaunch(
+	reservation: BrowserLaunchReservation,
+	url: string,
+): void {
+	if (reservation.kind === 'office') {
+		officeBrowserOpener()?.(url);
+		return;
+	}
+	reservation.popup.location.replace(url);
+}
+
+export function cancelBrowserLaunch(reservation: BrowserLaunchReservation): void {
+	if (reservation.kind === 'window' && !reservation.popup.closed) {
+		reservation.popup.close();
+	}
+}
