@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "verify:pages": "node scripts/verify-pages-build.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "eval": "tsx eval/run.ts",
@@ -14,6 +15,7 @@
     "eval:typecheck": "tsc -p tsconfig.eval.json",
     "eval:report": "tsx eval/report.ts",
     "test:e2e": "playwright test",
+    "test:e2e:pages": "playwright test --config playwright.pages.config.ts",
     "test:watch": "vitest"
   },
   "dependencies": {

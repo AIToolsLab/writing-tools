@@ -38,6 +38,69 @@ is `http://localhost:5181/`; its production default is
 continues to use Vite's development server at port 4173, so production-gate
 verification remains a separate build check.
 
+## GitHub Pages production build
+
+GitHub Pages hosts only the compiled browser files. Authentication, launch
+grants, document snapshots, OpenAI proxying, and token persistence remain on
+the Writing Tools backend. The Pages build receives public configuration only;
+never provide an OpenAI key, Better Auth secret, database credential, or
+`wtk_` token to this build.
+
+Build and verify the exact production artifact with:
+
+```sh
+VITE_BACKEND_URL=https://app.thoughtful-ai.com/api \
+VITE_REQUIRE_LAUNCH=true \
+npm run build
+VITE_BACKEND_URL=https://app.thoughtful-ai.com/api npm run verify:pages
+npm run test:e2e:pages
+```
+
+`verify:pages` requires an HTTPS backend, checks that `dist/index.html` and the
+configured backend are present, and refuses published `.env` files. The source
+retains its intentional development fallback string, so the production
+Playwright suite—not a raw string scan—proves that the built app actually sends
+exchange and provider requests to the configured HTTPS backend. It serves that
+same `dist` directory with `vite preview`; the normal `test:e2e` command
+continues to exercise the development server.
+
+The workflow at `.github/workflows/deploy-mindmap-pages.yml` builds on relevant
+pull requests but cannot publish them. A deployment is a manual workflow run
+from `main`; selecting any other ref fails without uploading an artifact.
+Running the workflow does not configure the repository's Pages settings, DNS,
+the production backend, or the Writing Tools tile.
+
+Before the first deployment:
+
+1. Merge and deploy the grant-origin work from
+   [#579](https://github.com/AIToolsLab/writing-tools/pull/579), refresh the
+   Pages branch from `main`, and unskip the `wt_api` production smoke. It must
+   prove that exchange and provider requests use the launching platform's API,
+   not the build-time fallback.
+2. Land the tool/device-client split and confirm production allowlists contain
+   the exact compiled taskpane client plus `mindmap`.
+3. Configure this repository's Pages source as **GitHub Actions** and claim
+   `mindmap.thoughtful-ai.com`.
+4. Ask the DNS owner to create exactly:
+
+   ```text
+   CNAME mindmap.thoughtful-ai.com → aitoolslab.github.io
+   ```
+
+   Do not append `/writing-tools` or any repository name. DNS cannot carry a
+   URL path; GitHub selects the repository from the claimed custom domain and
+   the request host.
+5. Wait for DNS and TLS provisioning, then enable **Enforce HTTPS**. GitHub
+   documents that DNS propagation and availability of HTTPS enforcement can
+   each take up to 24 hours, so an initially unavailable HTTPS launch is not
+   by itself an application failure.
+6. Run the real Word and Google Docs off-origin checks before exposing the
+   tile.
+
+Tile rollout belongs to the separate Writing Tools add-in build.
+`VITE_ENABLE_MINDMAP_TOOL` is read by
+`frontend/src/pages/tools/index.tsx`; it is not part of this Pages build.
+
 ## Design principle: typed proposals with deterministic consequences
 
 - **Enforcement (code, not configurable):** a mirror must pass validation before

@@ -4,7 +4,7 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   plugins: [react()],
   test: {
-    exclude: ["e2e/**", "node_modules/**", "dist/**"],
+    exclude: ["e2e/**", "e2e-pages/**", "node_modules/**", "dist/**"],
   },
   server: {
     // Honor a PORT override (used by preview tooling that assigns a free port);

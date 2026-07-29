@@ -1,0 +1,67 @@
+name: Deploy mindmap to GitHub Pages
+
+on:
+  pull_request:
+    paths:
+      - "prototype-mindmap/**"
+      - ".github/workflows/deploy-mindmap-pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build Pages artifact
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: prototype-mindmap
+    env:
+      VITE_BACKEND_URL: https://app.thoughtful-ai.com/api
+      VITE_REQUIRE_LAUNCH: "true"
+    steps:
+      - name: Require main for a deployment
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' }}
+        working-directory: .
+        run: |
+          echo "Mindmap Pages deployments must run from main." >&2
+          exit 1
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: prototype-mindmap/package-lock.json
+      - run: npm ci
+      - name: Production build
+        run: npm run build
+      - name: Verify Pages artifact
+        run: npm run verify:pages
+      - name: Configure Pages
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+        uses: actions/configure-pages@v5
+      - name: Upload Pages artifact
+        if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: prototype-mindmap/dist
+
+  deploy:
+    name: Deploy Pages artifact
+    if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
+    needs: build
+    runs-on: ubuntu-latest
+    concurrency:
+      group: mindmap-pages
+      cancel-in-progress: false
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
