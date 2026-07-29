@@ -43,6 +43,7 @@ declare global {
 			setDocumentProperty?: (key: string, value: string) => Promise<void>;
 			getDocumentProperty?: (key: string) => Promise<string | null>;
 			getDocumentId: () => Promise<string>;
+			getDocumentName: () => Promise<string>;
 			getAllTabs: () => Promise<
 				{ id: string; title: string; text: string }[]
 			>;
@@ -269,10 +270,14 @@ export const googleDocsEditorAPI: EditorAPI = {
 	 * Gets the current document context (before cursor, selection, after cursor).
 	 */
 	async getDocContext(): Promise<DocContext> {
-		const context = await window.GoogleAppsScript.getDocContext();
+		const [context, documentName] = await Promise.all([
+			window.GoogleAppsScript.getDocContext(),
+			window.GoogleAppsScript.getDocumentName().catch(() => ''),
+		]);
 
 		// Normalize line endings (Google Docs uses \n)
 		return {
+			documentLabel: documentName.trim() || 'Google Docs document',
 			beforeCursor: context.beforeCursor || '',
 			selectedText: context.selectedText || '',
 			afterCursor: context.afterCursor || '',
