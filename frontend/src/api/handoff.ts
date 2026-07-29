@@ -104,6 +104,29 @@ function officeBrowserOpener(): ((url: string) => void) | undefined {
  * Reserve a browser popup before any asynchronous work or document access.
  * Office's system-browser API does not use popup blocking, so it remains deferred
  * until the final URL is ready.
+ *
+ * ## Why not a plain `<a href>`
+ *
+ * A link is the better answer wherever it fits, and it is worth re-checking this
+ * if the launch flow ever changes shape. It does not fit here, for three reasons
+ * that compound:
+ *
+ * 1. **The URL does not exist yet at click time.** It carries a single-use grant
+ *    id minted by the backend, so producing it means an async round trip — plus
+ *    reading the document first. There is no href to put on the anchor until
+ *    that finishes.
+ * 2. **Reserving synchronously is the popup check.** `window.open` only inherits
+ *    the user's activation on the click itself; called after an `await` it is
+ *    blocked. Doing it first is what lets a blocked popup abort the launch
+ *    *before* the document is read and transmitted — the failure surfaces while
+ *    nothing has left the machine yet. Deferring the open inverts that: the doc
+ *    goes out, then the window is refused, and the writer sees nothing happen.
+ * 3. **Pre-minting to fill an href burns the TTL.** Grants expire ~2 minutes
+ *    after issue (`backend/src/db.ts`), and a link minted on render starts that
+ *    clock before the writer has decided to click.
+ *
+ * The cost is a blank `about:blank` tab during the round trip, which
+ * `cancelBrowserLaunch` closes if the launch fails.
  */
 export function reserveBrowserLaunch(): BrowserLaunchReservation | null {
 	if (officeBrowserOpener()) return { kind: 'office' };

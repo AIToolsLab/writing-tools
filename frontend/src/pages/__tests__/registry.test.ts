@@ -60,10 +60,19 @@ describe('page registry', () => {
 			}
 		});
 
-		it('ships the Tools lab page without a feature-flag predicate', () => {
-			const tools = PAGES.find((entry) => entry.name === PageName.Tools);
-			expect(tools?.tier).toBe('lab');
-			expect(tools?.enabled).toBeUndefined();
+		it('offers Tools from the Labs menu with no flag to set first', () => {
+			// Asserted through the selectors a writer's navbar actually goes
+			// through, not against the registry literal: Tools ships reachable
+			// — open the Labs (···) menu and it is there — while staying out of
+			// the three-tab strip. Adding a predicate that defaults off, or
+			// promoting Tools to `core`, are both rollout decisions rather than
+			// refactors, so they should fail here and be made deliberately.
+			expect(pagesByTier('lab').map((entry) => entry.name)).toContain(
+				PageName.Tools,
+			);
+			expect(pagesByTier('core').map((entry) => entry.name)).not.toContain(
+				PageName.Tools,
+			);
 		});
 	});
 
