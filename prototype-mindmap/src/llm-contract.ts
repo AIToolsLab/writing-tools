@@ -1,0 +1,68 @@
+import type { TurnShape } from "./turn-shape";
+import type { CandidateStatus, CandidateTarget, SourceUtterance, ThoughtUnit, ThoughtUnitRole } from "./types";
+import type { AssistanceContractSnapshot } from "./assistance-contract";
+import type { LanguageContext } from "./language-context";
+
+export type { LanguageContext } from "./language-context";
+
+export type QuestionStance = "settle" | "narrow" | "deepen" | "organize" | "challenge";
+export type UserRequestedMode = "mirror" | "deepen" | "organize" | "pivot";
+export interface ProposalOutcomeContext {
+  proposalKind: "map_action" | "reflection";
+  decision: "confirmed" | "declined";
+}
+
+export interface LLMMapConnection {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  labelUnitId: string;
+  labelText: string;
+  sourceText: string;
+  targetText: string;
+  utteranceIds: string[];
+}
+
+export interface LLMMapContext { thoughtUnits: ThoughtUnit[]; connections: LLMMapConnection[] }
+export interface MapQuestionAnchor { ref: string; text: string; neighbors: Array<{ ref: string; text: string }> }
+export interface SelectedFocusContext {
+  cards?: Array<{ id: string; ref: string; text: string; role: Exclude<ThoughtUnitRole, "connection_label"> }>;
+  draftText?: string;
+}
+
+export interface CandidateMemoryFact {
+  id: string;
+  target: CandidateTarget;
+  status: CandidateStatus;
+  gist: string;
+  ageInTurns: number;
+  evidence: Array<{ utteranceId: string; text: string }>;
+  lastRecalledAgeInTurns?: number;
+}
+
+/** Read-only context for a typed assistant response. Every calibration field is advisory. */
+export interface LLMContext {
+  /** Advisory presentation and reply-language hints; never evidence. */
+  language: LanguageContext;
+  bank: SourceUtterance[];
+  candidates: CandidateMemoryFact[];
+  turnShape: TurnShape;
+  /** Product capability facts, not an interpretation of the user's intent. */
+  capabilities: { canDo: string[]; cantDo: string[] };
+  /** A structural map fact that may inform pacing but never constrains a response. */
+  mapPacing: { cardCount: number; connectionCount: number; isSparse: boolean };
+  /** Factual conversation rhythm; advisory only and never a response gate. */
+  reflectionRhythm: { turnsSinceLastReflection: number; sourceUtteranceCount: number };
+  /** Exact value of the explicit user-facing Think/Map control. */
+  thinkMapBias: number;
+  draft?: string;
+  map: LLMMapContext;
+  /** Explicit UI selection, if the user made one. */
+  selectedFocus?: SelectedFocusContext;
+  /** Explicit UI support request, advisory only. */
+  requestedSupport?: UserRequestedMode;
+  /** A user decision on an earlier proposal. It is not new source material. */
+  proposalOutcome?: ProposalOutcomeContext;
+  /** A fixed per-turn contribution contract. It never authorizes a map write. */
+  assistanceContract?: AssistanceContractSnapshot;
+}

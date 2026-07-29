@@ -1,0 +1,820 @@
+import type { LLMMapContext, LLMMapConnection } from "./llm-contract";
+import { nextId, primeIdCounters } from "./store";
+import type { SourceBank } from "./store";
+import type {
+  ConfirmedReflection,
+  SourceUtterance,
+  ThoughtUnit,
+  ThoughtUnitRole,
+} from "./types";
+import type { AssistanceContractSnapshot, ContributionOrigin } from "./assistance-contract";
+
+export interface XYPosition {
+  x: number;
+  y: number;
+}
+
+export interface XYSize {
+  w: number;
+  h: number;
+}
+
+export interface XYBounds {
+  left: number;
+  top: number;
+  right: number;
+  bottom: number;
+}
+
+// Card-size sanity bounds. A prior auto-expand implementation measured runaway
+// scrollHeights and persisted them (~173,000px), which bricked the canvas with
+// full-height blank columns. Even though that code is gone, sizes are persisted
+// to localStorage, so we clamp on every write and on load so a bad value can
+// never survive into a render again.
+const MIN_CARD_W = 120;
+const MIN_CARD_H = 60;
+const MAX_CARD_W = 1200;
+const MAX_CARD_H = 1200;
+
+function clampCardSize(size: XYSize): XYSize {
+  const w = Number.isFinite(size.w) ? size.w : MIN_CARD_W;
+  const h = Number.isFinite(size.h) ? size.h : MIN_CARD_H;
+  return {
+    w: Math.min(MAX_CARD_W, Math.max(MIN_CARD_W, w)),
+    h: Math.min(MAX_CARD_H, Math.max(MIN_CARD_H, h)),
+  };
+}
+
+export interface ThoughtConnection {
+  id: string;
+  sourceId: string;
+  targetId: string;
+  sourceHandleId?: string;
+  targetHandleId?: string;
+  layoutDirection: ConnectionLayoutDirection;
+  labelUnitId: string;
+  /** Undefined when the connection has no wording (relationship label is optional). */
+  labelUtteranceId?: string;
+  confirmedAt: number;
+  createdBy: "user";
+  origin?: ContributionOrigin | "user_canvas";
+  contract?: AssistanceContractSnapshot;
+  /** Pairing and wording are independent: completing a label cannot launder an AI-selected pair. */
+  pairingOrigin?: ContributionOrigin;
+  labelOrigin?: ContributionOrigin;
+}
+
+export type ConnectionLayoutDirection = "none" | "source_to_target" | "target_to_source";
+export type ThoughtConnectionSnapshot = Omit<ThoughtConnection, "layoutDirection"> & {
+  layoutDirection?: ConnectionLayoutDirection;
+};
+
+export interface RegisteredConnection {
+  connection: ThoughtConnection;
+  labelUnit: ThoughtUnit;
+  /** Undefined when no wording was provided. */
+  utterance?: SourceUtterance;
+}
+
+export interface ThoughtUnitStoreSnapshot {
+  units: ThoughtUnit[];
+  positions: Record<string, XYPosition>;
+  sizes?: Record<string, XYSize>;
+  connections: ThoughtConnectionSnapshot[];
+}
+
+function roleEntry(role: ThoughtUnitRole, changedBy: "user" | "ai_proposed_user_confirmed") {
+  return { role, changedBy, at: Date.now() };
+}
+
+function unorderedPairKey(a: string, b: string): string {
+  return [a, b].sort().join("<->");
+}
+
+function normalizedConnectionPlacement(
+  sourceId: string,
+  targetId: string,
+  sourceHandleId?: string,
+  targetHandleId?: string,
+): string {
+  if (sourceId <= targetId) {
+    return `${sourceHandleId ?? ""}->${targetHandleId ?? ""}`;
+  }
+  return `${targetHandleId ?? ""}->${sourceHandleId ?? ""}`;
+}
+
+const DEFAULT_CARD_W = 260;
+const DEFAULT_CARD_H = 140;
+const CONNECTION_HANDLE_IDS = [
+  "right",
+  "left",
+  "bottom",
+  "top",
+  "right-top",
+  "right-bottom",
+  "left-top",
+  "left-bottom",
+  "bottom-right",
+  "bottom-left",
+  "top-right",
+  "top-left",
+];
+const PREFERRED_DUPLICATE_CONNECTION_HANDLE_PAIRS: Array<[string, string]> = [
+  ["right", "left"],
+  ["bottom", "top"],
+  ["left", "right"],
+  ["top", "bottom"],
+  ["right-top", "left-top"],
+  ["right-bottom", "left-bottom"],
+  ["bottom-right", "top-right"],
+  ["bottom-left", "top-left"],
+];
+const DUPLICATE_CONNECTION_HANDLE_PAIRS: Array<[string, string]> = [
+  ...PREFERRED_DUPLICATE_CONNECTION_HANDLE_PAIRS,
+  ...CONNECTION_HANDLE_IDS.flatMap((source) =>
+    CONNECTION_HANDLE_IDS.map((target): [string, string] => [source, target]),
+  ),
+];
+
+function facingConnectionHandles(
+  sourcePosition?: XYPosition,
+  targetPosition?: XYPosition,
+  sourceSize?: XYSize,
+  targetSize?: XYSize,
+): { sourceHandleId?: string; targetHandleId?: string } {
+  if (!sourcePosition || !targetPosition) return {};
+  const sourceCenter = {
+    x: sourcePosition.x + (sourceSize?.w ?? DEFAULT_CARD_W) / 2,
+    y: sourcePosition.y + (sourceSize?.h ?? DEFAULT_CARD_H) / 2,
+  };
+  const targetCenter = {
+    x: targetPosition.x + (targetSize?.w ?? DEFAULT_CARD_W) / 2,
+    y: targetPosition.y + (targetSize?.h ?? DEFAULT_CARD_H) / 2,
+  };
+  const dx = targetCenter.x - sourceCenter.x;
+  const dy = targetCenter.y - sourceCenter.y;
+  if (Math.abs(dx) >= Math.abs(dy)) {
+    return dx >= 0
+      ? { sourceHandleId: "right", targetHandleId: "left" }
+      : { sourceHandleId: "left", targetHandleId: "right" };
+  }
+  return dy >= 0
+    ? { sourceHandleId: "bottom", targetHandleId: "top" }
+    : { sourceHandleId: "top", targetHandleId: "bottom" };
+}
+
+function defaultPosition(index: number): XYPosition {
+  return {
+    x: 80 + (index % 4) * 280,
+    y: 80 + Math.floor(index / 4) * 180,
+  };
+}
+
+export class ThoughtUnitStore {
+  private _units: Map<string, ThoughtUnit> = new Map();
+  private _positions: Map<string, XYPosition> = new Map();
+  private _sizes: Map<string, XYSize> = new Map();
+  private _connections: Map<string, ThoughtConnection> = new Map();
+
+  private rootRects() {
+    return this.getAll()
+      .filter((unit) => !unit.parentId && unit.role !== "connection_label")
+      .map((unit) => {
+        const pos = this._positions.get(unit.id) ?? defaultPosition(0);
+        const size = this._sizes.get(unit.id) ?? { w: DEFAULT_CARD_W, h: DEFAULT_CARD_H };
+        return { x: pos.x, y: pos.y, w: size.w, h: size.h };
+      });
+  }
+
+  /**
+   * A canvas position for a new root card that does not overlap any existing
+   * card rectangle. Shared by every add path (blank card, reflection, command)
+   * so "new cards never overlap old ones" holds everywhere. Scans the default
+   * grid for a free slot; if the grid is full, drops to the right of all cards.
+   */
+  nextRootPosition(): XYPosition {
+    const PAD = 32;
+    const rects = this.rootRects();
+
+    const overlapsExisting = (x: number, y: number): boolean =>
+      rects.some(
+        (r) =>
+          x < r.x + r.w + PAD &&
+          x + DEFAULT_CARD_W + PAD > r.x &&
+          y < r.y + r.h + PAD &&
+          y + DEFAULT_CARD_H + PAD > r.y,
+      );
+
+    const limit = Math.max(24, rects.length + 12);
+    for (let index = 0; index < limit; index++) {
+      const pos = defaultPosition(index);
+      if (!overlapsExisting(pos.x, pos.y)) return pos;
+    }
+
+    const maxRight = rects.reduce((m, r) => Math.max(m, r.x + r.w), 0);
+    return { x: maxRight + PAD + 40, y: 80 };
+  }
+
+  nextRootPositionWithin(bounds: XYBounds): XYPosition | undefined {
+    const PAD = 32;
+    const STEP_X = 280;
+    const STEP_Y = 180;
+    const rects = this.rootRects();
+
+    const overlapsExisting = (x: number, y: number): boolean =>
+      rects.some(
+        (r) =>
+          x < r.x + r.w + PAD &&
+          x + DEFAULT_CARD_W + PAD > r.x &&
+          y < r.y + r.h + PAD &&
+          y + DEFAULT_CARD_H + PAD > r.y,
+      );
+
+    const minX = Math.ceil(bounds.left);
+    const minY = Math.ceil(bounds.top);
+    const maxX = Math.floor(bounds.right - DEFAULT_CARD_W);
+    const maxY = Math.floor(bounds.bottom - DEFAULT_CARD_H);
+    if (maxX < minX || maxY < minY) return undefined;
+
+    for (let y = minY; y <= maxY; y += STEP_Y) {
+      for (let x = minX; x <= maxX; x += STEP_X) {
+        if (!overlapsExisting(x, y)) return { x, y };
+      }
+    }
+
+    return undefined;
+  }
+
+  add(unit: ThoughtUnit, position: XYPosition = defaultPosition(this._units.size)): ThoughtUnit {
+    this._units.set(unit.id, unit);
+    this._positions.set(unit.id, position);
+    return unit;
+  }
+
+  addFromReflection(
+    reflection: ConfirmedReflection,
+    position: XYPosition = this.nextRootPosition(),
+  ): ThoughtUnit {
+    const existing = this.getByReflectionId(reflection.id);
+    if (existing) return existing;
+
+    const unit: ThoughtUnit = {
+      id: nextId("tu"),
+      text: reflection.text,
+      role: "node",
+      source: {
+        reflectionId: reflection.id,
+        utteranceIds: [...reflection.sourceUtteranceIds],
+        createdBy: "ai_from_reflection",
+        origin: reflection.origin ?? "user_asserted",
+        contract: reflection.contract,
+      },
+      roleHistory: [roleEntry("node", "ai_proposed_user_confirmed")],
+    };
+    return this.add(unit, position);
+  }
+
+  addFromUserUtterance(
+    utterance: SourceUtterance,
+    position: XYPosition = this.nextRootPosition(),
+  ): ThoughtUnit {
+    const existing = this.getByUtteranceId(utterance.id);
+    if (existing) return existing;
+
+    const unit: ThoughtUnit = {
+      id: nextId("tu"),
+      text: utterance.text,
+      role: "node",
+      source: {
+        utteranceIds: [utterance.id],
+        createdBy: "user",
+        origin: "user_canvas",
+      },
+      roleHistory: [roleEntry("node", "user")],
+    };
+    return this.add(unit, position);
+  }
+
+  /**
+   * Create a blank, user-authored standalone card. The user explicitly making a
+   * card is user-authored structure (allowed). It carries no bank utterance yet;
+   * grounding is added when the user types text and `editText` runs.
+   */
+  addBlankUserCard(position?: XYPosition): ThoughtUnit {
+    const unit: ThoughtUnit = {
+      id: nextId("tu"),
+      text: "",
+      role: "node",
+      source: {
+        utteranceIds: [],
+        createdBy: "user",
+        origin: "user_canvas",
+      },
+      roleHistory: [roleEntry("node", "user")],
+    };
+    return this.add(unit, position ?? this.nextRootPosition());
+  }
+
+  get(id: string): ThoughtUnit | undefined {
+    return this._units.get(id);
+  }
+
+  getByReflectionId(reflectionId: string): ThoughtUnit | undefined {
+    return this.getAll().find((u) => u.source.reflectionId === reflectionId);
+  }
+
+  getByUtteranceId(utteranceId: string): ThoughtUnit | undefined {
+    return this.getAll().find((u) => u.source.utteranceIds.includes(utteranceId));
+  }
+
+  getAll(): ThoughtUnit[] {
+    return Array.from(this._units.values());
+  }
+
+  update(id: string, patch: Partial<Omit<ThoughtUnit, "id">>): ThoughtUnit | undefined {
+    const current = this._units.get(id);
+    if (!current) return undefined;
+    const updated: ThoughtUnit = {
+      ...current,
+      ...patch,
+      source: patch.source ?? current.source,
+      roleHistory: patch.roleHistory ?? current.roleHistory,
+    };
+    this._units.set(id, updated);
+    return updated;
+  }
+
+  delete(id: string): void {
+    this._units.delete(id);
+    this._positions.delete(id);
+    this._sizes.delete(id);
+
+    for (const unit of this.getAll()) {
+      if (unit.parentId === id) {
+        this.setParent(unit.id, undefined, "node");
+      }
+    }
+
+    for (const connection of this.getConnections()) {
+      if (
+        connection.sourceId === id ||
+        connection.targetId === id ||
+        connection.labelUnitId === id
+      ) {
+        this.deleteConnection(connection.id);
+      }
+    }
+  }
+
+  setRole(
+    id: string,
+    role: ThoughtUnitRole,
+    changedBy: "user" | "ai_proposed_user_confirmed" = "user",
+  ): ThoughtUnit | undefined {
+    const current = this._units.get(id);
+    if (!current) return undefined;
+    const next: ThoughtUnit = {
+      ...current,
+      role,
+      roleHistory: [...current.roleHistory, roleEntry(role, changedBy)],
+    };
+    this._units.set(id, next);
+    return next;
+  }
+
+  /**
+   * Would parenting `childId` under `parentId` create a cycle? True if the
+   * proposed parent IS the child or already descends from it.
+   */
+  wouldCycle(childId: string, parentId: string): boolean {
+    return parentId === childId || this.isAncestorOf(childId, parentId);
+  }
+
+  /** Walk `nodeId`'s parent chain; is `ancestorId` somewhere above it? */
+  private isAncestorOf(ancestorId: string, nodeId: string): boolean {
+    const seen = new Set<string>();
+    let current = this._units.get(nodeId);
+    while (current?.parentId) {
+      if (current.parentId === ancestorId) return true;
+      if (seen.has(current.parentId)) break; // guard against a pre-existing cycle
+      seen.add(current.parentId);
+      current = this._units.get(current.parentId);
+    }
+    return false;
+  }
+
+  /** Walk `id`'s parent chain to the top; returns `id` itself if it has none. */
+  private rootAncestorId(id: string): string {
+    const seen = new Set<string>([id]);
+    let current = this._units.get(id);
+    let root = id;
+    while (current?.parentId) {
+      if (seen.has(current.parentId)) break; // guard against a pre-existing cycle
+      root = current.parentId;
+      seen.add(root);
+      current = this._units.get(root);
+    }
+    return root;
+  }
+
+  private connectableRootId(id: string): string | undefined {
+    const unit = this._units.get(id);
+    if (!unit || unit.role === "connection_label") return undefined;
+    const rootId = this.rootAncestorId(id);
+    const root = this._units.get(rootId);
+    if (!root || root.role === "connection_label") return undefined;
+    return rootId;
+  }
+
+  addAiSuggestedCard(
+    text: string,
+    contract?: AssistanceContractSnapshot,
+    position: XYPosition = this.nextRootPosition(),
+  ): ThoughtUnit {
+    return this.add({
+      id: nextId("tu"),
+      text,
+      role: "node",
+      source: { utteranceIds: [], createdBy: "ai_from_reflection", origin: "ai_suggested", contract },
+      roleHistory: [roleEntry("node", "ai_proposed_user_confirmed")],
+    }, position);
+  }
+
+  editAiSuggestedText(id: string, text: string, contract?: AssistanceContractSnapshot): ThoughtUnit | undefined {
+    const current = this._units.get(id);
+    if (!current) return undefined;
+    return this.update(id, {
+      text,
+      source: { ...current.source, origin: "ai_suggested", contract },
+    });
+  }
+
+  /**
+   * A connection may only ever point at a root card - only the parent can have
+   * a connector attached. Called whenever `id` becomes nested: any connection
+   * referencing `id` moves to redirect to its new root ancestor instead. If
+   * that redirect would make both endpoints the same card (the card was
+   * connected directly to the very parent it's now nested inside, or to
+   * something that resolves to the same root), the connection is meaningless
+   * once nested, so it's deleted rather than left dangling.
+   */
+  private redirectConnectionsFor(id: string, rootId: string): void {
+    for (const connection of this.getConnections()) {
+      const nextSourceId = connection.sourceId === id ? rootId : connection.sourceId;
+      const nextTargetId = connection.targetId === id ? rootId : connection.targetId;
+      if (nextSourceId === connection.sourceId && nextTargetId === connection.targetId) continue;
+      if (nextSourceId === nextTargetId) {
+        this.deleteConnection(connection.id);
+        continue;
+      }
+      this.reconnect(connection.id, nextSourceId, nextTargetId);
+    }
+  }
+
+  setParent(id: string, parentId?: string, role?: ThoughtUnitRole): ThoughtUnit | undefined {
+    const current = this._units.get(id);
+    if (!current) return undefined;
+    // Never let a re-parent close a loop. No-op if it would.
+    if (parentId && this.wouldCycle(id, parentId)) return undefined;
+    const nextRole = role ?? (parentId ? current.role : "node");
+    const next: ThoughtUnit = {
+      ...current,
+      role: nextRole,
+      parentId,
+      roleHistory: [...current.roleHistory, roleEntry(nextRole, "user")],
+    };
+    delete next.parentProvenance;
+    if (!parentId) delete next.parentId;
+    this._units.set(id, next);
+    // Only the parent (root) can have a connector attached: whenever a card
+    // becomes nested, redirect any connections that reference it to its new
+    // root ancestor instead.
+    if (parentId) this.redirectConnectionsFor(id, this.rootAncestorId(id));
+    return next;
+  }
+
+  swapTitle(memberId: string): boolean {
+    const member = this._units.get(memberId);
+    if (!member?.parentId) return false;
+
+    const oldTitleId = member.parentId;
+    const oldTitle = this._units.get(oldTitleId);
+    if (!oldTitle) return false;
+    const oldTitlePosition = this._positions.get(oldTitleId);
+    const oldTitleSize = this._sizes.get(oldTitleId);
+    const memberPosition = this._positions.get(memberId);
+    const memberSize = this._sizes.get(memberId);
+
+    const siblings = this.getAll().filter(
+      (unit) => unit.parentId === oldTitleId && unit.id !== memberId,
+    );
+
+    this.setParent(memberId, undefined, "node");
+    this.setParent(oldTitleId, memberId, "content");
+    for (const sibling of siblings) {
+      this.setParent(sibling.id, memberId, sibling.role);
+    }
+    if (oldTitlePosition) this._positions.set(memberId, oldTitlePosition);
+    else this._positions.delete(memberId);
+    if (oldTitleSize) this._sizes.set(memberId, oldTitleSize);
+    else this._sizes.delete(memberId);
+    if (memberPosition) this._positions.set(oldTitleId, memberPosition);
+    else this._positions.delete(oldTitleId);
+    if (memberSize) this._sizes.set(oldTitleId, memberSize);
+    else this._sizes.delete(oldTitleId);
+    return true;
+  }
+
+  editText(id: string, text: string, bank: SourceBank): SourceUtterance | undefined {
+    const current = this._units.get(id);
+    if (!current) return undefined;
+
+    const utterance = bank.add(text, "node_edit");
+    const utteranceIds = [...current.source.utteranceIds, utterance.id];
+    this._units.set(id, {
+      ...current,
+      text,
+      source: {
+        ...current.source,
+        utteranceIds,
+      },
+    });
+    return utterance;
+  }
+
+  registerConnection({
+    sourceId,
+    targetId,
+    text,
+    bank,
+    labelUtteranceId,
+    sourceHandleId,
+    targetHandleId,
+    layoutDirection,
+    position,
+    provenance,
+    relationshipProvenance,
+    recordInSourceBank = true,
+  }: {
+    sourceId: string;
+    targetId: string;
+    text: string;
+    bank: SourceBank;
+    labelUtteranceId?: string;
+    sourceHandleId?: string | null;
+    targetHandleId?: string | null;
+    layoutDirection?: ConnectionLayoutDirection;
+    position?: XYPosition;
+    provenance?: { origin: ContributionOrigin | "user_canvas"; contract?: AssistanceContractSnapshot };
+    relationshipProvenance?: { pairingOrigin: ContributionOrigin; labelOrigin: ContributionOrigin };
+    recordInSourceBank?: boolean;
+  }): RegisteredConnection | undefined {
+    const rootSourceId = this.connectableRootId(sourceId);
+    const rootTargetId = this.connectableRootId(targetId);
+    if (!rootSourceId || !rootTargetId || rootSourceId === rootTargetId) return undefined;
+    const handles = this.connectionHandlesFor(rootSourceId, rootTargetId, sourceHandleId, targetHandleId);
+    const trimmed = text.trim();
+    // Wording is optional. Only write to the bank when there is actually wording.
+    const utterance = trimmed && recordInSourceBank
+      ? labelUtteranceId
+        ? bank.get(labelUtteranceId) ?? bank.add(trimmed, "declaration")
+        : bank.add(trimmed, "declaration")
+      : undefined;
+    if (utterance) bank.markCommandOnly([utterance.id]);
+
+    const labelUnit: ThoughtUnit = {
+      id: nextId("tu"),
+      text: trimmed,
+      role: "connection_label",
+      source: {
+        utteranceIds: utterance ? [utterance.id] : [],
+        createdBy: "user",
+        origin: provenance?.origin ?? "user_canvas",
+        contract: provenance?.contract,
+      },
+      roleHistory: [roleEntry("connection_label", "user")],
+    };
+    this.add(labelUnit, position ?? defaultPosition(this._units.size));
+
+    const connection: ThoughtConnection = {
+      id: nextId("edge"),
+      sourceId: rootSourceId,
+      targetId: rootTargetId,
+      sourceHandleId: handles.sourceHandleId,
+      targetHandleId: handles.targetHandleId,
+      layoutDirection: layoutDirection ?? "none",
+      labelUnitId: labelUnit.id,
+      labelUtteranceId: utterance?.id,
+      confirmedAt: Date.now(),
+      createdBy: "user",
+      origin: provenance?.origin ?? "user_canvas",
+      contract: provenance?.contract,
+      pairingOrigin: relationshipProvenance?.pairingOrigin,
+      labelOrigin: relationshipProvenance?.labelOrigin,
+    };
+    this._connections.set(connection.id, connection);
+    return { connection, labelUnit, utterance };
+  }
+
+  /** Remove a connection and its (now-orphaned) label unit. */
+  deleteConnection(id: string): void {
+    const connection = this._connections.get(id);
+    if (!connection) return;
+    this._units.delete(connection.labelUnitId);
+    this._positions.delete(connection.labelUnitId);
+    this._sizes.delete(connection.labelUnitId);
+    this._connections.delete(id);
+  }
+
+  /** Move an existing connection's endpoint(s) to other cards. */
+  reconnect(
+    id: string,
+    sourceId: string,
+    targetId: string,
+    sourceHandleId?: string | null,
+    targetHandleId?: string | null,
+  ): void {
+    const connection = this._connections.get(id);
+    if (!connection) return;
+    const rootSourceId = this.connectableRootId(sourceId);
+    const rootTargetId = this.connectableRootId(targetId);
+    if (!rootSourceId || !rootTargetId) return;
+    if (rootSourceId === rootTargetId) {
+      this.deleteConnection(id);
+      return;
+    }
+    const handles = this.connectionHandlesFor(rootSourceId, rootTargetId, sourceHandleId, targetHandleId, id);
+    this._connections.set(id, {
+      ...connection,
+      sourceId: rootSourceId,
+      targetId: rootTargetId,
+      sourceHandleId: handles.sourceHandleId,
+      targetHandleId: handles.targetHandleId,
+    });
+  }
+
+  setConnectionLayoutDirection(id: string, layoutDirection: ConnectionLayoutDirection): void {
+    const connection = this._connections.get(id);
+    if (!connection) return;
+    this._connections.set(id, {
+      ...connection,
+      layoutDirection,
+    });
+  }
+
+  /**
+   * Set only a connection's rendered handles (which side of each card the line
+   * attaches to), leaving endpoints and everything else untouched. Used by
+   * Auto-clean to route lines onto facing sides after a layout, without going
+   * through `reconnect`'s duplicate-placement resolution.
+   */
+  setConnectionHandles(id: string, sourceHandleId?: string, targetHandleId?: string): void {
+    const connection = this._connections.get(id);
+    if (!connection) return;
+    this._connections.set(id, {
+      ...connection,
+      sourceHandleId,
+      targetHandleId,
+    });
+  }
+
+  getConnections(): ThoughtConnection[] {
+    return Array.from(this._connections.values());
+  }
+
+  private connectionHandlesFor(
+    sourceId: string,
+    targetId: string,
+    requestedSourceHandleId?: string | null,
+    requestedTargetHandleId?: string | null,
+    excludeConnectionId?: string,
+  ): { sourceHandleId?: string; targetHandleId?: string } {
+    const sourceHandleId = requestedSourceHandleId ?? undefined;
+    const targetHandleId = requestedTargetHandleId ?? undefined;
+    const pairKey = unorderedPairKey(sourceId, targetId);
+    const existing = this.getConnections().filter((connection) =>
+      connection.id !== excludeConnectionId &&
+      unorderedPairKey(connection.sourceId, connection.targetId) === pairKey,
+    );
+    if (existing.length === 0) {
+      if (sourceHandleId || targetHandleId) return { sourceHandleId, targetHandleId };
+      return facingConnectionHandles(
+        this.getPosition(sourceId),
+        this.getPosition(targetId),
+        this.getSize(sourceId),
+        this.getSize(targetId),
+      );
+    }
+
+    const used = new Set(existing.map((connection) =>
+      normalizedConnectionPlacement(
+        connection.sourceId,
+        connection.targetId,
+        connection.sourceHandleId,
+        connection.targetHandleId,
+      ),
+    ));
+    const requestedPlacement = normalizedConnectionPlacement(sourceId, targetId, sourceHandleId, targetHandleId);
+    if (!used.has(requestedPlacement) && (sourceHandleId || targetHandleId)) {
+      return { sourceHandleId, targetHandleId };
+    }
+
+    for (const [nextSourceHandleId, nextTargetHandleId] of DUPLICATE_CONNECTION_HANDLE_PAIRS) {
+      const placement = normalizedConnectionPlacement(sourceId, targetId, nextSourceHandleId, nextTargetHandleId);
+      if (!used.has(placement)) {
+        return { sourceHandleId: nextSourceHandleId, targetHandleId: nextTargetHandleId };
+      }
+    }
+
+    return { sourceHandleId, targetHandleId };
+  }
+
+  setPosition(id: string, position: XYPosition): void {
+    this._positions.set(id, position);
+  }
+
+  getPosition(id: string): XYPosition | undefined {
+    return this._positions.get(id);
+  }
+
+  getPositions(): Record<string, XYPosition> {
+    return Object.fromEntries(this._positions.entries());
+  }
+
+  setSize(id: string, size: XYSize): void {
+    this._sizes.set(id, clampCardSize(size));
+  }
+
+  getSize(id: string): XYSize | undefined {
+    return this._sizes.get(id);
+  }
+
+  getSizes(): Record<string, XYSize> {
+    return Object.fromEntries(this._sizes.entries());
+  }
+
+  snapshot(): ThoughtUnitStoreSnapshot {
+    return {
+      units: this.getAll(),
+      positions: this.getPositions(),
+      sizes: this.getSizes(),
+      connections: this.getConnections(),
+    };
+  }
+
+  loadSnapshot(snapshot: ThoughtUnitStoreSnapshot): void {
+    this._units = new Map(snapshot.units.map((unit) => [unit.id, unit]));
+    this._positions = new Map(Object.entries(snapshot.positions));
+    this._sizes = new Map(
+      Object.entries(snapshot.sizes ?? {}).map(([id, size]) => [id, clampCardSize(size)]),
+    );
+    this._connections = new Map();
+    for (const connection of snapshot.connections) {
+      const sourceId = this.connectableRootId(connection.sourceId);
+      const targetId = this.connectableRootId(connection.targetId);
+      if (!sourceId || !targetId || sourceId === targetId) {
+        this._units.delete(connection.labelUnitId);
+        this._positions.delete(connection.labelUnitId);
+        this._sizes.delete(connection.labelUnitId);
+        continue;
+      }
+      this._connections.set(connection.id, {
+        ...connection,
+        sourceId,
+        targetId,
+        layoutDirection: connection.layoutDirection ?? "none",
+      });
+    }
+    primeIdCounters(
+      [
+        ...snapshot.units.map((unit) => unit.id),
+        ...snapshot.connections.map((connection) => connection.id),
+      ],
+    );
+  }
+
+  toLLMContext(): LLMMapContext {
+    const connections: LLMMapConnection[] = this.getConnections().map((connection) => {
+      const label = this.get(connection.labelUnitId);
+      const source = this.get(connection.sourceId);
+      const target = this.get(connection.targetId);
+      return {
+        id: connection.id,
+        sourceId: connection.sourceId,
+        targetId: connection.targetId,
+        labelUnitId: connection.labelUnitId,
+        labelText: label?.text ?? "",
+        sourceText: source?.text ?? "",
+        targetText: target?.text ?? "",
+        utteranceIds:
+          label?.source.utteranceIds ??
+          (connection.labelUtteranceId ? [connection.labelUtteranceId] : []),
+      };
+    });
+
+    return {
+      thoughtUnits: this.getAll(),
+      connections,
+    };
+  }
+}

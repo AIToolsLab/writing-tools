@@ -1,0 +1,38 @@
+{
+  "name": "prototype-mindmap",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Reflective mind-map prototype: user-owned ideas externalized as a node graph. AI questions, mirrors, and captures; it never authors structure.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "eval": "tsx eval/run.ts",
+    "i18n": "node scripts/generate-i18n.mjs",
+    "eval:typecheck": "tsc -p tsconfig.eval.json",
+    "eval:report": "tsx eval/report.ts",
+    "test:e2e": "playwright test",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@dagrejs/dagre": "^3.0.0",
+    "@xyflow/react": "^12.3.5",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-resizable-panels": "^4.11.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.1.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "jsdom": "^29.1.1",
+    "tsx": "^4.23.1",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.3",
+    "vitest": "^3.2.4"
+  }
+}

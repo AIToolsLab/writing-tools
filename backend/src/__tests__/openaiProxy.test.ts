@@ -9,6 +9,7 @@ import {
 	attributeRequest,
 	createSseUsageScanner,
 	parseUsage,
+	PLATFORM_AUTH_ERROR_HEADER,
 } from '../openaiProxy.js';
 import {
 	ANONYMOUS_USER_ID,
@@ -252,6 +253,33 @@ describe('POST /api/openai/chat/completions', () => {
 		);
 
 		expect(res.status).toBe(401);
+		expect(res.headers.get(PLATFORM_AUTH_ERROR_HEADER)).toBe('platform-auth');
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('rejects a presented invalid tool token even when demo access is configured', async () => {
+		vi.stubEnv('OPENAI_DEMO_API_KEY', 'demo-key');
+		const fetchMock = vi.fn();
+		vi.stubGlobal('fetch', fetchMock);
+
+		const res = await appWithUser(null).request(
+			'/api/openai/chat/completions',
+			{
+				method: 'POST',
+				headers: {
+					'Content-Type': 'application/json',
+					Authorization: 'Bearer wtk_invalid-or-revoked',
+				},
+				body: JSON.stringify({ model: 'gpt-4o' }),
+			},
+		);
+
+		expect(res.status).toBe(401);
+		expect(res.headers.get(PLATFORM_AUTH_ERROR_HEADER)).toBe('platform-auth');
+		expect(await res.json()).toEqual({
+			error: { code: 'platform_auth' },
+			detail: 'Tool access token is invalid or expired.',
+		});
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
@@ -281,7 +309,46 @@ describe('POST /api/openai/chat/completions', () => {
 		);
 
 		expect(res.status).toBe(403);
+		expect(res.headers.get(PLATFORM_AUTH_ERROR_HEADER)).toBe('platform-auth');
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('does not mark an upstream OpenAI authentication error as platform auth', async () => {
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () =>
+				new Response(JSON.stringify({ error: { message: 'provider key' } }), {
+					status: 401,
+					headers: { 'Content-Type': 'application/json' },
+				}),
+			),
+		);
+		const res = await appWithUser(real('usr-upstream')).request(
+			'/api/openai/chat/completions',
+			{
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ model: 'gpt-4o' }),
+			},
+		);
+		expect(res.status).toBe(401);
+		expect(res.headers.get(PLATFORM_AUTH_ERROR_HEADER)).toBeNull();
+	});
+
+	it('exposes the platform-auth marker header through CORS', async () => {
+		const res = await appWithUser(null).request(
+			'/api/openai/chat/completions',
+			{
+				method: 'OPTIONS',
+				headers: {
+					Origin: 'https://mindmap.example',
+					'Access-Control-Request-Method': 'POST',
+				},
+			},
+		);
+		expect(res.headers.get('Access-Control-Expose-Headers')).toContain(
+			PLATFORM_AUTH_ERROR_HEADER,
+		);
 	});
 
 	it('serves a sessionless request on the demo key and meters it to `demo`', async () => {
@@ -558,12 +625,20 @@ describe('POST /api/openai/responses', () => {
 		);
 		vi.stubGlobal('fetch', fetchMock);
 
+		const requestBody = {
+			model: 'gpt-4o',
+			input: 'hi',
+			tools: [{ type: 'web_search_preview' }],
+			temperature: 0.4,
+			max_output_tokens: 321,
+			metadata: { surface: 'mindmap' },
+		};
 		const res = await appWithUser(real('usr-r')).request(
 			'/api/openai/responses',
 			{
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ model: 'gpt-4o', input: 'hi' }),
+				body: JSON.stringify(requestBody),
 			},
 		);
 
@@ -571,6 +646,11 @@ describe('POST /api/openai/responses', () => {
 		expect(fetchMock.mock.calls[0]?.[0]).toBe(
 			'https://api.openai.com/v1/responses',
 		);
+		expect(
+			JSON.parse(
+				String((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.body),
+			),
+		).toEqual(requestBody);
 		expect(await res.json()).toEqual(body);
 		const rows = await waitForUsage();
 		expect(rows[0]).toMatchObject({

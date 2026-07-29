@@ -4,7 +4,8 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app.js';
 import type { Auth } from '../auth.js';
-import { closeDb } from '../db.js';
+import { closeDb, db } from '../db.js';
+import { PLATFORM_AUTH_ERROR_HEADER } from '../openaiProxy.js';
 
 const env = { ...process.env };
 
@@ -19,6 +20,7 @@ beforeEach(async () => {
 
 afterEach(() => {
 	vi.unstubAllEnvs();
+	vi.unstubAllGlobals();
 	closeDb();
 	process.env = { ...env };
 });
@@ -175,6 +177,34 @@ describe('tool token end-to-end', () => {
 		const res = await post(createApp(), '/api/log', { event: 'after_revoke' }, token);
 		expect(res.status).toBe(401);
 	});
+
+	it.each(['revoked', 'expired'] as const)(
+		'fails a %s tool token closed at the proxy even with demo access',
+		async (state) => {
+			vi.stubEnv('OPENAI_DEMO_API_KEY', 'demo-key');
+			const token = await tokenFor(['openai:chat']);
+			if (state === 'revoked') {
+				await post(createApp(), '/api/handoff/revoke', {}, token);
+			} else {
+				db()
+					.prepare(
+						'UPDATE tool_grant SET token_expires_at = ? WHERE access_token = ?',
+					)
+					.run(Date.now() - 1, token);
+			}
+			const fetchMock = vi.fn();
+			vi.stubGlobal('fetch', fetchMock);
+			const res = await post(
+				createApp(),
+				'/api/openai/chat/completions',
+				{ model: 'gpt-4o' },
+				token,
+			);
+			expect(res.status).toBe(401);
+			expect(res.headers.get(PLATFORM_AUTH_ERROR_HEADER)).toBe('platform-auth');
+			expect(fetchMock).not.toHaveBeenCalled();
+		},
+	);
 });
 
 describe('X-Client-Id header attribution (device-flow tools)', () => {
