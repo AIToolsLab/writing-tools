@@ -59,15 +59,21 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
 - **Tool launcher** (`src/toolGrants.ts`): the handoff grant flow for launching
   external writing tools from the sidebar (see `docs/tool-launcher-plan.md`, Phase 1).
   The signed-in taskpane mints a single-use, short-TTL grant (`POST /api/handoff`)
-  carrying the user, the tool's `client_id`, requested scopes, and an optional
-  read-only document snapshot; the tool — on its own foreign origin — swaps the
-  grant_id for a `wtk_`-prefixed bearer token (`POST /api/handoff/exchange`). That
+  carrying the user, the tool's `client_id`, the **origin being launched** (derived
+  from a required `tool_url`), requested scopes, and an optional read-only document
+  snapshot; the tool — on its own foreign origin — swaps the grant_id for a
+  `wtk_`-prefixed bearer token (`POST /api/handoff/exchange`). That
   token is our own credential (a `tool_grant` row, not a Better Auth session):
   `app.ts` `resolveUser` recognizes the `wtk_` prefix and resolves it here, so the
   tool's proxy/log calls run under the user's account, attributed to the tool.
-  `GET /api/handoff/doc` re-fetches the snapshot (gated by `doc:read`);
-  `POST /api/handoff/revoke` disconnects a token. Scope enforcement beyond the doc
-  re-fetch is deferred (Phase 3).
+  The exchange refuses any caller whose `Origin` doesn't match the grant's
+  `tool_origin` — an application check, deliberately *not* CORS, which stays
+  permissive because the whole surface is bearer-only. **There is no server-side
+  registry of tool origins**, and adding one would be a regression: a tool's origin
+  differs per deployment (dev launches localhost), so the grant records what was
+  actually launched. `GET /api/handoff/doc` re-fetches the snapshot (gated by
+  `doc:read`); `POST /api/handoff/revoke` disconnects a token. Scope enforcement
+  beyond the doc re-fetch is deferred (Phase 3).
 - **Auth** (`src/auth.ts`): Better Auth (Google sign-in + device-code flow for the
   add-in), on the shared `app.db`, enabled by `BETTER_AUTH_ENABLED=true`. Carries the
   user's `loggingConsent` level as a user field; `beforeDelete` purges study logs and

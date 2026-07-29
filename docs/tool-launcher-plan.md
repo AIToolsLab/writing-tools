@@ -24,6 +24,14 @@ features.
 >   row), not a Better Auth session — Better Auth has no server-side session-mint
 >   primitive, and a parallel token keeps the tool's scopes and per-token revoke
 >   explicit. Revocation is per-token, not Better Auth session revocation.
+> - **Phase 1.1 — origin binding + self-describing launches** (see "The grant names
+>   a tool at an origin" below). A grant now records the origin the taskpane
+>   launched (`tool_grant.tool_origin`, db v4, from a required `tool_url` on
+>   `POST /api/handoff`) and the exchange refuses any caller whose `Origin` doesn't
+>   match. The launch fragment also carries `wt_api`, the platform's own API base,
+>   so a tool talks to the backend that granted it rather than one baked in at build
+>   time. `prototype-mindmap` consumes both: its session records its issuing backend
+>   (`PlatformSession.backendUrl`, storage v2) and every later call uses it.
 >
 > Everything below Phase 1 (rooms, panel tools, scoped tokens/quotas/manifests) is
 > still exploration. Scope enforcement on tool tokens is deferred to Phase 3: a
@@ -120,21 +128,80 @@ Friction shortcut for tools launched *from the sidebar* (where the user is
 already signed in): the taskpane mints a **launch grant** —
 
 1. Taskpane: `POST /api/handoff` (authenticated) →
-   `{ grant_id }`, stashing `{ user, tool_client_id, scopes, doc_snapshot?, ttl≈2min, single-use }`.
-2. Taskpane opens `https://tool.example/#wt_grant=<grant_id>` in the
-   browser. URL **fragment**, not query: fragments aren't sent to the
+   `{ grant_id }`, stashing `{ user, tool_client_id, tool_origin, scopes, doc_snapshot?, ttl≈2min, single-use }`.
+2. Taskpane opens `https://tool.example/#wt_grant=<grant_id>&wt_api=<platform API base>`
+   in the browser. URL **fragment**, not query: fragments aren't sent to the
    tool's server or logged in intermediary access logs.
 3. Tool: `POST /api/handoff/exchange {grant_id}` → bearer token
-   (a Better Auth session scoped/tagged for that tool) + the doc snapshot.
+   (an opaque `wtk_` credential tagged for that tool) + the doc snapshot.
+   The caller's `Origin` must match the grant's `tool_origin`.
 
 The pure device flow remains the fallback when a tool is opened directly
 (bookmark, returning participant), which longitudinal studies will need
 anyway.
 
-Teardown: grants are single-use with a short TTL; tokens expire on the
-normal session schedule; a "Disconnect" row per tool in the sidebar calls
-Better Auth session revocation. Nothing needs the taskpane to stay open
-after launch *unless* a live document channel is granted (below).
+Teardown: grants are single-use with a short TTL; tokens expire an hour after
+exchange; `POST /api/handoff/revoke` disconnects one. Nothing needs the taskpane
+to stay open after launch *unless* a live document channel is granted (below).
+
+### The grant names a tool at an origin
+
+Two properties fall out of the same idea — that a grant is a statement about a
+*specific launch*, not a lookup key into a registry of tools.
+
+**The exchange is bound to the launched origin.** The taskpane sends the URL it
+is about to open; the backend reduces it to an origin, stores it on the grant,
+and refuses any exchange whose `Origin` header doesn't match. A grant that leaks,
+or is relayed into a page the user didn't launch, can't be redeemed there.
+
+We considered a server-side registry (`client_id → allowed origin`) instead and
+rejected it. It has to answer "what origin is `mindmap`?", which has no single
+answer — `resolveMindmapToolUrl` already returns localhost in dev and the
+deployed host otherwise — so the registry would duplicate the frontend's URL
+resolution and drift from it. Recording what was actually launched is lighter
+*and* more accurate. The security delta is nil: both designs block grant relay,
+both fail to block grant injection (an attacker minting for their own account and
+naming the genuine origin), and neither touches the hostile-backend case below.
+The only thing a registry adds is constraining a *compromised taskpane*, which is
+already inside the surface that reads the document directly.
+
+`Origin` is always present here: the grant can only arrive via a URL fragment, so
+every caller is a browser page, and a JSON POST is preflighted. A missing `Origin`
+is refused rather than waved through. Two future collisions worth remembering —
+opaque-origin sandboxes send `Origin: null` (relevant if the `sandbox="allow-scripts"`
+bundle hosting under "Registration UX" ever lands), and a tool that redirects
+post-launch (`foo.github.io` → custom domain) will present the wrong origin; the
+fix there is a manifest declaring the exchange origin.
+
+**The granting backend is the backend the tool talks to.** The launch fragment
+carries `wt_api`, the platform's own API base, and the tool uses it for the
+exchange and everything after. This is the honest arrangement regardless — a grant
+is only redeemable at its issuer, the token is only valid there, and the snapshot
+only lives there, so a tool talking to any other backend is always a bug or an
+attack. It also removes per-deployment tool builds, which is what Phase 3 needs: a
+researcher hosts one bundle and prod, staging, and a developer's localhost each
+launch it against themselves.
+
+The cost is that `wt_api` is attacker-supplyable — anyone can craft a link to the
+tool's page. That is survivable but not free. A hostile base can't mint a real
+token, but it can serve a fake document and collect whatever the writer does next.
+Note the baseline: an attacker can already host their own copy of a
+client-side bundle pointed at their own backend, so what injection actually buys
+them is the genuine tool's origin (its persisted state, and a URL bar that looks
+right). Hence the containment, which is the tool's job, not the platform's:
+
+- **The session records its own backend.** `PlatformSession.backendUrl` is stored
+  with the token and used for every later call, so a session obtained from one
+  platform can never be replayed against another, and a hostile launch can't reuse
+  a genuine session. This is what a naive tool would get wrong by keeping one
+  global storage key.
+- **No plaintext.** `normalizePlatformApiBase` refuses anything but https, except
+  loopback for dev, so the base can't be downgraded in transit.
+
+A tool-side allowlist of acceptable platform origins would also close the URL-bar
+phishing residue, but only by giving back the deployment-agnostic property that
+was the point. Displaying the connected identity and platform is the cheaper
+mitigation, and is the right home for it (see the consent screen in Phase 3).
 
 ### Prerequisite: the proxy must actually check tokens — done
 
@@ -263,7 +330,11 @@ Keep it far short of an app store:
 
 - **Phase 1:** hardcoded first-party list (mindmap, …) on a new "Tools"
   page in the sidebar (`PageName.Tools` next to Chat/Draft/Revise), plus a
-  "paste a URL" field for ad-hoc launches.
+  "paste a URL" field for ad-hoc launches. The pasted-URL path currently just
+  opens the URL — no grant, so such a tool must sign in via the device flow —
+  only because there was no `client_id` to mint against. Now that a grant is
+  bound to the launched origin, a pasted URL could carry one bound to the origin
+  the user typed, which is a decent consent signal in itself. Not implemented.
 - **Later:** a tool manifest — small JSON (name, launch URL, requested
   scopes, contact) fetched from `<tool-origin>/.well-known/writing-tool.json`
   or pasted. Requested scopes drive a consent screen ("Mindmap wants:
@@ -289,8 +360,11 @@ Fine to skip for first-party-only Phase 1, but designed-for now:
 | Proxy abuse | auth required | per-user + per-tool quotas/rate limits; model allowlist |
 | Doc data leaving trust boundary | trusted tools | consent screen naming scopes; snapshot-only default; patch-with-confirm writes |
 | Same-origin code execution | avoided by design (browser launch) | stays avoided; sandbox origin if bundle hosting ever lands |
+| Grant redemption | bound to the launched origin (`tool_origin` vs. `Origin`), single-use, ~2min TTL | unchanged; manifest declares the exchange origin for tools that redirect |
+| Grant injection (attacker's grant in the victim's tab) | **open** — visible only because the doc snapshot is wrong | consent screen naming the connected identity + platform |
+| Hostile `wt_api` in a crafted link | session records its issuing backend; https-only | plus identity display, so a fake platform is visible |
 | Log tenancy | shared JSONL as today | logs keyed `(user, tool)`; per-study export scoped to the study's own logs |
-| Revocation | session revoke via sidebar | plus per-room member list ("this phone, this mindmap tab") with per-member revoke |
+| Revocation | per-token via `POST /api/handoff/revoke` | plus per-room member list ("this phone, this mindmap tab") with per-member revoke |
 
 Also worth stating: permissive CORS is *compatible* with the bearer-token
 model (no cookies to steal cross-site), but cookie-authenticated routes
@@ -308,6 +382,11 @@ origins.
    field; browser launch with handoff grant (token + read-only doc snapshot);
    device-flow fallback for direct visits. (Porting the mindmap to actually
    consume the grant is tracked separately — it lives on `feat/uist`.)
+2. **Phase 1.1 — done:** grants bound to the launched origin and checked against
+   `Origin` at exchange; the launch fragment names the platform's API base so a
+   tool follows the backend that granted it. See "The grant names a tool at an
+   origin". Still open from that discussion: grant injection, whose mitigation is
+   a connected-identity display and so belongs with the Phase 3 consent screen.
 3. **Phase 2:** rooms — WebSocket switchboard with membership + scopes
    (`doc:read` / `doc:write`, patch-with-confirm writes), `rpc` /
    `broadcast` / `presence` message types, room list + QR/short-URL join.
