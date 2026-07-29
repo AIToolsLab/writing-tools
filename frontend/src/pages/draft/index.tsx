@@ -12,7 +12,7 @@ import {
 import { generateFullText } from '@/api/generate';
 import { draftLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
-import { buildMessages } from '@/api/prompts';
+import { buildMessages, DRAFT_INSTRUCTIONS } from '@/api/prompts';
 import { ErrorNotice, GenerationErrorNotice } from '@/components/errorNotice';
 import BriefSection from '@/components/briefSection';
 import {
@@ -93,6 +93,7 @@ class Fetcher {
 			const result = await generateFullText({
 				model: languageModel,
 				providerOptions: openaiProviderOptions,
+				instructions: DRAFT_INSTRUCTIONS,
 				messages,
 				abortSignal: AbortSignal.timeout(20000),
 			});

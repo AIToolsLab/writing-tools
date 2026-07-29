@@ -58,7 +58,7 @@ export default function TaskPage() {
 
     // Navigate to post-task survey
     const params = new URLSearchParams(searchParams.toString());
-    params.set('page', 'post-task-survey');
+    params.set('page', 'debrief');
     window.location.href = `/study?${params.toString()}`;
   };
 

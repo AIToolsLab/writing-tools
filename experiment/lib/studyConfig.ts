@@ -23,6 +23,7 @@ export const STUDY_PAGES = [
   'intro-survey',
   'start-task',
   'task',
+  'debrief',
   'post-task-survey',
   'final',
 ] as const;

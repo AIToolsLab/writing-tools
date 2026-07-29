@@ -95,6 +95,17 @@ Log `info.detail` (provider text) and `info.code`, not the sentence shown on
 screen. A successful-but-empty generation is also a visible outcome (`tone="info"`
 notice), never silence.
 
+**The system prompt goes in `instructions`, never in `messages`.** Since ai@7, a
+`role: 'system'` message inside `messages` fails validation before the request
+leaves the browser — `InvalidPromptError: System messages are not allowed in the
+prompt or messages fields. Use the instructions option instead.` — which reaches
+the writer as a generation error on every request. Pass the system prompt as the
+`instructions` option (a string) alongside `messages`; the SDK puts it back at
+the head of the prompt itself. This bites hardest where a page keeps a
+conversation in state: the chat transcript (`pages/chat`) holds only the
+doc-context, greeting, user, and assistant messages, with `CHAT_INSTRUCTIONS`
+kept outside it.
+
 ### Testing
 
 Two runners own two disjoint directories — never mix them:

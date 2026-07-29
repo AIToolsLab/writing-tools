@@ -1,6 +1,6 @@
 import type { LogEntry } from '@/types/study';
 import { appendFile, mkdir, realpath } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { resolve, sep } from 'node:path';
 
 const LOGS_DIR = resolve(process.cwd(), 'logs');
 
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     const logFilePath = resolve(realLogsDir, `${username}.jsonl`);
 
     // Verify the resolved path is within the logs directory (prevent directory traversal)
-    if (!logFilePath.startsWith(`${realLogsDir}/`)) {
+    if (!logFilePath.startsWith(`${realLogsDir}${sep}`)) {
       return Response.json(
         { error: 'Invalid log file path' },
         { status: 400 }

@@ -36,16 +36,27 @@ const suggestionPrompts = [
 	'What am I missing?',
 ];
 
-const CHAT_SYSTEM_MESSAGE: ChatMessage = {
-	role: 'system',
-	content:
-		'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.',
-};
+/**
+ * The chat's system prompt. It is passed as the `instructions` option on the
+ * generation call and deliberately kept *out* of the transcript: ai@7 rejects a
+ * system-role message inside `messages` with "System messages are not allowed
+ * in the prompt or messages fields."
+ */
+const CHAT_INSTRUCTIONS =
+	'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.';
 
 const CHAT_GREETING_MESSAGE: ChatMessage = {
 	role: 'assistant',
 	content: 'What do you think about your document so far?',
 };
+
+/**
+ * The messages `withCurrentDocContext` seeds ahead of the real conversation:
+ * the document context, then the greeting. They're part of what the model
+ * reads but not part of what the writer sees, so the transcript is rendered
+ * from this offset on.
+ */
+const SEEDED_MESSAGE_COUNT = 2;
 
 /**
  * Renders the document context into the message the model reads.
@@ -67,10 +78,10 @@ export function docContextMessageContent(
 }
 
 /**
- * Builds the base conversation with the freshest document context as its
- * second message. When the chat is empty it seeds the system + doc-context +
- * greeting messages; otherwise it replaces the existing doc-context message so
- * the model always sees the current document state at send time.
+ * Builds the base conversation with the freshest document context as its first
+ * message. When the chat is empty it seeds the doc-context + greeting
+ * messages; otherwise it replaces the existing doc-context message so the
+ * model always sees the current document state at send time.
  */
 export function withCurrentDocContext(
 	chatMessages: ChatMessage[],
@@ -82,10 +93,10 @@ export function withCurrentDocContext(
 		content: docContextMessageContent(docContext, brief),
 	};
 	if (chatMessages.length === 0) {
-		return [CHAT_SYSTEM_MESSAGE, docContextMessage, CHAT_GREETING_MESSAGE];
+		return [docContextMessage, CHAT_GREETING_MESSAGE];
 	}
 	const updated = chatMessages.slice();
-	updated[1] = docContextMessage;
+	updated[0] = docContextMessage;
 	return updated;
 }
 
@@ -176,7 +187,9 @@ export default function Chat() {
 	const [message, updateMessage] = useState('');
 
 	const visibleMessages =
-		chatMessages.length > 3 ? chatMessages.slice(3) : [];
+		chatMessages.length > SEEDED_MESSAGE_COUNT
+			? chatMessages.slice(SEEDED_MESSAGE_COUNT)
+			: [];
 
 	const resizeTextarea = useCallback(() => {
 		const textarea = textareaRef.current;
@@ -228,6 +241,7 @@ export default function Chat() {
 			const deltas = streamTextDeltas({
 				model: languageModel,
 				providerOptions: openaiProviderOptions,
+				instructions: CHAT_INSTRUCTIONS,
 				messages: newMessages.slice(0, -1) as ModelMessage[],
 				maxOutputTokens: 1024,
 				abortSignal: requestController.signal,
@@ -330,7 +344,7 @@ export default function Chat() {
 
 							return (
 								<div
-									key={index + 3}
+									key={index + SEEDED_MESSAGE_COUNT}
 									className={`${classes.chatMsg} ${chatMessage.role === 'user' ? classes.user : classes.ai}`}
 								>
 									{chatMessage.role === 'assistant' ? (
