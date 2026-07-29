@@ -8,6 +8,7 @@ import {
 	exchangeToolGrant,
 	GRANT_TTL_MS,
 	getToolTokenDoc,
+	originOfLaunchUrl,
 	resolveToolToken,
 	revokeToolToken,
 	TOKEN_TTL_MS,
@@ -32,19 +33,30 @@ const USER = {
 	isAllowed: true,
 };
 
+const TOOL_ORIGIN = 'https://tool.example';
+
 function mint(docSnapshot: unknown = undefined) {
 	return createToolGrant({
 		user: USER,
 		toolClientId: 'mindmap',
+		toolOrigin: TOOL_ORIGIN,
 		scopes: ['openai:chat', 'doc:read'],
 		docSnapshot,
 	});
 }
 
+/**
+ * Redeem from the origin the grant was minted for, unless a test says otherwise.
+ * `null` stands for "the request carried no Origin header at all".
+ */
+function redeem(grantId: string, origin: string | null = TOOL_ORIGIN) {
+	return exchangeToolGrant(grantId, origin);
+}
+
 describe('createToolGrant / exchangeToolGrant', () => {
 	it('exchanges a fresh grant for a wtk_ token carrying the identity, scopes and doc', () => {
 		const { grantId } = mint({ beforeCursor: 'hello', selectedText: '', afterCursor: '' });
-		const result = exchangeToolGrant(grantId);
+		const result = redeem(grantId);
 
 		expect(result.ok).toBe(true);
 		if (!result.ok) return;
@@ -58,16 +70,16 @@ describe('createToolGrant / exchangeToolGrant', () => {
 
 	it('is single-use — a second exchange is refused', () => {
 		const { grantId } = mint();
-		expect(exchangeToolGrant(grantId).ok).toBe(true);
+		expect(redeem(grantId).ok).toBe(true);
 
-		const second = exchangeToolGrant(grantId);
+		const second = redeem(grantId);
 		expect(second.ok).toBe(false);
 		if (second.ok) return;
 		expect(second.error).toBe('already_used');
 	});
 
 	it('rejects an unknown grant', () => {
-		const r = exchangeToolGrant('wtg_nope');
+		const r = redeem('wtg_nope');
 		expect(r).toEqual({ ok: false, error: 'not_found' });
 	});
 
@@ -76,21 +88,57 @@ describe('createToolGrant / exchangeToolGrant', () => {
 		const { grantId } = mint();
 		vi.advanceTimersByTime(GRANT_TTL_MS + 1);
 
-		const r = exchangeToolGrant(grantId);
+		const r = redeem(grantId);
 		expect(r).toEqual({ ok: false, error: 'expired' });
 	});
 
 	it('returns doc: null when no snapshot was shared', () => {
 		const { grantId } = mint(); // no doc
-		const r = exchangeToolGrant(grantId);
+		const r = redeem(grantId);
 		expect(r.ok && r.doc).toBeNull();
 	});
+
+	it.each([
+		['a different origin', 'https://evil.example'],
+		['a scheme downgrade', 'http://tool.example'],
+		['a non-default port', 'https://tool.example:8443'],
+		['a subdomain', 'https://sub.tool.example'],
+		['an empty Origin', ''],
+		['no Origin header', null],
+	])('refuses %s', (_label, origin) => {
+		const { grantId } = mint();
+		expect(redeem(grantId, origin)).toEqual({ ok: false, error: 'origin_mismatch' });
+	});
+
+	it('leaves the grant redeemable after a refused attempt', () => {
+		const { grantId } = mint();
+		expect(redeem(grantId, 'https://evil.example').ok).toBe(false);
+		expect(redeem(grantId).ok).toBe(true);
+	});
+});
+
+describe('originOfLaunchUrl', () => {
+	it.each([
+		['https://tool.example/app/?q=1#frag', 'https://tool.example'],
+		['http://localhost:5181/', 'http://localhost:5181'],
+		// Default ports normalize away, so the stored and compared forms agree.
+		['https://tool.example:443/x', 'https://tool.example'],
+	])('reduces %s to %s', (url, origin) => {
+		expect(originOfLaunchUrl(url)).toBe(origin);
+	});
+
+	it.each([undefined, null, 42, '', 'not a url', 'javascript:alert(1)', 'file:///etc/passwd'])(
+		'rejects %p',
+		(url) => {
+			expect(originOfLaunchUrl(url)).toBeNull();
+		},
+	);
 });
 
 describe('resolveToolToken', () => {
 	it('resolves a live token to the user with the tool as clientId', () => {
 		const { grantId } = mint();
-		const ex = exchangeToolGrant(grantId);
+		const ex = redeem(grantId);
 		if (!ex.ok) throw new Error('exchange failed');
 
 		const resolved = resolveToolToken(ex.accessToken);
@@ -110,7 +158,7 @@ describe('resolveToolToken', () => {
 	it('returns null once the token has expired', () => {
 		vi.useFakeTimers();
 		const { grantId } = mint();
-		const ex = exchangeToolGrant(grantId);
+		const ex = redeem(grantId);
 		if (!ex.ok) throw new Error('exchange failed');
 
 		vi.advanceTimersByTime(TOKEN_TTL_MS + 1);
@@ -121,7 +169,7 @@ describe('resolveToolToken', () => {
 describe('getToolTokenDoc / revokeToolToken', () => {
 	it('re-fetches the stored snapshot for a live token', () => {
 		const { grantId } = mint({ beforeCursor: 'ctx', selectedText: '', afterCursor: '' });
-		const ex = exchangeToolGrant(grantId);
+		const ex = redeem(grantId);
 		if (!ex.ok) throw new Error('exchange failed');
 
 		expect(getToolTokenDoc(ex.accessToken)).toEqual({
@@ -132,7 +180,7 @@ describe('getToolTokenDoc / revokeToolToken', () => {
 
 	it('revokes a token so it no longer resolves', () => {
 		const { grantId } = mint();
-		const ex = exchangeToolGrant(grantId);
+		const ex = redeem(grantId);
 		if (!ex.ok) throw new Error('exchange failed');
 
 		expect(revokeToolToken(ex.accessToken)).toBe(true);

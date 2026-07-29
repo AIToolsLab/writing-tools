@@ -36,15 +36,52 @@ function authApp(user: { id: string; email?: string; loggingConsent?: string } |
 
 const SIGNED_IN = { id: 'usr-1', email: 'a@calvin.edu', loggingConsent: 'usage' };
 
-function post(app: ReturnType<typeof createApp>, url: string, body: unknown, token?: string) {
+/** Where the tool is launched, and the origin a grant for it is therefore bound to. */
+const TOOL_URL = 'https://tool.example/app/?x=1';
+const TOOL_ORIGIN = 'https://tool.example';
+
+function post(
+	app: ReturnType<typeof createApp>,
+	url: string,
+	body: unknown,
+	token?: string,
+	origin?: string,
+) {
 	return app.request(url, {
 		method: 'POST',
 		headers: {
 			'Content-Type': 'application/json',
 			...(token ? { Authorization: `Bearer ${token}` } : {}),
+			...(origin ? { Origin: origin } : {}),
 		},
 		body: JSON.stringify(body),
 	});
+}
+
+/** Mint a grant as the signed-in taskpane would. */
+async function mintGrant(
+	body: Record<string, unknown> = {},
+): Promise<{ grant_id: string }> {
+	const res = await post(authApp(SIGNED_IN), '/api/handoff', {
+		tool_client_id: 'mindmap',
+		tool_url: TOOL_URL,
+		...body,
+	});
+	return (await res.json()) as { grant_id: string };
+}
+
+/**
+ * Redeem a grant the way the launched tool's browser page does: with an Origin.
+ * `null` stands for "send no Origin header at all".
+ */
+function exchange(grantId: string, origin: string | null = TOOL_ORIGIN) {
+	return post(
+		createApp(),
+		'/api/handoff/exchange',
+		{ grant_id: grantId },
+		undefined,
+		origin ?? undefined,
+	);
 }
 
 describe('POST /api/handoff', () => {
@@ -58,6 +95,7 @@ describe('POST /api/handoff', () => {
 	it('rejects a tool_client_id outside the allowlist', async () => {
 		const res = await post(authApp(SIGNED_IN), '/api/handoff', {
 			tool_client_id: 'not-registered',
+			tool_url: TOOL_URL,
 		});
 		expect(res.status).toBe(400);
 	});
@@ -65,14 +103,27 @@ describe('POST /api/handoff', () => {
 	it('rejects invalid scopes', async () => {
 		const res = await post(authApp(SIGNED_IN), '/api/handoff', {
 			tool_client_id: 'mindmap',
+			tool_url: TOOL_URL,
 			scopes: ['openai:chat', 'root:everything'],
 		});
 		expect(res.status).toBe(400);
 	});
 
+	it.each([undefined, 'not a url', 'javascript:alert(1)', 'file:///etc/passwd'])(
+		'rejects a launch url of %p — there would be no origin to bind the grant to',
+		async (toolUrl) => {
+			const res = await post(authApp(SIGNED_IN), '/api/handoff', {
+				tool_client_id: 'mindmap',
+				tool_url: toolUrl,
+			});
+			expect(res.status).toBe(400);
+		},
+	);
+
 	it('mints a grant for a signed-in user', async () => {
 		const res = await post(authApp(SIGNED_IN), '/api/handoff', {
 			tool_client_id: 'mindmap',
+			tool_url: TOOL_URL,
 		});
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as { grant_id: string; expires_in: number };
@@ -83,18 +134,12 @@ describe('POST /api/handoff', () => {
 
 describe('POST /api/handoff/exchange', () => {
 	it('swaps a grant for a token + doc snapshot, and is single-use', async () => {
-		const app = authApp(SIGNED_IN);
-		const created = (await (
-			await post(app, '/api/handoff', {
-				tool_client_id: 'mindmap',
-				doc: { beforeCursor: 'hi', selectedText: '', afterCursor: '' },
-			})
-		).json()) as { grant_id: string };
+		const created = await mintGrant({
+			doc: { beforeCursor: 'hi', selectedText: '', afterCursor: '' },
+		});
 
 		// Exchange needs no session — the grant_id is the credential.
-		const res = await post(createApp(), '/api/handoff/exchange', {
-			grant_id: created.grant_id,
-		});
+		const res = await exchange(created.grant_id);
 		expect(res.status).toBe(200);
 		const body = (await res.json()) as {
 			access_token: string;
@@ -107,31 +152,45 @@ describe('POST /api/handoff/exchange', () => {
 		expect(body.doc).toEqual({ beforeCursor: 'hi', selectedText: '', afterCursor: '' });
 
 		// Replaying the grant fails.
-		const replay = await post(createApp(), '/api/handoff/exchange', {
-			grant_id: created.grant_id,
-		});
-		expect(replay.status).toBe(400);
+		expect((await exchange(created.grant_id)).status).toBe(400);
 	});
 
 	it('400s a missing grant_id', async () => {
 		const res = await post(createApp(), '/api/handoff/exchange', {});
 		expect(res.status).toBe(400);
 	});
+
+	// The grant is bound to the origin the taskpane launched, so a grant that leaks
+	// (or is relayed into an attacker's page) can't be redeemed anywhere else.
+	it.each([
+		['a different origin', 'https://evil.example'],
+		['a sibling host', 'https://tool.example.evil.test'],
+		['a scheme downgrade', 'http://tool.example'],
+		['a non-default port', 'https://tool.example:8443'],
+		['no Origin at all', null],
+	])('refuses an exchange from %s', async (_label, origin) => {
+		const created = await mintGrant();
+
+		const res = await exchange(created.grant_id, origin);
+		expect(res.status).toBe(400);
+		expect((await res.json()) as { error: string }).toMatchObject({
+			error: 'origin_mismatch',
+		});
+
+		// A refused attempt must not burn the grant — the real tool still redeems it.
+		expect((await exchange(created.grant_id)).status).toBe(200);
+	});
 });
 
 describe('tool token end-to-end', () => {
 	async function tokenFor(scopes?: string[]): Promise<string> {
-		const app = authApp(SIGNED_IN);
-		const created = (await (
-			await post(app, '/api/handoff', {
-				tool_client_id: 'mindmap',
-				scopes,
-				doc: { beforeCursor: 'doc', selectedText: '', afterCursor: '' },
-			})
-		).json()) as { grant_id: string };
-		const ex = (await (
-			await post(createApp(), '/api/handoff/exchange', { grant_id: created.grant_id })
-		).json()) as { access_token: string };
+		const created = await mintGrant({
+			scopes,
+			doc: { beforeCursor: 'doc', selectedText: '', afterCursor: '' },
+		});
+		const ex = (await (await exchange(created.grant_id)).json()) as {
+			access_token: string;
+		};
 		return ex.access_token;
 	}
 

@@ -118,6 +118,15 @@ const MIGRATIONS: Array<(conn: Database.Database) => void> = [
 			CREATE INDEX tool_grant_user ON tool_grant (json_extract(user_snapshot, '$.id'));
 		`);
 	},
+	// v4 — bind each grant to the origin it was launched at, so the exchange can check
+	// the caller's `Origin` against it (see toolGrants.ts). Nullable only because
+	// SQLite can't add a NOT NULL column without a default: every grant minted after
+	// this migration carries one, and a NULL is refused at exchange rather than
+	// waved through. No backfill — grants live ~2 minutes, so any pre-existing row is
+	// already unexchangeable.
+	(conn) => {
+		conn.exec(`ALTER TABLE tool_grant ADD COLUMN tool_origin TEXT;`);
+	},
 ];
 
 function migrate(conn: Database.Database): void {

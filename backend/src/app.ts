@@ -25,6 +25,7 @@ import {
 	exchangeToolGrant,
 	getToolTokenDoc,
 	isToolScope,
+	originOfLaunchUrl,
 	resolveToolToken,
 	revokeToolToken,
 	type ToolScope,
@@ -373,6 +374,7 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 
 		const body = (await c.req.json().catch(() => ({}))) as {
 			tool_client_id?: unknown;
+			tool_url?: unknown;
 			scopes?: unknown;
 			doc?: unknown;
 		};
@@ -385,6 +387,14 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 				{ detail: 'Unknown tool_client_id.', allowed: deviceClientIds() },
 				400,
 			);
+		}
+
+		// The grant is bound to the origin the taskpane is about to open, so only that
+		// origin can redeem it. We take the launch URL and derive the origin here so
+		// both sides of the later comparison are normalized identically.
+		const toolOrigin = originOfLaunchUrl(body.tool_url);
+		if (!toolOrigin) {
+			return c.json({ detail: 'tool_url must be an http(s) URL.' }, 400);
 		}
 
 		// Scopes: default the common read-only set; otherwise every requested scope
@@ -409,6 +419,7 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 				isAllowed: user.isAllowed,
 			},
 			toolClientId,
+			toolOrigin,
 			scopes,
 			docSnapshot: body.doc,
 		});
@@ -417,7 +428,8 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 
 	// Exchange a grant_id for a bearer token (+ the document snapshot). Unauthenticated
 	// by design — the grant_id itself is the credential, and the tool has no session
-	// yet. Single-use and short-lived (see toolGrants.ts).
+	// yet. Single-use, short-lived, and redeemable only from the origin the grant was
+	// minted for (see toolGrants.ts).
 	app.post('/api/handoff/exchange', async (c) => {
 		const { grant_id } = (await c.req.json().catch(() => ({}))) as {
 			grant_id?: unknown;
@@ -426,7 +438,7 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			return c.json({ detail: 'Missing grant_id.' }, 400);
 		}
 
-		const result = exchangeToolGrant(grant_id);
+		const result = exchangeToolGrant(grant_id, c.req.header('Origin'));
 		if (!result.ok) {
 			// A consumed/expired/unknown grant is all a 400 to the tool — it can only
 			// restart the flow. The distinct `error` code aids debugging.

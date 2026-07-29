@@ -22,7 +22,7 @@ afterEach(() => {
 describe('migrations', () => {
 	it('creates our schema and records the version', () => {
 		const conn = db();
-		expect(conn.pragma('user_version', { simple: true })).toBe(3);
+		expect(conn.pragma('user_version', { simple: true })).toBe(4);
 
 		// The table is usable, not merely declared.
 		const table = conn
@@ -58,7 +58,7 @@ describe('migrations', () => {
 
 		// Reopening must not drop or recreate the table (CREATE TABLE would throw).
 		const conn = db();
-		expect(conn.pragma('user_version', { simple: true })).toBe(3);
+		expect(conn.pragma('user_version', { simple: true })).toBe(4);
 		const rows = conn.prepare(`SELECT COUNT(*) AS n FROM llm_usage`).get() as {
 			n: number;
 		};
@@ -87,7 +87,7 @@ describe('legacy auth.db rename', () => {
 		expect(user).toEqual({ email: 'a@b.c' });
 
 		// ...and our migrations then run on top of the adopted database.
-		expect(conn.pragma('user_version', { simple: true })).toBe(3);
+		expect(conn.pragma('user_version', { simple: true })).toBe(4);
 	});
 
 	it('leaves an existing app.db alone when a stray auth.db is also present', async () => {
