@@ -127,15 +127,17 @@ function DeviceAuthStatus({
 			</p>
 			<CodeCountdown expiresAt={authorization.expiresAt} />
 			{authorization.verificationUri ? (
-				<p style={{ margin: '0.25rem 0 0.75rem' }}>
-					<a
+				<div style={{ margin: '0.25rem 0 0.75rem' }}>
+					<Button
 						href={authorization.verificationUri}
-						target="_blank"
-						rel="noopener"
+						attributes={{ target: '_blank', rel: 'noopener' }}
+						color="primary"
+						variant="outline"
+						size="small"
 					>
 						Open approval page
-					</a>
-				</p>
+					</Button>
+				</div>
 			) : null}
 			<p>Open the approval page and enter the code above to continue.</p>
 			{cancelButton}
