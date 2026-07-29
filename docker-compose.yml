@@ -19,7 +19,11 @@ services:
       - OPENAI_DEMO_API_KEY=${OPENAI_DEMO_API_KEY:-}
       - LOG_SECRET=${LOG_SECRET}
       - POSTHOG_PROJECT_TOKEN=${POSTHOG_PROJECT_TOKEN:-}
-      - POSTHOG_HOST=${POSTHOG_HOST:-https://e.thoughtful-ai.com/}
+      # Server-side ingestion goes straight to PostHog US, not the
+      # e.thoughtful-ai.com reverse proxy. The proxy exists to get past browser ad
+      # blockers, which is irrelevant here, and it added a hop whose outage (a
+      # Cloudflare 526) used to take the backend down with it.
+      - POSTHOG_HOST=${POSTHOG_HOST:-https://us.i.posthog.com}
       # Management API (personal key + project id) — required for "delete my data"
       # to purge a user's PostHog person/events. Unset => deletion no-ops with a
       # warning (see deletePosthogPerson).
