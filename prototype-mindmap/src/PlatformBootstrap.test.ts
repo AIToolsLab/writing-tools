@@ -74,7 +74,8 @@ describe("AppErrorBoundary", () => {
 
   it("routes an expired stored token to relaunch guidance without clearing saved work", () => {
     const session: PlatformSession = {
-      version: 1,
+      version: 2,
+      backendUrl: "https://app.example/api",
       accessToken: "wtk_expired",
       expiresAt: Date.now() - 1,
       scopes: ["openai:chat"],

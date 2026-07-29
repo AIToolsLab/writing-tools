@@ -1,14 +1,21 @@
 /// <reference types="vite/client" />
 
-export const PLATFORM_SESSION_STORAGE_KEY = "prototype-mindmap-platform-session-v1";
-export const PLATFORM_SESSION_VERSION = 1;
+// v2 — the session now records the backend it belongs to (see `backendUrl` below).
+export const PLATFORM_SESSION_STORAGE_KEY = "prototype-mindmap-platform-session-v2";
+export const PLATFORM_SESSION_VERSION = 2;
 
 const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | boolean | undefined> }).env;
 
 /**
- * A production bundle that quietly falls back to localhost points every user's browser
- * at their own machine — a confusing per-request failure rather than an obvious one.
- * Fail at module load so a misconfigured deploy is caught by the first smoke check.
+ * Fallback backend for a launch that didn't name one (a direct visit, the eval runner,
+ * dev). A production bundle that quietly falls back to localhost points every user's
+ * browser at their own machine — a confusing per-request failure rather than an obvious
+ * one — so a PROD build without `VITE_BACKEND_URL` throws at module load, where the
+ * first smoke check catches it.
+ *
+ * Launches from the sidebar don't use this: the platform names its own API base in the
+ * launch fragment (`wt_api`), which is what makes one hosted bundle usable against
+ * prod, staging and a developer's localhost without a rebuild.
  */
 export function resolveBackendUrl(
   env: { PROD?: boolean; VITE_BACKEND_URL?: string | boolean } = viteEnv ?? {},
@@ -23,6 +30,31 @@ export function resolveBackendUrl(
 
 export const PLATFORM_BACKEND_URL = resolveBackendUrl();
 
+/**
+ * Normalize a platform API base offered by a launch, or null if it isn't usable.
+ *
+ * The launcher puts its own API base in the fragment, so the tool follows the platform
+ * that launched it rather than a URL baked in at build time. That value is
+ * attacker-supplyable (anyone can craft a link to this page), which is survivable but
+ * not free: a hostile base can't mint a real token, but it *can* serve a fake document
+ * and collect whatever the writer does next. Two things contain it — the session
+ * records its own backend so a hostile launch can never reuse a genuine session (see
+ * `PlatformSession.backendUrl`), and plaintext is refused here so the base can't be
+ * downgraded to http on the way.
+ */
+export function normalizePlatformApiBase(raw: unknown): string | null {
+  if (typeof raw !== "string" || raw.trim() === "") return null;
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    return null;
+  }
+  const isLoopback = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && isLoopback)) return null;
+  return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
+}
+
 export interface PlatformDocContext {
   documentLabel?: string;
   beforeCursor: string;
@@ -34,7 +66,13 @@ export interface PlatformDocContext {
 export type LaunchDecision = "continue_saved" | "start_new";
 
 export interface PlatformSession {
-  version: 1;
+  version: 2;
+  /**
+   * The platform this session was obtained from. Every later call uses it rather than
+   * a build-time constant, which both frees one bundle to serve several deployments
+   * and keeps a token from ever being presented to a backend that didn't issue it.
+   */
+  backendUrl: string;
   accessToken: string;
   expiresAt: number;
   scopes: string[];
@@ -80,7 +118,10 @@ export function snapshotText(doc: PlatformDocContext | null): string {
   return doc ? `${doc.beforeCursor}${doc.selectedText}${doc.afterCursor}` : "";
 }
 
-export function grantFromHash(hash: string): string | null {
+/** Fragment keys the launcher writes, and `scrubLaunchParamsFromUrl` removes. */
+const LAUNCH_PARAM_KEYS = ["wt_grant", "wt_api"] as const;
+
+function hashParam(hash: string, wanted: string): string | null {
   const parts = hash.replace(/^#/, "").split("&");
   for (const part of parts) {
     const [rawKey, ...rawValue] = part.split("=");
@@ -92,19 +133,33 @@ export function grantFromHash(hash: string): string | null {
     } catch {
       continue;
     }
-    if (key !== "wt_grant") continue;
+    if (key !== wanted) continue;
     return value || null;
   }
   return null;
 }
 
-export function hashWithoutGrant(hash: string): string {
+export function grantFromHash(hash: string): string | null {
+  return hashParam(hash, "wt_grant");
+}
+
+/**
+ * The platform API base the launcher named, or null when the launch didn't name one
+ * (or named an unusable one, which is refused rather than trusted — see
+ * `normalizePlatformApiBase`). Callers fall back to `PLATFORM_BACKEND_URL`.
+ */
+export function apiBaseFromHash(hash: string): string | null {
+  return normalizePlatformApiBase(hashParam(hash, "wt_api"));
+}
+
+export function hashWithoutLaunchParams(hash: string): string {
   const kept = hash
     .replace(/^#/, "")
     .split("&")
     .filter((part) => {
       try {
-        return decodeURIComponent(part.split("=")[0] || "") !== "wt_grant";
+        const key = decodeURIComponent(part.split("=")[0] || "");
+        return !(LAUNCH_PARAM_KEYS as readonly string[]).includes(key);
       } catch {
         return true;
       }
@@ -113,14 +168,14 @@ export function hashWithoutGrant(hash: string): string {
   return kept.length ? `#${kept.join("&")}` : "";
 }
 
-export function scrubGrantFromUrl(
+export function scrubLaunchParamsFromUrl(
   location: Pick<Location, "pathname" | "search" | "hash">,
   history: Pick<History, "replaceState" | "state">,
 ): void {
   history.replaceState(
     history.state,
     "",
-    `${location.pathname}${location.search}${hashWithoutGrant(location.hash)}`,
+    `${location.pathname}${location.search}${hashWithoutLaunchParams(location.hash)}`,
   );
 }
 
@@ -139,8 +194,12 @@ export function readPlatformSession(storage: Pick<Storage, "getItem">): Platform
   try {
     const parsed = JSON.parse(storage.getItem(PLATFORM_SESSION_STORAGE_KEY) ?? "null") as unknown;
     if (!isRecord(parsed)) return null;
+    // A stored session names its own backend; anything else would let a session
+    // obtained from one platform be replayed against another.
+    const backendUrl = normalizePlatformApiBase(parsed.backendUrl);
     if (
       parsed.version !== PLATFORM_SESSION_VERSION ||
+      !backendUrl ||
       typeof parsed.accessToken !== "string" ||
       !parsed.accessToken.startsWith("wtk_") ||
       typeof parsed.expiresAt !== "number" ||
@@ -159,7 +218,8 @@ export function readPlatformSession(storage: Pick<Storage, "getItem">): Platform
         ? parsed.decision
         : undefined;
     return {
-      version: 1,
+      version: 2,
+      backendUrl,
       accessToken: parsed.accessToken,
       expiresAt: parsed.expiresAt,
       capturedAt: parsed.capturedAt,
@@ -192,10 +252,12 @@ export async function exchangeGrant(
   } = {},
 ): Promise<PlatformSession> {
   const fetcher = options.fetcher ?? fetch;
+  // The launch names the platform; a direct visit falls back to the build-time value.
+  const backendUrl = options.backendUrl ?? PLATFORM_BACKEND_URL;
   let response: Response;
   try {
     response = await fetcher(
-      `${options.backendUrl ?? PLATFORM_BACKEND_URL}/handoff/exchange`,
+      `${backendUrl}/handoff/exchange`,
       {
         method: "POST",
         credentials: "omit",
@@ -244,7 +306,8 @@ export async function exchangeGrant(
   }
   const now = (options.now ?? Date.now)();
   return {
-    version: 1,
+    version: 2,
+    backendUrl,
     accessToken: body.access_token,
     expiresAt: now + body.expires_in * 1000,
     scopes,

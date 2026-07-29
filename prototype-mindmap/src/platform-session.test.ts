@@ -2,10 +2,11 @@ import { describe, expect, it, vi } from "vitest";
 import {
   GrantExchangeError,
   PLATFORM_SESSION_STORAGE_KEY,
+  apiBaseFromHash,
   clearPlatformSession,
   exchangeGrant,
   grantFromHash,
-  hashWithoutGrant,
+  hashWithoutLaunchParams,
   launchRequired,
   readPlatformSession,
   snapshotText,
@@ -35,13 +36,33 @@ function memoryStorage(): Storage {
 describe("platform launcher session", () => {
   it("extracts and scrubs a grant without dropping other fragment values", () => {
     expect(grantFromHash("#view=map&wt_grant=a%20b&lang=en")).toBe("a b");
-    expect(hashWithoutGrant("#view=map&wt_grant=a%20b&lang=en")).toBe("#view=map&lang=en");
+    expect(hashWithoutLaunchParams("#view=map&wt_grant=a%20b&lang=en")).toBe("#view=map&lang=en");
+  });
+
+  it("reads the launching platform's API base and scrubs it with the grant", () => {
+    const hash = "#wt_grant=g1&wt_api=https%3A%2F%2Fapp.example%2Fapi&view=map";
+    expect(apiBaseFromHash(hash)).toBe("https://app.example/api");
+    expect(hashWithoutLaunchParams(hash)).toBe("#view=map");
+  });
+
+  it.each([
+    ["a plain-http host — the base must not be downgradable", "http://app.example/api"],
+    ["a non-URL", "nonsense"],
+    ["a javascript: URL", "javascript:alert(1)"],
+  ])("refuses %s in the launch fragment", (_label, base) => {
+    expect(apiBaseFromHash(`#wt_api=${encodeURIComponent(base)}`)).toBeNull();
+  });
+
+  it("allows a loopback base so a dev taskpane can launch the hosted bundle", () => {
+    expect(apiBaseFromHash("#wt_api=http%3A%2F%2Flocalhost%3A8000%2Fapi")).toBe(
+      "http://localhost:8000/api",
+    );
   });
 
   it("ignores malformed fragment encoding instead of throwing during boot", () => {
     expect(() => grantFromHash("#%")).not.toThrow();
     expect(grantFromHash("#%")).toBeNull();
-    expect(hashWithoutGrant("#%&view=map")).toBe("#%&view=map");
+    expect(hashWithoutLaunchParams("#%&view=map")).toBe("#%&view=map");
   });
 
   it("exchanges with omitted credentials and accepts a nullable document", async () => {
@@ -129,7 +150,8 @@ describe("platform launcher session", () => {
   it("keeps an expired-by-browser-clock token as a server-authoritative expiry hint", () => {
     const storage = memoryStorage();
     const session: PlatformSession = {
-      version: 1,
+      version: 2,
+      backendUrl: "https://app.example/api",
       accessToken: "wtk_token",
       expiresAt: 1,
       scopes: ["openai:chat"],
@@ -140,6 +162,29 @@ describe("platform launcher session", () => {
     expect(readPlatformSession(storage)).toEqual(session);
     clearPlatformSession(storage);
     expect(storage.getItem(PLATFORM_SESSION_STORAGE_KEY)).toBeNull();
+  });
+
+  it("carries the issuing backend on the session, and rejects one stored without it", () => {
+    const storage = memoryStorage();
+    const session: PlatformSession = {
+      version: 2,
+      backendUrl: "https://app.example/api",
+      accessToken: "wtk_token",
+      expiresAt: 1,
+      scopes: ["openai:chat"],
+      doc: null,
+      capturedAt: 0,
+    };
+    writePlatformSession(storage, session);
+    expect(readPlatformSession(storage)?.backendUrl).toBe("https://app.example/api");
+
+    // A session with no (or an unusable) backend can't be replayed against whatever
+    // backend happens to be configured — it simply doesn't load.
+    storage.setItem(
+      PLATFORM_SESSION_STORAGE_KEY,
+      JSON.stringify({ ...session, backendUrl: undefined }),
+    );
+    expect(readPlatformSession(storage)).toBeNull();
   });
 
   it("maps expired and already-used grants to distinct errors", async () => {

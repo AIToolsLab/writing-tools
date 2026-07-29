@@ -12,12 +12,13 @@ import {
 import {
   clearPlatformSession,
   exchangeGrant,
+  apiBaseFromHash,
   grantFromHash,
   GrantExchangeError,
   launchRequired,
   PLATFORM_SESSION_STORAGE_KEY,
   readPlatformSession,
-  scrubGrantFromUrl,
+  scrubLaunchParamsFromUrl,
   snapshotText,
   writePlatformSession,
   type PlatformSession,
@@ -223,6 +224,9 @@ function PlatformBootstrapContent() {
   const [accessDenied, setAccessDenied] = useState(false);
   const exchangeStarted = useRef(false);
   const capturedGrant = useRef<string | null>(null);
+  // Held alongside the grant because Retry runs long after the fragment was scrubbed,
+  // so re-reading the launch parameters from the URL is no longer possible.
+  const capturedApiBase = useRef<string | null>(null);
 
   const commitDecision = useCallback(
     (session: PlatformSession, decision: "continue_saved" | "start_new") => {
@@ -257,7 +261,11 @@ function PlatformBootstrapContent() {
   );
 
   const beginExchange = useCallback(
-    async (grant: string) => {
+    // `launchApiBase` is read from the fragment by the caller, before the fragment is
+    // scrubbed. The launch names its own platform, so one hosted bundle serves prod,
+    // staging and a developer's localhost; a direct visit names none and falls back to
+    // the build-time backend.
+    async (grant: string, launchApiBase: string | null) => {
       const storage = browserStorage();
       if (!storage) {
         setBoot({ kind: "blocked", reason: "storage_unavailable" });
@@ -265,7 +273,9 @@ function PlatformBootstrapContent() {
       }
       setBoot({ kind: "connecting" });
       try {
-        const session = await exchangeGrant(grant);
+        const session = await exchangeGrant(grant, {
+          ...(launchApiBase ? { backendUrl: launchApiBase } : {}),
+        });
         try {
           writePlatformSession(storage.session, session);
         } catch (error) {
@@ -306,13 +316,16 @@ function PlatformBootstrapContent() {
     if (!grant || exchangeStarted.current) return;
     exchangeStarted.current = true;
     capturedGrant.current = grant;
+    // Read before the scrub below strips it along with the grant.
+    const launchApiBase = apiBaseFromHash(window.location.hash);
+    capturedApiBase.current = launchApiBase;
     try {
-      scrubGrantFromUrl(window.location, window.history);
+      scrubLaunchParamsFromUrl(window.location, window.history);
     } catch {
       // The grant is already captured in memory; an unusual history wrapper must
       // not force a reload-based retry or expose the document a second time.
     }
-    void beginExchange(grant);
+    void beginExchange(grant, launchApiBase);
   }, [beginExchange]);
 
   const chooseContinue = useCallback((session: PlatformSession) => {
@@ -350,7 +363,11 @@ function PlatformBootstrapContent() {
   const providerRuntime = useMemo<ProviderRuntimeConfig | undefined>(() => {
     if (boot.kind !== "ready") return undefined;
     return {
-      ...(boot.session ? { bearerToken: boot.session.accessToken } : {}),
+      // Talk to the platform that issued this session, never a build-time constant —
+      // a token is only ever presented to the backend that minted it.
+      ...(boot.session
+        ? { bearerToken: boot.session.accessToken, backendUrl: boot.session.backendUrl }
+        : {}),
       onAccessError,
     };
   }, [boot, onAccessError]);
@@ -370,7 +387,9 @@ function PlatformBootstrapContent() {
           <button
             type="button"
             onClick={() => {
-              if (capturedGrant.current) void beginExchange(capturedGrant.current);
+              if (capturedGrant.current) {
+                void beginExchange(capturedGrant.current, capturedApiBase.current);
+              }
             }}
           >
             {t("Retry")}

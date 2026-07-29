@@ -142,10 +142,18 @@
 
 			// The grant rides in the URL fragment (#wt_grant=...), never the
 			// query string — fragments aren't sent to servers or logged.
-			const grantId = new URLSearchParams(
-				location.hash.replace(/^#/, ""),
-			).get("wt_grant");
+			const launch = new URLSearchParams(location.hash.replace(/^#/, ""));
+			const grantId = launch.get("wt_grant");
 			$("grant").textContent = grantId ?? "(none)";
+
+			// The launcher also names its own API base (#wt_api=...), so the tool
+			// talks to whichever backend granted it rather than a typed-in guess.
+			// The grant is redeemable only from the origin it was launched at, so a
+			// hand-typed base pointing at a different deployment will 400.
+			const launchApi = launch.get("wt_api");
+			if (launchApi) {
+				$("api").value = launchApi.replace(/\/api\/?$/, "");
+			}
 
 			let token = null;
 			let docSnapshot = null;
