@@ -110,6 +110,7 @@ export async function launchFirstPartyTool(
 			: undefined;
 		const { grantId } = await dependencies.createGrant(token, {
 			toolClientId: tool.id,
+			toolUrl: tool.url,
 			scopes: tool.scopes,
 			doc,
 		});

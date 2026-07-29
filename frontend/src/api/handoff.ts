@@ -16,6 +16,12 @@ export type ToolScope = 'openai:chat' | 'log:write' | 'doc:read' | 'doc:write';
 export interface HandoffRequest {
 	/** A tool client_id registered in the backend device allowlist. */
 	toolClientId: string;
+	/**
+	 * The URL this launch will open. The backend reduces it to an origin and binds the
+	 * grant to it, then refuses any exchange whose `Origin` doesn't match — so a grant
+	 * that leaks can't be redeemed by a page other than the tool being launched.
+	 */
+	toolUrl: string;
 	/** Scopes to grant; the backend defaults a read-only set when omitted. */
 	scopes?: ToolScope[];
 	/** Read-only document snapshot to hand the tool, or omit to share none. */
@@ -40,6 +46,7 @@ export async function createHandoff(
 		},
 		body: JSON.stringify({
 			tool_client_id: req.toolClientId,
+			tool_url: req.toolUrl,
 			scopes: req.scopes,
 			doc: req.doc,
 		}),
@@ -55,12 +62,41 @@ export async function createHandoff(
 	return { grantId: body.grant_id, expiresIn: body.expires_in };
 }
 
-/** Append `wt_grant=<id>` to a URL's fragment without clobbering an existing hash. */
-export function withGrantFragment(url: string, grantId: string): string {
+/**
+ * Our API base as an absolute URL, for handing to a tool on another origin. `SERVER_URL`
+ * is relative (`/api`) everywhere but the Google Docs sidebar, which is fine for our own
+ * pages and useless to a tool in a different tab.
+ */
+export function platformApiBase(): string {
+	// No window (tests, SSR-ish contexts): nothing to resolve a relative base against,
+	// so hand back what we have rather than throwing mid-launch.
+	if (typeof window === 'undefined') return SERVER_URL;
+	return new URL(SERVER_URL, window.location.origin).toString().replace(/\/+$/, '');
+}
+
+/**
+ * Append the launch parameters to a URL's fragment without clobbering an existing hash.
+ *
+ * A fragment (not a query) because browsers never send it to the tool's server or write
+ * it to intermediary access logs, so the grant doesn't leak in transit.
+ *
+ * `wt_api` names the platform that issued the grant, so the tool talks to the backend
+ * that granted it instead of one baked in at build time. That is what lets a single
+ * hosted bundle serve prod, staging and a developer's localhost — and it is the honest
+ * arrangement regardless, since a grant is only ever redeemable at its issuer.
+ */
+export function withGrantFragment(
+	url: string,
+	grantId: string,
+	apiBase: string = platformApiBase(),
+): string {
 	const u = new URL(url);
 	const existing = u.hash.replace(/^#/, '');
-	const param = `wt_grant=${encodeURIComponent(grantId)}`;
-	u.hash = existing ? `${existing}&${param}` : param;
+	const params = [
+		`wt_grant=${encodeURIComponent(grantId)}`,
+		`wt_api=${encodeURIComponent(apiBase)}`,
+	].join('&');
+	u.hash = existing ? `${existing}&${params}` : params;
 	return u.toString();
 }
 

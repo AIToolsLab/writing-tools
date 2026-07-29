@@ -23,22 +23,32 @@ afterEach(() => {
 });
 
 describe('withGrantFragment', () => {
-	it('adds wt_grant to a URL with no fragment', () => {
-		expect(withGrantFragment('https://tool.example/', 'g1')).toBe(
-			'https://tool.example/#wt_grant=g1',
+	const API = 'https://app.example/api';
+
+	it('adds the grant and the platform API base to a URL with no fragment', () => {
+		expect(withGrantFragment('https://tool.example/', 'g1', API)).toBe(
+			'https://tool.example/#wt_grant=g1&wt_api=https%3A%2F%2Fapp.example%2Fapi',
 		);
 	});
 
 	it('appends to an existing fragment instead of clobbering it', () => {
-		expect(withGrantFragment('https://tool.example/#/route', 'g1')).toBe(
-			'https://tool.example/#/route&wt_grant=g1',
+		expect(withGrantFragment('https://tool.example/#/route', 'g1', API)).toBe(
+			'https://tool.example/#/route&wt_grant=g1&wt_api=https%3A%2F%2Fapp.example%2Fapi',
 		);
 	});
 
 	it('url-encodes the grant id', () => {
-		expect(withGrantFragment('https://tool.example/', 'a b')).toContain(
+		expect(withGrantFragment('https://tool.example/', 'a b', API)).toContain(
 			'wt_grant=a%20b',
 		);
+	});
+
+	// The tool talks to whichever backend granted it, so one hosted bundle can serve
+	// several deployments — the base has to survive the round trip intact.
+	it('round-trips the API base through the fragment', () => {
+		const url = new URL(withGrantFragment('https://tool.example/', 'g1', API));
+		const params = new URLSearchParams(url.hash.slice(1));
+		expect(params.get('wt_api')).toBe(API);
 	});
 });
 
@@ -50,6 +60,7 @@ describe('createHandoff', () => {
 
 		const out = await createHandoff('tok', {
 			toolClientId: 'mindmap',
+			toolUrl: 'https://tool.example/app',
 			scopes: ['openai:chat', 'doc:read'],
 			doc: { beforeCursor: 'x', selectedText: '', afterCursor: '' },
 		});
@@ -68,10 +79,14 @@ describe('createHandoff', () => {
 		expect(init.headers.Authorization).toBe('Bearer tok');
 		const body = JSON.parse(init.body) as {
 			tool_client_id: string;
+			tool_url: string;
 			scopes: string[];
 			doc: { beforeCursor: string };
 		};
 		expect(body.tool_client_id).toBe('mindmap');
+		// The backend binds the grant to this URL's origin, so the launch URL has to
+		// travel with the request.
+		expect(body.tool_url).toBe('https://tool.example/app');
 		expect(body.scopes).toEqual(['openai:chat', 'doc:read']);
 		expect(body.doc.beforeCursor).toBe('x');
 	});
@@ -81,7 +96,10 @@ describe('createHandoff', () => {
 			resp({ detail: 'Unknown tool_client_id.' }, false, 400),
 		);
 		await expect(
-			createHandoff('tok', { toolClientId: 'nope' }),
+			createHandoff('tok', {
+				toolClientId: 'nope',
+				toolUrl: 'https://tool.example/',
+			}),
 		).rejects.toThrow('Unknown tool_client_id.');
 	});
 });
