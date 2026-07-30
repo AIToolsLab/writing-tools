@@ -10,7 +10,18 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { findPhrase, MATCH_FOLDS, srcIndex } from '../textMatching';
+import {
+	endIndex,
+	findPhrase,
+	firstMatch,
+	MATCH_TIERS,
+	srcIndex,
+	tierMatches,
+} from '../textMatching';
+
+/** The loosest tier: separators dropped, hits anchored to word boundaries. */
+const RUN_TOGETHER = MATCH_TIERS[MATCH_TIERS.length - 1];
+const LOOSE = MATCH_TIERS[MATCH_TIERS.length - 2];
 
 /** The source text a hit covers — what a caller would replace or select. */
 const matched = (hay: string, needle: string) => {
@@ -86,11 +97,64 @@ describe('findPhrase', () => {
 	});
 });
 
+describe('the run-together tier (closed vs. hyphenated compounds)', () => {
+	// Transcription is as unsure about "email" / "e-mail" as it is about
+	// "well-being" / "well being": same utterance, and the transcriber picks a
+	// spelling that need not be the document's.
+	it('matches a closed compound against a hyphenated one', () => {
+		expect(matched('send an e-mail now', 'email')).toBe('e-mail');
+		expect(matched('send an email now', 'e-mail')).toBe('email');
+	});
+
+	it('matches across a space too', () => {
+		expect(matched('send an e mail now', 'email')).toBe('e mail');
+	});
+
+	it('does not glue across a word gap', () => {
+		// The reason this tier is anchored: "the ache mail" contains the letters
+		// of "email" across a boundary no reader would call the same phrase, and
+		// matching it would splice over the wrong text.
+		expect(findPhrase('nursing the ache mail arrived', 'email')).toBeNull();
+	});
+
+	it('rejects a hit that starts or ends mid-word', () => {
+		// Both of these only match once separators are dropped, and both would
+		// splice into the middle of a word.
+		expect(firstMatch(RUN_TOGETHER, 'none-mail', 'email')).toBeNull();
+		expect(firstMatch(RUN_TOGETHER, 'e-mails', 'email')).toBeNull();
+		// …but the same needle is fine where the boundaries are real.
+		expect(findPhrase('an e-mail.', 'email')).toEqual({ start: 3, end: 9 });
+	});
+
+	it('does not retroactively anchor the exact tier', () => {
+		// A needle that appears verbatim inside a longer word still matches, as
+		// it always has — the anchor is about what *separator-dropping* may glue
+		// together, not a new rule for literal substrings.
+		expect(findPhrase('nonemail', 'email')).toEqual({ start: 3, end: 8 });
+	});
+
+	it('only anchors the tier that needs it', () => {
+		// The looser rungs still allow a partial-word match, exactly as exact
+		// `indexOf` always has ("cat" inside "concatenate").
+		expect(RUN_TOGETHER.wordBounded).toBe(true);
+		expect(LOOSE.wordBounded).toBeFalsy();
+		expect(matched('concatenate', 'cat')).toBe('cat');
+	});
+
+	it('is reached only after the looser tiers miss', () => {
+		// "e-mail" is present verbatim; the run-together tier must not get to
+		// re-point the match at the other occurrence.
+		expect(findPhrase('an email and an e-mail', 'e-mail')).toEqual({
+			start: 16,
+			end: 22,
+		});
+	});
+});
+
 describe('fold index maps', () => {
 	it('map back to source offsets even when characters are dropped', () => {
-		const loose = MATCH_FOLDS[MATCH_FOLDS.length - 1];
 		const source = 'a\u00AD  B-c';
-		const folded = loose(source);
+		const folded = LOOSE.fold(source);
 		expect(folded.text).toBe('a b c');
 		// Every folded index points at the character it came from.
 		for (let i = 0; i < folded.text.length; i++) {
@@ -102,8 +166,7 @@ describe('fold index maps', () => {
 	});
 
 	it('are monotonic, so a span never inverts', () => {
-		const loose = MATCH_FOLDS[MATCH_FOLDS.length - 1];
-		const folded = loose('The  well-being of “quiet” work');
+		const folded = LOOSE.fold('The  well-being of “quiet” work');
 		for (let i = 1; i <= folded.text.length; i++) {
 			expect(srcIndex(folded, i)).toBeGreaterThan(
 				srcIndex(folded, i - 1),
@@ -112,9 +175,37 @@ describe('fold index maps', () => {
 	});
 
 	it('leave the exact tier as a plain identity', () => {
-		const exact = MATCH_FOLDS[0];
 		const source = 'well–being';
-		expect(exact(source).text).toBe(source);
-		expect(srcIndex(exact(source), 4)).toBe(4);
+		expect(MATCH_TIERS[0].fold(source).text).toBe(source);
+		expect(srcIndex(MATCH_TIERS[0].fold(source), 4)).toBe(4);
+	});
+
+	it('end one past the last matched character, not at the next kept one', () => {
+		// `srcIndex` of the end would point past any dropped characters — for
+		// "e-mail now" that is the space, and the span would carry it along.
+		const source = 'send an e-mail now';
+		const folded = RUN_TOGETHER.fold(source);
+		const at = folded.text.indexOf('email');
+		expect(
+			source.slice(srcIndex(folded, at), endIndex(folded, at + 5)),
+		).toBe('e-mail');
+	});
+});
+
+describe('tierMatches', () => {
+	it('yields every hit in order, so callers can pick by position', () => {
+		const hits = [...tierMatches(MATCH_TIERS[0], 'cat and cat', 'cat')];
+		expect(hits).toEqual([
+			{ start: 0, end: 3 },
+			{ start: 8, end: 11 },
+		]);
+	});
+
+	it('skips boundary-violating hits rather than stopping at them', () => {
+		// The first candidate is mid-word; the tier must keep looking.
+		const hits = [
+			...tierMatches(RUN_TOGETHER, 'nonemail and e-mail', 'email'),
+		];
+		expect(hits).toEqual([{ start: 13, end: 19 }]);
 	});
 });

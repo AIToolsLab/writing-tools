@@ -22,7 +22,12 @@
  * `findSpan`.
  */
 
-import { MATCH_FOLDS, srcIndex } from '@/utilities/textMatching';
+import {
+	firstMatch,
+	MATCH_TIERS,
+	tierMatches,
+	type MatchTier,
+} from '@/utilities/textMatching';
 
 import type { EditOp } from './types';
 
@@ -44,27 +49,24 @@ interface Span {
 	endOffset: number;
 }
 
-/** One tier of `findSpan`'s search: locate `needle` under a single fold. */
+/** One tier of `findSpan`'s search: locate `needle` at a single leniency. */
 function findSpanWith(
 	paragraphs: string[],
 	needle: string,
 	paragraph: number | undefined,
-	fold: (typeof MATCH_FOLDS)[number],
+	tier: MatchTier,
 ): Span | null {
-	const foldedNeedle = fold(needle).text;
-
 	if (!needle.includes('\n')) {
 		// Single-paragraph needle: first paragraph containing it (or the scoped one).
 		const search = (i: number): Span | null => {
 			if (i < 0 || i >= paragraphs.length) return null;
-			const folded = fold(paragraphs[i]);
-			const at = folded.text.indexOf(foldedNeedle);
-			if (at === -1) return null;
+			const hit = firstMatch(tier, paragraphs[i], needle);
+			if (!hit) return null;
 			return {
 				startPara: i,
-				startOffset: srcIndex(folded, at),
+				startOffset: hit.start,
 				endPara: i,
-				endOffset: srcIndex(folded, at + foldedNeedle.length),
+				endOffset: hit.end,
 			};
 		};
 		if (paragraph !== undefined) return search(paragraph - 1);
@@ -92,19 +94,16 @@ function findSpanWith(
 
 	if (paragraph !== undefined && (paragraph < 1 || paragraph > starts.length))
 		return null;
-	const folded = fold(paragraphs.join('\n'));
 
 	// Walk the occurrences: unscoped takes the first, scoped takes the first
 	// that *starts* in the requested paragraph.
-	for (
-		let at = folded.text.indexOf(foldedNeedle);
-		at !== -1;
-		at = folded.text.indexOf(foldedNeedle, at + 1)
-	) {
-		const start = srcIndex(folded, at);
+	for (const { start, end } of tierMatches(
+		tier,
+		paragraphs.join('\n'),
+		needle,
+	)) {
 		const startPara = paraAt(start);
 		if (paragraph !== undefined && startPara !== paragraph - 1) continue;
-		const end = srcIndex(folded, at + foldedNeedle.length);
 		const endPara = paraAt(end);
 		return {
 			startPara,
@@ -122,9 +121,9 @@ function findSpanWith(
  * Returns the span as (paragraph, offset) endpoints. Throws with the same
  * messages `applyOp` has always used.
  *
- * The search runs the whole document at each rung of the `MATCH_FOLDS` ladder
+ * The search runs the whole document at each rung of the `MATCH_TIERS` ladder
  * before loosening, so an exact hit always wins over a typographically-folded
- * one elsewhere. That rung is what lets the model's "well-being" find the
+ * one elsewhere. Those rungs are what let the model's "well-being" find the
  * writer's "well being", or its straight apostrophe find Word's curly one,
  * instead of reporting a miss for an edit it got right.
  */
@@ -134,8 +133,8 @@ function findSpan(
 	paragraph?: number,
 ): Span {
 	const needle = normalizeBreaks(rawNeedle);
-	for (const fold of MATCH_FOLDS) {
-		const hit = findSpanWith(paragraphs, needle, paragraph, fold);
+	for (const tier of MATCH_TIERS) {
+		const hit = findSpanWith(paragraphs, needle, paragraph, tier);
 		if (hit) return hit;
 	}
 	throw paragraph !== undefined

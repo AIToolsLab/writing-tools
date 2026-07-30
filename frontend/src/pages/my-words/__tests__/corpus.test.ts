@@ -122,6 +122,42 @@ describe('validateText — phrase-level rule', () => {
 		expect(validateText('big — dog', corpus).ok).toBe(true);
 	});
 
+	it('reads a hyphenated compound closed up, and vice versa', () => {
+		// Same ASR ambiguity as "well-being"/"well being", with the separator
+		// gone entirely: the transcriber picks a spelling and it need not be the
+		// document's.
+		const hyphenated = corpusOf('I sent an e-mail yesterday');
+		expect(validateText('email', hyphenated).ok).toBe(true);
+		expect(validateText('email yesterday', hyphenated).ok).toBe(true);
+
+		const closed = corpusOf('I sent an email yesterday');
+		expect(validateText('e-mail', closed).ok).toBe(true);
+		expect(validateText('e-mail yesterday', closed).ok).toBe(true);
+	});
+
+	it('will not re-segment across a plain space', () => {
+		// The line this leniency stops at. A hyphen is a mark the sources
+		// disagree about; a space is not, and joining across one invents a word
+		// the writer never wrote.
+		const corpus = corpusOf('she was not able to finish');
+		expect(validateText('notable', corpus).ok).toBe(false);
+
+		// Nor the reverse: splitting one of the writer's words into two.
+		const closed = corpusOf('a notable essay');
+		expect(validateText('not able', closed).ok).toBe(false);
+	});
+
+	it('lets a hyphen bind tighter than the glue rule', () => {
+		// "in" is a glue word, but "in-depth" is one compound — reading it as
+		// glue + "depth" would let the AI assemble it from any stray "depth".
+		const corpus = corpusOf('we need more depth here');
+		expect(validateText('in-depth', corpus).ok).toBe(false);
+		expect(validateText('in depth', corpus).ok).toBe(true);
+
+		const wrote = corpusOf('we need an in-depth look');
+		expect(validateText('in-depth', wrote).ok).toBe(true);
+	});
+
 	it('reports a segmentation that labels lifted / glue / punct parts', () => {
 		const corpus = corpusOf('honesty hard work');
 		const result = validateText('honesty and hard work, please', corpus);

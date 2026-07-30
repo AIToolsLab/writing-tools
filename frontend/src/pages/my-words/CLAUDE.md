@@ -45,7 +45,10 @@ liveResponder.ts   (model, 1 step)   voice/realtime.ts   (OpenAI Realtime)
 Four places, and they should agree. A phrase the model utters has to be found in
 text some host stores, and they disagree constantly over hyphens, curly quotes,
 and spacing — see `@/utilities/textMatching`, which owns the fold ladder all of
-these use or should use.
+these use or should use. Its last rung drops separators entirely ("email" finds
+"e-mail") and is the only one anchored to word boundaries; loosening it further,
+or dropping the anchor, is how a match starts landing on text no reader would
+call the same phrase.
 
 | What | Where |
 | --- | --- |

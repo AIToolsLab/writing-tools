@@ -28,7 +28,7 @@ import {
 } from 'lexical';
 import { useEffect } from 'react';
 
-import { MATCH_FOLDS, srcIndex } from '@/utilities/textMatching';
+import { firstMatch, MATCH_TIERS } from '@/utilities/textMatching';
 
 import classes from './editor.module.css';
 
@@ -202,27 +202,25 @@ function ControlsPlugin({
 
 					// Exhaust each rung of the leniency ladder across every node
 					// before loosening, so an exact hit later in the document
-					// still beats a folded hit in the first node. Offsets come
-					// back through the fold's index map, because a fold can drop
-					// or merge characters — the selection has to cover the real
-					// source text, not the needle's length.
-					for (const fold of MATCH_FOLDS) {
-						const needle = fold(phrase).text;
+					// still beats a folded hit in the first node. The offsets
+					// are source offsets, not needle lengths — a fold can drop
+					// or merge characters, and the selection has to land on the
+					// writer's real text.
+					for (const tier of MATCH_TIERS) {
 						for (const node of textNodes) {
-							const haystack = fold(node.getTextContent());
-							const at = haystack.text.indexOf(needle);
-							if (at === -1) continue;
+							const hit = firstMatch(
+								tier,
+								node.getTextContent(),
+								phrase,
+							);
+							if (!hit) continue;
 							const selection = $createRangeSelection();
 							selection.anchor.set(
 								node.getKey(),
-								srcIndex(haystack, at),
+								hit.start,
 								'text',
 							);
-							selection.focus.set(
-								node.getKey(),
-								srcIndex(haystack, at + needle.length),
-								'text',
-							);
+							selection.focus.set(node.getKey(), hit.end, 'text');
 							$setSelection(selection);
 							found = true;
 							return;

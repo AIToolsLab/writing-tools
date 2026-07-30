@@ -189,14 +189,30 @@ So both gates are tolerant of typography and strict about vocabulary:
   textMatching.ts`), exhausting each rung document-wide before loosening, so an
   exact hit always beats a folded one elsewhere. Spans are then sliced from the
   *source* text, never the needle.
-- **Validating** treats an intra-word hyphen as a word separator (`corpus.ts`).
-  This doesn't loosen the phrase rule: "well being" must still appear
-  contiguously in the corpus for "well-being" to pass. The AI gains only the
-  freedom to hyphenate the writer's own adjacent words.
+- **Validating** treats an intra-word hyphen as a word separator, and offers both
+  readings of a hyphenated compound (`corpus.ts`). This doesn't loosen the phrase
+  rule: "well being" must still appear contiguously in the corpus for
+  "well-being" to pass. The AI gains only the freedom to hyphenate — or unhyphenate
+  — the writer's own adjacent words.
 
-Deliberately still a miss: closed vs. hyphenated compounds ("email" / "e-mail").
-Matching across a deleted separator risks silently rewriting the wrong span, and
-a clean miss the model can retry is the cheaper failure.
+**Where the leniency stops, and why it isn't where you'd guess.** "email" /
+"e-mail" is the same ASR ambiguity as "well-being" / "well being" — one utterance,
+and the transcriber picks a spelling — so it gets the same treatment. What makes
+it need more care is *how* it's matched, not whether it should be: dropping the
+separator means letters re-segment, and that can find text no reader would call
+the same phrase.
+
+- In the **locator**, "email" would otherwise match inside "the ache mail" and
+  splice over the wrong words. So that rung — and only that rung — requires the
+  hit to begin and end on a word boundary in the source.
+- In the **word bank**, re-segmentation is worse than a bad span: it invents
+  meaning. "notable" → "not able" is a claim the writer never made. So the closed
+  form is offered only where a hyphen actually appears, on one side or the other;
+  a plain space never binds. A hyphen is a mark the sources disagree about, a
+  space is not.
+
+The same rule makes a hyphen bind tighter than the glue-word rule: "in-depth" is
+one compound to be lifted whole, not "in" (glue) plus a stray "depth".
 
 ### 4.7 Responses API — a separate experiment
 
