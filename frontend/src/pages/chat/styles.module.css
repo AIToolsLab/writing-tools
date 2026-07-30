@@ -35,6 +35,35 @@
 	flex-direction: column;
 }
 
+.chatToolbar {
+	flex-shrink: 0;
+	display: flex;
+	justify-content: flex-end;
+	padding: 8px 12px 0;
+}
+
+.newConversationBtn {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	color: #8a8378;
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 4px 6px;
+	border-radius: 6px;
+	font-family: 'DM Sans', sans-serif;
+	transition:
+		color 0.15s,
+		background-color 0.15s;
+}
+
+.newConversationBtn:hover {
+	color: #1c1c1c;
+	background: #f4f1ea;
+}
+
 .chatBody {
 	flex: 1;
 	overflow-y: auto;

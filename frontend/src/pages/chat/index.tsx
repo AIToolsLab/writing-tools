@@ -7,7 +7,11 @@ import {
 	useRef,
 	useState,
 } from 'react';
-import { AiOutlineArrowDown, AiOutlineSend } from 'react-icons/ai';
+import {
+	AiOutlineArrowDown,
+	AiOutlinePlus,
+	AiOutlineSend,
+} from 'react-icons/ai';
 import { Remark } from 'react-remark';
 
 import {
@@ -285,6 +289,17 @@ export default function Chat() {
 		}
 	}
 
+	function startNewConversation() {
+		activeRequestControllerRef.current?.abort();
+		activeRequestControllerRef.current = null;
+		updateSendingMessage(false);
+		setErrorInfo(null);
+		setFailedMessage(null);
+		updateMessage('');
+		updateChatMessages([]);
+		chatLog.conversationReset(log);
+	}
+
 	async function sendMessage(e: React.FormEvent<HTMLFormElement>) {
 		e.preventDefault();
 
@@ -308,6 +323,20 @@ export default function Chat() {
 			</div>
 
 			<div className={classes.chatPanel}>
+				{visibleMessages.length > 0 ? (
+					<div className={classes.chatToolbar}>
+						<button
+							type="button"
+							title="Start a new conversation"
+							onClick={startNewConversation}
+							className={classes.newConversationBtn}
+						>
+							<AiOutlinePlus size={12} />
+							New conversation
+						</button>
+					</div>
+				) : null}
+
 				<div
 					ref={messagesContainerRef}
 					onScroll={handleScroll}
