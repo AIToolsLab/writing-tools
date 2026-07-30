@@ -161,7 +161,44 @@ in the prompt — they crowd out the room the model needs to *be* a partner. Tel
 the **stance** ("one small move, then listen; name what you'd do next") and let
 `validateText` be the cop.
 
-### 4.5 Responses API — a separate experiment
+### 4.5 A failed move is news for one turn, not for the session
+
+Every path where an edit doesn't land raises one writer-visible notice — a
+refusal has to be *legible*, or the partner just going quiet reads as broken.
+But the strip that carries it is about the present attempt only. It is retracted
+as soon as the writer takes the floor again or the partner lands an edit
+(`session.ts` invariant 6); the debug log keeps the history. Before that, a
+notice cleared only on replacement or manual dismissal, so a single word-bank
+rejection sat on screen through many successful turns — and a stale "that was
+blocked" is indistinguishable from a live one, which turns a principled refusal
+back into the impression of a broken session.
+
+### 4.6 Tolerate the writer's typography, not the AI's vocabulary
+
+The word-bank constraint is about *which words*, and it should not be enforcing a
+particular spelling of them. Three sources have to agree on a phrase — what the
+writer typed, what the word processor autocorrected it into, and what the model
+heard or read back — and they routinely disagree over hyphenation ("well-being" /
+"well being"), curly vs. straight apostrophes, and spacing. Treating those as a
+mismatch failed edits the model had got right, and rejected the writer's own
+words as not theirs.
+
+So both gates are tolerant of typography and strict about vocabulary:
+
+- **Locating** a phrase runs a leniency ladder (`frontend/src/utilities/
+  textMatching.ts`), exhausting each rung document-wide before loosening, so an
+  exact hit always beats a folded one elsewhere. Spans are then sliced from the
+  *source* text, never the needle.
+- **Validating** treats an intra-word hyphen as a word separator (`corpus.ts`).
+  This doesn't loosen the phrase rule: "well being" must still appear
+  contiguously in the corpus for "well-being" to pass. The AI gains only the
+  freedom to hyphenate the writer's own adjacent words.
+
+Deliberately still a miss: closed vs. hyphenated compounds ("email" / "e-mail").
+Matching across a deleted separator risks silently rewriting the wrong span, and
+a clean miss the model can retry is the cheaper failure.
+
+### 4.7 Responses API — a separate experiment
 
 Worth doing for persisted reasoning, but change the loop *first*. Doing both at
 once means we won't know which fixed it, and the loop is the bigger lever.

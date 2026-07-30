@@ -93,6 +93,35 @@ describe('validateText — phrase-level rule', () => {
 		expect(validateText('don’t', corpus).ok).toBe(true);
 	});
 
+	it('treats hyphenation as spelling, not as a different word', () => {
+		// The writer typed it hyphenated; the model (or the transcriber) didn't.
+		const hyphenated = corpusOf('I care about well-being here');
+		expect(validateText('well being', hyphenated).ok).toBe(true);
+		expect(validateText('well-being', hyphenated).ok).toBe(true);
+
+		// And the other direction, which is the one voice hits constantly.
+		const spaced = corpusOf('I care about well being here');
+		expect(validateText('well-being', spaced).ok).toBe(true);
+	});
+
+	it('splits every hyphen in a chain', () => {
+		const corpus = corpusOf('a state-of-the-art result');
+		expect(validateText('state of the art', corpus).ok).toBe(true);
+		expect(validateText('state-of-the-art', corpus).ok).toBe(true);
+	});
+
+	it('still requires the hyphenated words to be adjacent in the corpus', () => {
+		// Splitting hyphens must not become a way to invent an adjacency: a
+		// hyphen is spelling, not a bridge the AI may introduce.
+		const corpus = corpusOf('the big cat and the small dog');
+		expect(validateText('big-dog', corpus).ok).toBe(false);
+	});
+
+	it('keeps a standalone dash as a bridge, not a word joiner', () => {
+		const corpus = corpusOf('the big cat and the small dog');
+		expect(validateText('big — dog', corpus).ok).toBe(true);
+	});
+
 	it('reports a segmentation that labels lifted / glue / punct parts', () => {
 		const corpus = corpusOf('honesty hard work');
 		const result = validateText('honesty and hard work, please', corpus);

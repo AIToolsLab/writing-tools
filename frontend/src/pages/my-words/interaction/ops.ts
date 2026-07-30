@@ -16,7 +16,13 @@
  * phrase) matches across a paragraph boundary, so a replace can merge
  * paragraphs. Runs of newlines count as one break. Splices invert by swapping
  * `remove`/`insert`, which is what undo applies.
+ *
+ * Locating an op's target text is tolerant of typography — hyphenation, curly
+ * quotes, exotic spaces — via the fold ladder in `utilities/textMatching`; see
+ * `findSpan`.
  */
+
+import { MATCH_FOLDS, srcIndex } from '@/utilities/textMatching';
 
 import type { EditOp } from './types';
 
@@ -31,57 +37,47 @@ const normalizeBreaks = (s: string) =>
 /** Split op text into paragraph parts (`''` stays a single empty part). */
 const splitParas = (s: string) => normalizeBreaks(s).split('\n');
 
-/**
- * Locate `needle` in the paragraphs, possibly spanning paragraph boundaries
- * when it contains `\n` (paragraphs match as if joined by single newlines).
- * Returns the span as (paragraph, offset) endpoints. Throws with the same
- * messages `applyOp` has always used.
- */
-function findSpan(
-	paragraphs: string[],
-	rawNeedle: string,
-	paragraph?: number,
-): {
+interface Span {
 	startPara: number;
 	startOffset: number;
 	endPara: number;
 	endOffset: number;
-} {
-	const needle = normalizeBreaks(rawNeedle);
-	const scopeMiss = () =>
-		new Error(`"${rawNeedle}" not found in paragraph ${paragraph}.`);
-	const docMiss = () =>
-		new Error(`"${rawNeedle}" not found in the document.`);
+}
+
+/** One tier of `findSpan`'s search: locate `needle` under a single fold. */
+function findSpanWith(
+	paragraphs: string[],
+	needle: string,
+	paragraph: number | undefined,
+	fold: (typeof MATCH_FOLDS)[number],
+): Span | null {
+	const foldedNeedle = fold(needle).text;
 
 	if (!needle.includes('\n')) {
 		// Single-paragraph needle: first paragraph containing it (or the scoped one).
-		if (paragraph !== undefined) {
-			const i = paragraph - 1;
-			const at = paragraphs[i]?.indexOf(needle) ?? -1;
-			if (at === -1) throw scopeMiss();
+		const search = (i: number): Span | null => {
+			if (i < 0 || i >= paragraphs.length) return null;
+			const folded = fold(paragraphs[i]);
+			const at = folded.text.indexOf(foldedNeedle);
+			if (at === -1) return null;
 			return {
 				startPara: i,
-				startOffset: at,
+				startOffset: srcIndex(folded, at),
 				endPara: i,
-				endOffset: at + needle.length,
+				endOffset: srcIndex(folded, at + foldedNeedle.length),
 			};
-		}
+		};
+		if (paragraph !== undefined) return search(paragraph - 1);
 		for (let i = 0; i < paragraphs.length; i++) {
-			const at = paragraphs[i].indexOf(needle);
-			if (at !== -1)
-				return {
-					startPara: i,
-					startOffset: at,
-					endPara: i,
-					endOffset: at + needle.length,
-				};
+			const hit = search(i);
+			if (hit) return hit;
 		}
-		throw docMiss();
+		return null;
 	}
 
 	// Cross-paragraph needle: match against the single-newline join and map the
-	// hit back to (paragraph, offset) coordinates.
-	const joined = paragraphs.join('\n');
+	// hit back to (paragraph, offset) coordinates. Folds never touch newlines,
+	// so the join stays the coordinate system on both sides.
 	const starts: number[] = [];
 	let acc = 0;
 	for (const p of paragraphs) {
@@ -94,26 +90,77 @@ function findSpan(
 		return i;
 	};
 
-	let from = 0;
-	if (paragraph !== undefined) {
-		const i = paragraph - 1;
-		if (i < 0 || i >= paragraphs.length) throw scopeMiss();
-		from = starts[i];
-	}
-	const at = joined.indexOf(needle, from);
-	if (at === -1) throw paragraph !== undefined ? scopeMiss() : docMiss();
-	if (paragraph !== undefined && paraAt(at) !== paragraph - 1)
-		throw scopeMiss();
+	if (paragraph !== undefined && (paragraph < 1 || paragraph > starts.length))
+		return null;
+	const folded = fold(paragraphs.join('\n'));
 
-	const end = at + needle.length;
-	const startPara = paraAt(at);
-	const endPara = paraAt(end);
-	return {
-		startPara,
-		startOffset: at - starts[startPara],
-		endPara,
-		endOffset: end - starts[endPara],
-	};
+	// Walk the occurrences: unscoped takes the first, scoped takes the first
+	// that *starts* in the requested paragraph.
+	for (
+		let at = folded.text.indexOf(foldedNeedle);
+		at !== -1;
+		at = folded.text.indexOf(foldedNeedle, at + 1)
+	) {
+		const start = srcIndex(folded, at);
+		const startPara = paraAt(start);
+		if (paragraph !== undefined && startPara !== paragraph - 1) continue;
+		const end = srcIndex(folded, at + foldedNeedle.length);
+		const endPara = paraAt(end);
+		return {
+			startPara,
+			startOffset: start - starts[startPara],
+			endPara,
+			endOffset: end - starts[endPara],
+		};
+	}
+	return null;
+}
+
+/**
+ * Locate `needle` in the paragraphs, possibly spanning paragraph boundaries
+ * when it contains `\n` (paragraphs match as if joined by single newlines).
+ * Returns the span as (paragraph, offset) endpoints. Throws with the same
+ * messages `applyOp` has always used.
+ *
+ * The search runs the whole document at each rung of the `MATCH_FOLDS` ladder
+ * before loosening, so an exact hit always wins over a typographically-folded
+ * one elsewhere. That rung is what lets the model's "well-being" find the
+ * writer's "well being", or its straight apostrophe find Word's curly one,
+ * instead of reporting a miss for an edit it got right.
+ */
+function findSpan(
+	paragraphs: string[],
+	rawNeedle: string,
+	paragraph?: number,
+): Span {
+	const needle = normalizeBreaks(rawNeedle);
+	for (const fold of MATCH_FOLDS) {
+		const hit = findSpanWith(paragraphs, needle, paragraph, fold);
+		if (hit) return hit;
+	}
+	throw paragraph !== undefined
+		? new Error(`"${rawNeedle}" not found in paragraph ${paragraph}.`)
+		: new Error(`"${rawNeedle}" not found in the document.`);
+}
+
+/**
+ * The source text a span covers — the writer's real characters, which are not
+ * always the ones the needle was spelled with (see `findSpan`). Paragraph
+ * boundaries inside the span come back as newlines, the same coordinate system
+ * op text uses.
+ */
+function sliceSpan(paragraphs: string[], span: Span): string {
+	if (span.startPara === span.endPara) {
+		return paragraphs[span.startPara].slice(
+			span.startOffset,
+			span.endOffset,
+		);
+	}
+	return [
+		paragraphs[span.startPara].slice(span.startOffset),
+		...paragraphs.slice(span.startPara + 1, span.endPara),
+		paragraphs[span.endPara].slice(0, span.endOffset),
+	].join('\n');
 }
 
 /** Replace a located span with (possibly multi-paragraph) text, as a splice. */
@@ -192,6 +239,10 @@ export function lowerOp(paragraphs: string[], op: EditOp): ParagraphSplice[] {
 			// the target (numbered against the post-removal array, as `view`
 			// would show it after the cut).
 			const span = findSpan(paragraphs, op.phrase);
+			// Re-place the text that was actually cut, not `op.phrase`: a move
+			// adds no words, and it must not quietly restyle the ones it carries
+			// (the model's hyphen for the writer's space, say).
+			const moved = sliceSpan(paragraphs, span);
 			const cut = spliceForSpan(paragraphs, span, '');
 			const emptied = cut.insert.every((p) => p.length === 0);
 			const removal: ParagraphSplice = emptied
@@ -205,7 +256,7 @@ export function lowerOp(paragraphs: string[], op: EditOp): ParagraphSplice[] {
 			);
 			return [
 				removal,
-				{ index: at, remove: [], insert: splitParas(op.phrase) },
+				{ index: at, remove: [], insert: splitParas(moved) },
 			];
 		}
 	}
