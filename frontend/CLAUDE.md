@@ -123,6 +123,16 @@ Keep unit tests in `src/` and E2E specs in `tests/`. If a unit runner's globs re
 into `tests/`, Playwright specs fail with "test.describe() did not expect to be called
 here". The `.test.ts` vs `.spec.ts` split is a second, intentional guardrail.
 
+`vitest.config.ts` passes `--no-webstorage` to the pool workers on Node ≥ 25.
+Node enables Web Storage by default there, so `localStorage` exists as a global
+that stays `undefined` without `--localstorage-file`; Vitest's DOM environments
+only copy a window property onto `globalThis` when nothing is already there, so
+that stub shadows jsdom's real Storage and jsdom tests fail with "Cannot read
+properties of undefined". CI on `lts/*` (Node 24) never saw it, which is why the
+guard checks `allowedNodeEnvironmentFlags` — the flag doesn't parse before Node
+25 and would abort the worker. Switching DOM libraries doesn't help: happy-dom
+loses `localStorage` the same way, because the shadowing is in the runner.
+
 ### Event logging
 
 Each page calls `useLog()` once (see `src/hooks/useLog.ts` — it owns transport,
