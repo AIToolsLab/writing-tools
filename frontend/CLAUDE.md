@@ -95,6 +95,21 @@ Log `info.detail` (provider text) and `info.code`, not the sentence shown on
 screen. A successful-but-empty generation is also a visible outcome (`tone="info"`
 notice), never silence.
 
+**The document read is part of the request, so put it inside the `try`.** Every
+page pulls fresh context (`refresh()` from `useDocContext`) at request time, and
+on Google Docs that pull is an Apps Script round-trip that fails on its own
+terms: a sidebar left open long enough loses its grant and every bridge call
+rejects with `ScriptError: Authorization is required to perform that action.`
+When that `await` sits outside the `try/finally` — as it did in `pages/chat` —
+the rejection escapes into a `void`-ed handler, the `finally` never runs, and the
+in-flight flag stays true: a permanently disabled input box, an unchanged
+transcript, and nothing on screen saying why. `describeGenerationError` maps that
+`ScriptError` to copy naming the one step that works (reopen the sidebar) with
+`retryable: false`, since retrying in place cannot re-authorize. The one
+exception is a read on a background timer (draft's auto-refresh), which skips the
+cycle with a `console.warn` rather than interrupting the writer with a notice
+they didn't ask for.
+
 **The system prompt goes in `instructions`, never in `messages`.** Since ai@7, a
 `role: 'system'` message inside `messages` fails validation before the request
 leaves the browser — `InvalidPromptError: System messages are not allowed in the

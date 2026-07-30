@@ -391,7 +391,19 @@ export default function Draft() {
 		}
 		// Pull the current document context at refresh time rather than tracking
 		// it continuously.
-		const docContext = await refreshDocContext();
+		let docContext: DocContext;
+		try {
+			docContext = await refreshDocContext();
+		} catch (err) {
+			// A background tick the writer did not ask for: skip this cycle rather
+			// than putting a notice on screen over work they are in the middle of.
+			// A failure they *did* ask for still reports itself.
+			console.warn(
+				'Auto-refresh skipped, could not read the document:',
+				err,
+			);
+			return;
+		}
 		const request = {
 			docContext,
 			type: modesToShow[0],
@@ -421,6 +433,44 @@ export default function Draft() {
 		autoRefreshInterval,
 	);
 
+	/** Run one feature: read the document, then generate from what it says. */
+	const requestSuggestion = useCallback(
+		async (mode: string) => {
+			setActiveMode(mode);
+			// Pull the current document context at click time.
+			let docContext: DocContext;
+			try {
+				docContext = await refreshDocContext();
+			} catch (err) {
+				// The read is a request in its own right (an Apps Script round-trip
+				// on Google Docs), and it fails before `getSuggestion` — which owns
+				// the notice — is ever called. Report it here, or the click is
+				// silently lost.
+				console.error(
+					'Could not read the document for a suggestion:',
+					err,
+				);
+				setEmptyResult(false);
+				updateErrorInfo(describeGenerationError(err));
+				return;
+			}
+			draftLog.suggestionRequested(log, {
+				generationType: mode,
+				docContext,
+			});
+			resetAutoRefresh();
+			void getSuggestion(
+				{
+					docContext,
+					type: mode,
+					brief: formatDocBriefForPrompt(briefRef.current),
+				},
+				true,
+			);
+		},
+		[refreshDocContext, resetAutoRefresh, getSuggestion, log],
+	);
+
 	return (
 		<div className={classes.app}>
 			<div className={classes.body}>
@@ -448,30 +498,7 @@ export default function Draft() {
 										key={mode}
 										className={`${classes.featureCard} ${isActive ? classes.active : ''}`}
 										onClick={() => {
-											void (async () => {
-												setActiveMode(mode);
-												// Pull the current document context at click time.
-												const docContext =
-													await refreshDocContext();
-												draftLog.suggestionRequested(
-													log,
-													{
-														generationType: mode,
-														docContext,
-													},
-												);
-												resetAutoRefresh();
-												getSuggestion(
-													{
-														docContext,
-														type: mode,
-														brief: formatDocBriefForPrompt(
-															briefRef.current,
-														),
-													},
-													true,
-												);
-											})();
+											void requestSuggestion(mode);
 										}}
 										disabled={isLoading}
 										type="button"

@@ -171,14 +171,24 @@ export default function Chat() {
 	useEffect(() => {
 		if (chatMessages.length !== 0) return;
 		void (async () => {
-			const docContext = await refreshDocContext();
-			updateChatMessages(
-				withCurrentDocContext(
-					[],
-					docContext,
-					formatDocBriefForPrompt(briefRef.current),
-				),
-			);
+			try {
+				const docContext = await refreshDocContext();
+				updateChatMessages(
+					withCurrentDocContext(
+						[],
+						docContext,
+						formatDocBriefForPrompt(briefRef.current),
+					),
+				);
+			} catch (error) {
+				// The transcript stays unseeded, so without this the writer gets a
+				// normal-looking welcome screen backed by a chat that cannot answer.
+				console.error(
+					'Could not read the document to start the chat:',
+					error,
+				);
+				setErrorInfo(describeGenerationError(error));
+			}
 		})();
 	}, [chatMessages.length, refreshDocContext, updateChatMessages]);
 
@@ -220,24 +230,35 @@ export default function Chat() {
 		setErrorInfo(null);
 		setFailedMessage(null);
 
-		// Pull the current document context at send time so the model sees the
-		// document as it is now, then inject it as the doc-context message.
-		const docContext = await refreshDocContext();
-		let newMessages = [
-			...withCurrentDocContext(
-				chatMessages,
-				docContext,
-				formatDocBriefForPrompt(briefRef.current),
-			),
-			{ role: 'user', content: text },
-			{ role: 'assistant', content: '' },
-		];
-
-		updateChatMessages(newMessages);
-		setShowScrollButton(false);
-		updateMessage('');
+		// Everything from here on runs inside the try: the document read can fail
+		// too (on Google Docs it is an Apps Script round-trip, which rejects
+		// outright once the sidebar's authorization has lapsed), and a failure
+		// outside it would leave `isSendingMessage` stuck true — a permanently
+		// disabled input box with no message on screen explaining why.
+		let newMessages: ChatMessage[] = [];
+		/** Whether the turn made it into the transcript, i.e. whether the catch
+		 * has anything to roll back. False when the document read failed. */
+		let turnAppended = false;
 
 		try {
+			// Pull the current document context at send time so the model sees the
+			// document as it is now, then inject it as the doc-context message.
+			const docContext = await refreshDocContext();
+			newMessages = [
+				...withCurrentDocContext(
+					chatMessages,
+					docContext,
+					formatDocBriefForPrompt(briefRef.current),
+				),
+				{ role: 'user', content: text },
+				{ role: 'assistant', content: '' },
+			];
+
+			turnAppended = true;
+			updateChatMessages(newMessages);
+			setShowScrollButton(false);
+			updateMessage('');
+
 			const deltas = streamTextDeltas({
 				model: languageModel,
 				providerOptions: openaiProviderOptions,
@@ -262,12 +283,17 @@ export default function Chat() {
 				return;
 			}
 			const info = describeGenerationError(error);
-			console.error('Error while streaming chat response:', error);
-			// Nothing streamed: roll the turn back (empty assistant bubble + the
-			// user message it was answering) and hand the text back to the input
-			// box, so Retry re-sends it once rather than duplicating the turn.
-			// If part of a reply did arrive, keep it and just show the error under it.
-			if (newMessages[newMessages.length - 1].content === '') {
+			console.error('Chat turn failed:', error);
+			if (!turnAppended) {
+				// Failed before the turn reached the transcript (the document read
+				// went first): there is nothing to roll back, and the writer's text
+				// is still sitting in the input box.
+				setFailedMessage({ text, source });
+			} else if (newMessages[newMessages.length - 1].content === '') {
+				// Nothing streamed: roll the turn back (empty assistant bubble + the
+				// user message it was answering) and hand the text back to the input
+				// box, so Retry re-sends it once rather than duplicating the turn.
+				// If part of a reply did arrive, keep it and just show the error under it.
 				updateChatMessages(newMessages.slice(0, -2));
 				updateMessage(text);
 				setFailedMessage({ text, source });
