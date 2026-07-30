@@ -201,6 +201,10 @@ export const chatLog = {
 	responseError(log: LogFn, data: { error: string; code?: string }) {
 		return emit(log, 'chat', 'response_error', data);
 	},
+	/** The writer discarded the transcript and started a new conversation. */
+	conversationReset(log: LogFn) {
+		return emit(log, 'chat', 'conversation_reset');
+	},
 };
 
 /**
