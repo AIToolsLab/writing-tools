@@ -148,8 +148,7 @@
 }
 
 .chatBubble {
-	max-width: 85%;
-	padding: 10px 14px;
+	padding: 10px 10px;
 	border-radius: 12px;
 	font-size: 13px;
 	line-height: 1.6;
@@ -160,6 +159,7 @@
 	background: #1c1c1c;
 	color: #faf8f4;
 	border-radius: 12px 12px 4px 12px;
+	max-width: 85%;
 }
 
 .ai .chatBubble {
