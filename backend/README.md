@@ -39,7 +39,9 @@ Listens on `5000` in Docker (`PORT=5000`).
 
 ## Environment variables
 
-`OPENAI_API_KEY`, `OPENAI_DEMO_API_KEY` (pays for sessionless/demo requests),
+`OPENAI_API_KEY`, `OPENAI_DEMO_API_KEY` (pays for sessionless/demo requests; unset means
+demo mode 401s once `BETTER_AUTH_ENABLED=true`, so `get_env.py` offers to reuse the main
+key for it locally),
 `LOG_SECRET` (gates the log-viewer endpoints + `/api/usage_summary`), `DATA_DIR` (root
 for `app.db` + `logs/`), `PORT` (default 8000), `DEBUG`, `POSTHOG_PROJECT_TOKEN`,
 `POSTHOG_HOST`, `LOG_DIR` (overrides just the logs subdir). Auth (Better Auth) adds

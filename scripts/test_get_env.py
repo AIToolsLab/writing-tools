@@ -1,6 +1,14 @@
+import tempfile
 import unittest
+from pathlib import Path
+from unittest.mock import patch
 
-from scripts.get_env import merge_csv_assignment
+from scripts.get_env import (
+    existing_entries,
+    merge_csv_assignment,
+    prompt_demo_openai_key,
+    resolved,
+)
 
 
 class MergeCsvAssignmentTests(unittest.TestCase):
@@ -26,6 +34,54 @@ class MergeCsvAssignmentTests(unittest.TestCase):
         )
         self.assertIs(merged, source)
         self.assertEqual(added, [])
+
+
+class ExistingEntriesTests(unittest.TestCase):
+    def test_reads_values_ignoring_quotes_blanks_and_comments(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / ".env"
+            path.write_text(
+                '# a comment\n\nOPENAI_API_KEY="sk-quoted"\n'
+                "BETTER_AUTH_ENABLED=false\nEMPTY=\n"
+            )
+            self.assertEqual(
+                existing_entries(path),
+                {
+                    "OPENAI_API_KEY": "sk-quoted",
+                    "BETTER_AUTH_ENABLED": "false",
+                    "EMPTY": "",
+                },
+            )
+
+    def test_missing_file_has_no_entries(self):
+        self.assertEqual(existing_entries(Path("/nonexistent/.env")), {})
+
+
+class PromptDemoOpenAIKeyTests(unittest.TestCase):
+    def setUp(self):
+        self.addCleanup(resolved.clear)
+        resolved.clear()
+
+    def test_empty_answer_reuses_the_main_key(self):
+        resolved["OPENAI_API_KEY"] = "sk-main"
+        with patch("builtins.input", return_value=""):
+            self.assertEqual(prompt_demo_openai_key(), "sk-main")
+
+    def test_a_separate_demo_key_wins_over_the_main_key(self):
+        resolved["OPENAI_API_KEY"] = "sk-main"
+        with patch("builtins.input", return_value="sk-demo"):
+            self.assertEqual(prompt_demo_openai_key(), "sk-demo")
+
+    def test_prompts_outright_when_there_is_no_main_key_to_reuse(self):
+        with patch("builtins.input", return_value="sk-demo") as mock_input:
+            self.assertEqual(prompt_demo_openai_key(), "sk-demo")
+        mock_input.assert_called_once()
+
+    def test_rejects_a_key_that_is_not_an_openai_key(self):
+        resolved["OPENAI_API_KEY"] = "sk-main"
+        with patch("builtins.input", return_value="nonsense"):
+            with self.assertRaises(SystemExit):
+                prompt_demo_openai_key()
 
 
 if __name__ == "__main__":

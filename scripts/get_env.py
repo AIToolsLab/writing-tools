@@ -2,9 +2,10 @@
 
 """Interactive helper to ensure backend/.env has the keys local dev needs.
 
-Ensures OPENAI_API_KEY, LOG_SECRET, POSTHOG_PROJECT_TOKEN, and the Better Auth
-keys exist in backend/.env, which the Hono backend loads via process.loadEnvFile()
-in dev. (In Docker these are injected by docker-compose instead.)
+Ensures OPENAI_API_KEY, OPENAI_DEMO_API_KEY, LOG_SECRET, POSTHOG_PROJECT_TOKEN,
+and the Better Auth keys exist in backend/.env, which the Hono backend loads via
+process.loadEnvFile() in dev. (In Docker these are injected by docker-compose
+instead.)
 
 This is non-destructive: missing keys are appended, and required local device
 client IDs are merged into the existing allowlist without removing custom IDs.
@@ -13,6 +14,10 @@ Run it again any time new keys or local clients are added.
 Auth is written disabled by default (BETTER_AUTH_ENABLED=false). BETTER_AUTH_SECRET
 is generated automatically — it's only used for local dev sessions (and prod doesn't
 use .env), so there's nothing sensitive to protect here.
+
+OPENAI_DEMO_API_KEY defaults to the same key as OPENAI_API_KEY: in production it's a
+separately capped project, but locally the point is only that *some* key is set, so
+demo/anonymous sessions aren't refused by attributeRequest (backend/src/openaiProxy.ts).
 """
 
 import secrets
@@ -29,17 +34,33 @@ required_device_clients = [
 ]
 
 
-def existing_keys(path: Path) -> set[str]:
-    """Return the set of env var names already defined in the file."""
-    keys = set()
+def existing_entries(path: Path) -> dict[str, str]:
+    """Return the env vars already defined in the file, name -> value.
+
+    Values are only needed so one key can default to another's value (the demo
+    key), so the parsing stays deliberately shallow: strip surrounding quotes,
+    leave anything else as written.
+    """
+    values: dict[str, str] = {}
     if not path.exists():
-        return keys
+        return values
     for line in path.read_text().splitlines():
         line = line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
-        keys.add(line.split("=", 1)[0].strip())
-    return keys
+        key, _, value = line.partition("=")
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
+            value = value[1:-1]
+        values[key.strip()] = value
+    return values
+
+
+# Values resolved so far this run — what's already in .env, plus anything we've
+# just prompted for. Lets a later entry default to an earlier one's value
+# (OPENAI_DEMO_API_KEY -> OPENAI_API_KEY) whether or not the earlier one was
+# written this run.
+resolved: dict[str, str] = {}
 
 
 def gen_log_secret() -> str:
@@ -59,6 +80,31 @@ def prompt_openai_key() -> str:
     return key
 
 
+def prompt_demo_openai_key() -> str:
+    """The key that pays for demo/anonymous sessions.
+
+    Production uses a separate, capped OpenAI project for this; locally the
+    default is just OPENAI_API_KEY, because leaving it unset makes the proxy 401
+    every demo-mode request once BETTER_AUTH_ENABLED=true.
+    """
+    main_key = resolved.get("OPENAI_API_KEY", "")
+    if main_key:
+        print(
+            "OPENAI_DEMO_API_KEY pays for demo/anonymous sessions "
+            "(a capped project in production)."
+        )
+        key = input("Enter a demo OpenAI API Key, or press Enter to reuse the main key: ").strip()
+        if not key:
+            return main_key
+    else:
+        print("Enter the OpenAI API Key that should pay for demo/anonymous sessions.")
+        key = input("Enter your demo OpenAI API Key: ").strip()
+    if not key.startswith("sk-"):
+        print("That key doesn't look like a valid OpenAI API key. Exiting...")
+        exit(1)
+    return key
+
+
 def prompt_posthog_token() -> str:
     return input(
         "PostHog project token (from "
@@ -71,6 +117,10 @@ def prompt_posthog_token() -> str:
 # prompt for what we still need.
 entries = [
     ("OPENAI_API_KEY", prompt_openai_key, None),
+    ("OPENAI_DEMO_API_KEY", prompt_demo_openai_key, [
+        "Pays for demo/anonymous sessions. Without it, the proxy refuses them",
+        "whenever auth is on (backend/src/openaiProxy.ts, attributeRequest).",
+    ]),
     ("LOG_SECRET", gen_log_secret, None),
     ("POSTHOG_PROJECT_TOKEN", prompt_posthog_token, None),
     ("BETTER_AUTH_ENABLED", "false", [
@@ -148,18 +198,26 @@ def write_preserving_newlines(path: Path, source: str) -> None:
 
 
 def main() -> None:
-    present = existing_keys(env_file)
-    missing = [entry for entry in entries if entry[0] not in present]
+    resolved.clear()
+    resolved.update(existing_entries(env_file))
+    missing = [entry for entry in entries if entry[0] not in resolved]
     lines = []
     for key, value, comments in missing:
         if comments:
             lines.append("")
             lines.extend(f"# {comment}" for comment in comments)
-        resolved = value() if callable(value) else value
-        if key in ("OPENAI_API_KEY", "LOG_SECRET", "POSTHOG_PROJECT_TOKEN"):
-            lines.append(f'{key}="{resolved}"')
+        setting = value() if callable(value) else value
+        # Recorded so a later entry can default to it (see prompt_demo_openai_key).
+        resolved[key] = setting
+        if key in (
+            "OPENAI_API_KEY",
+            "OPENAI_DEMO_API_KEY",
+            "LOG_SECRET",
+            "POSTHOG_PROJECT_TOKEN",
+        ):
+            lines.append(f'{key}="{setting}"')
         else:
-            lines.append(f"{key}={resolved}")
+            lines.append(f"{key}={setting}")
 
     if lines:
         current = read_preserving_newlines(env_file) if env_file.exists() else ""

@@ -91,7 +91,8 @@ pays for sessionless requests — without it they're refused wherever auth is on
 (overrides just the logs subdir). Auth: `BETTER_AUTH_ENABLED`, `BETTER_AUTH_SECRET`,
 `BETTER_AUTH_URL`, `BETTER_AUTH_TRUSTED_ORIGINS`, `GOOGLE_CLIENT_ID`,
 `GOOGLE_CLIENT_SECRET`. For local dev, run `python scripts/get_env.py` to generate
-`backend/.env`.
+`backend/.env`; it prompts for `OPENAI_DEMO_API_KEY` too and defaults it to the main key,
+since an unset demo key makes every demo/anonymous request 401 once auth is enabled.
 
 ## Analysis tooling
 
