@@ -146,6 +146,20 @@ There is no runtime dev/prod flag — the two modes are just two versions of
   `dist-gdocs/sidebar-bundled.html` with all JS/CSS inlined; that file is what you
   `clasp push` for a real deployment.
 
+## Document serialization
+
+`getDocContext()` and `getAllTabs()` return the document as **Markdown**, not
+bare text: headings become `#`, list items become `-` or `1.`, and paragraphs
+are separated by a blank line. The document's only consumer is an LLM prompt,
+and structure the writer marked in Docs is otherwise invisible there — Docs
+renders list glyphs from formatting, so `getText()` never returns them.
+
+See [docs/google-docs-document-serialization.md](../docs/google-docs-document-serialization.md)
+for the full mapping, what is deliberately flattened, and how to test it. In
+short: unit tests (`npm test` in `frontend/` — they run this file with a stubbed
+`DocumentApp`, so no `clasp push` is needed to iterate) for the mapping, and the
+**Debug** page in the sidebar's Labs (···) menu for the real round-trip.
+
 ## Key Differences from Word Add-in
 
 | Aspect | Word Add-in | Google Docs Add-on |
@@ -153,6 +167,7 @@ There is no runtime dev/prod flag — the two modes are just two versions of
 | Document API | Office.js (client-side) | DocumentApp (server-side via Apps Script) |
 | UI Framework | HTML/JS in taskpane | HTML/JS in sidebar |
 | Selection events | Native Office events | Polling (no native events) |
+| Document text | Plain text | Markdown (headings, lists) |
 
 ## OAuth Scopes
 
