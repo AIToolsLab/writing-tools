@@ -243,7 +243,6 @@ export default function Chat() {
 				providerOptions: openaiProviderOptions,
 				instructions: CHAT_INSTRUCTIONS,
 				messages: newMessages.slice(0, -1) as ModelMessage[],
-				maxOutputTokens: 1024,
 				abortSignal: requestController.signal,
 			});
 
