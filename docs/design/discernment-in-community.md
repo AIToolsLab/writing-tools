@@ -7,6 +7,11 @@
 > [`interaction-concepts.md`](interaction-concepts.md) (the fourteen concepts).
 > Nothing here is specced for implementation, except §7, which names things
 > already broken or missing in the code.
+>
+> Continued in [`writing-to-learn.md`](writing-to-learn.md), which finds the
+> second buried assumption — that the document is the point — and corrects §4.4
+> below: Ostrom's governance model does not survive a classroom's power
+> asymmetry.
 
 ---
 
@@ -367,6 +372,11 @@ surveillance:
 **The AI does not:** initiate disclosure, compute an adherence score, notify
 anyone of anything, or retain review artifacts past the session that produced
 them.
+
+**Where this breaks:** Ostrom's principles assume roughly symmetric power among
+commoners. A classroom does not have that, and a student cannot dissent from a
+graded requirement without cost — see `writing-to-learn.md` §3.2, which replaces
+this governance model with fiduciary duty for the classroom case.
 
 **Cheapest test:** the covenant without the software. Have the lab write its own
 one-page rule of life for AI use in writing, and hold one review meeting where
