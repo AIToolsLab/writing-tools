@@ -1,20 +1,34 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!-- TEMPLATE-DOC
+    Template for the Word add-in manifest. Do not edit a rendered manifest.xml —
+    edit this file, and put anything that differs between environments in
+    manifest/environments.ts. Rendered by `vite build` into dist/ (one file per
+    environment); see manifest/README.md.
+
+    Placeholders are APP_ID, APP_NAME and BASE_URL, each written in doubled
+    braces. Every URL must be built from the base-URL placeholder: a hardcoded
+    origin here would ship one environment's host inside another environment's
+    manifest, which manifest/environments.test.ts fails the build for.
+
+    This comment is addressed to whoever edits the template, so renderManifest
+    strips TEMPLATE-DOC comments out of the rendered manifests.
+-->
 <OfficeApp xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
     xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
     xsi:type="TaskPaneApp">
-    <Id>46d2493d-60db-4522-b2aa-e6f2c08d2507</Id>
+    <Id>{{APP_ID}}</Id>
     <Version>1.0.0.1</Version>
     <ProviderName>Calvin University Computer Science Department</ProviderName>
     <DefaultLocale>en-US</DefaultLocale>
-    <DisplayName DefaultValue="Thoughtful-dev" />
+    <DisplayName DefaultValue="{{APP_NAME}}" />
     <Description DefaultValue="AI tools to help you write thoughtfully" />
-    <IconUrl DefaultValue="https://localhost:3000/assets/logo.png" />
-    <HighResolutionIconUrl DefaultValue="https://localhost:3000/assets/logo_highres.png" />
-    <SupportUrl DefaultValue="https://localhost:3000" />
+    <IconUrl DefaultValue="{{BASE_URL}}/assets/logo.png" />
+    <HighResolutionIconUrl DefaultValue="{{BASE_URL}}/assets/logo_highres.png" />
+    <SupportUrl DefaultValue="{{BASE_URL}}" />
     <AppDomains>
-        <AppDomain>https://localhost:3000</AppDomain>
+        <AppDomain>{{BASE_URL}}</AppDomain>
     </AppDomains>
     <Hosts>
         <Host Name="Document" />
@@ -25,7 +39,7 @@
         </Sets>
     </Requirements>
     <DefaultSettings>
-        <SourceLocation DefaultValue="https://localhost:3000/taskpane.html" />
+        <SourceLocation DefaultValue="{{BASE_URL}}/taskpane.html" />
     </DefaultSettings>
     <Permissions>ReadWriteDocument</Permissions>
     <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
@@ -73,29 +87,29 @@
         <Resources>
             <bt:Images>
                 <bt:Image id="Icon.16x16"
-                    DefaultValue="https://localhost:3000/assets/logo_16.png" />
+                    DefaultValue="{{BASE_URL}}/assets/logo_16.png" />
                 <bt:Image id="Icon.32x32"
-                    DefaultValue="https://localhost:3000/assets/logo.png" />
+                    DefaultValue="{{BASE_URL}}/assets/logo.png" />
                 <bt:Image id="Icon.80x80"
-                    DefaultValue="https://localhost:3000/assets/logo_80.png" />
+                    DefaultValue="{{BASE_URL}}/assets/logo_80.png" />
             </bt:Images>
             <bt:Urls>
                 <bt:Url id="GetStarted.LearnMoreUrl"
                     DefaultValue="https://go.microsoft.com/fwlink/?LinkId=276812" />
                 <bt:Url id="Commands.Url"
-                    DefaultValue="https://localhost:3000/commands/commands.html" />
-                <bt:Url id="Taskpane.Url" DefaultValue="https://localhost:3000/taskpane.html" />
+                    DefaultValue="{{BASE_URL}}/commands/commands.html" />
+                <bt:Url id="Taskpane.Url" DefaultValue="{{BASE_URL}}/taskpane.html" />
             </bt:Urls>
             <bt:ShortStrings>
                 <bt:String id="GetStarted.Title"
-                    DefaultValue="Get started with Thoughtful-dev!" />
-                <bt:String id="CommandsGroup.Label" DefaultValue="Thoughtful" />
-                <bt:String id="TaskpaneButton.Label" DefaultValue="Show Thoughtful-dev" />
+                    DefaultValue="Get started with {{APP_NAME}}!" />
+                <bt:String id="CommandsGroup.Label" DefaultValue="{{APP_NAME}}" />
+                <bt:String id="TaskpaneButton.Label" DefaultValue="Show {{APP_NAME}}" />
             </bt:ShortStrings>
             <bt:LongStrings>
                 <bt:String id="GetStarted.Description"
-                    DefaultValue="Thoughtful-dev loaded successfully. Go to the HOME tab and click the 'Show Thoughtful-dev' button to get started." />
-                <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Show Thoughtful-dev sidebar." />
+                    DefaultValue="{{APP_NAME}} loaded successfully. Go to the HOME tab and click the 'Show {{APP_NAME}}' button to get started." />
+                <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Show {{APP_NAME}} sidebar." />
             </bt:LongStrings>
         </Resources>
     </VersionOverrides>

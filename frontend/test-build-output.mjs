@@ -119,22 +119,28 @@ expectedStaticFiles.forEach((file) => {
 	}
 });
 
-// Test 5: manifest.xml should exist and look transformed.
-console.log('\nTest 5: Manifest.xml');
-const manifestPath = path.join(distDir, 'manifest.xml');
-if (fs.existsSync(manifestPath)) {
-	success('manifest.xml exists in dist');
+// Test 5: every environment's manifest should be rendered, in every build —
+// they're picked by who's installing, not by the build's flags. Which origin
+// each one names is manifest/environments.test.ts's job; this only checks the
+// build emitted them.
+console.log('\nTest 5: Manifests');
+['manifest.xml', 'manifest-staging.xml', 'manifest-dev.xml'].forEach((file) => {
+	const manifestPath = path.join(distDir, file);
+	if (!fs.existsSync(manifestPath)) {
+		error(`${file} NOT FOUND in dist`);
+		return;
+	}
+	success(`${file} exists in dist`);
 	const content = fs.readFileSync(manifestPath, 'utf-8');
 	// Structural check that it's a real Office manifest (avoids URL substring
 	// matching, which is brittle and flagged as unsafe sanitization).
 	if (content.includes('<OfficeApp') && content.includes('<SourceLocation')) {
-		success('manifest.xml looks like a valid Office manifest');
+		success(`${file} looks like a valid Office manifest`);
 	} else {
-		error('manifest.xml appears malformed');
+		error(`${file} appears malformed`);
 	}
-} else {
-	error('manifest.xml NOT FOUND in dist');
-}
+	if (content.includes('{{')) error(`${file} has an unsubstituted placeholder`);
+});
 
 // Test 6: Google Docs add-on must emit both files the sidebar loads by name —
 // google-docs.bundle.js and google-docs.css (the CSS is extracted, not inlined,
