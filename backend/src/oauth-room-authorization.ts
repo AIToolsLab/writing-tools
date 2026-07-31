@@ -6,11 +6,7 @@ import {
 	sessionMiddleware,
 } from 'better-auth/api';
 import { z } from 'zod';
-import {
-	getRoomForUser,
-	selectRoomForOAuth,
-	selectedRoomForOAuth,
-} from './rooms.js';
+import { getRoomForUser } from './rooms.js';
 
 interface OAuthAuthorizationContext {
 	state: string;
@@ -90,35 +86,7 @@ export function roomOAuthAuthorization() {
 							name: client.name || client.clientId,
 							redirect_origin: new URL(authorization.redirectUri).origin,
 						},
-						selected:
-							selectedRoomForOAuth(
-								session.session.id,
-								authorization.state,
-								session.user.id,
-							) === room.id,
 					});
-				},
-			),
-			authorizeOAuthRoom: createAuthEndpoint(
-				'/oauth2/authorize-room',
-				{ method: 'POST', body, use: [sessionMiddleware] },
-				async (ctx) => {
-					const session = await getSessionFromCtx(ctx);
-					if (!session) throw new APIError('UNAUTHORIZED');
-					const authorization = await currentOAuthAuthorization();
-					if (
-						!selectRoomForOAuth(
-							session.session.id,
-							authorization.state,
-							session.user.id,
-							authorization.roomId,
-						)
-					) {
-						throw new APIError('NOT_FOUND', {
-							message: 'The launched room was not found for this account.',
-						});
-					}
-					return ctx.json({ ok: true });
 				},
 			),
 		},

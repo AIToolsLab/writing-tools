@@ -59,6 +59,25 @@ export const googleClientId = () => (process.env.GOOGLE_CLIENT_ID ?? '').trim();
 export const googleClientSecret = () =>
 	(process.env.GOOGLE_CLIENT_SECRET ?? '').trim();
 
+// Fixed public OAuth client used by the separately hosted Mindmap. The client id
+// is an identifier, not a secret. Production must provide the exact deployed
+// callback URL; local development defaults to Vite's Mindmap origin.
+export const mindmapOAuthClientId = () => {
+	const configured = (process.env.MINDMAP_OAUTH_CLIENT_ID ?? '').trim();
+	if (configured) return configured;
+	if ((process.env.NODE_ENV ?? '').toLowerCase() === 'production') return '';
+	return 'writing-tools-mindmap';
+};
+export const mindmapOAuthRedirectUris = (): string[] => {
+	const configured = (process.env.MINDMAP_OAUTH_REDIRECT_URIS ?? '')
+		.split(',')
+		.map((value) => value.trim())
+		.filter(Boolean);
+	if (configured.length > 0) return configured;
+	if ((process.env.NODE_ENV ?? '').toLowerCase() === 'production') return [];
+	return ['http://localhost:5181/'];
+};
+
 // Comma-separated allowed device client IDs. An empty list rejects all requests.
 export const deviceClientIds = (): string[] =>
 	(process.env.BETTER_AUTH_DEVICE_CLIENT_IDS ?? '')

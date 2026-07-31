@@ -162,6 +162,12 @@ const MIGRATIONS: Array<(conn: Database.Database) => void> = [
 			CREATE INDEX oauth_room_selection_expiry ON oauth_room_selection (expires_at);
 		`);
 	},
+	// v6 — the trusted Mindmap client binds a room directly from the verified OAuth
+	// request and checks ownership server-side, so no transient human selection is
+	// stored anymore. Appending a drop migration preserves deployed v5 databases.
+	(conn) => {
+		conn.exec(`DROP TABLE oauth_room_selection;`);
+	},
 ];
 
 function migrate(conn: Database.Database): void {

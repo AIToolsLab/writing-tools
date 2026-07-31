@@ -7,7 +7,7 @@
  * that tool, plus an optional read-only document snapshot) and opens the tool in the
  * user's real browser at `…#wt_grant=<id>`; the tool exchanges the grant for its
  * token. The paste-a-URL field is for ad-hoc launches — it opens the URL directly,
- * and such a tool signs in for itself via the device flow if it needs access.
+ * and an ad-hoc tool chooses its own supported authentication flow if needed.
  */
 import { useContext, useState } from 'react';
 import { Button } from 'reshaped';
@@ -27,7 +27,7 @@ import { useLog } from '@/hooks/useLog';
 import classes from './styles.module.css';
 
 export interface FirstPartyTool {
-	/** Tool client_id — must also be listed in the backend device allowlist. */
+	/** Tool client_id used for registry and attribution. */
 	id: string;
 	name: string;
 	description: string;
@@ -39,9 +39,10 @@ export interface FirstPartyTool {
 }
 
 /**
- * Hardcoded first-party tools (Phase 1). Each id must be registered in the
- * backend's BETTER_AUTH_DEVICE_CLIENT_IDS allowlist, and the URL points at wherever
- * the tool is hosted. A manifest-driven registry replaces this list in a later phase.
+ * Hardcoded first-party tools (Phase 1). Grant-based tools also need an entry in
+ * BETTER_AUTH_DEVICE_CLIENT_IDS until tool and device-client registration are split.
+ * Mindmap uses its pre-registered room OAuth client instead. A manifest-driven
+ * registry replaces this list in a later phase.
  */
 export function resolveMindmapToolUrl(
 	explicit: string | undefined,

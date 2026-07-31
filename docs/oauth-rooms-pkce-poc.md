@@ -25,8 +25,8 @@ Possession of it grants nothing.
 1. The taskpane reads the current `DocContext` and sends it to `POST /api/rooms`
    with its existing Better Auth session bearer.
 2. The taskpane opens `https://mindmap…/?room=room_…`.
-3. Mindmap registers as an OAuth public browser client (cached in local storage),
-   creates a random PKCE verifier, stores the verifier in session storage, and sends
+3. Mindmap uses its pre-registered trusted public client id, creates a random PKCE
+   verifier, stores the verifier in session storage, and sends
    only its SHA-256 challenge to `/api/auth/oauth2/authorize`. The non-secret room
    id is included in the standard `state` value to bind this authorization request
    to the exact launched room; the complete state also contains random bytes and
@@ -34,11 +34,13 @@ Possession of it grants nothing.
 4. The authorization server authenticates the writer in the system browser. This
    may require Google sign-in because the Office taskpane and system browser do not
    necessarily share cookies.
-5. Better Auth's `postLogin` hook sends the writer to a confirmation screen for
-   the exact room named by the signed authorization request. The backend verifies
-   that the signed-in user owns that room; there is no independent room picker.
-6. `consentReferenceId` returns the request-bound room id. The OAuth Provider plugin
-   carries it through consent, authorization code, and access token.
+5. `consentReferenceId` derives the room from Mindmap's OAuth state and verifies
+   server-side that the signed-in user owns it. The room id is not signed
+   provenance; the boundary is the exact-redirect client, authenticated user,
+   ownership check, and room-bound signed token together.
+6. The trusted client has `skipConsent`, so an existing browser session returns
+   directly to Mindmap without a room-confirmation or consent screen. A user with
+   no browser session signs in first and then returns directly.
 7. Mindmap receives the code at its registered redirect URI and exchanges it with
    the locally retained verifier. The verifier never travels in the launcher URL.
 8. Mindmap calls `GET /api/rooms/:roomId`. The resource server verifies the token's
@@ -63,16 +65,32 @@ Possession of it grants nothing.
 
 - A room currently has one owner and one document snapshot. There is no membership
   table, live synchronization, document update endpoint, or multi-document room.
-- Public dynamic client registration is enabled to keep the branch runnable without
-  an out-of-band client provisioning step. Production should provision the known
-  Mindmap client (or tightly rate-limit/validate registration) and disable open
-  registration.
+- Dynamic and unauthenticated client registration are disabled. Startup
+  idempotently provisions the configured Mindmap client and removes stale dynamic
+  clients; it is the only OAuth client expected to survive that cleanup.
 - Tokens expire after one hour; refresh tokens are not enabled.
-- A confirmed room authorization is keyed by both session and OAuth `state`,
-  expires after ten minutes, and is consumed when the authorization code is
-  exchanged. Concurrent authorization tabs cannot overwrite each other.
+- Removing the confirmation checkpoint is deliberate: an attacker would need both
+  an unguessable room id and the ability to drive its owner's browser. Fresh random
+  OAuth state still prevents callback mixups and CSRF.
 - Deleting logged activity preserves active rooms. Account deletion removes room
-  snapshots and their pending authorization rows.
+  snapshots.
 - This is bearer-token security. PKCE prevents interception of the authorization
   code; it does not make a stolen access token unusable. Sender-constrained tokens
   (for example DPoP) would be a separate layer.
+
+## Trusted-client implementation findings
+
+In installed `@better-auth/oauth-provider` 1.6.22, `consentReferenceId` runs before
+the `client.skipConsent` branch and its result is stored on the authorization-code
+verification value. The resulting `referenceId` reaches both the custom access-token
+claim and token response. The no-screen integration test exercises that behavior
+with a real signed token, room-resource request, and OpenAI-proxy request.
+
+Better Auth 1.6.22 calls `postLogin.shouldRedirect` whenever a `postLogin` object
+exists. The configuration therefore retains a constant-false compatibility hook
+and unreachable page value; there is no room-selection or confirmation machinery.
+
+An appended v6 application migration drops `oauth_room_selection`, preserving
+upgrades from existing v5 databases. The final production hostname—and therefore
+the exact production redirect URI and matching build-time values—remains the sole
+deployment configuration decision.

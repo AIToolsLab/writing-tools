@@ -7,6 +7,7 @@ import {
 	deviceAuthorization,
 	jwt,
 } from 'better-auth/plugins';
+import { APIError } from 'better-auth/api';
 import {
 	betterAuthSecret,
 	betterAuthTrustedOrigins,
@@ -14,6 +15,7 @@ import {
 	deviceClientIds,
 	googleClientId,
 	googleClientSecret,
+	mindmapOAuthClientId,
 } from './config.js';
 import {
 	type ConsentLevel,
@@ -25,14 +27,28 @@ import { db } from './db.js';
 import { eraseAccountData } from './erasure.js';
 import { anonymizeUserUsage } from './usage.js';
 import { isUserAllowed } from './userAllowlist.js';
-import {
-	consumeRoomSelection,
-	selectedRoomForOAuth,
-} from './rooms.js';
+import { getRoomForUser } from './rooms.js';
 import {
 	currentOAuthAuthorization,
 	roomOAuthAuthorization,
 } from './oauth-room-authorization.js';
+
+const roomConsentReferenceId = async ({
+	user,
+	scopes,
+}: {
+	user: { id: string };
+	scopes: readonly string[];
+}): Promise<string | undefined> => {
+	if (!scopes.includes('doc:read')) return undefined;
+	const authorization = await currentOAuthAuthorization();
+	if (!getRoomForUser(authorization.roomId, user.id)) {
+		throw new APIError('FORBIDDEN', {
+			message: 'The launched room does not belong to this account.',
+		});
+	}
+	return authorization.roomId;
+};
 
 // A module-level `auth` singleton (not a factory) so the Better Auth CLI can
 // auto-discover it: `npx @better-auth/cli migrate` looks for an exported `auth`
@@ -127,38 +143,23 @@ export const auth = betterAuth({
 			scopes: ['openai:chat', 'doc:read'],
 			validAudiences: [betterAuthUrl()],
 			grantTypes: ['authorization_code'],
-			allowDynamicClientRegistration: true,
-			allowUnauthenticatedClientRegistration: true,
+			allowDynamicClientRegistration: false,
+			allowUnauthenticatedClientRegistration: false,
+			cachedTrustedClients: new Set([mindmapOAuthClientId()]),
 			accessTokenExpiresIn: 60 * 60,
+			// Better Auth 1.6.22 calls shouldRedirect unconditionally whenever postLogin
+			// is present. This constant-false compatibility hook does not implement a
+			// selection step; `page` is consequently unreachable.
 			postLogin: {
-				page: '/api/oauth/room',
-				shouldRedirect: async ({ user, session }) => {
-					const authorization = await currentOAuthAuthorization();
-					return !selectedRoomForOAuth(
-						session.id,
-						authorization.state,
-						user.id,
-					);
-				},
-				consentReferenceId: async ({ user, session, scopes }) => {
-					if (!scopes.includes('doc:read')) return undefined;
-					const authorization = await currentOAuthAuthorization();
-					const roomId = selectedRoomForOAuth(
-						session.id,
-						authorization.state,
-						user.id,
-					);
-					if (!roomId) throw new Error('A room must be selected for doc:read.');
-					return roomId;
-				},
+				page: '/api/oauth/login',
+				shouldRedirect: () => false,
+				consentReferenceId: roomConsentReferenceId,
 			},
 			customAccessTokenClaims: ({ referenceId }) => ({
 				...(referenceId ? { room_id: referenceId } : {}),
 			}),
 			customTokenResponseFields: ({ verificationValue }) => {
 				if (!verificationValue?.referenceId) return {};
-				const state = verificationValue.query.state;
-				if (state) consumeRoomSelection(verificationValue.sessionId, state);
 				return { room_id: verificationValue.referenceId };
 			},
 		}),

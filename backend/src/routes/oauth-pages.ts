@@ -35,35 +35,12 @@ async function start(){
 start();`,
 );
 
-const ROOM_HTML = shell(
-	'Authorize this room',
-	`${helpers}
-async function start(){
- try{
-  const context=await json('/api/auth/oauth2/room-context',{method:'POST',headers:{'Content-Type':'application/json'},body:oauthBody({})});
-  const intro=el('p',context.client.name+' ('+context.client.redirect_origin+') wants access to the room opened from Writing Tools:');
-  const room=el('p',context.room.name+' ('+context.room.id+')','muted');
-  const button=el('button','Continue','primary');button.onclick=choose;
-  show(intro,room,button);
- }catch(error){show(el('p',String(error),'error'))}
-}
-async function choose(){
- try{
-  await json('/api/auth/oauth2/authorize-room',{method:'POST',headers:{'Content-Type':'application/json'},body:oauthBody({})});
-  const result=await json('/api/auth/oauth2/continue',{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:oauthBody({postLogin:true})});
-  go(result);
- }catch(error){show(el('p',String(error),'error'))}
-}
-start();`,
-);
-
 const CONSENT_HTML = shell(
 	'Allow access?',
 	`${helpers}
 async function start(){
  try{
   const context=await json('/api/auth/oauth2/room-context',{method:'POST',headers:{'Content-Type':'application/json'},body:oauthBody({})});
-  if(!context.selected)throw new Error('This authorization has no selected room.');
   const body=el('p',context.client.name+' ('+context.client.redirect_origin+') wants to read “'+context.room.name+'” and use Writing Tools AI on your behalf.');
   const note=el('p','The access token is limited to this room and expires in one hour.','muted');
   const actions=el('div',undefined,'actions');
@@ -83,6 +60,5 @@ start();`,
 
 export function registerOAuthPages(app: import('hono').Hono): void {
 	app.get('/api/oauth/login', (c) => c.html(LOGIN_HTML));
-	app.get('/api/oauth/room', (c) => c.html(ROOM_HTML));
 	app.get('/api/oauth/consent', (c) => c.html(CONSENT_HTML));
 }

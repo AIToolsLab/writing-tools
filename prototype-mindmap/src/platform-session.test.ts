@@ -10,6 +10,7 @@ import {
   hashWithoutGrant,
   launchRequired,
   readPlatformSession,
+  resolveOAuthClientId,
   scrubOAuthFromUrl,
   snapshotText,
   writePlatformSession,
@@ -251,6 +252,13 @@ describe("platform launcher session", () => {
     expect(launchRequired({ PROD: true })).toBe(true);
     expect(launchRequired({ PROD: false })).toBe(false);
     expect(launchRequired({ PROD: false, VITE_REQUIRE_LAUNCH: "true" })).toBe(true);
+  });
+
+  it("uses the configured fixed OAuth client and fails closed in production", () => {
+    expect(resolveOAuthClientId({ VITE_OAUTH_CLIENT_ID: " trusted-mindmap " }))
+      .toBe("trusted-mindmap");
+    expect(resolveOAuthClientId({ PROD: false })).toBe("writing-tools-mindmap");
+    expect(() => resolveOAuthClientId({ PROD: true })).toThrow(/VITE_OAUTH_CLIENT_ID/);
   });
 
   it("ignores VITE_REQUIRE_LAUNCH=false in production builds", () => {

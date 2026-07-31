@@ -25,8 +25,6 @@ interface RoomRow {
 	updated_at: number;
 }
 
-const ROOM_SELECTION_TTL_MS = 10 * 60 * 1000;
-
 function parseRoom(row: RoomRow): Room {
 	return {
 		id: row.id,
@@ -79,68 +77,6 @@ export function getRoomForUser(roomId: string, userId: string): Room | null {
 		)
 		.get(roomId, userId) as RoomRow | undefined;
 	return row ? parseRoom(row) : null;
-}
-
-export function selectRoomForOAuth(
-	sessionId: string,
-	authorizationState: string,
-	userId: string,
-	roomId: string,
-): boolean {
-	if (!authorizationState) return false;
-	if (!getRoomForUser(roomId, userId)) return false;
-	const now = Date.now();
-	db()
-		.prepare(`DELETE FROM oauth_room_selection WHERE expires_at <= ?`)
-		.run(now);
-	db()
-		.prepare(
-			`INSERT INTO oauth_room_selection
-			 (session_id, authorization_state, user_id, room_id, expires_at)
-			 VALUES (?, ?, ?, ?, ?)
-			 ON CONFLICT(session_id, authorization_state) DO UPDATE SET
-			 user_id = excluded.user_id,
-			 room_id = excluded.room_id,
-			 expires_at = excluded.expires_at`,
-		)
-		.run(
-			sessionId,
-			authorizationState,
-			userId,
-			roomId,
-			now + ROOM_SELECTION_TTL_MS,
-		);
-	return true;
-}
-
-export function selectedRoomForOAuth(
-	sessionId: string,
-	authorizationState: string,
-	userId: string,
-): string | undefined {
-	if (!authorizationState) return undefined;
-	const row = db()
-		.prepare(
-			`SELECT room_id FROM oauth_room_selection
-			 WHERE session_id = ? AND authorization_state = ?
-			 AND user_id = ? AND expires_at > ?`,
-		)
-		.get(sessionId, authorizationState, userId, Date.now()) as
-		| { room_id: string }
-		| undefined;
-	return row?.room_id;
-}
-
-export function consumeRoomSelection(
-	sessionId: string,
-	authorizationState: string,
-): void {
-	db()
-		.prepare(
-			`DELETE FROM oauth_room_selection
-			 WHERE session_id = ? AND authorization_state = ?`,
-		)
-		.run(sessionId, authorizationState);
 }
 
 export async function deleteRoomsForUser(userId: string): Promise<void> {

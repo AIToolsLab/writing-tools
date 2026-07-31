@@ -80,7 +80,10 @@ function logSecretGate(c: Context, provided: string): Response | null {
 
 type OAuthAccessTokenVerifier = (
 	token: string,
-	options: { verifyOptions: { audience: string }; scopes: string[] },
+	options: {
+		verifyOptions: { audience: string; issuer: string };
+		scopes: string[];
+	},
 ) => Promise<Record<string, unknown>>;
 
 export function createApp({
@@ -97,6 +100,7 @@ export function createApp({
 		(auth?.options
 			? oauthProviderResourceClient(auth).getActions().verifyAccessToken
 			: null);
+	const oauthIssuer = `${betterAuthUrl().replace(/\/$/, '')}/api/auth`;
 
 	// CORS stays fully permissive for now to preserve existing behaviour.
 	app.use('*', cors({ exposeHeaders: [PLATFORM_AUTH_ERROR_HEADER] }));
@@ -219,7 +223,7 @@ export function createApp({
 		if (bearer && verifyOAuthAccessToken) {
 			try {
 				const claims = await verifyOAuthAccessToken(bearer, {
-					verifyOptions: { audience: betterAuthUrl() },
+					verifyOptions: { audience: betterAuthUrl(), issuer: oauthIssuer },
 					scopes: ['openai:chat'],
 				});
 				if (typeof claims.sub !== 'string') return null;
@@ -320,7 +324,7 @@ export function createApp({
 		}
 		try {
 			const claims = await verifyOAuthAccessToken(token, {
-				verifyOptions: { audience: betterAuthUrl() },
+				verifyOptions: { audience: betterAuthUrl(), issuer: oauthIssuer },
 				scopes: ['doc:read'],
 			});
 			const roomId = c.req.param('roomId');

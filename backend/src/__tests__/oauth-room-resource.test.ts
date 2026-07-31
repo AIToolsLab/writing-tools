@@ -40,7 +40,10 @@ describe('GET /api/rooms/:roomId', () => {
 		expect(verifyOAuthAccessToken).toHaveBeenCalledWith(
 			'header.payload.signature',
 			{
-				verifyOptions: { audience: expect.any(String) },
+				verifyOptions: {
+					audience: expect.any(String),
+					issuer: expect.any(String),
+				},
 				scopes: ['doc:read'],
 			},
 		);

@@ -46,4 +46,5 @@ key for it locally),
 for `app.db` + `logs/`), `PORT` (default 8000), `DEBUG`, `POSTHOG_PROJECT_TOKEN`,
 `POSTHOG_HOST`, `LOG_DIR` (overrides just the logs subdir). Auth (Better Auth) adds
 `BETTER_AUTH_ENABLED`, `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
-and related vars — see [CLAUDE.md](CLAUDE.md) for the full list.
+`MINDMAP_OAUTH_CLIENT_ID`, `MINDMAP_OAUTH_REDIRECT_URIS`, and related vars — see
+[CLAUDE.md](CLAUDE.md) for the full list.

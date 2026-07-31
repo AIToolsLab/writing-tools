@@ -2,7 +2,6 @@
 
 export const PLATFORM_SESSION_STORAGE_KEY = "prototype-mindmap-platform-session-v1";
 export const PLATFORM_SESSION_VERSION = 1;
-const OAUTH_CLIENT_STORAGE_KEY = "prototype-mindmap-oauth-client-v1";
 export const OAUTH_REQUEST_STORAGE_KEY = "prototype-mindmap-oauth-request-v1";
 
 const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | boolean | undefined> }).env;
@@ -24,6 +23,21 @@ export function resolveBackendUrl(
 }
 
 export const PLATFORM_BACKEND_URL = resolveBackendUrl();
+
+export function resolveOAuthClientId(
+  env: { PROD?: boolean; VITE_OAUTH_CLIENT_ID?: string | boolean } = viteEnv ?? {},
+): string {
+  const configured = typeof env.VITE_OAUTH_CLIENT_ID === "string"
+    ? env.VITE_OAUTH_CLIENT_ID.trim()
+    : "";
+  if (configured) return configured;
+  if (env.PROD === true) {
+    throw new Error("VITE_OAUTH_CLIENT_ID must be set for production builds of the mindmap.");
+  }
+  return "writing-tools-mindmap";
+}
+
+export const OAUTH_CLIENT_ID = resolveOAuthClientId();
 
 export interface PlatformDocContext {
   documentLabel?: string;
@@ -220,46 +234,12 @@ function callbackUri(): string {
   return `${window.location.origin}${window.location.pathname}`;
 }
 
-async function clientId(storage: Storage, backendUrl = PLATFORM_BACKEND_URL): Promise<string> {
-  const redirectUri = callbackUri();
-  try {
-    const saved = JSON.parse(storage.getItem(OAUTH_CLIENT_STORAGE_KEY) ?? "null") as {
-      clientId?: unknown;
-      redirectUri?: unknown;
-    } | null;
-    if (saved?.redirectUri === redirectUri && typeof saved.clientId === "string") return saved.clientId;
-  } catch {
-    // Re-register below.
-  }
-  const response = await fetch(`${oauthBase(backendUrl)}/register`, {
-    method: "POST",
-    credentials: "omit",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      redirect_uris: [redirectUri],
-      client_name: "Writing Tools Mindmap",
-      client_uri: window.location.origin,
-      token_endpoint_auth_method: "none",
-      grant_types: ["authorization_code"],
-      response_types: ["code"],
-      scope: "openai:chat doc:read",
-      type: "user-agent-based",
-    }),
-  });
-  const body = await response.json().catch(() => ({})) as Record<string, unknown>;
-  if (!response.ok || typeof body.client_id !== "string") {
-    throw new Error(typeof body.error_description === "string" ? body.error_description : "Mindmap OAuth client registration failed.");
-  }
-  storage.setItem(OAUTH_CLIENT_STORAGE_KEY, JSON.stringify({ clientId: body.client_id, redirectUri }));
-  return body.client_id;
-}
-
 export async function beginRoomAuthorization(
   roomId: string,
   storage: Storage,
   backendUrl = PLATFORM_BACKEND_URL,
 ): Promise<void> {
-  const id = await clientId(localStorage, backendUrl);
+  const id = OAUTH_CLIENT_ID;
   const verifier = base64Url(crypto.getRandomValues(new Uint8Array(48)));
   // Keep the non-secret room hint inside the standard state parameter. Better Auth
   // signs/round-trips state but intentionally strips unknown authorize parameters.

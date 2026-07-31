@@ -1,13 +1,19 @@
+import { createHash } from 'node:crypto';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { getMigrations } from 'better-auth/db/migration';
+import { oauthProviderResourceClient } from '@better-auth/oauth-provider/resource-client';
 import type { Auth } from '../auth.js';
-import { closeDb } from '../db.js';
+import { createApp } from '../app.js';
+import { closeDb, db } from '../db.js';
+import { provisionTrustedMindmapClient } from '../oauth-clients.js';
 import { createRoom } from '../rooms.js';
 
 const AUTH_BASE = 'http://localhost:8000/api/auth';
+const CLIENT_ID = 'integration-mindmap';
+const REDIRECT_URI = 'https://mindmap.example/';
 let auth: Auth;
 let dataDir: string;
 
@@ -18,137 +24,198 @@ function authRequest(pathname: string, init?: RequestInit): Promise<Response> {
 function cookieHeader(response: Response): string {
 	const headers = response.headers as Headers & { getSetCookie?: () => string[] };
 	const values = headers.getSetCookie?.() ?? [response.headers.get('set-cookie') ?? ''];
-	return values
-		.filter(Boolean)
-		.map((value) => value.split(';', 1)[0])
-		.join('; ');
+	return values.filter(Boolean).map((value) => value.split(';', 1)[0]).join('; ');
+}
+
+async function anonymousSession(): Promise<{ cookie: string; userId: string }> {
+	const response = await authRequest('/sign-in/anonymous', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json', Origin: 'http://localhost:8000' },
+		body: '{}',
+	});
+	expect(response.status).toBe(200);
+	const body = (await response.json()) as { user: { id: string } };
+	return { cookie: cookieHeader(response), userId: body.user.id };
+}
+
+function authorizeUrl(roomId: string, challenge: string, clientId = CLIENT_ID): URL {
+	const url = new URL(`${AUTH_BASE}/oauth2/authorize`);
+	url.search = new URLSearchParams({
+		client_id: clientId,
+		redirect_uri: REDIRECT_URI,
+		response_type: 'code',
+		scope: 'openai:chat doc:read',
+		resource: 'http://localhost:8000',
+		state: `${roomId}.random-csrf`,
+		code_challenge: challenge,
+		code_challenge_method: 'S256',
+	}).toString();
+	return url;
 }
 
 beforeAll(async () => {
-	dataDir = mkdtempSync(path.join(tmpdir(), 'writing-tools-oauth-middleware-'));
+	dataDir = mkdtempSync(path.join(tmpdir(), 'writing-tools-oauth-integration-'));
 	process.env.DATA_DIR = dataDir;
 	process.env.BETTER_AUTH_SECRET = 'integration-secret-that-is-at-least-32-characters';
 	process.env.BETTER_AUTH_URL = 'http://localhost:8000';
 	process.env.GOOGLE_CLIENT_ID = 'test-client';
 	process.env.GOOGLE_CLIENT_SECRET = 'test-secret';
+	process.env.MINDMAP_OAUTH_CLIENT_ID = CLIENT_ID;
+	process.env.MINDMAP_OAUTH_REDIRECT_URIS = REDIRECT_URI;
+	process.env.OPENAI_API_KEY = 'test-openai-key';
+	process.env.OPENAI_DEMO_API_KEY = 'test-demo-openai-key';
 	({ auth } = await import('../auth.js'));
 	const { runMigrations } = await getMigrations(auth.options);
 	await runMigrations();
+	db().prepare(
+		`INSERT INTO oauthClient (id, clientId, redirectUris)
+		 VALUES ('stale-row', 'stale-dynamic-client', '["https://stale.example/"]')`,
+	).run();
+	provisionTrustedMindmapClient();
 });
 
 afterAll(() => {
-	vi.useRealTimers();
+	vi.unstubAllGlobals();
 	closeDb();
 	rmSync(dataDir, { recursive: true, force: true });
 });
 
-describe('signed oauth_query middleware coupling', () => {
-	it('populates verified state, gates client metadata, and rejects tampering or expiry', async () => {
-		const registration = await authRequest('/oauth2/register', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({
-				redirect_uris: ['https://mindmap.example/callback'],
-				client_name: 'Integration Mindmap',
-				client_uri: 'https://mindmap.example',
-				token_endpoint_auth_method: 'none',
-				grant_types: ['authorization_code'],
-				response_types: ['code'],
-				scope: 'openai:chat doc:read',
-				type: 'user-agent-based',
-			}),
-		});
-		expect(registration.status).toBe(200);
-		const registered = (await registration.json()) as { client_id: string };
+describe('trusted Mindmap OAuth launch', () => {
+	it('keeps only the configured trusted client during idempotent provisioning', () => {
+		provisionTrustedMindmapClient();
+		const clients = db().prepare(
+			`SELECT clientId, skipConsent, requirePKCE FROM oauthClient`,
+		).all();
+		expect(clients).toEqual([{
+			clientId: CLIENT_ID,
+			skipConsent: 1,
+			requirePKCE: 1,
+		}]);
+	});
 
-		const signIn = await authRequest('/sign-in/anonymous', {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				Origin: 'http://localhost:8000',
-			},
-			body: '{}',
-		});
-		expect(signIn.status).toBe(200);
-		const signedIn = (await signIn.json()) as { user: { id: string } };
-		const cookie = cookieHeader(signIn);
-		expect(cookie).toContain('session_token=');
-
-		const room = createRoom(signedIn.user.id, 'Signed query draft', {
+	it('issues a real room-bound token with no consent or room screen', async () => {
+		const { cookie, userId } = await anonymousSession();
+		const room = createRoom(userId, 'Signed query draft', {
 			beforeCursor: 'private', selectedText: '', afterCursor: '',
 		});
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
-		const authorize = new URL(`${AUTH_BASE}/oauth2/authorize`);
-		authorize.search = new URLSearchParams({
-			client_id: registered.client_id,
-			redirect_uri: 'https://mindmap.example/callback',
-			response_type: 'code',
-			scope: 'openai:chat doc:read',
-			state: `${room.id}.random-csrf`,
-			code_challenge: 'a'.repeat(43),
-			code_challenge_method: 'S256',
-		}).toString();
+		const other = createRoom(userId, 'Other draft', {
+			beforeCursor: 'other', selectedText: '', afterCursor: '',
+		});
+		const verifier = 'mindmap-pkce-verifier-that-is-long-enough-for-the-test-123456';
+		const challenge = createHash('sha256').update(verifier).digest('base64url');
+
 		const authorization = await auth.handler(
-			new Request(authorize, { headers: { Cookie: cookie } }),
+			new Request(authorizeUrl(room.id, challenge), { headers: { Cookie: cookie } }),
 		);
 		expect(authorization.status).toBe(302);
-		const roomPage = new URL(
-			authorization.headers.get('location') ?? '',
-			AUTH_BASE,
-		);
-		expect(roomPage.pathname).toBe('/api/oauth/room');
-		const oauthQuery = roomPage.search.slice(1);
-		expect(oauthQuery).toContain('sig=');
+		const callback = new URL(authorization.headers.get('location') ?? '');
+		expect(callback.origin + callback.pathname).toBe(REDIRECT_URI);
+		expect(callback.pathname).not.toBe('/api/oauth/room');
+		expect(callback.pathname).not.toBe('/api/oauth/consent');
+		const code = callback.searchParams.get('code');
+		expect(code).toBeTruthy();
 
-		const context = await authRequest('/oauth2/room-context', {
+		const tokenResponse = await authRequest('/oauth2/token', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: new URLSearchParams({
+				grant_type: 'authorization_code', client_id: CLIENT_ID,
+				redirect_uri: REDIRECT_URI, code: code!, code_verifier: verifier,
+				resource: 'http://localhost:8000',
+			}),
+		});
+		expect(tokenResponse.status).toBe(200);
+		const token = (await tokenResponse.json()) as {
+			access_token: string; room_id: string;
+		};
+		expect(token.room_id).toBe(room.id);
+		const payload = JSON.parse(
+			Buffer.from(token.access_token.split('.')[1]!, 'base64url').toString(),
+		) as Record<string, unknown>;
+		expect(payload.room_id).toBe(room.id);
+		const jwks = await authRequest('/jwks').then((response) => response.json()) as {
+			keys: Array<Record<string, unknown>>;
+		};
+		expect(jwks).toMatchObject({ keys: expect.any(Array) });
+		const providerVerifier = oauthProviderResourceClient(auth).getActions().verifyAccessToken;
+		const verifyOAuthAccessToken = (
+			accessToken: string,
+			options: {
+				verifyOptions: { audience: string; issuer: string };
+				scopes: string[];
+			},
+		) => providerVerifier(accessToken, {
+			...options,
+			// The production verifier fetches this endpoint over HTTP. Supplying the
+			// same real JWKS as a function keeps this integration test in-process.
+			jwksUrl: (async () => jwks) as unknown as string,
+		});
+
+		vi.stubGlobal('fetch', vi.fn(async () =>
+			new Response(JSON.stringify({
+				id: 'chatcmpl_test', model: 'gpt-4o', choices: [],
+				usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+			}), { status: 200, headers: { 'Content-Type': 'application/json' } }),
+		));
+		await expect(verifyOAuthAccessToken(
+			token.access_token,
+			{
+				verifyOptions: {
+					audience: 'http://localhost:8000',
+					issuer: 'http://localhost:8000/api/auth',
+				},
+				scopes: ['doc:read'],
+			},
+		)).resolves.toMatchObject({ room_id: room.id });
+		const app = createApp({ auth, verifyOAuthAccessToken });
+		const granted = await app.request(`/api/rooms/${room.id}`, {
+			headers: { Authorization: `Bearer ${token.access_token}` },
+		});
+		expect(granted.status).toBe(200);
+		expect(await granted.json()).toMatchObject({ id: room.id });
+
+		const denied = await app.request(`/api/rooms/${other.id}`, {
+			headers: { Authorization: `Bearer ${token.access_token}` },
+		});
+		expect(denied.status).toBe(403);
+
+		const proxy = await app.request('/api/openai/chat/completions', {
 			method: 'POST',
 			headers: {
+				Authorization: `Bearer ${token.access_token}`,
 				'Content-Type': 'application/json',
-				Cookie: cookie,
-				Origin: 'http://localhost:8000',
 			},
-			body: JSON.stringify({ oauth_query: oauthQuery }),
+			body: JSON.stringify({ model: 'gpt-4o', messages: [] }),
 		});
-		expect(context.status).toBe(200);
-		expect(await context.json()).toMatchObject({
-			room: { id: room.id, name: 'Signed query draft' },
-			client: {
-				id: registered.client_id,
-				name: 'Integration Mindmap',
-				redirect_origin: 'https://mindmap.example',
-			},
-			selected: false,
-		});
+		expect(proxy.status).toBe(200);
+	});
 
-		const tampered = new URLSearchParams(oauthQuery);
-		tampered.set('state', 'room_attacker.random-csrf');
-		const tamperedResponse = await authRequest('/oauth2/room-context', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json', Cookie: cookie },
-			body: JSON.stringify({ oauth_query: tampered.toString() }),
+	it('refuses registration, unknown clients, and rooms owned by another user', async () => {
+		const registration = await authRequest('/oauth2/register', {
+			method: 'POST', headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ redirect_uris: [REDIRECT_URI] }),
 		});
-		expect(tamperedResponse.status).toBe(400);
+		expect(registration.status).toBe(403);
 
-		vi.setSystemTime(new Date('2026-01-01T00:11:00Z'));
-		const expired = await authRequest('/oauth2/room-context', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json', Cookie: cookie },
-			body: JSON.stringify({ oauth_query: oauthQuery }),
+		const owner = await anonymousSession();
+		const visitor = await anonymousSession();
+		const room = createRoom(owner.userId, 'Owner only', {
+			beforeCursor: 'private', selectedText: '', afterCursor: '',
 		});
-		expect(expired.status).toBe(400);
+		const challenge = createHash('sha256').update('v'.repeat(64)).digest('base64url');
+		const unknown = await auth.handler(new Request(
+			authorizeUrl(room.id, challenge, 'unregistered-client'),
+			{ headers: { Cookie: visitor.cookie } },
+		));
+		const unknownLocation = new URL(unknown.headers.get('location') ?? REDIRECT_URI);
+		expect(unknownLocation.searchParams.get('code')).toBeNull();
+		expect(unknownLocation.searchParams.get('error')).toBeTruthy();
 
-		vi.setSystemTime(new Date('2026-01-01T00:00:00Z'));
-		const authContext = await auth.$context;
-		await authContext.adapter.delete({
-			model: 'oauthClient',
-			where: [{ field: 'clientId', value: registered.client_id }],
-		});
-		const missingClient = await authRequest('/oauth2/room-context', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json', Cookie: cookie },
-			body: JSON.stringify({ oauth_query: oauthQuery }),
-		});
-		expect(missingClient.status).toBe(400);
+		const foreignRoom = await auth.handler(new Request(
+			authorizeUrl(room.id, challenge),
+			{ headers: { Cookie: visitor.cookie } },
+		));
+		const location = foreignRoom.headers.get('location') ?? '';
+		expect(location).not.toContain(`${REDIRECT_URI}?code=`);
 	});
 });
