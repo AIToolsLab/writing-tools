@@ -44,8 +44,12 @@ import type { LogFn } from '@/hooks/useLog';
  *       its `brief_edited` event, which any page can emit. Revise emits
  *       `reference_resolved` after each clicked doctext link, recording whether
  *       the quote was found and how long the search took.
+ *   5 — The brief can be drafted from the document. Added
+ *       `brief_proposal_requested` / `_received` / `_resolved` / `_error`,
+ *       which any page can emit. `_resolved` records whether each candidate was
+ *       accepted or dismissed.
  */
-export const LOG_SCHEMA_VERSION = 4;
+export const LOG_SCHEMA_VERSION = 5;
 
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat' | 'tools';
@@ -225,6 +229,47 @@ export const docBriefLog = {
 		data: { field: string; hasContent: boolean },
 	) {
 		return emit(log, page, 'brief_edited', data);
+	},
+	/** The writer asked for candidate brief wording drawn from their draft. */
+	proposalRequested(
+		log: LogFn,
+		page: LogPage,
+		data: { docContext: DocContext },
+	) {
+		return emit(log, page, 'brief_proposal_requested', data);
+	},
+	/**
+	 * Candidates came back. `fields` is which ones the model had something for —
+	 * an empty array is the "nothing to propose" outcome, not a failure. The
+	 * text rides in `result` so the consent gate treats it as AI output.
+	 */
+	proposalReceived(
+		log: LogFn,
+		page: LogPage,
+		data: { fields: string[]; result: string },
+	) {
+		return emit(log, page, 'brief_proposal_received', data);
+	},
+	/**
+	 * The writer took a candidate into their brief, or threw it away. Which of
+	 * the two is the measurement the whole feature exists for: a proposal that
+	 * is always accepted unedited means the tool is writing the brief, which is
+	 * the failure mode `docs/design/co-created-brief.md` is guarding against.
+	 */
+	proposalResolved(
+		log: LogFn,
+		page: LogPage,
+		data: { field: string; action: 'accepted' | 'dismissed' },
+	) {
+		return emit(log, page, 'brief_proposal_resolved', data);
+	},
+	/** The proposal request failed (and was not merely cancelled). */
+	proposalError(
+		log: LogFn,
+		page: LogPage,
+		data: { error: string; code?: string },
+	) {
+		return emit(log, page, 'brief_proposal_error', data);
 	},
 };
 
