@@ -11,12 +11,17 @@ import {
 } from "./session-persistence";
 import {
   clearPlatformSession,
+  beginRoomAuthorization,
   exchangeGrant,
+  finishRoomAuthorization,
   grantFromHash,
   GrantExchangeError,
   launchRequired,
   PLATFORM_SESSION_STORAGE_KEY,
   readPlatformSession,
+  roomFromSearch,
+  oauthCallbackFromSearch,
+  scrubOAuthFromUrl,
   scrubGrantFromUrl,
   snapshotText,
   writePlatformSession,
@@ -164,7 +169,9 @@ export class AppErrorBoundary extends Component<{ children: ReactNode }, { faile
 export function initialBootState(): BootState {
   if (typeof window === "undefined") return { kind: "connecting" };
   const hasGrant = Boolean(grantFromHash(window.location.hash));
-  if (hasGrant) return { kind: "connecting" };
+  if (hasGrant || roomFromSearch(window.location.search) || oauthCallbackFromSearch(window.location.search)) {
+    return { kind: "connecting" };
+  }
   const storage = browserStorage();
   if (!storage) return { kind: "blocked", reason: "storage_unavailable" };
   const stored = readPlatformSession(storage.session);
@@ -303,9 +310,42 @@ function PlatformBootstrapContent() {
 
   useEffect(() => {
     const grant = grantFromHash(window.location.hash);
-    if (!grant || exchangeStarted.current) return;
+    if (exchangeStarted.current) return;
+    const room = roomFromSearch(window.location.search);
+    const callback = oauthCallbackFromSearch(window.location.search);
+    if (!grant && !room && !callback) return;
     exchangeStarted.current = true;
     capturedGrant.current = grant;
+    const storage = browserStorage();
+    if (!storage) {
+      setBoot({ kind: "blocked", reason: "storage_unavailable" });
+      return;
+    }
+    if (callback) {
+      void finishRoomAuthorization(window.location.search, storage.session)
+        .then((session) => {
+          scrubOAuthFromUrl();
+          writePlatformSession(storage.session, session);
+          const saved = savedMindmapSummary(storage.local);
+          if (saved) setBoot({ kind: "choice", session, saved });
+          else commitDecision(session, "start_new");
+        })
+        .catch((error) => {
+          setBoot({
+            kind: "blocked",
+            reason: error instanceof GrantExchangeError && error.code === "network" ? "network" : "grant_invalid",
+            detail: error instanceof Error ? error.message : String(error),
+          });
+        });
+      return;
+    }
+    if (room) {
+      void beginRoomAuthorization(room, storage.session).catch((error) => {
+        setBoot({ kind: "blocked", reason: "network", detail: error instanceof Error ? error.message : String(error) });
+      });
+      return;
+    }
+    if (!grant) return;
     try {
       scrubGrantFromUrl(window.location, window.history);
     } catch {

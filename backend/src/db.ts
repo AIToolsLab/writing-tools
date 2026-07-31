@@ -118,6 +118,32 @@ const MIGRATIONS: Array<(conn: Database.Database) => void> = [
 			CREATE INDEX tool_grant_user ON tool_grant (json_extract(user_snapshot, '$.id'));
 		`);
 	},
+	// v4 — durable document rooms plus the short-lived room choice made during an
+	// OAuth authorization. OAuth Provider stores the chosen room id as referenceId
+	// on the consent, authorization code and access token; these tables hold the
+	// application resource and the server-side selection that feeds that hook.
+	(conn) => {
+		conn.exec(`
+			CREATE TABLE room (
+				id TEXT PRIMARY KEY,
+				owner_user_id TEXT NOT NULL,
+				name TEXT NOT NULL,
+				doc_snapshot TEXT NOT NULL,
+				created_at INTEGER NOT NULL,
+				updated_at INTEGER NOT NULL
+			);
+			CREATE INDEX room_owner_updated ON room (owner_user_id, updated_at DESC);
+
+			CREATE TABLE oauth_room_selection (
+				session_id TEXT PRIMARY KEY,
+				user_id TEXT NOT NULL,
+				room_id TEXT NOT NULL,
+				expires_at INTEGER NOT NULL,
+				FOREIGN KEY (room_id) REFERENCES room(id) ON DELETE CASCADE
+			);
+			CREATE INDEX oauth_room_selection_expiry ON oauth_room_selection (expires_at);
+		`);
+	},
 ];
 
 function migrate(conn: Database.Database): void {

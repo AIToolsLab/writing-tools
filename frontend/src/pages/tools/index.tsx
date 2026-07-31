@@ -14,13 +14,12 @@ import { Button } from 'reshaped';
 import {
 	cancelBrowserLaunch,
 	completeBrowserLaunch,
-	createHandoff,
 	openInBrowser,
 	reserveBrowserLaunch,
 	type BrowserLaunchReservation,
 	type ToolScope,
-	withGrantFragment,
 } from '@/api/handoff';
+import { createRoom, withRoomHint } from '@/api/rooms';
 import { toolsLog } from '@/api/logging';
 import { EditorContext } from '@/contexts/editorContext';
 import { useAppAuth } from '@/contexts/appAuthContext';
@@ -89,7 +88,7 @@ export const FIRST_PARTY_TOOLS: FirstPartyTool[] = MINDMAP_TOOL_ENABLED
 interface LaunchToolDependencies {
 	getAccessToken(): Promise<string>;
 	getDocContext(): Promise<DocContext>;
-	createGrant: typeof createHandoff;
+	createRoom: typeof createRoom;
 	reserveLaunch(): BrowserLaunchReservation | null;
 	completeLaunch(reservation: BrowserLaunchReservation, url: string): void;
 	cancelLaunch(reservation: BrowserLaunchReservation): void;
@@ -108,14 +107,11 @@ export async function launchFirstPartyTool(
 		const doc = tool.scopes.includes('doc:read')
 			? await dependencies.getDocContext()
 			: undefined;
-		const { grantId } = await dependencies.createGrant(token, {
-			toolClientId: tool.id,
-			scopes: tool.scopes,
-			doc,
-		});
+		if (!doc) throw new Error('Mindmap requires a document room.');
+		const room = await dependencies.createRoom(token, doc);
 		dependencies.completeLaunch(
 			reservation,
-			withGrantFragment(tool.url, grantId),
+			withRoomHint(tool.url, room.id),
 		);
 		return { sharedDoc: doc !== undefined };
 	} catch (error) {
@@ -156,7 +152,7 @@ export default function Tools() {
 			const result = await launchFirstPartyTool(tool, {
 				getAccessToken,
 				getDocContext: () => editorAPI.getDocContext(),
-				createGrant: createHandoff,
+				createRoom,
 				reserveLaunch: reserveBrowserLaunch,
 				completeLaunch: completeBrowserLaunch,
 				cancelLaunch: cancelBrowserLaunch,

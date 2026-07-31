@@ -1,9 +1,11 @@
 import { betterAuth } from 'better-auth';
+import { oauthProvider } from '@better-auth/oauth-provider';
 import {
 	anonymous,
 	bearer,
 	customSession,
 	deviceAuthorization,
+	jwt,
 } from 'better-auth/plugins';
 import {
 	betterAuthSecret,
@@ -23,6 +25,7 @@ import { db } from './db.js';
 import { eraseLoggedData } from './erasure.js';
 import { anonymizeUserUsage } from './usage.js';
 import { isUserAllowed } from './userAllowlist.js';
+import { selectedRoomForOAuth } from './rooms.js';
 
 // A module-level `auth` singleton (not a factory) so the Better Auth CLI can
 // auto-discover it: `npx @better-auth/cli migrate` looks for an exported `auth`
@@ -110,6 +113,36 @@ export const auth = betterAuth({
 		},
 	},
 	plugins: [
+		jwt(),
+		oauthProvider({
+			loginPage: '/api/oauth/login',
+			consentPage: '/api/oauth/consent',
+			scopes: ['openai:chat', 'doc:read'],
+			validAudiences: [betterAuthUrl()],
+			grantTypes: ['authorization_code'],
+			allowDynamicClientRegistration: true,
+			allowUnauthenticatedClientRegistration: true,
+			accessTokenExpiresIn: 60 * 60,
+			postLogin: {
+				page: '/api/oauth/room',
+				shouldRedirect: ({ user, session }) =>
+					!selectedRoomForOAuth(session.id, user.id),
+				consentReferenceId: ({ user, session, scopes }) => {
+					if (!scopes.includes('doc:read')) return undefined;
+					const roomId = selectedRoomForOAuth(session.id, user.id);
+					if (!roomId) throw new Error('A room must be selected for doc:read.');
+					return roomId;
+				},
+			},
+			customAccessTokenClaims: ({ referenceId }) => ({
+				...(referenceId ? { room_id: referenceId } : {}),
+			}),
+			customTokenResponseFields: ({ verificationValue }) => ({
+				...(verificationValue?.referenceId
+					? { room_id: verificationValue.referenceId }
+					: {}),
+			}),
+		}),
 		bearer(),
 		// Demo mode. signIn.anonymous() mints a real user + session, so the whole
 		// identity-keyed stack (resolveUser, /api/log, consent gating, usage

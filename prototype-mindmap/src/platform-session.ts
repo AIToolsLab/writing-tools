@@ -2,6 +2,8 @@
 
 export const PLATFORM_SESSION_STORAGE_KEY = "prototype-mindmap-platform-session-v1";
 export const PLATFORM_SESSION_VERSION = 1;
+const OAUTH_CLIENT_STORAGE_KEY = "prototype-mindmap-oauth-client-v1";
+const OAUTH_REQUEST_STORAGE_KEY = "prototype-mindmap-oauth-request-v1";
 
 const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | boolean | undefined> }).env;
 
@@ -142,7 +144,7 @@ export function readPlatformSession(storage: Pick<Storage, "getItem">): Platform
     if (
       parsed.version !== PLATFORM_SESSION_VERSION ||
       typeof parsed.accessToken !== "string" ||
-      !parsed.accessToken.startsWith("wtk_") ||
+      (!parsed.accessToken.startsWith("wtk_") && parsed.accessToken.length < 16) ||
       typeof parsed.expiresAt !== "number" ||
       !Number.isFinite(parsed.expiresAt) ||
       typeof parsed.capturedAt !== "number" ||
@@ -170,6 +172,171 @@ export function readPlatformSession(storage: Pick<Storage, "getItem">): Platform
   } catch {
     return null;
   }
+}
+
+interface OAuthRequestState {
+  state: string;
+  verifier: string;
+  roomId: string;
+  clientId: string;
+  redirectUri: string;
+}
+
+function base64Url(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function sha256(value: string): Promise<string> {
+  return base64Url(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))));
+}
+
+export function roomFromSearch(search: string): string | null {
+  const room = new URLSearchParams(search).get("room");
+  return room?.startsWith("room_") ? room : null;
+}
+
+export function oauthCallbackFromSearch(search: string): boolean {
+  const params = new URLSearchParams(search);
+  return params.has("code") || params.has("error");
+}
+
+function oauthBase(backendUrl = PLATFORM_BACKEND_URL): string {
+  return `${backendUrl.replace(/\/$/, "")}/auth/oauth2`;
+}
+
+function oauthResource(backendUrl = PLATFORM_BACKEND_URL): string {
+  return new URL(backendUrl).origin;
+}
+
+function callbackUri(): string {
+  return `${window.location.origin}${window.location.pathname}`;
+}
+
+async function clientId(storage: Storage, backendUrl = PLATFORM_BACKEND_URL): Promise<string> {
+  const redirectUri = callbackUri();
+  try {
+    const saved = JSON.parse(storage.getItem(OAUTH_CLIENT_STORAGE_KEY) ?? "null") as {
+      clientId?: unknown;
+      redirectUri?: unknown;
+    } | null;
+    if (saved?.redirectUri === redirectUri && typeof saved.clientId === "string") return saved.clientId;
+  } catch {
+    // Re-register below.
+  }
+  const response = await fetch(`${oauthBase(backendUrl)}/register`, {
+    method: "POST",
+    credentials: "omit",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      redirect_uris: [redirectUri],
+      client_name: "Writing Tools Mindmap",
+      client_uri: window.location.origin,
+      token_endpoint_auth_method: "none",
+      grant_types: ["authorization_code"],
+      response_types: ["code"],
+      scope: "openai:chat doc:read",
+      type: "user-agent-based",
+    }),
+  });
+  const body = await response.json().catch(() => ({})) as Record<string, unknown>;
+  if (!response.ok || typeof body.client_id !== "string") {
+    throw new Error(typeof body.error_description === "string" ? body.error_description : "Mindmap OAuth client registration failed.");
+  }
+  storage.setItem(OAUTH_CLIENT_STORAGE_KEY, JSON.stringify({ clientId: body.client_id, redirectUri }));
+  return body.client_id;
+}
+
+export async function beginRoomAuthorization(
+  roomId: string,
+  storage: Storage,
+  backendUrl = PLATFORM_BACKEND_URL,
+): Promise<void> {
+  const id = await clientId(localStorage, backendUrl);
+  const verifier = base64Url(crypto.getRandomValues(new Uint8Array(48)));
+  // Keep the non-secret room hint inside the standard state parameter. Better Auth
+  // signs/round-trips state but intentionally strips unknown authorize parameters.
+  // The random suffix still makes the complete state value an unpredictable CSRF
+  // binding, and the callback must match it byte-for-byte.
+  const state = `${roomId}.${base64Url(crypto.getRandomValues(new Uint8Array(24)))}`;
+  const redirectUri = callbackUri();
+  const request: OAuthRequestState = { state, verifier, roomId, clientId: id, redirectUri };
+  storage.setItem(OAUTH_REQUEST_STORAGE_KEY, JSON.stringify(request));
+  const authorize = new URL(`${oauthBase(backendUrl)}/authorize`);
+  authorize.searchParams.set("client_id", id);
+  authorize.searchParams.set("redirect_uri", redirectUri);
+  authorize.searchParams.set("response_type", "code");
+  authorize.searchParams.set("scope", "openai:chat doc:read");
+  authorize.searchParams.set("resource", oauthResource(backendUrl));
+  authorize.searchParams.set("state", state);
+  authorize.searchParams.set("code_challenge", await sha256(verifier));
+  authorize.searchParams.set("code_challenge_method", "S256");
+  window.location.assign(authorize.toString());
+}
+
+export async function finishRoomAuthorization(
+  search: string,
+  storage: Storage,
+  options: { backendUrl?: string; now?: () => number } = {},
+): Promise<PlatformSession> {
+  const params = new URLSearchParams(search);
+  const oauthError = params.get("error");
+  if (oauthError) throw new GrantExchangeError("invalid", params.get("error_description") || oauthError);
+  const code = params.get("code");
+  let request: OAuthRequestState;
+  try {
+    request = JSON.parse(storage.getItem(OAUTH_REQUEST_STORAGE_KEY) ?? "null") as OAuthRequestState;
+  } catch {
+    throw new GrantExchangeError("invalid", "The saved PKCE request is missing.");
+  }
+  if (!request || !code || params.get("state") !== request.state) {
+    throw new GrantExchangeError("invalid", "The OAuth callback did not match this Mindmap launch.");
+  }
+  storage.removeItem(OAUTH_REQUEST_STORAGE_KEY);
+  const backendUrl = options.backendUrl ?? PLATFORM_BACKEND_URL;
+  const tokenResponse = await fetch(`${oauthBase(backendUrl)}/token`, {
+    method: "POST",
+    credentials: "omit",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      client_id: request.clientId,
+      redirect_uri: request.redirectUri,
+      code,
+      code_verifier: request.verifier,
+      resource: oauthResource(backendUrl),
+    }),
+  });
+  const token = await tokenResponse.json().catch(() => ({})) as Record<string, unknown>;
+  if (!tokenResponse.ok || typeof token.access_token !== "string") {
+    throw new GrantExchangeError("invalid", typeof token.error_description === "string" ? token.error_description : "Token exchange failed.");
+  }
+  const roomId = typeof token.room_id === "string" && token.room_id.startsWith("room_")
+    ? token.room_id
+    : null;
+  if (!roomId) throw new GrantExchangeError("invalid", "The token was not bound to a room.");
+  const roomResponse = await fetch(`${backendUrl.replace(/\/$/, "")}/rooms/${encodeURIComponent(roomId)}`, {
+    credentials: "omit",
+    headers: { Authorization: `Bearer ${token.access_token}` },
+  });
+  const room = await roomResponse.json().catch(() => ({})) as Record<string, unknown>;
+  const doc = validDocContext(room.doc);
+  if (!roomResponse.ok || !doc) throw new GrantExchangeError("invalid", "The authorized room could not be loaded.");
+  const now = (options.now ?? Date.now)();
+  const expiresIn = typeof token.expires_in === "number" ? token.expires_in : 3600;
+  return {
+    version: 1,
+    accessToken: token.access_token,
+    expiresAt: now + expiresIn * 1000,
+    scopes: typeof token.scope === "string" ? token.scope.split(" ") : ["openai:chat", "doc:read"],
+    doc,
+    capturedAt: typeof room.updated_at === "number" ? room.updated_at : now,
+  };
+}
+
+export function scrubOAuthFromUrl(): void {
+  window.history.replaceState(window.history.state, "", window.location.pathname);
 }
 
 export function writePlatformSession(
