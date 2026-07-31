@@ -15,7 +15,7 @@
 import { mkdirSync, renameSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { dataDir } from './config.js';
+import { dataDir, mindmapOAuthClientId } from './config.js';
 
 function dbPath(): string {
 	return path.join(dataDir(), 'app.db');
@@ -167,6 +167,28 @@ const MIGRATIONS: Array<(conn: Database.Database) => void> = [
 	// stored anymore. Appending a drop migration preserves deployed v5 databases.
 	(conn) => {
 		conn.exec(`DROP TABLE oauth_room_selection;`);
+	},
+	// v7 — one-time cleanup of clients created while unauthenticated dynamic
+	// registration was enabled. On a fresh database Better Auth's oauthClient table
+	// does not exist yet, so there is nothing to clean; provisioning runs after its
+	// migrations. Existing databases retain only the configured fixed Mindmap row.
+	(conn) => {
+		const table = conn
+			.prepare(
+				`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'oauthClient'`,
+			)
+			.get();
+		if (!table) return;
+		const trustedClientId = mindmapOAuthClientId();
+		if (!trustedClientId) {
+			throw new Error('MINDMAP_OAUTH_CLIENT_ID is required before OAuth client cleanup.');
+		}
+		const result = conn
+			.prepare(`DELETE FROM oauthClient WHERE clientId <> ?`)
+			.run(trustedClientId);
+		if (result.changes > 0) {
+			console.log(`Removed ${result.changes} stale dynamically registered OAuth client(s).`);
+		}
 	},
 ];
 

@@ -50,6 +50,10 @@ export const betterAuthSecret = () =>
 // .env line both yield '', which `??` alone would let through.
 export const betterAuthUrl = () =>
 	(process.env.BETTER_AUTH_URL ?? '').trim() || 'http://localhost:8000';
+// Explicitly shared by auth.ts and the resource verifier. Better Auth includes
+// this path in JWT `iss`; validating against the bare BETTER_AUTH_URL rejects
+// otherwise valid OAuth access tokens.
+export const BETTER_AUTH_BASE_PATH = '/api/auth';
 export const betterAuthTrustedOrigins = (): string[] =>
 	(process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? '')
 		.split(',')

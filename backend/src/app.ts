@@ -9,7 +9,13 @@ import {
 	filterExtraDataForConsent,
 	isConsentLevel,
 } from './consent.js';
-import { betterAuthUrl, deviceClientIds, gitCommit, logSecret } from './config.js';
+import {
+	betterAuthUrl,
+	BETTER_AUTH_BASE_PATH,
+	deviceClientIds,
+	gitCommit,
+	logSecret,
+} from './config.js';
 import { eraseLoggedData } from './erasure.js';
 import { db } from './db.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
@@ -100,7 +106,9 @@ export function createApp({
 		(auth?.options
 			? oauthProviderResourceClient(auth).getActions().verifyAccessToken
 			: null);
-	const oauthIssuer = `${betterAuthUrl().replace(/\/$/, '')}/api/auth`;
+	// Better Auth signs OAuth JWTs with baseURL + basePath. Its resource helper can
+	// otherwise default to the bare baseURL, yielding opaque 401s for valid tokens.
+	const oauthIssuer = `${betterAuthUrl().replace(/\/$/, '')}${BETTER_AUTH_BASE_PATH}`;
 
 	// CORS stays fully permissive for now to preserve existing behaviour.
 	app.use('*', cors({ exposeHeaders: [PLATFORM_AUTH_ERROR_HEADER] }));

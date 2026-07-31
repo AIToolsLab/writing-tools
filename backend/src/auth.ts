@@ -12,10 +12,10 @@ import {
 	betterAuthSecret,
 	betterAuthTrustedOrigins,
 	betterAuthUrl,
+	BETTER_AUTH_BASE_PATH,
 	deviceClientIds,
 	googleClientId,
 	googleClientSecret,
-	mindmapOAuthClientId,
 } from './config.js';
 import {
 	type ConsentLevel,
@@ -33,19 +33,47 @@ import {
 	roomOAuthAuthorization,
 } from './oauth-room-authorization.js';
 
-const roomConsentReferenceId = async ({
+interface RoomConsentUser {
+	id: string;
+}
+
+function roomAuthorizationErrorRedirect(
+	redirectUri: string,
+	state: string,
+	description: string,
+): never {
+	// The provider has already validated client_id and the exact redirect URI before
+	// invoking this hook, so returning the OAuth error to that URI is safe.
+	const redirect = new URL(redirectUri);
+	redirect.searchParams.set('error', 'access_denied');
+	redirect.searchParams.set('error_description', description);
+	redirect.searchParams.set('state', state);
+	throw new APIError('FOUND', undefined, {
+		Location: redirect.toString(),
+		'Cache-Control': 'no-store',
+	});
+}
+
+export const roomConsentReferenceId = async ({
 	user,
 	scopes,
 }: {
-	user: { id: string };
+	user?: RoomConsentUser;
 	scopes: readonly string[];
 }): Promise<string | undefined> => {
 	if (!scopes.includes('doc:read')) return undefined;
+	if (!user) {
+		throw new APIError('UNAUTHORIZED', {
+			message: 'Sign in before authorizing a room.',
+		});
+	}
 	const authorization = await currentOAuthAuthorization();
 	if (!getRoomForUser(authorization.roomId, user.id)) {
-		throw new APIError('FORBIDDEN', {
-			message: 'The launched room does not belong to this account.',
-		});
+		roomAuthorizationErrorRedirect(
+			authorization.redirectUri,
+			authorization.state,
+			'The launched room does not belong to this account.',
+		);
 	}
 	return authorization.roomId;
 };
@@ -83,6 +111,7 @@ export const auth = betterAuth({
 		},
 	},
 	baseURL: betterAuthUrl(),
+	basePath: BETTER_AUTH_BASE_PATH,
 	secret: betterAuthSecret(),
 	trustedOrigins: betterAuthTrustedOrigins(),
 	// Logging-consent level lives on the user record so it's available on every
@@ -145,7 +174,6 @@ export const auth = betterAuth({
 			grantTypes: ['authorization_code'],
 			allowDynamicClientRegistration: false,
 			allowUnauthenticatedClientRegistration: false,
-			cachedTrustedClients: new Set([mindmapOAuthClientId()]),
 			accessTokenExpiresIn: 60 * 60,
 			// Better Auth 1.6.22 calls shouldRedirect unconditionally whenever postLogin
 			// is present. This constant-false compatibility hook does not implement a

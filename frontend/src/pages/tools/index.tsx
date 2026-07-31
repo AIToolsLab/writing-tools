@@ -38,12 +38,7 @@ export interface FirstPartyTool {
 	launchKind: 'room-oauth' | 'direct';
 }
 
-/**
- * Hardcoded first-party tools (Phase 1). Grant-based tools also need an entry in
- * BETTER_AUTH_DEVICE_CLIENT_IDS until tool and device-client registration are split.
- * Mindmap uses its pre-registered room OAuth client instead. A manifest-driven
- * registry replaces this list in a later phase.
- */
+/** Resolve the separately hosted Mindmap URL for the current build. */
 export function resolveMindmapToolUrl(
 	explicit: string | undefined,
 	isDevelopment: boolean,
@@ -85,6 +80,12 @@ export const MINDMAP_TOOL: FirstPartyTool = {
 	launchKind: 'room-oauth',
 };
 
+/**
+ * Hardcoded first-party tools (Phase 1). Grant-based tools also need an entry in
+ * BETTER_AUTH_DEVICE_CLIENT_IDS until tool and device-client registration are split.
+ * Mindmap uses its pre-registered room OAuth client instead. A manifest-driven
+ * registry replaces this list in a later phase.
+ */
 export const FIRST_PARTY_TOOLS: FirstPartyTool[] = MINDMAP_TOOL_ENABLED
 	? [MINDMAP_TOOL]
 	: [];

@@ -189,6 +189,44 @@ describe("platform launcher session", () => {
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
+  it("shows a state-bound OAuth error and consumes the saved PKCE request", async () => {
+    const storage = memoryStorage();
+    storage.setItem(OAUTH_REQUEST_STORAGE_KEY, JSON.stringify({
+      state: "room_requested.random",
+      verifier: "verifier",
+      roomId: "room_requested",
+      clientId: "client",
+      redirectUri: "https://mindmap.example/",
+    }));
+
+    await expect(finishRoomAuthorization(
+      "?error=access_denied&error_description=That+room+is+unavailable.&state=room_requested.random",
+      storage,
+    )).rejects.toMatchObject({ code: "invalid", message: "That room is unavailable." });
+    expect(storage.getItem(OAUTH_REQUEST_STORAGE_KEY)).toBeNull();
+  });
+
+  it("rejects an OAuth error with mismatched state without consuming the saved request", async () => {
+    const storage = memoryStorage();
+    const request = JSON.stringify({
+      state: "room_requested.random",
+      verifier: "verifier",
+      roomId: "room_requested",
+      clientId: "client",
+      redirectUri: "https://mindmap.example/",
+    });
+    storage.setItem(OAUTH_REQUEST_STORAGE_KEY, request);
+
+    await expect(finishRoomAuthorization(
+      "?error=access_denied&error_description=Injected&state=wrong-state",
+      storage,
+    )).rejects.toMatchObject({
+      code: "invalid",
+      message: "The OAuth callback did not match this Mindmap launch.",
+    });
+    expect(storage.getItem(OAUTH_REQUEST_STORAGE_KEY)).toBe(request);
+  });
+
   it("loads only the exact launched room after a successful OAuth exchange", async () => {
     const storage = memoryStorage();
     storage.setItem(OAUTH_REQUEST_STORAGE_KEY, JSON.stringify({

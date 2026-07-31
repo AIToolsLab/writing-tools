@@ -7,7 +7,10 @@ Companion doc: `docs/oauth-rooms-pkce-poc.md` (update it as part of this work).
 Implementation status (2026-07-31): implemented and validated locally. Task 0
 confirmed that Better Auth 1.6.22 calls `consentReferenceId` before its
 `skipConsent` branch. The only remaining deployment input is the final production
-Mindmap hostname/exact redirect URI. Nothing from this pass has been pushed.
+Mindmap hostname/exact redirect URI. Review hardening added an OAuth error redirect
+for wrong-account launches, one-time v7 stale-client cleanup, adapter-backed
+provisioning, live database reads instead of the permanent trusted-client cache,
+and explicit issuer validation. Nothing from this pass has been pushed.
 
 This spec covers three changes that are **one logical change**: making Mindmap a
 pre-registered trusted OAuth client, deleting the room-confirmation machinery

@@ -37,7 +37,9 @@ Possession of it grants nothing.
 5. `consentReferenceId` derives the room from Mindmap's OAuth state and verifies
    server-side that the signed-in user owns it. The room id is not signed
    provenance; the boundary is the exact-redirect client, authenticated user,
-   ownership check, and room-bound signed token together.
+   ownership check, and room-bound signed token together. A missing room or a
+   different signed-in account returns `error=access_denied` to the already
+   validated Mindmap callback, where the app can explain the mismatch.
 6. The trusted client has `skipConsent`, so an existing browser session returns
    directly to Mindmap without a room-confirmation or consent screen. A user with
    no browser session signs in first and then returns directly.
@@ -66,8 +68,9 @@ Possession of it grants nothing.
 - A room currently has one owner and one document snapshot. There is no membership
   table, live synchronization, document update endpoint, or multi-document room.
 - Dynamic and unauthenticated client registration are disabled. Startup
-  idempotently provisions the configured Mindmap client and removes stale dynamic
-  clients; it is the only OAuth client expected to survive that cleanup.
+  idempotently provisions the configured Mindmap client through Better Auth's
+  adapter. Migration v7 removes stale dynamic clients once; it preserves the
+  configured Mindmap row and does not delete clients added after that migration.
 - Tokens expire after one hour; refresh tokens are not enabled.
 - Removing the confirmation checkpoint is deliberate: an attacker would need both
   an unguessable room id and the ability to drive its owner's browser. Fresh random
@@ -91,6 +94,16 @@ exists. The configuration therefore retains a constant-false compatibility hook
 and unreachable page value; there is no room-selection or confirmation machinery.
 
 An appended v6 application migration drops `oauth_room_selection`, preserving
-upgrades from existing v5 databases. The final production hostname—and therefore
-the exact production redirect URI and matching build-time values—remains the sole
-deployment configuration decision.
+upgrades from existing v5 databases. Migration v7 performs the one-time stale-client
+cleanup. The Mindmap client is deliberately not placed in Better Auth's process-wide
+trusted-client cache, so changes such as `disabled = 1` are observed on the next
+authorization request. Provisioning preserves that operational disable on later
+starts. Environment-driven redirect changes still require a restart because startup
+provisioning is what applies them.
+
+The resource verifier explicitly validates the issuer as `BETTER_AUTH_URL` plus
+Better Auth's `/api/auth` base path. Tokens are issued with that full value; using
+the bare origin produces an otherwise opaque 401.
+
+The final production hostname—and therefore the exact production redirect URI and
+matching build-time values—remains the sole deployment configuration decision.

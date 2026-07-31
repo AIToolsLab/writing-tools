@@ -29,7 +29,7 @@ try {
 	const { runMigrations } = await getMigrations(auth.options);
 	await runMigrations();
 	console.log('Better Auth migrations applied.');
-	provisionTrustedMindmapClient();
+	await provisionTrustedMindmapClient(auth);
 	console.log('Trusted Mindmap OAuth client provisioned.');
 } catch (err) {
 	console.error('Migration failed:', err);

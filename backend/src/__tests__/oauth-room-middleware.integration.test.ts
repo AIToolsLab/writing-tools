@@ -15,6 +15,7 @@ const AUTH_BASE = 'http://localhost:8000/api/auth';
 const CLIENT_ID = 'integration-mindmap';
 const REDIRECT_URI = 'https://mindmap.example/';
 let auth: Auth;
+let roomConsentReferenceId: typeof import('../auth.js').roomConsentReferenceId;
 let dataDir: string;
 
 function authRequest(pathname: string, init?: RequestInit): Promise<Response> {
@@ -64,14 +65,10 @@ beforeAll(async () => {
 	process.env.MINDMAP_OAUTH_REDIRECT_URIS = REDIRECT_URI;
 	process.env.OPENAI_API_KEY = 'test-openai-key';
 	process.env.OPENAI_DEMO_API_KEY = 'test-demo-openai-key';
-	({ auth } = await import('../auth.js'));
+	({ auth, roomConsentReferenceId } = await import('../auth.js'));
 	const { runMigrations } = await getMigrations(auth.options);
 	await runMigrations();
-	db().prepare(
-		`INSERT INTO oauthClient (id, clientId, redirectUris)
-		 VALUES ('stale-row', 'stale-dynamic-client', '["https://stale.example/"]')`,
-	).run();
-	provisionTrustedMindmapClient();
+	await provisionTrustedMindmapClient(auth);
 });
 
 afterAll(() => {
@@ -81,8 +78,8 @@ afterAll(() => {
 });
 
 describe('trusted Mindmap OAuth launch', () => {
-	it('keeps only the configured trusted client during idempotent provisioning', () => {
-		provisionTrustedMindmapClient();
+	it('idempotently provisions the configured trusted client', async () => {
+		await provisionTrustedMindmapClient(auth);
 		const clients = db().prepare(
 			`SELECT clientId, skipConsent, requirePKCE FROM oauthClient`,
 		).all();
@@ -110,8 +107,6 @@ describe('trusted Mindmap OAuth launch', () => {
 		expect(authorization.status).toBe(302);
 		const callback = new URL(authorization.headers.get('location') ?? '');
 		expect(callback.origin + callback.pathname).toBe(REDIRECT_URI);
-		expect(callback.pathname).not.toBe('/api/oauth/room');
-		expect(callback.pathname).not.toBe('/api/oauth/consent');
 		const code = callback.searchParams.get('code');
 		expect(code).toBeTruthy();
 
@@ -215,7 +210,55 @@ describe('trusted Mindmap OAuth launch', () => {
 			authorizeUrl(room.id, challenge),
 			{ headers: { Cookie: visitor.cookie } },
 		));
-		const location = foreignRoom.headers.get('location') ?? '';
-		expect(location).not.toContain(`${REDIRECT_URI}?code=`);
+		expect(foreignRoom.status).toBe(302);
+		const foreignLocation = new URL(foreignRoom.headers.get('location') ?? '');
+		expect(foreignLocation.origin + foreignLocation.pathname).toBe(REDIRECT_URI);
+		expect(foreignLocation.searchParams.get('error')).toBe('access_denied');
+		expect(foreignLocation.searchParams.get('error_description'))
+			.toBe('The launched room does not belong to this account.');
+		expect(foreignLocation.searchParams.get('state')).toBe(`${room.id}.random-csrf`);
+		expect(foreignLocation.searchParams.get('code')).toBeNull();
+
+		const missingRoomId = 'room_missing-but-well-formed';
+		const missingRoom = await auth.handler(new Request(
+			authorizeUrl(missingRoomId, challenge),
+			{ headers: { Cookie: visitor.cookie } },
+		));
+		expect(missingRoom.status).toBe(302);
+		const missingLocation = new URL(missingRoom.headers.get('location') ?? '');
+		expect(missingLocation.origin + missingLocation.pathname).toBe(REDIRECT_URI);
+		expect(missingLocation.searchParams.get('error')).toBe('access_denied');
+		expect(missingLocation.searchParams.get('state'))
+			.toBe(`${missingRoomId}.random-csrf`);
+		expect(missingLocation.searchParams.get('code')).toBeNull();
+	});
+
+	it('fails cleanly if the consent hook is reached without a session user', async () => {
+		await expect(roomConsentReferenceId({
+			user: undefined,
+			scopes: ['doc:read'],
+		})).rejects.toMatchObject({ statusCode: 401 });
+	});
+
+	it('observes an operational client disable without a process restart', async () => {
+		const { cookie, userId } = await anonymousSession();
+		const room = createRoom(userId, 'Disabled client', {
+			beforeCursor: '', selectedText: '', afterCursor: '',
+		});
+		const challenge = createHash('sha256').update('d'.repeat(64)).digest('base64url');
+		db().prepare(`UPDATE oauthClient SET disabled = 1 WHERE clientId = ?`).run(CLIENT_ID);
+
+		try {
+			const authorization = await auth.handler(new Request(
+				authorizeUrl(room.id, challenge),
+				{ headers: { Cookie: cookie } },
+			));
+			expect(authorization.status).toBe(302);
+			const location = new URL(authorization.headers.get('location') ?? '');
+			expect(location.searchParams.get('code')).toBeNull();
+			expect(location.searchParams.get('error')).toBe('client_disabled');
+		} finally {
+			db().prepare(`UPDATE oauthClient SET disabled = 0 WHERE clientId = ?`).run(CLIENT_ID);
+		}
 	});
 });

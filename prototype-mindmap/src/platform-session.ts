@@ -268,7 +268,6 @@ export async function finishRoomAuthorization(
 ): Promise<PlatformSession> {
   const params = new URLSearchParams(search);
   const oauthError = params.get("error");
-  if (oauthError) throw new GrantExchangeError("invalid", params.get("error_description") || oauthError);
   const code = params.get("code");
   let request: OAuthRequestState;
   try {
@@ -276,10 +275,16 @@ export async function finishRoomAuthorization(
   } catch {
     throw new GrantExchangeError("invalid", "The saved PKCE request is missing.");
   }
-  if (!request || !code || params.get("state") !== request.state) {
+  if (!request || (!code && !oauthError) || params.get("state") !== request.state) {
     throw new GrantExchangeError("invalid", "The OAuth callback did not match this Mindmap launch.");
   }
   storage.removeItem(OAUTH_REQUEST_STORAGE_KEY);
+  if (oauthError) {
+    throw new GrantExchangeError("invalid", params.get("error_description") || oauthError);
+  }
+  if (!code) {
+    throw new GrantExchangeError("invalid", "The OAuth callback did not include an authorization code.");
+  }
   const backendUrl = options.backendUrl ?? PLATFORM_BACKEND_URL;
   const fetcher = options.fetcher ?? fetch;
   let tokenResponse: Response;

@@ -71,7 +71,9 @@ thin: it proxies OpenAI requests with the server-held API key and writes study l
 - **Auth** (`src/auth.ts`): Better Auth (Google sign-in + device-code flow for the
   add-in), on the shared `app.db`, enabled by `BETTER_AUTH_ENABLED=true`. Carries the
   user's `loggingConsent` level as a user field; `beforeDelete` purges study logs and
-  anonymizes usage rows.
+  anonymizes usage rows. The fixed public Mindmap OAuth client is provisioned through
+  Better Auth's adapter at startup (`oauth-clients.ts`); app migration v7 performs the
+  one-time cleanup of clients created while dynamic registration was enabled.
 
 ## Commands
 

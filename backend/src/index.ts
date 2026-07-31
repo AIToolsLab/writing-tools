@@ -51,7 +51,7 @@ if (authEnabled()) {
 const auth = authEnabled() ? (await import('./auth.js')).auth : undefined;
 if (auth) {
 	const { provisionTrustedMindmapClient } = await import('./oauth-clients.js');
-	provisionTrustedMindmapClient();
+	await provisionTrustedMindmapClient(auth);
 }
 const app = createApp({ auth });
 
