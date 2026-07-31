@@ -78,11 +78,25 @@ function logSecretGate(c: Context, provided: string): Response | null {
 	return null;
 }
 
-export function createApp({ auth }: { auth?: Auth } = {}): Hono {
+type OAuthAccessTokenVerifier = (
+	token: string,
+	options: { verifyOptions: { audience: string }; scopes: string[] },
+) => Promise<Record<string, unknown>>;
+
+export function createApp({
+	auth,
+	verifyOAuthAccessToken: suppliedOAuthVerifier,
+}: {
+	auth?: Auth;
+	/** Test seam for the resource-server boundary; production derives it from auth. */
+	verifyOAuthAccessToken?: OAuthAccessTokenVerifier;
+} = {}): Hono {
 	const app = new Hono();
-	const verifyOAuthAccessToken = auth?.options
-		? oauthProviderResourceClient(auth).getActions().verifyAccessToken
-		: null;
+	const verifyOAuthAccessToken =
+		suppliedOAuthVerifier ??
+		(auth?.options
+			? oauthProviderResourceClient(auth).getActions().verifyAccessToken
+			: null);
 
 	// CORS stays fully permissive for now to preserve existing behaviour.
 	app.use('*', cors({ exposeHeaders: [PLATFORM_AUTH_ERROR_HEADER] }));
@@ -442,9 +456,9 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		return c.json({ loggingConsent: level });
 	});
 
-	// Erase the authenticated user's logged activity — study logs and analytics
-	// profile — while keeping their account. This is *withdrawal*: they carry on
-	// using the add-in, they just want what we've recorded about them gone.
+	// Erase the authenticated user's logged activity — study logs and analytics —
+	// while keeping their account and active room snapshots. This is *withdrawal*:
+	// they carry on using the add-in and any open room-backed tools.
 	//
 	// Not "delete my data", which is what this used to be called: it doesn't touch
 	// the account, and it deliberately leaves the LLM usage rows, because the

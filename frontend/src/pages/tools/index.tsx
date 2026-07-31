@@ -34,6 +34,8 @@ export interface FirstPartyTool {
 	/** Where the tool is hosted (its own origin). */
 	url: string;
 	scopes: ToolScope[];
+	/** Explicit launch protocol; room OAuth is not a generic tool requirement. */
+	launchKind: 'room-oauth' | 'direct';
 }
 
 /**
@@ -79,6 +81,7 @@ export const MINDMAP_TOOL: FirstPartyTool = {
 		'Explore your draft as a client-side mindmap. Opens in your browser with a read-only snapshot of your current document.',
 	url: MINDMAP_TOOL_URL,
 	scopes: ['openai:chat', 'doc:read'],
+	launchKind: 'room-oauth',
 };
 
 export const FIRST_PARTY_TOOLS: FirstPartyTool[] = MINDMAP_TOOL_ENABLED
@@ -100,14 +103,20 @@ export async function launchFirstPartyTool(
 ): Promise<{ sharedDoc: boolean }> {
 	const reservation = dependencies.reserveLaunch();
 	if (!reservation) {
-		throw new Error('Your browser blocked the new window. Allow popups and try again.');
+		throw new Error(
+			'Your browser blocked the new window. Allow popups and try again.',
+		);
 	}
 	try {
+		if (tool.launchKind === 'direct') {
+			dependencies.completeLaunch(reservation, tool.url);
+			return { sharedDoc: false };
+		}
 		const token = await dependencies.getAccessToken();
 		const doc = tool.scopes.includes('doc:read')
 			? await dependencies.getDocContext()
 			: undefined;
-		if (!doc) throw new Error('Mindmap requires a document room.');
+		if (!doc) throw new Error(`${tool.name} requires a document room.`);
 		const room = await dependencies.createRoom(token, doc);
 		dependencies.completeLaunch(
 			reservation,

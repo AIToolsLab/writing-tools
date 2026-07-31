@@ -1,13 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   GrantExchangeError,
+  OAUTH_REQUEST_STORAGE_KEY,
   PLATFORM_SESSION_STORAGE_KEY,
   clearPlatformSession,
   exchangeGrant,
+  finishRoomAuthorization,
   grantFromHash,
   hashWithoutGrant,
   launchRequired,
   readPlatformSession,
+  scrubOAuthFromUrl,
   snapshotText,
   writePlatformSession,
   type PlatformSession,
@@ -140,6 +143,94 @@ describe("platform launcher session", () => {
     expect(readPlatformSession(storage)).toEqual(session);
     clearPlatformSession(storage);
     expect(storage.getItem(PLATFORM_SESSION_STORAGE_KEY)).toBeNull();
+  });
+
+  it("accepts only legacy wtk tokens or compact JWTs from storage", () => {
+    const storage = memoryStorage();
+    const base = {
+      version: 1,
+      expiresAt: 1000,
+      scopes: ["openai:chat"],
+      doc: null,
+      capturedAt: 0,
+    };
+    storage.setItem(PLATFORM_SESSION_STORAGE_KEY, JSON.stringify({
+      ...base,
+      accessToken: "header.payload.signature",
+    }));
+    expect(readPlatformSession(storage)?.accessToken).toBe("header.payload.signature");
+    storage.setItem(PLATFORM_SESSION_STORAGE_KEY, JSON.stringify({
+      ...base,
+      accessToken: "this-is-not-a-token-even-if-long",
+    }));
+    expect(readPlatformSession(storage)).toBeNull();
+  });
+
+  it("rejects an OAuth token bound to a room other than the launched room", async () => {
+    const storage = memoryStorage();
+    storage.setItem(OAUTH_REQUEST_STORAGE_KEY, JSON.stringify({
+      state: "room_requested.random",
+      verifier: "verifier",
+      roomId: "room_requested",
+      clientId: "client",
+      redirectUri: "https://mindmap.example/",
+    }));
+    const fetcher = vi.fn().mockResolvedValue(response({
+      access_token: "header.payload.signature",
+      room_id: "room_other",
+      expires_in: 3600,
+    }));
+    await expect(finishRoomAuthorization(
+      "?code=code&state=room_requested.random",
+      storage,
+      { backendUrl: "https://writer.example/api", fetcher },
+    )).rejects.toMatchObject({ code: "invalid" });
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads only the exact launched room after a successful OAuth exchange", async () => {
+    const storage = memoryStorage();
+    storage.setItem(OAUTH_REQUEST_STORAGE_KEY, JSON.stringify({
+      state: "room_requested.random",
+      verifier: "verifier",
+      roomId: "room_requested",
+      clientId: "client",
+      redirectUri: "https://mindmap.example/",
+    }));
+    const fetcher = vi.fn()
+      .mockResolvedValueOnce(response({
+        access_token: "header.payload.signature",
+        room_id: "room_requested",
+        expires_in: 60,
+        scope: "openai:chat doc:read",
+      }))
+      .mockResolvedValueOnce(response({
+        doc: { beforeCursor: "draft", selectedText: "", afterCursor: "" },
+        updated_at: 42,
+      }));
+    const session = await finishRoomAuthorization(
+      "?code=code&state=room_requested.random",
+      storage,
+      { backendUrl: "https://writer.example/api", fetcher, now: () => 1 },
+    );
+    expect(fetcher).toHaveBeenNthCalledWith(
+      2,
+      "https://writer.example/api/rooms/room_requested",
+      expect.objectContaining({
+        credentials: "omit",
+        headers: { Authorization: "Bearer header.payload.signature" },
+      }),
+    );
+    expect(session).toMatchObject({ accessToken: "header.payload.signature", capturedAt: 42 });
+  });
+
+  it("scrubs OAuth callback parameters without depending on exchange success", () => {
+    const replaceState = vi.fn();
+    scrubOAuthFromUrl(
+      { pathname: "/mindmap" },
+      { state: { retained: true }, replaceState } as unknown as History,
+    );
+    expect(replaceState).toHaveBeenCalledWith({ retained: true }, "", "/mindmap");
   });
 
   it("maps expired and already-used grants to distinct errors", async () => {

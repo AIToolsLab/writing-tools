@@ -3,7 +3,7 @@
 export const PLATFORM_SESSION_STORAGE_KEY = "prototype-mindmap-platform-session-v1";
 export const PLATFORM_SESSION_VERSION = 1;
 const OAUTH_CLIENT_STORAGE_KEY = "prototype-mindmap-oauth-client-v1";
-const OAUTH_REQUEST_STORAGE_KEY = "prototype-mindmap-oauth-request-v1";
+export const OAUTH_REQUEST_STORAGE_KEY = "prototype-mindmap-oauth-request-v1";
 
 const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | boolean | undefined> }).env;
 
@@ -144,7 +144,7 @@ export function readPlatformSession(storage: Pick<Storage, "getItem">): Platform
     if (
       parsed.version !== PLATFORM_SESSION_VERSION ||
       typeof parsed.accessToken !== "string" ||
-      (!parsed.accessToken.startsWith("wtk_") && parsed.accessToken.length < 16) ||
+      !isPlatformAccessToken(parsed.accessToken) ||
       typeof parsed.expiresAt !== "number" ||
       !Number.isFinite(parsed.expiresAt) ||
       typeof parsed.capturedAt !== "number" ||
@@ -172,6 +172,12 @@ export function readPlatformSession(storage: Pick<Storage, "getItem">): Platform
   } catch {
     return null;
   }
+}
+
+/** Legacy handoff tokens use wtk_; OAuth access tokens are compact JWTs. */
+export function isPlatformAccessToken(token: string): boolean {
+  return /^wtk_[A-Za-z0-9_-]+$/.test(token) ||
+    /^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(token);
 }
 
 interface OAuthRequestState {
@@ -278,7 +284,7 @@ export async function beginRoomAuthorization(
 export async function finishRoomAuthorization(
   search: string,
   storage: Storage,
-  options: { backendUrl?: string; now?: () => number } = {},
+  options: { backendUrl?: string; now?: () => number; fetcher?: typeof fetch } = {},
 ): Promise<PlatformSession> {
   const params = new URLSearchParams(search);
   const oauthError = params.get("error");
@@ -295,31 +301,55 @@ export async function finishRoomAuthorization(
   }
   storage.removeItem(OAUTH_REQUEST_STORAGE_KEY);
   const backendUrl = options.backendUrl ?? PLATFORM_BACKEND_URL;
-  const tokenResponse = await fetch(`${oauthBase(backendUrl)}/token`, {
-    method: "POST",
-    credentials: "omit",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: request.clientId,
-      redirect_uri: request.redirectUri,
-      code,
-      code_verifier: request.verifier,
-      resource: oauthResource(backendUrl),
-    }),
-  });
+  const fetcher = options.fetcher ?? fetch;
+  let tokenResponse: Response;
+  try {
+    tokenResponse = await fetcher(`${oauthBase(backendUrl)}/token`, {
+      method: "POST",
+      credentials: "omit",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        grant_type: "authorization_code",
+        client_id: request.clientId,
+        redirect_uri: request.redirectUri,
+        code,
+        code_verifier: request.verifier,
+        resource: oauthResource(backendUrl),
+      }),
+    });
+  } catch (error) {
+    throw new GrantExchangeError(
+      "network",
+      error instanceof Error ? error.message : "Could not reach Writing Tools.",
+    );
+  }
   const token = await tokenResponse.json().catch(() => ({})) as Record<string, unknown>;
-  if (!tokenResponse.ok || typeof token.access_token !== "string") {
+  if (
+    !tokenResponse.ok ||
+    typeof token.access_token !== "string" ||
+    !isPlatformAccessToken(token.access_token)
+  ) {
     throw new GrantExchangeError("invalid", typeof token.error_description === "string" ? token.error_description : "Token exchange failed.");
   }
   const roomId = typeof token.room_id === "string" && token.room_id.startsWith("room_")
     ? token.room_id
     : null;
   if (!roomId) throw new GrantExchangeError("invalid", "The token was not bound to a room.");
-  const roomResponse = await fetch(`${backendUrl.replace(/\/$/, "")}/rooms/${encodeURIComponent(roomId)}`, {
-    credentials: "omit",
-    headers: { Authorization: `Bearer ${token.access_token}` },
-  });
+  if (roomId !== request.roomId) {
+    throw new GrantExchangeError("invalid", "The token was bound to a different room than this launch.");
+  }
+  let roomResponse: Response;
+  try {
+    roomResponse = await fetcher(`${backendUrl.replace(/\/$/, "")}/rooms/${encodeURIComponent(roomId)}`, {
+      credentials: "omit",
+      headers: { Authorization: `Bearer ${token.access_token}` },
+    });
+  } catch (error) {
+    throw new GrantExchangeError(
+      "network",
+      error instanceof Error ? error.message : "Could not reach Writing Tools.",
+    );
+  }
   const room = await roomResponse.json().catch(() => ({})) as Record<string, unknown>;
   const doc = validDocContext(room.doc);
   if (!roomResponse.ok || !doc) throw new GrantExchangeError("invalid", "The authorized room could not be loaded.");
@@ -335,8 +365,11 @@ export async function finishRoomAuthorization(
   };
 }
 
-export function scrubOAuthFromUrl(): void {
-  window.history.replaceState(window.history.state, "", window.location.pathname);
+export function scrubOAuthFromUrl(
+  location: Pick<Location, "pathname"> = window.location,
+  history: Pick<History, "replaceState" | "state"> = window.history,
+): void {
+  history.replaceState(history.state, "", location.pathname);
 }
 
 export function writePlatformSession(

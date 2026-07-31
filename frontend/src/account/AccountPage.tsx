@@ -143,8 +143,9 @@ export function AccountPage() {
 					Deletes the logged events and analytics profile we hold
 					about how you use the app.{' '}
 					<strong>Your account stays</strong> and you can keep using
-					the app. This does not delete the content-free AI usage
-					records we keep for billing.
+					the app. Active Mindmap rooms stay available. This does not
+					delete the content-free AI usage records we keep for
+					billing.
 				</p>
 				{eraseStatus === 'done' ? (
 					<p className={classes.ok}>

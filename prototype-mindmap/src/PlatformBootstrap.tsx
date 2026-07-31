@@ -322,9 +322,12 @@ function PlatformBootstrapContent() {
       return;
     }
     if (callback) {
-      void finishRoomAuthorization(window.location.search, storage.session)
+      const callbackSearch = window.location.search;
+      // Capture then remove code/state/error synchronously. Failed exchanges must
+      // not leave authorization material in browser history or copied URLs.
+      scrubOAuthFromUrl();
+      void finishRoomAuthorization(callbackSearch, storage.session)
         .then((session) => {
-          scrubOAuthFromUrl();
           writePlatformSession(storage.session, session);
           const saved = savedMindmapSummary(storage.local);
           if (saved) setBoot({ kind: "choice", session, saved });

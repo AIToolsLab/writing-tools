@@ -22,10 +22,17 @@ import {
 	FULL_CONSENT_LEVEL,
 } from './consent.js';
 import { db } from './db.js';
-import { eraseLoggedData } from './erasure.js';
+import { eraseAccountData } from './erasure.js';
 import { anonymizeUserUsage } from './usage.js';
 import { isUserAllowed } from './userAllowlist.js';
-import { selectedRoomForOAuth } from './rooms.js';
+import {
+	consumeRoomSelection,
+	selectedRoomForOAuth,
+} from './rooms.js';
+import {
+	currentOAuthAuthorization,
+	roomOAuthAuthorization,
+} from './oauth-room-authorization.js';
 
 // A module-level `auth` singleton (not a factory) so the Better Auth CLI can
 // auto-discover it: `npx @better-auth/cli migrate` looks for an exported `auth`
@@ -98,16 +105,16 @@ export const auth = betterAuth({
 		// Google-only accounts have no password, so deletion proceeds from the
 		// session alone (no verification flow configured).
 		//
-		// beforeDelete runs the same erasure as the withdrawal endpoint (study logs
-		// + analytics profile), so account deletion is by construction a superset of
-		// it — see erasure.ts. On top of that it anonymizes the LLM usage rows rather
+		// beforeDelete removes study logs, the analytics profile, and durable rooms;
+		// activity withdrawal intentionally preserves rooms for active tools. See
+		// erasure.ts. It then anonymizes the LLM usage rows rather
 		// than deleting them: they're content-free billing records, and dropping them
 		// would make our per-user spend stop reconciling with the provider's invoice
 		// (see usage.ts). Better Auth then drops the account, sessions and OAuth links.
 		deleteUser: {
 			enabled: true,
 			beforeDelete: async (user) => {
-				await eraseLoggedData(user.id);
+				await eraseAccountData(user.id);
 				anonymizeUserUsage(user.id);
 			},
 		},
@@ -125,11 +132,22 @@ export const auth = betterAuth({
 			accessTokenExpiresIn: 60 * 60,
 			postLogin: {
 				page: '/api/oauth/room',
-				shouldRedirect: ({ user, session }) =>
-					!selectedRoomForOAuth(session.id, user.id),
-				consentReferenceId: ({ user, session, scopes }) => {
+				shouldRedirect: async ({ user, session }) => {
+					const authorization = await currentOAuthAuthorization();
+					return !selectedRoomForOAuth(
+						session.id,
+						authorization.state,
+						user.id,
+					);
+				},
+				consentReferenceId: async ({ user, session, scopes }) => {
 					if (!scopes.includes('doc:read')) return undefined;
-					const roomId = selectedRoomForOAuth(session.id, user.id);
+					const authorization = await currentOAuthAuthorization();
+					const roomId = selectedRoomForOAuth(
+						session.id,
+						authorization.state,
+						user.id,
+					);
 					if (!roomId) throw new Error('A room must be selected for doc:read.');
 					return roomId;
 				},
@@ -137,12 +155,14 @@ export const auth = betterAuth({
 			customAccessTokenClaims: ({ referenceId }) => ({
 				...(referenceId ? { room_id: referenceId } : {}),
 			}),
-			customTokenResponseFields: ({ verificationValue }) => ({
-				...(verificationValue?.referenceId
-					? { room_id: verificationValue.referenceId }
-					: {}),
-			}),
+			customTokenResponseFields: ({ verificationValue }) => {
+				if (!verificationValue?.referenceId) return {};
+				const state = verificationValue.query.state;
+				if (state) consumeRoomSelection(verificationValue.sessionId, state);
+				return { room_id: verificationValue.referenceId };
+			},
 		}),
+		roomOAuthAuthorization(),
 		bearer(),
 		// Demo mode. signIn.anonymous() mints a real user + session, so the whole
 		// identity-keyed stack (resolveUser, /api/log, consent gating, usage

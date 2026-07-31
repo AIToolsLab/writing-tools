@@ -28,14 +28,16 @@ Possession of it grants nothing.
 3. Mindmap registers as an OAuth public browser client (cached in local storage),
    creates a random PKCE verifier, stores the verifier in session storage, and sends
    only its SHA-256 challenge to `/api/auth/oauth2/authorize`. The non-secret room
-   hint is included in the standard `state` value so the picker can highlight it;
-   the complete state also contains random bytes and is matched exactly at callback.
+   id is included in the standard `state` value to bind this authorization request
+   to the exact launched room; the complete state also contains random bytes and
+   is matched exactly at callback.
 4. The authorization server authenticates the writer in the system browser. This
    may require Google sign-in because the Office taskpane and system browser do not
    necessarily share cookies.
-5. Better Auth's `postLogin` hook sends the writer to the room picker. The backend
-   accepts a choice only when that signed-in user owns the room.
-6. `consentReferenceId` returns the selected room id. The OAuth Provider plugin
+5. Better Auth's `postLogin` hook sends the writer to a confirmation screen for
+   the exact room named by the signed authorization request. The backend verifies
+   that the signed-in user owns that room; there is no independent room picker.
+6. `consentReferenceId` returns the request-bound room id. The OAuth Provider plugin
    carries it through consent, authorization code, and access token.
 7. Mindmap receives the code at its registered redirect URI and exchanges it with
    the locally retained verifier. The verifier never travels in the launcher URL.
@@ -66,8 +68,11 @@ Possession of it grants nothing.
   Mindmap client (or tightly rate-limit/validate registration) and disable open
   registration.
 - Tokens expire after one hour; refresh tokens are not enabled.
-- The room picker's pending selection is session-scoped and expires after ten
-  minutes.
+- A confirmed room authorization is keyed by both session and OAuth `state`,
+  expires after ten minutes, and is consumed when the authorization code is
+  exchanged. Concurrent authorization tabs cannot overwrite each other.
+- Deleting logged activity preserves active rooms. Account deletion removes room
+  snapshots and their pending authorization rows.
 - This is bearer-token security. PKCE prevents interception of the authorization
   code; it does not make a stolen access token unusable. Sender-constrained tokens
   (for example DPoP) would be a separate layer.

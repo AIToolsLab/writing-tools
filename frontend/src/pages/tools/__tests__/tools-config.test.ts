@@ -13,6 +13,7 @@ const mindmap: FirstPartyTool = {
 	description: 'Test mindmap',
 	url: 'https://mindmap.example/',
 	scopes: ['openai:chat', 'doc:read'],
+	launchKind: 'room-oauth',
 };
 
 describe('mindmap tool registration', () => {
@@ -88,5 +89,36 @@ describe('mindmap tool registration', () => {
 		expect(calls.slice(0, 4)).toEqual(['reserve', 'token', 'doc', 'room']);
 		expect(calls[4]).toContain('?room=room_123');
 		expect(result).toEqual({ sharedDoc: true });
+	});
+
+	it('launches a direct tool without reading the document or calling the backend', async () => {
+		const getAccessToken = vi.fn();
+		const getDocContext = vi.fn();
+		const createRoom = vi.fn();
+		const completeLaunch = vi.fn();
+		const result = await launchFirstPartyTool(
+			{
+				...mindmap,
+				id: 'direct',
+				url: 'https://direct.example/',
+				launchKind: 'direct',
+			},
+			{
+				getAccessToken,
+				getDocContext,
+				createRoom,
+				reserveLaunch: () => ({ kind: 'office' }),
+				completeLaunch,
+				cancelLaunch: vi.fn(),
+			},
+		);
+		expect(getAccessToken).not.toHaveBeenCalled();
+		expect(getDocContext).not.toHaveBeenCalled();
+		expect(createRoom).not.toHaveBeenCalled();
+		expect(completeLaunch).toHaveBeenCalledWith(
+			{ kind: 'office' },
+			'https://direct.example/',
+		);
+		expect(result).toEqual({ sharedDoc: false });
 	});
 });

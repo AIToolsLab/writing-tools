@@ -144,6 +144,24 @@ const MIGRATIONS: Array<(conn: Database.Database) => void> = [
 			CREATE INDEX oauth_room_selection_expiry ON oauth_room_selection (expires_at);
 		`);
 	},
+	// v5 — key the transient room choice to one OAuth authorization request, not
+	// merely to the browser session. A user can authorize in multiple tabs; one
+	// tab must never supply or overwrite the room for another tab's grant.
+	(conn) => {
+		conn.exec(`
+			DROP TABLE oauth_room_selection;
+			CREATE TABLE oauth_room_selection (
+				session_id TEXT NOT NULL,
+				authorization_state TEXT NOT NULL,
+				user_id TEXT NOT NULL,
+				room_id TEXT NOT NULL,
+				expires_at INTEGER NOT NULL,
+				PRIMARY KEY (session_id, authorization_state),
+				FOREIGN KEY (room_id) REFERENCES room(id) ON DELETE CASCADE
+			);
+			CREATE INDEX oauth_room_selection_expiry ON oauth_room_selection (expires_at);
+		`);
+	},
 ];
 
 function migrate(conn: Database.Database): void {

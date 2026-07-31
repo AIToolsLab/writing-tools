@@ -51,7 +51,7 @@ if (auth) {
 	const { devicePageHandler } = await import('./routes/device-approval.js');
 	app.get('/api/device', devicePageHandler);
 	const { registerOAuthPages } = await import('./routes/oauth-pages.js');
-	registerOAuthPages(app, auth);
+	registerOAuthPages(app);
 }
 
 // Debug UI — only when auth is enabled AND DEBUG=true. Registered here (not in

@@ -22,7 +22,7 @@ afterEach(() => {
 describe('migrations', () => {
 	it('creates our schema and records the version', () => {
 		const conn = db();
-		expect(conn.pragma('user_version', { simple: true })).toBe(4);
+		expect(conn.pragma('user_version', { simple: true })).toBe(5);
 
 		// The table is usable, not merely declared.
 		const table = conn
@@ -45,6 +45,15 @@ describe('migrations', () => {
 			)
 			.get();
 		expect(grantTable).toBeDefined();
+
+		// v5 isolates room choices by OAuth authorization request.
+		const selectionCols = conn
+			.prepare(`PRAGMA table_info(oauth_room_selection)`)
+			.all() as { name: string; pk: number }[];
+		expect(selectionCols.find((c) => c.name === 'session_id')?.pk).toBe(1);
+		expect(
+			selectionCols.find((c) => c.name === 'authorization_state')?.pk,
+		).toBe(2);
 	});
 
 	it('is idempotent across reopens — a second open re-runs nothing', () => {
@@ -58,7 +67,7 @@ describe('migrations', () => {
 
 		// Reopening must not drop or recreate the table (CREATE TABLE would throw).
 		const conn = db();
-		expect(conn.pragma('user_version', { simple: true })).toBe(4);
+		expect(conn.pragma('user_version', { simple: true })).toBe(5);
 		const rows = conn.prepare(`SELECT COUNT(*) AS n FROM llm_usage`).get() as {
 			n: number;
 		};
@@ -87,7 +96,7 @@ describe('legacy auth.db rename', () => {
 		expect(user).toEqual({ email: 'a@b.c' });
 
 		// ...and our migrations then run on top of the adopted database.
-		expect(conn.pragma('user_version', { simple: true })).toBe(4);
+		expect(conn.pragma('user_version', { simple: true })).toBe(5);
 	});
 
 	it('leaves an existing app.db alone when a stray auth.db is also present', async () => {

@@ -83,9 +83,11 @@ export function getRoomForUser(roomId: string, userId: string): Room | null {
 
 export function selectRoomForOAuth(
 	sessionId: string,
+	authorizationState: string,
 	userId: string,
 	roomId: string,
 ): boolean {
+	if (!authorizationState) return false;
 	if (!getRoomForUser(roomId, userId)) return false;
 	const now = Date.now();
 	db()
@@ -93,26 +95,54 @@ export function selectRoomForOAuth(
 		.run(now);
 	db()
 		.prepare(
-			`INSERT INTO oauth_room_selection (session_id, user_id, room_id, expires_at)
-			 VALUES (?, ?, ?, ?)
-			 ON CONFLICT(session_id) DO UPDATE SET
+			`INSERT INTO oauth_room_selection
+			 (session_id, authorization_state, user_id, room_id, expires_at)
+			 VALUES (?, ?, ?, ?, ?)
+			 ON CONFLICT(session_id, authorization_state) DO UPDATE SET
 			 user_id = excluded.user_id,
 			 room_id = excluded.room_id,
 			 expires_at = excluded.expires_at`,
 		)
-		.run(sessionId, userId, roomId, now + ROOM_SELECTION_TTL_MS);
+		.run(
+			sessionId,
+			authorizationState,
+			userId,
+			roomId,
+			now + ROOM_SELECTION_TTL_MS,
+		);
 	return true;
 }
 
 export function selectedRoomForOAuth(
 	sessionId: string,
+	authorizationState: string,
 	userId: string,
 ): string | undefined {
+	if (!authorizationState) return undefined;
 	const row = db()
 		.prepare(
 			`SELECT room_id FROM oauth_room_selection
-			 WHERE session_id = ? AND user_id = ? AND expires_at > ?`,
+			 WHERE session_id = ? AND authorization_state = ?
+			 AND user_id = ? AND expires_at > ?`,
 		)
-		.get(sessionId, userId, Date.now()) as { room_id: string } | undefined;
+		.get(sessionId, authorizationState, userId, Date.now()) as
+		| { room_id: string }
+		| undefined;
 	return row?.room_id;
+}
+
+export function consumeRoomSelection(
+	sessionId: string,
+	authorizationState: string,
+): void {
+	db()
+		.prepare(
+			`DELETE FROM oauth_room_selection
+			 WHERE session_id = ? AND authorization_state = ?`,
+		)
+		.run(sessionId, authorizationState);
+}
+
+export async function deleteRoomsForUser(userId: string): Promise<void> {
+	db().prepare(`DELETE FROM room WHERE owner_user_id = ?`).run(userId);
 }

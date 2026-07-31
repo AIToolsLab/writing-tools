@@ -246,6 +246,9 @@ describe('DELETE /api/me/activity', () => {
 
 		const res = await authApp.request('/api/me/activity', { method: 'DELETE' });
 		expect(res.status).toBe(200);
+		expect(await res.json()).toEqual({
+			message: 'Your logged activity has been erased.',
+		});
 		await expect(readUserLog('usr-del')).rejects.toThrow();
 	});
 
