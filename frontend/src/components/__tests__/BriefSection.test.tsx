@@ -18,6 +18,10 @@ function renderSection(
 		brief: EMPTY_DOC_BRIEF,
 		setField: vi.fn(),
 		status: 'ready',
+		proposals: {},
+		setProposals: vi.fn(),
+		acceptProposal: vi.fn(),
+		dismissProposal: vi.fn(),
 		...value,
 	};
 	render(
