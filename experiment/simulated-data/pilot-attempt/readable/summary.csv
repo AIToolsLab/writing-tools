@@ -1,0 +1,13 @@
+participant,condition,condition_name,scenario,wave,events,questions_asked,ai_suggestions_shown,typing_bursts,task_seconds,session_seconds,final_word_count,final_subject
+pilot-demo-a-approp,a,analysis_readerPerspective,demoRescheduling,pilot-3,886,3,23,22,618,1019,146,Moving tomorrow's demo - two options
+pilot-demo-a-over,a,analysis_readerPerspective,demoRescheduling,pilot-3,604,1,13,13,291,591,101,Rescheduling our demo
+pilot-demo-a-under,a,analysis_readerPerspective,demoRescheduling,pilot-3,288,0,6,6,154,547,40,Demo postponed
+pilot-demo-c-approp,c,complete_document,demoRescheduling,pilot-3,930,4,21,20,629,987,155,Moving tomorrow's demo - two new times
+pilot-demo-c-over,c,complete_document,demoRescheduling,pilot-3,766,1,16,15,375,695,108,Rescheduling tomorrow's demo
+pilot-demo-c-under,c,complete_document,demoRescheduling,pilot-3,566,1,11,11,300,611,90,Tomorrow's demo - request to reschedule
+pilot-room-a-approp,a,analysis_readerPerspective,roomDoubleBooking,pilot-3,689,3,14,12,388,729,125,Change to your panel tomorrow
+pilot-room-a-over,a,analysis_readerPerspective,roomDoubleBooking,pilot-3,488,2,9,8,260,524,88,Change to your panel tomorrow
+pilot-room-a-under,a,analysis_readerPerspective,roomDoubleBooking,pilot-3,583,1,9,9,248,555,96,Your panel tomorrow - schedule change
+pilot-room-c-approp,c,complete_document,roomDoubleBooking,pilot-3,660,4,10,10,439,1015,111,Room and time change for your panel tomorrow
+pilot-room-c-over,c,complete_document,roomDoubleBooking,pilot-3,444,2,7,7,275,562,56,Room change for your panel tomorrow
+pilot-room-c-under,c,complete_document,roomDoubleBooking,pilot-3,473,0,8,9,182,508,76,Update on your panel tomorrow

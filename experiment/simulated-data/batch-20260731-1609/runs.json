@@ -1,0 +1,74 @@
+[
+  {
+    "number": 1,
+    "persona": "engaged",
+    "condition": "c",
+    "scenario": "roomDoubleBooking",
+    "username": "sim-01-room-c-engaged",
+    "url": "http://localhost:3000/study?page=intro&username=sim-01-room-c-engaged&condition=c&scenario=roomDoubleBooking"
+  },
+  {
+    "number": 2,
+    "persona": "anxious",
+    "condition": "c",
+    "scenario": "roomDoubleBooking",
+    "username": "sim-02-room-c-anxious",
+    "url": "http://localhost:3000/study?page=intro&username=sim-02-room-c-anxious&condition=c&scenario=roomDoubleBooking"
+  },
+  {
+    "number": 3,
+    "persona": "unconcerned",
+    "condition": "c",
+    "scenario": "roomDoubleBooking",
+    "username": "sim-03-room-c-unconcerned",
+    "url": "http://localhost:3000/study?page=intro&username=sim-03-room-c-unconcerned&condition=c&scenario=roomDoubleBooking"
+  },
+  {
+    "number": 4,
+    "persona": "engaged",
+    "condition": "e",
+    "scenario": "roomDoubleBooking",
+    "username": "sim-04-room-e-engaged",
+    "url": "http://localhost:3000/study?page=intro&username=sim-04-room-e-engaged&condition=e&scenario=roomDoubleBooking"
+  },
+  {
+    "number": 5,
+    "persona": "anxious",
+    "condition": "e",
+    "scenario": "roomDoubleBooking",
+    "username": "sim-05-room-e-anxious",
+    "url": "http://localhost:3000/study?page=intro&username=sim-05-room-e-anxious&condition=e&scenario=roomDoubleBooking"
+  },
+  {
+    "number": 6,
+    "persona": "unconcerned",
+    "condition": "e",
+    "scenario": "roomDoubleBooking",
+    "username": "sim-06-room-e-unconcerned",
+    "url": "http://localhost:3000/study?page=intro&username=sim-06-room-e-unconcerned&condition=e&scenario=roomDoubleBooking"
+  },
+  {
+    "number": 7,
+    "persona": "engaged",
+    "condition": "n",
+    "scenario": "roomDoubleBooking",
+    "username": "sim-07-room-n-engaged",
+    "url": "http://localhost:3000/study?page=intro&username=sim-07-room-n-engaged&condition=n&scenario=roomDoubleBooking"
+  },
+  {
+    "number": 8,
+    "persona": "anxious",
+    "condition": "n",
+    "scenario": "roomDoubleBooking",
+    "username": "sim-08-room-n-anxious",
+    "url": "http://localhost:3000/study?page=intro&username=sim-08-room-n-anxious&condition=n&scenario=roomDoubleBooking"
+  },
+  {
+    "number": 9,
+    "persona": "unconcerned",
+    "condition": "n",
+    "scenario": "roomDoubleBooking",
+    "username": "sim-09-room-n-unconcerned",
+    "url": "http://localhost:3000/study?page=intro&username=sim-09-room-n-unconcerned&condition=n&scenario=roomDoubleBooking"
+  }
+]

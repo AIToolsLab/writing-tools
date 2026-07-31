@@ -1,0 +1,19 @@
+participant,condition,condition_name,scenario,wave,events,questions_asked,ai_suggestions_shown,typing_bursts,task_seconds,session_seconds,final_word_count,final_subject
+sim-01-room-c-engaged.agent,,,,,95,0,0,0,,1305,,
+sim-01-room-c-engaged,c,complete_document,roomDoubleBooking,pilot-3,2812,6,43,49,989,1293,237,Update on your panel tomorrow: new room and start time
+sim-02-room-c-anxious.agent,,,,,111,0,0,0,,862,,
+sim-02-room-c-anxious,c,complete_document,roomDoubleBooking,pilot-3,904,6,19,17,652,852,79,Update on your panel tomorrow
+sim-03-room-c-unconcerned.agent,,,,,45,0,0,0,,229,,
+sim-03-room-c-unconcerned,c,complete_document,roomDoubleBooking,pilot-3,367,0,5,7,116,223,59,Room change for your panel tomorrow
+sim-04-room-e-engaged.agent,,,,,94,0,0,0,,843,,
+sim-04-room-e-engaged,e,example_sentences,roomDoubleBooking,pilot-3,1287,6,24,28,645,836,200,Room and time change for your panel tomorrow
+sim-05-room-e-anxious.agent,,,,,77,0,0,0,,553,,
+sim-05-room-e-anxious,e,example_sentences,roomDoubleBooking,pilot-3,609,4,13,10,423,543,91,Update on your panel tomorrow
+sim-06-room-e-unconcerned.agent,,,,,55,0,0,0,,231,,
+sim-06-room-e-unconcerned,e,example_sentences,roomDoubleBooking,pilot-3,287,0,3,4,82,201,44,Panel Room Change
+sim-07-room-n-engaged.agent,,,,,86,0,0,0,,784,,
+sim-07-room-n-engaged,n,no_ai (baseline),roomDoubleBooking,pilot-3,1597,5,0,2,708,778,257,Room and time change for your panel tomorrow
+sim-08-room-n-anxious.agent,,,,,82,0,0,0,,834,,
+sim-08-room-n-anxious,n,no_ai (baseline),roomDoubleBooking,pilot-3,1015,9,0,4,752,826,114,Update to your panel tomorrow - new room and time
+sim-09-room-n-unconcerned.agent,,,,,38,0,0,0,,158,,
+sim-09-room-n-unconcerned,n,no_ai (baseline),roomDoubleBooking,pilot-3,319,0,0,2,93,150,49,Panel Room Change Tomorrow

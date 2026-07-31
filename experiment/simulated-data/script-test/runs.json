@@ -1,0 +1,10 @@
+[
+  {
+    "number": 1,
+    "persona": "engaged",
+    "condition": "c",
+    "scenario": "roomDoubleBooking",
+    "username": "sim-01-room-c-engaged",
+    "url": "http://localhost:3000/study?page=intro&username=sim-01-room-c-engaged&condition=c&scenario=roomDoubleBooking"
+  }
+]

@@ -1,0 +1,19 @@
+[
+  {
+    "number": 1,
+    "username": "sim-01-room-c-engaged",
+    "persona": "engaged",
+    "condition": "c",
+    "scenario": "roomDoubleBooking",
+    "started": "2026-07-31T19:27:54.867993+00:00",
+    "wall_seconds": 1084,
+    "exit_code": 0,
+    "num_turns": 80,
+    "cost_usd": 2.0282313,
+    "agent_error": false,
+    "log": "sim-01-room-c-engaged.jsonl",
+    "events": 1348,
+    "problems": [],
+    "status": "ok"
+  }
+]
