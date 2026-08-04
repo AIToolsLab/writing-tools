@@ -44,6 +44,7 @@ demo mode 401s once `BETTER_AUTH_ENABLED=true`, so `get_env.py` offers to reuse 
 key for it locally),
 `LOG_SECRET` (gates the log-viewer endpoints + `/api/usage_summary`), `DATA_DIR` (root
 for `app.db` + `logs/`), `PORT` (default 8000), `DEBUG`, `POSTHOG_PROJECT_TOKEN`,
-`POSTHOG_HOST`, `LOG_DIR` (overrides just the logs subdir). Auth (Better Auth) adds
+`POSTHOG_HOST` (defaults to `https://us.i.posthog.com`; the server does not go through
+the browser-SDK reverse proxy), `LOG_DIR` (overrides just the logs subdir). Auth (Better Auth) adds
 `BETTER_AUTH_ENABLED`, `BETTER_AUTH_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`,
 and related vars — see [CLAUDE.md](CLAUDE.md) for the full list.
