@@ -77,16 +77,42 @@ export const DOC_BRIEF_LABELS: Record<DocBriefField, string> = {
  */
 export type DocBriefStatus = 'loading' | 'ready' | 'saving' | 'error';
 
+/**
+ * Candidate wording for brief fields, offered by the assistant and not yet the
+ * writer's. Fields with nothing to propose are absent rather than empty.
+ *
+ * This deliberately does *not* live in {@link DocBrief}: a proposal is not part
+ * of the brief until the writer accepts it, and keeping the two types separate
+ * is what makes it impossible to serialize one into the document by accident.
+ */
+export type BriefProposal = Partial<Record<DocBriefField, string>>;
+
 export interface DocBriefContextValue {
 	brief: DocBrief;
 	setField: (field: DocBriefField, value: string) => void;
 	status: DocBriefStatus;
+	/**
+	 * Pending candidates, per field. Session state only — never written to the
+	 * document, and gone on reload. Something the writer has not agreed to
+	 * should not follow the file to whoever opens it next.
+	 */
+	proposals: BriefProposal;
+	/** Replace the pending set (an empty object clears it). */
+	setProposals: (proposals: BriefProposal) => void;
+	/** Move one candidate into the brief, which saves it like any other edit. */
+	acceptProposal: (field: DocBriefField) => void;
+	/** Drop one candidate without touching the field. */
+	dismissProposal: (field: DocBriefField) => void;
 }
 
 export const DocBriefContext = createContext<DocBriefContextValue>({
 	brief: EMPTY_DOC_BRIEF,
 	setField: () => {},
 	status: 'ready',
+	proposals: {},
+	setProposals: () => {},
+	acceptProposal: () => {},
+	dismissProposal: () => {},
 });
 
 export function useDocBrief(): DocBriefContextValue {
@@ -155,6 +181,17 @@ export function DocBriefProvider({
 
 	const [brief, setBrief] = useState<DocBrief>(EMPTY_DOC_BRIEF);
 	const [status, setStatus] = useState<DocBriefStatus>('loading');
+	/**
+	 * Not persisted, and not part of the save path below — see the note on
+	 * {@link BriefProposal}. It lives here rather than in the section component
+	 * so a proposal survives collapsing the section or moving between pages,
+	 * which is the same reason the brief itself is in a context.
+	 */
+	const [proposals, setProposalsState] = useState<BriefProposal>({});
+
+	/** The current candidates, readable from `acceptProposal`'s callback. */
+	const proposalsRef = useRef<BriefProposal>({});
+	proposalsRef.current = proposals;
 
 	/**
 	 * The latest brief, readable outside a render. `setField` needs the current
@@ -225,11 +262,26 @@ export function DocBriefProvider({
 		}
 	}, [setDocumentSetting]);
 
+	const dismissProposal = useCallback((field: DocBriefField) => {
+		setProposalsState((prev) => {
+			// Returning the same object bails React out of the re-render, which
+			// matters because `setField` runs this on every keystroke.
+			if (!(field in prev)) return prev;
+			const next = { ...prev };
+			delete next[field];
+			return next;
+		});
+	}, []);
+
 	const setField = useCallback(
 		(field: DocBriefField, value: string) => {
 			const next = { ...briefRef.current, [field]: value };
 			briefRef.current = next;
 			setBrief(next);
+			// A field the writer has typed in is a field they have answered
+			// themselves, so its candidate is spent — whether they got here by
+			// accepting it or by ignoring it and writing their own.
+			dismissProposal(field);
 
 			if (!loadedRef.current) return;
 
@@ -241,7 +293,21 @@ export function DocBriefProvider({
 				void flush();
 			}, SAVE_DEBOUNCE_MS);
 		},
-		[flush],
+		[flush, dismissProposal],
+	);
+
+	/**
+	 * The one path from candidate to brief. It goes through `setField`, so an
+	 * accepted proposal is saved, logged, and cleared by exactly the same code
+	 * as text the writer typed — there is no second way for a field to change.
+	 */
+	const acceptProposal = useCallback(
+		(field: DocBriefField) => {
+			const value = proposalsRef.current[field];
+			if (value === undefined) return;
+			setField(field, value);
+		},
+		[setField],
 	);
 
 	// Don't let the debounce swallow the last edit. Unmounting (the writer
@@ -264,8 +330,16 @@ export function DocBriefProvider({
 	}, [flush]);
 
 	const value = useMemo(
-		() => ({ brief, setField, status }),
-		[brief, setField, status],
+		() => ({
+			brief,
+			setField,
+			status,
+			proposals,
+			setProposals: setProposalsState,
+			acceptProposal,
+			dismissProposal,
+		}),
+		[brief, setField, status, proposals, acceptProposal, dismissProposal],
 	);
 
 	return (
