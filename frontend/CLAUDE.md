@@ -17,9 +17,14 @@ TypeScript/React Microsoft Office Add-in for Word + standalone editor
   - `taskpane.html` - Word task pane
   - `editor.html` - Standalone demo editor
   - `logs.html`, `commands.html`, `index.html` (landing page)
-- **Static assets**: `public/` (copied to `dist/` root; includes `manifest.xml`
-  and `public/assets/`). Images imported in code live in `src/assets/`.
-- **Manifest**: `frontend/public/manifest.xml` for Office Add-in configuration
+- **Static assets**: `public/` (copied to `dist/` root; includes
+  `public/assets/`). Images imported in code live in `src/assets/`.
+- **Manifests**: `frontend/manifest/` — one template plus a table of what differs
+  per environment, rendered by `vite build` into `dist/manifest.xml` (prod),
+  `dist/manifest-staging.xml` and `dist/manifest-dev.xml`. Every build emits all
+  three; they're install-time artifacts, so nothing serves them. See
+  [manifest/README.md](manifest/README.md) before editing either file — in
+  particular, never hardcode an origin in the template.
 
 ### Pages and the navbar
 
@@ -112,7 +117,9 @@ Two runners own two disjoint directories — never mix them:
 
 - **Vitest** (unit/integration) — `src/`, files named `*.test.ts(x)`, colocated in
   `__tests__/`. Scoped via `include` in `vitest.config.ts`. Run with `npm test`
-  (or `npm run test:watch`).
+  (or `npm run test:watch`). `manifest/` is the one addition outside `src/`: it's
+  build-time config rather than app code, so it doesn't belong under `src/`, but
+  its test is a plain unit test.
   - LLM calls are tested by passing a `MockLanguageModelV3` (from `ai/test`) as the
     `model` arg to `streamTextDeltas`/`generateFullText` — see
     `src/api/__tests__/generate.test.ts`, including how to stream an `error` part.

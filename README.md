@@ -11,8 +11,15 @@ Note: the custom LLM backend has moved to https://github.com/AIToolsLab/writing-
 - Open a Microsoft word document on web
 - Navigate to insert tab
 - Click add-ins button, upload my add-in
-- Drag add-in/manifest.xml into the upload bar
-- Click upload
+- Drag the manifest into the upload bar, then click upload
+
+Which manifest depends on which deployment you want. `npm run build` in
+`frontend/` renders all of them into `frontend/dist/`: `manifest.xml` (prod),
+`manifest-staging.xml` (staging, for beta testers) and `manifest-dev.xml` (your
+local dev server). They have separate add-in ids, so you can install more than
+one at a time — the Add-ins menu tells them apart by the first word of the name
+("Thoughtful", "Beta Thoughtful", "Dev Thoughtful"). See
+[frontend/manifest/README.md](frontend/manifest/README.md).
 
 If you can't find the Add-ins tab, look instead on the File menu for "Get Add-ins" or something like that, then click Manage Add-ins.
 

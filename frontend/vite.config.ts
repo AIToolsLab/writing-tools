@@ -4,12 +4,15 @@ import path from 'path';
 import fs from 'fs';
 import { getHttpsServerOptions } from 'office-addin-dev-certs';
 import http from 'node:http';
+import {
+	MANIFEST_ENV_NAMES,
+	MANIFEST_ENVS,
+	TEMPLATE_RELATIVE_PATH,
+	renderManifest,
+} from './manifest/environments';
 
-const urlDev = 'https://localhost:3000';
-const urlProd = 'https://app.thoughtful-ai.com';
+const urlProd = MANIFEST_ENVS.prod.baseUrl;
 const backendDev = 'http://127.0.0.1:8000/';
-const idProd = '46d2493d-60db-4522-b2aa-e6f2c08d2508';
-const idDev = '46d2493d-60db-4522-b2aa-e6f2c08d2507';
 
 // Selects the Google Docs add-on build — a single self-contained IIFE bundle
 // (dist/google-docs.bundle.js) that the Apps Script sidebar loads by URL — instead
@@ -18,25 +21,36 @@ const idDev = '46d2493d-60db-4522-b2aa-e6f2c08d2507';
 // still selects dev vs prod for either target.
 const isGoogleDocs = process.env.BUILD_TARGET === 'google-docs';
 
-// Transform the manifest.xml that publicDir copies into dist/: in production
-// strip the -dev markers and swap the dev id/url for the prod ones.
+// Render manifest/template.xml into dist/ once per environment (see
+// manifest/environments.ts for the table of what differs).
+//
+// Every build emits every environment's manifest, deliberately: which manifest
+// you need depends on who's asking, not on the flags that produced the build.
+// Tying them to --mode is what left the deployed image serving a manifest that
+// named the prod origin regardless of where it was deployed.
+//
+// Manifests are sideloaded or uploaded to an add-in store, never fetched from a
+// running server, so these are build artifacts only — nothing needs to serve
+// them and the dev server doesn't.
 function manifestPlugin(): Plugin {
 	return {
 		name: 'manifest-plugin',
 		apply: 'build',
 		closeBundle() {
-			const isDev = process.env.NODE_ENV === 'development';
-			const manifestPath = path.resolve(__dirname, 'dist/manifest.xml');
-			if (!fs.existsSync(manifestPath)) return;
-
-			let content = fs.readFileSync(manifestPath, 'utf-8');
-			if (!isDev) {
-				content = content
-					.replace(/-dev/g, '')
-					.replace(new RegExp(idDev, 'g'), idProd)
-					.replace(new RegExp(urlDev, 'g'), urlProd);
+			// __dirname, not import.meta: Vite bundles this config as CJS (the
+			// package has no "type": "module"). environments.ts stays free of
+			// filesystem access so its test can resolve the same file as ESM.
+			const template = fs.readFileSync(
+				path.resolve(__dirname, TEMPLATE_RELATIVE_PATH),
+				'utf-8',
+			);
+			for (const name of MANIFEST_ENV_NAMES) {
+				const env = MANIFEST_ENVS[name];
+				fs.writeFileSync(
+					path.resolve(__dirname, 'dist', env.fileName),
+					renderManifest(template, env),
+				);
 			}
-			fs.writeFileSync(manifestPath, content);
 		},
 	};
 }
@@ -77,9 +91,10 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => {
 		return {
 			plugins: [react()],
 			// Runs after the main `vite build` into the same dist/ (emptyOutDir is
-			// false). Disable publicDir copying so it does NOT re-copy public/ over the
-			// main build's output — in particular the prod-transformed dist/manifest.xml,
-			// which would otherwise be clobbered with the raw dev manifest.
+			// false). Disable publicDir copying so it does NOT re-copy public/ over
+			// the main build's output. (The manifests are rendered by
+			// manifestPlugin rather than copied from public/, so they're no longer
+			// among the files at risk here — but re-copying the rest is still waste.)
 			publicDir: false,
 			resolve,
 			define,
