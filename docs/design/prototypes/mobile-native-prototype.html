@@ -1,0 +1,1066 @@
+<title>Five phones — mobile-native concept prototype</title>
+<style>
+  /* ============================================================
+     Prototype for docs/design/mobile-native-concepts.md.
+
+     Inherits the design system already established in
+     interface-concepts-prototype.html — warm paper, blue accent,
+     and the load-bearing rule that the WRITER'S prose renders in
+     serif while the TOOL'S chrome renders in sans. That split
+     enacts the covenant "the writer's sentences are the writer's,"
+     and on these screens it does extra work: you can see at a
+     glance that the AI is never the one holding the serif.
+
+     Two tokens added for this note:
+       --live   a recording/mic state, semantic, not the accent
+       --bezel  the device frame the screens sit inside
+     ============================================================ */
+
+  :root {
+    --paper:      #f0ede6;
+    --surface:    #ffffff;
+    --surface-2:  #faf9f6;
+    --surface-3:  #f4f1ea;
+    --border:     rgba(28,24,18,0.10);
+    --border-2:   rgba(28,24,18,0.16);
+    --ink:        #201d18;
+    --ink-2:      #6b665c;
+    --ink-3:      #a7a094;
+    --accent:     #2d5be3;
+    --accent-bg:  #f3f5ff;
+    --accent-bd:  #c4caff;
+    --for:        #2f7d55;
+    --for-bg:     #eef6f0;
+    --against:    #b4562b;
+    --against-bg: #f8efe8;
+    --wet:        #7a63d6;
+    --wet-bg:     #f4f1fb;
+    --dormant:    #b6afa2;
+    --live:       #c2452b;
+    --live-bg:    #fbeeea;
+    --bezel:      #1b1814;
+    --bezel-2:    #2f2a24;
+
+    --shadow: 0 1px 2px rgba(28,24,18,.05), 0 12px 34px rgba(28,24,18,.10);
+    --shadow-device: 0 2px 6px rgba(28,24,18,.10), 0 30px 60px rgba(28,24,18,.22);
+    --radius: 12px;
+    --radius-sm: 8px;
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    --serif: "Iowan Old Style", "Palatino Linotype", Palatino, "Book Antiqua", Georgia, serif;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:#201d18; --surface:#2a2621; --surface-2:#302b25; --surface-3:#35302a;
+      --border:rgba(255,248,236,0.10); --border-2:rgba(255,248,236,0.18);
+      --ink:#f2ede3; --ink-2:#b6afa2; --ink-3:#837c70;
+      --accent:#9db2ff; --accent-bg:#2b3050; --accent-bd:#3f4a7a;
+      --for:#7fc79c; --for-bg:#253328; --against:#e0a07a; --against-bg:#3a2c22;
+      --wet:#b7a4f0; --wet-bg:#322b46; --dormant:#6f685c;
+      --live:#f0917a; --live-bg:#3d2620;
+      --bezel:#0d0b09; --bezel-2:#1c1915;
+      --shadow: 0 1px 2px rgba(0,0,0,.3), 0 18px 44px rgba(0,0,0,.45);
+      --shadow-device: 0 2px 6px rgba(0,0,0,.4), 0 34px 70px rgba(0,0,0,.6);
+    }
+  }
+  :root[data-theme="light"] {
+    --paper:#f0ede6; --surface:#fff; --surface-2:#faf9f6; --surface-3:#f4f1ea;
+    --border:rgba(28,24,18,.10); --border-2:rgba(28,24,18,.16);
+    --ink:#201d18; --ink-2:#6b665c; --ink-3:#a7a094;
+    --accent:#2d5be3; --accent-bg:#f3f5ff; --accent-bd:#c4caff;
+    --for:#2f7d55; --for-bg:#eef6f0; --against:#b4562b; --against-bg:#f8efe8;
+    --wet:#7a63d6; --wet-bg:#f4f1fb; --dormant:#b6afa2;
+    --live:#c2452b; --live-bg:#fbeeea;
+    --bezel:#1b1814; --bezel-2:#2f2a24;
+    --shadow:0 1px 2px rgba(28,24,18,.05),0 12px 34px rgba(28,24,18,.10);
+    --shadow-device:0 2px 6px rgba(28,24,18,.10),0 30px 60px rgba(28,24,18,.22);
+  }
+  :root[data-theme="dark"] {
+    --paper:#201d18; --surface:#2a2621; --surface-2:#302b25; --surface-3:#35302a;
+    --border:rgba(255,248,236,.10); --border-2:rgba(255,248,236,.18);
+    --ink:#f2ede3; --ink-2:#b6afa2; --ink-3:#837c70;
+    --accent:#9db2ff; --accent-bg:#2b3050; --accent-bd:#3f4a7a;
+    --for:#7fc79c; --for-bg:#253328; --against:#e0a07a; --against-bg:#3a2c22;
+    --wet:#b7a4f0; --wet-bg:#322b46; --dormant:#6f685c;
+    --live:#f0917a; --live-bg:#3d2620;
+    --bezel:#0d0b09; --bezel-2:#1c1915;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 18px 44px rgba(0,0,0,.45);
+    --shadow-device:0 2px 6px rgba(0,0,0,.4),0 34px 70px rgba(0,0,0,.6);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 24px 96px; }
+
+  /* ---------- masthead ---------- */
+
+  .masthead { padding: 72px 0 40px; max-width: 660px; }
+  .eyebrow {
+    font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 20px;
+  }
+  h1 {
+    font-family: var(--serif);
+    font-size: clamp(30px, 4.4vw, 46px);
+    line-height: 1.12; font-weight: 400; margin: 0 0 22px;
+    text-wrap: balance; letter-spacing: -0.01em;
+  }
+  .standfirst { font-size: 17px; color: var(--ink-2); margin: 0 0 18px; max-width: 58ch; }
+  .standfirst strong { color: var(--ink); font-weight: 600; }
+
+  .thesis {
+    margin: 32px 0 0; padding: 20px 22px;
+    border-left: 2px solid var(--accent);
+    background: var(--accent-bg);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    font-family: var(--serif); font-size: 18px; line-height: 1.5;
+  }
+
+  .legend {
+    display: flex; flex-wrap: wrap; gap: 8px 22px;
+    margin: 34px 0 0; padding-top: 20px; border-top: 1px solid var(--border);
+    font-size: 12.5px; color: var(--ink-2);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .swatch { width: 22px; height: 3px; border-radius: 2px; display: inline-block; }
+
+  /* ---------- concept sections ---------- */
+
+  .concept {
+    display: grid;
+    grid-template-columns: 320px minmax(0, 1fr);
+    gap: 52px;
+    align-items: start;
+    padding: 56px 0;
+    border-top: 1px solid var(--border);
+  }
+  @media (max-width: 840px) {
+    .concept { grid-template-columns: minmax(0,1fr); gap: 34px; justify-items: center; }
+    .concept__text { justify-self: stretch; }
+  }
+
+  .concept__text { padding-top: 6px; }
+  .tag {
+    display: inline-block; font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; color: var(--accent);
+    border: 1px solid var(--accent-bd); background: var(--accent-bg);
+    padding: 3px 9px; border-radius: 999px; margin-bottom: 14px;
+  }
+  h2 {
+    font-family: var(--serif); font-size: 29px; font-weight: 400;
+    margin: 0 0 6px; line-height: 1.2; text-wrap: balance;
+  }
+  .owns { font-size: 15px; color: var(--ink-2); margin: 0 0 20px; font-style: italic; }
+  .concept__text p { margin: 0 0 15px; font-size: 15.5px; max-width: 60ch; }
+  .concept__text p:last-child { margin-bottom: 0; }
+
+  .derives {
+    font-size: 12.5px; color: var(--ink-2); margin: 0 0 20px;
+    padding-bottom: 16px; border-bottom: 1px dashed var(--border-2);
+  }
+  .derives code { font-family: var(--mono); font-size: 11.5px; }
+
+  .never {
+    margin-top: 22px; padding: 14px 16px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); font-size: 14px; color: var(--ink-2);
+  }
+  .never b {
+    display: block; font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); margin-bottom: 6px; font-weight: 600;
+  }
+
+  /* ---------- the device ---------- */
+
+  .device {
+    width: 320px;
+    background: var(--bezel);
+    border-radius: 40px;
+    padding: 12px;
+    box-shadow: var(--shadow-device);
+    position: sticky; top: 28px;
+  }
+  @media (max-width: 840px) { .device { position: static; } }
+
+  .device__screen {
+    background: var(--surface);
+    border-radius: 30px;
+    height: 580px;
+    overflow: hidden;
+    position: relative;
+    display: flex; flex-direction: column;
+  }
+
+  .statusbar {
+    flex: 0 0 auto;
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 12px 22px 6px;
+    font-size: 11.5px; color: var(--ink-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .statusbar .dots { letter-spacing: .1em; }
+
+  .screen {
+    flex: 1 1 auto; display: none; flex-direction: column;
+    overflow: hidden; min-height: 0;
+  }
+  .screen.is-on { display: flex; }
+
+  .screen__body { flex: 1 1 auto; overflow-y: auto; padding: 6px 20px 16px; min-height: 0; }
+  .screen__foot {
+    flex: 0 0 auto; padding: 12px 20px 22px;
+    border-top: 1px solid var(--border);
+    display: flex; gap: 8px; align-items: center;
+  }
+
+  .apphead {
+    flex: 0 0 auto; padding: 4px 20px 12px;
+    display: flex; align-items: baseline; justify-content: space-between;
+  }
+  .apphead h3 {
+    margin: 0; font-size: 11.5px; letter-spacing: .13em; text-transform: uppercase;
+    font-weight: 600; color: var(--ink-2);
+  }
+  .apphead .meta { font-size: 11.5px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+  /* writer's words: always serif. tool chrome: always sans. */
+  .writer { font-family: var(--serif); }
+
+  .btn {
+    font-family: var(--sans); font-size: 13.5px; font-weight: 500;
+    padding: 9px 14px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--border-2); background: var(--surface-2); color: var(--ink);
+    transition: background .15s ease, border-color .15s ease;
+  }
+  .btn:hover { background: var(--surface-3); border-color: var(--ink-3); }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  /* The accent flips light in dark mode, so the primary button's label has to
+     flip with it — white-on-pale-blue would be unreadable. */
+  .btn--primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  @media (prefers-color-scheme: dark) { .btn--primary { color: #1b2140; } }
+  :root[data-theme="light"] .btn--primary { color: #fff; }
+  :root[data-theme="dark"] .btn--primary { color: #1b2140; }
+  /* `.btn:hover` is (0,2,0) and would otherwise beat the (0,1,0) variant rules,
+     repainting a primary button with the neutral hover fill while its label
+     stays white — invisible on cream. Every variant restates its own hover. */
+  .btn--primary:hover { background: var(--accent); border-color: var(--accent); filter: brightness(1.08); }
+  .btn--live { background: var(--live-bg); border-color: var(--live); color: var(--live); }
+  .btn--live:hover { background: var(--live-bg); border-color: var(--live); filter: brightness(.97); }
+  .btn--wide { flex: 1 1 auto; }
+  .btn--ghost { background: transparent; border-color: transparent; color: var(--ink-3); }
+  .btn--ghost:hover { background: var(--surface-2); border-color: var(--border); }
+
+  /* ---------- M1 the walk ---------- */
+
+  .live-dot {
+    width: 7px; height: 7px; border-radius: 50%; background: var(--live);
+    display: inline-block; margin-right: 7px;
+    animation: pulse 1.8s ease-in-out infinite;
+  }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: .25; } }
+
+  .heard {
+    font-family: var(--serif); font-size: 19px; line-height: 1.45;
+    color: var(--ink); margin: 18px 0 26px;
+  }
+  .heard .settling { color: var(--ink-3); }
+
+  .wave {
+    display: flex; align-items: flex-end; justify-content: center;
+    gap: 4px; height: 42px; margin: 0 0 26px;
+  }
+  .wave i {
+    width: 4px; background: var(--live); border-radius: 2px; opacity: .8;
+    animation: bounce 1.1s ease-in-out infinite;
+  }
+  @keyframes bounce { 0%,100% { height: 6px; } 50% { height: 34px; } }
+  .wave.is-paused i { animation-play-state: paused; height: 6px; }
+
+  .partner {
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 13px 15px; font-size: 14.5px;
+    color: var(--ink-2);
+  }
+  .partner .who {
+    font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); display: block; margin-bottom: 5px;
+  }
+  .yield { font-size: 12px; color: var(--ink-3); margin-top: 10px; font-style: italic; }
+
+  .kept-count {
+    margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--border);
+    font-size: 12.5px; color: var(--ink-3); font-variant-numeric: tabular-nums;
+  }
+
+  .disclaimer {
+    font-size: 13px; color: var(--ink-2); background: var(--surface-3);
+    border-radius: var(--radius-sm); padding: 11px 13px; margin: 4px 0 18px;
+  }
+
+  .phrase {
+    border-left: 2px solid var(--border-2); padding: 2px 0 2px 14px; margin: 0 0 20px;
+  }
+  .phrase q {
+    font-family: var(--serif); font-size: 16.5px; line-height: 1.4;
+    quotes: "\201C" "\201D"; display: block;
+  }
+  .phrase .obs { font-size: 12px; color: var(--ink-2); margin-top: 6px; display: block; }
+
+  /* ---------- M2 the shelf ---------- */
+
+  .sharesheet {
+    position: absolute; inset: auto 0 0 0; z-index: 3;
+    background: var(--surface-2); border-top: 1px solid var(--border-2);
+    border-radius: 22px 22px 30px 30px; padding: 16px 16px 26px;
+    transform: translateY(0); transition: transform .3s ease;
+  }
+  .sharesheet.is-gone { transform: translateY(105%); }
+  .sharesheet .label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 12px; }
+  .targets { display: flex; gap: 12px; }
+  .target { flex: 1 1 0; text-align: center; font-size: 11px; color: var(--ink-2); }
+  .target .icon {
+    height: 52px; border-radius: 14px; background: var(--surface-3);
+    border: 1px solid var(--border); margin-bottom: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px; color: var(--ink-3);
+  }
+  .target--shelf .icon {
+    background: var(--accent-bg); border-color: var(--accent-bd); color: var(--accent);
+    cursor: pointer;
+  }
+  .target--shelf .icon:hover { filter: brightness(.97); }
+  .target--shelf .icon:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .toast {
+    position: absolute; left: 50%; top: 50%; z-index: 4;
+    transform: translate(-50%, -50%) scale(.94);
+    background: var(--bezel-2); color: #f2ede3;
+    padding: 16px 22px; border-radius: var(--radius);
+    text-align: center; font-size: 14px; line-height: 1.4;
+    opacity: 0; pointer-events: none; transition: opacity .25s ease, transform .25s ease;
+  }
+  .toast.is-on { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  .toast small { display: block; color: var(--dormant); font-size: 12px; margin-top: 3px; }
+
+  .resurfaced {
+    border: 1px solid var(--accent-bd); background: var(--accent-bg);
+    border-radius: var(--radius); padding: 14px; margin-bottom: 22px;
+  }
+  .resurfaced .why { font-size: 13.5px; color: var(--ink-2); margin: 8px 0 12px; }
+  .resurfaced .row { display: flex; gap: 7px; }
+  .resurfaced .btn { padding: 6px 11px; font-size: 12.5px; }
+
+  .shelf-item {
+    display: flex; gap: 11px; align-items: baseline;
+    padding: 11px 0; border-bottom: 1px solid var(--border); font-size: 14px;
+  }
+  .shelf-item .k { color: var(--ink-3); font-size: 13px; width: 16px; flex: 0 0 auto; }
+  .shelf-item .when { margin-left: auto; color: var(--ink-3); font-size: 12px; flex: 0 0 auto; }
+
+  .subhead {
+    font-size: 10.5px; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 10px;
+  }
+
+  /* ---------- M3 the commute read ---------- */
+
+  .draft { font-family: var(--serif); font-size: 16px; line-height: 1.62; }
+  .draft p { margin: 0 0 16px; }
+
+  .fold {
+    position: relative; margin: 4px 0 20px; height: 1px;
+    background: repeating-linear-gradient(90deg, var(--against) 0 5px, transparent 5px 10px);
+  }
+  .fold span {
+    position: absolute; right: 0; top: -9px; background: var(--surface);
+    padding-left: 8px; font-size: 10.5px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--against);
+  }
+
+  .stumble { background: transparent; border-bottom: 2px solid transparent; transition: background .4s ease, border-color .4s ease; }
+  .is-marked .stumble { background: var(--live-bg); border-bottom-color: var(--live); }
+
+  .stumble-note {
+    font-family: var(--sans); font-size: 12.5px; color: var(--live);
+    margin: -8px 0 16px; display: none;
+  }
+  .is-marked .stumble-note { display: block; }
+
+  .marks { display: flex; gap: 6px; flex-wrap: wrap; }
+  .marks .btn { padding: 7px 11px; font-size: 12.5px; }
+
+  .no-edit {
+    font-size: 11.5px; color: var(--ink-3); text-align: center;
+    padding: 8px 0 0; font-style: italic;
+  }
+
+  /* ---------- M4 standing question ---------- */
+
+  .ask {
+    font-family: var(--serif); font-size: 21px; line-height: 1.35;
+    margin: 32px 0 24px;
+  }
+  .ask .pre { display: block; font-size: 14px; color: var(--ink-3); font-family: var(--sans); margin-bottom: 14px; }
+
+  .field {
+    width: 100%; font-family: var(--serif); font-size: 16px; color: var(--ink);
+    background: var(--surface-2); border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm); padding: 12px; resize: none; min-height: 74px;
+  }
+  .field:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
+  .mic-line { text-align: center; font-size: 12.5px; color: var(--ink-3); margin: 12px 0 0; }
+
+  .yours { margin: 26px 0 0; }
+  .yours .lab { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-3); }
+  .yours q { font-family: var(--serif); font-size: 17px; display: block; margin-top: 5px; }
+
+  .verdict {
+    margin: 20px 0; padding: 12px 14px; border-radius: var(--radius-sm);
+    background: var(--for-bg); color: var(--for); font-size: 14.5px; font-weight: 500;
+  }
+  .theirs { list-style: none; padding: 0; margin: 0 0 22px; }
+  .theirs li {
+    font-family: var(--serif); font-size: 15.5px; color: var(--ink-2);
+    padding: 7px 0 7px 16px; border-left: 2px solid var(--border-2);
+    margin-bottom: 6px;
+  }
+
+  .spark { display: flex; align-items: flex-end; gap: 4px; height: 32px; margin: 8px 0 6px; }
+  .spark i { width: 12px; background: var(--accent-bd); border-radius: 2px 2px 0 0; }
+  .spark i:last-child { background: var(--accent); }
+  .spark-lab { font-size: 12px; color: var(--ink-2); }
+
+  /* ---------- M5 tideline ---------- */
+
+  .tide { padding-top: 4px; }
+  .tide__month {
+    font-size: 10.5px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-3); margin: 0 0 8px;
+  }
+  .tide__card {
+    font-family: var(--serif); font-size: 17px; line-height: 1.44;
+    padding: 0 0 26px; margin: 0 0 26px; border-bottom: 1px solid var(--border);
+  }
+  .tide__card:last-of-type { border-bottom: none; }
+  .tide__card q { quotes: "\201C" "\201D"; }
+  .tide__src {
+    display: block; font-family: var(--sans); font-size: 11.5px;
+    color: var(--ink-2); margin-top: 9px;
+  }
+  .tide__close { font-size: 13px; color: var(--ink-3); text-align: center; padding: 8px 0 0; }
+  .retired { font-size: 12.5px; color: var(--for); margin-top: 16px; }
+
+  /* ---------- closing ---------- */
+
+  .closing { padding: 60px 0 0; border-top: 1px solid var(--border); }
+  .closing h2 { font-size: 27px; margin-bottom: 18px; }
+  .closing p { max-width: 62ch; font-size: 15.5px; color: var(--ink-2); }
+  .closing p strong { color: var(--ink); }
+
+  .table-wrap { overflow-x: auto; margin: 30px 0 0; }
+  table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 14px; }
+  th, td { text-align: left; padding: 11px 14px 11px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th {
+    font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase;
+    color: var(--ink-3); font-weight: 600; border-bottom-color: var(--border-2);
+  }
+  td:first-child { font-weight: 600; white-space: nowrap; }
+  .worse { color: var(--ink-3); }
+
+  .not-here {
+    margin: 40px 0 0; padding: 22px 24px;
+    background: var(--surface-2); border: 1px solid var(--border);
+    border-radius: var(--radius);
+  }
+  .not-here h3 { margin: 0 0 12px; font-size: 15px; }
+  .not-here ul { margin: 0; padding-left: 20px; color: var(--ink-2); font-size: 14.5px; }
+  .not-here li { margin-bottom: 7px; }
+
+  .footnote { margin-top: 44px; font-size: 13px; color: var(--ink-2); }
+  .footnote code { font-family: var(--mono); font-size: 12px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  }
+</style>
+
+<div class="wrap">
+
+  <header class="masthead">
+    <p class="eyebrow">Thoughtful · design sketches · August 2026</p>
+    <h1>Five phones for a tool that refuses to write.</h1>
+    <p class="standfirst">
+      Companion prototype to <strong>docs/design/mobile-native-concepts.md</strong>.
+      Each screen below is walkable — tap through it. Every one is derived from a
+      concept that already exists on paper for the desktop.
+    </p>
+    <div class="thesis">
+      The covenant says the AI never writes your prose. On the desktop that rule
+      needs machinery to enforce — wet ink that expires, blocked paste, debt
+      ledgers. On a phone, it's just what the hardware is like.
+    </div>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--ink)"></i> serif = the writer's own words</span>
+      <span><i class="swatch" style="background:var(--ink-3)"></i> sans = the tool's chrome</span>
+      <span><i class="swatch" style="background:var(--live)"></i> the microphone, live</span>
+    </div>
+  </header>
+
+  <!-- ============ M1 THE WALK ============ -->
+  <section class="concept">
+    <div class="device">
+      <div class="device__screen">
+        <div class="statusbar"><span>14:32</span><span class="dots">▂▄▆ ⌁ 78%</span></div>
+
+        <div class="screen is-on" id="walk-live">
+          <div class="apphead">
+            <h3><i class="live-dot"></i>The Walk</h3>
+            <span class="meta" id="walk-timer">08:14</span>
+          </div>
+          <div class="screen__body">
+            <p class="heard">
+              “…so the real problem isn't the cost, it's that nobody trusts the
+              baseline numbers<span class="settling">—</span>”
+            </p>
+            <div class="wave" id="walk-wave" aria-hidden="true">
+              <i style="animation-delay:0s"></i><i style="animation-delay:.12s"></i>
+              <i style="animation-delay:.24s"></i><i style="animation-delay:.36s"></i>
+              <i style="animation-delay:.18s"></i><i style="animation-delay:.06s"></i>
+              <i style="animation-delay:.3s"></i><i style="animation-delay:.42s"></i>
+              <i style="animation-delay:.15s"></i>
+            </div>
+            <div class="partner">
+              <span class="who">your partner</span>
+              Say that again — the part about trust?
+              <div class="yield">one move, then it yields the floor</div>
+            </div>
+            <p class="kept-count">kept from this walk: 4</p>
+          </div>
+          <div class="screen__foot">
+            <button class="btn btn--wide" id="walk-pause" type="button">⏸ Pause</button>
+            <button class="btn btn--primary btn--wide" id="walk-end" type="button">End walk</button>
+          </div>
+        </div>
+
+        <div class="screen" id="walk-after">
+          <div class="apphead">
+            <h3>From your walk</h3><span class="meta">22 min</span>
+          </div>
+          <div class="screen__body">
+            <p class="disclaimer">
+              Nothing here is in your document. These are your words, waiting.
+            </p>
+            <div class="phrase">
+              <q class="writer">nobody trusts the baseline numbers</q>
+              <span class="obs">you said this twice, six minutes apart</span>
+            </div>
+            <div class="phrase">
+              <q class="writer">we've been arguing about the price of a thing we haven't measured</q>
+            </div>
+            <div class="phrase">
+              <q class="writer">the audit is the ask</q>
+              <span class="obs">you went quiet for nine seconds after this one</span>
+            </div>
+          </div>
+          <div class="screen__foot">
+            <button class="btn btn--primary btn--wide" type="button">→ Scratchpad</button>
+            <button class="btn btn--ghost" id="walk-back" type="button">↺ replay</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="concept__text">
+      <span class="tag">M1</span>
+      <h2>The Walk</h2>
+      <p class="owns">Owns the moment you're away from the desk and still thinking.</p>
+      <p class="derives">
+        Derived from My&nbsp;Words (<code>pages/my-words/</code>) and
+        <code>docs/my-words-voice-native-research.md</code>
+      </p>
+      <p>
+        The voice research note commits to <em>hands-free, eyes-on-screen</em>, and calls
+        the eyes-free distinction load-bearing. It is — at a desk. There, eyes-free is
+        strictly worse, because the screen is right there and free to use. In a coat
+        pocket it's the only mode available, and the only one the desk can never offer.
+      </p>
+      <p>
+        This works here and nowhere else because of <code>corpus.ts</code>. My Words may
+        place only spans lifted verbatim from the writer's own corpus — document,
+        scratchpad, and <em>what the writer says to it</em> — bridged by punctuation and a
+        closed set of glue words, enforced in code by <code>validateText</code>. A voice
+        session structurally cannot produce prose the writer didn't say.
+      </p>
+      <p>
+        So the output of a walk is not a draft. It's a shelf of your own sentences, with
+        the machine's fingerprints absent by construction.
+      </p>
+      <div class="never">
+        <b>What it doesn't do</b>
+        Propose sentences, tidy the walk into prose, or decide what mattered. It replays.
+        The only inference it shows is behavioral — you said this twice, you went quiet
+        after that — which is evidence about the writer, not judgment about the text.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ M2 THE SHELF ============ -->
+  <section class="concept">
+    <div class="device">
+      <div class="device__screen">
+        <div class="statusbar"><span>18:05</span><span class="dots">▂▄▆ ⌁ 64%</span></div>
+
+        <div class="screen is-on" id="shelf-share">
+          <div class="apphead"><h3>Reading · ch. 4</h3><span class="meta">Books</span></div>
+          <div class="screen__body">
+            <p class="draft writer" style="color:var(--ink-2)">
+              …the district had, in effect, been budgeting against a number that no
+              one had audited since the reorganization. Trust in the figure had
+              become a proxy for trust in the office that produced it, and once
+              that slipped, every later argument about cost was really an argument
+              about credibility.
+            </p>
+          </div>
+          <div class="sharesheet" id="sheet">
+            <div class="label">Share</div>
+            <div class="targets">
+              <div class="target"><div class="icon">✉</div>Mail</div>
+              <div class="target"><div class="icon">💬</div>Messages</div>
+              <div class="target target--shelf">
+                <div class="icon" id="shelf-drop" role="button" tabindex="0" aria-label="Save to the shelf">◈</div>Shelf
+              </div>
+              <div class="target"><div class="icon">···</div>More</div>
+            </div>
+          </div>
+          <div class="toast" id="shelf-toast">
+            ◈ &nbsp;shelved.
+            <small>nothing to file.</small>
+          </div>
+        </div>
+
+        <div class="screen" id="shelf-view">
+          <div class="apphead"><h3>The Shelf</h3><span class="meta">41</span></div>
+          <div class="screen__body">
+            <p class="subhead">⟲ resurfaced</p>
+            <div class="resurfaced">
+              <strong style="font-size:14.5px">“2019 audit.pdf”</strong>
+              <p class="why">
+                Shelved five weeks ago. Relates to the paragraph you wrote Tuesday
+                — cost per student.
+              </p>
+              <div class="row">
+                <button class="btn btn--primary" type="button">Open</button>
+                <button class="btn" type="button">Not now</button>
+                <button class="btn btn--ghost" type="button">🗑</button>
+              </div>
+            </div>
+            <p class="subhead">recent</p>
+            <div class="shelf-item"><span class="k">✂</span><span>“trust in the figure had become a proxy…”</span><span class="when">now</span></div>
+            <div class="shelf-item"><span class="k">📷</span><span>book, p.114</span><span class="when">Tue</span></div>
+            <div class="shelf-item"><span class="k">🔗</span><span>podcast ep. 212</span><span class="when">Mon</span></div>
+            <div class="shelf-item"><span class="k">📷</span><span>whiteboard, budget mtg</span><span class="when">Fri</span></div>
+            <div class="shelf-item" style="border-bottom:none"><span class="k">🔗</span><span>Tocqueville, ch. 9</span><span class="when">3 wk</span></div>
+            <p class="tide__close" style="text-align:left;padding-top:14px">composted (17) ⌄</p>
+          </div>
+          <div class="screen__foot">
+            <button class="btn btn--ghost btn--wide" id="shelf-back" type="button">↺ replay the capture</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="concept__text">
+      <span class="tag">M2</span>
+      <h2>The Shelf</h2>
+      <p class="owns">Owns the moment you encounter the material — anywhere but your desk.</p>
+      <p class="derives">Derived from Concept 4, The Loom — “the someday shelf”</p>
+      <p>
+        The someday shelf is specced as a panel in a full-window editor. That's the wrong
+        host, and the original storyboard half-admits it: Dr. Okafor is <em>reading a book
+        chapter</em> when she flings a reference at the shelf. Nobody is at their desk when
+        they meet the thing.
+      </p>
+      <p>
+        Its defining property is that filing costs zero — and on mobile that isn't a
+        design goal, it's an OS feature. The shelf is a share-sheet target, plus a camera
+        button, and nothing else. Photographing a book page is the fastest path from
+        encountering an idea to having it, and it has no desktop equivalent at all.
+      </p>
+      <p>
+        Tap the <strong>◈ Shelf</strong> target to see the whole capture interaction. It is
+        one tap and 1.5 seconds, and then it is over.
+      </p>
+      <div class="never">
+        <b>What it doesn't do</b>
+        Summarize, tag, or organize what you shelved — filing is the cost the shelf exists
+        to eliminate. It also never notifies. Resurfacing waits for you to arrive.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ M3 THE COMMUTE READ ============ -->
+  <section class="concept">
+    <div class="device">
+      <div class="device__screen">
+        <div class="statusbar"><span>08:41</span><span class="dots">▂▄▆ ⌁ 51%</span></div>
+        <div class="screen is-on" id="read-screen">
+          <div class="apphead">
+            <h3>Reading as: the officer</h3><span class="meta">6 min</span>
+          </div>
+          <div class="screen__body" id="read-body">
+            <div class="draft">
+              <p>
+                The district's cost per student has risen 34% since the last
+                review, and the program's own reporting has not kept pace with
+                that change. <span class="stumble">Given the constraints under which the current
+                reporting framework was originally established, it is
+                understandable that the figures available to the committee may
+                not reflect present conditions.</span>
+              </p>
+              <p class="stumble-note">↑ you backed up and re-read this twice</p>
+              <div class="fold"><span>your reader's first screen ends</span></div>
+              <p>
+                Since 2021, the office has published its figures annually, in a
+                format inherited from the pre-reorganization structure.
+              </p>
+              <p>
+                <span class="stumble">What we are asking for is a one-time independent audit of the
+                baseline.</span>
+              </p>
+              <p class="stumble-note">↑ you sped up here — the ask, four paragraphs in</p>
+              <p>
+                The cost is $40,000, roughly one percent of the program's annual
+                administrative spend.
+              </p>
+            </div>
+          </div>
+          <div class="screen__foot" style="flex-direction:column;align-items:stretch;gap:9px">
+            <div class="marks">
+              <button class="btn" type="button">😐 lost me</button>
+              <button class="btn" type="button">⏱ too slow</button>
+              <button class="btn" type="button">❓ what's the ask?</button>
+            </div>
+            <button class="btn btn--live" id="read-aloud" type="button">🎤 Read it aloud</button>
+            <p class="no-edit">no edit affordance on this screen</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="concept__text">
+      <span class="tag">M3</span>
+      <h2>The Commute Read</h2>
+      <p class="owns">Owns the moment before you send it.</p>
+      <p class="derives">Derived from Concept 5, The Table Read · interaction concept 9, Skim View</p>
+      <p>
+        The Table Read's best moment is in its storyboard, and it's a moment about a
+        phone: Rosa realizes the real reader is “one hurried program officer reading on a
+        phone between meetings,” and that reframe alone changes her opening. The tool
+        simulates that reader on a desktop. On a phone you can simply be one.
+      </p>
+      <p>
+        <strong>The fold is real.</strong> Scroll the screen: where your reader decides
+        whether to keep going isn't a dotted line drawn across a simulation, it's where
+        the glass stops. Every writer knows their opening runs long; few have watched it
+        not fit.
+      </p>
+      <p>
+        <strong>Reading aloud is a diagnostic, and the mic is right there.</strong> Tap it.
+        Where your tongue trips, backs up, or re-reads is — with uncanny reliability —
+        where the sentence is broken. The tool records the stumbles; it doesn't analyze
+        your prose to find them. The writer's own body produces the evidence.
+      </p>
+      <p>
+        And there is no way to edit here. You mark, and the marks are waiting at the desk.
+        Fixing a sentence in place is how a reading pass becomes a revising pass and the
+        read never finishes. On the desktop that rule needs a disabled button.
+      </p>
+      <div class="never">
+        <b>What it doesn't do</b>
+        React, score, suggest, or narrate. On this screen the AI's whole job is staging —
+        the reading conditions, the fold, the stumble marks. The reactions are yours.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ M4 THE STANDING QUESTION ============ -->
+  <section class="concept">
+    <div class="device">
+      <div class="device__screen">
+        <div class="statusbar"><span>11:56</span><span class="dots">▂▄▆ ⌁ 43%</span></div>
+
+        <div class="screen is-on" id="q-ask">
+          <div class="apphead"><h3>Standing question</h3><span class="meta">≈90s</span></div>
+          <div class="screen__body">
+            <p class="ask">
+              <span class="pre">Before I show you mine:</span>
+              Name one question your reader will have that your draft doesn't answer.
+            </p>
+            <textarea class="field" id="q-field" aria-label="Your answer">where the $40k came from</textarea>
+            <p class="mic-line">🎤 &nbsp;or say it</p>
+          </div>
+          <div class="screen__foot">
+            <button class="btn btn--primary btn--wide" id="q-commit" type="button">Commit</button>
+            <button class="btn btn--ghost" type="button">Skip</button>
+          </div>
+        </div>
+
+        <div class="screen" id="q-reveal">
+          <div class="apphead"><h3>Standing question</h3><span class="meta">1 of 1</span></div>
+          <div class="screen__body">
+            <div class="yours">
+              <span class="lab">you said</span>
+              <q class="writer" id="q-echo">where the $40k came from</q>
+            </div>
+            <p class="verdict">✓ I had that one too.</p>
+            <p class="subhead">I also had</p>
+            <ul class="theirs">
+              <li>Why now, and not in Q3?</li>
+              <li>Who owns this after year one?</li>
+            </ul>
+            <p class="subhead">overlap, last six asks</p>
+            <div class="spark" aria-hidden="true">
+              <i style="height:20%"></i><i style="height:33%"></i><i style="height:47%"></i>
+              <i style="height:47%"></i><i style="height:73%"></i><i style="height:80%"></i>
+            </div>
+            <p class="spark-lab">improving — you're predicting me more often</p>
+          </div>
+          <div class="screen__foot">
+            <button class="btn btn--primary btn--wide" type="button">→ Worklist</button>
+            <button class="btn btn--ghost" id="q-back" type="button">↺ again</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="concept__text">
+      <span class="tag">M4</span>
+      <h2>The Standing Question</h2>
+      <p class="owns">Owns the four spare minutes in a queue.</p>
+      <p class="derives">Derived from interaction concepts 4 (Predict-the-Reader) and 7 (Earn-the-Answer)</p>
+      <p>
+        Several concepts hinge on the writer committing to their own answer before seeing
+        the AI's — the generation effect, made into interaction grammar. On the desktop
+        that's friction placed directly in the path of composing, and the honest risk is
+        that it gets clicked past.
+      </p>
+      <p>
+        Broken off as a phone-shaped unit, it stops being friction and becomes the whole
+        activity. It has exactly the shape of interstitial time: self-contained, no
+        document editing, no context to reload, ninety seconds, one thumb.
+      </p>
+      <p>
+        The sparkline is the product's thesis made checkable. <em>AI use should improve
+        your unaided work</em>, tracked as how well the writer predicts the AI before seeing
+        it — which is also a publishable dependent measure.
+      </p>
+      <div class="never">
+        <b>What it doesn't do</b>
+        Ask a second question. There is no “next” button. Two questions turns a moment of
+        reflection into a quiz, and the covenant's fourth commitment into a lie.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ M5 THE TIDELINE ============ -->
+  <section class="concept">
+    <div class="device">
+      <div class="device__screen">
+        <div class="statusbar"><span>07:12</span><span class="dots">▂▄▆ ⌁ 92%</span></div>
+        <div class="screen is-on">
+          <div class="apphead"><h3>Your tideline</h3><span class="meta">6 months</span></div>
+          <div class="screen__body tide">
+            <p class="tide__month">June</p>
+            <p class="tide__card"><q class="writer">Cancel the vendor contract. Here's why.</q>
+              <span class="tide__src">Q2 procurement memo · June 14</span></p>
+
+            <p class="tide__month">April</p>
+            <p class="tide__card"><q class="writer">Three things went wrong in Q1; one of them is fixable by June.</q>
+              <span class="tide__src">Program update · April 2</span></p>
+
+            <p class="tide__month">March</p>
+            <p class="tide__card"><q class="writer">The audit is the ask.</q>
+              <span class="tide__src">Faculty senate proposal · March 3</span></p>
+
+            <p class="tide__month">February</p>
+            <p class="tide__card"><q class="writer">This memo provides an overview of several considerations relating to the current reporting framework…</q>
+              <span class="tide__src">Program update · February 9</span></p>
+
+            <p class="tide__close">these are all yours</p>
+            <p class="retired">retired: hedging ✓ (May)</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="concept__text">
+      <span class="tag">M5</span>
+      <h2>The Tideline</h2>
+      <p class="owns">Owns idle attention — the two minutes while the coffee is made.</p>
+      <p class="derives">Derived from Concept 3, Tidelines — “a shelf of the writer's own sentences over months”</p>
+      <p>
+        Tidelines puts this in a Word task pane, where it becomes a progress panel
+        competing with the work. It loses that competition every time, because nobody
+        opens a progress panel while writing.
+      </p>
+      <p>
+        But the artifact itself — a vertical, chronological, image-free feed of short
+        excerpts of your own best language — is precisely the shape of the thing people
+        scroll on phones for pleasure. That isn't a cynical observation. It's the one
+        place where the phone's most habituated gesture points at something worth
+        looking at.
+      </p>
+      <p>
+        Scroll from June back to February and the case makes itself. No score was
+        assigned. The evidence of growth is the language.
+      </p>
+      <div class="never">
+        <b>What it doesn't do</b>
+        Anything. There is no input on this screen and no AI-written word on it. The only
+        editorial act is selection, and even that shows its work — every card names the
+        document it came from.
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CLOSING ============ -->
+  <section class="closing">
+    <h2>All five are better on the phone, for one reason</h2>
+    <p>
+      Each depends on the writer <strong>not being able to immediately act on what they've
+      just seen</strong>. The gap between noticing and fixing is where the thinking happens,
+      and the phone enforces that gap for free.
+    </p>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Concept</th><th>Moment it owns</th><th>Phone primitive</th><th>Ported to desktop</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>The Walk</td><td>Away from the desk, thinking</td><td>Microphone + interstitial time</td><td class="worse">Worse — the keyboard competes</td></tr>
+          <tr><td>The Shelf</td><td>Encountering material</td><td>Share sheet + camera</td><td class="worse">Worse — you no longer have the thing</td></tr>
+          <tr><td>The Commute Read</td><td>Before sending</td><td>Reader's conditions; no edit affordance</td><td class="worse">Worse — the fold is simulated</td></tr>
+          <tr><td>The Standing Question</td><td>Four spare minutes</td><td>Interstitial time</td><td class="worse">Worse — competes with composing</td></tr>
+          <tr><td>The Tideline</td><td>Idle attention</td><td>The scroll gesture</td><td class="worse">Worse — a panel nobody opens</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="not-here">
+      <h3>What stays on the desk</h3>
+      <ul>
+        <li><strong>The Loom's threads, layers, and try-on structures.</strong> Contradictory feedback has to be lookable-at <em>together</em>. Cooper's information landscape needs landscape.</li>
+        <li><strong>Revise, as it exists.</strong> Its value is doctext links that jump the document. Without the document beside it, a jump target is just a quotation.</li>
+        <li><strong>Draft, as it exists.</strong> It serves the moment the cursor is stuck — by definition a moment at the keyboard.</li>
+        <li><strong>The Charter's negotiation.</strong> Rewriting criteria in your own words is real writing, and real writing wants a keyboard. Only the check-in ports.</li>
+        <li><strong>Anything with a text field taller than three lines.</strong> A good test.</li>
+      </ul>
+    </div>
+
+    <div class="not-here" style="background:var(--accent-bg);border-color:var(--accent-bd)">
+      <h3>The rule that keeps this from becoming an engagement product</h3>
+      <p style="margin:0 0 10px;font-size:15.5px;font-family:var(--serif)">
+        The phone may collect, and it may show. It may not summon.
+      </p>
+      <p style="margin:0;font-size:14.5px;color:var(--ink-2)">
+        Collect and show are pull, always available, never initiated by the tool. Summon —
+        a notification saying <em>come look at what I found</em> — is not offered, not as a
+        setting, not as an opt-in default, not for streaks. The price is real: the
+        resurfaced audit waits on the shelf until you open it, and if you never open it,
+        the resurfacing was worth nothing. That's the correct price for the rule.
+      </p>
+    </div>
+
+    <p class="footnote">
+      Prototype for <code>docs/design/mobile-native-concepts.md</code>. Interactions are
+      staged, not wired to a backend. The design system — warm paper, blue accent, and the
+      serif/sans split that marks the writer's words from the tool's — is inherited from
+      <code>interface-concepts-prototype.html</code>.
+    </p>
+  </section>
+</div>
+
+<script>
+  /* Screen switching: every "screen" lives in one device; showing one hides
+     its siblings. Kept deliberately dumb — these are staged states, not an app. */
+  function show(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    var siblings = el.parentNode.querySelectorAll('.screen');
+    for (var i = 0; i < siblings.length; i++) siblings[i].classList.remove('is-on');
+    el.classList.add('is-on');
+  }
+  function on(id, event, fn) {
+    var el = document.getElementById(id);
+    if (el) el.addEventListener(event, fn);
+  }
+
+  /* --- M1 The Walk --- */
+  var walkSeconds = 494;
+  var walkTicking = true;
+  var timerEl = document.getElementById('walk-timer');
+  setInterval(function () {
+    if (!walkTicking) return;
+    walkSeconds += 1;
+    var m = String(Math.floor(walkSeconds / 60)).padStart(2, '0');
+    var s = String(walkSeconds % 60).padStart(2, '0');
+    if (timerEl) timerEl.textContent = m + ':' + s;
+  }, 1000);
+
+  on('walk-pause', 'click', function () {
+    walkTicking = !walkTicking;
+    document.getElementById('walk-wave').classList.toggle('is-paused', !walkTicking);
+    this.textContent = walkTicking ? '⏸ Pause' : '▶ Resume';
+  });
+  on('walk-end', 'click', function () { walkTicking = false; show('walk-after'); });
+  on('walk-back', 'click', function () { walkTicking = true; show('walk-live'); });
+
+  /* --- M2 The Shelf: capture is one tap and 1.5 seconds --- */
+  function shelveIt() {
+    var sheet = document.getElementById('sheet');
+    var toast = document.getElementById('shelf-toast');
+    sheet.classList.add('is-gone');
+    toast.classList.add('is-on');
+    setTimeout(function () {
+      toast.classList.remove('is-on');
+      setTimeout(function () {
+        show('shelf-view');
+        sheet.classList.remove('is-gone');
+      }, 260);
+    }, 1500);
+  }
+  on('shelf-drop', 'click', shelveIt);
+  on('shelf-drop', 'keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); shelveIt(); }
+  });
+  on('shelf-back', 'click', function () { show('shelf-share'); });
+
+  /* --- M3 The Commute Read: reading aloud marks where you stumbled --- */
+  on('read-aloud', 'click', function () {
+    var body = document.getElementById('read-body');
+    var marked = body.classList.toggle('is-marked');
+    this.textContent = marked ? '⏹ Stop — 2 stumbles marked' : '🎤 Read it aloud';
+    if (marked) body.scrollTop = 0;
+  });
+
+  /* --- M4 The Standing Question --- */
+  on('q-commit', 'click', function () {
+    var typed = document.getElementById('q-field').value.trim();
+    if (typed) document.getElementById('q-echo').textContent = typed;
+    show('q-reveal');
+  });
+  on('q-back', 'click', function () { show('q-ask'); });
+</script>
