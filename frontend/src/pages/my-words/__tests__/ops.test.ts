@@ -91,6 +91,97 @@ describe('applyOp', () => {
 	});
 });
 
+describe('tolerant targeting', () => {
+	// The model utters the writer's phrase back with its own typography — a
+	// straight apostrophe where Word autocorrected a curly one, a hyphen where
+	// the transcriber heard two words. Those are the same phrase, and treating
+	// them as a miss was costing edits that were otherwise right.
+	it('finds a hyphenated phrase the model spelled with a space', () => {
+		expect(
+			applyOp(['their well-being matters most'], {
+				kind: 'str_replace',
+				oldStr: 'well being',
+				newStr: 'well-being',
+			}),
+		).toEqual(['their well-being matters most']);
+	});
+
+	it('finds a spaced phrase the model spelled with a hyphen', () => {
+		expect(
+			applyOp(['a state of the art result'], {
+				kind: 'str_replace',
+				oldStr: 'state-of-the-art',
+				newStr: 'state of the art',
+			}),
+		).toEqual(['a state of the art result']);
+	});
+
+	it('finds a curly apostrophe behind a straight one', () => {
+		expect(
+			applyOp(['I don’t think so'], {
+				kind: 'str_replace',
+				oldStr: "don't think",
+				newStr: 'think',
+			}),
+		).toEqual(['I think so']);
+	});
+
+	it('replaces the writer’s real characters, not the needle’s', () => {
+		// The span is located leniently but sliced from the source, so the en
+		// dash goes away with the rest of the matched text.
+		expect(
+			applyOp(['the well–being section'], {
+				kind: 'str_replace',
+				oldStr: 'well-being',
+				newStr: 'wellness',
+			}),
+		).toEqual(['the wellness section']);
+	});
+
+	it('still prefers an exact match elsewhere over a folded one', () => {
+		expect(
+			applyOp(['a well-being note', 'a well being note'], {
+				kind: 'str_replace',
+				oldStr: 'well being',
+				newStr: 'health',
+			}),
+		).toEqual(['a well-being note', 'a health note']);
+	});
+
+	it('move carries the writer’s characters, not the needle’s', () => {
+		// A move adds no words; it must not restyle the ones it relocates.
+		expect(
+			applyOp(['keep this', 'their well-being'], {
+				kind: 'move',
+				phrase: 'well being',
+				paragraph: 1,
+				position: 'before',
+			}),
+		).toEqual(['well-being', 'keep this', 'their ']);
+	});
+
+	it('keeps a genuine miss a miss', () => {
+		expect(() =>
+			applyOp(['the cat sat'], {
+				kind: 'str_replace',
+				oldStr: 'the dog sat',
+				newStr: 'x',
+			}),
+		).toThrow(/not found in the document/);
+	});
+
+	it('honors paragraph scoping when matching leniently', () => {
+		expect(() =>
+			applyOp(['well-being', 'nothing here'], {
+				kind: 'str_replace',
+				oldStr: 'well being',
+				newStr: 'health',
+				paragraph: 2,
+			}),
+		).toThrow(/paragraph 2/);
+	});
+});
+
 describe('newline lowering (splits and merges)', () => {
 	it('a newline in newStr splits the paragraph', () => {
 		expect(
