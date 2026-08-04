@@ -7,7 +7,6 @@ import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
 import { useEffect, useState } from 'react';
 import { consentRank } from '@/consent';
-import { CgGoogle } from 'react-icons/cg';
 import {
 	AppAuthProvider,
 	AppAuthTokenBridge,
@@ -275,11 +274,6 @@ function AppInner() {
 						</div>
 
 						<hr />
-
-						<p>Sign in with Google</p>
-						<div className={classes.authProviderIconContainer}>
-							<CgGoogle className={classes.authProviderIcon} />
-						</div>
 
 						<div
 							className={classes.widthAlert}
