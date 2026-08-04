@@ -12,6 +12,11 @@
  *   `responseBody` is the provider's JSON error envelope as text.
  * - Aborts and timeouts throw a `DOMException` named `AbortError`/`TimeoutError`.
  * - A dead network throws `TypeError: Failed to fetch`.
+ * - The Google Docs bridge rejects with an Apps Script `ScriptError`, which
+ *   carries a name and a message and nothing else. Pages read the document
+ *   before they generate, so this failure reaches the writer at the same moment
+ *   and through the same notice as a model failure; it is described here for
+ *   that reason.
  *
  * {@link describeGenerationError} normalizes all of them into one
  * {@link GenerationErrorInfo}: a plain-language sentence for the writer, the raw
@@ -177,6 +182,41 @@ function abortKind(err: unknown): 'timeout' | 'abort' | null {
 }
 
 /**
+ * Apps Script failures from the Google Docs bridge (`google.script.run`, wrapped
+ * in `sidebar.html`).
+ *
+ * The one that reaches writers is an expired authorization: a sidebar left open
+ * long enough loses its grant, and from then on *every* bridge call rejects with
+ * `ScriptError: Authorization is required to perform that action.` — including
+ * the document read each page does before it generates. Retrying in place cannot
+ * clear that, since the grant is re-obtained when the sidebar is opened, so it is
+ * `retryable: false` and the copy names the step that does work.
+ */
+function appsScriptFailure(
+	err: unknown,
+): { message: string; retryable: boolean } | null {
+	const record = asRecord(err);
+	const message = asString(record?.message) ?? '';
+	const isScriptError =
+		asString(record?.name) === 'ScriptError' ||
+		message.startsWith('ScriptError');
+	if (!isScriptError) return null;
+
+	if (/authorization is required|do not have permission/i.test(message)) {
+		return {
+			message:
+				"The add-in's access to this document has expired, so it could not read your text. Close this sidebar and open it again from the Extensions menu to reconnect — nothing in your document has changed.",
+			retryable: false,
+		};
+	}
+	return {
+		message:
+			'Google Docs would not let the add-in read your document just now. Please try again; if it keeps failing, close the sidebar and open it again.',
+		retryable: true,
+	};
+}
+
+/**
  * Normalize any thrown value (or streamed error part) into presentable form.
  * Never throws; unrecognized input degrades to a generic message plus whatever
  * text we could salvage as `detail`.
@@ -193,6 +233,15 @@ export function describeGenerationError(err: unknown): GenerationErrorInfo {
 					: 'That request was cancelled.',
 			detail: err instanceof Error ? err.message : String(err),
 			retryable: true,
+		};
+	}
+
+	const appsScript = appsScriptFailure(err);
+	if (appsScript !== null) {
+		return {
+			message: appsScript.message,
+			detail: asString(asRecord(err)?.message) ?? String(err),
+			retryable: appsScript.retryable,
 		};
 	}
 

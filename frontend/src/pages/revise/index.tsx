@@ -379,8 +379,38 @@ export default function Revise() {
 				: `Go part-by-part through the document. For each part, please do the following: ${prompt.prompt}`;
 
 			// Pull the current document context at request time rather than
-			// tracking it continuously.
-			const currentContext = await refreshDocContext();
+			// tracking it continuously. This read can fail on its own — on Google
+			// Docs it is an Apps Script round-trip — and it happens before any card
+			// exists, so it needs its own guard: without one the writer clicks a
+			// feature and absolutely nothing happens.
+			let currentContext: DocContext;
+			try {
+				currentContext = await refreshDocContext();
+			} catch (err) {
+				const info = describeGenerationError(err);
+				console.error(
+					'Could not read the document to run a feature:',
+					err,
+				);
+				// Report it the way every other failure here is reported: as the card
+				// the writer was expecting, carrying the error instead of a result.
+				// Its context is empty because that is the truth — the read is what
+				// failed.
+				const failed = new Visualization(
+					request,
+					{ beforeCursor: '', selectedText: '', afterCursor: '' },
+					prompt,
+				);
+				failed.error = info;
+				failed.done = true;
+				setVisualizations((prev) => [...prev, failed]);
+				reviseLog.visualizationError(log, {
+					feature: prompt.keyword,
+					error: info.detail,
+					code: info.code,
+				});
+				return;
+			}
 
 			const newViz = new Visualization(request, currentContext, prompt);
 			setVisualizations((prev) => [...prev, newViz]);
