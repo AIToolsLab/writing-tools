@@ -1,14 +1,17 @@
 import { betterAuth } from 'better-auth';
+import { oauthProvider } from '@better-auth/oauth-provider';
 import {
 	anonymous,
 	bearer,
 	customSession,
 	deviceAuthorization,
+	jwt,
 } from 'better-auth/plugins';
 import {
+	betterAuthOrigin,
 	betterAuthSecret,
 	betterAuthTrustedOrigins,
-	betterAuthUrl,
+	BETTER_AUTH_BASE_PATH,
 	deviceClientIds,
 	googleClientId,
 	googleClientSecret,
@@ -56,7 +59,8 @@ export const auth = betterAuth({
 			},
 		},
 	},
-	baseURL: betterAuthUrl(),
+	baseURL: betterAuthOrigin(),
+	basePath: BETTER_AUTH_BASE_PATH,
 	secret: betterAuthSecret(),
 	trustedOrigins: betterAuthTrustedOrigins(),
 	// Logging-consent level lives on the user record so it's available on every
@@ -110,6 +114,20 @@ export const auth = betterAuth({
 		},
 	},
 	plugins: [
+		jwt(),
+		oauthProvider({
+			loginPage: '/api/oauth/login',
+			// Required by the 1.6.22 option type, but intentionally unregistered.
+			// The sole fixed client has skipConsent=true; reaching this path therefore
+			// fails closed instead of introducing a general consent surface.
+			consentPage: '/api/oauth/consent-unsupported',
+			scopes: ['openai:chat'],
+			validAudiences: [betterAuthOrigin()],
+			grantTypes: ['authorization_code'],
+			allowDynamicClientRegistration: false,
+			allowUnauthenticatedClientRegistration: false,
+			accessTokenExpiresIn: 60 * 60 * 12,
+		}),
 		bearer(),
 		// Demo mode. signIn.anonymous() mints a real user + session, so the whole
 		// identity-keyed stack (resolveUser, /api/log, consent gating, usage
