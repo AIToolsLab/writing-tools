@@ -90,6 +90,54 @@ describe('describeGenerationError', () => {
 		expect(info.retryable).toBe(true);
 	});
 
+	it('still names it when the SDK wrapped the failed fetch', () => {
+		// `handleFetchError` in @ai-sdk/provider-utils rewrites a TypeError that
+		// carries a `cause` into a status-less APICallError, so the plain
+		// `instanceof TypeError` test never sees it and the writer gets the
+		// generic copy for an unreachable server.
+		const info = describeGenerationError(
+			new APICallError({
+				message: 'Cannot connect to API: ECONNREFUSED',
+				url: 'https://example.test/openai/responses',
+				requestBodyValues: {},
+				isRetryable: true,
+			}),
+		);
+
+		expect(info.message).toMatch(/could not reach the server/i);
+		expect(info.detail).toBe('Cannot connect to API: ECONNREFUSED');
+		expect(info.retryable).toBe(true);
+	});
+
+	it('prefers the parsed error body over re-parsing the raw text', () => {
+		// `data` is the body already validated against the provider's schema.
+		// A proxy that answers with a differently-shaped envelope leaves it
+		// empty, and the text parse is what keeps the code readable there.
+		const withData = new APICallError({
+			message: 'request failed',
+			url: 'https://example.test/openai/responses',
+			requestBodyValues: {},
+			statusCode: 429,
+			responseBody: 'not json at all',
+			data: {
+				error: { code: 'rate_limit_exceeded', message: 'Slow down.' },
+			},
+		});
+		expect(describeGenerationError(withData).code).toBe(
+			'rate_limit_exceeded',
+		);
+
+		const textOnly = apiCallError({
+			statusCode: 429,
+			responseBody: JSON.stringify({
+				error: { code: 'rate_limit_exceeded', message: 'Slow down.' },
+			}),
+		});
+		expect(describeGenerationError(textOnly).code).toBe(
+			'rate_limit_exceeded',
+		);
+	});
+
 	it('keeps the raw text as detail for anything it cannot classify', () => {
 		const info = describeGenerationError(new Error('something odd'));
 
