@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
+import { oauthProviderResourceClient } from '@better-auth/oauth-provider/resource-client';
 import type { Auth, SessionUser } from './auth.js'; // type-only import, no runtime cost
 import {
 	CONSENT_LEVELS,
@@ -8,7 +9,13 @@ import {
 	filterExtraDataForConsent,
 	isConsentLevel,
 } from './consent.js';
-import { deviceClientIds, gitCommit, logSecret } from './config.js';
+import {
+	betterAuthOrigin,
+	BETTER_AUTH_BASE_PATH,
+	deviceClientIds,
+	gitCommit,
+	logSecret,
+} from './config.js';
 import { eraseLoggedData } from './erasure.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
 import {
@@ -16,6 +23,7 @@ import {
 	openaiProxy,
 	PLATFORM_AUTH_ERROR_HEADER,
 	type ProxyIdentity,
+	type ProxyUser,
 } from './openaiProxy.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 import { costUsd } from './pricing.js';
@@ -31,6 +39,7 @@ import {
 } from './toolGrants.js';
 import { summarizeUsage } from './usage.js';
 import { isUserAllowed } from './userAllowlist.js';
+import { oauthLoginHandler } from './routes/oauth-login.js';
 
 // Mints short-lived ephemeral credentials so a browser can open a WebRTC
 // Realtime session without ever seeing the server API key. This is the only
@@ -48,6 +57,10 @@ function bearerToken(c: Context): string | null {
 	const header = c.req.header('Authorization') ?? '';
 	const match = header.match(/^Bearer\s+(.+)$/i);
 	return match?.[1] ? match[1].trim() : null;
+}
+
+function looksLikeCompactJwt(token: string): boolean {
+	return token.split('.').length === 3;
 }
 
 /**
@@ -75,14 +88,68 @@ function logSecretGate(c: Context, provided: string): Response | null {
 	return null;
 }
 
-export function createApp({ auth }: { auth?: Auth } = {}): Hono {
+export type OAuthAccessTokenVerifier = (
+	token: string,
+	options: {
+		verifyOptions: { audience: string; issuer: string };
+		scopes: string[];
+	},
+) => Promise<Record<string, unknown>>;
+
+export function createApp({
+	auth,
+	verifyOAuthAccessToken: suppliedOAuthVerifier,
+}: {
+	auth?: Auth;
+	/** In-process tests inject the real verifier with an in-memory JWKS reader. */
+	verifyOAuthAccessToken?: OAuthAccessTokenVerifier;
+} = {}): Hono {
 	const app = new Hono();
+	const verifyOAuthAccessToken =
+		suppliedOAuthVerifier ??
+		(auth?.options
+			? oauthProviderResourceClient(auth).getActions().verifyAccessToken
+			: null);
+	// Better Auth signs OAuth JWTs with baseURL + basePath. Its resource helper
+	// otherwise defaults to the bare origin and rejects valid tokens with a 401.
+	const oauthIssuer = `${betterAuthOrigin()}${BETTER_AUTH_BASE_PATH}`;
 
 	// CORS stays fully permissive for now to preserve existing behaviour.
 	app.use('*', cors({ exposeHeaders: [PLATFORM_AUTH_ERROR_HEADER] }));
 	app.use('*', posthogMiddleware);
 
 	if (auth) {
+		app.get('/api/oauth/login', oauthLoginHandler);
+		// Better Auth 1.6.22 accepts an absent resource and then issues an opaque
+		// access token. Require one exact resource so every successful exchange
+		// produces the JWT this resource server can verify.
+		app.use('/api/auth/oauth2/authorize', async (c, next) => {
+			const resources = new URL(c.req.url).searchParams.getAll('resource');
+			if (resources.length !== 1 || resources[0] !== betterAuthOrigin()) {
+				return c.json(
+					{
+						error: 'invalid_target',
+						error_description: 'The OAuth resource must match this server origin.',
+					},
+					400,
+				);
+			}
+			await next();
+		});
+		app.use('/api/auth/oauth2/token', async (c, next) => {
+			const form = await c.req.raw.clone().formData().catch(() => null);
+			const resources = form?.getAll('resource') ?? [];
+			if (resources.length !== 1 || resources[0] !== betterAuthOrigin()) {
+				return c.json(
+					{
+						error: 'invalid_target',
+						error_description: 'The OAuth resource must match this server origin.',
+					},
+					400,
+				);
+			}
+			await next();
+		});
 		// Better Auth owns all /api/auth/* — OAuth redirects, callbacks, sessions, sign-out.
 		// Clients (and the debug pages) read the signed-in user, including our
 		// loggingConsent additionalField, straight from GET /api/auth/get-session.
@@ -136,6 +203,13 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		// count. Recording it means reading `usage` off the client's `response.done`
 		// events and reporting them back. Until then a voice session is billable but
 		// absent from `llm_usage`, which is why the page stays behind a flag.
+		// Realtime permits sessionless demo traffic, so returning null from the
+		// shared resolver is not enough to keep a narrow OAuth JWT out. A presented
+		// JWT is an explicit credential and must not degrade to demo authorization.
+		const presentedBearer = bearerToken(c);
+		if (presentedBearer && looksLikeCompactJwt(presentedBearer)) {
+			return c.json({ detail: 'Unauthorized' }, 401);
+		}
 		const user = await resolveUser(c);
 		// Same beta allowlist the proxy enforces — otherwise voice is a way around
 		// it that also happens to spend a model key.
@@ -196,9 +270,21 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		if (bearer?.startsWith('wtk_')) {
 			return resolveToolToken(bearer)?.user ?? null;
 		}
+		// Keep OAuth-shaped bearers out of this shared identity path: only
+		// resolveProxyIdentity may verify and use the narrow openai:chat credential.
+		// This check intentionally happens before cookie resolution so adding a
+		// browser cookie cannot launder the bearer into account, erasure, or handoff
+		// access.
+		if (bearer && looksLikeCompactJwt(bearer)) return null;
 
 		if (!auth) return null;
-		const session = await auth.api.getSession({ headers: c.req.raw.headers });
+		// When a bearer is presented, authenticate only that credential. Falling
+		// back to a simultaneous cookie would let an invalid narrow credential borrow
+		// the browser session's broader account permissions.
+		const sessionHeaders = bearer
+			? new Headers({ Authorization: `Bearer ${bearer}` })
+			: c.req.raw.headers;
+		const session = await auth.api.getSession({ headers: sessionHeaders });
 		if (!session) return null;
 		const u = session.user as {
 			loggingConsent?: unknown;
@@ -235,9 +321,46 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 				: { kind: 'rejected_tool_credential' };
 		}
 		const user = await resolveUser(c);
-		return user
-			? { kind: 'authenticated', user }
-			: { kind: 'sessionless' };
+		if (user) return { kind: 'authenticated', user };
+		if (!bearer) return { kind: 'sessionless' };
+		if (!auth || !verifyOAuthAccessToken) {
+			return { kind: 'rejected_oauth_credential' };
+		}
+
+		try {
+			const claims = await verifyOAuthAccessToken(bearer, {
+				verifyOptions: {
+					audience: betterAuthOrigin(),
+					issuer: oauthIssuer,
+				},
+				scopes: ['openai:chat'],
+			});
+			if (typeof claims.sub !== 'string' || typeof claims.azp !== 'string') {
+				return { kind: 'rejected_oauth_credential' };
+			}
+			const context = await auth.$context;
+			const row = (await context.adapter.findOne({
+				model: 'user',
+				where: [{ field: 'id', value: claims.sub }],
+			})) as
+				| {
+						email?: string | null;
+						isAnonymous?: boolean | null;
+						alwaysAllow?: boolean | null;
+				  }
+				| null;
+			if (!row) return { kind: 'rejected_oauth_credential' };
+
+			const oauthUser: ProxyUser = {
+				id: claims.sub,
+				isAnonymous: row.isAnonymous === true,
+				isAllowed: isUserAllowed(row),
+				clientId: claims.azp,
+			};
+			return { kind: 'authenticated', user: oauthUser };
+		} catch {
+			return { kind: 'rejected_oauth_credential' };
+		}
 	}
 
 	// Client event logging. Requires an authenticated session: the log is keyed by

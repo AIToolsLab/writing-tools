@@ -352,8 +352,8 @@ describe('POST /api/openai/chat/completions', () => {
 	});
 
 	it('serves a sessionless request on the demo key and meters it to `demo`', async () => {
-		// Demo mode sends a token that isn't a session, so it lands here — the path
-		// that would otherwise 401 once the proxy started requiring auth.
+		// Truly sessionless demo traffic carries no credential. A presented but
+		// invalid credential must fail closed rather than silently spending this key.
 		vi.stubEnv("OPENAI_DEMO_API_KEY", 'demo-key');
 		const fetchMock = vi.fn(async (_url: string, _init: RequestInit) =>
 			sseResponse(),
@@ -366,7 +366,6 @@ describe('POST /api/openai/chat/completions', () => {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
-					Authorization: 'Bearer demo-access-token',
 				},
 				body: JSON.stringify({ model: 'gpt-4o', stream: true }),
 			},

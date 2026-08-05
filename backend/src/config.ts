@@ -50,6 +50,13 @@ export const betterAuthSecret = () =>
 // .env line both yield '', which `??` alone would let through.
 export const betterAuthUrl = () =>
 	(process.env.BETTER_AUTH_URL ?? '').trim() || 'http://localhost:8000';
+// OAuth resource indicators and JWT audiences are compared as exact strings.
+// Canonicalize the configured URL once so both the authorization server and
+// resource server use an origin with no path or trailing slash.
+export const betterAuthOrigin = () => new URL(betterAuthUrl()).origin;
+// Better Auth includes this base path in the OAuth JWT issuer. Keep it explicit
+// and shared with the resource verifier; the bare origin rejects valid tokens.
+export const BETTER_AUTH_BASE_PATH = '/api/auth';
 export const betterAuthTrustedOrigins = (): string[] =>
 	(process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? '')
 		.split(',')
@@ -58,6 +65,26 @@ export const betterAuthTrustedOrigins = (): string[] =>
 export const googleClientId = () => (process.env.GOOGLE_CLIENT_ID ?? '').trim();
 export const googleClientSecret = () =>
 	(process.env.GOOGLE_CLIENT_SECRET ?? '').trim();
+
+// Fixed public OAuth client for the separately hosted Mindmap. The client id is
+// an identifier, not a secret. Production deliberately has no defaults so it
+// cannot accidentally register a localhost redirect on the live auth server.
+export const mindmapOAuthClientId = (): string => {
+	const configured = (process.env.MINDMAP_OAUTH_CLIENT_ID ?? '').trim();
+	if (configured) return configured;
+	if ((process.env.NODE_ENV ?? '').toLowerCase() === 'production') return '';
+	return 'writing-tools-mindmap';
+};
+
+export const mindmapOAuthRedirectUris = (): string[] => {
+	const configured = (process.env.MINDMAP_OAUTH_REDIRECT_URIS ?? '')
+		.split(',')
+		.map((value) => value.trim())
+		.filter(Boolean);
+	if (configured.length > 0) return [...new Set(configured)];
+	if ((process.env.NODE_ENV ?? '').toLowerCase() === 'production') return [];
+	return ['http://localhost:5181/'];
+};
 
 // Comma-separated allowed device client IDs. An empty list rejects all requests.
 export const deviceClientIds = (): string[] =>
