@@ -84,8 +84,9 @@ throw on model or transport errors: it puts them in the stream as an `error` par
 and `result.textStream` forwards only `text-delta` parts. A failed generation is
 therefore indistinguishable from an empty successful one — the loop ends, `await
 result.text` gives `''`, and the surrounding `try/catch` never runs. That is how a
-quota failure reached writers as a blank panel. The helpers read `fullStream`
-instead and throw a `GenerationError`.
+quota failure reached writers as a blank panel. The helpers read the full `stream`
+instead (`fullStream` is the deprecated alias for it) and throw a
+`GenerationError`.
 
 Catch it, run the value through `describeGenerationError` (`src/api/errors.ts`),
 and render the result with `<GenerationErrorNotice>`
@@ -94,6 +95,25 @@ text behind a "Technical details" toggle, and Retry only when `info.retryable`.
 Log `info.detail` (provider text) and `info.code`, not the sentence shown on
 screen. A successful-but-empty generation is also a visible outcome (`tone="info"`
 notice), never silence.
+
+Not every failure arrives as a stream part. An `error` event that reaches us
+*before* any output is raised by the provider as an `APICallError` carrying the
+status the error maps to, and `ai` retries whatever that status marks retryable
+— so a quota failure (429) surfaces only after the attempts run out, wrapped in
+a `RetryError` whose own message is just "Failed after 3 attempts…".
+`describeGenerationError` unwraps that to the last attempt; anything else that
+learns to read errors directly has to unwrap it too, or the writer gets the
+generic "something went wrong, try again" for a problem retrying cannot fix.
+The visible cost is latency: a terminal error now waits out the backoff before
+it appears.
+
+**`ai` and `@ai-sdk/openai` are upgraded as a pair.** Each model object declares
+a `specificationVersion`, and `ai` accepts an older one by wrapping it in a
+back-compat shim — logging `The feature "specificationVersion" is used in a
+compatibility mode` when it is two specs behind, and saying nothing at all when
+it is one behind. So a half-upgrade degrades quietly rather than breaking.
+`src/api/__tests__/openai.test.ts` holds that pairing: it drives the shared
+`languageModel` over a stubbed Responses stream and fails if a shim is involved.
 
 **The system prompt goes in `instructions`, never in `messages`.** Since ai@7, a
 `role: 'system'` message inside `messages` fails validation before the request
