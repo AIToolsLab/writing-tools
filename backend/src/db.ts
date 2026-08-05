@@ -15,7 +15,7 @@
 import { mkdirSync, renameSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import Database from 'better-sqlite3';
-import { dataDir } from './config.js';
+import { dataDir, mindmapOAuthClientId } from './config.js';
 
 function dbPath(): string {
 	return path.join(dataDir(), 'app.db');
@@ -117,6 +117,78 @@ const MIGRATIONS: Array<(conn: Database.Database) => void> = [
 			);
 			CREATE INDEX tool_grant_user ON tool_grant (json_extract(user_snapshot, '$.id'));
 		`);
+	},
+	// v4 — durable document rooms plus the short-lived room choice made during an
+	// OAuth authorization. OAuth Provider stores the chosen room id as referenceId
+	// on the consent, authorization code and access token; these tables hold the
+	// application resource and the server-side selection that feeds that hook.
+	(conn) => {
+		conn.exec(`
+			CREATE TABLE room (
+				id TEXT PRIMARY KEY,
+				owner_user_id TEXT NOT NULL,
+				name TEXT NOT NULL,
+				doc_snapshot TEXT NOT NULL,
+				created_at INTEGER NOT NULL,
+				updated_at INTEGER NOT NULL
+			);
+			CREATE INDEX room_owner_updated ON room (owner_user_id, updated_at DESC);
+
+			CREATE TABLE oauth_room_selection (
+				session_id TEXT PRIMARY KEY,
+				user_id TEXT NOT NULL,
+				room_id TEXT NOT NULL,
+				expires_at INTEGER NOT NULL,
+				FOREIGN KEY (room_id) REFERENCES room(id) ON DELETE CASCADE
+			);
+			CREATE INDEX oauth_room_selection_expiry ON oauth_room_selection (expires_at);
+		`);
+	},
+	// v5 — key the transient room choice to one OAuth authorization request, not
+	// merely to the browser session. A user can authorize in multiple tabs; one
+	// tab must never supply or overwrite the room for another tab's grant.
+	(conn) => {
+		conn.exec(`
+			DROP TABLE oauth_room_selection;
+			CREATE TABLE oauth_room_selection (
+				session_id TEXT NOT NULL,
+				authorization_state TEXT NOT NULL,
+				user_id TEXT NOT NULL,
+				room_id TEXT NOT NULL,
+				expires_at INTEGER NOT NULL,
+				PRIMARY KEY (session_id, authorization_state),
+				FOREIGN KEY (room_id) REFERENCES room(id) ON DELETE CASCADE
+			);
+			CREATE INDEX oauth_room_selection_expiry ON oauth_room_selection (expires_at);
+		`);
+	},
+	// v6 — the trusted Mindmap client binds a room directly from the verified OAuth
+	// request and checks ownership server-side, so no transient human selection is
+	// stored anymore. Appending a drop migration preserves deployed v5 databases.
+	(conn) => {
+		conn.exec(`DROP TABLE oauth_room_selection;`);
+	},
+	// v7 — one-time cleanup of clients created while unauthenticated dynamic
+	// registration was enabled. On a fresh database Better Auth's oauthClient table
+	// does not exist yet, so there is nothing to clean; provisioning runs after its
+	// migrations. Existing databases retain only the configured fixed Mindmap row.
+	(conn) => {
+		const table = conn
+			.prepare(
+				`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'oauthClient'`,
+			)
+			.get();
+		if (!table) return;
+		const trustedClientId = mindmapOAuthClientId();
+		if (!trustedClientId) {
+			throw new Error('MINDMAP_OAUTH_CLIENT_ID is required before OAuth client cleanup.');
+		}
+		const result = conn
+			.prepare(`DELETE FROM oauthClient WHERE clientId <> ?`)
+			.run(trustedClientId);
+		if (result.changes > 0) {
+			console.log(`Removed ${result.changes} stale dynamically registered OAuth client(s).`);
+		}
 	},
 ];
 

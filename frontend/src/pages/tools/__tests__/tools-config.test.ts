@@ -13,6 +13,7 @@ const mindmap: FirstPartyTool = {
 	description: 'Test mindmap',
 	url: 'https://mindmap.example/',
 	scopes: ['openai:chat', 'doc:read'],
+	launchKind: 'room-oauth',
 };
 
 describe('mindmap tool registration', () => {
@@ -43,12 +44,12 @@ describe('mindmap tool registration', () => {
 	it('does not access the document or backend when the popup is blocked', async () => {
 		const getAccessToken = vi.fn();
 		const getDocContext = vi.fn();
-		const createGrant = vi.fn();
+		const createRoom = vi.fn();
 		await expect(
 			launchFirstPartyTool(mindmap, {
 				getAccessToken,
 				getDocContext,
-				createGrant,
+				createRoom,
 				reserveLaunch: () => null,
 				completeLaunch: vi.fn(),
 				cancelLaunch: vi.fn(),
@@ -56,7 +57,7 @@ describe('mindmap tool registration', () => {
 		).rejects.toThrow('blocked');
 		expect(getAccessToken).not.toHaveBeenCalled();
 		expect(getDocContext).not.toHaveBeenCalled();
-		expect(createGrant).not.toHaveBeenCalled();
+		expect(createRoom).not.toHaveBeenCalled();
 	});
 
 	it('reserves before reading a document and completes a granted launch', async () => {
@@ -74,9 +75,9 @@ describe('mindmap tool registration', () => {
 					afterCursor: '',
 				});
 			},
-			createGrant: () => {
-				calls.push('grant');
-				return Promise.resolve({ grantId: 'grant', expiresIn: 120 });
+			createRoom: () => {
+				calls.push('room');
+				return Promise.resolve({ id: 'room_123', name: 'Draft' });
 			},
 			reserveLaunch: () => {
 				calls.push('reserve');
@@ -85,8 +86,39 @@ describe('mindmap tool registration', () => {
 			completeLaunch: (_reservation, url) => calls.push(`open:${url}`),
 			cancelLaunch: vi.fn(),
 		});
-		expect(calls.slice(0, 4)).toEqual(['reserve', 'token', 'doc', 'grant']);
-		expect(calls[4]).toContain('#wt_grant=grant');
+		expect(calls.slice(0, 4)).toEqual(['reserve', 'token', 'doc', 'room']);
+		expect(calls[4]).toContain('?room=room_123');
 		expect(result).toEqual({ sharedDoc: true });
+	});
+
+	it('launches a direct tool without reading the document or calling the backend', async () => {
+		const getAccessToken = vi.fn();
+		const getDocContext = vi.fn();
+		const createRoom = vi.fn();
+		const completeLaunch = vi.fn();
+		const result = await launchFirstPartyTool(
+			{
+				...mindmap,
+				id: 'direct',
+				url: 'https://direct.example/',
+				launchKind: 'direct',
+			},
+			{
+				getAccessToken,
+				getDocContext,
+				createRoom,
+				reserveLaunch: () => ({ kind: 'office' }),
+				completeLaunch,
+				cancelLaunch: vi.fn(),
+			},
+		);
+		expect(getAccessToken).not.toHaveBeenCalled();
+		expect(getDocContext).not.toHaveBeenCalled();
+		expect(createRoom).not.toHaveBeenCalled();
+		expect(completeLaunch).toHaveBeenCalledWith(
+			{ kind: 'office' },
+			'https://direct.example/',
+		);
+		expect(result).toEqual({ sharedDoc: false });
 	});
 });

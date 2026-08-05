@@ -13,6 +13,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@better-auth/oauth-provider": "^1.6.22",
     "@hono/node-server": "^1.13.7",
     "better-auth": "1.6.22",
     "better-sqlite3": "^12.0.0",

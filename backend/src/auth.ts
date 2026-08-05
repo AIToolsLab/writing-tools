@@ -1,14 +1,18 @@
 import { betterAuth } from 'better-auth';
+import { oauthProvider } from '@better-auth/oauth-provider';
 import {
 	anonymous,
 	bearer,
 	customSession,
 	deviceAuthorization,
+	jwt,
 } from 'better-auth/plugins';
+import { APIError } from 'better-auth/api';
 import {
 	betterAuthSecret,
 	betterAuthTrustedOrigins,
 	betterAuthUrl,
+	BETTER_AUTH_BASE_PATH,
 	deviceClientIds,
 	googleClientId,
 	googleClientSecret,
@@ -20,9 +24,59 @@ import {
 	FULL_CONSENT_LEVEL,
 } from './consent.js';
 import { db } from './db.js';
-import { eraseLoggedData } from './erasure.js';
+import { eraseAccountData } from './erasure.js';
 import { anonymizeUserUsage } from './usage.js';
 import { isUserAllowed } from './userAllowlist.js';
+import { getRoomForUser } from './rooms.js';
+import {
+	currentOAuthAuthorization,
+	roomOAuthAuthorization,
+} from './oauth-room-authorization.js';
+
+interface RoomConsentUser {
+	id: string;
+}
+
+function roomAuthorizationErrorRedirect(
+	redirectUri: string,
+	state: string,
+	description: string,
+): never {
+	// The provider has already validated client_id and the exact redirect URI before
+	// invoking this hook, so returning the OAuth error to that URI is safe.
+	const redirect = new URL(redirectUri);
+	redirect.searchParams.set('error', 'access_denied');
+	redirect.searchParams.set('error_description', description);
+	redirect.searchParams.set('state', state);
+	throw new APIError('FOUND', undefined, {
+		Location: redirect.toString(),
+		'Cache-Control': 'no-store',
+	});
+}
+
+export const roomConsentReferenceId = async ({
+	user,
+	scopes,
+}: {
+	user?: RoomConsentUser;
+	scopes: readonly string[];
+}): Promise<string | undefined> => {
+	if (!scopes.includes('doc:read')) return undefined;
+	if (!user) {
+		throw new APIError('UNAUTHORIZED', {
+			message: 'Sign in before authorizing a room.',
+		});
+	}
+	const authorization = await currentOAuthAuthorization();
+	if (!getRoomForUser(authorization.roomId, user.id)) {
+		roomAuthorizationErrorRedirect(
+			authorization.redirectUri,
+			authorization.state,
+			'The launched room does not belong to this account.',
+		);
+	}
+	return authorization.roomId;
+};
 
 // A module-level `auth` singleton (not a factory) so the Better Auth CLI can
 // auto-discover it: `npx @better-auth/cli migrate` looks for an exported `auth`
@@ -57,6 +111,7 @@ export const auth = betterAuth({
 		},
 	},
 	baseURL: betterAuthUrl(),
+	basePath: BETTER_AUTH_BASE_PATH,
 	secret: betterAuthSecret(),
 	trustedOrigins: betterAuthTrustedOrigins(),
 	// Logging-consent level lives on the user record so it's available on every
@@ -95,21 +150,48 @@ export const auth = betterAuth({
 		// Google-only accounts have no password, so deletion proceeds from the
 		// session alone (no verification flow configured).
 		//
-		// beforeDelete runs the same erasure as the withdrawal endpoint (study logs
-		// + analytics profile), so account deletion is by construction a superset of
-		// it — see erasure.ts. On top of that it anonymizes the LLM usage rows rather
+		// beforeDelete removes study logs, the analytics profile, and durable rooms;
+		// activity withdrawal intentionally preserves rooms for active tools. See
+		// erasure.ts. It then anonymizes the LLM usage rows rather
 		// than deleting them: they're content-free billing records, and dropping them
 		// would make our per-user spend stop reconciling with the provider's invoice
 		// (see usage.ts). Better Auth then drops the account, sessions and OAuth links.
 		deleteUser: {
 			enabled: true,
 			beforeDelete: async (user) => {
-				await eraseLoggedData(user.id);
+				await eraseAccountData(user.id);
 				anonymizeUserUsage(user.id);
 			},
 		},
 	},
 	plugins: [
+		jwt(),
+		oauthProvider({
+			loginPage: '/api/oauth/login',
+			consentPage: '/api/oauth/consent',
+			scopes: ['openai:chat', 'doc:read'],
+			validAudiences: [betterAuthUrl()],
+			grantTypes: ['authorization_code'],
+			allowDynamicClientRegistration: false,
+			allowUnauthenticatedClientRegistration: false,
+			accessTokenExpiresIn: 60 * 60,
+			// Better Auth 1.6.22 calls shouldRedirect unconditionally whenever postLogin
+			// is present. This constant-false compatibility hook does not implement a
+			// selection step; `page` is consequently unreachable.
+			postLogin: {
+				page: '/api/oauth/login',
+				shouldRedirect: () => false,
+				consentReferenceId: roomConsentReferenceId,
+			},
+			customAccessTokenClaims: ({ referenceId }) => ({
+				...(referenceId ? { room_id: referenceId } : {}),
+			}),
+			customTokenResponseFields: ({ verificationValue }) => {
+				if (!verificationValue?.referenceId) return {};
+				return { room_id: verificationValue.referenceId };
+			},
+		}),
+		roomOAuthAuthorization(),
 		bearer(),
 		// Demo mode. signIn.anonymous() mints a real user + session, so the whole
 		// identity-keyed stack (resolveUser, /api/log, consent gating, usage

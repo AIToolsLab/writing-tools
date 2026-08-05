@@ -7,20 +7,19 @@
  * that tool, plus an optional read-only document snapshot) and opens the tool in the
  * user's real browser at `…#wt_grant=<id>`; the tool exchanges the grant for its
  * token. The paste-a-URL field is for ad-hoc launches — it opens the URL directly,
- * and such a tool signs in for itself via the device flow if it needs access.
+ * and an ad-hoc tool chooses its own supported authentication flow if needed.
  */
 import { useContext, useState } from 'react';
 import { Button } from 'reshaped';
 import {
 	cancelBrowserLaunch,
 	completeBrowserLaunch,
-	createHandoff,
 	openInBrowser,
 	reserveBrowserLaunch,
 	type BrowserLaunchReservation,
 	type ToolScope,
-	withGrantFragment,
 } from '@/api/handoff';
+import { createRoom, withRoomHint } from '@/api/rooms';
 import { toolsLog } from '@/api/logging';
 import { EditorContext } from '@/contexts/editorContext';
 import { useAppAuth } from '@/contexts/appAuthContext';
@@ -28,20 +27,18 @@ import { useLog } from '@/hooks/useLog';
 import classes from './styles.module.css';
 
 export interface FirstPartyTool {
-	/** Tool client_id — must also be listed in the backend device allowlist. */
+	/** Tool client_id used for registry and attribution. */
 	id: string;
 	name: string;
 	description: string;
 	/** Where the tool is hosted (its own origin). */
 	url: string;
 	scopes: ToolScope[];
+	/** Explicit launch protocol; room OAuth is not a generic tool requirement. */
+	launchKind: 'room-oauth' | 'direct';
 }
 
-/**
- * Hardcoded first-party tools (Phase 1). Each id must be registered in the
- * backend's BETTER_AUTH_DEVICE_CLIENT_IDS allowlist, and the URL points at wherever
- * the tool is hosted. A manifest-driven registry replaces this list in a later phase.
- */
+/** Resolve the separately hosted Mindmap URL for the current build. */
 export function resolveMindmapToolUrl(
 	explicit: string | undefined,
 	isDevelopment: boolean,
@@ -80,8 +77,15 @@ export const MINDMAP_TOOL: FirstPartyTool = {
 		'Explore your draft as a client-side mindmap. Opens in your browser with a read-only snapshot of your current document.',
 	url: MINDMAP_TOOL_URL,
 	scopes: ['openai:chat', 'doc:read'],
+	launchKind: 'room-oauth',
 };
 
+/**
+ * Hardcoded first-party tools (Phase 1). Grant-based tools also need an entry in
+ * BETTER_AUTH_DEVICE_CLIENT_IDS until tool and device-client registration are split.
+ * Mindmap uses its pre-registered room OAuth client instead. A manifest-driven
+ * registry replaces this list in a later phase.
+ */
 export const FIRST_PARTY_TOOLS: FirstPartyTool[] = MINDMAP_TOOL_ENABLED
 	? [MINDMAP_TOOL]
 	: [];
@@ -89,7 +93,7 @@ export const FIRST_PARTY_TOOLS: FirstPartyTool[] = MINDMAP_TOOL_ENABLED
 interface LaunchToolDependencies {
 	getAccessToken(): Promise<string>;
 	getDocContext(): Promise<DocContext>;
-	createGrant: typeof createHandoff;
+	createRoom: typeof createRoom;
 	reserveLaunch(): BrowserLaunchReservation | null;
 	completeLaunch(reservation: BrowserLaunchReservation, url: string): void;
 	cancelLaunch(reservation: BrowserLaunchReservation): void;
@@ -101,21 +105,24 @@ export async function launchFirstPartyTool(
 ): Promise<{ sharedDoc: boolean }> {
 	const reservation = dependencies.reserveLaunch();
 	if (!reservation) {
-		throw new Error('Your browser blocked the new window. Allow popups and try again.');
+		throw new Error(
+			'Your browser blocked the new window. Allow popups and try again.',
+		);
 	}
 	try {
+		if (tool.launchKind === 'direct') {
+			dependencies.completeLaunch(reservation, tool.url);
+			return { sharedDoc: false };
+		}
 		const token = await dependencies.getAccessToken();
 		const doc = tool.scopes.includes('doc:read')
 			? await dependencies.getDocContext()
 			: undefined;
-		const { grantId } = await dependencies.createGrant(token, {
-			toolClientId: tool.id,
-			scopes: tool.scopes,
-			doc,
-		});
+		if (!doc) throw new Error(`${tool.name} requires a document room.`);
+		const room = await dependencies.createRoom(token, doc);
 		dependencies.completeLaunch(
 			reservation,
-			withGrantFragment(tool.url, grantId),
+			withRoomHint(tool.url, room.id),
 		);
 		return { sharedDoc: doc !== undefined };
 	} catch (error) {
@@ -156,7 +163,7 @@ export default function Tools() {
 			const result = await launchFirstPartyTool(tool, {
 				getAccessToken,
 				getDocContext: () => editorAPI.getDocContext(),
-				createGrant: createHandoff,
+				createRoom,
 				reserveLaunch: reserveBrowserLaunch,
 				completeLaunch: completeBrowserLaunch,
 				cancelLaunch: cancelBrowserLaunch,
