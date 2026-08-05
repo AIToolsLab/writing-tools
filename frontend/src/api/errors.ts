@@ -10,6 +10,12 @@
  *   `error` part's payload). It is a plain object, not an `Error`.
  * - A non-2xx response from our proxy throws an `APICallError`, whose
  *   `responseBody` is the provider's JSON error envelope as text.
+ * - An `error` event that arrives *before* any output does not become a stream
+ *   part at all: the provider raises it as an `APICallError` carrying the
+ *   status the error maps to, and `ai` retries anything that status marks
+ *   retryable. When the attempts run out it throws a `RetryError` whose own
+ *   message is "Failed after 3 attempts…" — the provider's error is inside, as
+ *   `lastError`.
  * - Aborts and timeouts throw a `DOMException` named `AbortError`/`TimeoutError`.
  * - A dead network throws `TypeError: Failed to fetch`.
  *
@@ -18,7 +24,7 @@
  * provider text kept aside for a details disclosure and the event log, and
  * whether retrying unchanged is worth offering.
  */
-import { APICallError } from 'ai';
+import { APICallError, RetryError } from 'ai';
 
 export interface GenerationErrorInfo {
 	/** One plain-language sentence for the writer, naming a next step. */
@@ -165,6 +171,25 @@ function firstProviderError(...candidates: unknown[]): {
 	return {};
 }
 
+/**
+ * The failure a {@link RetryError} was retrying, or null.
+ *
+ * The wrapper says only how many attempts were made, so describing it directly
+ * costs us the provider's code and message — a quota failure comes out as the
+ * generic "something went wrong", retryable, which is exactly the copy the
+ * writer can't act on. `isInstance` is a marker check rather than
+ * `instanceof`, but it still assumes the throwing `ai` is the one we imported;
+ * fall back to the shape so a duplicated copy in the tree can't quietly
+ * reintroduce the generic message.
+ */
+function retriedFailure(err: unknown): unknown {
+	if (RetryError.isInstance(err)) return err.lastError ?? null;
+	const record = asRecord(err);
+	if (record?.name === 'AI_RetryError' && record.lastError != null)
+		return record.lastError;
+	return null;
+}
+
 /** True for aborts and timeouts, which need their own copy. */
 function abortKind(err: unknown): 'timeout' | 'abort' | null {
 	for (let cur: unknown = err, depth = 0; cur && depth < 4; depth++) {
@@ -183,6 +208,10 @@ function abortKind(err: unknown): 'timeout' | 'abort' | null {
  */
 export function describeGenerationError(err: unknown): GenerationErrorInfo {
 	if (err instanceof GenerationError) return err.info;
+
+	// Describe what actually failed, not the retry bookkeeping around it.
+	const retried = retriedFailure(err);
+	if (retried !== null) return describeGenerationError(retried);
 
 	const aborted = abortKind(err);
 	if (aborted !== null) {

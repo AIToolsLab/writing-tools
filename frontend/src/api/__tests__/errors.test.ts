@@ -1,4 +1,4 @@
-import { APICallError } from 'ai';
+import { APICallError, RetryError } from 'ai';
 import { describe, expect, it } from 'vitest';
 import { describeGenerationError, GenerationError } from '../errors';
 
@@ -96,6 +96,49 @@ describe('describeGenerationError', () => {
 		expect(info.message).toMatch(/something went wrong/i);
 		expect(info.detail).toBe('something odd');
 		expect(info.retryable).toBe(true);
+	});
+
+	it('describes the failure a RetryError wrapped, not the retrying', () => {
+		// What a quota failure looks like now that `@ai-sdk/openai` raises an
+		// `error` event that precedes any output as an APICallError: 429 marks
+		// it retryable, so the writer meets it wrapped in a RetryError whose own
+		// message is only "Failed after 3 attempts…".
+		const lastError = apiCallError({
+			statusCode: 429,
+			responseBody: JSON.stringify({
+				type: 'error',
+				error: {
+					type: 'insufficient_quota',
+					code: 'insufficient_quota',
+					message: 'You exceeded your current quota.',
+				},
+			}),
+		});
+		const info = describeGenerationError(
+			new RetryError({
+				message: 'Failed after 3 attempts. Last error: quota',
+				reason: 'maxRetriesExceeded',
+				errors: [lastError, lastError, lastError],
+			}),
+		);
+
+		expect(info.code).toBe('insufficient_quota');
+		expect(info.message).toMatch(/out of credit/i);
+		expect(info.detail).toBe('You exceeded your current quota.');
+		// The status said "retry", the code says otherwise; the code wins.
+		expect(info.retryable).toBe(false);
+	});
+
+	it('unwraps a RetryError that lost its class identity', () => {
+		// A duplicated `ai` in the tree breaks the marker check `isInstance`
+		// does, and the generic message is the failure mode that costs the most.
+		const info = describeGenerationError({
+			name: 'AI_RetryError',
+			message: 'Failed after 3 attempts.',
+			lastError: new TypeError('Failed to fetch'),
+		});
+
+		expect(info.message).toMatch(/could not reach the server/i);
 	});
 
 	it('passes an already-described error straight through', () => {
