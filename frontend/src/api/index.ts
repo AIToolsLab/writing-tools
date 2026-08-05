@@ -1,36 +1,34 @@
 /**
  * Resolves the backend base URL.
  *
- * Everywhere except the Google Docs sidebar a relative `/api` works (Word's dev
- * server and the production web host both serve the API under the same origin).
+ * Whatever origin served this bundle also serves the backend API, so we
+ * discover it at runtime instead of baking it in at build time — one built
+ * image is deployed to both staging and production, and a compile-time
+ * constant would send the staging sidebar to the production backend.
  *
- * The Google Docs sidebar is different: its HTML is served from a Google origin,
- * so a relative `/api` would hit Google's domain instead of the backend:
+ * The Google Docs sidebar is the case that needs the script tag: the page
+ * itself is on a Google origin, but `sidebar.html` injects our bundle as a
+ * classic <script> whose `src` points at the backend, and `currentScript` is
+ * set while that script (and so this module) runs.
  *
- * - Production: the bundle is loaded from an external URL (see the Apps Script sidebar). If
- *   `GDOCS_BACKEND_URL` is provided at build time, use it; otherwise derive the backend origin
- *   from the bundle script's own URL.
- * - Development: the bundle is loaded from the dev server (e.g. localhost:3001), which proxies
- *   `/api` to the Python backend. We derive that origin from this script's own URL, so no
- *   tunnel (ngrok) or hardcoded port is needed.
+ * When run as a Word task pane or in the standalone editor, the bundle
+ * is a module script, where `document.currentScript` is null by spec. That's
+ * the `window.location.origin` path; in development the dev server proxies
+ * /api through to the backend, so localhost is the right origin there too.
  */
 function resolveServerUrl(): string {
-	if (typeof window === 'undefined' || !window.RUNNING_IN_GOOGLE_DOCS) {
+	if (typeof document === 'undefined') {
+		// Not a browser (e.g. unit tests). Actual requests are mocked, so the URL doesn't matter.
 		return '/api';
 	}
-	// Production: deployed backend origin injected at build time (see the Google
-	// Docs webpack config's DefinePlugin). Empty string in dev builds.
-	const deployed = process.env.GDOCS_BACKEND_URL;
-	if (deployed) {
-		return `${deployed}/api`;
-	}
-	// Development: the bundle's own origin is the dev server, which proxies /api.
+
+	// Non-null only while a classic <script> executes (the Google Docs bundle).
 	const script = document.currentScript as HTMLScriptElement | null;
 	if (script?.src) {
 		return `${new URL(script.src).origin}/api`;
 	}
-	// No script src to read (e.g. inlined bundle): fall back to a relative /api.
-	return '/api';
+	// Module script: the page's own origin serves the API.
+	return `${window.location.origin}/api`;
 }
 
 export const SERVER_URL = resolveServerUrl();
