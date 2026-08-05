@@ -45,16 +45,9 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => {
 	const isDev = mode === 'development';
 
 	// Shared compile-time substitutions, declared once so the two build targets can
-	// never drift. A define missing from one target is what shipped a bare
-	// `process.env.…` into a bundle ("process is not defined" at runtime) — both the
-	// gdocs IIFE (BETTER_AUTH_DEVICE_CLIENT_ID) and, latently, the Word build
-	// (GDOCS_BACKEND_URL, dead behind the RUNNING_IN_GOOGLE_DOCS guard) hit this.
+	// never drift.
 	const define = {
 		'process.env.NODE_ENV': JSON.stringify(isDev ? 'development' : 'production'),
-		// Backend origin for the gdocs sidebar: empty in dev (reaches the backend via
-		// the dev server's /api proxy); the deployed origin in prod. Inert in the Word
-		// build but defined for both so no bare process.env ref survives anywhere.
-		'process.env.GDOCS_BACKEND_URL': JSON.stringify(isDev ? '' : urlProd),
 		// Device-flow client ID; must match a value in the backend's
 		// BETTER_AUTH_DEVICE_CLIENT_IDS allowlist. Override via env for other envs.
 		'process.env.BETTER_AUTH_DEVICE_CLIENT_ID': JSON.stringify(
