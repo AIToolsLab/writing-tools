@@ -115,6 +115,10 @@ it is one behind. So a half-upgrade degrades quietly rather than breaking.
 `src/api/__tests__/openai.test.ts` holds that pairing: it drives the shared
 `languageModel` over a stubbed Responses stream and fails if a shim is involved.
 
+Where `errors.ts` looks like it is reimplementing the SDK, it usually is, and
+`docs/ai-sdk-upstream-wishlist.md` says why for each case — read it before
+"simplifying" that file against a newer SDK.
+
 **The system prompt goes in `instructions`, never in `messages`.** Since ai@7, a
 `role: 'system'` message inside `messages` fails validation before the request
 leaves the browser — `InvalidPromptError: System messages are not allowed in the
