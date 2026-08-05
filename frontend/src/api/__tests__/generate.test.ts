@@ -1,4 +1,4 @@
-import { MockLanguageModelV3 } from 'ai/test';
+import { MockLanguageModelV4 } from 'ai/test';
 import { convertArrayToReadableStream } from '@ai-sdk/provider-utils/test';
 import { describe, expect, it, vi } from 'vitest';
 import { GenerationError } from '../errors';
@@ -6,14 +6,18 @@ import { generateFullText, streamTextDeltas } from '../generate';
 
 /**
  * The stream-part shape the installed `ai` expects, read off the mock instead of
- * imported by name. The top-level `@ai-sdk/provider` is the v2 copy that
- * `@ai-sdk/openai` still depends on, so it is a spec behind what `ai` itself
- * bundles, and its `LanguageModelV2StreamPart` no longer fits. Deriving keeps
- * this file correct across the next provider-spec bump too.
+ * imported by name. Deriving it keeps this file correct across provider-spec
+ * bumps: the named `LanguageModelV*StreamPart` type moves with
+ * `@ai-sdk/provider`, and which copy of that package a bare import resolves to
+ * depends on hoisting.
+ *
+ * Mock at the spec version the real provider speaks (`@ai-sdk/openai` v4 →
+ * `specificationVersion: 'v4'`), so these tests exercise the same path
+ * production does rather than `ai`'s back-compat shim for older models.
  */
 type StreamPart =
 	Awaited<
-		ReturnType<MockLanguageModelV3['doStream']>
+		ReturnType<MockLanguageModelV4['doStream']>
 	>['stream'] extends ReadableStream<infer Part>
 		? Part
 		: never;
@@ -35,7 +39,7 @@ const QUOTA_ERROR = {
 };
 
 function modelStreaming(parts: StreamPart[]) {
-	return new MockLanguageModelV3({
+	return new MockLanguageModelV4({
 		doStream: () =>
 			Promise.resolve({ stream: convertArrayToReadableStream(parts) }),
 	});
@@ -56,11 +60,11 @@ function textParts(...deltas: string[]): StreamPart[] {
 
 const FINISH: StreamPart = {
 	type: 'finish',
-	// v3 splits the finish reason into the unified value and the provider's own
-	// raw string, which a mock has none of.
+	// The spec splits the finish reason into the unified value and the provider's
+	// own raw string, which a mock has none of.
 	finishReason: { unified: 'stop', raw: undefined },
-	// The v3 spec breaks each side of the token count down (cache reads,
-	// reasoning tokens); these helpers only care that a finish part arrives.
+	// It also breaks each side of the token count down (cache reads, reasoning
+	// tokens); these helpers only care that a finish part arrives.
 	usage: {
 		inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
 		outputTokens: { total: 1, text: 1, reasoning: 0 },
