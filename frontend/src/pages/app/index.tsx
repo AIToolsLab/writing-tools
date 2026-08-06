@@ -23,6 +23,7 @@ import {
 } from '@/contexts/pageContext';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { resolvePage } from '../registry';
+import { OnboardingConsentGate } from './OnboardingConsentGate';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
@@ -343,6 +344,15 @@ function AppInner() {
 		);
 	}
 
+	// First-run consent gate: right after sign-in (and the allowlist check), while
+	// the user has never set a consent level. Derived straight from the session — a
+	// successful save updates hasSetConsent directly, so there is no dismissal state
+	// to leak across a logout → different-user login. Demo/no-auth modes are never
+	// gated.
+	if (!noAuthMode && !session.hasSetConsent) {
+		return <OnboardingConsentGate />;
+	}
+
 	// Which page renders is the registry's call, not a switch here — see
 	// pages/registry.tsx. resolvePage also handles a stored selection that is no
 	// longer visible (a lab page whose flag was turned off) by falling back to the
@@ -361,8 +371,31 @@ function AppInner() {
 			{!noAuthMode && user ? (
 				<div className={classes.container}>
 					<div className={classes.profileContainer}>
-						<div className={classes.userNameContainer}>
-							User: {user.name}
+						<div className={classes.accountEntry}>
+							{/* The identity chip doubles as the entry point to account &
+							    privacy — account affordances belong next to identity, and the
+							    nav strip switches in-app pages, so an outbound link had no
+							    business there. In an Office task pane this opens the system
+							    browser, which has a separate storage partition and may require
+							    another sign-in. Do not pass a bearer token in the URL; an
+							    in-app account screen is the eventual solution. */}
+							<a
+								href="/account.html"
+								target="_blank"
+								rel="noopener"
+								className={classes.userNameContainer}
+								title="Account &amp; privacy"
+								aria-label={`Account and privacy settings for ${user.name}`}
+								aria-describedby="account-browser-note"
+							>
+								User: {user.name}
+							</a>
+							<span
+								id="account-browser-note"
+								className={classes.accountBrowserNote}
+							>
+								Opens in browser; sign-in may be required.
+							</span>
 						</div>
 					</div>
 					{authErrorType !== null && (
@@ -465,12 +498,13 @@ function AppWithProviders({
  * Bridges logging consent → PostHog. Mounted inside both PostHogProvider and
  * AppAuthProvider. Opts capturing in and identifies the user (by stable Better
  * Auth id, matching server-side log keying + deletion) once an authenticated
- * session at consent >= 'usage' loads; otherwise stays opted out and clears any
- * prior identity. Renders nothing.
+ * session at consent >= 'usage' loads; otherwise stays opted out. Renders
+ * nothing.
  */
 function PostHogConsentBridge(): null {
 	const posthog = usePostHog();
-	const { isAuthenticated, loggingConsent, user } = useAppAuth();
+	const { isAuthenticated, loggingConsent, user, consentPending } =
+		useAppAuth();
 
 	useEffect(() => {
 		if (!posthog) return;
@@ -483,11 +517,25 @@ function PostHogConsentBridge(): null {
 		if (analyticsAllowed && user?.id) {
 			posthog.identify(user.id);
 			posthog.opt_in_capturing();
-		} else {
-			posthog.opt_out_capturing();
-			posthog.reset(); // drop any identity captured under a prior session
+			return;
 		}
-	}, [posthog, isAuthenticated, loggingConsent, user?.id]);
+
+		// Opting out is unconditional — whatever the reason for being here, this
+		// tab must stop capturing now.
+		posthog.opt_out_capturing();
+
+		// reset() is a separate question, because it is about *identity*, not
+		// capture: it rotates the anonymous distinct_id and drops feature flags and
+		// any session recording. Skip it while a cross-tab change is still being
+		// reconciled, where `loggingConsent` is a provisional `none` this tab
+		// assumed rather than a level the user chose. Every ping passes through
+		// that state, including a consent *raise*, so resetting on it would churn
+		// a person profile for a user who withdrew nothing. Once the refresh lands
+		// and `none` turns out to be real, this effect re-runs and does reset.
+		if (!consentPending) {
+			posthog.reset(); // drop identity for a withdrawn or ended session
+		}
+	}, [posthog, isAuthenticated, loggingConsent, user?.id, consentPending]);
 
 	return null;
 }
