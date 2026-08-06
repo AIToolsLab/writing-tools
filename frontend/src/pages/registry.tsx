@@ -30,6 +30,7 @@
 import type React from 'react';
 import { PageName } from '@/contexts/pageContext';
 import Chat from './chat';
+import Debug from './debug';
 import Draft from './draft';
 import { isFlagEnabled } from './flags';
 import MyWords from './my-words';
@@ -100,6 +101,18 @@ export const PAGES: PageDef[] = [
 		// `llm_usage` the way proxied generations are. Off until it is.
 		enabled: () => isFlagEnabled('my-words'),
 		render: () => <MyWords />,
+	},
+	{
+		name: PageName.Debug,
+		title: 'Debug',
+		hint: 'See what the model sees',
+		tier: 'lab',
+		// Deliberately not behind a flag, unlike My Words. A flag is set from the
+		// URL, and the two surfaces whose document handling this page exists to
+		// check — the Word task pane and the Google Docs sidebar — have no
+		// addressable URL (see flags.ts). Gating it would leave it reachable only
+		// where it is least needed. The Labs menu is the cross-surface way in.
+		render: () => <Debug />,
 	},
 ];
 

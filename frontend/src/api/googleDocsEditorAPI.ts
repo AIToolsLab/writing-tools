@@ -317,17 +317,32 @@ export const googleDocsEditorAPI: EditorAPI = {
 		}
 	},
 
-	/** Full document text, used for the corpus and the `view` tool. */
+	/**
+	 * Full document text, used for the corpus and the `view` tool.
+	 *
+	 * Apps Script serializes the document to Markdown (`serializeBody` in
+	 * `google-docs-addon/Code.gs`), so headings arrive as `##` and list items as
+	 * `-`/`N.` rather than as unmarked prose. The three context pieces always
+	 * concatenate back to the whole document.
+	 */
 	async getDocText(): Promise<string> {
 		const ctx = await window.GoogleAppsScript.getDocContext();
 		return `${ctx.beforeCursor || ''}${ctx.selectedText || ''}${ctx.afterCursor || ''}`;
 	},
 
-	/** Paragraphs in order — the coordinate system for `view` and inserts. */
+	/**
+	 * Paragraphs in order — the coordinate system for `view` and inserts.
+	 *
+	 * Markdown separates blocks with a blank line but keeps the items of one
+	 * list on adjacent lines, so splitting on a single newline is what yields
+	 * one entry per authored block. The blank lines that survive that split are
+	 * separators rather than content, and dropping them keeps a list item and a
+	 * paragraph counted the same way.
+	 */
 	async getParagraphs(): Promise<string[]> {
 		const ctx = await window.GoogleAppsScript.getDocContext();
 		const text = `${ctx.beforeCursor || ''}${ctx.selectedText || ''}${ctx.afterCursor || ''}`;
-		return text.split('\n');
+		return text.split('\n').filter((line) => line.trim() !== '');
 	},
 
 	// TODO(my-words): bridge to Apps Script (selectPhrase + replaceSelection for
