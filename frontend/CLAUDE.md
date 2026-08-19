@@ -118,6 +118,11 @@ Two runners own two disjoint directories — never mix them:
     `src/api/__tests__/generate.test.ts`, including how to stream an `error` part.
 - **Playwright** (E2E/visual) — `tests/`, files named `*.spec.ts`. Scoped via
   `testDir` in `playwright.config.ts`. Run with `npx playwright test`.
+  - Visual baselines are only pixel-stable in CI's pinned container, so don't
+    commit ones generated locally (`--update-snapshots`). Regenerate by running
+    the **Frontend Tests** workflow with `update-snapshots=true`; its
+    `update-snapshots` job commits fresh baselines to your branch. See
+    [../VISUAL_REGRESSION.md](../VISUAL_REGRESSION.md).
 
 Keep unit tests in `src/` and E2E specs in `tests/`. If a unit runner's globs reach
 into `tests/`, Playwright specs fail with "test.describe() did not expect to be called
