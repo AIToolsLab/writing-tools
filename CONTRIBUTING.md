@@ -1,250 +1,53 @@
-# GitHub Conventions Guide
+# Contributing
 
----
+Most of what you need is documented next to the code it describes. This file is the index.
 
-## Typical Workflow
+## Which app are you changing?
 
-**Day-to-day process:**
+This monorepo holds two independent applications:
 
-1. **Pick a task** - Look at open issues, assign one to yourself
-2. **Ensure clean state** - Commit or stash any uncommitted changes
-3. **Create branch** - `git checkout -b feature/task-name` (or use VS Code Source Control UI)
-4. **Work and commit** - Make changes, commit with proper messages
-5. **Push and PR** - Publish branch, open pull request
-6. **Review** - Get teammate approval
-7. **Merge** - Merge PR, delete branch
-8. **Close issue** - Issue closes automatically if you used `Closes #X`
+- **Production add-in** — `frontend/` (TypeScript/React Office Add-in) plus `backend/`
+  (TypeScript [Hono](https://hono.dev) server: OpenAI proxy + JSONL study logging).
+  They are separate apps in source, but ship as a single container built from the
+  repo-root `Dockerfile`, with the backend serving the built frontend in production.
+- **Experiment app** — `experiment/`, a separate Next.js app for the user study. It does
+  not use `frontend/` or `backend/`.
 
-**Example:**
-```bash
-# Start new work
-git checkout main
-git pull
-git checkout -b feat/add-user-dashboard
+If it's ambiguous which one a task belongs to, ask rather than guessing.
 
-# Make changes and commit
-git add .
-git commit -m "feat: add user dashboard layout"
+There are also standalone prototypes — `prototype-mindmap/`, `prototype-word-bank/`,
+`google-docs-addon/` — each with its own README, plus `sandbox/` for loose
+experiments and prompt drafts.
 
-# Push and create PR
-git push -u origin feat/add-user-dashboard
-# Then open PR on GitHub linking to issue
-```
+## Where things are documented
 
----
+| Topic | See |
+| --- | --- |
+| Running the backend, its endpoints, env vars, deploy | [backend/README.md](backend/README.md) |
+| Frontend build, dev server, entry points | [frontend/CLAUDE.md](frontend/CLAUDE.md) |
+| Frontend build-output contract tests | [frontend/TESTING.md](frontend/TESTING.md) |
+| Visual regression tests and baselines | [VISUAL_REGRESSION.md](VISUAL_REGRESSION.md) |
+| Experiment app | [experiment/README.md](experiment/README.md) |
+| Architecture and design notes | [docs/](docs/) |
+| CI workflows | [.github/workflows/](.github/workflows/) |
 
-## Branch Naming
+## Two things that surprise people
 
-**Format:** `<type>/<short-description>`
+**Playwright baselines are CI-only.** They're pixel-stable only in CI's pinned container,
+so don't regenerate them on your machine. Run the **Frontend Tests** workflow with
+**Regenerate Playwright visual snapshots** checked and it commits fresh baselines to your
+branch. See [VISUAL_REGRESSION.md](VISUAL_REGRESSION.md).
 
-**Types:**
-- `feat/` - New features
-- `fix/` - Bug fixes
-- `test/` - Adding tests to existing code
-- `chore/` - Maintenance (includes refactoring, dependency updates, docs, config)
+**Pushing to `main` runs a typecheck.** A Husky `pre-push` hook typechecks `experiment/`
+whenever the target ref is `main`, and *rejects the push* if it fails — even when your
+change never touched `experiment/`. Fix the errors, or `git push --no-verify` to skip.
 
-**Examples:**
-```
-feat/add-user-login
-fix/correct-password-validation
-test/add-authentication-tests
-chore/update-readme
-chore/upgrade-dependencies
-chore/refactor-auth-logic
-```
+## Pull requests
 
-**Rules:**
-- Use lowercase and hyphens (kebab-case)
-- Keep names clear and concise
-- Delete branches after merging
+- Keep each PR to one feature or fix, and link its issue (`Closes #123`).
+- Get a teammate's review before merging, and let CI go green first.
+- No branch-name or commit-message prefix scheme is enforced. Write a clear imperative
+  subject line and don't worry beyond that.
 
-**Note on Testing:**
-- Use `test/` branches when adding tests to existing untested code
-- For new features, include tests in the same `feat/` branch
-- For bug fixes, include tests in the same `fix/` branch
-
----
-
-## Commit Messages
-
-**Format:** `type: brief description`
-
-**Common Types:**
-- `feat:` - New feature
-- `fix:` - Bug fix
-- `refactor:` - Code cleanup
-- `test:` - Adding tests
-- `chore:` - Maintenance (docs, dependencies, config, etc.)
-
-**Examples:**
-```
-feat: add user registration
-fix: correct login validation error
-chore: update README installation steps
-refactor: simplify database connection logic
-chore: upgrade React to v18
-```
-
-**Best Practices:**
-- Keep first line under 50 characters
-- Use imperative mood: "add" not "added"
-- Reference issues when relevant: `fix: login error (closes #12)`
-- Add detailed explanation in body if needed (optional)
-
-**Template:**
-```
-<type>: <brief description>
-
-[Optional body: detailed explanation of what and why]
-
-[Optional footer: issue references]
-```
-
-**Full Example:**
-```
-feat: add password reset functionality
-
-Implemented email-based password reset flow.
-Users receive a reset link valid for 1 hour.
-
-Closes #25
-```
-
----
-
-## Pull Requests
-
-**Title Format:** Same as commits: `type: description`
-- Example: `feat: add user profile page`
-
-**Required in Description:**
-```markdown
-## What This Does
-Brief explanation (2-3 sentences)
-
-## Related Issue
-Closes #[number]
-
-## Testing
-- [ ] Tested locally and works
-- [ ] All tests pass
-```
-*Note: Check boxes by replacing `[ ]` with `[x]`*
-
-**PR Workflow:**
-1. Push your branch to GitHub
-2. Open PR with clear title and description
-3. Link the related issue using `Closes #123`
-4. Request review from at least one teammate
-5. Address feedback if any
-6. Merge after approval
-
-**Rules:**
-- Get **at least 1 approval** before merging
-- Resolve all merge conflicts
-- Ensure tests pass
-- Keep PRs focused (one feature/fix per PR)
-
-**Choosing a Reviewer:**
-- **Frontend changes** → Request review from someone familiar with React/TypeScript
-- **Backend changes** → Request review from someone who works with Python/FastAPI
-- **Full-stack changes** → Consider requesting 2 reviewers (one for each side)
-- **Documentation/config** → Any active team member can review
-- **When unsure** → Ask in team chat or request review from the most active contributor
-- **Small teams** → Rotate reviewers to share knowledge across the team
-
----
-
-## Issues
-
-**Create Issues For:**
-- New features
-- Bugs
-- Documentation tasks
-- Questions or discussions
-
-**Title Guidelines:**
-- ✅ "Add user login form"
-- ✅ "Fix password validation error"
-- ❌ "Login stuff"
-- ❌ "Bug"
-
-**Simple Template:**
-
-**For tasks/bugs:**
-```markdown
-## Description
-What needs to be done or what's broken?
-
-## Details (for bugs)
-Steps to reproduce:
-1. Do this
-2. Then this
-3. See error
-
-Expected: [what should happen]
-Actual: [what actually happens]
-
-## Additional Context
-Screenshots, ideas, or relevant info
-```
-
-**For questions/discussions:**
-```markdown
-## Question/Discussion
-What needs to be discussed or decided?
-
-## Context
-Why is this question coming up?
-
-## Options (if applicable)
-1. Option A - pros and cons
-2. Option B - pros and cons
-
-## Impact
-Who/what does this affect?
-
-## Additional Info
-Links, screenshots, or relevant context
-```
-
-**Best Practices:**
-- Assign issues when you start working on them
-- Reference issue numbers in commits: `closes #12`
-- Close issues when work is merged
-
----
-
-## Quick Reference
-
-### Before Committing
-- [ ] Code works and is tested
-- [ ] Commit message follows format
-- [ ] No sensitive data (passwords, API keys)
-
-### Before Creating PR
-- [ ] Branch is up to date with main
-- [ ] PR title and description are complete
-- [ ] Linked to issue with `Closes #X`
-
-### Before Merging
-- [ ] At least 1 approval
-- [ ] Tests passing
-- [ ] Feedback addressed
-- [ ] No merge conflicts
-
----
-
-## Further Reading
-
-This guide covers our team's common patterns. For deeper understanding:
-
-- **Git workflow fundamentals**: [GitHub Flow](https://docs.github.com/en/get-started/quickstart/github-flow)
-- **Branch naming conventions**: [Conventional Branch](https://conventional-branch.github.io/)
-- **Commit message best practices**: [Conventional Commits](https://www.conventionalcommits.org/)
-- **Pull request reviews**: [How to review code](https://google.github.io/eng-practices/review/reviewer/) - Google's engineering practices
-
----
-
-
-
+Task tracking is GitHub Issues. The `backlog/` folder is a legacy system kept for
+reference; it's worth a grep for context, but new work goes in Issues.
