@@ -34,7 +34,6 @@
 		"lint:file": "eslint --fix",
 		"style": "npm run lint && npm run format:check",
 		"style:fix": "npm run lint:fix && npm run format",
-		"prepare": "husky",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:build": "node test-build-output.mjs",
@@ -84,9 +83,7 @@
 		"eslint-plugin-react-hooks": "^7.1.1",
 		"globals": "^16.2.0",
 		"http-server": "^14.1.1",
-		"husky": "^9.1.7",
 		"jsdom": "^26.1.0",
-		"lint-staged": "^14.0.1",
 		"msw": "^2.14.6",
 		"office-addin-cli": "^1.6.5",
 		"office-addin-debugging": "^6.0.3",
@@ -103,11 +100,5 @@
 		"typescript-eslint": "^8.33.1",
 		"vite": "^6.4.3",
 		"vitest": "^4.1.8"
-	},
-	"lint-staged": {
-		"**/*.{js,ts,tsx}": [
-			"eslint --fix",
-			"prettier --write"
-		]
 	}
 }
