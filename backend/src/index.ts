@@ -7,6 +7,8 @@ import {
 	deviceClientIds,
 	googleClientId,
 	googleClientSecret,
+	mindmapOAuthClientId,
+	mindmapOAuthRedirectUris,
 	openaiApiKey,
 	PORT,
 } from './config.js';
@@ -36,11 +38,21 @@ if (authEnabled()) {
 			'BETTER_AUTH_DEVICE_CLIENT_IDS is empty — all device code requests will be rejected.',
 		);
 	}
+	if (!mindmapOAuthClientId() || mindmapOAuthRedirectUris().length === 0) {
+		console.error(
+			'MINDMAP_OAUTH_CLIENT_ID and MINDMAP_OAUTH_REDIRECT_URIS are required when auth is enabled in production',
+		);
+		process.exit(1);
+	}
 }
 
 // Import the auth singleton only when enabled. The dynamic import means auth.ts
 // (and its SQLite connection) is never executed when auth is disabled or in tests.
 const auth = authEnabled() ? (await import('./auth.js')).auth : undefined;
+if (auth) {
+	const { provisionTrustedMindmapClient } = await import('./oauth-clients.js');
+	await provisionTrustedMindmapClient(auth);
+}
 const app = createApp({ auth });
 
 // if auth is enabled, register the device approval page route. This is separate from the main
@@ -50,6 +62,8 @@ const app = createApp({ auth });
 if (auth) {
 	const { devicePageHandler } = await import('./routes/device-approval.js');
 	app.get('/api/device', devicePageHandler);
+	const { registerOAuthPages } = await import('./routes/oauth-pages.js');
+	registerOAuthPages(app);
 }
 
 // Debug UI — only when auth is enabled AND DEBUG=true. Registered here (not in

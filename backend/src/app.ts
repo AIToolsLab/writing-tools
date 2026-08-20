@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
+import { oauthProviderResourceClient } from '@better-auth/oauth-provider/resource-client';
 import type { Auth, SessionUser } from './auth.js'; // type-only import, no runtime cost
 import {
 	CONSENT_LEVELS,
@@ -8,8 +9,15 @@ import {
 	filterExtraDataForConsent,
 	isConsentLevel,
 } from './consent.js';
-import { deviceClientIds, gitCommit, logSecret } from './config.js';
+import {
+	betterAuthUrl,
+	BETTER_AUTH_BASE_PATH,
+	deviceClientIds,
+	gitCommit,
+	logSecret,
+} from './config.js';
 import { eraseLoggedData } from './erasure.js';
+import { db } from './db.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
 import {
 	attributeRequest,
@@ -31,6 +39,7 @@ import {
 } from './toolGrants.js';
 import { summarizeUsage } from './usage.js';
 import { isUserAllowed } from './userAllowlist.js';
+import { createRoom, getRoomForUser, isRoomDoc } from './rooms.js';
 
 // Mints short-lived ephemeral credentials so a browser can open a WebRTC
 // Realtime session without ever seeing the server API key. This is the only
@@ -75,8 +84,31 @@ function logSecretGate(c: Context, provided: string): Response | null {
 	return null;
 }
 
-export function createApp({ auth }: { auth?: Auth } = {}): Hono {
+type OAuthAccessTokenVerifier = (
+	token: string,
+	options: {
+		verifyOptions: { audience: string; issuer: string };
+		scopes: string[];
+	},
+) => Promise<Record<string, unknown>>;
+
+export function createApp({
+	auth,
+	verifyOAuthAccessToken: suppliedOAuthVerifier,
+}: {
+	auth?: Auth;
+	/** Test seam for the resource-server boundary; production derives it from auth. */
+	verifyOAuthAccessToken?: OAuthAccessTokenVerifier;
+} = {}): Hono {
 	const app = new Hono();
+	const verifyOAuthAccessToken =
+		suppliedOAuthVerifier ??
+		(auth?.options
+			? oauthProviderResourceClient(auth).getActions().verifyAccessToken
+			: null);
+	// Better Auth signs OAuth JWTs with baseURL + basePath. Its resource helper can
+	// otherwise default to the bare baseURL, yielding opaque 401s for valid tokens.
+	const oauthIssuer = `${betterAuthUrl().replace(/\/$/, '')}${BETTER_AUTH_BASE_PATH}`;
 
 	// CORS stays fully permissive for now to preserve existing behaviour.
 	app.use('*', cors({ exposeHeaders: [PLATFORM_AUTH_ERROR_HEADER] }));
@@ -196,6 +228,50 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		if (bearer?.startsWith('wtk_')) {
 			return resolveToolToken(bearer)?.user ?? null;
 		}
+		if (bearer && verifyOAuthAccessToken) {
+			try {
+				const claims = await verifyOAuthAccessToken(bearer, {
+					verifyOptions: { audience: betterAuthUrl(), issuer: oauthIssuer },
+					scopes: ['openai:chat'],
+				});
+				if (typeof claims.sub !== 'string') return null;
+				const row = db()
+					.prepare(
+						`SELECT email, loggingConsent, isAnonymous, alwaysAllow
+						 FROM user WHERE id = ?`,
+					)
+					.get(claims.sub) as
+					| {
+							email?: string | null;
+							loggingConsent?: unknown;
+							isAnonymous?: number | boolean | null;
+							alwaysAllow?: number | boolean | null;
+					  }
+					| undefined;
+				if (!row) return null;
+				const isAnonymous = row.isAnonymous === true || row.isAnonymous === 1;
+				return {
+					id: claims.sub,
+					loggingConsent: isConsentLevel(row.loggingConsent)
+						? row.loggingConsent
+						: DEFAULT_CONSENT_LEVEL,
+					isAnonymous,
+					isAllowed: isUserAllowed({
+						email: row.email,
+						isAnonymous,
+						alwaysAllow: row.alwaysAllow === true || row.alwaysAllow === 1,
+					}),
+					clientId:
+						typeof claims.azp === 'string'
+							? claims.azp
+							: typeof claims.client_id === 'string'
+								? claims.client_id
+								: null,
+				};
+			} catch {
+				return null;
+			}
+		}
 
 		if (!auth) return null;
 		const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -225,6 +301,59 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			clientId: headerClientId(c),
 		};
 	}
+
+	// A room is the durable resource the OAuth authorization points at. The add-in
+	// creates it with its normal user session; the browser app later reads it with
+	// an OAuth token whose signed room_id claim must match the path.
+	app.post('/api/rooms', async (c) => {
+		if (!auth) return c.json({ detail: 'Authentication is disabled.' }, 503);
+		const session = await auth.api.getSession({ headers: c.req.raw.headers });
+		if (!session) return c.json({ detail: 'Unauthorized' }, 401);
+		const body = (await c.req.json().catch(() => ({}))) as {
+			name?: unknown;
+			doc?: unknown;
+		};
+		if (!isRoomDoc(body.doc)) {
+			return c.json({ detail: 'A valid document snapshot is required.' }, 400);
+		}
+		const fallbackName = body.doc.documentLabel?.trim() || 'Untitled document';
+		const name =
+			typeof body.name === 'string' && body.name.trim()
+				? body.name.trim().slice(0, 160)
+				: fallbackName.slice(0, 160);
+		const room = createRoom(session.user.id, name, body.doc);
+		return c.json({ id: room.id, name: room.name, created_at: room.createdAt }, 201);
+	});
+
+	app.get('/api/rooms/:roomId', async (c) => {
+		const token = bearerToken(c);
+		if (!token || !verifyOAuthAccessToken) {
+			return c.json({ detail: 'Unauthorized' }, 401);
+		}
+		try {
+			const claims = await verifyOAuthAccessToken(token, {
+				verifyOptions: { audience: betterAuthUrl(), issuer: oauthIssuer },
+				scopes: ['doc:read'],
+			});
+			const roomId = c.req.param('roomId');
+			if (
+				typeof claims.sub !== 'string' ||
+				claims.room_id !== roomId
+			) {
+				return c.json({ detail: 'This token does not grant access to that room.' }, 403);
+			}
+			const room = getRoomForUser(roomId, claims.sub);
+			if (!room) return c.json({ detail: 'Room not found.' }, 404);
+			return c.json({
+				id: room.id,
+				name: room.name,
+				doc: room.doc,
+				updated_at: room.updatedAt,
+			});
+		} catch {
+			return c.json({ detail: 'Unauthorized' }, 401);
+		}
+	});
 
 	async function resolveProxyIdentity(c: Context): Promise<ProxyIdentity> {
 		const bearer = bearerToken(c);
@@ -339,9 +468,9 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		return c.json({ loggingConsent: level });
 	});
 
-	// Erase the authenticated user's logged activity — study logs and analytics
-	// profile — while keeping their account. This is *withdrawal*: they carry on
-	// using the add-in, they just want what we've recorded about them gone.
+	// Erase the authenticated user's logged activity — study logs and analytics —
+	// while keeping their account and active room snapshots. This is *withdrawal*:
+	// they carry on using the add-in and any open room-backed tools.
 	//
 	// Not "delete my data", which is what this used to be called: it doesn't touch
 	// the account, and it deliberately leaves the LLM usage rows, because the

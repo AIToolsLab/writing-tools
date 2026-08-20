@@ -1,41 +1,51 @@
 /**
- * Erasing a user's logged activity — the one definition of what "delete my data"
- * means, shared by both paths that promise it.
+ * User-data erasure has two deliberately different scopes:
  *
- * Two different requests reach this:
- *   - "delete my logged activity" (DELETE /api/me/activity) — withdrawal. The user
- *     keeps their account and keeps using the add-in; they just want what we've
- *     recorded about them gone. Their LLM usage rows stay: the account is still
- *     open and still running up a bill, so it still has to be metered.
- *   - "delete my account" (Better Auth's deleteUser) — departure. The `beforeDelete`
- *     hook calls this too, and *then* anonymizes the usage rows and drops the
- *     account, so account deletion is by construction a superset of the above.
+ * - Activity withdrawal (`DELETE /api/me/activity`) removes study logs and the
+ *   analytics profile. It preserves active rooms because the user keeps their
+ *   account and may have Mindmap open against one of those resources.
+ * - Account deletion removes those same records plus durable room document
+ *   snapshots. Better Auth then deletes the account and sessions, while the
+ *   caller anonymizes content-free usage rows for invoice reconciliation.
  *
- * Keeping this in one function is the point: when the two paths each maintained
- * their own list, account deletion quietly forgot to purge the PostHog person —
- * the thorough option was doing less than the lesser one.
+ * Keep the two exported operations here so their difference remains explicit.
  */
 import { deleteUserLogs } from './logging.js';
 import { deletePosthogPerson } from './posthog.js';
+import { deleteRoomsForUser } from './rooms.js';
+
+function loggedDataOperations(userId: string): Array<Promise<unknown>> {
+	return [deleteUserLogs(userId), deletePosthogPerson(userId)];
+}
+
+async function settleErasure(
+	label: string,
+	operations: Array<Promise<unknown>>,
+): Promise<void> {
+	const results = await Promise.allSettled(operations);
+	const failures = results
+		.filter((result): result is PromiseRejectedResult =>
+			result.status === 'rejected',
+		)
+		.map((result) => result.reason);
+	if (failures.length > 0) {
+		throw new AggregateError(failures, `${label}: partial failure`);
+	}
+}
+
+/** Remove logged activity without disrupting active room-backed tools. */
+export async function eraseLoggedData(userId: string): Promise<void> {
+	await settleErasure('eraseLoggedData', loggedDataOperations(userId));
+}
 
 /**
- * Delete everything we've logged about a user: their study-log file and their
- * analytics profile. PostHog deletion is best-effort (it needs a management API
- * key; see deletePosthogPerson) and never throws. The two touch unrelated systems,
- * so we run them concurrently and independently — a failure deleting the log file
- * must not skip the PostHog deletion, or vice versa. If either genuinely fails we
- * still surface it, so the caller (e.g. Better Auth's beforeDelete) can abort rather
- * than drop an account whose data we couldn't erase.
+ * Remove all person-linked stored content before deleting the account.
+ * Keep this as a structural superset of loggedDataOperations: these paths once
+ * had separate lists and account deletion accidentally omitted PostHog data.
  */
-export async function eraseLoggedData(userId: string): Promise<void> {
-	const results = await Promise.allSettled([
-		deleteUserLogs(userId),
-		deletePosthogPerson(userId),
+export async function eraseAccountData(userId: string): Promise<void> {
+	await settleErasure('eraseAccountData', [
+		...loggedDataOperations(userId),
+		deleteRoomsForUser(userId),
 	]);
-	const failures = results
-		.filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-		.map((r) => r.reason);
-	if (failures.length > 0) {
-		throw new AggregateError(failures, 'eraseLoggedData: partial failure');
-	}
 }

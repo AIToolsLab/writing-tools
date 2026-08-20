@@ -22,7 +22,7 @@ afterEach(() => {
 describe('migrations', () => {
 	it('creates our schema and records the version', () => {
 		const conn = db();
-		expect(conn.pragma('user_version', { simple: true })).toBe(3);
+		expect(conn.pragma('user_version', { simple: true })).toBe(7);
 
 		// The table is usable, not merely declared.
 		const table = conn
@@ -45,6 +45,11 @@ describe('migrations', () => {
 			)
 			.get();
 		expect(grantTable).toBeDefined();
+
+		// v6 removes the now-unnecessary transient OAuth room selection.
+		expect(
+			conn.prepare(`SELECT name FROM sqlite_master WHERE name='oauth_room_selection'`).get(),
+		).toBeUndefined();
 	});
 
 	it('is idempotent across reopens — a second open re-runs nothing', () => {
@@ -58,11 +63,45 @@ describe('migrations', () => {
 
 		// Reopening must not drop or recreate the table (CREATE TABLE would throw).
 		const conn = db();
-		expect(conn.pragma('user_version', { simple: true })).toBe(3);
+		expect(conn.pragma('user_version', { simple: true })).toBe(7);
 		const rows = conn.prepare(`SELECT COUNT(*) AS n FROM llm_usage`).get() as {
 			n: number;
 		};
 		expect(rows.n).toBe(1);
+	});
+
+	it('removes stale dynamic OAuth clients once when upgrading from v6', () => {
+		const file = path.join(dataDir, 'app.db');
+		const legacy = new Database(file);
+		legacy.exec(`
+			CREATE TABLE oauthClient (
+				id TEXT PRIMARY KEY,
+				clientId TEXT NOT NULL UNIQUE
+			);
+			INSERT INTO oauthClient (id, clientId) VALUES
+				('trusted', 'configured-mindmap'),
+				('stale', 'old-dynamic-client');
+			PRAGMA user_version = 6;
+		`);
+		legacy.close();
+		process.env.MINDMAP_OAUTH_CLIENT_ID = 'configured-mindmap';
+
+		const conn = db();
+		expect(conn.pragma('user_version', { simple: true })).toBe(7);
+		expect(conn.prepare(`SELECT clientId FROM oauthClient`).all()).toEqual([
+			{ clientId: 'configured-mindmap' },
+		]);
+
+		// Reopening at v7 must not repeat cleanup or remove a later client.
+		conn.prepare(
+			`INSERT INTO oauthClient (id, clientId) VALUES ('later', 'later-fixed-client')`,
+		).run();
+		closeDb();
+		expect(db().prepare(`SELECT clientId FROM oauthClient ORDER BY clientId`).all())
+			.toEqual([
+				{ clientId: 'configured-mindmap' },
+				{ clientId: 'later-fixed-client' },
+			]);
 	});
 });
 
@@ -87,7 +126,7 @@ describe('legacy auth.db rename', () => {
 		expect(user).toEqual({ email: 'a@b.c' });
 
 		// ...and our migrations then run on top of the adopted database.
-		expect(conn.pragma('user_version', { simple: true })).toBe(3);
+		expect(conn.pragma('user_version', { simple: true })).toBe(7);
 	});
 
 	it('leaves an existing app.db alone when a stray auth.db is also present', async () => {

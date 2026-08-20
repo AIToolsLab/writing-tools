@@ -38,6 +38,11 @@ is `http://localhost:5181/`; its production default is
 continues to use Vite's development server at port 4173, so production-gate
 verification remains a separate build check.
 
+Room OAuth uses the fixed public client id in `VITE_OAUTH_CLIENT_ID`. Development
+defaults to `writing-tools-mindmap`; production builds fail closed when it is
+missing. It must match the backend's `MINDMAP_OAUTH_CLIENT_ID`, and the deployed
+page URL must exactly match one of `MINDMAP_OAUTH_REDIRECT_URIS`.
+
 ## Design principle: typed proposals with deterministic consequences
 
 - **Enforcement (code, not configurable):** a mirror must pass validation before

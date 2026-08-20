@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { closeDb } from '../db.js';
-import { eraseLoggedData } from '../erasure.js';
+import { eraseAccountData, eraseLoggedData } from '../erasure.js';
 import { appendLog } from '../logging.js';
 import { deletePosthogPerson } from '../posthog.js';
+import { createRoom, listRooms } from '../rooms.js';
 import {
 	DELETED_USER_ID,
 	recordUsage,
@@ -73,19 +74,37 @@ function logExists(userId: string): boolean {
 }
 
 describe('eraseLoggedData', () => {
-	it('removes the study log and the analytics profile together', async () => {
+	it('removes logged activity while preserving active rooms', async () => {
 		await logSomething('usr-1');
+		createRoom('usr-1', 'Private draft', {
+			beforeCursor: 'private', selectedText: '', afterCursor: '',
+		});
 		expect(logExists('usr-1')).toBe(true);
+		expect(listRooms('usr-1')).toHaveLength(1);
 
 		await eraseLoggedData('usr-1');
 
 		expect(logExists('usr-1')).toBe(false);
+		expect(listRooms('usr-1')).toHaveLength(1);
 		expect(deletePosthogPerson).toHaveBeenCalledWith('usr-1');
 	});
 });
 
 describe('account deletion (Better Auth beforeDelete)', () => {
-	it('does everything withdrawal does, and anonymizes the usage rows on top', async () => {
+	it('still deletes rooms when a shared activity-erasure operation fails', async () => {
+		const invalidLogKey = '../usr-partial';
+		createRoom(invalidLogKey, 'Private draft', {
+			beforeCursor: 'private', selectedText: '', afterCursor: '',
+		});
+
+		await expect(eraseAccountData(invalidLogKey)).rejects.toBeInstanceOf(
+			AggregateError,
+		);
+		expect(deletePosthogPerson).toHaveBeenCalledWith(invalidLogKey);
+		expect(listRooms(invalidLogKey)).toEqual([]);
+	});
+
+	it('includes every activity erasure, then deletes rooms and anonymizes usage', async () => {
 		// Imported here, not at module load: auth.ts opens the DB as a side effect of
 		// evaluation, so it has to see this test's temp DATA_DIR.
 		process.env.BETTER_AUTH_SECRET = 'x'.repeat(32);
@@ -96,15 +115,19 @@ describe('account deletion (Better Auth beforeDelete)', () => {
 
 		await logSomething('usr-gone');
 		meterSomething('usr-gone');
+		createRoom('usr-gone', 'Private draft', {
+			beforeCursor: 'private', selectedText: '', afterCursor: '',
+		});
 
 		const beforeDelete = auth.options.user?.deleteUser?.beforeDelete;
 		expect(beforeDelete).toBeDefined();
 		// Better Auth hands the hook the full user record; only the id is read.
 		await beforeDelete?.({ id: 'usr-gone' } as never);
 
-		// The withdrawal erasure — this is the half account deletion used to skip.
+		// Full account erasure includes both activity records and room snapshots.
 		expect(logExists('usr-gone')).toBe(false);
 		expect(deletePosthogPerson).toHaveBeenCalledWith('usr-gone');
+		expect(listRooms('usr-gone')).toEqual([]);
 
 		// ...plus the tombstone: the spend survives, detached from the person.
 		const rows = summarizeUsage(0, Date.now() + 1000);
