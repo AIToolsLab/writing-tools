@@ -1,6 +1,0 @@
-{
-  "name": "writing-tools",
-  "version": "1.0.0",
-  "private": true,
-  "description": "Writing tools monorepo. No root build: each app (frontend, backend, experiment) has its own package.json."
-}
