@@ -130,6 +130,19 @@ conversation in state: the chat transcript (`pages/chat`) holds only the
 doc-context, greeting, user, and assistant messages, with `CHAT_INSTRUCTIONS`
 kept outside it.
 
+### Rendering model output
+
+Pages render markdown through `<Markdown>` (`src/components/markdown/`), never a
+bare `<Remark>`. It adds `remark-gfm` (plain `remark-parse` is CommonMark, which
+has no tables), a rehype plugin that keeps table-cell alignment from crashing
+production React, and the element styles Tailwind's preflight strips — lists
+lose their marker and indent without them. Preflight sits in `@layer base` and
+unlayered CSS beats layered CSS, so a CSS module overrides it with no
+`!important`. Callers needing their own element components pass
+`rehypeReactOptions`. See [../docs/markdown-rendering.md](../docs/markdown-rendering.md)
+— particularly before touching the rehype plugin, which fixes a bug that only
+reproduces in a production build.
+
 ### Testing
 
 Two runners own two disjoint directories — never mix them:

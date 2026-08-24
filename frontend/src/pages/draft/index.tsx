@@ -4,7 +4,6 @@
 
 import { type ModelMessage } from 'ai';
 import { useCallback, useContext, useRef, useState } from 'react';
-import { Remark } from 'react-remark';
 import {
 	describeGenerationError,
 	type GenerationErrorInfo,
@@ -15,6 +14,7 @@ import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { buildMessages, DRAFT_INSTRUCTIONS } from '@/api/prompts';
 import { ErrorNotice, GenerationErrorNotice } from '@/components/errorNotice';
 import BriefSection from '@/components/briefSection';
+import Markdown from '@/components/markdown';
 import {
 	formatDocBriefForPrompt,
 	useDocBrief,
@@ -148,7 +148,7 @@ function _GenerationResult({ generation }: { generation: GenerationResult }) {
 				</div>
 			) : null}
 			<div className={classes.generationContent}>
-				<Remark>{formattedResult}</Remark>
+				<Markdown>{formattedResult}</Markdown>
 			</div>
 		</div>
 	);

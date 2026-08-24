@@ -318,31 +318,8 @@
 	color: var(--accent);
 }
 
-.generationContent :global(ul),
-.generationContent :global(ol) {
-	padding-left: 1.25rem;
-	margin: 0.5rem 0;
-}
-
-.generationContent :global(ul) {
-	list-style: disc;
-}
-
-.generationContent :global(ol) {
-	list-style: decimal;
-}
-
-.generationContent :global(li) {
-	margin: 0.2rem 0;
-}
-
-.generationContent :global(p) {
-	margin: 0;
-}
-
-.generationContent :global(p + p) {
-	margin-top: 0.65rem;
-}
+/* Markdown element styling (lists, paragraphs, tables) lives in
+   `components/markdown/styles.module.css`, shared with Chat and Revise. */
 
 .resultItem:nth-child(1) {
 	animation-delay: 0s;
