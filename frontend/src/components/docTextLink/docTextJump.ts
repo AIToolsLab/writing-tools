@@ -1,5 +1,5 @@
 /**
- * Turning a `doctext:` link in a Revise result into a selection in the writer's
+ * Turning a `doctext:` link in model output into a selection in the writer's
  * document.
  *
  * The model quotes the document to build these links, and its quotes are often

@@ -1,0 +1,69 @@
+/*
+ * Doctext links: the citations a model reply uses to point at the writer's own
+ * text. Shared by every page that renders them.
+ *
+ * Clicking one is not instant — finding and selecting the quoted text is a
+ * round-trip, roughly a second on the Google Docs surface. The link itself
+ * carries the progress: one that looks unchanged for a second reads as a broken
+ * link, and the writer clicks again.
+ */
+
+.docLink {
+	cursor: pointer;
+}
+
+.docLinkPending {
+	cursor: progress;
+	opacity: 0.75;
+}
+
+.linkSpinner {
+	display: inline-block;
+	width: 9px;
+	height: 9px;
+	margin-left: 5px;
+	vertical-align: baseline;
+	border: 1.5px solid currentColor;
+	border-top-color: transparent;
+	border-radius: 50%;
+	animation: linkSpin 0.7s linear infinite;
+}
+
+.linkFailed {
+	margin-left: 6px;
+	font-size: 11px;
+	font-style: italic;
+	/* Revise defines the variable on its panel; Chat has no such scope, so the
+	   literal is the fallback rather than an inherited colour. */
+	color: var(--text-secondary, #6b6b6b);
+	white-space: nowrap;
+}
+
+@keyframes linkSpin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+/* Announced by screen readers, invisible on screen. */
+.visuallyHidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	clip-path: inset(50%);
+	white-space: nowrap;
+	border: 0;
+}
+
+/* Respect a reduced-motion preference: keep the state, drop the animation. */
+@media (prefers-reduced-motion: reduce) {
+	.linkSpinner {
+		animation: none;
+		border-top-color: currentColor;
+		opacity: 0.5;
+	}
+}

@@ -42,11 +42,18 @@ which blanks out any scheme outside a safe list (http, https, mailto and a few
 others). That is what stops a `javascript:` URL in model output from becoming a
 live link, so leave it on.
 
-Revise's citations link into the document with a `doctext:` URL, which the
-default drops — its links would render but do nothing when clicked. It passes a
-`urlTransform` that allows that one scheme and defers to `defaultUrlTransform`
-for everything else. Copy that shape if another scheme of our own is ever
-needed; don't replace the transform wholesale.
+Replies cite the writer's own text with a `doctext:` URL, which the default
+drops — the links would render but do nothing when clicked. `components/
+docTextLink/` passes a `urlTransform` that allows that one scheme and defers to
+`defaultUrlTransform` for everything else. Copy that shape if another scheme of
+our own is ever needed; don't replace the transform wholesale.
+
+That module is also where the rest of the citation behaviour lives — the jump
+itself, the pending spinner, the not-found note, and the screen-reader status —
+so Revise and Chat render them identically. A page wires it up with
+`useDocJump(page)`, `<DocTextMarkdown jump={…}>` in place of `<Markdown>`, and
+one `<DocJumpStatus>`; it also has to tell the model how to write the links,
+since nothing will emit them otherwise.
 
 ## Tailwind's preflight eats list formatting
 

@@ -22,7 +22,11 @@ import { chatLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice } from '@/components/errorNotice';
 import BriefSection from '@/components/briefSection';
-import Markdown from '@/components/markdown';
+import {
+	DocJumpStatus,
+	DocTextMarkdown,
+	useDocJump,
+} from '@/components/docTextLink';
 import { ChatContext } from '@/contexts/chatContext';
 import {
 	formatDocBriefForPrompt,
@@ -46,8 +50,10 @@ const suggestionPrompts = [
  * system-role message inside `messages` with "System messages are not allowed
  * in the prompt or messages fields."
  */
-const CHAT_INSTRUCTIONS =
-	'Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.';
+const CHAT_INSTRUCTIONS = `\
+Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.
+
+When referring to a specific part of the document, link to it so the user can jump straight there, using a Markdown link whose target is a doctext URL: [second paragraph of the intro](doctext:A%20short%20quote). The link target must start with "doctext:" and be a URL-component-encoded verbatim quote from the document — from a single line, at most 240 characters, with no surrounding quotation marks. The link text should be a short description of the place, not the quote itself. Only link to text that is actually in the document; quote it exactly.`;
 
 const CHAT_GREETING_MESSAGE: ChatMessage = {
 	role: 'assistant',
@@ -168,6 +174,7 @@ export default function Chat() {
 	}, [chatMessages]);
 
 	const { refresh: refreshDocContext } = useDocContext(editorAPI);
+	const docJump = useDocJump('chat');
 
 	// Seed the conversation once (system + doc-context + greeting) when empty.
 	// The document context is pulled here and refreshed again at send time, so
@@ -323,6 +330,10 @@ export default function Chat() {
 			</div>
 
 			<div className={classes.chatPanel}>
+				{/* In the DOM before any link is clicked — a live region added
+				    at the same moment as its text is not reliably announced. */}
+				<DocJumpStatus jump={docJump} />
+
 				{visibleMessages.length > 0 ? (
 					<div className={classes.chatToolbar}>
 						<button
@@ -393,9 +404,9 @@ export default function Chat() {
 										<div className={classes.chatBubble}>
 											{chatMessage.role ===
 											'assistant' ? (
-												<Markdown>
+												<DocTextMarkdown jump={docJump}>
 													{chatMessage.content}
-												</Markdown>
+												</DocTextMarkdown>
 											) : (
 												chatMessage.content
 											)}

@@ -82,6 +82,42 @@ test('Chat: an assistant reply renders markdown tables and lists', async ({
   expect(indent).toBeGreaterThan(0);
 });
 
+test('Chat: a doctext citation in a reply jumps to the document', async ({
+  page,
+}) => {
+  await page.route('**/openai/responses', (route) =>
+    fulfillOpenAI(
+      route,
+      'Look at [your opening line](doctext:Some%20text%20to%20analyze) again.',
+    ),
+  );
+
+  // Give the reply something real to point at.
+  const editor = page.locator('[contenteditable="true"]');
+  await editor.click();
+  await editor.pressSequentially('Some text to analyze');
+
+  await page.locator('button', { hasText: 'Chat' }).click();
+  await page.locator('textarea[placeholder*="Ask"]').fill('Where should I look?');
+  await page.locator('button[title="Send message"]').click();
+
+  // The `doctext:` scheme survives React Markdown's URL filter...
+  const citation = page.locator('[class*="chatBubble"] a', {
+    hasText: 'your opening line',
+  });
+  await expect(citation).toHaveAttribute(
+    'href',
+    'doctext:Some%20text%20to%20analyze',
+    { timeout: 5000 },
+  );
+
+  // ...and clicking it selects the quoted text, same as on Revise.
+  await citation.click();
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ''))
+    .toBe('Some text to analyze');
+});
+
 test('Revise: running a selected feature shows a result', async ({ page }) => {
   // Type something so Revise isn't in its empty-document state.
   const editor = page.locator('[contenteditable="true"]');
