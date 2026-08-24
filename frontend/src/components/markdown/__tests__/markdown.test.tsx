@@ -2,7 +2,11 @@
 import { cleanup, render, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import Markdown from '..';
+import Markdown, { defaultUrlTransform } from '..';
+
+function CustomAnchor({ children }: { children?: React.ReactNode }) {
+	return <span data-testid="custom-anchor">{children}</span>;
+}
 
 /**
  * These cover the two things `<Markdown>` adds over a bare `<Remark>`: GFM
@@ -109,15 +113,7 @@ describe('Markdown', () => {
 
 	it('lets a caller override an element component', async () => {
 		const { container } = render(
-			<Markdown
-				rehypeReactOptions={{
-					components: {
-						a: ({ children }: { children?: React.ReactNode }) => (
-							<span data-testid="custom-anchor">{children}</span>
-						),
-					},
-				}}
-			>
+			<Markdown components={{ a: CustomAnchor }}>
 				{'[jump](#somewhere)'}
 			</Markdown>,
 		);
@@ -125,5 +121,35 @@ describe('Markdown', () => {
 		expect(
 			await within(container).findByTestId('custom-anchor'),
 		).toBeDefined();
+	});
+
+	// React Markdown blanks out any URL scheme outside its safe list, which is
+	// what stops a `javascript:` link in model output from going live. Revise's
+	// `doctext:` citations need an exemption, so both halves are worth pinning.
+	it('drops an unsafe URL scheme by default', async () => {
+		const { container } = render(
+			<Markdown>{'[click](javascript:alert(1))'}</Markdown>,
+		);
+
+		await within(container).findByText('click');
+		// Blanked, not removed — and an <a> with an empty href is no longer
+		// exposed as a link, which is why this queries the element directly.
+		const link = container.querySelector('a');
+		expect(link?.getAttribute('href')).toBe('');
+	});
+
+	it('lets a caller allow a scheme of its own', async () => {
+		const { container } = render(
+			<Markdown
+				urlTransform={(url) =>
+					url.startsWith('doctext:') ? url : defaultUrlTransform(url)
+				}
+			>
+				{'[quoted line](doctext:Some%20text)'}
+			</Markdown>,
+		);
+
+		const link = await within(container).findByRole('link');
+		expect(link.getAttribute('href')).toBe('doctext:Some%20text');
 	});
 });

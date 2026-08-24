@@ -98,4 +98,20 @@ test('Revise: running a selected feature shows a result', async ({ page }) => {
   await expect(
     page.getByText('A mock structural observation about your document.'),
   ).toBeVisible({ timeout: 5000 });
+
+  // Citations link into the document with a `doctext:` URL. React Markdown
+  // blanks out any scheme outside its safe list by default, which would leave
+  // the writer clicking links that do nothing, so pin that the exemption holds
+  // in a real build.
+  const citation = page.locator('a', { hasText: 'opening line' });
+  await expect(citation).toHaveAttribute(
+    'href',
+    'doctext:Some%20text%20to%20analyze',
+  );
+
+  // And that clicking one still selects the quoted text in the document.
+  await citation.click();
+  await expect
+    .poll(() => page.evaluate(() => window.getSelection()?.toString() ?? ''))
+    .toBe('Some text to analyze');
 });

@@ -37,7 +37,11 @@ import { reviseLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice, ErrorNotice } from '@/components/errorNotice';
 import BriefSection from '@/components/briefSection';
-import Markdown from '@/components/markdown';
+import Markdown, {
+	defaultUrlTransform,
+	type Components as MarkdownComponents,
+	type UrlTransform,
+} from '@/components/markdown';
 import {
 	type DocBrief,
 	formatDocBriefForPrompt,
@@ -234,9 +238,9 @@ let visualizationCounter = 0;
  * selecting the quoted text is an Apps Script round-trip — so the link that was
  * clicked has to say so, or the click reads as a dead link and the writer
  * clicks again. Passing this through context (rather than closing over it) is
- * what lets the anchor component be defined once at module scope: `<Remark>`
- * re-parses and remounts its output whenever the component identity it is given
- * changes, which would throw away the result the writer is reading.
+ * what lets the anchor component be defined once at module scope: React remounts
+ * a subtree whose component identity changed, so an anchor rebuilt on each
+ * render would throw away the result the writer is reading.
  */
 interface DocJump {
 	onJump: (href: string) => void;
@@ -289,6 +293,23 @@ function DocTextAnchor(props: React.ComponentProps<'a'>) {
 		</a>
 	);
 }
+
+/**
+ * Defined once, at module scope, for the reason given on `DocJump` above.
+ */
+const docTextComponents: MarkdownComponents = { a: DocTextAnchor };
+
+/**
+ * Visualization responses link into the document with a `doctext:` URL, which
+ * `DocTextAnchor` turns into a jump rather than a navigation. React Markdown's
+ * default transform allows only a safe list of schemes — http(s), mailto and
+ * friends — and blanks out everything else, so without this the model's
+ * citations would render as links that do nothing when clicked. Every other
+ * scheme still goes through the default, so a `javascript:` URL in model output
+ * is still dropped.
+ */
+const allowDocTextUrls: UrlTransform = (url) =>
+	url.startsWith('doctext:') ? url : defaultUrlTransform(url);
 
 export default function Revise() {
 	const editorAPI = useContext(EditorContext);
@@ -711,11 +732,12 @@ ${request}
 												value={docJump}
 											>
 												<Markdown
-													rehypeReactOptions={{
-														components: {
-															a: DocTextAnchor,
-														},
-													}}
+													components={
+														docTextComponents
+													}
+													urlTransform={
+														allowDocTextUrls
+													}
 												>
 													{viz.response}
 												</Markdown>
