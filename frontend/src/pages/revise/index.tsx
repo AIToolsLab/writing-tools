@@ -3,15 +3,7 @@
  */
 
 import { type ModelMessage } from 'ai';
-import {
-	createContext,
-	useCallback,
-	useContext,
-	useEffect,
-	useMemo,
-	useRef,
-	useState,
-} from 'react';
+import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
 	AiOutlineFileText,
 	AiOutlineBulb,
@@ -37,11 +29,11 @@ import { reviseLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice, ErrorNotice } from '@/components/errorNotice';
 import BriefSection from '@/components/briefSection';
-import Markdown, {
-	defaultUrlTransform,
-	type Components as MarkdownComponents,
-	type UrlTransform,
-} from '@/components/markdown';
+import {
+	DocJumpStatus,
+	DocTextMarkdown,
+	useDocJump,
+} from '@/components/docTextLink';
 import {
 	type DocBrief,
 	formatDocBriefForPrompt,
@@ -51,7 +43,6 @@ import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import TagLinker from '../tag-linker';
-import { jumpToDocText, parseDocTextHref } from './docTextJump';
 import classes from './styles.module.css';
 
 interface Prompt {
@@ -231,86 +222,6 @@ class Visualization {
 
 let visualizationCounter = 0;
 
-/**
- * State of the one in-flight jump, shared with every rendered doctext link.
- *
- * Clicking a link is not instant — on the Google Docs surface finding and
- * selecting the quoted text is an Apps Script round-trip — so the link that was
- * clicked has to say so, or the click reads as a dead link and the writer
- * clicks again. Passing this through context (rather than closing over it) is
- * what lets the anchor component be defined once at module scope: React remounts
- * a subtree whose component identity changed, so an anchor rebuilt on each
- * render would throw away the result the writer is reading.
- */
-interface DocJump {
-	onJump: (href: string) => void;
-	/** The link currently being resolved, if any. */
-	pendingHref: string | null;
-	/** The link whose text could not be found on the last attempt. */
-	failedHref: string | null;
-}
-
-const DocJumpContext = createContext<DocJump>({
-	onJump: () => {},
-	pendingHref: null,
-	failedHref: null,
-});
-
-function DocTextAnchor(props: React.ComponentProps<'a'>) {
-	const { href, children, ...rest } = props;
-	const { onJump, pendingHref, failedHref } = useContext(DocJumpContext);
-	const isPending = Boolean(href) && href === pendingHref;
-	const hasFailed = Boolean(href) && href === failedHref;
-
-	return (
-		<a
-			{...rest}
-			href={href}
-			className={`text-blue-500 hover:underline ${classes.docLink} ${
-				isPending ? classes.docLinkPending : ''
-			}`}
-			aria-busy={isPending || undefined}
-			onClick={(e) => {
-				e.preventDefault();
-				if (href) onJump(href);
-			}}
-		>
-			{children}
-			{/*
-			 * Decoration only: what a screen reader hears comes from the one
-			 * live region in the result panel, which is in the DOM before the
-			 * jump starts. A live region inserted at the same moment its text
-			 * appears is not reliably announced.
-			 */}
-			{isPending ? (
-				<span className={classes.linkSpinner} aria-hidden="true" />
-			) : null}
-			{hasFailed ? (
-				<span className={classes.linkFailed} aria-hidden="true">
-					not found in the document
-				</span>
-			) : null}
-		</a>
-	);
-}
-
-/**
- * Defined once, at module scope, for the reason given on `DocJump` above.
- */
-const docTextComponents: MarkdownComponents = { a: DocTextAnchor };
-
-/**
- * Visualization responses link into the document with a `doctext:` URL, which
- * `DocTextAnchor` turns into a jump rather than a navigation. React Markdown's
- * default transform allows only a safe list of schemes — http(s), mailto and
- * friends — and blanks out everything else, so without this the model's
- * citations would render as links that do nothing when clicked. Every other
- * scheme still goes through the default, so a `javascript:` URL in model output
- * is still dropped.
- */
-const allowDocTextUrls: UrlTransform = (url) =>
-	url.startsWith('doctext:') ? url : defaultUrlTransform(url);
-
 export default function Revise() {
 	const editorAPI = useContext(EditorContext);
 	const {
@@ -329,57 +240,13 @@ export default function Revise() {
 	const [selectedFeatures, setSelectedFeatures] = useState<string[]>([]);
 	const { brief } = useDocBrief();
 	const [isRunning, setIsRunning] = useState(false);
-	const [pendingHref, setPendingHref] = useState<string | null>(null);
-	const [failedHref, setFailedHref] = useState<string | null>(null);
-	// Only the newest click owns the shared pending/failed state; an earlier,
-	// slower search must not clear the indicator out from under it.
-	const jumpSeqRef = useRef(0);
+	const docJump = useDocJump('revise');
 
 	// Read at request time, like the document context is, so a run always uses
 	// the brief as it stands — without rebuilding the request callbacks on every
 	// keystroke in the brief section.
 	const briefRef = useRef(brief);
 	briefRef.current = brief;
-
-	const handleJump = useCallback(
-		(href: string) => {
-			const text = parseDocTextHref(href);
-			if (text === null) return;
-			reviseLog.referenceClicked(log, { target: text });
-
-			const seq = ++jumpSeqRef.current;
-			setPendingHref(href);
-			setFailedHref(null);
-			const startedAt = Date.now();
-
-			void (async (): Promise<void> => {
-				const { found, attempts } = await jumpToDocText(
-					(phrase) => editorAPI.selectPhrase(phrase),
-					text,
-				);
-
-				if (!found) console.warn('Failed to select phrase:', text);
-				reviseLog.referenceResolved(log, {
-					target: text,
-					found,
-					attempts,
-					durationMs: Date.now() - startedAt,
-				});
-
-				// A click the writer has already replaced with another one no
-				// longer owns the indicator.
-				if (jumpSeqRef.current !== seq) return;
-				setPendingHref(null);
-				setFailedHref(found ? null : href);
-			})();
-		},
-		[editorAPI, log],
-	);
-
-	const docJump = useMemo<DocJump>(
-		() => ({ onJump: handleJump, pendingHref, failedHref }),
-		[handleJump, pendingHref, failedHref],
-	);
 
 	useEffect(() => {
 		return () => {
@@ -677,17 +544,7 @@ ${request}
 						 * here, always mounted, so the announcement fires when the
 						 * text changes rather than when the element appears.
 						 */}
-						<div
-							className={classes.visuallyHidden}
-							role="status"
-							aria-live="polite"
-						>
-							{pendingHref
-								? 'Finding that text in your document…'
-								: failedHref
-									? "Couldn't find that text in your document."
-									: ''}
-						</div>
+						<DocJumpStatus jump={docJump} />
 						{isRunning ? (
 							<div className={classes.loadingState}>
 								<div className={classes.loaderDots}>
@@ -728,20 +585,9 @@ ${request}
 										}}
 									>
 										{viz.response ? (
-											<DocJumpContext.Provider
-												value={docJump}
-											>
-												<Markdown
-													components={
-														docTextComponents
-													}
-													urlTransform={
-														allowDocTextUrls
-													}
-												>
-													{viz.response}
-												</Markdown>
-											</DocJumpContext.Provider>
+											<DocTextMarkdown jump={docJump}>
+												{viz.response}
+											</DocTextMarkdown>
 										) : null}
 										{viz.error ? (
 											<GenerationErrorNotice

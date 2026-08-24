@@ -44,8 +44,12 @@ import type { LogFn } from '@/hooks/useLog';
  *       its `brief_edited` event, which any page can emit. Revise emits
  *       `reference_resolved` after each clicked doctext link, recording whether
  *       the quote was found and how long the search took.
+ *   5 — `reference_clicked` / `reference_resolved` are no longer Revise-only:
+ *       Chat renders doctext citations too, so `page` is now what says where a
+ *       reference event came from. A reader that took those event names to mean
+ *       Revise has to read `page` instead.
  */
-export const LOG_SCHEMA_VERSION = 4;
+export const LOG_SCHEMA_VERSION = 5;
 
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat' | 'tools';
@@ -159,27 +163,6 @@ export const reviseLog = {
 	) {
 		return emit(log, 'revise', 'visualization_error', data);
 	},
-	/** The writer clicked a document reference (doctext link) in a result. */
-	referenceClicked(log: LogFn, data: { target: string }) {
-		return emit(log, 'revise', 'reference_clicked', data);
-	},
-	/**
-	 * A clicked reference finished resolving. `found` records whether the quote
-	 * was located at all; `attempts` and `durationMs` measure what the writer
-	 * waited through (each attempt is a round-trip to the editor), which is the
-	 * only way to see from the logs that a link felt broken.
-	 */
-	referenceResolved(
-		log: LogFn,
-		data: {
-			target: string;
-			found: boolean;
-			attempts: number;
-			durationMs: number;
-		},
-	) {
-		return emit(log, 'revise', 'reference_resolved', data);
-	},
 };
 
 /**
@@ -204,6 +187,40 @@ export const chatLog = {
 	/** The writer discarded the transcript and started a new conversation. */
 	conversationReset(log: LogFn) {
 		return emit(log, 'chat', 'conversation_reset');
+	},
+};
+
+/**
+ * Document references (doctext links) — the citations in a model reply that
+ * point at the writer's own text.
+ *
+ * More than one page renders them (Revise's visualizations are built out of
+ * them; Chat cites the same way), and they behave identically wherever they
+ * appear, so — like {@link briefLog} — the page is a parameter rather than
+ * being baked into the helper.
+ */
+export const referenceLog = {
+	/** The writer clicked a document reference. */
+	clicked(log: LogFn, page: LogPage, data: { target: string }) {
+		return emit(log, page, 'reference_clicked', data);
+	},
+	/**
+	 * A clicked reference finished resolving. `found` records whether the quote
+	 * was located at all; `attempts` and `durationMs` measure what the writer
+	 * waited through (each attempt is a round-trip to the editor), which is the
+	 * only way to see from the logs that a link felt broken.
+	 */
+	resolved(
+		log: LogFn,
+		page: LogPage,
+		data: {
+			target: string;
+			found: boolean;
+			attempts: number;
+			durationMs: number;
+		},
+	) {
+		return emit(log, page, 'reference_resolved', data);
 	},
 };
 

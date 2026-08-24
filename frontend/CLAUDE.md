@@ -142,8 +142,17 @@ module overrides it with no `!important`.
 Callers pass their own element components via `components` (define them at
 module scope — React remounts a subtree whose component identity changed). React
 Markdown blanks out link URLs whose scheme isn't on a safe list, which is what
-keeps `javascript:` out of model output; Revise's `doctext:` citations get an
-explicit `urlTransform` exemption rather than turning that off.
+keeps `javascript:` out of model output.
+
+**Doctext citations** — the `doctext:` links a reply uses to point at the
+writer's own text — are the one scheme that needs an exemption from that filter,
+and they come with a jump, a pending indicator and a not-found affordance. All
+of it lives in `src/components/docTextLink/`, shared by Revise and Chat: call
+`useDocJump(page)`, render the reply with `<DocTextMarkdown jump={…}>` instead
+of `<Markdown>`, and put one `<DocJumpStatus>` in the page (it has to be in the
+DOM before a click — a live region added alongside its own text is not reliably
+announced). A page that renders these must also tell the model how to write
+them; see `CHAT_INSTRUCTIONS` in `pages/chat` for the short form.
 
 Don't swap back to `react-remark`: it is unmaintained, pins unified 9, and broke
 tables in production builds only. See
@@ -203,9 +212,13 @@ event is written with a consistent envelope:
 - Identity is the session user id, added server-side — never send a username.
 
 Add new events by adding a method to the relevant page's helper object so the
-naming convention and payload types stay in one place. Content-bearing payload
-fields must use names the consent gate recognizes (`src/consent.ts`
-`KEY_MIN_LEVEL`) so they're stripped to the user's level: `docContext` /
+naming convention and payload types stay in one place. Behaviour that more than
+one page shares gets a helper that takes `page` as a parameter instead —
+`briefLog` (the brief section) and `referenceLog` (doctext citations) are the
+two, and for those `page` is the only thing that says where the event came from.
+
+Content-bearing payload fields must use names the consent gate recognizes
+(`src/consent.ts` `KEY_MIN_LEVEL`) so they're stripped to the user's level: `docContext` /
 `message` / `target` are document text, `result` / `response` are AI output;
 everything else is usage-level metadata. The backend (`backend/src/logging.ts`)
 promotes `schema_version` and `page` to first-class columns on each JSONL entry.
