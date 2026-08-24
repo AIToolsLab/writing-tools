@@ -12,7 +12,6 @@ import {
 	useRef,
 	useState,
 } from 'react';
-import { Remark } from 'react-remark';
 import {
 	AiOutlineFileText,
 	AiOutlineBulb,
@@ -38,6 +37,7 @@ import { reviseLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice, ErrorNotice } from '@/components/errorNotice';
 import BriefSection from '@/components/briefSection';
+import Markdown from '@/components/markdown';
 import {
 	type DocBrief,
 	formatDocBriefForPrompt,
@@ -710,7 +710,7 @@ ${request}
 											<DocJumpContext.Provider
 												value={docJump}
 											>
-												<Remark
+												<Markdown
 													rehypeReactOptions={{
 														components: {
 															a: DocTextAnchor,
@@ -718,7 +718,7 @@ ${request}
 													}}
 												>
 													{viz.response}
-												</Remark>
+												</Markdown>
 											</DocJumpContext.Provider>
 										) : null}
 										{viz.error ? (

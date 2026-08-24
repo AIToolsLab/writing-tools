@@ -12,7 +12,6 @@ import {
 	AiOutlinePlus,
 	AiOutlineSend,
 } from 'react-icons/ai';
-import { Remark } from 'react-remark';
 
 import {
 	describeGenerationError,
@@ -23,6 +22,7 @@ import { chatLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice } from '@/components/errorNotice';
 import BriefSection from '@/components/briefSection';
+import Markdown from '@/components/markdown';
 import { ChatContext } from '@/contexts/chatContext';
 import {
 	formatDocBriefForPrompt,
@@ -393,9 +393,9 @@ export default function Chat() {
 										<div className={classes.chatBubble}>
 											{chatMessage.role ===
 											'assistant' ? (
-												<Remark>
+												<Markdown>
 													{chatMessage.content}
-												</Remark>
+												</Markdown>
 											) : (
 												chatMessage.content
 											)}
