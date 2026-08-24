@@ -1,15 +1,26 @@
-import type { ReactNode } from 'react';
-import { Remark, type RemarkProps } from 'react-remark';
+import type { ComponentProps } from 'react';
+import ReactMarkdown, {
+	defaultUrlTransform,
+	type Components,
+	type UrlTransform,
+} from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import classes from './styles.module.css';
-import rehypeTableCellStyle from './tableCellStyle';
+
+/**
+ * Re-exported so pages configure markdown through this component rather than
+ * reaching past it — React Markdown stays a dependency of this module alone,
+ * which is what kept swapping the renderer underneath to four call sites.
+ */
+export { defaultUrlTransform };
+export type { Components, UrlTransform };
 
 /**
  * Tables are the one block that can be wider than the panel it renders in, so
  * each gets its own horizontal scroller instead of widening the whole bubble.
  */
-function ScrollableTable(props: { children?: ReactNode }) {
+function ScrollableTable(props: ComponentProps<'table'>) {
 	return (
 		<div className={classes.tableWrap}>
 			<table {...props} />
@@ -17,26 +28,38 @@ function ScrollableTable(props: { children?: ReactNode }) {
 	);
 }
 
+const defaultComponents: Components = {
+	table: ScrollableTable,
+};
+
 type MarkdownProps = {
 	children: string;
 	/**
-	 * Extra rehype-react options, for callers that swap in their own element
-	 * components (Revise replaces `a` with a jump-to-document anchor). Any
-	 * `components` given here are merged over the defaults.
+	 * Element components, merged over the defaults — Revise renders `a` as a
+	 * jump-to-document anchor.
+	 *
+	 * Pass components defined at module scope, not inline. React re-mounts a
+	 * subtree whose component *identity* changed, so an inline component is a
+	 * new one on every render and throws away whatever it had rendered.
 	 */
-	rehypeReactOptions?: RemarkProps['rehypeReactOptions'];
+	components?: Components;
+	/**
+	 * Override how link and image URLs are rewritten. The default drops any
+	 * scheme outside a safe list, which is what keeps a `javascript:` URL in
+	 * model output from becoming a live link — so replace it only to allow a
+	 * scheme of our own, and defer to `defaultUrlTransform` for the rest.
+	 */
+	urlTransform?: UrlTransform;
 };
 
 /**
  * Model output rendered as markdown.
  *
- * Two things this adds over a bare `<Remark>`:
+ * Two things this adds over a bare `<ReactMarkdown>`:
  *
  * - **GFM.** `remark-parse` alone is CommonMark, which has no tables, so a
  *   table came through as literal pipe characters. `remark-gfm` adds tables,
- *   strikethrough, task lists, and autolinks. `rehypeTableCellStyle` goes with
- *   it — without that, a table crashes the page in a production build; see the
- *   comment there.
+ *   strikethrough, task lists, and autolinks.
  * - **Element styling.** Tailwind's preflight resets `ul`/`ol` to no marker and
  *   no indent, and headings to plain body text, so markdown structure rendered
  *   as an undifferentiated run of lines. `styles.module.css` restores it. The
@@ -45,23 +68,18 @@ type MarkdownProps = {
  */
 export default function Markdown({
 	children,
-	rehypeReactOptions,
+	components,
+	urlTransform,
 }: MarkdownProps) {
 	return (
 		<div className={classes.markdown}>
-			<Remark
+			<ReactMarkdown
 				remarkPlugins={[remarkGfm]}
-				rehypePlugins={[rehypeTableCellStyle]}
-				rehypeReactOptions={{
-					...rehypeReactOptions,
-					components: {
-						table: ScrollableTable,
-						...rehypeReactOptions?.components,
-					},
-				}}
+				components={{ ...defaultComponents, ...components }}
+				urlTransform={urlTransform}
 			>
 				{children}
-			</Remark>
+			</ReactMarkdown>
 		</div>
 	);
 }

@@ -132,16 +132,24 @@ kept outside it.
 
 ### Rendering model output
 
-Pages render markdown through `<Markdown>` (`src/components/markdown/`), never a
-bare `<Remark>`. It adds `remark-gfm` (plain `remark-parse` is CommonMark, which
-has no tables), a rehype plugin that keeps table-cell alignment from crashing
-production React, and the element styles Tailwind's preflight strips — lists
-lose their marker and indent without them. Preflight sits in `@layer base` and
-unlayered CSS beats layered CSS, so a CSS module overrides it with no
-`!important`. Callers needing their own element components pass
-`rehypeReactOptions`. See [../docs/markdown-rendering.md](../docs/markdown-rendering.md)
-— particularly before touching the rehype plugin, which fixes a bug that only
-reproduces in a production build.
+Pages render markdown through `<Markdown>` (`src/components/markdown/`), which
+is the only module that imports `react-markdown`. It carries `remark-gfm` (plain
+`remark-parse` is CommonMark, which has no tables) and the element styles
+Tailwind's preflight strips — lists lose their marker and indent without them.
+Preflight sits in `@layer base` and unlayered CSS beats layered CSS, so a CSS
+module overrides it with no `!important`.
+
+Callers pass their own element components via `components` (define them at
+module scope — React remounts a subtree whose component identity changed). React
+Markdown blanks out link URLs whose scheme isn't on a safe list, which is what
+keeps `javascript:` out of model output; Revise's `doctext:` citations get an
+explicit `urlTransform` exemption rather than turning that off.
+
+Don't swap back to `react-remark`: it is unmaintained, pins unified 9, and broke
+tables in production builds only. See
+[../docs/markdown-rendering.md](../docs/markdown-rendering.md) for both failure
+modes, and test markdown changes against a production build — `npm test` uses
+React's development build, which did not reproduce one of them.
 
 ### Testing
 
