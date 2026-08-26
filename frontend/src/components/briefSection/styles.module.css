@@ -140,6 +140,118 @@
 	cursor: progress;
 }
 
+/* "Draft from my document", above the fields it fills in. */
+.draftRow {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 6px;
+	margin-bottom: 10px;
+}
+
+.draftHint {
+	flex: 1;
+	min-width: 120px;
+	font-size: 11px;
+	color: var(--text-tertiary, #b3aba0);
+	line-height: 1.4;
+}
+
+.draftBtn {
+	flex-shrink: 0;
+	padding: 6px 10px;
+	border: 1.5px solid var(--border, rgba(0, 0, 0, 0.08));
+	border-radius: var(--radius-sm, 8px);
+	background: var(--surface, #ffffff);
+	font-family: 'DM Sans', sans-serif;
+	font-size: 11px;
+	font-weight: 500;
+	color: var(--text-secondary, #6b6b6b);
+	cursor: pointer;
+	transition: all 0.14s ease;
+}
+
+.draftBtn:hover:not(:disabled) {
+	border-color: var(--accent, #2d5be3);
+	background: var(--accent-bg, #f7f8ff);
+	color: var(--accent, #2d5be3);
+}
+
+.draftBtn:disabled {
+	cursor: progress;
+	color: var(--text-tertiary, #b3aba0);
+}
+
+/*
+ * A candidate the assistant drafted. Deliberately "wet ink": dashed, tinted,
+ * and visually unlike the writer's own fields, because
+ * docs/design/interface-concepts.md asks for AI-authored prose to read as
+ * provisional and stay inert until the writer acts on it. It must never be
+ * mistakable for something already in the brief.
+ */
+.proposal {
+	margin: 0 14px 14px;
+	padding: 10px 12px;
+	border: 1.5px dashed var(--accent-border, #c4caff);
+	border-radius: var(--radius-sm, 8px);
+	background: var(--accent-bg, #f7f8ff);
+}
+
+.proposalLabel {
+	font-family: 'DM Mono', monospace;
+	font-size: 9px;
+	font-weight: 600;
+	text-transform: uppercase;
+	letter-spacing: 0.08em;
+	color: var(--accent, #2d5be3);
+	margin-bottom: 6px;
+}
+
+.proposalText {
+	font-size: 12px;
+	line-height: 1.55;
+	color: var(--text-primary, #1c1c1c);
+	/* Constraints comes back as a Markdown list; keep its line breaks. */
+	white-space: pre-wrap;
+	margin-bottom: 8px;
+}
+
+.proposalActions {
+	display: flex;
+	gap: 6px;
+}
+
+.proposalUse,
+.proposalDismiss {
+	padding: 5px 10px;
+	border-radius: var(--radius-sm, 8px);
+	font-family: 'DM Sans', sans-serif;
+	font-size: 11px;
+	font-weight: 600;
+	cursor: pointer;
+	transition: opacity 0.14s;
+	border: 1.5px solid transparent;
+}
+
+.proposalUse {
+	background: var(--accent, #2d5be3);
+	color: #ffffff;
+}
+
+.proposalUse:hover {
+	opacity: 0.88;
+}
+
+.proposalDismiss {
+	background: transparent;
+	border-color: var(--border, rgba(0, 0, 0, 0.08));
+	color: var(--text-secondary, #6b6b6b);
+}
+
+.proposalDismiss:hover {
+	border-color: var(--text-tertiary, #b3aba0);
+}
+
 .statusLine {
 	font-size: 11px;
 	color: var(--text-tertiary, #b3aba0);

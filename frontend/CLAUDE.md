@@ -76,6 +76,19 @@ the add-in rewrites the writer's prose, so "don't touch my opening" has nothing 
 bite on, and asking for it frames the writer as a supervisor of an output machine.
 Add a field only if a human collaborator would want to know it too.
 
+**Proposals** (`src/api/briefProposal.ts`) let the writer draft a brief from the
+document they've already written, which is the usual case — a writer who can
+state their audience cold has done the hardest part already. See
+`docs/design/co-created-brief.md`. The rule that shapes the code: a proposal is
+*not* the writer's until they accept it, so candidates live in the context
+beside the brief but never inside `DocBrief`, are never serialized to the
+document, render below their field rather than in it (even when the field is
+empty), and reach the brief only via `acceptProposal` → `setField` — one path,
+so an accepted candidate is saved and logged exactly like typed text. Typing
+into a field clears its candidate. Keep it that way: putting a proposal into a
+field, or into the saved JSON, is how this becomes a tool that writes the
+writer's brief for them.
+
 ### Generation calls and failures
 
 Pages must generate through `src/api/generate.ts` (`streamTextDeltas`,

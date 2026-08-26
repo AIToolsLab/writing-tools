@@ -1,29 +1,75 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import {
+	cleanup,
+	fireEvent,
+	render,
+	screen,
+	waitFor,
+} from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
 	DocBriefContext,
 	type DocBriefContextValue,
 	EMPTY_DOC_BRIEF,
 } from '@/contexts/docBriefContext';
+import { EditorContext } from '@/contexts/editorContext';
 import BriefSection from '../briefSection';
 
 vi.mock('@/hooks/useLog', () => ({ useLog: () => vi.fn() }));
 
+// The section can ask for candidate wording; the request itself is covered in
+// `api/__tests__/briefProposal.test.ts`, so here it is stubbed to keep these
+// tests about what the writer sees and what reaches the brief.
+const requestBriefProposal = vi.hoisted(() => vi.fn());
+vi.mock('@/api/briefProposal', () => ({ requestBriefProposal }));
+
 function renderSection(
 	value: Partial<DocBriefContextValue> = {},
-	props: { step?: number; defaultOpen?: boolean } = {},
+	props: {
+		step?: number;
+		defaultOpen?: boolean;
+		/** Document text the section reads when drafting. Empty by default. */
+		docText?: string;
+	} = {},
 ) {
+	const { docText, ...sectionProps } = props;
 	const contextValue: DocBriefContextValue = {
 		brief: EMPTY_DOC_BRIEF,
 		setField: vi.fn(),
 		status: 'ready',
+		proposals: {},
+		setProposals: vi.fn(),
+		acceptProposal: vi.fn(),
+		dismissProposal: vi.fn(),
 		...value,
 	};
-	render(
+	const section = (
 		<DocBriefContext.Provider value={contextValue}>
-			<BriefSection page="revise" {...props} />
-		</DocBriefContext.Provider>,
+			<BriefSection page="revise" {...sectionProps} />
+		</DocBriefContext.Provider>
+	);
+
+	// With no `docText`, the bare EditorContext default is used — which resolves
+	// an empty document, and is itself worth exercising.
+	render(
+		docText === undefined ? (
+			section
+		) : (
+			<EditorContext.Provider
+				value={
+					{
+						getDocContext: () =>
+							Promise.resolve({
+								beforeCursor: docText,
+								selectedText: '',
+								afterCursor: '',
+							}),
+					} as EditorAPI
+				}
+			>
+				{section}
+			</EditorContext.Provider>
+		),
 	);
 	return contextValue;
 }
@@ -114,5 +160,114 @@ describe('BriefSection', () => {
 		renderSection({ status: 'error' }, { defaultOpen: true });
 
 		expect(document.body.textContent).toContain("Couldn't save your brief");
+	});
+});
+
+describe('BriefSection proposals', () => {
+	afterEach(() => {
+		cleanup();
+		requestBriefProposal.mockReset();
+	});
+
+	// The whole point of the provisional rendering: a candidate must be visible
+	// as a candidate, and must not be sitting in the field as though the writer
+	// had written it.
+	it('shows a candidate beside the field without putting it in the field', () => {
+		renderSection(
+			{ proposals: { audience: 'Reviewers for a registered report' } },
+			{ defaultOpen: true },
+		);
+
+		expect(document.body.textContent).toContain(
+			'Reviewers for a registered report',
+		);
+		expect(
+			screen.getByLabelText<HTMLTextAreaElement>('Audience').value,
+		).toBe('');
+	});
+
+	it('offers a candidate even for a field the writer has already filled in', () => {
+		renderSection(
+			{
+				brief: {
+					audience: 'Reviewers',
+					purpose: '',
+					constraints: '',
+				},
+				proposals: { audience: 'Reviewers for a registered report' },
+			},
+			{ defaultOpen: true },
+		);
+
+		// Their own wording stays put; the sharper version is offered alongside.
+		expect(
+			screen.getByLabelText<HTMLTextAreaElement>('Audience').value,
+		).toBe('Reviewers');
+		expect(document.body.textContent).toContain(
+			'Reviewers for a registered report',
+		);
+	});
+
+	it('takes a candidate into the brief only when the writer accepts it', () => {
+		const context = renderSection(
+			{
+				proposals: {
+					purpose: 'Convince reviewers the design is sound',
+				},
+			},
+			{ defaultOpen: true },
+		);
+
+		expect(context.acceptProposal).not.toHaveBeenCalled();
+
+		fireEvent.click(screen.getByRole('button', { name: 'Use this' }));
+
+		expect(context.acceptProposal).toHaveBeenCalledWith('purpose');
+	});
+
+	it('drops a dismissed candidate without touching the field', () => {
+		const context = renderSection(
+			{ proposals: { constraints: '- Under 8 pages' } },
+			{ defaultOpen: true },
+		);
+
+		fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+		expect(context.dismissProposal).toHaveBeenCalledWith('constraints');
+		expect(context.setField).not.toHaveBeenCalled();
+	});
+
+	it('hands the returned candidates to the shared context', async () => {
+		requestBriefProposal.mockResolvedValue({ audience: 'Reviewers' });
+		const context = renderSection(
+			{},
+			{ defaultOpen: true, docText: 'A draft about registered reports.' },
+		);
+
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Draft from my document' }),
+		);
+
+		await waitFor(() => {
+			expect(context.setProposals).toHaveBeenCalledWith({
+				audience: 'Reviewers',
+			});
+		});
+	});
+
+	// The default EditorContext resolves an empty document, so this is the
+	// no-provider case — a run that silently changes nothing reads as a broken
+	// button, so it has to say why.
+	it('says so rather than generating from an empty document', async () => {
+		renderSection({}, { defaultOpen: true });
+
+		fireEvent.click(
+			screen.getByRole('button', { name: 'Draft from my document' }),
+		);
+
+		await waitFor(() => {
+			expect(document.body.textContent).toContain('Nothing to read yet');
+		});
+		expect(requestBriefProposal).not.toHaveBeenCalled();
 	});
 });
