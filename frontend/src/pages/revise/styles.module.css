@@ -387,3 +387,8 @@
 
 /* Doctext link and jump-status styles live in `components/docTextLink/`,
    shared with Chat. */
+
+/* Empty-document message (was Tailwind `text-gray-500`). */
+.emptyDoc {
+	color: #6a7282;
+}
