@@ -8,6 +8,15 @@
  * link, and the writer clicks again.
  */
 
+/* Was Tailwind `text-blue-500 hover:underline`. */
+.docLinkText {
+	color: #2b7fff;
+}
+
+.docLinkText:hover {
+	text-decoration: underline;
+}
+
 .docLink {
 	cursor: pointer;
 }

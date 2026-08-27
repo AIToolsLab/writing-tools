@@ -353,11 +353,9 @@ function AppInner() {
 	}
 
 	return (
-		<div className="h-full flex flex-col overflow-hidden">
+		<div className={classes.appShell}>
 			<Navbar />
-			<div className="flex-1 flex flex-col overflow-y-auto">
-				{getComponent(page)}
-			</div>
+			<div className={classes.appBody}>{getComponent(page)}</div>
 			{!noAuthMode && user ? (
 				<div className={classes.container}>
 					<div className={classes.profileContainer}>

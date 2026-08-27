@@ -1,5 +1,7 @@
 import Markdown from '@/components/markdown';
 
+import classes from './styles.module.css';
+
 type ChatMessageProps = {
 	index: number;
 	refresh: (_: number) => void;
@@ -8,10 +10,9 @@ type ChatMessageProps = {
 };
 
 export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
+	const roleClass = props.role === 'user' ? classes.user : classes.assistant;
 	return (
-		<div
-			className={`w-full mb-2 ${props.role === 'user' ? 'flex justify-end' : 'flex justify-start'}`}
-		>
+		<div className={`${classes.row} ${roleClass}`}>
 			{/*
                 props.role !== 'assistant' ? (
                     <div className={ classes.toolbar }>
@@ -33,14 +34,8 @@ export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
                         />
                     </div>
                 )*/}
-			<div
-				className={`max-w-[85%] p-4 border rounded-lg ${
-					props.role === 'user'
-						? 'bg-blue-50 border-blue-300 mr-2'
-						: 'bg-gray-50 border-gray-300 ml-2'
-				}`}
-			>
-				<div className="text-gray-800">
+			<div className={`${classes.bubble} ${roleClass}`}>
+				<div className={classes.content}>
 					<Markdown>{props.content}</Markdown>
 				</div>
 			</div>

@@ -427,7 +427,7 @@ ${request}
 		docContext.afterCursor.length === 0
 	) {
 		return (
-			<div className="text-gray-500">
+			<div className={classes.emptyDoc}>
 				The document seems to be empty. Write something first, and this
 				panel will have material to work with.
 			</div>

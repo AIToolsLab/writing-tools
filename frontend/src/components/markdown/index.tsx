@@ -60,11 +60,12 @@ type MarkdownProps = {
  * - **GFM.** `remark-parse` alone is CommonMark, which has no tables, so a
  *   table came through as literal pipe characters. `remark-gfm` adds tables,
  *   strikethrough, task lists, and autolinks.
- * - **Element styling.** Tailwind's preflight resets `ul`/`ol` to no marker and
- *   no indent, and headings to plain body text, so markdown structure rendered
- *   as an undifferentiated run of lines. `styles.module.css` restores it. The
- *   rules live in a CSS module (unlayered) rather than a Tailwind layer, so
- *   they win over preflight regardless of specificity.
+ * - **Element styling.** The preflight reset (`src/preflight.css`) strips
+ *   `ul`/`ol` to no marker and no indent, and headings to plain body text, so
+ *   markdown structure rendered as an undifferentiated run of lines.
+ *   `styles.module.css` restores it. The rules live in a CSS module
+ *   (unlayered) rather than in `@layer base`, so they win over preflight
+ *   regardless of specificity.
  */
 export default function Markdown({
 	children,
