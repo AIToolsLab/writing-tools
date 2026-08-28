@@ -331,12 +331,16 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		// Better Auth's documented public API, but its own mechanism. A raw SQL
 		// UPDATE via our db() connection was rejected as more fragile — it would
 		// bypass Better Auth's date serialization and any user hooks.
+		const consentUpdatedAt = new Date();
 		const ctx = await auth.$context;
 		await ctx.internalAdapter.updateUser(user.id, {
 			loggingConsent: level,
-			consentUpdatedAt: new Date(),
+			consentUpdatedAt,
 		});
-		return c.json({ loggingConsent: level });
+		// Return the authoritative snapshot written above. The client applies this
+		// directly, rather than making its ability to leave the onboarding gate
+		// depend on a second, best-effort get-session request.
+		return c.json({ loggingConsent: level, consentUpdatedAt });
 	});
 
 	// Erase the authenticated user's logged activity — study logs and analytics
