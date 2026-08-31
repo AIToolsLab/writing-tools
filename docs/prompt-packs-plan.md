@@ -246,6 +246,73 @@ displayed in full on its settings card. **Legibility is the trust story**: a
 pack is inspectable in a way code never is, and the writer who authored one
 by talking can read exactly what they made.
 
+## Who can actually publish?
+
+The founding question of this document is whether a domain expert who is not
+a software engineer can extend Thoughtful. That question has to be asked of
+every mechanism the document proposes, *including its own distribution
+story*. An earlier draft failed it: "a writing center publishes an MCP
+server" quietly assumed a public HTTPS endpoint, multi-tenant auth and
+someone on call.
+
+The corrective principle: **LLMs made authoring cheap and did nothing to make
+operating cheap.** A writing-center director can now produce a working prompt
+in an afternoon; they still cannot run a service, and no model will page them
+at 2am. So an extensibility ladder built for this era should push
+*operations* onto the platform and leave only *authoring* with the extender.
+Any mechanism that fails this test is a mechanism for us and for Tier-2
+developers, and should be labelled as such rather than offered to a domain
+expert.
+
+| # | Mechanism | Skill demanded | Who hosts | Verdict |
+| --- | --- | --- | --- | --- |
+| 0 | Author a pack in Chat | conversation | us | the target |
+| 1 | Share a pack with a colleague | send a link or a code | us | the target |
+| 2 | Publish a **collection** others subscribe to | naming, curation, writing a description — editorial, not technical | us | **the target; this is what "a writing center publishes" has to mean** |
+| 3 | Host pack files yourself at a URL | static hosting (GitHub Pages, a university web directory), git | them | fine as an option; required of no one |
+| 4 | Run an MCP server | server code, TLS, OAuth, uptime, incident response | them | out of reach — and unnecessary, see below |
+
+The rule that follows: **anything we expect a domain expert to do must sit at
+level ≤ 2, and level 2 must be something we host.**
+
+### Collections: the actual distribution primitive
+
+A collection is a named set of packs with an owner and a visibility setting —
+Google-Docs-shaped sharing, not app-store-shaped publishing. It lives on our
+infrastructure as ordinary data, so:
+
+- publishing is clicking Share and naming the thing;
+- subscribing is opening a link;
+- an update propagates to subscribers **with the change shown**, because a
+  pack is a prompt that will run against someone else's document and silent
+  edits to that are not acceptable;
+- provenance and version history come from the collection record rather than
+  from the author's infrastructure.
+
+Level 3 stays available for anyone who wants to own the canonical copy — a
+collection can point at a static URL or a git repo of pack files, which costs
+GitHub Pages rather than a server. It should never be the only path.
+
+**What hosting distribution costs us.** This is not a free win, and the cost
+is exactly why self-hosting was tempting to write down. A shared pack is an
+untrusted prompt that runs against someone else's document, so hosting
+distribution makes us a distribution platform: provenance display, a report
+path, a policy on what a public collection may contain, and some answer for a
+pack that is hostile rather than merely bad. One-to-one sharing is
+low-stakes; a public gallery is a different product with different duties.
+Sequence accordingly — private sharing and named collections first, anything
+resembling a directory only once we are willing to own moderation.
+
+### So what is MCP for?
+
+Not distribution. **The writing center is a pack author, not a server
+operator**, and in the MCP relationship it is a *consumer*: one of its packs
+can declare a server somebody else already runs — Zotero, a library
+catalogue, an LMS vendor, a campus system maintained by IT. That is Role 1
+below, and it asks nothing of the pack's author beyond naming it. Where no
+such server exists, the honest answer is that the integration waits for
+someone to build it, and that someone is a Tier-2 developer.
+
 ## Reuse over invention
 
 The test is not "does a standard exist" but: **is the idiom already in both
@@ -291,12 +358,14 @@ against this design almost one for one:
 | **Sampling** (server asks the client for a completion) | our LLM proxy relationship, inverted |
 
 That third row is the striking one: a pack is very nearly already an MCP
-prompt, which means the pack *format* may not need inventing — and, more
-importantly, neither does pack **distribution**. A writing center publishes
-an MCP server exposing its prompts; an instructor's students connect to it;
-the packs appear in their sidebar; when the center improves a prompt,
-everyone gets the fix. Versioning, updates and provenance all come along.
-Paste-a-JSON-blob handles none of that well.
+prompt, so the pack *format* may not need inventing.
+
+**Pack distribution is a different question, and MCP is the wrong answer to
+it.** Serving prompts over MCP means running a live server with a public
+endpoint, auth and uptime — more engineering than the monorepo PR this whole
+ladder exists to avoid, demanded of the person least able to supply it. Packs
+are static data; distributing them needs no server. See
+[Who can actually publish?](#who-can-actually-publish).
 
 ### Role 1: Thoughtful as MCP *client* (outbound) — the real unlock
 
@@ -443,14 +512,19 @@ supporting.
    Draft renders the user's `button` packs below the built-ins.
 4. **Self-extension:** `save_pack` / `test_pack` / `list_packs` in Chat;
    provenance cards.
-5. **`ask_writer` + `annotate` + the `persona`/`lens`/`ritual` surfaces** —
+5. **Collections** — share one pack with a colleague, then named collections
+   with subscribe and update-with-diff. Hosted by us (level ≤ 2); a
+   collection may optionally point at an author-hosted static URL. Public
+   directories deliberately excluded until moderation is owned.
+6. **`ask_writer` + `annotate` + the `persona`/`lens`/`ritual` surfaces** —
    the dialogic tier.
-6. **The workspace** (server-side VFS + git, behind our own tool interface).
+7. **The workspace** (server-side VFS + git, behind our own tool interface).
    Charter becomes buildable as a pack, which is a good acceptance test.
    Document snapshotting as commits unlocks Tidelines and Post-Game Review.
-7. **Outbound MCP** (Role 1) — packs may declare third-party servers.
-8. **On demand:** `propose_edit`, corpus import, and — as a deliberate,
+8. **Outbound MCP** (Role 1) — packs may declare third-party servers.
+9. **On demand:** `propose_edit`, corpus import, and — as a deliberate,
    separately-argued step — inbound MCP (Role 3, read-only).
 
-Steps 1–4 are the minimum for "extensions prompt themselves into existence";
-5–7 are where the coverage table's 80% actually arrives.
+Steps 1–4 are the minimum for "extensions prompt themselves into
+existence"; step 5 is what lets anyone but the author benefit from one; 6–8
+are where the coverage table's 80% actually arrives.
