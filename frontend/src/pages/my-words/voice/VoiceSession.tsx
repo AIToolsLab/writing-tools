@@ -80,8 +80,10 @@ export function VoiceSession(props: {
 		anchor?: string;
 		cancel: () => void;
 	} | null>(null);
-	// The most recent thing that didn't happen, shown until it's replaced or
-	// dismissed. Every notice also lands in the log.
+	// The most recent thing that didn't happen, shown until the session retracts
+	// it (the writer speaks again, or an edit lands — invariant 6), it's
+	// replaced, or it's dismissed. Every notice also lands in the log, which is
+	// where the history lives; this strip is only about the current attempt.
 	const [notice, setNotice] = useState<string | null>(null);
 	// Depth drives the button's presence; description tells the writer what
 	// pressing it would revert.
@@ -143,10 +145,12 @@ export function VoiceSession(props: {
 				},
 				onTool: (text) => pushLog({ kind: 'tool', text }),
 				onStatus: (text) => pushLog({ kind: 'system', text }),
-				// Writer-visible: an attempt that didn't land (see invariant 3).
+				// Writer-visible: an attempt that didn't land (invariant 3), or
+				// `null` retracting one that's no longer current (invariant 6).
+				// Only real notices are logged — a retraction isn't an event.
 				onNotice: (text) => {
 					setNotice(text);
-					pushLog({ kind: 'notice', text });
+					if (text !== null) pushLog({ kind: 'notice', text });
 				},
 				onScratchpadHighlight: setAgentHighlight,
 				onReveal: setReveal,
