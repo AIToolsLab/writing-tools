@@ -45,6 +45,34 @@ task pane's URL comes from `manifest.xml`, and the Google Docs bundle runs insid
 an Apps Script sandbox iframe with no addressable URL. The Labs menu is the
 cross-surface way in; flags are for keeping something out of even that.
 
+### What the model sees of the document
+
+`getDocContext()` returns `beforeCursor` / `selectedText` / `afterCursor`, and
+those three always concatenate to the whole document — `getDocText()` is that
+concatenation, so anything that breaks the invariant breaks the corpus.
+
+On **Google Docs** the document is serialized to Markdown in Apps Script
+(`serializeBody` in `google-docs-addon/Code.gs`): headings become `#`, list
+items `-` / `1.`, paragraphs separated by a blank line. Docs renders list glyphs
+from formatting rather than storing them as characters, so without this the
+model saw a list as unmarked prose and a heading as an ordinary sentence.
+Positions are derived from the element the cursor is in, never by searching the
+text for the selected string — that mislocated repeated phrases and cannot work
+once prefixes exist, since a heading's selected text doesn't contain its `## `.
+Tables, images, comments, and inline formatting do not survive; see
+`docs/google-docs-document-serialization.md`.
+
+**Word** returns plain text with no such markup. A page that comes to depend on
+Markdown structure needs to handle both, or the two surfaces will diverge.
+
+The **Debug** page (Labs menu, `src/pages/debug/`) renders the context exactly as
+the model receives it, with the cursor marked inline. It is the only place the
+serialization is observable — every other page folds it into a prompt, where a
+bad serialization is indistinguishable from the model being confused. Reach for
+it on any change to document reading. Unit tests for the Apps Script side live in
+`src/api/__tests__/googleDocsMarkdown.test.ts` and run the real `Code.gs` against
+a stubbed `DocumentApp`, so iterating the mapping needs no `clasp push`.
+
 ### Document-scoped settings
 
 `EditorAPI` has `getDocumentSetting`/`setDocumentSetting` for small values that
