@@ -185,3 +185,74 @@ subject. Findings about intrusiveness on this build are partly findings about
 this constant.
 
 <!-- Entries below are appended as the build proceeds. -->
+
+---
+
+## 4. Challenges found by running it
+
+C1–C8 were predicted from reading the paper. These two were not: they only
+appeared once the thing was driven in a browser, typing into a real editor.
+Both are consequences of polling rather than listening, which is the
+reproduction's central compromise — so they are worth recording as evidence
+about that compromise rather than as ordinary bugs.
+
+### C9 — A polled observer has no history from before it starts.
+
+Its very first snapshot is indistinguishable from "text the writer just
+typed", so whatever is already in the document becomes the baseline, and
+anything written in the gap before that baseline is invisible. A writer who
+switched watching on and immediately typed a sentence and stopped got no
+pause at all: the burst had been absorbed into the baseline, so as far as the
+state machine knew, they had never written anything.
+
+Mitigated by sampling the baseline the instant watching starts rather than on
+the first interval, which shrinks the blind window from a full poll interval
+to one host read. It cannot be closed. A keystroke listener has the same cold
+start, but its resolution is one character, so its blind window is invisible.
+
+### C10 — An unwatched trigger was spending the cooldown. *(fixed)*
+
+A writer whose only partner listened for **Long pause** received nothing,
+ever. Every sentence they finished fired a **Sentence end** — which no partner
+listened for, so it produced no activation — but firing it started the 45-second
+cooldown, and the pause that followed was suppressed behind it. The feature
+looked completely dead while every individual part of it worked.
+
+Fixed by evaluating only the triggers some partner actually listens for
+(`observe`'s `watched` argument), with a regression test.
+
+Worth dwelling on rather than just fixing: **the cooldown is not a neutral
+safety valve.** It is a scarce resource that the noisiest trigger wins by
+default. That is a property of the cooldown itself, not of this bug — so the
+same dynamic will shape which partners get heard in any study run on this
+build. A writer with one Sentence-end partner and one Long-pause partner is
+not running two partners at equal odds; the sentence-end one will take most of
+the openings. The paper has no cooldown and so has no such effect, which makes
+this a place where our findings could diverge from theirs for reasons that
+have nothing to do with the design being studied.
+
+## 5. Status
+
+| Paper §4 | Here |
+|---|---|
+| Partner customization (name, emoji, role, triggers, heuristic) | ✅ |
+| Long Pause / Sentence End / Text Selection triggers | ✅ from polled snapshots, not keystrokes (C1) |
+| Session goal | ✅ as the existing document brief (C7) |
+| Keystroke log fed to the decision engine | ⚠️ coarse activity trace instead (C1) |
+| Decision engine, at most two partners | ✅ one model instead of two (C5) |
+| Acknowledgement + question suggestion | ✅ generated on click, not on activation (C5) |
+| Floating tag aligned with the cursor | ⚠️ fixed position in the panel (C3) |
+| Ignoring — tag fades after 15s | ✅ |
+| Inspiring — card plus follow-up conversation | ✅ |
+| Executing — partner writes into the document | ❌ deliberately not built (C4) |
+
+Verified end-to-end in `frontend/tests/partners-flows.spec.ts`: a writer
+configures a partner, types, stops, and a tag appears; opening it produces the
+suggestion and a follow-up reply. That test is what surfaced C9 and C10.
+
+**Not yet verified:** anything on a real host. Everything above ran against
+the standalone Lexical editor, where reading the document is a function call.
+On Word each poll is a `Word.run` sync and on Google Docs an Apps Script
+round-trip, and whether a 1.5-second poll is tolerable there — in battery,
+latency, and the host's own responsiveness — is an open question this
+reproduction has not answered.

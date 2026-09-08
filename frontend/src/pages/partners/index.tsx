@@ -237,6 +237,12 @@ export default function Partners(): React.JSX.Element {
 							<button
 								key={activation.id}
 								type="button"
+								// The visible label is just the emoji and the
+								// name — the paper's tag is deliberately almost
+								// nothing. That leaves a screen-reader user with
+								// no idea what the control does, so the
+								// accessible name says it.
+								aria-label={`${partner.name} has a suggestion — open it`}
 								className={
 									isOpen
 										? `${classes.tag} ${classes.tagOpen}`

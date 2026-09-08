@@ -128,7 +128,15 @@ export function usePartnerWatch({
 			afterCursor: context.afterCursor,
 		};
 
-		const result = observe(signalRef.current, snapshot, config);
+		// Only the triggers some partner listens for are evaluated: an
+		// unwatched trigger that fired would start the cooldown and suppress
+		// the one the writer actually configured.
+		const result = observe(
+			signalRef.current,
+			snapshot,
+			config,
+			activeTriggers(partners),
+		);
 		signalRef.current = result.state;
 		if (!result.event) return;
 
@@ -197,6 +205,18 @@ export function usePartnerWatch({
 			if (document.visibilityState !== 'visible') return;
 			void tick();
 		}
+		// Take the baseline immediately, not on the first interval.
+		//
+		// A polled observer has no history from before it started, so its very
+		// first snapshot is indistinguishable from "text the writer just
+		// typed": whatever is in the document becomes the baseline. Anything
+		// written in the gap before that baseline is therefore invisible, and
+		// a writer who switches watching on and immediately types a sentence
+		// and stops would get no pause at all — the burst would have been
+		// absorbed into the baseline. Sampling at once shrinks that blind
+		// window from a full POLL_MS to however long one host read takes. It
+		// cannot close it; see challenge C9.
+		schedule();
 		const timer = setInterval(schedule, POLL_MS);
 		return () => {
 			stopped = true;

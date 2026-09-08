@@ -126,6 +126,13 @@ function classify(
 	return 'idle';
 }
 
+/** Every trigger, for callers that do not narrow. */
+const ALL_TRIGGERS: ReadonlySet<EventTrigger> = new Set<EventTrigger>([
+	'long-pause',
+	'sentence-end',
+	'text-selection',
+]);
+
 /**
  * Fold one polled snapshot into the state, returning the new state and any
  * trigger that fired.
@@ -134,11 +141,20 @@ function classify(
  * specific wins (selection, then sentence end, then pause) — the paper does
  * not specify an order because with keystrokes its triggers rarely coincide;
  * with polling they routinely do.
+ *
+ * `watched` is the set of triggers some partner is actually listening for.
+ * Triggers outside it are not evaluated at all, rather than fired and then
+ * discarded by the caller — a fired trigger starts the cooldown, so an
+ * unwatched one would spend the quiet period that a watched one needed. That
+ * is not hypothetical: a partner listening only for pauses got nothing at all,
+ * because every sentence the writer finished fired an unwatched sentence-end
+ * first and suppressed the pause behind it.
  */
 export function observe(
 	state: SignalState,
 	snapshot: DocSnapshot,
 	config: SignalConfig = DEFAULT_SIGNAL_CONFIG,
+	watched: ReadonlySet<EventTrigger> = ALL_TRIGGERS,
 ): { state: SignalState; event: TriggerEvent | null } {
 	const now = snapshot.at;
 
@@ -208,6 +224,7 @@ export function observe(
 
 	// 1. Text selection: a selection held still long enough to mean something.
 	if (
+		watched.has('text-selection') &&
 		snapshot.selectedText.trim() !== '' &&
 		now - next.selectionSince >= config.selectionIdleMs &&
 		next.selectionFiredFor !== snapshot.selectedText
@@ -221,6 +238,7 @@ export function observe(
 	//    the writer has stopped for the short idle the paper uses.
 	const fingerprint = sentenceFingerprint(snapshot.beforeCursor);
 	if (
+		watched.has('sentence-end') &&
 		hasWritten &&
 		snapshot.selectedText === '' &&
 		endsSentence(snapshot.beforeCursor) &&
@@ -233,7 +251,12 @@ export function observe(
 	}
 
 	// 3. Long pause: nothing at all has happened for a while.
-	if (hasWritten && !next.pauseFired && idleFor >= config.pauseMs) {
+	if (
+		watched.has('long-pause') &&
+		hasWritten &&
+		!next.pauseFired &&
+		idleFor >= config.pauseMs
+	) {
 		const fired = fire('long-pause');
 		fired.state.pauseFired = true;
 		return fired;

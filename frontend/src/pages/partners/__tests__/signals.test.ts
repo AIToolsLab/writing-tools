@@ -8,7 +8,7 @@ import {
 	type SignalConfig,
 	type SignalState,
 } from '../signals';
-import type { DocSnapshot, TriggerEvent } from '../types';
+import type { DocSnapshot, EventTrigger, TriggerEvent } from '../types';
 
 const CONFIG: SignalConfig = { ...DEFAULT_SIGNAL_CONFIG, cooldownMs: 0 };
 
@@ -25,11 +25,12 @@ function snap(
 function run(
 	snapshots: DocSnapshot[],
 	config: SignalConfig = CONFIG,
+	watched?: ReadonlySet<EventTrigger>,
 ): { state: SignalState; events: TriggerEvent[] } {
 	let state = initialSignalState();
 	const events: TriggerEvent[] = [];
 	for (const snapshot of snapshots) {
-		const result = observe(state, snapshot, config);
+		const result = observe(state, snapshot, config, watched);
 		state = result.state;
 		if (result.event) events.push(result.event);
 	}
@@ -191,6 +192,37 @@ describe('observe', () => {
 			],
 			withCooldown,
 		);
+		expect(events.map((e) => e.trigger)).toEqual(['sentence-end']);
+	});
+
+	it('does not evaluate a trigger no partner listens for', () => {
+		// Regression: found end-to-end, not in these tests. A writer whose only
+		// partner listened for pauses got nothing, because finishing a sentence
+		// fired an unwatched sentence-end, which started the cooldown and
+		// suppressed the pause behind it.
+		const withCooldown: SignalConfig = { ...CONFIG, cooldownMs: 45_000 };
+		const pauseOnly = new Set<EventTrigger>(['long-pause']);
+		const { events } = run(
+			[
+				snap(0, ''),
+				snap(1_500, 'Elite players win on training habits.'),
+				snap(3_000, 'Elite players win on training habits.'),
+				snap(7_000, 'Elite players win on training habits.'),
+			],
+			withCooldown,
+			pauseOnly,
+		);
+		expect(events.map((e) => e.trigger)).toEqual(['long-pause']);
+	});
+
+	it('still fires an unwatched trigger when nothing narrows the set', () => {
+		// The default is "watch everything", so the narrowing above has to be
+		// something the caller opts into rather than a silent behaviour change.
+		const { events } = run([
+			snap(0, ''),
+			snap(1_500, 'Elite players win on training habits.'),
+			snap(3_000, 'Elite players win on training habits.'),
+		]);
 		expect(events.map((e) => e.trigger)).toEqual(['sentence-end']);
 	});
 

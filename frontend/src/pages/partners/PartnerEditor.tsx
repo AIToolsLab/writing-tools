@@ -164,6 +164,7 @@ export default function PartnerEditor({
 										</span>
 										<textarea
 											className={classes.textarea}
+											aria-label="What kind of help?"
 											rows={3}
 											value={partner.role}
 											placeholder="e.g. Notice when I assert something without support, and help me think about what evidence would actually convince this reader."
@@ -230,6 +231,7 @@ export default function PartnerEditor({
 										</span>
 										<textarea
 											className={classes.textarea}
+											aria-label="Condition for stepping in"
 											rows={3}
 											value={partner.heuristic}
 											placeholder="e.g. When I have just made a claim and there is no example or citation near it."
