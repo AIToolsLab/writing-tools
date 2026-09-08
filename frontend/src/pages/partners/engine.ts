@@ -183,10 +183,7 @@ export async function decideActivations(
 		providerOptions: openaiProviderOptions,
 		abortSignal: signal,
 	});
-	return parseDecision(
-		raw,
-		new Set(candidates.map((partner) => partner.id)),
-	);
+	return parseDecision(raw, new Set(candidates.map((partner) => partner.id)));
 }
 
 export const SUGGESTION_INSTRUCTIONS = `\

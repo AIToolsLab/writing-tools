@@ -82,9 +82,9 @@ describe('partnersForTrigger / activeTriggers', () => {
 	];
 
 	it('matches only complete, enabled partners listening for the trigger', () => {
-		expect(partnersForTrigger(partners, 'long-pause').map((p) => p.id)).toEqual(
-			['a'],
-		);
+		expect(
+			partnersForTrigger(partners, 'long-pause').map((p) => p.id),
+		).toEqual(['a']);
 		expect(
 			partnersForTrigger(partners, 'sentence-end').map((p) => p.id),
 		).toEqual(['b']);

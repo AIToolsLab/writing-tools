@@ -70,9 +70,9 @@ describe('page registry', () => {
 			expect(pagesByTier('lab').map((entry) => entry.name)).toContain(
 				PageName.Tools,
 			);
-			expect(pagesByTier('core').map((entry) => entry.name)).not.toContain(
-				PageName.Tools,
-			);
+			expect(
+				pagesByTier('core').map((entry) => entry.name),
+			).not.toContain(PageName.Tools);
 		});
 	});
 

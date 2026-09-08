@@ -141,9 +141,9 @@ describe('observe', () => {
 			snap(2_500, 'One. Two.'),
 			snap(4_000, 'One. Two.'),
 		]);
-		expect(
-			events.filter((e) => e.trigger === 'sentence-end'),
-		).toHaveLength(2);
+		expect(events.filter((e) => e.trigger === 'sentence-end')).toHaveLength(
+			2,
+		);
 	});
 
 	it('fires a text selection once the selection is held still', () => {

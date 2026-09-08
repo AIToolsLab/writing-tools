@@ -11,7 +11,10 @@ const KNOWN = new Set(['a', 'b', 'c']);
 describe('parseDecision', () => {
 	it('reads a plain decision', () => {
 		expect(
-			parseDecision('{"activate":[{"id":"a","why":"no evidence yet"}]}', KNOWN),
+			parseDecision(
+				'{"activate":[{"id":"a","why":"no evidence yet"}]}',
+				KNOWN,
+			),
 		).toEqual([{ id: 'a', why: 'no evidence yet' }]);
 	});
 
@@ -21,13 +24,19 @@ describe('parseDecision', () => {
 
 	it('unwraps a fenced code block', () => {
 		expect(
-			parseDecision('```json\n{"activate":[{"id":"b","why":"x"}]}\n```', KNOWN),
+			parseDecision(
+				'```json\n{"activate":[{"id":"b","why":"x"}]}\n```',
+				KNOWN,
+			),
 		).toEqual([{ id: 'b', why: 'x' }]);
 	});
 
 	it('tolerates a preamble around the object', () => {
 		expect(
-			parseDecision('Sure! {"activate":[{"id":"c","why":"y"}]} Hope that helps.', KNOWN),
+			parseDecision(
+				'Sure! {"activate":[{"id":"c","why":"y"}]} Hope that helps.',
+				KNOWN,
+			),
 		).toEqual([{ id: 'c', why: 'y' }]);
 	});
 
@@ -59,7 +68,9 @@ describe('parseDecision', () => {
 	});
 
 	it('survives a reply that is not JSON at all', () => {
-		expect(parseDecision('I think nobody should speak.', KNOWN)).toEqual([]);
+		expect(parseDecision('I think nobody should speak.', KNOWN)).toEqual(
+			[],
+		);
 		expect(parseDecision('', KNOWN)).toEqual([]);
 		expect(parseDecision('{ not json }', KNOWN)).toEqual([]);
 	});
@@ -79,12 +90,12 @@ describe('parseSuggestion', () => {
 
 	it('falls back to prose as the question', () => {
 		// A partner that said something beats an error card.
-		expect(parseSuggestion('What would change if you led with the claim?')).toEqual(
-			{
-				acknowledgement: '',
-				question: 'What would change if you led with the claim?',
-			},
-		);
+		expect(
+			parseSuggestion('What would change if you led with the claim?'),
+		).toEqual({
+			acknowledgement: '',
+			question: 'What would change if you led with the claim?',
+		});
 	});
 
 	it('keeps whichever half the model supplied', () => {

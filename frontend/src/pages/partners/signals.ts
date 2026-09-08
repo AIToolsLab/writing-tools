@@ -160,7 +160,7 @@ export function observe(
 		kind === 'typed' || kind === 'deleted' || kind === 'revised';
 	const selectionChanged = state.last.selectedText !== snapshot.selectedText;
 
-	let next: SignalState = { ...state, last: snapshot };
+	const next: SignalState = { ...state, last: snapshot };
 
 	if (kind !== 'idle') {
 		const record: ActivityRecord = {
@@ -197,7 +197,9 @@ export function observe(
 	const inCooldown =
 		next.lastEventAt > 0 && now - next.lastEventAt < config.cooldownMs;
 
-	const fire = (trigger: EventTrigger): { state: SignalState; event: TriggerEvent } => ({
+	const fire = (
+		trigger: EventTrigger,
+	): { state: SignalState; event: TriggerEvent } => ({
 		state: { ...next, lastEventAt: now },
 		event: { trigger, at: now, snapshot, activity: next.activity },
 	});
