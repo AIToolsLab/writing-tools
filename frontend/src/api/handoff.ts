@@ -86,7 +86,8 @@ export function openInBrowser(url: string): void {
 }
 
 export type BrowserLaunchReservation =
-	{ kind: 'office' } | { kind: 'window'; popup: Window };
+	| { kind: 'office' }
+	| { kind: 'window'; popup: Window };
 
 function officeBrowserOpener(): ((url: string) => void) | undefined {
 	const officeUi = (
@@ -150,9 +151,7 @@ export function completeBrowserLaunch(
 	reservation.popup.location.replace(url);
 }
 
-export function cancelBrowserLaunch(
-	reservation: BrowserLaunchReservation,
-): void {
+export function cancelBrowserLaunch(reservation: BrowserLaunchReservation): void {
 	if (reservation.kind === 'window' && !reservation.popup.closed) {
 		reservation.popup.close();
 	}

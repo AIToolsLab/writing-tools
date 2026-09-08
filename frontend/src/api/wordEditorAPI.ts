@@ -53,9 +53,7 @@ export const wordEditorAPI: EditorAPI = {
 			Word.run(async (context: Word.RequestContext) => {
 				const body: Word.Body = context.document.body;
 				const docContext: DocContext = {
-					documentLabel: wordDocumentLabel(
-						Office.context.document.url,
-					),
+					documentLabel: wordDocumentLabel(Office.context.document.url),
 					beforeCursor: '',
 					selectedText: '',
 					afterCursor: '',

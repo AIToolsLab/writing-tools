@@ -101,9 +101,7 @@ export async function launchFirstPartyTool(
 ): Promise<{ sharedDoc: boolean }> {
 	const reservation = dependencies.reserveLaunch();
 	if (!reservation) {
-		throw new Error(
-			'Your browser blocked the new window. Allow popups and try again.',
-		);
+		throw new Error('Your browser blocked the new window. Allow popups and try again.');
 	}
 	try {
 		const token = await dependencies.getAccessToken();
