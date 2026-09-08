@@ -24,6 +24,12 @@ const RESULTS = {
     '- A mock structural observation about your document.\n\n- [opening line](doctext:Some%20text%20to%20analyze) could be expanded.',
   // Chat assistant reply.
   chat: 'This is a mock assistant reply about your document.',
+  // Partners (lab): the decision engine activates the writer's first partner.
+  // The id is filled in per-request, since the writer's partner ids are random.
+  partnersDecision: '{"activate":[{"id":"__ID__","why":"the claim has no example near it"}]}',
+  partnersSuggestion:
+    '{"acknowledgement":"You have just stated a claim about training habits.","question":"What would a reader need to see to believe it?"}',
+  partnersFollowUp: 'A mock follow-up reply from the partner.',
 };
 
 // The Responses request body carries the prompt in two places: the system prompt as
@@ -61,6 +67,17 @@ function resultForText(text: string): string {
   // Chat is identified by its system prompt (chat/index.tsx).
   if (text.includes('Encourage the user towards critical thinking'))
     return RESULTS.chat;
+  // Partners (pages/partners/engine.ts). The decision engine is asked about
+  // partners whose ids the writer's browser generated, so echo back the first
+  // id the prompt actually contains rather than a fixed one.
+  if (text.includes('You decide whether an AI writing partner should speak up')) {
+    const id = /^[\s-]*id: (\S+)/m.exec(text)?.[1];
+    return id ? RESULTS.partnersDecision.replace('__ID__', id) : '{"activate":[]}';
+  }
+  if (text.includes('Say two things, in this order.'))
+    return RESULTS.partnersSuggestion;
+  if (text.includes('now in a short follow-up conversation'))
+    return RESULTS.partnersFollowUp;
   return '';
 }
 
