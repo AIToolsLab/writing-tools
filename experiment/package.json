@@ -14,9 +14,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
-    "@ai-sdk/openai": "^2.0.72",
-    "@ai-sdk/react": "^2.0.102",
-    "ai": "^5.0.102",
+    "@ai-sdk/openai": "^2.0.125",
+    "@ai-sdk/react": "^2.0.256",
+    "ai": "^5.0.253",
     "jotai": "^2.15.2",
     "next": "16.2.11",
     "react": "19.2.3",
