@@ -126,6 +126,14 @@ export const auth = betterAuth({
 			grantTypes: ['authorization_code'],
 			allowDynamicClientRegistration: false,
 			allowUnauthenticatedClientRegistration: false,
+			// The flags above only close /oauth2/register. The plugin also exposes
+			// session-authenticated client management (/oauth2/create-client,
+			// update-client, delete-client, get-clients, rotate-secret), gated solely
+			// by this hook. Without it any signed-in user, anonymous demo users
+			// included, can mint their own public client. Deny every action: the one
+			// fixed client is provisioned through the adapter (oauth-clients.ts),
+			// which this hook does not touch.
+			clientPrivileges: () => false,
 			accessTokenExpiresIn: 60 * 60 * 12,
 		}),
 		bearer(),

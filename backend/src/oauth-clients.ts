@@ -56,6 +56,9 @@ export async function provisionTrustedMindmapClient(auth: Auth): Promise<void> {
 		public: true,
 		type: 'user-agent-based',
 		requirePKCE: true,
+		// A public client holds no secret. Clear it explicitly so a pre-existing
+		// row with this client id (e.g. once confidential) can't keep one.
+		clientSecret: null,
 	};
 
 	if (existing) {

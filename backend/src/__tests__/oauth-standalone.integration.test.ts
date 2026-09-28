@@ -282,6 +282,9 @@ describe.sequential('standalone Mindmap OAuth', () => {
 			await signedToken(userId, { aud: 'https://wrong.example' }),
 			await signedToken(userId, { scope: 'something:else' }),
 			await signedToken(userId, { iat: now - 120, exp: now - 60 }),
+			// Correctly signed, right audience and scope, but not the Mindmap client.
+			await signedToken(userId, { azp: 'some-other-client' }),
+			await signedToken(userId, { iss: 'https://wrong.example/api/auth' }),
 		];
 		const fetchMock = vi.fn();
 		vi.stubGlobal('fetch', fetchMock);
@@ -405,6 +408,57 @@ describe.sequential('standalone Mindmap OAuth', () => {
 			body: JSON.stringify({ redirect_uris: [REDIRECT_URI] }),
 		});
 		expect(registration.status).toBe(403);
+	});
+
+	it('refuses session-authenticated client management for every signed-in user', async () => {
+		const { cookie } = await anonymousSession();
+		const headers = { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN };
+		const countClients = () =>
+			(db().prepare(`SELECT COUNT(*) AS n FROM oauthClient`).get() as { n: number }).n;
+		const before = countClients();
+
+		const requests: Array<[string, Record<string, unknown>]> = [
+			[
+				'/oauth2/create-client',
+				{
+					redirect_uris: ['https://attacker.example/callback'],
+					token_endpoint_auth_method: 'none',
+					scope: 'openai:chat',
+				},
+			],
+			[
+				'/oauth2/update-client',
+				{ client_id: CLIENT_ID, update: { redirect_uris: ['https://attacker.example/callback'] } },
+			],
+			['/oauth2/delete-client', { client_id: CLIENT_ID }],
+		];
+		for (const [pathname, body] of requests) {
+			const response = await authRequest(pathname, {
+				method: 'POST',
+				headers,
+				body: JSON.stringify(body),
+			});
+			expect(response.status, pathname).toBe(401);
+		}
+		const list = await authRequest('/oauth2/get-clients', { headers });
+		expect(list.status).toBe(401);
+
+		expect(countClients()).toBe(before);
+		const row = db()
+			.prepare(`SELECT redirectUris FROM oauthClient WHERE clientId = ?`)
+			.get(CLIENT_ID) as { redirectUris: string };
+		expect(JSON.parse(row.redirectUris)).toEqual([REDIRECT_URI]);
+	});
+
+	it('clears a stale secret when re-provisioning an existing client row', async () => {
+		db()
+			.prepare(`UPDATE oauthClient SET clientSecret = ? WHERE clientId = ?`)
+			.run('stale-confidential-secret', CLIENT_ID);
+		await provisionTrustedMindmapClient(auth);
+		const row = db()
+			.prepare(`SELECT clientSecret FROM oauthClient WHERE clientId = ?`)
+			.get(CLIENT_ID) as { clientSecret: string | null };
+		expect(row.clientSecret).toBeNull();
 	});
 
 	it('does not register or accept localhost in the production client configuration', async () => {

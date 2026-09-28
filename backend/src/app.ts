@@ -15,6 +15,7 @@ import {
 	deviceClientIds,
 	gitCommit,
 	logSecret,
+	mindmapOAuthClientId,
 } from './config.js';
 import { eraseLoggedData } from './erasure.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
@@ -336,6 +337,12 @@ export function createApp({
 				scopes: ['openai:chat'],
 			});
 			if (typeof claims.sub !== 'string' || typeof claims.azp !== 'string') {
+				return { kind: 'rejected_oauth_credential' };
+			}
+			// Only the fixed Mindmap client may spend. Client creation is closed in
+			// auth.ts, but this check must hold on its own: a correctly signed token
+			// minted for any other client is still not a Mindmap credential.
+			if (claims.azp !== mindmapOAuthClientId()) {
 				return { kind: 'rejected_oauth_credential' };
 			}
 			const context = await auth.$context;
