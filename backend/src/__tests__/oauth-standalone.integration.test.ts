@@ -136,8 +136,20 @@ async function signedToken(
 	return result.token;
 }
 
+// A genuinely signed token whose payload is then edited, keeping the original
+// signature. The edit (a later expiry) leaves every claim valid and the user
+// real, so the signature is the only thing that can reject it.
+async function tamperedToken(userId: string): Promise<string> {
+	const [header, payload, signature] = (await signedToken(userId, {})).split('.');
+	const claims = JSON.parse(Buffer.from(payload!, 'base64url').toString());
+	const forged = Buffer.from(JSON.stringify({ ...claims, exp: claims.exp + 600 })).toString(
+		'base64url',
+	);
+	return `${header}.${forged}.${signature}`;
+}
+
 beforeAll(async () => {
-	dataDir = mkdtempSync(path.join(tmpdir(), 'writing-tools-oauth-standalone-'));
+	dataDir =mkdtempSync(path.join(tmpdir(), 'writing-tools-oauth-standalone-'));
 	process.env.DATA_DIR = dataDir;
 	process.env.NODE_ENV = 'test';
 	process.env.BETTER_AUTH_SECRET = 'integration-secret-that-is-at-least-32-characters';
@@ -274,6 +286,33 @@ describe.sequential('standalone Mindmap OAuth', () => {
 		}
 	});
 
+	it('accepts an untampered hand-signed token (control for the rejection cases)', async () => {
+		const { userId } = await anonymousSession();
+		vi.stubGlobal(
+			'fetch',
+			vi.fn(async () =>
+				new Response(
+					JSON.stringify({
+						id: 'provider-test',
+						model: 'gpt-4o',
+						choices: [],
+						usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+					}),
+					{ status: 200, headers: { 'Content-Type': 'application/json' } },
+				),
+			),
+		);
+		const response = await app.request('/api/openai/chat/completions', {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${await signedToken(userId, {})}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({ model: 'gpt-4o' }),
+		});
+		expect(response.status).toBe(200);
+	});
+
 	it('rejects invalid OAuth credentials without falling through to demo access', async () => {
 		const { userId } = await anonymousSession();
 		const now = Math.floor(Date.now() / 1000);
@@ -285,6 +324,7 @@ describe.sequential('standalone Mindmap OAuth', () => {
 			// Correctly signed, right audience and scope, but not the Mindmap client.
 			await signedToken(userId, { azp: 'some-other-client' }),
 			await signedToken(userId, { iss: 'https://wrong.example/api/auth' }),
+			await tamperedToken(userId),
 		];
 		const fetchMock = vi.fn();
 		vi.stubGlobal('fetch', fetchMock);
@@ -301,6 +341,35 @@ describe.sequential('standalone Mindmap OAuth', () => {
 			expect(response.headers.get('X-Writing-Tools-Error')).toBe('platform-auth');
 		}
 		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it('refuses to exchange a code with the wrong PKCE verifier', async () => {
+		const { cookie } = await anonymousSession();
+		const verifier = `mindmap-pkce-verifier-${crypto.randomUUID()}-long-enough`;
+		const challenge = createHash('sha256').update(verifier).digest('base64url');
+		const authorization = await app.request(authorizationUrl(challenge), {
+			headers: { Cookie: cookie },
+		});
+		expect(authorization.status).toBe(302);
+		const code = new URL(authorization.headers.get('location') ?? '').searchParams.get('code');
+		expect(code).toBeTruthy();
+
+		const tokenResponse = await app.request(`${AUTH_BASE}/oauth2/token`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: new URLSearchParams({
+				grant_type: 'authorization_code',
+				client_id: CLIENT_ID,
+				redirect_uri: REDIRECT_URI,
+				code: code!,
+				code_verifier: `wrong-verifier-${crypto.randomUUID()}-also-long-enough`,
+				resource: ORIGIN,
+			}),
+		});
+		expect(tokenResponse.status).toBeGreaterThanOrEqual(400);
+		expect(tokenResponse.status).toBeLessThan(500);
+		const body = (await tokenResponse.json()) as { access_token?: string };
+		expect(body.access_token).toBeUndefined();
 	});
 
 	it('allows login but forbids a user outside the beta allowlist at the proxy', async () => {
