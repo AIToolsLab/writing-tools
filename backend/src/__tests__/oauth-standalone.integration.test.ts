@@ -8,7 +8,7 @@ import { oauthProviderResourceClient } from '@better-auth/oauth-provider/resourc
 import type { Auth } from '../auth.js';
 import { createApp, type OAuthAccessTokenVerifier } from '../app.js';
 import { closeDb, db } from '../db.js';
-import { provisionTrustedMindmapClient } from '../oauth-clients.js';
+import { provisionTrustedOAuthClients } from '../oauth-clients.js';
 
 const ORIGIN = 'http://localhost:8000';
 const AUTH_BASE = `${ORIGIN}/api/auth`;
@@ -165,7 +165,7 @@ beforeAll(async () => {
 	({ auth } = await import('../auth.js'));
 	const { runMigrations } = await getMigrations(auth.options);
 	await runMigrations();
-	await provisionTrustedMindmapClient(auth);
+	await provisionTrustedOAuthClients(auth);
 
 	const jwks = (await authRequest('/jwks').then((response) => response.json())) as {
 		keys: Array<Record<string, unknown>>;
@@ -203,7 +203,7 @@ describe.sequential('standalone Mindmap OAuth', () => {
 	});
 
 	it('provisions idempotently without undoing an operational disable', async () => {
-		await provisionTrustedMindmapClient(auth);
+		await provisionTrustedOAuthClients(auth);
 		const initial = db()
 			.prepare(`SELECT clientId, skipConsent, requirePKCE, scopes FROM oauthClient`)
 			.get() as Record<string, unknown>;
@@ -215,7 +215,7 @@ describe.sequential('standalone Mindmap OAuth', () => {
 		expect(JSON.parse(initial.scopes as string)).toEqual(['openai:chat']);
 
 		db().prepare(`UPDATE oauthClient SET disabled = 1 WHERE clientId = ?`).run(CLIENT_ID);
-		await provisionTrustedMindmapClient(auth);
+		await provisionTrustedOAuthClients(auth);
 		const disabled = db()
 			.prepare(`SELECT disabled FROM oauthClient WHERE clientId = ?`)
 			.get(CLIENT_ID) as { disabled: number };
@@ -372,6 +372,24 @@ describe.sequential('standalone Mindmap OAuth', () => {
 		expect(body.access_token).toBeUndefined();
 	});
 
+	it('refuses any unauthenticated bearer on realtime instead of degrading to demo access', async () => {
+		const { cookie } = await anonymousSession();
+		const fetchMock = vi.fn();
+		vi.stubGlobal('fetch', fetchMock);
+		// Neither is JWT-shaped, so no shape check could catch them: the bearer must
+		// authenticate as itself, and a cookie alongside it must not rescue it.
+		for (const bearer of ['not-a-session-token', 'a.b']) {
+			for (const extra of [{}, { Cookie: cookie }]) {
+				const response = await app.request('/api/openai/realtime/session', {
+					method: 'POST',
+					headers: { Authorization: `Bearer ${bearer}`, ...extra },
+				});
+				expect(response.status, `${bearer} ${JSON.stringify(extra)}`).toBe(401);
+			}
+		}
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it('allows login but forbids a user outside the beta allowlist at the proxy', async () => {
 		const { accessToken } = await issueToken({ disallowed: true });
 		const fetchMock = vi.fn();
@@ -523,7 +541,7 @@ describe.sequential('standalone Mindmap OAuth', () => {
 		db()
 			.prepare(`UPDATE oauthClient SET clientSecret = ? WHERE clientId = ?`)
 			.run('stale-confidential-secret', CLIENT_ID);
-		await provisionTrustedMindmapClient(auth);
+		await provisionTrustedOAuthClients(auth);
 		const row = db()
 			.prepare(`SELECT clientSecret FROM oauthClient WHERE clientId = ?`)
 			.get(CLIENT_ID) as { clientSecret: string | null };
@@ -535,7 +553,7 @@ describe.sequential('standalone Mindmap OAuth', () => {
 		process.env.MINDMAP_OAUTH_REDIRECT_URIS =
 			'https://mindmap.thoughtful-ai.com/';
 		try {
-			await provisionTrustedMindmapClient(auth);
+			await provisionTrustedOAuthClients(auth);
 			const row = db()
 				.prepare(`SELECT redirectUris FROM oauthClient WHERE clientId = ?`)
 				.get(CLIENT_ID) as { redirectUris: string };
@@ -552,7 +570,7 @@ describe.sequential('standalone Mindmap OAuth', () => {
 		} finally {
 			process.env.NODE_ENV = 'test';
 			process.env.MINDMAP_OAUTH_REDIRECT_URIS = REDIRECT_URI;
-			await provisionTrustedMindmapClient(auth);
+			await provisionTrustedOAuthClients(auth);
 		}
 	});
 });

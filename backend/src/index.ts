@@ -7,8 +7,7 @@ import {
 	deviceClientIds,
 	googleClientId,
 	googleClientSecret,
-	mindmapOAuthClientId,
-	mindmapOAuthRedirectUris,
+	trustedOAuthClients,
 	openaiApiKey,
 	PORT,
 } from './config.js';
@@ -38,7 +37,7 @@ if (authEnabled()) {
 			'BETTER_AUTH_DEVICE_CLIENT_IDS is empty — all device code requests will be rejected.',
 		);
 	}
-	if (!mindmapOAuthClientId() || mindmapOAuthRedirectUris().length === 0) {
+	if (trustedOAuthClients().length === 0) {
 		console.error(
 			'MINDMAP_OAUTH_CLIENT_ID and MINDMAP_OAUTH_REDIRECT_URIS are required when auth is enabled in production.',
 		);
@@ -50,8 +49,8 @@ if (authEnabled()) {
 // (and its SQLite connection) is never executed when auth is disabled or in tests.
 const auth = authEnabled() ? (await import('./auth.js')).auth : undefined;
 if (auth) {
-	const { provisionTrustedMindmapClient } = await import('./oauth-clients.js');
-	await provisionTrustedMindmapClient(auth);
+	const { provisionTrustedOAuthClients } = await import('./oauth-clients.js');
+	await provisionTrustedOAuthClients(auth);
 }
 const app = createApp({ auth });
 

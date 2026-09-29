@@ -1,77 +1,73 @@
 import type { Auth } from './auth.js';
-import {
-	mindmapOAuthClientId,
-	mindmapOAuthRedirectUris,
-} from './config.js';
+import { trustedOAuthClients, type TrustedOAuthClient } from './config.js';
 
-function validateRedirectUri(redirectUri: string): void {
-	let parsed: URL;
+function validateRedirectUri(client: TrustedOAuthClient, redirectUri: string): void {
+	let parsed: URL | null = null;
 	try {
 		parsed = new URL(redirectUri);
 	} catch {
-		throw new Error(
-			'MINDMAP_OAUTH_REDIRECT_URIS must contain absolute HTTP(S) URLs.',
-		);
+		// fall through to the error below
 	}
-	if (!['http:', 'https:'].includes(parsed.protocol)) {
+	if (!parsed || !['http:', 'https:'].includes(parsed.protocol)) {
 		throw new Error(
-			'MINDMAP_OAUTH_REDIRECT_URIS must contain absolute HTTP(S) URLs.',
+			`OAuth client ${client.clientId}: redirect URIs must be absolute HTTP(S) URLs.`,
 		);
 	}
 }
 
 /**
- * Idempotently provision the fixed public Mindmap client through Better Auth's
- * adapter. The adapter owns storage encoding for booleans, dates, and arrays.
- * Updating the managed fields deliberately leaves `disabled` untouched so an
- * operator can revoke the client without restarting the process.
+ * Idempotently provision every trusted public OAuth client (see
+ * `trustedOAuthClients` in config.ts) through Better Auth's adapter. The adapter
+ * owns storage encoding for booleans, dates, and arrays. Updating the managed
+ * fields deliberately leaves `disabled` untouched so an operator can revoke a
+ * client without restarting the process.
  */
-export async function provisionTrustedMindmapClient(auth: Auth): Promise<void> {
-	const clientId = mindmapOAuthClientId();
-	const redirectUris = mindmapOAuthRedirectUris();
-	if (!clientId || redirectUris.length === 0) {
+export async function provisionTrustedOAuthClients(auth: Auth): Promise<void> {
+	const clients = trustedOAuthClients();
+	if (clients.length === 0) {
 		throw new Error(
-			'MINDMAP_OAUTH_CLIENT_ID and MINDMAP_OAUTH_REDIRECT_URIS are required.',
+			'No trusted OAuth clients are configured (MINDMAP_OAUTH_CLIENT_ID and MINDMAP_OAUTH_REDIRECT_URIS).',
 		);
 	}
-	redirectUris.forEach(validateRedirectUri);
-
 	const context = await auth.$context;
-	const existing = await context.adapter.findOne({
-		model: 'oauthClient',
-		where: [{ field: 'clientId', value: clientId }],
-	});
-	const now = new Date();
-	const managed = {
-		clientId,
-		skipConsent: true,
-		scopes: ['openai:chat'],
-		updatedAt: now,
-		name: 'Writing Tools Mindmap',
-		uri: new URL(redirectUris[0]!).origin,
-		redirectUris,
-		tokenEndpointAuthMethod: 'none',
-		grantTypes: ['authorization_code'],
-		responseTypes: ['code'],
-		public: true,
-		type: 'user-agent-based',
-		requirePKCE: true,
-		// A public client holds no secret. Clear it explicitly so a pre-existing
-		// row with this client id (e.g. once confidential) can't keep one.
-		clientSecret: null,
-	};
-
-	if (existing) {
-		await context.adapter.update({
+	for (const client of clients) {
+		client.redirectUris.forEach((uri) => validateRedirectUri(client, uri));
+		const existing = await context.adapter.findOne({
 			model: 'oauthClient',
-			where: [{ field: 'clientId', value: clientId }],
-			update: managed,
+			where: [{ field: 'clientId', value: client.clientId }],
 		});
-		return;
-	}
+		const now = new Date();
+		const managed = {
+			clientId: client.clientId,
+			skipConsent: true,
+			scopes: ['openai:chat'],
+			updatedAt: now,
+			name: client.name,
+			uri: new URL(client.redirectUris[0]!).origin,
+			redirectUris: client.redirectUris,
+			tokenEndpointAuthMethod: 'none',
+			grantTypes: ['authorization_code'],
+			responseTypes: ['code'],
+			public: true,
+			type: 'user-agent-based',
+			requirePKCE: true,
+			// A public client holds no secret. Clear it explicitly so a pre-existing
+			// row with this client id (e.g. once confidential) can't keep one.
+			clientSecret: null,
+		};
 
-	await context.adapter.create({
-		model: 'oauthClient',
-		data: { ...managed, disabled: false, createdAt: now },
-	});
+		if (existing) {
+			await context.adapter.update({
+				model: 'oauthClient',
+				where: [{ field: 'clientId', value: client.clientId }],
+				update: managed,
+			});
+			continue;
+		}
+
+		await context.adapter.create({
+			model: 'oauthClient',
+			data: { ...managed, disabled: false, createdAt: now },
+		});
+	}
 }

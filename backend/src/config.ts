@@ -86,6 +86,30 @@ export const mindmapOAuthRedirectUris = (): string[] => {
 	return ['http://localhost:5181/'];
 };
 
+/** A first-party public OAuth client this backend provisions and accepts. */
+export interface TrustedOAuthClient {
+	clientId: string;
+	name: string;
+	redirectUris: string[];
+}
+
+// The hardcoded list of OAuth clients the backend provisions at startup and whose
+// tokens the OpenAI proxy accepts. One entry today: the standalone Mindmap, whose
+// id and redirects come from the MINDMAP_OAUTH_* env vars above. Adding a client
+// means adding an entry here. Incomplete entries are dropped rather than
+// provisioned half-configured.
+export const trustedOAuthClients = (): TrustedOAuthClient[] =>
+	[
+		{
+			clientId: mindmapOAuthClientId(),
+			name: 'Writing Tools Mindmap',
+			redirectUris: mindmapOAuthRedirectUris(),
+		},
+	].filter((client) => client.clientId && client.redirectUris.length > 0);
+
+export const acceptedOAuthClientIds = (): string[] =>
+	trustedOAuthClients().map((client) => client.clientId);
+
 // Comma-separated allowed device client IDs. An empty list rejects all requests.
 export const deviceClientIds = (): string[] =>
 	(process.env.BETTER_AUTH_DEVICE_CLIENT_IDS ?? '')

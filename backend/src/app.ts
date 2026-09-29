@@ -15,7 +15,7 @@ import {
 	deviceClientIds,
 	gitCommit,
 	logSecret,
-	mindmapOAuthClientId,
+	acceptedOAuthClientIds,
 } from './config.js';
 import { eraseLoggedData } from './erasure.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
@@ -39,7 +39,7 @@ import {
 	type ToolScope,
 } from './toolGrants.js';
 import { summarizeUsage } from './usage.js';
-import { isUserAllowed } from './userAllowlist.js';
+import { allowlistFields, isUserAllowed } from './userAllowlist.js';
 import { oauthLoginHandler } from './routes/oauth-login.js';
 
 // Mints short-lived ephemeral credentials so a browser can open a WebRTC
@@ -58,10 +58,6 @@ function bearerToken(c: Context): string | null {
 	const header = c.req.header('Authorization') ?? '';
 	const match = header.match(/^Bearer\s+(.+)$/i);
 	return match?.[1] ? match[1].trim() : null;
-}
-
-function looksLikeCompactJwt(token: string): boolean {
-	return token.split('.').length === 3;
 }
 
 /**
@@ -204,14 +200,14 @@ export function createApp({
 		// count. Recording it means reading `usage` off the client's `response.done`
 		// events and reporting them back. Until then a voice session is billable but
 		// absent from `llm_usage`, which is why the page stays behind a flag.
-		// Realtime permits sessionless demo traffic, so returning null from the
-		// shared resolver is not enough to keep a narrow OAuth JWT out. A presented
-		// JWT is an explicit credential and must not degrade to demo authorization.
-		const presentedBearer = bearerToken(c);
-		if (presentedBearer && looksLikeCompactJwt(presentedBearer)) {
+		const user = await resolveUser(c);
+		// Realtime permits sessionless demo traffic, so a null user alone isn't a
+		// rejection. But a presented bearer is an explicit credential: if it doesn't
+		// authenticate a user here (an OAuth token, an expired session, garbage), the
+		// request is refused rather than degraded to demo access.
+		if (bearerToken(c) && !user) {
 			return c.json({ detail: 'Unauthorized' }, 401);
 		}
-		const user = await resolveUser(c);
 		// Same beta allowlist the proxy enforces — otherwise voice is a way around
 		// it that also happens to spend a model key.
 		if (user && !user.isAllowed) return c.json({ detail: 'Forbidden' }, 403);
@@ -271,59 +267,44 @@ export function createApp({
 		if (bearer?.startsWith('wtk_')) {
 			return resolveToolToken(bearer)?.user ?? null;
 		}
-		// Keep OAuth-shaped bearers out of this shared identity path: only
-		// resolveProxyIdentity may verify and use the narrow openai:chat credential.
-		// This check intentionally happens before cookie resolution so adding a
-		// browser cookie cannot launder the bearer into account, erasure, or handoff
-		// access.
-		if (bearer && looksLikeCompactJwt(bearer)) return null;
-
 		if (!auth) return null;
-		// When a bearer is presented, authenticate only that credential. Falling
-		// back to a simultaneous cookie would let an invalid narrow credential borrow
-		// the browser session's broader account permissions.
+		// When a bearer is presented, authenticate only that credential: it must be
+		// a valid session token or the request has no user. Never fall back to a
+		// simultaneous cookie, or an invalid narrow credential (such as an
+		// openai:chat OAuth token, which is not a session) could borrow the browser
+		// session's broader account permissions.
 		const sessionHeaders = bearer
 			? new Headers({ Authorization: `Bearer ${bearer}` })
 			: c.req.raw.headers;
 		const session = await auth.api.getSession({ headers: sessionHeaders });
 		if (!session) return null;
-		const u = session.user as {
-			loggingConsent?: unknown;
-			isAnonymous?: unknown;
-			email?: string | null;
-			alwaysAllow?: unknown;
-		};
-		const isAnonymous = u.isAnonymous === true;
+		const fields = allowlistFields(session.user);
+		const loggingConsent: unknown = Reflect.get(session.user, 'loggingConsent');
 		return {
 			id: session.user.id,
-			loggingConsent: isConsentLevel(u.loggingConsent)
-				? u.loggingConsent
+			loggingConsent: isConsentLevel(loggingConsent)
+				? loggingConsent
 				: DEFAULT_CONSENT_LEVEL,
-			isAnonymous,
+			isAnonymous: fields.isAnonymous,
 			// Recompute from the same policy the customSession flag uses, so proxy
 			// enforcement doesn't depend on the customSession endpoint override.
-			isAllowed: isUserAllowed({
-				email: u.email,
-				isAnonymous,
-				alwaysAllow: u.alwaysAllow === true,
-			}),
+			isAllowed: isUserAllowed(fields),
 			// A session-authenticated request is the add-in itself (clientId null)
 			// unless it self-identifies as a device-flow tool via X-Client-Id.
 			clientId: headerClientId(c),
 		};
 	}
 
+	// The proxy accepts everything resolveUser does (cookie session, session
+	// bearer, tool token) plus one extra credential: an openai:chat OAuth access
+	// token from a trusted client. A presented bearer that is none of these is
+	// rejected, never treated as sessionless demo traffic.
 	async function resolveProxyIdentity(c: Context): Promise<ProxyIdentity> {
-		const bearer = bearerToken(c);
-		if (bearer?.startsWith('wtk_')) {
-			const tool = resolveToolToken(bearer);
-			return tool
-				? { kind: 'authenticated', user: tool.user }
-				: { kind: 'rejected_tool_credential' };
-		}
 		const user = await resolveUser(c);
 		if (user) return { kind: 'authenticated', user };
+		const bearer = bearerToken(c);
 		if (!bearer) return { kind: 'sessionless' };
+		if (bearer.startsWith('wtk_')) return { kind: 'rejected_tool_credential' };
 		if (!auth || !verifyOAuthAccessToken) {
 			return { kind: 'rejected_oauth_credential' };
 		}
@@ -339,29 +320,21 @@ export function createApp({
 			if (typeof claims.sub !== 'string' || typeof claims.azp !== 'string') {
 				return { kind: 'rejected_oauth_credential' };
 			}
-			// Only the fixed Mindmap client may spend. Client creation is closed in
-			// auth.ts, but this check must hold on its own: a correctly signed token
-			// minted for any other client is still not a Mindmap credential.
-			if (claims.azp !== mindmapOAuthClientId()) {
+			// Only trusted clients may spend. Client creation is closed in auth.ts,
+			// but this check must hold on its own: a correctly signed token minted for
+			// any other client is not an accepted credential.
+			if (!acceptedOAuthClientIds().includes(claims.azp)) {
 				return { kind: 'rejected_oauth_credential' };
 			}
 			const context = await auth.$context;
-			const row = (await context.adapter.findOne({
-				model: 'user',
-				where: [{ field: 'id', value: claims.sub }],
-			})) as
-				| {
-						email?: string | null;
-						isAnonymous?: boolean | null;
-						alwaysAllow?: boolean | null;
-				  }
-				| null;
+			const row = await context.internalAdapter.findUserById(claims.sub);
 			if (!row) return { kind: 'rejected_oauth_credential' };
 
+			const fields = allowlistFields(row);
 			const oauthUser: ProxyUser = {
 				id: claims.sub,
-				isAnonymous: row.isAnonymous === true,
-				isAllowed: isUserAllowed(row),
+				isAnonymous: fields.isAnonymous,
+				isAllowed: isUserAllowed(fields),
 				clientId: claims.azp,
 			};
 			return { kind: 'authenticated', user: oauthUser };

@@ -15,7 +15,7 @@
 import { getMigrations } from 'better-auth/db/migration';
 import { auth } from './auth.js';
 import { db } from './db.js';
-import { provisionTrustedMindmapClient } from './oauth-clients.js';
+import { provisionTrustedOAuthClients } from './oauth-clients.js';
 
 // Let the process exit naturally rather than calling process.exit(): in a
 // container stdout is a pipe (async on Unix), so exiting immediately after a
@@ -29,7 +29,7 @@ try {
 	const { runMigrations } = await getMigrations(auth.options);
 	await runMigrations();
 	console.log('Better Auth migrations applied.');
-	await provisionTrustedMindmapClient(auth);
+	await provisionTrustedOAuthClients(auth);
 	console.log('Trusted Mindmap OAuth client provisioned.');
 } catch (err) {
 	console.error('Migration failed:', err);
