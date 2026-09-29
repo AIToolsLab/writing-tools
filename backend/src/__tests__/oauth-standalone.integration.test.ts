@@ -567,4 +567,28 @@ describe.sequential('standalone Mindmap OAuth', () => {
 			await provisionTrustedOAuthClients(auth);
 		}
 	});
+
+	it('treats unset Mindmap config as disabled: provisioning no-ops, tokens are refused', async () => {
+		const { accessToken } = await issueToken();
+		process.env.MINDMAP_OAUTH_CLIENT_ID = '';
+		process.env.MINDMAP_OAUTH_REDIRECT_URIS = '';
+		const fetchMock = vi.fn();
+		vi.stubGlobal('fetch', fetchMock);
+		try {
+			await expect(provisionTrustedOAuthClients(auth)).resolves.toBeUndefined();
+			const response = await app.request('/api/openai/chat/completions', {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${accessToken}`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({ model: 'gpt-4o' }),
+			});
+			expect(response.status).toBe(401);
+			expect(fetchMock).not.toHaveBeenCalled();
+		} finally {
+			process.env.MINDMAP_OAUTH_CLIENT_ID = CLIENT_ID;
+			process.env.MINDMAP_OAUTH_REDIRECT_URIS = REDIRECT_URI;
+		}
+	});
 });

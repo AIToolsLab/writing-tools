@@ -15,20 +15,15 @@ describe('standalone Mindmap OAuth configuration', () => {
 		expect(betterAuthOrigin()).toBe('https://app.thoughtful-ai.com');
 	});
 
-	it('defaults only the development client and localhost callback', () => {
-		vi.stubEnv('NODE_ENV', 'development');
-		vi.stubEnv('MINDMAP_OAUTH_CLIENT_ID', '');
-		vi.stubEnv('MINDMAP_OAUTH_REDIRECT_URIS', '');
-		expect(mindmapOAuthClientId()).toBe('writing-tools-mindmap');
-		expect(mindmapOAuthRedirectUris()).toEqual(['http://localhost:5181/']);
-	});
-
-	it('has no production defaults that could register localhost', () => {
-		vi.stubEnv('NODE_ENV', 'production');
-		vi.stubEnv('MINDMAP_OAUTH_CLIENT_ID', '');
-		vi.stubEnv('MINDMAP_OAUTH_REDIRECT_URIS', '');
-		expect(mindmapOAuthClientId()).toBe('');
-		expect(mindmapOAuthRedirectUris()).toEqual([]);
+	it('has no defaults in any environment, so nothing can register localhost', () => {
+		for (const nodeEnv of ['development', 'production', '']) {
+			vi.stubEnv('NODE_ENV', nodeEnv);
+			vi.stubEnv('MINDMAP_OAUTH_CLIENT_ID', '');
+			vi.stubEnv('MINDMAP_OAUTH_REDIRECT_URIS', '');
+			expect(mindmapOAuthClientId()).toBe('');
+			expect(mindmapOAuthRedirectUris()).toEqual([]);
+			expect(trustedOAuthClients()).toEqual([]);
+		}
 	});
 
 	it('preserves exact configured redirects while removing duplicates', () => {

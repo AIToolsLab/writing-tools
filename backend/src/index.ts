@@ -38,16 +38,17 @@ if (authEnabled()) {
 		);
 	}
 	if (trustedOAuthClients().length === 0) {
-		console.error(
-			'MINDMAP_OAUTH_CLIENT_ID and MINDMAP_OAUTH_REDIRECT_URIS are required when auth is enabled in production.',
+		console.warn(
+			'MINDMAP_OAUTH_CLIENT_ID / MINDMAP_OAUTH_REDIRECT_URIS unset — standalone Mindmap login is disabled.',
 		);
-		process.exit(1);
 	}
 }
 
 // Import the auth singleton only when enabled. The dynamic import means auth.ts
 // (and its SQLite connection) is never executed when auth is disabled or in tests.
 const auth = authEnabled() ? (await import('./auth.js')).auth : undefined;
+// Provision here, not in migrate.ts: this process is the one whose env carries
+// the client config (the k8s migrate initContainer doesn't).
 if (auth) {
 	const { provisionTrustedOAuthClients } = await import('./oauth-clients.js');
 	await provisionTrustedOAuthClients(auth);

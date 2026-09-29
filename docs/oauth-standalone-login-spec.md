@@ -55,11 +55,16 @@ proxy rejects those: their issuer is the bare origin rather than
 ## Provisioning and deployment
 
 `MINDMAP_OAUTH_CLIENT_ID` and `MINDMAP_OAUTH_REDIRECT_URIS` configure the fixed
-client. Better Auth's adapter creates or updates its managed fields after Better
-Auth migrations. Updates preserve `disabled`, and no client cache is used.
+client. The server (not `migrate.ts`, whose k8s initContainer lacks this config)
+creates or updates the client's managed fields through Better Auth's adapter at
+startup. Updates preserve `disabled` (which stops new grants; issued JWTs stay
+valid until expiry), and no client cache is used.
 
-Production fails closed when auth is enabled and either variable is missing.
-The deployment environment must therefore be configured before merge. No stale
+Both variables are optional and have no code defaults. If either is unset, the
+server warns at startup, provisions nothing, and the proxy accepts no OAuth
+tokens: Mindmap login is off, everything else runs normally. So this can merge
+before the deployment is configured; enabling Mindmap in production means
+adding the two env vars to the app container in the k8s chart. No stale
 client purge migration is shipped: #594 never reached production, and deleting
 unknown client ids would endanger future clients. Experimental local databases
 may be removed manually.

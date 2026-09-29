@@ -66,25 +66,22 @@ export const googleClientId = () => (process.env.GOOGLE_CLIENT_ID ?? '').trim();
 export const googleClientSecret = () =>
 	(process.env.GOOGLE_CLIENT_SECRET ?? '').trim();
 
-// Fixed public OAuth client for the separately hosted Mindmap. The client id is
-// an identifier, not a secret. Production deliberately has no defaults so it
-// cannot accidentally register a localhost redirect on the live auth server.
-export const mindmapOAuthClientId = (): string => {
-	const configured = (process.env.MINDMAP_OAUTH_CLIENT_ID ?? '').trim();
-	if (configured) return configured;
-	if ((process.env.NODE_ENV ?? '').toLowerCase() === 'production') return '';
-	return 'writing-tools-mindmap';
-};
+// Fixed public OAuth client for the separately hosted Mindmap. Optional: when
+// either value is unset, Mindmap login is simply off. There are deliberately no
+// code defaults (dev values come from scripts/get_env.py), so no environment can
+// register a localhost redirect by accident — e.g. the k8s migrate initContainer,
+// which runs without NODE_ENV. The client id is an identifier, not a secret.
+export const mindmapOAuthClientId = (): string =>
+	(process.env.MINDMAP_OAUTH_CLIENT_ID ?? '').trim();
 
-export const mindmapOAuthRedirectUris = (): string[] => {
-	const configured = (process.env.MINDMAP_OAUTH_REDIRECT_URIS ?? '')
-		.split(',')
-		.map((value) => value.trim())
-		.filter(Boolean);
-	if (configured.length > 0) return [...new Set(configured)];
-	if ((process.env.NODE_ENV ?? '').toLowerCase() === 'production') return [];
-	return ['http://localhost:5181/'];
-};
+export const mindmapOAuthRedirectUris = (): string[] => [
+	...new Set(
+		(process.env.MINDMAP_OAUTH_REDIRECT_URIS ?? '')
+			.split(',')
+			.map((value) => value.trim())
+			.filter(Boolean),
+	),
+];
 
 /** A first-party public OAuth client this backend provisions and accepts. */
 export interface TrustedOAuthClient {
@@ -97,7 +94,7 @@ export interface TrustedOAuthClient {
 // tokens the OpenAI proxy accepts. One entry today: the standalone Mindmap, whose
 // id and redirects come from the MINDMAP_OAUTH_* env vars above. Adding a client
 // means adding an entry here. Incomplete entries are dropped rather than
-// provisioned half-configured.
+// provisioned half-configured, so an unconfigured client is simply disabled.
 export const trustedOAuthClients = (): TrustedOAuthClient[] =>
 	[
 		{

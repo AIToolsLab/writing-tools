@@ -40,11 +40,12 @@ Listens on `5000` in Docker (`PORT=5000`).
 ## Standalone Mindmap OAuth
 
 The fixed public client uses `MINDMAP_OAUTH_CLIENT_ID` and
-`MINDMAP_OAUTH_REDIRECT_URIS`. Development defaults to client id
-`writing-tools-mindmap` and the sole callback `http://localhost:5181/`.
-Production has no defaults and should register only
-`https://mindmap.thoughtful-ai.com/`; do not register localhost on the live
-authorization server. Access tokens use the canonical origin of
+`MINDMAP_OAUTH_REDIRECT_URIS`. Both are optional: if either is unset the server
+logs a warning at startup and Mindmap login is disabled. There are no code
+defaults; `scripts/get_env.py` writes the dev values (client id
+`writing-tools-mindmap`, callback `http://localhost:5181/`) into `.env`.
+Production should register only `https://mindmap.thoughtful-ai.com/`; do not
+register localhost on the live authorization server. Access tokens use the canonical origin of
 `BETTER_AUTH_URL` as their resource and audience.
 
 The server never purges OAuth clients. If a local database contains clients

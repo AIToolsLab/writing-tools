@@ -22,18 +22,13 @@ function validateRedirectUri(client: TrustedOAuthClient, redirectUri: string): v
  * Idempotently provision every trusted public OAuth client (see
  * `trustedOAuthClients` in config.ts) through Better Auth's adapter. The adapter
  * owns storage encoding for booleans, dates, and arrays. Updating the managed
- * fields deliberately leaves `disabled` untouched so an operator can revoke a
- * client without restarting the process.
+ * fields deliberately leaves `disabled` untouched so an operator can stop new
+ * grants without restarting the process (already-issued JWTs stay valid until
+ * they expire). With no clients configured this is a no-op.
  */
 export async function provisionTrustedOAuthClients(auth: Auth): Promise<void> {
-	const clients = trustedOAuthClients();
-	if (clients.length === 0) {
-		throw new Error(
-			'No trusted OAuth clients are configured (MINDMAP_OAUTH_CLIENT_ID and MINDMAP_OAUTH_REDIRECT_URIS).',
-		);
-	}
 	const context = await auth.$context;
-	for (const client of clients) {
+	for (const client of trustedOAuthClients()) {
 		client.redirectUris.forEach((uri) => validateRedirectUri(client, uri));
 		const existing = await context.adapter.findOne({
 			model: 'oauthClient',
