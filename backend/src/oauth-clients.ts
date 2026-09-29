@@ -10,7 +10,10 @@ function validateRedirectUri(client: TrustedOAuthClient, redirectUri: string): v
 	}
 	if (!parsed || !['http:', 'https:'].includes(parsed.protocol)) {
 		throw new Error(
-			`OAuth client ${client.clientId}: redirect URIs must be absolute HTTP(S) URLs.`,
+			// Identify the client by its hardcoded display name, not the env-sourced
+			// id: this message reaches the migration log, and CodeQL
+			// (js/clear-text-logging) treats env values as sensitive.
+			`OAuth client "${client.name}": redirect URIs must be absolute HTTP(S) URLs.`,
 		);
 	}
 }
