@@ -23,8 +23,9 @@ explains exactly which rule actually matters.
 - `experiment` container: separate Next.js app. **Left completely untouched.**
 - Two persistent volumes on the backend: study **logs** and the auth **SQLite DB**.
 - Orchestration: `docker-compose.yml` + `docker-compose-{dev,staging,prod}.yml`,
-  built and deployed by `Jenkinsfile` (the deploy path at the time; since retired in
-  favour of the GHCR image + k8s CD described in §9).
+  built and deployed by `Jenkinsfile` (the deploy path at the time; since retired,
+  along with `docker-compose-prod.yml`, in favour of the GHCR image + k8s CD described
+  in §9. Compose now remains for local dev only).
 
 ## 2. After
 
@@ -165,8 +166,8 @@ mv /opt/thoughtful/logs/*       /opt/thoughtful/data/logs/
   all existing env (OpenAI/PostHog/Better-Auth). `experiment` untouched.
 - Overrides — move the old frontend public port onto `backend`, single data volume:
   - dev: `backend.ports: ["5001:5000"]`, volume `./backend/data:/app/backend/data`.
-  - staging: `backend.ports: ["19573:5000"]`, volume `…/staging-data:/app/backend/data`.
-  - prod: `backend.ports: ["19571:5000"]`, volume `…/data:/app/backend/data`.
+  - staging/prod (historical; the compose override files and Jenkins deploy have since
+    been removed — both environments run on k8s).
 - `depends_on: backend` removed with the frontend service.
 
 ## 9. CI/CD
