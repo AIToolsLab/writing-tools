@@ -40,7 +40,17 @@ must never degrade to sessionless/demo access.
 
 The resource server verifies signature, issuer, audience, expiry, and scope,
 loads the subject through Better Auth's adapter, reapplies the existing beta
-allowlist, and attributes usage using the signed `azp` client id.
+allowlist, and attributes usage using the signed `azp` client id. Verification
+runs in-process (`auth.api.verifyJWT`, reading the jwt plugin's keys from the
+database), not via the oauth-provider resource client, which would fetch
+`/api/auth/jwks` over HTTP from the server's own public origin. No token
+introspection is configured, so opaque access tokens are never accepted and an
+issued JWT cannot be revoked before it expires.
+
+The `jwt()` plugin (which signs these access tokens) also lets any session
+fetch a session JWT from `GET /api/auth/token`, signed with the same keys. The
+proxy rejects those: their issuer is the bare origin rather than
+`<origin>/api/auth`, and they carry no `openai:chat` scope or trusted `azp`.
 
 ## Provisioning and deployment
 

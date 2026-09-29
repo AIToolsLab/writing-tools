@@ -1,7 +1,6 @@
 import { Hono } from 'hono';
 import type { Context } from 'hono';
 import { cors } from 'hono/cors';
-import { oauthProviderResourceClient } from '@better-auth/oauth-provider/resource-client';
 import type { Auth, SessionUser } from './auth.js'; // type-only import, no runtime cost
 import {
 	CONSENT_LEVELS,
@@ -85,30 +84,11 @@ function logSecretGate(c: Context, provided: string): Response | null {
 	return null;
 }
 
-export type OAuthAccessTokenVerifier = (
-	token: string,
-	options: {
-		verifyOptions: { audience: string; issuer: string };
-		scopes: string[];
-	},
-) => Promise<Record<string, unknown>>;
-
-export function createApp({
-	auth,
-	verifyOAuthAccessToken: suppliedOAuthVerifier,
-}: {
-	auth?: Auth;
-	/** In-process tests inject the real verifier with an in-memory JWKS reader. */
-	verifyOAuthAccessToken?: OAuthAccessTokenVerifier;
-} = {}): Hono {
+export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	const app = new Hono();
-	const verifyOAuthAccessToken =
-		suppliedOAuthVerifier ??
-		(auth?.options
-			? oauthProviderResourceClient(auth).getActions().verifyAccessToken
-			: null);
-	// Better Auth signs OAuth JWTs with baseURL + basePath. Its resource helper
-	// otherwise defaults to the bare origin and rejects valid tokens with a 401.
+	// Better Auth signs OAuth JWTs with baseURL + basePath as the issuer. The jwt
+	// plugin's own session JWTs (GET /api/auth/token) use the bare origin, so
+	// pinning this issuer is one of the checks that keeps them out of the proxy.
 	const oauthIssuer = `${betterAuthOrigin()}${BETTER_AUTH_BASE_PATH}`;
 
 	// CORS stays fully permissive for now to preserve existing behaviour.
@@ -118,8 +98,9 @@ export function createApp({
 	if (auth) {
 		app.get('/api/oauth/login', oauthLoginHandler);
 		// Better Auth 1.6.22 accepts an absent resource and then issues an opaque
-		// access token. Require one exact resource so every successful exchange
-		// produces the JWT this resource server can verify.
+		// access token, which the proxy can never accept (it only verifies JWTs). This
+		// is a usability guard, not a security boundary: require one exact resource so
+		// a misconfigured client fails at the exchange instead of at its first call.
 		app.use('/api/auth/oauth2/authorize', async (c, next) => {
 			const resources = new URL(c.req.url).searchParams.getAll('resource');
 			if (resources.length !== 1 || resources[0] !== betterAuthOrigin()) {
@@ -305,42 +286,39 @@ export function createApp({
 		const bearer = bearerToken(c);
 		if (!bearer) return { kind: 'sessionless' };
 		if (bearer.startsWith('wtk_')) return { kind: 'rejected_tool_credential' };
-		if (!auth || !verifyOAuthAccessToken) {
+		if (!auth) return { kind: 'rejected_oauth_credential' };
+
+		// Verify in-process against the jwt plugin's keys in our own database. (The
+		// oauth-provider resource client would instead fetch /api/auth/jwks over
+		// HTTP from our public origin.) verifyJWT checks the signature, expiry, the
+		// issuer passed here, and an audience of auth's baseURL, which is
+		// betterAuthOrigin(). It returns null for any bad token and handles key
+		// rotation by kid.
+		const { payload: claims } = await auth.api.verifyJWT({
+			body: { token: bearer, issuer: oauthIssuer },
+		});
+		const scopes = typeof claims?.scope === 'string' ? claims.scope.split(' ') : [];
+		if (!claims || typeof claims.azp !== 'string' || !scopes.includes('openai:chat')) {
 			return { kind: 'rejected_oauth_credential' };
 		}
-
-		try {
-			const claims = await verifyOAuthAccessToken(bearer, {
-				verifyOptions: {
-					audience: betterAuthOrigin(),
-					issuer: oauthIssuer,
-				},
-				scopes: ['openai:chat'],
-			});
-			if (typeof claims.sub !== 'string' || typeof claims.azp !== 'string') {
-				return { kind: 'rejected_oauth_credential' };
-			}
-			// Only trusted clients may spend. Client creation is closed in auth.ts,
-			// but this check must hold on its own: a correctly signed token minted for
-			// any other client is not an accepted credential.
-			if (!acceptedOAuthClientIds().includes(claims.azp)) {
-				return { kind: 'rejected_oauth_credential' };
-			}
-			const context = await auth.$context;
-			const row = await context.internalAdapter.findUserById(claims.sub);
-			if (!row) return { kind: 'rejected_oauth_credential' };
-
-			const fields = allowlistFields(row);
-			const oauthUser: ProxyUser = {
-				id: claims.sub,
-				isAnonymous: fields.isAnonymous,
-				isAllowed: isUserAllowed(fields),
-				clientId: claims.azp,
-			};
-			return { kind: 'authenticated', user: oauthUser };
-		} catch {
+		// Only trusted clients may spend. Client creation is closed in auth.ts,
+		// but this check must hold on its own: a correctly signed token minted for
+		// any other client is not an accepted credential.
+		if (!acceptedOAuthClientIds().includes(claims.azp)) {
 			return { kind: 'rejected_oauth_credential' };
 		}
+		const context = await auth.$context;
+		const row = await context.internalAdapter.findUserById(claims.sub);
+		if (!row) return { kind: 'rejected_oauth_credential' };
+
+		const fields = allowlistFields(row);
+		const oauthUser: ProxyUser = {
+			id: claims.sub,
+			isAnonymous: fields.isAnonymous,
+			isAllowed: isUserAllowed(fields),
+			clientId: claims.azp,
+		};
+		return { kind: 'authenticated', user: oauthUser };
 	}
 
 	// Client event logging. Requires an authenticated session: the log is keyed by

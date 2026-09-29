@@ -4,9 +4,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { getMigrations } from 'better-auth/db/migration';
-import { oauthProviderResourceClient } from '@better-auth/oauth-provider/resource-client';
 import type { Auth } from '../auth.js';
-import { createApp, type OAuthAccessTokenVerifier } from '../app.js';
+import { createApp } from '../app.js';
 import { closeDb, db } from '../db.js';
 import { provisionTrustedOAuthClients } from '../oauth-clients.js';
 
@@ -166,19 +165,7 @@ beforeAll(async () => {
 	const { runMigrations } = await getMigrations(auth.options);
 	await runMigrations();
 	await provisionTrustedOAuthClients(auth);
-
-	const jwks = (await authRequest('/jwks').then((response) => response.json())) as {
-		keys: Array<Record<string, unknown>>;
-	};
-	const providerVerifier = oauthProviderResourceClient(auth).getActions().verifyAccessToken;
-	const verifyOAuthAccessToken: OAuthAccessTokenVerifier = (token, options) =>
-		providerVerifier(token, {
-			...options,
-			// Keep verification cryptographically real without making an HTTP request
-			// back into the same in-process Hono application.
-			jwksUrl: (async () => jwks) as unknown as string,
-		});
-	app = createApp({ auth, verifyOAuthAccessToken });
+	app = createApp({ auth });
 });
 
 afterAll(() => {
@@ -314,9 +301,16 @@ describe.sequential('standalone Mindmap OAuth', () => {
 	});
 
 	it('rejects invalid OAuth credentials without falling through to demo access', async () => {
-		const { userId } = await anonymousSession();
+		const { userId, cookie } = await anonymousSession();
 		const now = Math.floor(Date.now() / 1000);
+		// Any session can mint a jwt-plugin session JWT signed with the same keys.
+		const sessionJwt = (
+			(await authRequest('/token', { headers: { Cookie: cookie } }).then((r) =>
+				r.json(),
+			)) as { token: string }
+		).token;
 		const tokens = [
+			sessionJwt,
 			'not-a-jwt',
 			await signedToken(userId, { aud: 'https://wrong.example' }),
 			await signedToken(userId, { scope: 'something:else' }),
