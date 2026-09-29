@@ -17,14 +17,6 @@ services:
       # warning (see deletePosthogPerson). Verified post-deploy in issue #517.
       - POSTHOG_PERSONAL_API_KEY=${POSTHOG_PERSONAL_API_KEY:-}
       - POSTHOG_PROJECT_ID=${POSTHOG_PROJECT_ID:-}
-      # Fixed public OAuth client for the standalone Mindmap. Neither value is a
-      # secret. They are set here rather than left to the deploy environment because
-      # the backend refuses to boot in production without them: missing values
-      # would take production down, not just disable Mindmap login.
-      # The redirect URI must match the Mindmap bundle's origin + path exactly,
-      # trailing slash included.
-      - MINDMAP_OAUTH_CLIENT_ID=${MINDMAP_OAUTH_CLIENT_ID:-writing-tools-mindmap}
-      - MINDMAP_OAUTH_REDIRECT_URIS=${MINDMAP_OAUTH_REDIRECT_URIS:-https://mindmap.thoughtful-ai.com/}
     volumes:
       # Single persistent volume (app.db + logs/). One-time host migration:
       #   mkdir -p /opt/thoughtful/data/logs
