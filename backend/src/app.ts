@@ -308,6 +308,18 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			return { kind: 'rejected_oauth_credential' };
 		}
 		const context = await auth.$context;
+		// The token is only as alive as the sign-in that authorized it: `sid` names
+		// that Better Auth session. Signing out (or the session expiring) deletes or
+		// expires the row, which revokes the token here instead of leaving it valid
+		// for the rest of its 12h lifetime.
+		if (typeof claims.sid !== 'string') return { kind: 'rejected_oauth_credential' };
+		const session = await context.adapter.findOne<{ userId: string; expiresAt: Date }>({
+			model: 'session',
+			where: [{ field: 'id', value: claims.sid }],
+		});
+		if (!session || session.userId !== claims.sub || session.expiresAt < new Date()) {
+			return { kind: 'rejected_oauth_credential' };
+		}
 		const row = await context.internalAdapter.findUserById(claims.sub);
 		if (!row) return { kind: 'rejected_oauth_credential' };
 

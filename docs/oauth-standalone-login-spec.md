@@ -44,8 +44,13 @@ allowlist, and attributes usage using the signed `azp` client id. Verification
 runs in-process (`auth.api.verifyJWT`, reading the jwt plugin's keys from the
 database), not via the oauth-provider resource client, which would fetch
 `/api/auth/jwks` over HTTP from the server's own public origin. No token
-introspection is configured, so opaque access tokens are never accepted and an
-issued JWT cannot be revoked before it expires.
+introspection is configured, so opaque access tokens are never accepted.
+
+Revocation rides on the authorizing sign-in: the token's `sid` claim names the
+Better Auth session that approved it, and the proxy requires that session to
+still exist, be unexpired, and belong to `sub`. Signing out of Writing Tools (or
+the session expiring) therefore revokes Mindmap's token immediately. Disabling
+the client, by contrast, only stops new grants.
 
 The `jwt()` plugin (which signs these access tokens) also lets any session
 fetch a session JWT from `GET /api/auth/token`, signed with the same keys. The

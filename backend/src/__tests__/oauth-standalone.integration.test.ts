@@ -32,7 +32,13 @@ function cookieHeader(response: Response): string {
 		.join('; ');
 }
 
-async function anonymousSession(): Promise<{ cookie: string; userId: string }> {
+interface TestSession {
+	cookie: string;
+	userId: string;
+	sessionId: string;
+}
+
+async function anonymousSession(): Promise<TestSession> {
 	const response = await authRequest('/sign-in/anonymous', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
@@ -40,7 +46,9 @@ async function anonymousSession(): Promise<{ cookie: string; userId: string }> {
 	});
 	expect(response.status).toBe(200);
 	const body = (await response.json()) as { user: { id: string } };
-	return { cookie: cookieHeader(response), userId: body.user.id };
+	const cookie = cookieHeader(response);
+	const current = await auth.api.getSession({ headers: new Headers({ Cookie: cookie }) });
+	return { cookie, userId: body.user.id, sessionId: current!.session.id };
 }
 
 function authorizationUrl(challenge: string, overrides: Record<string, string> = {}): URL {
@@ -62,6 +70,7 @@ function authorizationUrl(challenge: string, overrides: Record<string, string> =
 async function issueToken(options: { disallowed?: boolean } = {}): Promise<{
 	accessToken: string;
 	userId: string;
+	cookie: string;
 	payload: Record<string, unknown>;
 }> {
 	const { cookie, userId } = await anonymousSession();
@@ -110,18 +119,19 @@ async function issueToken(options: { disallowed?: boolean } = {}): Promise<{
 	const payload = JSON.parse(
 		Buffer.from(token.access_token.split('.')[1]!, 'base64url').toString(),
 	) as Record<string, unknown>;
-	return { accessToken: token.access_token, userId, payload };
+	return { accessToken: token.access_token, userId, cookie, payload };
 }
 
 async function signedToken(
-	userId: string,
+	session: TestSession,
 	overrides: Record<string, unknown>,
 ): Promise<string> {
 	const now = Math.floor(Date.now() / 1000);
 	const result = await auth.api.signJWT({
 		body: {
 			payload: {
-				sub: userId,
+				sub: session.userId,
+				sid: session.sessionId,
 				azp: CLIENT_ID,
 				scope: 'openai:chat',
 				iss: ISSUER,
@@ -138,8 +148,8 @@ async function signedToken(
 // A genuinely signed token whose payload is then edited, keeping the original
 // signature. The edit (a later expiry) leaves every claim valid and the user
 // real, so the signature is the only thing that can reject it.
-async function tamperedToken(userId: string): Promise<string> {
-	const [header, payload, signature] = (await signedToken(userId, {})).split('.');
+async function tamperedToken(session: TestSession): Promise<string> {
+	const [header, payload, signature] = (await signedToken(session, {})).split('.');
 	const claims = JSON.parse(Buffer.from(payload!, 'base64url').toString());
 	const forged = Buffer.from(JSON.stringify({ ...claims, exp: claims.exp + 600 })).toString(
 		'base64url',
@@ -252,6 +262,28 @@ describe.sequential('standalone Mindmap OAuth', () => {
 		expect(usage).toEqual([{ user_id: userId, client_id: CLIENT_ID }]);
 	});
 
+	it('revokes an issued token when the authorizing session signs out', async () => {
+		const { accessToken, cookie } = await issueToken();
+		const signOut = await authRequest('/sign-out', {
+			method: 'POST',
+			headers: { Cookie: cookie, Origin: ORIGIN },
+		});
+		expect(signOut.status).toBe(200);
+		const fetchMock = vi.fn();
+		vi.stubGlobal('fetch', fetchMock);
+		const response = await app.request('/api/openai/chat/completions', {
+			method: 'POST',
+			headers: {
+				Authorization: `Bearer ${accessToken}`,
+				'Content-Type': 'application/json',
+			},
+			body: JSON.stringify({ model: 'gpt-4o' }),
+		});
+		expect(response.status).toBe(401);
+		expect(response.headers.get('X-Writing-Tools-Error')).toBe('platform-auth');
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
 	it('requires the byte-exact resource on authorize and token requests', async () => {
 		const missingAuthorize = authorizationUrl('challenge', { resource: '' });
 		missingAuthorize.searchParams.delete('resource');
@@ -274,7 +306,7 @@ describe.sequential('standalone Mindmap OAuth', () => {
 	});
 
 	it('accepts an untampered hand-signed token (control for the rejection cases)', async () => {
-		const { userId } = await anonymousSession();
+		const session = await anonymousSession();
 		vi.stubGlobal(
 			'fetch',
 			vi.fn(async () =>
@@ -292,7 +324,7 @@ describe.sequential('standalone Mindmap OAuth', () => {
 		const response = await app.request('/api/openai/chat/completions', {
 			method: 'POST',
 			headers: {
-				Authorization: `Bearer ${await signedToken(userId, {})}`,
+				Authorization: `Bearer ${await signedToken(session, {})}`,
 				'Content-Type': 'application/json',
 			},
 			body: JSON.stringify({ model: 'gpt-4o' }),
@@ -301,7 +333,9 @@ describe.sequential('standalone Mindmap OAuth', () => {
 	});
 
 	it('rejects invalid OAuth credentials without falling through to demo access', async () => {
-		const { userId, cookie } = await anonymousSession();
+		const session = await anonymousSession();
+		const { cookie } = session;
+		const other = await anonymousSession();
 		const now = Math.floor(Date.now() / 1000);
 		// Any session can mint a jwt-plugin session JWT signed with the same keys.
 		const sessionJwt = (
@@ -312,13 +346,17 @@ describe.sequential('standalone Mindmap OAuth', () => {
 		const tokens = [
 			sessionJwt,
 			'not-a-jwt',
-			await signedToken(userId, { aud: 'https://wrong.example' }),
-			await signedToken(userId, { scope: 'something:else' }),
-			await signedToken(userId, { iat: now - 120, exp: now - 60 }),
+			await signedToken(session, { aud: 'https://wrong.example' }),
+			await signedToken(session, { scope: 'something:else' }),
+			await signedToken(session, { iat: now - 120, exp: now - 60 }),
 			// Correctly signed, right audience and scope, but not the Mindmap client.
-			await signedToken(userId, { azp: 'some-other-client' }),
-			await signedToken(userId, { iss: 'https://wrong.example/api/auth' }),
-			await tamperedToken(userId),
+			await signedToken(session, { azp: 'some-other-client' }),
+			await signedToken(session, { iss: 'https://wrong.example/api/auth' }),
+			await tamperedToken(session),
+			// Session liveness: no sid, an unknown sid, or another user's session.
+			await signedToken(session, { sid: undefined }),
+			await signedToken(session, { sid: 'no-such-session' }),
+			await signedToken(session, { sid: other.sessionId }),
 		];
 		const fetchMock = vi.fn();
 		vi.stubGlobal('fetch', fetchMock);
