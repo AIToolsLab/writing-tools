@@ -9,7 +9,7 @@ import {
 
 afterEach(() => vi.unstubAllEnvs());
 
-describe('standalone Mindmap OAuth configuration', () => {
+describe('Mindmap OAuth client configuration', () => {
 	it('canonicalizes the resource to an origin without a path or trailing slash', () => {
 		vi.stubEnv('BETTER_AUTH_URL', 'https://APP.Thoughtful-AI.com/api/');
 		expect(betterAuthOrigin()).toBe('https://app.thoughtful-ai.com');

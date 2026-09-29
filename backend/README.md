@@ -37,9 +37,11 @@ image by SHA). The container WORKDIR is `/app/backend`, and all persistent state
 under one mounted volume at `/app/backend/data` (`DATA_DIR`): `app.db` plus `logs/`.
 Listens on `5000` in Docker (`PORT=5000`).
 
-## Standalone Mindmap OAuth
+## OAuth provider (Mindmap client)
 
-The fixed public client uses `MINDMAP_OAUTH_CLIENT_ID` and
+The backend issues OAuth access tokens to first-party apps; see
+[docs/oauth-provider.md](../docs/oauth-provider.md). Its one client, the
+standalone Mindmap, uses `MINDMAP_OAUTH_CLIENT_ID` and
 `MINDMAP_OAUTH_REDIRECT_URIS`. Both are optional: if either is unset the server
 logs a warning at startup and Mindmap login is disabled. There are no code
 defaults; `scripts/get_env.py` writes the dev values (client id

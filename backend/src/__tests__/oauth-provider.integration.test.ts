@@ -158,7 +158,7 @@ async function tamperedToken(session: TestSession): Promise<string> {
 }
 
 beforeAll(async () => {
-	dataDir =mkdtempSync(path.join(tmpdir(), 'writing-tools-oauth-standalone-'));
+	dataDir =mkdtempSync(path.join(tmpdir(), 'writing-tools-oauth-provider-'));
 	process.env.DATA_DIR = dataDir;
 	process.env.NODE_ENV = 'test';
 	process.env.BETTER_AUTH_SECRET = 'integration-secret-that-is-at-least-32-characters';
@@ -184,7 +184,7 @@ afterAll(() => {
 	rmSync(dataDir, { recursive: true, force: true });
 });
 
-describe.sequential('standalone Mindmap OAuth', () => {
+describe.sequential('OAuth provider (Mindmap client)', () => {
 	it('sends an unauthenticated authorization request through the Mindmap login page', async () => {
 		const challenge = createHash('sha256').update('l'.repeat(64)).digest('base64url');
 		const authorization = await app.request(authorizationUrl(challenge));

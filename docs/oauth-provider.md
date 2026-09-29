@@ -1,8 +1,13 @@
-# Track A: scoped OAuth login for standalone Mindmap
+# OAuth provider for first-party apps
 
-The standalone Mindmap may call the two text-generation proxies as a signed-in
-Writing Tools user. It receives no document or room access. The user transfers
-text manually.
+The backend is an OAuth 2.1 authorization server (Better Auth's `oauthProvider`
+plugin under `/api/auth/oauth2/*`), and its OpenAI proxy is the resource server
+that accepts the resulting access tokens. This lets separately hosted
+first-party apps call the proxy as a signed-in Writing Tools user.
+
+The first and only client is the standalone Mindmap. It may call the two
+text-generation proxies; it receives no document or room access, and the user
+transfers text manually.
 
 ## Protocol contract
 
