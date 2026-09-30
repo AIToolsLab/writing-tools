@@ -85,7 +85,7 @@ function StudyRouter() {
       username: studyParams.username,
       event: `view:${studyParams.page}` as LogEventType,
       extra_data: { studyParams },
-    }).catch((e) => console.error('Failed to log page view:', e));
+    });
   }, [paramsOrError, setStudyParams]);
 
   // Error state

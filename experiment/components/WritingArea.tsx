@@ -12,7 +12,7 @@ export interface WritingAreaRef {
 
 interface WritingAreaProps {
   onSend?: (content: string, subject: string) => Promise<void>;
-  onUpdate?: (state: TextEditorState, subject: string) => Promise<void>;
+  onUpdate?: (state: TextEditorState, subject: string) => void;
   showSendButton?: boolean;
 }
 
@@ -54,9 +54,7 @@ const WritingArea = forwardRef<WritingAreaRef, WritingAreaProps>(
       const newBody = e.target.value;
       setBody(newBody);
       if (onUpdate) {
-        onUpdate(getEditorState(), subject).catch((e) =>
-          console.error('Failed to log document update:', e)
-        );
+        onUpdate(getEditorState(), subject);
       }
     };
 
@@ -64,9 +62,7 @@ const WritingArea = forwardRef<WritingAreaRef, WritingAreaProps>(
       const newSubject = e.target.value;
       setSubject(newSubject);
       if (onUpdate) {
-        onUpdate(getEditorState(), newSubject).catch((e) =>
-          console.error('Failed to log document update:', e)
-        );
+        onUpdate(getEditorState(), newSubject);
       }
     };
 
