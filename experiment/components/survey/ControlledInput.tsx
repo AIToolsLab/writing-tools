@@ -47,10 +47,18 @@ export default function ControlledInput({
   );
 
   const handleChange = (newValue: unknown) => {
-    setInputs((prev) => ({
-      ...prev,
-      [questionId]: newValue,
-    }));
+    setInputs((prev) => {
+      const next = { ...prev, [questionId]: newValue };
+      // Drop the "please specify" text once Other is no longer selected,
+      // so the logged answers don't contain stale text
+      const otherSelected = Array.isArray(newValue)
+        ? newValue.includes(otherOption)
+        : newValue === otherOption;
+      if (otherOption && !otherSelected) {
+        delete next[otherKey];
+      }
+      return next;
+    });
   };
 
   if (type === 'text') {
