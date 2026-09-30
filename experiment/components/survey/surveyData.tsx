@@ -13,10 +13,10 @@ export const introSurveyQuestions: Question[] = [
     required: true,
   },
   {
-    id: 'english_proficiency',
-    text: 'English Proficiency',
+    id: 'english_native',
+    text: 'Is English your native language?',
     type: 'radio',
-    options: ['Native', 'Fluent', 'Intermediate', 'Basic'],
+    options: ['Yes', 'No'],
     required: true,
   },
   {
