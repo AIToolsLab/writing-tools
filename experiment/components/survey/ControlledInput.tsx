@@ -115,6 +115,9 @@ export default function ControlledInput({
                   : checked.filter((item) => item !== option);
                 handleChange(newChecked);
               }}
+              // Requiring every box while none is checked makes the browser
+              // demand at least one selection
+              required={required && checked.length === 0}
             />
             {option}
           </label>
