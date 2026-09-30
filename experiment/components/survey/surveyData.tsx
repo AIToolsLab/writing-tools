@@ -56,6 +56,38 @@ export const demographicQuestions: Question[] = [
 ];
 
 /**
+ * Intro survey: email writing experience
+ */
+export const emailWritingQuestions: Question[] = [
+  {
+    id: 'email_frequency',
+    text: 'How often do you currently write emails for your work, school, or an organization?',
+    type: 'radio',
+    options: [
+      'Never',
+      'Less than once a month',
+      'At least once a month, but not every week',
+      'At least once a week, but not every day',
+      'Every day or almost every day',
+    ],
+    required: true,
+  },
+  {
+    id: 'email_experience_years',
+    text: 'How many years of experience do you have writing emails for work, school, or an organization?',
+    type: 'radio',
+    options: [
+      'None',
+      'Less than 1 year',
+      '1-3 years',
+      '4-9 years',
+      '10 years or more',
+    ],
+    required: true,
+  },
+];
+
+/**
  * Intro survey: experience with AI tools
  */
 export const aiExperienceQuestions: Question[] = [
@@ -86,6 +118,10 @@ export const aiExperienceQuestions: Question[] = [
  */
 export const introSurveySections: SurveySection[] = [
   { title: 'Demographic Questions', questions: demographicQuestions },
+  {
+    title: 'Email Writing Experience Questions',
+    questions: emailWritingQuestions,
+  },
   { title: 'Experience with AI Tools', questions: aiExperienceQuestions },
 ];
 
