@@ -1,5 +1,6 @@
 'use client';
 
+import { Fragment } from 'react';
 import { useAtom } from 'jotai';
 import { surveyInputAtom } from '@/contexts/StudyContext';
 import { QuestionType } from './types';
@@ -84,19 +85,21 @@ export default function ControlledInput({
     return (
       <fieldset className="space-y-2">
         {options.map((option) => (
-          <label key={option} className="flex items-center gap-2">
-            <input
-              type="radio"
-              name={questionId}
-              value={option}
-              checked={value === option}
-              onChange={(e) => handleChange(e.target.value)}
-              required={required}
-            />
-            {option}
-          </label>
+          <Fragment key={option}>
+            <label className="flex items-center gap-2">
+              <input
+                type="radio"
+                name={questionId}
+                value={option}
+                checked={value === option}
+                onChange={(e) => handleChange(e.target.value)}
+                required={required}
+              />
+              {option}
+            </label>
+            {option === otherOption && value === otherOption && otherTextBox}
+          </Fragment>
         ))}
-        {value === otherOption && otherTextBox}
       </fieldset>
     );
   }
@@ -106,33 +109,35 @@ export default function ControlledInput({
     return (
       <fieldset className="space-y-2">
         {options.map((option) => (
-          <label key={option} className="flex items-center gap-2">
-            <input
-              type="checkbox"
-              value={option}
-              checked={checked.includes(option)}
-              onChange={(e) => {
-                let newChecked: string[];
-                if (!e.target.checked) {
-                  newChecked = checked.filter((item) => item !== option);
-                } else if (option === exclusiveOption) {
-                  newChecked = [option];
-                } else {
-                  newChecked = [
-                    ...checked.filter((item) => item !== exclusiveOption),
-                    option,
-                  ];
-                }
-                handleChange(newChecked);
-              }}
-              // Requiring every box while none is checked makes the browser
-              // demand at least one selection
-              required={required && checked.length === 0}
-            />
-            {option}
-          </label>
+          <Fragment key={option}>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                value={option}
+                checked={checked.includes(option)}
+                onChange={(e) => {
+                  let newChecked: string[];
+                  if (!e.target.checked) {
+                    newChecked = checked.filter((item) => item !== option);
+                  } else if (option === exclusiveOption) {
+                    newChecked = [option];
+                  } else {
+                    newChecked = [
+                      ...checked.filter((item) => item !== exclusiveOption),
+                      option,
+                    ];
+                  }
+                  handleChange(newChecked);
+                }}
+                // Requiring every box while none is checked makes the browser
+                // demand at least one selection
+                required={required && checked.length === 0}
+              />
+              {option}
+            </label>
+            {option === otherOption && checked.includes(option) && otherTextBox}
+          </Fragment>
         ))}
-        {otherOption && checked.includes(otherOption) && otherTextBox}
       </fieldset>
     );
   }
