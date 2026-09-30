@@ -2,6 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import { getLogStatus, getServerLogStatus, subscribeLogStatus } from '@/lib/logging';
+import { CONTACT_EMAIL } from '@/lib/studyConfig';
 
 /**
  * Explains why the study isn't advancing when a page transition is blocked
@@ -22,6 +23,11 @@ export default function LogStatusBanner() {
     >
       We&apos;re having trouble saving your responses. Please check your internet connection
       and keep this page open; you&apos;ll continue automatically once everything is saved.
+      If this persists, please email{' '}
+      <a href={`mailto:${CONTACT_EMAIL}`} className="underline font-medium">
+        {CONTACT_EMAIL}
+      </a>
+      .
     </div>
   );
 }
