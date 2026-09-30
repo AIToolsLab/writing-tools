@@ -10,6 +10,14 @@ export interface Question {
   options?: string[]; // For likert, radio, checkbox
   placeholder?: string; // For text inputs
   multiline?: boolean; // For text inputs: false = single-line input, true/undefined = textarea
+  otherOption?: string; // For radio/checkbox: selecting this option shows a required text box, saved as `${id}_other`
+  exclusiveOption?: string; // For checkbox: selecting this option clears the others (e.g., "None")
+}
+
+export interface SurveySection {
+  title: string;
+  description?: string; // Shown above the section's questions
+  questions: Question[];
 }
 
 /**
@@ -32,6 +40,28 @@ export const agreeLikert = (): string[] => [
   'Neutral',
   'Agree',
   'Strongly Agree',
+];
+
+/**
+ * Confidence scale (for self-efficacy questions)
+ */
+export const confidenceLikert = (): string[] => [
+  'Not at all confident',
+  'Slightly confident',
+  'Moderately confident',
+  'Very confident',
+  'Extremely confident',
+];
+
+/**
+ * Characteristic scale (for Need for Cognition questions)
+ */
+export const characteristicLikert = (): string[] => [
+  'Extremely uncharacteristic of me',
+  'Somewhat uncharacteristic of me',
+  'Uncertain',
+  'Somewhat characteristic of me',
+  'Extremely characteristic of me',
 ];
 
 /**
