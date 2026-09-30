@@ -88,27 +88,37 @@ export const emailWritingQuestions: Question[] = [
 ];
 
 /**
- * Intro survey: experience with AI tools
+ * Intro survey: AI writing tool usage
  */
-export const aiExperienceQuestions: Question[] = [
+export const aiWritingToolQuestions: Question[] = [
   {
-    id: 'chatbot_familiarity',
-    text: 'How familiar are you with chatbots or AI assistants (e.g., ChatGPT, Claude)?',
+    id: 'ai_writing_frequency',
+    text: 'How often do you use AI tools for writing tasks (e.g., ChatGPT, Claude, Gemini, Microsoft Copilot, Perplexity AI, Grammarly, Notion AI)?',
     type: 'radio',
     options: [
-      'Very unfamiliar',
-      'Unfamiliar',
-      'Neutral',
-      'Familiar',
-      'Very familiar',
+      'Never',
+      'Less than once a month',
+      'At least once a month, but not every week',
+      'At least once a week, but not every day',
+      'Every day or almost every day',
     ],
     required: true,
   },
   {
-    id: 'ai_writing_tools',
-    text: 'Have you used AI writing tools before (e.g., ChatGPT for writing, Grammarly AI)?',
-    type: 'radio',
-    options: ['Never', 'Rarely', 'Sometimes', 'Often', 'Very often'],
+    id: 'ai_writing_uses',
+    text: 'When you use AI tools for writing tasks, what do you typically use them for? Select all that apply.',
+    type: 'checkbox',
+    options: [
+      'Writing a complete draft for me',
+      'Suggesting the next word or sentence for me',
+      'Revising or editing text I wrote (including checking for grammar and spelling)',
+      'Brainstorming ideas',
+      'Getting feedback or advice on my writing',
+      'Other (please specify)',
+      "I don't use AI for writing",
+    ],
+    otherOption: 'Other (please specify)',
+    exclusiveOption: "I don't use AI for writing",
     required: true,
   },
 ];
@@ -122,7 +132,10 @@ export const introSurveySections: SurveySection[] = [
     title: 'Email Writing Experience Questions',
     questions: emailWritingQuestions,
   },
-  { title: 'Experience with AI Tools', questions: aiExperienceQuestions },
+  {
+    title: 'AI Writing Tool Usage Questions',
+    questions: aiWritingToolQuestions,
+  },
 ];
 
 /**
