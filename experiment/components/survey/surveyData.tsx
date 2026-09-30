@@ -4,6 +4,7 @@ import {
   likert,
   effortLikert,
   confidenceLikert,
+  characteristicLikert,
 } from './types';
 import { ConditionName } from '@/types/study';
 
@@ -200,6 +201,55 @@ export const writingSelfEfficacyQuestions: Question[] = [
 ];
 
 /**
+ * Intro survey: Need for Cognition Scale (NCS-6, items in original order).
+ * ncs_3 and ncs_4 are reverse-scored.
+ */
+export const needForCognitionQuestions: Question[] = [
+  {
+    id: 'ncs_1',
+    text: 'I would prefer complex to simple problems.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+  {
+    id: 'ncs_2',
+    text: 'I like to have the responsibility of handling a situation that requires a lot of thinking.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+  {
+    id: 'ncs_3',
+    text: 'Thinking is not my idea of fun.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+  {
+    id: 'ncs_4',
+    text: 'I would rather do something that requires little thought than something that is sure to challenge my thinking abilities.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+  {
+    id: 'ncs_5',
+    text: 'I really enjoy a task that involves coming up with new solutions to problems.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+  {
+    id: 'ncs_6',
+    text: 'I would prefer a task that is intellectual, difficult, and important to one that is somewhat important but does not require much thought.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+];
+
+/**
  * Intro survey, grouped into titled sections
  */
 export const introSurveySections: SurveySection[] = [
@@ -217,6 +267,12 @@ export const introSurveySections: SurveySection[] = [
     description:
       'For each of the following statements, please indicate how confident you are in your ability to do what is described.',
     questions: writingSelfEfficacyQuestions,
+  },
+  {
+    title: 'Need for Cognition Scale Questions',
+    description:
+      'Please indicate how characteristic each of the following statements is of you.',
+    questions: needForCognitionQuestions,
   },
 ];
 
