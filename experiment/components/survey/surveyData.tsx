@@ -22,8 +22,8 @@ export const introSurveyQuestions: Question[] = [
       'Some college or university, but no degree',
       'Vocational or technical qualification',
       'Associate degree or equivalent',
-      'Bachelor’s degree or equivalent',
-      'Master’s degree or equivalent',
+      "Bachelor's degree or equivalent",
+      "Master's degree or equivalent",
       'Doctoral (e.g., PhD) or professional degree (e.g., MD, JD) or equivalent',
       'Other (please specify)',
     ],
@@ -57,7 +57,13 @@ export const introSurveyQuestions: Question[] = [
     id: 'chatbot_familiarity',
     text: 'How familiar are you with chatbots or AI assistants (e.g., ChatGPT, Claude)?',
     type: 'radio',
-    options: ['Very unfamiliar', 'Unfamiliar', 'Neutral', 'Familiar', 'Very familiar'],
+    options: [
+      'Very unfamiliar',
+      'Unfamiliar',
+      'Neutral',
+      'Familiar',
+      'Very familiar',
+    ],
     required: true,
   },
   {
@@ -144,7 +150,12 @@ export const postTaskCommonQuestions: Question[] = [
 export const postTaskAIQuestions: Question[] = [
   {
     id: 'ai_decision_timing',
-    text: <>Can you recall a specific moment when you read a suggestion and decided not to use it? What made you decide that? Be as specific as you can.</>,
+    text: (
+      <>
+        Can you recall a specific moment when you read a suggestion and decided
+        not to use it? What made you decide that? Be as specific as you can.
+      </>
+    ),
     type: 'text',
     placeholder: 'Describe when and why you decided not to use a suggestion',
     required: false,
@@ -224,7 +235,7 @@ export const conditionDebriefs: Record<
  * Get post-task survey questions for a condition
  */
 export function getPostTaskSurveyQuestions(
-  condition: ConditionName
+  condition: ConditionName,
 ): Question[] {
   const commonQuestions = [...postTaskCommonQuestions];
 
