@@ -40,21 +40,65 @@ $SHOWBOAT note "$DOC" "The participant clicks \"Begin Study\" to continue."
 # Step 3: Intro Survey
 $SHOWBOAT note "$DOC" "## Step 3: Intro Survey
 
-A brief demographic questionnaire: age, gender, English proficiency, chatbot familiarity, and AI writing tool experience."
+A background questionnaire split into five pages, each with a **Next** button (and **Back** after the first page). Required questions must be answered before moving on. The pages are: demographics, email writing experience, AI writing tool usage, the Self-Efficacy for Writing Scale, and the Need for Cognition Scale (NCS-6)."
 
 $SHOWBOAT image "$DOC" 'rodney open "http://localhost:3000/study?username=walkthrough-user&condition=p&scenario=roomDoubleBooking&page=intro-survey" && rodney sleep 2 && rodney screenshot walkthroughs/walkthrough-survey-blank.png'
 
-$SHOWBOAT note "$DOC" "Let's fill in the survey as a sample participant: age 28, female, native English, familiar with chatbots, sometimes uses AI writing tools."
+$SHOWBOAT note "$DOC" "### Page 1: Demographics
 
-$SHOWBOAT exec "$DOC" bash 'rodney input '\''input[placeholder="Enter your age"]'\'' "28" && rodney click '\''input[name="gender"][value="Female"]'\'' && rodney click '\''input[name="english_proficiency"][value="Native"]'\'' && rodney click '\''input[name="chatbot_familiarity"][value="Familiar"]'\'' && rodney click '\''input[name="ai_writing_tools"][value="Sometimes"]'\'' && echo "Survey filled"'
+Let's fill in the survey as a sample participant: a university student aged 18-24 whose native language is English."
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-filled.png'
+$SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="age"][value="18-24"]'\'' && rodney click '\''input[name="education"][value="Some college or university, but no degree"]'\'' && rodney click '\''input[name="employment"][value="Student"]'\'' && rodney click '\''input[name="english_native"][value="Yes"]'\'' && echo "Demographics filled"'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-filled-bottom.png'
+$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-demographics.png'
 
-$SHOWBOAT note "$DOC" "After filling in all fields, the participant clicks \"Continue to Task\" to proceed."
+$SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney sleep 1 && echo "Next page"'
 
-$SHOWBOAT exec "$DOC" bash 'rodney click "button" && rodney sleep 2 && rodney url'
+$SHOWBOAT note "$DOC" "### Page 2: Email Writing Experience
+
+The participant writes emails for school at least weekly and has 1-3 years of experience."
+
+$SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="email_frequency"][value="At least once a week, but not every day"]'\'' && rodney click '\''input[name="email_experience_years"][value="1-3 years"]'\'' && echo "Email writing experience filled"'
+
+$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-email.png'
+
+$SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney sleep 1 && echo "Next page"'
+
+$SHOWBOAT note "$DOC" "### Page 3: AI Writing Tool Usage
+
+The participant uses AI writing tools monthly, for brainstorming and for revising their own text. Choosing **Other (please specify)** would show a required text box under that option; **I don't use AI for writing** clears the other selections."
+
+$SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="ai_writing_frequency"][value="At least once a month, but not every week"]'\'' && rodney click '\''input[type="checkbox"][value="Brainstorming ideas"]'\'' && rodney click '\''input[type="checkbox"][value="Revising or editing text I wrote (including checking for grammar and spelling)"]'\'' && echo "AI writing tool usage filled"'
+
+$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ai-usage.png'
+
+$SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney sleep 1 && echo "Next page"'
+
+$SHOWBOAT note "$DOC" "### Page 4: Self-Efficacy for Writing Scale
+
+Nine statements rated from **Not at all confident** to **Extremely confident**."
+
+$SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="writing_se_words"][value="Very confident"]'\'' && rodney click '\''input[name="writing_se_ideas"][value="Moderately confident"]'\'' && rodney click '\''input[name="writing_se_put_ideas"][value="Very confident"]'\'' && rodney click '\''input[name="writing_se_sentences"][value="Extremely confident"]'\'' && rodney click '\''input[name="writing_se_punctuation"][value="Very confident"]'\'' && rodney click '\''input[name="writing_se_spelling"][value="Very confident"]'\'' && rodney click '\''input[name="writing_se_concentrate"][value="Moderately confident"]'\'' && rodney click '\''input[name="writing_se_distractions"][value="Slightly confident"]'\'' && rodney click '\''input[name="writing_se_persist"][value="Moderately confident"]'\'' && echo "Self-efficacy questions filled"'
+
+$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-self-efficacy-top.png'
+
+$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-self-efficacy-bottom.png'
+
+$SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney sleep 1 && echo "Next page"'
+
+$SHOWBOAT note "$DOC" "### Page 5: Need for Cognition Scale (NCS-6)
+
+Six statements rated from **Extremely uncharacteristic of me** to **Extremely characteristic of me**."
+
+$SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="ncs_1"][value="Somewhat characteristic of me"]'\'' && rodney click '\''input[name="ncs_2"][value="Somewhat characteristic of me"]'\'' && rodney click '\''input[name="ncs_3"][value="Somewhat uncharacteristic of me"]'\'' && rodney click '\''input[name="ncs_4"][value="Extremely uncharacteristic of me"]'\'' && rodney click '\''input[name="ncs_5"][value="Extremely characteristic of me"]'\'' && rodney click '\''input[name="ncs_6"][value="Uncertain"]'\'' && echo "Need for Cognition questions filled"'
+
+$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ncs-top.png'
+
+$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ncs-bottom.png'
+
+$SHOWBOAT note "$DOC" "On the last page, the participant clicks \"Continue to Task\" to proceed."
+
+$SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney sleep 2 && rodney url'
 
 # Step 4: Task Instructions
 $SHOWBOAT note "$DOC" "## Step 4: Task Instructions
@@ -175,7 +219,7 @@ The **proposal_advice (p)** condition walkthrough is complete. The participant e
 
 1. **Consent** — Study information and IRB consent form
 2. **Introduction** — Overview of the three study phases
-3. **Intro Survey** — Demographics and AI familiarity baseline
+3. **Intro Survey** — Five pages: demographics, email writing experience, AI writing tool usage, writing self-efficacy, and Need for Cognition
 4. **Task Instructions** — Scenario briefing (room double-booking, email to Jaden Thompson)
 5. **Main Task** — Email composition with:
    - Chat with non-proactive colleague Sarah Martinez
