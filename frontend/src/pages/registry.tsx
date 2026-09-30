@@ -33,6 +33,7 @@ import Chat from './chat';
 import Draft from './draft';
 import { isFlagEnabled } from './flags';
 import MyWords from './my-words';
+import Partners from './partners';
 import Revise from './revise';
 import Tools from './tools';
 
@@ -89,6 +90,13 @@ export const PAGES: PageDef[] = [
 		hint: 'Launch writing tools',
 		tier: 'lab',
 		render: () => <Tools />,
+	},
+	{
+		name: PageName.Partners,
+		title: 'Partners',
+		hint: 'Proactive thought partners',
+		tier: 'lab',
+		render: () => <Partners />,
 	},
 	{
 		name: PageName.MyWords,
