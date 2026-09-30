@@ -21,6 +21,7 @@ export default function SurveyQuestion({ question }: SurveyQuestionProps) {
         options={question.options}
         required={question.required}
         multiline={question.multiline}
+        otherOption={question.otherOption}
       />
     </div>
   );

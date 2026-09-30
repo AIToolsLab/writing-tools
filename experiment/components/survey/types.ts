@@ -10,6 +10,7 @@ export interface Question {
   options?: string[]; // For likert, radio, checkbox
   placeholder?: string; // For text inputs
   multiline?: boolean; // For text inputs: false = single-line input, true/undefined = textarea
+  otherOption?: string; // For radio: selecting this option shows a required text box, saved as `${id}_other`
 }
 
 /**
