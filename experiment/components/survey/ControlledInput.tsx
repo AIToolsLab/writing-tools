@@ -29,6 +29,20 @@ export default function ControlledInput({
   const value = inputs[questionId] ?? '';
   const otherKey = `${questionId}_other`;
 
+  const otherTextBox = otherOption && (
+    <input
+      type="text"
+      value={String(inputs[otherKey] ?? '')}
+      onChange={(e) =>
+        setInputs((prev) => ({ ...prev, [otherKey]: e.target.value }))
+      }
+      placeholder="Please specify"
+      aria-label={`${otherOption}: please specify`}
+      required
+      className="ml-6 w-80 max-w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+    />
+  );
+
   const handleChange = (newValue: unknown) => {
     setInputs((prev) => ({
       ...prev,
@@ -80,19 +94,7 @@ export default function ControlledInput({
             {option}
           </label>
         ))}
-        {otherOption && value === otherOption && (
-          <input
-            type="text"
-            value={String(inputs[otherKey] ?? '')}
-            onChange={(e) =>
-              setInputs((prev) => ({ ...prev, [otherKey]: e.target.value }))
-            }
-            placeholder="Please specify"
-            aria-label={`${otherOption}: please specify`}
-            required
-            className="ml-6 w-80 max-w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        )}
+        {value === otherOption && otherTextBox}
       </fieldset>
     );
   }
@@ -117,6 +119,7 @@ export default function ControlledInput({
             {option}
           </label>
         ))}
+        {otherOption && checked.includes(otherOption) && otherTextBox}
       </fieldset>
     );
   }
