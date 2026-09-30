@@ -8,10 +8,9 @@ export const introSurveyQuestions: Question[] = [
   {
     id: 'age',
     text: 'What is your age?',
-    type: 'text',
-    placeholder: 'Enter your age',
+    type: 'radio',
+    options: ['18-24', '25-34', '35-44', '45-54', '55-64', '65 or older'],
     required: true,
-    multiline: false,
   },
   {
     id: 'gender',
