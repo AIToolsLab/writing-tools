@@ -6,7 +6,7 @@ import { log, logThenRedirect } from '@/lib/logging';
 import { getNextPage } from '@/lib/studyConfig';
 import { surveyInputAtom } from '@/contexts/StudyContext';
 import Survey from '@/components/survey/Survey';
-import { introSurveyQuestions } from '@/components/survey/surveyData';
+import { introSurveySections } from '@/components/survey/surveyData';
 
 export default function IntroSurvey() {
   const searchParams = useSearchParams();
@@ -34,7 +34,7 @@ export default function IntroSurvey() {
       <Survey
         title="Background Information"
         description="Please tell us a bit about yourself and your experience with AI tools."
-        questions={introSurveyQuestions}
+        sections={introSurveySections}
         onSubmit={handleSubmit}
         submitButtonText="Continue to Task"
       />

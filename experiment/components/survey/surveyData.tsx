@@ -1,10 +1,10 @@
-import { Question, likert, effortLikert } from './types';
+import { Question, SurveySection, likert, effortLikert } from './types';
 import { ConditionName } from '@/types/study';
 
 /**
- * Intro survey questions (demographics and experience)
+ * Intro survey: demographic questions
  */
-export const introSurveyQuestions: Question[] = [
+export const demographicQuestions: Question[] = [
   {
     id: 'age',
     text: 'What is your age?',
@@ -53,6 +53,12 @@ export const introSurveyQuestions: Question[] = [
     options: ['Yes', 'No'],
     required: true,
   },
+];
+
+/**
+ * Intro survey: experience with AI tools
+ */
+export const aiExperienceQuestions: Question[] = [
   {
     id: 'chatbot_familiarity',
     text: 'How familiar are you with chatbots or AI assistants (e.g., ChatGPT, Claude)?',
@@ -73,6 +79,14 @@ export const introSurveyQuestions: Question[] = [
     options: ['Never', 'Rarely', 'Sometimes', 'Often', 'Very often'],
     required: true,
   },
+];
+
+/**
+ * Intro survey, grouped into titled sections
+ */
+export const introSurveySections: SurveySection[] = [
+  { title: 'Demographic Questions', questions: demographicQuestions },
+  { title: 'Experience with AI Tools', questions: aiExperienceQuestions },
 ];
 
 /**
