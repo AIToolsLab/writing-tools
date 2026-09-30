@@ -54,6 +54,17 @@ export const confidenceLikert = (): string[] => [
 ];
 
 /**
+ * Characteristic scale (for Need for Cognition questions)
+ */
+export const characteristicLikert = (): string[] => [
+  'Extremely uncharacteristic of me',
+  'Somewhat uncharacteristic of me',
+  'Uncertain',
+  'Somewhat characteristic of me',
+  'Extremely characteristic of me',
+];
+
+/**
  * Effort scale (for Task Load Index questions)
  */
 export const effortLikert = (): string[] => [
