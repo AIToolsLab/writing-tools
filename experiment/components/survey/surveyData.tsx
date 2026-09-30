@@ -13,13 +13,6 @@ export const introSurveyQuestions: Question[] = [
     required: true,
   },
   {
-    id: 'gender',
-    text: 'What is your gender?',
-    type: 'radio',
-    options: ['Male', 'Female', 'Non-binary', 'Prefer to self-describe', 'Prefer not to answer'],
-    required: true,
-  },
-  {
     id: 'english_proficiency',
     text: 'English Proficiency',
     type: 'radio',
