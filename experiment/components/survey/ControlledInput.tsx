@@ -13,6 +13,7 @@ interface ControlledInputProps {
   required?: boolean;
   multiline?: boolean;
   otherOption?: string;
+  exclusiveOption?: string;
 }
 
 export default function ControlledInput({
@@ -24,6 +25,7 @@ export default function ControlledInput({
   required = false,
   multiline = true,
   otherOption,
+  exclusiveOption,
 }: ControlledInputProps) {
   const [inputs, setInputs] = useAtom(surveyInputAtom);
   const value = inputs[questionId] ?? '';
@@ -110,9 +112,17 @@ export default function ControlledInput({
               value={option}
               checked={checked.includes(option)}
               onChange={(e) => {
-                const newChecked = e.target.checked
-                  ? [...checked, option]
-                  : checked.filter((item) => item !== option);
+                let newChecked: string[];
+                if (!e.target.checked) {
+                  newChecked = checked.filter((item) => item !== option);
+                } else if (option === exclusiveOption) {
+                  newChecked = [option];
+                } else {
+                  newChecked = [
+                    ...checked.filter((item) => item !== exclusiveOption),
+                    option,
+                  ];
+                }
                 handleChange(newChecked);
               }}
               // Requiring every box while none is checked makes the browser

@@ -22,6 +22,7 @@ export default function SurveyQuestion({ question }: SurveyQuestionProps) {
         required={question.required}
         multiline={question.multiline}
         otherOption={question.otherOption}
+        exclusiveOption={question.exclusiveOption}
       />
     </div>
   );
