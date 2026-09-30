@@ -16,6 +16,7 @@ export interface Question {
 
 export interface SurveySection {
   title: string;
+  description?: string; // Shown above the section's questions
   questions: Question[];
 }
 

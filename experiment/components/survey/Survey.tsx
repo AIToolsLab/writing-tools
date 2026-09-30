@@ -57,6 +57,10 @@ export default function Survey({
 
       {children && <div className="mb-6">{children}</div>}
 
+      {currentSection?.description && (
+        <p className="text-gray-700 mb-6">{currentSection.description}</p>
+      )}
+
       <div className="space-y-6">
         {visibleQuestions.map((question) => (
           <SurveyQuestion key={question.id} question={question} />
