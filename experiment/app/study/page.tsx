@@ -13,6 +13,7 @@ import {
 import type { LogEventType, StudyParams } from '@/types/study';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import ScreenSizeCheck from '@/components/study/ScreenSizeCheck';
+import LogStatusBanner from '@/components/study/LogStatusBanner';
 import ConsentPage from '@/components/study/ConsentPage';
 import IntroPage from '@/components/study/IntroPage';
 import IntroSurvey from '@/components/study/IntroSurvey';
@@ -85,7 +86,7 @@ function StudyRouter() {
       username: studyParams.username,
       event: `view:${studyParams.page}` as LogEventType,
       extra_data: { studyParams },
-    }).catch((e) => console.error('Failed to log page view:', e));
+    });
   }, [paramsOrError, setStudyParams]);
 
   // Error state
@@ -111,6 +112,7 @@ function StudyRouter() {
 
   return (
     <ScreenSizeCheck>
+      <LogStatusBanner />
       <PageComponent />
     </ScreenSizeCheck>
   );
