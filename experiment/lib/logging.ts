@@ -24,11 +24,11 @@ const MAX_RETRY_DELAY = 10_000; // ms
 const MAX_BATCH_SIZE = 50;
 const KEEPALIVE_BYTE_LIMIT = 60_000; // browsers cap keepalive bodies at 64KB total
 
-// Unique per page load; `seq` restarts with it.
-const SESSION_ID =
-  typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+// Unique per page load; `seq` restarts with it. (getRandomValues, unlike
+// randomUUID, also works outside secure contexts, e.g. dev over plain HTTP.)
+const SESSION_ID = Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) =>
+  b.toString(16).padStart(2, '0')
+).join('');
 
 let seq = 0;
 let queue: LogEntry[] = [];
