@@ -13,6 +13,9 @@ import { LogPayload, LogEntry } from '@/types/study';
  * when the page is hidden or unloaded, not per event) and are uploaded by the
  * next page load. Retries and that hand-off can duplicate events; `sessionId`
  * + `seq` uniquely identify each one, so dedupe on that pair in analysis.
+ *
+ * `redirect()` refuses to leave the page until the queue has drained;
+ * `subscribeLogStatus()` lets the UI explain the wait when uploads are failing.
  */
 
 const STORAGE_KEY = 'pendingLogEntries';
@@ -34,6 +37,32 @@ let flushTimer: ReturnType<typeof setTimeout> | null = null;
 let retryDelay = FLUSH_DELAY;
 let isRedirecting = false;
 
+export interface LogStatus {
+  /** A redirect is waiting for pending events to upload. */
+  redirectPending: boolean;
+  /** The most recent upload attempt failed. */
+  failing: boolean;
+}
+
+const SERVER_STATUS: LogStatus = { redirectPending: false, failing: false };
+let status: LogStatus = SERVER_STATUS;
+const statusListeners = new Set<() => void>();
+
+function setStatus(update: Partial<LogStatus>) {
+  const next = { ...status, ...update };
+  if (next.redirectPending === status.redirectPending && next.failing === status.failing) return;
+  status = next;
+  statusListeners.forEach((listener) => listener());
+}
+
+/** For useSyncExternalStore. */
+export function subscribeLogStatus(listener: () => void): () => void {
+  statusListeners.add(listener);
+  return () => statusListeners.delete(listener);
+}
+export const getLogStatus = (): LogStatus => status;
+export const getServerLogStatus = (): LogStatus => SERVER_STATUS;
+
 /**
  * Timestamp an event and queue it for upload. Never throws or blocks.
  */
@@ -50,14 +79,19 @@ export function log(payload: LogPayload): void {
 }
 
 /**
- * Upload pending events (waiting up to `timeoutMs`), then navigate. Anything
- * still unsent is handed to the next page load via localStorage.
+ * Wait until every pending event has uploaded (retrying indefinitely), then
+ * navigate. Participants can't advance while logging is failing.
  */
-export async function redirect(url: string, timeoutMs = 5000): Promise<void> {
-  await Promise.race([
-    flush().catch(() => {}),
-    new Promise((resolve) => setTimeout(resolve, timeoutMs)),
-  ]);
+export async function redirect(url: string): Promise<void> {
+  setStatus({ redirectPending: true });
+  for (;;) {
+    try {
+      await flush();
+      break;
+    } catch {
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+    }
+  }
   isRedirecting = true; // intentional navigation: don't prompt
   window.location.href = url;
 }
@@ -99,6 +133,10 @@ function flush(): Promise<void> {
         }
         queue = queue.slice(batch.length);
       }
+      setStatus({ failing: false });
+    } catch (error) {
+      setStatus({ failing: true });
+      throw error;
     } finally {
       inFlight = null;
     }

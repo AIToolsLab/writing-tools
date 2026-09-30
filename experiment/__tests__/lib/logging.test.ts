@@ -95,4 +95,24 @@ describe('logging queue', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(assign).toHaveBeenCalledWith('/next');
   });
+
+  it('blocks the redirect while uploads fail, reporting status', async () => {
+    const assign = vi.fn();
+    vi.stubGlobal('location', { set href(url: string) { assign(url); } });
+    fetchMock.mockRejectedValue(new TypeError('offline'));
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { logThenRedirect, getLogStatus } = await loadPage();
+
+    const done = logThenRedirect({ username: 'u1', event: 'taskComplete' }, '/next');
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(assign).not.toHaveBeenCalled();
+    expect(getLogStatus()).toEqual({ redirectPending: true, failing: true });
+
+    fetchMock.mockResolvedValue(new Response('{}', { status: 200 }));
+    await vi.advanceTimersByTimeAsync(10_000);
+    await done;
+
+    expect(assign).toHaveBeenCalledWith('/next');
+    expect(getLogStatus().failing).toBe(false);
+  });
 });
