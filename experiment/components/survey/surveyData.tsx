@@ -31,6 +31,22 @@ export const introSurveyQuestions: Question[] = [
     required: true,
   },
   {
+    id: 'employment',
+    text: 'What is your current employment status?',
+    type: 'radio',
+    options: [
+      'Employed full-time',
+      'Employed part-time',
+      'Self-employed',
+      'Student',
+      'Unemployed',
+      'Retired',
+      'Other (please specify)',
+    ],
+    otherOption: 'Other (please specify)',
+    required: true,
+  },
+  {
     id: 'english_native',
     text: 'Is English your native language?',
     type: 'radio',
