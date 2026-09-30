@@ -1,4 +1,10 @@
-import { Question, SurveySection, likert, effortLikert } from './types';
+import {
+  Question,
+  SurveySection,
+  likert,
+  effortLikert,
+  confidenceLikert,
+} from './types';
 import { ConditionName } from '@/types/study';
 
 /**
@@ -124,6 +130,76 @@ export const aiWritingToolQuestions: Question[] = [
 ];
 
 /**
+ * Intro survey: writing self-efficacy
+ * (Self-Efficacy for Writing Scale, adapted from the 9-item version)
+ */
+export const writingSelfEfficacyQuestions: Question[] = [
+  {
+    id: 'writing_se_words',
+    text: 'I can think of many words to describe my ideas.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_ideas',
+    text: 'I can think of many ideas for my writing.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_put_ideas',
+    text: 'I can put my ideas into writing.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_sentences',
+    text: 'I can write complete sentences.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_punctuation',
+    text: 'I can punctuate my sentences correctly.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_spelling',
+    text: 'I can spell my words correctly.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_concentrate',
+    text: 'I can concentrate on my writing for a long time.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_distractions',
+    text: 'I can avoid distractions when I write.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_persist',
+    text: 'I can keep writing even when it is difficult.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+];
+
+/**
  * Intro survey, grouped into titled sections
  */
 export const introSurveySections: SurveySection[] = [
@@ -135,6 +211,12 @@ export const introSurveySections: SurveySection[] = [
   {
     title: 'AI Writing Tool Usage Questions',
     questions: aiWritingToolQuestions,
+  },
+  {
+    title: 'Self-Efficacy for Writing Scale',
+    description:
+      'For each of the following statements, please indicate how confident you are in your ability to do what is described.',
+    questions: writingSelfEfficacyQuestions,
   },
 ];
 

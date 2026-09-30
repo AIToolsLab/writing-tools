@@ -43,6 +43,17 @@ export const agreeLikert = (): string[] => [
 ];
 
 /**
+ * Confidence scale (for self-efficacy questions)
+ */
+export const confidenceLikert = (): string[] => [
+  'Not at all confident',
+  'Slightly confident',
+  'Moderately confident',
+  'Very confident',
+  'Extremely confident',
+];
+
+/**
  * Effort scale (for Task Load Index questions)
  */
 export const effortLikert = (): string[] => [
