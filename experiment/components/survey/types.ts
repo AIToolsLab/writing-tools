@@ -13,6 +13,11 @@ export interface Question {
   otherOption?: string; // For radio: selecting this option shows a required text box, saved as `${id}_other`
 }
 
+export interface SurveySection {
+  title: string;
+  questions: Question[];
+}
+
 /**
  * Standard 5-point Likert scale
  */
