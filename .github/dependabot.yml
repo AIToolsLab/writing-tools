@@ -27,7 +27,6 @@ updates:
       - "/frontend"
       - "/backend"
       - "/experiment"
-      - "/prototype-mindmap"
       - "/prototype-word-bank"
     schedule:
       interval: "weekly"
