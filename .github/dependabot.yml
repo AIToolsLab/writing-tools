@@ -27,7 +27,6 @@ updates:
       - "/frontend"
       - "/backend"
       - "/experiment"
-      - "/prototype-word-bank"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 0
