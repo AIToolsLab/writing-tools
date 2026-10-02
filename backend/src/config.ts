@@ -66,17 +66,16 @@ export const googleClientId = () => (process.env.GOOGLE_CLIENT_ID ?? '').trim();
 export const googleClientSecret = () =>
 	(process.env.GOOGLE_CLIENT_SECRET ?? '').trim();
 
-// Fixed public OAuth client for the separately hosted Mindmap. Optional: when
-// either value is unset, Mindmap login is simply off. There are deliberately no
-// code defaults (dev values come from scripts/get_env.py), so no environment can
-// register a localhost redirect by accident — e.g. the k8s migrate initContainer,
-// which runs without NODE_ENV. The client id is an identifier, not a secret.
-export const mindmapOAuthClientId = (): string =>
-	(process.env.MINDMAP_OAUTH_CLIENT_ID ?? '').trim();
+// Trusted-client config readers. There are deliberately no code defaults (dev
+// values come from scripts/get_env.py), so no environment can register a
+// localhost redirect by accident — e.g. the k8s migrate initContainer, which runs
+// without NODE_ENV. Client ids are identifiers, not secrets.
+const envString = (name: string): string => (process.env[name] ?? '').trim();
 
-export const mindmapOAuthRedirectUris = (): string[] => [
+/** Comma-separated env list, trimmed, empties dropped, duplicates removed. */
+const envList = (name: string): string[] => [
 	...new Set(
-		(process.env.MINDMAP_OAUTH_REDIRECT_URIS ?? '')
+		(process.env[name] ?? '')
 			.split(',')
 			.map((value) => value.trim())
 			.filter(Boolean),
@@ -91,16 +90,16 @@ export interface TrustedOAuthClient {
 }
 
 // The hardcoded list of OAuth clients the backend provisions at startup and whose
-// tokens the OpenAI proxy accepts. One entry today: the standalone Mindmap, whose
-// id and redirects come from the MINDMAP_OAUTH_* env vars above. Adding a client
-// means adding an entry here. Incomplete entries are dropped rather than
+// tokens the OpenAI proxy accepts. Each entry names the env vars that configure
+// it; one entry today, the standalone Mindmap. Adding a client means adding an
+// entry here. Each is optional: incomplete entries are dropped rather than
 // provisioned half-configured, so an unconfigured client is simply disabled.
 export const trustedOAuthClients = (): TrustedOAuthClient[] =>
 	[
 		{
-			clientId: mindmapOAuthClientId(),
+			clientId: envString('MINDMAP_OAUTH_CLIENT_ID'),
 			name: 'Writing Tools Mindmap',
-			redirectUris: mindmapOAuthRedirectUris(),
+			redirectUris: envList('MINDMAP_OAUTH_REDIRECT_URIS'),
 		},
 	].filter((client) => client.clientId && client.redirectUris.length > 0);
 
