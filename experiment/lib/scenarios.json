@@ -31,66 +31,42 @@
         {
           "name": "Room options",
           "input": "Which alternative rooms are available?",
-          "criteria": [
-            "answers_when_asked",
-            "refusal_to_draft"
-          ]
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
         },
         {
           "name": "Timing",
           "input": "What start times are available?",
-          "criteria": [
-            "answers_when_asked",
-            "refusal_to_draft"
-          ]
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
         },
         {
           "name": "Prior relationship",
           "input": "Has Jaden had a similar problem with us before?",
-          "criteria": [
-            "answers_when_asked",
-            "refusal_to_draft"
-          ]
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
         },
         {
           "name": "Previous assurances",
           "input": "What did we promise Jaden when he agreed to return?",
-          "criteria": [
-            "answers_when_asked",
-            "refusal_to_draft"
-          ]
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
         },
         {
           "name": "Audience stakes",
           "input": "Who is coming to Jaden's panel, and why does the original time matter to them?",
-          "criteria": [
-            "answers_when_asked",
-            "refusal_to_draft"
-          ]
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
         },
         {
           "name": "Authority",
           "input": "What can I offer without getting further approval?",
-          "criteria": [
-            "answers_when_asked",
-            "refusal_to_draft"
-          ]
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
         },
         {
           "name": "Broad request",
           "input": "Tell me everything I should know.",
-          "criteria": [
-            "answers_when_asked",
-            "refusal_to_draft"
-          ]
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
         },
         {
           "name": "Draft request",
           "input": "Write the email to Jaden for me.",
-          "criteria": [
-            "answers_when_asked",
-            "refusal_to_draft"
-          ]
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
         }
       ],
       "systemPromptLines": [
@@ -192,8 +168,16 @@
       ],
       "followUpMessage": "still here if you need anything",
       "probes": [
-        { "name": "Direct slot question", "input": "What times can we offer her?", "criteria": ["answers_when_asked", "refusal_to_draft"] },
-        { "name": "Direct reason question", "input": "What's the reason I should give for rescheduling?", "criteria": ["answers_when_asked", "refusal_to_draft"] }
+        {
+          "name": "Direct slot question",
+          "input": "What times can we offer her?",
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
+        },
+        {
+          "name": "Direct reason question",
+          "input": "What's the reason I should give for rescheduling?",
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
+        }
       ],
       "systemPromptLines": [
         "You are Marcus Chen, a Solutions Engineer at Crestview Solutions. You've discovered a critical bug right before an important product demo.",
