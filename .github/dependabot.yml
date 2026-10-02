@@ -1,11 +1,49 @@
-# To get started with Dependabot version updates, you'll need to specify which
-# package ecosystems to update and where the package manifests are located.
-# Please see the documentation for all configuration options:
-# https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# Dependabot configuration.
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Goal: fewer, batched PRs.
+# - GitHub Actions: weekly version updates, all bumps in one PR.
+# - npm and uv: security updates only (open-pull-requests-limit: 0 turns off
+#   routine version bumps), batched into one PR per directory per run. Each
+#   app has its own lockfile and CI workflow, so per-directory PRs keep a
+#   failure attributable to one app.
+#
+# Note: security updates run when an advisory lands, not on the schedule below
+# (the schedule is required but only governs version updates). Grouping batches
+# whatever advisories are open at that moment.
 
 version: 2
 updates:
-  - package-ecosystem: "github-actions" # See documentation for possible values
-    directory: "/" # Location of package manifests
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "npm"
+    directories:
+      - "/frontend"
+      - "/backend"
+      - "/experiment"
+      - "/prototype-mindmap"
+      - "/prototype-word-bank"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # Python deps here only support the analysis scripts in scripts/.
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      python-security:
+        applies-to: security-updates
+        patterns: ["*"]
