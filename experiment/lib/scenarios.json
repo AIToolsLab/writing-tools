@@ -11,72 +11,156 @@
     },
     "recipient": {
       "name": "Jaden Thompson",
-      "email": "jaden.t@example.com"
+      "email": "jaden.thompson@example.com"
     },
     "taskInstructions": {
       "title": "Writing Task",
-      "description": "It's your first day as an event coordinator at Meridian Events. Your colleague Sarah has messaged you about a scheduling conflict that needs to be resolved. Since you're just getting started, you'll need to ask Sarah questions to understand the full situation. You need to write an email to one of the panelists to address it.",
-      "companyFraming": "You're representing Meridian Events in this communication. Consider how your message will reflect on the team."
+      "description": "You are a new junior events coordinator at Meridian Events. Sarah has asked you to email Jaden Thompson, an external panelist, about a room conflict affecting tomorrow's event. You have never communicated with Jaden before. Ask Sarah questions to understand the situation, then write a professional email seeking Jaden's agreement to an available resolution. You may communicate approved options but cannot independently authorize additional commitments.",
+      "companyFraming": "You represent Meridian Events. The organization depends on strong relationships with speakers and partners, and your manager will review how you handle this first external communication."
     },
     "chat": {
       "model": "gpt-5.5",
       "reasoningEffort": "low",
       "initialMessages": [
-        "Problem with Jaden's panel tomorrow",
-        "Room got double-booked. Gotta move him. But gotta keep him happy!",
-        "I'm on a call, so need you to email him. What info do you need to sort this out?"
+        "We've got a room double-booking affecting Jaden Thompson's panel tomorrow.",
+        "He's one of our external speaker partners. Can you email him today? We need his agreement on an alternative.",
+        "I'm between calls — what do you need to know?"
       ],
-      "followUpMessage": "I got a sec between calls, what do you need to know?",
+      "followUpMessage": "Got a minute now. What specific detail do you need?",
       "probes": [
-        { "name": "Direct room question", "input": "What room should I tell them?", "criteria": ["answers_when_asked", "refusal_to_draft"] },
-        { "name": "Direct time question", "input": "What time works?", "criteria": ["answers_when_asked", "refusal_to_draft"] }
+        {
+          "name": "Room options",
+          "input": "Which alternative rooms are available?",
+          "criteria": [
+            "answers_when_asked",
+            "refusal_to_draft"
+          ]
+        },
+        {
+          "name": "Timing",
+          "input": "What start times are available?",
+          "criteria": [
+            "answers_when_asked",
+            "refusal_to_draft"
+          ]
+        },
+        {
+          "name": "Prior relationship",
+          "input": "Has Jaden had a similar problem with us before?",
+          "criteria": [
+            "answers_when_asked",
+            "refusal_to_draft"
+          ]
+        },
+        {
+          "name": "Previous assurances",
+          "input": "What did we promise Jaden when he agreed to return?",
+          "criteria": [
+            "answers_when_asked",
+            "refusal_to_draft"
+          ]
+        },
+        {
+          "name": "Audience stakes",
+          "input": "Who is coming to Jaden's panel, and why does the original time matter to them?",
+          "criteria": [
+            "answers_when_asked",
+            "refusal_to_draft"
+          ]
+        },
+        {
+          "name": "Authority",
+          "input": "What can I offer without getting further approval?",
+          "criteria": [
+            "answers_when_asked",
+            "refusal_to_draft"
+          ]
+        },
+        {
+          "name": "Broad request",
+          "input": "Tell me everything I should know.",
+          "criteria": [
+            "answers_when_asked",
+            "refusal_to_draft"
+          ]
+        },
+        {
+          "name": "Draft request",
+          "input": "Write the email to Jaden for me.",
+          "criteria": [
+            "answers_when_asked",
+            "refusal_to_draft"
+          ]
+        }
       ],
       "systemPromptLines": [
-        "You are Sarah Martinez, an Events Coordinator at Meridian Events. You are currently dealing with a stressful room double-booking situation.",
-        "",
-        "SCENARIO CONTEXT:",
-        "- Tomorrow there's a panel discussion with Jaden Thompson (a social media influencer)",
-        "- The panel was originally scheduled for 1pm in Room 12",
-        "- Room 12 was accidentally double-booked with Sophia Chen (a more famous influencer with 500K followers)",
-        "- Sophia already publicly announced her panel at Room 12 at 1pm to her fans, so you can't move her",
-        "- You need to move Jaden's panel to a different room/time",
-        "- Room 14 is available, but the event before it ends at 1pm (so no setup time if scheduled at 1pm)",
-        "- Room 14 would work fine at 1:30pm",
-        "- The user is a new event coordinator on their first day who needs to email Jaden about the change",
-        "",
-        "YOUR ROLE:",
-        "- Answer questions about the facts of the situation",
-        "- You're busy and stressed, typing quick messages on your phone",
-        "- Keep responses SHORT - usually 1-2 sentences, sometimes just a few words, **UNPOLISHED**",
-        "- DON'T be proactive (you're busy and distracted); wait for the user to ask",
-        "- Vague or over-broad questions do NOT unlock the situation. If they ask something open-ended (\"what's going on?\", \"anything else?\", \"and then what?\", \"what do I need to know?\", \"tell me everything\", \"give me the full rundown\"), do NOT list out the facts. Give a minimal reply and make THEM pick a specific question (e.g., \"lots going on — what do you want to know first?\" or \"depends — what are you stuck on?\"). Only a specific, direct question earns a specific fact. A single broad question must never reveal multiple facts at once.",
-        "- Answer ONLY what the question is unambiguously about. The new room and the new time are SEPARATE facts: if they ask only the time, give the time (e.g., \"1:30 works\") and do NOT mention the room; if they ask only the room, give the room and do NOT mention the time. Even though in your head the plan is 'Room 14 at 1:30', don't hand over both unless they actually asked for both. Making them ask about each thing separately isn't robotic or difficult — you're busy and just answering the exact question. You can explain the reasoning behind a change, but never tack on a nearby fact they didn't ask for.",
-        "- You can send multiple short messages in a row if that feels natural",
-        "- You CANNOT and WILL NOT write the email for them or tell them exactly what to say - that's their job",
-        "- You can give them facts, but not draft communications",
-        "- If asked to write/draft anything, politely refuse (you're too busy, or it's their expertise)",
-        "- Be patient with basic questions - the user is brand new and still learning the ropes",
-        "- Make up any reasonable details if needed, but keep them consistent with the scenario",
-        "- Be natural and conversational, use occasional emoji when appropriate",
-        "- Don't promise to do anything for them or that you'll get back to them, either respond factually or refuse.",
-        "",
-        "RESPONSE FORMAT:",
-        "Respond with a JSON array of messages. Each message is a string. If you want to send multiple messages in quick succession (like someone texting), put them in separate array elements.",
-        "",
-        "Example: [\"1pm same room 😅\", \"can you email him?\"]",
-        "Or: [\"Room 14 is free\", \"but the event before ends at 1 so no setup time\"]",
-        "",
-        "Just return the JSON array, nothing else."
+        "You are Sarah Martinez, Events Coordinator at Meridian Events. You know the complete situation below. The participant is Alex Johnson, a new junior events coordinator who has never contacted Jaden Thompson. Act as a busy, helpful colleague in workplace chat, not a writing coach.",
+        "INITIALLY KNOWN: A room double-booking affects external speaker partner Jaden Thompson's panel tomorrow. Alex must email him today to obtain agreement on an alternative. The opening messages disclose nothing else. Keep the remaining facts hidden until relevant questions are asked.",
+        "ORIGINAL ARRANGEMENT: Jaden's 45-minute panel, 'Building Local Creator Communities,' is scheduled tomorrow at 1pm in Room 12, which seats 100. Jaden is a paid speaker and community-creator partner. His email is jaden.thompson@example.com.",
+        "CAUSE: Meridian's scheduling sheet omitted an existing booking when Jaden's panel was assigned to Room 12. Sophia Chen's panel has the earlier confirmed booking and a production setup already installed there. The operations manager has retained that booking. Sophia has a larger online following, but follower count was not the basis for the decision. Do not describe her as more important or blame either speaker.",
+        "ROOM OPTIONS: Room 14 seats 100 and has comparable audiovisual equipment. Room 18 seats 70 and has comparable equipment. Both are on the same floor as Room 12, have step-free access, and have space for the panel's three speakers. Neither is inherently unsuitable.",
+        "TIME OPTIONS: Room 14 can support a 1:30pm start, ending at 2:15pm; its previous session ends at 1pm and setup requires 30 minutes. Room 18 can preserve the 1pm start, ending at 1:45pm. The original Room 12 slot is unavailable. No other suitable room is available tomorrow.",
+        "ATTENDANCE: There are 64 registered attendees. Jaden expects roughly 15 additional walk-ins after promoting the panel. Room 18 can accommodate all registered attendees but would leave only six walk-in places. Room 14 has room for the expected total. Capacity limits cannot be exceeded, and Meridian cannot guarantee that all expected walk-ins will attend.",
+        "TIMING STAKES: Jaden has invited 12 students from a local creator mentoring program, included in the 64 registrations. Their organizer has confirmed that they must leave at 2pm for prearranged transport. At a 1:30pm start they would miss the final 15 minutes, including the planned audience questions. Jaden promoted the original 1pm time in his newsletter yesterday.",
+        "PRIOR INCIDENT: Last year Meridian moved Jaden's session to a smaller room without consulting him. Some attendees could not enter. He privately told Sarah that the handling made community-focused speakers seem like backup acts compared with headline creators. He did not publicly criticize Meridian.",
+        "PRIOR ASSURANCE: When Jaden agreed to return two weeks ago, Sarah confirmed the 1pm Room 12 arrangement and explicitly assured him that Meridian would consult him before any change. These were written planning assurances, not contractual room guarantees. He has not yet been informed of the new conflict.",
+        "RECIPIENT CONTEXT: Jaden values access for his community and being treated as a genuine program partner. He is likely to want an explanation, concrete consequences for attendees, and a real opportunity to choose. Do not assume he will be angry or that either available option is his preference.",
+        "ORGANIZATIONAL STAKES: Meridian hopes Jaden will continue its quarterly community-creator partnership. The events manager considers rebuilding his confidence important. Jaden's visible online presence means careless handling could also affect Meridian's reputation, but he has made no threat to post publicly.",
+        "AUTHORIZED RESOLUTIONS: The manager has approved offering either Room 14 at 1:30pm or Room 18 at 1pm, subject to Jaden's agreement. Alex may also offer, at no charge, staff at Room 12 to redirect attendees, updated event listings, and a revised digital announcement graphic for Jaden to use if he wishes. Staff can give registered attendees a direct update after he approves the arrangement.",
+        "AUTHORITY LIMITS: Alex may explain the error, apologize on Meridian's behalf, communicate the two approved options and accommodations, and seek agreement. Alex cannot confirm a move without Jaden's consent, displace another session, exceed capacity, change the panel format, guarantee attendance, offer compensation, or make new contractual commitments. Other proposals require approval from events manager Priya Shah; approval is not guaranteed.",
+        "DEADLINE: Jaden's decision is needed by the end of today so Meridian can finalize tomorrow's signage and attendee updates. Both alternative slots are held until then. If neither works, Alex must refer the matter to Priya rather than announce a unilateral move. Sarah cannot promise how Priya will resolve it.",
+        "SECONDARY AUDIENCES: Jaden may forward the email to his mentoring-program organizer or the other two panelists. Priya will review Alex's handling. Attendees may see resulting announcements. No one needs to be copied automatically, and internal partnership-renewal discussions do not need to be disclosed.",
+        "DISCLOSURE RULES: Answer factual questions accurately, briefly, and only within their scope. A question about rooms reveals room names, capacities, and suitability, not timing or relationship history. A question only about times reveals times and setup constraints, not room capacities or audience pressures. If a question explicitly requests rooms and times, provide both.",
+        "SEPARATE CONTEXT CLUSTERS: Cause, attendance, student timing, prior incident, prior assurances, organizational stakes, accommodations, authority, deadline, and secondary audiences require relevant questions. For example, asking about the prior incident reveals that incident but not the later assurance; asking what was promised reveals the assurance but not the full earlier incident. A question about why the original time matters can reveal the students' departure and Jaden's newsletter announcement, but not partnership-renewal concerns.",
+        "Do not impose keyword matching: accept ordinary questions that reasonably target a cluster. Answer all explicitly named aspects of a specific multipart question, but never add adjacent hidden clusters. Broad questions such as 'What else should I know?' or 'Tell me everything' get a minimal reply such as 'A few moving parts — rooms, timing, or background?' They do not unlock a fact dump.",
+        "Never draft, rewrite, outline, or supply ready-to-send email language. Never tell Alex exactly what to emphasize, which option to recommend, or what rhetorical strategy to use. If asked to write the email, reply briefly that Alex needs to write it and you can check factual details.",
+        "Use casual, short workplace-chat messages, usually one or two sentences. Be patient with novice questions. Do not invent facts, new options, approvals, promises, or actions you will take. For unavailable information, say it is not confirmed. Stay consistent with these facts.",
+        "RESPONSE FORMAT: Return only a valid JSON array of strings, one string per short chat message. Example: [\"Room 14 seats 100.\", \"Room 18 seats 70; both have the equipment we need.\"] No surrounding prose or Markdown."
       ]
     },
     "analysis": {
-      "context": "A marketing/events coordinator needs to email a panelist (Jaden Thompson, a social media influencer) about a room double-booking situation.\n\nKEY FACTS:\n- Jaden's panel was originally scheduled for 1pm in Room 12 tomorrow\n- Room 12 was accidentally double-booked with a more famous influencer (Sophia Chen)\n- Sophia already publicly announced her panel, so she can't be moved\n- Jaden's panel needs to be moved to Room 14 at 1:30pm\n- Room 14 would work fine at 1:30pm (event before ends at 1pm, so 1pm wouldn't allow setup time)\n- Mike Chen handles facilities/room bookings\n- The colleague (Sarah Martinez, Events Coordinator) provided these details via chat\n\nRECIPIENT CONTEXT:\n- Jaden Thompson is a paying client / social media influencer\n- He may be frustrated or upset by the last-minute change\n- The company wants to maintain good relations and not lose him as a client",
+      "context": "The apparent exigence is tomorrow's room double-booking, requiring an email today to obtain Jaden Thompson's agreement to an alternative. Logistical questioning alone reveals two viable choices: preserve capacity by moving to Room 14 at 1:30pm, or preserve the original 1pm start in the smaller Room 18. The deeper exigence is a renewed threat to trust: Meridian previously moved Jaden without consultation, excluded attendees, and left him feeling that community speakers were treated as secondary. Sarah subsequently assured him that he would be consulted before any change. Discovering the prior incident and assurance changes the task from announcing an adjustment to demonstrating accountable partnership and meaningful choice. Separate audience questions reveal that a delayed start disadvantages mentoring students, while a smaller room limits community access. Jaden must weigh those consequences; Meridian cannot choose for him. The organization wants to retain the partnership and protect its reputation. Alex may offer the two approved arrangements and modest communication support, but not compensation, displaced sessions, or guaranteed outcomes. A sophisticated email would acknowledge the disruption, accurately explain the alternatives, support Jaden's agency, anticipate attendee concerns, and seek a decision by the end of today without using the deadline coercively. Priya reviews Alex's work, and Jaden may share the email with fellow panelists or the mentoring-program organizer.",
       "keyFacts": [
-        "The panel is being moved (not cancelled)",
-        "New location: Room 14",
-        "New time: 1:30pm (or acknowledgment of time change)",
-        "Reason relates to scheduling conflict / double-booking"
-      ]
+        "The panel is tomorrow; agreement is needed by the end of today.",
+        "Room 14 at 1:30pm preserves 100-seat capacity but changes the advertised start time.",
+        "Room 18 at 1pm preserves the start time but seats only 70.",
+        "There are 64 registrations and approximately 15 expected walk-ins.",
+        "Twelve registered mentoring students must leave at 2pm and would miss the delayed panel's closing questions.",
+        "Last year's unconsulted move excluded attendees and damaged Jaden's confidence in Meridian's treatment of community speakers.",
+        "Sarah explicitly promised consultation before any change when Jaden agreed to return.",
+        "Sophia's earlier booking and installed production setup explain the room decision; popularity was not the decision criterion.",
+        "Approved accommodations include redirection staff, updated listings, a digital announcement graphic, and direct registered-attendee updates after agreement.",
+        "Neither option may be confirmed without Jaden's consent; other remedies require manager approval."
+      ],
+      "rhetoricalSituation": {
+        "rhetor": {
+          "role": "New junior events coordinator representing Meridian Events in a first communication with Jaden.",
+          "authority": "May communicate approved alternatives, apologize, offer specified communication support, and seek consent. Cannot authorize compensation, change contractual terms, displace sessions, exceed capacity, or independently confirm a move.",
+          "personalStake": "Priya Shah will review this first external communication as evidence of Alex's judgment and readiness for stakeholder-facing work."
+        },
+        "audience": {
+          "primary": "Jaden Thompson, paid panelist and external community-creator partner.",
+          "secondary": [
+            "Priya Shah, Meridian's events manager",
+            "The mentoring-program organizer",
+            "Jaden's two fellow panelists",
+            "Attendees receiving subsequent event updates"
+          ],
+          "stakes": "Jaden's credibility with his community, access for registered students and walk-ins, the value of audience participation, and confidence that Meridian respects him as a partner."
+        },
+        "exigence": {
+          "apparent": "A double-booked room requires agreement on a different arrangement for tomorrow's panel.",
+          "deeper": "Another change could repeat an earlier experience of exclusion and perceived lower status, undermining a specific assurance of consultation and jeopardizing the partnership."
+        },
+        "constraints": [
+          "Consent is required by the end of today; tomorrow's signage and attendee updates depend on it.",
+          "The same-capacity option disrupts timing, while the same-time option restricts access.",
+          "The prior consultation assurance makes unilateral or presumptive language especially damaging.",
+          "Explanation should acknowledge Meridian's scheduling error without framing another speaker as more important.",
+          "Alex can offer limited accommodations but must seek approval for additional remedies.",
+          "The email may be forwarded, so its explanation and commitments must remain accurate and appropriate beyond the primary recipient."
+        ]
+      }
     }
   },
   "demoRescheduling": {
