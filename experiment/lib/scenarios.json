@@ -15,7 +15,7 @@
     },
     "taskInstructions": {
       "title": "Writing Task",
-      "description": "You are a new junior events coordinator at Meridian Events. Sarah has asked you to email Jaden Thompson, an external panelist, about a room conflict affecting tomorrow's event. You have never communicated with Jaden before. Ask Sarah questions to understand the situation, then write a professional email seeking Jaden's agreement to an available resolution. You may communicate approved options but cannot independently authorize additional commitments.",
+      "description": "You are a new junior events coordinator at Meridian Events. Sarah has asked you to email Jaden Thompson, an external panelist, about a room conflict affecting tomorrow's event. You have never communicated with Jaden before. Ask Sarah questions to understand the situation, then write a professional email seeking Jaden's agreement to an available resolution.",
       "companyFraming": "You represent Meridian Events. The organization depends on strong relationships with speakers and partners, and your manager will review how you handle this first external communication."
     },
     "chat": {
