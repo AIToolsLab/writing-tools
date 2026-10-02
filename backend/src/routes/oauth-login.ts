@@ -1,12 +1,16 @@
 import { betterAuthOrigin } from '../config.js';
 
+// The OAuth provider's login page, shared by every trusted client: nothing on it
+// depends on which client sent the user here. It signs the user in to Writing
+// Tools, then resumes the authorization request untouched.
+
 function loginHtml(resource: string): string {
 	return `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Connect Mindmap</title>
+  <title>Sign in to Writing Tools</title>
   <style>
     body{font:16px/1.5 system-ui,sans-serif;max-width:620px;margin:3rem auto;padding:0 1.5rem;color:#172033}
     h1{font-size:1.5rem}button{font:inherit;padding:.65rem 1rem;border:1px solid #3157d5;border-radius:7px;cursor:pointer;background:#3157d5;color:white}
@@ -14,7 +18,7 @@ function loginHtml(resource: string): string {
   </style>
 </head>
 <body>
-  <h1>Connect Mindmap</h1>
+  <h1>Sign in to Writing Tools</h1>
   <main id="app"><p class="muted">Checking your sign-in…</p></main>
   <script>
     const app=document.getElementById('app');
@@ -31,7 +35,7 @@ function loginHtml(resource: string): string {
         authorize.searchParams.set('resource',${JSON.stringify(resource)});
         location.replace(authorize);return
       }
-      const explanation=document.createElement('p');explanation.textContent='Sign in to let Mindmap use Writing Tools AI on your behalf.';
+      const explanation=document.createElement('p');explanation.textContent='Sign in to let the app you came from use Writing Tools AI on your behalf.';
       const button=document.createElement('button');button.textContent='Sign in with Google';
       button.onclick=async()=>{button.disabled=true;try{const callbackURL=location.href;const result=await json('/api/auth/sign-in/social',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'google',callbackURL,errorCallbackURL:callbackURL})});if(!result.url)throw new Error('Sign-in did not return a redirect URL.');location.href=result.url}catch(error){showError(error)}};
       app.replaceChildren(explanation,button);
