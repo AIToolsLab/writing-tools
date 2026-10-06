@@ -50,6 +50,13 @@ export const betterAuthSecret = () =>
 // .env line both yield '', which `??` alone would let through.
 export const betterAuthUrl = () =>
 	(process.env.BETTER_AUTH_URL ?? '').trim() || 'http://localhost:8000';
+// OAuth resource indicators and JWT audiences are compared as exact strings.
+// Canonicalize the configured URL once so both the authorization server and
+// resource server use an origin with no path or trailing slash.
+export const betterAuthOrigin = () => new URL(betterAuthUrl()).origin;
+// Better Auth includes this base path in the OAuth JWT issuer. Keep it explicit
+// and shared with the resource verifier; the bare origin rejects valid tokens.
+export const BETTER_AUTH_BASE_PATH = '/api/auth';
 export const betterAuthTrustedOrigins = (): string[] =>
 	(process.env.BETTER_AUTH_TRUSTED_ORIGINS ?? '')
 		.split(',')
@@ -58,6 +65,46 @@ export const betterAuthTrustedOrigins = (): string[] =>
 export const googleClientId = () => (process.env.GOOGLE_CLIENT_ID ?? '').trim();
 export const googleClientSecret = () =>
 	(process.env.GOOGLE_CLIENT_SECRET ?? '').trim();
+
+// Trusted-client config readers. There are deliberately no code defaults (dev
+// values come from scripts/get_env.py), so no environment can register a
+// localhost redirect by accident — e.g. the k8s migrate initContainer, which runs
+// without NODE_ENV. Client ids are identifiers, not secrets.
+const envString = (name: string): string => (process.env[name] ?? '').trim();
+
+/** Comma-separated env list, trimmed, empties dropped, duplicates removed. */
+const envList = (name: string): string[] => [
+	...new Set(
+		(process.env[name] ?? '')
+			.split(',')
+			.map((value) => value.trim())
+			.filter(Boolean),
+	),
+];
+
+/** A first-party public OAuth client this backend provisions and accepts. */
+export interface TrustedOAuthClient {
+	clientId: string;
+	name: string;
+	redirectUris: string[];
+}
+
+// The hardcoded list of OAuth clients the backend provisions at startup and whose
+// tokens the OpenAI proxy accepts. Each entry names the env vars that configure
+// it; one entry today, the standalone Mindmap. Adding a client means adding an
+// entry here. Each is optional: incomplete entries are dropped rather than
+// provisioned half-configured, so an unconfigured client is simply disabled.
+export const trustedOAuthClients = (): TrustedOAuthClient[] =>
+	[
+		{
+			clientId: envString('MINDMAP_OAUTH_CLIENT_ID'),
+			name: 'Writing Tools Mindmap',
+			redirectUris: envList('MINDMAP_OAUTH_REDIRECT_URIS'),
+		},
+	].filter((client) => client.clientId && client.redirectUris.length > 0);
+
+export const acceptedOAuthClientIds = (): string[] =>
+	trustedOAuthClients().map((client) => client.clientId);
 
 // Comma-separated allowed device client IDs. An empty list rejects all requests.
 export const deviceClientIds = (): string[] =>
