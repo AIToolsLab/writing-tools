@@ -11,6 +11,21 @@ rm -f walkthroughs/*.png
 DOC="walkthroughs/walkthrough-proposal.md"
 SHOWBOAT="uvx --with rodney showboat"
 
+# Run a command that ends in `rodney screenshot <path>`, then embed that image.
+# (showboat's `image` takes a file path, not a command.) showboat copies the
+# image under a generated name, so point the doc back at the readable file and
+# delete the copy.
+screenshot() {
+  local path="${1##* }"
+  $SHOWBOAT exec "$DOC" bash "$1" >/dev/null
+  $SHOWBOAT image "$DOC" "$path"
+  local copy name
+  copy=$(tail -1 "$DOC" | sed -n 's/^!\[.*\](\(.*\))$/\1/p')
+  name=$(basename "$path" .png)
+  rm "walkthroughs/$copy"
+  perl -pi -e "s|^!\[.*\]\(\Q$copy\E\)\$|![$name]($name.png)|" "$DOC"
+}
+
 uvx rodney start
 
 # Initialize document
@@ -24,7 +39,7 @@ $SHOWBOAT note "$DOC" "## Step 1: Consent Page
 
 The participant arrives at the study URL and sees the consent form. This page explains the study purpose, time commitment, compensation, and data handling."
 
-$SHOWBOAT image "$DOC" 'rodney open "http://localhost:3000/study?username=walkthrough-user&condition=p&scenario=roomDoubleBooking&page=consent" && rodney sleep 2 && rodney screenshot walkthroughs/walkthrough-consent.png'
+screenshot 'rodney open "http://localhost:3000/study?username=walkthrough-user&condition=p&scenario=roomDoubleBooking&page=consent" && rodney sleep 2 && rodney screenshot walkthroughs/walkthrough-consent.png'
 
 $SHOWBOAT note "$DOC" "The consent page includes a button that launches an external Qualtrics consent form. After completing consent, the participant is redirected to the introduction page. (For this walkthrough, we navigate directly.)"
 
@@ -33,7 +48,7 @@ $SHOWBOAT note "$DOC" "## Step 2: Introduction Page
 
 The participant sees an overview of the study structure: three steps (questionnaire, email writing task, follow-up questionnaire)."
 
-$SHOWBOAT image "$DOC" 'rodney open "http://localhost:3000/study?username=walkthrough-user&condition=p&scenario=roomDoubleBooking&page=intro" && rodney sleep 2 && rodney screenshot walkthroughs/walkthrough-intro.png'
+screenshot 'rodney open "http://localhost:3000/study?username=walkthrough-user&condition=p&scenario=roomDoubleBooking&page=intro" && rodney sleep 2 && rodney screenshot walkthroughs/walkthrough-intro.png'
 
 $SHOWBOAT note "$DOC" "The participant clicks \"Begin Study\" to continue."
 
@@ -42,7 +57,7 @@ $SHOWBOAT note "$DOC" "## Step 3: Intro Survey
 
 A background questionnaire split into five pages, each with a **Next** button (and **Back** after the first page). Required questions must be answered before moving on. The pages are: demographics, email writing experience, AI writing tool usage, the Self-Efficacy for Writing Scale, and the Need for Cognition Scale (NCS-6)."
 
-$SHOWBOAT image "$DOC" 'rodney open "http://localhost:3000/study?username=walkthrough-user&condition=p&scenario=roomDoubleBooking&page=intro-survey" && rodney sleep 2 && rodney screenshot walkthroughs/walkthrough-survey-blank.png'
+screenshot 'rodney open "http://localhost:3000/study?username=walkthrough-user&condition=p&scenario=roomDoubleBooking&page=intro-survey" && rodney sleep 2 && rodney screenshot walkthroughs/walkthrough-survey-blank.png'
 
 $SHOWBOAT note "$DOC" "### Page 1: Demographics
 
@@ -50,7 +65,7 @@ Let's fill in the survey as a sample participant: a university student aged 18-2
 
 $SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="age"][value="18-24"]'\'' && rodney click '\''input[name="education"][value="Some college or university, but no degree"]'\'' && rodney click '\''input[name="employment"][value="Student"]'\'' && rodney click '\''input[name="english_native"][value="Yes"]'\'' && echo "Demographics filled"'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-demographics.png'
+screenshot 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-demographics.png'
 
 $SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney sleep 1 && echo "Next page"'
 
@@ -60,7 +75,7 @@ The participant writes emails for school at least weekly and has 1-3 years of ex
 
 $SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="email_frequency"][value="At least once a week, but not every day"]'\'' && rodney click '\''input[name="email_experience_years"][value="1-3 years"]'\'' && echo "Email writing experience filled"'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-email.png'
+screenshot 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-email.png'
 
 $SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney sleep 1 && echo "Next page"'
 
@@ -70,7 +85,7 @@ The participant uses AI writing tools monthly, for brainstorming and for revisin
 
 $SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="ai_writing_frequency"][value="At least once a month, but not every week"]'\'' && rodney click '\''input[type="checkbox"][value="Brainstorming ideas"]'\'' && rodney click '\''input[type="checkbox"][value="Revising or editing text I wrote (including checking for grammar and spelling)"]'\'' && echo "AI writing tool usage filled"'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ai-usage.png'
+screenshot 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ai-usage.png'
 
 $SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney sleep 1 && echo "Next page"'
 
@@ -80,9 +95,9 @@ Nine statements rated from **Not at all confident** to **Extremely confident**."
 
 $SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="writing_se_words"][value="Very confident"]'\'' && rodney click '\''input[name="writing_se_ideas"][value="Moderately confident"]'\'' && rodney click '\''input[name="writing_se_put_ideas"][value="Very confident"]'\'' && rodney click '\''input[name="writing_se_sentences"][value="Extremely confident"]'\'' && rodney click '\''input[name="writing_se_punctuation"][value="Very confident"]'\'' && rodney click '\''input[name="writing_se_spelling"][value="Very confident"]'\'' && rodney click '\''input[name="writing_se_concentrate"][value="Moderately confident"]'\'' && rodney click '\''input[name="writing_se_distractions"][value="Slightly confident"]'\'' && rodney click '\''input[name="writing_se_persist"][value="Moderately confident"]'\'' && echo "Self-efficacy questions filled"'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-self-efficacy-top.png'
+screenshot 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-self-efficacy-top.png'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-self-efficacy-bottom.png'
+screenshot 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-self-efficacy-bottom.png'
 
 $SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney sleep 1 && echo "Next page"'
 
@@ -92,9 +107,9 @@ Six statements rated from **Extremely uncharacteristic of me** to **Extremely ch
 
 $SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="ncs_1"][value="Somewhat characteristic of me"]'\'' && rodney click '\''input[name="ncs_2"][value="Somewhat characteristic of me"]'\'' && rodney click '\''input[name="ncs_3"][value="Somewhat uncharacteristic of me"]'\'' && rodney click '\''input[name="ncs_4"][value="Extremely uncharacteristic of me"]'\'' && rodney click '\''input[name="ncs_5"][value="Extremely characteristic of me"]'\'' && rodney click '\''input[name="ncs_6"][value="Uncertain"]'\'' && echo "Need for Cognition questions filled"'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ncs-top.png'
+screenshot 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ncs-top.png'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ncs-bottom.png'
+screenshot 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ncs-bottom.png'
 
 $SHOWBOAT note "$DOC" "On the last page, the participant clicks \"Continue to Task\" to proceed."
 
@@ -105,11 +120,11 @@ $SHOWBOAT note "$DOC" "## Step 4: Task Instructions
 
 The participant reads the scenario briefing. In the roomDoubleBooking scenario, they learn they need to email panelist Jaden Thompson about a room conflict, coordinating with colleague Sarah Martinez via chat. Key instructions include: review colleague's messages, ask follow-up questions, and compose a professional email. They're told they may see AI suggestions (\"Advice for your next words\")."
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-task-instructions.png'
+screenshot 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-task-instructions.png'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 500)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-task-instructions-2.png'
+screenshot 'rodney js "window.scrollTo(0, 500)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-task-instructions-2.png'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-task-instructions-3.png'
+screenshot 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-task-instructions-3.png'
 
 $SHOWBOAT note "$DOC" "The participant clicks \"Start Writing Task\" to begin the main task."
 
@@ -125,9 +140,9 @@ This is the core of the experiment. The screen has three areas:
 
 The colleague's initial messages appear automatically with typing animations."
 
-$SHOWBOAT image "$DOC" 'rodney sleep 8 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-task-initial.png'
+screenshot 'rodney sleep 8 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-task-initial.png'
 
-$SHOWBOAT image "$DOC" 'rodney sleep 10 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-task-messages.png'
+screenshot 'rodney sleep 10 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-task-messages.png'
 
 $SHOWBOAT note "$DOC" "The colleague (Sarah Martinez) sends her initial messages automatically:
 1. \"Problem with Jaden's panel tomorrow\"
@@ -142,7 +157,7 @@ The participant asks Sarah questions to gather information needed for the email.
 
 $SHOWBOAT exec "$DOC" bash 'rodney input '\''input[placeholder="Message Sarah..."]'\'' "What room is Jaden being moved to? And what time is his panel?" && rodney click '\''form button[type="submit"]'\'' && echo "Message sent"'
 
-$SHOWBOAT image "$DOC" 'rodney sleep 8 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-task-chat-response.png'
+screenshot 'rodney sleep 8 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-task-chat-response.png'
 
 $SHOWBOAT exec "$DOC" bash 'rodney js "document.querySelector('\''.flex-1.overflow-y-auto.bg-white'\'').innerText"'
 
@@ -158,13 +173,13 @@ I hope this message finds you well. I'\''m writing to let you know about a chang
 
 I understand this is a last-minute change and I apologize for any inconvenience." && echo "Email body entered"'
 
-$SHOWBOAT image "$DOC" 'rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-task-email-draft.png'
+screenshot 'rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-task-email-draft.png'
 
 $SHOWBOAT note "$DOC" "### AI Suggestions Panel (proposal_advice mode)
 
 After the participant types enough text (25+ characters), the AI panel begins generating directive advice. In the **p** condition, the AI provides 2-3 pieces of advice about what to write next — not copy-paste text, but thinking prompts like \"Consider acknowledging the inconvenience\" or \"Emphasize the new arrangement benefits.\" Suggestions auto-refresh every 15 seconds."
 
-$SHOWBOAT image "$DOC" 'rodney sleep 18 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-task-ai-suggestions.png'
+screenshot 'rodney sleep 18 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-task-ai-suggestions.png'
 
 $SHOWBOAT exec "$DOC" bash 'rodney text "textarea"'
 
@@ -176,16 +191,25 @@ Now the participant finishes their email and clicks Send."
 
 $SHOWBOAT exec "$DOC" bash 'rodney js "document.querySelector('\''button[aria-label=\"Send email\"]'\'').click()" && rodney sleep 3 && rodney url'
 
-# Step 6: Post-Task Survey
-$SHOWBOAT note "$DOC" "## Step 6: Post-Task Survey
+# Step 6: Task Complete
+$SHOWBOAT note "$DOC" "## Step 6: Task Complete
 
-After sending the email, the participant completes a post-task questionnaire. It includes NASA TLX-style workload questions (mental effort, time pressure, frustration) plus AI-specific questions about whether suggestions were helpful, easy to understand, and whether the participant felt pressured to use them."
+After sending the email, the participant sees a short confirmation page and clicks \"Continue to Post-Task Survey\"."
 
-$SHOWBOAT image "$DOC" 'rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-top.png'
+screenshot 'rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-task-complete.png'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 600)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-mid.png'
+$SHOWBOAT exec "$DOC" bash 'rodney click "button" && rodney sleep 2 && rodney url'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-bottom.png'
+# Step 7: Post-Task Survey
+$SHOWBOAT note "$DOC" "## Step 7: Post-Task Survey
+
+The participant then completes a post-task questionnaire. It includes NASA TLX-style workload questions (mental effort, time pressure, frustration) plus AI-specific questions about whether suggestions were helpful, easy to understand, and whether the participant felt pressured to use them."
+
+screenshot 'rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-top.png'
+
+screenshot 'rodney js "window.scrollTo(0, 600)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-mid.png'
+
+screenshot 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-bottom.png'
 
 $SHOWBOAT note "$DOC" "Let's fill in the post-task survey as a sample participant."
 
@@ -195,20 +219,20 @@ $SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="ai_ease_understand"][va
 
 $SHOWBOAT exec "$DOC" bash 'rodney click '\''input[value="None"]'\'' && echo "Other tools: None"'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-filled-top.png'
+screenshot 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-filled-top.png'
 
-$SHOWBOAT image "$DOC" 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-filled-bottom.png'
+screenshot 'rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-filled-bottom.png'
 
 $SHOWBOAT note "$DOC" "The post-task survey includes both general workload questions (NASA TLX) and condition-specific AI questions. For the **p** condition, participants reflect on the directive advice: whether it was easy to understand, helpful, and whether they felt pressured to follow it. The participant clicks \"Continue\" to submit."
 
-$SHOWBOAT exec "$DOC" bash 'rodney js "document.querySelector('\''button'\'').click()" && rodney sleep 2 && rodney url'
+$SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney sleep 2 && rodney url'
 
-# Step 7: Final Page
-$SHOWBOAT note "$DOC" "## Step 7: Final Page
+# Step 8: Final Page
+$SHOWBOAT note "$DOC" "## Step 8: Final Page
 
 The study is complete. The participant sees a thank-you message and, if recruited via Prolific, a completion code for payment."
 
-$SHOWBOAT image "$DOC" 'rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-final.png'
+screenshot 'rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-final.png'
 
 $SHOWBOAT exec "$DOC" bash 'rodney text "body" 2>/dev/null | head -20'
 
@@ -225,8 +249,9 @@ The **proposal_advice (p)** condition walkthrough is complete. The participant e
    - Chat with non-proactive colleague Sarah Martinez
    - AI Writing Assistant providing **directive advice** (not copy-paste text)
    - Auto-refreshing suggestions every 15 seconds
-6. **Post-Task Survey** — Workload assessment + AI-specific reflection questions
-7. **Completion** — Thank you and Prolific code
+6. **Task Complete** — Confirmation page before the post-task survey
+7. **Post-Task Survey** — Workload assessment + AI-specific reflection questions
+8. **Completion** — Thank you and Prolific code
 
 The key feature of the **p** condition: AI advice guides *thinking* rather than *writing*. Suggestions like \"Add the building name for Room 14\" and \"End with a confirmation request\" prompt deeper engagement without providing verbatim text to copy."
 
