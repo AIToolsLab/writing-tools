@@ -5,6 +5,11 @@ writing tools (first-party prototypes now, community research tools later),
 without merging them into the add-in or supporting them as first-class
 features.
 
+> See also [prompt-packs-plan.md](prompt-packs-plan.md): the tier *below*
+> hosted tools — extensions as declarative prompt packs that need none of the
+> grant/manifest machinery here. Most sidebar-shaped concepts belong there;
+> this plan covers what outgrows it (own rendering surface or transport).
+
 > **Status:** Phases 0 and 1 are implemented; Phases 2+ remain proposal.
 > Implemented so far:
 > - **Phase 0** — the proxy and `/api/log` already require a Bearer session and
