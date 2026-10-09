@@ -48,11 +48,16 @@ import type { LogFn } from '@/hooks/useLog';
  *       Chat renders doctext citations too, so `page` is now what says where a
  *       reference event came from. A reader that took those event names to mean
  *       Revise has to read `page` instead.
+ *   6 — Added the Partners lab page (the proactive-thought-partners probe) and
+ *       its events. Its events are the only ones the writer did not initiate,
+ *       so a reader counting "requests" per session must exclude
+ *       `trigger_fired` / `partners_activated`, which the system emits on its
+ *       own while the writer is typing.
  */
-export const LOG_SCHEMA_VERSION = 5;
+export const LOG_SCHEMA_VERSION = 6;
 
 /** Pages that emit events. Matches the user-facing tabs. */
-export type LogPage = 'draft' | 'revise' | 'chat' | 'tools';
+export type LogPage = 'draft' | 'revise' | 'chat' | 'tools' | 'partners';
 
 /**
  * Emit one event through the page's {@link LogFn}, stamping the schema version,
@@ -265,5 +270,98 @@ export const toolsLog = {
 	/** The writer opened an ad-hoc pasted URL directly (no grant; device-flow tool). */
 	adhocOpened(log: LogFn) {
 		return emit(log, 'tools', 'adhoc_opened', {});
+	},
+};
+
+/**
+ * Partners page: the proactive-thought-partners probe
+ * (`docs/proactive-partners-reproduction.md`).
+ *
+ * Two things make these events unlike every other page's. First, most of them
+ * are *system*-initiated — the writer did not ask for anything, so a reader
+ * measuring engagement has to compare what was offered against what was
+ * opened, not just count generations. Second, the interesting negative case is
+ * silence: `partners_activated` with `activated: 0` is the decision engine
+ * deciding not to interrupt, which is the outcome the paper reports as most
+ * common and is exactly what a reader needs to see.
+ */
+export const partnersLog = {
+	/** The writer added, edited, or removed a partner in the config panel. */
+	partnerConfigured(
+		log: LogFn,
+		data: {
+			action: 'created' | 'updated' | 'deleted' | 'enabled' | 'disabled';
+			triggers: string[];
+			hasRole: boolean;
+			hasHeuristic: boolean;
+		},
+	) {
+		return emit(log, 'partners', 'partner_configured', data);
+	},
+	/** The writer switched watching on or off. */
+	watchToggled(log: LogFn, data: { watching: boolean; partners: number }) {
+		return emit(log, 'partners', 'watch_toggled', data);
+	},
+	/**
+	 * A trigger fired. `candidates` is how many partners listen for it — a
+	 * trigger with none never reaches the decision engine.
+	 */
+	triggerFired(
+		log: LogFn,
+		data: { trigger: string; candidates: number; charsInWindow: number },
+	) {
+		return emit(log, 'partners', 'trigger_fired', data);
+	},
+	/** The decision engine answered. `activated: 0` means it chose silence. */
+	partnersActivated(
+		log: LogFn,
+		data: {
+			trigger: string;
+			candidates: number;
+			activated: number;
+			latencyMs: number;
+		},
+	) {
+		return emit(log, 'partners', 'partners_activated', data);
+	},
+	/** A tag faded out without being opened — the paper's "Ignoring". */
+	activationIgnored(log: LogFn, data: { trigger: string }) {
+		return emit(log, 'partners', 'activation_ignored', data);
+	},
+	/** The writer clicked a tag, which is what asks for the suggestion. */
+	activationOpened(
+		log: LogFn,
+		data: { trigger: string; ageMs: number; docContext: string },
+	) {
+		return emit(log, 'partners', 'activation_opened', data);
+	},
+	/** A suggestion arrived (or failed). `response` is the partner's text. */
+	suggestionGenerated(
+		log: LogFn,
+		data: { trigger: string; latencyMs: number; response: string },
+	) {
+		return emit(log, 'partners', 'suggestion_generated', data);
+	},
+	/** The writer asked the partner a follow-up question. */
+	followUpSent(log: LogFn, data: { message: string; turn: number }) {
+		return emit(log, 'partners', 'follow_up_sent', data);
+	},
+	/** The writer dismissed an open card. */
+	activationDismissed(
+		log: LogFn,
+		data: { trigger: string; opened: boolean },
+	) {
+		return emit(log, 'partners', 'activation_dismissed', data);
+	},
+	/** A generation failed. `error` carries the provider text, not the UI sentence. */
+	generationError(
+		log: LogFn,
+		data: {
+			stage: 'decision' | 'suggestion' | 'follow_up';
+			error: string;
+			code?: string;
+		},
+	) {
+		return emit(log, 'partners', 'generation_error', data);
 	},
 };
