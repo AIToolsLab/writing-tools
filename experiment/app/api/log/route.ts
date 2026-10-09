@@ -7,51 +7,52 @@ const LOGS_DIR = resolve(process.cwd(), 'logs');
 /**
  * Validate username format
  */
-function isValidUsername(username: string): boolean {
-  return /^[a-zA-Z0-9\-_]+$/.test(username) && username.length > 0;
+function isValidUsername(username: unknown): username is string {
+  return typeof username === 'string' && /^[a-zA-Z0-9\-_]+$/.test(username);
 }
 
 /**
- * POST /api/log - Log an event to a JSONL file
+ * POST /api/log - Append a batch of log entries to per-participant JSONL files
  */
 export async function POST(request: Request) {
+  let entries: LogEntry[];
   try {
     const body = await request.json();
-    const entry = body as LogEntry;
-    const username = entry.username;
+    if (!Array.isArray(body)) throw new Error('Expected an array of log entries');
+    entries = body as LogEntry[];
+  } catch (error) {
+    return Response.json({ error: String(error) }, { status: 400 });
+  }
 
-    // Validate username format
-    if (!isValidUsername(username)) {
-      return Response.json(
-        { error: 'Invalid username format' },
-        { status: 400 }
-      );
+  // Group lines by participant. Skip (don't reject) invalid entries so one bad
+  // entry can't make the client retry the whole batch forever.
+  const linesByUsername = new Map<string, string[]>();
+  for (const entry of entries) {
+    if (!isValidUsername(entry?.username)) {
+      console.warn('Skipping log entry with invalid username:', entry?.username);
+      continue;
     }
+    const lines = linesByUsername.get(entry.username) ?? [];
+    lines.push(JSON.stringify(entry) + '\n');
+    linesByUsername.set(entry.username, lines);
+  }
 
+  try {
     // Create logs directory if it doesn't exist and get its real path
     await mkdir(LOGS_DIR, { recursive: true });
     const realLogsDir = await realpath(LOGS_DIR);
 
-    // Construct log file path using validated username
-    const logFilePath = resolve(realLogsDir, `${username}.jsonl`);
-
-    // Verify the resolved path is within the logs directory (prevent directory traversal)
-    if (!logFilePath.startsWith(`${realLogsDir}${sep}`)) {
-      return Response.json(
-        { error: 'Invalid log file path' },
-        { status: 400 }
-      );
+    for (const [username, lines] of linesByUsername) {
+      const logFilePath = resolve(realLogsDir, `${username}.jsonl`);
+      // Verify the resolved path is within the logs directory (prevent directory traversal)
+      if (!logFilePath.startsWith(`${realLogsDir}${sep}`)) {
+        console.warn('Skipping log entries with invalid path:', username);
+        continue;
+      }
+      await appendFile(logFilePath, lines.join(''), 'utf-8');
     }
 
-    // Append entry to participant's log file as JSONL
-    const logLine = JSON.stringify(entry) + '\n';
-
-    await appendFile(logFilePath, logLine, 'utf-8');
-
-    return Response.json(
-      { success: true, message: 'Log entry written' },
-      { status: 200 }
-    );
+    return Response.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error('Logging error:', error);
 
