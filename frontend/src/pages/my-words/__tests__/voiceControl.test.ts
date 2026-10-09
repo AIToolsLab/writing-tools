@@ -71,7 +71,10 @@ function fakeTransport() {
 async function harness(seed: string[] = SEED, initialScratchpad = '') {
 	const editor = new MockEditor(seed);
 	let scratchpad = initialScratchpad;
+	// Every notice ever raised, and separately the one currently on screen —
+	// invariant 6 is about the difference between the two.
 	const notices: string[] = [];
+	let standingNotice: string | null = null;
 	const toolLog: string[] = [];
 	let reveal: { anchor?: string; cancel: () => void } | null = null;
 	let undoState: { depth: number; description?: string } = { depth: 0 };
@@ -88,7 +91,10 @@ async function harness(seed: string[] = SEED, initialScratchpad = '') {
 			},
 		},
 		audioEl: {} as HTMLAudioElement,
-		onNotice: (t) => notices.push(t),
+		onNotice: (t) => {
+			standingNotice = t;
+			if (t !== null) notices.push(t);
+		},
 		onTool: (t) => toolLog.push(t),
 		onReveal: (info) => {
 			reveal = info;
@@ -104,6 +110,8 @@ async function harness(seed: string[] = SEED, initialScratchpad = '') {
 		session,
 		fake,
 		notices,
+		/** What the writer is looking at right now, if anything. */
+		notice: (): string | null => standingNotice,
 		toolLog,
 		paragraphs: () => editor.snapshot().paragraphs,
 		scratchpad: () => scratchpad,
@@ -413,6 +421,82 @@ describe('invariant 5: highlighting is not an edit', () => {
 			h.fake.call('str_replace', TIGHTEN),
 		);
 		expect(applied).toMatch(/^Applied/);
+	});
+});
+
+describe('invariant 6: a notice describes one attempt, not the session', () => {
+	/** Raise a notice the honest way: an edit the word-bank refuses. */
+	const provokeNotice = (h: Awaited<ReturnType<typeof harness>>) =>
+		h.fake.call('str_replace', {
+			old_str: 'the words come out stiff',
+			new_str: 'the words come out clunky',
+		});
+
+	it('retracts the notice when the writer takes the floor again', async () => {
+		const h = await harness();
+
+		await provokeNotice(h);
+		expect(h.notice()).toMatch(/clunky/);
+
+		h.fake.speak();
+		expect(h.notice()).toBeNull();
+	});
+
+	it('retracts the notice when an edit lands', async () => {
+		const h = await harness();
+
+		await provokeNotice(h);
+		expect(h.notice()).not.toBeNull();
+
+		// Same turn, no speech: the model corrects itself and the edit lands.
+		const applied = await callThroughBeat(
+			h.fake.call('str_replace', TIGHTEN),
+		);
+		expect(applied).toMatch(/^Applied/);
+		expect(h.notice()).toBeNull();
+	});
+
+	it('retracts it for a scratchpad edit too', async () => {
+		const h = await harness(SEED, 'stiff words I keep deleting');
+
+		await provokeNotice(h);
+		expect(h.notice()).not.toBeNull();
+
+		const applied = await callThroughBeat(
+			h.fake.call('str_replace', {
+				old_str: 'stiff words',
+				new_str: 'stiff',
+				target: 'scratchpad',
+			}),
+		);
+		expect(applied).toMatch(/^Applied/);
+		expect(h.notice()).toBeNull();
+	});
+
+	it('keeps every notice in the log after retracting it from the strip', async () => {
+		const h = await harness();
+
+		await provokeNotice(h);
+		h.fake.speak();
+
+		// The strip is clear, but the history the writer can scroll back to is not
+		// — retraction is a UI state change, not an erasure.
+		expect(h.notice()).toBeNull();
+		expect(h.notices).toHaveLength(1);
+	});
+
+	it('leaves a fresh notice standing until something supersedes it', async () => {
+		const h = await harness();
+
+		// A failure *after* the writer's turn started must survive the rest of
+		// that turn — retraction keys on new events, not on elapsed time.
+		h.fake.speak();
+		await provokeNotice(h);
+		await h.fake.call('view', {});
+		await callThroughBeat(
+			h.fake.call('highlight', { phrase: 'I sit down' }),
+		);
+		expect(h.notice()).toMatch(/clunky/);
 	});
 });
 
