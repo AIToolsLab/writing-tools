@@ -1,0 +1,36 @@
+.row {
+	width: 100%;
+	margin-bottom: 0.5rem;
+	display: flex;
+}
+
+.row.user {
+	justify-content: flex-end;
+}
+
+.row.assistant {
+	justify-content: flex-start;
+}
+
+.bubble {
+	max-width: 85%;
+	padding: 1rem;
+	border: 1px solid;
+	border-radius: 0.5rem;
+}
+
+.bubble.user {
+	background: #eff6ff;
+	border-color: #8ec5ff;
+	margin-right: 0.5rem;
+}
+
+.bubble.assistant {
+	background: #f9fafb;
+	border-color: #d1d5dc;
+	margin-left: 0.5rem;
+}
+
+.content {
+	color: #1e2939;
+}

@@ -1,16 +1,156 @@
-.container input {
-	padding: 10px;
-	border: 1px solid lightgray;
-	cursor: pointer;
-	transition: 0.15s;
+/* Collapsible prompt/result blocks */
+.collapsible {
+	white-space: pre-wrap;
 }
 
-.container input:hover {
+.summary {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: #6a7282;
+}
+
+.pre {
+	white-space: pre-wrap;
+}
+
+/* Regenerate controls */
+.regenRow {
+	margin-bottom: 0.5rem;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.regenLabel {
+	font-weight: 600;
+}
+
+.select {
+	border: 1px solid #d1d5dc;
+	border-radius: 0.25rem;
+	padding: 0.25rem 0.5rem;
+}
+
+.btnGreen {
+	padding: 0.25rem 0.5rem;
+	background: #00c950;
+	color: #ffffff;
+	border-radius: 0.25rem;
+	transition: background 0.15s;
+}
+
+.btnGreen:hover {
+	background: #00a63e;
+}
+
+.btnBlue {
+	padding: 0.25rem 0.5rem;
+	background: #2b7fff;
+	color: #ffffff;
+	border-radius: 0.25rem;
+	transition: background 0.15s;
+}
+
+.btnBlue:hover {
+	background: #155dfc;
+}
+
+/* Table */
+.table {
+	max-width: 100%;
+	border: 1px solid #d1d5dc;
+}
+
+.cell {
+	padding: 0.5rem;
+}
+
+.textBlue {
+	color: #2b7fff;
+}
+
+.regenResult {
+	margin-bottom: 0.5rem;
+	padding: 0.5rem;
+	background: #f3f4f6;
+	border-radius: 0.25rem;
+	font-size: 0.875rem;
+	color: #1e2939;
+	white-space: pre-wrap;
+}
+
+/* Drag & drop overlay */
+.page {
+	padding: 1.5rem;
+	position: relative;
+}
+
+.page.dragActive {
+	background: #eff6ff;
+	border: 2px solid #51a2ff;
+}
+
+.dropOverlay {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: rgba(219, 234, 254, 0.8);
+	z-index: 10;
+	border: 2px solid #51a2ff;
+	border-radius: 0.25rem;
+}
+
+.dropText {
+	font-size: 1.125rem;
+	font-weight: 700;
+	color: #1447e6;
+}
+
+.dragError {
+	margin-bottom: 1rem;
+	color: #e7000b;
+}
+
+.block {
+	margin-bottom: 1rem;
+}
+
+.fieldLabel {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+.textInput {
+	padding: 0.5rem 0.75rem;
+	border: 1px solid #d1d5dc;
+	border-radius: 0.25rem;
+	transition: border 0.15s;
+	cursor: pointer;
+}
+
+.textInput:hover {
 	border: 1px solid black;
 }
 
-.container input:focus {
+.textInput:focus {
 	cursor: text;
 	outline: none;
 	border: 1px solid black;
+}
+
+.fileModeNote {
+	margin-left: 1rem;
+	font-size: 0.875rem;
+	color: #1447e6;
+}
+
+.rowGap {
+	margin-bottom: 1rem;
+	display: flex;
+	align-items: center;
+	gap: 1.5rem;
 }

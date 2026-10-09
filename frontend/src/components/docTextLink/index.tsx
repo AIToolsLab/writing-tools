@@ -64,7 +64,7 @@ function DocTextAnchor(props: React.ComponentProps<'a'>) {
 		<a
 			{...rest}
 			href={href}
-			className={`text-blue-500 hover:underline ${classes.docLink} ${
+			className={`${classes.docLinkText} ${classes.docLink} ${
 				isPending ? classes.docLinkPending : ''
 			}`}
 			aria-busy={isPending || undefined}

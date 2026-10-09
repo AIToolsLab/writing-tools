@@ -382,20 +382,14 @@ function LexicalEditor({
 			}}
 		>
 			<div className={classes.editorContainer}>
-				<div
-					className={
-						'resize-none text-base caret-zinc-900 relative outline-none overflow-y-auto h-full editor-scrollbar'
-					}
-				>
+				<div className={classes.editable}>
 					{preamble ? (
-						<div className="whitespace-pre-line">{preamble}</div>
+						<div className={classes.preamble}>{preamble}</div>
 					) : null}
 					<RichTextPlugin
 						contentEditable={
 							<ContentEditable
-								className={
-									'resize-none text-base caret-zinc-900 relative outline-none'
-								}
+								className={classes.editableInner}
 							/>
 						}
 						placeholder={<div className={classes.placeholder} />}

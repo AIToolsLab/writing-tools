@@ -29,3 +29,46 @@
 	margin: 0 0 1em 0;
 	position: relative;
 }
+
+/* The Lexical content-editable surface. Was Tailwind
+   `resize-none text-base caret-zinc-900 relative outline-none`, shared by the
+   scroll container and the ContentEditable inside it. */
+.editable,
+.editableInner {
+	font-size: 1rem;
+	line-height: 1.5rem;
+	caret-color: #18181b;
+	position: relative;
+	outline: none;
+}
+
+.editable {
+	overflow-y: auto;
+	height: 100%;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(0, 0, 0, 0.1) transparent;
+}
+
+.editable::-webkit-scrollbar {
+	width: 4px;
+	height: 4px;
+}
+
+.editable::-webkit-scrollbar-track {
+	background: transparent;
+	margin-right: -4px;
+}
+
+.editable::-webkit-scrollbar-thumb {
+	background: rgba(0, 0, 0, 0.1);
+	border-radius: 4px;
+	margin-right: -4px;
+}
+
+.editable::-webkit-scrollbar-thumb:hover {
+	background: rgba(0, 0, 0, 0.4);
+}
+
+.preamble {
+	white-space: pre-line;
+}

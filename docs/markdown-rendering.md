@@ -2,7 +2,7 @@
 
 Every page that shows model output — Chat, Revise, Draft — renders it through
 `frontend/src/components/markdown`. Use that component rather than React
-Markdown directly: it carries the GFM plugin, the element styles Tailwind
+Markdown directly: it carries the GFM plugin, the element styles preflight
 strips, and the table wrapper, and it is the only module in the app that
 imports `react-markdown`, which is what kept swapping the renderer underneath
 down to four call sites.
@@ -55,13 +55,12 @@ so Revise and Chat render them identically. A page wires it up with
 one `<DocJumpStatus>`; it also has to tell the model how to write the links,
 since nothing will emit them otherwise.
 
-## Tailwind's preflight eats list formatting
+## Preflight eats list formatting
 
-`@import 'tailwindcss'` (in `src/taskpane.css` and `src/editor/styles.css`)
-pulls in preflight, which resets `ul`/`ol` to `list-style: none` with no
-padding, and headings to plain body text. Nothing put those back for markdown
-we render ourselves, so a bulleted reply arrived as an undifferentiated run of
-lines.
+`src/preflight.css` (imported by `src/taskpane.css` and `src/editor/index.tsx`)
+resets `ul`/`ol` to `list-style: none` with no padding, and headings to plain
+body text. Nothing put those back for markdown we render ourselves, so a
+bulleted reply arrived as an undifferentiated run of lines.
 
 `components/markdown/styles.module.css` restores them. It works without
 `!important` or a specificity ladder because preflight lives in `@layer base`

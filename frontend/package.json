@@ -59,8 +59,6 @@
 	"devDependencies": {
 		"@eslint/js": "^9.0.0",
 		"@playwright/test": "^1.60",
-		"@tailwindcss/postcss": "^4.1.8",
-		"@tailwindcss/typography": "^0.5.16",
 		"@testing-library/dom": "^10.4.1",
 		"@testing-library/react": "^16.3.2",
 		"@types/node": "^24.6.2",
@@ -81,7 +79,6 @@
 		"office-addin-manifest": "^1.13.6",
 		"postcss": "^8.5.23",
 		"prettier": "^3.9.6",
-		"tailwindcss": "^4.1.8",
 		"typescript": "^5.4.2",
 		"typescript-eslint": "^8.33.1",
 		"vite": "^6.4.3",

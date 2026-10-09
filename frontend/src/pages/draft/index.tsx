@@ -424,8 +424,8 @@ export default function Draft() {
 	return (
 		<div className={classes.app}>
 			<div className={classes.body}>
-				<div className="flex flex-col flex-1 overflow-hidden">
-					<div className="flex flex-col flex-1 gap-2 relative p-2 overflow-hidden">
+				<div className={classes.bodyColumn}>
+					<div className={classes.bodyColumnInner}>
 						{/* The document's brief — same section as on Revise, same
 						    stored values; collapsed here since this page's job is
 						    the buttons below it. */}

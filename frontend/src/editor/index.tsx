@@ -6,7 +6,7 @@ import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
 import * as SidebarInner from '@/pages/app';
 import { useAtomValue, useSetAtom } from 'jotai';
 import LexicalEditor, { type EditorControls } from './editor';
-import './styles.css';
+import '../preflight.css';
 import classes from './styles.module.css';
 import { EditorContext } from '@/contexts/editorContext';
 import { lowerOp } from '@/pages/my-words/interaction/ops';

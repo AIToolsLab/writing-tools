@@ -680,3 +680,21 @@
 		max-height 300ms ease-in-out,
 		transform 300ms ease-in-out;
 }
+
+/* Page layout columns (replaces inline Tailwind layout classes) */
+.bodyColumn {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	overflow: hidden;
+}
+
+.bodyColumnInner {
+	display: flex;
+	flex-direction: column;
+	flex: 1;
+	gap: 0.5rem;
+	position: relative;
+	padding: 0.5rem;
+	overflow: hidden;
+}

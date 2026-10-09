@@ -134,10 +134,10 @@ kept outside it.
 
 Pages render markdown through `<Markdown>` (`src/components/markdown/`), which
 is the only module that imports `react-markdown`. It carries `remark-gfm` (plain
-`remark-parse` is CommonMark, which has no tables) and the element styles
-Tailwind's preflight strips — lists lose their marker and indent without them.
-Preflight sits in `@layer base` and unlayered CSS beats layered CSS, so a CSS
-module overrides it with no `!important`.
+`remark-parse` is CommonMark, which has no tables) and the element styles the
+preflight reset strips — lists lose their marker and indent without them.
+Preflight (`src/preflight.css`) sits in `@layer base` and unlayered CSS beats
+layered CSS, so a CSS module overrides it with no `!important`.
 
 Callers pass their own element components via `components` (define them at
 module scope — React remounts a subtree whose component identity changed). React

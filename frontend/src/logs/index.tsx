@@ -2,6 +2,7 @@ import { createRoot } from 'react-dom/client';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import { SERVER_URL } from '@/api';
+import classes from './styles.module.css';
 
 interface Log {
 	username: string;
@@ -59,12 +60,12 @@ function Collapsible({
 
 	return (
 		<details
-			className="whitespace-pre-wrap"
+			className={classes.collapsible}
 			style={{ maxWidth }}
 			title={displayText}
 		>
-			<summary className="truncate text-gray-500">{summaryText}</summary>
-			<pre className="whitespace-pre-wrap">{displayText}</pre>
+			<summary className={classes.summary}>{summaryText}</summary>
+			<pre className={classes.pre}>{displayText}</pre>
 		</details>
 	);
 }
@@ -163,10 +164,10 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 
 	return (
 		<div>
-			<div className="mb-2 flex items-center gap-2">
-				<span className="font-semibold">Regenerate All:</span>
+			<div className={classes.regenRow}>
+				<span className={classes.regenLabel}>Regenerate All:</span>
 				<select
-					className="border rounded px-2 py-1"
+					className={classes.select}
 					value={regenType}
 					onChange={(e) => setRegenType(e.target.value)}
 				>
@@ -177,7 +178,7 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 					))}
 				</select>
 				<button
-					className="px-2 py-1 bg-green-500 text-white rounded hover:bg-green-600 transition duration-150"
+					className={classes.btnGreen}
 					onClick={() => {
 						void handleRegenerateAll();
 					}}
@@ -186,53 +187,55 @@ function EntriesTable({ entries }: { entries: Log[] }) {
 					Regenerate All
 				</button>
 			</div>
-			<table className="max-w-full border border-gray-300">
+			<table className={classes.table}>
 				<thead>
 					<tr>
-						<th className="p-2">Timestamp</th>
-						<th className="p-2">Event</th>
-						<th className="p-2">Type</th>
-						<th className="p-2">Prompt</th>
-						<th className="p-2">Result</th>
-						<th className="p-2">Regen</th>
+						<th className={classes.cell}>Timestamp</th>
+						<th className={classes.cell}>Event</th>
+						<th className={classes.cell}>Type</th>
+						<th className={classes.cell}>Prompt</th>
+						<th className={classes.cell}>Result</th>
+						<th className={classes.cell}>Regen</th>
 					</tr>
 				</thead>
 				<tbody>
 					{annotatedEntries.map(
 						(entry: LogWithAnnotatedTimestamp, i: number) => (
 							<tr key={i}>
-								<td className="p-2">
+								<td className={classes.cell}>
 									{secondsToHMS(entry.secondsSinceStart)}
 								</td>
-								<td className="p-2">
+								<td className={classes.cell}>
 									{entry.event}
 									{entry.interaction
 										? ` (${entry.interaction})`
 										: null}
 								</td>
-								<td className="p-2">{entry.generation_type}</td>
-								<td className="p-2">
+								<td className={classes.cell}>
+									{entry.generation_type}
+								</td>
+								<td className={classes.cell}>
 									<Collapsible
 										text={entry.prompt}
 										truncateEnd={false}
 									/>
 								</td>
-								<td className="p-2">
+								<td className={classes.cell}>
 									<Collapsible text={entry.result} />
 								</td>
-								<td className="p-2">
+								<td className={classes.cell}>
 									{regenResults[i] === null && (
-										<div className="text-blue-500">
+										<div className={classes.textBlue}>
 											Regenerating...
 										</div>
 									)}
 									{regenResults[i] ? (
-										<div className="mb-2 p-2 bg-gray-100 rounded text-sm text-gray-800 whitespace-pre-wrap">
+										<div className={classes.regenResult}>
 											{regenResults[i]}
 										</div>
 									) : null}
 									<button
-										className="px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition duration-150"
+										className={classes.btnBlue}
 										onClick={() => {
 											void (async () => {
 												setRegenResults((prev) => ({
@@ -420,24 +423,24 @@ function App() {
 
 	return (
 		<div
-			className={`p-6 relative ${dragActive ? 'bg-blue-50 border-2 border-blue-400' : ''}`}
+			className={`${classes.page} ${dragActive ? classes.dragActive : ''}`}
 			onDragOver={handleDragOver}
 			onDragLeave={handleDragLeave}
 			onDrop={handleDrop}
 			style={{ minHeight: 400 }}
 		>
 			{dragActive ? (
-				<div className="absolute inset-0 flex items-center justify-center bg-blue-100 bg-opacity-80 z-10 border-2 border-blue-400 rounded">
-					<span className="text-lg font-bold text-blue-700">
+				<div className={classes.dropOverlay}>
+					<span className={classes.dropText}>
 						Drop a log file to view it
 					</span>
 				</div>
 			) : null}
 			{dragError ? (
-				<div className="mb-4 text-red-600">{dragError}</div>
+				<div className={classes.dragError}>{dragError}</div>
 			) : null}
-			<div className="mb-4">
-				<label className="flex items-center gap-2">
+			<div className={classes.block}>
+				<label className={classes.fieldLabel}>
 					Log Secret:
 					<input
 						type="text"
@@ -447,26 +450,26 @@ function App() {
 							localStorage.setItem('logSecret', e.target.value);
 						}}
 						placeholder="Enter log secret"
-						className="px-3 py-2 border border-gray-300 rounded transition duration-150 cursor-pointer focus:cursor-text focus:outline-none focus:border-black hover:border-black"
+						className={classes.textInput}
 						disabled={fileMode}
 					/>
 				</label>
 				{fileMode ? (
-					<span className="ml-4 text-sm text-blue-700">
+					<span className={classes.fileModeNote}>
 						Viewing logs from file. Drag a new file to replace, or
 						reload to return to server mode.
 					</span>
 				) : null}
 			</div>
-			<div className="mb-4 flex items-center gap-6">
-				<label className="flex items-center gap-2">
+			<div className={classes.rowGap}>
+				<label className={classes.fieldLabel}>
 					Username:
 					<input
 						list="usernames"
 						value={username}
 						onChange={(e) => setUsername(e.target.value)}
 						placeholder="Select or type username"
-						className="px-3 py-2 border border-gray-300 rounded transition duration-150 cursor-pointer focus:cursor-text focus:outline-none focus:border-black hover:border-black"
+						className={classes.textInput}
 					/>
 					<datalist id="usernames">
 						{availableUsernames.map((u) => (
@@ -475,7 +478,7 @@ function App() {
 					</datalist>
 				</label>
 			</div>
-			<div className="mb-4">
+			<div className={classes.block}>
 				<strong>{desiredEntries.length}</strong> entries selected of{' '}
 				<strong>{logs.length}</strong> total entries.
 				<br />
@@ -487,7 +490,7 @@ function App() {
 						).toLocaleString()
 					: 'No entries'}
 			</div>
-			<div className="mb-4">
+			<div className={classes.block}>
 				<strong>Generation Type Counts:</strong>
 				<ul>
 					{generationTypeCounts.map(

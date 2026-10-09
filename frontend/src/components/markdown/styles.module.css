@@ -1,11 +1,11 @@
 /*
  * Element styling for rendered markdown.
  *
- * Tailwind's preflight (`@import 'tailwindcss'` in taskpane.css / editor/
- * styles.css) strips the browser defaults these elements rely on: lists lose
- * their marker and indent, headings collapse to body text, blockquotes and
- * tables lose their spacing and rules. Nothing puts them back for markdown we
- * render ourselves, so a model's reply arrived as one flat run of lines.
+ * The preflight reset (`src/preflight.css`, imported by taskpane.css and
+ * editor/index.tsx) strips the browser defaults these elements rely on: lists
+ * lose their marker and indent, headings collapse to body text, blockquotes
+ * and tables lose their spacing and rules. Nothing puts them back for markdown
+ * we render ourselves, so a model's reply arrived as one flat run of lines.
  *
  * These rules are the replacement. Preflight lives in `@layer base`, and
  * unlayered CSS always beats layered CSS, so a single class is enough to
