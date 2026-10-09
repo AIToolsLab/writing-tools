@@ -1,0 +1,95 @@
+.container {
+	padding: 0.75rem 1rem 1.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1rem;
+}
+
+.intro {
+	margin: 0;
+	font-size: 0.9rem;
+	color: var(--rs-color-foreground-neutral-faded, #555);
+	line-height: 1.4;
+}
+
+.intro code {
+	font-size: 0.85em;
+}
+
+.actions {
+	display: flex;
+	gap: 0.5rem;
+}
+
+.error {
+	background: #fdecea;
+	color: #b71c1c;
+	border: 1px solid #f5c6cb;
+	border-radius: 6px;
+	padding: 0.5rem 0.75rem;
+	margin: 0;
+	font-size: 0.85rem;
+}
+
+.facts {
+	display: grid;
+	grid-template-columns: auto 1fr;
+	gap: 0.15rem 0.75rem;
+	margin: 0;
+	font-size: 0.8rem;
+}
+
+.facts dt {
+	color: var(--rs-color-foreground-neutral-faded, #666);
+}
+
+.facts dd {
+	margin: 0;
+	font-variant-numeric: tabular-nums;
+	/* Document titles can be long and have no break opportunities. */
+	overflow-wrap: anywhere;
+}
+
+.heading {
+	margin: 0 0 0.35rem;
+	font-size: 0.8rem;
+	text-transform: uppercase;
+	letter-spacing: 0.04em;
+	color: var(--rs-color-foreground-neutral-faded, #666);
+}
+
+/*
+ * `pre-wrap` rather than `pre`: the sidebar is ~300px and the point is to read
+ * the text, so wrapping beats a horizontal scrollbar. The block still scrolls
+ * vertically so a long document can't push the controls off screen.
+ */
+.output {
+	margin: 0;
+	padding: 0.5rem 0.6rem;
+	background: var(--rs-color-background-neutral-faded, #f6f6f6);
+	border: 1px solid var(--rs-color-border-neutral-faded, #e0e0e0);
+	border-radius: 6px;
+	font-size: 0.75rem;
+	line-height: 1.45;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	max-height: 24rem;
+	overflow-y: auto;
+}
+
+.paragraphs {
+	margin: 0;
+	padding-left: 1.5rem;
+	max-height: 16rem;
+	overflow-y: auto;
+	font-size: 0.75rem;
+	line-height: 1.5;
+}
+
+.paragraphs li {
+	margin-bottom: 0.2rem;
+}
+
+.paragraphs code {
+	overflow-wrap: anywhere;
+}

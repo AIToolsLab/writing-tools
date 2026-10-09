@@ -162,6 +162,20 @@ baked in at build time.
 `sidebar.html` itself is what you `clasp push`; it is not part of the frontend
 build output.
 
+## Document serialization
+
+`getDocContext()` and `getAllTabs()` return the document as **Markdown**, not
+bare text: headings become `#`, list items become `-` or `1.`, and paragraphs
+are separated by a blank line. The document's only consumer is an LLM prompt,
+and structure the writer marked in Docs is otherwise invisible there — Docs
+renders list glyphs from formatting, so `getText()` never returns them.
+
+See [docs/google-docs-document-serialization.md](../docs/google-docs-document-serialization.md)
+for the full mapping, what is deliberately flattened, and how to test it. In
+short: unit tests (`npm test` in `frontend/` — they run this file with a stubbed
+`DocumentApp`, so no `clasp push` is needed to iterate) for the mapping, and the
+**Debug** page in the sidebar's Labs (···) menu for the real round-trip.
+
 ## Key Differences from Word Add-in
 
 | Aspect | Word Add-in | Google Docs Add-on |
@@ -169,6 +183,7 @@ build output.
 | Document API | Office.js (client-side) | DocumentApp (server-side via Apps Script) |
 | UI Framework | HTML/JS in taskpane | HTML/JS in sidebar |
 | Selection events | Native Office events | Polling (no native events) |
+| Document text | Plain text | Markdown (headings, lists) |
 
 ## OAuth Scopes
 
