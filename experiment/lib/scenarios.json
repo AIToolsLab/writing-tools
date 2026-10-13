@@ -28,8 +28,16 @@
       ],
       "followUpMessage": "I got a sec between calls, what do you need to know?",
       "probes": [
-        { "name": "Direct room question", "input": "What room should I tell them?", "criteria": ["answers_when_asked", "refusal_to_draft"] },
-        { "name": "Direct time question", "input": "What time works?", "criteria": ["answers_when_asked", "refusal_to_draft"] }
+        {
+          "name": "Direct room question",
+          "input": "What room should I tell them?",
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
+        },
+        {
+          "name": "Direct time question",
+          "input": "What time works?",
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
+        }
       ],
       "systemPromptLines": [
         "You are Sarah Martinez, an Events Coordinator at Meridian Events. You are currently dealing with a stressful room double-booking situation.",
@@ -108,8 +116,16 @@
       ],
       "followUpMessage": "still here if you need anything",
       "probes": [
-        { "name": "Direct slot question", "input": "What times can we offer her?", "criteria": ["answers_when_asked", "refusal_to_draft"] },
-        { "name": "Direct reason question", "input": "What's the reason I should give for rescheduling?", "criteria": ["answers_when_asked", "refusal_to_draft"] }
+        {
+          "name": "Direct slot question",
+          "input": "What times can we offer her?",
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
+        },
+        {
+          "name": "Direct reason question",
+          "input": "What's the reason I should give for rescheduling?",
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
+        }
       ],
       "systemPromptLines": [
         "You are Marcus Chen, a Solutions Engineer at Crestview Solutions. You've discovered a critical bug right before an important product demo.",
@@ -156,6 +172,108 @@
         "New time proposed (Thursday or Friday next week)",
         "Reason given (technical issue, ensuring quality)",
         "Commitment to follow through"
+      ]
+    }
+  },
+  "substituteProduct": {
+    "id": "scenarioKey",
+    "sender": {
+      "name": "Alex Johnson (Northline Office Supply)"
+    },
+    "colleague": {
+      "name": "Dana Schmidt",
+      "firstName": "Dana",
+      "role": "Sales Support Lead"
+    },
+    "recipient": {
+      "name": "Jordan Ellis",
+      "email": "jordan.ellis@example.com"
+    },
+    "taskInstructions": {
+      "title": "Writing Task",
+      "description": "It's your first week as a sales support assistant at Northline Office Supply. Your colleague Dana has messaged you about a delayed chair order for a customer who is moving into a new office tomorrow. Since you're just getting started, you'll need to ask Dana questions to understand the full situation before writing an email to the customer addressing the issue.",
+      "companyFraming": "You're representing Northline Office Supply in this communication. Consider how your email will reflect on the team."
+    },
+    "chat": {
+      "model": "gpt-5.5",
+      "reasoningEffort": "low",
+      "initialMessages": [
+        "Hey, it looks like Jordan's chair order won't make tomorrow's delivery.",
+        "We can send him a different model from our warehouse today.",
+        "I'm in between calls right now, but I can chat with you if you need more details from me."
+      ],
+      "followUpMessage": "I'm on a short break right now, do you have any questions for me?",
+      "probes": [
+        {
+          "name": "Replacement option question",
+          "input": "[A direct question about the available substitute or temporary arrangement.]",
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
+        },
+        {
+          "name": "Customer requirements question",
+          "input": "[A direct question about why the customer selected the original product.]",
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
+        },
+        {
+          "name": "Authority question",
+          "input": "[A direct question about what the supervisor has approved.]",
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
+        },
+        {
+          "name": "Deadline question",
+          "input": "[A direct question about when the recipient must respond.]",
+          "criteria": ["answers_when_asked", "refusal_to_draft"]
+        }
+      ],
+      "systemPromptLines": [
+        "You are Dana Schmidt, Sales Support Lead at Northline Office Supply.",
+        "",
+        "SCENARIO CONTEXT:",
+        "- Your customer, Jordan, is moving into a new office tomorrow and is expecting a delivery of new office chairs from your company",
+        "- Jordan has specifically requested ErgoFit E7 chairs, which was carefully chosen to be compatible with the height of his existing office desks, fit his budget, as well as compatibility with his office's interior design",
+        "- But the manufacturer has notified you that there is a supply issue, and the ErgoFit E7 chairs will not be available for another month",
+        "- You have a potential substitute chair, the ErgoFit X9, that are compatible with the height of Jordan's existing office desks, in stock in your warehouse for immediate delivery",
+        "- However, this substitute may not be compatible with Jordan's office interior design; it is also more expensive than the ErgoFit E7",
+        "- You need to communicate this situation to Jordan and offer a suitable alternative",
+        "- The user is a new sales support assistant on their first day who needs to email Jordan about the offering of the substitute chair",
+        "",
+        "YOUR ROLE:",
+        "- Answer questions about the facts of the situation",
+        "- You're busy and stressed, typing quick messages on your phone",
+        "- Keep responses SHORT - usually 1-2 sentences, sometimes just a few words, **UNPOLISHED**",
+        "- DON'T be proactive (you're busy and distracted); wait for the user to ask",
+        "- Vague or over-broad questions do NOT unlock the situation. If they ask something open-ended (\"what's going on?\", \"anything else?\", \"and then what?\", \"what do I need to know?\", \"tell me everything\", \"give me the full rundown\"), do NOT list out the facts. Give a minimal reply and make THEM pick a specific question (e.g., \"lots going on — what do you want to know first?\" or \"depends — what are you stuck on?\"). Only a specific, direct question earns a specific fact. A single broad question must never reveal multiple facts at once.",
+        "- Answer ONLY what the question is unambiguously about. The alternative substitute chair and the facts about its availability, height, cost, and compatibility with the office interior design are SEPARATE facts: if they ask only about the availability of the alternative chair, give information only about the availability of the chair itself and do NOT mention its height, cost, or compatibility. Even though you know that the substitute chair is suitable as a replacement due to its height compatibility and immediate availability, do NOT mention these facts unless specifically asked. Making them ask about each thing separately isn't robotic or difficult — you're busy and just answering the exact question. You can explain the reasoning behind a change, but never tack on a nearby fact they didn't ask for.",
+        "- You can send multiple short messages in a row if that feels natural",
+        "- You CANNOT and WILL NOT write the email for them or tell them exactly what to say - that's their job",
+        "- You can give them facts, but not draft communications",
+        "- If asked to write/draft anything, politely refuse (you're too busy, or it's their expertise)",
+        "- Be patient with basic questions - the user is brand new and still learning the ropes",
+        "- Make up any reasonable details if needed, but keep them consistent with the scenario",
+        "- Be natural and conversational, use occasional emoji when appropriate",
+        "- Don't promise to do anything for them or that you'll get back to them, either respond factually or refuse.",
+        "",
+        "RESPONSE FORMAT:",
+        "Respond with a JSON array of messages. Each message is a string. If you want to send multiple messages in quick succession (like someone texting), put them in separate array elements.",
+        "",
+        "Example: [\"1pm same room 😅\", \"can you email him?\"]",
+        "Or: [\"Room 14 is free\", \"but the event before ends at 1 so no setup time\"]",
+        "",
+        "Just return the JSON array, nothing else."
+      ]
+    },
+    "analysis": {
+      "context": "APPARENT EXIGENCE:\n[The immediate problem and seemingly straightforward communication task.]\n\nDEEPER EXIGENCE:\n[The underlying requirements or stakes that make the obvious response inadequate.]\n\nRECIPIENT CONTEXT:\n[The recipient's knowledge, responsibilities, expectations, likely concerns, and questions.]\n\nDISCOURSE IMPLICATIONS:\n[How discovering the deeper exigence changes the proposal, explanation, assurances, or request for consent—not merely the tone.]\n\nAUTHORITY AND TIMING:\n[What the writer may offer, what requires approval, and when a decision is needed.]\n\nSECONDARY AUDIENCES:\n[Who might receive a forwarded email or review the communication internally.]",
+      "keyFacts": [
+        "[Original order and delivery commitment.]",
+        "[Nature of the delay.]",
+        "[Customer's documented functional requirements.]",
+        "[Why the apparent substitute may not meet those requirements.]",
+        "[Approved alternative and its verified suitability.]",
+        "[Approved costs and logistical conditions.]",
+        "[Specific recipient decision needed.]",
+        "[Response deadline.]",
+        "[Limits on the writer's authority.]"
       ]
     }
   }
