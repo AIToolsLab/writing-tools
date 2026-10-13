@@ -120,7 +120,7 @@ open to promote a convention into structure later if usage proves it out.
 - **Graphologue / Sensecape** (UIST 2023) — LLM output as node-link diagrams /
   spatial canvases. Maps of the *model's* content, where ours is a map of the
   *writer's* thinking that the model may only navigate.
-- **prototype-mindmap** (this repo, branch `feat/uist`) — the direct ancestor:
+- **prototype-mindmap** (formerly `prototype-mindmap/` in this repo, now its own repository) — the direct ancestor:
   writer-owned concept map with own-words provenance and draft anchoring. Its
   invariants survive here as stance + one validator; its React Flow surface,
   Source Bank, and enforcement machinery deliberately do not.
