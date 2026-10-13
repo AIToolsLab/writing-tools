@@ -197,7 +197,7 @@ export default function AIPanel({
 
         // Log AI request in study mode
         if (isStudyMode) {
-          await log({
+          log({
             username: studyParams.username,
             event: `aiRequest:${modeToUse}`,
             extra_data: {
@@ -247,7 +247,7 @@ export default function AIPanel({
 
             // Log AI response in study mode
             if (isStudyMode) {
-              await log({
+              log({
                 username: studyParams.username,
                 event: `aiResponse:${modeToUse}`,
                 extra_data: {

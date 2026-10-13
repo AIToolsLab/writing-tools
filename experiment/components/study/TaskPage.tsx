@@ -8,7 +8,7 @@ import type { TextEditorState } from '@/types';
 import AIPanel from '@/components/AIPanel';
 import ChatPanel from '@/components/ChatPanel';
 import WritingArea from '@/components/WritingArea';
-import { log } from '@/lib/logging';
+import { log, logThenRedirect } from '@/lib/logging';
 import { letterToCondition, getScenario } from '@/lib/studyConfig';
 import { useAtomValue } from 'jotai';
 import { studyParamsAtom } from '@/contexts/StudyContext';
@@ -44,8 +44,9 @@ export default function TaskPage() {
   }, []);
 
   const handleSendTask = async (content: string, subject: string) => {
-    // Log task completion
-    await log({
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('page', 'debrief');
+    await logThenRedirect({
       username,
       event: 'taskComplete',
       extra_data: {
@@ -54,17 +55,12 @@ export default function TaskPage() {
         wordCount: content.split(/\s+/).length,
         documentLength: content.length,
       },
-    });
-
-    // Navigate to post-task survey
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', 'debrief');
-    window.location.href = `/study?${params.toString()}`;
+    }, `/study?${params.toString()}`);
   };
 
-  const handleDocumentUpdate = async (editorState: TextEditorState, subject: string) => {
+  const handleDocumentUpdate = (editorState: TextEditorState, subject: string) => {
     const fullContent = editorState.beforeCursor + editorState.selectedText + editorState.afterCursor;
-    await log({
+    log({
       username,
       event: 'documentUpdate',
       extra_data: {

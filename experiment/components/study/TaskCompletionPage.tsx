@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { redirect } from '@/lib/logging';
 import { getNextPage } from '@/lib/studyConfig';
 
 export default function TaskCompletionPage() {
@@ -14,7 +15,7 @@ export default function TaskCompletionPage() {
 
     const params = new URLSearchParams(searchParams.toString())
     params.set('page', getNextPage('debrief')!);
-    window.location.href = `/study?${params.toString()}`;
+    await redirect(`/study?${params.toString()}`);
   }
 
   return (

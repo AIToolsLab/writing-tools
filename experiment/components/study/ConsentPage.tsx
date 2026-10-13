@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { log } from '@/lib/logging';
+import { logThenRedirect } from '@/lib/logging';
 import { CONSENT_FORM_URL, getNextPage } from '@/lib/studyConfig';
 
 export default function ConsentPage() {
@@ -13,12 +13,6 @@ export default function ConsentPage() {
     if (isSubmitting) return;
     setIsSubmitting(true);
     const username = searchParams.get('username') || 'unknown';
-    // Log the event
-    await log({
-      username,
-      event: 'launchConsentForm',
-    });
-
     // Build redirect URL with study parameters
     const params = new URLSearchParams(searchParams.toString());
     params.set('page', getNextPage('consent')!);
@@ -28,7 +22,7 @@ export default function ConsentPage() {
     const consentUrl = new URL(CONSENT_FORM_URL);
     consentUrl.searchParams.set('redirect_url', redirectUrl);
     consentUrl.searchParams.set('username', username);
-    window.location.href = consentUrl.toString();
+    await logThenRedirect({ username, event: 'launchConsentForm' }, consentUrl.toString());
   };
 
   return (
