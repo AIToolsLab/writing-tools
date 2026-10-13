@@ -263,17 +263,14 @@
       ]
     },
     "analysis": {
-      "context": "APPARENT EXIGENCE:\n[The immediate problem and seemingly straightforward communication task.]\n\nDEEPER EXIGENCE:\n[The underlying requirements or stakes that make the obvious response inadequate.]\n\nRECIPIENT CONTEXT:\n[The recipient's knowledge, responsibilities, expectations, likely concerns, and questions.]\n\nDISCOURSE IMPLICATIONS:\n[How discovering the deeper exigence changes the proposal, explanation, assurances, or request for consent—not merely the tone.]\n\nAUTHORITY AND TIMING:\n[What the writer may offer, what requires approval, and when a decision is needed.]\n\nSECONDARY AUDIENCES:\n[Who might receive a forwarded email or review the communication internally.]",
+      "context": "A new sales support assistant at Northline Office Supply needs to email a customer (Jordan Ellis) about a delayed office-chair order and a potential substitute.\n\nKEY FACTS:\n- Jordan is moving into a new office tomorrow and expects delivery of his new office chairs\n- Jordan specifically selected ErgoFit E7 chairs for compatibility with his existing desk heights, his budget, and his office's interior design\n- A manufacturer supply issue means the ErgoFit E7 chairs will not be available for another month\n- ErgoFit X9 chairs are in stock in Northline's warehouse and available for immediate delivery\n- The ErgoFit X9 chairs are compatible with the height of Jordan's existing desks\n- The ErgoFit X9 chairs are more expensive than the ErgoFit E7 chairs and may not suit the office's interior design\n- The colleague (Dana Schmidt, Sales Support Lead) provides details via chat\n\nRECIPIENT CONTEXT:\n- Jordan Ellis is a customer who needs seating for his office move tomorrow\n- He may be frustrated by the last-minute delay and concerned about paying more for chairs he did not choose\n- Northline wants to help Jordan prepare his office while maintaining trust and avoiding an unwanted substitution",
       "keyFacts": [
-        "[Original order and delivery commitment.]",
-        "[Nature of the delay.]",
-        "[Customer's documented functional requirements.]",
-        "[Why the apparent substitute may not meet those requirements.]",
-        "[Approved alternative and its verified suitability.]",
-        "[Approved costs and logistical conditions.]",
-        "[Specific recipient decision needed.]",
-        "[Response deadline.]",
-        "[Limits on the writer's authority.]"
+        "The original ErgoFit E7 chairs are delayed by a manufacturer supply issue and will not be available for another month",
+        "ErgoFit X9 chairs are in stock and available for immediate delivery",
+        "The X9 chairs fit the height of Jordan's existing desks",
+        "The X9 chairs cost more than the E7 chairs",
+        "The X9 chairs may not match Jordan's office interior design",
+        "Jordan chose the E7 chairs for desk-height compatibility, budget fit, and interior-design compatibility"
       ]
     }
   }
