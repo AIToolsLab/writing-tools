@@ -76,15 +76,15 @@
 		"globals": "^16.2.0",
 		"http-server": "^14.1.1",
 		"jsdom": "^26.1.0",
-		"office-addin-debugging": "^6.0.3",
+		"office-addin-debugging": "^7.0.1",
 		"office-addin-dev-certs": "^2.0.10",
-		"office-addin-manifest": "^1.13.6",
+		"office-addin-manifest": "^3.0.1",
 		"postcss": "^8.5.23",
 		"prettier": "^3.9.6",
 		"tailwindcss": "^4.1.8",
 		"typescript": "^5.4.2",
 		"typescript-eslint": "^8.33.1",
 		"vite": "^6.4.3",
-		"vitest": "^4.1.8"
+		"vitest": "^5.0.4"
 	}
 }
