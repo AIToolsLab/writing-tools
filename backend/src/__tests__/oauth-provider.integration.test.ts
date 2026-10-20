@@ -201,8 +201,63 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 		expect(login.status).toBe(200);
 		const html = await login.text();
 		expect(html).toContain('Sign in with Google');
-		expect(html).toContain(`searchParams.set('resource',${JSON.stringify(ORIGIN)})`);
-		expect(html).not.toContain("searchParams.set('resource',location.origin)");
+		expect(html).toContain('oauth_query');
+		// The resource is part of the signed continuation, not re-added by the page.
+		expect(loginUrl.searchParams.get('resource')).toBe(ORIGIN);
+		expect(loginUrl.searchParams.getAll('ba_param')).toContain('resource');
+	});
+
+	it('resumes authorization from the login page once sign-in sets a session', async () => {
+		// The provider's continuation fires on any sign-in that sets a session cookie,
+		// so anonymous sign-in stands in for the Google callback here.
+		const verifier = `mindmap-pkce-verifier-${crypto.randomUUID()}-long-enough`;
+		const challenge = createHash('sha256').update(verifier).digest('base64url');
+		const authorization = await app.request(authorizationUrl(challenge));
+		const loginUrl = new URL(authorization.headers.get('location') ?? '', ORIGIN);
+
+		const signIn = await authRequest('/sign-in/anonymous', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+			body: JSON.stringify({ oauth_query: loginUrl.search.slice(1) }),
+		});
+		expect(signIn.status).toBe(200);
+		const { url } = (await signIn.json()) as { url: string };
+		const callback = new URL(url);
+		expect(callback.origin + callback.pathname).toBe(REDIRECT_URI);
+		const code = callback.searchParams.get('code');
+		expect(code).toBeTruthy();
+
+		const token = await app.request(`${AUTH_BASE}/oauth2/token`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: new URLSearchParams({
+				grant_type: 'authorization_code',
+				client_id: CLIENT_ID,
+				redirect_uri: REDIRECT_URI,
+				code: code!,
+				code_verifier: verifier,
+			}),
+		});
+		expect(token.status).toBe(200);
+		const { access_token } = (await token.json()) as { access_token: string };
+		const payload = JSON.parse(
+			Buffer.from(access_token.split('.')[1]!, 'base64url').toString(),
+		) as Record<string, unknown>;
+		expect(payload.aud).toBe(ORIGIN);
+	});
+
+	it('refuses a login continuation whose signed query was edited', async () => {
+		const challenge = createHash('sha256').update('t'.repeat(64)).digest('base64url');
+		const authorization = await app.request(authorizationUrl(challenge));
+		const loginUrl = new URL(authorization.headers.get('location') ?? '', ORIGIN);
+		loginUrl.searchParams.set('redirect_uri', 'https://attacker.example/');
+		const signIn = await authRequest('/sign-in/anonymous', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+			body: JSON.stringify({ oauth_query: loginUrl.search.slice(1) }),
+		});
+		expect(signIn.status).toBe(400);
+		expect(await signIn.json()).toMatchObject({ error: 'invalid_signature' });
 	});
 
 	it('provisions idempotently without undoing an operational disable', async () => {
