@@ -3,10 +3,13 @@ import { fileURLToPath } from 'node:url';
 
 // Load a local .env when present (dev). In Docker the env vars are injected by
 // compose, and no .env exists, so loadEnvFile throws and we ignore it.
-try {
-	process.loadEnvFile?.();
-} catch {
-	// no .env file; rely on the process environment
+// Skipped under vitest so a developer's .env doesn't leak into tests.
+if (!process.env.VITEST) {
+	try {
+		process.loadEnvFile?.();
+	} catch {
+		// no .env file; rely on the process environment
+	}
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
