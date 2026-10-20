@@ -218,6 +218,29 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 			.get(CLIENT_ID) as { disabled: number };
 		expect(disabled.disabled).toBe(1);
 		db().prepare(`UPDATE oauthClient SET disabled = 0 WHERE clientId = ?`).run(CLIENT_ID);
+
+		// Exactly one resource row and one link, however often provisioning runs.
+		expect(db().prepare(`SELECT identifier FROM oauthResource`).all()).toEqual([
+			{ identifier: ORIGIN },
+		]);
+		expect(
+			db().prepare(`SELECT clientId, resourceId FROM oauthClientResource`).all(),
+		).toEqual([{ clientId: CLIENT_ID, resourceId: ORIGIN }]);
+	});
+
+	it('refuses authorization for a client not linked to the resource', async () => {
+		const { cookie } = await anonymousSession();
+		db().prepare(`DELETE FROM oauthClientResource WHERE clientId = ?`).run(CLIENT_ID);
+		try {
+			const response = await app.request(authorizationUrl('challenge'), {
+				headers: { Cookie: cookie },
+			});
+			const location = new URL(response.headers.get('location') ?? REDIRECT_URI);
+			expect(location.searchParams.get('error')).toBe('invalid_target');
+			expect(location.searchParams.get('code')).toBeNull();
+		} finally {
+			await provisionTrustedOAuthClients(auth);
+		}
 	});
 
 	it('issues a real 12-hour JWT and accepts it at both text proxies', async () => {
@@ -567,6 +590,39 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 			.prepare(`SELECT redirectUris FROM oauthClient WHERE clientId = ?`)
 			.get(CLIENT_ID) as { redirectUris: string };
 		expect(JSON.parse(row.redirectUris)).toEqual([REDIRECT_URI]);
+	});
+
+	it('refuses resource management for every signed-in user', async () => {
+		const { cookie } = await anonymousSession();
+		const headers = { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN };
+		const snapshot = () => ({
+			resources: db().prepare(`SELECT * FROM oauthResource`).all(),
+			links: db().prepare(`SELECT * FROM oauthClientResource`).all(),
+		});
+		const before = snapshot();
+
+		// Not routed over HTTP at all (SERVER_ONLY)...
+		const overHttp = await authRequest('/admin/oauth2/resources', {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({ identifier: 'https://attacker.example' }),
+		});
+		expect(overHttp.status).toBeGreaterThanOrEqual(400);
+		// ...and refused by resourcePrivileges even when called in-process with a session.
+		await expect(
+			auth.api.adminCreateOAuthResource({
+				headers: new Headers(headers),
+				body: { identifier: 'https://attacker.example' },
+			}),
+		).rejects.toMatchObject({ status: 'UNAUTHORIZED' });
+		await expect(
+			auth.api.adminUnlinkClientResource({
+				headers: new Headers(headers),
+				params: { identifier: ORIGIN, client_id: CLIENT_ID },
+			}),
+		).rejects.toMatchObject({ status: 'UNAUTHORIZED' });
+
+		expect(snapshot()).toEqual(before);
 	});
 
 	it('clears a stale secret when re-provisioning an existing client row', async () => {
