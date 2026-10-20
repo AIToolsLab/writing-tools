@@ -67,7 +67,11 @@ function authorizationUrl(challenge: string, overrides: Record<string, string> =
 	return url;
 }
 
-async function issueToken(options: { disallowed?: boolean } = {}): Promise<{
+async function issueToken(options: {
+	disallowed?: boolean;
+	/** The token request's `resource`; null omits it. Defaults to the origin. */
+	tokenResource?: string | null;
+} = {}): Promise<{
 	accessToken: string;
 	userId: string;
 	cookie: string;
@@ -91,19 +95,21 @@ async function issueToken(options: { disallowed?: boolean } = {}): Promise<{
 	const code = callback.searchParams.get('code');
 	expect(code).toBeTruthy();
 
+	const body = new URLSearchParams({
+		grant_type: 'authorization_code',
+		client_id: CLIENT_ID,
+		redirect_uri: REDIRECT_URI,
+		code: code!,
+		code_verifier: verifier,
+	});
+	const tokenResource = options.tokenResource === undefined ? ORIGIN : options.tokenResource;
+	if (tokenResource !== null) body.set('resource', tokenResource);
 	const tokenResponse = await app.request(`${AUTH_BASE}/oauth2/token`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-		body: new URLSearchParams({
-			grant_type: 'authorization_code',
-			client_id: CLIENT_ID,
-			redirect_uri: REDIRECT_URI,
-			code: code!,
-			code_verifier: verifier,
-			resource: ORIGIN,
-		}),
+		body,
 	});
-	expect(tokenResponse.status).toBe(200);
+	expect(tokenResponse.status, await tokenResponse.clone().text()).toBe(200);
 	const token = (await tokenResponse.json()) as {
 		access_token: string;
 		expires_in: number;
@@ -307,25 +313,23 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
-	it('requires the byte-exact resource on authorize and token requests', async () => {
+	it('requires the byte-exact resource on authorize', async () => {
 		const missingAuthorize = authorizationUrl('challenge', { resource: '' });
 		missingAuthorize.searchParams.delete('resource');
 		expect((await app.request(missingAuthorize)).status).toBe(400);
 		expect(
 			(await app.request(authorizationUrl('challenge', { resource: `${ORIGIN}/` }))).status,
 		).toBe(400);
+	});
 
-		for (const resource of [undefined, `${ORIGIN}/`]) {
-			const body = new URLSearchParams({ grant_type: 'authorization_code' });
-			if (resource) body.set('resource', resource);
-			const response = await app.request(`${AUTH_BASE}/oauth2/token`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-				body,
-			});
-			expect(response.status).toBe(400);
-			expect(await response.json()).toMatchObject({ error: 'invalid_target' });
-		}
+	it('binds the code to the authorized resource at the token endpoint', async () => {
+		// Omitted: the token inherits the resource approved at authorize.
+		const { payload } = await issueToken({ tokenResource: null });
+		expect(payload.aud).toBe(ORIGIN);
+		// Anything else, even a near-miss of the origin, is refused.
+		await expect(issueToken({ tokenResource: `${ORIGIN}/` })).rejects.toThrow(
+			/invalid_target/,
+		);
 	});
 
 	it('accepts an untampered hand-signed token (control for the rejection cases)', async () => {
