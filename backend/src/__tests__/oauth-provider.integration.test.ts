@@ -67,7 +67,11 @@ function authorizationUrl(challenge: string, overrides: Record<string, string> =
 	return url;
 }
 
-async function issueToken(options: { disallowed?: boolean } = {}): Promise<{
+async function issueToken(options: {
+	disallowed?: boolean;
+	/** The token request's `resource`; null omits it. Defaults to the origin. */
+	tokenResource?: string | null;
+} = {}): Promise<{
 	accessToken: string;
 	userId: string;
 	cookie: string;
@@ -91,19 +95,21 @@ async function issueToken(options: { disallowed?: boolean } = {}): Promise<{
 	const code = callback.searchParams.get('code');
 	expect(code).toBeTruthy();
 
+	const body = new URLSearchParams({
+		grant_type: 'authorization_code',
+		client_id: CLIENT_ID,
+		redirect_uri: REDIRECT_URI,
+		code: code!,
+		code_verifier: verifier,
+	});
+	const tokenResource = options.tokenResource === undefined ? ORIGIN : options.tokenResource;
+	if (tokenResource !== null) body.set('resource', tokenResource);
 	const tokenResponse = await app.request(`${AUTH_BASE}/oauth2/token`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-		body: new URLSearchParams({
-			grant_type: 'authorization_code',
-			client_id: CLIENT_ID,
-			redirect_uri: REDIRECT_URI,
-			code: code!,
-			code_verifier: verifier,
-			resource: ORIGIN,
-		}),
+		body,
 	});
-	expect(tokenResponse.status).toBe(200);
+	expect(tokenResponse.status, await tokenResponse.clone().text()).toBe(200);
 	const token = (await tokenResponse.json()) as {
 		access_token: string;
 		expires_in: number;
@@ -195,8 +201,63 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 		expect(login.status).toBe(200);
 		const html = await login.text();
 		expect(html).toContain('Sign in with Google');
-		expect(html).toContain(`searchParams.set('resource',${JSON.stringify(ORIGIN)})`);
-		expect(html).not.toContain("searchParams.set('resource',location.origin)");
+		expect(html).toContain('oauth_query');
+		// The resource is part of the signed continuation, not re-added by the page.
+		expect(loginUrl.searchParams.get('resource')).toBe(ORIGIN);
+		expect(loginUrl.searchParams.getAll('ba_param')).toContain('resource');
+	});
+
+	it('resumes authorization from the login page once sign-in sets a session', async () => {
+		// The provider's continuation fires on any sign-in that sets a session cookie,
+		// so anonymous sign-in stands in for the Google callback here.
+		const verifier = `mindmap-pkce-verifier-${crypto.randomUUID()}-long-enough`;
+		const challenge = createHash('sha256').update(verifier).digest('base64url');
+		const authorization = await app.request(authorizationUrl(challenge));
+		const loginUrl = new URL(authorization.headers.get('location') ?? '', ORIGIN);
+
+		const signIn = await authRequest('/sign-in/anonymous', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+			body: JSON.stringify({ oauth_query: loginUrl.search.slice(1) }),
+		});
+		expect(signIn.status).toBe(200);
+		const { url } = (await signIn.json()) as { url: string };
+		const callback = new URL(url);
+		expect(callback.origin + callback.pathname).toBe(REDIRECT_URI);
+		const code = callback.searchParams.get('code');
+		expect(code).toBeTruthy();
+
+		const token = await app.request(`${AUTH_BASE}/oauth2/token`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: new URLSearchParams({
+				grant_type: 'authorization_code',
+				client_id: CLIENT_ID,
+				redirect_uri: REDIRECT_URI,
+				code: code!,
+				code_verifier: verifier,
+			}),
+		});
+		expect(token.status).toBe(200);
+		const { access_token } = (await token.json()) as { access_token: string };
+		const payload = JSON.parse(
+			Buffer.from(access_token.split('.')[1]!, 'base64url').toString(),
+		) as Record<string, unknown>;
+		expect(payload.aud).toBe(ORIGIN);
+	});
+
+	it('refuses a login continuation whose signed query was edited', async () => {
+		const challenge = createHash('sha256').update('t'.repeat(64)).digest('base64url');
+		const authorization = await app.request(authorizationUrl(challenge));
+		const loginUrl = new URL(authorization.headers.get('location') ?? '', ORIGIN);
+		loginUrl.searchParams.set('redirect_uri', 'https://attacker.example/');
+		const signIn = await authRequest('/sign-in/anonymous', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
+			body: JSON.stringify({ oauth_query: loginUrl.search.slice(1) }),
+		});
+		expect(signIn.status).toBe(400);
+		expect(await signIn.json()).toMatchObject({ error: 'invalid_signature' });
 	});
 
 	it('provisions idempotently without undoing an operational disable', async () => {
@@ -218,6 +279,29 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 			.get(CLIENT_ID) as { disabled: number };
 		expect(disabled.disabled).toBe(1);
 		db().prepare(`UPDATE oauthClient SET disabled = 0 WHERE clientId = ?`).run(CLIENT_ID);
+
+		// Exactly one resource row and one link, however often provisioning runs.
+		expect(db().prepare(`SELECT identifier FROM oauthResource`).all()).toEqual([
+			{ identifier: ORIGIN },
+		]);
+		expect(
+			db().prepare(`SELECT clientId, resourceId FROM oauthClientResource`).all(),
+		).toEqual([{ clientId: CLIENT_ID, resourceId: ORIGIN }]);
+	});
+
+	it('refuses authorization for a client not linked to the resource', async () => {
+		const { cookie } = await anonymousSession();
+		db().prepare(`DELETE FROM oauthClientResource WHERE clientId = ?`).run(CLIENT_ID);
+		try {
+			const response = await app.request(authorizationUrl('challenge'), {
+				headers: { Cookie: cookie },
+			});
+			const location = new URL(response.headers.get('location') ?? REDIRECT_URI);
+			expect(location.searchParams.get('error')).toBe('invalid_target');
+			expect(location.searchParams.get('code')).toBeNull();
+		} finally {
+			await provisionTrustedOAuthClients(auth);
+		}
 	});
 
 	it('issues a real 12-hour JWT and accepts it at both text proxies', async () => {
@@ -284,25 +368,23 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
-	it('requires the byte-exact resource on authorize and token requests', async () => {
+	it('requires the byte-exact resource on authorize', async () => {
 		const missingAuthorize = authorizationUrl('challenge', { resource: '' });
 		missingAuthorize.searchParams.delete('resource');
 		expect((await app.request(missingAuthorize)).status).toBe(400);
 		expect(
 			(await app.request(authorizationUrl('challenge', { resource: `${ORIGIN}/` }))).status,
 		).toBe(400);
+	});
 
-		for (const resource of [undefined, `${ORIGIN}/`]) {
-			const body = new URLSearchParams({ grant_type: 'authorization_code' });
-			if (resource) body.set('resource', resource);
-			const response = await app.request(`${AUTH_BASE}/oauth2/token`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-				body,
-			});
-			expect(response.status).toBe(400);
-			expect(await response.json()).toMatchObject({ error: 'invalid_target' });
-		}
+	it('binds the code to the authorized resource at the token endpoint', async () => {
+		// Omitted: the token inherits the resource approved at authorize.
+		const { payload } = await issueToken({ tokenResource: null });
+		expect(payload.aud).toBe(ORIGIN);
+		// Anything else, even a near-miss of the origin, is refused.
+		await expect(issueToken({ tokenResource: `${ORIGIN}/` })).rejects.toThrow(
+			/invalid_target/,
+		);
 	});
 
 	it('accepts an untampered hand-signed token (control for the rejection cases)', async () => {
@@ -567,6 +649,39 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 			.prepare(`SELECT redirectUris FROM oauthClient WHERE clientId = ?`)
 			.get(CLIENT_ID) as { redirectUris: string };
 		expect(JSON.parse(row.redirectUris)).toEqual([REDIRECT_URI]);
+	});
+
+	it('refuses resource management for every signed-in user', async () => {
+		const { cookie } = await anonymousSession();
+		const headers = { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN };
+		const snapshot = () => ({
+			resources: db().prepare(`SELECT * FROM oauthResource`).all(),
+			links: db().prepare(`SELECT * FROM oauthClientResource`).all(),
+		});
+		const before = snapshot();
+
+		// Not routed over HTTP at all (SERVER_ONLY)...
+		const overHttp = await authRequest('/admin/oauth2/resources', {
+			method: 'POST',
+			headers,
+			body: JSON.stringify({ identifier: 'https://attacker.example' }),
+		});
+		expect(overHttp.status).toBeGreaterThanOrEqual(400);
+		// ...and refused by resourcePrivileges even when called in-process with a session.
+		await expect(
+			auth.api.adminCreateOAuthResource({
+				headers: new Headers(headers),
+				body: { identifier: 'https://attacker.example' },
+			}),
+		).rejects.toMatchObject({ status: 'UNAUTHORIZED' });
+		await expect(
+			auth.api.adminUnlinkClientResource({
+				headers: new Headers(headers),
+				params: { identifier: ORIGIN, client_id: CLIENT_ID },
+			}),
+		).rejects.toMatchObject({ status: 'UNAUTHORIZED' });
+
+		expect(snapshot()).toEqual(before);
 	});
 
 	it('clears a stale secret when re-provisioning an existing client row', async () => {
