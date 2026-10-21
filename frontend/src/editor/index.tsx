@@ -136,6 +136,7 @@ export function EditorScreen({
 						controls.applySplice(splice);
 					}
 				} catch (e) {
+					// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
 					return Promise.reject(e as Error);
 				}
 				return Promise.resolve();
