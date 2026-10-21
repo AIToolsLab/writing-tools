@@ -28,6 +28,8 @@ import {
 } from 'lexical';
 import { useEffect } from 'react';
 
+import { firstMatch, MATCH_TIERS } from '@/utilities/textMatching';
+
 import classes from './editor.module.css';
 
 /**
@@ -198,23 +200,31 @@ function ControlsPlugin({
 					};
 					collect($getRoot());
 
-					const needle = phrase.toLowerCase();
-					for (const node of textNodes) {
-						const idx = node
-							.getTextContent()
-							.toLowerCase()
-							.indexOf(needle);
-						if (idx === -1) continue;
-						const selection = $createRangeSelection();
-						selection.anchor.set(node.getKey(), idx, 'text');
-						selection.focus.set(
-							node.getKey(),
-							idx + phrase.length,
-							'text',
-						);
-						$setSelection(selection);
-						found = true;
-						return;
+					// Exhaust each rung of the leniency ladder across every node
+					// before loosening, so an exact hit later in the document
+					// still beats a folded hit in the first node. The offsets
+					// are source offsets, not needle lengths — a fold can drop
+					// or merge characters, and the selection has to land on the
+					// writer's real text.
+					for (const tier of MATCH_TIERS) {
+						for (const node of textNodes) {
+							const hit = firstMatch(
+								tier,
+								node.getTextContent(),
+								phrase,
+							);
+							if (!hit) continue;
+							const selection = $createRangeSelection();
+							selection.anchor.set(
+								node.getKey(),
+								hit.start,
+								'text',
+							);
+							selection.focus.set(node.getKey(), hit.end, 'text');
+							$setSelection(selection);
+							found = true;
+							return;
+						}
 					}
 				});
 				return found;
