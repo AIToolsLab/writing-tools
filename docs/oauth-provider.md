@@ -17,17 +17,35 @@ transfers text manually.
 - Access token lifetime: 12 hours; no refresh token.
 - Dynamic and unauthenticated registration are disabled.
 - The fixed client skips consent. No general consent page is registered.
+- Session-authenticated client and resource management are denied
+  (`clientPrivileges` / `resourcePrivileges` return false).
 - The OAuth resource and JWT audience are the canonical backend origin from
   `new URL(BETTER_AUTH_URL).origin`, with no path or trailing slash.
 - Production resource: `https://app.thoughtful-ai.com`.
 - Development resource: `http://localhost:8000`.
-- Mindmap sends that exact resource on both authorize and token requests.
+- Mindmap must send that exact resource at authorize (a Hono guard in `app.ts`
+  refuses anything else, since an absent resource would yield an opaque token
+  the proxy can't accept). The code is bound to it: the token request may omit
+  `resource` or repeat the same value; any other value gets `invalid_target`.
+- The resource is a persisted `oauthResource` row (allowed scopes:
+  `openai:chat`), and each trusted client is linked to it in
+  `oauthClientResource`. Better Auth refuses a resource the client isn't linked
+  to (`enforcePerClientResources`).
 - JWT issuer is `<canonical backend origin>/api/auth`.
 
 Redirects are environment-specific. Development registers only
 `http://localhost:5181/`. Production registers only
 `https://mindmap.thoughtful-ai.com/`; the production authorization server must
 not register localhost.
+
+## Login
+
+When authorize finds no session, the provider redirects to `/api/oauth/login`
+with a signed copy of the authorization query. That page is one "Sign in with
+Google" button: it posts the signed query as `oauth_query` with the social
+sign-in, the provider carries it through the Google OAuth state, and after the
+callback sets the session it re-runs authorize and redirects to the client with
+a code. A query edited after signing is refused (`invalid_signature`).
 
 ## Authorization boundary
 
@@ -67,7 +85,7 @@ proxy rejects those: their issuer is the bare origin rather than
 `MINDMAP_OAUTH_CLIENT_ID` and `MINDMAP_OAUTH_REDIRECT_URIS` configure the fixed
 client. The server (not `migrate.ts`, whose k8s initContainer lacks this config)
 creates or updates the client's managed fields through Better Auth's adapter at
-startup. Updates preserve `disabled` (which stops new grants; issued JWTs stay
+startup, along with the origin resource row and the client's link to it. Updates preserve `disabled` (which stops new grants; issued JWTs stay
 valid until expiry), and no client cache is used.
 
 Both variables are optional and have no code defaults. If either is unset, the
@@ -82,7 +100,9 @@ may be removed manually.
 ## Verification
 
 The integration test uses the real handler, adapter, PKCE exchange, signed JWT,
-and JWKS verification. It covers both proxies, exact resource enforcement,
+and JWKS verification. It covers both proxies, exact resource enforcement and
+code-to-resource binding, the per-client resource link, the login continuation
+(with anonymous sign-in standing in for Google), resource-management refusal,
 issuer/audience/scope/expiry, allowlist refusal, disabled-client preservation,
 registration refusal, invalid PKCE and redirects, demo fall-through prevention,
 and refusal at non-proxy routes including `/api/handoff`.

@@ -1,11 +1,15 @@
-import { betterAuthOrigin } from '../config.js';
-
 // The OAuth provider's login page, shared by every trusted client: nothing on it
-// depends on which client sent the user here. It signs the user in to Writing
-// Tools, then resumes the authorization request untouched.
+// depends on which client sent the user here. The provider only redirects here
+// when there's no session, so the page is one button.
+//
+// It hands the provider's signed authorization query back as `oauth_query` on
+// sign-in. The provider keeps it in the Google OAuth state, and once the callback
+// sets the session it re-runs authorize itself and redirects straight to the
+// client with a code; callbackURL is only the fallback if that doesn't happen.
+// Only the signed parameters are sent (the subset ba_param names, plus the
+// signature), matching what the provider's own client plugin does.
 
-function loginHtml(resource: string): string {
-	return `<!doctype html>
+const LOGIN_HTML = `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
@@ -14,38 +18,33 @@ function loginHtml(resource: string): string {
   <style>
     body{font:16px/1.5 system-ui,sans-serif;max-width:620px;margin:3rem auto;padding:0 1.5rem;color:#172033}
     h1{font-size:1.5rem}button{font:inherit;padding:.65rem 1rem;border:1px solid #3157d5;border-radius:7px;cursor:pointer;background:#3157d5;color:white}
-    .muted{color:#657087}.error{color:#b42318}
+    .error{color:#b42318}
   </style>
 </head>
 <body>
   <h1>Sign in to Writing Tools</h1>
-  <main id="app"><p class="muted">Checking your sign-in…</p></main>
+  <main id="app">
+    <p>Sign in to let the app you came from use Writing Tools AI on your behalf.</p>
+    <button id="sign-in">Sign in with Google</button>
+  </main>
   <script>
     const app=document.getElementById('app');
-    function showError(error){const p=document.createElement('p');p.className='error';p.textContent=String(error);app.replaceChildren(p)}
-    async function json(url,init){const response=await fetch(url,{credentials:'include',...init});const body=await response.json().catch(()=>({}));if(!response.ok)throw new Error(body.message||body.detail||body.error_description||body.error||('Request failed ('+response.status+')'));return body}
-    async function start(){
-      const session=await json('/api/auth/get-session').catch(()=>null);
-      if(session?.user){
-        const authorize=new URL('/api/auth/oauth2/authorize',location.origin);
-        authorize.search=location.search;
-        // Provider 1.6.22 does not preserve RFC 8707 resource in its signed
-        // login continuation query. Restore the already-validated server origin;
-        // the signature explicitly ignores parameters outside ba_param.
-        authorize.searchParams.set('resource',${JSON.stringify(resource)});
-        location.replace(authorize);return
-      }
-      const explanation=document.createElement('p');explanation.textContent='Sign in to let the app you came from use Writing Tools AI on your behalf.';
-      const button=document.createElement('button');button.textContent='Sign in with Google';
-      button.onclick=async()=>{button.disabled=true;try{const callbackURL=location.href;const result=await json('/api/auth/sign-in/social',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'google',callbackURL,errorCallbackURL:callbackURL})});if(!result.url)throw new Error('Sign-in did not return a redirect URL.');location.href=result.url}catch(error){showError(error)}};
-      app.replaceChildren(explanation,button);
-    }
-    start().catch(showError);
+    const button=document.getElementById('sign-in');
+    function showError(error){const p=document.createElement('p');p.className='error';p.textContent=String(error);app.append(p)}
+    function signedQuery(){const params=new URLSearchParams(location.search);const signed=new Set(params.getAll('ba_param'));const out=new URLSearchParams();for(const [key,value] of params)if(key==='sig'||key==='ba_param'||signed.has(key))out.append(key,value);return out.toString()}
+    button.onclick=async()=>{
+      button.disabled=true;
+      try{
+        const response=await fetch('/api/auth/sign-in/social',{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({provider:'google',callbackURL:location.href,errorCallbackURL:location.href,oauth_query:signedQuery()})});
+        const result=await response.json().catch(()=>({}));
+        if(!response.ok||!result.url)throw new Error(result.message||result.error_description||result.error||'Sign-in did not return a redirect URL.');
+        location.href=result.url;
+      }catch(error){button.disabled=false;showError(error)}
+    };
   </script>
 </body>
 </html>`;
-}
 
 export function oauthLoginHandler(c: import('hono').Context): Response {
-	return c.html(loginHtml(betterAuthOrigin()));
+	return c.html(LOGIN_HTML);
 }

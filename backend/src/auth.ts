@@ -117,12 +117,19 @@ export const auth = betterAuth({
 		jwt(),
 		oauthProvider({
 			loginPage: '/api/oauth/login',
-			// Required by the 1.6.22 option type, but intentionally unregistered.
+			// Required by the option type, but intentionally unregistered.
 			// The sole fixed client has skipConsent=true; reaching this path therefore
 			// fails closed instead of introducing a general consent surface.
 			consentPage: '/api/oauth/consent-unsupported',
 			scopes: ['openai:chat'],
-			validAudiences: [betterAuthOrigin()],
+			// The one protected resource (this server's origin) and each trusted
+			// client's link to it are rows written by provisionTrustedOAuthClients
+			// (oauth-clients.ts), not `resources` config. The link has a foreign key
+			// to the resource row, so writing both in one place avoids depending on
+			// when the plugin's own seed runs. Enforcement is the 1.7 default; set
+			// explicitly because an unlinked client fails every authorize with
+			// invalid_target.
+			enforcePerClientResources: true,
 			grantTypes: ['authorization_code'],
 			allowDynamicClientRegistration: false,
 			allowUnauthenticatedClientRegistration: false,
@@ -134,6 +141,11 @@ export const auth = betterAuth({
 			// fixed client is provisioned through the adapter (oauth-clients.ts),
 			// which this hook does not touch.
 			clientPrivileges: () => false,
+			// Same for the resource admin endpoints (create/update/delete/link/
+			// unlink). They are SERVER_ONLY in 1.7.12, but the hook also gates
+			// resource links chosen during client registration, and its default is
+			// "any session".
+			resourcePrivileges: () => false,
 			accessTokenExpiresIn: 60 * 60 * 12,
 		}),
 		bearer(),

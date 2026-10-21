@@ -97,26 +97,15 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 
 	if (auth) {
 		app.get('/api/oauth/login', oauthLoginHandler);
-		// Better Auth 1.6.22 accepts an absent resource and then issues an opaque
-		// access token, which the proxy can never accept (it only verifies JWTs). This
-		// is a usability guard, not a security boundary: require one exact resource so
-		// a misconfigured client fails at the exchange instead of at its first call.
+		// Better Auth accepts an authorize request without a resource and then issues
+		// an opaque access token, which the proxy can never accept (it only verifies
+		// JWTs). This is a usability guard, not a security boundary: require one exact
+		// resource so a misconfigured client fails at authorize instead of at its first
+		// proxy call. The token endpoint needs no guard: since 1.7 the code is bound to
+		// the resource approved here, so an exchange without `resource` inherits it
+		// and one naming any other resource is refused with invalid_target.
 		app.use('/api/auth/oauth2/authorize', async (c, next) => {
 			const resources = new URL(c.req.url).searchParams.getAll('resource');
-			if (resources.length !== 1 || resources[0] !== betterAuthOrigin()) {
-				return c.json(
-					{
-						error: 'invalid_target',
-						error_description: 'The OAuth resource must match this server origin.',
-					},
-					400,
-				);
-			}
-			await next();
-		});
-		app.use('/api/auth/oauth2/token', async (c, next) => {
-			const form = await c.req.raw.clone().formData().catch(() => null);
-			const resources = form?.getAll('resource') ?? [];
 			if (resources.length !== 1 || resources[0] !== betterAuthOrigin()) {
 				return c.json(
 					{
