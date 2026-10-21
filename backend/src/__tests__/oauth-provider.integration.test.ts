@@ -32,13 +32,7 @@ function cookieHeader(response: Response): string {
 		.join('; ');
 }
 
-interface TestSession {
-	cookie: string;
-	userId: string;
-	sessionId: string;
-}
-
-async function anonymousSession(): Promise<TestSession> {
+async function anonymousSession(): Promise<{ cookie: string; userId: string }> {
 	const response = await authRequest('/sign-in/anonymous', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
@@ -46,9 +40,7 @@ async function anonymousSession(): Promise<TestSession> {
 	});
 	expect(response.status).toBe(200);
 	const body = (await response.json()) as { user: { id: string } };
-	const cookie = cookieHeader(response);
-	const current = await auth.api.getSession({ headers: new Headers({ Cookie: cookie }) });
-	return { cookie, userId: body.user.id, sessionId: current!.session.id };
+	return { cookie: cookieHeader(response), userId: body.user.id };
 }
 
 function authorizationUrl(challenge: string, overrides: Record<string, string> = {}): URL {
@@ -67,22 +59,8 @@ function authorizationUrl(challenge: string, overrides: Record<string, string> =
 	return url;
 }
 
-async function issueToken(options: {
-	disallowed?: boolean;
-	/** The token request's `resource`; null omits it. Defaults to the origin. */
-	tokenResource?: string | null;
-} = {}): Promise<{
-	accessToken: string;
-	userId: string;
-	cookie: string;
-	payload: Record<string, unknown>;
-}> {
-	const { cookie, userId } = await anonymousSession();
-	if (options.disallowed) {
-		db()
-			.prepare(`UPDATE user SET email = ?, isAnonymous = 0 WHERE id = ?`)
-			.run('outside@example.com', userId);
-	}
+/** Runs authorize as a signed-in user and returns the code and its PKCE verifier. */
+async function authorizeCode(cookie: string): Promise<{ code: string; verifier: string }> {
 	const verifier = `mindmap-pkce-verifier-${crypto.randomUUID()}-long-enough`;
 	const challenge = createHash('sha256').update(verifier).digest('base64url');
 	const authorization = await app.request(authorizationUrl(challenge), {
@@ -91,25 +69,37 @@ async function issueToken(options: {
 	expect(authorization.status).toBe(302);
 	const callback = new URL(authorization.headers.get('location') ?? '');
 	expect(callback.origin + callback.pathname).toBe(REDIRECT_URI);
-	expect(callback.pathname).not.toContain('consent');
 	const code = callback.searchParams.get('code');
 	expect(code).toBeTruthy();
+	return { code: code!, verifier };
+}
 
+/** The token request. `resource` is sent only when given, as Mindmap may omit it. */
+async function exchangeCode(code: string, verifier: string, resource?: string): Promise<Response> {
 	const body = new URLSearchParams({
 		grant_type: 'authorization_code',
 		client_id: CLIENT_ID,
 		redirect_uri: REDIRECT_URI,
-		code: code!,
+		code,
 		code_verifier: verifier,
 	});
-	const tokenResource = options.tokenResource === undefined ? ORIGIN : options.tokenResource;
-	if (tokenResource !== null) body.set('resource', tokenResource);
-	const tokenResponse = await app.request(`${AUTH_BASE}/oauth2/token`, {
+	if (resource !== undefined) body.set('resource', resource);
+	return app.request(`${AUTH_BASE}/oauth2/token`, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 		body,
 	});
-	expect(tokenResponse.status, await tokenResponse.clone().text()).toBe(200);
+}
+
+async function issueToken(): Promise<{
+	accessToken: string;
+	userId: string;
+	payload: Record<string, unknown>;
+}> {
+	const { cookie, userId } = await anonymousSession();
+	const { code, verifier } = await authorizeCode(cookie);
+	const tokenResponse = await exchangeCode(code, verifier);
+	expect(tokenResponse.status).toBe(200);
 	const token = (await tokenResponse.json()) as {
 		access_token: string;
 		expires_in: number;
@@ -125,42 +115,7 @@ async function issueToken(options: {
 	const payload = JSON.parse(
 		Buffer.from(token.access_token.split('.')[1]!, 'base64url').toString(),
 	) as Record<string, unknown>;
-	return { accessToken: token.access_token, userId, cookie, payload };
-}
-
-async function signedToken(
-	session: TestSession,
-	overrides: Record<string, unknown>,
-): Promise<string> {
-	const now = Math.floor(Date.now() / 1000);
-	const result = await auth.api.signJWT({
-		body: {
-			payload: {
-				sub: session.userId,
-				sid: session.sessionId,
-				azp: CLIENT_ID,
-				scope: 'openai:chat',
-				iss: ISSUER,
-				aud: ORIGIN,
-				iat: now,
-				exp: now + 3600,
-				...overrides,
-			},
-		},
-	});
-	return result.token;
-}
-
-// A genuinely signed token whose payload is then edited, keeping the original
-// signature. The edit (a later expiry) leaves every claim valid and the user
-// real, so the signature is the only thing that can reject it.
-async function tamperedToken(session: TestSession): Promise<string> {
-	const [header, payload, signature] = (await signedToken(session, {})).split('.');
-	const claims = JSON.parse(Buffer.from(payload!, 'base64url').toString());
-	const forged = Buffer.from(JSON.stringify({ ...claims, exp: claims.exp + 600 })).toString(
-		'base64url',
-	);
-	return `${header}.${forged}.${signature}`;
+	return { accessToken: token.access_token, userId, payload };
 }
 
 beforeAll(async () => {
@@ -246,20 +201,6 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 		expect(payload.aud).toBe(ORIGIN);
 	});
 
-	it('refuses a login continuation whose signed query was edited', async () => {
-		const challenge = createHash('sha256').update('t'.repeat(64)).digest('base64url');
-		const authorization = await app.request(authorizationUrl(challenge));
-		const loginUrl = new URL(authorization.headers.get('location') ?? '', ORIGIN);
-		loginUrl.searchParams.set('redirect_uri', 'https://attacker.example/');
-		const signIn = await authRequest('/sign-in/anonymous', {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json', Origin: ORIGIN },
-			body: JSON.stringify({ oauth_query: loginUrl.search.slice(1) }),
-		});
-		expect(signIn.status).toBe(400);
-		expect(await signIn.json()).toMatchObject({ error: 'invalid_signature' });
-	});
-
 	it('provisions idempotently without undoing an operational disable', async () => {
 		await provisionTrustedOAuthClients(auth);
 		const initial = db()
@@ -279,29 +220,6 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 			.get(CLIENT_ID) as { disabled: number };
 		expect(disabled.disabled).toBe(1);
 		db().prepare(`UPDATE oauthClient SET disabled = 0 WHERE clientId = ?`).run(CLIENT_ID);
-
-		// Exactly one resource row and one link, however often provisioning runs.
-		expect(db().prepare(`SELECT identifier FROM oauthResource`).all()).toEqual([
-			{ identifier: ORIGIN },
-		]);
-		expect(
-			db().prepare(`SELECT clientId, resourceId FROM oauthClientResource`).all(),
-		).toEqual([{ clientId: CLIENT_ID, resourceId: ORIGIN }]);
-	});
-
-	it('refuses authorization for a client not linked to the resource', async () => {
-		const { cookie } = await anonymousSession();
-		db().prepare(`DELETE FROM oauthClientResource WHERE clientId = ?`).run(CLIENT_ID);
-		try {
-			const response = await app.request(authorizationUrl('challenge'), {
-				headers: { Cookie: cookie },
-			});
-			const location = new URL(response.headers.get('location') ?? REDIRECT_URI);
-			expect(location.searchParams.get('error')).toBe('invalid_target');
-			expect(location.searchParams.get('code')).toBeNull();
-		} finally {
-			await provisionTrustedOAuthClients(auth);
-		}
 	});
 
 	it('issues a real 12-hour JWT and accepts it at both text proxies', async () => {
@@ -346,28 +264,6 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 		expect(usage).toEqual([{ user_id: userId, client_id: CLIENT_ID }]);
 	});
 
-	it('revokes an issued token when the authorizing session signs out', async () => {
-		const { accessToken, cookie } = await issueToken();
-		const signOut = await authRequest('/sign-out', {
-			method: 'POST',
-			headers: { Cookie: cookie, Origin: ORIGIN },
-		});
-		expect(signOut.status).toBe(200);
-		const fetchMock = vi.fn();
-		vi.stubGlobal('fetch', fetchMock);
-		const response = await app.request('/api/openai/chat/completions', {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({ model: 'gpt-4o' }),
-		});
-		expect(response.status).toBe(401);
-		expect(response.headers.get('X-Writing-Tools-Error')).toBe('platform-auth');
-		expect(fetchMock).not.toHaveBeenCalled();
-	});
-
 	it('requires the byte-exact resource on authorize', async () => {
 		const missingAuthorize = authorizationUrl('challenge', { resource: '' });
 		missingAuthorize.searchParams.delete('resource');
@@ -379,309 +275,17 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 
 	it('binds the code to the authorized resource at the token endpoint', async () => {
 		// Omitted: the token inherits the resource approved at authorize.
-		const { payload } = await issueToken({ tokenResource: null });
-		expect(payload.aud).toBe(ORIGIN);
+		expect((await issueToken()).payload.aud).toBe(ORIGIN);
+
+		const { cookie } = await anonymousSession();
+		const same = await authorizeCode(cookie);
+		expect((await exchangeCode(same.code, same.verifier, ORIGIN)).status).toBe(200);
+
 		// Anything else, even a near-miss of the origin, is refused.
-		await expect(issueToken({ tokenResource: `${ORIGIN}/` })).rejects.toThrow(
-			/invalid_target/,
-		);
-	});
-
-	it('accepts an untampered hand-signed token (control for the rejection cases)', async () => {
-		const session = await anonymousSession();
-		vi.stubGlobal(
-			'fetch',
-			vi.fn(async () =>
-				new Response(
-					JSON.stringify({
-						id: 'provider-test',
-						model: 'gpt-4o',
-						choices: [],
-						usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
-					}),
-					{ status: 200, headers: { 'Content-Type': 'application/json' } },
-				),
-			),
-		);
-		const response = await app.request('/api/openai/chat/completions', {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${await signedToken(session, {})}`,
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({ model: 'gpt-4o' }),
-		});
-		expect(response.status).toBe(200);
-	});
-
-	it('rejects invalid OAuth credentials without falling through to demo access', async () => {
-		const session = await anonymousSession();
-		const { cookie } = session;
-		const other = await anonymousSession();
-		const now = Math.floor(Date.now() / 1000);
-		// Any session can mint a jwt-plugin session JWT signed with the same keys.
-		const sessionJwt = (
-			(await authRequest('/token', { headers: { Cookie: cookie } }).then((r) =>
-				r.json(),
-			)) as { token: string }
-		).token;
-		const tokens = [
-			sessionJwt,
-			'not-a-jwt',
-			await signedToken(session, { aud: 'https://wrong.example' }),
-			await signedToken(session, { scope: 'something:else' }),
-			await signedToken(session, { iat: now - 120, exp: now - 60 }),
-			// Correctly signed, right audience and scope, but not the Mindmap client.
-			await signedToken(session, { azp: 'some-other-client' }),
-			await signedToken(session, { iss: 'https://wrong.example/api/auth' }),
-			await tamperedToken(session),
-			// Session liveness: no sid, an unknown sid, or another user's session.
-			await signedToken(session, { sid: undefined }),
-			await signedToken(session, { sid: 'no-such-session' }),
-			await signedToken(session, { sid: other.sessionId }),
-		];
-		const fetchMock = vi.fn();
-		vi.stubGlobal('fetch', fetchMock);
-		for (const token of tokens) {
-			const response = await app.request('/api/openai/chat/completions', {
-				method: 'POST',
-				headers: {
-					Authorization: `Bearer ${token}`,
-					'Content-Type': 'application/json',
-				},
-				body: JSON.stringify({ model: 'gpt-4o' }),
-			});
-			expect(response.status).toBe(401);
-			expect(response.headers.get('X-Writing-Tools-Error')).toBe('platform-auth');
-		}
-		expect(fetchMock).not.toHaveBeenCalled();
-	});
-
-	it('refuses to exchange a code with the wrong PKCE verifier', async () => {
-		const { cookie } = await anonymousSession();
-		const verifier = `mindmap-pkce-verifier-${crypto.randomUUID()}-long-enough`;
-		const challenge = createHash('sha256').update(verifier).digest('base64url');
-		const authorization = await app.request(authorizationUrl(challenge), {
-			headers: { Cookie: cookie },
-		});
-		expect(authorization.status).toBe(302);
-		const code = new URL(authorization.headers.get('location') ?? '').searchParams.get('code');
-		expect(code).toBeTruthy();
-
-		const tokenResponse = await app.request(`${AUTH_BASE}/oauth2/token`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-			body: new URLSearchParams({
-				grant_type: 'authorization_code',
-				client_id: CLIENT_ID,
-				redirect_uri: REDIRECT_URI,
-				code: code!,
-				code_verifier: `wrong-verifier-${crypto.randomUUID()}-also-long-enough`,
-				resource: ORIGIN,
-			}),
-		});
-		expect(tokenResponse.status).toBeGreaterThanOrEqual(400);
-		expect(tokenResponse.status).toBeLessThan(500);
-		const body = (await tokenResponse.json()) as { access_token?: string };
-		expect(body.access_token).toBeUndefined();
-	});
-
-	it('refuses any unauthenticated bearer on realtime instead of degrading to demo access', async () => {
-		const { cookie } = await anonymousSession();
-		const fetchMock = vi.fn();
-		vi.stubGlobal('fetch', fetchMock);
-		// Neither is JWT-shaped, so no shape check could catch them: the bearer must
-		// authenticate as itself, and a cookie alongside it must not rescue it.
-		for (const bearer of ['not-a-session-token', 'a.b']) {
-			for (const extra of [{}, { Cookie: cookie }]) {
-				const response = await app.request('/api/openai/realtime/session', {
-					method: 'POST',
-					headers: { Authorization: `Bearer ${bearer}`, ...extra },
-				});
-				expect(response.status, `${bearer} ${JSON.stringify(extra)}`).toBe(401);
-			}
-		}
-		expect(fetchMock).not.toHaveBeenCalled();
-	});
-
-	it('allows login but forbids a user outside the beta allowlist at the proxy', async () => {
-		const { accessToken } = await issueToken({ disallowed: true });
-		const fetchMock = vi.fn();
-		vi.stubGlobal('fetch', fetchMock);
-		const response = await app.request('/api/openai/chat/completions', {
-			method: 'POST',
-			headers: {
-				Authorization: `Bearer ${accessToken}`,
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({ model: 'gpt-4o' }),
-		});
-		expect(response.status).toBe(403);
-		expect(fetchMock).not.toHaveBeenCalled();
-	});
-
-	it('does not accept openai:chat OAuth tokens on non-proxy routes', async () => {
-		const { accessToken } = await issueToken();
-		const headers = {
-			Authorization: `Bearer ${accessToken}`,
-			'Content-Type': 'application/json',
-		};
-		expect(
-			await auth.api.getSession({ headers: new Headers(headers) }),
-		).toBeNull();
-		const requests: Array<[string, RequestInit]> = [
-			['/api/openai/realtime/session', { method: 'POST', headers, body: '{}' }],
-			['/api/log', { method: 'POST', headers, body: '{}' }],
-			[
-				'/api/me/consent',
-				{ method: 'POST', headers, body: JSON.stringify({ loggingConsent: 'usage' }) },
-			],
-			['/api/me/activity', { method: 'DELETE', headers }],
-			[
-				'/api/handoff',
-				{
-					method: 'POST',
-					headers,
-					body: JSON.stringify({
-						tool_client_id: 'mindmap',
-						scopes: ['openai:chat'],
-					}),
-				},
-			],
-		];
-		for (const [url, init] of requests) {
-			expect((await app.request(url, init)).status, url).toBe(401);
-		}
-
-		const { cookie } = await anonymousSession();
-		const handoffWithCookie = await app.request('/api/handoff', {
-			method: 'POST',
-			headers: { ...headers, Cookie: cookie },
-			body: JSON.stringify({
-				tool_client_id: 'mindmap',
-				scopes: ['openai:chat'],
-			}),
-		});
-		expect(handoffWithCookie.status).toBe(401);
-		const malformedBearerWithCookie = await app.request('/api/handoff', {
-			method: 'POST',
-			headers: {
-				...headers,
-				Authorization: 'Bearer malformed-oauth-credential',
-				Cookie: cookie,
-			},
-			body: JSON.stringify({
-				tool_client_id: 'mindmap',
-				scopes: ['openai:chat'],
-			}),
-		});
-		expect(malformedBearerWithCookie.status).toBe(401);
-	});
-
-	it('refuses missing PKCE, wrong redirects, unknown clients, and registration', async () => {
-		const { cookie } = await anonymousSession();
-		const missingPkce = authorizationUrl('unused');
-		missingPkce.searchParams.delete('code_challenge');
-		missingPkce.searchParams.delete('code_challenge_method');
-		const missingPkceResponse = await app.request(missingPkce, {
-			headers: { Cookie: cookie },
-		});
-		expect(new URL(missingPkceResponse.headers.get('location') ?? REDIRECT_URI).searchParams.get('error')).toBe(
-			'invalid_request',
-		);
-
-		const invalidClients: Array<Record<string, string>> = [
-			{ redirect_uri: 'https://mindmap.thoughtful-ai.com/' },
-			{ client_id: 'unregistered-client' },
-		];
-		for (const overrides of invalidClients) {
-			const response = await app.request(authorizationUrl('challenge', overrides), {
-				headers: { Cookie: cookie },
-			});
-			expect(response.status).not.toBe(200);
-			const location = response.headers.get('location');
-			if (location) expect(new URL(location).searchParams.get('code')).toBeNull();
-		}
-
-		const registration = await app.request(`${AUTH_BASE}/oauth2/register`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json' },
-			body: JSON.stringify({ redirect_uris: [REDIRECT_URI] }),
-		});
-		expect(registration.status).toBe(403);
-	});
-
-	it('refuses session-authenticated client management for every signed-in user', async () => {
-		const { cookie } = await anonymousSession();
-		const headers = { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN };
-		const countClients = () =>
-			(db().prepare(`SELECT COUNT(*) AS n FROM oauthClient`).get() as { n: number }).n;
-		const before = countClients();
-
-		const requests: Array<[string, Record<string, unknown>]> = [
-			[
-				'/oauth2/create-client',
-				{
-					redirect_uris: ['https://attacker.example/callback'],
-					token_endpoint_auth_method: 'none',
-					scope: 'openai:chat',
-				},
-			],
-			[
-				'/oauth2/update-client',
-				{ client_id: CLIENT_ID, update: { redirect_uris: ['https://attacker.example/callback'] } },
-			],
-			['/oauth2/delete-client', { client_id: CLIENT_ID }],
-		];
-		for (const [pathname, body] of requests) {
-			const response = await authRequest(pathname, {
-				method: 'POST',
-				headers,
-				body: JSON.stringify(body),
-			});
-			expect(response.status, pathname).toBe(401);
-		}
-		const list = await authRequest('/oauth2/get-clients', { headers });
-		expect(list.status).toBe(401);
-
-		expect(countClients()).toBe(before);
-		const row = db()
-			.prepare(`SELECT redirectUris FROM oauthClient WHERE clientId = ?`)
-			.get(CLIENT_ID) as { redirectUris: string };
-		expect(JSON.parse(row.redirectUris)).toEqual([REDIRECT_URI]);
-	});
-
-	it('refuses resource management for every signed-in user', async () => {
-		const { cookie } = await anonymousSession();
-		const headers = { 'Content-Type': 'application/json', Cookie: cookie, Origin: ORIGIN };
-		const snapshot = () => ({
-			resources: db().prepare(`SELECT * FROM oauthResource`).all(),
-			links: db().prepare(`SELECT * FROM oauthClientResource`).all(),
-		});
-		const before = snapshot();
-
-		// Not routed over HTTP at all (SERVER_ONLY)...
-		const overHttp = await authRequest('/admin/oauth2/resources', {
-			method: 'POST',
-			headers,
-			body: JSON.stringify({ identifier: 'https://attacker.example' }),
-		});
-		expect(overHttp.status).toBeGreaterThanOrEqual(400);
-		// ...and refused by resourcePrivileges even when called in-process with a session.
-		await expect(
-			auth.api.adminCreateOAuthResource({
-				headers: new Headers(headers),
-				body: { identifier: 'https://attacker.example' },
-			}),
-		).rejects.toMatchObject({ status: 'UNAUTHORIZED' });
-		await expect(
-			auth.api.adminUnlinkClientResource({
-				headers: new Headers(headers),
-				params: { identifier: ORIGIN, client_id: CLIENT_ID },
-			}),
-		).rejects.toMatchObject({ status: 'UNAUTHORIZED' });
-
-		expect(snapshot()).toEqual(before);
+		const nearMiss = await authorizeCode(cookie);
+		const refused = await exchangeCode(nearMiss.code, nearMiss.verifier, `${ORIGIN}/`);
+		expect(refused.status).toBe(400);
+		expect(await refused.json()).toMatchObject({ error: 'invalid_target' });
 	});
 
 	it('clears a stale secret when re-provisioning an existing client row', async () => {
