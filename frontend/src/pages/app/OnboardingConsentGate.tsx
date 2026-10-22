@@ -20,7 +20,9 @@ import classes from './styles.module.css';
 
 export function OnboardingConsentGate() {
 	const session = useAppAuth();
-	const { level, setLevel, status, save } = useConsent(session.loggingConsent);
+	const { level, setLevel, status, save } = useConsent(
+		session.loggingConsent,
+	);
 
 	return (
 		<div className={classes.loginContainer}>
