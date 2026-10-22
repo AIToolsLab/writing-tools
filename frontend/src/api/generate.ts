@@ -39,10 +39,10 @@ export async function* streamTextDeltas(
 	options: StreamTextOptions,
 ): AsyncGenerator<string, void, void> {
 	const result = streamText(options);
-	// `fullStream`, not `textStream`: the latter drops `error` parts on the floor.
-	// (Still true in ai@7, which only renames `fullStream` to `stream` and keeps
-	// the old name as a deprecated alias — switch this line when we upgrade.)
-	for await (const part of result.fullStream) {
+	// `stream`, not `textStream`: the latter drops `error` parts on the floor.
+	// (`stream` is ai@7's name for what used to be `fullStream`, which is still
+	// there as a deprecated alias.)
+	for await (const part of result.stream) {
 		if (part.type === 'text-delta') {
 			yield part.text;
 		} else if (part.type === 'error') {

@@ -37,9 +37,29 @@ image by SHA). The container WORKDIR is `/app/backend`, and all persistent state
 under one mounted volume at `/app/backend/data` (`DATA_DIR`): `app.db` plus `logs/`.
 Listens on `5000` in Docker (`PORT=5000`).
 
+## OAuth provider (Mindmap client)
+
+The backend issues OAuth access tokens to first-party apps; see
+[docs/oauth-provider.md](../docs/oauth-provider.md). Its one client, the
+standalone Mindmap, uses `MINDMAP_OAUTH_CLIENT_ID` and
+`MINDMAP_OAUTH_REDIRECT_URIS`. Both are optional: if either is unset the server
+logs a warning at startup and Mindmap login is disabled. There are no code
+defaults; `scripts/get_env.py` writes the dev values (client id
+`writing-tools-mindmap`, callback `http://localhost:5181/`) into `.env`.
+Production should register only `https://mindmap.thoughtful-ai.com/`; do not
+register localhost on the live authorization server. Access tokens use the canonical origin of
+`BETTER_AUTH_URL` as their resource and audience.
+
+The server never purges OAuth clients. If a local database contains clients
+created during an abandoned OAuth experiment, stop the local backend and delete
+that disposable `backend/data/app.db` rather than shipping cleanup SQL that could
+remove future production clients.
+
 ## Environment variables
 
-`OPENAI_API_KEY`, `OPENAI_DEMO_API_KEY` (pays for sessionless/demo requests),
+`OPENAI_API_KEY`, `OPENAI_DEMO_API_KEY` (pays for sessionless/demo requests; unset means
+demo mode 401s once `BETTER_AUTH_ENABLED=true`, so `get_env.py` offers to reuse the main
+key for it locally),
 `LOG_SECRET` (gates the log-viewer endpoints + `/api/usage_summary`), `DATA_DIR` (root
 for `app.db` + `logs/`), `PORT` (default 8000), `DEBUG`, `POSTHOG_PROJECT_TOKEN`,
 `POSTHOG_HOST`, `LOG_DIR` (overrides just the logs subdir). Auth (Better Auth) adds

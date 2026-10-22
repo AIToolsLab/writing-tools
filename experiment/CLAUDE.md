@@ -75,7 +75,7 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 ### Configuration
 - `lib/studyConfig.ts` - Study page order, conditions, timing, **scenario definitions**
 - `lib/messageTiming.ts` - Realistic chat timing calculations
-- `lib/logging.ts` - Event logging utilities
+- `lib/logging.ts` - Durable event logging queue (see `docs/logging.md`)
 
 ### API Routes
 - `app/api/chat/route.ts` - Chat endpoint (colleague model + reasoning effort come from the scenario config, with scenario-specific system prompt)
@@ -162,10 +162,6 @@ npm run build       # Build for production
 npm run lint        # Run ESLint
 npm test            # Run tests
 ```
-
-## Linting & Formatting
-
-- **Import sorting** is handled automatically by Biome on save. Don't manually fix import sorting warnings—they resolve automatically.
 
 ## Key Files
 

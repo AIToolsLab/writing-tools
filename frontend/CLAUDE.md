@@ -45,6 +45,37 @@ task pane's URL comes from `manifest.xml`, and the Google Docs bundle runs insid
 an Apps Script sandbox iframe with no addressable URL. The Labs menu is the
 cross-surface way in; flags are for keeping something out of even that.
 
+### Document-scoped settings
+
+`EditorAPI` has `getDocumentSetting`/`setDocumentSetting` for small values that
+belong to the *document* rather than the user or the browser: they survive a
+reload and follow the file to whoever opens it next. Word backs them with
+`Office.context.document.settings` (`set` alone only touches the in-memory copy —
+`saveAsync` is what writes the file), Google Docs with Apps Script document
+properties (`google-docs-addon/Code.gs`, bridged in `sidebar.html`). The
+standalone editor and the bare context default fall back to
+`localStorageDocumentSettings` (`src/api/documentSettings.ts`), namespaced per
+document. The Google Docs surface falls back to it too when the installed Apps
+Script deployment predates the document-property bridge — the bundle and the
+add-on are deployed separately, so their versions drift.
+
+The writer's **brief** (audience / purpose / constraints) is the first consumer:
+`contexts/docBriefContext.tsx` loads it once under `DocBriefProvider` (mounted
+in `pages/app`), debounces writes back to the document, and flushes on unmount
+and `pagehide`. Pages read it with `useDocBrief()`, render `<BriefSection>` to
+let the writer edit it from wherever they are, and fold it into their requests
+with `formatDocBriefForPrompt` — which returns null when nothing is set, because
+telling the model about an empty brief reads as a constraint of its own.
+
+Two naming constraints, both from `docs/design/interface-concepts.md`. **"Goal"
+and "to-do" are reserved**: a goal there is a Charter criterion the writer grades
+and renegotiates, and a to-do is the Charter's Worklist. A brief is *stated*, so
+it doesn't squat on either. And the fields are deliberately facts about the
+document (the rhetorical situation), never instructions to the model — nothing in
+the add-in rewrites the writer's prose, so "don't touch my opening" has nothing to
+bite on, and asking for it frames the writer as a supervisor of an output machine.
+Add a field only if a human collaborator would want to know it too.
+
 ### Generation calls and failures
 
 Pages must generate through `src/api/generate.ts` (`streamTextDeltas`,
@@ -53,8 +84,9 @@ throw on model or transport errors: it puts them in the stream as an `error` par
 and `result.textStream` forwards only `text-delta` parts. A failed generation is
 therefore indistinguishable from an empty successful one — the loop ends, `await
 result.text` gives `''`, and the surrounding `try/catch` never runs. That is how a
-quota failure reached writers as a blank panel. The helpers read `fullStream`
-instead and throw a `GenerationError`.
+quota failure reached writers as a blank panel. The helpers read the full `stream`
+instead (`fullStream` is the deprecated alias for it) and throw a
+`GenerationError`.
 
 Catch it, run the value through `describeGenerationError` (`src/api/errors.ts`),
 and render the result with `<GenerationErrorNotice>`
@@ -64,23 +96,101 @@ Log `info.detail` (provider text) and `info.code`, not the sentence shown on
 screen. A successful-but-empty generation is also a visible outcome (`tone="info"`
 notice), never silence.
 
+Not every failure arrives as a stream part. An `error` event that reaches us
+*before* any output is raised by the provider as an `APICallError` carrying the
+status the error maps to, and `ai` retries whatever that status marks retryable
+— so a quota failure (429) surfaces only after the attempts run out, wrapped in
+a `RetryError` whose own message is just "Failed after 3 attempts…".
+`describeGenerationError` unwraps that to the last attempt; anything else that
+learns to read errors directly has to unwrap it too, or the writer gets the
+generic "something went wrong, try again" for a problem retrying cannot fix.
+The visible cost is latency: a terminal error now waits out the backoff before
+it appears.
+
+**`ai` and `@ai-sdk/openai` are upgraded as a pair.** Each model object declares
+a `specificationVersion`, and `ai` accepts an older one by wrapping it in a
+back-compat shim — logging `The feature "specificationVersion" is used in a
+compatibility mode` when it is two specs behind, and saying nothing at all when
+it is one behind. So a half-upgrade degrades quietly rather than breaking.
+`src/api/__tests__/openai.test.ts` holds that pairing: it drives the shared
+`languageModel` over a stubbed Responses stream and fails if a shim is involved.
+
+Where `errors.ts` looks like it is reimplementing the SDK, it usually is, and
+`docs/ai-sdk-upstream-wishlist.md` says why for each case — read it before
+"simplifying" that file against a newer SDK.
+
+**The system prompt goes in `instructions`, never in `messages`.** Since ai@7, a
+`role: 'system'` message inside `messages` fails validation before the request
+leaves the browser — `InvalidPromptError: System messages are not allowed in the
+prompt or messages fields. Use the instructions option instead.` — which reaches
+the writer as a generation error on every request. Pass the system prompt as the
+`instructions` option (a string) alongside `messages`; the SDK puts it back at
+the head of the prompt itself. This bites hardest where a page keeps a
+conversation in state: the chat transcript (`pages/chat`) holds only the
+doc-context, greeting, user, and assistant messages, with `CHAT_INSTRUCTIONS`
+kept outside it.
+
+### Rendering model output
+
+Pages render markdown through `<Markdown>` (`src/components/markdown/`), which
+is the only module that imports `react-markdown`. It carries `remark-gfm` (plain
+`remark-parse` is CommonMark, which has no tables) and the element styles
+Tailwind's preflight strips — lists lose their marker and indent without them.
+Preflight sits in `@layer base` and unlayered CSS beats layered CSS, so a CSS
+module overrides it with no `!important`.
+
+Callers pass their own element components via `components` (define them at
+module scope — React remounts a subtree whose component identity changed). React
+Markdown blanks out link URLs whose scheme isn't on a safe list, which is what
+keeps `javascript:` out of model output.
+
+**Doctext citations** — the `doctext:` links a reply uses to point at the
+writer's own text — are the one scheme that needs an exemption from that filter,
+and they come with a jump, a pending indicator and a not-found affordance. All
+of it lives in `src/components/docTextLink/`, shared by Revise and Chat: call
+`useDocJump(page)`, render the reply with `<DocTextMarkdown jump={…}>` instead
+of `<Markdown>`, and put one `<DocJumpStatus>` in the page (it has to be in the
+DOM before a click — a live region added alongside its own text is not reliably
+announced). A page that renders these must also tell the model how to write
+them; see `CHAT_INSTRUCTIONS` in `pages/chat` for the short form.
+
+Don't swap back to `react-remark`: it is unmaintained, pins unified 9, and broke
+tables in production builds only. See
+[../docs/markdown-rendering.md](../docs/markdown-rendering.md) for both failure
+modes, and test markdown changes against a production build — `npm test` uses
+React's development build, which did not reproduce one of them.
+
 ### Testing
 
 Two runners own two disjoint directories — never mix them:
 
 - **Vitest** (unit/integration) — `src/`, files named `*.test.ts(x)`, colocated in
   `__tests__/`. Scoped via `include` in `vitest.config.ts`. Run with `npm test`
-  (or `npm run test:watch`). Node environment by default; for a component test add
-  `// @vitest-environment jsdom` at the top of that file.
-  - LLM calls are tested by passing a `MockLanguageModelV2` (from `ai/test`) as the
+  (or `npm run test:watch`).
+  - LLM calls are tested by passing a `MockLanguageModelV3` (from `ai/test`) as the
     `model` arg to `streamTextDeltas`/`generateFullText` — see
     `src/api/__tests__/generate.test.ts`, including how to stream an `error` part.
 - **Playwright** (E2E/visual) — `tests/`, files named `*.spec.ts`. Scoped via
   `testDir` in `playwright.config.ts`. Run with `npx playwright test`.
+  - Visual baselines are only pixel-stable in CI's pinned container, so don't
+    commit ones generated locally (`--update-snapshots`). Regenerate by running
+    the **Frontend Tests** workflow with `update-snapshots=true`; its
+    `update-snapshots` job commits fresh baselines to your branch. See
+    [../VISUAL_REGRESSION.md](../VISUAL_REGRESSION.md).
 
 Keep unit tests in `src/` and E2E specs in `tests/`. If a unit runner's globs reach
 into `tests/`, Playwright specs fail with "test.describe() did not expect to be called
 here". The `.test.ts` vs `.spec.ts` split is a second, intentional guardrail.
+
+`vitest.config.ts` passes `--no-webstorage` to the pool workers on Node ≥ 25.
+Node enables Web Storage by default there, so `localStorage` exists as a global
+that stays `undefined` without `--localstorage-file`; Vitest's DOM environments
+only copy a window property onto `globalThis` when nothing is already there, so
+that stub shadows jsdom's real Storage and jsdom tests fail with "Cannot read
+properties of undefined". CI on `lts/*` (Node 24) never saw it, which is why the
+guard checks `allowedNodeEnvironmentFlags` — the flag doesn't parse before Node
+25 and would abort the worker. Switching DOM libraries doesn't help: happy-dom
+loses `localStorage` the same way, because the shadowing is in the runner.
 
 ### Event logging
 
@@ -102,9 +212,13 @@ event is written with a consistent envelope:
 - Identity is the session user id, added server-side — never send a username.
 
 Add new events by adding a method to the relevant page's helper object so the
-naming convention and payload types stay in one place. Content-bearing payload
-fields must use names the consent gate recognizes (`src/consent.ts`
-`KEY_MIN_LEVEL`) so they're stripped to the user's level: `docContext` /
+naming convention and payload types stay in one place. Behaviour that more than
+one page shares gets a helper that takes `page` as a parameter instead —
+`briefLog` (the brief section) and `referenceLog` (doctext citations) are the
+two, and for those `page` is the only thing that says where the event came from.
+
+Content-bearing payload fields must use names the consent gate recognizes
+(`src/consent.ts` `KEY_MIN_LEVEL`) so they're stripped to the user's level: `docContext` /
 `message` / `target` are document text, `result` / `response` are AI output;
 everything else is usage-level metadata. The backend (`backend/src/logging.ts`)
 promotes `schema_version` and `page` to first-class columns on each JSONL entry.

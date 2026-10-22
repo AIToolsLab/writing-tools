@@ -9,7 +9,7 @@
  */
  
 /**
- * Writing Tools - Google Docs Add-on
+ * Thoughtful AI Tools - Google Docs Add-on
  *
  * This Apps Script bridges the sidebar UI (HTML/JS/React) and the Google Docs
  * document (via DocumentApp), providing document operations only. The React app
@@ -26,7 +26,7 @@
 function onOpen(e) {
   DocumentApp.getUi()
     .createAddonMenu()
-    .addItem('Open Writing Tools', 'showSidebar')
+    .addItem('Open Thoughtful AI Tools', 'showSidebar')
     .addToUi();
 }
 
@@ -56,12 +56,12 @@ function onFileScopeGranted(e) {
  */
 function createHomepageCard() {
   const card = CardService.newCardBuilder()
-    .setHeader(CardService.newCardHeader().setTitle('Writing Tools'))
+    .setHeader(CardService.newCardHeader().setTitle('Thoughtful AI Tools'))
     .addSection(
       CardService.newCardSection()
         .addWidget(
           CardService.newTextParagraph()
-            .setText('Click the button below to open Writing Tools in a sidebar for the full experience.')
+            .setText('Click the button below to open Thoughtful AI Tools in a sidebar for the full experience.')
         )
         .addWidget(
           CardService.newTextButton()
@@ -97,11 +97,11 @@ function createHomepageCard() {
 }
 
 /**
- * Shows the sidebar with the Writing Tools UI.
+ * Shows the sidebar with the Thoughtful AI Tools UI.
  */
 function showSidebar() {
   const html = HtmlService.createHtmlOutputFromFile('sidebar')
-    .setTitle('Writing Tools')
+    .setTitle('Thoughtful AI Tools')
     .setWidth(400);
   DocumentApp.getUi().showSidebar(html);
 }
@@ -242,29 +242,59 @@ function extractTextOnly(element) {
 }
 
 /**
+ * Escapes a literal string for findText, which takes a regular expression
+ * rather than plain text. Without this, any quote containing punctuation the
+ * regex engine claims — parentheses, `?`, `.`, `+`, `[`, `$` — either fails to
+ * match or matches the wrong span.
+ *
+ * @param {string} text - Literal text to search for
+ * @returns {string} The text as a pattern matching itself literally
+ */
+function escapeForFindText(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
  * Selects a phrase in the document by searching for it.
- * 
+ *
+ * The phrase comes from the model quoting the writer's document, so it is often
+ * slightly off at the edges — a word too many, punctuation the model
+ * normalized. When the whole phrase isn't found we trim a word off each end and
+ * search again, and that retrying happens *here* rather than in the sidebar:
+ * every sidebar attempt is a google.script.run round-trip of roughly a second,
+ * while the same loop inside one Apps Script call costs milliseconds per pass.
+ * A quote that used to take several seconds of dead-feeling clicking now
+ * resolves in a single call.
+ *
  * @param {string} phrase - The text to find and select
- * @returns {boolean} True if found and selected, false otherwise
+ * @returns {boolean} True if the phrase (or a trimmed form of it) was selected
  */
 function selectPhrase(phrase) {
   const doc = DocumentApp.getActiveDocument();
   const body = doc.getBody();
-  
-  const searchResult = body.findText(phrase);
-  
-  if (searchResult) {
-    const element = searchResult.getElement();
-    const startOffset = searchResult.getStartOffset();
-    const endOffset = searchResult.getEndOffsetInclusive();
 
-    // Create a range for the found text
-    const rangeBuilder = doc.newRange();
-    rangeBuilder.addElement(element, startOffset, endOffset);
+  let candidate = phrase;
+  while (candidate.length > 0) {
+    const searchResult = body.findText(escapeForFindText(candidate));
 
-    // Set the selection
-    doc.setSelection(rangeBuilder.build());
-    return true;
+    if (searchResult) {
+      const element = searchResult.getElement();
+      const startOffset = searchResult.getStartOffset();
+      const endOffset = searchResult.getEndOffsetInclusive();
+
+      // Create a range for the found text
+      const rangeBuilder = doc.newRange();
+      rangeBuilder.addElement(element, startOffset, endOffset);
+
+      // Set the selection
+      doc.setSelection(rangeBuilder.build());
+      return true;
+    }
+
+    // Drop the first and last word and try the narrower quote.
+    const trimmed = candidate.split(' ').slice(1, -1).join(' ');
+    if (trimmed === candidate) break; // Nothing left to trim.
+    candidate = trimmed;
   }
 
   return false;
@@ -309,7 +339,7 @@ function selectInTab(tabId, phrase, occurrenceIndex) {
   // its argument as a regex, so escape the phrase to match it literally and keep
   // occurrence counting aligned with the frontend's plain-text search.
   const body = targetTab ? targetTab.asDocumentTab().getBody() : doc.getBody();
-  const pattern = phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const pattern = escapeForFindText(phrase);
 
   let match = body.findText(pattern);
   for (let n = 0; n < occurrenceIndex && match; n++) {
@@ -410,6 +440,37 @@ function getUserProperty(key) {
  */
 function deleteUserProperty(key) {
   PropertiesService.getUserProperties().deleteProperty(key);
+}
+
+// =============================================================================
+// Document Properties (for settings that belong to the document, not the user)
+// =============================================================================
+//
+// User properties above are per-user and follow the person across every
+// document. Document properties are the opposite: scoped to this document and
+// shared by everyone who opens it, which is what settings like the writer's
+// to-do (audience / guardrails / comments) need — they describe the document,
+// so they must travel with it rather than with whoever typed them.
+
+/**
+ * Stores a document property.
+ */
+function setDocumentProperty(key, value) {
+  PropertiesService.getDocumentProperties().setProperty(key, value);
+}
+
+/**
+ * Gets a document property. Returns null if it was never set.
+ */
+function getDocumentProperty(key) {
+  return PropertiesService.getDocumentProperties().getProperty(key);
+}
+
+/**
+ * Deletes a document property.
+ */
+function deleteDocumentProperty(key) {
+  PropertiesService.getDocumentProperties().deleteProperty(key);
 }
 
 /**

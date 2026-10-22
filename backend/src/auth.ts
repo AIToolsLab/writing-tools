@@ -1,14 +1,17 @@
 import { betterAuth } from 'better-auth';
+import { oauthProvider } from '@better-auth/oauth-provider';
 import {
 	anonymous,
 	bearer,
 	customSession,
 	deviceAuthorization,
+	jwt,
 } from 'better-auth/plugins';
 import {
+	betterAuthOrigin,
 	betterAuthSecret,
 	betterAuthTrustedOrigins,
-	betterAuthUrl,
+	BETTER_AUTH_BASE_PATH,
 	deviceClientIds,
 	googleClientId,
 	googleClientSecret,
@@ -56,7 +59,8 @@ export const auth = betterAuth({
 			},
 		},
 	},
-	baseURL: betterAuthUrl(),
+	baseURL: betterAuthOrigin(),
+	basePath: BETTER_AUTH_BASE_PATH,
 	secret: betterAuthSecret(),
 	trustedOrigins: betterAuthTrustedOrigins(),
 	// Logging-consent level lives on the user record so it's available on every
@@ -110,6 +114,39 @@ export const auth = betterAuth({
 		},
 	},
 	plugins: [
+		jwt(),
+		oauthProvider({
+			loginPage: '/api/oauth/login',
+			// Required by the option type, but intentionally unregistered.
+			// The sole fixed client has skipConsent=true; reaching this path therefore
+			// fails closed instead of introducing a general consent surface.
+			consentPage: '/api/oauth/consent-unsupported',
+			scopes: ['openai:chat'],
+			// The one protected resource: this server's origin, which becomes the JWT
+			// audience the proxy checks. The plugin seeds it as an oauthResource row.
+			resources: [betterAuthOrigin()],
+			// 1.7 defaults to also requiring a per-client oauthClientResource link.
+			// With one resource and only server-provisioned clients (registration is
+			// off) that link carries no information, so skip it.
+			enforcePerClientResources: false,
+			grantTypes: ['authorization_code'],
+			allowDynamicClientRegistration: false,
+			allowUnauthenticatedClientRegistration: false,
+			// The flags above only close /oauth2/register. The plugin also exposes
+			// session-authenticated client management (/oauth2/create-client,
+			// update-client, delete-client, get-clients, rotate-secret), gated solely
+			// by this hook. Without it any signed-in user, anonymous demo users
+			// included, can mint their own public client. Deny every action: the one
+			// fixed client is provisioned through the adapter (oauth-clients.ts),
+			// which this hook does not touch.
+			clientPrivileges: () => false,
+			// Same for the resource admin endpoints (create/update/delete/link/
+			// unlink). They are SERVER_ONLY in 1.7.12, but the hook also gates
+			// resource links chosen during client registration, and its default is
+			// "any session".
+			resourcePrivileges: () => false,
+			accessTokenExpiresIn: 60 * 60 * 12,
+		}),
 		bearer(),
 		// Demo mode. signIn.anonymous() mints a real user + session, so the whole
 		// identity-keyed stack (resolveUser, /api/log, consent gating, usage

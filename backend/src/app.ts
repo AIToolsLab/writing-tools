@@ -8,10 +8,23 @@ import {
 	filterExtraDataForConsent,
 	isConsentLevel,
 } from './consent.js';
-import { deviceClientIds, gitCommit, logSecret } from './config.js';
+import {
+	betterAuthOrigin,
+	BETTER_AUTH_BASE_PATH,
+	deviceClientIds,
+	gitCommit,
+	logSecret,
+	acceptedOAuthClientIds,
+} from './config.js';
 import { eraseLoggedData } from './erasure.js';
 import { appendLog, pollLogs, zipLogs } from './logging.js';
-import { openaiProxy } from './openaiProxy.js';
+import {
+	attributeRequest,
+	openaiProxy,
+	PLATFORM_AUTH_ERROR_HEADER,
+	type ProxyIdentity,
+	type ProxyUser,
+} from './openaiProxy.js';
 import { captureException, posthogMiddleware } from './posthog.js';
 import { costUsd } from './pricing.js';
 import {
@@ -25,7 +38,19 @@ import {
 	type ToolScope,
 } from './toolGrants.js';
 import { summarizeUsage } from './usage.js';
-import { isUserAllowed } from './userAllowlist.js';
+import { allowlistFields, isUserAllowed } from './userAllowlist.js';
+import { oauthLoginHandler } from './routes/oauth-login.js';
+
+// Mints short-lived ephemeral credentials so a browser can open a WebRTC
+// Realtime session without ever seeing the server API key. This is the only
+// server involvement in the voice tab: audio and tool calls run browser →
+// OpenAI directly (frontend/src/pages/my-words/voice/, and
+// docs/my-words-voice-native-research.md).
+const OPENAI_REALTIME_SESSION_URL =
+	'https://api.openai.com/v1/realtime/client_secrets';
+// The realtime-capable model the ephemeral session is bound to. Override via env
+// as OpenAI ships new ids (gpt-realtime, gpt-realtime-2, …).
+const REALTIME_MODEL = process.env.OPENAI_REALTIME_MODEL || 'gpt-realtime-2';
 
 /** Extract the raw bearer token from the Authorization header, or null. */
 function bearerToken(c: Context): string | null {
@@ -61,12 +86,37 @@ function logSecretGate(c: Context, provided: string): Response | null {
 
 export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	const app = new Hono();
+	// Better Auth signs OAuth JWTs with baseURL + basePath as the issuer. The jwt
+	// plugin's own session JWTs (GET /api/auth/token) use the bare origin, so
+	// pinning this issuer is one of the checks that keeps them out of the proxy.
+	const oauthIssuer = `${betterAuthOrigin()}${BETTER_AUTH_BASE_PATH}`;
 
 	// CORS stays fully permissive for now to preserve existing behaviour.
-	app.use('*', cors());
+	app.use('*', cors({ exposeHeaders: [PLATFORM_AUTH_ERROR_HEADER] }));
 	app.use('*', posthogMiddleware);
 
 	if (auth) {
+		app.get('/api/oauth/login', oauthLoginHandler);
+		// Better Auth accepts an authorize request without a resource and then issues
+		// an opaque access token, which the proxy can never accept (it only verifies
+		// JWTs). This is a usability guard, not a security boundary: require one exact
+		// resource so a misconfigured client fails at authorize instead of at its first
+		// proxy call. The token endpoint needs no guard: since 1.7 the code is bound to
+		// the resource approved here, so an exchange without `resource` inherits it
+		// and one naming any other resource is refused with invalid_target.
+		app.use('/api/auth/oauth2/authorize', async (c, next) => {
+			const resources = new URL(c.req.url).searchParams.getAll('resource');
+			if (resources.length !== 1 || resources[0] !== betterAuthOrigin()) {
+				return c.json(
+					{
+						error: 'invalid_target',
+						error_description: 'The OAuth resource must match this server origin.',
+					},
+					400,
+				);
+			}
+			await next();
+		});
 		// Better Auth owns all /api/auth/* — OAuth redirects, callbacks, sessions, sign-out.
 		// Clients (and the debug pages) read the signed-in user, including our
 		// loggingConsent additionalField, straight from GET /api/auth/get-session.
@@ -90,7 +140,7 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		openaiProxy('chat/completions', {
 			// The proxy only reads { id, isAnonymous }; resolveUser also returns
 			// loggingConsent, which is structurally compatible and simply ignored here.
-			resolveUser,
+			resolveIdentity: resolveProxyIdentity,
 			authEnabled: !!auth,
 		}),
 	);
@@ -99,10 +149,75 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 	app.post(
 		'/api/openai/responses',
 		openaiProxy('responses', {
-			resolveUser,
+			resolveIdentity: resolveProxyIdentity,
 			authEnabled: !!auth,
 		}),
 	);
+
+	// Mint an ephemeral Realtime session token for the browser voice spike. The
+	// server key stays here; the browser receives only the short-lived secret it
+	// uses to open the WebRTC session directly with OpenAI.
+	app.post('/api/openai/realtime/session', async (c) => {
+		// A realtime session spends a model key just like a proxied generation, so
+		// it answers to the same attribution: a real session spends the main key, a
+		// demo session the capped one, and sessionless traffic is refused wherever
+		// auth is on rather than quietly billing the main key. Without this the
+		// route was open — anyone who could reach it could mint a token against
+		// OPENAI_API_KEY.
+		//
+		// Metering is still missing, and can't be done here: the audio runs
+		// browser → OpenAI over WebRTC, so no tokens pass through this server to
+		// count. Recording it means reading `usage` off the client's `response.done`
+		// events and reporting them back. Until then a voice session is billable but
+		// absent from `llm_usage`, which is why the page stays behind a flag.
+		const user = await resolveUser(c);
+		// Realtime permits sessionless demo traffic, so a null user alone isn't a
+		// rejection. But a presented bearer is an explicit credential: if it doesn't
+		// authenticate a user here (an OAuth token, an expired session, garbage), the
+		// request is refused rather than degraded to demo access.
+		if (bearerToken(c) && !user) {
+			return c.json({ detail: 'Unauthorized' }, 401);
+		}
+		// Same beta allowlist the proxy enforces — otherwise voice is a way around
+		// it that also happens to spend a model key.
+		if (user && !user.isAllowed) return c.json({ detail: 'Forbidden' }, 403);
+		const attribution = attributeRequest(user, !!auth);
+		if (!attribution) {
+			return c.json({ detail: 'Sign in to use voice.' }, 401);
+		}
+		const key = attribution.apiKey;
+		if (!key) {
+			return c.json({ detail: 'OPENAI_API_KEY not set' }, 500);
+		}
+		let upstream: Response;
+		try {
+			upstream = await fetch(OPENAI_REALTIME_SESSION_URL, {
+				method: 'POST',
+				headers: {
+					Authorization: `Bearer ${key}`,
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+					session: { type: 'realtime', model: REALTIME_MODEL },
+				}),
+			});
+		} catch (e) {
+			console.error(
+				'[realtime-session] upstream fetch failed:',
+				(e as Error).message,
+			);
+			throw e; // -> onError -> 500 JSON
+		}
+
+		const text = await upstream.text();
+		if (!upstream.ok) {
+			console.warn(`[realtime-session] ${upstream.status} ${text.slice(0, 200)}`);
+		}
+		return new Response(text, {
+			status: upstream.status,
+			headers: { 'Content-Type': 'application/json' },
+		});
+	});
 
 	// Resolve the authenticated user from the request's session, or null. Returns
 	// null when auth is disabled (dev/tests without BETTER_AUTH_ENABLED) so the
@@ -122,34 +237,89 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		if (bearer?.startsWith('wtk_')) {
 			return resolveToolToken(bearer)?.user ?? null;
 		}
-
 		if (!auth) return null;
-		const session = await auth.api.getSession({ headers: c.req.raw.headers });
+		// When a bearer is presented, authenticate only that credential: it must be
+		// a valid session token or the request has no user. Never fall back to a
+		// simultaneous cookie, or an invalid narrow credential (such as an
+		// openai:chat OAuth token, which is not a session) could borrow the browser
+		// session's broader account permissions.
+		const sessionHeaders = bearer
+			? new Headers({ Authorization: `Bearer ${bearer}` })
+			: c.req.raw.headers;
+		const session = await auth.api.getSession({ headers: sessionHeaders });
 		if (!session) return null;
-		const u = session.user as {
-			loggingConsent?: unknown;
-			isAnonymous?: unknown;
-			email?: string | null;
-			alwaysAllow?: unknown;
-		};
-		const isAnonymous = u.isAnonymous === true;
+		const fields = allowlistFields(session.user);
+		const loggingConsent: unknown = Reflect.get(session.user, 'loggingConsent');
 		return {
 			id: session.user.id,
-			loggingConsent: isConsentLevel(u.loggingConsent)
-				? u.loggingConsent
+			loggingConsent: isConsentLevel(loggingConsent)
+				? loggingConsent
 				: DEFAULT_CONSENT_LEVEL,
-			isAnonymous,
+			isAnonymous: fields.isAnonymous,
 			// Recompute from the same policy the customSession flag uses, so proxy
 			// enforcement doesn't depend on the customSession endpoint override.
-			isAllowed: isUserAllowed({
-				email: u.email,
-				isAnonymous,
-				alwaysAllow: u.alwaysAllow === true,
-			}),
+			isAllowed: isUserAllowed(fields),
 			// A session-authenticated request is the add-in itself (clientId null)
 			// unless it self-identifies as a device-flow tool via X-Client-Id.
 			clientId: headerClientId(c),
 		};
+	}
+
+	// The proxy accepts everything resolveUser does (cookie session, session
+	// bearer, tool token) plus one extra credential: an openai:chat OAuth access
+	// token from a trusted client. A presented bearer that is none of these is
+	// rejected, never treated as sessionless demo traffic.
+	async function resolveProxyIdentity(c: Context): Promise<ProxyIdentity> {
+		const user = await resolveUser(c);
+		if (user) return { kind: 'authenticated', user };
+		const bearer = bearerToken(c);
+		if (!bearer) return { kind: 'sessionless' };
+		if (bearer.startsWith('wtk_')) return { kind: 'rejected_tool_credential' };
+		if (!auth) return { kind: 'rejected_oauth_credential' };
+
+		// Verify in-process against the jwt plugin's keys in our own database. (The
+		// oauth-provider resource client would instead fetch /api/auth/jwks over
+		// HTTP from our public origin.) verifyJWT checks the signature, expiry, the
+		// issuer passed here, and an audience of auth's baseURL, which is
+		// betterAuthOrigin(). It returns null for any bad token and handles key
+		// rotation by kid.
+		const { payload: claims } = await auth.api.verifyJWT({
+			body: { token: bearer, issuer: oauthIssuer },
+		});
+		const scopes = typeof claims?.scope === 'string' ? claims.scope.split(' ') : [];
+		if (!claims || typeof claims.azp !== 'string' || !scopes.includes('openai:chat')) {
+			return { kind: 'rejected_oauth_credential' };
+		}
+		// Only trusted clients may spend. Client creation is closed in auth.ts,
+		// but this check must hold on its own: a correctly signed token minted for
+		// any other client is not an accepted credential.
+		if (!acceptedOAuthClientIds().includes(claims.azp)) {
+			return { kind: 'rejected_oauth_credential' };
+		}
+		const context = await auth.$context;
+		// The token is only as alive as the sign-in that authorized it: `sid` names
+		// that Better Auth session. Signing out (or the session expiring) deletes or
+		// expires the row, which revokes the token here instead of leaving it valid
+		// for the rest of its 12h lifetime.
+		if (typeof claims.sid !== 'string') return { kind: 'rejected_oauth_credential' };
+		const session = await context.adapter.findOne<{ userId: string; expiresAt: Date }>({
+			model: 'session',
+			where: [{ field: 'id', value: claims.sid }],
+		});
+		if (!session || session.userId !== claims.sub || session.expiresAt < new Date()) {
+			return { kind: 'rejected_oauth_credential' };
+		}
+		const row = await context.internalAdapter.findUserById(claims.sub);
+		if (!row) return { kind: 'rejected_oauth_credential' };
+
+		const fields = allowlistFields(row);
+		const oauthUser: ProxyUser = {
+			id: claims.sub,
+			isAnonymous: fields.isAnonymous,
+			isAllowed: isUserAllowed(fields),
+			clientId: claims.azp,
+		};
+		return { kind: 'authenticated', user: oauthUser };
 	}
 
 	// Client event logging. Requires an authenticated session: the log is keyed by

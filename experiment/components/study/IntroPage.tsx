@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getBrowserMetadata } from '@/lib/browserMetadata';
-import { log } from '@/lib/logging';
+import { logThenRedirect } from '@/lib/logging';
 import { getNextPage } from '@/lib/studyConfig';
 
 export default function IntroPage() {
@@ -16,17 +16,14 @@ export default function IntroPage() {
     const username = searchParams.get('username') || '';
     const browserMetadata = getBrowserMetadata();
 
-    // Log the start event with browser metadata
-    await log({
-      username,
-      event: 'Started Study',
-      extra_data: browserMetadata,
-    });
-
-    // Update params and navigate
     const params = new URLSearchParams(searchParams.toString());
     params.set('page', getNextPage('intro')!);
-    window.location.href = `/study?${params.toString()}`;
+
+    // Log the start event with browser metadata
+    await logThenRedirect(
+      { username, event: 'Started Study', extra_data: browserMetadata },
+      `/study?${params.toString()}`
+    );
   };
 
   return (

@@ -35,11 +35,5 @@
 	"include": ["**/*.ts", "**/*.tsx", "vite.config.ts"],
 	"exclude": ["node_modules"],
 	"compileOnSave": false,
-	"buildOnSave": false,
-	"ts-node": {
-		"compilerOptions": {
-			"module": "commonjs"
-		  },
-		"files": true
-	}
+	"buildOnSave": false
 }

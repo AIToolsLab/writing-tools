@@ -7,7 +7,6 @@ import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
 import { useEffect, useState } from 'react';
 import { consentRank } from '@/consent';
-import { CgGoogle } from 'react-icons/cg';
 import {
 	AppAuthProvider,
 	AppAuthTokenBridge,
@@ -15,6 +14,7 @@ import {
 } from '@/contexts/appAuthContext';
 import { useAccessToken } from '@/contexts/authTokenContext';
 import ChatContextWrapper from '@/contexts/chatContext';
+import { DocBriefProvider } from '@/contexts/docBriefContext';
 import {
 	OverallMode,
 	overallModeAtom,
@@ -127,15 +127,17 @@ function DeviceAuthStatus({
 			</p>
 			<CodeCountdown expiresAt={authorization.expiresAt} />
 			{authorization.verificationUri ? (
-				<p style={{ margin: '0.25rem 0 0.75rem' }}>
-					<a
+				<div style={{ margin: '0.25rem 0 0.75rem' }}>
+					<Button
 						href={authorization.verificationUri}
-						target="_blank"
-						rel="noopener"
+						attributes={{ target: '_blank', rel: 'noopener' }}
+						color="primary"
+						variant="outline"
+						size="small"
 					>
 						Open approval page
-					</a>
-				</p>
+					</Button>
+				</div>
 			) : null}
 			<p>Open the approval page and enter the code above to continue.</p>
 			{cancelButton}
@@ -273,11 +275,6 @@ function AppInner() {
 						</div>
 
 						<hr />
-
-						<p>Sign in with Google</p>
-						<div className={classes.authProviderIconContainer}>
-							<CgGoogle className={classes.authProviderIcon} />
-						</div>
 
 						<div
 							className={classes.widthAlert}
@@ -554,7 +551,13 @@ export default function App() {
 					<AppAuthProvider>
 						<PostHogConsentBridge />
 						<AppAuthTokenBridge>
-							<AppInner />
+							{/* The document's brief is shared by every page, so it
+							    is loaded once here rather than per page. Inside the
+							    auth providers because the section it feeds logs
+							    edits. */}
+							<DocBriefProvider>
+								<AppInner />
+							</DocBriefProvider>
 						</AppAuthTokenBridge>
 					</AppAuthProvider>
 				</Reshaped>

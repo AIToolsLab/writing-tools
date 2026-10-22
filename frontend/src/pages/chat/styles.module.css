@@ -10,12 +10,58 @@
 	box-shadow: 0 4px 32px rgba(0, 0, 0, 0.09);
 }
 
+/*
+ * The shared brief section, above the transcript. It keeps its own height (one
+ * header line collapsed) and never squeezes the messages; expanded, it scrolls
+ * inside this bar rather than pushing the conversation off screen.
+ */
+.briefBar {
+	flex-shrink: 0;
+	padding: 12px 16px 0;
+	border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+	max-height: 55%;
+	overflow-y: auto;
+}
+
+.briefBar > section {
+	margin-bottom: 12px;
+}
+
 .chatPanel {
 	position: relative;
 	display: flex;
 	flex: 1;
 	min-height: 0;
 	flex-direction: column;
+}
+
+.chatToolbar {
+	flex-shrink: 0;
+	display: flex;
+	justify-content: flex-end;
+	padding: 8px 12px 0;
+}
+
+.newConversationBtn {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	color: #8a8378;
+	background: none;
+	border: none;
+	cursor: pointer;
+	padding: 4px 6px;
+	border-radius: 6px;
+	font-family: 'DM Sans', sans-serif;
+	transition:
+		color 0.15s,
+		background-color 0.15s;
+}
+
+.newConversationBtn:hover {
+	color: #1c1c1c;
+	background: #f4f1ea;
 }
 
 .chatBody {
@@ -102,8 +148,7 @@
 }
 
 .chatBubble {
-	max-width: 85%;
-	padding: 10px 14px;
+	padding: 10px 10px;
 	border-radius: 12px;
 	font-size: 13px;
 	line-height: 1.6;
@@ -114,6 +159,7 @@
 	background: #1c1c1c;
 	color: #faf8f4;
 	border-radius: 12px 12px 4px 12px;
+	max-width: 85%;
 }
 
 .ai .chatBubble {
@@ -121,14 +167,9 @@
 	color: #1c1c1c;
 	border: 1.5px solid #e4e0d8;
 	border-radius: 12px 12px 12px 4px;
-}
-
-.chatBubble :global(p) {
-	margin: 0;
-}
-
-.chatBubble :global(p + p) {
-	margin-top: 0.75em;
+	/* Keeps a wide markdown table inside the panel, so the table's own
+	   horizontal scroller is what moves rather than the whole transcript. */
+	max-width: 100%;
 }
 
 .chatMeta {
@@ -219,7 +260,9 @@
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	transition: opacity 0.15s, transform 0.1s;
+	transition:
+		opacity 0.15s,
+		transform 0.1s;
 }
 
 .chatSendBtn:hover {

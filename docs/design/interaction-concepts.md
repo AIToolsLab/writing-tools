@@ -77,8 +77,10 @@ nice-to-have.
 
 ### 6. The Post-Game Review
 
-The backend already logs every suggestion shown, accepted, and deleted as JSONL
-(`backend/src/logging.ts`). Use it the way chess engines review games: a
+The backend already logs every suggestion shown and deleted as JSONL
+(`backend/src/logging.ts`) — though *accepted* is not among them today; see
+"What this needs from the logs" in Concept 6 of `interface-concepts.md` for what
+is and isn't currently derivable. Use it the way chess engines review games: a
 periodic coach's report on writing sessions — where the writer leaned on
 suggestions verbatim, which reader questions they consistently fail to
 anticipate, how reliance is trending across weeks.
@@ -125,7 +127,10 @@ Faithfulness as a first-class UI object.
 ### 11. Stuckness-aware questions
 
 Keystroke-level detection of hesitation — long pauses, delete loops — triggers
-a single question (never text) at the exact moment of stuckness. Help arrives
+a single question (never text) at the exact moment of stuckness. Nothing
+instruments this yet; Concept 6 of `interface-concepts.md` sketches the smallest
+content-free events that would (and the move-library that could answer with
+something other than a question). Help arrives
 when thinking stalls, not when a button is pressed.
 
 *Values: formation over output, AI improves unaided work.*

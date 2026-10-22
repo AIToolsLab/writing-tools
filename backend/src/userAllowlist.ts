@@ -21,6 +21,27 @@
 const ALLOWED_EMAIL_DOMAINS = ['@calvin.edu'];
 const ALLOWED_EMAILS = ['example-user@textfocals.com'];
 
+export interface AllowlistFields {
+	email: string | null;
+	isAnonymous: boolean;
+	alwaysAllow: boolean;
+}
+
+/**
+ * Read the allowlist fields off any Better Auth user object (a session user or a
+ * row from the internal adapter). The plugin and additionalFields columns aren't in
+ * Better Auth's base `User` type, so they're read and narrowed here at runtime
+ * rather than asserted with a cast at each call site.
+ */
+export function allowlistFields(user: object): AllowlistFields {
+	const email: unknown = Reflect.get(user, 'email');
+	return {
+		email: typeof email === 'string' ? email : null,
+		isAnonymous: Reflect.get(user, 'isAnonymous') === true,
+		alwaysAllow: Reflect.get(user, 'alwaysAllow') === true,
+	};
+}
+
 export function isUserAllowed(user: {
 	email?: string | null;
 	isAnonymous?: boolean | null;

@@ -17,7 +17,11 @@ interface Occurrence {
 
 // Build one entry per occurrence of the keyword in the tab's text (case-insensitive),
 // each with a snippet of surrounding context. Capped to avoid runaway on common words.
-function getOccurrences(tab: TabEntry, keyword: string, radius = 80): Occurrence[] {
+function getOccurrences(
+	tab: TabEntry,
+	keyword: string,
+	radius = 80,
+): Occurrence[] {
 	const lowerText = tab.text.toLowerCase();
 	const lowerKw = keyword.toLowerCase();
 	if (!lowerKw) return [];
@@ -34,7 +38,10 @@ function getOccurrences(tab: TabEntry, keyword: string, radius = 80): Occurrence
 		out.push({
 			tabId: tab.id,
 			title: tab.title,
-			snippet: (start > 0 ? '…' : '') + raw + (end < tab.text.length ? '…' : ''),
+			snippet:
+				(start > 0 ? '…' : '') +
+				raw +
+				(end < tab.text.length ? '…' : ''),
 			occurrenceIndex: out.length,
 		});
 		from = idx + lowerKw.length;
@@ -42,8 +49,17 @@ function getOccurrences(tab: TabEntry, keyword: string, radius = 80): Occurrence
 	return out;
 }
 
-function detectCurrentTab(tabs: TabEntry[], beforeCursor: string, selectedText: string, afterCursor: string): string | null {
-	const sample = (beforeCursor.slice(-200) + selectedText + afterCursor.slice(0, 200))
+function detectCurrentTab(
+	tabs: TabEntry[],
+	beforeCursor: string,
+	selectedText: string,
+	afterCursor: string,
+): string | null {
+	const sample = (
+		beforeCursor.slice(-200) +
+		selectedText +
+		afterCursor.slice(0, 200)
+	)
 		.replace(/\s+/g, ' ')
 		.trim();
 
@@ -52,7 +68,7 @@ function detectCurrentTab(tabs: TabEntry[], beforeCursor: string, selectedText: 
 	let bestTab: string | null = null;
 	let bestScore = 0;
 
-	tabs.forEach(tab => {
+	tabs.forEach((tab) => {
 		const tabText = tab.text.replace(/\s+/g, ' ');
 		let score = 0;
 		for (let i = 0; i < sample.length - 30; i += 20) {
@@ -148,8 +164,8 @@ export default function TagLinker() {
 			);
 
 			const matched: Occurrence[] = currentTabs
-				.filter(tab => tab.id !== detectedTabId)
-				.flatMap(tab => {
+				.filter((tab) => tab.id !== detectedTabId)
+				.flatMap((tab) => {
 					const occ = getOccurrences(tab, selected);
 					// Title-only match (keyword in the tab name but not its body):
 					// still offer one jump to that tab.
@@ -157,7 +173,14 @@ export default function TagLinker() {
 						occ.length === 0 &&
 						tab.title.toLowerCase().includes(selected.toLowerCase())
 					) {
-						return [{ tabId: tab.id, title: tab.title, snippet: '', occurrenceIndex: 0 }];
+						return [
+							{
+								tabId: tab.id,
+								title: tab.title,
+								snippet: '',
+								occurrenceIndex: 0,
+							},
+						];
 					}
 					return occ;
 				});
@@ -219,31 +242,44 @@ export default function TagLinker() {
 						Select a word or phrase to find it in other tabs.
 					</p>
 					<div style={styles.tabCount}>
-						{tabs.length} tab{tabs.length !== 1 ? 's' : ''} in this document
+						{tabs.length} tab{tabs.length !== 1 ? 's' : ''} in this
+						document
 					</div>
 
 					{searching ? <p style={styles.muted}>Searching…</p> : null}
 
-					{!searching && !!keyword && results.length === 0 && !!error && (
-						<p style={styles.muted}>{error}</p>
-					)}
+					{!searching &&
+						!!keyword &&
+						results.length === 0 &&
+						!!error && <p style={styles.muted}>{error}</p>}
 
 					{!searching && results.length > 0 && (
 						<div style={styles.results}>
 							<p style={styles.resultsHeader}>
-								<strong>"{keyword}"</strong> found in {results.length}{' '}
-								place{results.length !== 1 ? 's' : ''}:
+								<strong>"{keyword}"</strong> found in{' '}
+								{results.length} place
+								{results.length !== 1 ? 's' : ''}:
 							</p>
 							{results.map((occ, i) => (
-								<div key={`${occ.tabId}-${occ.occurrenceIndex}-${i}`} style={styles.card}>
-									<div style={styles.cardTitle}>{occ.title}</div>
+								<div
+									key={`${occ.tabId}-${occ.occurrenceIndex}-${i}`}
+									style={styles.card}
+								>
+									<div style={styles.cardTitle}>
+										{occ.title}
+									</div>
 									{occ.snippet ? (
-										<div style={styles.snippet}>"{occ.snippet}"</div>
+										<div style={styles.snippet}>
+											"{occ.snippet}"
+										</div>
 									) : null}
 									<button
 										type="button"
 										onClick={() => {
-											void jumpToTab(occ.tabId, occ.occurrenceIndex);
+											void jumpToTab(
+												occ.tabId,
+												occ.occurrenceIndex,
+											);
 										}}
 										style={styles.jumpLink}
 									>
@@ -255,7 +291,9 @@ export default function TagLinker() {
 					)}
 
 					{!searching && !keyword && (
-						<p style={styles.muted}>Select text in the document to see related tabs.</p>
+						<p style={styles.muted}>
+							Select text in the document to see related tabs.
+						</p>
 					)}
 				</>
 			)}

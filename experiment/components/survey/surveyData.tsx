@@ -1,45 +1,278 @@
-import { Question, likert, effortLikert } from './types';
+import {
+  Question,
+  SurveySection,
+  likert,
+  effortLikert,
+  confidenceLikert,
+  characteristicLikert,
+} from './types';
 import { ConditionName } from '@/types/study';
 
 /**
- * Intro survey questions (demographics and experience)
+ * Intro survey: demographic questions
  */
-export const introSurveyQuestions: Question[] = [
+export const demographicQuestions: Question[] = [
   {
     id: 'age',
     text: 'What is your age?',
-    type: 'text',
-    placeholder: 'Enter your age',
-    required: true,
-    multiline: false,
-  },
-  {
-    id: 'gender',
-    text: 'What is your gender?',
     type: 'radio',
-    options: ['Male', 'Female', 'Non-binary', 'Prefer to self-describe', 'Prefer not to answer'],
+    options: ['18-24', '25-34', '35-44', '45-54', '55-64', '65 or older'],
     required: true,
   },
   {
-    id: 'english_proficiency',
-    text: 'English Proficiency',
+    id: 'education',
+    text: 'What is the highest level of education you have completed?',
     type: 'radio',
-    options: ['Native', 'Fluent', 'Intermediate', 'Basic'],
+    options: [
+      'Less than secondary/high school',
+      'Secondary/high school',
+      'Some college or university, but no degree',
+      'Vocational or technical qualification',
+      'Associate degree or equivalent',
+      "Bachelor's degree or equivalent",
+      "Master's degree or equivalent",
+      'Doctoral (e.g., PhD) or professional degree (e.g., MD, JD) or equivalent',
+      'Other (please specify)',
+    ],
+    otherOption: 'Other (please specify)',
     required: true,
   },
   {
-    id: 'chatbot_familiarity',
-    text: 'How familiar are you with chatbots or AI assistants (e.g., ChatGPT, Claude)?',
+    id: 'employment',
+    text: 'What is your current employment status?',
     type: 'radio',
-    options: ['Very unfamiliar', 'Unfamiliar', 'Neutral', 'Familiar', 'Very familiar'],
+    options: [
+      'Employed full-time',
+      'Employed part-time',
+      'Self-employed',
+      'Student',
+      'Unemployed',
+      'Retired',
+      'Other (please specify)',
+    ],
+    otherOption: 'Other (please specify)',
     required: true,
   },
   {
-    id: 'ai_writing_tools',
-    text: 'Have you used AI writing tools before (e.g., ChatGPT for writing, Grammarly AI)?',
+    id: 'english_native',
+    text: 'Is English your native language?',
     type: 'radio',
-    options: ['Never', 'Rarely', 'Sometimes', 'Often', 'Very often'],
+    options: ['Yes', 'No'],
     required: true,
+  },
+];
+
+/**
+ * Intro survey: email writing experience
+ */
+export const emailWritingQuestions: Question[] = [
+  {
+    id: 'email_frequency',
+    text: 'How often do you currently write emails for your work, school, or an organization?',
+    type: 'radio',
+    options: [
+      'Never',
+      'Less than once a month',
+      'At least once a month, but not every week',
+      'At least once a week, but not every day',
+      'Every day or almost every day',
+    ],
+    required: true,
+  },
+  {
+    id: 'email_experience_years',
+    text: 'How many years of experience do you have writing emails for work, school, or an organization?',
+    type: 'radio',
+    options: [
+      'None',
+      'Less than 1 year',
+      '1-3 years',
+      '4-9 years',
+      '10 years or more',
+    ],
+    required: true,
+  },
+];
+
+/**
+ * Intro survey: AI writing tool usage
+ */
+export const aiWritingToolQuestions: Question[] = [
+  {
+    id: 'ai_writing_frequency',
+    text: 'How often do you use AI tools for writing tasks (e.g., ChatGPT, Claude, Gemini, Microsoft Copilot, Perplexity AI, Grammarly, Notion AI)?',
+    type: 'radio',
+    options: [
+      'Never',
+      'Less than once a month',
+      'At least once a month, but not every week',
+      'At least once a week, but not every day',
+      'Every day or almost every day',
+    ],
+    required: true,
+  },
+  {
+    id: 'ai_writing_uses',
+    text: 'When you use AI tools for writing tasks, what do you typically use them for? Select all that apply.',
+    type: 'checkbox',
+    options: [
+      'Writing a complete draft for me',
+      'Suggesting the next word or sentence for me',
+      'Revising or editing text I wrote (including checking for grammar and spelling)',
+      'Brainstorming ideas',
+      'Getting feedback or advice on my writing',
+      'Other (please specify)',
+      "I don't use AI for writing",
+    ],
+    otherOption: 'Other (please specify)',
+    exclusiveOption: "I don't use AI for writing",
+    required: true,
+  },
+];
+
+/**
+ * Intro survey: writing self-efficacy
+ * (Self-Efficacy for Writing Scale, adapted from the 9-item version)
+ */
+export const writingSelfEfficacyQuestions: Question[] = [
+  {
+    id: 'writing_se_words',
+    text: 'I can think of many words to describe my ideas.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_ideas',
+    text: 'I can think of many ideas for my writing.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_put_ideas',
+    text: 'I can put my ideas into writing.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_sentences',
+    text: 'I can write complete sentences.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_punctuation',
+    text: 'I can punctuate my sentences correctly.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_spelling',
+    text: 'I can spell my words correctly.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_concentrate',
+    text: 'I can concentrate on my writing for a long time.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_distractions',
+    text: 'I can avoid distractions when I write.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+  {
+    id: 'writing_se_persist',
+    text: 'I can keep writing even when it is difficult.',
+    type: 'likert',
+    options: confidenceLikert(),
+    required: true,
+  },
+];
+
+/**
+ * Intro survey: Need for Cognition Scale (NCS-6, items in original order).
+ * ncs_3 and ncs_4 are reverse-scored.
+ */
+export const needForCognitionQuestions: Question[] = [
+  {
+    id: 'ncs_1',
+    text: 'I would prefer complex to simple problems.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+  {
+    id: 'ncs_2',
+    text: 'I like to have the responsibility of handling a situation that requires a lot of thinking.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+  {
+    id: 'ncs_3',
+    text: 'Thinking is not my idea of fun.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+  {
+    id: 'ncs_4',
+    text: 'I would rather do something that requires little thought than something that is sure to challenge my thinking abilities.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+  {
+    id: 'ncs_5',
+    text: 'I really enjoy a task that involves coming up with new solutions to problems.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+  {
+    id: 'ncs_6',
+    text: 'I would prefer a task that is intellectual, difficult, and important to one that is somewhat important but does not require much thought.',
+    type: 'likert',
+    options: characteristicLikert(),
+    required: true,
+  },
+];
+
+/**
+ * Intro survey, grouped into titled sections
+ */
+export const introSurveySections: SurveySection[] = [
+  { title: 'Demographic Questions', questions: demographicQuestions },
+  {
+    title: 'Email Writing Experience Questions',
+    questions: emailWritingQuestions,
+  },
+  {
+    title: 'AI Writing Tool Usage Questions',
+    questions: aiWritingToolQuestions,
+  },
+  {
+    title: 'Self-Efficacy for Writing Scale',
+    description:
+      'For each of the following statements, please indicate how confident you are in your ability to do what is described.',
+    questions: writingSelfEfficacyQuestions,
+  },
+  {
+    title: 'Need for Cognition Scale Questions',
+    description:
+      'Please indicate how characteristic each of the following statements is of you.',
+    questions: needForCognitionQuestions,
   },
 ];
 
@@ -118,7 +351,12 @@ export const postTaskCommonQuestions: Question[] = [
 export const postTaskAIQuestions: Question[] = [
   {
     id: 'ai_decision_timing',
-    text: <>Can you recall a specific moment when you read a suggestion and decided not to use it? What made you decide that? Be as specific as you can.</>,
+    text: (
+      <>
+        Can you recall a specific moment when you read a suggestion and decided
+        not to use it? What made you decide that? Be as specific as you can.
+      </>
+    ),
     type: 'text',
     placeholder: 'Describe when and why you decided not to use a suggestion',
     required: false,
@@ -198,7 +436,7 @@ export const conditionDebriefs: Record<
  * Get post-task survey questions for a condition
  */
 export function getPostTaskSurveyQuestions(
-  condition: ConditionName
+  condition: ConditionName,
 ): Question[] {
   const commonQuestions = [...postTaskCommonQuestions];
 

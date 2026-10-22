@@ -23,6 +23,7 @@ export const STUDY_PAGES = [
   'intro-survey',
   'start-task',
   'task',
+  'debrief',
   'post-task-survey',
   'final',
 ] as const;
@@ -45,6 +46,8 @@ export const letterToCondition: Record<ConditionCode, ConditionName> = {
 
 // Consent form URL (Qualtrics)
 export const CONSENT_FORM_URL = 'https://calvin.co1.qualtrics.com/jfe/form/SV_3adI70Zxk7e2ueW';
+// Researcher contact, as listed in the consent form (consent-form.md)
+export const CONTACT_EMAIL = 'ken.arnold@calvin.edu';
 
 // Minimum screen dimensions
 export const MIN_SCREEN_WIDTH = 600;

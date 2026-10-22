@@ -10,7 +10,7 @@ that behavior.
 
 ## Single source of truth
 
-- **`criteria.md`** — the scenario-agnostic behavioral criteria (8 of them). `judge.ts` and `probe.ts`
+- **`criteria.md`** — the scenario-agnostic behavioral criteria (9 of them). `judge.ts` and `probe.ts`
   parse this file directly; there is no second copy of the criteria in code. Each criterion's slug is
   its title lowercased with non-alphanumerics replaced by `_` (e.g. "Information Gating" →
   `information_gating`).

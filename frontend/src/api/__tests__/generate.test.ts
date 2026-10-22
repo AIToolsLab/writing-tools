@@ -1,9 +1,26 @@
-import type { LanguageModelV2StreamPart } from '@ai-sdk/provider';
-import { MockLanguageModelV2 } from 'ai/test';
+import { MockLanguageModelV4 } from 'ai/test';
 import { convertArrayToReadableStream } from '@ai-sdk/provider-utils/test';
 import { describe, expect, it, vi } from 'vitest';
 import { GenerationError } from '../errors';
 import { generateFullText, streamTextDeltas } from '../generate';
+
+/**
+ * The stream-part shape the installed `ai` expects, read off the mock instead of
+ * imported by name. Deriving it keeps this file correct across provider-spec
+ * bumps: the named `LanguageModelV*StreamPart` type moves with
+ * `@ai-sdk/provider`, and which copy of that package a bare import resolves to
+ * depends on hoisting.
+ *
+ * Mock at the spec version the real provider speaks (`@ai-sdk/openai` v4 →
+ * `specificationVersion: 'v4'`), so these tests exercise the same path
+ * production does rather than `ai`'s back-compat shim for older models.
+ */
+type StreamPart =
+	Awaited<
+		ReturnType<MockLanguageModelV4['doStream']>
+	>['stream'] extends ReadableStream<infer Part>
+		? Part
+		: never;
 
 /**
  * The quota failure that motivated these helpers: OpenAI's Responses API sends
@@ -21,18 +38,18 @@ const QUOTA_ERROR = {
 	},
 };
 
-function modelStreaming(parts: LanguageModelV2StreamPart[]) {
-	return new MockLanguageModelV2({
+function modelStreaming(parts: StreamPart[]) {
+	return new MockLanguageModelV4({
 		doStream: () =>
 			Promise.resolve({ stream: convertArrayToReadableStream(parts) }),
 	});
 }
 
-function textParts(...deltas: string[]): LanguageModelV2StreamPart[] {
+function textParts(...deltas: string[]): StreamPart[] {
 	return [
 		{ type: 'stream-start', warnings: [] },
 		{ type: 'text-start', id: '1' },
-		...deltas.map((delta): LanguageModelV2StreamPart => ({
+		...deltas.map((delta): StreamPart => ({
 			type: 'text-delta',
 			id: '1',
 			delta,
@@ -41,10 +58,17 @@ function textParts(...deltas: string[]): LanguageModelV2StreamPart[] {
 	];
 }
 
-const FINISH: LanguageModelV2StreamPart = {
+const FINISH: StreamPart = {
 	type: 'finish',
-	finishReason: 'stop',
-	usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+	// The spec splits the finish reason into the unified value and the provider's
+	// own raw string, which a mock has none of.
+	finishReason: { unified: 'stop', raw: undefined },
+	// It also breaks each side of the token count down (cache reads, reasoning
+	// tokens); these helpers only care that a finish part arrives.
+	usage: {
+		inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
+		outputTokens: { total: 1, text: 1, reasoning: 0 },
+	},
 };
 
 async function collect(deltas: AsyncIterable<string>): Promise<string[]> {

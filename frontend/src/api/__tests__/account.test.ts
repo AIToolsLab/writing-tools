@@ -24,7 +24,7 @@ describe('account API', () => {
 					loggingConsent: 'ai_output',
 					consentUpdatedAt: '2026-07-27T00:00:00.000Z',
 				}),
-		} as Response);
+		});
 
 		await expect(changeConsent('tok', 'ai_output')).resolves.toEqual({
 			loggingConsent: 'ai_output',
@@ -43,7 +43,7 @@ describe('account API', () => {
 	});
 
 	it('uses the bearer-only path for activity erasure', async () => {
-		fetchMock.mockResolvedValueOnce({ ok: true } as Response);
+		fetchMock.mockResolvedValueOnce({ ok: true });
 
 		await eraseActivity('tok');
 
@@ -59,7 +59,7 @@ describe('account API', () => {
 			ok: false,
 			status: 400,
 			json: () => Promise.resolve({ code: 'SESSION_EXPIRED' }),
-		} as Response);
+		});
 
 		await expect(deleteAccount('tok')).resolves.toEqual({
 			ok: false,
@@ -73,7 +73,7 @@ describe('account API', () => {
 			ok: false,
 			status: 400,
 			json: () => Promise.resolve({ code: 'INVALID_PASSWORD' }),
-		} as Response);
+		});
 
 		await expect(deleteAccount('tok')).resolves.toEqual({
 			ok: false,

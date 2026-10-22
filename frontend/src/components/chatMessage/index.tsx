@@ -1,4 +1,4 @@
-import { Remark } from 'react-remark';
+import Markdown from '@/components/markdown';
 
 type ChatMessageProps = {
 	index: number;
@@ -41,7 +41,7 @@ export default function ChatMessage(props: ChatMessage & ChatMessageProps) {
 				}`}
 			>
 				<div className="text-gray-800">
-					<Remark>{props.content}</Remark>
+					<Markdown>{props.content}</Markdown>
 				</div>
 			</div>
 		</div>

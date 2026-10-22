@@ -57,8 +57,9 @@ describe('requestDeviceCode', () => {
 		fetchMock.mockResolvedValueOnce({
 			ok: false,
 			status: 502,
-			json: () => Promise.reject(new SyntaxError('Unexpected end of JSON input')),
-		} as unknown as Response);
+			json: () =>
+				Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+		});
 		await expect(requestDeviceCode()).rejects.toThrow(
 			/device\/code failed \(502\).*backend running/,
 		);
@@ -124,13 +125,16 @@ describe('pollForToken', () => {
 		fetchMock.mockResolvedValueOnce({
 			ok: false,
 			status: 502,
-			json: () => Promise.reject(new SyntaxError('Unexpected end of JSON input')),
-		} as unknown as Response);
+			json: () =>
+				Promise.reject(new SyntaxError('Unexpected end of JSON input')),
+		});
 		const promise = pollForToken('dev', 1);
 		await vi.runAllTimersAsync();
 		await expect(promise).resolves.toEqual({
 			type: 'error',
-			message: expect.stringMatching(/device\/token failed \(502\).*backend running/),
+			message: expect.stringMatching(
+				/device\/token failed \(502\).*backend running/,
+			),
 		});
 	});
 
@@ -214,7 +218,7 @@ describe('fetchUserInfo', () => {
 		fetchMock.mockResolvedValueOnce({
 			ok: true,
 			json: () => Promise.resolve(null),
-		} as Response);
+		});
 		await expect(fetchUserInfo('tok')).rejects.toThrow(/no active session/);
 	});
 
@@ -223,7 +227,7 @@ describe('fetchUserInfo', () => {
 			ok: false,
 			status: 500,
 			json: () => Promise.resolve({}),
-		} as Response);
+		});
 		await expect(fetchUserInfo('tok')).rejects.toThrow(
 			/get-session failed/,
 		);

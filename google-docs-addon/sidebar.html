@@ -131,6 +131,21 @@
       },
 
       /**
+       * Stores a property on the document (shared by everyone who opens it),
+       * as opposed to on the user.
+       */
+      setDocumentProperty: function(key, value) {
+        return this.run('setDocumentProperty', key, value);
+      },
+
+      /**
+       * Gets a document property.
+       */
+      getDocumentProperty: function(key) {
+        return this.run('getDocumentProperty', key);
+      },
+
+      /**
        * Gets the document ID of the active document.
        */
       getDocumentId: function() {
@@ -174,14 +189,21 @@
       - otherwise             -> load the production bundle automatically
 
     To develop, rename your test doc to include [dev], then pick a source:
-    "localhost" needs `npm run dev-server:google-docs` running; "staging" is the
-    latest merge to main; "prod" is the released version.
+    "localhost" needs the frontend dev server (`npm run dev-server` in frontend/)
+    running; "staging" is the latest merge to main; "prod" is the released
+    version.
+
+    Each source serves both google-docs.bundle.js and the backend API, and the
+    bundle derives its API origin from its own <script src> (see
+    frontend/src/api/index.ts), so picking a source here switches the backend
+    too.
   -->
   <script>
     (function () {
       var DEV_MARKER = '[dev]';
       var SOURCES = {
-        localhost: 'http://localhost:3001',
+        localhost: 'https://localhost:3000',
+        localhostNoSSL: 'http://localhost:3000',
         staging: 'https://staging.thoughtful-ai.com',
         prod: 'https://app.thoughtful-ai.com'
       };

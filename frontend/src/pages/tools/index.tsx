@@ -12,8 +12,12 @@
 import { useContext, useState } from 'react';
 import { Button } from 'reshaped';
 import {
+	cancelBrowserLaunch,
+	completeBrowserLaunch,
 	createHandoff,
 	openInBrowser,
+	reserveBrowserLaunch,
+	type BrowserLaunchReservation,
 	type ToolScope,
 	withGrantFragment,
 } from '@/api/handoff';
@@ -23,7 +27,7 @@ import { useAppAuth } from '@/contexts/appAuthContext';
 import { useLog } from '@/hooks/useLog';
 import classes from './styles.module.css';
 
-interface FirstPartyTool {
+export interface FirstPartyTool {
 	/** Tool client_id — must also be listed in the backend device allowlist. */
 	id: string;
 	name: string;
@@ -38,26 +42,87 @@ interface FirstPartyTool {
  * backend's BETTER_AUTH_DEVICE_CLIENT_IDS allowlist, and the URL points at wherever
  * the tool is hosted. A manifest-driven registry replaces this list in a later phase.
  */
-const FIRST_PARTY_TOOLS: FirstPartyTool[] = [
-	{
-		// Throwaway tool for exercising the handoff flow end-to-end in dev.
-		// Served from sandbox/test-tool/ (see that dir's README). Remove before merge.
-		id: 'test-tool',
-		name: 'Platform API test tool',
-		description:
-			'Dev-only. Exchanges the handoff grant and lets you fire each Platform API v0 call (LLM proxy, log, doc re-fetch, revoke).',
-		url: 'http://localhost:4000/',
-		scopes: ['openai:chat', 'log:write', 'doc:read'],
-	},
-	{
-		id: 'mindmap',
-		name: 'Mindmap',
-		description:
-			'Explore your draft as a client-side mindmap. Opens in your browser with a read-only snapshot of your current document.',
-		url: 'https://mindmap.thoughtful-ai.com/',
-		scopes: ['openai:chat', 'log:write', 'doc:read'],
-	},
-];
+export function resolveMindmapToolUrl(
+	explicit: string | undefined,
+	isDevelopment: boolean,
+): string {
+	return (
+		explicit ||
+		(isDevelopment
+			? 'http://localhost:5181/'
+			: 'https://mindmap.thoughtful-ai.com/')
+	);
+}
+
+export const MINDMAP_TOOL_URL = resolveMindmapToolUrl(
+	import.meta.env.VITE_MINDMAP_TOOL_URL,
+	import.meta.env.DEV,
+);
+
+export function isMindmapToolEnabled(
+	explicit: string | undefined,
+	isDevelopment: boolean,
+): boolean {
+	if (explicit === 'true') return true;
+	if (explicit === 'false') return false;
+	return isDevelopment;
+}
+
+const MINDMAP_TOOL_ENABLED = isMindmapToolEnabled(
+	import.meta.env.VITE_ENABLE_MINDMAP_TOOL,
+	import.meta.env.DEV,
+);
+
+export const MINDMAP_TOOL: FirstPartyTool = {
+	id: 'mindmap',
+	name: 'Mindmap',
+	description:
+		'Explore your draft as a client-side mindmap. Opens in your browser with a read-only snapshot of your current document.',
+	url: MINDMAP_TOOL_URL,
+	scopes: ['openai:chat', 'doc:read'],
+};
+
+export const FIRST_PARTY_TOOLS: FirstPartyTool[] = MINDMAP_TOOL_ENABLED
+	? [MINDMAP_TOOL]
+	: [];
+
+interface LaunchToolDependencies {
+	getAccessToken(): Promise<string>;
+	getDocContext(): Promise<DocContext>;
+	createGrant: typeof createHandoff;
+	reserveLaunch(): BrowserLaunchReservation | null;
+	completeLaunch(reservation: BrowserLaunchReservation, url: string): void;
+	cancelLaunch(reservation: BrowserLaunchReservation): void;
+}
+
+export async function launchFirstPartyTool(
+	tool: FirstPartyTool,
+	dependencies: LaunchToolDependencies,
+): Promise<{ sharedDoc: boolean }> {
+	const reservation = dependencies.reserveLaunch();
+	if (!reservation) {
+		throw new Error('Your browser blocked the new window. Allow popups and try again.');
+	}
+	try {
+		const token = await dependencies.getAccessToken();
+		const doc = tool.scopes.includes('doc:read')
+			? await dependencies.getDocContext()
+			: undefined;
+		const { grantId } = await dependencies.createGrant(token, {
+			toolClientId: tool.id,
+			scopes: tool.scopes,
+			doc,
+		});
+		dependencies.completeLaunch(
+			reservation,
+			withGrantFragment(tool.url, grantId),
+		);
+		return { sharedDoc: doc !== undefined };
+	} catch (error) {
+		dependencies.cancelLaunch(reservation);
+		throw error;
+	}
+}
 
 const SCOPE_LABELS: Record<ToolScope, string> = {
 	'openai:chat': 'AI access',
@@ -88,21 +153,17 @@ export default function Tools() {
 		setError(null);
 		setBusyToolId(tool.id);
 		try {
-			const token = await getAccessToken();
-			// Only read the document when the tool asked for it — the snapshot leaves
-			// our trust boundary, so we don't gather it speculatively.
-			const doc = tool.scopes.includes('doc:read')
-				? await editorAPI.getDocContext()
-				: undefined;
-			const { grantId } = await createHandoff(token, {
-				toolClientId: tool.id,
-				scopes: tool.scopes,
-				doc,
+			const result = await launchFirstPartyTool(tool, {
+				getAccessToken,
+				getDocContext: () => editorAPI.getDocContext(),
+				createGrant: createHandoff,
+				reserveLaunch: reserveBrowserLaunch,
+				completeLaunch: completeBrowserLaunch,
+				cancelLaunch: cancelBrowserLaunch,
 			});
-			openInBrowser(withGrantFragment(tool.url, grantId));
 			void toolsLog.toolLaunched(log, {
 				tool: tool.id,
-				sharedDoc: doc !== undefined,
+				sharedDoc: result.sharedDoc,
 				scopes: tool.scopes,
 			});
 		} catch (e) {

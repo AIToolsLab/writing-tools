@@ -2,7 +2,6 @@
   "recommendations": [
     "ms-python.python",
     "bradlc.vscode-tailwindcss",
-    "dbaeumer.vscode-eslint",
-    "biomejs.biome"
+    "dbaeumer.vscode-eslint"
   ]
 }

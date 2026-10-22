@@ -1,12 +1,12 @@
-# Five New Interfaces for Thoughtful Writing
+# Six New Interfaces for Thoughtful Writing
 
-*Design sketches, storyboards, and worked examples — July 2026*
+*Design sketches, storyboards, and worked examples — July–August 2026*
 
 > Contributing to a flourishing world requires thought.
 > We build AI tools to support sustained goal-directed cognitive effort
 > despite unclear goals and complex situations.
 
-This document sketches five interface concepts for the writing-tools frontend.
+This document sketches six interface concepts for the writing-tools frontend.
 None of them are specced for implementation; they are low-fi provocations meant
 to be argued with. Each one includes a wireframe, a storyboard with a worked
 example, an account of what the AI pointedly does *not* do, and the cheapest
@@ -17,7 +17,7 @@ the cursor is stuck, **Revise** helps when the document exists but the shape is
 wrong, **Chat** helps when the writer needs to talk it out. What none of them
 own is *the writer's relationship to the work over time*: where the work is
 going, what the writer already has, and who the writer is becoming. That's the
-territory these five concepts explore.
+territory these six concepts explore.
 
 ---
 
@@ -66,13 +66,13 @@ doubt.
 If the writer's goals, threads, and history matter, give them *form* — not
 another list of gray bullets.
 
-The five concepts below are what they might have left on the whiteboard.
+The six concepts below are what they might have left on the whiteboard.
 
 ---
 
 ## Shared covenant: what the AI never does
 
-All five concepts inherit these commitments (several are already implicit in
+All six concepts inherit these commitments (several are already implicit in
 Draft/Revise/Chat; here they are made explicit):
 
 1. **The writer's sentences are the writer's.** The AI quotes, asks, points,
@@ -611,7 +611,7 @@ stays untouched throughout; the Loom is a thinking surface *beside* it.
   writer action must pay back within the session.
 - Two surfaces risk divorce: the Loom must feel like *the same work* as the
   document (bidirectional links everywhere), not a parallel bureaucracy.
-- Scope: this is the biggest build of the five. It is also the one a
+- Scope: this is the biggest build of the six. It is also the one a
   Word task pane can't hold.
 
 ## Cheapest honest prototype
@@ -734,7 +734,268 @@ nothing over the note.)
 
 ---
 
-## The five at a glance
+# Concept 6 — The Repertoire
+### Provocations about how other people work, until the writer has their own moves
+
+**Seed:** "what if the tool could give provocations about other writers'
+*processes* — not their perspectives on the current work, but something about
+what we know about their process that would challenge or unstick the current
+writer… or maybe the writer could reflect on their own processes and get their
+own reflections back at them in future situations?"
+
+**Lineage:** Elbow's process writing (the loop belongs to the writer, not the
+critic); Papert's outgrowable tool; Suchman's plans-as-resources — a move is a
+resource for action, never a program to run; and Tidelines' "your own best work
+is the exemplar," generalized from product to process. The corpus is
+documentary: the Paris Review *Writers at Work* interviews and their kin.
+
+## The idea
+
+Every other concept in this document operates on *the text* — its criteria, its
+sources, its threads, its readers. The Repertoire operates on *what the writer
+does next*. When someone is stuck, a question ("where does your claim first
+appear?") asks for cognition from a mind that has already stalled. A **move**
+("write the last paragraph now, before you know how you get there") asks only
+for a decision to try something.
+
+A move arrives with evidence that it worked for somebody. That is the whole
+force of it: permission to try something weird, without having to accept anyone
+else's aesthetics. It is also why *process* provocations survive where
+*perspective* provocations curdle. "What would Woolf say about your paragraph"
+must invent an opinion; "she wrote standing, in the morning, and stopped while
+it was still going well" is a fact with a citation.
+
+**Anti-caricature is architectural, not tonal.** The defense is a curated
+corpus, not a better prompt:
+
+- A few hundred hand-collected moves, each **attested in an interview or essay**
+  and stored with its source. The model retrieves and frames; it never invents
+  what someone "would say."
+- **Lead with the operation.** Attribution is a footnote in small type, never
+  the headline. No first person, no voice mimicry, no "as I always said."
+- **Prefer the mundane and unflattering** — draft counts, the boredom, the bad
+  first pages. Those unstick people, and they are structurally hard to
+  caricature.
+- **Diversity by condition, not prestige.** These writers are drafting
+  curriculum proposals and difficult emails; a novelist's move may not transfer.
+  Moves are tagged by the stuck-state they address, and the corpus deliberately
+  includes journalists, technical writers, scientists, and screenwriters.
+
+**Three sources of evidence, in ascending order of authority and descending
+order of availability:**
+
+1. **Attested (other people).** Solves cold start; works on day one. Weak fit,
+   horoscope risk.
+2. **Self-reported (the writer's own past reflections).** Lands hardest — *three
+   weeks ago you wrote: "when I stall like this it's because I haven't decided
+   what I actually think"* is unanswerable. But its cold start is months long,
+   and self-reports about one's own process are unreliable.
+3. **Observed (the logs).** What the writer actually did, not what they say they
+   do. Strongest evidence, most invasive, and — see below — the one that needs
+   new instrumentation.
+
+These are not three features. They are one slot, filled with progressively
+better evidence, which is also the fade: others' moves early, the writer's own
+reflections as they accumulate, observed patterns last, and the endgame is
+Tidelines' late move — *what usually works for you?*
+
+**Retrieval is keyed on the stuck-state, not on the text.** A working taxonomy:
+can't start · have the end but not the middle · drowning in material · the draft
+exists but is dead · can't cut · forty minutes on one paragraph · afraid of the
+reader. This makes the Repertoire the missing *content layer* for
+`interaction-concepts.md` #11 (stuckness-aware questions), which specifies a
+trigger and a question but no library.
+
+## Wireframe (Word task pane, ~380px)
+
+```
+┌──────────────────────────────────────────┐
+│  REPERTOIRE                     [not now]│
+│                                          │
+│  You've regenerated advice six times in  │
+│  four minutes. Sounds like: the draft    │
+│  exists but is dead.        [wrong ▾]    │
+│                                          │
+│  ┌ A move ──────────────────────────────┐│
+│  │                                      ││
+│  │  Retype the last page from scratch   ││
+│  │  without looking at it. Keep only    ││
+│  │  what you can remember.              ││
+│  │                                      ││
+│  │  ·· reported by Joan Didion,         ││
+│  │     Paris Review 1978  [source]      ││
+│  │                                      ││
+│  │  [trying it]  [not this]  [another]  ││
+│  └──────────────────────────────────────┘│
+│                                          │
+│  ─ your own moves ──────────────────────ˏ│
+│  Jun 4, after a stuck session, you wrote:│
+│  "I was avoiding admitting the second    │
+│   half is a different paper."            │
+│                          [that's it] [no]│
+└──────────────────────────────────────────┘
+
+At session end, one line, optional, never blocking:
+┌──────────────────────────────────────────┐
+│  What got you moving today?              │
+│  ┌──────────────────────────────────────┐│
+│  │                                      ││
+│  └──────────────────────────────────────┘│
+│  Stays on this machine. Yours, not ours. │
+└──────────────────────────────────────────┘
+```
+
+## Storyboard: Dev, a program review nobody wants to read
+
+**Frame 1.** Dev has been on the same transition paragraph for half an hour:
+three Draft regenerations in *advice* mode, one switch to *questions*, one
+Revise run he didn't read. Nothing interrupts him; the pane stays quiet.
+
+**Frame 2.** He clicks the Repertoire tab himself. It offers its read of the
+state — *forty minutes on one paragraph* — with a `[wrong ▾]` affordance, and
+one move: **"Write the version you'd send if you didn't care whether it was
+approved. Then decide what to keep."** Attribution sits underneath in grey.
+
+**Frame 3.** He taps `[trying it]`. The pane empties — no follow-up, no
+check-in. Fourteen minutes later he has 400 words, most of which he will cut,
+and the paragraph is no longer the problem.
+
+**Frame 4.** At session end: *What got you moving today?* He types one line:
+"the paragraph was fine, I just didn't believe the recommendation." Nothing
+happens with it.
+
+**Frame 5, three weeks later.** Different document, same shape of stall. Before
+any attested move is offered, the pane shows him his own sentence back, dated.
+He closes the pane and goes to rewrite his recommendation.
+
+## What this needs from the logs
+
+The observed leg is the one with a real dependency, and the honest answer is:
+**not today, but it does not need `document` either.** Consent tiers are
+`none · usage · ai_output · document` (`frontend/src/consent.ts`), the product
+default is **`usage`**, and only study participants will ever sit at
+`document`. A feature that only works for study participants is not a product
+feature — so the design target is: *the whole concept works at `usage`.*
+
+That is the right target on the merits, too. Process is the *shape* of activity,
+not its content. "You've regenerated six times in four minutes" needs no text at
+all, and is far easier to defend showing someone than anything quoted from their
+draft.
+
+**Derivable today at `usage`.** Every log line keeps `timestamp`, `event`,
+`page`, `ok`, `client_id`, and all non-content payload fields — so: session
+shape from timestamp gaps; mode churn from the `generationType` sequence on
+Draft; regeneration volume from `suggestion_requested` / `auto_refresh`;
+discarding from `suggestion_deleted`; abandonment from `conversation_reset`;
+re-running the same Revise feature. That is enough to detect several stuck-states
+right now, with zero schema change.
+
+**Not derivable at *any* tier today** — worth being blunt about, since two
+concepts in the neighbourhood assume otherwise:
+
+- **Writing vs. not-writing.** The add-in only observes the document when the
+  writer asks it for something; `docContext` is a sporadic snapshot attached to
+  a generation request. There are no editing events. So "you wrote 600 words in
+  twenty minutes" is not available even at `document`.
+- **Acceptance.** `suggestion_shown` and `suggestion_deleted` exist; there is no
+  *inserted into the document* event. Reliance — which the Post-Game Review
+  (`interaction-concepts.md` #6) treats as already logged — is currently not
+  measurable.
+- **Pauses and delete loops.** #11's keystroke-level premise has no
+  instrumentation behind it.
+- **Session identity.** No `session_id`; sessions must be inferred from gaps,
+  which breaks across devices.
+
+**Minimal additions, all content-free, all `usage`-tier** (schema version 5):
+
+1. `session_id` stamped in the envelope, client-generated per pane session.
+2. `activity_sampled` — a periodic tick while the pane is open, carrying scalars
+   only: `{ wordCount, deltaWords, deltaChars, netNegative, sinceMs }`. This one
+   event unlocks most of the observed leg: drafting bursts, deletion loops,
+   stalls, and the difference between *thinking* and *gone*.
+3. `suggestion_inserted` — the missing accept event.
+
+Idle/resume is better derived from the tick stream than logged separately.
+
+The one genuinely arguable item is #2: a word-count trace does leak *how much
+you wrote and when*, which is a productivity trace even without a word of
+content. The precedent is `responseLength`, already logged at `usage` — but the
+right move is to amend the consent copy rather than lean on precedent. "Which
+features you use (buttons, modes, counts, timing)" should say *and how much you
+wrote, as a number*.
+
+**And the self-reported leg needs no logging at all.** End-of-session
+reflections are writer-authored prose: sent to `/log` they would be
+`document`-tier by `KEY_MIN_LEVEL` and would vanish for almost every user. So
+they must not go there. They belong in writer-owned storage — the mechanism the
+doc brief already uses (`setDocumentSetting`: Office settings, Apps Script
+document properties, localStorage fallback) — shown back only to the writer, and
+entering the study corpus only if a `document`-tier participant separately
+consents. Which means the *strongest* leg of this concept works at `usage`, and
+at `none`.
+
+Open question: the brief's store is document-scoped, and reflections need to be
+writer-scoped and ideally cross-device. That implies a small user-scoped
+key-value store on the backend, or an explicit "this machine only" limitation in
+the first version. The latter is fine for a prototype and is what the wireframe
+promises.
+
+## Why it serves the values
+
+Process help is the rare kind of assistance that cannot be mistaken for doing
+the work: no sentence in the writer's document ever came from the tool. It is
+formation over output in the most literal sense — the writer ends up with moves,
+and moves are portable to writing this tool will never see. The covenant holds
+without strain: the AI quotes and offers, never produces prose; judgment about
+whether a move fits stays entirely with the writer; and the fade is not an
+afterthought bolted on, it is the concept's own arc from other people's
+repertoire to the writer's.
+
+## Risks & open questions
+
+- **Horoscope effect.** Process advice is broadly applicable enough to always
+  feel apt. Mitigate by keeping moves concrete enough to be falsifiable — you
+  either did it or you didn't — and by logging whether taking one actually
+  preceded an unstuck session.
+- **Novelty decay.** The fifth "write the ending first" is wallpaper. Needs a
+  large corpus, hard no-repeat rules, and retirement of moves the writer has
+  adopted: once it's theirs, stop crediting anyone.
+- **Procrastination license.** "Stop mid-sentence while it's going well" is a
+  superb excuse to quit at minute three. Stop-type moves must require evidence
+  of actual grinding.
+- **Reflections need visible return or they die.** Nobody keeps writing
+  end-of-session reflections into a void. The second half of the concept is not
+  a bonus on the first — the first is what makes the second sustainable, and the
+  return is what makes it worth collecting.
+- **Misread states are worse here than elsewhere.** Being told you are stuck
+  when you are thinking is insulting in a way a bad suggestion is not. Hence
+  `[wrong ▾]`, hence writer-initiated by default.
+- **Corpus labour.** Two to three hundred sourced moves is real editorial work,
+  not a prompt. That cost is the feature's main defense; it should not be
+  optimized away.
+
+## Cheapest honest prototype
+
+Wizard-of-Oz, no instrumentation: forty hand-written moves, the writer
+self-selects their stuck-state from six options, and the pane serves one move
+from the matching bucket. Log whether they tried it and what happened ten
+minutes later.
+
+Three arms, because the actual research question is whether the attribution does
+any work at all or is decoration:
+
+1. bare move, no attribution;
+2. move + attributed source;
+3. a question instead of a move (i.e. #11 as it currently stands).
+
+If (1) and (2) are indistinguishable, the corpus curation is unnecessary and the
+concept simplifies enormously. If (3) wins, the premise is wrong and we should
+know that for the price of a week.
+
+
+---
+
+## The six at a glance
 
 | | Horizon | Fog it addresses | Host surface | AI's verb | Cheapest test |
 |---|---|---|---|---|---|
@@ -743,10 +1004,13 @@ nothing over the note.)
 | **Tidelines** | the writer, months | how do I get better? | task pane, tiny | *point → ask → fade* | diary study |
 | **Loom** | a project, seasons | too many live threads | full editor window | *notice, resurface* | hand-run 4 weeks |
 | **Table Read** | one reading, minutes | who is this for, really? | task pane | *believe, then doubt* | prompt-only |
+| **Repertoire** | the writer, years | I'm stuck — what do I *do*? | task pane, tiny | *offer, then return* | WoZ, 3 arms |
 
 They compose: a Charter criterion can cast the Table Read panel ("a skeptical
 dean…" is already a persona); Loom threads can carry Charter evidence; the
-Prior Self's atlas is the natural memory for Tidelines' exemplars. But each
+Prior Self's atlas is the natural memory for Tidelines' exemplars. The Repertoire's
+self-reported leg is the natural companion to Tidelines' sixty seconds of
+reflection — the same sentence, collected once and spent twice. But each
 stands alone, and each is testable for under a week of effort at the
 "cheapest honest prototype" tier.
 
@@ -757,9 +1021,9 @@ stands alone, and each is testable for under a week of effort at the
    the writing. Each concept's core move is turning one species of fog into a
    manipulable object (a criterion, a debt, a tideline, a pinned
    contradiction, a broken trace) without letting the machine resolve it.
-2. **The AI's best verbs are not "write" or "fix."** Across all five, the
+2. **The AI's best verbs are not "write" or "fix."** Across all six, the
    verbs that survived sketching were: ask, quote, notice, gather, resurface,
-   narrate, believe, doubt, fade. Every time a sketch drifted toward the AI
+   narrate, believe, doubt, offer, fade. Every time a sketch drifted toward the AI
    producing prose, the concept got weaker and more generic.
 3. **Judgment stays home.** Every concept has a moment where the tool could
    render a verdict and instead hands the writer a pen: the ●◐○ marks, the

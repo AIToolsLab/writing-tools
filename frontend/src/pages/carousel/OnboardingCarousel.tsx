@@ -74,11 +74,12 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
 				<div className={classes.carouselDots}>
 					{ONBOARDING_SLIDES.map((_, index) => (
 						<button
-							type='button'
+							type="button"
 							// biome-ignore lint/suspicious/noArrayIndexKey: it's literally the index
 							key={index}
-							className={`${classes.dot} ${currentSlide === index ? classes.activeDot : ''
-								}`}
+							className={`${classes.dot} ${
+								currentSlide === index ? classes.activeDot : ''
+							}`}
 							onClick={() => setCurrentSlide(index)}
 							aria-label={`Go to slide ${index + 1}`}
 						/>
@@ -95,11 +96,7 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
 							Skip
 						</Button>
 					)}
-					<Button
-						variant="solid"
-						color="primary"
-						onClick={nextSlide}
-					>
+					<Button variant="solid" color="primary" onClick={nextSlide}>
 						{currentSlide === ONBOARDING_SLIDES.length - 1
 							? 'Get Started'
 							: 'Next'}
