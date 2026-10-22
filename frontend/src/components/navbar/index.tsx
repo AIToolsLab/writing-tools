@@ -73,6 +73,7 @@ export default function Navbar() {
 					<span className={classes.tabHint}>{pageDef.hint}</span>
 				</button>
 			))}
+
 			{labPages.length > 0 ? (
 				<div ref={labsRef} className={classes.labs}>
 					<button

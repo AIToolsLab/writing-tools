@@ -2,9 +2,10 @@
  * Shared consent-change logic for both the onboarding consent gate and the
  * standalone account page, so they run one code path.
  *
- * `level` is optimistic local state. `save` POSTs the change, then refreshes the
- * session so `hasSetConsent`/`consentUpdatedAt` update live (a fresh real user's
- * first save is what dismisses the onboarding gate), and rolls back on failure.
+ * `level` is optimistic local state. `save` POSTs the change, then applies the
+ * snapshot the server returns so `hasSetConsent`/`consentUpdatedAt` update live (a
+ * fresh real user's first save is what dismisses the onboarding gate), and rolls
+ * back on failure.
  * `setLevel` lets a caller stage a choice locally and commit it later: the
  * onboarding gate picks first and commits on Continue, while the account page
  * wires `onChange` straight to `save` for immediate persistence.

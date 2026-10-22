@@ -5,8 +5,8 @@
  *
  * An affirmative choice is REQUIRED: Continue is the only way out, and it commits
  * the current selection (confirming the default counts as a choice), stamping
- * consentUpdatedAt. That refreshes the session's hasSetConsent, which unmounts this
- * gate — so on success the app renders, and on failure the gate stays up with its
+ * consentUpdatedAt. The saved snapshot flips the session's hasSetConsent, which
+ * unmounts this gate — so on success the app renders, and on failure the gate stays up with its
  * error rather than proceeding with consent unset. There is deliberately no Skip —
  * the app (and thus any logging) doesn't render until a level is chosen, so
  * logging never precedes affirmative consent. A Skip that dismissed the gate while
