@@ -13,7 +13,6 @@ import { describeOp } from './ops';
 import type {
 	AssistantMove,
 	EditOp,
-	Responder,
 	StrategyContext,
 } from './types';
 
