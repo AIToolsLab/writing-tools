@@ -592,12 +592,13 @@ export const postTaskAIQuestions: Question[] = [
     id: 'ai_decision_timing',
     text: (
       <>
-        Can you recall a specific moment when you read a suggestion and decided
-        not to use it? What made you decide that? Be as specific as you can.
+        Can you recall a specific moment when you read one of the AI-generated
+        writing suggestions on the right side of the screen and decided not to
+        use it? What made you decide that? Be as specific as you can.
       </>
     ),
     type: 'text',
-    placeholder: 'Describe when and why you decided not to use a suggestion',
+    placeholder: 'Describe when and why you decided not to use an AI suggestion',
     required: false,
   },
   {
