@@ -1177,7 +1177,7 @@ describe('ChatPanel - Message timestamps', () => {
     }
   });
 
-  it('keeps a user message at the time it appeared across re-renders', async () => {
+  it('keeps a user message at the time it was sent', async () => {
     vi.useFakeTimers();
     try {
       const { useChat } = await import('@ai-sdk/react');
@@ -1185,33 +1185,101 @@ describe('ChatPanel - Message timestamps', () => {
       const t1 = new Date(2026, 0, 15, 10, 7);
       vi.setSystemTime(t0);
 
-      const userMsg = createUserMessage('When is the panel?', 'user-msg');
+      const sendMessage = vi.fn();
+      const initialMessages = [createUserMessage('', 'initial-user-message')];
       vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
-        messages: [createUserMessage('', 'initial-user-message'), userMsg],
+        messages: initialMessages,
+        sendMessage,
       }));
 
       const { container, rerender } = renderWithJotai(<ChatPanel />, {
         initialValues: [[studyParamsAtom, studyParams]],
       });
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(0);
-      });
+
+      const input = screen.getByPlaceholderText(/Message/);
+      fireEvent.change(input, { target: { value: 'When is the panel?' } });
+      fireEvent.submit(input.closest('form')!);
+
+      // Play useChat's part: append the message it was asked to send
+      const { text, messageId, metadata } = sendMessage.mock.calls[0][0];
+      const userMsg = { ...createUserMessage(text, messageId), metadata };
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
+        messages: [...initialMessages, userMsg],
+        sendMessage,
+      }));
+      rerender(<ChatPanel />);
       expect(shownTimes(container)).toEqual([formatTime(t0)]);
 
       // The reply arrives minutes later and is revealed
       vi.setSystemTime(t1);
       vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
         messages: [
-          createUserMessage('', 'initial-user-message'),
+          ...initialMessages,
           userMsg,
           createAssistantMessage(JSON.stringify(['At 3pm']), 'reply'),
         ],
+        sendMessage,
       }));
       rerender(<ChatPanel />);
       await act(async () => {
         await vi.advanceTimersByTimeAsync(5000);
       });
       expect(shownTimes(container)).toEqual([formatTime(t0), formatTime(t1)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('shows the rest of a reply at once if the user sends mid-reveal', async () => {
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const t0 = new Date(2026, 0, 15, 10, 0);
+      const t1 = new Date(2026, 0, 15, 10, 7);
+      vi.setSystemTime(t0);
+
+      const sendMessage = vi.fn();
+      const initialMessages = [
+        createUserMessage('', 'initial-user-message'),
+        createAssistantMessage(JSON.stringify(['Part 1', 'Part 2', 'Part 3']), 'three-part-msg'),
+      ];
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
+        messages: initialMessages,
+        sendMessage,
+      }));
+
+      const { container, rerender } = renderWithJotai(<ChatPanel />, {
+        initialValues: [[studyParamsAtom, studyParams]],
+      });
+
+      // Only the first part is out when the user replies
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      expect(shownTimes(container)).toEqual([formatTime(t0)]);
+
+      vi.setSystemTime(t1);
+      const input = screen.getByPlaceholderText(/Message/);
+      fireEvent.change(input, { target: { value: 'Hang on' } });
+      fireEvent.submit(input.closest('form')!);
+
+      const { text, messageId, metadata } = sendMessage.mock.calls[0][0];
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
+        messages: [...initialMessages, { ...createUserMessage(text, messageId), metadata }],
+        sendMessage,
+      }));
+      rerender(<ChatPanel />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+
+      // The unrevealed parts appear when the user sent, not never
+      expect(shownTimes(container)).toEqual([
+        formatTime(t0),
+        formatTime(t1),
+        formatTime(t1),
+        formatTime(t1),
+      ]);
     } finally {
       vi.useRealTimers();
     }

@@ -11,12 +11,42 @@ import { getScenario } from '@/lib/studyConfig';
 import { parseMessageContent } from '@/lib/chatUtils';
 import type { UIMessage } from '@ai-sdk/react';
 
+// User messages carry the time they were sent; assistant parts get theirs from
+// `revealedAt` when the typing animation shows them.
+type ChatMessage = UIMessage<{ sentAt?: number }>;
+
 // Utility function to extract text from message parts
 function getMessageText(message: { parts: Array<{ type: string; text?: string }> }): string {
   return message.parts
     .filter((part) => part.type === 'text')
     .map((part) => part.text || '')
     .join('');
+}
+
+function partKey(messageId: string, partIndex: number): string {
+  return `${messageId}-${partIndex}`;
+}
+
+// Marks every assistant part not yet revealed as revealed at `now`.
+function withAllPartsRevealed(
+  revealedAt: Map<string, Date>,
+  messages: ChatMessage[],
+  now: Date
+): Map<string, Date> {
+  let next: Map<string, Date> | null = null;
+  for (const message of messages) {
+    if (message.role !== 'assistant') continue;
+    const text = getMessageText(message);
+    if (!text) continue;
+    parseMessageContent(text).forEach((_, partIndex) => {
+      const key = partKey(message.id, partIndex);
+      if (!revealedAt.has(key)) {
+        next ??= new Map(revealedAt);
+        next.set(key, now);
+      }
+    });
+  }
+  return next ?? revealedAt;
 }
 
 const FOLLOWUP_DELAY_MS = 75000; // 75 seconds (between 60-90s)
@@ -31,7 +61,7 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
   const username = studyParams.username || 'demo';
   const scenario = getScenario(studyParams.scenario);
 
-  const { messages, sendMessage, status, setMessages } = useChat({
+  const { messages, sendMessage, status, setMessages } = useChat<ChatMessage>({
     transport: new DefaultChatTransport({
       api: '/api/chat',
       body: {
@@ -43,8 +73,10 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const [visibleMessagePartCount, setVisibleMessagePartCount] = useState(0);
-  const [visibleMessageId, setVisibleMessageId] = useState<string | null>(null);
+  // When each assistant part (keyed by partKey) appeared on screen. A part is
+  // displayed exactly when it has an entry here, and the entry is the time shown
+  // under it, so it never drifts on re-render.
+  const [revealedAt, setRevealedAt] = useState<Map<string, Date>>(new Map());
   const [showTypingIndicator, setShowTypingIndicator] = useState(false);
   const [deliveredMessageIds, setDeliveredMessageIds] = useState<Set<string>>(new Set());
   const [readMessageIds, setReadMessageIds] = useState<Set<string>>(new Set());
@@ -59,61 +91,40 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   });
 
+  const notifyNewMessage = useEffectEvent(() => {
+    if (onNewMessage) {
+      onNewMessage();
+    }
+  });
+
   // Derive the messages that are actually displayed to the user
   const displayedMessages = useMemo(() => {
-    return messages.map((message, messageIdx) => {
+    return messages.map((message) => {
       const isUser = message.role === 'user';
       const messageText = getMessageText(message);
       if (!messageText) return { parts: [], isUser, messageId: message.id };
 
-      const messageParts = isUser ? [messageText] : parseMessageContent(messageText);
-      const isLastMessage = messageIdx === messages.length - 1;
-
-      // For assistant messages, limit visible parts if it's the last message
-      let partsToShow = messageParts;
-      if (!isUser && isLastMessage) {
-        // Hide last message while streaming to avoid showing partial JSON
-        if (status === 'streaming') {
-          partsToShow = [];
-        } else if (visibleMessageId === message.id && visibleMessagePartCount > 0) {
-          // Only use visibleMessagePartCount if it's for THIS message
-          partsToShow = messageParts.slice(0, visibleMessagePartCount);
-        } else {
-          partsToShow = [];
-        }
+      if (isUser) {
+        const sentAt = message.metadata?.sentAt;
+        return {
+          parts: [{ text: messageText, shownAt: sentAt === undefined ? undefined : new Date(sentAt) }],
+          isUser,
+          messageId: message.id,
+        };
       }
 
-      return { parts: partsToShow, isUser, messageId: message.id };
+      const parts = parseMessageContent(messageText).flatMap((text, partIndex) => {
+        const shownAt = revealedAt.get(partKey(message.id, partIndex));
+        return shownAt ? [{ text, shownAt }] : [];
+      });
+      return { parts, isUser, messageId: message.id };
     });
-  }, [messages, visibleMessagePartCount, visibleMessageId, status]);
+  }, [messages, revealedAt]);
 
   // Scroll to bottom whenever displayed messages change
   // biome-ignore lint/correctness/useExhaustiveDependencies: scroll target position depends on displayed messages rendering.
     useEffect(() => {
     scrollToBottom();
-  }, [displayedMessages]);
-
-  // Freeze a timestamp for each message part the first time it becomes visible.
-  // Without this, the render path calls new Date() for every bubble on every render,
-  // so all messages display the current time and jump forward together.
-  const [partTimestamps, setPartTimestamps] = useState<Map<string, Date>>(new Map());
-  const stampVisibleParts = useEffectEvent(() => {
-    setPartTimestamps((prev) => {
-      let next: Map<string, Date> | null = null;
-      for (const dm of displayedMessages) {
-        for (let partIdx = 0; partIdx < dm.parts.length; partIdx++) {
-          const key = `${dm.messageId}-${partIdx}`;
-          if (!prev.has(key)) {
-            if (!next) next = new Map(prev);
-            next.set(key, new Date());
-          }
-        }
-      }
-      return next ?? prev;
-    });
-  });
-  useEffect(() => {
-    stampVisibleParts();
   }, [displayedMessages]);
 
   // Initialize conversation on mount
@@ -167,6 +178,9 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
       followupTimerRef.current = setTimeout(() => {
         if (!followupSentRef.current) {
           followupSentRef.current = true;
+          // The follow-up cancels any reveal still in progress; show what's left now
+          const now = new Date();
+          setRevealedAt((prev) => withAllPartsRevealed(prev, messages, now));
           // Add follow-up message from colleague
           setMessages((prev) => [
             ...prev,
@@ -176,8 +190,6 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
               parts: [{ type: 'text', text: JSON.stringify([scenario.chat.followUpMessage]) }],
             },
           ]);
-          // Reset visible count so it goes through the typing animation
-          setVisibleMessagePartCount(0);
         }
       }, FOLLOWUP_DELAY_MS);
     }
@@ -192,83 +204,56 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
 
   // Sequence message display with delays and typing indicators
   useEffect(() => {
-    if (messages.length === 0) return;
+    // Wait for the whole reply: a partial stream is incomplete JSON
+    if (status === 'streaming') return;
 
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage.role !== 'assistant') return;
+    const lastMessage = messages.at(-1);
+    if (lastMessage?.role !== 'assistant') return;
 
     const messageText = getMessageText(lastMessage);
+    if (!messageText) return;
     const parsedMessages = parseMessageContent(messageText);
-
-    if (parsedMessages.length === 0) return;
 
     const timers: NodeJS.Timeout[] = [];
 
     // Busy/read delay before typing indicator shows up
     const thinkingDelay = calculateThinkingDelay(parsedMessages[0].length);
     const busyLag = messages.length === 2 ? 0 : 1200; // Skip lag for first message (length 2 because of initial empty user message + assistant response)
-    const readingDelay = messages.length === 2 ? 0 : thinkingDelay + busyLag;
+    let currentDelay = messages.length === 2 ? 0 : thinkingDelay + busyLag;
 
-    const firstTypingDuration = calculateTypingDuration(parsedMessages[0].length);
+    parsedMessages.forEach((messagePart, index) => {
+      if (index > 0) {
+        // Pause based on previous message length
+        currentDelay += calculateInterMessageDelay(parsedMessages[index - 1].length);
+      }
 
-    // Start typing indicator after she has "read" the message
-    timers.push(
-      setTimeout(() => {
-        setShowTypingIndicator(true);
-        scrollToBottom();
-      }, readingDelay)
-    );
+      // Show typing indicator, then the part once it's "typed"
+      timers.push(
+        setTimeout(() => {
+          setShowTypingIndicator(true);
+          scrollToBottom();
+        }, currentDelay)
+      );
 
-    // Reveal first part after typing duration
-    timers.push(
-      setTimeout(() => {
-        setVisibleMessageId(lastMessage.id);
-        setVisibleMessagePartCount(1);
-        setShowTypingIndicator(false);
-      }, readingDelay + firstTypingDuration)
-    );
+      currentDelay += calculateTypingDuration(messagePart.length);
 
-    // For multiple messages (array response), add typing indicator and delay between them
-    if (parsedMessages.length > 1) {
-      let currentDelay = readingDelay + firstTypingDuration;
-
-      parsedMessages.forEach((messagePart, index) => {
-        if (index > 0) {
-          // Calculate delay based on previous message length
-          const previousMessageLength = parsedMessages[index - 1].length;
-          const interDelay = calculateInterMessageDelay(previousMessageLength);
-          currentDelay += interDelay;
-
-          // Calculate typing duration for this message
-          const typingDuration = calculateTypingDuration(messagePart.length);
-
-          // Show typing indicator for the delay duration
-          timers.push(
-            setTimeout(() => {
-              setShowTypingIndicator(true);
-              scrollToBottom();
-            }, currentDelay)
-          );
-
-          // Show next part and hide typing indicator
-          timers.push(
-            setTimeout(() => {
-              setVisibleMessagePartCount((prev) => prev + 1);
-              setShowTypingIndicator(false);
-            }, currentDelay + typingDuration)
-          );
-
-          currentDelay += typingDuration;
-        }
-      });
-    }
+      const key = partKey(lastMessage.id, index);
+      timers.push(
+        setTimeout(() => {
+          const now = new Date();
+          setRevealedAt((prev) => (prev.has(key) ? prev : new Map(prev).set(key, now)));
+          setShowTypingIndicator(false);
+          notifyNewMessage();
+        }, currentDelay)
+      );
+    });
 
     return () => {
       timers.forEach((timer) => {
         clearTimeout(timer);
       });
     };
-  }, [messages]);
+  }, [messages, status]);
 
   const formatTime = (date: Date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -306,51 +291,27 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
     };
   }, [messages]);
 
-  // Log assistant message part event - called when a new part becomes visible
-  const logAssistantMessagePart = useEffectEvent((messageId: string, partIndex: number, content: string) => {
-    const partId = `${messageId}-${partIndex}`;
-    if (!loggedMessagePartsRef.current.has(partId)) {
-      log({
-        username,
-        event: 'chatMessage:assistant',
-        extra_data: {
-          messageId,
-          partIndex,
-          content,
-          timestamp: new Date().toISOString(),
-        },
-      });
-      loggedMessagePartsRef.current.add(partId);
-    }
-  });
-
-  // Track assistant message parts becoming visible and log them
+  // Log each assistant message part once, when it first becomes visible
   useEffect(() => {
-    if (messages.length === 0) return;
-
-    messages.forEach((message, messageIndex) => {
-      if (message.role !== 'assistant' || !message.id) return;
-
-      const messageText = getMessageText(message);
-      const parsedMessages = parseMessageContent(messageText);
-      const isLastMessage = messageIndex === messages.length - 1;
-
-      if (isLastMessage) {
-        // For last message, only log visible parts if the count is for THIS message
-        if (visibleMessageId === message.id) {
-          for (let i = 0; i < visibleMessagePartCount; i++) {
-            logAssistantMessagePart(message.id, i, parsedMessages[i]);
-          }
-        }
-        // Otherwise, don't log anything yet - wait for the sequencing effect to reveal parts
-      } else {
-        // For non-last messages, log all parts
-        parsedMessages.forEach((part, partIndex) => {
-          logAssistantMessagePart(message.id, partIndex, part);
+    for (const displayedMessage of displayedMessages) {
+      if (displayedMessage.isUser) continue;
+      displayedMessage.parts.forEach((part, partIndex) => {
+        const partId = partKey(displayedMessage.messageId, partIndex);
+        if (loggedMessagePartsRef.current.has(partId)) return;
+        loggedMessagePartsRef.current.add(partId);
+        log({
+          username,
+          event: 'chatMessage:assistant',
+          extra_data: {
+            messageId: displayedMessage.messageId,
+            partIndex,
+            content: part.text,
+            timestamp: part.shownAt?.toISOString(),
+          },
         });
-      }
-    });
-  }, [messages, visibleMessagePartCount, visibleMessageId]);
+      });
+    }
+  }, [displayedMessages, username]);
 
   const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -358,13 +319,12 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
 
     const userMessage = input;
     const messageId = `user-${Date.now()}`;
+    const now = new Date();
     setInput('');
     setShowTypingIndicator(false); // ensure no immediate typing indicator on send
 
-    // Reset visibility state BEFORE sending - the sequencing effect will set these
-    // for the new response when it arrives
-    setVisibleMessagePartCount(0);
-    setVisibleMessageId(null);
+    // Sending cancels any reveal still in progress; show what's left now
+    setRevealedAt((prev) => withAllPartsRevealed(prev, messages, now));
 
     // Log the user message event immediately (event-driven, no duplicates)
     log({
@@ -373,27 +333,12 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
       extra_data: {
         messageId,
         content: userMessage,
-        timestamp: new Date().toISOString(),
+        timestamp: now.toISOString(),
       },
     });
 
-    await sendMessage({ text: userMessage });
+    await sendMessage({ text: userMessage, messageId, metadata: { sentAt: now.getTime() } });
   };
-
-  const notifyNewMessage = useEffectEvent(() => {
-    if (onNewMessage) {
-      onNewMessage();
-    }
-  });
-
-  // Show notification when a new assistant message part appears
-  useEffect(() => {
-    if (messages.length === 0) return;
-    const lastMessage = messages[messages.length - 1];
-    if (lastMessage && lastMessage.role === 'assistant' && visibleMessagePartCount > 0) {
-      notifyNewMessage();
-    }
-  }, [messages, visibleMessagePartCount]);
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
@@ -411,7 +356,7 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
         {displayedMessages.map((displayedMessage) => {
           return displayedMessage.parts.map((part, partIdx) => (
             <div
-              key={`${displayedMessage.messageId}-${partIdx}`}
+              key={partKey(displayedMessage.messageId, partIdx)}
               className={`mb-3 text-sm leading-snug animate-fadeIn ${
                 displayedMessage.isUser ? 'ml-auto' : ''
               }`}
@@ -424,11 +369,13 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
                     : 'bg-gray-200 rounded-bl-sm'
                 }`}
               >
-                {part}
+                {part.text}
               </div>
-              <div className="text-[10px] text-gray-600 mt-1">
-                {formatTime(partTimestamps.get(`${displayedMessage.messageId}-${partIdx}`) ?? new Date())}
-              </div>
+              {part.shownAt && (
+                <div className="text-[10px] text-gray-600 mt-1">
+                  {formatTime(part.shownAt)}
+                </div>
+              )}
               {displayedMessage.isUser && (
                 readMessageIds.has(displayedMessage.messageId) ? (
                     <div className="text-[10px] font-semibold text-green-700 mt-0.5">Read</div>
