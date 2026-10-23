@@ -96,6 +96,13 @@ describe('ChatPanel - Message Logging', () => {
         },
       });
     });
+
+    // The new message carries the logged id. Not as `messageId`, which useChat
+    // treats as "edit this existing message" and throws when there's none.
+    const loggedId = mockLog.mock.calls[0][0]?.extra_data?.messageId;
+    const sent = mockSendMessage.mock.calls[0][0];
+    expect(sent).toMatchObject({ id: loggedId, role: 'user' });
+    expect(sent).not.toHaveProperty('messageId');
   });
 
   // Test 2: Assistant Message Logging (via typing animation)
@@ -1229,8 +1236,7 @@ describe('ChatPanel - Message timestamps', () => {
       fireEvent.submit(input.closest('form')!);
 
       // Play useChat's part: append the message it was asked to send
-      const { text, messageId, metadata } = sendMessage.mock.calls[0][0];
-      const userMsg = { ...createUserMessage(text, messageId), metadata };
+      const userMsg = sendMessage.mock.calls[0][0];
       vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
         messages: [...initialMessages, userMsg],
         sendMessage,
@@ -1297,8 +1303,7 @@ describe('ChatPanel - Message timestamps', () => {
       fireEvent.submit(input.closest('form')!);
 
       // useChat appends the user message, and the answer to it arrives
-      const { text, messageId, metadata } = sendMessage.mock.calls[0][0];
-      const userMsg = { ...createUserMessage(text, messageId), metadata };
+      const userMsg = sendMessage.mock.calls[0][0];
       const reply = createAssistantMessage(JSON.stringify(['Sure']), 'reply');
       const allMessages = [...initialMessages, userMsg, reply];
       vi.mocked(useChat).mockReturnValue(createMockChatHelpers({ messages: allMessages, sendMessage }));

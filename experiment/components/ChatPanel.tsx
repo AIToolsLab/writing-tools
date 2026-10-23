@@ -347,7 +347,9 @@ export default function ChatPanel({ onNewMessage, onConversationChange }: ChatPa
       },
     });
 
-    await sendMessage({ text: userMessage, messageId, metadata: { sentAt } });
+    // Pass the id on the message itself: sendMessage's `messageId` option means
+    // "replace the user message with this id", and throws if there isn't one.
+    await sendMessage({ id: messageId, role: 'user', parts: [{ type: 'text', text: userMessage }], metadata: { sentAt } });
   };
 
   return (
