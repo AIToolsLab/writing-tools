@@ -116,11 +116,18 @@ export function useDeviceAuth(): UseDeviceAuth {
 	// transition) turns every older in-flight reconcile into a no-op.
 	const reconcileGen = useRef(0);
 
+	// Set when another tab's consent change arrives while no session is
+	// installed yet (hydrating a stored token, or verifying a fresh one). The
+	// user fetch in flight may have been read before that change, so the session
+	// must not be trusted as-is when it lands; see installSession.
+	const pingWhileLoading = useRef(false);
+
 	// Every auth transition (sign-in start, logout, reset) must drop consent work
 	// started under the previous session, including its pending flag, so a stale
 	// `consentPending` can't suppress the PostHog identity reset on logout.
 	const invalidateConsentWork = useCallback(() => {
 		reconcileGen.current += 1;
+		pingWhileLoading.current = false;
 		setConsentPending(false);
 	}, []);
 
@@ -180,7 +187,12 @@ export function useDeviceAuth(): UseDeviceAuth {
 	// as a settled answer rather than a pending one.
 	const reconcileConsentFromOtherTab = useCallback(async () => {
 		const token = tokenRef.current;
-		if (!token) return;
+		if (!token) {
+			// No session yet: remember the ping instead of dropping it, so the
+			// session that is loading gets reconciled the moment it is installed.
+			pingWhileLoading.current = true;
+			return;
+		}
 		const gen = ++reconcileGen.current;
 		setConsentPending(true);
 		patchUserFor(token, (user) => ({ ...user, loggingConsent: 'none' }));
@@ -197,6 +209,26 @@ export function useDeviceAuth(): UseDeviceAuth {
 		}
 		setConsentPending(false);
 	}, [patchUserFor]);
+
+	// The one place a loaded session becomes current (hydrate-on-mount and a
+	// completed device flow). If a consent ping arrived while it was loading, the
+	// user record may predate that change: install it at `none` and reconcile
+	// immediately, rather than letting a possibly withdrawn level enable logging.
+	const installSession = useCallback(
+		(controller: AbortController, token: string, user: UserInfo) => {
+			if (controller.signal.aborted) return;
+			tokenRef.current = token;
+			const missedPing = pingWhileLoading.current;
+			pingWhileLoading.current = false;
+			setState({
+				status: 'success',
+				token,
+				user: missedPing ? { ...user, loggingConsent: 'none' } : user,
+			});
+			if (missedPing) void reconcileConsentFromOtherTab();
+		},
+		[reconcileConsentFromOtherTab],
+	);
 
 	// Taken when a save starts: the reconcile generation at that moment. If it
 	// is unchanged when the save's response arrives, no other tab's change
@@ -302,13 +334,9 @@ export function useDeviceAuth(): UseDeviceAuth {
 				result.accessToken,
 				controller.signal,
 			);
-			tokenRef.current = result.accessToken;
+			if (controller.signal.aborted) return;
 			persistToken(result.accessToken);
-			safeSet(controller, {
-				status: 'success',
-				token: result.accessToken,
-				user,
-			});
+			installSession(controller, result.accessToken, user);
 		} catch (e) {
 			if (controller.signal.aborted) return;
 			safeSet(controller, {
@@ -316,7 +344,7 @@ export function useDeviceAuth(): UseDeviceAuth {
 				error: `Token verification failed: ${(e as Error).message}`,
 			});
 		}
-	}, [abortInFlight, invalidateConsentWork, safeSet]);
+	}, [abortInFlight, installSession, invalidateConsentWork, safeSet]);
 
 	const logout = useCallback(async () => {
 		const token = tokenRef.current;
@@ -348,12 +376,7 @@ export function useDeviceAuth(): UseDeviceAuth {
 			setState({ status: 'hydrating' });
 			fetchUserInfo(stored, controller.signal)
 				.then((user) => {
-					tokenRef.current = stored;
-					safeSet(controller, {
-						status: 'success',
-						token: stored,
-						user,
-					});
+					installSession(controller, stored, user);
 				})
 				.catch(() => {
 					if (controller.signal.aborted) return;
@@ -368,7 +391,7 @@ export function useDeviceAuth(): UseDeviceAuth {
 			abortRef.current?.abort();
 			abortRef.current = null;
 		};
-	}, [safeSet]);
+	}, [installSession, safeSet]);
 
 	return {
 		...state,

@@ -475,4 +475,142 @@ describe('useDeviceAuth — cross-tab consent reconciliation', () => {
 		expect(hook.result.current.user).toEqual(USER_B);
 		expect(hook.result.current.consentPending).toBe(false);
 	});
+
+	// Regression (Codex round 3): a ping that arrives while the session is still
+	// loading must not be dropped. The loading fetch may predate the other tab's
+	// withdrawal, so the session is installed at `none` and reconciled at once.
+	describe('a consent change from another tab while the session is loading', () => {
+		const WITHDRAWN: UserInfo = {
+			...USER,
+			loggingConsent: 'none',
+			consentUpdatedAt: '2026-07-28T12:00:05.000Z',
+		};
+
+		function captureAllowed(s: ReturnType<typeof useDeviceAuth>) {
+			return posthogConsentAction({
+				isAuthenticated: s.status === 'success',
+				hasSetConsent: !!s.user?.consentUpdatedAt,
+				consentPending: s.consentPending,
+				loggingConsent: s.user?.loggingConsent ?? 'none',
+				userId: s.user?.id,
+			}).capture;
+		}
+
+		it('during hydrate-on-mount', async () => {
+			const hydrate = deferred<UserInfo>();
+			fetchUserInfo.mockReturnValueOnce(hydrate.promise);
+			const hook = renderHook(() => useDeviceAuth());
+			expect(hook.result.current.status).toBe('hydrating');
+
+			// The other tab's ping lands before the session does.
+			await act(async () => {
+				await hook.result.current.reconcileConsentFromOtherTab();
+			});
+
+			const reread = deferred<UserInfo>();
+			fetchUserInfo.mockReturnValueOnce(reread.promise);
+			await act(async () => {
+				hydrate.resolve(USER); // read before the withdrawal: `usage`
+				await hydrate.promise;
+			});
+			expect(hook.result.current.status).toBe('success');
+			expect(hook.result.current.user?.loggingConsent).toBe('none');
+			expect(hook.result.current.consentPending).toBe(true);
+			expect(captureAllowed(hook.result.current)).toBe(false);
+
+			await act(async () => {
+				reread.resolve(WITHDRAWN);
+				await reread.promise;
+			});
+			expect(hook.result.current.user?.loggingConsent).toBe('none');
+			expect(hook.result.current.consentPending).toBe(false);
+			expect(captureAllowed(hook.result.current)).toBe(false);
+			expect(fetchUserInfo).toHaveBeenCalledTimes(2);
+		});
+
+		it('while a fresh sign-in is verifying its token', async () => {
+			fetchUserInfo.mockRejectedValueOnce(new Error('no stored session'));
+			const hook = renderHook(() => useDeviceAuth());
+			await waitFor(() =>
+				expect(hook.result.current.status).toBe('idle'),
+			);
+
+			requestDeviceCode.mockResolvedValueOnce({
+				device_code: 'dc',
+				user_code: 'UC',
+				verification_uri: 'https://example.test/device',
+				verification_uri_complete: 'https://example.test/device?c=UC',
+				expires_in: 600,
+				interval: 1,
+			});
+			pollForToken.mockResolvedValueOnce({
+				type: 'token',
+				accessToken: 'token-new',
+			});
+			const verify = deferred<UserInfo>();
+			fetchUserInfo.mockReturnValueOnce(verify.promise);
+			let started!: Promise<void>;
+			act(() => {
+				started = hook.result.current.start();
+			});
+			await waitFor(() =>
+				expect(fetchUserInfo).toHaveBeenLastCalledWith(
+					'token-new',
+					expect.anything(),
+				),
+			);
+
+			await act(async () => {
+				await hook.result.current.reconcileConsentFromOtherTab();
+			});
+
+			fetchUserInfo.mockResolvedValueOnce(WITHDRAWN);
+			await act(async () => {
+				verify.resolve(USER);
+				await started;
+			});
+			await waitFor(() =>
+				expect(hook.result.current.consentPending).toBe(false),
+			);
+			expect(hook.result.current.token).toBe('token-new');
+			expect(hook.result.current.user?.loggingConsent).toBe('none');
+			expect(captureAllowed(hook.result.current)).toBe(false);
+		});
+
+		// A ping while signed out says nothing about a session that hasn't been
+		// requested yet; starting a sign-in clears it, so no extra re-read happens.
+		it('a ping while signed out does not trigger a re-read after sign-in', async () => {
+			fetchUserInfo.mockRejectedValueOnce(new Error('no stored session'));
+			const hook = renderHook(() => useDeviceAuth());
+			await waitFor(() =>
+				expect(hook.result.current.status).toBe('idle'),
+			);
+
+			await act(async () => {
+				await hook.result.current.reconcileConsentFromOtherTab();
+			});
+
+			requestDeviceCode.mockResolvedValueOnce({
+				device_code: 'dc',
+				user_code: 'UC',
+				verification_uri: 'https://example.test/device',
+				verification_uri_complete: 'https://example.test/device?c=UC',
+				expires_in: 600,
+				interval: 1,
+			});
+			pollForToken.mockResolvedValueOnce({
+				type: 'token',
+				accessToken: 'token-new',
+			});
+			fetchUserInfo.mockResolvedValueOnce(USER);
+			await act(async () => {
+				await hook.result.current.start();
+			});
+
+			expect(hook.result.current.user?.loggingConsent).toBe('usage');
+			expect(hook.result.current.consentPending).toBe(false);
+			// The failed hydrate + the sign-in verify; no reconcile fetch.
+			expect(fetchUserInfo).toHaveBeenCalledTimes(2);
+		});
+	});
 });
