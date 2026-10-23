@@ -91,6 +91,8 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 
 Realistic timing works as follows: The colleague finds a moment to read your message (~400-800ms), takes time to read and think through a response (depends on your message length), types an answer (depends on their response length), then sends it. The thinking/reading delay and typing duration both use the same calculation (40-80 chars/sec ± 300ms variation) but applied to different message lengths—they think proportionally to what you wrote, and type proportionally to what they're typing. This creates natural pacing.
 
+If the participant sends a message while the colleague is still typing a multi-part reply, she finishes typing the remaining parts before answering (`INTERRUPT_POLICY = 'keepTyping'` in `ChatPanel.tsx`). The chat shows messages in the order they appeared, so the participant's message sits between her parts, and the AI panel's conversation history uses that same on-screen order. The colleague model does not: useChat sends it her whole previous reply followed by the participant's message, so it reads that message as a response to everything she said, even if the participant had only seen her first part when sending it.
+
 ### Adding New Scenarios
 
 To add a new scenario, edit `lib/scenarios.json` and add a new entry (`lib/studyConfig.ts` derives the typed `SCENARIOS` object from it). Each scenario requires:

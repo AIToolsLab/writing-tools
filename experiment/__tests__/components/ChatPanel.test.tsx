@@ -1,10 +1,25 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { waitFor, fireEvent, screen, act } from '@testing-library/react';
 import ChatPanel from '@/components/ChatPanel';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import * as logging from '@/lib/logging';
+import { calculateTypingDuration } from '@/lib/messageTiming';
 import { renderWithJotai } from '../utils/test-utils';
+import type { UIMessage } from '@ai-sdk/react';
 import { createUserMessage, createAssistantMessage, createMockChatHelpers } from '../utils/mock-factories';
+
+// ChatPanel schedules a reply when useChat reports it finished. The mocked
+// useChat never streams, so tests deliver a reply by calling the onFinish that
+// ChatPanel registered.
+async function finishReply(message: UIMessage, messages: UIMessage[]) {
+  const { useChat } = await import('@ai-sdk/react');
+  const options = vi.mocked(useChat).mock.lastCall?.[0];
+  await act(async () => {
+    (options as { onFinish?: (event: object) => void } | undefined)?.onFinish?.({
+      message, messages, isAbort: false, isDisconnect: false, isError: false,
+    });
+  });
+}
 
 // Mock the logging module
 vi.mock('@/lib/logging', () => ({
@@ -81,6 +96,13 @@ describe('ChatPanel - Message Logging', () => {
         },
       });
     });
+
+    // The new message carries the logged id. Not as `messageId`, which useChat
+    // treats as "edit this existing message" and throws when there's none.
+    const loggedId = mockLog.mock.calls[0][0]?.extra_data?.messageId;
+    const sent = mockSendMessage.mock.calls[0][0];
+    expect(sent).toMatchObject({ id: loggedId, role: 'user' });
+    expect(sent).not.toHaveProperty('messageId');
   });
 
   // Test 2: Assistant Message Logging (via typing animation)
@@ -115,6 +137,7 @@ describe('ChatPanel - Message Logging', () => {
           ],
         ],
       });
+      await finishReply(assistantMessage, [emptyUserMessage, assistantMessage]);
 
       mockLog.mockClear();
 
@@ -466,6 +489,7 @@ describe('ChatPanel - Message Logging', () => {
           ],
         ],
       });
+      await finishReply(msg1, [emptyUserMessage, msg1]);
 
       mockLog.mockClear();
 
@@ -549,6 +573,7 @@ describe('ChatPanel - Message Logging', () => {
           ],
         ],
       });
+      await finishReply(initialAssistantMessage, [emptyUserMessage, initialAssistantMessage]);
 
       // Advance timers to reveal all initial message parts
       await act(async () => {
@@ -575,6 +600,7 @@ describe('ChatPanel - Message Logging', () => {
       await act(async () => {
         rerender(<ChatPanel />);
       });
+      await finishReply(newAssistantMessage, [emptyUserMessage, initialAssistantMessage, userMessage, newAssistantMessage]);
 
       // At this point, NO parts of the new message should be logged yet
       // because visibleMessageId hasn't been set for the new message
@@ -730,6 +756,7 @@ describe('ChatPanel - Message Logging', () => {
           ],
         ],
       });
+      await finishReply(msg, [emptyUserMessage, msg]);
 
       mockLog.mockClear();
 
@@ -808,6 +835,7 @@ describe('ChatPanel - Message Logging', () => {
           ],
         ],
       });
+      await finishReply(msg, [emptyUserMessage, msg]);
 
       // Advance timers to reveal first part
       await act(async () => {
@@ -994,6 +1022,7 @@ describe('ChatPanel - Message Logging', () => {
           ],
         ],
       });
+      await finishReply(msg, [emptyUserMessage, msg]);
 
       // Advance timers to reveal message (typing animation)
       await act(async () => {
@@ -1041,6 +1070,7 @@ describe('ChatPanel - Message Logging', () => {
           ],
         ],
       });
+      await finishReply(msg, [emptyUserMessage, msg]);
 
       // Initially no assistant parts visible (need to wait for typing animation)
       let messages = container.querySelectorAll('.mb-3.text-sm.leading-snug');
@@ -1117,5 +1147,227 @@ describe('ChatPanel - Message Logging', () => {
     await waitFor(() => {
       expect(mockScrollIntoView).toHaveBeenCalled();
     });
+  });
+});
+
+// Each bubble shows the time it first appeared. The time must be captured once,
+// not recomputed on render, or every bubble shows "now" and they all tick forward
+// together as the conversation goes on.
+describe('ChatPanel - Message timestamps', () => {
+  const studyParams = {
+    username: 'test-user',
+    condition: 'n',
+    page: 'task',
+    autoRefreshInterval: 15000,
+  };
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const shownTimes = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('.mb-3.text-sm.leading-snug')).map(
+      (bubble) => bubble.children[1]?.textContent
+    );
+
+  const MINUTE = 60_000;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('keeps each assistant part at the time it was revealed', async () => {
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const t0 = new Date(2026, 0, 15, 10, 0);
+      const t1 = new Date(2026, 0, 15, 10, 7);
+      vi.setSystemTime(t0);
+
+      const chatMessages = [
+        createUserMessage('', 'initial-user-message'),
+        createAssistantMessage(JSON.stringify(['Part 1', 'Part 2']), 'two-part-msg'),
+      ];
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({ messages: chatMessages }));
+
+      const { container } = renderWithJotai(<ChatPanel />, {
+        initialValues: [[studyParamsAtom, studyParams]],
+      });
+      // Part 1 is quick to type; part 2 finishes at t1 (after a 100ms pause)
+      vi.mocked(calculateTypingDuration)
+        .mockReturnValueOnce(100)
+        .mockReturnValueOnce(t1.getTime() - t0.getTime() - 200);
+      await finishReply(chatMessages[1], chatMessages);
+
+      // First part is revealed at t0
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      expect(shownTimes(container)).toEqual([formatTime(t0)]);
+
+      // Minutes later the second reveal re-renders the first bubble
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(7 * MINUTE);
+      });
+      expect(shownTimes(container)).toEqual([formatTime(t0), formatTime(t1)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps a user message at the time it was sent', async () => {
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const t0 = new Date(2026, 0, 15, 10, 0);
+      const t1 = new Date(2026, 0, 15, 10, 7);
+      vi.setSystemTime(t0);
+
+      const sendMessage = vi.fn();
+      const initialMessages = [createUserMessage('', 'initial-user-message')];
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
+        messages: initialMessages,
+        sendMessage,
+      }));
+
+      const { container, rerender } = renderWithJotai(<ChatPanel />, {
+        initialValues: [[studyParamsAtom, studyParams]],
+      });
+
+      const input = screen.getByPlaceholderText(/Message/);
+      fireEvent.change(input, { target: { value: 'When is the panel?' } });
+      fireEvent.submit(input.closest('form')!);
+
+      // Play useChat's part: append the message it was asked to send
+      const userMsg = sendMessage.mock.calls[0][0];
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
+        messages: [...initialMessages, userMsg],
+        sendMessage,
+      }));
+      rerender(<ChatPanel />);
+      expect(shownTimes(container)).toEqual([formatTime(t0)]);
+
+      // The reply arrives minutes later and is revealed
+      vi.setSystemTime(t1);
+      const reply = createAssistantMessage(JSON.stringify(['At 3pm']), 'reply');
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
+        messages: [...initialMessages, userMsg, reply],
+        sendMessage,
+      }));
+      rerender(<ChatPanel />);
+      await finishReply(reply, [...initialMessages, userMsg, reply]);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(shownTimes(container)).toEqual([formatTime(t0), formatTime(t1)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('lets her finish typing if the user sends mid-reply, then answers', async () => {
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const t0 = new Date(2026, 0, 15, 10, 0);
+      vi.setSystemTime(t0);
+      const at = (minutes: number) => formatTime(new Date(t0.getTime() + minutes * MINUTE));
+      const isTyping = (container: HTMLElement) => container.querySelector('.animate-bounce') !== null;
+
+      const sendMessage = vi.fn();
+      const initialMessages = [
+        createUserMessage('', 'initial-user-message'),
+        createAssistantMessage(JSON.stringify(['Part 1', 'Part 2', 'Part 3']), 'three-part-msg'),
+      ];
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
+        messages: initialMessages,
+        sendMessage,
+      }));
+
+      const { container, rerender } = renderWithJotai(<ChatPanel />, {
+        initialValues: [[studyParamsAtom, studyParams]],
+      });
+      // Part 1 is quick to type; parts 2 and 3 take ten minutes each,
+      // finishing at about 10:10 and 10:20
+      vi.mocked(calculateTypingDuration)
+        .mockReturnValueOnce(100)
+        .mockReturnValueOnce(10 * MINUTE)
+        .mockReturnValueOnce(10 * MINUTE);
+      await finishReply(initialMessages[1], initialMessages);
+
+      // Only the first part is out when the user sends, at 10:07
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(7 * MINUTE);
+      });
+      expect(shownTimes(container)).toEqual([at(0)]);
+
+      const input = screen.getByPlaceholderText(/Message/);
+      fireEvent.change(input, { target: { value: 'Hang on' } });
+      fireEvent.submit(input.closest('form')!);
+
+      // useChat appends the user message, and the answer to it arrives
+      const userMsg = sendMessage.mock.calls[0][0];
+      const reply = createAssistantMessage(JSON.stringify(['Sure']), 'reply');
+      const allMessages = [...initialMessages, userMsg, reply];
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({ messages: allMessages, sendMessage }));
+      rerender(<ChatPanel />);
+      await finishReply(reply, allMessages);
+
+      // She keeps typing the rest of her earlier message
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(shownTimes(container)).toEqual([at(0), at(7)]);
+      expect(isTyping(container)).toBe(true);
+
+      // ...and only answers once it's out, in the order it all appeared
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(15 * MINUTE);
+      });
+      expect(shownTimes(container)).toEqual([at(0), at(7), at(10), at(20), at(20)]);
+      expect(container.querySelectorAll('.bg-gray-200')[3]?.textContent).toBe('Sure');
+      expect(isTyping(container)).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+// The AI panel's view of the chat must match the participant's: nothing she
+// hasn't "typed" yet, in the order it appeared.
+describe('ChatPanel - Conversation passed to the AI panel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('includes only parts on screen', async () => {
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const chatMessages = [
+        createUserMessage('', 'initial-user-message'),
+        createAssistantMessage(JSON.stringify(['Part 1', 'Part 2']), 'two-part-msg'),
+      ];
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({ messages: chatMessages }));
+      const onConversationChange = vi.fn();
+
+      renderWithJotai(<ChatPanel onConversationChange={onConversationChange} />, {
+        initialValues: [[studyParamsAtom, { username: 'test-user', condition: 'n', page: 'task', autoRefreshInterval: 15000 }]],
+      });
+      await finishReply(chatMessages[1], chatMessages);
+      expect(onConversationChange).toHaveBeenLastCalledWith([]);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      expect(onConversationChange).toHaveBeenLastCalledWith([{ role: 'colleague', content: 'Part 1' }]);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(onConversationChange).toHaveBeenLastCalledWith([
+        { role: 'colleague', content: 'Part 1' },
+        { role: 'colleague', content: 'Part 2' },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

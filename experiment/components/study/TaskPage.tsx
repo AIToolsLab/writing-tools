@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import type { UIMessage } from '@ai-sdk/react';
 import type { WritingAreaRef } from '@/components/WritingArea';
-import type { TextEditorState } from '@/types';
+import type { ConversationMessage, TextEditorState } from '@/types';
 import AIPanel from '@/components/AIPanel';
 import ChatPanel from '@/components/ChatPanel';
 import WritingArea from '@/components/WritingArea';
@@ -24,9 +23,9 @@ export default function TaskPage() {
   const studyParams = useAtomValue(studyParamsAtom);
 
   // Conversation history for AI assistant
-  const [chatMessages, setChatMessages] = useState<UIMessage[]>([]);
-  const handleMessagesChange = useCallback((msgs: UIMessage[]) => {
-    setChatMessages(msgs);
+  const [chatConversation, setChatConversation] = useState<ConversationMessage[]>([]);
+  const handleConversationChange = useCallback((conversation: ConversationMessage[]) => {
+    setChatConversation(conversation);
   }, []);
 
   // Collapsible chat state
@@ -147,7 +146,7 @@ export default function TaskPage() {
                     setHasUnread(true);
                   }
                 }}
-                onMessagesChange={handleMessagesChange}
+                onConversationChange={handleConversationChange}
               />
             </div>
           </div>
@@ -160,7 +159,7 @@ export default function TaskPage() {
           <AIPanel
             writingAreaRef={writingAreaRef}
             isStudyMode={true}
-            chatMessages={studyParams.conversationHistory ? chatMessages : undefined}
+            chatConversation={studyParams.conversationHistory ? chatConversation : undefined}
           />
         </div>
       )}
