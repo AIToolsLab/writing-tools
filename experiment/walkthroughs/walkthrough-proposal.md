@@ -1,7 +1,7 @@
 # Experiment Walkthrough: Proposal Advice (p) Condition
 
-*2026-10-07T14:45:37Z by Showboat 0.6.1*
-<!-- showboat-id: abaf681e-afad-42fc-b6e2-9e4c301ef264 -->
+*2026-10-23T22:26:43Z by Showboat 0.6.1*
+<!-- showboat-id: d26760a8-43e0-4b46-9fcf-ae4b94a01754 -->
 
 This walkthrough demonstrates the complete participant experience in the **proposal_advice (p)** condition of the writing experiment, using the **roomDoubleBooking** scenario. In this condition, participants receive directive AI advice (not copy-paste text) while composing an email.
 
@@ -45,7 +45,7 @@ walkthroughs/walkthrough-intro.png
 
 ![walkthrough-intro](walkthrough-intro.png)
 
-The participant clicks "Begin Study" to continue.
+The participant clicks "On to the Intro Survey" to continue.
 
 ## Step 3: Intro Survey
 
@@ -205,34 +205,19 @@ Self-efficacy questions filled
 ```
 
 ```bash
-rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-self-efficacy-top.png
+rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-self-efficacy.png
 ```
 
 ```output
 null
-walkthroughs/walkthrough-survey-self-efficacy-top.png
+walkthroughs/walkthrough-survey-self-efficacy.png
 ```
 
 ```bash {image}
-walkthroughs/walkthrough-survey-self-efficacy-top.png
+walkthroughs/walkthrough-survey-self-efficacy.png
 ```
 
-![walkthrough-survey-self-efficacy-top](walkthrough-survey-self-efficacy-top.png)
-
-```bash
-rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-self-efficacy-bottom.png
-```
-
-```output
-null
-walkthroughs/walkthrough-survey-self-efficacy-bottom.png
-```
-
-```bash {image}
-walkthroughs/walkthrough-survey-self-efficacy-bottom.png
-```
-
-![walkthrough-survey-self-efficacy-bottom](walkthrough-survey-self-efficacy-bottom.png)
+![walkthrough-survey-self-efficacy](walkthrough-survey-self-efficacy.png)
 
 ```bash
 rodney click 'button[type="submit"]' && rodney sleep 1 && echo "Next page"
@@ -262,34 +247,19 @@ Need for Cognition questions filled
 ```
 
 ```bash
-rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ncs-top.png
+rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ncs.png
 ```
 
 ```output
 null
-walkthroughs/walkthrough-survey-ncs-top.png
+walkthroughs/walkthrough-survey-ncs.png
 ```
 
 ```bash {image}
-walkthroughs/walkthrough-survey-ncs-top.png
+walkthroughs/walkthrough-survey-ncs.png
 ```
 
-![walkthrough-survey-ncs-top](walkthrough-survey-ncs-top.png)
-
-```bash
-rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-survey-ncs-bottom.png
-```
-
-```output
-null
-walkthroughs/walkthrough-survey-ncs-bottom.png
-```
-
-```bash {image}
-walkthroughs/walkthrough-survey-ncs-bottom.png
-```
-
-![walkthrough-survey-ncs-bottom](walkthrough-survey-ncs-bottom.png)
+![walkthrough-survey-ncs](walkthrough-survey-ncs.png)
 
 On the last page, the participant clicks "Continue to Task" to proceed.
 
@@ -320,36 +290,6 @@ walkthroughs/walkthrough-task-instructions.png
 ```
 
 ![walkthrough-task-instructions](walkthrough-task-instructions.png)
-
-```bash
-rodney js "window.scrollTo(0, 500)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-task-instructions-2.png
-```
-
-```output
-null
-walkthroughs/walkthrough-task-instructions-2.png
-```
-
-```bash {image}
-walkthroughs/walkthrough-task-instructions-2.png
-```
-
-![walkthrough-task-instructions-2](walkthrough-task-instructions-2.png)
-
-```bash
-rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-task-instructions-3.png
-```
-
-```output
-null
-walkthroughs/walkthrough-task-instructions-3.png
-```
-
-```bash {image}
-walkthroughs/walkthrough-task-instructions-3.png
-```
-
-![walkthrough-task-instructions-3](walkthrough-task-instructions-3.png)
 
 The participant clicks "Start Writing Task" to begin the main task.
 
@@ -440,18 +380,18 @@ rodney js "document.querySelector('.flex-1.overflow-y-auto.bg-white').innerText"
 
 ```output
 Problem with Jaden's panel tomorrow
-09:46 AM
+05:28 PM
 Room got double-booked. Gotta move him. But gotta keep him happy!
-09:46 AM
+05:28 PM
 I'm on a call, so need you to email him. What info do you need to sort this out?
-09:46 AM
+05:28 PM
 What room is Jaden being moved to? And what time is his panel?
-09:46 AM
+05:28 PM
 Delivered
-Room 14
-09:46 AM
-1:30pm
-09:46 AM
+Room 14 is the option for Jaden.
+05:28 PM
+It can work at 1:30pm.
+05:28 PM
 ```
 
 ### Composing the Email
@@ -536,13 +476,13 @@ rodney js "document.querySelector('h3').parentElement.innerText"
 ```output
 AI Writing Assistant
 Suggestions are based on your email draft and may incorporate details from recent chat conversations. They refresh automatically.
-09:46 AM
+05:28 PM
 Advice for your next words:
-- State the original room and time explicitly, then immediately confirm Room 14 at 1:30 PM.
+- State the new room and time again in a clear, scannable closing line before the sign-off.
 
-- Add one sentence explaining how signage, staff, and attendees will be redirected to Room 14.
+- Add one sentence acknowledging his needs and offering a quick way to confirm any AV or setup requirements.
 
-- End with a clear next step, offering a direct contact method for urgent concerns today.
+- Include a brief next-step action for him, specifying when you need a reply to finalize the room change.
 Delete
 AI-generated text may vary in quality
 ```
@@ -589,53 +529,149 @@ http://localhost:3000/study?username=walkthrough-user&condition=p&scenario=roomD
 
 ## Step 7: Post-Task Survey
 
-The participant then completes a post-task questionnaire. It includes NASA TLX-style workload questions (mental effort, time pressure, frustration) plus AI-specific questions about whether suggestions were helpful, easy to understand, and whether the participant felt pressured to use them.
+The post-task survey is split into five pages, each with **Next** and **Back** buttons like the intro survey. The pages are ordered to limit priming: open-ended recall comes first, before any page that names specific concerns or mentions the AI.
+
+1. **General Recall** — what decisions the participant remembers making
+2. **Email Feedback** — a micro-task reviewing a colleague's weak draft
+3. **Comprehension** — hypothetical follow-up situations
+4. **Specific Recall** — whether they remember considering particular concerns
+5. **Task Experience** — workload, other tools, and AI-specific questions
+
+### Page 1: General Recall
+
+A single open-ended question asking which decisions the participant made about what to include or leave out, and what influenced each one.
 
 ```bash
-rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-top.png
+rodney screenshot walkthroughs/walkthrough-post-survey-general-recall.png
 ```
 
 ```output
-walkthroughs/walkthrough-post-survey-top.png
+walkthroughs/walkthrough-post-survey-general-recall.png
 ```
 
 ```bash {image}
-walkthroughs/walkthrough-post-survey-top.png
+walkthroughs/walkthrough-post-survey-general-recall.png
 ```
 
-![walkthrough-post-survey-top](walkthrough-post-survey-top.png)
+![walkthrough-post-survey-general-recall](walkthrough-post-survey-general-recall.png)
 
 ```bash
-rodney js "window.scrollTo(0, 600)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-mid.png
+rodney input "form textarea" "I mentioned the new room number and time first since that is what Jaden needs most. I apologized because Sarah said to keep him happy. I left out why the room was double-booked because it did not seem relevant to him." && rodney click 'button[type="submit"]' && rodney sleep 1 && echo "Next page"
+```
+
+```output
+Typed: I mentioned the new room number and time first since that is what Jaden needs most. I apologized because Sarah said to keep him happy. I left out why the room was double-booked because it did not seem relevant to him.
+Clicked
+Next page
+```
+
+### Page 2: Email Feedback
+
+The participant imagines a colleague was given the same task and reviews their draft. The draft is deliberately vague and over-apologetic (it never says where or when the panel is moving). Every edit to the feedback box is logged (`surveyInputUpdate`) so large pastes can be detected, and the question reminds participants not to use writing aids.
+
+```bash
+rodney screenshot walkthroughs/walkthrough-post-survey-email-feedback.png
+```
+
+```output
+walkthroughs/walkthrough-post-survey-email-feedback.png
+```
+
+```bash {image}
+walkthroughs/walkthrough-post-survey-email-feedback.png
+```
+
+![walkthrough-post-survey-email-feedback](walkthrough-post-survey-email-feedback.png)
+
+```bash
+rodney input "form textarea" "The email never says which room Jaden is moving to or what time, so he cannot act on it. Cut the repeated apologies and add the new details up front so he knows exactly what changed." && rodney click 'button[type="submit"]' && rodney sleep 1 && echo "Next page"
+```
+
+```output
+Typed: The email never says which room Jaden is moving to or what time, so he cannot act on it. Cut the repeated apologies and add the new details up front so he knows exactly what changed.
+Clicked
+Next page
+```
+
+### Page 3: Comprehension
+
+Three open-ended questions about hypothetical situations after the email is sent: how to respond to a request from the recipient, what reactions the recipient might have, and what the participant would need to know if new information came up. Each question is treated independently.
+
+```bash
+rodney screenshot walkthroughs/walkthrough-post-survey-comprehension.png
+```
+
+```output
+walkthroughs/walkthrough-post-survey-comprehension.png
+```
+
+```bash {image}
+walkthroughs/walkthrough-post-survey-comprehension.png
+```
+
+![walkthrough-post-survey-comprehension](walkthrough-post-survey-comprehension.png)
+
+```bash
+rodney input 'form .space-y-6 > div:nth-child(1) textarea' "I would check with Sarah before promising anything, since I do not know our policy on discounts." && rodney input 'form .space-y-6 > div:nth-child(2) textarea' "He may ask whether the new room has the same equipment and whether attendees will be told about the change." && rodney input 'form .space-y-6 > div:nth-child(3) textarea' "I would need to know whether Room 12 becomes free at his original time and whether moving back would cause more confusion." && rodney click 'button[type="submit"]' && rodney sleep 1 && echo "Next page"
+```
+
+```output
+Typed: I would check with Sarah before promising anything, since I do not know our policy on discounts.
+Typed: He may ask whether the new room has the same equipment and whether attendees will be told about the change.
+Typed: I would need to know whether Room 12 becomes free at his original time and whether moving back would cause more confusion.
+Clicked
+Next page
+```
+
+### Page 4: Specific Recall
+
+Ten scenario-specific concerns (two of which, band setup and hotel housekeeping, obviously do not fit the scenario), each answered **Yes, I remember considering this**, **I'm not sure**, or **No, I don't remember considering this**.
+
+```bash
+for key in room_12_to_14 room_double_booked new_room_1pm_conflict; do rodney click "input[name=\"specific_recall_$key\"][value=\"Yes, I remember considering this\"]"; done && for key in already_advertised reliability_confidence; do rodney click "input[name=\"specific_recall_$key\"][value=\"I'm not sure\"]"; done && for key in band_setup_time delay_conflicts_commitments new_room_readiness housekeeping_cleaning panel_less_important; do rodney click "input[name=\"specific_recall_$key\"][value=\"No, I don't remember considering this\"]"; done && echo "Specific recall filled"
+```
+
+```output
+Clicked
+Clicked
+Clicked
+Clicked
+Clicked
+Clicked
+Clicked
+Clicked
+Clicked
+Clicked
+Specific recall filled
+```
+
+```bash
+rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-post-survey-specific-recall.png
 ```
 
 ```output
 null
-walkthroughs/walkthrough-post-survey-mid.png
+walkthroughs/walkthrough-post-survey-specific-recall.png
 ```
 
 ```bash {image}
-walkthroughs/walkthrough-post-survey-mid.png
+walkthroughs/walkthrough-post-survey-specific-recall.png
 ```
 
-![walkthrough-post-survey-mid](walkthrough-post-survey-mid.png)
+![walkthrough-post-survey-specific-recall](walkthrough-post-survey-specific-recall.png)
 
 ```bash
-rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-bottom.png
+rodney click 'button[type="submit"]' && rodney sleep 1 && echo "Next page"
 ```
 
 ```output
-null
-walkthroughs/walkthrough-post-survey-bottom.png
+Clicked
+Next page
 ```
 
-```bash {image}
-walkthroughs/walkthrough-post-survey-bottom.png
-```
+### Page 5: Task Experience
 
-![walkthrough-post-survey-bottom](walkthrough-post-survey-bottom.png)
-
-Let's fill in the post-task survey as a sample participant.
+Only this last page reveals the condition: a callout explains what the AI provided (for **p**, "About the AI Advice"). Below it are NASA TLX-style workload questions, which other tools were used, technical difficulties, and AI-specific questions (a moment they decided not to use a suggestion, whether suggestions were easy to understand and helpful, whether they felt pressured, and a free-text description). The no-AI condition gets only the common questions.
 
 ```bash
 rodney click 'input[name="tlx_mental_demand"][value="Medium"]' && rodney click 'input[name="tlx_temporal_demand"][value="Low"]' && rodney click 'input[name="tlx_performance"][value="Good"]' && rodney click 'input[name="tlx_physical_demand"][value="Very Low"]' && rodney click 'input[name="tlx_effort"][value="Medium"]' && rodney click 'input[name="tlx_frustration"][value="Low"]' && echo "TLX questions filled"
@@ -673,36 +709,21 @@ Other tools: None
 ```
 
 ```bash
-rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-filled-top.png
+rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-post-survey-task-experience.png
 ```
 
 ```output
 null
-walkthroughs/walkthrough-post-survey-filled-top.png
+walkthroughs/walkthrough-post-survey-task-experience.png
 ```
 
 ```bash {image}
-walkthroughs/walkthrough-post-survey-filled-top.png
+walkthroughs/walkthrough-post-survey-task-experience.png
 ```
 
-![walkthrough-post-survey-filled-top](walkthrough-post-survey-filled-top.png)
+![walkthrough-post-survey-task-experience](walkthrough-post-survey-task-experience.png)
 
-```bash
-rodney js "window.scrollTo(0, document.body.scrollHeight)" && rodney sleep 1 && rodney screenshot -w 1440 -h 900 walkthroughs/walkthrough-post-survey-filled-bottom.png
-```
-
-```output
-null
-walkthroughs/walkthrough-post-survey-filled-bottom.png
-```
-
-```bash {image}
-walkthroughs/walkthrough-post-survey-filled-bottom.png
-```
-
-![walkthrough-post-survey-filled-bottom](walkthrough-post-survey-filled-bottom.png)
-
-The post-task survey includes both general workload questions (NASA TLX) and condition-specific AI questions. For the **p** condition, participants reflect on the directive advice: whether it was easy to understand, helpful, and whether they felt pressured to follow it. The participant clicks "Continue" to submit.
+The participant clicks "Continue" to submit the survey.
 
 ```bash
 rodney click 'button[type="submit"]' && rodney sleep 2 && rodney url
@@ -761,7 +782,7 @@ The **proposal_advice (p)** condition walkthrough is complete. The participant e
    - AI Writing Assistant providing **directive advice** (not copy-paste text)
    - Auto-refreshing suggestions every 15 seconds
 6. **Task Complete** — Confirmation page before the post-task survey
-7. **Post-Task Survey** — Workload assessment + AI-specific reflection questions
+7. **Post-Task Survey** — Five pages: general recall, email feedback micro-task, comprehension, specific recall, and task experience (workload + AI-specific reflection)
 8. **Completion** — Thank you and Prolific code
 
 The key feature of the **p** condition: AI advice guides *thinking* rather than *writing*. Suggestions like "Add the building name for Room 14" and "End with a confirmation request" prompt deeper engagement without providing verbatim text to copy.
