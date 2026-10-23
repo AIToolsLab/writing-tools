@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { waitFor, fireEvent, screen, act } from '@testing-library/react';
 import ChatPanel from '@/components/ChatPanel';
 import { studyParamsAtom } from '@/contexts/StudyContext';
@@ -1117,5 +1117,103 @@ describe('ChatPanel - Message Logging', () => {
     await waitFor(() => {
       expect(mockScrollIntoView).toHaveBeenCalled();
     });
+  });
+});
+
+// Each bubble shows the time it first appeared. The time must be captured once,
+// not recomputed on render, or every bubble shows "now" and they all tick forward
+// together as the conversation goes on.
+describe('ChatPanel - Message timestamps', () => {
+  const studyParams = {
+    username: 'test-user',
+    condition: 'n',
+    page: 'task',
+    autoRefreshInterval: 15000,
+  };
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  const shownTimes = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll('.mb-3.text-sm.leading-snug')).map(
+      (bubble) => bubble.children[1]?.textContent
+    );
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('keeps each assistant part at the time it was revealed', async () => {
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const t0 = new Date(2026, 0, 15, 10, 0);
+      const t1 = new Date(2026, 0, 15, 10, 7);
+      vi.setSystemTime(t0);
+
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
+        messages: [
+          createUserMessage('', 'initial-user-message'),
+          createAssistantMessage(JSON.stringify(['Part 1', 'Part 2']), 'two-part-msg'),
+        ],
+      }));
+
+      const { container } = renderWithJotai(<ChatPanel />, {
+        initialValues: [[studyParamsAtom, studyParams]],
+      });
+
+      // First part is revealed at t0
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      expect(shownTimes(container)).toEqual([formatTime(t0)]);
+
+      // Wall clock moves on; the second reveal re-renders the first bubble
+      vi.setSystemTime(t1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      expect(shownTimes(container)).toEqual([formatTime(t0), formatTime(t1)]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps a user message at the time it appeared across re-renders', async () => {
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const t0 = new Date(2026, 0, 15, 10, 0);
+      const t1 = new Date(2026, 0, 15, 10, 7);
+      vi.setSystemTime(t0);
+
+      const userMsg = createUserMessage('When is the panel?', 'user-msg');
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
+        messages: [createUserMessage('', 'initial-user-message'), userMsg],
+      }));
+
+      const { container, rerender } = renderWithJotai(<ChatPanel />, {
+        initialValues: [[studyParamsAtom, studyParams]],
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(shownTimes(container)).toEqual([formatTime(t0)]);
+
+      // The reply arrives minutes later and is revealed
+      vi.setSystemTime(t1);
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({
+        messages: [
+          createUserMessage('', 'initial-user-message'),
+          userMsg,
+          createAssistantMessage(JSON.stringify(['At 3pm']), 'reply'),
+        ],
+      }));
+      rerender(<ChatPanel />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(shownTimes(container)).toEqual([formatTime(t0), formatTime(t1)]);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
