@@ -1,6 +1,6 @@
 'use client';
 
-import { Fragment, useCallback, useRef, useState, useEffect } from 'react';
+import { Fragment, useCallback, useRef, useState, useEffect, useEffectEvent } from 'react';
 import type { RefObject } from 'react';
 import type { WritingAreaRef } from '@/components/WritingArea';
 import type { ConversationMessage, GenerationResult, SavedItem, TextEditorState } from '@/types';
@@ -97,7 +97,6 @@ export default function AIPanel({
   const studyCondition = useAtomValue(studyConditionAtom);
   const mode = isStudyMode ? studyCondition : undefined;
   const autoRefreshInterval = studyParams.autoRefreshInterval;
-  const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const previousRequestRef = useRef<{ editorState: TextEditorState; mode: string; chatMessageCount: number } | null>(null);
   const previousResponseRef = useRef<GenerationResult | null>(null);
 
@@ -251,23 +250,22 @@ export default function AIPanel({
     [writingAreaRef, save, mode, isStudyMode, studyParams, chatConversation]
   );
 
-  // Auto-refresh logic for study mode
+  // Auto-refresh logic for study mode. The tick calls the latest getSuggestion
+  // without depending on it: getSuggestion changes whenever the chat does, and
+  // restarting the interval on each change would push refreshes back
+  // indefinitely while the participant is chatting.
+  const autoRefresh = useEffectEvent(() => {
+    getSuggestion(mode, true);
+  });
+
   useEffect(() => {
     if (!isStudyMode || !mode || mode === 'no_ai') {
       return;
     }
 
-    // Set up auto-refresh interval
-    autoRefreshIntervalRef.current = setInterval(() => {
-      getSuggestion(mode, true);
-    }, autoRefreshInterval);
-
-    return () => {
-      if (autoRefreshIntervalRef.current) {
-        clearInterval(autoRefreshIntervalRef.current);
-      }
-    };
-  }, [isStudyMode, mode, autoRefreshInterval, getSuggestion]);
+    const interval = setInterval(autoRefresh, autoRefreshInterval);
+    return () => clearInterval(interval);
+  }, [isStudyMode, mode, autoRefreshInterval]);
 
   let alerts = null;
 
