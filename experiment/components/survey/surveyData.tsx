@@ -289,6 +289,87 @@ export const generalRecallQuestions: Question[] = [
   },
 ];
 
+const specificRecallOptions = [
+  'Yes, I remember considering this',
+  "I'm not sure",
+  "No, I don't remember considering this",
+];
+
+/**
+ * Cued recall concerns per scenario ID. Each concern is saved as
+ * `specific_recall_${key}`.
+ */
+export const specificRecallConcerns: Record<string, Record<string, string>> = {
+  roomDoubleBooking: {
+    already_advertised:
+      'Jaden may have already advertised the original time and location to his audience.',
+    new_room_1pm_conflict:
+      'The new room cannot accommodate a 1pm start because the preceding event ends at 1pm.',
+    room_double_booked:
+      "Jaden's originally scheduled room is no longer available because it was double-booked.",
+    new_room_readiness:
+      'Jaden may be concerned about whether the new room will be ready in time.',
+    reliability_confidence:
+      "The last-minute scheduling change may cause Jaden to lose confidence in Meridian Events' reliability.",
+    delay_conflicts_commitments:
+      "Delaying Jaden's panel may conflict with his existing commitments.",
+    panel_less_important:
+      'Jaden may feel that his panel is being treated as less important because Sophia is more famous.',
+    room_12_to_14: "Jaden's panel must move from Room 12 to Room 14.",
+  },
+  demoRescheduling: {
+    bug_affects_interest:
+      'The bug affects the automated reporting capabilities that Dr. Patel is particularly interested in seeing.',
+    delay_limits_transition:
+      'Delaying the product demonstration could leave little time for MediCore to transition to a new reporting system before its existing system loses support.',
+    fix_vs_vendor_deadline:
+      "The time required to fix the reporting bug may conflict with MediCore's deadline for selecting a new software vendor.",
+    reporting_unreliable:
+      "Crestview's automated reporting capabilities are unreliable because of a bug in the reporting module.",
+    qa_practices_doubt:
+      "Discovering a critical bug immediately before the demonstration may cause Dr. Patel to question Crestview's quality assurance practices.",
+    fix_takes_4_5_days:
+      "Crestview's engineering team needs 4-5 days to fix and test the reporting bug.",
+    partial_demo_option:
+      'Crestview may be able to demonstrate unaffected software capabilities as scheduled and arrange a separate demonstration of the automated reporting capabilities once the bug is fixed.',
+    demo_tomorrow_2pm:
+      'The product demonstration with Dr. Patel is scheduled for tomorrow at 2pm.',
+  },
+  substituteProduct: {
+    x9_aesthetic:
+      "The different design of the ErgoFit X9 chairs may not match Jordan's intended office aesthetic.",
+    e7_supply_delay:
+      "Jordan's ErgoFit E7 chairs will not arrive as scheduled because of a supply issue.",
+    northline_confidence:
+      "The last-minute delivery problem may undermine Jordan's confidence in Northline Office Supply.",
+    pressure_to_accept:
+      "The urgency of Jordan's office move may make him feel pressured to accept substitute chairs that do not fully meet his needs.",
+    chairs_needed_tomorrow:
+      'Jordan needs office chairs ready for his move into a new office tomorrow.',
+    x9_different_model:
+      'The ErgoFit X9 chairs are a different model from what Jordan originally ordered.',
+    business_disruption:
+      "The lack of chairs on moving day may disrupt Jordan's business operations.",
+    x9_higher_price:
+      'The higher price of the ErgoFit X9 chairs may place an unexpected financial burden on Jordan.',
+  },
+};
+
+/**
+ * Cued recall questions for a scenario
+ */
+export function getSpecificRecallQuestions(scenarioId: string): Question[] {
+  return Object.entries(specificRecallConcerns[scenarioId] ?? {}).map(
+    ([key, text]) => ({
+      id: `specific_recall_${key}`,
+      text,
+      type: 'radio',
+      options: specificRecallOptions,
+      required: true,
+    }),
+  );
+}
+
 /**
  * Common post-task survey questions (used by all conditions)
  */
@@ -446,10 +527,11 @@ export const conditionDebriefs: Record<
 };
 
 /**
- * Get post-task survey sections for a condition
+ * Get post-task survey sections for a condition and scenario
  */
 export function getPostTaskSurveySections(
   condition: ConditionName,
+  scenarioId: string,
 ): SurveySection[] {
   // Add AI-specific questions for all conditions except no_ai
   const experienceQuestions =
@@ -459,6 +541,12 @@ export function getPostTaskSurveySections(
 
   return [
     { title: 'General Recall', questions: generalRecallQuestions },
+    {
+      title: 'Specific Recall',
+      description:
+        'Please indicate whether each of the following concerns reflects something you remember considering while writing the email.',
+      questions: getSpecificRecallQuestions(scenarioId),
+    },
     { title: 'Task Experience', questions: experienceQuestions },
   ];
 }

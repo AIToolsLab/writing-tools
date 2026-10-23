@@ -3,7 +3,7 @@
 import { useSearchParams } from 'next/navigation';
 import { useAtom } from 'jotai';
 import { log, logThenRedirect } from '@/lib/logging';
-import { getNextPage, letterToCondition } from '@/lib/studyConfig';
+import { getNextPage, getScenario, letterToCondition } from '@/lib/studyConfig';
 import { surveyInputAtom } from '@/contexts/StudyContext';
 import Survey from '@/components/survey/Survey';
 import {
@@ -17,8 +17,10 @@ export default function PostTaskSurvey() {
   const username = searchParams.get('username') || '';
   const conditionCode = (searchParams.get('condition') || 'n') as keyof typeof letterToCondition;
   const condition = letterToCondition[conditionCode];
+  // getScenario resolves a missing or unknown ID to the default scenario
+  const scenarioId = getScenario(searchParams.get('scenario') || undefined).id;
 
-  const surveySections = getPostTaskSurveySections(condition);
+  const surveySections = getPostTaskSurveySections(condition, scenarioId);
   const debrief = conditionDebriefs[condition];
 
   const handleSubmit = async () => {
