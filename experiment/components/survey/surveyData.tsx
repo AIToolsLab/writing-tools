@@ -570,9 +570,11 @@ export const postTaskCommonQuestions: Question[] = [
       'Grammarly or similar grammar checker',
       'ChatGPT or other AI',
       'Dictionary or thesaurus',
+      'Other (please specify)',
       'None',
-      'Other (please specify in the next question)',
     ],
+    otherOption: 'Other (please specify)',
+    exclusiveOption: 'None',
     required: false,
   },
   {
