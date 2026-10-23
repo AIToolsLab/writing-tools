@@ -95,7 +95,7 @@
     },
     "recipient": {
       "name": "Dr. Lisa Patel",
-      "email": "l.patel@medicore.com"
+      "email": "l.patel@example.com"
     },
     "taskInstructions": {
       "title": "Writing Task",
