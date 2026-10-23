@@ -37,3 +37,7 @@ invalid ones.
   session with the same username.
 - `documentUpdate` events hold full-document snapshots on every keystroke. They are
   highly redundant, so compress log files at rest (e.g. `zstd --long`).
+- `surveyInputUpdate` events do the same for survey text questions marked
+  `logChanges` (currently the post-task email feedback micro-task): `questionId`,
+  the full `value`, and its `length` on every change. The final answers are still
+  in `surveyComplete:*`.

@@ -1,8 +1,9 @@
 'use client';
 
 import { Fragment } from 'react';
-import { useAtom } from 'jotai';
-import { surveyInputAtom } from '@/contexts/StudyContext';
+import { useAtom, useAtomValue } from 'jotai';
+import { studyParamsAtom, surveyInputAtom } from '@/contexts/StudyContext';
+import { log } from '@/lib/logging';
 import { QuestionType } from './types';
 
 interface ControlledInputProps {
@@ -15,6 +16,7 @@ interface ControlledInputProps {
   multiline?: boolean;
   otherOption?: string;
   exclusiveOption?: string;
+  logChanges?: boolean;
 }
 
 export default function ControlledInput({
@@ -27,8 +29,10 @@ export default function ControlledInput({
   multiline = true,
   otherOption,
   exclusiveOption,
+  logChanges = false,
 }: ControlledInputProps) {
   const [inputs, setInputs] = useAtom(surveyInputAtom);
+  const { username } = useAtomValue(studyParamsAtom);
   const value = inputs[questionId] ?? '';
   const otherKey = `${questionId}_other`;
 
@@ -62,13 +66,26 @@ export default function ControlledInput({
   };
 
   if (type === 'text') {
+    // Mirrors the task page's documentUpdate logging, so the writing process
+    // (e.g., large pastes) can be reconstructed for open-ended tasks
+    const handleTextChange = (newValue: string) => {
+      handleChange(newValue);
+      if (logChanges) {
+        log({
+          username,
+          event: 'surveyInputUpdate',
+          extra_data: { questionId, value: newValue, length: newValue.length },
+        });
+      }
+    };
+
     const baseClassName = "w-full p-2 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500";
 
     if (multiline) {
       return (
         <textarea
           value={String(value)}
-          onChange={(e) => handleChange(e.target.value)}
+          onChange={(e) => handleTextChange(e.target.value)}
           placeholder={placeholder}
           required={required}
           rows={3}
@@ -81,7 +98,7 @@ export default function ControlledInput({
       <input
         type="text"
         value={String(value)}
-        onChange={(e) => handleChange(e.target.value)}
+        onChange={(e) => handleTextChange(e.target.value)}
         placeholder={placeholder}
         required={required}
         className={baseClassName}
