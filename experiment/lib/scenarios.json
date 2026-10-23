@@ -107,9 +107,9 @@
       "initialMessages": [
         "Hey, we have a problem with tomorrow's MediCore demo 😓",
         "Found a critical bug in the reporting module this morning. Can't show it like this to a VP.",
-        "Can you email Dr. Patel and reschedule? Need to keep her confident in us. What info do you need?"
+        "I'm in the middle of a call. Can you email her? Let me know what info you need."
       ],
-      "followUpMessage": "still here if you need anything",
+      "followUpMessage": "Still here if you need anything",
       "probes": [
         {
           "name": "Direct slot question",
@@ -192,8 +192,8 @@
       "reasoningEffort": "low",
       "initialMessages": [
         "Hey, it looks like Jordan's chair order won't make tomorrow's delivery.",
-        "We can send him a different model from our warehouse today.",
-        "I'm in between calls right now, but I can chat with you if you need more details from me."
+        "We should figure out another option he'd be okay with. Gotta keep him happy.",
+        "I'm on a call right now. You'll need to email him, but I can answer any questions."
       ],
       "followUpMessage": "I'm on a short break right now, do you have any questions for me?",
       "probes": [
