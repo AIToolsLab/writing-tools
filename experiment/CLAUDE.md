@@ -42,7 +42,6 @@ The colleague serves dual purposes:
 ### Task Scenarios
 The experiment supports multiple configurable scenarios. Each scenario includes a unique colleague, recipient, and situation. Key design decisions:
 - **Information gap**: The colleague's initial messages explain the problem but don't specify all details, encouraging participants to ask questions
-- **Company framing**: Task instructions and colleague messages emphasize representing the company professionally
 - **Follow-up nudge**: If participants don't engage with the chat, the colleague sends a brief follow-up after ~75 seconds (e.g., "still here if you need anything")—this is a conversation nudge, NOT an information dump
 
 **Available Scenarios:**
@@ -62,7 +61,7 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 1. `components/study/ConsentPage.tsx` - Consent form
 2. `components/study/IntroPage.tsx` - Study introduction
 3. `components/study/IntroSurvey.tsx` - Pre-task survey
-4. `components/study/StartTaskPage.tsx` - Task instructions (mentions chat, company framing)
+4. `components/study/StartTaskPage.tsx` - Task instructions (mentions chat)
 5. `components/study/TaskPage.tsx` - Main writing task with chat + AI panels
 6. `components/study/PostTaskSurvey.tsx` - Post-task survey
 7. `components/study/FinalPage.tsx` - Completion page
@@ -96,7 +95,7 @@ Realistic timing works as follows: The colleague finds a moment to read your mes
 To add a new scenario, edit `lib/scenarios.json` and add a new entry (`lib/studyConfig.ts` derives the typed `SCENARIOS` object from it). Each scenario requires:
 - **colleague**: name, firstName, role
 - **recipient**: name, email
-- **taskInstructions**: title, description, companyFraming
+- **taskInstructions**: title, description
 - **chat**: model, reasoningEffort, initialMessages, followUpMessage, systemPromptLines (joined into `systemPrompt` at runtime)
 - **analysis** (eval-only): context, keyFacts; optionally **chat.probes** (eval-only single-turn probes)
 

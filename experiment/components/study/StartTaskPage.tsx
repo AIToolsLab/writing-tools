@@ -71,9 +71,6 @@ export default function StartTaskPage() {
         <div>
           <h3 className="font-semibold mb-2">Keep in mind:</h3>
           <ul className="list-disc list-inside space-y-1">
-            <li>
-              {scenario.taskInstructions.companyFraming}
-            </li>
             <li>There&apos;s no &ldquo;perfect&rdquo; response - write naturally</li>
             <li>Take as much time as you need</li>
             <li>
