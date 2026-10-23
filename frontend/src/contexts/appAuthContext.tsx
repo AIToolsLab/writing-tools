@@ -80,8 +80,12 @@ export interface AppAuthSession {
 	 * reflects in `user`/`hasSetConsent` live. No-op for the demo provider.
 	 */
 	refreshUser: () => Promise<void>;
-	/** Apply the authoritative result of a consent update without re-fetching. */
-	applyConsentSnapshot: (snapshot: ConsentSnapshot) => void;
+	/**
+	 * Apply the authoritative result of a consent update without re-fetching.
+	 * `token` is the one the save was made with; a stale session's result is
+	 * dropped.
+	 */
+	applyConsentSnapshot: (snapshot: ConsentSnapshot, token: string) => void;
 	/**
 	 * True while `loggingConsent` is the provisional `none` held during another
 	 * tab's consent change, rather than a level the user chose. Gate anything

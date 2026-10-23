@@ -42,6 +42,28 @@ describe('account API', () => {
 		});
 	});
 
+	// A 2xx with a body we can't trust is a failed save: the caller rolls back
+	// rather than pushing an unknown level or a missing marker into the session.
+	it.each([
+		[
+			'unknown level',
+			{ loggingConsent: 'everything', consentUpdatedAt: 'x' },
+		],
+		['missing timestamp', { loggingConsent: 'usage' }],
+		[
+			'non-string timestamp',
+			{ loggingConsent: 'usage', consentUpdatedAt: 1 },
+		],
+	])('rejects a malformed consent snapshot (%s)', async (_label, body) => {
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			json: () => Promise.resolve(body),
+		});
+		await expect(changeConsent('tok', 'usage')).rejects.toThrow(
+			'invalid snapshot',
+		);
+	});
+
 	it('uses the bearer-only path for activity erasure', async () => {
 		fetchMock.mockResolvedValueOnce({ ok: true });
 

@@ -6,7 +6,6 @@ import {
 import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
 import { useEffect, useState } from 'react';
-import { consentRank } from '@/consent';
 import {
 	AppAuthProvider,
 	AppAuthTokenBridge,
@@ -24,6 +23,7 @@ import {
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { resolvePage } from '../registry';
 import { OnboardingConsentGate } from './OnboardingConsentGate';
+import { posthogConsentAction } from './posthogConsentPolicy';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
@@ -480,8 +480,8 @@ function AppWithProviders({
 				api_host: POSTHOG_HOST,
 				capture_exceptions: true,
 				// Capture nothing until we know the user's consent level. The
-				// PostHogConsentBridge opts in (and identifies) once a session with
-				// consent >= 'usage' loads. Until then — and at level 'none' — PostHog
+				// PostHogConsentBridge opts in (and identifies) once the user has
+				// chosen consent >= 'usage'. Until then — and at level 'none' — PostHog
 				// stays opted out. NOTE: opt-out also suppresses capture_exceptions, so
 				// level 'none' is fully silent (no crash reports either).
 				opt_out_capturing_by_default: true,
@@ -498,24 +498,34 @@ function AppWithProviders({
  * Bridges logging consent → PostHog. Mounted inside both PostHogProvider and
  * AppAuthProvider. Opts capturing in and identifies the user (by stable Better
  * Auth id, matching server-side log keying + deletion) once an authenticated
- * session at consent >= 'usage' loads; otherwise stays opted out. Renders
- * nothing.
+ * user has CHOSEN a level >= 'usage' (never while the onboarding gate is up or
+ * a cross-tab reconcile is pending); otherwise stays opted out. Renders nothing.
  */
 function PostHogConsentBridge(): null {
 	const posthog = usePostHog();
-	const { isAuthenticated, loggingConsent, user, consentPending } =
-		useAppAuth();
+	const {
+		isAuthenticated,
+		hasSetConsent,
+		loggingConsent,
+		user,
+		consentPending,
+	} = useAppAuth();
+	const userId = user?.id;
 
 	useEffect(() => {
 		if (!posthog) return;
-		const analyticsAllowed =
-			isAuthenticated &&
-			consentRank(loggingConsent) >= consentRank('usage');
+		// The rules (chosen level only, never during a reconcile, when to drop
+		// identity) live in posthogConsentPolicy.ts, where they are tested.
+		const { capture, reset } = posthogConsentAction({
+			isAuthenticated,
+			hasSetConsent,
+			consentPending,
+			loggingConsent,
+			userId,
+		});
 
-		// Require a stable id before opting in, so we never capture untethered
-		// anonymous events that can't be tied to a deletable account identity.
-		if (analyticsAllowed && user?.id) {
-			posthog.identify(user.id);
+		if (capture && userId) {
+			posthog.identify(userId);
 			posthog.opt_in_capturing();
 			return;
 		}
@@ -523,19 +533,17 @@ function PostHogConsentBridge(): null {
 		// Opting out is unconditional — whatever the reason for being here, this
 		// tab must stop capturing now.
 		posthog.opt_out_capturing();
-
-		// reset() is a separate question, because it is about *identity*, not
-		// capture: it rotates the anonymous distinct_id and drops feature flags and
-		// any session recording. Skip it while a cross-tab change is still being
-		// reconciled, where `loggingConsent` is a provisional `none` this tab
-		// assumed rather than a level the user chose. Every ping passes through
-		// that state, including a consent *raise*, so resetting on it would churn
-		// a person profile for a user who withdrew nothing. Once the refresh lands
-		// and `none` turns out to be real, this effect re-runs and does reset.
-		if (!consentPending) {
+		if (reset) {
 			posthog.reset(); // drop identity for a withdrawn or ended session
 		}
-	}, [posthog, isAuthenticated, loggingConsent, user?.id, consentPending]);
+	}, [
+		posthog,
+		isAuthenticated,
+		hasSetConsent,
+		loggingConsent,
+		userId,
+		consentPending,
+	]);
 
 	return null;
 }

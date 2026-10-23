@@ -2,14 +2,21 @@
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-// vi.hoisted so the spy exists before the hoisted vi.mock factory reads it.
-const { fetchUserInfo } = vi.hoisted(() => ({ fetchUserInfo: vi.fn() }));
+// vi.hoisted so the spies exist before the hoisted vi.mock factory reads them.
+const { fetchUserInfo, pollForToken, requestDeviceCode, signOut } = vi.hoisted(
+	() => ({
+		fetchUserInfo: vi.fn(),
+		pollForToken: vi.fn(),
+		requestDeviceCode: vi.fn(),
+		signOut: vi.fn(),
+	}),
+);
 
 vi.mock('@/api/deviceAuth', () => ({
 	fetchUserInfo,
-	pollForToken: vi.fn(),
-	requestDeviceCode: vi.fn(),
-	signOut: vi.fn(),
+	pollForToken,
+	requestDeviceCode,
+	signOut,
 }));
 
 vi.mock('@/api/authTokenStore', () => ({
@@ -50,6 +57,9 @@ function deferred<T>() {
 describe('useDeviceAuth — cross-tab consent reconciliation', () => {
 	beforeEach(() => {
 		fetchUserInfo.mockReset();
+		pollForToken.mockReset();
+		requestDeviceCode.mockReset();
+		signOut.mockReset();
 	});
 
 	it('drops to none while reconciling, then adopts the authoritative level', async () => {
@@ -117,6 +127,8 @@ describe('useDeviceAuth — cross-tab consent reconciliation', () => {
 			await firstDone;
 		});
 		expect(hook.result.current.consentPending).toBe(true);
+		// The superseded response did not publish: still failing closed.
+		expect(hook.result.current.user?.loggingConsent).toBe('none');
 
 		await act(async () => {
 			second.resolve(USER);
@@ -125,19 +137,202 @@ describe('useDeviceAuth — cross-tab consent reconciliation', () => {
 		expect(hook.result.current.consentPending).toBe(false);
 	});
 
+	// Regression (Codex HOLD #2): an older response arriving last must not restore
+	// a level that the newer response withdrew.
+	it('ignores an older reconcile response that lands after the newer one', async () => {
+		const hook = await mountSignedIn();
+
+		const older = deferred<UserInfo>();
+		const newer = deferred<UserInfo>();
+		fetchUserInfo
+			.mockReturnValueOnce(older.promise)
+			.mockReturnValueOnce(newer.promise);
+
+		let olderDone!: Promise<void>;
+		let newerDone!: Promise<void>;
+		act(() => {
+			olderDone = hook.result.current.reconcileConsentFromOtherTab();
+			newerDone = hook.result.current.reconcileConsentFromOtherTab();
+		});
+
+		await act(async () => {
+			newer.resolve({ ...USER, loggingConsent: 'none' });
+			await newerDone;
+		});
+		await act(async () => {
+			older.resolve({ ...USER, loggingConsent: 'document' });
+			await olderDone;
+		});
+
+		expect(hook.result.current.user?.loggingConsent).toBe('none');
+		expect(hook.result.current.consentPending).toBe(false);
+	});
+
+	it('stays at none when the latest reconcile fails, even if an older one succeeded', async () => {
+		const hook = await mountSignedIn();
+
+		const older = deferred<UserInfo>();
+		const newer = deferred<UserInfo>();
+		fetchUserInfo
+			.mockReturnValueOnce(older.promise)
+			.mockReturnValueOnce(newer.promise);
+
+		let olderDone!: Promise<void>;
+		let newerDone!: Promise<void>;
+		act(() => {
+			olderDone = hook.result.current.reconcileConsentFromOtherTab();
+			newerDone = hook.result.current.reconcileConsentFromOtherTab();
+		});
+
+		await act(async () => {
+			older.resolve({ ...USER, loggingConsent: 'document' });
+			await olderDone;
+		});
+		// Still provisional — the older answer may already be out of date.
+		expect(hook.result.current.user?.loggingConsent).toBe('none');
+		expect(hook.result.current.consentPending).toBe(true);
+
+		await act(async () => {
+			newer.reject(new Error('offline'));
+			await newerDone;
+		});
+		expect(hook.result.current.user?.loggingConsent).toBe('none');
+		expect(hook.result.current.consentPending).toBe(false);
+	});
+
 	it('applyConsentSnapshot updates the level and the set-consent marker', async () => {
 		const hook = await mountSignedIn();
 
 		act(() => {
-			hook.result.current.applyConsentSnapshot({
-				loggingConsent: 'none',
-				consentUpdatedAt: '2026-07-28T12:00:00.000Z',
-			});
+			hook.result.current.applyConsentSnapshot(
+				{
+					loggingConsent: 'none',
+					consentUpdatedAt: '2026-07-28T12:00:00.000Z',
+				},
+				'stored-token',
+			);
 		});
 
 		expect(hook.result.current.user?.loggingConsent).toBe('none');
 		expect(hook.result.current.user?.consentUpdatedAt).toBe(
 			'2026-07-28T12:00:00.000Z',
 		);
+	});
+
+	// This tab's own save is newer than any read still in flight from a ping.
+	it('applyConsentSnapshot supersedes an in-flight reconcile', async () => {
+		const hook = await mountSignedIn();
+
+		const pending = deferred<UserInfo>();
+		fetchUserInfo.mockReturnValueOnce(pending.promise);
+		let done!: Promise<void>;
+		act(() => {
+			done = hook.result.current.reconcileConsentFromOtherTab();
+		});
+
+		act(() => {
+			hook.result.current.applyConsentSnapshot(
+				{
+					loggingConsent: 'ai_output',
+					consentUpdatedAt: '2026-07-28T12:00:00.000Z',
+				},
+				'stored-token',
+			);
+		});
+		expect(hook.result.current.consentPending).toBe(false);
+
+		await act(async () => {
+			pending.resolve({ ...USER, loggingConsent: 'document' });
+			await done;
+		});
+		expect(hook.result.current.user?.loggingConsent).toBe('ai_output');
+	});
+
+	it('drops a consent snapshot saved under a different token', async () => {
+		const hook = await mountSignedIn();
+
+		act(() => {
+			hook.result.current.applyConsentSnapshot(
+				{
+					loggingConsent: 'document',
+					consentUpdatedAt: '2026-07-28T12:00:00.000Z',
+				},
+				'someone-elses-token',
+			);
+		});
+
+		expect(hook.result.current.user?.loggingConsent).toBe('usage');
+		expect(hook.result.current.user?.consentUpdatedAt).toBe(
+			USER.consentUpdatedAt,
+		);
+	});
+
+	it('logout during a reconcile clears pending', async () => {
+		const hook = await mountSignedIn();
+		signOut.mockResolvedValueOnce(undefined);
+
+		const pending = deferred<UserInfo>();
+		fetchUserInfo.mockReturnValueOnce(pending.promise);
+		act(() => {
+			void hook.result.current.reconcileConsentFromOtherTab();
+		});
+		expect(hook.result.current.consentPending).toBe(true);
+
+		await act(async () => {
+			await hook.result.current.logout();
+		});
+		expect(hook.result.current.status).toBe('idle');
+		expect(hook.result.current.consentPending).toBe(false);
+	});
+
+	// Regression (Codex HOLD #3): user A's late response must not land in user B's
+	// session after logout → sign-in as B.
+	it("does not write user A's late reconcile into user B's session", async () => {
+		const hook = await mountSignedIn();
+		const USER_B: UserInfo = {
+			id: 'u2',
+			name: 'B',
+			loggingConsent: 'none',
+			consentUpdatedAt: '2026-07-29T00:00:00.000Z',
+		};
+
+		const lateA = deferred<UserInfo>();
+		fetchUserInfo.mockReturnValueOnce(lateA.promise);
+		let lateDone!: Promise<void>;
+		act(() => {
+			lateDone = hook.result.current.reconcileConsentFromOtherTab();
+		});
+
+		signOut.mockResolvedValueOnce(undefined);
+		await act(async () => {
+			await hook.result.current.logout();
+		});
+
+		requestDeviceCode.mockResolvedValueOnce({
+			device_code: 'dc',
+			user_code: 'UC',
+			verification_uri: 'https://example.test/device',
+			verification_uri_complete: 'https://example.test/device?c=UC',
+			expires_in: 600,
+			interval: 1,
+		});
+		pollForToken.mockResolvedValueOnce({
+			type: 'token',
+			accessToken: 'token-B',
+		});
+		fetchUserInfo.mockResolvedValueOnce(USER_B);
+		await act(async () => {
+			await hook.result.current.start();
+		});
+		expect(hook.result.current.user?.id).toBe('u2');
+
+		await act(async () => {
+			lateA.resolve({ ...USER, loggingConsent: 'document' });
+			await lateDone;
+		});
+
+		expect(hook.result.current.token).toBe('token-B');
+		expect(hook.result.current.user).toEqual(USER_B);
+		expect(hook.result.current.consentPending).toBe(false);
 	});
 });
