@@ -10,6 +10,7 @@ import { calculateTypingDuration, calculateInterMessageDelay, calculateThinkingD
 import { getScenario } from '@/lib/studyConfig';
 import { parseMessageContent } from '@/lib/chatUtils';
 import type { UIMessage } from '@ai-sdk/react';
+import type { ConversationMessage } from '@/types';
 
 // The colleague's side of the chat is a discrete-event simulation. Everything
 // that happens over time — each part she types, the delivered/read receipts on
@@ -102,10 +103,12 @@ function withAllPartsDue(parts: Map<string, PartPlan>, now: number): Map<string,
 
 interface ChatPanelProps {
   onNewMessage?: () => void;
-  onMessagesChange?: (messages: UIMessage[]) => void;
+  // The conversation as it appears on screen: only what has been shown, in the
+  // order it appeared
+  onConversationChange?: (conversation: ConversationMessage[]) => void;
 }
 
-export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelProps) {
+export default function ChatPanel({ onNewMessage, onConversationChange }: ChatPanelProps) {
   const studyParams = useAtomValue(studyParamsAtom);
   const username = studyParams.username || 'demo';
   const scenario = getScenario(studyParams.scenario);
@@ -207,8 +210,20 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
     return () => document.removeEventListener('visibilitychange', onVisible);
   }, []);
 
+  // Keys of the parts due by `now`. A string, so it only changes when a part
+  // appears, not on every tick (receipts, typing indicator).
+  const revealedKeys = useMemo(
+    () =>
+      [...partPlans]
+        .filter(([, plan]) => plan.shownAt <= now)
+        .map(([key]) => key)
+        .join('\n'),
+    [partPlans, now]
+  );
+
   // Every part on screen, in the order it appeared
   const displayedParts = useMemo(() => {
+    const revealed = new Set(revealedKeys.split('\n'));
     const shown: Array<{ key: string; messageId: string; isUser: boolean; text: string; shownAt?: number }> = [];
     for (const message of messages) {
       const messageText = getMessageText(message);
@@ -225,7 +240,7 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
         parseMessageContent(messageText).forEach((text, partIndex) => {
           const key = partKey(message.id, partIndex);
           const plan = partPlans.get(key);
-          if (plan && plan.shownAt <= now) {
+          if (plan && revealed.has(key)) {
             shown.push({ key, messageId: message.id, isUser: false, text, shownAt: plan.shownAt });
           }
         });
@@ -233,7 +248,7 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
     }
     // Stable sort: parts that appeared together keep message order
     return shown.sort((a, b) => (a.shownAt ?? 0) - (b.shownAt ?? 0));
-  }, [messages, partPlans, now]);
+  }, [messages, partPlans, revealedKeys]);
 
   const showTypingIndicator = useMemo(() => {
     const inChat = new Set(messages.map((m) => m.id));
@@ -267,16 +282,12 @@ export default function ChatPanel({ onNewMessage, onMessagesChange }: ChatPanelP
     }
   }, [messages.length, setMessages, scenario.chat.initialMessages]);
 
-  // Notify parent of message changes (for conversation history feature)
+  // Notify parent of what's on screen (for conversation history feature)
   useEffect(() => {
-    if (onMessagesChange) {
-      // Filter out the initial empty user message
-      const meaningful = messages.filter(
-        (m) => !(m.id === 'initial-user-message' && getMessageText(m).trim() === '')
-      );
-      onMessagesChange(meaningful);
-    }
-  }, [messages, onMessagesChange]);
+    onConversationChange?.(
+      displayedParts.map((part) => ({ role: part.isUser ? 'user' : 'colleague', content: part.text }))
+    );
+  }, [displayedParts, onConversationChange]);
 
   // Log each assistant message part once, when it first becomes visible
   useEffect(() => {

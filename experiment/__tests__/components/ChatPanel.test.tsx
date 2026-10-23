@@ -1325,3 +1325,44 @@ describe('ChatPanel - Message timestamps', () => {
   });
 });
 
+// The AI panel's view of the chat must match the participant's: nothing she
+// hasn't "typed" yet, in the order it appeared.
+describe('ChatPanel - Conversation passed to the AI panel', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('includes only parts on screen', async () => {
+    vi.useFakeTimers();
+    try {
+      const { useChat } = await import('@ai-sdk/react');
+      const chatMessages = [
+        createUserMessage('', 'initial-user-message'),
+        createAssistantMessage(JSON.stringify(['Part 1', 'Part 2']), 'two-part-msg'),
+      ];
+      vi.mocked(useChat).mockReturnValue(createMockChatHelpers({ messages: chatMessages }));
+      const onConversationChange = vi.fn();
+
+      renderWithJotai(<ChatPanel onConversationChange={onConversationChange} />, {
+        initialValues: [[studyParamsAtom, { username: 'test-user', condition: 'n', page: 'task', autoRefreshInterval: 15000 }]],
+      });
+      await finishReply(chatMessages[1], chatMessages);
+      expect(onConversationChange).toHaveBeenLastCalledWith([]);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(200);
+      });
+      expect(onConversationChange).toHaveBeenLastCalledWith([{ role: 'colleague', content: 'Part 1' }]);
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5000);
+      });
+      expect(onConversationChange).toHaveBeenLastCalledWith([
+        { role: 'colleague', content: 'Part 1' },
+        { role: 'colleague', content: 'Part 2' },
+      ]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
