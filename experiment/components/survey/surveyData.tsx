@@ -328,8 +328,8 @@ export const specificRecallConcerns: Record<string, Record<string, string>> = {
       "Crestview's automated reporting capabilities are unreliable because of a bug in the reporting module.",
     qa_practices_doubt:
       "Discovering a critical bug immediately before the demonstration may cause Dr. Patel to question Crestview's quality assurance practices.",
-    fix_takes_4_5_days:
-      "Crestview's engineering team needs 4-5 days to fix and test the reporting bug.",
+    fix_takes_3_4_business_days:
+      "Crestview's engineering team needs 3-4 business days to fix and test the reporting bug.",
     partial_demo_option:
       'Crestview may be able to demonstrate unaffected software capabilities as scheduled and arrange a separate demonstration of the automated reporting capabilities once the bug is fixed.',
     demo_tomorrow_2pm:
