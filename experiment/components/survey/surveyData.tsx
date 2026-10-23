@@ -671,10 +671,10 @@ export function getPostTaskSurveySections(
   return [
     { title: 'General Recall', questions: generalRecallQuestions },
     {
-      title: 'Specific Recall',
+      title: 'Email Feedback',
       description:
-        'Please indicate whether each of the following concerns reflects something you remember considering while writing the email.',
-      questions: getSpecificRecallQuestions(scenarioId),
+        'Imagine that another colleague was assigned the same writing task you just completed. This time, instead of writing the email yourself, you are reviewing the email your colleague has drafted below.',
+      questions: getEmailFeedbackQuestions(scenarioId),
     },
     {
       title: 'Comprehension',
@@ -683,10 +683,10 @@ export function getPostTaskSurveySections(
       questions: getComprehensionQuestions(scenarioId),
     },
     {
-      title: 'Email Feedback',
+      title: 'Specific Recall',
       description:
-        'Imagine that another colleague was assigned the same writing task you just completed. This time, instead of writing the email yourself, you are reviewing the email your colleague has drafted below.',
-      questions: getEmailFeedbackQuestions(scenarioId),
+        'Please indicate whether each of the following concerns reflects something you remember considering while writing the email.',
+      questions: getSpecificRecallQuestions(scenarioId),
     },
     { title: 'Task Experience', questions: experienceQuestions },
   ];
