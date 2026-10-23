@@ -28,7 +28,8 @@ type Receipt = { deliveredAt: number; readAt: number };
 
 // What happens to parts she hasn't finished typing when the user sends a message:
 // 'flush' shows them all at once; 'keepTyping' lets her finish, and her reply
-// to the new message waits until she has.
+// to the new message waits until she has. Either way the colleague model gets
+// the user's message after her whole reply, not where it appears on screen.
 const INTERRUPT_POLICY: 'flush' | 'keepTyping' = 'keepTyping';
 
 const FOLLOWUP_DELAY_MS = 75000; // 75 seconds (between 60-90s)
@@ -323,7 +324,7 @@ export default function ChatPanel({ onNewMessage, onConversationChange }: ChatPa
     const messageId = `user-${Date.now()}`;
     const sentAt = Date.now();
     setInput('');
-    setNow(sentAt);
+    setNow((prev) => Math.max(prev, sentAt));
     setFollowupAt(null);
     if (INTERRUPT_POLICY === 'flush') {
       setPartPlans((prev) => withAllPartsDue(prev, sentAt));
