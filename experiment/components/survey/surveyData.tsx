@@ -417,6 +417,89 @@ export function getComprehensionQuestions(scenarioId: string): Question[] {
 }
 
 /**
+ * Colleague drafts to review in the email feedback micro-task, per scenario ID
+ */
+export const emailFeedbackDrafts: Record<string, string> = {
+  roomDoubleBooking: `Hi Jaden,
+
+I hope you're doing well.
+
+I wanted to reach out regarding your scheduled session at 1 p.m. in Room 14. Unfortunately, due to an unexpected scheduling conflict, we recently discovered that Room 14 was accidentally double-booked with another influencer at the same time.
+
+We sincerely apologize for any inconvenience or confusion this may cause. We completely understand that last-minute changes can be frustrating, and we truly appreciate your patience, flexibility, and understanding as we work through this situation.
+
+As a result, we will need to make an adjustment to your room assignment. Our team is currently working to ensure that everything is handled as smoothly as possible and that the transition has minimal impact on your session.
+
+We really appreciate your understanding and cooperation, and we apologize again for the inconvenience. Thank you for bearing with us as we work to resolve this scheduling issue.
+
+Best regards,
+Alana Hamilton`,
+  demoRescheduling: `Dear Dr. Patel,
+
+I hope this email finds you well.
+
+I wanted to reach out regarding our upcoming product demonstration scheduled for tomorrow at 2 p.m. Unfortunately, due to an unexpected technical issue, we have encountered a problem with our software's reporting functionality that may affect our ability to proceed with the demonstration as originally planned.
+
+We sincerely apologize for any inconvenience or disruption this may cause. We completely understand how important your time is, and we truly appreciate your patience, flexibility, and understanding as our team works diligently to address this issue.
+
+As a result, we may need to make some adjustments to the demonstration schedule. Our engineering team is actively working toward a resolution, and we are doing everything we can to ensure that the demonstration can take place as smoothly and effectively as possible.
+
+We greatly appreciate your continued interest in Crestview Solutions and your understanding during this time. We sincerely apologize again for the inconvenience and look forward to providing you with a demonstration of our software once the issue has been resolved.
+
+Best regards,
+James Cox`,
+  substituteProduct: `Dear Jordan,
+
+I hope you're doing well.
+
+I wanted to reach out regarding your upcoming office chair delivery scheduled for tomorrow. Unfortunately, due to an unexpected supply issue, we have been informed that the ErgoFit E7 chairs you ordered are experiencing a delay and will not be available for delivery as originally planned.
+
+We sincerely apologize for any inconvenience or disruption this may cause. We completely understand how important it is to have everything ready for your new office, and we truly appreciate your patience, flexibility, and understanding as we work through this situation.
+
+Our team is currently exploring alternative options to help accommodate your needs and minimize any disruption to your office setup. We are committed to finding a suitable resolution and ensuring that your experience with Northline Office Supply remains a positive one.
+
+We genuinely appreciate your understanding and cooperation during this time. Once again, we sincerely apologize for the inconvenience and thank you for bearing with us as we work to resolve this matter.
+
+Best regards,
+Keira Thompson`,
+};
+
+/**
+ * Email feedback micro-task for a scenario: the colleague's draft followed by
+ * the feedback prompt
+ */
+export function getEmailFeedbackQuestions(scenarioId: string): Question[] {
+  const draft = emailFeedbackDrafts[scenarioId];
+  if (!draft) return [];
+
+  return [
+    {
+      id: 'email_feedback',
+      text: (
+        <>
+          <span className="block whitespace-pre-line font-normal bg-gray-50 border border-gray-300 rounded p-4 mb-4">
+            {draft}
+          </span>
+          What feedback would you give your colleague to help them improve the
+          email? Provide feedback on any aspects of the email that you think
+          could be improved. Your feedback may focus on specific parts of the
+          email and/or on the email as a whole. For each suggestion, explain how
+          it would help address the situation.
+          <span className="block font-normal text-gray-700 mt-3">
+            Reminder: Please do not use writing aids, such as Grammarly or
+            ChatGPT, for this task. Standard text-entry features, such as spell
+            check and autocomplete, are allowed.
+          </span>
+        </>
+      ),
+      type: 'text',
+      placeholder: 'Your feedback',
+      required: true,
+    },
+  ];
+}
+
+/**
  * Common post-task survey questions (used by all conditions)
  */
 export const postTaskCommonQuestions: Question[] = [
@@ -598,6 +681,12 @@ export function getPostTaskSurveySections(
       description:
         'Please answer each of the following questions about hypothetical scenarios related to your email. Treat each scenario independently, and do not assume that information from one scenario applies to another.',
       questions: getComprehensionQuestions(scenarioId),
+    },
+    {
+      title: 'Email Feedback',
+      description:
+        'Imagine that another colleague was assigned the same writing task you just completed. This time, instead of writing the email yourself, you are reviewing the email your colleague has drafted below.',
+      questions: getEmailFeedbackQuestions(scenarioId),
     },
     { title: 'Task Experience', questions: experienceQuestions },
   ];
