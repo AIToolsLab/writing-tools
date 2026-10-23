@@ -371,6 +371,52 @@ export function getSpecificRecallQuestions(scenarioId: string): Question[] {
 }
 
 /**
+ * Open-ended comprehension questions per scenario ID. Each question is saved
+ * as `comprehension_${key}`; keys are shared across scenarios.
+ */
+export const comprehensionQuestionTexts: Record<string, Record<string, string>> = {
+  roomDoubleBooking: {
+    recipient_request:
+      'Jaden responds back, asking you for a discount to compensate for his inconvenience. How would you respond, and why?',
+    recipient_reactions:
+      'What questions or reactions might Jaden have when reading your email? Explain what makes you expect them.',
+    new_information:
+      'After you send this email, Sophia cancels her panel and asks to reschedule to a different time. What would you need to know before deciding whether to contact Jaden again?',
+  },
+  demoRescheduling: {
+    recipient_request:
+      "Dr. Patel responds back, asking if you could offer on-site support to replace their previous vendor's reporting system. How would you respond, and why?",
+    recipient_reactions:
+      'What questions or reactions might Dr. Patel have when reading your email? Explain what makes you expect them.',
+    new_information:
+      "After you send this email, you receive an email from the engineering team explaining that an older version of Crestview's software is available for demonstration and doesn't have the critical bug. What would you need to know before deciding whether to contact Dr. Patel again?",
+  },
+  substituteProduct: {
+    recipient_request:
+      'Jordan responds back, asking if you could offer the substitute chairs at the same price as the original chairs. How would you respond, and why?',
+    recipient_reactions:
+      'What questions or reactions might Jordan have when reading your email? Explain what makes you expect them.',
+    new_information:
+      'After you send your email, the warehouse team informs you that only half of the ErgoFit X9 chairs are actually in stock and available for delivery. What would you need to know before deciding whether to contact Jordan again?',
+  },
+};
+
+/**
+ * Comprehension questions for a scenario
+ */
+export function getComprehensionQuestions(scenarioId: string): Question[] {
+  return Object.entries(comprehensionQuestionTexts[scenarioId] ?? {}).map(
+    ([key, text]) => ({
+      id: `comprehension_${key}`,
+      text,
+      type: 'text',
+      placeholder: 'Your answer',
+      required: true,
+    }),
+  );
+}
+
+/**
  * Common post-task survey questions (used by all conditions)
  */
 export const postTaskCommonQuestions: Question[] = [
@@ -546,6 +592,12 @@ export function getPostTaskSurveySections(
       description:
         'Please indicate whether each of the following concerns reflects something you remember considering while writing the email.',
       questions: getSpecificRecallQuestions(scenarioId),
+    },
+    {
+      title: 'Comprehension',
+      description:
+        'Please answer each of the following questions about hypothetical scenarios related to your email. Treat each scenario independently, and do not assume that information from one scenario applies to another.',
+      questions: getComprehensionQuestions(scenarioId),
     },
     { title: 'Task Experience', questions: experienceQuestions },
   ];
