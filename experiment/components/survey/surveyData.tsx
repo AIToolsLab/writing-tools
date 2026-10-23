@@ -495,6 +495,7 @@ export function getEmailFeedbackQuestions(scenarioId: string): Question[] {
       type: 'text',
       placeholder: 'Your feedback',
       required: true,
+      logChanges: true,
     },
   ];
 }

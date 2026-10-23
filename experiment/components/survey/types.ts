@@ -12,6 +12,7 @@ export interface Question {
   multiline?: boolean; // For text inputs: false = single-line input, true/undefined = textarea
   otherOption?: string; // For radio/checkbox: selecting this option shows a required text box, saved as `${id}_other`
   exclusiveOption?: string; // For checkbox: selecting this option clears the others (e.g., "None")
+  logChanges?: boolean; // For text inputs: log a surveyInputUpdate event on every change
 }
 
 export interface SurveySection {
