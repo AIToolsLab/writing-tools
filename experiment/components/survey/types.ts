@@ -1,4 +1,4 @@
-import type { JSX } from "react";
+import type { JSX, ReactNode } from "react";
 
 export type QuestionType = 'text' | 'likert' | 'radio' | 'checkbox';
 
@@ -18,6 +18,7 @@ export interface Question {
 export interface SurveySection {
   title: string;
   description?: string; // Shown above the section's questions
+  intro?: ReactNode; // Shown below the description, above the questions
   questions: Question[];
 }
 
