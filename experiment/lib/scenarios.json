@@ -15,8 +15,7 @@
     },
     "taskInstructions": {
       "title": "Writing Task",
-      "description": "It's your first day as an event coordinator at Meridian Events. Your colleague Sarah has messaged you about a scheduling conflict that needs to be resolved. Since you're just getting started, you'll need to ask Sarah questions to understand the full situation. You need to write an email to one of the panelists to address it.",
-      "companyFraming": "You're representing Meridian Events in this communication. Consider how your message will reflect on the team."
+      "description": "It's your first day as an event coordinator at Meridian Events. Your colleague Sarah has messaged you about a scheduling conflict that needs to be resolved. Since you're just getting started, you'll need to ask Sarah questions to understand the full situation. You need to write an email to one of the panelists to address it."
     },
     "chat": {
       "model": "gpt-5.5",
@@ -100,8 +99,7 @@
     },
     "taskInstructions": {
       "title": "Writing Task",
-      "description": "It's your first day as a customer success manager at Crestview Solutions. Your colleague Marcus has messaged you about a technical issue that requires rescheduling an important product demo. Since you're just getting started, you'll need to ask Marcus questions to understand the full situation. You need to write an email to the client to address it.",
-      "companyFraming": "You're representing Crestview Solutions in this communication. Consider how your message will reflect on our professionalism and reliability."
+      "description": "It's your first day as a customer success manager at Crestview Solutions. Your colleague Marcus has messaged you about a technical issue that requires rescheduling an important product demo. Since you're just getting started, you'll need to ask Marcus questions to understand the full situation. You need to write an email to the client to address it."
     },
     "chat": {
       "model": "gpt-5.5",
@@ -187,8 +185,7 @@
     },
     "taskInstructions": {
       "title": "Writing Task",
-      "description": "It's your first week as a sales support assistant at Northline Office Supply. Your colleague Dana has messaged you about a delayed chair order for a customer who is moving into a new office tomorrow. Since you're just getting started, you'll need to ask Dana questions to understand the full situation before writing an email to the customer addressing the issue.",
-      "companyFraming": "You're representing Northline Office Supply in this communication. Consider how your email will reflect on the team."
+      "description": "It's your first week as a sales support assistant at Northline Office Supply. Your colleague Dana has messaged you about a delayed chair order for a customer who is moving into a new office tomorrow. Since you're just getting started, you'll need to ask Dana questions to understand the full situation before writing an email to the customer addressing the issue."
     },
     "chat": {
       "model": "gpt-5.5",

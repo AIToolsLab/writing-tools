@@ -74,7 +74,6 @@ export interface ScenarioConfig {
   taskInstructions: {
     title: string;         // Page title
     description: string;   // Scenario description for participants
-    companyFraming: string; // Company reputation reminder
   };
   chat: {
     model: string;              // Colleague LLM model id (e.g. "gpt-5.5")
