@@ -53,11 +53,23 @@ export interface UseDeviceAuth extends DeviceAuthState {
 	 */
 	refreshUser: () => Promise<void>;
 	/**
+	 * Call when a consent save starts; pass the returned ticket to
+	 * applyConsentSnapshot so it can tell whether another tab's change arrived
+	 * while the save was in flight.
+	 */
+	beginConsentSave: () => number;
+	/**
 	 * Apply the authoritative consent response from this session's own save.
 	 * `token` is the one the save was made with; if the session has changed
-	 * since, the snapshot is dropped.
+	 * since, the snapshot is dropped. If another tab's change arrived since
+	 * `ticket` was taken, the level is re-read instead of taken from the
+	 * snapshot (fail closed until it lands).
 	 */
-	applyConsentSnapshot: (snapshot: ConsentSnapshot, token: string) => void;
+	applyConsentSnapshot: (
+		snapshot: ConsentSnapshot,
+		token: string,
+		ticket: number,
+	) => void;
 	/**
 	 * Fail closed, then re-fetch, after another tab changed consent. Resolves once
 	 * this call's result is published, or once a newer reconcile, save, or auth
@@ -151,23 +163,6 @@ export function useDeviceAuth(): UseDeviceAuth {
 		}
 	}, [patchUserFor]);
 
-	// The consent endpoint returns exactly the values it persisted. Apply that
-	// snapshot synchronously so an onboarding gate never depends on a follow-up
-	// get-session request succeeding. `token` is the one the save was made with;
-	// a snapshot from a session that has since ended is dropped.
-	//
-	// It is also the newest answer this tab can know of, so it supersedes any
-	// cross-tab reconcile still in flight (whose read may predate this write).
-	const applyConsentSnapshot = useCallback(
-		(snapshot: ConsentSnapshot, token: string) => {
-			if (tokenRef.current !== token) return;
-			reconcileGen.current += 1;
-			setConsentPending(false);
-			patchUserFor(token, (user) => ({ ...user, ...snapshot }));
-		},
-		[patchUserFor],
-	);
-
 	// A different tab changed consent, possibly lowering it. Drop to the most
 	// privacy-protective level first so this tab cannot keep logging on a stale
 	// cached user, then re-fetch the authoritative one.
@@ -202,6 +197,45 @@ export function useDeviceAuth(): UseDeviceAuth {
 		}
 		setConsentPending(false);
 	}, [patchUserFor]);
+
+	// Taken when a save starts: the reconcile generation at that moment. If it
+	// is unchanged when the save's response arrives, no other tab's change
+	// reached this tab in between, so the response is the newest thing known.
+	const beginConsentSave = useCallback(() => reconcileGen.current, []);
+
+	// The consent endpoint returns exactly the values it persisted. Apply that
+	// snapshot synchronously so an onboarding gate never depends on a follow-up
+	// get-session request succeeding. `token` is the one the save was made with;
+	// a snapshot from a session that has since ended is dropped.
+	//
+	// `ticket` is beginConsentSave()'s value from when the save started:
+	// - Unchanged: nothing intervened. Publish the snapshot; it supersedes any
+	//   reconcile that was already running before the save started (that read
+	//   may predate this write, and a later write elsewhere pings again).
+	// - Changed: another tab's change arrived during the save. It may be newer
+	//   than this write (or its reconcile already published, or is still in
+	//   flight), so this response must not win. Keep only the "has chosen"
+	//   marker, so the onboarding gate can't trap a user whose save succeeded,
+	//   and re-read the authoritative level, failing closed until it lands. Both
+	//   writes have committed by now (this response arrived; the other tab only
+	//   pings after its own), so that read reflects the latest.
+	const applyConsentSnapshot = useCallback(
+		(snapshot: ConsentSnapshot, token: string, ticket: number) => {
+			if (tokenRef.current !== token) return;
+			if (ticket === reconcileGen.current) {
+				reconcileGen.current += 1;
+				setConsentPending(false);
+				patchUserFor(token, (user) => ({ ...user, ...snapshot }));
+				return;
+			}
+			patchUserFor(token, (user) => ({
+				...user,
+				consentUpdatedAt: snapshot.consentUpdatedAt,
+			}));
+			void reconcileConsentFromOtherTab();
+		},
+		[patchUserFor, reconcileConsentFromOtherTab],
+	);
 
 	const start = useCallback(async () => {
 		// Abort any prior attempt and open a fresh controller.
@@ -341,6 +375,7 @@ export function useDeviceAuth(): UseDeviceAuth {
 		start,
 		reset,
 		refreshUser,
+		beginConsentSave,
 		applyConsentSnapshot,
 		reconcileConsentFromOtherTab,
 		consentPending,

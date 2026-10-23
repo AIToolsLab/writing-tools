@@ -31,14 +31,18 @@ export function useConsent(initial: ConsentLevel) {
 			const previous = level;
 			setLevel(next); // optimistic
 			setStatus('saving');
+			// Taken before the request, so any other tab's change that arrives while
+			// it is in flight is detected when the response lands.
+			const ticket = session.beginConsentSave();
 			try {
 				const token = await session.getAccessToken();
 				const snapshot = await changeConsent(token, next);
 				// The save endpoint returns the values it just persisted, so update this
 				// session directly. A transient get-session failure can no longer leave a
 				// successfully-consented user trapped behind the onboarding gate. Bound to
-				// the token the save used, so it can't land in a later session.
-				session.applyConsentSnapshot(snapshot, token);
+				// the token the save used, so it can't land in a later session, and to
+				// the ticket, so it can't override a newer change from another tab.
+				session.applyConsentSnapshot(snapshot, token, ticket);
 				// Tell other same-origin tabs (e.g. the app tab, when this save happens
 				// on the standalone account page) to refresh, so none keeps logging at a
 				// level the user just lowered.

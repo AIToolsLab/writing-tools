@@ -80,12 +80,19 @@ export interface AppAuthSession {
 	 * reflects in `user`/`hasSetConsent` live. No-op for the demo provider.
 	 */
 	refreshUser: () => Promise<void>;
+	/** Start a consent save; the ticket goes to applyConsentSnapshot. */
+	beginConsentSave: () => number;
 	/**
 	 * Apply the authoritative result of a consent update without re-fetching.
 	 * `token` is the one the save was made with; a stale session's result is
-	 * dropped.
+	 * dropped. If another tab changed consent since `ticket`, the level is
+	 * re-read instead (see useDeviceAuth).
 	 */
-	applyConsentSnapshot: (snapshot: ConsentSnapshot, token: string) => void;
+	applyConsentSnapshot: (
+		snapshot: ConsentSnapshot,
+		token: string,
+		ticket: number,
+	) => void;
 	/**
 	 * True while `loggingConsent` is the provisional `none` held during another
 	 * tab's consent change, rather than a level the user chose. Gate anything
@@ -111,6 +118,7 @@ const DEFAULT_SESSION: AppAuthSession = {
 	login: () => Promise.resolve(),
 	cancelLogin: () => {},
 	refreshUser: () => Promise.resolve(),
+	beginConsentSave: () => 0,
 	applyConsentSnapshot: () => {},
 	consentPending: false,
 	logout: () => Promise.resolve(),
@@ -187,6 +195,7 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 			login: device.start,
 			cancelLogin: device.reset,
 			refreshUser: device.refreshUser,
+			beginConsentSave: device.beginConsentSave,
 			applyConsentSnapshot: device.applyConsentSnapshot,
 			consentPending: device.consentPending,
 			logout: device.logout,
@@ -230,6 +239,7 @@ function DemoAuthProvider({ children }: { children: ReactNode }) {
 			login: () => Promise.resolve(),
 			cancelLogin: () => {},
 			refreshUser: () => Promise.resolve(),
+			beginConsentSave: () => 0,
 			applyConsentSnapshot: () => {},
 			consentPending: false,
 			logout: () => Promise.resolve(),

@@ -7,6 +7,7 @@ const { changeConsent, broadcastConsentChange, session } = vi.hoisted(() => ({
 	broadcastConsentChange: vi.fn(),
 	session: {
 		getAccessToken: vi.fn(() => Promise.resolve('tok')),
+		beginConsentSave: vi.fn(() => 7),
 		applyConsentSnapshot: vi.fn(),
 	},
 }));
@@ -24,7 +25,7 @@ describe('useConsent.save', () => {
 		session.applyConsentSnapshot.mockReset();
 	});
 
-	it('applies the snapshot with the token the save used, then broadcasts', async () => {
+	it('applies the snapshot with the save’s token and ticket, then broadcasts', async () => {
 		const snapshot = {
 			loggingConsent: 'ai_output',
 			consentUpdatedAt: '2026-07-28T00:00:00.000Z',
@@ -43,6 +44,7 @@ describe('useConsent.save', () => {
 		expect(session.applyConsentSnapshot).toHaveBeenCalledWith(
 			snapshot,
 			'tok',
+			7,
 		);
 		expect(broadcastConsentChange).toHaveBeenCalledTimes(1);
 	});

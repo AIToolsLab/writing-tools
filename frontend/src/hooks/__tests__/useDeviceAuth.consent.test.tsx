@@ -26,6 +26,7 @@ vi.mock('@/api/authTokenStore', () => ({
 }));
 
 import type { UserInfo } from '@/api/deviceAuth';
+import { posthogConsentAction } from '@/pages/app/posthogConsentPolicy';
 import { useDeviceAuth } from '../useDeviceAuth';
 
 const USER: UserInfo = {
@@ -204,12 +205,14 @@ describe('useDeviceAuth — cross-tab consent reconciliation', () => {
 		const hook = await mountSignedIn();
 
 		act(() => {
+			const ticket = hook.result.current.beginConsentSave();
 			hook.result.current.applyConsentSnapshot(
 				{
 					loggingConsent: 'none',
 					consentUpdatedAt: '2026-07-28T12:00:00.000Z',
 				},
 				'stored-token',
+				ticket,
 			);
 		});
 
@@ -219,8 +222,9 @@ describe('useDeviceAuth — cross-tab consent reconciliation', () => {
 		);
 	});
 
-	// This tab's own save is newer than any read still in flight from a ping.
-	it('applyConsentSnapshot supersedes an in-flight reconcile', async () => {
+	// A save that STARTED after a reconcile began is newer than that reconcile's
+	// read (or another ping will follow), so it supersedes it.
+	it('a save started after a reconcile supersedes that reconcile', async () => {
 		const hook = await mountSignedIn();
 
 		const pending = deferred<UserInfo>();
@@ -231,12 +235,14 @@ describe('useDeviceAuth — cross-tab consent reconciliation', () => {
 		});
 
 		act(() => {
+			const ticket = hook.result.current.beginConsentSave();
 			hook.result.current.applyConsentSnapshot(
 				{
 					loggingConsent: 'ai_output',
 					consentUpdatedAt: '2026-07-28T12:00:00.000Z',
 				},
 				'stored-token',
+				ticket,
 			);
 		});
 		expect(hook.result.current.consentPending).toBe(false);
@@ -246,6 +252,139 @@ describe('useDeviceAuth — cross-tab consent reconciliation', () => {
 			await done;
 		});
 		expect(hook.result.current.user?.loggingConsent).toBe('ai_output');
+	});
+
+	// Regression (Codex round 2): this tab saves `usage`; while that response is
+	// delayed, another tab saves `none` and pings. The delayed `usage` response
+	// must not override the newer withdrawal, whether the ping's reconcile has
+	// already published (case 1) or is still in flight (case 2).
+	describe('a delayed save response vs. a newer change from another tab', () => {
+		const T_SAVE = '2026-07-28T12:00:00.000Z'; // this tab's write (older)
+		const T_OTHER = '2026-07-28T12:00:05.000Z'; // other tab's write (newer)
+		const SERVER_NOW: UserInfo = {
+			...USER,
+			loggingConsent: 'none',
+			consentUpdatedAt: T_OTHER,
+		};
+
+		function captureAllowed(
+			hook: Awaited<ReturnType<typeof mountSignedIn>>,
+		) {
+			const s = hook.result.current;
+			return posthogConsentAction({
+				isAuthenticated: s.status === 'success',
+				hasSetConsent: !!s.user?.consentUpdatedAt,
+				consentPending: s.consentPending,
+				loggingConsent: s.user?.loggingConsent ?? 'none',
+				userId: s.user?.id,
+			}).capture;
+		}
+
+		it('case 1: the reconcile already published `none`', async () => {
+			const hook = await mountSignedIn();
+			const ticket = hook.result.current.beginConsentSave();
+
+			// The other tab's ping arrives and its reconcile lands first.
+			fetchUserInfo.mockResolvedValueOnce(SERVER_NOW);
+			await act(async () => {
+				await hook.result.current.reconcileConsentFromOtherTab();
+			});
+			expect(hook.result.current.user?.loggingConsent).toBe('none');
+
+			// Now this tab's older save response arrives. It triggers a re-read
+			// instead of publishing `usage`.
+			const reread = deferred<UserInfo>();
+			fetchUserInfo.mockReturnValueOnce(reread.promise);
+			act(() => {
+				hook.result.current.applyConsentSnapshot(
+					{ loggingConsent: 'usage', consentUpdatedAt: T_SAVE },
+					'stored-token',
+					ticket,
+				);
+			});
+			expect(hook.result.current.user?.loggingConsent).toBe('none');
+			expect(hook.result.current.consentPending).toBe(true);
+			expect(captureAllowed(hook)).toBe(false);
+
+			await act(async () => {
+				reread.resolve(SERVER_NOW);
+				await reread.promise;
+			});
+			expect(hook.result.current.user?.loggingConsent).toBe('none');
+			expect(hook.result.current.user?.consentUpdatedAt).toBe(T_OTHER);
+			expect(hook.result.current.consentPending).toBe(false);
+			expect(captureAllowed(hook)).toBe(false);
+		});
+
+		it('case 2: the reconcile is still in flight', async () => {
+			const hook = await mountSignedIn();
+			const ticket = hook.result.current.beginConsentSave();
+
+			const firstRead = deferred<UserInfo>();
+			fetchUserInfo.mockReturnValueOnce(firstRead.promise);
+			let firstDone!: Promise<void>;
+			act(() => {
+				firstDone = hook.result.current.reconcileConsentFromOtherTab();
+			});
+
+			const reread = deferred<UserInfo>();
+			fetchUserInfo.mockReturnValueOnce(reread.promise);
+			act(() => {
+				hook.result.current.applyConsentSnapshot(
+					{ loggingConsent: 'usage', consentUpdatedAt: T_SAVE },
+					'stored-token',
+					ticket,
+				);
+			});
+			// Still failing closed: the save did not publish `usage`.
+			expect(hook.result.current.user?.loggingConsent).toBe('none');
+			expect(hook.result.current.consentPending).toBe(true);
+			expect(captureAllowed(hook)).toBe(false);
+
+			await act(async () => {
+				firstRead.resolve(SERVER_NOW);
+				await firstDone;
+				reread.resolve(SERVER_NOW);
+				await reread.promise;
+			});
+			expect(hook.result.current.user?.loggingConsent).toBe('none');
+			expect(hook.result.current.consentPending).toBe(false);
+			expect(captureAllowed(hook)).toBe(false);
+		});
+
+		// The save itself succeeded, so the onboarding gate must not trap the
+		// user even if the authoritative re-read fails.
+		it('keeps the set-consent marker but stays at none if the re-read fails', async () => {
+			fetchUserInfo.mockResolvedValue({
+				...USER,
+				consentUpdatedAt: null,
+			});
+			const hook = renderHook(() => useDeviceAuth());
+			await waitFor(() =>
+				expect(hook.result.current.status).toBe('success'),
+			);
+			const ticket = hook.result.current.beginConsentSave();
+
+			fetchUserInfo.mockRejectedValueOnce(new Error('offline'));
+			await act(async () => {
+				await hook.result.current.reconcileConsentFromOtherTab();
+			});
+
+			fetchUserInfo.mockRejectedValueOnce(new Error('offline'));
+			await act(async () => {
+				hook.result.current.applyConsentSnapshot(
+					{ loggingConsent: 'usage', consentUpdatedAt: T_SAVE },
+					'stored-token',
+					ticket,
+				);
+				await Promise.resolve();
+			});
+			await waitFor(() =>
+				expect(hook.result.current.consentPending).toBe(false),
+			);
+			expect(hook.result.current.user?.consentUpdatedAt).toBe(T_SAVE);
+			expect(hook.result.current.user?.loggingConsent).toBe('none');
+		});
 	});
 
 	it('drops a consent snapshot saved under a different token', async () => {
@@ -258,6 +397,7 @@ describe('useDeviceAuth — cross-tab consent reconciliation', () => {
 					consentUpdatedAt: '2026-07-28T12:00:00.000Z',
 				},
 				'someone-elses-token',
+				hook.result.current.beginConsentSave(),
 			);
 		});
 
