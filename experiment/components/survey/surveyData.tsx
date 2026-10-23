@@ -301,57 +301,69 @@ const specificRecallOptions = [
  */
 export const specificRecallConcerns: Record<string, Record<string, string>> = {
   roomDoubleBooking: {
-    already_advertised:
-      'Jaden may have already advertised the original time and location to his audience.',
-    new_room_1pm_conflict:
-      'The new room cannot accommodate a 1pm start because the preceding event ends at 1pm.',
-    room_double_booked:
-      "Jaden's originally scheduled room is no longer available because it was double-booked.",
-    new_room_readiness:
-      'Jaden may be concerned about whether the new room will be ready in time.',
-    reliability_confidence:
-      "The last-minute scheduling change may cause Jaden to lose confidence in Meridian Events' reliability.",
+    band_setup_time:
+      "Jaden's band may not have enough time to set up their equipment in the new room.",
     delay_conflicts_commitments:
       "Delaying Jaden's panel may conflict with his existing commitments.",
+    new_room_readiness:
+      'Jaden may be concerned about whether the new room will be ready in time.',
+    housekeeping_cleaning:
+      'Jaden may have to wait for housekeeping to finish cleaning the new hotel room.',
+    room_12_to_14: "Jaden's panel must move from Room 12 to Room 14.",
+    new_room_1pm_conflict:
+      'The new room cannot accommodate a 1pm start because the preceding event ends at 1pm.',
+    already_advertised:
+      'Jaden may have already advertised the original time and location to his audience.',
     panel_less_important:
       'Jaden may feel that his panel is being treated as less important because Sophia is more famous.',
-    room_12_to_14: "Jaden's panel must move from Room 12 to Room 14.",
+    room_double_booked:
+      "Jaden's originally scheduled room is no longer available because it was double-booked.",
+    reliability_confidence:
+      "The last-minute scheduling change may cause Jaden to lose confidence in Meridian Events' reliability.",
   },
   demoRescheduling: {
-    bug_affects_interest:
-      'The bug affects the automated reporting capabilities that Dr. Patel is particularly interested in seeing.',
-    delay_limits_transition:
-      'Delaying the product demonstration could leave little time for MediCore to transition to a new reporting system before its existing system loses support.',
-    fix_vs_vendor_deadline:
-      "The time required to fix the reporting bug may conflict with MediCore's deadline for selecting a new software vendor.",
-    reporting_unreliable:
-      "Crestview's automated reporting capabilities are unreliable because of a bug in the reporting module.",
-    qa_practices_doubt:
-      "Discovering a critical bug immediately before the demonstration may cause Dr. Patel to question Crestview's quality assurance practices.",
-    fix_takes_3_4_business_days:
-      "Crestview's engineering team needs 3-4 business days to fix and test the reporting bug.",
-    partial_demo_option:
-      'Crestview may be able to demonstrate unaffected software capabilities as scheduled and arrange a separate demonstration of the automated reporting capabilities once the bug is fixed.',
+    bug_delays_stock_launch:
+      "A bug in Crestview's automated financial reporting system could significantly delay MediCore's stock launch.",
     demo_tomorrow_2pm:
       'The product demonstration with Dr. Patel is scheduled for tomorrow at 2pm.',
+    partial_demo_option:
+      'Crestview may be able to demonstrate unaffected software capabilities as scheduled and arrange a separate demonstration of the automated reporting capabilities once the bug is fixed.',
+    reporting_unreliable:
+      "Crestview's automated reporting capabilities are unreliable because of a bug in the reporting module.",
+    delay_limits_transition:
+      'Delaying the product demonstration could leave little time for MediCore to transition to a new reporting system before its existing system loses support.',
+    bug_affects_interest:
+      'The bug affects the automated reporting capabilities that Dr. Patel is particularly interested in seeing.',
+    qa_practices_doubt:
+      "Discovering a critical bug immediately before the demonstration may cause Dr. Patel to question Crestview's quality assurance practices.",
+    fix_takes_3_4_days:
+      "Crestview's engineering team needs 3-4 days to fix and test the reporting bug.",
+    reschedule_medical_checkups:
+      'Dr. Patel will need at least a week to reschedule medical checkups for Crestview employees.',
+    fix_vs_vendor_deadline:
+      "The time required to fix the reporting bug may conflict with MediCore's deadline for selecting a new software vendor.",
   },
   substituteProduct: {
-    x9_aesthetic:
-      "The different design of the ErgoFit X9 chairs may not match Jordan's intended office aesthetic.",
     e7_supply_delay:
       "Jordan's ErgoFit E7 chairs will not arrive as scheduled because of a supply issue.",
     northline_confidence:
       "The last-minute delivery problem may undermine Jordan's confidence in Northline Office Supply.",
-    pressure_to_accept:
-      "The urgency of Jordan's office move may make him feel pressured to accept substitute chairs that do not fully meet his needs.",
-    chairs_needed_tomorrow:
-      'Jordan needs office chairs ready for his move into a new office tomorrow.',
-    x9_different_model:
-      'The ErgoFit X9 chairs are a different model from what Jordan originally ordered.',
-    business_disruption:
-      "The lack of chairs on moving day may disrupt Jordan's business operations.",
     x9_higher_price:
       'The higher price of the ErgoFit X9 chairs may place an unexpected financial burden on Jordan.',
+    dining_room_furnishing:
+      'Jordan will be unable to finish furnishing his new dining room on time because of the delivery problem.',
+    x9_aesthetic:
+      "The different design of the ErgoFit X9 chairs may not match Jordan's intended office aesthetic.",
+    business_disruption:
+      "The lack of chairs on moving day may disrupt Jordan's business operations.",
+    pressure_to_accept:
+      "The urgency of Jordan's office move may make him feel pressured to accept substitute chairs that do not fully meet his needs.",
+    x9_different_model:
+      'The ErgoFit X9 chairs are a different model from what Jordan originally ordered.',
+    staff_deliver_to_warehouse:
+      "Jordan's staff may not have enough time to deliver the substitute chairs to Northline Office Supply's warehouse.",
+    chairs_needed_tomorrow:
+      'Jordan needs office chairs ready for his move into a new office tomorrow.',
   },
 };
 
@@ -374,7 +386,10 @@ export function getSpecificRecallQuestions(scenarioId: string): Question[] {
  * Open-ended comprehension questions per scenario ID. Each question is saved
  * as `comprehension_${key}`; keys are shared across scenarios.
  */
-export const comprehensionQuestionTexts: Record<string, Record<string, string>> = {
+export const comprehensionQuestionTexts: Record<
+  string,
+  Record<string, string>
+> = {
   roomDoubleBooking: {
     recipient_request:
       'Jaden responds back, asking you for a discount to compensate for his inconvenience. How would you respond, and why?',
@@ -477,7 +492,7 @@ export function getEmailFeedbackQuestions(scenarioId: string): Question[] {
       id: 'email_feedback',
       text: (
         <>
-          <span className="block whitespace-pre-line font-normal bg-gray-50 border border-gray-300 rounded p-4 mb-4">
+          <span className='block whitespace-pre-line font-normal bg-gray-50 border border-gray-300 rounded p-4 mb-4'>
             {draft}
           </span>
           What feedback would you give your colleague to help them improve the
@@ -485,7 +500,7 @@ export function getEmailFeedbackQuestions(scenarioId: string): Question[] {
           could be improved. Your feedback may focus on specific parts of the
           email and/or on the email as a whole. For each suggestion, explain how
           it would help address the situation.
-          <span className="block font-normal text-gray-700 mt-3">
+          <span className='block font-normal text-gray-700 mt-3'>
             Reminder: Please do not use writing aids, such as Grammarly or
             ChatGPT, for this task. Standard text-entry features, such as spell
             check and autocomplete, are allowed.
