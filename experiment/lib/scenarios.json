@@ -172,7 +172,7 @@
     }
   },
   "substituteProduct": {
-    "id": "scenarioKey",
+    "id": "substituteProduct",
     "sender": {
       "name": "Alex Johnson (Northline Office Supply)"
     },
