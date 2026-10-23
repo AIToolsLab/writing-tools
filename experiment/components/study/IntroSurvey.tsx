@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useAtom } from 'jotai';
-import { log, logThenRedirect } from '@/lib/logging';
+import { logThenRedirect } from '@/lib/logging';
 import { getNextPage } from '@/lib/studyConfig';
 import { surveyInputAtom } from '@/contexts/StudyContext';
 import Survey from '@/components/survey/Survey';
