@@ -7,7 +7,7 @@ import { getNextPage, letterToCondition } from '@/lib/studyConfig';
 import { surveyInputAtom } from '@/contexts/StudyContext';
 import Survey from '@/components/survey/Survey';
 import {
-  getPostTaskSurveyQuestions,
+  getPostTaskSurveySections,
   conditionDebriefs,
 } from '@/components/survey/surveyData';
 
@@ -18,7 +18,7 @@ export default function PostTaskSurvey() {
   const conditionCode = (searchParams.get('condition') || 'n') as keyof typeof letterToCondition;
   const condition = letterToCondition[conditionCode];
 
-  const surveyQuestions = getPostTaskSurveyQuestions(condition);
+  const surveySections = getPostTaskSurveySections(condition);
   const debrief = conditionDebriefs[condition];
 
   const handleSubmit = async () => {
@@ -42,7 +42,7 @@ export default function PostTaskSurvey() {
       <Survey
         title="Task Completion Survey"
         description="Please tell us about your experience with the writing task."
-        questions={surveyQuestions}
+        sections={surveySections}
         onSubmit={handleSubmit}
         submitButtonText="Continue"
       >
