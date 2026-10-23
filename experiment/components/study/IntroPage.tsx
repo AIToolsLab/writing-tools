@@ -43,7 +43,7 @@ export default function IntroPage() {
             <li>Complete a brief questionnaire about your background</li>
             <li>Write an email message. We&apos;ll walk you through the task step-by-step.
             </li>
-            <li>Complete a follow-up questionnaire about your experience</li>
+            <li>Complete a follow-up questionnaire about the task and your experience</li>
           </ol>
         </section>
           <p className="text-gray-700 mb-4">
