@@ -33,7 +33,6 @@ export default function IntroSurvey() {
     <div className="max-w-2xl mx-auto p-8">
       <Survey
         title="Background Information"
-        description="Please tell us a bit about yourself and your experience with AI tools."
         sections={introSurveySections}
         onSubmit={handleSubmit}
         submitButtonText="Continue to Task"
