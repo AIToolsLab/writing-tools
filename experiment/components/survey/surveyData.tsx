@@ -683,6 +683,7 @@ export function getPostTaskSurveySections(
     condition !== 'no_ai'
       ? [...postTaskCommonQuestions, ...postTaskAIQuestions]
       : postTaskCommonQuestions;
+  const debrief = conditionDebriefs[condition];
 
   return [
     { title: 'General Recall', questions: generalRecallQuestions },
@@ -704,6 +705,16 @@ export function getPostTaskSurveySections(
         'Please indicate whether each of the following concerns reflects something you remember considering while writing the email.',
       questions: getSpecificRecallQuestions(scenarioId),
     },
-    { title: 'Task Experience', questions: experienceQuestions },
+    {
+      title: 'Task Experience',
+      description: 'Please tell us about your experience with the writing task.',
+      intro: debrief && (
+        <div className="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+          <h3 className="font-semibold text-blue-900 mb-2">{debrief.title}</h3>
+          <p className="text-blue-800 text-sm">{debrief.content}</p>
+        </div>
+      ),
+      questions: experienceQuestions,
+    },
   ];
 }
