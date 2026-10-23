@@ -154,6 +154,8 @@ experiment/
 npm run test        # Run tests with vitest
 ```
 
+`__tests__/api/` exercises the real AI SDK against a fake OpenAI (fixtures in `__tests__/fixtures/openai/`), so SDK upgrades can be checked by running the suite. See `docs/ai-sdk-upgrade-tests.md`.
+
 ## Common Commands
 
 ```bash
