@@ -281,6 +281,13 @@ export const introSurveySections: SurveySection[] = [
  */
 export const postTaskCommonQuestions: Question[] = [
   {
+    id: 'general_recall',
+    text: 'What decisions do you remember making about what to include or leave out while writing the email? Please describe as many decisions as you can remember, and briefly explain what influenced each one.',
+    type: 'text',
+    placeholder: 'Describe your decisions and what influenced each one',
+    required: true,
+  },
+  {
     id: 'tlx_mental_demand',
     text: 'How much mental effort was required to complete the task?',
     type: 'radio',
