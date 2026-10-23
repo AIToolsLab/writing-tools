@@ -500,7 +500,9 @@ export function getEmailFeedbackQuestions(scenarioId: string): Question[] {
           could be improved. Your feedback may focus on specific parts of the
           email and/or on the email as a whole. For each suggestion, explain how
           it would help address the situation.
-          <span className='block font-normal text-gray-700 mt-3'>
+          {/* Inline (with a block spacer above) so the required asterisk stays on the last line */}
+          <span className='block h-3' />
+          <span className='font-normal text-gray-700'>
             Reminder: Please do not use writing aids, such as Grammarly or
             ChatGPT, for this task. Standard text-entry features, such as spell
             check and autocomplete, are allowed.
