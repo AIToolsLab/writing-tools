@@ -61,6 +61,8 @@ export default function Survey({
         <p className="text-gray-700 mb-6">{currentSection.description}</p>
       )}
 
+      {currentSection?.intro && <div className="mb-6">{currentSection.intro}</div>}
+
       <div className="space-y-6">
         {visibleQuestions.map((question) => (
           <SurveyQuestion key={question.id} question={question} />

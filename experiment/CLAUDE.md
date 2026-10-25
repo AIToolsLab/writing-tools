@@ -42,7 +42,6 @@ The colleague serves dual purposes:
 ### Task Scenarios
 The experiment supports multiple configurable scenarios. Each scenario includes a unique colleague, recipient, and situation. Key design decisions:
 - **Information gap**: The colleague's initial messages explain the problem but don't specify all details, encouraging participants to ask questions
-- **Company framing**: Task instructions and colleague messages emphasize representing the company professionally
 - **Follow-up nudge**: If participants don't engage with the chat, the colleague sends a brief follow-up after ~75 seconds (e.g., "still here if you need anything")—this is a conversation nudge, NOT an information dump
 
 **Available Scenarios:**
@@ -62,7 +61,7 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 1. `components/study/ConsentPage.tsx` - Consent form
 2. `components/study/IntroPage.tsx` - Study introduction
 3. `components/study/IntroSurvey.tsx` - Pre-task survey
-4. `components/study/StartTaskPage.tsx` - Task instructions (mentions chat, company framing)
+4. `components/study/StartTaskPage.tsx` - Task instructions (mentions chat)
 5. `components/study/TaskPage.tsx` - Main writing task with chat + AI panels
 6. `components/study/PostTaskSurvey.tsx` - Post-task survey
 7. `components/study/FinalPage.tsx` - Completion page
@@ -96,7 +95,7 @@ Realistic timing works as follows: The colleague finds a moment to read your mes
 To add a new scenario, edit `lib/scenarios.json` and add a new entry (`lib/studyConfig.ts` derives the typed `SCENARIOS` object from it). Each scenario requires:
 - **colleague**: name, firstName, role
 - **recipient**: name, email
-- **taskInstructions**: title, description, companyFraming
+- **taskInstructions**: title, description
 - **chat**: model, reasoningEffort, initialMessages, followUpMessage, systemPromptLines (joined into `systemPrompt` at runtime)
 - **analysis** (eval-only): context, keyFacts; optionally **chat.probes** (eval-only single-turn probes)
 
@@ -154,6 +153,8 @@ experiment/
 npm run test        # Run tests with vitest
 ```
 
+`__tests__/api/` exercises the real AI SDK against a fake OpenAI (fixtures in `__tests__/fixtures/openai/`), so SDK upgrades can be checked by running the suite. See `docs/ai-sdk-upgrade-tests.md`.
+
 ## Common Commands
 
 ```bash
@@ -172,3 +173,13 @@ npm test            # Run tests
 - **Components**: `components/` folder
 
 See `README.md` for more details on features and API documentation.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

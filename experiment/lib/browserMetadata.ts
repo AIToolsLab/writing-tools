@@ -1,4 +1,4 @@
-import { BrowserMetadata } from '@/types/study';
+import type { BrowserMetadata } from '@/types/study';
 import { MIN_SCREEN_HEIGHT, MIN_SCREEN_WIDTH } from './studyConfig';
 
 /**
@@ -28,14 +28,10 @@ export function getBrowserMetadata(): BrowserMetadata {
 /**
  * Check if screen size is valid for the study
  */
-export function checkScreenSize(): { valid: boolean; reason?: string } {
-  if (typeof window === 'undefined') {
-    return { valid: false, reason: 'Not in browser context' };
-  }
-
-  const width = window.innerWidth;
-  const height = window.innerHeight;
-
+export function checkScreenSize(
+  width: number,
+  height: number
+): { valid: boolean; reason?: string } {
   if (width < MIN_SCREEN_WIDTH || height < MIN_SCREEN_HEIGHT) {
     return {
       valid: false,
