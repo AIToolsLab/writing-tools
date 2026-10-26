@@ -25,9 +25,11 @@ export function OnboardingConsentGate() {
 	);
 
 	return (
-		<div className={classes.loginContainer}>
-			<h3>Choose your privacy level</h3>
-			<p>
+		<div className={classes.consentGate}>
+			<h3 className={classes.consentGateTitle}>
+				Choose your privacy level
+			</h3>
+			<p className={classes.consentGateIntro}>
 				How much this app records about your usage. You can change this
 				anytime from Account &amp; privacy.
 			</p>
@@ -41,11 +43,14 @@ export function OnboardingConsentGate() {
 				disabled={status === 'saving'}
 			/>
 			{status === 'error' ? (
-				<p>Could not save your choice. Please try again.</p>
+				<p className={classes.consentGateError} role="alert">
+					Could not save your choice. Please try again.
+				</p>
 			) : null}
 			<Button
 				color="primary"
 				variant="solid"
+				fullWidth
 				loading={status === 'saving'}
 				onClick={() => void save(level)}
 			>
