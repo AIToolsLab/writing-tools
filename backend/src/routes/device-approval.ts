@@ -72,15 +72,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
     }
     .code-input::placeholder { color: var(--faint); letter-spacing: 0.3em; }
     .code-input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--focus); }
-    /* The code as separate tiles, so it can be checked character by character
-       against the one in the task pane. */
-    .tiles { display: flex; justify-content: center; align-items: center; gap: 6px; padding: 6px 0 2px; }
-    .tile {
-      width: 34px; height: 44px; display: grid; place-items: center; border: 1px solid var(--rule);
-      border-bottom: 2px solid var(--ink); border-radius: 4px; background: var(--paper);
-      font: 500 1.3rem/1 'DM Mono', ui-monospace, Consolas, monospace;
-    }
-    .tile-gap { width: 10px; height: 2px; background: var(--faint); margin: 0 2px; }
+    .deny-line { text-align: center; font-size: 0.85rem; color: var(--muted); }
     .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
     .btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 11px 16px; font: inherit; font-weight: 600; border-radius: 4px; border: 1px solid transparent; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
     .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
@@ -115,8 +107,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
     </div>
     <ol class="steps" aria-label="Progress">
       <li data-step="1">Sign in</li>
-      <li data-step="2">Enter code</li>
-      <li data-step="3">Approve</li>
+      <li data-step="2">Approve</li>
     </ol>
     <h1>Authorize ${PRODUCT_NAME}</h1>
     <p class="lede">A device is requesting access to your ${PRODUCT_NAME} account.</p>
@@ -147,8 +138,8 @@ const DEVICE_HTML = `<!DOCTYPE html>
       b.onclick = handler;
       return b;
     }
-    // Mark the step indicator: steps before n are done, n is current. n > 3
-    // marks all three done (after approve/deny).
+    // Mark the step indicator: steps before n are done, n is current. n = 3
+    // marks both done (after approve/deny).
     function setStep(n) {
       document.querySelectorAll('.steps li').forEach((li) => {
         const k = Number(li.dataset.step);
@@ -158,20 +149,6 @@ const DEVICE_HTML = `<!DOCTYPE html>
         else li.removeAttribute('aria-current');
       });
     }
-    // The code as one tile per character, split in two halves for an 8-character
-    // code. Screen readers get the whole code once via aria-label.
-    function codeTiles(code) {
-      const row = el('div', 'tiles');
-      row.setAttribute('role', 'img');
-      row.setAttribute('aria-label', 'Code ' + code.split('').join(' '));
-      [...code].forEach((ch, i) => {
-        if (code.length === 8 && i === 4) row.append(el('span', 'tile-gap'));
-        const t = el('span', 'tile', ch);
-        t.setAttribute('aria-hidden', 'true');
-        row.append(t);
-      });
-      return row;
-    }
     function icon(id) {
       return document.getElementById(id).content.firstElementChild.cloneNode(true);
     }
@@ -180,10 +157,12 @@ const DEVICE_HTML = `<!DOCTYPE html>
       d.append(...buttons);
       return d;
     }
-    // Disable every button in the content area while a request is in flight, so a
-    // double click can't send the same claim/approve/deny twice.
-    function setBusy(busy) {
-      content.querySelectorAll('button').forEach((b) => { b.disabled = busy; });
+    // Freeze the content area's controls while a request is in flight, so a double
+    // click or a second Enter can't send the same claim/approve/deny twice.
+    let busy = false;
+    function setBusy(next) {
+      busy = next;
+      content.querySelectorAll('button, input').forEach((c) => { c.disabled = next; });
     }
     // Final state after approve/deny: replaces the content with a centred result.
     function showResult(kind, title, text) {
@@ -191,7 +170,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
       ic.append(icon(kind === 'ok' ? 'icon-check' : 'icon-x'));
       const box = el('div', 'result');
       box.append(ic, el('h2', null, title), el('p', null, text));
-      setStep(4);
+      setStep(3);
       setStatus();
       showContent(box);
     }
@@ -260,7 +239,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
 
     // Render a device-endpoint failure. Expired/invalid codes replace the
     // approval UI (retrying a dead code is pointless) with guidance plus a
-    // restart button. Unknown errors leave the Approve/Deny buttons in place so
+    // restart button. Unknown errors leave the code entry in place so
     // a transient failure (network blip, momentary 500) stays retryable — the
     // common case here is a code that expired between the device showing it and
     // the user clicking Approve (e.g. a slow 2FA detour during Google sign-in).
@@ -275,28 +254,18 @@ const DEVICE_HTML = `<!DOCTYPE html>
         data?.error === 'invalid_request' ||
         /invalid user code|expired/i.test(desc);
       if (codeGone) {
-        showContent(); // the Approve/Deny buttons are useless for a dead code
+        showContent(); // the code entry is useless for a dead code
         setStatus(
           el('p', 'err', action + ' failed: this code is no longer valid — it likely expired.'),
           el('p', null, 'Codes only last a few minutes. Start sign-in again in ${PRODUCT_NAME} to get a fresh code, then enter it here.'),
           btn('primary', 'Enter a new code', () => init()),
         );
       } else {
-        // Leave content (Approve/Deny) intact so the user can simply retry.
+        // Leave the code entry intact so the user can simply retry.
         setStatus(el('span', 'err', action + ' failed: ' + JSON.stringify(data)));
       }
     }
 
-    async function approve(userCode) {
-      setBusy(true);
-      try {
-        await approveRequest(userCode);
-      } catch {
-        setStatus(el('p', 'err', 'Approve failed: network error. Check your connection and try again.'));
-      } finally {
-        setBusy(false);
-      }
-    }
     async function approveRequest(userCode) {
       const res = await fetch(BASE + '/api/auth/device/approve', {
         method: 'POST',
@@ -312,16 +281,6 @@ const DEVICE_HTML = `<!DOCTYPE html>
       }
     }
 
-    async function deny(userCode) {
-      setBusy(true);
-      try {
-        await denyRequest(userCode);
-      } catch {
-        setStatus(el('p', 'err', 'Deny failed: network error. Check your connection and try again.'));
-      } finally {
-        setBusy(false);
-      }
-    }
     async function denyRequest(userCode) {
       const res = await fetch(BASE + '/api/auth/device/deny', {
         method: 'POST',
@@ -337,52 +296,42 @@ const DEVICE_HTML = `<!DOCTYPE html>
       }
     }
 
-    // Signed in: show the approve/deny step for a claimed, pending code.
-    function showApproval(session, userCode) {
-      setStatus();
-      const p1 = el('p', 'account');
-      const who = el('span');
-      who.append('Signed in as ', el('strong', null, session.user.email));
-      p1.append(who);
-      setStep(3);
-      showContent(p1, el('p', null, 'Check this matches the code in ${PRODUCT_NAME}:'), codeTiles(userCode), actions(
-        btn('primary', 'Approve', () => approve(userCode)),
-        btn('secondary', 'Deny', () => deny(userCode))));
-    }
-
-    async function submitCode(session, raw) {
+    // One click: claim the typed code for this account, then approve (or deny) it.
+    // Better Auth needs both calls in order; there is no separate confirm screen,
+    // because typing the code from the task pane is what shows intent, and a
+    // confirm screen could only repeat that same code back.
+    async function submitCode(raw, action) {
+      if (busy) return;
       const userCode = normalizeCode(raw);
       if (!userCode) {
         setStatus(el('span', 'err', 'Enter the code first.'));
         return;
       }
-      setStatus(el('span', 'muted', 'Checking code…'));
+      setStatus(el('span', 'muted', action === 'deny' ? 'Denying…' : 'Approving…'));
       setBusy(true);
-      let claimed;
       try {
-        claimed = await claimCode(userCode);
+        const { ok, data } = await claimCode(userCode);
+        if (!ok) {
+          // Keep the input on screen so the user can correct and retry.
+          setStatus(el('span', 'err', data?.error_description ?? 'Invalid or expired code. Check it and try again.'));
+          return;
+        }
+        if (data.status !== 'pending') {
+          const p = el('p');
+          p.append('This code has already been ');
+          p.append(el('strong', null, data.status));
+          p.append('.');
+          setStatus();
+          showContent(p);
+          return;
+        }
+        if (action === 'deny') await denyRequest(userCode);
+        else await approveRequest(userCode);
       } catch {
-        setStatus(el('p', 'err', 'Could not check the code: network error. Try again.'));
-        return;
+        setStatus(el('p', 'err', 'Network error. Check your connection and try again.'));
       } finally {
         setBusy(false);
       }
-      const { ok, data } = claimed;
-      if (!ok) {
-        // Keep the input on screen so the user can correct and retry.
-        setStatus(el('span', 'err', data?.error_description ?? 'Invalid or expired code. Check it and try again.'));
-        return;
-      }
-      if (data.status !== 'pending') {
-        const p = el('p');
-        p.append('This code has already been ');
-        p.append(el('strong', null, data.status));
-        p.append('.');
-        setStatus();
-        showContent(p);
-        return;
-      }
-      showApproval(session, userCode);
     }
 
     // A button styled as an inline text link.
@@ -410,13 +359,15 @@ const DEVICE_HTML = `<!DOCTYPE html>
       input.setAttribute('autocomplete', 'one-time-code');
       input.setAttribute('autocapitalize', 'characters');
       input.setAttribute('spellcheck', 'false');
-      const cont = btn('primary', 'Continue', () => submitCode(session, input.value));
+      const approveBtn = btn('primary', 'Approve', () => submitCode(input.value, 'approve'));
       input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') submitCode(session, input.value);
+        if (e.key === 'Enter') submitCode(input.value, 'approve');
       });
       input.placeholder = 'XXXXXXXX';
+      const denyP = el('p', 'deny-line');
+      denyP.append('Not you? ', linkButton('Deny this request', () => submitCode(input.value, 'deny')));
       setStep(2);
-      showContent(who, p, input, actions(cont));
+      showContent(who, p, input, actions(approveBtn), denyP);
       input.focus();
     }
 
