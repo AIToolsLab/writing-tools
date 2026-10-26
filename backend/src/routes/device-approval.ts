@@ -20,18 +20,18 @@ const DEVICE_HTML = `<!DOCTYPE html>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400..700&display=swap" rel="stylesheet" />
   <style>
     /* Thoughtful's app palette (navbar/draft/revise): warm paper, warm grey
-       rules, near-black ink; blue only for links. */
+       rules, near-black ink; the app blue for links and the one primary action. */
     :root {
       --desk: #f1eee7; --sheet: #ffffff; --paper: #faf8f4; --ink: #1c1c1c; --muted: #6b6b6b;
       --faint: #b3aba0; --rule: #e4e0d8; --link: #2d5be3; --focus: rgba(45, 91, 227, 0.3);
-      --btn-ink: #1c1c1c; --btn-ink-hover: #3a3a3a; --btn-text: #fafaf8;
+      --accent: #2d5be3; --accent-hover: #2449c4; --accent-text: #ffffff;
       --err: #a3261d; --err-bg: #fbf1ee; --err-rule: #efcdc6; --ok: #1b7a4e; --ok-bg: #edf7f2;
     }
     @media (prefers-color-scheme: dark) {
       :root {
         --desk: #161513; --sheet: #1f1e1b; --paper: #272522; --ink: #ece8e1; --muted: #a39d93;
         --faint: #7a746b; --rule: #34312c; --link: #8aa7ff; --focus: rgba(138, 167, 255, 0.35);
-        --btn-ink: #ece8e1; --btn-ink-hover: #ffffff; --btn-text: #1c1c1c;
+        --accent: #4468e6; --accent-hover: #5677ea; --accent-text: #ffffff;
         --err: #f2a99f; --err-bg: #2b1a17; --err-rule: #4a2a24; --ok: #7fd1a8; --ok-bg: #16261e;
       }
     }
@@ -51,7 +51,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
     .steps { list-style: none; display: flex; gap: 6px; margin: 0 0 18px; padding: 0; font-size: 0.75rem; color: var(--faint); }
     .steps li { display: flex; align-items: center; gap: 6px; }
     .steps li + li::before { content: ''; width: 14px; height: 1px; background: var(--rule); }
-    .steps li.current { color: var(--ink); font-weight: 600; }
+    .steps li.current { color: var(--accent); font-weight: 600; }
     .steps li.done { color: var(--muted); }
     h1 { font-size: 1.45rem; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em; margin: 0 0 6px; }
     .lede { color: var(--muted); margin: 0; }
@@ -71,14 +71,14 @@ const DEVICE_HTML = `<!DOCTYPE html>
       border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
     }
     .code-input::placeholder { color: var(--faint); letter-spacing: 0.3em; }
-    .code-input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--focus); }
+    .code-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
     .deny-line { text-align: center; font-size: 0.85rem; color: var(--muted); }
     .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
     .btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 11px 16px; font: inherit; font-weight: 600; border-radius: 4px; border: 1px solid transparent; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
     .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
     .btn:disabled { opacity: 0.55; cursor: default; }
-    .primary { background: var(--btn-ink); color: var(--btn-text); }
-    .primary:hover:not(:disabled) { background: var(--btn-ink-hover); }
+    .primary { background: var(--accent); color: var(--accent-text); }
+    .primary:hover:not(:disabled) { background: var(--accent-hover); }
     .secondary { background: transparent; color: var(--ink); border-color: var(--rule); }
     .secondary:hover:not(:disabled) { border-color: var(--faint); }
     .link { background: none; border: none; padding: 0; font: inherit; font-size: 0.85rem; color: var(--link); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
