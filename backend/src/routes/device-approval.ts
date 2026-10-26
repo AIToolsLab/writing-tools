@@ -321,6 +321,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
           p.append('This code has already been ');
           p.append(el('strong', null, data.status));
           p.append('.');
+          setStep(3); // terminal: nothing left to approve
           setStatus();
           showContent(p);
           return;
