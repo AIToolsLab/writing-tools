@@ -15,35 +15,45 @@ const DEVICE_HTML = `<!DOCTYPE html>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Authorize ${PRODUCT_NAME}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:opsz,wght@9..40,400..700&display=swap" rel="stylesheet" />
   <style>
+    /* Thoughtful's app palette (navbar/draft/revise): warm paper, warm grey
+       rules, near-black ink; blue only for links. */
     :root {
-      --bg: #f5f6f8; --card: #ffffff; --text: #111827; --muted: #6b7280;
-      --border: #e5e7eb; --field: #f9fafb; --primary: #2563eb; --primary-hover: #1d4ed8;
-      --focus: rgba(37, 99, 235, 0.35); --err: #b91c1c; --err-bg: #fef2f2; --err-border: #fecaca;
-      --ok: #15803d; --ok-bg: #f0fdf4;
+      --desk: #f1eee7; --sheet: #ffffff; --paper: #faf8f4; --ink: #1c1c1c; --muted: #6b6b6b;
+      --faint: #b3aba0; --rule: #e4e0d8; --link: #2d5be3; --focus: rgba(45, 91, 227, 0.3);
+      --btn-ink: #1c1c1c; --btn-ink-hover: #3a3a3a; --btn-text: #fafaf8;
+      --err: #a3261d; --err-bg: #fbf1ee; --err-rule: #efcdc6; --ok: #1b7a4e; --ok-bg: #edf7f2;
     }
     @media (prefers-color-scheme: dark) {
       :root {
-        --bg: #0f1115; --card: #181b21; --text: #e5e7eb; --muted: #9ca3af;
-        --border: #2a2f38; --field: #111317; --primary: #3b82f6; --primary-hover: #60a5fa;
-        --focus: rgba(59, 130, 246, 0.45); --err: #fca5a5; --err-bg: #2a1215; --err-border: #5b1d22;
-        --ok: #86efac; --ok-bg: #0f2418;
+        --desk: #161513; --sheet: #1f1e1b; --paper: #272522; --ink: #ece8e1; --muted: #a39d93;
+        --faint: #7a746b; --rule: #34312c; --link: #8aa7ff; --focus: rgba(138, 167, 255, 0.35);
+        --btn-ink: #ece8e1; --btn-ink-hover: #ffffff; --btn-text: #1c1c1c;
+        --err: #f2a99f; --err-bg: #2b1a17; --err-rule: #4a2a24; --ok: #7fd1a8; --ok-bg: #16261e;
       }
     }
     * { box-sizing: border-box; }
     body {
       margin: 0; min-height: 100vh; display: flex; align-items: flex-start; justify-content: center;
-      padding: 12vh 16px 32px; background: var(--bg); color: var(--text);
-      font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      padding: 10vh 16px 32px; background: var(--desk); color: var(--ink);
+      font: 15px/1.55 'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
     }
-    .card {
-      width: 100%; max-width: 420px; background: var(--card); border: 1px solid var(--border);
-      border-radius: 14px; padding: 32px 28px;
-      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06);
+    .sheet {
+      width: 100%; max-width: 420px; background: var(--sheet); border: 1px solid var(--rule);
+      border-radius: 4px; padding: 30px 28px 28px;
+      box-shadow: 0 1px 0 var(--rule), 0 14px 30px -18px rgba(60, 45, 20, 0.28);
     }
-    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; color: var(--muted); font-size: 0.85rem; font-weight: 500; }
-    .brand-mark { width: 28px; height: 28px; border-radius: 7px; background: var(--primary); color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 0.95rem; }
-    h1 { font-size: 1.35rem; line-height: 1.3; font-weight: 650; margin: 0 0 6px; }
+    .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.01em; }
+    .brand svg { color: var(--ink); flex: none; }
+    .steps { list-style: none; display: flex; gap: 6px; margin: 0 0 18px; padding: 0; font-size: 0.75rem; color: var(--faint); }
+    .steps li { display: flex; align-items: center; gap: 6px; }
+    .steps li + li::before { content: ''; width: 14px; height: 1px; background: var(--rule); }
+    .steps li.current { color: var(--ink); font-weight: 600; }
+    .steps li.done { color: var(--muted); }
+    h1 { font-size: 1.45rem; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em; margin: 0 0 6px; }
     .lede { color: var(--muted); margin: 0; }
     #content { margin-top: 24px; display: flex; flex-direction: column; gap: 14px; }
     #content:empty { display: none; }
@@ -52,37 +62,62 @@ const DEVICE_HTML = `<!DOCTYPE html>
     #status:empty { display: none; }
     #status p { margin: 0; }
     .muted { color: var(--muted); font-size: 0.9rem; }
-    .account { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--field); font-size: 0.9rem; }
-    .account strong { font-weight: 600; word-break: break-all; }
-    label { font-weight: 550; font-size: 0.9rem; }
-    .code, .code-input { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 0.18em; text-align: center; }
-    .code { display: block; font-size: 1.7rem; font-weight: 600; padding: 14px 12px; border-radius: 10px; background: var(--field); border: 1px solid var(--border); }
-    .code-input { width: 100%; font-size: 1.35rem; text-transform: uppercase; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--field); color: var(--text); }
-    .code-input:focus { outline: none; border-color: var(--primary); box-shadow: 0 0 0 3px var(--focus); }
-    .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 4px; }
-    .btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 11px 16px; font: inherit; font-weight: 600; border-radius: 10px; border: 1px solid transparent; cursor: pointer; transition: background 0.15s, border-color 0.15s; }
+    .account { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 12px; padding: 0 0 14px; border-bottom: 1px solid var(--rule); font-size: 0.88rem; color: var(--muted); }
+    .account strong { color: var(--ink); font-weight: 600; word-break: break-all; }
+    label { font-weight: 600; font-size: 0.9rem; }
+    .code-input {
+      width: 100%; font: 500 1.4rem/1 'DM Mono', ui-monospace, Consolas, monospace; letter-spacing: 0.3em;
+      text-align: center; text-transform: uppercase; padding: 14px 12px; border-radius: 4px;
+      border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
+    }
+    .code-input::placeholder { color: var(--faint); letter-spacing: 0.3em; }
+    .code-input:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 3px var(--focus); }
+    /* The code as separate tiles, so it can be checked character by character
+       against the one in the task pane. */
+    .tiles { display: flex; justify-content: center; align-items: center; gap: 6px; padding: 6px 0 2px; }
+    .tile {
+      width: 34px; height: 44px; display: grid; place-items: center; border: 1px solid var(--rule);
+      border-bottom: 2px solid var(--ink); border-radius: 4px; background: var(--paper);
+      font: 500 1.3rem/1 'DM Mono', ui-monospace, Consolas, monospace;
+    }
+    .tile-gap { width: 10px; height: 2px; background: var(--faint); margin: 0 2px; }
+    .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
+    .btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 11px 16px; font: inherit; font-weight: 600; border-radius: 4px; border: 1px solid transparent; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
     .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
-    .btn:disabled { opacity: 0.6; cursor: default; }
-    .primary { background: var(--primary); color: #fff; }
-    .primary:hover:not(:disabled) { background: var(--primary-hover); }
-    .secondary { background: transparent; color: var(--text); border-color: var(--border); }
-    .secondary:hover:not(:disabled) { border-color: var(--muted); }
-    .link { background: none; border: none; padding: 0; font: inherit; font-size: 0.85rem; color: var(--primary); text-decoration: underline; cursor: pointer; }
-    .link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
-    .err, .ok { padding: 10px 12px; border-radius: 10px; font-size: 0.9rem; }
-    .err { color: var(--err); background: var(--err-bg); border: 1px solid var(--err-border); }
+    .btn:disabled { opacity: 0.55; cursor: default; }
+    .primary { background: var(--btn-ink); color: var(--btn-text); }
+    .primary:hover:not(:disabled) { background: var(--btn-ink-hover); }
+    .secondary { background: transparent; color: var(--ink); border-color: var(--rule); }
+    .secondary:hover:not(:disabled) { border-color: var(--faint); }
+    .link { background: none; border: none; padding: 0; font: inherit; font-size: 0.85rem; color: var(--link); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+    .link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+    .err, .ok { padding: 10px 12px; border-radius: 4px; font-size: 0.9rem; }
+    .err { color: var(--err); background: var(--err-bg); border: 1px solid var(--err-rule); }
     .ok { color: var(--ok); background: var(--ok-bg); }
-    .result { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 8px 0 4px; }
-    .result h2 { font-size: 1.15rem; margin: 4px 0 0; }
+    .result { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0 2px; }
+    .result h2 { font-size: 1.15rem; font-weight: 600; margin: 6px 0 0; }
     .result p { color: var(--muted); }
     .result-icon { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; }
     .ok-icon { background: var(--ok-bg); color: var(--ok); }
-    .neutral-icon { background: var(--field); color: var(--muted); border: 1px solid var(--border); }
+    .neutral-icon { background: var(--paper); color: var(--muted); border: 1px solid var(--rule); }
   </style>
 </head>
 <body>
-  <main class="card">
-    <div class="brand"><span class="brand-mark" aria-hidden="true">T</span>${PRODUCT_NAME}</div>
+  <main class="sheet">
+    <div class="brand">
+      <!-- The Thoughtful mark: a sheet with a pencil (frontend/public/assets/logo_black*). -->
+      <svg width="24" height="30" viewBox="0 0 24 30" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <rect x="1" y="1" width="22" height="28" stroke-width="1.6" />
+        <path d="M12 7H6v10h10v-5" stroke-width="1.6" />
+        <path d="M10 13l6-6" stroke-width="2.4" />
+      </svg>
+      ${PRODUCT_NAME}
+    </div>
+    <ol class="steps" aria-label="Progress">
+      <li data-step="1">Sign in</li>
+      <li data-step="2">Enter code</li>
+      <li data-step="3">Approve</li>
+    </ol>
     <h1>Authorize ${PRODUCT_NAME}</h1>
     <p class="lede">A device is requesting access to your ${PRODUCT_NAME} account.</p>
     <div id="content"><p class="muted">Loading…</p></div>
@@ -112,6 +147,31 @@ const DEVICE_HTML = `<!DOCTYPE html>
       b.onclick = handler;
       return b;
     }
+    // Mark the step indicator: steps before n are done, n is current. n > 3
+    // marks all three done (after approve/deny).
+    function setStep(n) {
+      document.querySelectorAll('.steps li').forEach((li) => {
+        const k = Number(li.dataset.step);
+        li.classList.toggle('done', k < n);
+        li.classList.toggle('current', k === n);
+        if (k === n) li.setAttribute('aria-current', 'step');
+        else li.removeAttribute('aria-current');
+      });
+    }
+    // The code as one tile per character, split in two halves for an 8-character
+    // code. Screen readers get the whole code once via aria-label.
+    function codeTiles(code) {
+      const row = el('div', 'tiles');
+      row.setAttribute('role', 'img');
+      row.setAttribute('aria-label', 'Code ' + code.split('').join(' '));
+      [...code].forEach((ch, i) => {
+        if (code.length === 8 && i === 4) row.append(el('span', 'tile-gap'));
+        const t = el('span', 'tile', ch);
+        t.setAttribute('aria-hidden', 'true');
+        row.append(t);
+      });
+      return row;
+    }
     function icon(id) {
       return document.getElementById(id).content.firstElementChild.cloneNode(true);
     }
@@ -131,6 +191,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
       ic.append(icon(kind === 'ok' ? 'icon-check' : 'icon-x'));
       const box = el('div', 'result');
       box.append(ic, el('h2', null, title), el('p', null, text));
+      setStep(4);
       setStatus();
       showContent(box);
     }
@@ -283,7 +344,8 @@ const DEVICE_HTML = `<!DOCTYPE html>
       const who = el('span');
       who.append('Signed in as ', el('strong', null, session.user.email));
       p1.append(who);
-      showContent(p1, el('p', null, 'Authorize access for code:'), el('div', 'code', userCode), actions(
+      setStep(3);
+      showContent(p1, el('p', null, 'Check this matches the code in ${PRODUCT_NAME}:'), codeTiles(userCode), actions(
         btn('primary', 'Approve', () => approve(userCode)),
         btn('secondary', 'Deny', () => deny(userCode))));
     }
@@ -352,12 +414,14 @@ const DEVICE_HTML = `<!DOCTYPE html>
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') submitCode(session, input.value);
       });
+      input.placeholder = 'XXXXXXXX';
+      setStep(2);
       showContent(who, p, input, actions(cont));
       input.focus();
     }
 
     function googleButton() {
-      const b = btn('secondary', '', signIn);
+      const b = btn('secondary google', '', signIn);
       b.append(icon('icon-google'), document.createTextNode('Sign in with Google'));
       return b;
     }
@@ -376,6 +440,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
           el('p', null, 'Sign in with Google, then enter the code shown in ${PRODUCT_NAME}.'),
           actions(googleButton()),
         ];
+        setStep(1);
         if (authError) {
           nodes.unshift(el('p', 'err', "Google sign-in didn't complete. Nothing was authorized — you can try again."));
         }
