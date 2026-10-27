@@ -34,7 +34,9 @@ invalid ones.
   browser crashes while the tab is visible (loses up to about 1s of events), or the
   participant closes the tab while offline and never comes back to the site.
 - `sessionId` is new on every page load, so a reload of the task page appears as a new
-  session with the same username.
+  session with the same username. Survey answers survive a reload (saved in
+  `localStorage` per username and page, cleared on submit). The task page's draft and
+  chat don't survive, so it shows a "Leave site?" prompt before an unload it didn't start.
 - `documentUpdate` events hold full-document snapshots on every keystroke. They are
   highly redundant, so compress log files at rest (e.g. `zstd --long`).
 - `surveyInputUpdate` events do the same for survey text questions marked

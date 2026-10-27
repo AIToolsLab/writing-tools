@@ -3,6 +3,7 @@
 import { type ReactNode, useState } from 'react';
 import { Question, SurveySection } from './types';
 import SurveyQuestion from './SurveyQuestion';
+import { clearSavedSurveyInputs } from '@/contexts/StudyContext';
 
 interface SurveyProps {
   title?: string;
@@ -45,6 +46,7 @@ export default function Survey({
     }
     if (isSubmitting) return;
     setIsSubmitting(true);
+    clearSavedSurveyInputs();
     await onSubmit();
   };
 
