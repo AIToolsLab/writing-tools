@@ -14,6 +14,7 @@ interface ControlledInputProps {
   label?: string;
   required?: boolean;
   multiline?: boolean;
+  rows?: number;
   otherOption?: string;
   exclusiveOption?: string;
   logChanges?: boolean;
@@ -27,6 +28,7 @@ export default function ControlledInput({
   label,
   required = false,
   multiline = true,
+  rows = 3,
   otherOption,
   exclusiveOption,
   logChanges = false,
@@ -88,7 +90,7 @@ export default function ControlledInput({
           onChange={(e) => handleTextChange(e.target.value)}
           placeholder={placeholder}
           required={required}
-          rows={3}
+          rows={rows}
           className={baseClassName}
         />
       );
