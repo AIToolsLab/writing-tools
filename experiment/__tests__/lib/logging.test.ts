@@ -61,17 +61,17 @@ describe('logging queue', () => {
       () => new Promise((resolve) => setTimeout(() => resolve(new Response('{}')), 100))
     );
     const { log } = await loadPage();
-    log({ username: 'u1', event: 'a' });
+    log({ username: 'u1', event: 'chatMessage:user' });
     await vi.advanceTimersByTimeAsync(1050); // upload of [a] in flight
-    log({ username: 'u1', event: 'b' }); // same run uploads [b]; its timer then fires on an empty queue
+    log({ username: 'u1', event: 'chatMessage:assistant' }); // same run uploads [b]; its timer then fires on an empty queue
     await vi.advanceTimersByTimeAsync(1100);
-    log({ username: 'u1', event: 'c' });
+    log({ username: 'u1', event: 'documentUpdate' });
     await vi.advanceTimersByTimeAsync(1200);
 
     expect(sentBatches(fetchMock).map((batch) => batch.map((e) => e.event))).toEqual([
-      ['a'],
-      ['b'],
-      ['c'],
+      ['chatMessage:user'],
+      ['chatMessage:assistant'],
+      ['documentUpdate'],
     ]);
   });
 
