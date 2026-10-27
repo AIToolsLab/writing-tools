@@ -84,7 +84,7 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 ### Pages (IMPORTANT: Don't confuse these!)
 - `app/page.tsx` - **Landing/index page** (dev navigation only; links to the study and the demo)
 - `app/demo/page.tsx` - **Standalone demo** for AI writing assistance only (NO chat, NOT used in study)
-- `components/study/TaskPage.tsx` - **Actual study task page** with collapsible chat + AI panel
+- `components/study/TaskPage.tsx` - **Actual study task page**: colleague chat sidebar (left), writing area (center), AI panel (right)
 
 ### Timing for the Simulated Colleague
 
