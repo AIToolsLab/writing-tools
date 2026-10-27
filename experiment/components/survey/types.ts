@@ -10,6 +10,7 @@ export interface Question {
   options?: string[]; // For likert, radio, checkbox
   placeholder?: string; // For text inputs
   multiline?: boolean; // For text inputs: false = single-line input, true/undefined = textarea
+  rows?: number; // For multiline text inputs: textarea height in lines (default 3)
   otherOption?: string; // For radio/checkbox: selecting this option shows a required text box, saved as `${id}_other`
   exclusiveOption?: string; // For checkbox: selecting this option clears the others (e.g., "None")
   logChanges?: boolean; // For text inputs: log a surveyInputUpdate event on every change

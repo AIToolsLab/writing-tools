@@ -285,6 +285,7 @@ export const generalRecallQuestions: Question[] = [
     text: 'What decisions do you remember making about what to include or leave out while writing the email? Please describe as many decisions as you can remember, and briefly explain what influenced each one.',
     type: 'text',
     placeholder: 'Describe your decisions and what influenced each one',
+    rows: 14,
     required: true,
   },
 ];
@@ -511,6 +512,7 @@ export function getEmailFeedbackQuestions(scenarioId: string): Question[] {
       ),
       type: 'text',
       placeholder: 'Your feedback',
+      rows: 14,
       required: true,
       logChanges: true,
     },
