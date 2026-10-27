@@ -43,7 +43,22 @@ export default function TaskPage() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Warn before an accidental reload or back navigation (e.g. a trackpad
+  // swipe or Alt+Left) discards the draft and chat. Browsers only show the
+  // prompt once the participant has interacted with the page.
+  const isSendingRef = useRef(false);
+  useEffect(() => {
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      if (isSendingRef.current) return;
+      event.preventDefault();
+      event.returnValue = ''; // older browsers
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
   const handleSendTask = async (content: string, subject: string) => {
+    isSendingRef.current = true;
     const params = new URLSearchParams(searchParams.toString());
     params.set('page', 'debrief');
     await logThenRedirect({
