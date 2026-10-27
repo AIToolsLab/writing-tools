@@ -120,28 +120,34 @@ function scheduleFlush(delay: number) {
 
 /** Upload the whole queue, one batch at a time. Concurrent callers share one run. */
 function flush(): Promise<void> {
-  inFlight ??= (async () => {
-    try {
-      while (queue.length > 0) {
-        const batch = queue.slice(0, MAX_BATCH_SIZE);
-        const response = await send(batch);
-        // 4xx will fail identically forever; drop the batch rather than wedge the queue.
-        if (!response.ok && response.status < 500) {
-          console.error(`Dropping ${batch.length} log entries: HTTP ${response.status}`);
-        } else if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-        queue = queue.slice(batch.length);
-      }
-      setStatus({ failing: false });
-    } catch (error) {
-      setStatus({ failing: true });
-      throw error;
-    } finally {
-      inFlight = null;
-    }
-  })();
+  // Clear inFlight in a .finally() callback, which always runs asynchronously.
+  // Clearing it inside uploadQueue() would run synchronously when the queue is
+  // empty, before `??=` assigns, leaving inFlight stuck on a settled promise
+  // so that every later flush() silently uploads nothing.
+  inFlight ??= uploadQueue().finally(() => {
+    inFlight = null;
+  });
   return inFlight;
+}
+
+async function uploadQueue(): Promise<void> {
+  try {
+    while (queue.length > 0) {
+      const batch = queue.slice(0, MAX_BATCH_SIZE);
+      const response = await send(batch);
+      // 4xx will fail identically forever; drop the batch rather than wedge the queue.
+      if (!response.ok && response.status < 500) {
+        console.error(`Dropping ${batch.length} log entries: HTTP ${response.status}`);
+      } else if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      queue = queue.slice(batch.length);
+    }
+    setStatus({ failing: false });
+  } catch (error) {
+    setStatus({ failing: true });
+    throw error;
+  }
 }
 
 function send(entries: LogEntry[], keepalive = false): Promise<Response> {
