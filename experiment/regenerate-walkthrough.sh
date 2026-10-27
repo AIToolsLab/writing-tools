@@ -125,9 +125,9 @@ $SHOWBOAT exec "$DOC" bash 'rodney click "button" && rodney sleep 3 && rodney ur
 # Step 5: Main Writing Task
 $SHOWBOAT note "$DOC" "## Step 5: Main Writing Task
 
-This is the core of the experiment. The screen has three areas:
-- **Left**: Email composition area (To, Subject, Body fields)
-- **Bottom-right**: Floating chat panel with simulated colleague Sarah Martinez
+This is the core of the experiment. The screen has three columns:
+- **Left sidebar**: Chat with simulated colleague Sarah Martinez
+- **Center**: Email composition area (To, Subject, Body fields)
 - **Right sidebar**: AI Writing Assistant panel showing directive advice
 
 The colleague's initial messages appear automatically with typing animations."
@@ -141,11 +141,11 @@ $SHOWBOAT note "$DOC" "The colleague (Sarah Martinez) sends her initial messages
 2. \"Room got double-booked. Gotta move him. But gotta keep him happy!\"
 3. \"I'm on a call, so need you to email him. What info do you need to sort this out?\"
 
-The chat panel is a floating window at the bottom-right. The colleague is intentionally non-proactive — she only answers questions when asked, simulating a busy coworker.
+The chat is always visible in the left sidebar. The colleague is intentionally non-proactive — she only answers questions when asked, simulating a busy coworker.
 
 ### Chatting with the Colleague
 
-The participant asks Sarah questions to gather information needed for the email. Sarah is intentionally non-proactive — she only answers what's asked, simulating a busy coworker."
+The participant asks Sarah questions to gather information needed for the email. She replies only to what's asked."
 
 $SHOWBOAT exec "$DOC" bash 'rodney input '\''input[placeholder="Message Sarah..."]'\'' "What room is Jaden being moved to? And what time is his panel?" && rodney click '\''form button[type="submit"]'\'' && echo "Message sent"'
 

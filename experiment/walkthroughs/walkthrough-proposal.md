@@ -1,7 +1,7 @@
 # Experiment Walkthrough: Proposal Advice (p) Condition
 
-*2026-10-23T22:26:43Z by Showboat 0.6.1*
-<!-- showboat-id: d26760a8-43e0-4b46-9fcf-ae4b94a01754 -->
+*2026-10-27T17:11:32Z by Showboat 0.6.1*
+<!-- showboat-id: f61e8078-9714-4517-a5a9-6688ca7308e7 -->
 
 This walkthrough demonstrates the complete participant experience in the **proposal_advice (p)** condition of the writing experiment, using the **roomDoubleBooking** scenario. In this condition, participants receive directive AI advice (not copy-paste text) while composing an email.
 
@@ -304,9 +304,9 @@ http://localhost:3000/study?username=walkthrough-user&condition=p&scenario=roomD
 
 ## Step 5: Main Writing Task
 
-This is the core of the experiment. The screen has three areas:
-- **Left**: Email composition area (To, Subject, Body fields)
-- **Bottom-right**: Floating chat panel with simulated colleague Sarah Martinez
+This is the core of the experiment. The screen has three columns:
+- **Left sidebar**: Chat with simulated colleague Sarah Martinez
+- **Center**: Email composition area (To, Subject, Body fields)
 - **Right sidebar**: AI Writing Assistant panel showing directive advice
 
 The colleague's initial messages appear automatically with typing animations.
@@ -344,11 +344,11 @@ The colleague (Sarah Martinez) sends her initial messages automatically:
 2. "Room got double-booked. Gotta move him. But gotta keep him happy!"
 3. "I'm on a call, so need you to email him. What info do you need to sort this out?"
 
-The chat panel is a floating window at the bottom-right. The colleague is intentionally non-proactive — she only answers questions when asked, simulating a busy coworker.
+The chat is always visible in the left sidebar. The colleague is intentionally non-proactive — she only answers questions when asked, simulating a busy coworker.
 
 ### Chatting with the Colleague
 
-The participant asks Sarah questions to gather information needed for the email. Sarah is intentionally non-proactive — she only answers what's asked, simulating a busy coworker.
+The participant asks Sarah questions to gather information needed for the email. She replies only to what's asked.
 
 ```bash
 rodney input 'input[placeholder="Message Sarah..."]' "What room is Jaden being moved to? And what time is his panel?" && rodney click 'form button[type="submit"]' && echo "Message sent"
@@ -380,18 +380,16 @@ rodney js "document.querySelector('.flex-1.overflow-y-auto.bg-white').innerText"
 
 ```output
 Problem with Jaden's panel tomorrow
-05:28 PM
+12:11 PM
 Room got double-booked. Gotta move him. But gotta keep him happy!
-05:28 PM
+12:12 PM
 I'm on a call, so need you to email him. What info do you need to sort this out?
-05:28 PM
+12:12 PM
 What room is Jaden being moved to? And what time is his panel?
-05:28 PM
+12:12 PM
 Delivered
-Room 14 is the option for Jaden.
-05:28 PM
-It can work at 1:30pm.
-05:28 PM
+Room 14, at 1:30pm.
+12:12 PM
 ```
 
 ### Composing the Email
@@ -476,13 +474,13 @@ rodney js "document.querySelector('h3').parentElement.innerText"
 ```output
 AI Writing Assistant
 Suggestions are based on your email draft and may incorporate details from recent chat conversations. They refresh automatically.
-05:28 PM
+12:12 PM
 Advice for your next words:
-- State the new room and time again in a clear, scannable closing line before the sign-off.
+- Add the venue location details for Room 14 and include a clear arrival time for setup.
 
-- Add one sentence acknowledging his needs and offering a quick way to confirm any AV or setup requirements.
+- Briefly explain what will remain unchanged about his panel to reassure him despite the move.
 
-- Include a brief next-step action for him, specifying when you need a reply to finalize the room change.
+- End with a direct next-step for him to confirm receipt and a specific contact method for urgent issues.
 Delete
 AI-generated text may vary in quality
 ```
