@@ -114,7 +114,7 @@ $SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney
 # Step 4: Task Instructions
 $SHOWBOAT note "$DOC" "## Step 4: Task Instructions
 
-The participant reads the scenario briefing. In the roomDoubleBooking scenario, they learn they need to email panelist Jaden Thompson about a room conflict, coordinating with colleague Sarah Martinez via chat. Key instructions include: review colleague's messages, ask follow-up questions, and compose a professional email. They're told they may see AI suggestions (\"Advice for your next words\")."
+The participant reads the scenario briefing. In the roomDoubleBooking scenario, they learn they need to email panelist Jaden Thompson about a room conflict, coordinating with colleague Sarah Martinez via chat. Key instructions include: review colleague's messages, ask follow-up questions, and compose a professional email. They're told they may see an AI Writing Assistant on the right side of the screen."
 
 screenshot 'rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-task-instructions.png'
 
