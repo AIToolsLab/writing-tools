@@ -598,48 +598,49 @@ export const postTaskAIQuestions: Question[] = [
     id: 'ai_decision_timing',
     text: (
       <>
-        Can you recall a specific moment when you read one of the AI-generated
-        writing suggestions on the right side of the screen and decided not to
-        use it? What made you decide that? Be as specific as you can.
+        Can you recall a specific moment when you read something from the AI
+        Writing Assistant on the right side of the screen and decided not to use
+        it? What made you decide that? Be as specific as you can.
       </>
     ),
     type: 'text',
-    placeholder: 'Describe when and why you decided not to use an AI suggestion',
+    placeholder:
+      'Describe when and why you decided not to use something from the AI Writing Assistant',
     required: false,
   },
   {
     id: 'ai_ease_understand',
-    text: 'The AI suggestions were easy to understand',
+    text: "The AI Writing Assistant's output was easy to understand",
     type: 'radio',
     options: likert(),
     required: true,
   },
   {
     id: 'ai_helpful',
-    text: 'The AI suggestions were helpful',
+    text: "The AI Writing Assistant's output was helpful",
     type: 'radio',
     options: likert(),
     required: true,
   },
   {
     id: 'ai_felt_pressured',
-    text: 'I felt pressured to use the AI suggestions',
+    text: "I felt pressured to use the AI Writing Assistant's output",
     type: 'radio',
     options: likert(),
     required: true,
   },
   {
     id: 'ai_think_carefully',
-    text: 'I had to think carefully about when to use the AI suggestions',
+    text: "I had to think carefully about when to use the AI Writing Assistant's output",
     type: 'radio',
     options: likert(),
     required: true,
   },
   {
     id: 'ai_describe',
-    text: 'In your own words, describe the AI-generated text and how you used it',
+    text: 'In your own words, describe what the AI Writing Assistant on the right side of the screen showed you and what you did with it',
     type: 'text',
-    placeholder: 'Describe what the AI text said and how you used it',
+    placeholder: 'Describe what the AI Writing Assistant showed and what you did with it',
     required: false,
   },
 ];
@@ -659,22 +660,22 @@ export const conditionDebriefs: Record<
   complete_document: {
     title: 'About the AI Draft',
     content:
-      'In this condition, the AI system provided complete draft emails. The information in these drafts may or may not have been consistent with the true context from the chat conversation. Please reflect on how you used these AI-generated drafts in your writing.',
+      'In this condition, the AI Writing Assistant provided complete draft emails. The information in these drafts may or may not have been consistent with the true context from the chat conversation. Please reflect on how you used these AI-generated drafts in your writing.',
   },
   example_sentences: {
     title: 'About the AI Suggestions',
     content:
-      'In this condition, the AI system provided example sentences as suggestions. The information in these suggestions may or may not have been consistent with the true context from the chat conversation. Please reflect on how you used these AI-generated suggestions in your writing.',
+      'In this condition, the AI Writing Assistant provided example sentences as suggestions. The information in these suggestions may or may not have been consistent with the true context from the chat conversation. Please reflect on how you used these AI-generated suggestions in your writing.',
   },
   analysis_readerPerspective: {
     title: 'About the AI Analysis',
     content:
-      'In this condition, the AI system provided analysis from a reader perspective. Please reflect on how this feedback influenced your writing process.',
+      'In this condition, the AI Writing Assistant provided analysis from a reader perspective. Please reflect on how this feedback influenced your writing process.',
   },
   proposal_advice: {
     title: 'About the AI Advice',
     content:
-      'In this condition, the AI system provided writing advice and suggestions. Please reflect on how this advice influenced your writing process.',
+      'In this condition, the AI Writing Assistant provided writing advice and suggestions. Please reflect on how this advice influenced your writing process.',
   },
 };
 

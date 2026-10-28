@@ -239,7 +239,7 @@ $SHOWBOAT exec "$DOC" bash 'rodney click '\''button[type="submit"]'\'' && rodney
 
 $SHOWBOAT note "$DOC" "### Page 5: Task Experience
 
-Only this last page reveals the condition: a callout explains what the AI provided (for **p**, \"About the AI Advice\"). Below it are NASA TLX-style workload questions, which other tools were used, technical difficulties, and AI-specific questions (a moment they decided not to use a suggestion, whether suggestions were easy to understand and helpful, whether they felt pressured, and a free-text description). The no-AI condition gets only the common questions."
+Only this last page reveals the condition: a callout explains what the AI provided (for **p**, \"About the AI Advice\"). Below it are NASA TLX-style workload questions, which other tools were used, technical difficulties, and AI-specific questions about the AI Writing Assistant (a moment they decided not to use something it showed, whether its output was easy to understand and helpful, whether they felt pressured to use it, and a free-text description). The no-AI condition gets only the common questions."
 
 $SHOWBOAT exec "$DOC" bash 'rodney click '\''input[name="tlx_mental_demand"][value="Medium"]'\'' && rodney click '\''input[name="tlx_temporal_demand"][value="Low"]'\'' && rodney click '\''input[name="tlx_performance"][value="Good"]'\'' && rodney click '\''input[name="tlx_physical_demand"][value="Very Low"]'\'' && rodney click '\''input[name="tlx_effort"][value="Medium"]'\'' && rodney click '\''input[name="tlx_frustration"][value="Low"]'\'' && echo "TLX questions filled"'
 
