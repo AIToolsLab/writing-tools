@@ -1,7 +1,7 @@
 # Experiment Walkthrough: Proposal Advice (p) Condition
 
-*2026-10-27T17:11:32Z by Showboat 0.6.1*
-<!-- showboat-id: f61e8078-9714-4517-a5a9-6688ca7308e7 -->
+*2026-10-28T19:54:16Z by Showboat 0.6.1*
+<!-- showboat-id: b0788f1d-a41e-47b8-aa1b-bc4cb1751a51 -->
 
 This walkthrough demonstrates the complete participant experience in the **proposal_advice (p)** condition of the writing experiment, using the **roomDoubleBooking** scenario. In this condition, participants receive directive AI advice (not copy-paste text) while composing an email.
 
@@ -274,7 +274,7 @@ http://localhost:3000/study?username=walkthrough-user&condition=p&scenario=roomD
 
 ## Step 4: Task Instructions
 
-The participant reads the scenario briefing. In the roomDoubleBooking scenario, they learn they need to email panelist Jaden Thompson about a room conflict, coordinating with colleague Sarah Martinez via chat. Key instructions include: review colleague's messages, ask follow-up questions, and compose a professional email. They're told they may see AI suggestions ("Advice for your next words").
+The participant reads the scenario briefing. In the roomDoubleBooking scenario, they learn they need to email panelist Jaden Thompson about a room conflict, coordinating with colleague Sarah Martinez via chat. Key instructions include: review colleague's messages, ask follow-up questions, and compose a professional email. They're told they may see an AI Writing Assistant on the right side of the screen.
 
 ```bash
 rodney js "window.scrollTo(0, 0)" && rodney sleep 1 && rodney screenshot walkthroughs/walkthrough-task-instructions.png
@@ -380,16 +380,18 @@ rodney js "document.querySelector('.flex-1.overflow-y-auto.bg-white').innerText"
 
 ```output
 Problem with Jaden's panel tomorrow
-12:11 PM
+02:54 PM
 Room got double-booked. Gotta move him. But gotta keep him happy!
-12:12 PM
+02:54 PM
 I'm on a call, so need you to email him. What info do you need to sort this out?
-12:12 PM
+02:54 PM
 What room is Jaden being moved to? And what time is his panel?
-12:12 PM
+02:55 PM
 Delivered
-Room 14, at 1:30pm.
-12:12 PM
+Room 14.
+02:55 PM
+His panel can move to 1:30pm.
+02:55 PM
 ```
 
 ### Composing the Email
@@ -474,13 +476,13 @@ rodney js "document.querySelector('h3').parentElement.innerText"
 ```output
 AI Writing Assistant
 Suggestions are based on your email draft and may incorporate details from recent chat conversations. They refresh automatically.
-12:12 PM
+02:55 PM
 Advice for your next words:
-- Add the venue location details for Room 14 and include a clear arrival time for setup.
+- State the key logistics immediately after the apology, including building/location cues and where to check on arrival.
 
-- Briefly explain what will remain unchanged about his panel to reassure him despite the move.
+- Add one concrete reassurance about tech/setup support in Room 14 and who will be there to assist.
 
-- End with a direct next-step for him to confirm receipt and a specific contact method for urgent issues.
+- End with a clear requested action, such as confirming the new time/room and any special needs.
 Delete
 AI-generated text may vary in quality
 ```
