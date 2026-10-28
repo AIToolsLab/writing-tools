@@ -43,3 +43,11 @@ invalid ones.
   `logChanges` (currently the post-task email feedback micro-task): `questionId`,
   the full `value`, and its `length` on every change. The final answers are still
   in `surveyComplete:*`.
+- Both `surveyComplete:*` events have `extra_data: { scenarioId, condition, answers }`,
+  with `answers` keyed by question id. Some post-task keys (`comprehension_*`) mean a
+  different question in each scenario, so `scenarioId` is needed to interpret them.
+  It is the scenario actually used (an unknown `?scenario=` falls back to the default
+  scenario). Logs from before this change have the answers directly in `extra_data`.
+- Question ids are unique within each survey (checked by
+  `__tests__/components/surveyData.test.ts`), and "please specify" text is stored
+  as `<id>_other`.
