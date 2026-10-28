@@ -639,7 +639,7 @@ export const postTaskAIQuestions: Question[] = [
     id: 'ai_describe',
     text: 'In your own words, describe the AI-generated text and how you used it',
     type: 'text',
-    placeholder: 'Describe your experience with the AI text',
+    placeholder: 'Describe what the AI text said and how you used it',
     required: false,
   },
 ];
