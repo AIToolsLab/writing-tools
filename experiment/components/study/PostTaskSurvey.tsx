@@ -2,7 +2,7 @@
 
 import { useSearchParams } from 'next/navigation';
 import { useAtom } from 'jotai';
-import { log, logThenRedirect } from '@/lib/logging';
+import { logThenRedirect } from '@/lib/logging';
 import { getNextPage, getScenario, letterToCondition } from '@/lib/studyConfig';
 import { surveyInputAtom } from '@/contexts/StudyContext';
 import Survey from '@/components/survey/Survey';
@@ -12,7 +12,8 @@ export default function PostTaskSurvey() {
   const searchParams = useSearchParams();
   const [surveyInputs] = useAtom(surveyInputAtom);
   const username = searchParams.get('username') || '';
-  const conditionCode = (searchParams.get('condition') || 'n') as keyof typeof letterToCondition;
+  const conditionCode = (searchParams.get('condition') ||
+    'n') as keyof typeof letterToCondition;
   const condition = letterToCondition[conditionCode];
   // getScenario resolves a missing or unknown ID to the default scenario
   const scenarioId = getScenario(searchParams.get('scenario') || undefined).id;
@@ -29,19 +30,19 @@ export default function PostTaskSurvey() {
       {
         username,
         event: 'surveyComplete:post-task-survey',
-        extra_data: surveyInputs,
+        extra_data: { scenarioId, condition, answers: surveyInputs },
       },
-      nextUrl
+      nextUrl,
     );
   };
 
   return (
-    <div className="max-w-2xl mx-auto p-8">
+    <div className='max-w-2xl mx-auto p-8'>
       <Survey
-        title="Task Completion Survey"
+        title='Task Completion Survey'
         sections={surveySections}
         onSubmit={handleSubmit}
-        submitButtonText="Continue"
+        submitButtonText='Continue'
       />
     </div>
   );
