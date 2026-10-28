@@ -53,7 +53,7 @@ export default function StartTaskPage() {
               Compose your email response in the text area provided
             </li>
             <li>
-              You may see AI-generated writing suggestions on the right side of the screen. If so, feel free to use them, edit them, or ignore them — it&apos;s entirely up to you.
+              You may see an AI Writing Assistant on the right side of the screen. If so, feel free to use, edit, or ignore what it shows — it&apos;s entirely up to you.
             </li>
             <li>
               <b>The AI can make mistakes. Check important info.</b>
