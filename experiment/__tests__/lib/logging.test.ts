@@ -56,6 +56,25 @@ describe('logging queue', () => {
     expect(batches[1]).toEqual(batches[0]);
   });
 
+  it('keeps uploading after a flush finds the queue already empty', async () => {
+    fetchMock.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(new Response('{}')), 100))
+    );
+    const { log } = await loadPage();
+    log({ username: 'u1', event: 'chatMessage:user' });
+    await vi.advanceTimersByTimeAsync(1050); // upload of [a] in flight
+    log({ username: 'u1', event: 'chatMessage:assistant' }); // same run uploads [b]; its timer then fires on an empty queue
+    await vi.advanceTimersByTimeAsync(1100);
+    log({ username: 'u1', event: 'documentUpdate' });
+    await vi.advanceTimersByTimeAsync(1200);
+
+    expect(sentBatches(fetchMock).map((batch) => batch.map((e) => e.event))).toEqual([
+      ['chatMessage:user'],
+      ['chatMessage:assistant'],
+      ['documentUpdate'],
+    ]);
+  });
+
   it('drops a batch the server rejects with 4xx instead of retrying forever', async () => {
     fetchMock.mockResolvedValueOnce(new Response('', { status: 400 }));
     vi.spyOn(console, 'error').mockImplementation(() => {});

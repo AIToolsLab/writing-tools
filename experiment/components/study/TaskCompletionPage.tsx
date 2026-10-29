@@ -26,7 +26,7 @@ export default function TaskCompletionPage() {
           <p className="text-foreground mb-4">
             You have finished the writing task. To complete
             the study, please continue to the follow-up
-            questionnaire about your experience with the task.
+            questionnaire about the task and your experience.
           </p>
         </section>
       </div>

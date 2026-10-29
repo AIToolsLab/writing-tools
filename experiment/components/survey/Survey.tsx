@@ -3,6 +3,7 @@
 import { type ReactNode, useState } from 'react';
 import { Question, SurveySection } from './types';
 import SurveyQuestion from './SurveyQuestion';
+import { clearSavedSurveyInputs } from '@/contexts/StudyContext';
 
 interface SurveyProps {
   title?: string;
@@ -45,6 +46,7 @@ export default function Survey({
     }
     if (isSubmitting) return;
     setIsSubmitting(true);
+    clearSavedSurveyInputs();
     await onSubmit();
   };
 
@@ -60,6 +62,8 @@ export default function Survey({
       {currentSection?.description && (
         <p className="text-gray-700 mb-6">{currentSection.description}</p>
       )}
+
+      {currentSection?.intro && <div className="mb-6">{currentSection.intro}</div>}
 
       <div className="space-y-6">
         {visibleQuestions.map((question) => (

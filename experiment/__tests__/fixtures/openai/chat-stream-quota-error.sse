@@ -1,0 +1,6 @@
+event: response.created
+data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_fixture_quota","object":"response","created_at":1761000000,"status":"in_progress","model":"gpt-5.2-2025-12-11","output":[],"service_tier":"auto","usage":null}}
+
+event: error
+data: {"type":"error","sequence_number":1,"error":{"type":"insufficient_quota","code":"insufficient_quota","message":"You exceeded your current quota, please check your plan and billing details.","param":null}}
+

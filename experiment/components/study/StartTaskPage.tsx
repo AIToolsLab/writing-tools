@@ -53,7 +53,7 @@ export default function StartTaskPage() {
               Compose your email response in the text area provided
             </li>
             <li>
-              You may see AI-generated writing suggestions on the right side of the screen. If so, feel free to use them, edit them, or ignore them — it&apos;s entirely up to you.
+              You may see an AI Writing Assistant on the right side of the screen. If so, feel free to use, edit, or ignore what it shows — it&apos;s entirely up to you.
             </li>
             <li>
               <b>The AI can make mistakes. Check important info.</b>
@@ -71,9 +71,6 @@ export default function StartTaskPage() {
         <div>
           <h3 className="font-semibold mb-2">Keep in mind:</h3>
           <ul className="list-disc list-inside space-y-1">
-            <li>
-              {scenario.taskInstructions.companyFraming}
-            </li>
             <li>There&apos;s no &ldquo;perfect&rdquo; response - write naturally</li>
             <li>Take as much time as you need</li>
             <li>

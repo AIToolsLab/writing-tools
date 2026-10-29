@@ -21,8 +21,10 @@ export default function SurveyQuestion({ question }: SurveyQuestionProps) {
         options={question.options}
         required={question.required}
         multiline={question.multiline}
+        rows={question.rows}
         otherOption={question.otherOption}
         exclusiveOption={question.exclusiveOption}
+        logChanges={question.logChanges}
       />
     </div>
   );

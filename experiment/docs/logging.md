@@ -34,6 +34,20 @@ invalid ones.
   browser crashes while the tab is visible (loses up to about 1s of events), or the
   participant closes the tab while offline and never comes back to the site.
 - `sessionId` is new on every page load, so a reload of the task page appears as a new
-  session with the same username.
+  session with the same username. Survey answers survive a reload (saved in
+  `localStorage` per username and page, cleared on submit). The task page's draft and
+  chat don't survive, so it shows a "Leave site?" prompt before an unload it didn't start.
 - `documentUpdate` events hold full-document snapshots on every keystroke. They are
   highly redundant, so compress log files at rest (e.g. `zstd --long`).
+- `surveyInputUpdate` events do the same for survey text questions marked
+  `logChanges` (currently the post-task email feedback micro-task): `questionId`,
+  the full `value`, and its `length` on every change. The final answers are still
+  in `surveyComplete:*`.
+- Both `surveyComplete:*` events have `extra_data: { scenarioId, condition, answers }`,
+  with `answers` keyed by question id. Some post-task keys (`comprehension_*`) mean a
+  different question in each scenario, so `scenarioId` is needed to interpret them.
+  It is the scenario actually used (an unknown `?scenario=` falls back to the default
+  scenario). Logs from before this change have the answers directly in `extra_data`.
+- Question ids are unique within each survey (checked by
+  `__tests__/components/surveyData.test.ts`), and "please specify" text is stored
+  as `<id>_other`.
