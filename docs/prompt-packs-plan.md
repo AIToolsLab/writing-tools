@@ -515,7 +515,7 @@ supporting.
    since the model last looked (supersedes
    [#249](https://github.com/AIToolsLab/writing-tools/issues/249)). No
    `highlight` in Chat: `doctext:` links already let it point. Edits are
-   standalone-editor-only and behind a flag until
+   standalone-editor-only until
    [#589](https://github.com/AIToolsLab/writing-tools/issues/589) (range
    anchoring, which also closes [#591](https://github.com/AIToolsLab/writing-tools/issues/591)/[#592](https://github.com/AIToolsLab/writing-tools/issues/592))
    makes other hosts reliable; it is no longer a prerequisite for the
