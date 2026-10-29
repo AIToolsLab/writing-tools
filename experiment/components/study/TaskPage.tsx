@@ -2,9 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
-import type { UIMessage } from '@ai-sdk/react';
 import type { WritingAreaRef } from '@/components/WritingArea';
-import type { TextEditorState } from '@/types';
+import type { ConversationMessage, TextEditorState } from '@/types';
 import AIPanel from '@/components/AIPanel';
 import ChatPanel from '@/components/ChatPanel';
 import WritingArea from '@/components/WritingArea';
@@ -22,9 +21,9 @@ export default function TaskPage() {
   const studyParams = useAtomValue(studyParamsAtom);
 
   // Conversation history for AI assistant
-  const [chatMessages, setChatMessages] = useState<UIMessage[]>([]);
-  const handleMessagesChange = useCallback((msgs: UIMessage[]) => {
-    setChatMessages(msgs);
+  const [chatConversation, setChatConversation] = useState<ConversationMessage[]>([]);
+  const handleConversationChange = useCallback((conversation: ConversationMessage[]) => {
+    setChatConversation(conversation);
   }, []);
 
   // Warn before an accidental reload or back navigation (e.g. a trackpad
@@ -75,7 +74,7 @@ export default function TaskPage() {
     <div className="flex h-screen gap-5 p-10 bg-gray-100 overflow-hidden">
       {/* Left side - Colleague chat in sidebar */}
       <div className="flex flex-col w-110 border border-gray-300 rounded overflow-hidden shadow-sm bg-white">
-        <ChatPanel onMessagesChange={handleMessagesChange} />
+        <ChatPanel onConversationChange={handleConversationChange} />
       </div>
 
       {/* Center - Writing Area */}
@@ -94,7 +93,7 @@ export default function TaskPage() {
           <AIPanel
             writingAreaRef={writingAreaRef}
             isStudyMode={true}
-            chatMessages={studyParams.conversationHistory ? chatMessages : undefined}
+            chatConversation={studyParams.conversationHistory ? chatConversation : undefined}
           />
         </div>
       )}

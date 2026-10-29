@@ -1,6 +1,5 @@
 /**
  * Utility function to parse JSON array responses from the assistant.
- * Shared between ChatPanel (for display) and AIPanel (for conversation history formatting).
  */
 export function parseMessageContent(content: string): string[] {
   try {
