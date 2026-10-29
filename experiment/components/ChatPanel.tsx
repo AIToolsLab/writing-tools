@@ -141,6 +141,7 @@ export default function ChatPanel({ onNewMessage, onConversationChange }: ChatPa
   });
 
   const [input, setInput] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const loggedMessagePartsRef = useRef<Set<string>>(new Set());
   const hasInitializedRef = useRef(false);
@@ -324,6 +325,7 @@ export default function ChatPanel({ onNewMessage, onConversationChange }: ChatPa
     const messageId = `user-${Date.now()}`;
     const sentAt = Date.now();
     setInput('');
+    inputRef.current?.focus();
     setNow((prev) => Math.max(prev, sentAt));
     setFollowupAt(null);
     if (INTERRUPT_POLICY === 'flush') {
@@ -413,12 +415,12 @@ export default function ChatPanel({ onNewMessage, onConversationChange }: ChatPa
 
       <form onSubmit={onSubmit} className="border-t border-gray-300 p-2 bg-gray-50 flex gap-1.5">
         <input
+          ref={inputRef}
           type="text"
           className="flex-1 px-2.5 py-2 border border-gray-400 rounded-2xl text-sm text-gray-900 placeholder-gray-500 bg-white outline-none focus:border-green-600 focus:ring-2 focus:ring-green-200"
           placeholder={`Message ${scenario.colleague.firstName}...`}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          disabled={isLoading}
         />
         <button
           type="submit"
