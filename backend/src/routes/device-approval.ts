@@ -48,11 +48,12 @@ const DEVICE_HTML = `<!DOCTYPE html>
     }
     .brand { display: flex; align-items: center; gap: 10px; margin-bottom: 26px; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.01em; }
     .brand svg { color: var(--ink); flex: none; }
-    .steps { list-style: none; display: flex; gap: 6px; margin: 0 0 18px; padding: 0; font-size: 0.75rem; color: var(--faint); }
+    /* Upcoming and done steps share --muted: --faint is under 4.5:1 for 12px text.
+       The current step uses --link, which (unlike the dark --accent) passes on the dark sheet. */
+    .steps { list-style: none; display: flex; gap: 6px; margin: 0 0 18px; padding: 0; font-size: 0.75rem; color: var(--muted); }
     .steps li { display: flex; align-items: center; gap: 6px; }
     .steps li + li::before { content: ''; width: 14px; height: 1px; background: var(--rule); }
-    .steps li.current { color: var(--accent); font-weight: 600; }
-    .steps li.done { color: var(--muted); }
+    .steps li.current { color: var(--link); font-weight: 600; }
     h1 { font-size: 1.45rem; line-height: 1.25; font-weight: 600; letter-spacing: -0.015em; margin: 0 0 6px; }
     .lede { color: var(--muted); margin: 0; }
     #content { margin-top: 24px; display: flex; flex-direction: column; gap: 14px; }
@@ -71,18 +72,22 @@ const DEVICE_HTML = `<!DOCTYPE html>
       border: 1px solid var(--rule); background: var(--paper); color: var(--ink);
     }
     .code-input::placeholder { color: var(--faint); letter-spacing: 0.3em; }
-    .code-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
+    /* Transparent (not none) outlines stay visible in Windows high-contrast mode, which drops box-shadow. */
+    .code-input:focus { outline: 2px solid transparent; border-color: var(--accent); box-shadow: 0 0 0 3px var(--focus); }
     .deny-line { text-align: center; font-size: 0.85rem; color: var(--muted); }
     .actions { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; }
     .btn { width: 100%; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 11px 16px; font: inherit; font-weight: 600; border-radius: 4px; border: 1px solid transparent; cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s; }
-    .btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--focus); }
+    /* A solid ring: the translucent --focus halo is only ~1.6:1 against the sheet. */
+    .btn:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
     .btn:disabled { opacity: 0.55; cursor: default; }
     .primary { background: var(--accent); color: var(--accent-text); }
     .primary:hover:not(:disabled) { background: var(--accent-hover); }
     .secondary { background: transparent; color: var(--ink); border-color: var(--rule); }
     .secondary:hover:not(:disabled) { border-color: var(--faint); }
     .link { background: none; border: none; padding: 0; font: inherit; font-size: 0.85rem; color: var(--link); text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
-    .link:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 2px; }
+    .link:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; border-radius: 2px; }
+    /* Messages that take focus programmatically (focusMessage) aren't controls. */
+    [tabindex="-1"]:focus { outline: none; }
     .err, .ok { padding: 10px 12px; border-radius: 4px; font-size: 0.9rem; }
     .err { color: var(--err); background: var(--err-bg); border: 1px solid var(--err-rule); }
     .ok { color: var(--ok); background: var(--ok-bg); }
@@ -173,9 +178,28 @@ const DEVICE_HTML = `<!DOCTYPE html>
       setStep(3);
       setStatus();
       showContent(box);
+      focusMessage(box);
     }
     function showContent(...nodes) { content.replaceChildren(...nodes); }
     function setStatus(...nodes) { statusEl.replaceChildren(...nodes); }
+    // A message that replaced the control the user was on takes focus, so keyboard
+    // and screen-reader users land on (and hear) the outcome instead of <body>.
+    function focusMessage(node) {
+      node.tabIndex = -1;
+      node.focus();
+    }
+    // Tie a code error to the input, so it is read again when the input is focused.
+    function markCodeInvalid(invalid) {
+      const input = document.getElementById('user-code');
+      if (!input) return;
+      if (invalid) {
+        input.setAttribute('aria-invalid', 'true');
+        input.setAttribute('aria-describedby', 'status');
+      } else {
+        input.removeAttribute('aria-invalid');
+        input.removeAttribute('aria-describedby');
+      }
+    }
 
     // The user code is typed here, never carried in the URL. That forces the user to
     // read it from the requesting device (their taskpane), which is what proves intent.
@@ -254,12 +278,16 @@ const DEVICE_HTML = `<!DOCTYPE html>
         data?.error === 'invalid_request' ||
         /invalid user code|expired/i.test(desc);
       if (codeGone) {
-        showContent(); // the code entry is useless for a dead code
-        setStatus(
-          el('p', 'err', action + ' failed: this code is no longer valid — it likely expired.'),
+        // Replaces the code entry (useless for a dead code). It goes in #content, not
+        // the live #status, because it takes focus: being read once is enough.
+        const err = el('p', 'err', action + ' failed: this code is no longer valid — it likely expired.');
+        setStatus();
+        showContent(
+          err,
           el('p', null, 'Codes only last a few minutes. Start sign-in again in ${PRODUCT_NAME} to get a fresh code, then enter it here.'),
           btn('primary', 'Enter a new code', () => init()),
         );
+        focusMessage(err);
       } else {
         // Leave the code entry intact so the user can simply retry.
         setStatus(el('span', 'err', action + ' failed: ' + JSON.stringify(data)));
@@ -305,15 +333,21 @@ const DEVICE_HTML = `<!DOCTYPE html>
       const userCode = normalizeCode(raw);
       if (!userCode) {
         setStatus(el('span', 'err', 'Enter the code first.'));
+        markCodeInvalid(true);
         return;
       }
+      markCodeInvalid(false);
       setStatus(el('span', 'muted', action === 'deny' ? 'Denying…' : 'Approving…'));
+      // Disabling the focused control drops focus to <body>; remember it so a
+      // retryable error can hand it back.
+      const returnFocus = document.activeElement;
       setBusy(true);
       try {
         const { ok, data } = await claimCode(userCode);
         if (!ok) {
           // Keep the input on screen so the user can correct and retry.
           setStatus(el('span', 'err', data?.error_description ?? 'Invalid or expired code. Check it and try again.'));
+          markCodeInvalid(true);
           return;
         }
         if (data.status !== 'pending') {
@@ -324,6 +358,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
           setStep(3); // terminal: nothing left to approve
           setStatus();
           showContent(p);
+          focusMessage(p);
           return;
         }
         if (action === 'deny') await denyRequest(userCode);
@@ -332,6 +367,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
         setStatus(el('p', 'err', 'Network error. Check your connection and try again.'));
       } finally {
         setBusy(false);
+        if (document.activeElement === document.body && returnFocus?.isConnected) returnFocus.focus();
       }
     }
 
@@ -364,6 +400,7 @@ const DEVICE_HTML = `<!DOCTYPE html>
       input.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') submitCode(input.value, 'approve');
       });
+      input.addEventListener('input', () => markCodeInvalid(false));
       input.placeholder = 'XXXXXXXX';
       const denyP = el('p', 'deny-line');
       denyP.append('Not you? ', linkButton('Deny this request', () => submitCode(input.value, 'deny')));
