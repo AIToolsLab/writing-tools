@@ -2,14 +2,16 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useAtomValue } from 'jotai';
 import { logThenRedirect } from '@/lib/logging';
 import { getNextPage, getScenario } from '@/lib/studyConfig';
+import { studyParamsAtom } from '@/contexts/StudyContext';
 
 export default function StartTaskPage() {
+  const studyParams = useAtomValue(studyParamsAtom);
   const searchParams = useSearchParams();
-  const username = searchParams.get('username') || '';
-  const scenarioId = searchParams.get('scenario') || undefined;
-  const scenario = getScenario(scenarioId);
+  const username = studyParams.username;
+  const scenario = getScenario(studyParams.scenario);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStartTask = async () => {

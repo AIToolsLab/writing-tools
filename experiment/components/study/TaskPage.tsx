@@ -13,12 +13,12 @@ import { useAtomValue } from 'jotai';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 
 export default function TaskPage() {
+  const studyParams = useAtomValue(studyParamsAtom);
   const searchParams = useSearchParams();
   const writingAreaRef = useRef<WritingAreaRef>(null);
-  const username = searchParams.get('username') || '';
-  const conditionCode = (searchParams.get('condition') || 'n') as keyof typeof letterToCondition; // TODO: don't default!
+  const username = studyParams.username;
+  const conditionCode = studyParams.condition; 
   const condition = letterToCondition[conditionCode];
-  const studyParams = useAtomValue(studyParamsAtom);
 
   // Conversation history for AI assistant
   const [chatConversation, setChatConversation] = useState<ConversationMessage[]>([]);

@@ -2,18 +2,21 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useAtomValue } from 'jotai';
 import { getBrowserMetadata } from '@/lib/browserMetadata';
 import { logThenRedirect } from '@/lib/logging';
 import { getNextPage } from '@/lib/studyConfig';
+import { studyParamsAtom } from '@/contexts/StudyContext';
 
 export default function IntroPage() {
+  const studyParams = useAtomValue(studyParamsAtom);
   const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStartStudy = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const username = searchParams.get('username') || '';
+    const username = studyParams.username;
     const browserMetadata = getBrowserMetadata();
 
     const params = new URLSearchParams(searchParams.toString());

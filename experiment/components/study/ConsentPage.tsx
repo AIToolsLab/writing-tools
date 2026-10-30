@@ -2,17 +2,20 @@
 
 import { useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useAtomValue } from 'jotai';
 import { logThenRedirect } from '@/lib/logging';
 import { CONSENT_FORM_URL, getNextPage } from '@/lib/studyConfig';
+import { studyParamsAtom } from '@/contexts/StudyContext';
 
 export default function ConsentPage() {
+  const studyParams = useAtomValue(studyParamsAtom);
   const searchParams = useSearchParams();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLaunchConsent = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const username = searchParams.get('username') || 'unknown';
+    const username = studyParams.username;
     // Build redirect URL with study parameters
     const params = new URLSearchParams(searchParams.toString());
     params.set('page', getNextPage('consent')!);

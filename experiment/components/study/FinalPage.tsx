@@ -1,11 +1,12 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import { useAtomValue } from 'jotai';
 import { COMPLETION_CODE } from '@/lib/studyConfig';
+import { studyParamsAtom } from '@/contexts/StudyContext';
 
 export default function FinalPage() {
-  const searchParams = useSearchParams();
-  const isProlific = searchParams.get('isProlific') === 'true';
+  const studyParams = useAtomValue(studyParamsAtom);
+  const isProlific = studyParams.isProlific;
 
   return (
     <div className="max-w-2xl mx-auto p-8">
