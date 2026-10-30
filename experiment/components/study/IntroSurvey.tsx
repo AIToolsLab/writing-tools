@@ -6,11 +6,11 @@ import { getScenario, letterToCondition } from '@/lib/studyConfig';
 import { studyParamsAtom, surveyInputAtom } from '@/contexts/StudyContext';
 import Survey from '@/components/survey/Survey';
 import { introSurveySections } from '@/components/survey/surveyData';
-import { useNextPage } from './useNextPage';
+import { useNextPageUrl } from './useNextPage';
 
 export default function IntroSurvey() {
   const studyParams = useAtomValue(studyParamsAtom);
-  const getNextUrl = useNextPage('intro-survey');
+  const nextUrl = useNextPageUrl();
   const [surveyInputs] = useAtom(surveyInputAtom);
   const username = studyParams.username;
   const conditionCode = studyParams.condition;
@@ -26,7 +26,7 @@ export default function IntroSurvey() {
         event: 'surveyComplete:intro-survey',
         extra_data: { scenarioId, condition, answers: surveyInputs },
       },
-      getNextUrl(),
+      nextUrl,
     );
   };
 

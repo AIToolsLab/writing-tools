@@ -10,14 +10,14 @@ import { log, logThenRedirect } from '@/lib/logging';
 import { letterToCondition } from '@/lib/studyConfig';
 import { useAtomValue } from 'jotai';
 import { studyParamsAtom } from '@/contexts/StudyContext';
-import { useNextPage } from './useNextPage';
+import { useNextPageUrl } from './useNextPage';
 
 export default function TaskPage() {
   const studyParams = useAtomValue(studyParamsAtom);
-  const getNextUrl = useNextPage('task');
+  const nextUrl = useNextPageUrl();
   const writingAreaRef = useRef<WritingAreaRef>(null);
   const username = studyParams.username;
-  const conditionCode = studyParams.condition; 
+  const conditionCode = studyParams.condition;
   const condition = letterToCondition[conditionCode];
 
   // Conversation history for AI assistant
@@ -51,7 +51,7 @@ export default function TaskPage() {
         wordCount: content.split(/\s+/).length,
         documentLength: content.length,
       },
-    }, getNextUrl());
+    }, nextUrl);
   };
 
   const handleDocumentUpdate = (editorState: TextEditorState, subject: string) => {

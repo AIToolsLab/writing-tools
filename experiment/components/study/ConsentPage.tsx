@@ -5,11 +5,11 @@ import { useAtomValue } from 'jotai';
 import { logThenRedirect } from '@/lib/logging';
 import { CONSENT_FORM_URL } from '@/lib/studyConfig';
 import { studyParamsAtom } from '@/contexts/StudyContext';
-import { useNextPage } from './useNextPage';
+import { useNextPageUrl } from './useNextPage';
 
 export default function ConsentPage() {
   const studyParams = useAtomValue(studyParamsAtom);
-  const getNextUrl = useNextPage('consent');
+  const nextUrl = useNextPageUrl();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLaunchConsent = async () => {
@@ -17,7 +17,7 @@ export default function ConsentPage() {
     setIsSubmitting(true);
     const username = studyParams.username;
     // Build redirect URL with study parameters
-    const redirectUrl = new URL(getNextUrl(), window.location.origin).toString();
+    const redirectUrl = new URL(nextUrl, window.location.origin).toString();
 
     // Redirect to external consent form with return URL
     const consentUrl = new URL(CONSENT_FORM_URL);

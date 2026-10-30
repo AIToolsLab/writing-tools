@@ -6,11 +6,11 @@ import { getScenario, letterToCondition } from '@/lib/studyConfig';
 import { studyParamsAtom, surveyInputAtom } from '@/contexts/StudyContext';
 import Survey from '@/components/survey/Survey';
 import { getPostTaskSurveySections } from '@/components/survey/surveyData';
-import { useNextPage } from './useNextPage';
+import { useNextPageUrl } from './useNextPage';
 
 export default function PostTaskSurvey() {
   const studyParams = useAtomValue(studyParamsAtom);
-  const getNextUrl = useNextPage('post-task-survey');
+  const nextUrl = useNextPageUrl();
   const [surveyInputs] = useAtom(surveyInputAtom);
   const username = studyParams.username;
   const conditionCode = studyParams.condition;
@@ -28,7 +28,7 @@ export default function PostTaskSurvey() {
         event: 'surveyComplete:post-task-survey',
         extra_data: { scenarioId, condition, answers: surveyInputs },
       },
-      getNextUrl(),
+      nextUrl,
     );
   };
 

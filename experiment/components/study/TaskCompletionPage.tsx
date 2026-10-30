@@ -2,17 +2,17 @@
 
 import { useState } from 'react';
 import { redirect } from '@/lib/logging';
-import { useNextPage } from './useNextPage';
+import { useNextPageUrl } from './useNextPage';
 
 export default function TaskCompletionPage() {
-  const getNextUrl = useNextPage('debrief');
+  const nextUrl = useNextPageUrl();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStartPostTaskSurvey = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    await redirect(getNextUrl());
+    await redirect(nextUrl);
   }
 
   return (

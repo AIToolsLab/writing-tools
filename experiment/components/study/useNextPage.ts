@@ -1,23 +1,21 @@
 'use client';
 
-import { useCallback } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { getNextPage } from '@/lib/studyConfig';
+import { studyParamsAtom } from '@/contexts/StudyContext';
+import { useAtomValue } from 'jotai';
 
 /**
- * Returns a function that builds the URL for the next page in the study
- * sequence, preserving the current query parameters but updating `page`.
+ * The URL for the next page in the study sequence, preserving the current query parameters but updating `page`.
  *
  * The returned URL is relative (e.g. `/study?username=...&page=intro`). Pages
  * that need an absolute URL (e.g. ConsentPage's external redirect) can wrap it
- * with `new URL(getNextUrl(), window.location.origin)`.
+ * with `new URL(nextUrl, window.location.origin)`.
  */
-export function useNextPage(currentPage: string) {
+export function useNextPageUrl() {
   const searchParams = useSearchParams();
-
-  return useCallback(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', getNextPage(currentPage)!);
-    return `/study?${params.toString()}`;
-  }, [searchParams, currentPage]);
+  const { page } = useAtomValue(studyParamsAtom);
+  const params = new URLSearchParams(searchParams.toString());
+  params.set('page', getNextPage(page)!);
+  return `/study?${params.toString()}`;
 }

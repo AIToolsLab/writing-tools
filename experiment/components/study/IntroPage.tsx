@@ -5,11 +5,11 @@ import { useAtomValue } from 'jotai';
 import { getBrowserMetadata } from '@/lib/browserMetadata';
 import { logThenRedirect } from '@/lib/logging';
 import { studyParamsAtom } from '@/contexts/StudyContext';
-import { useNextPage } from './useNextPage';
+import { useNextPageUrl } from './useNextPage';
 
 export default function IntroPage() {
   const studyParams = useAtomValue(studyParamsAtom);
-  const getNextUrl = useNextPage('intro');
+  const nextUrl = useNextPageUrl();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStartStudy = async () => {
@@ -21,7 +21,7 @@ export default function IntroPage() {
     // Log the start event with browser metadata
     await logThenRedirect(
       { username, event: 'Started Study', extra_data: browserMetadata },
-      getNextUrl()
+      nextUrl
     );
   };
 

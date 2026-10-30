@@ -5,11 +5,11 @@ import { useAtomValue } from 'jotai';
 import { logThenRedirect } from '@/lib/logging';
 import { getScenario } from '@/lib/studyConfig';
 import { studyParamsAtom } from '@/contexts/StudyContext';
-import { useNextPage } from './useNextPage';
+import { useNextPageUrl } from './useNextPage';
 
 export default function StartTaskPage() {
   const studyParams = useAtomValue(studyParamsAtom);
-  const getNextUrl = useNextPage('start-task');
+  const nextUrl = useNextPageUrl();
   const username = studyParams.username;
   const scenario = getScenario(studyParams.scenario);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -23,7 +23,7 @@ export default function StartTaskPage() {
         username,
         event: 'taskStart',
       },
-      getNextUrl()
+      nextUrl
     );
   };
 
