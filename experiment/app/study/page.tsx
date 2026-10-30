@@ -69,6 +69,8 @@ function parseStudyParams(searchParams: URLSearchParams): StudyParams | string {
   };
 }
 
+let alreadyLoggedPageView = false;
+
 function StudyRouter() {
   const searchParams = useSearchParams();
 
@@ -77,6 +79,8 @@ function StudyRouter() {
   // Log page view
   useEffect(() => {
     if (typeof paramsOrError === 'string') return;
+    if (alreadyLoggedPageView) return;
+    alreadyLoggedPageView = true;
     const studyParams = paramsOrError;
 
     log({
