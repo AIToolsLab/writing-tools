@@ -17,7 +17,7 @@
  *
  * ## Control invariants
  *
- * These five are enforced *here, in code*, not asked for in the prompt — the
+ * These six are enforced *here, in code*, not asked for in the prompt — the
  * prompt spends its words on stance (`prompt.ts`). Each exists because the
  * writer's sense of being in control fails in a specific way without it. They
  * are covered by `../__tests__/voiceControl.test.ts`; if you change one, that
@@ -53,6 +53,14 @@
  *    but that beat carries no veto. There's nothing to undo about a selection,
  *    so unlike an edit's reveal window, speech during it is not treated as an
  *    objection and does not touch `pendingVeto`.
+ * 6. **A notice describes one attempt, not the session.** The counterpart to 3:
+ *    whatever raised the last notice is over once the writer takes the floor
+ *    again or the partner lands an edit, so both retract it (`onNotice(null)`).
+ *    A strip that cleared only on replacement or manual dismissal outlived its
+ *    cause by many successful turns, and a stale "that was blocked" is
+ *    indistinguishable from a live one — it reads as the session still being
+ *    broken. The debug log keeps the whole history; the strip is only ever
+ *    about *now*.
  */
 
 import type { Corpus } from '../corpus';
@@ -113,8 +121,10 @@ export interface VoiceSessionOptions {
 	/**
 	 * Something the *writer* needs to know: an edit was refused, cancelled, or
 	 * couldn't be applied. Invariant 3 — one per failed attempt, never silent.
+	 * `null` retracts the standing notice: the thing it described is over (see
+	 * invariant 6).
 	 */
-	onNotice?: (text: string) => void;
+	onNotice?: (text: string | null) => void;
 	/** The partner points at a scratchpad phrase (null clears the highlight). */
 	onScratchpadHighlight?: (phrase: string | null) => void;
 	/** A veto window opened (info) or closed (null); wire `cancel` to a ✕ chip. */
@@ -204,6 +214,12 @@ export async function startVoiceSession(
 		opts.onTool?.(logText);
 	};
 
+	/**
+	 * Retract the standing notice (invariant 6). Not logged — the notice's own
+	 * log line stays; this only takes it off the writer's screen.
+	 */
+	const clearNotice = () => opts.onNotice?.(null);
+
 	// Inverses of applied edits, most recent last. Popped by `undo`; each entry
 	// is freshness-checked against the live surface before it restores anything.
 	// The shape ({target, splices, description}) is also the substrate a future
@@ -234,8 +250,10 @@ export async function startVoiceSession(
 	let pendingVeto: (() => void) | null = null;
 
 	const onSpeechStart = () => {
-		// The writer took the floor: a new move is allowed.
+		// The writer took the floor: a new move is allowed, and whatever the
+		// last notice was about belongs to the exchange they just ended.
 		editBudget = 1;
+		clearNotice();
 		if (pendingVeto) {
 			const cancel = pendingVeto;
 			pendingVeto = null;
@@ -405,6 +423,7 @@ export async function startVoiceSession(
 					description: describeOp(op),
 				});
 				editBudget = 0;
+				clearNotice();
 				opts.onTool?.(`${name} applied to scratchpad`);
 				return appliedReport(after, op, 'scratchpad');
 			} catch (e) {
@@ -447,6 +466,7 @@ export async function startVoiceSession(
 			);
 			return `Could not apply that: ${(e as Error).message} Re-\`view\` and check the paragraph numbers, then try again.`;
 		}
+		clearNotice();
 		opts.onTool?.(`${name} applied`);
 		// Hand back a window around the change so the model tracks any shifts.
 		return appliedReport(await editor.getParagraphs(), op);
