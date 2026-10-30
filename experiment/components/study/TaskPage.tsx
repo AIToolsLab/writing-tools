@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useSearchParams } from 'next/navigation';
 import type { WritingAreaRef } from '@/components/WritingArea';
 import type { ConversationMessage, TextEditorState } from '@/types';
 import AIPanel from '@/components/AIPanel';
@@ -11,10 +10,11 @@ import { log, logThenRedirect } from '@/lib/logging';
 import { letterToCondition } from '@/lib/studyConfig';
 import { useAtomValue } from 'jotai';
 import { studyParamsAtom } from '@/contexts/StudyContext';
+import { useNextPage } from './useNextPage';
 
 export default function TaskPage() {
   const studyParams = useAtomValue(studyParamsAtom);
-  const searchParams = useSearchParams();
+  const getNextUrl = useNextPage('task');
   const writingAreaRef = useRef<WritingAreaRef>(null);
   const username = studyParams.username;
   const conditionCode = studyParams.condition; 
@@ -42,8 +42,6 @@ export default function TaskPage() {
 
   const handleSendTask = async (content: string, subject: string) => {
     isSendingRef.current = true;
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', 'debrief');
     await logThenRedirect({
       username,
       event: 'taskComplete',
@@ -53,7 +51,7 @@ export default function TaskPage() {
         wordCount: content.split(/\s+/).length,
         documentLength: content.length,
       },
-    }, `/study?${params.toString()}`);
+    }, getNextUrl());
   };
 
   const handleDocumentUpdate = (editorState: TextEditorState, subject: string) => {

@@ -1,16 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useAtomValue } from 'jotai';
 import { getBrowserMetadata } from '@/lib/browserMetadata';
 import { logThenRedirect } from '@/lib/logging';
-import { getNextPage } from '@/lib/studyConfig';
 import { studyParamsAtom } from '@/contexts/StudyContext';
+import { useNextPage } from './useNextPage';
 
 export default function IntroPage() {
   const studyParams = useAtomValue(studyParamsAtom);
-  const searchParams = useSearchParams();
+  const getNextUrl = useNextPage('intro');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStartStudy = async () => {
@@ -19,13 +18,10 @@ export default function IntroPage() {
     const username = studyParams.username;
     const browserMetadata = getBrowserMetadata();
 
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', getNextPage('intro')!);
-
     // Log the start event with browser metadata
     await logThenRedirect(
       { username, event: 'Started Study', extra_data: browserMetadata },
-      `/study?${params.toString()}`
+      getNextUrl()
     );
   };
 

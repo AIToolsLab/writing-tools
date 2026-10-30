@@ -1,21 +1,18 @@
 'use client'
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { redirect } from '@/lib/logging';
-import { getNextPage } from '@/lib/studyConfig';
+import { useNextPage } from './useNextPage';
 
 export default function TaskCompletionPage() {
-  const searchParams = useSearchParams();
+  const getNextUrl = useNextPage('debrief');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStartPostTaskSurvey = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('page', getNextPage('debrief')!);
-    await redirect(`/study?${params.toString()}`);
+    await redirect(getNextUrl());
   }
 
   return (

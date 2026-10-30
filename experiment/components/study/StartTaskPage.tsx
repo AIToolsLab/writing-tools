@@ -1,15 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useAtomValue } from 'jotai';
 import { logThenRedirect } from '@/lib/logging';
-import { getNextPage, getScenario } from '@/lib/studyConfig';
+import { getScenario } from '@/lib/studyConfig';
 import { studyParamsAtom } from '@/contexts/StudyContext';
+import { useNextPage } from './useNextPage';
 
 export default function StartTaskPage() {
   const studyParams = useAtomValue(studyParamsAtom);
-  const searchParams = useSearchParams();
+  const getNextUrl = useNextPage('start-task');
   const username = studyParams.username;
   const scenario = getScenario(studyParams.scenario);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -17,16 +17,13 @@ export default function StartTaskPage() {
   const handleStartTask = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', getNextPage('start-task')!);
-    const nextUrl = `/study?${params.toString()}`;
 
     await logThenRedirect(
       {
         username,
         event: 'taskStart',
       },
-      nextUrl
+      getNextUrl()
     );
   };
 

@@ -1,15 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { useAtomValue } from 'jotai';
 import { logThenRedirect } from '@/lib/logging';
-import { CONSENT_FORM_URL, getNextPage } from '@/lib/studyConfig';
+import { CONSENT_FORM_URL } from '@/lib/studyConfig';
 import { studyParamsAtom } from '@/contexts/StudyContext';
+import { useNextPage } from './useNextPage';
 
 export default function ConsentPage() {
   const studyParams = useAtomValue(studyParamsAtom);
-  const searchParams = useSearchParams();
+  const getNextUrl = useNextPage('consent');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLaunchConsent = async () => {
@@ -17,9 +17,7 @@ export default function ConsentPage() {
     setIsSubmitting(true);
     const username = studyParams.username;
     // Build redirect URL with study parameters
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', getNextPage('consent')!);
-    const redirectUrl = `${window.location.origin}/study?${params.toString()}`;
+    const redirectUrl = new URL(getNextUrl(), window.location.origin).toString();
 
     // Redirect to external consent form with return URL
     const consentUrl = new URL(CONSENT_FORM_URL);

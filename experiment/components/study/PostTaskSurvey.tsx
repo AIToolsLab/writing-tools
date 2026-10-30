@@ -1,16 +1,16 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
 import { useAtom, useAtomValue } from 'jotai';
 import { logThenRedirect } from '@/lib/logging';
-import { getNextPage, getScenario, letterToCondition } from '@/lib/studyConfig';
+import { getScenario, letterToCondition } from '@/lib/studyConfig';
 import { studyParamsAtom, surveyInputAtom } from '@/contexts/StudyContext';
 import Survey from '@/components/survey/Survey';
 import { getPostTaskSurveySections } from '@/components/survey/surveyData';
+import { useNextPage } from './useNextPage';
 
 export default function PostTaskSurvey() {
   const studyParams = useAtomValue(studyParamsAtom);
-  const searchParams = useSearchParams();
+  const getNextUrl = useNextPage('post-task-survey');
   const [surveyInputs] = useAtom(surveyInputAtom);
   const username = studyParams.username;
   const conditionCode = studyParams.condition;
@@ -22,17 +22,13 @@ export default function PostTaskSurvey() {
 
   const handleSubmit = async () => {
     // Log survey completion
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', getNextPage('post-task-survey')!);
-    const nextUrl = `/study?${params.toString()}`;
-
     await logThenRedirect(
       {
         username,
         event: 'surveyComplete:post-task-survey',
         extra_data: { scenarioId, condition, answers: surveyInputs },
       },
-      nextUrl,
+      getNextUrl(),
     );
   };
 
