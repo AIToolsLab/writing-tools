@@ -55,14 +55,3 @@ export function clearSavedSurveyInputs() {
     // ignore
   }
 }
-
-/**
- * Helper to update study params
- */
-export const updateStudyParamsAtom = atom(
-  null,
-  (get, set, params: Partial<StudyParams>) => {
-    const current = get(studyParamsAtom);
-    set(studyParamsAtom, { ...current, ...params });
-  }
-);
