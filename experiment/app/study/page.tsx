@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useHydrateAtoms } from 'jotai/utils';
 import { log } from '@/lib/logging';
@@ -72,7 +72,7 @@ function parseStudyParams(searchParams: URLSearchParams): StudyParams | string {
 function StudyRouter() {
   const searchParams = useSearchParams();
 
-  const paramsOrError = parseStudyParams(searchParams);
+  const paramsOrError = useMemo(() => parseStudyParams(searchParams), [searchParams]);
 
   // Log page view
   useEffect(() => {
