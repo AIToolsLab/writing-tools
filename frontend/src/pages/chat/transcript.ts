@@ -106,7 +106,6 @@ const SET_ASIDE_PREFIX = 'The writer set this proposal aside';
 
 export type ProposalStatus =
 	| 'pending'
-	| 'applying'
 	| 'applied'
 	| 'failed'
 	| 'declined'
@@ -174,7 +173,9 @@ function proposalStatus(
 	}
 	if (result) return result.type.startsWith('error') ? 'failed' : 'applied';
 	if (verdict === undefined) return 'pending';
-	return verdict ? 'applying' : 'declined';
+	// An approval with no result: the app always writes both together, so
+	// this shouldn't happen. Never 'pending' (that would offer Accept again).
+	return verdict ? 'failed' : 'declined';
 }
 
 /**

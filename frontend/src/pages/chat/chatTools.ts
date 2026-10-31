@@ -5,7 +5,9 @@
  * edit tools propose changes: each call first passes the word-bank check and
  * a dry run against the current document, in `toolApproval`. A failure is
  * denied there, with a reason the model reads and the writer never sees; a
- * pass waits for the writer's approval. Only then does `execute` apply it.
+ * pass waits for the writer's approval. The app applies an approved edit
+ * itself (`applyProposal`) and writes its result into the transcript, so the
+ * SDK never runs these tools' `execute`; it throws rather than editing.
  */
 
 import {
@@ -57,9 +59,9 @@ export function chatTools(opts: ChatToolsOptions): {
 	tools: ToolSet;
 	toolApproval: PerToolApproval;
 	/**
-	 * Apply an approved proposal. The Accept handler calls this itself and
-	 * writes the result into the transcript before the model continues; the
-	 * tools' `execute` runs the same code as a fallback.
+	 * Apply an approved proposal: the only code path that edits the document.
+	 * The Accept handler calls it and writes the result into the transcript
+	 * before the model continues.
 	 */
 	applyProposal: (
 		toolCallId: string,
@@ -140,11 +142,15 @@ export function chatTools(opts: ChatToolsOptions): {
 		tools[name] = tool({
 			description: spec.description,
 			inputSchema,
-			execute: async (input, { toolCallId }) => {
-				const result = await applyProposal(toolCallId, name, input);
-				if (!result.ok) throw new Error(result.report);
-				return result.report;
-			},
+			// Unreachable: every answer to a proposal carries its result, and
+			// the SDK skips approvals that already have one. If that ever breaks,
+			// fail visibly rather than edit the document from a second path.
+			execute: (): Promise<string> =>
+				Promise.reject(
+					new Error(
+						'Edit proposals are applied by the app, not by the tool.',
+					),
+				),
 		});
 		toolApproval[name] = async (input, { toolCallId }) => {
 			const op = toEditOp(name, input);

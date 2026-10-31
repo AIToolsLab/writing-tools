@@ -34,6 +34,11 @@ On hosts with `applyEdit` (`canEdit`), Chat offers `str_replace`, `insert` and
    words as the reason;
 3. otherwise `'user-approval'`: the stream stops and the card appears.
 
+The card does not select anything in the document on its own: the writer may
+be typing there, and a selection that appears under them is replaced by their
+next keystroke. "Show in document" selects the target on request (trimming the
+quote until it's found, since Word's search rejects long strings).
+
 Denials go back to the model, never to the writer, saying where the text
 breaks ("…have "alpha beta", but never followed by "gamma""). The check
 (`docTools/corpus.ts`) accepts runs of content words lifted verbatim, or
@@ -50,7 +55,9 @@ records the report; Decline and "set aside" (the writer sent a new message
 with the card open) record `execution-denied` with a reason. The SDK skips
 approvals that already have a result, so it only continues the conversation,
 and the history stays valid whatever comes next. That matters because the SDK
-resolves approvals only when they're the last message.
+resolves approvals only when they're the last message. `applyProposal` is the
+only path that edits the document: the tools' `execute` throws, so if the SDK
+ever did run one, the proposal shows as failed rather than being applied twice.
 
 ## Undo
 

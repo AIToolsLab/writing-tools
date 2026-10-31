@@ -102,6 +102,18 @@
 	cursor: default;
 }
 
+.links {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 12px;
+}
+
+.notFound {
+	font-size: 11px;
+	color: #9a3b2e;
+}
+
 .undoError {
 	flex-basis: 100%;
 	color: #9a3b2e;

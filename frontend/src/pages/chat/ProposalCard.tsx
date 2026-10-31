@@ -39,7 +39,6 @@ function Preview({ preview, full }: { preview: ChangePreview; full: boolean }) {
 
 const STATUS_LABEL: Record<Exclude<ProposalItem['status'], 'pending'>, string> =
 	{
-		applying: 'Applying…',
 		applied: 'Applied',
 		failed: 'Couldn’t apply',
 		declined: 'Declined',
@@ -59,6 +58,7 @@ export function ProposalCard({
 	onAccept,
 	onDecline,
 	onUndo,
+	onShow,
 }: {
 	proposal: ProposalItem;
 	/** Trimmed previews against the current document; pending cards only. */
@@ -69,8 +69,18 @@ export function ProposalCard({
 	onAccept: () => void;
 	onDecline: () => void;
 	onUndo: () => void;
+	/** Select the proposal's target in the document; resolves false if not found. */
+	onShow: () => Promise<boolean>;
 }) {
 	const [full, setFull] = useState(false);
+	const [showState, setShowState] = useState<
+		'idle' | 'showing' | 'not-found'
+	>('idle');
+	const show = async () => {
+		setShowState('showing');
+		const found = await onShow().catch(() => false);
+		setShowState(found ? 'idle' : 'not-found');
+	};
 	const summary = isEditToolName(proposal.toolName)
 		? describeOp(toEditOp(proposal.toolName, proposal.input))
 		: proposal.toolName;
@@ -105,15 +115,30 @@ export function ProposalCard({
 			{previews?.map((preview, i) => (
 				<Preview key={i} preview={preview} full={full} />
 			))}
-			{previews?.some((p) => p.clippedBefore || p.clippedAfter) ? (
+			<div className={classes.links}>
 				<button
 					type="button"
 					className={classes.linkButton}
-					onClick={() => setFull(!full)}
+					disabled={showState === 'showing'}
+					onClick={() => void show()}
 				>
-					{full ? 'Show less' : 'Show whole passage'}
+					{showState === 'showing' ? 'Finding…' : 'Show in document'}
 				</button>
-			) : null}
+				{previews?.some((p) => p.clippedBefore || p.clippedAfter) ? (
+					<button
+						type="button"
+						className={classes.linkButton}
+						onClick={() => setFull(!full)}
+					>
+						{full ? 'Show less' : 'Show whole passage'}
+					</button>
+				) : null}
+				{showState === 'not-found' ? (
+					<span className={classes.notFound} role="status">
+						Not found in the document
+					</span>
+				) : null}
+			</div>
 			<div className={classes.actions}>
 				<button
 					type="button"

@@ -162,4 +162,40 @@ describe('displayTranscript', () => {
 		];
 		expect(displayTranscript(messages)).toEqual([]);
 	});
+
+	it('never re-offers a proposal approved without a result', () => {
+		// The app writes approval and result together; if only the approval
+		// is there, the card must not show Accept again.
+		const messages: ModelMessage[] = [
+			{
+				role: 'assistant',
+				content: [
+					{
+						type: 'tool-call',
+						toolCallId: 'c1',
+						toolName: 'str_replace',
+						input: { old_str: 'a', new_str: 'b' },
+					},
+					{
+						type: 'tool-approval-request',
+						approvalId: 'a1',
+						toolCallId: 'c1',
+					},
+				],
+			},
+			{
+				role: 'tool',
+				content: [
+					{
+						type: 'tool-approval-response',
+						approvalId: 'a1',
+						approved: true,
+					},
+				],
+			},
+		];
+		expect(displayTranscript(messages)).toEqual([
+			expect.objectContaining({ role: 'proposal', status: 'failed' }),
+		]);
+	});
 });

@@ -25,6 +25,7 @@ import BriefSection from '@/components/briefSection';
 import {
 	DocJumpStatus,
 	DocTextMarkdown,
+	jumpToDocText,
 	useDocJump,
 } from '@/components/docTextLink';
 import { ChatContext, recordSeen } from '@/contexts/chatContext';
@@ -198,11 +199,10 @@ export default function Chat() {
 			// card still shows the summary, and Accept reports the failure.
 		}
 		setPendingPreview({ toolCallId: proposal.toolCallId, previews });
-		// Show the writer where, before they decide.
-		const { highlight } = await locateProposal(editorAPI, op);
-		if (highlight) {
-			editorAPI.selectPhrase(highlight).catch(() => {});
-		}
+		// Deliberately not selecting the target here: the writer may be typing
+		// in the document, and a selection that appears under them gets
+		// overwritten by the next keystroke. The card's "Show in document" does
+		// it on request.
 	});
 	useEffect(() => {
 		if (pending) void showPending(pending);
@@ -416,6 +416,20 @@ export default function Chat() {
 		await runModel(answered, () => updateChatMessages(answered));
 	}
 
+	/** Select where a proposal would land; false if it can't be found. */
+	async function showProposalInDoc(proposal: ProposalItem): Promise<boolean> {
+		if (!isEditToolName(proposal.toolName)) return false;
+		const op = toEditOp(proposal.toolName, proposal.input);
+		const { highlight } = await locateProposal(editorAPI, op);
+		if (!highlight) return false;
+		// Trims the quote until it's found: Word's search rejects long strings.
+		const { found } = await jumpToDocText(
+			(phrase) => editorAPI.selectPhrase(phrase),
+			highlight,
+		);
+		return found;
+	}
+
 	async function undoProposal(proposal: ProposalItem) {
 		const applied = appliedEdits[proposal.toolCallId];
 		if (!applied || applied.undone || !canEdit(editorAPI)) return;
@@ -549,6 +563,9 @@ export default function Chat() {
 										}
 										onUndo={() =>
 											void undoProposal(chatMessage)
+										}
+										onShow={() =>
+											showProposalInDoc(chatMessage)
 										}
 									/>
 								);
