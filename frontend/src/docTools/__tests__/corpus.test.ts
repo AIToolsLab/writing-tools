@@ -66,6 +66,34 @@ describe('validateText — phrase-level rule', () => {
 		expect(validateText('alpha beta gamma', corpus).ok).toBe(false);
 	});
 
+	it('stitches pieces from different sources that overlap by two words', () => {
+		// The case that motivated the overlap rule: the writer said the first
+		// half in chat; the document has the second.
+		const corpus = buildCorpus({
+			docText:
+				"Friction doesn't suffice, though. People see friction as repulsive, not inviting.",
+			userMessages: [
+				'Reword it like "friction doesn\'t suffice because people see.."',
+			],
+		});
+		expect(
+			validateText(
+				"Friction doesn't suffice because people see friction as repulsive, not inviting.",
+				corpus,
+			).ok,
+		).toBe(true);
+	});
+
+	it('says where a run breaks, for the model to repair', () => {
+		const corpus = corpusOf('alpha beta. beta gamma.');
+		expect(validateText('alpha beta gamma', corpus).problem).toBe(
+			'the writer\'s words have "alpha beta", but never followed by "gamma" (pieces of their words can only be joined where they overlap by at least two words)',
+		);
+		expect(validateText('alpha delta', corpus).problem).toBe(
+			'"delta" isn\'t in the writer\'s words',
+		);
+	});
+
 	it('rejects a novel content word the writer never used', () => {
 		const corpus = corpusOf('I enjoy writing essays.');
 		const result = validateText('I enjoy painting', corpus);
@@ -115,6 +143,8 @@ describe('GLUE_WORDS', () => {
 		expect(GLUE_WORDS.has('and')).toBe(true);
 		expect(GLUE_WORDS.has('the')).toBe(true);
 		expect(GLUE_WORDS.has('because')).toBe(false);
+		// "as" also means "because" ("as people see…").
+		expect(GLUE_WORDS.has('as')).toBe(false);
 		expect(GLUE_WORDS.has('however')).toBe(false);
 	});
 });

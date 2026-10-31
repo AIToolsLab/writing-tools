@@ -170,7 +170,7 @@ export function chatTools(opts: ChatToolsOptions): {
 				});
 				return {
 					type: 'denied',
-					reason: `Not the writer's words: "${check.offending}". Rephrase using only their words, or ask them instead.`,
+					reason: `Not the writer's words: ${check.problem ?? `"${check.offending}"`}. Rephrase using only their words, or ask them instead.`,
 				};
 			}
 			void chatLog.edit(log, 'proposed', logData);

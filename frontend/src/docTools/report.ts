@@ -185,10 +185,10 @@ export async function applyOpAndReport(
 export function validateOp(
 	op: EditOp,
 	corpus: Corpus,
-): { ok: boolean; offending?: string } {
+): { ok: boolean; offending?: string; problem?: string } {
 	// `move` relocates existing words, so it introduces nothing new.
 	if (op.kind === 'move') return { ok: true };
 	const text = op.kind === 'str_replace' ? op.newStr : op.text;
 	const res = validateText(text, corpus);
-	return { ok: res.ok, offending: res.offending };
+	return { ok: res.ok, offending: res.offending, problem: res.problem };
 }

@@ -9,7 +9,7 @@ import { z } from 'zod';
 import type { EditOp } from './types';
 
 const OWN_WORDS =
-	'Every word you add must be lifted from the writer’s own words (the document and what they’ve said to you), joined only by punctuation and small glue words (a, an, the, and, or, but, of, to, in, on, at, by, for, with, from, as); anything else is rejected before the writer sees it.';
+	'Every word you add must be lifted from the writer’s own words (the document and what they’ve said to you), joined only by punctuation and small glue words (a, an, the, and, or, but, of, to, in, on, at, by, for, with, from); anything else is rejected before the writer sees it.';
 
 const paragraph = z
 	.number()
