@@ -34,7 +34,12 @@ On hosts with `applyEdit` (`canEdit`), Chat offers `str_replace`, `insert` and
    words as the reason;
 3. otherwise `'user-approval'`: the stream stops and the card appears.
 
-Denials go back to the model, never to the writer. Word bank: the live
+Denials go back to the model, never to the writer, saying where the text
+breaks ("…have "alpha beta", but never followed by "gamma""). The check
+(`docTools/corpus.ts`) accepts runs of content words lifted verbatim, or
+stitched from pieces that overlap by at least two words, joined by punctuation
+and a closed set of glue words (no connectives: "as" was dropped because it
+can mean "because"). Word bank: the live
 document, every paragraph the model has seen this conversation (so deleted
 words can be reinstated), the writer's typed messages, and the brief, but not
 the `<document_context>` blocks or assistant text.
