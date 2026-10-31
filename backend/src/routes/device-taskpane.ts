@@ -13,7 +13,7 @@ function buildDebugDeviceHtml(serializedClientId: string) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Device Flow Debug — Writing Tools Backend</title>
+  <title>Device Flow Debug — Thoughtful backend</title>
   <style>
     body { font-family: sans-serif; max-width: 560px; margin: 2.5rem auto; padding: 0 1.5rem; line-height: 1.5; }
     h1 { font-size: 1.3rem; }

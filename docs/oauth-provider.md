@@ -3,7 +3,7 @@
 The backend is an OAuth 2.1 authorization server (Better Auth's `oauthProvider`
 plugin under `/api/auth/oauth2/*`), and its OpenAI proxy is the resource server
 that accepts the resulting access tokens. This lets separately hosted
-first-party apps call the proxy as a signed-in Writing Tools user.
+first-party apps call the proxy as a signed-in Thoughtful user.
 
 The first and only client is the standalone Mindmap. It may call the two
 text-generation proxies; it receives no document or room access, and the user
@@ -41,8 +41,11 @@ not register localhost.
 ## Login
 
 When authorize finds no session, the provider redirects to `/api/oauth/login`
-with a signed copy of the authorization query. That page is one "Sign in with
-Google" button: it posts the signed query as `oauth_query` with the social
+with a signed copy of the authorization query. That page names the requesting
+client ("**Mindmap** wants to use Thoughtful's AI on your behalf"), looking up
+`client_id` in the trusted-client list so only configured names can appear; an
+unknown id gets a generic prompt. Since trusted clients skip consent, a user who
+is already signed in never sees this page. It is one "Sign in with Google" button: it posts the signed query as `oauth_query` with the social
 sign-in, the provider carries it through the Google OAuth state, and after the
 callback sets the session it re-runs authorize and redirects to the client with
 a code. A query edited after signing is refused (`invalid_signature`).
@@ -71,7 +74,7 @@ introspection is configured, so opaque access tokens are never accepted.
 
 Revocation rides on the authorizing sign-in: the token's `sid` claim names the
 Better Auth session that approved it, and the proxy requires that session to
-still exist, be unexpired, and belong to `sub`. Signing out of Writing Tools (or
+still exist, be unexpired, and belong to `sub`. Signing out of Thoughtful (or
 the session expiring) therefore revokes Mindmap's token immediately. Disabling
 the client, by contrast, only stops new grants.
 

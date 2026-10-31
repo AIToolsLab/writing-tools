@@ -40,7 +40,7 @@ describe('trusted OAuth client configuration', () => {
 		expect(trustedOAuthClients()).toEqual([
 			{
 				clientId: 'writing-tools-mindmap',
-				name: 'Writing Tools Mindmap',
+				name: 'Mindmap',
 				redirectUris: [PROD_REDIRECT],
 			},
 		]);

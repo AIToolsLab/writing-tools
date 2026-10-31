@@ -5,9 +5,9 @@ import type { Context } from 'hono';
 // Registered whenever auth is enabled (see index.ts).
 
 // User-facing product name, in one place so it's tunable. Interpolated into the
-// template below (static HTML and the inline script alike). Cross-app naming
-// (manifest DisplayName, frontend) is a broader cleanup tracked separately.
-const PRODUCT_NAME = 'Thoughtful AI Tools';
+// template below (static HTML and the inline script alike). Keep it in step with
+// the OAuth login page (oauth-login.ts) and the add-in's own branding.
+const PRODUCT_NAME = 'Thoughtful';
 
 const DEVICE_HTML = `<!DOCTYPE html>
 <html lang="en">
