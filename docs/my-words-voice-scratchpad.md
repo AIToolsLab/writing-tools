@@ -127,8 +127,9 @@ open to promote a convention into structure later if usage proves it out.
 
 ## Limitations / next
 
-- Google Docs still has no `applyEdit`, so voice edits (and undo) don't work
-  on that host; `selectPhrase`-based reveals do.
+- Google Docs still has no `applyEdit` (it's optional on `EditorAPI`; check
+  with `canEdit`), so My Words shows a "can't edit here" note on that host
+  instead of the session.
 - Paragraph identity is positional. Stable IDs (Word's newer
   `Paragraph.uniqueLocalId`) would end paragraph-number drift; numbers + text
   anchors are good enough for the prototype.

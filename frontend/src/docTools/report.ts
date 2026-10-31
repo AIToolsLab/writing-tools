@@ -145,7 +145,7 @@ function targetParagraph(op: EditOp): number | undefined {
  * re-orient and retry instead of flying blind.
  */
 export async function applyOpAndReport(
-	editor: EditorAPI,
+	editor: EditableEditorAPI,
 	op: EditOp,
 ): Promise<{ ok: boolean; report: string }> {
 	try {

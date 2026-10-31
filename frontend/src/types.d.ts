@@ -89,8 +89,12 @@ interface EditorAPI {
 	 * system the `view` tool numbers and paragraph-targeted inserts index into.
 	 */
 	getParagraphs(this: void): Promise<string[]>;
-	/** Apply a validated edit to the document. */
-	applyEdit(this: void, edit: DocEdit): Promise<void>;
+	/**
+	 * Apply a validated edit to the document. Absent on hosts that can't edit
+	 * (Google Docs, until #590), so callers offer edit tools only when it's there —
+	 * see `canEdit` in `docTools/editor.ts`.
+	 */
+	applyEdit?(this: void, edit: DocEdit): Promise<void>;
 	/**
 	 * Apply a paragraph-range splice natively, in one atomic step (one undo
 	 * entry, cursor preserved). Hosts without it get splices expressed as a
@@ -106,6 +110,9 @@ interface EditorAPI {
 	/** Writes a value into the document. See {@link getDocumentSetting}. */
 	setDocumentSetting: (key: string, value: string) => Promise<void>;
 }
+
+/** An editor host that can apply edits. Narrow to it with `canEdit`. */
+type EditableEditorAPI = EditorAPI & Required<Pick<EditorAPI, 'applyEdit'>>;
 
 interface ReflectionResponseItem {
 	reflection: string;

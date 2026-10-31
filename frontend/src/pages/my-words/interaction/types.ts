@@ -81,7 +81,7 @@ export type TurnInput =
 
 /** Everything a strategy needs to run a turn, without owning React state. */
 export interface StrategyContext {
-	editor: EditorAPI;
+	editor: EditableEditorAPI;
 	responder: Responder;
 	/** Build the live word-bank to validate edits against. */
 	corpus: () => Promise<import('@/docTools/corpus').Corpus>;

@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 
 import { languageModel } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
+import { canEdit } from '@/docTools/editor';
 
 import { buildCorpus } from '@/docTools/corpus';
 import { InteractionPanel } from './InteractionPanel';
@@ -131,7 +132,11 @@ export default function MyWords() {
 				))}
 			</div>
 			<div style={{ flex: '1 1 auto', minHeight: 0 }}>
-				{tab === 'voice' ? (
+				{!canEdit(editor) ? (
+					<p style={{ padding: '0.75rem', color: '#6b7280' }}>
+						My Words can’t edit documents in this editor yet.
+					</p>
+				) : tab === 'voice' ? (
 					<VoiceSession
 						editor={editor}
 						scratchpad={scratchpad}
@@ -153,7 +158,7 @@ export default function MyWords() {
 
 function LiveSession(props: {
 	strategyKey: StrategyKey;
-	editor: EditorAPI;
+	editor: EditableEditorAPI;
 	scratchpad: string;
 	onScratchpadChange: (v: string) => void;
 }) {

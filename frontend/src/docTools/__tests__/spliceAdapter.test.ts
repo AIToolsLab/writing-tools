@@ -46,7 +46,7 @@ function primitiveHost(initial: string[]) {
 		},
 		getParagraphs: (): Promise<string[]> =>
 			Promise.resolve([...paragraphs]),
-	} as unknown as EditorAPI;
+	} as unknown as EditableEditorAPI;
 	return { editor, current: () => paragraphs };
 }
 

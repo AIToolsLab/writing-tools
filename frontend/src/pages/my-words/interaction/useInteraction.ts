@@ -19,7 +19,7 @@ import type {
 } from './types';
 
 export interface UseInteractionOptions {
-	editor: EditorAPI;
+	editor: EditableEditorAPI;
 	strategy: InteractionStrategy;
 	responder: Responder;
 	corpus: () => Promise<Corpus>;

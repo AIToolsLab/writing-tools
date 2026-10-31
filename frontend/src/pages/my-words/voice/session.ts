@@ -94,7 +94,7 @@ type Target = 'document' | 'scratchpad';
 
 export interface VoiceSessionOptions {
 	/** The real editor host (from EditorContext). */
-	editor: EditorAPI;
+	editor: EditableEditorAPI;
 	/** Builds the live word-bank; must include the writer's rolling transcript. */
 	corpus: () => Promise<Corpus>;
 	/**
