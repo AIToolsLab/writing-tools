@@ -203,6 +203,18 @@ interface GetSessionResponse {
 }
 
 /**
+ * The token no longer resolves to a session (signed out, expired, revoked). Distinct
+ * from a transport/server failure so callers can drop the token on this one only:
+ * a flaky network shouldn't sign the user out.
+ */
+export class NoSessionError extends Error {
+	constructor() {
+		super('get-session: no active session');
+		this.name = 'NoSessionError';
+	}
+}
+
+/**
  * Verify a Bearer token and fetch the signed-in user via Better Auth's session
  * endpoint. `credentials: 'omit'` keeps this on the token-only path (the bearer
  * plugin converts the Bearer token into the session cookie server-side).
@@ -228,7 +240,7 @@ export async function fetchUserInfo(
 	// `null` (or a body missing `user`) = the token no longer resolves to a
 	// session. Mirror the old 401 so the stale-token path still fires.
 	if (!data?.user) {
-		throw new Error('get-session: no active session');
+		throw new NoSessionError();
 	}
 	const {
 		id,

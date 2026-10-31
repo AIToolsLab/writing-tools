@@ -198,3 +198,8 @@ hr {
 .footer > a {
 	font-size: 0.65rem;
 }
+
+.notAllowedStatus {
+	min-height: 1.2em;
+	color: #686868;
+}

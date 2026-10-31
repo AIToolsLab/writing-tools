@@ -24,6 +24,7 @@ import {
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { resolvePage } from '../registry';
 import classes from './styles.module.css';
+import { NotAllowedScreen } from './NotAllowedScreen';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
 import 'reshaped/themes/slate/theme.css';
@@ -256,8 +257,9 @@ function AppInner() {
 
 						<div className={classes.loginInfoContainer}>
 							<p>
-								<strong>Note</strong>: login is required since
-								this is a closed trial for now.
+								<strong>Note</strong>: Thoughtful is in closed
+								beta, so you’ll need to sign in with your Google
+								account.
 							</p>
 						</div>
 
@@ -308,39 +310,7 @@ function AppInner() {
 	const isUserAllowed = noAuthMode || user?.isAllowed === true;
 
 	if (!noAuthMode && !isUserAllowed) {
-		return (
-			<div className={classes.notAllowedContainer}>
-				<p className={classes.notAllowedTitle}>
-					Sorry, you are not allowed to access this page.
-				</p>
-				<hr />
-				<p>
-					For the purpose of the beta study, we are limiting access to
-					Calvin email addresses only.
-				</p>
-				<p>
-					<a
-						href="https://thoughtful-ai.com/"
-						className={classes.ibtn}
-						target="_blank"
-					>
-						Contact the developer
-					</a>
-					if you are interested in participating in the study.
-				</p>
-				<hr />
-				<Button
-					color="neutral"
-					variant="outline"
-					onClick={() => {
-						console.log('origin', window.location.origin);
-						void session.logout();
-					}}
-				>
-					Sign Out
-				</Button>
-			</div>
-		);
+		return <NotAllowedScreen />;
 	}
 
 	// Which page renders is the registry's call, not a switch here — see
