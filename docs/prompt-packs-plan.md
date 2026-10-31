@@ -123,7 +123,7 @@ editor, under the covenant.
 
 | Tool | Essential schema | Who needs it | Precedent | Notes |
 | --- | --- | --- | --- | --- |
-| `view` | `{} → numbered paragraphs` | nearly everything | my-words `liveResponder`; [#583](https://github.com/AIToolsLab/writing-tools/issues/583) proposes moving it into Chat | Paragraph numbers are loop-internal coordinates, never shown to the writer (my-words rule). |
+| `view` | `{} → numbered paragraphs` | nearly everything | my-words `liveResponder`; moving into Chat per [#583](https://github.com/AIToolsLab/writing-tools/issues/583) | Paragraph numbers are loop-internal coordinates, never shown to the writer (my-words rule). |
 | `highlight` | `{phrase} → ok \| not_found` | Say-Back, Prior Self (*quote*), Table Read, Marginalia, doctext-style citations | my-words `highlight`; `EditorAPI.selectPhrase`; `docTextLink` | Anchor with a W3C **`TextQuoteSelector`** (exact + prefix/suffix), not a bare needle — see [Reuse over invention](#reuse-over-invention). Fixes [#589](https://github.com/AIToolsLab/writing-tools/issues/589), [#591](https://github.com/AIToolsLab/writing-tools/issues/591), [#592](https://github.com/AIToolsLab/writing-tools/issues/592) once for every pack. |
 | `annotate` | `{selector, note, kind} → ok` | Marginalia, Reader's Reply, Table Read, any `lens` pack | Word comment API; Google Docs comments blocked on a Drive scope ([#580](https://github.com/AIToolsLab/writing-tools/issues/580)) | Same selector model. Falls back to an in-pane annotation list where the host can't do margin comments. |
 | `propose_edit` | `{selector, replace, rationale} → accepted \| rejected \| not_found` | Blind Rewrite, rewording flows, my-words ops | my-words `str_replace`/`insert`/`move` + propose strategy; rooms plan's patch-with-confirm | **Always** confirm-gated. The `rationale` renders on the confirm card — the writer sees why, not just what. |
@@ -504,10 +504,22 @@ supporting.
    into built-in pack files; a small runtime executes `button` packs with
    `offer`. Define tool schemas in MCP shape from the start (Role 2). No user
    authoring yet — this proves the format on code we already trust.
-2. **Chat gets `view` + `highlight`** ([#583](https://github.com/AIToolsLab/writing-tools/issues/583),
-   already filed) via the shared loop runner lifted out of my-words, with
-   `TextQuoteSelector` anchoring that also closes
-   [#589](https://github.com/AIToolsLab/writing-tools/issues/589)/[#591](https://github.com/AIToolsLab/writing-tools/issues/591)/[#592](https://github.com/AIToolsLab/writing-tools/issues/592).
+2. **Chat absorbs My Words** ([#583](https://github.com/AIToolsLab/writing-tools/issues/583)
+   has the implementation plan). Chat gets `view` and the my-words edit
+   tools; every edit must pass the own-words check *and* the writer's
+   approval, so this is `propose_edit` with the word-bank as an extra gate.
+   The loop is the AI SDK's own (`streamText` + `toolApproval`), not the
+   manual driver from my-words — that driver existed to stage edits for
+   consent, which `ai@7` now does natively. The full-document context blob
+   is replaced by a cursor window plus a per-send note of the writer's edits
+   since the model last looked (supersedes
+   [#249](https://github.com/AIToolsLab/writing-tools/issues/249)). No
+   `highlight` in Chat: `doctext:` links already let it point. Edits are
+   standalone-editor-only until
+   [#589](https://github.com/AIToolsLab/writing-tools/issues/589) (range
+   anchoring, which also closes [#591](https://github.com/AIToolsLab/writing-tools/issues/591)/[#592](https://github.com/AIToolsLab/writing-tools/issues/592))
+   makes other hosts reliable; it is no longer a prerequisite for the
+   read-only part.
 3. **User pack storage + paste-to-import**, with the consent screen.
    Draft renders the user's `button` packs below the built-ins.
 4. **Self-extension:** `save_pack` / `test_pack` / `list_packs` in Chat;
