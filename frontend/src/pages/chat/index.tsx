@@ -1,4 +1,4 @@
-import { type ModelMessage } from 'ai';
+import { isStepCount, tool } from 'ai';
 import {
 	useCallback,
 	useContext,
@@ -17,7 +17,7 @@ import {
 	describeGenerationError,
 	type GenerationErrorInfo,
 } from '@/api/errors';
-import { streamTextDeltas } from '@/api/generate';
+import { streamParts } from '@/api/generate';
 import { chatLog } from '@/api/logging';
 import { languageModel, openaiProviderOptions } from '@/api/openai';
 import { GenerationErrorNotice } from '@/components/errorNotice';
@@ -33,9 +33,13 @@ import {
 	useDocBrief,
 } from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
+import { viewText } from '@/docTools/report';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
+import { z } from 'zod';
+
 import classes from './styles.module.css';
+import { displayTranscript, documentContext, writerTurn } from './transcript';
 
 const suggestionPrompts = [
 	'What is my main argument?',
@@ -51,64 +55,14 @@ const suggestionPrompts = [
  * in the prompt or messages fields."
  */
 const CHAT_INSTRUCTIONS = `\
-Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise. If the user mentions "here" or "this", assume they are referring to the area near the cursor or selection.
+Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise.
 
-When referring to a specific part of the document, link to it so the user can jump straight there, using a Markdown link whose target is a doctext URL: [second paragraph of the intro](doctext:A%20short%20quote). The link target must start with "doctext:" and be a URL-component-encoded verbatim quote from the document — from a single line, at most 240 characters, with no surrounding quotation marks. The link text should be a short description of the place, not the quote itself. Only link to text that is actually in the document; quote it exactly.`;
+Each of the user's messages starts with a <document_context> block that the app attaches; the user doesn't see it and didn't write it. On their first message it holds the whole document, with paragraphs numbered like [3]; on every message it shows the text around their cursor or selection, marked with <<CURSOR>> or <<SELECTION>> tags. If the user mentions "here" or "this", assume they mean that area. The document may change between messages: call \`view\` to re-read it when you need the current text. The paragraph numbers are for your tools; the user doesn't see them, so mentioning them might confuse the user.
 
-const CHAT_GREETING_MESSAGE: ChatMessage = {
-	role: 'assistant',
-	content: 'What do you think about your document so far?',
-};
+When referring to a specific part of the document, link to it so the user can jump straight there, using a Markdown link whose target is a doctext URL: [second paragraph of the intro](doctext:A%20short%20quote). The link target must start with "doctext:" and be a URL-component-encoded verbatim quote from the document — from a single line, at most 240 characters, with no surrounding quotation marks or paragraph numbers. The link text should be a short description of the place, not the quote itself. Only link to text that is actually in the document; quote it exactly.`;
 
-/**
- * The messages `withCurrentDocContext` seeds ahead of the real conversation:
- * the document context, then the greeting. They're part of what the model
- * reads but not part of what the writer sees, so the transcript is rendered
- * from this offset on.
- */
-const SEEDED_MESSAGE_COUNT = 2;
-
-/**
- * Renders the document context into the message the model reads.
- *
- * `brief` is the writer's document brief, already prompt-formatted (null when
- * they haven't set one). It rides along with the document context because both
- * describe the document rather than the turn, and both are refreshed together
- * on every send.
- */
-export function docContextMessageContent(
-	docContext: DocContext,
-	brief: string | null = null,
-): string {
-	const document =
-		docContext.selectedText === ''
-			? `Here is my document, with the current cursor position marked with <<CURSOR>>:\n\n${docContext.beforeCursor}${docContext.selectedText}<<CURSOR>>${docContext.afterCursor}`
-			: `Here is my document, with the current selection marked with <<SELECTION>> tags:\n\n${docContext.beforeCursor}<<SELECTION>>${docContext.selectedText}<</SELECTION>>${docContext.afterCursor}`;
-	return brief ? `${brief}\n\n${document}` : document;
-}
-
-/**
- * Builds the base conversation with the freshest document context as its first
- * message. When the chat is empty it seeds the doc-context + greeting
- * messages; otherwise it replaces the existing doc-context message so the
- * model always sees the current document state at send time.
- */
-export function withCurrentDocContext(
-	chatMessages: ChatMessage[],
-	docContext: DocContext,
-	brief: string | null = null,
-): ChatMessage[] {
-	const docContextMessage: ChatMessage = {
-		role: 'user',
-		content: docContextMessageContent(docContext, brief),
-	};
-	if (chatMessages.length === 0) {
-		return [docContextMessage, CHAT_GREETING_MESSAGE];
-	}
-	const updated = chatMessages.slice();
-	updated[0] = docContextMessage;
-	return updated;
-}
+/** Runaway cap on model steps (each tool call is a step) per writer turn. */
+const MAX_STEPS = 6;
 
 export default function Chat() {
 	const { chatMessages, updateChatMessages } = useContext(ChatContext);
@@ -176,31 +130,20 @@ export default function Chat() {
 	const { refresh: refreshDocContext } = useDocContext(editorAPI);
 	const docJump = useDocJump('chat');
 
-	// Seed the conversation once (system + doc-context + greeting) when empty.
-	// The document context is pulled here and refreshed again at send time, so
-	// there's no need to track selection changes continuously.
-	useEffect(() => {
-		if (chatMessages.length !== 0) return;
-		void (async () => {
-			const docContext = await refreshDocContext();
-			updateChatMessages(
-				withCurrentDocContext(
-					[],
-					docContext,
-					formatDocBriefForPrompt(briefRef.current),
-				),
-			);
-		})();
-	}, [chatMessages.length, refreshDocContext, updateChatMessages]);
-
 	const [isSendingMessage, updateSendingMessage] = useState(false);
 
 	const [message, updateMessage] = useState('');
 
-	const visibleMessages =
-		chatMessages.length > SEEDED_MESSAGE_COUNT
-			? chatMessages.slice(SEEDED_MESSAGE_COUNT)
-			: [];
+	/**
+	 * The reply streaming in, shown as a bubble after the transcript until the
+	 * turn finishes and its messages join the transcript. Null when idle.
+	 */
+	const [streamingText, setStreamingText] = useState<string | null>(null);
+
+	const visibleMessages = displayTranscript(chatMessages);
+	if (streamingText !== null) {
+		visibleMessages.push({ role: 'assistant', text: streamingText });
+	}
 
 	const resizeTextarea = useCallback(() => {
 		const textarea = textareaRef.current;
@@ -231,41 +174,60 @@ export default function Chat() {
 		setErrorInfo(null);
 		setFailedMessage(null);
 
-		// Pull the current document context at send time so the model sees the
-		// document as it is now, then inject it as the doc-context message.
+		// Pull the current document context at send time. The first turn also
+		// carries the whole document, numbered as `view` numbers it.
 		const docContext = await refreshDocContext();
-		let newMessages = [
-			...withCurrentDocContext(
-				chatMessages,
-				docContext,
-				formatDocBriefForPrompt(briefRef.current),
-			),
-			{ role: 'user', content: text },
-			{ role: 'assistant', content: '' },
-		];
+		const context = documentContext({
+			docContext,
+			brief: formatDocBriefForPrompt(briefRef.current),
+			paragraphs:
+				chatMessages.length === 0
+					? await editorAPI.getParagraphs()
+					: null,
+		});
+		const withTurn = [...chatMessages, writerTurn(context, text)];
 
-		updateChatMessages(newMessages);
+		updateChatMessages(withTurn);
+		setStreamingText('');
 		setShowScrollButton(false);
 		updateMessage('');
 
+		let streamed = '';
 		try {
-			const deltas = streamTextDeltas({
+			const parts = streamParts({
 				model: languageModel,
 				providerOptions: openaiProviderOptions,
 				instructions: CHAT_INSTRUCTIONS,
-				messages: newMessages.slice(0, -1) as ModelMessage[],
+				messages: withTurn,
+				tools: {
+					view: tool({
+						description:
+							'Read the current document, paragraphs numbered like [3].',
+						inputSchema: z.object({}),
+						execute: () => viewText(editorAPI),
+					}),
+				},
+				stopWhen: isStepCount(MAX_STEPS),
 				abortSignal: requestController.signal,
 			});
 
-			for await (const delta of deltas) {
-				// Need to make a new object to force React to update.
-				newMessages = newMessages.slice();
-				newMessages[newMessages.length - 1].content += delta;
-				updateChatMessages(newMessages);
+			let next = await parts.next();
+			while (!next.done) {
+				const part = next.value;
+				if (part.type === 'text-delta') {
+					streamed += part.text;
+					setStreamingText(streamed);
+				} else if (part.type === 'text-start' && streamed !== '') {
+					// A new text block after a tool call: keep it a paragraph apart,
+					// as the finished transcript renders it.
+					streamed += '\n\n';
+				}
+				next = await parts.next();
 			}
+			if (requestController.signal.aborted) return;
+			updateChatMessages([...withTurn, ...next.value]);
 			chatLog.responseCompleted(log, {
-				responseLength:
-					newMessages[newMessages.length - 1].content.length,
+				responseLength: streamed.length,
 			});
 		} catch (error) {
 			if (requestController.signal.aborted) {
@@ -273,14 +235,19 @@ export default function Chat() {
 			}
 			const info = describeGenerationError(error);
 			console.error('Error while streaming chat response:', error);
-			// Nothing streamed: roll the turn back (empty assistant bubble + the
-			// user message it was answering) and hand the text back to the input
-			// box, so Retry re-sends it once rather than duplicating the turn.
-			// If part of a reply did arrive, keep it and just show the error under it.
-			if (newMessages[newMessages.length - 1].content === '') {
-				updateChatMessages(newMessages.slice(0, -2));
+			// Nothing streamed: roll the turn back and hand the text back to the
+			// input box, so Retry re-sends it once rather than duplicating the
+			// turn. If part of a reply did arrive, keep it and just show the error
+			// under it.
+			if (streamed.trim() === '') {
+				updateChatMessages(chatMessages);
 				updateMessage(text);
 				setFailedMessage({ text, source });
+			} else {
+				updateChatMessages([
+					...withTurn,
+					{ role: 'assistant', content: streamed },
+				]);
 			}
 			setErrorInfo(info);
 			chatLog.responseError(log, {
@@ -292,6 +259,7 @@ export default function Chat() {
 			if (activeRequestControllerRef.current === requestController) {
 				activeRequestControllerRef.current = null;
 				updateSendingMessage(false);
+				setStreamingText(null);
 			}
 		}
 	}
@@ -300,6 +268,7 @@ export default function Chat() {
 		activeRequestControllerRef.current?.abort();
 		activeRequestControllerRef.current = null;
 		updateSendingMessage(false);
+		setStreamingText(null);
 		setErrorInfo(null);
 		setFailedMessage(null);
 		updateMessage('');
@@ -378,12 +347,12 @@ export default function Chat() {
 						visibleMessages.map((chatMessage, index) => {
 							const isAssistantTyping =
 								chatMessage.role === 'assistant' &&
-								chatMessage.content === '' &&
+								chatMessage.text === '' &&
 								isSendingMessage;
 
 							return (
 								<div
-									key={index + SEEDED_MESSAGE_COUNT}
+									key={index}
 									className={`${classes.chatMsg} ${chatMessage.role === 'user' ? classes.user : classes.ai}`}
 								>
 									{chatMessage.role === 'assistant' ? (
@@ -405,10 +374,10 @@ export default function Chat() {
 											{chatMessage.role ===
 											'assistant' ? (
 												<DocTextMarkdown jump={docJump}>
-													{chatMessage.content}
+													{chatMessage.text}
 												</DocTextMarkdown>
 											) : (
-												chatMessage.content
+												chatMessage.text
 											)}
 										</div>
 									)}

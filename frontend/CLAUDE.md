@@ -126,9 +126,9 @@ prompt or messages fields. Use the instructions option instead.` — which reach
 the writer as a generation error on every request. Pass the system prompt as the
 `instructions` option (a string) alongside `messages`; the SDK puts it back at
 the head of the prompt itself. This bites hardest where a page keeps a
-conversation in state: the chat transcript (`pages/chat`) holds only the
-doc-context, greeting, user, and assistant messages, with `CHAT_INSTRUCTIONS`
-kept outside it.
+conversation in state: the chat transcript (`pages/chat`, see
+`transcript.ts`) holds only user, assistant, and tool messages, with
+`CHAT_INSTRUCTIONS` kept outside it.
 
 ### Rendering model output
 
