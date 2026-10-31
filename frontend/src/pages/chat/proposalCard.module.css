@@ -1,0 +1,108 @@
+.card {
+	align-self: stretch;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+	padding: 10px;
+	border: 1.5px solid #e4e0d8;
+	border-radius: 12px;
+	background: #fdfcf9;
+	font-size: 13px;
+	line-height: 1.6;
+}
+
+.summary {
+	font-weight: 600;
+	color: #1c1c1c;
+}
+
+.preview {
+	padding: 6px 8px;
+	border-radius: 6px;
+	background: #ffffff;
+	border: 1px solid #ece8e0;
+	color: #4a463f;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.removed {
+	color: #9a3b2e;
+	background: #fbe9e5;
+	text-decoration: line-through;
+}
+
+.added {
+	color: #23613a;
+	background: #e4f3e8;
+	text-decoration: none;
+}
+
+/* A replacement: keep the old and new words from reading as one word. */
+.removed + .added {
+	margin-left: 0.3em;
+}
+
+.actions {
+	display: flex;
+	gap: 8px;
+}
+
+.accept,
+.decline {
+	font-family: 'DM Sans', sans-serif;
+	font-size: 12px;
+	padding: 5px 12px;
+	border-radius: 6px;
+	cursor: pointer;
+}
+
+.accept {
+	background: #1c1c1c;
+	color: #faf8f4;
+	border: 1.5px solid #1c1c1c;
+}
+
+.decline {
+	background: none;
+	color: #1c1c1c;
+	border: 1.5px solid #e4e0d8;
+}
+
+.accept:disabled,
+.decline:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.settled {
+	align-self: stretch;
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 4px 8px;
+	font-size: 11px;
+	color: #8a8378;
+	padding: 0 4px;
+}
+
+.linkButton {
+	align-self: flex-start;
+	background: none;
+	border: none;
+	padding: 0;
+	font-size: 11px;
+	color: #6b5f4f;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.linkButton:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.undoError {
+	flex-basis: 100%;
+	color: #9a3b2e;
+}

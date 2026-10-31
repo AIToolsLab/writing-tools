@@ -5,7 +5,7 @@
  */
 
 import { validateText, type Corpus } from './corpus';
-import { applyEditOp } from './editor';
+import { applyEditOp, type ApplyEditOptions } from './editor';
 import { describeOp } from './ops';
 import type { EditOp } from './types';
 
@@ -147,12 +147,26 @@ function targetParagraph(op: EditOp): number | undefined {
 export async function applyOpAndReport(
 	editor: EditableEditorAPI,
 	op: EditOp,
-): Promise<{ ok: boolean; report: string }> {
+	opts?: ApplyEditOptions,
+): Promise<
+	| {
+			ok: true;
+			report: string;
+			/** What was applied, for capturing an undo. */
+			splices: ParagraphSplice[];
+			/** The document after the edit. */
+			paragraphs: string[];
+	  }
+	| { ok: false; report: string }
+> {
 	try {
-		await applyEditOp(editor, op);
+		const splices = await applyEditOp(editor, op, opts);
+		const paragraphs = await editor.getParagraphs();
 		return {
 			ok: true,
-			report: appliedReport(await editor.getParagraphs(), op),
+			report: appliedReport(paragraphs, op),
+			splices,
+			paragraphs,
 		};
 	} catch (e) {
 		const window = numberedWindow(
@@ -161,7 +175,7 @@ export async function applyOpAndReport(
 			2,
 		);
 		return {
-			ok: false,
+			ok: false as const,
 			report: `Could not apply that: ${(e as Error).message} The document may have changed since you last looked. Current paragraphs near there:\n${window}\nRe-check the numbers (or \`view\`) and try again.`,
 		};
 	}

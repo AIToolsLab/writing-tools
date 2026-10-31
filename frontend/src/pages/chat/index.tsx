@@ -1,4 +1,4 @@
-import { isStepCount, tool } from 'ai';
+import { isStepCount, type ModelMessage } from 'ai';
 import {
 	useCallback,
 	useContext,
@@ -27,19 +27,33 @@ import {
 	DocTextMarkdown,
 	useDocJump,
 } from '@/components/docTextLink';
-import { ChatContext } from '@/contexts/chatContext';
+import { ChatContext, recordSeen } from '@/contexts/chatContext';
 import {
 	formatDocBriefForPrompt,
 	useDocBrief,
 } from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
-import { viewParagraphs } from '@/docTools/report';
+import { canEdit } from '@/docTools/editor';
+import { isEditToolName, toEditOp } from '@/docTools/editTools';
+import { previewOpChanges, type ChangePreview } from '@/docTools/preview';
+import { locateProposal } from '@/docTools/report';
+import { undoEdit } from '@/docTools/undo';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
-import { z } from 'zod';
 
+import { chatTools } from './chatTools';
+import { ProposalCard } from './ProposalCard';
 import classes from './styles.module.css';
-import { displayTranscript, documentContext, writerTurn } from './transcript';
+import {
+	answerProposal,
+	DECLINED_REASON,
+	displayTranscript,
+	documentContext,
+	pendingProposals,
+	setAsideReason,
+	writerTurn,
+	type ProposalItem,
+} from './transcript';
 
 const suggestionPrompts = [
 	'What is my main argument?',
@@ -61,12 +75,21 @@ Each of the user's messages starts with a <document_context> block that the app 
 
 When referring to a specific part of the document, link to it so the user can jump straight there, using a Markdown link whose target is a doctext URL: [second paragraph of the intro](doctext:A%20short%20quote). The link target must start with "doctext:" and be a URL-component-encoded verbatim quote from the document — from a single line, at most 240 characters, with no surrounding quotation marks or paragraph numbers. The link text should be a short description of the place, not the quote itself. Only link to text that is actually in the document; quote it exactly.`;
 
+/** Added to the instructions where the host can apply edits. */
+const EDIT_INSTRUCTIONS = `\
+You can also propose small edits to the document with \`str_replace\`, \`insert\`, and \`move\`. The user sees each proposal and accepts or declines it; the app rejects any that adds words that aren't the user's own. Mostly, coach: ask, reflect, point at passages. Propose an edit when the user asks for one, or when the improvement is only rearranging or trimming their own words. Propose one edit at a time, and say in a sentence why. If the user declines or sets one aside, don't propose it again; go back to talking it through.`;
+
 /** Runaway cap on model steps (each tool call is a step) per writer turn. */
 const MAX_STEPS = 6;
 
 export default function Chat() {
-	const { chatMessages, updateChatMessages, docBaseline, setDocBaseline } =
-		useContext(ChatContext);
+	const {
+		chatMessages,
+		updateChatMessages,
+		docState,
+		appliedEdits,
+		setAppliedEdits,
+	} = useContext(ChatContext);
 	const editorAPI = useContext(EditorContext);
 	const { brief } = useDocBrief();
 	const log = useLog();
@@ -74,6 +97,9 @@ export default function Chat() {
 	// just edited applies to the very next message.
 	const briefRef = useRef(brief);
 	briefRef.current = brief;
+	// The transcript as of now, for tool calls that run mid-stream.
+	const messagesRef = useRef(chatMessages);
+	messagesRef.current = chatMessages;
 	const activeRequestControllerRef = useRef<AbortController | null>(null);
 	const messagesContainerRef = useRef<HTMLDivElement>(null);
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -90,6 +116,8 @@ export default function Chat() {
 		text: string;
 		source: 'input' | 'suggested';
 	} | null>(null);
+	/** Why an Undo was refused, by the proposal's tool call. */
+	const [undoErrors, setUndoErrors] = useState<Record<string, string>>({});
 
 	// Show the "scroll to bottom" button when the user scrolls up, and hide it when they are near the bottom.
 	const handleScroll = useCallback(() => {
@@ -146,6 +174,42 @@ export default function Chat() {
 		visibleMessages.push({ role: 'assistant', text: streamingText });
 	}
 
+	/**
+	 * Previews of the proposal awaiting the writer, against the document as it
+	 * is when the proposal arrives. Keyed by tool call so a stale preview is
+	 * never shown on a newer card.
+	 */
+	const [pendingPreview, setPendingPreview] = useState<{
+		toolCallId: string;
+		previews: ChangePreview[] | null;
+	} | null>(null);
+	const pending = pendingProposals(chatMessages)[0] as
+		| ProposalItem
+		| undefined;
+	const pendingId = pending?.toolCallId;
+	const showPending = useEffectEvent(async (proposal: ProposalItem) => {
+		if (!isEditToolName(proposal.toolName)) return;
+		const op = toEditOp(proposal.toolName, proposal.input);
+		let previews: ChangePreview[] | null = null;
+		try {
+			previews = previewOpChanges(await editorAPI.getParagraphs(), op);
+		} catch {
+			// The writer changed the text since the proposal was checked; the
+			// card still shows the summary, and Accept reports the failure.
+		}
+		setPendingPreview({ toolCallId: proposal.toolCallId, previews });
+		// Show the writer where, before they decide.
+		const { highlight } = await locateProposal(editorAPI, op);
+		if (highlight) {
+			editorAPI.selectPhrase(highlight).catch(() => {});
+		}
+	});
+	useEffect(() => {
+		if (pending) void showPending(pending);
+		// Only when a different proposal starts waiting.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [pendingId]);
+
 	const resizeTextarea = useCallback(() => {
 		const textarea = textareaRef.current;
 		if (!textarea) return;
@@ -164,55 +228,44 @@ export default function Chat() {
 		};
 	}, []);
 
-	async function submitMessage(text: string, source: 'input' | 'suggested') {
+	/**
+	 * Run the model on `messages` (which end with whatever it should respond
+	 * to: a writer turn, or the answer to a proposal) and add its reply to the
+	 * transcript. `rollback` runs if it fails before saying anything.
+	 */
+	async function runModel(messages: ModelMessage[], rollback: () => void) {
 		// Only one active request is allowed; cancel any previous stream first.
 		activeRequestControllerRef.current?.abort();
 		const requestController = new AbortController();
 		activeRequestControllerRef.current = requestController;
 
-		chatLog.messageSent(log, { message: text, source });
 		updateSendingMessage(true);
 		setErrorInfo(null);
 		setFailedMessage(null);
-
-		// Pull the current document context at send time. The first turn also
-		// carries the whole document, numbered as `view` numbers it; later ones
-		// a note of what the writer changed since the model last saw it.
-		const docContext = await refreshDocContext();
-		const paragraphs = await editorAPI.getParagraphs();
-		const context = documentContext({
-			docContext,
-			brief: formatDocBriefForPrompt(briefRef.current),
-			paragraphs,
-			baseline: chatMessages.length === 0 ? null : docBaseline,
-		});
-		setDocBaseline(paragraphs);
-		const withTurn = [...chatMessages, writerTurn(context, text)];
-
-		updateChatMessages(withTurn);
+		updateChatMessages(messages);
+		messagesRef.current = messages;
 		setStreamingText('');
 		setShowScrollButton(false);
-		updateMessage('');
 
+		const editing = canEdit(editorAPI);
+		const { tools, toolApproval } = makeTools();
 		let streamed = '';
 		try {
 			const parts = streamParts({
 				model: languageModel,
-				providerOptions: openaiProviderOptions,
-				instructions: CHAT_INSTRUCTIONS,
-				messages: withTurn,
-				tools: {
-					view: tool({
-						description:
-							'Read the current document, paragraphs numbered like [3].',
-						inputSchema: z.object({}),
-						execute: async () => {
-							const seen = await editorAPI.getParagraphs();
-							setDocBaseline(seen);
-							return viewParagraphs(seen);
-						},
-					}),
+				providerOptions: {
+					openai: {
+						...openaiProviderOptions.openai,
+						// One proposal at a time.
+						parallelToolCalls: false,
+					},
 				},
+				instructions: editing
+					? `${CHAT_INSTRUCTIONS}\n\n${EDIT_INSTRUCTIONS}`
+					: CHAT_INSTRUCTIONS,
+				messages,
+				tools,
+				toolApproval,
 				stopWhen: isStepCount(MAX_STEPS),
 				abortSignal: requestController.signal,
 			});
@@ -231,7 +284,7 @@ export default function Chat() {
 				next = await parts.next();
 			}
 			if (requestController.signal.aborted) return;
-			updateChatMessages([...withTurn, ...next.value]);
+			updateChatMessages([...messages, ...next.value]);
 			chatLog.responseCompleted(log, {
 				responseLength: streamed.length,
 			});
@@ -241,19 +294,13 @@ export default function Chat() {
 			}
 			const info = describeGenerationError(error);
 			console.error('Error while streaming chat response:', error);
-			// Nothing streamed: roll the turn back and hand the text back to the
-			// input box, so Retry re-sends it once rather than duplicating the
-			// turn. If part of a reply did arrive, keep it and just show the error
-			// under it.
+			// Nothing streamed: roll back. If part of a reply did arrive, keep it
+			// and just show the error under it.
 			if (streamed.trim() === '') {
-				updateChatMessages(chatMessages);
-				// The model never saw this turn's context either.
-				setDocBaseline(docBaseline);
-				updateMessage(text);
-				setFailedMessage({ text, source });
+				rollback();
 			} else {
 				updateChatMessages([
-					...withTurn,
+					...messages,
 					{ role: 'assistant', content: streamed },
 				]);
 			}
@@ -272,6 +319,125 @@ export default function Chat() {
 		}
 	}
 
+	function makeTools() {
+		return chatTools({
+			editor: editorAPI,
+			docState,
+			briefText: () => Object.values(briefRef.current),
+			messages: () => messagesRef.current,
+			onApplied: (toolCallId, edit) =>
+				setAppliedEdits((prev) => ({ ...prev, [toolCallId]: edit })),
+			log,
+		});
+	}
+
+	function logEdit(
+		outcome: Parameters<typeof chatLog.edit>[1],
+		proposal: ProposalItem,
+	) {
+		if (!isEditToolName(proposal.toolName)) return;
+		const op = toEditOp(proposal.toolName, proposal.input);
+		void chatLog.edit(log, outcome, {
+			tool: proposal.toolName,
+			kind: op.kind,
+			toolCallId: proposal.toolCallId,
+			proposal: op,
+		});
+	}
+
+	async function submitMessage(text: string, source: 'input' | 'suggested') {
+		chatLog.messageSent(log, { message: text, source });
+		updateMessage('');
+
+		// A proposal still open when the writer moves on is set aside: it gets
+		// its answer before their turn, so the model knows what happened to it.
+		let base = chatMessages;
+		for (const proposal of pendingProposals(chatMessages)) {
+			base = [
+				...base,
+				answerProposal(proposal, {
+					approved: false,
+					reason: setAsideReason(text),
+				}),
+			];
+			logEdit('set_aside', proposal);
+		}
+
+		// Pull the current document context at send time. The first turn also
+		// carries the whole document, numbered as `view` numbers it; later ones
+		// a note of what the writer changed since the model last saw it.
+		const docContext = await refreshDocContext();
+		const paragraphs = await editorAPI.getParagraphs();
+		const previousBaseline = docState.baseline;
+		const context = documentContext({
+			docContext,
+			brief: formatDocBriefForPrompt(briefRef.current),
+			paragraphs,
+			baseline: chatMessages.length === 0 ? null : previousBaseline,
+		});
+		recordSeen(docState, paragraphs);
+
+		await runModel([...base, writerTurn(context, text)], () => {
+			// Hand the text back to the input box, so Retry re-sends it once
+			// rather than duplicating the turn.
+			updateChatMessages(chatMessages);
+			// The model never saw this turn's context either.
+			docState.baseline = previousBaseline;
+			updateMessage(text);
+			setFailedMessage({ text, source });
+		});
+	}
+
+	async function acceptProposal(proposal: ProposalItem) {
+		logEdit('accepted', proposal);
+		updateSendingMessage(true);
+		const result = await makeTools().applyProposal(
+			proposal.toolCallId,
+			proposal.toolName,
+			proposal.input,
+		);
+		const answered = [
+			...chatMessages,
+			answerProposal(proposal, { approved: true, ...result }),
+		];
+		// The edit stands even if the model's follow-up fails.
+		await runModel(answered, () => updateChatMessages(answered));
+	}
+
+	async function declineProposal(proposal: ProposalItem) {
+		logEdit('declined', proposal);
+		const answered = [
+			...chatMessages,
+			answerProposal(proposal, {
+				approved: false,
+				reason: DECLINED_REASON,
+			}),
+		];
+		await runModel(answered, () => updateChatMessages(answered));
+	}
+
+	async function undoProposal(proposal: ProposalItem) {
+		const applied = appliedEdits[proposal.toolCallId];
+		if (!applied || applied.undone || !canEdit(editorAPI)) return;
+		try {
+			await undoEdit(editorAPI, applied.undo);
+		} catch (e) {
+			logEdit('undo_refused', proposal);
+			setUndoErrors((prev) => ({
+				...prev,
+				[proposal.toolCallId]: (e as Error).message,
+			}));
+			return;
+		}
+		// Not recorded as seen: to the model, an undo is the writer's change,
+		// and the next edit note reports it.
+		logEdit('undone', proposal);
+		setAppliedEdits((prev) => ({
+			...prev,
+			[proposal.toolCallId]: { ...applied, undone: true },
+		}));
+	}
+
 	function startNewConversation() {
 		activeRequestControllerRef.current?.abort();
 		activeRequestControllerRef.current = null;
@@ -281,7 +447,10 @@ export default function Chat() {
 		setFailedMessage(null);
 		updateMessage('');
 		updateChatMessages([]);
-		setDocBaseline(null);
+		docState.baseline = null;
+		docState.seen.clear();
+		setAppliedEdits({});
+		setUndoErrors({});
 		chatLog.conversationReset(log);
 	}
 
@@ -354,6 +523,36 @@ export default function Chat() {
 						</div>
 					) : (
 						visibleMessages.map((chatMessage, index) => {
+							if (chatMessage.role === 'proposal') {
+								return (
+									<ProposalCard
+										key={chatMessage.toolCallId}
+										proposal={chatMessage}
+										previews={
+											pendingPreview?.toolCallId ===
+											chatMessage.toolCallId
+												? pendingPreview.previews
+												: null
+										}
+										applied={
+											appliedEdits[chatMessage.toolCallId]
+										}
+										undoError={
+											undoErrors[chatMessage.toolCallId]
+										}
+										busy={isSendingMessage}
+										onAccept={() =>
+											void acceptProposal(chatMessage)
+										}
+										onDecline={() =>
+											void declineProposal(chatMessage)
+										}
+										onUndo={() =>
+											void undoProposal(chatMessage)
+										}
+									/>
+								);
+							}
 							const isAssistantTyping =
 								chatMessage.role === 'assistant' &&
 								chatMessage.text === '' &&

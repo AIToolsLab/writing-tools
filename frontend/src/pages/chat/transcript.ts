@@ -89,10 +89,36 @@ export function writerTurn(context: string, text: string): UserModelMessage {
 }
 
 /** What the writer typed: the last text part of their turn. */
-function writerText(message: UserModelMessage): string {
+export function writerText(message: UserModelMessage): string {
 	if (typeof message.content === 'string') return message.content;
 	const texts = message.content.filter((p) => p.type === 'text');
 	return texts[texts.length - 1]?.text ?? '';
+}
+
+/** Everything the writer has typed this conversation (for the word bank). */
+export function writerMessages(messages: ModelMessage[]): string[] {
+	return messages.flatMap((m) => (m.role === 'user' ? [writerText(m)] : []));
+}
+
+/** Reasons the model reads when a proposal isn't applied. */
+export const DECLINED_REASON = 'The writer declined this edit.';
+const SET_ASIDE_PREFIX = 'The writer set this proposal aside';
+
+export type ProposalStatus =
+	| 'pending'
+	| 'applying'
+	| 'applied'
+	| 'failed'
+	| 'declined'
+	| 'set-aside';
+
+export interface ProposalItem {
+	role: 'proposal';
+	toolCallId: string;
+	approvalId: string;
+	toolName: string;
+	input: unknown;
+	status: ProposalStatus;
 }
 
 export interface DisplayMessage {
@@ -100,29 +126,156 @@ export interface DisplayMessage {
 	text: string;
 }
 
+export type DisplayItem = DisplayMessage | ProposalItem;
+
+type ToolCall = { toolCallId: string; toolName: string; input: unknown };
+
 /**
- * The bubbles for a transcript. Tool messages are skipped, and the assistant's
- * text across the steps of one reply (text, a `view` call, more text) is
- * joined into one bubble.
+ * What the transcript records about each tool call: the call itself, the
+ * writer's verdict on its approval (if asked), and its result.
  */
-export function displayTranscript(messages: ModelMessage[]): DisplayMessage[] {
-	const out: DisplayMessage[] = [];
+function indexToolCalls(messages: ModelMessage[]) {
+	const calls = new Map<string, ToolCall>();
+	const verdicts = new Map<string, boolean>(); // by approvalId
+	const results = new Map<string, { type: string; reason?: string }>();
+	for (const message of messages) {
+		if (message.role === 'assistant' && typeof message.content !== 'string') {
+			for (const part of message.content) {
+				if (part.type === 'tool-call') calls.set(part.toolCallId, part);
+			}
+		} else if (message.role === 'tool') {
+			for (const part of message.content) {
+				if (part.type === 'tool-approval-response') {
+					verdicts.set(part.approvalId, part.approved);
+				} else if (part.type === 'tool-result') {
+					const { output } = part;
+					results.set(part.toolCallId, {
+						type: output.type,
+						reason:
+							output.type === 'execution-denied'
+								? output.reason
+								: undefined,
+					});
+				}
+			}
+		}
+	}
+	return { calls, verdicts, results };
+}
+
+function proposalStatus(
+	verdict: boolean | undefined,
+	result: { type: string; reason?: string } | undefined,
+): ProposalStatus {
+	if (result?.type === 'execution-denied') {
+		return result.reason?.startsWith(SET_ASIDE_PREFIX)
+			? 'set-aside'
+			: 'declined';
+	}
+	if (result) return result.type.startsWith('error') ? 'failed' : 'applied';
+	if (verdict === undefined) return 'pending';
+	return verdict ? 'applying' : 'declined';
+}
+
+/**
+ * The bubbles and proposal cards for a transcript. Tool messages are skipped,
+ * and the assistant's text across the steps of one reply (text, a `view` call,
+ * more text) is joined into one bubble unless a proposal sits between.
+ * Proposals the app denied on its own (the word-bank check) never show.
+ */
+export function displayTranscript(messages: ModelMessage[]): DisplayItem[] {
+	const { calls, verdicts, results } = indexToolCalls(messages);
+	const out: DisplayItem[] = [];
+	const addText = (text: string) => {
+		if (text === '') return;
+		const last = out[out.length - 1];
+		if (last?.role === 'assistant') last.text += `\n\n${text}`;
+		else out.push({ role: 'assistant', text });
+	};
 	for (const message of messages) {
 		if (message.role === 'user') {
 			out.push({ role: 'user', text: writerText(message) });
 		} else if (message.role === 'assistant') {
-			const text =
-				typeof message.content === 'string'
-					? message.content
-					: message.content
-							.filter((p) => p.type === 'text')
-							.map((p) => p.text)
-							.join('');
-			if (text === '') continue;
-			const last = out[out.length - 1];
-			if (last?.role === 'assistant') last.text += `\n\n${text}`;
-			else out.push({ role: 'assistant', text });
+			if (typeof message.content === 'string') {
+				addText(message.content);
+				continue;
+			}
+			let text = '';
+			for (const part of message.content) {
+				if (part.type === 'text') {
+					text += part.text;
+				} else if (
+					part.type === 'tool-approval-request' &&
+					!part.isAutomatic
+				) {
+					const call = calls.get(part.toolCallId);
+					if (!call) continue;
+					addText(text);
+					text = '';
+					out.push({
+						role: 'proposal',
+						toolCallId: call.toolCallId,
+						approvalId: part.approvalId,
+						toolName: call.toolName,
+						input: call.input,
+						status: proposalStatus(
+							verdicts.get(part.approvalId),
+							results.get(call.toolCallId),
+						),
+					});
+				}
+			}
+			addText(text);
 		}
 	}
 	return out;
+}
+
+/** Proposals still waiting on the writer. */
+export function pendingProposals(messages: ModelMessage[]): ProposalItem[] {
+	return displayTranscript(messages).filter(
+		(item): item is ProposalItem =>
+			item.role === 'proposal' && item.status === 'pending',
+	);
+}
+
+/**
+ * The tool message that answers a proposal: the writer's verdict plus the
+ * tool's result, both written by the app. The SDK skips any approval that
+ * already has a result, so it only continues the conversation; and the
+ * transcript stays valid whatever comes after it (a writer turn, a failed
+ * model call), where an approval alone would leave the call without output.
+ */
+export function answerProposal(
+	proposal: ProposalItem,
+	answer:
+		| { approved: true; ok: boolean; report: string }
+		| { approved: false; reason: string },
+): ModelMessage {
+	return {
+		role: 'tool',
+		content: [
+			{
+				type: 'tool-approval-response',
+				approvalId: proposal.approvalId,
+				approved: answer.approved,
+				reason: answer.approved ? undefined : answer.reason,
+			},
+			{
+				type: 'tool-result',
+				toolCallId: proposal.toolCallId,
+				toolName: proposal.toolName,
+				output: !answer.approved
+					? { type: 'execution-denied', reason: answer.reason }
+					: answer.ok
+						? { type: 'text', value: answer.report }
+						: { type: 'error-text', value: answer.report },
+			},
+		],
+	};
+}
+
+/** The reason the model reads when the writer moved on without answering. */
+export function setAsideReason(writerSaid: string): string {
+	return `${SET_ASIDE_PREFIX} and said: "${writerSaid}"`;
 }
