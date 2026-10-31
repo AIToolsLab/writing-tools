@@ -14,7 +14,7 @@ const LOGIN_HTML = `<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Sign in to Writing Tools</title>
+  <title>Sign in to Thoughtful</title>
   <style>
     body{font:16px/1.5 system-ui,sans-serif;max-width:620px;margin:3rem auto;padding:0 1.5rem;color:#172033}
     h1{font-size:1.5rem}button{font:inherit;padding:.65rem 1rem;border:1px solid #3157d5;border-radius:7px;cursor:pointer;background:#3157d5;color:white}
@@ -22,9 +22,9 @@ const LOGIN_HTML = `<!doctype html>
   </style>
 </head>
 <body>
-  <h1>Sign in to Writing Tools</h1>
+  <h1>Sign in to Thoughtful</h1>
   <main id="app">
-    <p>Sign in to let the app you came from use Writing Tools AI on your behalf.</p>
+    <p>Sign in to let the app you came from use Thoughtful on your behalf.</p>
     <button id="sign-in">Sign in with Google</button>
   </main>
   <script>

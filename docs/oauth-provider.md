@@ -3,7 +3,7 @@
 The backend is an OAuth 2.1 authorization server (Better Auth's `oauthProvider`
 plugin under `/api/auth/oauth2/*`), and its OpenAI proxy is the resource server
 that accepts the resulting access tokens. This lets separately hosted
-first-party apps call the proxy as a signed-in Writing Tools user.
+first-party apps call the proxy as a signed-in Thoughtful user.
 
 The first and only client is the standalone Mindmap. It may call the two
 text-generation proxies; it receives no document or room access, and the user
@@ -71,7 +71,7 @@ introspection is configured, so opaque access tokens are never accepted.
 
 Revocation rides on the authorizing sign-in: the token's `sid` claim names the
 Better Auth session that approved it, and the proxy requires that session to
-still exist, be unexpired, and belong to `sub`. Signing out of Writing Tools (or
+still exist, be unexpired, and belong to `sub`. Signing out of Thoughtful (or
 the session expiring) therefore revokes Mindmap's token immediately. Disabling
 the client, by contrast, only stops new grants.
 
