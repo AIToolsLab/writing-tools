@@ -49,11 +49,12 @@ describe('documentContext', () => {
 		afterCursor: 'o.',
 	};
 
-	it('includes the numbered document only when given paragraphs', () => {
+	it('carries the numbered document on the first turn only', () => {
 		const first = documentContext({
 			docContext,
 			brief: null,
 			paragraphs: ['One.', 'Two.'],
+			baseline: null,
 		});
 		expect(first).toContain('[1] One.\n[2] Two.');
 		expect(first).toContain('Tw<<CURSOR>>o.');
@@ -61,17 +62,30 @@ describe('documentContext', () => {
 		const later = documentContext({
 			docContext,
 			brief: null,
-			paragraphs: null,
+			paragraphs: ['One.', 'Two.'],
+			baseline: ['One.', 'Two.'],
 		});
 		expect(later).not.toContain('[1]');
+		expect(later).not.toContain('Since you last saw');
 		expect(later).toContain('Tw<<CURSOR>>o.');
+	});
+
+	it('notes what the writer changed since the baseline', () => {
+		const context = documentContext({
+			docContext,
+			brief: null,
+			paragraphs: ['One.', 'Two!'],
+			baseline: ['One.', 'Two.'],
+		});
+		expect(context).toContain('[2] reworded: "Two!" (was "Two.")');
 	});
 
 	it('leads with the brief when there is one', () => {
 		const context = documentContext({
 			docContext,
 			brief: 'Audience: reviewers',
-			paragraphs: null,
+			paragraphs: ['One.'],
+			baseline: ['One.'],
 		});
 		expect(context).toMatch(/^<document_context>\nAudience: reviewers/);
 	});
@@ -81,6 +95,7 @@ describe('documentContext', () => {
 			docContext: { beforeCursor: '', selectedText: '', afterCursor: '' },
 			brief: null,
 			paragraphs: [''],
+			baseline: null,
 		});
 		expect(context).not.toContain('<<CURSOR>>');
 		expect(context).toContain('(the document is empty)');

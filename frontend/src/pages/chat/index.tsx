@@ -33,7 +33,7 @@ import {
 	useDocBrief,
 } from '@/contexts/docBriefContext';
 import { EditorContext } from '@/contexts/editorContext';
-import { viewText } from '@/docTools/report';
+import { viewParagraphs } from '@/docTools/report';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 import { z } from 'zod';
@@ -57,7 +57,7 @@ const suggestionPrompts = [
 const CHAT_INSTRUCTIONS = `\
 Help the user improve their writing. Encourage the user towards critical thinking and self-reflection. Be concise.
 
-Each of the user's messages starts with a <document_context> block that the app attaches; the user doesn't see it and didn't write it. On their first message it holds the whole document, with paragraphs numbered like [3]; on every message it shows the text around their cursor or selection, marked with <<CURSOR>> or <<SELECTION>> tags. If the user mentions "here" or "this", assume they mean that area. The document may change between messages: call \`view\` to re-read it when you need the current text. The paragraph numbers are for your tools; the user doesn't see them, so mentioning them might confuse the user.
+Each of the user's messages starts with a <document_context> block that the app attaches; the user doesn't see it and didn't write it. On their first message it holds the whole document, with paragraphs numbered like [3]; on every message it shows the text around their cursor or selection, marked with <<CURSOR>> or <<SELECTION>> tags. If the user mentions "here" or "this", assume they mean that area. When the user has changed the document since you last saw it, the block says what changed; call \`view\` when you need the whole current text. The paragraph numbers are for your tools; the user doesn't see them, so mentioning them might confuse the user.
 
 When referring to a specific part of the document, link to it so the user can jump straight there, using a Markdown link whose target is a doctext URL: [second paragraph of the intro](doctext:A%20short%20quote). The link target must start with "doctext:" and be a URL-component-encoded verbatim quote from the document — from a single line, at most 240 characters, with no surrounding quotation marks or paragraph numbers. The link text should be a short description of the place, not the quote itself. Only link to text that is actually in the document; quote it exactly.`;
 
@@ -65,7 +65,8 @@ When referring to a specific part of the document, link to it so the user can ju
 const MAX_STEPS = 6;
 
 export default function Chat() {
-	const { chatMessages, updateChatMessages } = useContext(ChatContext);
+	const { chatMessages, updateChatMessages, docBaseline, setDocBaseline } =
+		useContext(ChatContext);
 	const editorAPI = useContext(EditorContext);
 	const { brief } = useDocBrief();
 	const log = useLog();
@@ -175,16 +176,17 @@ export default function Chat() {
 		setFailedMessage(null);
 
 		// Pull the current document context at send time. The first turn also
-		// carries the whole document, numbered as `view` numbers it.
+		// carries the whole document, numbered as `view` numbers it; later ones
+		// a note of what the writer changed since the model last saw it.
 		const docContext = await refreshDocContext();
+		const paragraphs = await editorAPI.getParagraphs();
 		const context = documentContext({
 			docContext,
 			brief: formatDocBriefForPrompt(briefRef.current),
-			paragraphs:
-				chatMessages.length === 0
-					? await editorAPI.getParagraphs()
-					: null,
+			paragraphs,
+			baseline: chatMessages.length === 0 ? null : docBaseline,
 		});
+		setDocBaseline(paragraphs);
 		const withTurn = [...chatMessages, writerTurn(context, text)];
 
 		updateChatMessages(withTurn);
@@ -204,7 +206,11 @@ export default function Chat() {
 						description:
 							'Read the current document, paragraphs numbered like [3].',
 						inputSchema: z.object({}),
-						execute: () => viewText(editorAPI),
+						execute: async () => {
+							const seen = await editorAPI.getParagraphs();
+							setDocBaseline(seen);
+							return viewParagraphs(seen);
+						},
 					}),
 				},
 				stopWhen: isStepCount(MAX_STEPS),
@@ -241,6 +247,8 @@ export default function Chat() {
 			// under it.
 			if (streamed.trim() === '') {
 				updateChatMessages(chatMessages);
+				// The model never saw this turn's context either.
+				setDocBaseline(docBaseline);
 				updateMessage(text);
 				setFailedMessage({ text, source });
 			} else {
@@ -273,6 +281,7 @@ export default function Chat() {
 		setFailedMessage(null);
 		updateMessage('');
 		updateChatMessages([]);
+		setDocBaseline(null);
 		chatLog.conversationReset(log);
 	}
 

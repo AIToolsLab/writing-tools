@@ -12,6 +12,7 @@
 
 import type { ModelMessage, UserModelMessage } from 'ai';
 
+import { editNote } from '@/docTools/editNote';
 import { viewParagraphs } from '@/docTools/report';
 
 /** How much of the cursor's paragraph to show on each side. */
@@ -37,26 +38,33 @@ export function cursorWindow(
 }
 
 /**
- * The `<document_context>` block for one writer turn. `paragraphs` is the
- * document snapshot, passed on the first turn only; later turns rely on the
- * history and `view`.
+ * The `<document_context>` block for one writer turn. On the first turn
+ * (`baseline` null) it carries the whole document; after that, a note of what
+ * the writer changed since the model last saw it, if anything.
  */
 export function documentContext({
 	docContext,
 	brief,
 	paragraphs,
+	baseline,
 }: {
 	docContext: DocContext;
 	/** Prompt-formatted brief, or null when the writer hasn't set one. */
 	brief: string | null;
-	paragraphs: string[] | null;
+	/** The document now. */
+	paragraphs: string[];
+	/** The document as the model last saw it; null on the first turn. */
+	baseline: string[] | null;
 }): string {
 	const parts: string[] = [];
 	if (brief) parts.push(brief);
-	if (paragraphs) {
+	if (baseline === null) {
 		parts.push(
 			`The document (paragraph numbers are for your tools only):\n${viewParagraphs(paragraphs)}`,
 		);
+	} else {
+		const note = editNote(baseline, paragraphs);
+		if (note) parts.push(note);
 	}
 	const { beforeCursor, selectedText, afterCursor } = docContext;
 	if (`${beforeCursor}${selectedText}${afterCursor}`.trim() !== '') {
