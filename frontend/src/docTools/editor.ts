@@ -17,6 +17,11 @@
 import { lowerOp } from './ops';
 import type { EditOp } from './types';
 
+/** Does this host apply edits? Hosts that can't leave `applyEdit` out. */
+export function canEdit(editor: EditorAPI): editor is EditableEditorAPI {
+	return editor.applyEdit !== undefined;
+}
+
 /** Thrown when the writer cancels an edit during the reveal beat. */
 export class EditVetoed extends Error {
 	constructor() {
@@ -91,7 +96,7 @@ export async function vetoWindow(
  * that were applied, so callers can capture their inverses for undo.
  */
 export async function applyEditOp(
-	editor: EditorAPI,
+	editor: EditableEditorAPI,
 	op: EditOp,
 	opts: ApplyEditOptions = {},
 ): Promise<ParagraphSplice[]> {
@@ -167,7 +172,7 @@ export function minimalReplace(
  * shrinkage via delete_paragraph).
  */
 export async function applySpliceToEditor(
-	editor: EditorAPI,
+	editor: EditableEditorAPI,
 	splice: ParagraphSplice,
 ): Promise<void> {
 	if (editor.applySplice) {

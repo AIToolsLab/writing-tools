@@ -61,11 +61,11 @@ A pack is a small JSON document. Format sketch (field names provisional):
 }
 ```
 
-Execution: the pack's `prompt` becomes the `instructions` of a tool loop (the
-manual loop pattern proven in
-`frontend/src/pages/my-words/interaction/liveResponder.ts` — tools carry
-schemas but no `execute`; the app routes each call), restricted to the tools
-the pack declares. The loop runs through the existing LLM proxy under the
+Execution: the pack's `prompt` becomes the `instructions` of a tool loop
+(Chat's, `frontend/src/pages/chat/`: `streamText` with `toolApproval`, where the
+app gates and answers each consequential call itself — see
+[chat-document-tools.md](chat-document-tools.md)), restricted to the tools the
+pack declares. The loop runs through the existing LLM proxy under the
 user's own session; `pack_id` joins `client_id` in the usage and log
 attribution.
 
@@ -123,7 +123,7 @@ editor, under the covenant.
 
 | Tool | Essential schema | Who needs it | Precedent | Notes |
 | --- | --- | --- | --- | --- |
-| `view` | `{} → numbered paragraphs` | nearly everything | my-words `liveResponder`; moving into Chat per [#583](https://github.com/AIToolsLab/writing-tools/issues/583) | Paragraph numbers are loop-internal coordinates, never shown to the writer (my-words rule). |
+| `view` | `{} → numbered paragraphs` | nearly everything | Chat (`pages/chat/chatTools.ts`), per [#583](https://github.com/AIToolsLab/writing-tools/issues/583) | Paragraph numbers are loop-internal coordinates, never shown to the writer (my-words rule). |
 | `highlight` | `{phrase} → ok \| not_found` | Say-Back, Prior Self (*quote*), Table Read, Marginalia, doctext-style citations | my-words `highlight`; `EditorAPI.selectPhrase`; `docTextLink` | Anchor with a W3C **`TextQuoteSelector`** (exact + prefix/suffix), not a bare needle — see [Reuse over invention](#reuse-over-invention). Fixes [#589](https://github.com/AIToolsLab/writing-tools/issues/589), [#591](https://github.com/AIToolsLab/writing-tools/issues/591), [#592](https://github.com/AIToolsLab/writing-tools/issues/592) once for every pack. |
 | `annotate` | `{selector, note, kind} → ok` | Marginalia, Reader's Reply, Table Read, any `lens` pack | Word comment API; Google Docs comments blocked on a Drive scope ([#580](https://github.com/AIToolsLab/writing-tools/issues/580)) | Same selector model. Falls back to an in-pane annotation list where the host can't do margin comments. |
 | `propose_edit` | `{selector, replace, rationale} → accepted \| rejected \| not_found` | Blind Rewrite, rewording flows, my-words ops | my-words `str_replace`/`insert`/`move` + propose strategy; rooms plan's patch-with-confirm | **Always** confirm-gated. The `rationale` renders on the confirm card — the writer sees why, not just what. |

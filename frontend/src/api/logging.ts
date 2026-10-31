@@ -48,8 +48,12 @@ import type { LogFn } from '@/hooks/useLog';
  *       Chat renders doctext citations too, so `page` is now what says where a
  *       reference event came from. A reader that took those event names to mean
  *       Revise has to read `page` instead.
+ *   6 — Chat proposes edits: `edit_proposed`, `edit_auto_denied`,
+ *       `edit_accepted`, `edit_declined`, `edit_set_aside`, `edit_failed`,
+ *       `edit_undone`, `edit_undo_refused`. Content rides in `proposal` and
+ *       `offending`, both document-level.
  */
-export const LOG_SCHEMA_VERSION = 5;
+export const LOG_SCHEMA_VERSION = 6;
 
 /** Pages that emit events. Matches the user-facing tabs. */
 export type LogPage = 'draft' | 'revise' | 'chat' | 'tools';
@@ -187,6 +191,41 @@ export const chatLog = {
 	/** The writer discarded the transcript and started a new conversation. */
 	conversationReset(log: LogFn) {
 		return emit(log, 'chat', 'conversation_reset');
+	},
+	/**
+	 * An edit proposal's lifecycle. `tool` and `kind` are usage-level; the op
+	 * itself goes in `proposal` (document-level, it quotes the document).
+	 *   - proposed: shown to the writer for approval
+	 *   - auto_denied: failed the word-bank check, never shown; `offending` is
+	 *     the first run of words that wasn't the writer's
+	 *   - accepted / declined / set_aside: the writer's verdict (set aside = they
+	 *     sent a new message with the card still open)
+	 *   - failed: accepted, but applying it failed (e.g. the text moved)
+	 *   - undone / undo_refused: the writer clicked Undo; refused when the text
+	 *     had changed since
+	 */
+	edit(
+		log: LogFn,
+		outcome:
+			| 'proposed'
+			| 'auto_denied'
+			| 'accepted'
+			| 'declined'
+			| 'set_aside'
+			| 'failed'
+			| 'undone'
+			| 'undo_refused',
+		data: {
+			tool: string;
+			kind: string;
+			toolCallId: string;
+			proposal?: unknown;
+			/** auto_denied: why (`word_bank`, or `no_match` for a stale target). */
+			reason?: 'word_bank' | 'no_match';
+			offending?: string;
+		},
+	) {
+		return emit(log, 'chat', `edit_${outcome}`, data);
 	},
 };
 

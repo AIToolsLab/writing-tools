@@ -1,11 +1,10 @@
 /**
- * In-memory `EditorAPI` for the demo/playback harness. Holds a real paragraph
- * array and applies edits through the same pure `applyOp` the strategies use, so
- * the demo exercises the actual interaction code — not a stub. Adds `subscribe`
- * and `snapshot` so a document panel can render it live.
+ * In-memory `EditorAPI` for tests. Holds a real paragraph array and applies
+ * edits through the same pure ops the hosts use, so tests exercise the actual
+ * edit code — not a stub. `subscribe` and `snapshot` let a test watch it.
  */
 
-import { applyOp, applySplice } from '../interaction/ops';
+import { applyOp, applySplice } from '@/docTools/ops';
 
 export class MockEditor implements EditorAPI {
 	private paragraphs: string[];

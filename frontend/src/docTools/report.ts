@@ -1,20 +1,13 @@
 /**
- * Turn primitives shared by the interaction strategies.
- *
- * The strategies differ in *what they do with an edit* (apply now vs. stage for
- * consent); everything before that — pumping the model through read-only moves
- * like `view` and `highlight`, validating against the word-bank, describing the
- * result — is common and lives here.
+ * What the model reads back from the document tools: the numbered `view`, the
+ * post-apply report, the word-bank check, and the human-readable description
+ * of a proposed edit.
  */
 
-import { validateText, type Corpus } from '../corpus';
-import { applyEditOp } from './editor';
+import { validateText, type Corpus } from './corpus';
+import { applyEditOp, type ApplyEditOptions } from './editor';
 import { describeOp } from './ops';
-import type {
-	AssistantMove,
-	EditOp,
-	StrategyContext,
-} from './types';
+import type { EditOp } from './types';
 
 const clip = (s: string, n = 40) =>
 	s.length > n ? `${s.slice(0, n - 1)}…` : s;
@@ -152,23 +145,37 @@ function targetParagraph(op: EditOp): number | undefined {
  * re-orient and retry instead of flying blind.
  */
 export async function applyOpAndReport(
-	ctx: StrategyContext,
+	editor: EditableEditorAPI,
 	op: EditOp,
-): Promise<{ ok: boolean; report: string }> {
+	opts?: ApplyEditOptions,
+): Promise<
+	| {
+			ok: true;
+			report: string;
+			/** What was applied, for capturing an undo. */
+			splices: ParagraphSplice[];
+			/** The document after the edit. */
+			paragraphs: string[];
+	  }
+	| { ok: false; report: string }
+> {
 	try {
-		await applyEditOp(ctx.editor, op);
+		const splices = await applyEditOp(editor, op, opts);
+		const paragraphs = await editor.getParagraphs();
 		return {
 			ok: true,
-			report: appliedReport(await ctx.editor.getParagraphs(), op),
+			report: appliedReport(paragraphs, op),
+			splices,
+			paragraphs,
 		};
 	} catch (e) {
 		const window = numberedWindow(
-			await ctx.editor.getParagraphs(),
+			await editor.getParagraphs(),
 			targetParagraph(op),
 			2,
 		);
 		return {
-			ok: false,
+			ok: false as const,
 			report: `Could not apply that: ${(e as Error).message} The document may have changed since you last looked. Current paragraphs near there:\n${window}\nRe-check the numbers (or \`view\`) and try again.`,
 		};
 	}
@@ -178,48 +185,10 @@ export async function applyOpAndReport(
 export function validateOp(
 	op: EditOp,
 	corpus: Corpus,
-): { ok: boolean; offending?: string } {
+): { ok: boolean; offending?: string; problem?: string } {
 	// `move` relocates existing words, so it introduces nothing new.
 	if (op.kind === 'move') return { ok: true };
 	const text = op.kind === 'str_replace' ? op.newStr : op.text;
 	const res = validateText(text, corpus);
-	return { ok: res.ok, offending: res.offending };
-}
-
-/**
- * Pump the model through read-only moves (`view`, `highlight`) — which are not
- * commitments — until it produces something a strategy must decide on: an
- * `edit`, or pure speech. Read-only results are fed back so the model can react.
- * Capped so a confused model can't spin forever.
- */
-export async function advanceToDecision(
-	ctx: StrategyContext,
-	maxSteps = 6,
-): Promise<AssistantMove> {
-	for (let i = 0; i < maxSteps; i++) {
-		const move = await ctx.responder.next();
-		if (move.say) ctx.setCaption(move.say);
-
-		const action = move.action;
-		if (!action) return move; // pure speech: floor passes back
-		if (action.tool === 'edit') return move; // a commitment to decide on
-
-		if (action.tool === 'view') {
-			ctx.responder.recordToolResult(await viewText(ctx.editor));
-			continue;
-		}
-		if (action.tool === 'highlight') {
-			try {
-				await ctx.editor.selectPhrase(action.phrase);
-				ctx.responder.recordToolResult('Highlighted.');
-			} catch {
-				ctx.responder.recordToolResult(
-					`Could not find "${action.phrase}".`,
-				);
-			}
-			continue;
-		}
-	}
-	// Hit the cap: nudge the model to speak next turn.
-	return { say: 'Let me know how you’d like to proceed.' };
+	return { ok: res.ok, offending: res.offending, problem: res.problem };
 }

@@ -22,7 +22,7 @@ import type { EditOp } from './types';
 
 // `ParagraphSplice` — the canonical mutation every op lowers to — is declared
 // ambiently in types.d.ts so editor hosts can implement `applySplice` without
-// importing from this page.
+// importing from here.
 
 /** Paragraph-break normalization: runs of newlines are one break. */
 const normalizeBreaks = (s: string) =>

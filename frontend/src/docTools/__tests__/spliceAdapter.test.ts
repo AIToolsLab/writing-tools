@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import { applySpliceToEditor, minimalReplace } from '../interaction/editor';
-import { applyOp, applySplice, lowerOp } from '../interaction/ops';
+import { applySpliceToEditor, minimalReplace } from '../editor';
+import { applyOp, applySplice, lowerOp } from '../ops';
 
 /**
  * A host WITHOUT native applySplice: applies DocEdit primitives through the
@@ -46,7 +46,7 @@ function primitiveHost(initial: string[]) {
 		},
 		getParagraphs: (): Promise<string[]> =>
 			Promise.resolve([...paragraphs]),
-	} as unknown as EditorAPI;
+	} as unknown as EditableEditorAPI;
 	return { editor, current: () => paragraphs };
 }
 
