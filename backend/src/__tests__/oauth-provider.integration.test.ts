@@ -157,9 +157,19 @@ describe.sequential('OAuth provider (Mindmap client)', () => {
 		const html = await login.text();
 		expect(html).toContain('Sign in with Google');
 		expect(html).toContain('oauth_query');
+		// Names the requesting trusted client, so the user knows what they're connecting.
+		expect(loginUrl.searchParams.get('client_id')).toBe(CLIENT_ID);
+		expect(html).toContain('<strong>Mindmap</strong> wants to use Thoughtful');
 		// The resource is part of the signed continuation, not re-added by the page.
 		expect(loginUrl.searchParams.get('resource')).toBe(ORIGIN);
 		expect(loginUrl.searchParams.getAll('ba_param')).toContain('resource');
+	});
+
+	it('falls back to a generic login prompt for an unknown client_id', async () => {
+		const login = await app.request(`${ORIGIN}/api/oauth/login?client_id=not-a-client`);
+		const html = await login.text();
+		expect(html).toContain('the app you came from');
+		expect(html).not.toContain('<strong>');
 	});
 
 	it('resumes authorization from the login page once sign-in sets a session', async () => {

@@ -41,8 +41,11 @@ not register localhost.
 ## Login
 
 When authorize finds no session, the provider redirects to `/api/oauth/login`
-with a signed copy of the authorization query. That page is one "Sign in with
-Google" button: it posts the signed query as `oauth_query` with the social
+with a signed copy of the authorization query. That page names the requesting
+client ("**Mindmap** wants to use Thoughtful's AI on your behalf"), looking up
+`client_id` in the trusted-client list so only configured names can appear; an
+unknown id gets a generic prompt. Since trusted clients skip consent, a user who
+is already signed in never sees this page. It is one "Sign in with Google" button: it posts the signed query as `oauth_query` with the social
 sign-in, the provider carries it through the Google OAuth state, and after the
 callback sets the session it re-runs authorize and redirects to the client with
 a code. A query edited after signing is refused (`invalid_signature`).
