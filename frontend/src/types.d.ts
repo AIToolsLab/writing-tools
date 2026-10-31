@@ -66,7 +66,7 @@ type DocEdit =
 /**
  * The canonical paragraph-range mutation every `EditOp` lowers to: replace
  * `remove.length` paragraphs at `index` with `insert`. See
- * `pages/my-words/interaction/ops.ts` for lowering/inversion.
+ * `docTools/ops.ts` for lowering/inversion.
  */
 interface ParagraphSplice {
 	/** First affected paragraph (0-based). */

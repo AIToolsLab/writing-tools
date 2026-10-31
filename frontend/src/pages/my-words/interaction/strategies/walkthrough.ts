@@ -12,8 +12,9 @@
  * docs/my-words-interaction-design.md.
  */
 
-import { describeOp } from '../ops';
-import { advanceToDecision, applyOpAndReport, validateOp } from '../shared';
+import { describeOp } from '@/docTools/ops';
+import { applyOpAndReport, validateOp } from '@/docTools/report';
+import { advanceToDecision } from '../shared';
 import type { InteractionStrategy } from '../types';
 
 export function createWalkthroughStrategy(): InteractionStrategy {
@@ -44,7 +45,7 @@ export function createWalkthroughStrategy(): InteractionStrategy {
 					continue;
 				}
 
-				const result = await applyOpAndReport(ctx, action.op);
+				const result = await applyOpAndReport(ctx.editor, action.op);
 				ctx.responder.recordToolResult(result.report);
 				if (!result.ok) continue;
 				return {

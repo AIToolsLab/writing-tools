@@ -3,7 +3,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { OPENAI_MODEL, openai } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
 
-import { buildCorpus } from './corpus';
+import { buildCorpus } from '@/docTools/corpus';
 import { InteractionPanel } from './InteractionPanel';
 import { createLiveResponder, MODE_PROMPTS } from './interaction/liveResponder';
 import { createProposeStrategy } from './interaction/strategies/propose';

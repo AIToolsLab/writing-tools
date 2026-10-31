@@ -8,7 +8,7 @@
 
 import { useCallback, useRef, useState } from 'react';
 
-import type { Corpus } from '../corpus';
+import type { Corpus } from '@/docTools/corpus';
 import type {
 	Awaiting,
 	InteractionStrategy,

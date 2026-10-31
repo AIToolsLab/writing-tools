@@ -23,7 +23,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
-import { buildCorpus } from '../corpus';
+import { buildCorpus } from '@/docTools/corpus';
 import {
 	startVoiceSession,
 	type TranscriptSpeaker,

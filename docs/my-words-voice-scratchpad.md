@@ -183,8 +183,8 @@ from scratch. The first two are design work and are tracked as issues #555 and
 
 | Piece | Where |
 | --- | --- |
-| Splice lowering, inversion, freshness | `frontend/src/pages/my-words/interaction/ops.ts` |
-| Reveal/veto + splice adapter (per-host) | `frontend/src/pages/my-words/interaction/editor.ts` |
+| Splice lowering, inversion, freshness | `frontend/src/docTools/ops.ts` |
+| Reveal/veto + splice adapter (per-host) | `frontend/src/docTools/editor.ts` |
 | Lexical node-incremental `applySplice` | `frontend/src/editor/editor.tsx` (+ `index.tsx`) |
 | Word `delete_paragraph` | `frontend/src/api/wordEditorAPI.ts` |
 | Voice tool routing, undo stack, control invariants | `frontend/src/pages/my-words/voice/session.ts` |

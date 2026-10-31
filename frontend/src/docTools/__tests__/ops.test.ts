@@ -9,8 +9,8 @@ import {
 	lowerOp,
 	previewOp,
 	spliceIsFresh,
-} from '../interaction/ops';
-import type { EditOp } from '../interaction/types';
+} from '../ops';
+import type { EditOp } from '../types';
 
 describe('applyOp', () => {
 	it('str_replace replaces the first occurrence only', () => {

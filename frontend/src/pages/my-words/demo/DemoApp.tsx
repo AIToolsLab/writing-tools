@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { buildCorpus } from '../corpus';
+import { buildCorpus } from '@/docTools/corpus';
 import { InteractionPanel } from '../InteractionPanel';
 import { useInteraction } from '../interaction/useInteraction';
 import { MockEditor } from './mockEditor';

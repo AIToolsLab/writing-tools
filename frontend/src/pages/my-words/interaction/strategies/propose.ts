@@ -13,11 +13,11 @@
  */
 
 import {
-	advanceToDecision,
 	applyOpAndReport,
 	locateProposal,
 	validateOp,
-} from '../shared';
+} from '@/docTools/report';
+import { advanceToDecision } from '../shared';
 import type { InteractionStrategy, PendingProposal } from '../types';
 
 export function createProposeStrategy(): InteractionStrategy {
@@ -33,7 +33,7 @@ export function createProposeStrategy(): InteractionStrategy {
 			// as the open edit's tool result, so the model can react to it.
 			if (pending) {
 				if (input.type === 'accept') {
-					const result = await applyOpAndReport(ctx, pending.op);
+					const result = await applyOpAndReport(ctx.editor, pending.op);
 					ctx.responder.recordToolResult(
 						result.ok
 							? `The writer ACCEPTED. ${result.report}`

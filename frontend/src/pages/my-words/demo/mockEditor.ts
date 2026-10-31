@@ -5,7 +5,7 @@
  * and `snapshot` so a document panel can render it live.
  */
 
-import { applyOp, applySplice } from '../interaction/ops';
+import { applyOp, applySplice } from '@/docTools/ops';
 
 export class MockEditor implements EditorAPI {
 	private paragraphs: string[];

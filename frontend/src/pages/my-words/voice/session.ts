@@ -55,7 +55,7 @@
  *    objection and does not touch `pendingVeto`.
  */
 
-import type { Corpus } from '../corpus';
+import type { Corpus } from '@/docTools/corpus';
 import {
 	applyEditOp,
 	applySpliceToEditor,
@@ -64,21 +64,21 @@ import {
 	revealAnchorFor,
 	vetoWindow,
 	type ApplyEditOptions,
-} from '../interaction/editor';
+} from '@/docTools/editor';
 import {
 	applyOpLogged,
 	applySplice,
 	describeOp,
 	invertSplices,
 	spliceIsFresh,
-} from '../interaction/ops';
+} from '@/docTools/ops';
 import {
 	appliedReport,
 	numberedWindow,
 	validateOp,
 	viewParagraphs,
-} from '../interaction/shared';
-import type { EditOp } from '../interaction/types';
+} from '@/docTools/report';
+import type { EditOp } from '@/docTools/types';
 import { GREETING_INSTRUCTIONS, VOICE_INSTRUCTIONS } from './prompt';
 import { startRealtimeTransport } from './realtime';
 import { buildVoiceTools, type ToolName } from './tools';
