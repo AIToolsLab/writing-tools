@@ -1,35 +1,9 @@
-import { useCallback, useContext, useEffect, useRef, useState } from 'react';
+import { useContext, useEffect, useRef, useState } from 'react';
 
-import { languageModel } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
 import { canEdit } from '@/docTools/editor';
 
-import { buildCorpus } from '@/docTools/corpus';
-import { InteractionPanel } from './InteractionPanel';
-import { createLiveResponder, MODE_PROMPTS } from './interaction/liveResponder';
-import { createProposeStrategy } from './interaction/strategies/propose';
-import { createWalkthroughStrategy } from './interaction/strategies/walkthrough';
-import type { InteractionStrategy } from './interaction/types';
-import { useInteraction } from './interaction/useInteraction';
 import { VoiceSession } from './voice/VoiceSession';
-
-type StrategyKey = keyof typeof MODE_PROMPTS;
-// Voice is a peer of the strategy tabs but runs its own turn-loop (the realtime
-// voice model drives turns), so it doesn't go through the Responder/strategy path.
-type TabKey = StrategyKey | 'voice';
-
-const STRATEGIES: Record<StrategyKey, () => InteractionStrategy> = {
-	walkthrough: createWalkthroughStrategy,
-	propose: createProposeStrategy,
-};
-
-const TAB_LABELS: Record<TabKey, string> = {
-	walkthrough: 'Walkthrough',
-	propose: 'Propose',
-	voice: 'Voice',
-};
-
-const TAB_KEYS: TabKey[] = ['walkthrough', 'propose', 'voice'];
 
 /**
  * Where the scratchpad is stored on the document, via `EditorAPI`'s
@@ -45,11 +19,13 @@ const TAB_KEYS: TabKey[] = ['walkthrough', 'propose', 'voice'];
  */
 const SCRATCHPAD_SETTING_KEY = 'mywords-scratchpad';
 
+/**
+ * My Words: the voice prototype. (The text prototypes it started with,
+ * Walkthrough and Propose, became Chat's own-words edits; see
+ * docs/chat-document-tools.md.)
+ */
 export default function MyWords() {
 	const editor = useContext(EditorContext);
-	const [tab, setTab] = useState<TabKey>('walkthrough');
-	// The writer's scratchpad persists across a strategy switch; the session
-	// (conversation + caption) resets, via the keyed <LiveSession> below.
 	const [scratchpad, setScratchpad] = useState('');
 
 	// Load the persisted scratchpad once, then debounce-save on change so it
@@ -101,144 +77,18 @@ export default function MyWords() {
 	}, [setDocumentSetting]);
 
 	return (
-		<div
-			style={{ height: '100%', display: 'flex', flexDirection: 'column' }}
-		>
-			<div
-				style={{
-					display: 'flex',
-					gap: '0.4rem',
-					padding: '0.5rem 0.75rem 0',
-				}}
-			>
-				{TAB_KEYS.map((key) => (
-					<button
-						key={key}
-						type="button"
-						onClick={() => setTab(key)}
-						style={{
-							flex: '1 1 auto',
-							padding: '0.35rem',
-							border: '1px solid #d1d5db',
-							borderRadius: 6,
-							background: key === tab ? '#4f46e5' : '#f3f4f6',
-							color: key === tab ? '#fff' : '#374151',
-							fontSize: '0.8rem',
-							cursor: 'pointer',
-						}}
-					>
-						{TAB_LABELS[key]}
-					</button>
-				))}
-			</div>
-			<div style={{ flex: '1 1 auto', minHeight: 0 }}>
-				{!canEdit(editor) ? (
-					<p style={{ padding: '0.75rem', color: '#6b7280' }}>
-						My Words can’t edit documents in this editor yet.
-					</p>
-				) : tab === 'voice' ? (
-					<VoiceSession
-						editor={editor}
-						scratchpad={scratchpad}
-						onScratchpadChange={setScratchpad}
-					/>
-				) : (
-					<LiveSession
-						key={tab}
-						strategyKey={tab}
-						editor={editor}
-						scratchpad={scratchpad}
-						onScratchpadChange={setScratchpad}
-					/>
-				)}
-			</div>
+		<div style={{ height: '100%' }}>
+			{canEdit(editor) ? (
+				<VoiceSession
+					editor={editor}
+					scratchpad={scratchpad}
+					onScratchpadChange={setScratchpad}
+				/>
+			) : (
+				<p style={{ padding: '0.75rem', color: '#6b7280' }}>
+					My Words can’t edit documents in this editor yet.
+				</p>
+			)}
 		</div>
-	);
-}
-
-function LiveSession(props: {
-	strategyKey: StrategyKey;
-	editor: EditableEditorAPI;
-	scratchpad: string;
-	onScratchpadChange: (v: string) => void;
-}) {
-	const { strategyKey, editor, scratchpad, onScratchpadChange } = props;
-	const [input, setInput] = useState('');
-
-	// Latest scratchpad for the corpus builder. The writer's sent messages are
-	// appended to the scratchpad (see onSend), so it is the whole word bank.
-	const scratchpadRef = useRef(scratchpad);
-	scratchpadRef.current = scratchpad;
-	const lastSentScratchpad = useRef('');
-
-	const corpus = useCallback(
-		async () =>
-			buildCorpus({
-				docText: await editor.getDocText(),
-				scratchpad: scratchpadRef.current,
-			}),
-		[editor],
-	);
-
-	// One strategy + responder per session. Recreated when the keyed component
-	// remounts on a strategy switch.
-	const sessionRef = useRef<{
-		strategy: InteractionStrategy;
-		responder: ReturnType<typeof createLiveResponder>;
-	} | null>(null);
-	if (!sessionRef.current) {
-		sessionRef.current = {
-			strategy: STRATEGIES[strategyKey](),
-			responder: createLiveResponder({
-				model: languageModel,
-				modePrompt: MODE_PROMPTS[strategyKey],
-			}),
-		};
-	}
-
-	const { caption, awaiting, pending, isThinking, submit } = useInteraction({
-		editor,
-		strategy: sessionRef.current.strategy,
-		responder: sessionRef.current.responder,
-		corpus,
-	});
-
-	const onSend = useCallback(() => {
-		const text = input.trim();
-		if (!text) return;
-		// The writer's message is part of their words: append it to the
-		// scratchpad. Keep the ref in sync now so the corpus sees it this turn.
-		const newScratch = scratchpadRef.current
-			? `${scratchpadRef.current}\n${text}`
-			: text;
-		scratchpadRef.current = newScratch;
-		onScratchpadChange(newScratch);
-		setInput('');
-		// Surface the scratchpad to the model as text when it has changed —
-		// `view` is document-only, so this is how its words reach the model.
-		const scratch = newScratch.trim();
-		const note =
-			scratch && scratch !== lastSentScratchpad.current
-				? `(My words so far:\n${scratch}\n)\n\n`
-				: '';
-		lastSentScratchpad.current = scratch;
-		void submit({ type: 'message', text: `${note}${text}` });
-	}, [input, submit, onScratchpadChange]);
-
-	return (
-		<InteractionPanel
-			caption={caption}
-			isThinking={isThinking}
-			awaiting={awaiting}
-			pending={pending}
-			scratchpad={scratchpad}
-			onScratchpadChange={onScratchpadChange}
-			input={input}
-			onInputChange={setInput}
-			onSend={onSend}
-			onContinue={() => void submit({ type: 'continue' })}
-			onAccept={() => void submit({ type: 'accept' })}
-			onReject={() => void submit({ type: 'reject' })}
-		/>
 	);
 }

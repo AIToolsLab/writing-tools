@@ -14,7 +14,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { buildCorpus } from '@/docTools/corpus';
-import { MockEditor } from '../demo/mockEditor';
+import { MockEditor } from '../__fixtures__/mockEditor';
 import { startVoiceSession } from '../voice/session';
 import type { VoiceTransport, VoiceTransportOptions } from '../voice/transport';
 

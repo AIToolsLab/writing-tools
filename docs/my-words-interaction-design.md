@@ -1,5 +1,13 @@
 # My Words — Interaction Design Note
 
+> **Historical (2026-10-31).** The text prototype described here (the
+> Walkthrough/Propose strategies, `interaction/`, the `demo/` playback) has been
+> removed. Propose's design — every edit staged behind the writer's verdict,
+> which becomes the model's tool result — lives on in Chat's own-words edits:
+> see [chat-document-tools.md](chat-document-tools.md). Voice remains, on the
+> shared `frontend/src/docTools/`. Code paths below refer to the removed code
+> (recoverable from git history).
+
 **Status:** design exploration. Captures *why* the current My Words interaction
 feels wrong and the direction to fix it. This is a design brief, not an
 implementation diff — the implementation sketch at the end is a starting point,
