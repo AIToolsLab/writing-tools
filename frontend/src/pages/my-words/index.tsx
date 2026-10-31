@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 
-import { OPENAI_MODEL, openai } from '@/api/openai';
+import { languageModel } from '@/api/openai';
 import { EditorContext } from '@/contexts/editorContext';
 
 import { buildCorpus } from '@/docTools/corpus';
@@ -185,7 +185,7 @@ function LiveSession(props: {
 		sessionRef.current = {
 			strategy: STRATEGIES[strategyKey](),
 			responder: createLiveResponder({
-				model: openai.chat(OPENAI_MODEL),
+				model: languageModel,
 				modePrompt: MODE_PROMPTS[strategyKey],
 			}),
 		};

@@ -111,7 +111,7 @@ function toAction(toolName: string, input: unknown): Action | null {
 }
 
 export interface LiveResponderOptions {
-	/** The AI SDK model (e.g. `openai.chat('gpt-5.5')`). */
+	/** The AI SDK model (normally the shared `languageModel`). */
 	model: Parameters<typeof generateText>[0]['model'];
 	/** Strategy-specific contract appended to the base prompt. */
 	modePrompt: string;
