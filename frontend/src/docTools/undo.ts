@@ -8,22 +8,79 @@
  * still occurs; if the run was changed since, or occurs more than once, the
  * undo is refused rather than clobbering the writer's later work.
  *
- * Splices that expect nothing (`remove: []`, e.g. restoring a paragraph a
- * `move` emptied) are found by their recorded neighbors instead
- * (`withNeighbors`), by the same rule: exactly one match, or refuse. The whole
- * sequence is dry-run on a copy first, so an undo either applies completely or
- * not at all.
+ * Splices that expect nothing (`remove: []`, e.g. putting back a paragraph a
+ * `move` took out) have no text of their own to find, so `captureUndo` records
+ * the text on either side of the gap (`prefix`/`suffix`, as in #589's
+ * `TextAnchor`) and they're relocated by that, by the same rule: exactly one
+ * match, or refuse. The whole sequence is dry-run on a copy first, so an undo
+ * either applies completely or not at all.
  */
 
 import { applySpliceToEditor } from './editor';
-import { applySplice, spliceIsFresh } from './ops';
+import { applySplice, invertSplices, spliceIsFresh } from './ops';
 
-/** Where `splice.remove` sits in `paragraphs` now, or null if not exactly once. */
+/**
+ * An undo step. Put-backs (empty `remove`) carry the text around their gap.
+ * Kept off `ParagraphSplice`: these are long-lived anchors, not the exact
+ * preconditions #589 plans for hosts to check.
+ */
+export interface UndoSplice extends ParagraphSplice {
+	prefix?: string;
+	suffix?: string;
+}
+
+/** How much text on each side of a gap identifies it. */
+const CONTEXT_CHARS = 32;
+
+/**
+ * The text just before and after the gap at paragraph `index`, each paragraph
+ * ending in a line break, so the window reaches past short or blank
+ * paragraphs into real text.
+ *
+ * Blank paragraphs count literally, so adding or removing a blank line at the
+ * spot changes the window and the undo refuses. If `edit_undo_refused` shows
+ * that's common (Word writers often space with blank lines), build the window
+ * from non-blank paragraphs instead; every slot within one run of blank lines
+ * then matches, so take the one nearest the recorded index.
+ */
+function contextAt(
+	paragraphs: string[],
+	index: number,
+): { prefix: string; suffix: string } {
+	let prefix = '';
+	for (let i = index - 1; i >= 0 && prefix.length < CONTEXT_CHARS; i--)
+		prefix = `${paragraphs[i]}\n${prefix}`;
+	let suffix = '';
+	for (let i = index; i < paragraphs.length && suffix.length < CONTEXT_CHARS; i++)
+		suffix += `${paragraphs[i]}\n`;
+	return {
+		prefix: prefix.slice(-CONTEXT_CHARS),
+		suffix: suffix.slice(0, CONTEXT_CHARS),
+	};
+}
+
+/** The undo for `splices`, applied to give `after`, with put-backs anchored. */
+export function captureUndo(
+	after: string[],
+	splices: ParagraphSplice[],
+): UndoSplice[] {
+	let current = after;
+	return invertSplices(splices).map((splice) => {
+		const anchored =
+			splice.remove.length === 0
+				? { ...splice, ...contextAt(current, splice.index) }
+				: splice;
+		current = applySplice(current, splice);
+		return anchored;
+	});
+}
+
+/** Where `splice` applies in `paragraphs` now, or null if not exactly one place. */
 export function locateSplice(
 	paragraphs: string[],
-	splice: ParagraphSplice,
+	splice: UndoSplice,
 ): number | null {
-	if (splice.remove.length === 0) return locateBetween(paragraphs, splice);
+	if (splice.remove.length === 0) return locateGap(paragraphs, splice);
 	if (spliceIsFresh(paragraphs, splice)) return splice.index;
 	const found: number[] = [];
 	for (let i = 0; i + splice.remove.length <= paragraphs.length; i++) {
@@ -32,18 +89,18 @@ export function locateSplice(
 	return found.length === 1 ? found[0] : null;
 }
 
-/** Where an insertion between its recorded neighbors goes now, if exactly one place. */
-function locateBetween(
+/** The one gap between paragraphs with the put-back's recorded context. */
+function locateGap(
 	paragraphs: string[],
-	{ index, prevParagraph, nextParagraph }: ParagraphSplice,
+	{ prefix, suffix }: UndoSplice,
 ): number | null {
-	// No neighbors recorded (the document was otherwise empty): trust the index.
-	if (prevParagraph === undefined && nextParagraph === undefined) {
-		return index <= paragraphs.length ? index : null;
-	}
+	if (prefix === undefined || suffix === undefined) return null;
 	const found: number[] = [];
 	for (let i = 0; i <= paragraphs.length; i++) {
-		if (paragraphs[i - 1] === prevParagraph && paragraphs[i] === nextParagraph)
+		// A window cut short by the document's start or end is matched as far
+		// as it goes, so text added beyond it doesn't block the undo.
+		const at = contextAt(paragraphs, i);
+		if (at.prefix.endsWith(prefix) && at.suffix.startsWith(suffix))
 			found.push(i);
 	}
 	return found.length === 1 ? found[0] : null;
@@ -55,14 +112,15 @@ function locateBetween(
  */
 export function planUndo(
 	paragraphs: string[],
-	undo: ParagraphSplice[],
+	undo: UndoSplice[],
 ): ParagraphSplice[] | null {
 	const planned: ParagraphSplice[] = [];
 	let current = paragraphs;
 	for (const splice of undo) {
 		const index = locateSplice(current, splice);
 		if (index === null) return null;
-		const anchored = { ...splice, index };
+		// What the host gets: a plain splice, without the anchoring context.
+		const anchored = { index, remove: splice.remove, insert: splice.insert };
 		planned.push(anchored);
 		current = applySplice(current, anchored);
 	}
@@ -80,7 +138,7 @@ export class UndoConflict extends Error {
 /** Undo an applied edit. Throws {@link UndoConflict} if it can't be done safely. */
 export async function undoEdit(
 	editor: EditableEditorAPI,
-	undo: ParagraphSplice[],
+	undo: UndoSplice[],
 ): Promise<void> {
 	const planned = planUndo(await editor.getParagraphs(), undo);
 	if (!planned) throw new UndoConflict();

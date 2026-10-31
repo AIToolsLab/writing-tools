@@ -65,9 +65,12 @@ Each applied edit stores its inverse splices (`appliedEdits`, by tool call).
 Undo works in any order: `docTools/undo.ts` relocates a stale index to the one
 place the edit's text still occurs, and refuses if it changed or occurs more
 than once. A splice that removes nothing (putting back a paragraph a `move`
-took out) has no text of its own to find, so it records its neighbors
-(`prevParagraph`/`nextParagraph`, the field names #589 plans for hosts to
-enforce) and is re-anchored between them by the same rule. An undo is not recorded as seen, so the next edit note reports it.
+took out) has no text of its own to find, so it records the ~32 characters on
+each side of its gap (`prefix`/`suffix`, like #589's `TextAnchor`, across
+paragraph breaks so blank or short neighbors don't leave it ambiguous) and is
+relocated by those, by the same rule. Blank paragraphs count literally for now:
+adding or removing a blank line at the spot makes the undo refuse (see the
+comment on `contextAt` in `undo.ts` for the alternative). An undo is not recorded as seen, so the next edit note reports it.
 
 ## Logging
 

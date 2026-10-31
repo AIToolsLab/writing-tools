@@ -29,8 +29,9 @@ import {
 	toEditOp,
 	type EditToolName,
 } from '@/docTools/editTools';
-import { invertSplices, lowerOp, withNeighbors } from '@/docTools/ops';
+import { lowerOp } from '@/docTools/ops';
 import { applyOpAndReport, validateOp, viewParagraphs } from '@/docTools/report';
+import { captureUndo } from '@/docTools/undo';
 import type { LogFn } from '@/hooks/useLog';
 
 import { writerMessages } from './transcript';
@@ -119,7 +120,7 @@ export function chatTools(opts: ChatToolsOptions): {
 		// writer's in the next edit note.
 		recordSeen(docState, result.paragraphs);
 		opts.onApplied(toolCallId, {
-			undo: withNeighbors(result.paragraphs, invertSplices(result.splices)),
+			undo: captureUndo(result.paragraphs, result.splices),
 			undone: false,
 		});
 		return { ok: true, report: result.report };

@@ -8,6 +8,8 @@ import {
 	useState,
 } from 'react';
 
+import type { UndoSplice } from '@/docTools/undo';
+
 /**
  * What Chat tracks about the document across a conversation. Read and written
  * from inside tool calls mid-stream, so it's a mutable object rather than
@@ -35,7 +37,7 @@ export function recordSeen(state: ChatDocState, paragraphs: string[]): void {
 
 /** An applied edit's undo, by the tool call that made it. */
 export interface AppliedEdit {
-	undo: ParagraphSplice[];
+	undo: UndoSplice[];
 	undone: boolean;
 }
 

@@ -238,29 +238,6 @@ export function invertSplices(splices: ParagraphSplice[]): ParagraphSplice[] {
 	return [...splices].reverse().map(invertSplice);
 }
 
-/**
- * `splices` with neighbors recorded (`prevParagraph`, `nextParagraph`) on each
- * one that removes nothing, as `paragraphs` reads when that splice applies.
- */
-export function withNeighbors(
-	paragraphs: string[],
-	splices: ParagraphSplice[],
-): ParagraphSplice[] {
-	let current = paragraphs;
-	return splices.map((splice) => {
-		const anchored =
-			splice.remove.length === 0
-				? {
-						...splice,
-						prevParagraph: current[splice.index - 1],
-						nextParagraph: current[splice.index],
-					}
-				: splice;
-		current = applySplice(current, splice);
-		return anchored;
-	});
-}
-
 /** Does the array still read exactly what this splice expects to replace? */
 export function spliceIsFresh(
 	paragraphs: string[],
@@ -288,8 +265,11 @@ export function applyOpLogged(
 	op: EditOp,
 ): { after: string[]; splices: ParagraphSplice[]; undo: ParagraphSplice[] } {
 	const splices = lowerOp(paragraphs, op);
-	const after = splices.reduce(applySplice, paragraphs);
-	return { after, splices, undo: withNeighbors(after, invertSplices(splices)) };
+	return {
+		after: splices.reduce(applySplice, paragraphs),
+		splices,
+		undo: invertSplices(splices),
+	};
 }
 
 /** A short, writer-facing description of what an op would do. */
