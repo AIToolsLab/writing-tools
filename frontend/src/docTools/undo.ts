@@ -9,9 +9,10 @@
  * undo is refused rather than clobbering the writer's later work.
  *
  * Splices that expect nothing (`remove: []`, e.g. restoring a paragraph a
- * `move` emptied) can't be checked or relocated, so they go back at their
- * recorded index. The whole sequence is dry-run on a copy first, so an undo
- * either applies completely or not at all.
+ * `move` emptied) are found by their recorded neighbors instead
+ * (`withNeighbors`), by the same rule: exactly one match, or refuse. The whole
+ * sequence is dry-run on a copy first, so an undo either applies completely or
+ * not at all.
  */
 
 import { applySpliceToEditor } from './editor';
@@ -22,11 +23,28 @@ export function locateSplice(
 	paragraphs: string[],
 	splice: ParagraphSplice,
 ): number | null {
+	if (splice.remove.length === 0) return locateBetween(paragraphs, splice);
 	if (spliceIsFresh(paragraphs, splice)) return splice.index;
-	if (splice.remove.length === 0) return null;
 	const found: number[] = [];
 	for (let i = 0; i + splice.remove.length <= paragraphs.length; i++) {
 		if (spliceIsFresh(paragraphs, { ...splice, index: i })) found.push(i);
+	}
+	return found.length === 1 ? found[0] : null;
+}
+
+/** Where an insertion between its recorded neighbors goes now, if exactly one place. */
+function locateBetween(
+	paragraphs: string[],
+	{ index, prevParagraph, nextParagraph }: ParagraphSplice,
+): number | null {
+	// No neighbors recorded (the document was otherwise empty): trust the index.
+	if (prevParagraph === undefined && nextParagraph === undefined) {
+		return index <= paragraphs.length ? index : null;
+	}
+	const found: number[] = [];
+	for (let i = 0; i <= paragraphs.length; i++) {
+		if (paragraphs[i - 1] === prevParagraph && paragraphs[i] === nextParagraph)
+			found.push(i);
 	}
 	return found.length === 1 ? found[0] : null;
 }

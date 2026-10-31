@@ -87,4 +87,25 @@ describe('planUndo', () => {
 		const plan = planUndo(moved.after, moved.undo);
 		expect(plan!.reduce(applySplice, moved.after)).toEqual(doc);
 	});
+
+	describe('a move, after later changes', () => {
+		const four = ['A.', 'B.', 'C.', 'D.'];
+		const moved = applyOpLogged(four, {
+			kind: 'move',
+			phrase: 'D.',
+			paragraph: 1,
+			position: 'before',
+		});
+
+		it('puts the paragraph back between its old neighbors', () => {
+			const shifted = ['New.', ...moved.after];
+			const plan = planUndo(shifted, moved.undo);
+			expect(plan!.reduce(applySplice, shifted)).toEqual(['New.', ...four]);
+		});
+
+		it('refuses when its old neighbors have changed', () => {
+			const edited = moved.after.map((p) => (p === 'C.' ? 'C, edited.' : p));
+			expect(planUndo(edited, moved.undo)).toBeNull();
+		});
+	});
 });

@@ -75,6 +75,14 @@ interface ParagraphSplice {
 	remove: string[];
 	/** Paragraph texts that take their place. */
 	insert: string[];
+	/**
+	 * Text of the paragraph before `index` / after the removed run, recorded
+	 * on splices with an empty `remove` (which have no text of their own to
+	 * find again) so undo can re-anchor them; absent at the document's start /
+	 * end. Not checked by hosts yet (see #589).
+	 */
+	prevParagraph?: string;
+	nextParagraph?: string;
 }
 
 interface EditorAPI {
