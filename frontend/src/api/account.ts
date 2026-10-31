@@ -6,7 +6,7 @@
  * client dependency.
  */
 import { SERVER_URL } from '@/api';
-import type { ConsentLevel } from '@/consent';
+import { isConsentLevel, type ConsentLevel } from '@/consent';
 
 function authedFetch(
 	path: string,
@@ -27,12 +27,18 @@ function authedFetch(
 
 /**
  * Change the signed-in user's logging-consent level.
- * `POST /api/me/consent { level }` → `{ loggingConsent }`. Throws on non-2xx.
+ * `POST /api/me/consent { level }` → the authoritative consent snapshot. Throws
+ * on a non-2xx response or malformed response body.
  */
+export interface ConsentSnapshot {
+	loggingConsent: ConsentLevel;
+	consentUpdatedAt: string;
+}
+
 export async function changeConsent(
 	token: string,
 	level: ConsentLevel,
-): Promise<void> {
+): Promise<ConsentSnapshot> {
 	const res = await authedFetch('/me/consent', token, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
@@ -41,6 +47,20 @@ export async function changeConsent(
 	if (!res.ok) {
 		throw new Error(`consent update failed (${res.status})`);
 	}
+	const data = (await res.json()) as {
+		loggingConsent?: unknown;
+		consentUpdatedAt?: unknown;
+	};
+	if (
+		!isConsentLevel(data.loggingConsent) ||
+		typeof data.consentUpdatedAt !== 'string'
+	) {
+		throw new Error('consent update returned an invalid snapshot');
+	}
+	return {
+		loggingConsent: data.loggingConsent,
+		consentUpdatedAt: data.consentUpdatedAt,
+	};
 }
 
 /**
