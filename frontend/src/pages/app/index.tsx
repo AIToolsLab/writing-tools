@@ -23,6 +23,7 @@ import {
 } from '@/contexts/pageContext';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { resolvePage } from '../registry';
+import { OnboardingConsentGate } from './OnboardingConsentGate';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
@@ -343,6 +344,15 @@ function AppInner() {
 		);
 	}
 
+	// First-run consent gate: right after sign-in (and the allowlist check), while
+	// the user has never set a consent level. Derived straight from the session — a
+	// successful save updates hasSetConsent directly, so there is no dismissal state
+	// to leak across a logout → different-user login. Demo/no-auth modes are never
+	// gated.
+	if (!noAuthMode && !session.hasSetConsent) {
+		return <OnboardingConsentGate />;
+	}
+
 	// Which page renders is the registry's call, not a switch here — see
 	// pages/registry.tsx. resolvePage also handles a stored selection that is no
 	// longer visible (a lab page whose flag was turned off) by falling back to the
@@ -447,8 +457,8 @@ function AppWithProviders({
 				api_host: POSTHOG_HOST,
 				capture_exceptions: true,
 				// Capture nothing until we know the user's consent level. The
-				// PostHogConsentBridge opts in (and identifies) once a session with
-				// consent >= 'usage' loads. Until then — and at level 'none' — PostHog
+				// PostHogConsentBridge opts in (and identifies) once the user has
+				// chosen consent >= 'usage'. Until then — and at level 'none' — PostHog
 				// stays opted out. NOTE: opt-out also suppresses capture_exceptions, so
 				// level 'none' is fully silent (no crash reports either).
 				opt_out_capturing_by_default: true,
@@ -465,17 +475,22 @@ function AppWithProviders({
  * Bridges logging consent → PostHog. Mounted inside both PostHogProvider and
  * AppAuthProvider. Opts capturing in and identifies the user (by stable Better
  * Auth id, matching server-side log keying + deletion) once an authenticated
- * session at consent >= 'usage' loads; otherwise stays opted out and clears any
+ * user has CHOSEN a level >= 'usage'; otherwise stays opted out and clears any
  * prior identity. Renders nothing.
  */
 function PostHogConsentBridge(): null {
 	const posthog = usePostHog();
-	const { isAuthenticated, loggingConsent, user } = useAppAuth();
+	const { isAuthenticated, hasSetConsent, loggingConsent, user } =
+		useAppAuth();
 
 	useEffect(() => {
 		if (!posthog) return;
+		// hasSetConsent: a fresh user's `usage` is only the default, and this
+		// bridge is mounted beside the app, so it runs while the onboarding
+		// consent gate is still up.
 		const analyticsAllowed =
 			isAuthenticated &&
+			hasSetConsent &&
 			consentRank(loggingConsent) >= consentRank('usage');
 
 		// Require a stable id before opting in, so we never capture untethered
@@ -487,7 +502,7 @@ function PostHogConsentBridge(): null {
 			posthog.opt_out_capturing();
 			posthog.reset(); // drop any identity captured under a prior session
 		}
-	}, [posthog, isAuthenticated, loggingConsent, user?.id]);
+	}, [posthog, isAuthenticated, hasSetConsent, loggingConsent, user?.id]);
 
 	return null;
 }
