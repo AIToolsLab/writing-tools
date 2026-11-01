@@ -161,6 +161,7 @@ describe('fetchUserInfo', () => {
 						loggingConsent: 'document',
 						isAllowed: true,
 						isAnonymous: true,
+						consentUpdatedAt: '2026-07-24T00:00:00.000Z',
 					},
 				},
 				true,
@@ -173,6 +174,7 @@ describe('fetchUserInfo', () => {
 			loggingConsent: 'document',
 			isAllowed: true,
 			isAnonymous: true,
+			consentUpdatedAt: '2026-07-24T00:00:00.000Z',
 		});
 		// hits the framework endpoint on the token-only path, no cookies
 		expect(fetchMock).toHaveBeenCalledWith(
@@ -207,6 +209,8 @@ describe('fetchUserInfo', () => {
 			isAllowed: false,
 			// Same fail-closed mapping for the anonymous marker.
 			isAnonymous: false,
+			// Omitted (or non-string) consentUpdatedAt normalizes to null = "never set".
+			consentUpdatedAt: null,
 		});
 	});
 
