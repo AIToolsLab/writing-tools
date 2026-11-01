@@ -371,8 +371,31 @@ function AppInner() {
 			{!noAuthMode && user ? (
 				<div className={classes.container}>
 					<div className={classes.profileContainer}>
-						<div className={classes.userNameContainer}>
-							User: {user.name}
+						<div className={classes.accountEntry}>
+							{/* The identity chip doubles as the entry point to account &
+							    privacy — account affordances belong next to identity, and the
+							    nav strip switches in-app pages, so an outbound link had no
+							    business there. In an Office task pane this opens the system
+							    browser, which has a separate storage partition and may require
+							    another sign-in. Do not pass a bearer token in the URL; an
+							    in-app account screen is the eventual solution. */}
+							<a
+								href="/account.html"
+								target="_blank"
+								rel="noopener"
+								className={classes.userNameContainer}
+								title="Account &amp; privacy"
+								aria-label={`Account and privacy settings for ${user.name}`}
+								aria-describedby="account-browser-note"
+							>
+								User: {user.name}
+							</a>
+							<span
+								id="account-browser-note"
+								className={classes.accountBrowserNote}
+							>
+								Opens in browser; sign-in may be required.
+							</span>
 						</div>
 					</div>
 					{authErrorType !== null && (
