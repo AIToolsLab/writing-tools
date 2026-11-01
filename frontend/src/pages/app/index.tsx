@@ -6,7 +6,7 @@ import {
 import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
 import { useEffect, useState } from 'react';
-import { consentRank } from '@/consent';
+import { analyticsAllowed } from '@/consent';
 import {
 	AppAuthProvider,
 	AppAuthTokenBridge,
@@ -508,17 +508,17 @@ function PostHogConsentBridge(): null {
 
 	useEffect(() => {
 		if (!posthog) return;
-		// hasSetConsent: a fresh user's `usage` is only the default, and this
-		// bridge is mounted beside the app, so it runs while the onboarding
-		// consent gate is still up.
-		const analyticsAllowed =
-			isAuthenticated &&
-			hasSetConsent &&
-			consentRank(loggingConsent) >= consentRank('usage');
+		// hasSetConsent matters: this bridge is mounted beside the app, so it runs
+		// while the onboarding consent gate is still up.
+		const allowed = analyticsAllowed({
+			isAuthenticated,
+			hasSetConsent,
+			loggingConsent,
+		});
 
 		// Require a stable id before opting in, so we never capture untethered
 		// anonymous events that can't be tied to a deletable account identity.
-		if (analyticsAllowed && user?.id) {
+		if (allowed && user?.id) {
 			posthog.identify(user.id);
 			posthog.opt_in_capturing();
 		} else {
