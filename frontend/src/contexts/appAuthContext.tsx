@@ -22,6 +22,7 @@ import {
 	type ReactNode,
 } from 'react';
 import { setOpenAITokenProvider } from '@/api/openai';
+import type { ConsentSnapshot } from '@/api/account';
 import { type ConsentLevel, DEFAULT_CONSENT_LEVEL } from '@/consent';
 import { AccessTokenProvider } from '@/contexts/authTokenContext';
 import { OverallMode, overallModeAtom } from '@/contexts/pageContext';
@@ -42,6 +43,8 @@ export interface AppAuthSession {
 		isAllowed?: boolean;
 		/** Demo/anonymous session — account surfaces steer these to real sign-in. */
 		isAnonymous?: boolean;
+		/** When consent was last set (ISO string), or null if never. */
+		consentUpdatedAt?: string | null;
 	};
 	/** Resolved consent level (defaults applied) — gate analytics/logging on this. */
 	loggingConsent: ConsentLevel;
@@ -63,6 +66,12 @@ export interface AppAuthSession {
 	 * `isAuthorizing` so the user has a clean way out.
 	 */
 	cancelLogin: () => void;
+	/**
+	 * Apply the result of a consent save without re-fetching the user. `token` is
+	 * the one the save was made with; a result from a session that has since
+	 * ended is dropped. No-op for the demo provider.
+	 */
+	applyConsentSnapshot: (snapshot: ConsentSnapshot, token: string) => void;
 	logout: () => Promise<void>;
 }
 
@@ -80,6 +89,7 @@ const DEFAULT_SESSION: AppAuthSession = {
 	},
 	login: () => Promise.resolve(),
 	cancelLogin: () => {},
+	applyConsentSnapshot: () => {},
 	logout: () => Promise.resolve(),
 };
 
@@ -135,6 +145,7 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 			},
 			login: device.start,
 			cancelLogin: device.reset,
+			applyConsentSnapshot: device.applyConsentSnapshot,
 			logout: device.logout,
 		};
 	}, [device]);
@@ -172,6 +183,7 @@ function DemoAuthProvider({ children }: { children: ReactNode }) {
 			getAccessToken: anon.getAccessToken,
 			login: () => Promise.resolve(),
 			cancelLogin: () => {},
+			applyConsentSnapshot: () => {},
 			logout: () => Promise.resolve(),
 		}),
 		[anon],
