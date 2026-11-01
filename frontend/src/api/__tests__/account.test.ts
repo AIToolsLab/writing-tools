@@ -2,9 +2,28 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../index', () => ({ SERVER_URL: '/api' }));
 
-import { changeConsent, deleteAccount, eraseActivity } from '../account';
+import {
+	accountPageUrl,
+	changeConsent,
+	deleteAccount,
+	eraseActivity,
+} from '../account';
 
 let fetchMock: ReturnType<typeof vi.fn>;
+
+describe('accountPageUrl', () => {
+	it('points at the backend origin, not the page origin', () => {
+		// Google Docs sidebar: SERVER_URL comes from the bundle's script src.
+		expect(accountPageUrl('https://app.thoughtful-ai.com/api')).toBe(
+			'https://app.thoughtful-ai.com/account.html',
+		);
+		// Task pane / editor, and the relative URL tests use.
+		expect(accountPageUrl('https://localhost:3000/api')).toBe(
+			'https://localhost:3000/account.html',
+		);
+		expect(accountPageUrl()).toBe('/account.html');
+	});
+});
 
 beforeEach(() => {
 	fetchMock = vi.fn();

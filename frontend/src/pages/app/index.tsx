@@ -6,6 +6,7 @@ import {
 import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
 import { useEffect, useState } from 'react';
+import { accountPageUrl } from '@/api/account';
 import { analyticsAllowed } from '@/consent';
 import {
 	AppAuthProvider,
@@ -381,12 +382,13 @@ function AppInner() {
 							    another sign-in. Do not pass a bearer token in the URL; an
 							    in-app account screen is the eventual solution. */}
 							<a
-								href="/account.html"
+								href={accountPageUrl()}
 								target="_blank"
 								rel="noopener"
 								className={classes.userNameContainer}
 								title="Account &amp; privacy"
-								aria-label={`Account and privacy settings for ${user.name}`}
+								// Starts with the visible text, so voice control ("click User") matches.
+								aria-label={`User: ${user.name}, account and privacy settings`}
 								aria-describedby="account-browser-note"
 							>
 								User: {user.name}
