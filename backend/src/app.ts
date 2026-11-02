@@ -17,7 +17,7 @@ import {
 	acceptedOAuthClientIds,
 } from './config.js';
 import { eraseLoggedData } from './erasure.js';
-import { appendLog, pollLogs, zipLogs } from './logging.js';
+import { appendLog, pollLogs, readUserLogs, zipLogs } from './logging.js';
 import {
 	attributeRequest,
 	openaiProxy,
@@ -37,7 +37,7 @@ import {
 	revokeToolToken,
 	type ToolScope,
 } from './toolGrants.js';
-import { summarizeUsage } from './usage.js';
+import { summarizeUsage, userUsageRows } from './usage.js';
 import { allowlistFields, isUserAllowed } from './userAllowlist.js';
 import { oauthLoginHandler } from './routes/oauth-login.js';
 
@@ -441,6 +441,47 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 			return c.json({ detail: 'Failed to erase logged activity' }, 500);
 		}
 		return c.json({ message: 'Your logged activity has been erased.' });
+	});
+
+	// Self-service export: everything we've logged about the authenticated user —
+	// their study-log events and their content-free LLM usage rows — as one JSON
+	// download. `since` (epoch ms, optional) limits it to recent records; the client
+	// computes it so "today" means the person's own local midnight, not the server's.
+	//
+	// First-party only: a tool acting for the user (tool grant token, or a device
+	// client naming itself via X-Client-Id) was granted AI calls, not a read of the
+	// user's whole history.
+	app.get('/api/me/data', async (c) => {
+		const user = await resolveUser(c);
+		if (!user || user.clientId !== null) {
+			return c.json({ detail: 'Unauthorized' }, 401);
+		}
+
+		const rawSince = c.req.query('since');
+		let since: number | undefined;
+		if (rawSince !== undefined && rawSince !== '') {
+			since = Number(rawSince);
+			if (!Number.isFinite(since) || since < 0) {
+				return c.json({ detail: 'since must be epoch milliseconds.' }, 400);
+			}
+		}
+
+		const exportedAt = new Date();
+		const body = {
+			exported_at: exportedAt.toISOString(),
+			since: since === undefined ? null : new Date(since).toISOString(),
+			user_id: user.id,
+			events: await readUserLogs(user.id, since),
+			usage: userUsageRows(user.id, since),
+		};
+		const stamp = exportedAt.toISOString().slice(0, 10);
+		return new Response(JSON.stringify(body, null, 2), {
+			headers: {
+				'Content-Type': 'application/json',
+				'Content-Disposition': `attachment; filename="thoughtful-data-${stamp}.json"`,
+				'Cache-Control': 'no-store',
+			},
+		});
 	});
 
 	// --- Tool launcher: handoff grant flow (see toolGrants.ts) -------------------

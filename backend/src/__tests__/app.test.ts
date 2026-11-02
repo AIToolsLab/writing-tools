@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../app.js';
+import { closeDb } from '../db.js';
+import { recordUsage } from '../usage.js';
 import type { Auth } from '../auth.js';
 
 const app = createApp();
@@ -252,6 +254,61 @@ describe('DELETE /api/me/activity', () => {
 	it('401s without a session', async () => {
 		const { app: authApp } = makeAuthApp(null);
 		const res = await authApp.request('/api/me/activity', { method: 'DELETE' });
+		expect(res.status).toBe(401);
+	});
+});
+
+describe('GET /api/me/data', () => {
+	beforeEach(async () => {
+		vi.stubEnv('DATA_DIR', await mkdtemp(path.join(tmpdir(), 'wt-export-')));
+	});
+	afterEach(() => {
+		closeDb();
+	});
+
+	async function writeEvent(authApp: ReturnType<typeof createApp>, event: string) {
+		await authApp.request('/api/log', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ event }),
+		});
+	}
+
+	it("exports the user's own events and usage rows, filtered by since", async () => {
+		const { app: authApp } = makeAuthApp({ id: 'usr-exp', loggingConsent: 'usage' });
+		const { app: otherApp } = makeAuthApp({ id: 'usr-other', loggingConsent: 'usage' });
+		await writeEvent(authApp, 'mine');
+		await writeEvent(otherApp, 'theirs');
+		recordUsage({
+			userId: 'usr-exp', clientId: null, provider: 'openai', endpoint: 'responses',
+			model: 'm', inputTokens: 1, cachedInputTokens: 0, outputTokens: 1,
+			reasoningTokens: 0, status: 200, streamed: false, durationMs: 1, ttftMs: null,
+		});
+
+		const all = await authApp.request('/api/me/data');
+		expect(all.status).toBe(200);
+		expect(all.headers.get('Content-Disposition')).toMatch(/attachment/);
+		type Export = { since: string | null; events: Array<{ event: string }>; usage: unknown[] };
+		const body = (await all.json()) as Export;
+		expect(body.since).toBeNull();
+		expect(body.events.map((e) => e.event)).toEqual(['mine']);
+		expect(body.usage).toHaveLength(1);
+
+		const future = await authApp.request(`/api/me/data?since=${Date.now() + 60_000}`);
+		const empty = (await future.json()) as Export;
+		expect(empty.events).toEqual([]);
+		expect(empty.usage).toEqual([]);
+	});
+
+	it('rejects a malformed since', async () => {
+		const { app: authApp } = makeAuthApp({ id: 'usr-exp' });
+		const res = await authApp.request('/api/me/data?since=yesterday');
+		expect(res.status).toBe(400);
+	});
+
+	it('401s without a session', async () => {
+		const { app: authApp } = makeAuthApp(null);
+		const res = await authApp.request('/api/me/data');
 		expect(res.status).toBe(401);
 	});
 });
