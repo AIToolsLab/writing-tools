@@ -63,7 +63,7 @@ const adviceLocator = 'button[title="What might a writing coach suggest?"]';
     await expect(frame.getByText('First reader perspective')).toBeVisible({ timeout: 5000 });
 
     // Delete reader perspective suggestion
-    const deleteButton1 = frame.locator('button[aria-label="Delete suggestion"]').first();
+    const deleteButton1 = frame.locator('button[aria-label="Dismiss note"]').first();
     await deleteButton1.click();
     await expect(frame.getByText('First reader perspective')).not.toBeVisible({ timeout: 2000 });
 
@@ -72,7 +72,7 @@ const adviceLocator = 'button[title="What might a writing coach suggest?"]';
     await expect(frame.getByText('First piece of advice')).toBeVisible({ timeout: 5000 });
 
     // Delete advice suggestion
-    const deleteButton2 = frame.locator('button[aria-label="Delete suggestion"]').first();
+    const deleteButton2 = frame.locator('button[aria-label="Dismiss note"]').first();
     await deleteButton2.click();
     await expect(frame.getByText('First piece of advice')).not.toBeVisible({ timeout: 2000 });
   });
@@ -106,11 +106,11 @@ const adviceLocator = 'button[title="What might a writing coach suggest?"]';
   await expect(adviceButton).toBeEnabled();
 });
 
-  test('should display empty state message when no suggestions generated', async ({ page }) => {
+  test('should display empty state message when no notes generated', async ({ page }) => {
     const frame = page.frameLocator('#editor-frame');
 
     // Verify empty state message is shown
-    await expect(frame.getByText('No suggestions yet')).toBeVisible();
+    await expect(frame.getByText('Nothing yet', { exact: true })).toBeVisible();
   });
 
 });

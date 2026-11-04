@@ -188,8 +188,8 @@ function SavedGenerations({
 						<button
 							className={classes.deleteBtn}
 							onClick={() => deleteSavedItem(savedItem.dateSaved)}
-							aria-label="Delete suggestion"
-							title="Delete suggestion"
+							aria-label="Dismiss note"
+							title="Dismiss note"
 						>
 							✕
 						</button>
@@ -491,7 +491,7 @@ export default function Draft() {
 							{emptyResult && !errorInfo ? (
 								<ErrorNotice
 									tone="info"
-									title="Nothing to suggest"
+									title="No notes this time"
 									message="The assistant had nothing to add for this text. Try again, select a different part of your document, or pick another option above."
 									onRetry={retryLastRequest}
 								/>
@@ -502,11 +502,10 @@ export default function Draft() {
 							!isLoading ? (
 								<div className={classes.emptyStateContainer}>
 									<div className={classes.emptyTitle}>
-										No suggestions yet
+										Nothing yet
 									</div>
 									<div className={classes.emptyHint}>
-										Click a button above to generate
-										suggestions for your text
+										Pick what kind of note you want
 									</div>
 								</div>
 							) : null}
@@ -527,8 +526,8 @@ export default function Draft() {
 					</div>
 
 					<div className={classes.disclaimer}>
-						Please note that AI suggestions may vary in quality.
-						Always review suggestions carefully before using them.
+						These notes come from AI and can miss the mark. Keep
+						what helps you think; leave the rest.
 					</div>
 				</div>
 			</div>
