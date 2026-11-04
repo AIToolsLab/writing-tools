@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { fulfillOpenAI, setupMockBackend } from './mockBackend';
+import {
+  fulfillOpenAI,
+  setupMockBackend,
+  waitForEditorReady,
+} from './mockBackend';
 
 // Mock-backed E2E for the Chat and Revise pages on the standalone editor.
 // These exercise a full request/response round trip against the mocked
@@ -8,9 +12,7 @@ test.beforeEach(async ({ page }) => {
   await setupMockBackend(page);
   await page.goto('/editor.html?page=demo');
   // Draft is the default page — wait for it to confirm the app has loaded.
-  await expect(page.locator('button[aria-label="Examples"]')).toBeVisible({
-    timeout: 15000,
-  });
+  await waitForEditorReady(page);
 });
 
 test('Chat: sending a message shows the user message and the assistant reply', async ({
