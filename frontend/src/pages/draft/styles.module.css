@@ -24,16 +24,6 @@
 	padding: 0;
 }
 
-/* Instruction Line */
-.instruction {
-	font-family: 'DM Mono', monospace;
-	font-size: 10px;
-	letter-spacing: 0.08em;
-	color: var(--text-tertiary);
-	text-transform: uppercase;
-	margin-bottom: 12px;
-}
-
 /* Feature Grid */
 .featureGrid {
 	display: grid;

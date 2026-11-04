@@ -407,11 +407,6 @@ export default function Draft() {
 						    the buttons below it. */}
 						<BriefSection page="draft" />
 
-						{/* Instruction */}
-						<div className={classes.instruction}>
-							CLICK A DESIRED BUTTON
-						</div>
-
 						{/* Feature Grid */}
 						<div className={classes.featureGrid}>
 							{modesToShow.map((mode) => {
