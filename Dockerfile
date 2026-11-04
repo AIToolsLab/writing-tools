@@ -17,8 +17,8 @@ RUN npm run build && npm run build:google-docs
 # 2) Build the backend -> /app/backend/dist (tsc).
 FROM node:24-slim AS backend
 WORKDIR /app/backend
-COPY backend/package.json backend/package-lock.json* ./
-RUN npm install
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci
 COPY backend/tsconfig.json ./
 COPY backend/src ./src
 RUN npm run build
