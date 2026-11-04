@@ -71,5 +71,8 @@ jobs:
           build-args: |
             GIT_COMMIT=${{ github.sha }}
             EXP_LOGS_GID=1001
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # Per-image cache scope: without it both image workflows share the
+          # default `buildkit` scope and each export overwrites the other's
+          # cache index, so builds after the other workflow ran start cold.
+          cache-from: type=gha,scope=experiment
+          cache-to: type=gha,scope=experiment,mode=max
