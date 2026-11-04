@@ -20,8 +20,6 @@ const RESULTS = {
   // Revise (visualization): includes a doctext link like the real responses do.
   revise:
     '- A mock structural observation about your document.\n\n- [opening line](doctext:Some%20text%20to%20analyze) could be expanded.',
-  // Chat assistant reply.
-  chat: 'This is a mock assistant reply about your document.',
 };
 
 // The Responses request body carries the prompt in two places: the system prompt as
@@ -54,9 +52,8 @@ function resultForText(text: string): string {
     return RESULTS.example_rewording;
   // Revise wraps the document in <writer-doc-so-far> tags (revise/index.tsx).
   if (text.includes('<writer-doc-so-far>')) return RESULTS.revise;
-  // Chat wraps each writer turn in a <document_context> block (chat/transcript.ts).
-  // Match that structural marker, not CHAT_INSTRUCTIONS prose, which gets retuned.
-  if (text.includes('<document_context>')) return RESULTS.chat;
+  // Chat isn't matched here: its prompt is retuned often and has no marker that
+  // isn't incidental. Chat specs register their own reply with fulfillOpenAI.
   return '';
 }
 
