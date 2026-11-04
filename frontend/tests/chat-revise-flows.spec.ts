@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { fulfillOpenAI, setupMockBackend } from './mockBackend';
+import {
+  fulfillOpenAI,
+  setupMockBackend,
+  waitForEditorReady,
+} from './mockBackend';
 
 // Mock-backed E2E for the Chat and Revise pages on the standalone editor.
 // These exercise a full request/response round trip against the mocked
@@ -8,14 +12,19 @@ test.beforeEach(async ({ page }) => {
   await setupMockBackend(page);
   await page.goto('/editor.html?page=demo');
   // Draft is the default page — wait for it to confirm the app has loaded.
-  await expect(page.locator('button[aria-label="Examples"]')).toBeVisible({
-    timeout: 15000,
-  });
+  await waitForEditorReady(page);
 });
+
+const CHAT_REPLY = 'This is a mock assistant reply about your document.';
 
 test('Chat: sending a message shows the user message and the assistant reply', async ({
   page,
 }) => {
+  // Later routes win in Playwright, so this replaces setupMockBackend's.
+  await page.route('**/openai/responses', (route) =>
+    fulfillOpenAI(route, CHAT_REPLY),
+  );
+
   await page.locator('button', { hasText: 'Chat' }).click();
 
   const input = page.locator('textarea[placeholder*="Ask"]');
@@ -27,9 +36,7 @@ test('Chat: sending a message shows the user message and the assistant reply', a
   // The user's message is echoed into the conversation.
   await expect(page.getByText('Is the tone consistent?')).toBeVisible();
   // The mocked assistant reply streams in.
-  await expect(
-    page.getByText('This is a mock assistant reply about your document.'),
-  ).toBeVisible({ timeout: 5000 });
+  await expect(page.getByText(CHAT_REPLY)).toBeVisible({ timeout: 5000 });
 });
 
 // A reply that uses the markdown the model actually reaches for: a GFM table
