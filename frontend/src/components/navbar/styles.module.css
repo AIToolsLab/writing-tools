@@ -85,9 +85,9 @@
 /*
  * Drop the hints when the strip is too narrow to hold them on one line.
  *
- * Measured, not guessed. The widest hint ("Generate suggestions") is ~97.8px,
+ * Measured, not guessed. The widest hint ("Prompts as you write") is ~93.4px,
  * and each tab gets `(C - 32px Labs - 12px gaps) / 3 - 20px padding` of label
- * room, so the hints need C >= 397.4px. 416 is that with headroom, since the
+ * room, so the hints need C >= 384.2px. 416 is that with headroom, since the
  * exact figure moves with font loading. Below it they wrapped into a ragged
  * multi-line strip of uneven heights — which is what the Google Docs sidebar,
  * locked by the platform at ~300px, has been showing all along.
