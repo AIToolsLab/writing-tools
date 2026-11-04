@@ -3,6 +3,7 @@ import {
   QUOTA_ERROR_MESSAGE,
   fulfillOpenAIStreamError,
   setupMockBackend,
+  waitForEditorReady,
 } from './mockBackend';
 
 /**
@@ -18,15 +19,13 @@ test.beforeEach(async ({ page }) => {
   // Override the success route registered above: later routes win in Playwright.
   await page.route('**/openai/responses', fulfillOpenAIStreamError);
   await page.goto('/editor.html?page=demo');
-  await expect(page.locator('button[aria-label="Examples"]')).toBeVisible({
-    timeout: 15000,
-  });
+  await waitForEditorReady(page);
 });
 
 test('Draft: a quota failure is reported instead of "No suggestions yet"', async ({
   page,
 }) => {
-  await page.locator('button[aria-label="Examples"]').click();
+  await page.locator('button[aria-label="Questions"]').click();
 
   const notice = page.getByRole('alert');
   await expect(notice).toBeVisible({ timeout: 10000 });

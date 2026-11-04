@@ -1,4 +1,4 @@
-import { Page, Route } from '@playwright/test';
+import { Page, Route, expect } from '@playwright/test';
 
 /**
  * Mock the OpenAI-compatible endpoint the frontend now talks to.
@@ -11,8 +11,6 @@ import { Page, Route } from '@playwright/test';
  */
 
 const RESULTS = {
-  example_sentences:
-    '- First example suggestion\n\n- Second example suggestion\n\n- Third example suggestion',
   analysis_readerPerspective:
     '- First reader perspective\n\n- Second reader perspective\n\n- Third reader perspective',
   proposal_advice:
@@ -22,8 +20,6 @@ const RESULTS = {
   // Revise (visualization): includes a doctext link like the real responses do.
   revise:
     '- A mock structural observation about your document.\n\n- [opening line](doctext:Some%20text%20to%20analyze) could be expanded.',
-  // Chat assistant reply.
-  chat: 'This is a mock assistant reply about your document.',
 };
 
 // The Responses request body carries the prompt in two places: the system prompt as
@@ -48,8 +44,6 @@ function textFromRequest(body: ResponsesBody): string {
 // Draft prompts live in src/api/prompts.ts; Chat and Revise build their own
 // system/user messages in their page components.
 function resultForText(text: string): string {
-  if (text.includes('inspiring and fresh possible next sentences'))
-    return RESULTS.example_sentences;
   if (text.includes('questions the person might have'))
     return RESULTS.analysis_readerPerspective;
   if (text.includes('directive (but not prescriptive) advice'))
@@ -58,9 +52,8 @@ function resultForText(text: string): string {
     return RESULTS.example_rewording;
   // Revise wraps the document in <writer-doc-so-far> tags (revise/index.tsx).
   if (text.includes('<writer-doc-so-far>')) return RESULTS.revise;
-  // Chat is identified by its system prompt (chat/index.tsx).
-  if (text.includes('Encourage the user towards critical thinking'))
-    return RESULTS.chat;
+  // Chat isn't matched here: its prompt is retuned often and has no marker that
+  // isn't incidental. Chat specs register their own reply with fulfillOpenAI.
   return '';
 }
 
@@ -168,5 +161,17 @@ export async function setupMockBackend(page: Page) {
   await page.route('**/openai/responses', async (route) => {
     const body = (route.request().postDataJSON() ?? {}) as ResponsesBody;
     await fulfillOpenAI(route, resultForText(textFromRequest(body)));
+  });
+}
+
+/**
+ * Wait until the standalone editor has finished loading (anonymous session minted,
+ * app rendered). Draft is the default page, so one of its mode buttons is the
+ * signal. Every spec that opens `editor.html` should wait here rather than on its
+ * own locator, so a change to Draft's buttons is a one-line fix.
+ */
+export async function waitForEditorReady(page: Page) {
+  await expect(page.locator('button[aria-label="Questions"]')).toBeVisible({
+    timeout: 15000,
   });
 }
