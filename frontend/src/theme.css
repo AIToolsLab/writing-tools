@@ -1,0 +1,24 @@
+/*
+ * Shared design tokens for the add-in's pages (Draft, Revise, the brief section).
+ *
+ * These used to be declared in two CSS modules — `:root` isn't scoped by CSS
+ * modules, so Draft's and Revise's palettes collided and whichever loaded last
+ * won (Revise's, given the import order in pages/registry.tsx). The values below
+ * are that effective result, so consolidating them here changed nothing visible.
+ * Define tokens here only; a second `:root` block elsewhere reintroduces the race.
+ */
+:root {
+	--bg: #f0ede6;
+	--surface: #ffffff;
+	--surface-2: #fafaf8;
+	--border: rgba(0, 0, 0, 0.08);
+	--border-strong: rgba(0, 0, 0, 0.15);
+	--text-primary: #1c1c1c;
+	--text-secondary: #6b6b6b;
+	--text-tertiary: #b3aba0;
+	--accent: #2d5be3;
+	--accent-bg: #f7f8ff;
+	--accent-border: #c4caff;
+	--radius: 10px;
+	--radius-sm: 8px;
+}

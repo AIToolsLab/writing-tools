@@ -1,20 +1,3 @@
-/* Design Tokens */
-:root {
-	--bg: #f7f6f2;
-	--surface: #ffffff;
-	--surface-2: #f0eee9;
-	--border: rgba(0, 0, 0, 0.08);
-	--border-strong: rgba(0, 0, 0, 0.15);
-	--text-primary: #1a1916;
-	--text-secondary: #6b6860;
-	--text-tertiary: #a09d96;
-	--accent: #3d3bcc;
-	--accent-bg: #eeeeff;
-	--accent-border: #c4c3f5;
-	--radius: 10px;
-	--radius-sm: 6px;
-}
-
 .app {
 	width: 100%;
 	max-width: 480px;
