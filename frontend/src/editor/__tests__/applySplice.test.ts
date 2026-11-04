@@ -13,7 +13,7 @@ import {
 } from 'lexical';
 import { describe, expect, it } from 'vitest';
 
-import { lowerOp } from '@/pages/my-words/interaction/ops';
+import { lowerOp } from '@/docTools/ops';
 import { $applySplice } from '../editor';
 
 function makeEditor(paras: string[]): LexicalEditor {

@@ -16,4 +16,7 @@
     "terminal.integrated.automationProfile.osx": {
     "path": "/bin/bash"
   },
+  "chat.tools.terminal.autoApprove": {
+    "npx tsc": true
+  },
 }

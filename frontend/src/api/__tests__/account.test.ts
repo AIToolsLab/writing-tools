@@ -17,7 +17,7 @@ afterEach(() => {
 
 describe('account API', () => {
 	it('uses the bearer-only path for consent changes', async () => {
-		fetchMock.mockResolvedValueOnce({ ok: true } as Response);
+		fetchMock.mockResolvedValueOnce({ ok: true });
 
 		await changeConsent('tok', 'ai_output');
 
@@ -33,7 +33,7 @@ describe('account API', () => {
 	});
 
 	it('uses the bearer-only path for activity erasure', async () => {
-		fetchMock.mockResolvedValueOnce({ ok: true } as Response);
+		fetchMock.mockResolvedValueOnce({ ok: true });
 
 		await eraseActivity('tok');
 
@@ -49,7 +49,7 @@ describe('account API', () => {
 			ok: false,
 			status: 400,
 			json: () => Promise.resolve({ code: 'SESSION_EXPIRED' }),
-		} as Response);
+		});
 
 		await expect(deleteAccount('tok')).resolves.toEqual({
 			ok: false,
@@ -63,7 +63,7 @@ describe('account API', () => {
 			ok: false,
 			status: 400,
 			json: () => Promise.resolve({ code: 'INVALID_PASSWORD' }),
-		} as Response);
+		});
 
 		await expect(deleteAccount('tok')).resolves.toEqual({
 			ok: false,

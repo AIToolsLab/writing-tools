@@ -101,7 +101,7 @@ export const trustedOAuthClients = (): TrustedOAuthClient[] =>
 	[
 		{
 			clientId: envString('MINDMAP_OAUTH_CLIENT_ID'),
-			name: 'Writing Tools Mindmap',
+			name: 'Mindmap',
 			redirectUris: envList('MINDMAP_OAUTH_REDIRECT_URIS'),
 		},
 	].filter((client) => client.clientId && client.redirectUris.length > 0);

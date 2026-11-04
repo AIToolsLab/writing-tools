@@ -1,9 +1,5 @@
 import type { Auth } from './auth.js';
-import {
-	betterAuthOrigin,
-	trustedOAuthClients,
-	type TrustedOAuthClient,
-} from './config.js';
+import { trustedOAuthClients, type TrustedOAuthClient } from './config.js';
 
 function validateRedirectUri(client: TrustedOAuthClient, redirectUri: string): void {
 	let parsed: URL | null = null;
@@ -29,49 +25,10 @@ function validateRedirectUri(client: TrustedOAuthClient, redirectUri: string): v
  * fields deliberately leaves `disabled` untouched so an operator can stop new
  * grants without restarting the process (already-issued JWTs stay valid until
  * they expire). With no clients configured this is a no-op.
- *
- * Also provisions the one protected resource (this server's origin, the JWT
- * audience the proxy accepts) and links each client to it. Better Auth 1.7
- * refuses an authorize or token request for a resource the client isn't linked
- * to, so without the link every authorization fails with invalid_target.
  */
 export async function provisionTrustedOAuthClients(auth: Auth): Promise<void> {
 	const context = await auth.$context;
-	const clients = trustedOAuthClients();
-	if (clients.length === 0) return;
-
-	const resource = betterAuthOrigin();
-	const existingResource = await context.adapter.findOne({
-		model: 'oauthResource',
-		where: [{ field: 'identifier', value: resource }],
-	});
-	const resourceFields = {
-		name: 'Writing Tools API',
-		// Tokens for this resource can carry only the proxy scope, whatever a
-		// client's own scope list says.
-		allowedScopes: ['openai:chat'],
-		updatedAt: new Date(),
-	};
-	if (existingResource) {
-		await context.adapter.update({
-			model: 'oauthResource',
-			where: [{ field: 'identifier', value: resource }],
-			update: resourceFields,
-		});
-	} else {
-		await context.adapter.create({
-			model: 'oauthResource',
-			data: {
-				...resourceFields,
-				identifier: resource,
-				disabled: false,
-				policyVersion: 1,
-				createdAt: new Date(),
-			},
-		});
-	}
-
-	for (const client of clients) {
+	for (const client of trustedOAuthClients()) {
 		client.redirectUris.forEach((uri) => validateRedirectUri(client, uri));
 		const existing = await context.adapter.findOne({
 			model: 'oauthClient',
@@ -103,25 +60,12 @@ export async function provisionTrustedOAuthClients(auth: Auth): Promise<void> {
 				where: [{ field: 'clientId', value: client.clientId }],
 				update: managed,
 			});
-		} else {
-			await context.adapter.create({
-				model: 'oauthClient',
-				data: { ...managed, disabled: false, createdAt: now },
-			});
+			continue;
 		}
 
-		const linked = await context.adapter.findOne({
-			model: 'oauthClientResource',
-			where: [
-				{ field: 'clientId', value: client.clientId },
-				{ field: 'resourceId', value: resource },
-			],
+		await context.adapter.create({
+			model: 'oauthClient',
+			data: { ...managed, disabled: false, createdAt: now },
 		});
-		if (!linked) {
-			await context.adapter.create({
-				model: 'oauthClientResource',
-				data: { clientId: client.clientId, resourceId: resource, createdAt: now },
-			});
-		}
 	}
 }

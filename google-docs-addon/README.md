@@ -1,6 +1,6 @@
 # Google Docs Add-on
 
-This folder contains the Google Apps Script code for the Writing Tools Google Docs add-on.
+This folder contains the Google Apps Script code for the Thoughtful Google Docs add-on.
 
 ## Architecture
 
@@ -76,14 +76,14 @@ operations. All backend traffic (chat, revise, logging) goes from the React app
    ```bash
    cd google-docs-addon
    rm .clasp.json
-   clasp create --type docs --title "Writing Tools"
+   clasp create --type docs --title "Thoughtful"
    ```
    Google may show another authorization screen — click **Allow**.
    This creates a new `.clasp.json` with your own `scriptId`.
 
    > **Alternative (if `clasp create` still gives errors):**
    > 1. Go to https://script.google.com and click **New project**
-   > 2. Rename it to "Writing Tools"
+   > 2. Rename it to "Thoughtful"
    > 3. Copy the script ID from the URL: `https://script.google.com/home/projects/<SCRIPT_ID>/edit`
    > 4. Create `.clasp.json` manually:
    >    ```json
@@ -102,12 +102,12 @@ operations. All backend traffic (chat, revise, logging) goes from the React app
    > **If `clasp open` is not recognized:**
    > - Make sure clasp is installed globally: `npm install -g @google/clasp`
    > - On Windows, ensure the global npm bin folder (`%APPDATA%\npm`) is in your PATH
-   > - **Alternative:** Open https://script.google.com directly and find your "Writing Tools" project, or hover over it in the project list and click **Open Document**
+   > - **Alternative:** Open https://script.google.com directly and find your "Thoughtful" project, or hover over it in the project list and click **Open Document**
 
    In the Apps Script editor: **Deploy → Test deployments → + Add test** → select a Google Doc → **Save**
 
 7. **First time opening the sidebar in Google Docs:**
-   Go to **Extensions → Writing Tools → Open Writing Tools**.
+   Go to **Extensions → Thoughtful → Open Thoughtful**.
    Google will show an authorization screen — click **Review Permissions** → select your Google account → click **Allow**.
    This only happens once.
 
@@ -120,7 +120,7 @@ npm run dev-server
 ```
 
 Wait for Vite to print its local URL, then open your Google Doc and go to:
-**Extensions → Writing Tools → Open Writing Tools**
+**Extensions → Thoughtful → Open Thoughtful**
 
 No tunneling/ngrok is needed — the sidebar loads straight from localhost, and
 the dev server proxies `/api` to the local backend.

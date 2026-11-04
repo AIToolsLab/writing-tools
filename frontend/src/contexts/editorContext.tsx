@@ -19,10 +19,6 @@ export const EditorContext = createContext<EditorAPI>({
 	},
 	getDocText: () => Promise.resolve(''),
 	getParagraphs: () => Promise.resolve([]),
-	applyEdit: () => {
-		console.warn('applyEdit is not implemented yet');
-		return Promise.resolve();
-	},
 	// No host document to write into without a provider, so document settings
 	// fall back to this browser. Real surfaces override this whole object.
 	...localStorageDocumentSettings('default'),

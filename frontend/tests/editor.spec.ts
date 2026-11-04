@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupMockBackend } from './mockBackend';
+import { setupMockBackend, waitForEditorReady } from './mockBackend';
 
 // All tests target editor.html?page=demo which requires no login.
 test.beforeEach(async ({ page }) => {
@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   await setupMockBackend(page);
   await page.goto('/editor.html?page=demo');
   // Draft is the default page — wait for it to confirm the app has loaded
-  await expect(page.locator('button[aria-label="Examples"]')).toBeVisible({ timeout: 15000 });
+  await waitForEditorReady(page);
 });
 
 test('editor loads and text area is visible', async ({ page }) => {
@@ -23,8 +23,7 @@ test('can type text into the editor', async ({ page }) => {
   await expect(editor).toContainText('Hello world');
 });
 
-test('Draft page shows four suggestion buttons', async ({ page }) => {
-  await expect(page.locator('button[aria-label="Examples"]')).toBeVisible();
+test('Draft page shows three suggestion buttons', async ({ page }) => {
   await expect(page.locator('button[aria-label="Questions"]')).toBeVisible();
   await expect(page.locator('button[aria-label="Advice"]')).toBeVisible();
   await expect(page.locator('button[aria-label="Rewording"]')).toBeVisible();
@@ -118,7 +117,7 @@ test('Revise Run button enables only after a feature is selected', async ({ page
 
 test('can navigate between all three tabs', async ({ page }) => {
   // Start on Draft (default)
-  await expect(page.locator('button[aria-label="Examples"]')).toBeVisible();
+  await expect(page.locator('button[aria-label="Questions"]')).toBeVisible();
 
   // Type something first so Revise page doesn't show the empty-document message
   const editor = page.locator('[contenteditable="true"]');
@@ -135,5 +134,5 @@ test('can navigate between all three tabs', async ({ page }) => {
 
   // Go back to Draft
   await page.locator('button', { hasText: 'Draft' }).click();
-  await expect(page.locator('button[aria-label="Examples"]')).toBeVisible();
+  await expect(page.locator('button[aria-label="Questions"]')).toBeVisible();
 });

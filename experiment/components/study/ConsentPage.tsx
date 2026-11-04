@@ -1,22 +1,23 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useAtomValue } from 'jotai';
 import { logThenRedirect } from '@/lib/logging';
-import { CONSENT_FORM_URL, getNextPage } from '@/lib/studyConfig';
+import { CONSENT_FORM_URL } from '@/lib/studyConfig';
+import { studyParamsAtom } from '@/contexts/StudyContext';
+import { useNextPageUrl } from './useNextPage';
 
 export default function ConsentPage() {
-  const searchParams = useSearchParams();
+  const studyParams = useAtomValue(studyParamsAtom);
+  const nextUrl = useNextPageUrl();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleLaunchConsent = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const username = searchParams.get('username') || 'unknown';
+    const username = studyParams.username;
     // Build redirect URL with study parameters
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', getNextPage('consent')!);
-    const redirectUrl = `${window.location.origin}/study?${params.toString()}`;
+    const redirectUrl = new URL(nextUrl, window.location.origin).toString();
 
     // Redirect to external consent form with return URL
     const consentUrl = new URL(CONSENT_FORM_URL);
@@ -36,12 +37,11 @@ export default function ConsentPage() {
         </p>
 
         <p>
-          <strong>Procedure:</strong> Your participation entails performing a writing task using a system that offers AI-generated suggestions. You may or may not receive AI suggestions
-          depending on the condition you are assigned to.
+          <strong>Procedure:</strong> Your participation entails performing a writing task. Some participants may receive AI assistance during the task.
         </p>
 
         <p>
-          <strong>Time Commitment:</strong> Approximately 20-30 minutes.
+          <strong>Time Commitment:</strong> Approximately 30–45 minutes.
         </p>
 
         <p>
@@ -49,7 +49,7 @@ export default function ConsentPage() {
         </p>
 
         <p>
-          <strong>Compensation:</strong> $5 upon study completion.
+          <strong>Compensation:</strong> $10 upon study completion.
         </p>
 
         <p>

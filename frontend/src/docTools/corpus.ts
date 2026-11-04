@@ -1,0 +1,251 @@
+/**
+ * Corpus + phrase-level validator for the "My Words" editor.
+ *
+ * Core concept: the AI may edit the document, but it may never *originate*
+ * words or phrases. Everything it places must be lifted from the writer's own
+ * corpus (document + scratchpad + the writer's own chat/voice messages), joined
+ * only by punctuation and a small, closed set of glue words.
+ *
+ * This module is pure (no React, no host APIs): strings in, verdict out. It is
+ * the riskiest piece of the feature, so it is unit-tested directly.
+ *
+ * ## Phrase-level rule
+ * A proposed string is legal iff it is a sequence of:
+ *   - **lifted spans** — maximal runs of consecutive *content* words (no glue
+ *     word or punctuation between them) that can be lifted from the corpus
+ *     (case-insensitive, whitespace-normalized), and
+ *   - **bridges** — glue words and punctuation, which the AI may add freely.
+ *
+ * A run is lifted if it appears verbatim in one source, or can be stitched
+ * from verbatim pieces where each join *overlaps by at least two words*: the
+ * writer's "…because people see" and "people see friction" join on "people
+ * see". So two content words may only sit together where the writer put them
+ * together, and a join needs more than one shared word: "alpha beta" and
+ * "beta gamma" don't make "alpha beta gamma". New adjacencies must be bridged
+ * by glue/punctuation.
+ */
+
+/**
+ * Closed set of "glue" words the AI is allowed to introduce to bridge the
+ * writer's phrases. Intentionally conservative: articles, coordinating
+ * conjunctions, and basic prepositions only.
+ *
+ * Deliberately EXCLUDED: content connectives that carry an argument the writer
+ * never made — e.g. "because", "however", "therefore" — and the copula
+ * ("is"/"are"/...), which would let the AI assert relationships ("X is Y")
+ * between the writer's nouns. Tune this set to make the constraint looser or
+ * tighter.
+ */
+export const GLUE_WORDS: ReadonlySet<string> = new Set([
+	// articles
+	'a',
+	'an',
+	'the',
+	// coordinating conjunctions
+	'and',
+	'or',
+	'nor',
+	'but',
+	// basic prepositions
+	'of',
+	'to',
+	'in',
+	'on',
+	'at',
+	'by',
+	'for',
+	'with',
+	'from',
+]);
+
+export interface Corpus {
+	/** Normalized word stream, in document order, punctuation dropped. */
+	words: string[];
+	/** Membership index for single-word lookups. */
+	wordSet: Set<string>;
+}
+
+export interface Segment {
+	/** Reconstructed text of this segment (for UI / debugging). */
+	text: string;
+	kind: 'lifted' | 'glue' | 'punct';
+}
+
+export interface ValidationResult {
+	ok: boolean;
+	segments: Segment[];
+	/** The first content run that could not be lifted from the corpus. */
+	offending?: string;
+	/** Where that run fails, in words the model can act on. */
+	problem?: string;
+}
+
+interface Token {
+	raw: string;
+	norm: string;
+	kind: 'word' | 'punct';
+}
+
+// A word is letters/digits with optional internal apostrophes or hyphens
+// (e.g. "don't", "writer's", "well-known"). Anything else non-space is a single
+// punctuation token.
+const TOKEN_RE = /[A-Za-z0-9]+(?:['’-][A-Za-z0-9]+)*|[^\sA-Za-z0-9]/g;
+
+/** Normalize a word for matching: lowercase, straighten curly apostrophes. */
+function normalizeWord(raw: string): string {
+	return raw.toLowerCase().replace(/’/g, "'");
+}
+
+function tokenize(text: string): Token[] {
+	const tokens: Token[] = [];
+	const matches = text.match(TOKEN_RE) ?? [];
+	for (const raw of matches) {
+		const isWord = /[A-Za-z0-9]/.test(raw);
+		tokens.push({
+			raw,
+			norm: isWord ? normalizeWord(raw) : raw,
+			kind: isWord ? 'word' : 'punct',
+		});
+	}
+	return tokens;
+}
+
+/**
+ * Build a corpus from the writer's own sources. Order is irrelevant for
+ * single-word lookups but matters for contiguous-phrase matching, so sources
+ * are concatenated with a boundary so phrases never span across them.
+ */
+export function buildCorpus(parts: {
+	docText?: string;
+	scratchpad?: string;
+	userMessages?: string[];
+}): Corpus {
+	const sources = [
+		parts.docText ?? '',
+		parts.scratchpad ?? '',
+		...(parts.userMessages ?? []),
+	];
+
+	const words: string[] = [];
+	for (const source of sources) {
+		for (const token of tokenize(source)) {
+			if (token.kind === 'word') words.push(token.norm);
+		}
+		// Sentinel boundary: a phrase may not span two separate sources.
+		words.push('\0');
+	}
+
+	return { words, wordSet: new Set(words.filter((w) => w !== '\0')) };
+}
+
+/** How many words a stitched join must share (see the phrase-level rule). */
+const MIN_OVERLAP = 2;
+
+/** Does `run` appear as a contiguous subsequence of `corpus.words`? */
+function containsContiguous(corpus: Corpus, run: string[]): boolean {
+	if (run.length === 0) return true;
+	if (run.length === 1) return corpus.wordSet.has(run[0]);
+
+	const { words } = corpus;
+	const first = run[0];
+	for (let i = 0; i + run.length <= words.length; i++) {
+		if (words[i] !== first) continue;
+		let match = true;
+		for (let j = 1; j < run.length; j++) {
+			if (words[i + j] !== run[j]) {
+				match = false;
+				break;
+			}
+		}
+		if (match) return true;
+	}
+	return false;
+}
+
+/** The end of the longest piece of `run`, from `start`, found verbatim in the corpus. */
+function longestFrom(corpus: Corpus, run: string[], start: number): number {
+	let end = start;
+	while (end < run.length && containsContiguous(corpus, run.slice(start, end + 1)))
+		end++;
+	return end;
+}
+
+/**
+ * Can `run` be lifted: one verbatim piece, or pieces joined on overlaps of at
+ * least {@link MIN_OVERLAP} words? If not, where it breaks: the piece lifted
+ * so far (`from`..`at`) and the word at `at` that can't follow it.
+ *
+ * Greedy is enough: starting each next piece as late as the overlap allows
+ * makes it a substring of any earlier-starting piece, so it reaches at least
+ * as far.
+ */
+function liftRun(
+	corpus: Corpus,
+	run: string[],
+): { ok: true } | { ok: false; from: number; at: number } {
+	let from = 0;
+	let end = longestFrom(corpus, run, 0);
+	while (end < run.length) {
+		const start = end - MIN_OVERLAP;
+		const next = start > from ? longestFrom(corpus, run, start) : end;
+		if (next <= end) return { ok: false, from, at: end };
+		from = start;
+		end = next;
+	}
+	return { ok: true };
+}
+
+/**
+ * Validate a proposed insertion/replacement string against the corpus under the
+ * phrase-level rule. Returns `ok` plus a segmentation useful for UI/debugging.
+ */
+export function validateText(
+	proposed: string,
+	corpus: Corpus,
+): ValidationResult {
+	const tokens = tokenize(proposed);
+	const segments: Segment[] = [];
+	let offending: string | undefined;
+	let problem: string | undefined;
+
+	// Current run of consecutive content words awaiting validation.
+	let runNorms: string[] = [];
+	let runRaws: string[] = [];
+
+	const flushRun = () => {
+		if (runNorms.length === 0) return;
+		const text = runRaws.join(' ');
+		const lifted = liftRun(corpus, runNorms);
+		if (!lifted.ok && offending === undefined) {
+			offending = text;
+			const word = runRaws[lifted.at];
+			problem = !corpus.wordSet.has(runNorms[lifted.at])
+				? `"${word}" isn't in the writer's words`
+				: `the writer's words have "${runRaws.slice(lifted.from, lifted.at).join(' ')}", but never followed by "${word}" (pieces of their words can only be joined where they overlap by at least two words)`;
+		}
+		// A failed run is still a (failed) lifted span, for visibility.
+		segments.push({ text, kind: 'lifted' });
+		runNorms = [];
+		runRaws = [];
+	};
+
+	for (const token of tokens) {
+		if (token.kind === 'punct') {
+			flushRun();
+			segments.push({ text: token.raw, kind: 'punct' });
+			continue;
+		}
+		// word
+		if (GLUE_WORDS.has(token.norm)) {
+			flushRun();
+			segments.push({ text: token.raw, kind: 'glue' });
+			continue;
+		}
+		// content word: extend the current run
+		runNorms.push(token.norm);
+		runRaws.push(token.raw);
+	}
+	flushRun();
+
+	return { ok: offending === undefined, segments, offending, problem };
+}

@@ -42,7 +42,6 @@ The colleague serves dual purposes:
 ### Task Scenarios
 The experiment supports multiple configurable scenarios. Each scenario includes a unique colleague, recipient, and situation. Key design decisions:
 - **Information gap**: The colleague's initial messages explain the problem but don't specify all details, encouraging participants to ask questions
-- **Company framing**: Task instructions and colleague messages emphasize representing the company professionally
 - **Follow-up nudge**: If participants don't engage with the chat, the colleague sends a brief follow-up after ~75 seconds (e.g., "still here if you need anything")—this is a conversation nudge, NOT an information dump
 
 **Available Scenarios:**
@@ -62,7 +61,7 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 1. `components/study/ConsentPage.tsx` - Consent form
 2. `components/study/IntroPage.tsx` - Study introduction
 3. `components/study/IntroSurvey.tsx` - Pre-task survey
-4. `components/study/StartTaskPage.tsx` - Task instructions (mentions chat, company framing)
+4. `components/study/StartTaskPage.tsx` - Task instructions (mentions chat)
 5. `components/study/TaskPage.tsx` - Main writing task with chat + AI panels
 6. `components/study/PostTaskSurvey.tsx` - Post-task survey
 7. `components/study/FinalPage.tsx` - Completion page
@@ -85,18 +84,20 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 ### Pages (IMPORTANT: Don't confuse these!)
 - `app/page.tsx` - **Landing/index page** (dev navigation only; links to the study and the demo)
 - `app/demo/page.tsx` - **Standalone demo** for AI writing assistance only (NO chat, NOT used in study)
-- `components/study/TaskPage.tsx` - **Actual study task page** with collapsible chat + AI panel
+- `components/study/TaskPage.tsx` - **Actual study task page**: colleague chat sidebar (left), writing area (center), AI panel (right)
 
 ### Timing for the Simulated Colleague
 
 Realistic timing works as follows: The colleague finds a moment to read your message (~400-800ms), takes time to read and think through a response (depends on your message length), types an answer (depends on their response length), then sends it. The thinking/reading delay and typing duration both use the same calculation (40-80 chars/sec ± 300ms variation) but applied to different message lengths—they think proportionally to what you wrote, and type proportionally to what they're typing. This creates natural pacing.
+
+If the participant sends a message while the colleague is still typing a multi-part reply, she finishes typing the remaining parts before answering (`INTERRUPT_POLICY = 'keepTyping'` in `ChatPanel.tsx`). The chat shows messages in the order they appeared, so the participant's message sits between her parts, and the AI panel's conversation history uses that same on-screen order. The colleague model does not: useChat sends it her whole previous reply followed by the participant's message, so it reads that message as a response to everything she said, even if the participant had only seen her first part when sending it.
 
 ### Adding New Scenarios
 
 To add a new scenario, edit `lib/scenarios.json` and add a new entry (`lib/studyConfig.ts` derives the typed `SCENARIOS` object from it). Each scenario requires:
 - **colleague**: name, firstName, role
 - **recipient**: name, email
-- **taskInstructions**: title, description, companyFraming
+- **taskInstructions**: title, description
 - **chat**: model, reasoningEffort, initialMessages, followUpMessage, systemPromptLines (joined into `systemPrompt` at runtime)
 - **analysis** (eval-only): context, keyFacts; optionally **chat.probes** (eval-only single-turn probes)
 
@@ -154,6 +155,8 @@ experiment/
 npm run test        # Run tests with vitest
 ```
 
+`__tests__/api/` exercises the real AI SDK against a fake OpenAI (fixtures in `__tests__/fixtures/openai/`), so SDK upgrades can be checked by running the suite. See `docs/ai-sdk-upgrade-tests.md`.
+
 ## Common Commands
 
 ```bash
@@ -172,3 +175,13 @@ npm test            # Run tests
 - **Components**: `components/` folder
 
 See `README.md` for more details on features and API documentation.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

@@ -1,13 +1,11 @@
 'use client';
 
-import { Fragment, useCallback, useRef, useState, useEffect } from 'react';
+import { Fragment, useCallback, useRef, useState, useEffect, useEffectEvent } from 'react';
 import type { RefObject } from 'react';
 import type { WritingAreaRef } from '@/components/WritingArea';
-import type { UIMessage } from '@ai-sdk/react';
 import type { ConversationMessage, GenerationResult, SavedItem, TextEditorState } from '@/types';
 import { log } from '@/lib/logging';
 import { API_TIMEOUT_MS } from '@/lib/studyConfig';
-import { parseMessageContent } from '@/lib/chatUtils';
 import { useAtomValue } from 'jotai';
 import { studyConditionAtom, studyParamsAtom } from '@/contexts/StudyContext';
 
@@ -22,34 +20,6 @@ const visibleNameForMode = {
 
 const modes = ['example_sentences', 'example_withblanks', 'complete_document', 'complete_document_withblanks', 'analysis_readerPerspective', 'proposal_advice'] as const;
 const MIN_TEXT_LENGTH_FOR_SUGGESTION = 25;
-
-function getMessageText(message: UIMessage): string {
-  return message.parts
-    .filter((part) => part.type === 'text')
-    .map((part) => (part as { type: 'text'; text: string }).text)
-    .join('');
-}
-
-function formatConversationHistory(messages: UIMessage[]): ConversationMessage[] {
-  const result: ConversationMessage[] = [];
-  for (const msg of messages) {
-    const text = getMessageText(msg);
-    if (!text.trim()) continue;
-
-    if (msg.role === 'user') {
-      result.push({ role: 'user', content: text });
-    } else {
-      // Assistant messages may be JSON arrays of multiple messages
-      const parts = parseMessageContent(text);
-      for (const part of parts) {
-        if (part.trim()) {
-          result.push({ role: 'colleague', content: part });
-        }
-      }
-    }
-  }
-  return result;
-}
 
 function GenerationResultDisplay({ generation }: { generation: GenerationResult }) {
   return (
@@ -110,13 +80,14 @@ function SavedGenerations({
 interface AIPanelProps {
   writingAreaRef?: RefObject<WritingAreaRef | null>;
   isStudyMode?: boolean;
-  chatMessages?: UIMessage[];
+  // What the participant has seen of the colleague chat
+  chatConversation?: ConversationMessage[];
 }
 
 export default function AIPanel({
   writingAreaRef,
   isStudyMode = false,
-  chatMessages,
+  chatConversation,
 }: AIPanelProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [savedItems, setSavedItems] = useState<SavedItem[]>([]);
@@ -126,7 +97,6 @@ export default function AIPanel({
   const studyCondition = useAtomValue(studyConditionAtom);
   const mode = isStudyMode ? studyCondition : undefined;
   const autoRefreshInterval = studyParams.autoRefreshInterval;
-  const autoRefreshIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const previousRequestRef = useRef<{ editorState: TextEditorState; mode: string; chatMessageCount: number } | null>(null);
   const previousResponseRef = useRef<GenerationResult | null>(null);
 
@@ -176,9 +146,7 @@ export default function AIPanel({
         }
 
         // Format conversation history if available
-        const conversationHistory = chatMessages?.length
-          ? formatConversationHistory(chatMessages)
-          : undefined;
+        const conversationHistory = chatConversation?.length ? chatConversation : undefined;
         const chatMessageCount = conversationHistory?.length ?? 0;
 
         // Check if this is a duplicate request (same content, mode, and conversation state)
@@ -279,26 +247,25 @@ export default function AIPanel({
         setIsLoading(false);
       }
     },
-    [writingAreaRef, save, mode, isStudyMode, studyParams, chatMessages]
+    [writingAreaRef, save, mode, isStudyMode, studyParams, chatConversation]
   );
 
-  // Auto-refresh logic for study mode
+  // Auto-refresh logic for study mode. The tick calls the latest getSuggestion
+  // without depending on it: getSuggestion changes whenever the chat does, and
+  // restarting the interval on each change would push refreshes back
+  // indefinitely while the participant is chatting.
+  const autoRefresh = useEffectEvent(() => {
+    getSuggestion(mode, true);
+  });
+
   useEffect(() => {
     if (!isStudyMode || !mode || mode === 'no_ai') {
       return;
     }
 
-    // Set up auto-refresh interval
-    autoRefreshIntervalRef.current = setInterval(() => {
-      getSuggestion(mode, true);
-    }, autoRefreshInterval);
-
-    return () => {
-      if (autoRefreshIntervalRef.current) {
-        clearInterval(autoRefreshIntervalRef.current);
-      }
-    };
-  }, [isStudyMode, mode, autoRefreshInterval, getSuggestion]);
+    const interval = setInterval(autoRefresh, autoRefreshInterval);
+    return () => clearInterval(interval);
+  }, [isStudyMode, mode, autoRefreshInterval]);
 
   let alerts = null;
 

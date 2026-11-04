@@ -162,7 +162,6 @@ export default defineConfig(async ({ mode }): Promise<UserConfig> => {
 					editor: path.resolve(__dirname, 'editor.html'),
 					logs: path.resolve(__dirname, 'logs.html'),
 					commands: path.resolve(__dirname, 'commands.html'),
-					'mywords-demo': path.resolve(__dirname, 'mywords-demo.html'),
 					account: path.resolve(__dirname, 'account.html'),
 				},
 				output: {

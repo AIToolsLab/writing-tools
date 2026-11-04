@@ -122,14 +122,13 @@ export const auth = betterAuth({
 			// fails closed instead of introducing a general consent surface.
 			consentPage: '/api/oauth/consent-unsupported',
 			scopes: ['openai:chat'],
-			// The one protected resource (this server's origin) and each trusted
-			// client's link to it are rows written by provisionTrustedOAuthClients
-			// (oauth-clients.ts), not `resources` config. The link has a foreign key
-			// to the resource row, so writing both in one place avoids depending on
-			// when the plugin's own seed runs. Enforcement is the 1.7 default; set
-			// explicitly because an unlinked client fails every authorize with
-			// invalid_target.
-			enforcePerClientResources: true,
+			// The one protected resource: this server's origin, which becomes the JWT
+			// audience the proxy checks. The plugin seeds it as an oauthResource row.
+			resources: [betterAuthOrigin()],
+			// 1.7 defaults to also requiring a per-client oauthClientResource link.
+			// With one resource and only server-provisioned clients (registration is
+			// off) that link carries no information, so skip it.
+			enforcePerClientResources: false,
 			grantTypes: ['authorization_code'],
 			allowDynamicClientRegistration: false,
 			allowUnauthenticatedClientRegistration: false,

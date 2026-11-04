@@ -13,8 +13,8 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { buildCorpus } from '../corpus';
-import { MockEditor } from '../demo/mockEditor';
+import { buildCorpus } from '@/docTools/corpus';
+import { MockEditor } from '../__fixtures__/mockEditor';
 import { startVoiceSession } from '../voice/session';
 import type { VoiceTransport, VoiceTransportOptions } from '../voice/transport';
 

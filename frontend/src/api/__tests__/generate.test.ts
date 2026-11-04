@@ -1,8 +1,10 @@
 import { MockLanguageModelV4 } from 'ai/test';
 import { convertArrayToReadableStream } from '@ai-sdk/provider-utils/test';
+import { tool } from 'ai';
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { GenerationError } from '../errors';
-import { generateFullText, streamTextDeltas } from '../generate';
+import { generateFullText, streamParts, streamTextDeltas } from '../generate';
 
 /**
  * The stream-part shape the installed `ai` expects, read off the mock instead of
@@ -69,6 +71,11 @@ const FINISH: StreamPart = {
 		inputTokens: { total: 1, noCache: 1, cacheRead: 0, cacheWrite: 0 },
 		outputTokens: { total: 1, text: 1, reasoning: 0 },
 	},
+};
+
+const TOOL_CALL_FINISH: StreamPart = {
+	...FINISH,
+	finishReason: { unified: 'tool-calls', raw: undefined },
 };
 
 async function collect(deltas: AsyncIterable<string>): Promise<string[]> {
@@ -179,6 +186,71 @@ describe('generateFullText', () => {
 				prompt: 'hi',
 			}),
 		).rejects.toThrow(GenerationError);
+		consoleError.mockRestore();
+	});
+});
+
+describe('streamParts', () => {
+	it('yields tool calls and returns the response messages', async () => {
+		const parts = streamParts({
+			model: modelStreaming([
+				...textParts('Let me look.'),
+				{
+					type: 'tool-call',
+					toolCallId: 'call-1',
+					toolName: 'view',
+					input: '{}',
+				},
+				TOOL_CALL_FINISH,
+			]),
+			// No `execute`: the loop stops at the call, as a staged edit would.
+			tools: { view: tool({ inputSchema: z.object({}) }) },
+			prompt: 'hi',
+		});
+
+		const types: string[] = [];
+		let next = await parts.next();
+		while (!next.done) {
+			types.push(next.value.type);
+			next = await parts.next();
+		}
+
+		expect(types).toContain('tool-call');
+		expect(next.value).toEqual([
+			{
+				role: 'assistant',
+				content: [
+					{ type: 'text', text: 'Let me look.' },
+					expect.objectContaining({
+						type: 'tool-call',
+						toolCallId: 'call-1',
+						toolName: 'view',
+					}),
+				],
+			},
+		]);
+	});
+
+	it('throws a GenerationError instead of yielding an error part', async () => {
+		const consoleError = vi
+			.spyOn(console, 'error')
+			.mockImplementation(() => {});
+		const parts = streamParts({
+			model: modelStreaming([
+				{ type: 'stream-start', warnings: [] },
+				{ type: 'error', error: QUOTA_ERROR },
+				FINISH,
+			]),
+			prompt: 'hi',
+		});
+
+		const types: string[] = [];
+		await expect(
+			(async () => {
+				for await (const part of parts) types.push(part.type);
+			})(),
+		).rejects.toThrow(GenerationError);
+		expect(types).not.toContain('error');
 		consoleError.mockRestore();
 	});
 });

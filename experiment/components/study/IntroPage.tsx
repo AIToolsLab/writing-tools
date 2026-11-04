@@ -1,28 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useAtomValue } from 'jotai';
 import { getBrowserMetadata } from '@/lib/browserMetadata';
 import { logThenRedirect } from '@/lib/logging';
-import { getNextPage } from '@/lib/studyConfig';
+import { studyParamsAtom } from '@/contexts/StudyContext';
+import { useNextPageUrl } from './useNextPage';
 
 export default function IntroPage() {
-  const searchParams = useSearchParams();
+  const studyParams = useAtomValue(studyParamsAtom);
+  const nextUrl = useNextPageUrl();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStartStudy = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-    const username = searchParams.get('username') || '';
+    const username = studyParams.username;
     const browserMetadata = getBrowserMetadata();
-
-    const params = new URLSearchParams(searchParams.toString());
-    params.set('page', getNextPage('intro')!);
 
     // Log the start event with browser metadata
     await logThenRedirect(
       { username, event: 'Started Study', extra_data: browserMetadata },
-      `/study?${params.toString()}`
+      nextUrl
     );
   };
 
@@ -43,7 +42,7 @@ export default function IntroPage() {
             <li>Complete a brief questionnaire about your background</li>
             <li>Write an email message. We&apos;ll walk you through the task step-by-step.
             </li>
-            <li>Complete a follow-up questionnaire about your experience</li>
+            <li>Complete a follow-up questionnaire about the task and your experience</li>
           </ol>
         </section>
           <p className="text-gray-700 mb-4">

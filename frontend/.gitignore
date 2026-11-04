@@ -9,6 +9,3 @@ node_modules/
 /blob-report/
 /playwright/.cache/
 /playwright/.auth/
-
-# Generated demo recordings (reproduce with `npx playwright test mywords-demo`)
-/mywords-videos/

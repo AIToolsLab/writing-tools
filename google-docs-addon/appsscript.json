@@ -9,7 +9,7 @@
   ],
   "addOns": {
     "common": {
-      "name": "Writing Tools",
+      "name": "Thoughtful",
       "logoUrl": "https://app.thoughtful-ai.com/assets/logo_black.png",
       "homepageTrigger": { "runFunction": "onHomepage" }
     },

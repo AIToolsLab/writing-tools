@@ -54,7 +54,6 @@ const modeMeta: Record<string, { name: string; description: string }> = {
 };
 
 const modes = [
-	'example_sentences',
 	'analysis_readerPerspective',
 	'proposal_advice',
 	'example_rewording',

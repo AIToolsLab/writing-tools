@@ -1,8 +1,8 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useAtom } from 'jotai';
+import { useHydrateAtoms } from 'jotai/utils';
 import { log } from '@/lib/logging';
 import {
   DEFAULT_AUTO_REFRESH_INTERVAL,
@@ -69,25 +69,26 @@ function parseStudyParams(searchParams: URLSearchParams): StudyParams | string {
   };
 }
 
+let alreadyLoggedPageView = false;
+
 function StudyRouter() {
   const searchParams = useSearchParams();
-  const [, setStudyParams] = useAtom(studyParamsAtom);
 
-  const paramsOrError = parseStudyParams(searchParams);
+  const paramsOrError = useMemo(() => parseStudyParams(searchParams), [searchParams]);
 
-  // Update study params atom and log page view
+  // Log page view
   useEffect(() => {
     if (typeof paramsOrError === 'string') return;
+    if (alreadyLoggedPageView) return;
+    alreadyLoggedPageView = true;
     const studyParams = paramsOrError;
-
-    setStudyParams(studyParams);
 
     log({
       username: studyParams.username,
       event: `view:${studyParams.page}` as LogEventType,
       extra_data: { studyParams },
     });
-  }, [paramsOrError, setStudyParams]);
+  }, [paramsOrError]);
 
   // Error state
   if (typeof paramsOrError === 'string') {
@@ -107,8 +108,17 @@ function StudyRouter() {
     );
   }
 
-  // TypeScript knows paramsOrError is StudyParams here
-  const PageComponent = pageComponents[paramsOrError.page as PageKey];
+  return <StudyPageContent studyParams={paramsOrError} />;
+}
+
+function StudyPageContent({ studyParams }: { studyParams: StudyParams }) {
+  // Put the params in the store during render, before any page component
+  // mounts: some (e.g. ChatPanel) capture them in their first render. Hydration
+  // happens once per store, which is fine because every study page transition
+  // is a full page load.
+  useHydrateAtoms([[studyParamsAtom, studyParams]]);
+
+  const PageComponent = pageComponents[studyParams.page as PageKey];
 
   return (
     <ScreenSizeCheck>

@@ -1,21 +1,18 @@
 'use client'
 
 import { useState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { redirect } from '@/lib/logging';
-import { getNextPage } from '@/lib/studyConfig';
+import { useNextPageUrl } from './useNextPage';
 
 export default function TaskCompletionPage() {
-  const searchParams = useSearchParams();
+  const nextUrl = useNextPageUrl();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleStartPostTaskSurvey = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
 
-    const params = new URLSearchParams(searchParams.toString())
-    params.set('page', getNextPage('debrief')!);
-    await redirect(`/study?${params.toString()}`);
+    await redirect(nextUrl);
   }
 
   return (
@@ -26,7 +23,7 @@ export default function TaskCompletionPage() {
           <p className="text-foreground mb-4">
             You have finished the writing task. To complete
             the study, please continue to the follow-up
-            questionnaire about your experience with the task.
+            questionnaire about the task and your experience.
           </p>
         </section>
       </div>

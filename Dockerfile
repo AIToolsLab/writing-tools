@@ -17,8 +17,8 @@ RUN npm run build && npm run build:google-docs
 # 2) Build the backend -> /app/backend/dist (tsc).
 FROM node:24-slim AS backend
 WORKDIR /app/backend
-COPY backend/package.json backend/package-lock.json* ./
-RUN npm install
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci
 COPY backend/tsconfig.json ./
 COPY backend/src ./src
 RUN npm run build
@@ -47,7 +47,7 @@ ENV GIT_COMMIT=${GIT_COMMIT}
 # (backend/src/config.ts) defaults to ./data but compose points it at the
 # mounted data volume.
 COPY backend/package.json backend/package-lock.json* ./
-RUN npm install --omit=dev
+RUN npm ci --omit=dev
 COPY --from=backend /app/backend/dist ./dist
 # Frontend build output becomes the static root (STATIC_ROOT=./public).
 COPY --from=frontend /frontend/dist ./public

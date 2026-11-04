@@ -1,0 +1,38 @@
+{
+  "id": "resp_fixture_ws",
+  "object": "response",
+  "created_at": 1761000000,
+  "status": "completed",
+  "error": null,
+  "incomplete_details": null,
+  "model": "gpt-5.2-2025-12-11",
+  "output": [
+    {
+      "id": "rs_fixture_ws",
+      "type": "reasoning",
+      "summary": []
+    },
+    {
+      "id": "msg_fixture_ws",
+      "type": "message",
+      "status": "completed",
+      "role": "assistant",
+      "content": [
+        {
+          "type": "output_text",
+          "annotations": [],
+          "logprobs": [],
+          "text": "{\"responses\":[\"Name the new time you are proposing.\",\"Acknowledge the inconvenience before the logistics.\",\"Say who to contact with questions.\"]}"
+        }
+      ]
+    }
+  ],
+  "service_tier": "default",
+  "usage": {
+    "input_tokens": 980,
+    "input_tokens_details": { "cached_tokens": 0 },
+    "output_tokens": 61,
+    "output_tokens_details": { "reasoning_tokens": 20 },
+    "total_tokens": 1041
+  }
+}
