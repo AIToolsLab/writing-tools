@@ -13,35 +13,18 @@ test.describe('Draft component - Main flows', () => {
     await expect(page.getByRole('banner')).toContainText('Thoughtful');
   });
 
-const exampleLocator = 'button[title="See what you could write next"]';
 const readerLocator = 'button[title="Understand reader perspective"]';
 const adviceLocator = 'button[title="Get suggestions for next words"]';
+const rewordingLocator = 'button[title="Explore alternative phrasings"]';
 
   test('should display three generation option buttons', async ({ page }) => {
     // Locate the draft iframe
     const frame = page.frameLocator('#editor-frame');
 
     // Verify all three generation buttons are present using title attribute
-    const exampleButton = frame.locator(exampleLocator);
-    const readerButton = frame.locator(readerLocator);
-    const adviceButton = frame.locator(adviceLocator);
-
-    await expect(exampleButton).toBeVisible();
-    await expect(readerButton).toBeVisible();
-    await expect(adviceButton).toBeVisible();
-  });
-
-  test('should generate and display example sentences when clicking example button', async ({ page }) => {
-    const frame = page.frameLocator('#editor-frame');
-    const exampleButton = frame.locator(exampleLocator);
-
-    // Click the example sentences button
-    await exampleButton.click();
-
-    // Wait for and verify suggestions are displayed
-    await expect(frame.getByText('First example suggestion')).toBeVisible({ timeout: 5000 });
-    await expect(frame.getByText('Second example suggestion')).toBeVisible();
-    await expect(frame.getByText('Third example suggestion')).toBeVisible();
+    await expect(frame.locator(readerLocator)).toBeVisible();
+    await expect(frame.locator(adviceLocator)).toBeVisible();
+    await expect(frame.locator(rewordingLocator)).toBeVisible();
   });
 
   test('should generate and display reader perspective when clicking reader button', async ({ page }) => {
@@ -72,26 +55,16 @@ const adviceLocator = 'button[title="Get suggestions for next words"]';
 
   test('should delete suggestion when clicking delete button', async ({ page }) => {
     const frame = page.frameLocator('#editor-frame');
-    const exampleButton = frame.locator(exampleLocator);
     const readerButton = frame.locator(readerLocator);
     const adviceButton = frame.locator(adviceLocator);
-
-    // Generate example suggestion
-    await exampleButton.click();
-    await expect(frame.getByText('First example suggestion')).toBeVisible({ timeout: 5000 });
-
-    // Delete example suggestion
-    const deleteButton1 = frame.locator('button[aria-label="Delete suggestion"]').first();
-    await deleteButton1.click();
-    await expect(frame.getByText('First example suggestion')).not.toBeVisible({ timeout: 2000 });
 
     // Generate reader perspective suggestion
     await readerButton.click();
     await expect(frame.getByText('First reader perspective')).toBeVisible({ timeout: 5000 });
 
     // Delete reader perspective suggestion
-    const deleteButton2 = frame.locator('button[aria-label="Delete suggestion"]').first();
-    await deleteButton2.click();
+    const deleteButton1 = frame.locator('button[aria-label="Delete suggestion"]').first();
+    await deleteButton1.click();
     await expect(frame.getByText('First reader perspective')).not.toBeVisible({ timeout: 2000 });
 
     // Generate advice suggestion
@@ -99,41 +72,41 @@ const adviceLocator = 'button[title="Get suggestions for next words"]';
     await expect(frame.getByText('First piece of advice')).toBeVisible({ timeout: 5000 });
 
     // Delete advice suggestion
-    const deleteButton3 = frame.locator('button[aria-label="Delete suggestion"]').first();
-    await deleteButton3.click();
+    const deleteButton2 = frame.locator('button[aria-label="Delete suggestion"]').first();
+    await deleteButton2.click();
     await expect(frame.getByText('First piece of advice')).not.toBeVisible({ timeout: 2000 });
   });
 
   test('should disable buttons during loading', async ({ page }) => {
   const frame = page.frameLocator('#editor-frame');
-  const exampleButton = frame.locator(exampleLocator);
   const readerButton = frame.locator(readerLocator);
   const adviceButton = frame.locator(adviceLocator);
+  const rewordingButton = frame.locator(rewordingLocator);
 
   // Mock backend with delay and realistic streamed response
   await page.route('**/openai/responses', async (route) => {
     await page.waitForTimeout(1000); // simulate network delay
     await fulfillOpenAI(
       route,
-      '- First example suggestion\n\n- Second example suggestion\n\n- Third example suggestion'
+      '- First reader perspective\n\n- Second reader perspective\n\n- Third reader perspective'
     );
   });
 
   // Click the button to trigger request
-  await exampleButton.click();
+  await readerButton.click();
 
   // Immediately check that all buttons are disabled
-  await expect(exampleButton).toBeDisabled();
   await expect(readerButton).toBeDisabled();
   await expect(adviceButton).toBeDisabled();
+  await expect(rewordingButton).toBeDisabled();
 
   // Wait for the UI to render the first suggestion
-  await expect(frame.locator('text=First example suggestion')).toBeVisible();
+  await expect(frame.locator('text=First reader perspective')).toBeVisible();
 
   // Verify buttons are enabled again
-  await expect(exampleButton).toBeEnabled();
   await expect(readerButton).toBeEnabled();
   await expect(adviceButton).toBeEnabled();
+  await expect(rewordingButton).toBeEnabled();
 });
 
   test('should display empty state message when no suggestions generated', async ({ page }) => {
