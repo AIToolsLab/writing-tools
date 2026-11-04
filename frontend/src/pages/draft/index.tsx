@@ -174,18 +174,6 @@ function SavedGenerations({
 					key={savedItem.dateSaved.toString()}
 					className={classes.resultItem}
 					style={{ animationDelay: `${index * 0.05}s` }}
-					onMouseEnter={(e) => {
-						const deleteBtn = e.currentTarget.querySelector(
-							'[data-delete]',
-						) as HTMLElement;
-						if (deleteBtn) deleteBtn.style.opacity = '1';
-					}}
-					onMouseLeave={(e) => {
-						const deleteBtn = e.currentTarget.querySelector(
-							'[data-delete]',
-						) as HTMLElement;
-						if (deleteBtn) deleteBtn.style.opacity = '0';
-					}}
 				>
 					<div
 						style={{
@@ -201,19 +189,8 @@ function SavedGenerations({
 							/>
 						</div>
 						<button
-							data-delete
+							className={classes.deleteBtn}
 							onClick={() => deleteSavedItem(savedItem.dateSaved)}
-							style={{
-								background: 'transparent',
-								border: 'none',
-								cursor: 'pointer',
-								color: 'var(--text-tertiary)',
-								fontSize: '14px',
-								opacity: 0,
-								transition: 'opacity .15s',
-								padding: '2px',
-								flexShrink: 0,
-							}}
 							aria-label="Delete suggestion"
 							title="Delete suggestion"
 						>
