@@ -6,7 +6,6 @@ import {
 import { useWindowSize } from '@react-hook/window-size/throttled';
 import { useAtomValue } from 'jotai';
 import { useEffect, useState } from 'react';
-import { consentRank } from '@/consent';
 import {
 	AppAuthProvider,
 	AppAuthTokenBridge,
@@ -23,6 +22,8 @@ import {
 } from '@/contexts/pageContext';
 import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { resolvePage } from '../registry';
+import { OnboardingConsentGate } from './OnboardingConsentGate';
+import { posthogConsentAction } from './posthogConsentPolicy';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
 import { Reshaped, Button } from 'reshaped';
@@ -343,6 +344,15 @@ function AppInner() {
 		);
 	}
 
+	// First-run consent gate: right after sign-in (and the allowlist check), while
+	// the user has never set a consent level. Derived straight from the session — a
+	// successful save updates hasSetConsent directly, so there is no dismissal state
+	// to leak across a logout → different-user login. Demo/no-auth modes are never
+	// gated.
+	if (!noAuthMode && !session.hasSetConsent) {
+		return <OnboardingConsentGate />;
+	}
+
 	// Which page renders is the registry's call, not a switch here — see
 	// pages/registry.tsx. resolvePage also handles a stored selection that is no
 	// longer visible (a lab page whose flag was turned off) by falling back to the
@@ -361,8 +371,31 @@ function AppInner() {
 			{!noAuthMode && user ? (
 				<div className={classes.container}>
 					<div className={classes.profileContainer}>
-						<div className={classes.userNameContainer}>
-							User: {user.name}
+						<div className={classes.accountEntry}>
+							{/* The identity chip doubles as the entry point to account &
+							    privacy — account affordances belong next to identity, and the
+							    nav strip switches in-app pages, so an outbound link had no
+							    business there. In an Office task pane this opens the system
+							    browser, which has a separate storage partition and may require
+							    another sign-in. Do not pass a bearer token in the URL; an
+							    in-app account screen is the eventual solution. */}
+							<a
+								href="/account.html"
+								target="_blank"
+								rel="noopener"
+								className={classes.userNameContainer}
+								title="Account &amp; privacy"
+								aria-label={`Account and privacy settings for ${user.name}`}
+								aria-describedby="account-browser-note"
+							>
+								User: {user.name}
+							</a>
+							<span
+								id="account-browser-note"
+								className={classes.accountBrowserNote}
+							>
+								Opens in browser; sign-in may be required.
+							</span>
 						</div>
 					</div>
 					{authErrorType !== null && (
@@ -447,8 +480,8 @@ function AppWithProviders({
 				api_host: POSTHOG_HOST,
 				capture_exceptions: true,
 				// Capture nothing until we know the user's consent level. The
-				// PostHogConsentBridge opts in (and identifies) once a session with
-				// consent >= 'usage' loads. Until then — and at level 'none' — PostHog
+				// PostHogConsentBridge opts in (and identifies) once the user has
+				// chosen consent >= 'usage'. Until then — and at level 'none' — PostHog
 				// stays opted out. NOTE: opt-out also suppresses capture_exceptions, so
 				// level 'none' is fully silent (no crash reports either).
 				opt_out_capturing_by_default: true,
@@ -465,29 +498,52 @@ function AppWithProviders({
  * Bridges logging consent → PostHog. Mounted inside both PostHogProvider and
  * AppAuthProvider. Opts capturing in and identifies the user (by stable Better
  * Auth id, matching server-side log keying + deletion) once an authenticated
- * session at consent >= 'usage' loads; otherwise stays opted out and clears any
- * prior identity. Renders nothing.
+ * user has CHOSEN a level >= 'usage' (never while the onboarding gate is up or
+ * a cross-tab reconcile is pending); otherwise stays opted out. Renders nothing.
  */
 function PostHogConsentBridge(): null {
 	const posthog = usePostHog();
-	const { isAuthenticated, loggingConsent, user } = useAppAuth();
+	const {
+		isAuthenticated,
+		hasSetConsent,
+		loggingConsent,
+		user,
+		consentPending,
+	} = useAppAuth();
+	const userId = user?.id;
 
 	useEffect(() => {
 		if (!posthog) return;
-		const analyticsAllowed =
-			isAuthenticated &&
-			consentRank(loggingConsent) >= consentRank('usage');
+		// The rules (chosen level only, never during a reconcile, when to drop
+		// identity) live in posthogConsentPolicy.ts, where they are tested.
+		const { capture, reset } = posthogConsentAction({
+			isAuthenticated,
+			hasSetConsent,
+			consentPending,
+			loggingConsent,
+			userId,
+		});
 
-		// Require a stable id before opting in, so we never capture untethered
-		// anonymous events that can't be tied to a deletable account identity.
-		if (analyticsAllowed && user?.id) {
-			posthog.identify(user.id);
+		if (capture && userId) {
+			posthog.identify(userId);
 			posthog.opt_in_capturing();
-		} else {
-			posthog.opt_out_capturing();
-			posthog.reset(); // drop any identity captured under a prior session
+			return;
 		}
-	}, [posthog, isAuthenticated, loggingConsent, user?.id]);
+
+		// Opting out is unconditional — whatever the reason for being here, this
+		// tab must stop capturing now.
+		posthog.opt_out_capturing();
+		if (reset) {
+			posthog.reset(); // drop identity for a withdrawn or ended session
+		}
+	}, [
+		posthog,
+		isAuthenticated,
+		hasSetConsent,
+		loggingConsent,
+		userId,
+		consentPending,
+	]);
 
 	return null;
 }
