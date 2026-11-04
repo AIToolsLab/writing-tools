@@ -22,6 +22,7 @@ import {
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
+import { isFlagEnabled } from '../flags';
 import { iconFunc } from './iconFunc';
 import { useResettableInterval } from './useResettableInterval';
 import classes from './styles.module.css';
@@ -29,7 +30,7 @@ import classes from './styles.module.css';
 const visibleNameForMode = {
 	example_sentences: 'Examples of what you could write next:',
 	analysis_readerPerspective: 'Possible questions your reader might have:',
-	proposal_advice: 'Advice for your next words:',
+	proposal_advice: 'What a writing coach might suggest:',
 	complete_document: 'Complete Document',
 	example_rewording: 'Example rewordings of your selected text:',
 };
@@ -41,11 +42,11 @@ const modeMeta: Record<string, { name: string; description: string }> = {
 	},
 	analysis_readerPerspective: {
 		name: 'Questions',
-		description: 'Understand reader perspective',
+		description: 'What might a reader ask?',
 	},
 	proposal_advice: {
 		name: 'Advice',
-		description: 'Get suggestions for next words',
+		description: 'What might a writing coach suggest?',
 	},
 	example_rewording: {
 		name: 'Rewording',
@@ -53,11 +54,7 @@ const modeMeta: Record<string, { name: string; description: string }> = {
 	},
 };
 
-const modes = [
-	'analysis_readerPerspective',
-	'proposal_advice',
-	'example_rewording',
-];
+const modes = ['analysis_readerPerspective', 'proposal_advice'];
 
 interface SuggestionRequest {
 	docContext: DocContext;
@@ -232,7 +229,13 @@ export default function Draft() {
 	}, []);
 
 	const autoRefreshInterval = 0;
-	const modesToShow = modes;
+	// Rewording is off unless the `rewording` feature flag is on (`?ff=rewording`;
+	// see pages/flags.ts). It hands the writer wording that isn't theirs, which
+	// cuts against the onboarding's "the words stay yours", and a replacement
+	// interface is in progress. The prompt and its tests stay so it can be demoed.
+	const modesToShow = isFlagEnabled('rewording')
+		? [...modes, 'example_rewording']
+		: modes;
 
 	const shouldAutoRefresh = autoRefreshInterval > 0;
 

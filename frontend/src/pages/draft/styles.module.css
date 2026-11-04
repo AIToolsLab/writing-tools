@@ -46,6 +46,12 @@
 	text-align: left;
 	font-family: 'DM Sans', sans-serif;
 	position: relative;
+	/* A <button> centres its content vertically; cards in a row stretch to the
+	   tallest, so a two-line description would shift its neighbour's icon. */
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	align-items: flex-start;
 	overflow: hidden;
 	outline: none;
 }

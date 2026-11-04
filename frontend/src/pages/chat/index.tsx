@@ -61,6 +61,7 @@ const suggestionPrompts = [
 	'How can I improve clarity?',
 	'Is my structure logical?',
 	'What am I missing?',
+	'What could I cut?',
 ];
 
 /**

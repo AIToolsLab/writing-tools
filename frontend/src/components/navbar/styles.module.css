@@ -80,17 +80,22 @@
 	font-weight: 400;
 	color: inherit;
 	opacity: 0.7;
+	/* Hints may wrap (see below); centre the lines under the title. */
+	text-align: center;
+	line-height: 1.3;
 }
 
 /*
- * Drop the hints when the strip is too narrow to hold them on one line.
+ * Drop the hints when the strip is too narrow for them to be worth showing.
  *
- * Measured, not guessed. The widest hint ("Prompts as you write") is ~93.4px,
- * and each tab gets `(C - 32px Labs - 12px gaps) / 3 - 20px padding` of label
- * room, so the hints need C >= 384.2px. 416 is that with headroom, since the
- * exact figure moves with font loading. Below it they wrapped into a ragged
- * multi-line strip of uneven heights — which is what the Google Docs sidebar,
- * locked by the platform at ~300px, has been showing all along.
+ * Hints are allowed to wrap: their length will change with localization, so
+ * the strip can't depend on any one string fitting on one line. Tabs are flex
+ * items that stretch to the tallest, so a two-line hint keeps the row even.
+ * What this threshold guards against is the narrow case, where each tab gets
+ * `(C - 32px Labs - 12px gaps) / 3 - 20px padding` of label room: in the Google
+ * Docs sidebar (locked by the platform at ~300px) that is ~57px, and hints
+ * there wrapped to three or four lines each. 416 leaves ~104px per hint, about
+ * 20 characters of English per line.
  *
  * A @container query, not @media: the width that matters is the strip's, and the
  * two only coincide where the pane is the viewport. See `container-type` on

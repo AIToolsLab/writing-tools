@@ -13,18 +13,18 @@ test.describe('Draft component - Main flows', () => {
     await expect(page.getByRole('banner')).toContainText('Thoughtful');
   });
 
-const readerLocator = 'button[title="Understand reader perspective"]';
-const adviceLocator = 'button[title="Get suggestions for next words"]';
-const rewordingLocator = 'button[title="Explore alternative phrasings"]';
+const readerLocator = 'button[title="What might a reader ask?"]';
+const adviceLocator = 'button[title="What might a writing coach suggest?"]';
 
-  test('should display three generation option buttons', async ({ page }) => {
+  test('should display the two generation option buttons', async ({ page }) => {
     // Locate the draft iframe
     const frame = page.frameLocator('#editor-frame');
 
-    // Verify all three generation buttons are present using title attribute
+    // Verify both generation buttons are present using title attribute
     await expect(frame.locator(readerLocator)).toBeVisible();
     await expect(frame.locator(adviceLocator)).toBeVisible();
-    await expect(frame.locator(rewordingLocator)).toBeVisible();
+    // Rewording is behind the `rewording` feature flag (see editor.spec.ts).
+    await expect(frame.locator('button[aria-label="Rewording"]')).toHaveCount(0);
   });
 
   test('should generate and display reader perspective when clicking reader button', async ({ page }) => {
@@ -81,7 +81,6 @@ const rewordingLocator = 'button[title="Explore alternative phrasings"]';
   const frame = page.frameLocator('#editor-frame');
   const readerButton = frame.locator(readerLocator);
   const adviceButton = frame.locator(adviceLocator);
-  const rewordingButton = frame.locator(rewordingLocator);
 
   // Mock backend with delay and realistic streamed response
   await page.route('**/openai/responses', async (route) => {
@@ -98,7 +97,6 @@ const rewordingLocator = 'button[title="Explore alternative phrasings"]';
   // Immediately check that all buttons are disabled
   await expect(readerButton).toBeDisabled();
   await expect(adviceButton).toBeDisabled();
-  await expect(rewordingButton).toBeDisabled();
 
   // Wait for the UI to render the first suggestion
   await expect(frame.locator('text=First reader perspective')).toBeVisible();
@@ -106,7 +104,6 @@ const rewordingLocator = 'button[title="Explore alternative phrasings"]';
   // Verify buttons are enabled again
   await expect(readerButton).toBeEnabled();
   await expect(adviceButton).toBeEnabled();
-  await expect(rewordingButton).toBeEnabled();
 });
 
   test('should display empty state message when no suggestions generated', async ({ page }) => {

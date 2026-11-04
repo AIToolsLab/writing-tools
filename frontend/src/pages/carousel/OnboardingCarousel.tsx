@@ -1,9 +1,6 @@
 import { useState } from 'react';
 import { Button } from 'reshaped';
 import classes from './styles.module.css';
-import descriptionImage from '@/assets/c1.png';
-import functionImage from '@/assets/logo_black.png';
-import benefitsImage from '@/assets/c2.png';
 
 interface OnboardingCarouselProps {
 	onComplete: () => void;
@@ -12,21 +9,23 @@ interface OnboardingCarouselProps {
 const ONBOARDING_SLIDES = [
 	{
 		title: 'Welcome to Thoughtful',
-		image: functionImage,
 		description:
-			'Thoughtful helps you write more thoughtfully. Its AI encourages your own thinking.',
+			'Writing is thinking. Thoughtful uses AI to support that thinking, not replace it. The words stay yours.',
 	},
 	{
-		title: 'Benefits',
+		title: 'Draft',
 		description:
-			'It helps you craft your words on a blank page, and it helps you think about what you want to say.',
-		image: descriptionImage,
+			"For the part you're working on: what might a reader ask, and what might a writing coach suggest you try next?",
 	},
 	{
-		title: 'Features of Thoughtful',
+		title: 'Revise',
 		description:
-			'Generate new sentence, address potential reader inquiries, receive recommendations for the next word, phrase, or rhetorical move.',
-		image: benefitsImage,
+			'Zoom out to see your whole draft: its outline, its main point, and where a reader might push back.',
+	},
+	{
+		title: 'Chat',
+		description:
+			'Talk your draft through with a writing coach. It can point you to passages in your draft and propose edits made only from your own words. You accept or decline each one.',
 	},
 ];
 
@@ -54,13 +53,6 @@ export function OnboardingCarousel({ onComplete }: OnboardingCarouselProps) {
 								<h2 className={classes.slideTitle}>
 									{slide.title}
 								</h2>
-								<div className={classes.imageWrapper}>
-									<img
-										src={slide.image}
-										alt={slide.title}
-										className={classes.carouselImage}
-									/>
-								</div>
 								<p className={classes.slideDescription}>
 									{slide.description}
 								</p>
