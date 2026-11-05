@@ -18,3 +18,16 @@
 	height: 100vh;
 	min-height: 0;
 }
+
+/*
+ * With #root sized, each page scrolls its own region (Chat's transcript,
+ * Draft's and Revise's bodies, the app's page wrapper for Labs pages) instead
+ * of the document. Where scrollbars aren't overlays, each of those still takes
+ * 15px of the 300px frame; thin takes 10px. Wheel and trackpad scrolling are
+ * unaffected — only grabbing the thumb gets a smaller target. Google Docs
+ * only: the Word task pane can be dragged wider, so it keeps the default.
+ */
+#root,
+#root * {
+	scrollbar-width: thin;
+}
