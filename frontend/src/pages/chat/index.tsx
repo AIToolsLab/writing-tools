@@ -42,7 +42,7 @@ import { undoEdit } from '@/docTools/undo';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
 
-import { chatTools } from './chatTools';
+import { chatTools, type ProposalResult } from './chatTools';
 import { ProposalCard } from './ProposalCard';
 import classes from './styles.module.css';
 import {
@@ -159,9 +159,16 @@ export default function Chat() {
 		}
 	});
 
+	/**
+	 * The writer's message from the moment they send it until it joins the
+	 * transcript. Reading the document first takes a host round-trip (slow on
+	 * Google Docs), and without this the click looks like it did nothing.
+	 */
+	const [pendingText, setPendingText] = useState<string | null>(null);
+
 	useEffect(() => {
 		scrollOnNewMessages();
-	}, [chatMessages]);
+	}, [chatMessages, pendingText]);
 
 	const { refresh: refreshDocContext } = useDocContext(editorAPI);
 	const docJump = useDocJump('chat');
@@ -177,6 +184,9 @@ export default function Chat() {
 	const [streamingText, setStreamingText] = useState<string | null>(null);
 
 	const visibleMessages = displayTranscript(chatMessages);
+	if (pendingText !== null) {
+		visibleMessages.push({ role: 'user', text: pendingText });
+	}
 	if (streamingText !== null) {
 		visibleMessages.push({ role: 'assistant', text: streamingText });
 	}
@@ -235,11 +245,11 @@ export default function Chat() {
 	}, []);
 
 	/**
-	 * Run the model on `messages` (which end with whatever it should respond
-	 * to: a writer turn, or the answer to a proposal) and add its reply to the
-	 * transcript. `rollback` runs if it fails before saying anything.
+	 * Start a request and show it as under way (typing indicator, input
+	 * disabled) straight away — before any slow host call the request needs
+	 * first. Pass the controller on to {@link runModel}.
 	 */
-	async function runModel(messages: ModelMessage[], rollback: () => void) {
+	function beginRequest(): AbortController {
 		// Only one active request is allowed; cancel any previous stream first.
 		activeRequestControllerRef.current?.abort();
 		const requestController = new AbortController();
@@ -248,10 +258,34 @@ export default function Chat() {
 		updateSendingMessage(true);
 		setErrorInfo(null);
 		setFailedMessage(null);
-		updateChatMessages(messages);
-		messagesRef.current = messages;
 		setStreamingText('');
 		setShowScrollButton(false);
+		return requestController;
+	}
+
+	/** Back to idle, unless a newer request has already replaced this one. */
+	function endRequest(requestController: AbortController) {
+		if (activeRequestControllerRef.current === requestController) {
+			activeRequestControllerRef.current = null;
+			updateSendingMessage(false);
+			setStreamingText(null);
+			setPendingText(null);
+		}
+	}
+
+	/**
+	 * Run the model on `messages` (which end with whatever it should respond
+	 * to: a writer turn, or the answer to a proposal) and add its reply to the
+	 * transcript. `rollback` runs if it fails before saying anything.
+	 */
+	async function runModel(
+		requestController: AbortController,
+		messages: ModelMessage[],
+		rollback: () => void,
+	) {
+		updateChatMessages(messages);
+		messagesRef.current = messages;
+		setPendingText(null);
 
 		const editing = canEdit(editorAPI);
 		const { tools, toolApproval } = makeTools();
@@ -317,11 +351,7 @@ export default function Chat() {
 			});
 		} finally {
 			// Ignore stale completions from older requests that were already replaced.
-			if (activeRequestControllerRef.current === requestController) {
-				activeRequestControllerRef.current = null;
-				updateSendingMessage(false);
-				setStreamingText(null);
-			}
+			endRequest(requestController);
 		}
 	}
 
@@ -354,6 +384,8 @@ export default function Chat() {
 	async function submitMessage(text: string, source: 'input' | 'suggested') {
 		chatLog.messageSent(log, { message: text, source });
 		updateMessage('');
+		const requestController = beginRequest();
+		setPendingText(text);
 
 		// A proposal still open when the writer moves on is set aside: it gets
 		// its answer before their turn, so the model knows what happened to it.
@@ -372,8 +404,31 @@ export default function Chat() {
 		// Pull the current document context at send time. The first turn also
 		// carries the whole document, numbered as `view` numbers it; later ones
 		// a note of what the writer changed since the model last saw it.
-		const docContext = await refreshDocContext();
-		const paragraphs = await editorAPI.getParagraphs();
+		let docContext: DocContext;
+		let paragraphs: string[];
+		try {
+			// Independent reads, so one wait instead of two.
+			[docContext, paragraphs] = await Promise.all([
+				refreshDocContext(),
+				editorAPI.getParagraphs(),
+			]);
+		} catch (error) {
+			if (requestController.signal.aborted) return;
+			console.error('Error reading the document for chat:', error);
+			endRequest(requestController);
+			// Nothing was sent: hand the text back so Retry sends it once.
+			updateMessage(text);
+			setFailedMessage({ text, source });
+			setErrorInfo({
+				message:
+					"Couldn't read your document, so nothing was sent. Try again.",
+				detail: error instanceof Error ? error.message : String(error),
+				retryable: true,
+			});
+			return;
+		}
+		// Started over (or sent again) while the document was being read.
+		if (requestController.signal.aborted) return;
 		const previousBaseline = docState.baseline;
 		const context = documentContext({
 			docContext,
@@ -383,31 +438,47 @@ export default function Chat() {
 		});
 		recordSeen(docState, paragraphs);
 
-		await runModel([...base, writerTurn(context, text)], () => {
-			// Hand the text back to the input box, so Retry re-sends it once
-			// rather than duplicating the turn.
-			updateChatMessages(chatMessages);
-			// The model never saw this turn's context either.
-			docState.baseline = previousBaseline;
-			updateMessage(text);
-			setFailedMessage({ text, source });
-		});
+		await runModel(
+			requestController,
+			[...base, writerTurn(context, text)],
+			() => {
+				// Hand the text back to the input box, so Retry re-sends it once
+				// rather than duplicating the turn.
+				updateChatMessages(chatMessages);
+				// The model never saw this turn's context either.
+				docState.baseline = previousBaseline;
+				updateMessage(text);
+				setFailedMessage({ text, source });
+			},
+		);
 	}
 
 	async function acceptProposal(proposal: ProposalItem) {
 		logEdit('accepted', proposal);
-		updateSendingMessage(true);
-		const result = await makeTools().applyProposal(
-			proposal.toolCallId,
-			proposal.toolName,
-			proposal.input,
-		);
+		const requestController = beginRequest();
+		let result: ProposalResult;
+		try {
+			result = await makeTools().applyProposal(
+				proposal.toolCallId,
+				proposal.toolName,
+				proposal.input,
+			);
+		} catch (error) {
+			console.error('Error applying a chat proposal:', error);
+			result = {
+				ok: false,
+				report: `The edit failed: ${error instanceof Error ? error.message : String(error)}`,
+			};
+		}
+		if (requestController.signal.aborted) return;
 		const answered = [
 			...chatMessages,
 			answerProposal(proposal, { approved: true, ...result }),
 		];
 		// The edit stands even if the model's follow-up fails.
-		await runModel(answered, () => updateChatMessages(answered));
+		await runModel(requestController, answered, () =>
+			updateChatMessages(answered),
+		);
 	}
 
 	async function declineProposal(proposal: ProposalItem) {
@@ -419,7 +490,9 @@ export default function Chat() {
 				reason: DECLINED_REASON,
 			}),
 		];
-		await runModel(answered, () => updateChatMessages(answered));
+		await runModel(beginRequest(), answered, () =>
+			updateChatMessages(answered),
+		);
 	}
 
 	/** Select where a proposal would land; false if it can't be found. */
@@ -463,6 +536,7 @@ export default function Chat() {
 		activeRequestControllerRef.current = null;
 		updateSendingMessage(false);
 		setStreamingText(null);
+		setPendingText(null);
 		setErrorInfo(null);
 		setFailedMessage(null);
 		updateMessage('');
