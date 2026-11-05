@@ -10,7 +10,7 @@ const ONBOARDING_SLIDES = [
 	{
 		title: 'Welcome to Thoughtful',
 		description:
-			'Writing is thinking. Thoughtful uses AI to support that thinking, not replace it. The words stay yours.',
+			'Writing is thinking. Thoughtful uses AI to support that thinking, not replace it. You own every word.',
 	},
 	{
 		title: 'Draft',
