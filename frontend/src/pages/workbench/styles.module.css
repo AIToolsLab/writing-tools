@@ -1,0 +1,385 @@
+.container {
+	--wb-accent: #1565c0;
+	--wb-accent-light: #e3f2fd;
+	--wb-border: var(--rs-color-border-neutral, #ccc);
+	--wb-muted: var(--rs-color-foreground-neutral-faded, #666);
+	--wb-hl-bg: #e8f5e9;
+	--wb-hl-line: #81c784;
+	padding: 0.75rem 1rem 1.5rem;
+	display: flex;
+	flex-direction: column;
+	gap: 0.75rem;
+}
+
+.intro,
+.hint,
+.footnote {
+	margin: 0;
+	font-size: 0.85rem;
+	line-height: 1.4;
+	color: var(--wb-muted);
+}
+
+.footnote {
+	font-size: 0.75rem;
+	border-top: 1px solid #eee;
+	padding-top: 0.5rem;
+}
+
+.section {
+	display: flex;
+	flex-direction: column;
+	gap: 0.4rem;
+}
+
+.row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.label {
+	font-weight: 600;
+	font-size: 0.9rem;
+}
+
+.srOnly {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+}
+
+.segmented {
+	display: inline-flex;
+	border: 1px solid var(--wb-border);
+	border-radius: 6px;
+	overflow: hidden;
+	margin: 0;
+	padding: 0;
+}
+
+.segmented label {
+	padding: 0.2rem 0.6rem;
+	font-size: 0.85rem;
+	cursor: pointer;
+}
+
+.segmented input {
+	position: absolute;
+	opacity: 0;
+	pointer-events: none;
+}
+
+.segmented label:has(input:checked) {
+	background: var(--wb-accent-light);
+	color: var(--wb-accent);
+	font-weight: 600;
+}
+
+.segmented label:has(input:focus-visible) {
+	outline: 2px solid var(--wb-accent);
+	outline-offset: -2px;
+}
+
+/* ── Instruction picker ── */
+.picker summary {
+	list-style: none;
+	cursor: pointer;
+	display: flex;
+	flex-direction: column;
+	gap: 0.15rem;
+	padding: 0.4rem 0.6rem;
+	border: 1px solid var(--wb-border);
+	border-radius: 6px;
+}
+
+.picker summary::-webkit-details-marker {
+	display: none;
+}
+
+.picker[open] summary {
+	border-color: var(--wb-accent);
+	margin-bottom: 0.5rem;
+}
+
+.pickerValue {
+	font-size: 0.85rem;
+}
+
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3rem;
+	margin-bottom: 0.5rem;
+}
+
+.chips button {
+	font: inherit;
+	font-size: 0.8rem;
+	border: 1px solid var(--wb-border);
+	border-radius: 999px;
+	background: #f7f7f7;
+	padding: 0.15rem 0.6rem;
+	cursor: pointer;
+}
+
+.chips button[aria-pressed='true'] {
+	background: var(--wb-accent-light);
+	border-color: var(--wb-accent);
+}
+
+.instruction {
+	width: 100%;
+	box-sizing: border-box;
+	font: inherit;
+	font-size: 0.85rem;
+	padding: 0.4rem;
+	border: 1px solid var(--wb-border);
+	border-radius: 6px;
+	margin-top: 0.25rem;
+}
+
+/* ── Mode tabs ── */
+.tabs {
+	display: flex;
+	border-bottom: 1px solid #ddd;
+}
+
+.tabs button {
+	font: inherit;
+	border: none;
+	background: none;
+	padding: 0.45rem 0.8rem;
+	border-bottom: 3px solid transparent;
+	margin-bottom: -1px;
+	color: #555;
+	cursor: pointer;
+}
+
+.tabs button[aria-selected='true'] {
+	color: #222;
+	font-weight: 600;
+	border-bottom-color: var(--wb-accent);
+}
+
+/* ── Editors ── */
+.editor {
+	display: block;
+	width: 100%;
+	min-height: 5rem;
+	box-sizing: border-box;
+	margin: 0;
+	padding: 0.5rem 0.6rem;
+	border: 1px solid var(--wb-border);
+	border-radius: 6px;
+	font: inherit;
+	font-size: 0.95rem;
+	line-height: 1.6;
+	resize: none;
+	overflow: hidden; /* they grow to fit instead */
+	background: #fff;
+}
+
+.editor:focus {
+	outline: none;
+	border-color: var(--wb-accent);
+	box-shadow: 0 0 0 2px var(--wb-accent-light);
+}
+
+/* The highlighted passage: a backdrop with the same text and box as the
+   textarea, behind it. Everything that affects wrapping must match. */
+.overlay {
+	position: relative;
+	background: #fff;
+	border-radius: 6px;
+}
+
+.overlayEditor {
+	position: relative;
+	background: transparent;
+}
+
+/* Two classes, to beat `.editor` and `.backdrop`, whose `font` shorthand
+   resets line-height — a mismatch moves every mark off its word. */
+.overlay .overlayEditor,
+.overlay .backdrop {
+	line-height: 2.2;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+	word-break: normal;
+	letter-spacing: normal;
+	tab-size: 8;
+}
+
+.backdrop {
+	position: absolute;
+	inset: 0;
+	box-sizing: border-box;
+	padding: 0.5rem 0.6rem;
+	border: 1px solid transparent;
+	font: inherit;
+	font-size: 0.95rem;
+	color: transparent;
+	overflow: hidden;
+	pointer-events: none;
+}
+
+/* No horizontal padding or borders on marks: they'd shift the text. */
+.backdrop mark {
+	position: relative;
+	color: transparent;
+	background: var(--wb-hl-bg);
+	box-shadow: inset 0 -2px var(--wb-hl-line);
+	border-radius: 2px;
+}
+
+.backdrop mark.whitespace {
+	box-shadow: inset 2px 0 var(--wb-hl-line);
+}
+
+.markAlt {
+	display: none;
+	position: absolute;
+	bottom: 100%;
+	left: 0;
+	font-size: 0.7rem;
+	line-height: 1;
+	white-space: pre;
+	color: var(--wb-accent);
+	background: #fff;
+	padding-right: 3px;
+	border-right: 1px solid #ccc;
+}
+
+.showAlts .markAlt {
+	display: block;
+}
+
+.tooltip {
+	position: fixed;
+	z-index: 20;
+	transform: translate(-50%, calc(-100% - 4px));
+	max-width: 16rem;
+	padding: 3px 8px;
+	background: #fff;
+	border: 1px solid #ddd;
+	border-radius: 4px;
+	box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+	font-size: 0.8rem;
+	text-align: center;
+	pointer-events: none;
+}
+
+.alt {
+	color: var(--wb-accent);
+	font-weight: 600;
+	white-space: pre;
+}
+
+.written {
+	white-space: pre;
+}
+
+.detail {
+	color: var(--wb-muted);
+	margin-left: 0.4em;
+	font-size: 0.8rem;
+}
+
+.diffList {
+	margin: 0;
+	padding-left: 1.4rem;
+	font-size: 0.85rem;
+	list-style: decimal;
+}
+
+.controls {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.3rem 1rem;
+	font-size: 0.8rem;
+}
+
+.controls label {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+}
+
+.message {
+	margin: 0;
+	color: #555;
+	font-style: italic;
+	font-size: 0.85rem;
+}
+
+.status {
+	margin: 0;
+	font-size: 0.75rem;
+	color: #888;
+	min-height: 1.2em;
+}
+
+.warning {
+	margin: 0;
+	font-size: 0.75rem;
+	color: #b00020;
+}
+
+/* ── Suggestions: fixed slots, so they don't jump around ── */
+.suggestions {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(7.5rem, 1fr));
+	gap: 0.35rem;
+}
+
+.suggestions button {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	min-width: 0;
+	height: 2rem;
+	padding: 0 0.45rem;
+	font: inherit;
+	font-size: 0.85rem;
+	border: 1px solid var(--wb-border);
+	border-radius: 6px;
+	background: #fafafa;
+	cursor: pointer;
+	text-align: left;
+}
+
+.suggestions button:disabled {
+	cursor: default;
+	opacity: 0.5;
+}
+
+.suggestions button:not(:disabled):hover {
+	border-color: var(--wb-accent);
+}
+
+.suggestions kbd {
+	font-family: inherit;
+	font-size: 0.65rem;
+	color: #888;
+	border: 1px solid #ddd;
+	border-radius: 3px;
+	padding: 0 3px;
+}
+
+.suggestionText {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: pre;
+}
+
+.suggestions small {
+	color: #888;
+	font-size: 0.7rem;
+}
