@@ -22,6 +22,7 @@ import {
 import { EditorContext } from '@/contexts/editorContext';
 import { useLog } from '@/hooks/useLog';
 import { useDocContext } from '@/utilities';
+import { isFlagEnabled } from '../flags';
 import { iconFunc } from './iconFunc';
 import { useResettableInterval } from './useResettableInterval';
 import classes from './styles.module.css';
@@ -29,7 +30,7 @@ import classes from './styles.module.css';
 const visibleNameForMode = {
 	example_sentences: 'Examples of what you could write next:',
 	analysis_readerPerspective: 'Possible questions your reader might have:',
-	proposal_advice: 'Advice for your next words:',
+	proposal_advice: 'What a writing coach might suggest:',
 	complete_document: 'Complete Document',
 	example_rewording: 'Example rewordings of your selected text:',
 };
@@ -41,11 +42,11 @@ const modeMeta: Record<string, { name: string; description: string }> = {
 	},
 	analysis_readerPerspective: {
 		name: 'Questions',
-		description: 'Understand reader perspective',
+		description: 'What might a reader ask?',
 	},
 	proposal_advice: {
 		name: 'Advice',
-		description: 'Get suggestions for next words',
+		description: 'What might a writing coach suggest?',
 	},
 	example_rewording: {
 		name: 'Rewording',
@@ -53,11 +54,7 @@ const modeMeta: Record<string, { name: string; description: string }> = {
 	},
 };
 
-const modes = [
-	'analysis_readerPerspective',
-	'proposal_advice',
-	'example_rewording',
-];
+const modes = ['analysis_readerPerspective', 'proposal_advice'];
 
 interface SuggestionRequest {
 	docContext: DocContext;
@@ -174,18 +171,6 @@ function SavedGenerations({
 					key={savedItem.dateSaved.toString()}
 					className={classes.resultItem}
 					style={{ animationDelay: `${index * 0.05}s` }}
-					onMouseEnter={(e) => {
-						const deleteBtn = e.currentTarget.querySelector(
-							'[data-delete]',
-						) as HTMLElement;
-						if (deleteBtn) deleteBtn.style.opacity = '1';
-					}}
-					onMouseLeave={(e) => {
-						const deleteBtn = e.currentTarget.querySelector(
-							'[data-delete]',
-						) as HTMLElement;
-						if (deleteBtn) deleteBtn.style.opacity = '0';
-					}}
 				>
 					<div
 						style={{
@@ -201,21 +186,10 @@ function SavedGenerations({
 							/>
 						</div>
 						<button
-							data-delete
+							className={classes.deleteBtn}
 							onClick={() => deleteSavedItem(savedItem.dateSaved)}
-							style={{
-								background: 'transparent',
-								border: 'none',
-								cursor: 'pointer',
-								color: 'var(--text-tertiary)',
-								fontSize: '14px',
-								opacity: 0,
-								transition: 'opacity .15s',
-								padding: '2px',
-								flexShrink: 0,
-							}}
-							aria-label="Delete suggestion"
-							title="Delete suggestion"
+							aria-label="Dismiss note"
+							title="Dismiss note"
 						>
 							✕
 						</button>
@@ -255,7 +229,13 @@ export default function Draft() {
 	}, []);
 
 	const autoRefreshInterval = 0;
-	const modesToShow = modes;
+	// Rewording is off unless the `rewording` feature flag is on (`?ff=rewording`;
+	// see pages/flags.ts). It hands the writer wording that isn't theirs, which
+	// cuts against the onboarding's "the words stay yours", and a replacement
+	// interface is in progress. The prompt and its tests stay so it can be demoed.
+	const modesToShow = isFlagEnabled('rewording')
+		? [...modes, 'example_rewording']
+		: modes;
 
 	const shouldAutoRefresh = autoRefreshInterval > 0;
 
@@ -430,11 +410,6 @@ export default function Draft() {
 						    the buttons below it. */}
 						<BriefSection page="draft" />
 
-						{/* Instruction */}
-						<div className={classes.instruction}>
-							CLICK A DESIRED BUTTON
-						</div>
-
 						{/* Feature Grid */}
 						<div className={classes.featureGrid}>
 							{modesToShow.map((mode) => {
@@ -516,7 +491,7 @@ export default function Draft() {
 							{emptyResult && !errorInfo ? (
 								<ErrorNotice
 									tone="info"
-									title="Nothing to suggest"
+									title="No notes this time"
 									message="The assistant had nothing to add for this text. Try again, select a different part of your document, or pick another option above."
 									onRetry={retryLastRequest}
 								/>
@@ -527,11 +502,10 @@ export default function Draft() {
 							!isLoading ? (
 								<div className={classes.emptyStateContainer}>
 									<div className={classes.emptyTitle}>
-										No suggestions yet
+										Nothing yet
 									</div>
 									<div className={classes.emptyHint}>
-										Click a button above to generate
-										suggestions for your text
+										Pick what kind of note you want
 									</div>
 								</div>
 							) : null}
@@ -552,8 +526,8 @@ export default function Draft() {
 					</div>
 
 					<div className={classes.disclaimer}>
-						Please note that AI suggestions may vary in quality.
-						Always review suggestions carefully before using them.
+						These notes come from AI and can miss the mark. Keep
+						what helps you think; leave the rest.
 					</div>
 				</div>
 			</div>

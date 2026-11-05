@@ -1,0 +1,18 @@
+/*
+ * Shared design tokens for the add-in's pages (Draft, Revise, the brief section).
+ */
+:root {
+	--bg: #f0ede6;
+	--surface: #ffffff;
+	--surface-2: #fafaf8;
+	--border: rgba(0, 0, 0, 0.08);
+	--border-strong: rgba(0, 0, 0, 0.15);
+	--text-primary: #1c1c1c;
+	--text-secondary: #6b6b6b;
+	--text-tertiary: #b3aba0;
+	--accent: #2d5be3;
+	--accent-bg: #f7f8ff;
+	--accent-border: #c4caff;
+	--radius: 10px;
+	--radius-sm: 8px;
+}

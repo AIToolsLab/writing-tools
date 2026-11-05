@@ -40,13 +40,6 @@ hr {
 	padding: 0.4rem 0.8rem;
 }
 
-.authProviderIconContainer {
-	display: flex;
-	gap: 0.5rem;
-	justify-content: center;
-	align-items: center;
-}
-
 /* Loading */
 .loadingContainer {
 	display: flex;
@@ -99,21 +92,6 @@ hr {
 	align-items: center;
 	justify-content: center;
 	gap: 0.5rem;
-}
-
-.profilePicContainer {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	justify-content: center;
-}
-
-.profilePic {
-	width: 2rem;
-	height: 2rem;
-	border-radius: 50%;
-	object-fit: cover;
-	box-shadow: 0 0 0.3rem 0 rgba(0, 0, 0, 0.2);
 }
 
 .userNameContainer {

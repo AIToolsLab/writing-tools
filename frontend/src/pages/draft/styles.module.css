@@ -1,20 +1,3 @@
-/* Design Tokens */
-:root {
-	--bg: #f7f6f2;
-	--surface: #ffffff;
-	--surface-2: #f0eee9;
-	--border: rgba(0, 0, 0, 0.08);
-	--border-strong: rgba(0, 0, 0, 0.15);
-	--text-primary: #1a1916;
-	--text-secondary: #6b6860;
-	--text-tertiary: #a09d96;
-	--accent: #3d3bcc;
-	--accent-bg: #eeeeff;
-	--accent-border: #c4c3f5;
-	--radius: 10px;
-	--radius-sm: 6px;
-}
-
 .app {
 	width: 100%;
 	max-width: 480px;
@@ -41,70 +24,6 @@
 	padding: 0;
 }
 
-/* Page Layout */
-.pageContainer {
-	display: flex;
-	flex-direction: column;
-	height: 100%;
-	background: var(--bg);
-	color: var(--text-primary);
-	font-family: 'DM Sans', sans-serif;
-}
-
-/* Tab Bar */
-.tabBar {
-	display: flex;
-	gap: 2px;
-	background: var(--surface-2);
-	border: 0.5px solid var(--border);
-	border-radius: var(--radius);
-	padding: 4px;
-	margin-bottom: 24px;
-}
-
-.tab {
-	flex: 1;
-	padding: 8px;
-	border-radius: var(--radius-sm);
-	font-size: 13px;
-	font-weight: 400;
-	color: var(--text-tertiary);
-	text-align: center;
-	cursor: pointer;
-	transition: all 0.18s;
-	border: none;
-	background: transparent;
-	font-family: 'DM Sans', sans-serif;
-}
-
-.tab:active {
-	background: var(--surface);
-	color: var(--text-primary);
-	font-weight: 500;
-	box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-}
-
-.tabDesc {
-	font-size: 11px;
-	color: var(--text-tertiary);
-	margin-top: 2px;
-	font-weight: 400;
-}
-
-.tab:active .tabDesc {
-	color: var(--text-secondary);
-}
-
-/* Instruction Line */
-.instruction {
-	font-family: 'DM Mono', monospace;
-	font-size: 10px;
-	letter-spacing: 0.08em;
-	color: var(--text-tertiary);
-	text-transform: uppercase;
-	margin-bottom: 12px;
-}
-
 /* Feature Grid */
 .featureGrid {
 	display: grid;
@@ -127,6 +46,12 @@
 	text-align: left;
 	font-family: 'DM Sans', sans-serif;
 	position: relative;
+	/* A <button> centres its content vertically; cards in a row stretch to the
+	   tallest, so a two-line description would shift its neighbour's icon. */
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-start;
+	align-items: flex-start;
 	overflow: hidden;
 	outline: none;
 }
@@ -232,14 +157,6 @@
 	min-height: auto;
 }
 
-.emptyIcon {
-	width: 24px;
-	height: 24px;
-	opacity: 0.2;
-	margin-bottom: 12px;
-	animation: fadeIn 0.3s ease both;
-}
-
 .emptyTitle {
 	font-size: 14px;
 	font-weight: 500;
@@ -256,34 +173,6 @@
 	line-height: 1.5;
 	max-width: 260px;
 	animation: fadeIn 0.3s ease both 0.2s;
-}
-
-.resultHeader {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	margin-bottom: 12px;
-	width: 100%;
-	padding-bottom: 10px;
-	border-bottom: 0.5px solid var(--border);
-}
-
-.resultTag {
-	font-size: 11px;
-	font-weight: 500;
-	padding: 3px 10px;
-	border-radius: 20px;
-	background: var(--accent-bg);
-	color: var(--accent);
-	border: 0.5px solid var(--accent-border);
-	font-family: 'DM Sans', sans-serif;
-}
-
-.resultMeta {
-	font-size: 11px;
-	color: var(--text-tertiary);
-	margin-left: auto;
-	font-family: 'DM Mono', monospace;
 }
 
 .resultItem {
@@ -355,15 +244,22 @@
 	margin-bottom: 0;
 }
 
-.loadingBar {
-	position: absolute;
-	bottom: 0;
-	left: 0;
-	height: 2px;
-	background: var(--accent);
-	border-radius: 0 2px 2px 0;
-	width: 0%;
-	transition: width 0.05s linear;
+/* Revealed on hover, and on keyboard focus so it isn't an invisible tab stop. */
+.deleteBtn {
+	background: transparent;
+	border: none;
+	cursor: pointer;
+	color: var(--text-tertiary);
+	font-size: 14px;
+	opacity: 0;
+	transition: opacity 0.15s;
+	padding: 2px;
+	flex-shrink: 0;
+}
+
+.resultItem:hover .deleteBtn,
+.deleteBtn:focus-visible {
+	opacity: 1;
 }
 
 /* Skeleton Loading */
@@ -423,11 +319,6 @@
 	}
 }
 
-.noteTextWrapper {
-	margin-right: 2px;
-	margin-left: 2px;
-}
-
 /* Results States */
 .emptyStateContainer {
 	text-align: center;
@@ -449,234 +340,4 @@
 	line-height: 1.5;
 	padding: 0 8px;
 	animation: fadeIn 0.4s ease both 0.3s;
-}
-
-@keyframes shimmer-bar {
-	0% {
-		width: 10%;
-	}
-	50% {
-		width: 60%;
-	}
-	100% {
-		width: 10%;
-	}
-}
-
-.historyContainer {
-	justify-content: center;
-	align-items: center;
-	height: 100%;
-	overflow-y: scroll;
-}
-
-.historyButtonWrapper {
-	display: flex;
-	flex-direction: row;
-	justify-content: center;
-	align-items: center;
-	margin-top: 8px;
-	position: relative;
-}
-
-.historyButtonWrapper {
-	opacity: 1;
-	visibility: visible;
-}
-
-.savedPageTooltip {
-	position: absolute;
-	top: -85%;
-	left: 50%;
-	transform: translateX(-50%);
-	background-color: rgba(237, 237, 237, 0.7) !important;
-	color: rgba(90, 90, 90, 0.7);
-	padding: 4px 8px;
-	border-radius: 2px 0px 2px 2px;
-	font-size: 0.8rem;
-	font-weight: 300;
-	white-space: nowrap;
-	z-index: 1000;
-	opacity: 0;
-	visibility: hidden;
-	transition:
-		opacity 0.2s ease-in-out,
-		visibility 0.2s ease-in-out;
-	pointer-events: none;
-	box-shadow: -1px 2px 3px 0 rgba(120, 60, 20, 0.1);
-}
-
-.historyButton:hover .savedPageTooltip {
-	opacity: 1;
-	visibility: visible;
-}
-
-.historyButton {
-	background-color: #ffffff;
-	font-size: 0.8rem;
-	font-weight: 600;
-	padding: 8px 12px;
-	border: 1px solid #f0f0f0;
-	transition: 0.15s;
-	cursor: pointer;
-	border-radius: 24px;
-	display: flex;
-	position: relative;
-}
-
-.historyButton:hover {
-	background-color: #f0f0f0;
-	border: 1px solid #f0f0f0;
-	box-shadow: -1px 3px 5px 0 rgba(120, 60, 20, 0.1);
-	transition: 0.15s;
-}
-
-.historyItemContainer {
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	align-items: center;
-	margin-top: 4px;
-	transition: 0.15s;
-}
-
-.savedPageIconIndicatorContainer {
-	justify-items: center;
-	align-items: center;
-	transition: 0.15s;
-}
-
-.savedPageIconIndicator {
-	color: #bbbbbb;
-	font-size: 0.7rem;
-	justify-items: center;
-	padding-bottom: 3px;
-}
-
-.savedPageIcon {
-	color: #bbbbbb;
-	font-size: 1.2rem;
-	padding-top: 1px;
-	transition: 0.15s;
-}
-
-.savedPageIconActive {
-	color: gold;
-	font-size: 1.2rem;
-	padding-top: 1px;
-	transition: 0.15s;
-}
-
-.historyItem {
-	display: flex;
-	padding: 4px;
-	padding: 16px;
-	background-color: #f8f8f8;
-	border-radius: 16px;
-	transition: 0.15s;
-	margin: 8px 2px;
-}
-
-.historyText {
-	flex: 1;
-}
-
-.savedIconsContainer {
-	display: flex;
-	flex-direction: column;
-	justify-content: flex-start;
-	align-items: flex-start;
-}
-
-.genTypeIconWrapper {
-	align-items: center;
-	align-content: center;
-	justify-content: center;
-	margin-left: auto;
-	margin-top: auto;
-	border-radius: 12px;
-	transition: 0.15s;
-	background-color: #ffffff;
-}
-
-.genTypeIconWrapper_obscured {
-	align-content: center;
-	text-align: center;
-	margin-left: auto;
-	margin-top: auto;
-	border-radius: 12px;
-	transition: 0.15s;
-	background-color: #ffffff;
-	padding-left: 6px;
-	padding-right: 6px;
-}
-
-.savedTypeIcon {
-	border-radius: 12px;
-	padding: 4px;
-	display: flex;
-	color: #888888;
-	justify-content: right;
-	align-items: center;
-	text-align: center;
-	transition: 0.5s;
-}
-
-.historyEmptyWrapper {
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	align-items: center;
-	margin-top: 16px;
-	color: #888888;
-	font-size: 0.8rem;
-	font-weight: 300;
-	transition: 0.15s;
-}
-
-.historyDoc {
-	cursor: pointer;
-	transition: 0.15s;
-	color: #aaaaaa;
-	margin-bottom: 4px;
-	font-size: 0.8rem;
-}
-
-.historyDoc:hover {
-	color: #9c9ae1;
-}
-
-/* Transition animations for saved items */
-:global(.saved-item-enter) {
-	opacity: 0;
-	max-height: 0;
-	overflow: hidden;
-	transform: translateY(-20px);
-}
-
-:global(.saved-item-enter-active) {
-	opacity: 1;
-	max-height: 1000px;
-	transform: translateY(0);
-	transition:
-		opacity 300ms ease-in-out,
-		max-height 300ms ease-in-out,
-		transform 300ms ease-in-out;
-}
-
-:global(.saved-item-exit) {
-	opacity: 1;
-	max-height: 1000px;
-	overflow: hidden;
-	transform: translateY(0);
-}
-
-:global(.saved-item-exit-active) {
-	opacity: 0;
-	max-height: 0;
-	transform: translateY(-20px);
-	transition:
-		opacity 300ms ease-in-out,
-		max-height 300ms ease-in-out,
-		transform 300ms ease-in-out;
 }

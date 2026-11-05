@@ -12,7 +12,7 @@ import {
  * Each test drives one page with the model failing the way it does in
  * production — HTTP 200, then an `error` event mid-SSE-stream — and asserts the
  * writer is told, rather than left with a blank panel, a stuck spinner, or
- * "No suggestions yet".
+ * Draft's empty state ("Nothing yet").
  */
 test.beforeEach(async ({ page }) => {
   await setupMockBackend(page);
@@ -22,7 +22,7 @@ test.beforeEach(async ({ page }) => {
   await waitForEditorReady(page);
 });
 
-test('Draft: a quota failure is reported instead of "No suggestions yet"', async ({
+test('Draft: a quota failure is reported instead of the empty state', async ({
   page,
 }) => {
   await page.locator('button[aria-label="Questions"]').click();
@@ -30,7 +30,7 @@ test('Draft: a quota failure is reported instead of "No suggestions yet"', async
   const notice = page.getByRole('alert');
   await expect(notice).toBeVisible({ timeout: 10000 });
   await expect(notice).toContainText(/out of credit/i);
-  await expect(page.getByText('No suggestions yet')).toBeHidden();
+  await expect(page.getByText('Nothing yet', { exact: true })).toBeHidden();
 
   // The provider's own words stay available for a bug report, but only on request.
   await expect(page.getByText(QUOTA_ERROR_MESSAGE)).toBeHidden();
