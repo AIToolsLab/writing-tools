@@ -353,8 +353,23 @@ function AppInner() {
 		return resolvePage(pageName)?.render() ?? null;
 	}
 
+	// The app fills its mount point and scrolls inside its pages, so the mount
+	// point MUST have a definite height. `h-full` is `height: 100%`, which
+	// resolves to auto against a parent with only `min-height` (or no height):
+	// the app then grows with its content, the document scrolls instead of the
+	// page, the navbar and pinned footers scroll away, and a classic scrollbar
+	// eats 15px of a 300px sidebar. Nothing looks wrong until content overflows.
+	// Each surface meets this in its own place:
+	//   - Word task pane: `#container` inline style in taskpane.html
+	//   - Standalone editor/demo: `.sidebar` / `.demosidebar` in
+	//     editor/styles.module.css
+	//   - Google Docs: `#root` in index-gdocs.css (and sidebar.html)
+	// tests/app-fills-pane.spec.ts checks the editor demo and Google Docs.
 	return (
-		<div className="h-full flex flex-col overflow-hidden">
+		<div
+			data-testid="app-root"
+			className="h-full flex flex-col overflow-hidden"
+		>
 			<Navbar />
 			<div className="flex-1 flex flex-col overflow-y-auto">
 				{getComponent(page)}

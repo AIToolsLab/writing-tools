@@ -180,22 +180,18 @@ Two runners own two disjoint directories — never mix them:
     `update-snapshots` job commits fresh baselines to your branch. See
     [../VISUAL_REGRESSION.md](../VISUAL_REGRESSION.md).
   - Specs run against `npm run prod-server`, a static server over `dist/`, so
-    run `npm run build` first. Without it the webServer times out after 120s
-    with no hint why.
+    run `npm run build && npm run build:google-docs` first. Without it the
+    webServer times out after 120s with no hint why.
   - Headless Chromium hides scrollbars (Playwright passes `--hide-scrollbars`),
-    so a width measurement never sees the 15px a classic scrollbar takes. For
-    layout checks, launch with `ignoreDefaultArgs: ['--hide-scrollbars']`.
-  - The standalone editor is not a stand-in for the Google Docs sidebar's
-    sizing: its sidebar is 448px with a definite height, where Google Docs is
-    300px under `google-docs-addon/sidebar.html`'s CSS. To check the real
-    thing, serve a page from `dist/` with sidebar.html's `<style>`, a `#root`,
-    `google-docs.css` and `google-docs.bundle.js`, at a 300px viewport. It
-    needs a `window.GoogleAppsScript` stub whose methods are all async, with
-    `getDocumentName` resolving a string (it is `.trim()`ed) and
-    `getDocContext` an object; and, since this surface is full auth mode,
-    `localStorage['betterauth.token']` set plus an `/auth/get-session` route
-    returning a user with `isAllowed: true` — `setupMockBackend`'s anonymous
-    user lands on the "not allowed" screen.
+    so a width measurement never sees the 15px a classic scrollbar takes.
+    `tests/app-fills-pane.spec.ts` checks layout by measuring what scrolls
+    instead.
+  - The standalone editor is not a stand-in for the Google Docs sidebar (448px
+    vs 300px, different mount-point CSS). `tests/app-fills-pane.spec.ts` loads
+    the real `google-docs-addon/sidebar.html` and bundle with a stubbed
+    `google.script.run`; copy its setup to test anything else there. Full-mode
+    surfaces need `setupSignedInUser` (tests/mockBackend.ts) on top of
+    `setupMockBackend`, whose anonymous user can't pass the beta gate.
 
 Keep unit tests in `src/` and E2E specs in `tests/`. If a unit runner's globs reach
 into `tests/`, Playwright specs fail with "test.describe() did not expect to be called
