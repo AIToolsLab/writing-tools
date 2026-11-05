@@ -1,5 +1,7 @@
 /*
- * Shared design tokens for the add-in's pages (Draft, Revise, the brief section).
+ * Shared design tokens and base typography for the add-in's pages. Imported by
+ * pages/app (task pane, Google Docs sidebar, standalone editor) and the account
+ * page.
  */
 :root {
 	--bg: #f0ede6;
@@ -15,4 +17,19 @@
 	--accent-border: #c4caff;
 	--radius: 10px;
 	--radius-sm: 8px;
+}
+
+/*
+ * Base typography. This used to come from Reshaped's theme; it is kept as it
+ * was so removing that library didn't change how text looks. Unlayered, so it
+ * beats Tailwind's preflight (which sits in @layer base).
+ */
+body {
+	font-family:
+		Inter, BlinkMacSystemFont, -apple-system, Roboto, Helvetica, Arial,
+		sans-serif;
+	font-size: 0.875rem;
+	line-height: 1.25rem;
+	color: var(--text-primary);
+	-webkit-font-smoothing: antialiased;
 }

@@ -10,6 +10,11 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Button } from '@/components/button';
+// The same base layer as the task pane: Tailwind's preflight reset, then the
+// theme's tokens and typography. This page is its own entry point, so it gets
+// neither unless it imports them.
+import '@/taskpane.css';
+import '@/theme.css';
 import { AppAuthProvider, useAppAuth } from '@/contexts/appAuthContext';
 import { AccountPage } from './AccountPage';
 import { DeviceCodePanel } from './DeviceCodePanel';

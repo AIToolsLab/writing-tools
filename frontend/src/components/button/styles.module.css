@@ -1,11 +1,24 @@
+/* Colours are the tokens from @/theme.css. Hover and fill shades are derived
+ * from them rather than given their own hex values, so a change to the
+ * palette carries through. */
 .button {
+	--accent-hover: color-mix(in srgb, var(--accent) 85%, black);
+	--neutral-fill: color-mix(in srgb, var(--text-primary) 8%, transparent);
+	--neutral-fill-hover: color-mix(
+		in srgb,
+		var(--text-primary) 14%,
+		transparent
+	);
+
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
 	gap: 0.5rem;
-	border-radius: 6px;
+	border: 1px solid transparent;
+	border-radius: var(--radius-sm);
 	font-size: 0.9rem;
 	font-weight: 500;
+	text-decoration: none;
 	cursor: pointer;
 	transition:
 		background-color 0.15s ease,
@@ -14,7 +27,7 @@
 	white-space: nowrap;
 }
 
-.button:disabled {
+.inactive {
 	cursor: not-allowed;
 	opacity: 0.6;
 }
@@ -36,67 +49,57 @@
 /* primary */
 
 .primary.solid {
-	background-color: #007bff;
-	border: 1px solid #007bff;
-	color: white;
+	background-color: var(--accent);
+	border-color: var(--accent);
+	color: var(--surface);
 }
 
-.primary.solid:not(:disabled):hover {
-	background-color: #0069d9;
-	border-color: #0069d9;
+.primary.solid:not(.inactive):hover {
+	background-color: var(--accent-hover);
+	border-color: var(--accent-hover);
 }
 
 .primary.outline {
 	background-color: transparent;
-	border: 1px solid #007bff;
-	color: #007bff;
-}
-
-.primary.outline:not(:disabled):hover {
-	background-color: rgba(0, 123, 255, 0.08);
+	border-color: var(--accent);
+	color: var(--accent);
 }
 
 .primary.ghost {
 	background-color: transparent;
-	border: 1px solid transparent;
-	color: #007bff;
+	color: var(--accent);
 }
 
-.primary.ghost:not(:disabled):hover {
-	background-color: rgba(0, 123, 255, 0.08);
+.primary.outline:not(.inactive):hover,
+.primary.ghost:not(.inactive):hover {
+	background-color: var(--accent-bg);
 }
 
 /* neutral */
 
 .neutral.solid {
-	background-color: #686868;
-	border: 1px solid #686868;
-	color: white;
+	background-color: var(--neutral-fill);
+	color: var(--text-primary);
 }
 
-.neutral.solid:not(:disabled):hover {
-	background-color: #535353;
-	border-color: #535353;
+.neutral.solid:not(.inactive):hover {
+	background-color: var(--neutral-fill-hover);
 }
 
 .neutral.outline {
 	background-color: transparent;
-	border: 1px solid #bdbdbd;
-	color: #686868;
-}
-
-.neutral.outline:not(:disabled):hover {
-	background-color: #f1f1f1;
+	border-color: var(--border-strong);
+	color: var(--text-primary);
 }
 
 .neutral.ghost {
 	background-color: transparent;
-	border: 1px solid transparent;
-	color: #686868;
+	color: var(--text-secondary);
 }
 
-.neutral.ghost:not(:disabled):hover {
-	background-color: #f1f1f1;
+.neutral.outline:not(.inactive):hover,
+.neutral.ghost:not(.inactive):hover {
+	background-color: var(--neutral-fill);
 }
 
 .spinner {

@@ -1,39 +1,59 @@
-import type { AnchorHTMLAttributes, ButtonHTMLAttributes } from 'react';
+/**
+ * The app's button. Renders a <button>, or an <a> when `href` is given.
+ *
+ * Colours come from the tokens in `@/theme.css`, which each entry point
+ * imports; this component does not import it itself, to keep the global
+ * stylesheet a decision of the page rather than a side effect of a button.
+ */
+import type {
+	AnchorHTMLAttributes,
+	ButtonHTMLAttributes,
+	MouseEvent,
+	ReactNode,
+} from 'react';
 import classes from './styles.module.css';
 
-type ButtonColor = 'primary' | 'neutral';
-type ButtonVariant = 'solid' | 'outline' | 'ghost';
-type ButtonSize = 'small' | 'medium' | 'large';
-
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-	color?: ButtonColor;
-	variant?: ButtonVariant;
-	size?: ButtonSize;
+interface StyleProps {
+	color?: 'primary' | 'neutral';
+	variant?: 'solid' | 'outline' | 'ghost';
+	size?: 'small' | 'medium' | 'large';
+	/** Shows a spinner and makes the button inactive. */
 	loading?: boolean;
-	/** When set, renders an anchor instead of a button. */
-	href?: string;
-	/** Extra attributes applied to the rendered element. */
-	attributes?: AnchorHTMLAttributes<HTMLAnchorElement>;
+	disabled?: boolean;
+	className?: string;
+	children?: ReactNode;
 }
 
-export function Button({
-	color = 'neutral',
-	variant = 'solid',
-	size = 'medium',
-	loading = false,
-	disabled,
-	className,
-	children,
-	type = 'button',
-	href,
-	attributes,
-	...rest
-}: ButtonProps) {
+type LinkProps = StyleProps &
+	Omit<AnchorHTMLAttributes<HTMLAnchorElement>, keyof StyleProps> & {
+		href: string;
+	};
+
+type NativeButtonProps = StyleProps &
+	Omit<ButtonHTMLAttributes<HTMLButtonElement>, keyof StyleProps> & {
+		href?: undefined;
+	};
+
+export type ButtonProps = LinkProps | NativeButtonProps;
+
+export function Button(props: ButtonProps) {
+	const {
+		color = 'neutral',
+		variant = 'solid',
+		size = 'medium',
+		loading = false,
+		disabled = false,
+		className,
+		children,
+	} = props;
+	const inactive = disabled || loading;
+
 	const classNames = [
 		classes.button,
 		classes[color],
 		classes[variant],
 		classes[size],
+		inactive && classes.inactive,
 		className,
 	]
 		.filter(Boolean)
@@ -48,25 +68,57 @@ export function Button({
 		</>
 	);
 
-	if (href) {
+	if (props.href !== undefined) {
+		const {
+			color: _color,
+			variant: _variant,
+			size: _size,
+			loading: _loading,
+			disabled: _disabled,
+			className: _className,
+			children: _children,
+			href,
+			onClick,
+			...anchorProps
+		} = props;
+		// An <a> without href is not a link: it can't be focused, followed, or
+		// opened in a new tab, which is what "disabled" should mean here.
 		return (
 			<a
-				href={href}
+				{...anchorProps}
 				className={classNames}
-				aria-disabled={disabled || loading}
-				{...attributes}
+				href={inactive ? undefined : href}
+				onClick={
+					inactive
+						? (event: MouseEvent<HTMLAnchorElement>) =>
+								event.preventDefault()
+						: onClick
+				}
+				aria-disabled={inactive || undefined}
 			>
 				{content}
 			</a>
 		);
 	}
 
+	const {
+		color: _color,
+		variant: _variant,
+		size: _size,
+		loading: _loading,
+		disabled: _disabled,
+		className: _className,
+		children: _children,
+		href: _href,
+		type,
+		...buttonProps
+	} = props;
 	return (
 		<button
-			type={type}
+			{...buttonProps}
+			type={type ?? 'button'}
 			className={classNames}
-			disabled={disabled || loading}
-			{...rest}
+			disabled={inactive}
 		>
 			{content}
 		</button>

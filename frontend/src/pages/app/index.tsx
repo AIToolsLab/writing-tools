@@ -129,7 +129,8 @@ function DeviceAuthStatus({
 				<div style={{ margin: '0.25rem 0 0.75rem' }}>
 					<Button
 						href={authorization.verificationUri}
-						attributes={{ target: '_blank', rel: 'noopener' }}
+						target="_blank"
+						rel="noopener"
 						color="primary"
 						variant="outline"
 						size="small"
