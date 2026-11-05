@@ -14,7 +14,7 @@
  * (`@/api/vllm`), not through the backend.
  */
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { Button } from 'reshaped';
+import { Button } from '@/components/button';
 import { workbenchLog } from '@/api/logging';
 import { fetchPost, showToken, VLLM_URL, VllmClient } from '@/api/vllm';
 import BriefSection from '@/components/briefSection';
