@@ -14,14 +14,19 @@ RUN npm ci
 COPY frontend/ ./
 RUN npm run build && npm run build:google-docs
 
-# 2) Build the backend -> /app/backend/dist (tsc).
+# 2) Build the backend -> /app/backend/dist (tsc), then drop dev deps so the
+#    runtime stage can copy node_modules as-is. Installing once (rather than a
+#    second `npm ci --omit=dev` in the runtime stage) means better-sqlite3's
+#    prebuilt binary is downloaded once; a flaky download there falls back to
+#    node-gyp, which needs Python that slim images don't have. Both stages use
+#    the same base image, so the native binary is compatible.
 FROM node:24-slim AS backend
 WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci
 COPY backend/tsconfig.json ./
 COPY backend/src ./src
-RUN npm run build
+RUN npm run build && npm prune --omit=dev
 
 # 3) Runtime: Node serving the compiled backend + the frontend as static files.
 FROM node:24-slim AS run
@@ -46,8 +51,8 @@ ENV GIT_COMMIT=${GIT_COMMIT}
 # STATIC_ROOT (backend/src/static.ts) defaults to ./public; DATA_DIR
 # (backend/src/config.ts) defaults to ./data but compose points it at the
 # mounted data volume.
-COPY backend/package.json backend/package-lock.json* ./
-RUN npm ci --omit=dev
+COPY backend/package.json ./
+COPY --from=backend /app/backend/node_modules ./node_modules
 COPY --from=backend /app/backend/dist ./dist
 # Frontend build output becomes the static root (STATIC_ROOT=./public).
 COPY --from=frontend /frontend/dist ./public
