@@ -1,11 +1,5 @@
 /*
  * Shared design tokens for the add-in's pages (Draft, Revise, the brief section).
- *
- * These used to be declared in two CSS modules — `:root` isn't scoped by CSS
- * modules, so Draft's and Revise's palettes collided and whichever loaded last
- * won (Revise's, given the import order in pages/registry.tsx). The values below
- * are that effective result, so consolidating them here changed nothing visible.
- * Define tokens here only; a second `:root` block elsewhere reintroduces the race.
  */
 :root {
 	--bg: #f0ede6;
