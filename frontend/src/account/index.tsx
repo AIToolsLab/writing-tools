@@ -9,8 +9,7 @@
  */
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { Button, Reshaped } from 'reshaped';
-import 'reshaped/themes/slate/theme.css';
+import { Button } from '@/components/button';
 import { AppAuthProvider, useAppAuth } from '@/contexts/appAuthContext';
 import { AccountPage } from './AccountPage';
 import { DeviceCodePanel } from './DeviceCodePanel';
@@ -84,11 +83,9 @@ const container = document.getElementById('container');
 if (container) {
 	createRoot(container).render(
 		<StrictMode>
-			<Reshaped theme="slate">
-				<AppAuthProvider>
-					<SignInGate />
-				</AppAuthProvider>
-			</Reshaped>
+			<AppAuthProvider>
+				<SignInGate />
+			</AppAuthProvider>
 		</StrictMode>,
 	);
 }
