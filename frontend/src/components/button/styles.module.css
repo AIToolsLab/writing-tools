@@ -1,6 +1,10 @@
 /* Colours are the tokens from @/theme.css. Hover and fill shades are derived
  * from them rather than given their own hex values, so a change to the
- * palette carries through. */
+ * palette carries through.
+ *
+ * Every text/background pair here meets WCAG AA (4.5:1) on white, #f1f1f1
+ * and --bg, the backgrounds buttons sit on. Recheck if a token changes.
+ * The inactive state's reduced contrast is exempt (WCAG 1.4.3). */
 .button {
 	--accent-hover: color-mix(in srgb, var(--accent) 85%, black);
 	--neutral-fill: color-mix(in srgb, var(--text-primary) 8%, transparent);
@@ -97,9 +101,15 @@
 	color: var(--text-secondary);
 }
 
-.neutral.outline:not(.inactive):hover,
+.neutral.outline:not(.inactive):hover {
+	background-color: var(--neutral-fill);
+}
+
+/* Secondary text on the hover fill is under 4.5:1 on the grey panels, so the
+ * text darkens as the fill appears. */
 .neutral.ghost:not(.inactive):hover {
 	background-color: var(--neutral-fill);
+	color: var(--text-primary);
 }
 
 .spinner {

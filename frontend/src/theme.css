@@ -20,13 +20,13 @@
 }
 
 /*
- * Base typography. This used to come from Reshaped's theme; it is kept as it
- * was so removing that library didn't change how text looks. Unlayered, so it
+ * Base typography, which used to come from Reshaped's theme. The system UI
+ * font matches the host app (Segoe UI in Word on Windows). Unlayered, so it
  * beats Tailwind's preflight (which sits in @layer base).
  */
 body {
 	font-family:
-		Inter, BlinkMacSystemFont, -apple-system, Roboto, Helvetica, Arial,
+		system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
 		sans-serif;
 	font-size: 0.875rem;
 	line-height: 1.25rem;
