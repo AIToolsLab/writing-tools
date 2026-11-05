@@ -34,10 +34,11 @@ from the registry, so neither needs editing.
   lab page shares that one button, so the strip's width doesn't grow with the
   number of experiments in flight.
 
-The cap is a platform constraint, not a style rule: the Google Docs sidebar is
-locked at ~300px with no splitter, which leaves 57.3px of label per tab beside the
-Labs button. A fourth core tab drops that to 37.0px, under the widest label
-("Revise", 39.8px). In-progress work belongs in `lab`.
+The cap comes from the platform, not style: the Google Docs sidebar is
+locked at ~300px (~285px usable) with no splitter, which leaves ~66-71px of label
+per tab beside the Labs button. A fourth core tab drops that to ~46-50px, only a
+few pixels over the widest label ("Revise", 39.8px) — see `MAX_CORE_PAGES` in
+`registry.tsx`. In-progress work belongs in `lab`.
 
 `enabled` (optional) hides a page entirely — see `src/pages/flags.ts`. Note the
 URL override there only reaches the standalone editor and dev server: the Word

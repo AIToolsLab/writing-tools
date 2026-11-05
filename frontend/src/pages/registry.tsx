@@ -14,7 +14,7 @@
  *
  * The tier split exists for space, and the binding constraint is the Google Docs
  * sidebar: the platform locks it to ~300px with no splitter to drag, which leaves
- * roughly 57px of text per tab once the fixed-width Labs button is subtracted (see
+ * roughly 71px of text per tab once the fixed-width Labs button is subtracted (see
  * `components/navbar/styles.module.css`). Three text tabs is what fits. Because
  * every lab page shares the single Labs button, the strip's width stops being a
  * function of how many experiments are in flight — that, not tidiness, is the
@@ -117,16 +117,17 @@ export const DEFAULT_PAGE = PageName.Draft;
 /**
  * The maximum core tabs the narrowest surface can hold.
  *
- * Measured, not chosen. The Google Docs sidebar is locked at ~300px, where three
- * tabs beside the fixed-width Labs button get 57.3px of text each and the widest
- * label ("Revise", 39.8px) fits comfortably. A fourth drops that to 37.0px —
- * under the label — and because a one-word label has no break opportunity it
- * doesn't wrap, it overflows its button. `registry.test.ts` asserts this bound,
- * so adding a core page fails the suite instead of the sidebar.
+ * The Google Docs sidebar is locked at ~300px (~285px usable), where three tabs
+ * beside the fixed-width Labs button get 71.3px of text each (66.3px at 285)
+ * and the widest label ("Revise", 39.8px) fits comfortably. A fourth would get
+ * 50.0px (46.3px at 285): it fits today, but only with ~6px to spare at 285,
+ * so the next slightly longer label or localized string overflows — a one-word
+ * label has no break opportunity, so it doesn't wrap, it runs out of its
+ * button. `registry.test.ts` asserts this bound, so adding a core page fails
+ * the suite instead of the sidebar.
  *
- * The figure assumes the Labs button is present, which it is whenever any lab
- * page exists. Four tabs would fit without it (46.0px), but the strip is not
- * worth making conditional on that.
+ * (When tab padding was 20px rather than 10px, a fourth tab measured 37.0px and
+ * did not fit at all; the cap was a hard limit then and is a margin now.)
  */
 export const MAX_CORE_PAGES = 3;
 

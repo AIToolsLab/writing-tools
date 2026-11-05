@@ -1,6 +1,6 @@
 .tabs {
 	display: flex;
-	padding: 12px 12px 0;
+	padding: 6px 6px 0;
 	background: #ffffff;
 	border-bottom: 1px solid #e4e0d8;
 	gap: 4px;
@@ -36,7 +36,7 @@
 	flex-direction: column;
 	align-items: center;
 	gap: 2px;
-	padding: 8px 10px 10px;
+	padding: 6px 4px 8px;
 	border: 1px solid transparent;
 	border-bottom: none;
 	border-radius: 6px 6px 0 0;
@@ -92,10 +92,10 @@
  * the strip can't depend on any one string fitting on one line. Tabs are flex
  * items that stretch to the tallest, so a two-line hint keeps the row even.
  * What this threshold guards against is the narrow case, where each tab gets
- * `(C - 32px Labs - 12px gaps) / 3 - 20px padding` of label room: in the Google
- * Docs sidebar (locked by the platform at ~300px) that is ~57px, and hints
- * there wrapped to three or four lines each. 416 leaves ~104px per hint, about
- * 20 characters of English per line.
+ * `(C - 32px Labs - 12px gaps) / 3 - 10px padding and border` of label room:
+ * in the Google Docs sidebar (locked by the platform at ~300px, of which ~285px
+ * is usable) that is ~66-71px, and hints there wrap to three or more lines
+ * each. 386 leaves ~104px per hint, about 20 characters of English per line.
  *
  * A @container query, not @media: the width that matters is the strip's, and the
  * two only coincide where the pane is the viewport. See `container-type` on
@@ -104,15 +104,14 @@
  * and EdgeHTML users the add-in won't run correctly at all.
  *
  * C is the strip's CONTENT box: a container query excludes the queried element's
- * own padding, where a media query would have counted it. That is why this reads
- * 415 and not the 439 an equivalent viewport breakpoint used — .tabs carries
- * 24px of horizontal padding, so a 440px-wide strip queries as 416px.
+ * own padding, where a media query would have counted it. .tabs carries 12px
+ * of horizontal padding, so a 398px-wide strip queries as 386px.
  *
  * The hint is still on every tab as a `title` tooltip, so nothing is lost that
  * a hover can't recover; the Labs menu shows its entries' hints unconditionally,
  * because a dropdown has width the strip doesn't.
  */
-@container (max-width: 415px) {
+@container (max-width: 385px) {
 	/* Scoped to the strip: the Labs menu reuses .tabHint and must keep it. */
 	.tabBtn .tabHint {
 		display: none;
@@ -124,8 +123,8 @@
  *
  * `flex: 0 0 auto` is the load-bearing part: keeping this button out of the
  * `flex: 1` distribution costs a fixed ~32px instead of an equal share, which
- * leaves the core tabs ~57px of text at the 300px Google Docs width rather than
- * the ~46px they'd get if Labs were a fourth equal tab.
+ * leaves the core tabs ~71px of text at the 300px Google Docs width rather than
+ * the ~59px they'd get if Labs were a fourth equal tab.
  */
 .labs {
 	flex: 0 0 auto;
