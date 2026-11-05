@@ -480,6 +480,7 @@ describe('Logging into Mindmap with Thoughtful: security assurances', () => {
 				['/api/log', asMindmap('POST', {})],
 				['/api/me/consent', asMindmap('POST', { loggingConsent: 'usage' })],
 				['/api/me/activity', asMindmap('DELETE')],
+				['/api/me/data', asMindmap('GET')],
 				['/api/handoff', asMindmap('POST', { tool_client_id: 'mindmap', scopes: ['openai:chat'] })],
 				['/api/openai/realtime/session', asMindmap('POST', {})],
 			];

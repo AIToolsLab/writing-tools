@@ -106,6 +106,27 @@ export function anonymizeUserUsage(userId: string): void {
 		.run(DELETED_USER_ID, userId);
 }
 
+/**
+ * One user's raw usage rows, oldest first, optionally only those at or after
+ * `sinceMs`. Backs the self-service "download my data" export: these rows are
+ * data we hold about the person even though they sit outside the consent tiers.
+ */
+export function userUsageRows(
+	userId: string,
+	sinceMs?: number,
+): Array<Record<string, unknown>> {
+	return db()
+		.prepare(
+			`SELECT ts, client_id, provider, endpoint, model, input_tokens,
+				cached_input_tokens, output_tokens, reasoning_tokens, status,
+				streamed, duration_ms, ttft_ms
+			FROM llm_usage
+			WHERE user_id = ? AND ts >= ?
+			ORDER BY ts, id`,
+		)
+		.all(userId, sinceMs ?? 0) as Array<Record<string, unknown>>;
+}
+
 export interface UsageSummaryRow {
 	userId: string;
 	email: string | null;
