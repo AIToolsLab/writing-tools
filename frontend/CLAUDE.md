@@ -19,7 +19,13 @@ TypeScript/React Microsoft Office Add-in for Word + standalone editor
   - `logs.html`, `commands.html`, `index.html` (landing page)
 - **Static assets**: `public/` (copied to `dist/` root; includes `manifest.xml`
   and `public/assets/`). Images imported in code live in `src/assets/`.
-- **Manifest**: `frontend/public/manifest.xml` for Office Add-in configuration
+- **Manifest**: `frontend/public/manifest.xml` for Office Add-in configuration.
+  Sideload it by hand (see the root README). There are deliberately no
+  `office-addin-debugging`/`office-addin-manifest` deps or `start`/`validate`
+  scripts — together they pulled in ~580 packages (incl. all of `@azure/*`).
+  To validate, run ad hoc:
+  `npx office-addin-manifest validate public/manifest.xml` (calls a Microsoft
+  web service, so it needs network access).
 
 ### Pages and the navbar
 
