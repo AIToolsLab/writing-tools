@@ -16,6 +16,7 @@ import { googleDocsEditorAPI } from '@/api/googleDocsEditorAPI';
 import { EditorContext } from './contexts/editorContext';
 
 import './taskpane.css';
+import './index-gdocs.css';
 
 // Signal that the React app has loaded (used by sidebar.html)
 window.__REACT_APP_LOADED__ = true;

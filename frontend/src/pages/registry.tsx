@@ -117,11 +117,11 @@ export const DEFAULT_PAGE = PageName.Draft;
 /**
  * The maximum core tabs the narrowest surface can hold.
  *
- * The Google Docs sidebar is locked at ~300px (~285px usable), where three tabs
- * beside the fixed-width Labs button get 71.3px of text each (66.3px at 285)
- * and the widest label ("Revise", 39.8px) fits comfortably. A fourth would get
- * 50.0px (46.3px at 285): it fits today, but only with ~6px to spare at 285,
- * so the next slightly longer label or localized string overflows — a one-word
+ * The Google Docs sidebar is locked at ~300px, where three tabs beside the
+ * fixed-width Labs button get 71.3px of text each and the widest label
+ * ("Revise", 39.8px) fits comfortably. A fourth would get 50.0px: it fits
+ * today, but with ~10px to spare, so the next slightly longer label or
+ * localized string overflows — a one-word
  * label has no break opportunity, so it doesn't wrap, it runs out of its
  * button. `registry.test.ts` asserts this bound, so adding a core page fails
  * the suite instead of the sidebar.

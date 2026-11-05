@@ -93,9 +93,8 @@
  * items that stretch to the tallest, so a two-line hint keeps the row even.
  * What this threshold guards against is the narrow case, where each tab gets
  * `(C - 32px Labs - 12px gaps) / 3 - 10px padding and border` of label room:
- * in the Google Docs sidebar (locked by the platform at ~300px, of which ~285px
- * is usable) that is ~66-71px, and hints there wrap to three or more lines
- * each. 386 leaves ~104px per hint, about 20 characters of English per line.
+ * in the Google Docs sidebar (locked by the platform at ~300px) that is ~71px,
+ * and hints there wrap to three or more lines each. 386 leaves ~104px per hint, about 20 characters of English per line.
  *
  * A @container query, not @media: the width that matters is the strip's, and the
  * two only coincide where the pane is the viewport. See `container-type` on
