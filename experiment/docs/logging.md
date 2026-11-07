@@ -24,6 +24,31 @@ Client: `lib/logging.ts`. Server: `app/api/log/route.ts`. Output: `logs/<usernam
 The server writes every entry with a valid username and skips (rather than rejects)
 invalid ones.
 
+## Quick look: `scripts/log-viewer.html`
+
+Open `scripts/log-viewer.html` in a browser (straight from disk, no server) and drop in log
+files or a whole folder. Files are read locally and never uploaded. It applies the notes
+below (dedupe, ordering, `seq` gaps) and shows:
+
+- **One row per participant** with flags for: task or post-task survey not submitted, lost
+  events, reloads, more than one git commit, condition/scenario mismatches, AI events in
+  the wrong condition, and a missing or mismatched `email_feedback` keystroke log. The
+  table also shows the "technical difficulties" answer.
+- **A colleague-opener check.** It compares each task page load's first colleague message
+  across all loaded files, so a load showing another scenario's opener (e.g. the
+  pre-`700c859` race that showed the default scenario) gets flagged.
+- **Per-participant detail:** the chat transcript (split at reloads), the submitted email,
+  email length over time with chat/AI markers, a slider through every `documentUpdate`
+  snapshot, AI suggestions, both surveys, a replay of the `email_feedback` keystroke log,
+  and the raw events.
+
+It knows the page list, condition codes and the `email_feedback` /
+`technical_difficulties` question ids. Update the constants at the top of its script if
+those change.
+
+For analysis rather than checking, see `../scripts/extract_experiment_data.py`. Note that
+it skips participants without `taskComplete` and doesn't deduplicate.
+
 ## Analysis notes
 
 - **Deduplicate on `(sessionId, seq)`.** Duplicates are expected: a batch is retried
