@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../index', () => ({ SERVER_URL: '/api' }));
+vi.mock('../index', () => ({ SERVER_ORIGIN: '', SERVER_URL: '/api' }));
 
 import {
 	accountPageUrl,
@@ -13,14 +13,15 @@ let fetchMock: ReturnType<typeof vi.fn>;
 
 describe('accountPageUrl', () => {
 	it('points at the backend origin, not the page origin', () => {
-		// Google Docs sidebar: SERVER_URL comes from the bundle's script src.
-		expect(accountPageUrl('https://app.thoughtful-ai.com/api')).toBe(
+		// Google Docs sidebar: the origin comes from the bundle's script src.
+		expect(accountPageUrl('https://app.thoughtful-ai.com')).toBe(
 			'https://app.thoughtful-ai.com/account.html',
 		);
-		// Task pane / editor, and the relative URL tests use.
-		expect(accountPageUrl('https://localhost:3000/api')).toBe(
+		// Task pane / editor: the page's own origin.
+		expect(accountPageUrl('https://localhost:3000')).toBe(
 			'https://localhost:3000/account.html',
 		);
+		// Outside a browser the origin is empty, so the link is root-relative.
 		expect(accountPageUrl()).toBe('/account.html');
 	});
 });

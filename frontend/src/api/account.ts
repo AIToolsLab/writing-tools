@@ -5,16 +5,16 @@
  * the rest of the device-auth client uses (see deviceAuth.ts). No better-auth
  * client dependency.
  */
-import { SERVER_URL } from '@/api';
+import { SERVER_ORIGIN, SERVER_URL } from '@/api';
 import { isConsentLevel, type ConsentLevel } from '@/consent';
 
 /**
  * Where the standalone account page lives: the backend's origin, which serves the
- * built frontend. Derived from SERVER_URL, not a root-relative link, because the
- * Google Docs sidebar runs on a Google origin where `/account.html` doesn't exist.
+ * built frontend. Not a root-relative link, because the Google Docs sidebar runs
+ * on a Google origin where `/account.html` doesn't exist.
  */
-export function accountPageUrl(serverUrl: string = SERVER_URL): string {
-	return `${serverUrl.replace(/\/api$/, '')}/account.html`;
+export function accountPageUrl(origin: string = SERVER_ORIGIN): string {
+	return `${origin}/account.html`;
 }
 
 function authedFetch(

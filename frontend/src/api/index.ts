@@ -1,10 +1,11 @@
 /**
- * Resolves the backend base URL.
+ * Resolves the backend's origin.
  *
- * Whatever origin served this bundle also serves the backend API, so we
- * discover it at runtime instead of baking it in at build time — one built
- * image is deployed to both staging and production, and a compile-time
- * constant would send the staging sidebar to the production backend.
+ * Whatever origin served this bundle also serves the backend API (and the built
+ * pages, such as account.html), so we discover it at runtime instead of baking
+ * it in at build time — one built image is deployed to both staging and
+ * production, and a compile-time constant would send the staging sidebar to the
+ * production backend.
  *
  * The Google Docs sidebar is the case that needs the script tag: the page
  * itself is on a Google origin, but `sidebar.html` injects our bundle as a
@@ -16,22 +17,24 @@
  * the `window.location.origin` path; in development the dev server proxies
  * /api through to the backend, so localhost is the right origin there too.
  */
-function resolveServerUrl(): string {
+function resolveServerOrigin(): string {
 	if (typeof document === 'undefined') {
-		// Not a browser (e.g. unit tests). Actual requests are mocked, so the URL doesn't matter.
-		return '/api';
+		// Not a browser (e.g. unit tests). Actual requests are mocked, so the URL
+		// doesn't matter; an empty origin keeps every URL root-relative.
+		return '';
 	}
 
 	// Non-null only while a classic <script> executes (the Google Docs bundle).
 	const script = document.currentScript as HTMLScriptElement | null;
 	if (script?.src) {
-		return `${new URL(script.src).origin}/api`;
+		return new URL(script.src).origin;
 	}
 	// Module script: the page's own origin serves the API.
-	return `${window.location.origin}/api`;
+	return window.location.origin;
 }
 
-export const SERVER_URL = resolveServerUrl();
+export const SERVER_ORIGIN = resolveServerOrigin();
+export const SERVER_URL = `${SERVER_ORIGIN}/api`;
 
 // Re-export editor APIs
 export { wordEditorAPI } from './wordEditorAPI';
