@@ -42,34 +42,73 @@ function SavedGenerations({ savedItems }: { savedItems: SavedItem[] }) {
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
   const highlightedKey = hoveredKey ?? savedItems[0]?.dateSaved.toString();
 
+  // Checks whether the highlighted card runs past the bottom of the scroll area
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const cardRefs = useRef(new Map<string, HTMLDivElement>());
+  const [isCutOff, setIsCutOff] = useState(false);
+
+  const updateCutOff = useCallback(() => {
+    const container = scrollRef.current;
+    const card = highlightedKey ? cardRefs.current.get(highlightedKey) : undefined;
+    if (!container || !card) {
+      setIsCutOff(false);
+      return;
+    }
+    // 1px of slack for subpixel rounding
+    setIsCutOff(card.getBoundingClientRect().bottom > container.getBoundingClientRect().bottom + 1);
+  }, [highlightedKey]);
+
+  // ResizeObserver reports each element once when observing starts, so this
+  // also checks right away whenever the highlighted card or the list changes
+  useEffect(() => {
+    const container = scrollRef.current;
+    const card = highlightedKey ? cardRefs.current.get(highlightedKey) : undefined;
+    const observer = new ResizeObserver(updateCutOff);
+    if (container) observer.observe(container);
+    if (card) observer.observe(card);
+    return () => observer.disconnect();
+  }, [updateCutOff, highlightedKey, savedItems]);
+
   return (
-    <div className="flex-1 overflow-y-auto space-y-3">
-      {savedItems.length === 0 ? (
-        <div className="flex items-center justify-center h-24 text-center">
-          <div className="text-sm text-gray-500 font-medium">No suggestions yet...</div>
-        </div>
-      ) : (
-        savedItems.map((savedItem) => {
-          const key = savedItem.dateSaved.toString();
-          const isHighlighted = key === highlightedKey;
-          return (
-            <div
-              key={key}
-              onMouseEnter={() => setHoveredKey(key)}
-              onMouseLeave={() => setHoveredKey((prev) => (prev === key ? null : prev))}
-              className={`border rounded p-3 transition-all ${
-                isHighlighted
-                  ? 'bg-blue-50 border-blue-200 shadow-md'
-                  : 'bg-gray-50 border-gray-200'
-              }`}
-            >
-              <div className="mb-1 text-xs text-gray-400">
-                {savedItem.dateSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+    <div className="relative flex-1 min-h-0 flex flex-col">
+      <div ref={scrollRef} onScroll={updateCutOff} className="flex-1 overflow-y-auto space-y-3">
+        {savedItems.length === 0 ? (
+          <div className="flex items-center justify-center h-24 text-center">
+            <div className="text-sm text-gray-500 font-medium">No suggestions yet...</div>
+          </div>
+        ) : (
+          savedItems.map((savedItem) => {
+            const key = savedItem.dateSaved.toString();
+            const isHighlighted = key === highlightedKey;
+            return (
+              <div
+                key={key}
+                ref={(el) => {
+                  if (el) cardRefs.current.set(key, el);
+                  else cardRefs.current.delete(key);
+                }}
+                onMouseEnter={() => setHoveredKey(key)}
+                onMouseLeave={() => setHoveredKey((prev) => (prev === key ? null : prev))}
+                className={`border rounded p-3 transition-all ${
+                  isHighlighted
+                    ? 'bg-blue-50 border-blue-200 shadow-md'
+                    : 'bg-gray-50 border-gray-200'
+                }`}
+              >
+                <div className="mb-1 text-xs text-gray-400">
+                  {savedItem.dateSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </div>
+                <GenerationResultDisplay generation={savedItem.generation} />
               </div>
-              <GenerationResultDisplay generation={savedItem.generation} />
-            </div>
-          );
-        })
+            );
+          })
+        )}
+      </div>
+      {isCutOff && (
+        // Doesn't take pointer events, so hovering and scrolling pass through to the cards
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 pt-6 pb-1.5 bg-gradient-to-t from-white via-white/90 to-transparent text-center">
+          <span className="text-xs font-bold text-orange-600">Scroll down for more...</span>
+        </div>
       )}
     </div>
   );
