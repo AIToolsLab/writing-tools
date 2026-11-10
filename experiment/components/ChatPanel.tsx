@@ -378,7 +378,7 @@ export default function ChatPanel({ onNewMessage, onConversationChange }: ChatPa
               style={{ maxWidth: '85%' }}
             >
               <div
-                className={`px-2.5 py-2 rounded-xl text-gray-900 ${
+                className={`px-2.5 py-2 rounded-xl text-gray-900 wrap-break-word ${
                   part.isUser
                     ? 'bg-blue-200 rounded-br-sm ml-auto font-medium'
                     : 'bg-gray-200 rounded-bl-sm'
