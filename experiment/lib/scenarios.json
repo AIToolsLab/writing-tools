@@ -21,7 +21,7 @@
       "model": "gpt-5.5",
       "reasoningEffort": "low",
       "initialMessages": [
-        "Problem with Jaden's panel tomorrow",
+        "Hey Alex, we have a problem with Jaden's panel tomorrow",
         "Room got double-booked. Gotta move him. But gotta keep him happy!",
         "I'm on a call, so need you to email him. What info do you need to sort this out?"
       ],
@@ -105,7 +105,7 @@
       "model": "gpt-5.5",
       "reasoningEffort": "low",
       "initialMessages": [
-        "Hey, we have a problem with tomorrow's MediCore demo 😓",
+        "Hey Alex, we have a problem with tomorrow's MediCore demo 😓",
         "Found a critical bug in the reporting module this morning. Can't show it like this to a VP.",
         "I'm in the middle of a call. Can you email her? Let me know what info you need."
       ],
@@ -191,7 +191,7 @@
       "model": "gpt-5.5",
       "reasoningEffort": "low",
       "initialMessages": [
-        "Hey, it looks like Jordan's chair order won't make tomorrow's delivery.",
+        "Hey Alex, it looks like Jordan's chair order won't make tomorrow's delivery.",
         "We should figure out another option he'd be okay with. Gotta keep him happy.",
         "I'm on a call right now. You'll need to email him, but I can answer any questions."
       ],
