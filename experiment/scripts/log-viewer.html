@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Experiment log viewer</title>
+<!--
+  Drag-and-drop viewer for experiment study logs (logs/<username>.jsonl).
+  Open this file directly in a browser. Everything runs locally: files are read
+  with FileReader and never leave the machine. No build step, no dependencies.
+  Log format: see ../docs/logging.md.
+-->
+<style>
+  :root {
+    color-scheme: light;
+    --surface: #fcfcfb;
+    --surface-2: #f3f2ef;
+    --border: #dddcd7;
+    --text: #0b0b0b;
+    --text-2: #52514e;
+    --text-3: #77766f;
+    --series-1: #2a78d6; /* participant */
+    --series-2: #eb6834; /* colleague */
+    --series-3: #1baf7a; /* AI suggestion */
+    --line: #52514e;
+    --bad-bg: #fde8e7; --bad: #a32020;
+    --warn-bg: #fdf3d8; --warn: #7a5300;
+    --info-bg: #e8f0fb; --info: #1f4f8f;
+    --ok: #1d6b1d;
+    --user-bubble: #e3eefb;
+    --colleague-bubble: #f3f2ef;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface: #1a1a19; --surface-2: #252524; --border: #3a3a38;
+      --text: #f0efec; --text-2: #c3c2b7; --text-3: #9a998f;
+      --series-1: #3987e5; --series-2: #d95926; --series-3: #199e70;
+      --line: #c3c2b7;
+      --bad-bg: #4a1d1c; --bad: #ffb4b0;
+      --warn-bg: #3f3214; --warn: #f5d38a;
+      --info-bg: #1c2d47; --info: #a9c8f5;
+      --ok: #8fd18f;
+      --user-bubble: #1c2d47; --colleague-bubble: #2c2c2a;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.45 system-ui, -apple-system, Segoe UI, sans-serif; background: var(--surface); color: var(--text); }
+  header { padding: 12px 20px; border-bottom: 1px solid var(--border); display: flex; gap: 16px; align-items: center; flex-wrap: wrap; }
+  header h1 { font-size: 17px; margin: 0; }
+  header .note { color: var(--text-3); font-size: 12px; }
+  main { padding: 16px 20px 80px; }
+  button, .filebtn { font: inherit; padding: 4px 10px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); border-radius: 6px; cursor: pointer; }
+  .filebtn input { display: none; }
+  h2 { font-size: 16px; margin: 28px 0 8px; }
+  h3 { font-size: 14px; margin: 18px 0 6px; }
+  .muted { color: var(--text-3); }
+  .mono { font-family: var(--mono); font-size: 12px; }
+
+  #drop-hint { border: 2px dashed var(--border); border-radius: 12px; padding: 48px; text-align: center; color: var(--text-2); margin-top: 20px; }
+  body.dragging #drop-overlay { display: flex; }
+  #drop-overlay { display: none; position: fixed; inset: 0; background: rgba(42,120,214,.12); border: 4px dashed var(--series-1); align-items: center; justify-content: center; font-size: 22px; z-index: 10; pointer-events: none; }
+
+  table { border-collapse: collapse; width: 100%; }
+  th, td { text-align: left; padding: 5px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { font-weight: 600; color: var(--text-2); font-size: 12px; position: sticky; top: 0; background: var(--surface); cursor: pointer; white-space: nowrap; }
+  #overview tbody tr { cursor: pointer; }
+  #overview tbody tr:hover { background: var(--surface-2); }
+  #overview tbody tr.selected { background: var(--info-bg); }
+  td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  td.clip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .table-wrap { overflow-x: auto; max-height: 55vh; border: 1px solid var(--border); border-radius: 8px; }
+
+  .flag { display: inline-block; font-size: 11px; padding: 1px 6px; border-radius: 10px; margin: 1px 2px 1px 0; white-space: nowrap; }
+  .flag.bad { background: var(--bad-bg); color: var(--bad); }
+  .flag.warn { background: var(--warn-bg); color: var(--warn); }
+  .flag.info { background: var(--info-bg); color: var(--info); }
+  .flag.ok { color: var(--ok); }
+  ul.flags { list-style: none; padding: 0; margin: 6px 0; }
+  ul.flags li { margin: 3px 0; }
+
+  #detail { margin-top: 8px; }
+  .meta { display: flex; flex-wrap: wrap; gap: 4px 20px; color: var(--text-2); }
+  .meta b { color: var(--text); font-weight: 600; }
+  .cols { display: grid; grid-template-columns: minmax(300px, 1fr) minmax(300px, 1fr); gap: 20px; }
+  @media (max-width: 900px) { .cols { grid-template-columns: 1fr; } }
+  .panel { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; background: var(--surface); }
+  .chat { display: flex; flex-direction: column; gap: 4px; max-height: 70vh; overflow-y: auto; }
+  .msg { max-width: 85%; padding: 5px 10px; border-radius: 12px; white-space: pre-wrap; word-wrap: break-word; }
+  .msg.user { align-self: flex-end; background: var(--user-bubble); border-bottom-right-radius: 3px; }
+  .msg.colleague { align-self: flex-start; background: var(--colleague-bubble); border-bottom-left-radius: 3px; }
+  .msg .t { display: block; font-size: 11px; color: var(--text-3); }
+  .divider { text-align: center; font-size: 11px; color: var(--text-3); margin: 8px 0 4px; border-top: 1px dashed var(--border); padding-top: 4px; }
+  .email-subject { font-weight: 600; margin-bottom: 6px; }
+  .email-body { white-space: pre-wrap; word-wrap: break-word; }
+  .snapshot { white-space: pre-wrap; word-wrap: break-word; background: var(--surface-2); padding: 8px 10px; border-radius: 6px; min-height: 3em; max-height: 40vh; overflow-y: auto; }
+  .cursor { display: inline-block; width: 2px; height: 1.1em; background: var(--series-1); vertical-align: text-bottom; margin: 0 -1px; }
+  .sel { background: var(--info-bg); }
+  input[type=range] { width: 100%; }
+  .scrub-meta { font-size: 12px; color: var(--text-2); margin: 4px 0; display: flex; justify-content: space-between; gap: 8px; }
+
+  .chart { position: relative; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart .grid { stroke: var(--border); stroke-width: 1; }
+  .chart .axis-label { fill: var(--text-3); font-size: 11px; }
+  .chart .len { fill: none; stroke: var(--line); stroke-width: 2; stroke-linejoin: round; }
+  .chart .reload { stroke: var(--text-3); stroke-dasharray: 3 3; }
+  .chart .mk-user { fill: var(--series-1); stroke: var(--surface); stroke-width: 2; }
+  .chart .mk-colleague { fill: var(--series-2); stroke: var(--surface); stroke-width: 2; }
+  .chart .mk-ai { fill: var(--series-3); stroke: var(--surface); stroke-width: 2; }
+  .chart .hit { fill: transparent; cursor: pointer; }
+  .chart .crosshair { stroke: var(--text-3); stroke-width: 1; }
+  .legend { display: flex; gap: 14px; font-size: 12px; color: var(--text-2); margin-bottom: 4px; flex-wrap: wrap; }
+  .legend svg { vertical-align: middle; margin-right: 4px; }
+  .tooltip { position: absolute; pointer-events: none; background: var(--surface); border: 1px solid var(--border); border-radius: 6px; padding: 6px 8px; font-size: 12px; max-width: 320px; box-shadow: 0 2px 8px rgba(0,0,0,.15); white-space: pre-wrap; z-index: 5; display: none; }
+
+  .answers td:first-child { font-family: var(--mono); font-size: 12px; color: var(--text-2); white-space: nowrap; }
+  .answers td:last-child { white-space: pre-wrap; word-wrap: break-word; }
+  .answers tr.highlight td { background: var(--warn-bg); }
+  details > summary { cursor: pointer; color: var(--text-2); }
+  .ai-item { border-top: 1px solid var(--border); padding: 6px 0; }
+  .ai-item .result { white-space: pre-wrap; margin-top: 4px; }
+  .events td { font-size: 12px; }
+  .events td.json { font-family: var(--mono); font-size: 11px; color: var(--text-2); max-width: 700px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="drop-overlay">Drop log files or a folder</div>
+<header>
+  <h1>Experiment log viewer</h1>
+  <label class="filebtn">Open files…<input type="file" id="file-input" multiple accept=".jsonl,.json,.gz,.log,.txt"></label>
+  <label class="filebtn">Open folder…<input type="file" id="dir-input" webkitdirectory></label>
+  <button id="clear-btn" hidden>Clear</button>
+  <span class="note">Files are read in this browser only; nothing is uploaded.</span>
+</header>
+<main>
+  <div id="drop-hint">
+    <p><b>Drop <code>.jsonl</code> log files (or a whole folder) anywhere on this page.</b></p>
+    <p class="muted">Handles <code>.jsonl</code> and <code>.jsonl.gz</code>. For <code>.zst</code>, decompress first (<code>zstd -d *.zst</code>).</p>
+  </div>
+  <div id="load-status" class="muted"></div>
+  <section id="overview-section" hidden>
+    <h2>Participants</h2>
+    <div class="table-wrap"><table id="overview"></table></div>
+  </section>
+  <section id="detail"></section>
+</main>
+
+<script>
+'use strict';
+
+// ---- Study constants (mirror experiment/lib/studyConfig.ts) ----
+const STUDY_PAGES = ['consent', 'intro', 'intro-survey', 'start-task', 'task', 'debrief', 'post-task-survey', 'final'];
+const CONDITIONS = {
+  n: 'no_ai', c: 'complete_document', e: 'example_sentences', a: 'analysis_readerPerspective',
+  p: 'proposal_advice', b: 'example_withblanks', d: 'complete_document_withblanks',
+};
+const KEYSTROKE_QUESTION = 'email_feedback'; // the post-task question with logChanges: true
+const TECH_QUESTION = 'technical_difficulties';
+
+// ---- State ----
+const loadedFiles = new Map(); // "name|size" -> raw entries from that file
+let participants = [];
+let selected = null;
+let sortKey = 'start', sortDir = 1;
+
+// ---- Small helpers ----
+const $ = (sel, root = document) => root.querySelector(sel);
+function h(tag, attrs = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === 'class') el.className = v;
+    else if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  for (const c of children.flat()) {
+    if (c == null || c === false) continue;
+    el.append(c instanceof Node ? c : document.createTextNode(String(c)));
+  }
+  return el;
+}
+const svgNS = 'http://www.w3.org/2000/svg';
+function s(tag, attrs = {}) {
+  const el = document.createElementNS(svgNS, tag);
+  for (const [k, v] of Object.entries(attrs)) if (v != null) el.setAttribute(k, v);
+  return el;
+}
+function toMs(ts) {
+  if (ts == null) return NaN;
+  if (typeof ts === 'number') return ts < 1e12 ? ts * 1000 : ts; // older logs used epoch seconds
+  return Date.parse(ts);
+}
+function fmtDuration(ms) {
+  if (!isFinite(ms)) return '–';
+  const neg = ms < 0; ms = Math.abs(ms);
+  const sec = Math.round(ms / 1000), m = Math.floor(sec / 60), ss = sec % 60;
+  const hrs = Math.floor(m / 60);
+  const out = hrs ? `${hrs}h${String(m % 60).padStart(2, '0')}m` : `${m}:${String(ss).padStart(2, '0')}`;
+  return (neg ? '-' : '') + out;
+}
+function fmtDate(ms) {
+  if (!isFinite(ms)) return '–';
+  const d = new Date(ms);
+  return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+function fmtClock(ms) {
+  return isFinite(ms) ? new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '–';
+}
+const words = (t) => (t || '').trim() ? t.trim().split(/\s+/).length : 0;
+const docText = (es) => es ? (es.beforeCursor || '') + (es.selectedText || '') + (es.afterCursor || '') : '';
+function answerText(v) {
+  if (v == null) return '';
+  if (Array.isArray(v)) return v.join('; ');
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+// ---- Loading ----
+async function readFile(file) {
+  if (file.name.endsWith('.zst')) throw new Error('zstd-compressed; run `zstd -d` first');
+  if (file.name.endsWith('.gz')) {
+    const stream = file.stream().pipeThrough(new DecompressionStream('gzip'));
+    return await new Response(stream).text();
+  }
+  return await file.text();
+}
+function parseJsonl(text, fileName) {
+  const entries = [], errors = [];
+  text.split('\n').forEach((line, i) => {
+    if (!line.trim()) return;
+    try {
+      const e = JSON.parse(line);
+      e._file = fileName; e._line = i + 1;
+      entries.push(e);
+    } catch (err) {
+      errors.push({ file: fileName, line: i + 1, text: line.slice(0, 200) });
+    }
+  });
+  return { entries, errors };
+}
+async function addFiles(files) {
+  const status = $('#load-status');
+  const skipped = [];
+  let added = 0;
+  for (const f of files) {
+    if (!/\.(jsonl|json|gz|log|txt|zst)$/.test(f.name)) { skipped.push(`${f.name} (not a log file)`); continue; }
+    const key = `${f.webkitRelativePath || f.name}|${f.size}`;
+    if (loadedFiles.has(key)) { skipped.push(`${f.name} (already loaded)`); continue; }
+    try {
+      const { entries, errors } = parseJsonl(await readFile(f), f.webkitRelativePath || f.name);
+      loadedFiles.set(key, { entries, errors });
+      added++;
+    } catch (err) {
+      skipped.push(`${f.name} (${err.message})`);
+    }
+  }
+  rebuild();
+  status.textContent = `Loaded ${loadedFiles.size} file(s)` + (added ? ` (+${added})` : '') +
+    (skipped.length ? `. Skipped: ${skipped.join(', ')}` : '');
+}
+// Recursively collect files from a dropped folder
+async function filesFromDataTransfer(dt) {
+  const items = [...(dt.items || [])].map((it) => it.webkitGetAsEntry && it.webkitGetAsEntry()).filter(Boolean);
+  if (!items.length) return [...dt.files];
+  const out = [];
+  async function walk(entry) {
+    if (entry.isFile) {
+      out.push(await new Promise((res, rej) => entry.file(res, rej)));
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      for (;;) {
+        const batch = await new Promise((res, rej) => reader.readEntries(res, rej));
+        if (!batch.length) break;
+        for (const e of batch) await walk(e);
+      }
+    }
+  }
+  for (const e of items) await walk(e);
+  return out;
+}
+
+// ---- Analysis ----
+function analyze(username, raw, parseErrors) {
+  // Deduplicate on (sessionId, seq). Duplicates are expected (retries, pagehide resend).
+  const seen = new Map();
+  let duplicates = 0, conflictingDuplicates = 0;
+  const entries = [];
+  for (const e of raw) {
+    if (e.sessionId == null || e.seq == null) { entries.push(e); continue; }
+    const key = `${e.sessionId}|${e.seq}`;
+    const prev = seen.get(key);
+    if (prev) {
+      duplicates++;
+      if (prev.event !== e.event || prev.timestamp !== e.timestamp) conflictingDuplicates++;
+      continue;
+    }
+    seen.set(key, e);
+    entries.push(e);
+  }
+  for (const e of entries) e._t = toMs(e.timestamp);
+  entries.sort((a, b) => (a._t - b._t) || ((a.seq ?? 0) - (b.seq ?? 0)));
+  const hasSeq = entries.some((e) => e.seq != null);
+
+  // Sessions (one per page load), with seq gap detection
+  const sessionMap = new Map();
+  for (const e of entries) {
+    const id = e.sessionId ?? '(no sessionId)';
+    if (!sessionMap.has(id)) sessionMap.set(id, { id, entries: [] });
+    sessionMap.get(id).entries.push(e);
+  }
+  const sessions = [...sessionMap.values()];
+  let lostEvents = 0;
+  for (const s of sessions) {
+    s.start = s.entries[0]._t;
+    s.end = s.entries[s.entries.length - 1]._t;
+    const view = s.entries.find((e) => e.event?.startsWith('view:'));
+    s.page = view ? view.event.slice(5) : '?';
+    s.missing = [];
+    if (hasSeq && s.id !== '(no sessionId)') {
+      const seqs = new Set(s.entries.map((e) => e.seq));
+      const max = Math.max(...seqs);
+      for (let i = 0; i <= max; i++) if (!seqs.has(i)) s.missing.push(i);
+      lostEvents += s.missing.length;
+    }
+  }
+  sessions.sort((a, b) => a.start - b.start);
+  sessions.forEach((s, i) => (s.index = i + 1));
+  for (const e of entries) e._session = sessionMap.get(e.sessionId ?? '(no sessionId)');
+
+  const byEvent = (name) => entries.filter((e) => e.event === name);
+  const first = (name) => entries.find((e) => e.event === name);
+  const last = (name) => { const xs = byEvent(name); return xs[xs.length - 1]; };
+
+  const views = entries.filter((e) => e.event?.startsWith('view:'));
+  const studyParams = (views.find((e) => e.extra_data?.studyParams) || {}).extra_data?.studyParams || {};
+  const conditionCode = studyParams.condition;
+  const conditionName = CONDITIONS[conditionCode] || conditionCode || '?';
+  const furthestPage = views.reduce((best, e) => {
+    const i = STUDY_PAGES.indexOf(e.event.slice(5));
+    return i > best ? i : best;
+  }, -1);
+
+  const startedStudy = first('Started Study');
+  const taskStart = first('taskStart');
+  const taskComplete = last('taskComplete');
+  const firstTaskView = first('view:task');
+  const taskT0 = (taskStart || firstTaskView)?._t;
+  const introSurvey = last('surveyComplete:intro-survey');
+  const postSurvey = last('surveyComplete:post-task-survey');
+  const surveyAnswers = (e) => e ? (e.extra_data?.answers ?? e.extra_data ?? {}) : null; // pre-change logs had answers directly in extra_data
+  const postAnswers = surveyAnswers(postSurvey);
+  const introAnswers = surveyAnswers(introSurvey);
+
+  const docUpdates = byEvent('documentUpdate');
+  const lastDoc = docUpdates[docUpdates.length - 1];
+  const finalText = taskComplete?.extra_data?.finalText ?? null;
+  const finalSubject = taskComplete?.extra_data?.subject ?? null;
+  const draftText = finalText ?? docText(lastDoc?.extra_data?.editorState);
+
+  const chat = entries.filter((e) => e.event === 'chatMessage:user' || e.event === 'chatMessage:assistant')
+    .map((e) => ({
+      role: e.event === 'chatMessage:user' ? 'user' : 'colleague',
+      content: e.extra_data?.content ?? '',
+      t: toMs(e.extra_data?.timestamp) || e._t,
+      messageId: e.extra_data?.messageId,
+      partIndex: e.extra_data?.partIndex,
+      session: e._session,
+    }))
+    .sort((a, b) => a.t - b.t);
+  const userMsgs = chat.filter((m) => m.role === 'user');
+  const colleagueMsgs = chat.filter((m) => m.role === 'colleague');
+  const opener = colleagueMsgs.find((m) => m.messageId === 'initial-assistant-message' && m.partIndex === 0) || colleagueMsgs[0];
+
+  const aiRequests = entries.filter((e) => e.event?.startsWith('aiRequest:'));
+  const aiResponses = entries.filter((e) => e.event?.startsWith('aiResponse:'));
+  const keystrokes = byEvent('surveyInputUpdate');
+  const feedbackUpdates = keystrokes.filter((e) => e.extra_data?.questionId === KEYSTROKE_QUESTION);
+  const gitCommits = [...new Set(entries.map((e) => e.gitCommit).filter(Boolean))];
+  const waves = [...new Set(entries.map((e) => e.wave).filter(Boolean))];
+  const taskSessions = sessions.filter((s) => s.page === 'task');
+  for (const s of taskSessions) {
+    s.scenarioParam = s.entries.find((e) => e.extra_data?.studyParams)?.extra_data.studyParams.scenario ?? '?';
+    s.opener = chat.find((m) => m.session === s && m.messageId === 'initial-assistant-message' && m.partIndex === 0)?.content
+      ?? chat.find((m) => m.session === s && m.role === 'colleague')?.content;
+  }
+
+  // ---- Flags ----
+  const flags = [];
+  const flag = (level, text, detail) => flags.push({ level, text, detail });
+  if (parseErrors.length) flag('bad', `${parseErrors.length} unparseable line(s)`, parseErrors.map((e) => `${e.file}:${e.line}`).join(', '));
+  if (!taskComplete) flag('bad', 'Task not submitted', `Furthest page: ${STUDY_PAGES[furthestPage] ?? 'none'}`);
+  else if (!postSurvey) flag('bad', 'Post-task survey not submitted');
+  if (!startedStudy && !taskComplete) flag('info', 'No "Started Study" event (direct link / test?)');
+  if (lostEvents) flag('warn', `${lostEvents} lost event(s)`, sessions.filter((s) => s.missing.length).map((s) => `load #${s.index} (${s.page}): seq ${s.missing.join(',')}`).join('; '));
+  if (!hasSeq) flag('info', 'No sessionId/seq (older log format): no dedupe or loss checks');
+  if (conflictingDuplicates) flag('bad', `${conflictingDuplicates} duplicate (sessionId, seq) with different content`);
+  if (taskSessions.length > 1) flag('warn', `Task page loaded ${taskSessions.length}×`, 'Draft and chat reset on reload');
+  if (gitCommits.length > 1) flag('warn', `${gitCommits.length} git commits`, gitCommits.map((c) => c.slice(0, 7)).join(', '));
+  if (waves.length > 1) flag('warn', `${waves.length} waves`, waves.join(', '));
+  for (const [label, sv] of [['intro', introSurvey], ['post-task', postSurvey]]) {
+    if (!sv?.extra_data) continue;
+    const c = sv.extra_data.condition, sc = sv.extra_data.scenarioId;
+    if (c && conditionCode && c !== conditionName) flag('bad', `Condition mismatch (${label} survey)`, `URL: ${conditionCode} (${conditionName}); survey: ${c}`);
+    if (sc && studyParams.scenario && sc !== studyParams.scenario) flag('warn', `Scenario fallback (${label} survey)`, `URL: ${studyParams.scenario}; used: ${sc}`);
+  }
+  if (conditionCode === 'n' && (aiRequests.length || aiResponses.length)) flag('bad', 'AI events in no-AI condition');
+  if (conditionCode && conditionCode !== 'n' && taskComplete && !aiResponses.length) flag('warn', 'AI condition but no AI suggestions logged');
+  if (aiRequests.length && aiResponses.length < aiRequests.length) {
+    // identical consecutive responses aren't logged, so some shortfall is normal
+    flag('info', `${aiRequests.length - aiResponses.length} AI request(s) without logged response`, 'Identical repeat suggestions are not logged; errors aren\'t either');
+  }
+  if (firstTaskView && !colleagueMsgs.length) flag('bad', 'No colleague messages logged');
+  if (taskComplete && !userMsgs.length) flag('info', 'Never messaged the colleague');
+  if (taskComplete && lastDoc) {
+    const lastBody = docText(lastDoc.extra_data?.editorState);
+    if (finalText != null && lastBody !== finalText) flag('warn', 'Submitted text ≠ last documentUpdate', 'Edits near the end may be missing from documentUpdate events');
+  }
+  if (taskComplete && !docUpdates.length) flag('bad', 'No documentUpdate events');
+  if (postAnswers && KEYSTROKE_QUESTION in postAnswers) {
+    const submitted = answerText(postAnswers[KEYSTROKE_QUESTION]);
+    const lastKs = feedbackUpdates[feedbackUpdates.length - 1];
+    if (!feedbackUpdates.length) flag('bad', `No keystroke log for ${KEYSTROKE_QUESTION}`);
+    else if (lastKs.extra_data?.value !== submitted) flag('warn', `Keystroke log ≠ submitted ${KEYSTROKE_QUESTION}`);
+    else if (feedbackUpdates.length < 0.5 * submitted.length) flag('info', `Few keystroke events for ${KEYSTROKE_QUESTION}`, `${feedbackUpdates.length} updates for ${submitted.length} chars (pasted or autofilled?)`);
+  }
+  const tech = postAnswers ? answerText(postAnswers[TECH_QUESTION]).trim() : '';
+  if (tech) flag('info', 'Reported technical difficulties', tech);
+
+  return {
+    username, entries, rawCount: raw.length, duplicates, lostEvents, sessions, taskSessions, parseErrors,
+    files: [...new Set(raw.map((e) => e._file))],
+    studyParams, conditionCode, conditionName, scenario: postSurvey?.extra_data?.scenarioId || introSurvey?.extra_data?.scenarioId || studyParams.scenario || '?',
+    furthestPage, startedStudy, taskStart, taskComplete, taskT0, introSurvey, postSurvey, introAnswers, postAnswers,
+    docUpdates, finalText, finalSubject, draftText, chat, userMsgs, colleagueMsgs, opener,
+    aiRequests, aiResponses, keystrokes, feedbackUpdates, gitCommits, waves, tech, flags,
+    start: entries[0]?._t, end: entries[entries.length - 1]?._t,
+    taskMs: taskComplete && taskT0 ? taskComplete._t - taskT0 : NaN,
+    totalMs: entries.length ? entries[entries.length - 1]._t - entries[0]._t : NaN,
+    words: words(draftText),
+    severity: flags.some((f) => f.level === 'bad') ? 2 : flags.some((f) => f.level === 'warn') ? 1 : 0,
+  };
+}
+
+function rebuild() {
+  const byUser = new Map();
+  const errorsByUser = new Map();
+  for (const [key, { entries, errors }] of loadedFiles) {
+    for (const e of entries) {
+      const u = e.username || `(no username: ${e._file})`;
+      if (!byUser.has(u)) byUser.set(u, []);
+      byUser.get(u).push(e);
+    }
+    if (errors.length) {
+      const u = entries[0]?.username || `(unparseable: ${key.split('|')[0]})`;
+      if (!errorsByUser.has(u)) errorsByUser.set(u, []);
+      errorsByUser.get(u).push(...errors);
+      if (!byUser.has(u)) byUser.set(u, []);
+    }
+  }
+  participants = [...byUser].map(([u, raw]) => analyze(u, raw, errorsByUser.get(u) || []));
+  checkOpeners(participants);
+  if (selected) selected = participants.find((p) => p.username === selected.username) || null;
+  $('#drop-hint').hidden = participants.length > 0;
+  $('#clear-btn').hidden = participants.length === 0;
+  $('#overview-section').hidden = participants.length === 0;
+  renderOverview();
+  renderDetail();
+}
+
+// Did each task page load show the colleague opener for the scenario in its URL?
+// Compared across all loaded files (no hardcoded scenario text to go stale).
+// Each participant counts once per opener, so one person's reloads can't
+// outvote others. A load is suspect if its opener isn't the most common one for
+// its scenario, or is the most common one for a different scenario (e.g. an
+// unknown or not-yet-loaded ?scenario= falling back to the default).
+function checkOpeners(ps) {
+  const votes = new Map(); // scenario -> Map(opener -> participant count)
+  for (const p of ps) {
+    const seen = new Set();
+    for (const s of p.taskSessions) {
+      const key = s.scenarioParam + '\u0000' + s.opener;
+      if (!s.opener || seen.has(key)) continue;
+      seen.add(key);
+      if (!votes.has(s.scenarioParam)) votes.set(s.scenarioParam, new Map());
+      const v = votes.get(s.scenarioParam);
+      v.set(s.opener, (v.get(s.opener) || 0) + 1);
+    }
+  }
+  const usual = new Map([...votes].map(([sc, v]) => [sc, [...v].sort((a, b) => b[1] - a[1])[0][0]]));
+  const usualFor = (opener, except) => [...usual].filter(([sc, o]) => o === opener && sc !== except).map(([sc]) => sc);
+  for (const p of ps) {
+    const odd = p.taskSessions.filter((s) => s.opener && (s.opener !== usual.get(s.scenarioParam) || usualFor(s.opener, s.scenarioParam).length));
+    if (!odd.length) continue;
+    p.flags.push({ level: 'bad', text: 'Colleague opener doesn\'t match scenario', detail: odd.map((s) => {
+      const other = usualFor(s.opener, s.scenarioParam);
+      return `load #${s.index} (URL scenario ${s.scenarioParam}): "${s.opener}"` + (other.length ? ` is the usual ${other.join('/')} opener` : '');
+    }).join('; ') });
+    p.severity = 2;
+  }
+}
+
+// ---- Overview table ----
+const COLUMNS = [
+  { key: 'username', label: 'Participant', get: (p) => p.username },
+  { key: 'flags', label: 'Flags', get: (p) => p.severity * 100 + p.flags.length, render: (p) => p.flags.length ? p.flags.map((f) => h('span', { class: `flag ${f.level}`, title: f.detail || '' }, f.text)) : h('span', { class: 'flag ok' }, '✓ ok') },
+  { key: 'condition', label: 'Cond.', get: (p) => p.conditionCode ?? '', render: (p) => h('span', { title: p.conditionName }, p.conditionCode ?? '?') },
+  { key: 'scenario', label: 'Scenario', get: (p) => p.scenario },
+  { key: 'reached', label: 'Reached', get: (p) => p.furthestPage, render: (p) => STUDY_PAGES[p.furthestPage] ?? '–' },
+  { key: 'taskMs', label: 'Task time', get: (p) => p.taskMs, render: (p) => fmtDuration(p.taskMs), cls: 'num' },
+  { key: 'chat', label: 'Msgs sent', get: (p) => p.userMsgs.length, cls: 'num' },
+  { key: 'ai', label: 'AI shown', get: (p) => p.aiResponses.length, cls: 'num' },
+  { key: 'words', label: 'Words', get: (p) => p.words, render: (p) => p.taskComplete ? p.words : h('span', { class: 'muted', title: 'last draft, not submitted' }, p.words), cls: 'num' },
+  { key: 'tech', label: 'Technical difficulties', get: (p) => p.tech, cls: 'clip', title: (p) => p.tech },
+  { key: 'opener', label: 'Colleague opener', get: (p) => p.opener?.content ?? '', cls: 'clip', title: (p) => p.opener?.content },
+  { key: 'start', label: 'Started', get: (p) => p.start, render: (p) => fmtDate(p.start), cls: 'num' },
+  { key: 'totalMs', label: 'Total', get: (p) => p.totalMs, render: (p) => fmtDuration(p.totalMs), cls: 'num' },
+  { key: 'loads', label: 'Loads', get: (p) => p.sessions.length, cls: 'num' },
+  { key: 'commit', label: 'Commit', get: (p) => p.gitCommits.join(','), render: (p) => h('span', { class: 'mono' }, p.gitCommits.map((c) => c.slice(0, 7)).join(', ')) },
+];
+function renderOverview() {
+  const table = $('#overview');
+  table.replaceChildren();
+  const col = COLUMNS.find((c) => c.key === sortKey) || COLUMNS[0];
+  const rows = [...participants].sort((a, b) => {
+    const x = col.get(a), y = col.get(b);
+    if (typeof x === 'number' || typeof y === 'number') return ((isFinite(x) ? x : -Infinity) - (isFinite(y) ? y : -Infinity)) * sortDir;
+    return String(x).localeCompare(String(y)) * sortDir;
+  });
+  table.append(h('thead', {}, h('tr', {}, COLUMNS.map((c) => h('th', {
+    onclick: () => { sortDir = sortKey === c.key ? -sortDir : 1; sortKey = c.key; renderOverview(); },
+  }, c.label + (c.key === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : ''))))));
+  const tbody = h('tbody');
+  for (const p of rows) {
+    tbody.append(h('tr', { class: selected?.username === p.username ? 'selected' : '', onclick: () => select(p) },
+      COLUMNS.map((c) => h('td', { class: c.cls || '', title: c.title ? c.title(p) || '' : null }, c.render ? c.render(p) : c.get(p)))));
+  }
+  table.append(tbody);
+  const n = participants.length, done = participants.filter((p) => p.postSurvey).length;
+  const flagged = participants.filter((p) => p.severity > 0).length;
+  $('#overview-section h2').textContent = `Participants: ${n} · ${done} finished · ${flagged} with warnings`;
+}
+function select(p) {
+  selected = p;
+  history.replaceState(null, '', '#' + encodeURIComponent(p.username));
+  renderOverview();
+  renderDetail();
+  $('#detail').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ---- Detail ----
+function renderDetail() {
+  const root = $('#detail');
+  root.replaceChildren();
+  const p = selected;
+  if (!p) {
+    if (participants.length) root.append(h('p', { class: 'muted' }, 'Click a participant to see their conversation, email, and surveys.'));
+    return;
+  }
+  const rel = (t) => isFinite(p.taskT0) ? fmtDuration(t - p.taskT0) : fmtClock(t);
+  const browser = p.startedStudy?.extra_data;
+
+  root.append(
+    h('h2', {}, p.username),
+    h('div', { class: 'meta' },
+      h('span', {}, 'Condition: ', h('b', {}, `${p.conditionCode ?? '?'} (${p.conditionName})`)),
+      h('span', {}, 'Scenario: ', h('b', {}, p.scenario)),
+      h('span', {}, 'Wave: ', h('b', {}, p.waves.join(', ') || '–')),
+      h('span', {}, 'Commit: ', h('b', { class: 'mono' }, p.gitCommits.map((c) => c.slice(0, 7)).join(', ') || '–')),
+      h('span', {}, 'Started: ', h('b', {}, p.start ? new Date(p.start).toLocaleString() : '–')),
+      h('span', {}, 'Task time: ', h('b', {}, fmtDuration(p.taskMs))),
+      h('span', {}, 'Events: ', h('b', {}, `${p.entries.length}`), ` (${p.duplicates} duplicate${p.duplicates === 1 ? '' : 's'} removed)`),
+      browser && h('span', { title: browser.userAgent }, 'Screen: ', h('b', {}, `${browser.windowWidth}×${browser.windowHeight} window`), ` · ${browser.timezone ?? ''}`),
+      h('span', {}, 'Files: ', h('b', { class: 'mono' }, p.files.join(', '))),
+    ),
+    p.flags.length
+      ? h('ul', { class: 'flags' }, p.flags.map((f) => h('li', {}, h('span', { class: `flag ${f.level}` }, f.text), f.detail ? h('span', { class: 'muted' }, ' ', f.detail) : null)))
+      : h('p', { class: 'flag ok' }, '✓ No problems detected'),
+  );
+
+  // Conversation + email side by side
+  const chatBox = h('div', { class: 'chat' });
+  let lastSession = null;
+  for (const m of p.chat) {
+    if (m.session !== lastSession) {
+      chatBox.append(h('div', { class: 'divider' }, lastSession ? `Page reloaded · load #${m.session.index} (${m.session.page}) · ${fmtClock(m.session.start)}` : `Load #${m.session.index} (${m.session.page}) · ${fmtClock(m.session.start)}`));
+      lastSession = m.session;
+    }
+    const label = m.role === 'user' ? 'Participant' : (m.messageId === 'followup-message' ? 'Colleague (follow-up nudge)' : 'Colleague');
+    chatBox.append(h('div', { class: `msg ${m.role}` }, h('span', { class: 't' }, `${label} · ${rel(m.t)}`), m.content));
+  }
+  if (!p.chat.length) chatBox.append(h('p', { class: 'muted' }, 'No chat messages logged.'));
+
+  const emailPanel = h('div', { class: 'panel' },
+    p.taskComplete ? null : h('p', { class: 'flag warn' }, 'Not submitted: showing the last logged draft'),
+    h('div', { class: 'email-subject' }, 'Subject: ', (p.finalSubject ?? p.docUpdates[p.docUpdates.length - 1]?.extra_data?.subject) || h('span', { class: 'muted' }, '(none)')),
+    h('div', { class: 'email-body' }, p.draftText || h('span', { class: 'muted' }, '(empty)')),
+    h('p', { class: 'muted' }, `${words(p.draftText)} words · ${(p.draftText || '').length} chars`),
+  );
+
+  root.append(h('div', { class: 'cols' },
+    h('div', {}, h('h3', {}, `Conversation (${p.userMsgs.length} sent, ${p.colleagueMsgs.length} received)`), h('div', { class: 'panel' }, chatBox)),
+    h('div', {}, h('h3', {}, p.taskComplete ? 'Submitted email' : 'Email draft'), emailPanel),
+  ));
+
+  // Writing process
+  if (p.docUpdates.length) {
+    root.append(h('h3', {}, `Writing process (${p.docUpdates.length} document updates)`));
+    root.append(renderProcessChart(p, rel));
+    root.append(renderScrubber(p.docUpdates, (e) => {
+      const es = e.extra_data?.editorState || {};
+      return [
+        e.extra_data?.subject ? h('div', { class: 'email-subject' }, 'Subject: ', e.extra_data.subject) : null,
+        es.beforeCursor || '', es.selectedText ? h('span', { class: 'sel' }, es.selectedText) : h('span', { class: 'cursor' }), es.afterCursor || '',
+      ];
+    }, rel, (e) => `${words(docText(e.extra_data?.editorState))} words · load #${e._session?.index}`));
+  }
+
+  // AI suggestions
+  if (p.aiRequests.length || p.aiResponses.length) {
+    const list = h('div', {});
+    for (const e of p.aiResponses) {
+      const g = e.extra_data?.generation || {};
+      list.append(h('div', { class: 'ai-item' },
+        h('div', { class: 'muted' }, `${rel(e._t)} · ${e.event.slice(11)}${g.generation_type && g.generation_type !== e.event.slice(11) ? ` (${g.generation_type})` : ''} · ${e.extra_data?.isAutoRefresh ? 'auto-refresh' : 'requested'}`),
+        h('div', { class: 'result' }, g.result ?? JSON.stringify(g))));
+    }
+    root.append(h('details', { open: p.aiResponses.length <= 6 },
+      h('summary', {}, h('b', {}, `AI suggestions: ${p.aiResponses.length} shown, ${p.aiRequests.length} requested`)), list));
+  }
+
+  // Surveys
+  root.append(h('h3', {}, 'Post-task survey'));
+  if (p.postAnswers) {
+    root.append(renderAnswers(p.postAnswers, p.postSurvey, rel));
+    if (KEYSTROKE_QUESTION in p.postAnswers || p.feedbackUpdates.length) {
+      const ks = p.feedbackUpdates;
+      root.append(h('h3', {}, `Keystroke log: ${KEYSTROKE_QUESTION}`));
+      const submitted = answerText(p.postAnswers[KEYSTROKE_QUESTION]);
+      const lastVal = ks[ks.length - 1]?.extra_data?.value;
+      root.append(h('p', {},
+        `${ks.length} surveyInputUpdate events`,
+        ks.length ? ` over ${fmtDuration(ks[ks.length - 1]._t - ks[0]._t)} · ` : ' · ',
+        lastVal === submitted ? h('span', { class: 'flag ok' }, '✓ last logged value matches submitted answer') : h('span', { class: 'flag warn' }, 'last logged value ≠ submitted answer'),
+        ks.some((e) => e.extra_data?.length !== (e.extra_data?.value ?? '').length) ? h('span', { class: 'flag warn' }, '`length` field disagrees with value') : null,
+      ));
+      if (ks.length) {
+        root.append(renderLengthSparkline(ks, rel));
+        root.append(renderScrubber(ks, (e) => [e.extra_data?.value ?? '', h('span', { class: 'cursor' })], rel, (e) => `${e.extra_data?.length} chars`));
+      }
+    }
+  } else {
+    root.append(h('p', { class: 'muted' }, 'Not submitted.'));
+  }
+  const otherKs = p.keystrokes.filter((e) => e.extra_data?.questionId !== KEYSTROKE_QUESTION);
+  if (otherKs.length) root.append(h('p', { class: 'flag info' }, `${otherKs.length} surveyInputUpdate events for other questions: ${[...new Set(otherKs.map((e) => e.extra_data?.questionId))].join(', ')}`));
+
+  root.append(h('h3', {}, 'Intro survey'));
+  root.append(p.introAnswers ? h('details', {}, h('summary', {}, `${Object.keys(p.introAnswers).length} answers`), renderAnswers(p.introAnswers, p.introSurvey, rel)) : h('p', { class: 'muted' }, 'Not submitted.'));
+
+  // Page loads and raw events
+  root.append(h('h3', {}, `Page loads (${p.sessions.length})`));
+  root.append(h('table', { class: 'events' },
+    h('thead', {}, h('tr', {}, ['#', 'Page', 'Start', 'Duration', 'Events', 'Lost seq', 'Commit'].map((x) => h('th', {}, x)))),
+    h('tbody', {}, p.sessions.map((s) => h('tr', {},
+      h('td', {}, s.index), h('td', {}, s.page), h('td', {}, fmtClock(s.start)), h('td', { class: 'num' }, fmtDuration(s.end - s.start)),
+      h('td', { class: 'num' }, s.entries.length),
+      h('td', {}, s.missing.length ? h('span', { class: 'flag warn' }, s.missing.join(', ')) : '–'),
+      h('td', { class: 'mono' }, [...new Set(s.entries.map((e) => e.gitCommit?.slice(0, 7)))].join(', ')),
+    )))));
+
+  const filter = h('input', { type: 'search', placeholder: 'Filter by event name…' });
+  const eventsBody = h('tbody');
+  const drawEvents = () => {
+    const q = filter.value.toLowerCase();
+    eventsBody.replaceChildren(...p.entries.filter((e) => !q || (e.event || '').toLowerCase().includes(q)).slice(0, 2000).map((e) => h('tr', {},
+      h('td', { class: 'num' }, rel(e._t)), h('td', {}, e._session?.index ?? ''), h('td', { class: 'num' }, e.seq ?? ''), h('td', {}, e.event),
+      h('td', { class: 'json', title: JSON.stringify(e.extra_data ?? null, null, 1).slice(0, 3000) }, JSON.stringify(e.extra_data ?? null)))));
+  };
+  filter.addEventListener('input', drawEvents);
+  const counts = {};
+  for (const e of p.entries) counts[e.event] = (counts[e.event] || 0) + 1;
+  const eventsDetails = h('details', {},
+    h('summary', {}, h('b', {}, `All events (${p.entries.length})`), ' ', h('span', { class: 'muted' }, Object.entries(counts).map(([k, v]) => `${k}×${v}`).join(' · '))),
+    filter,
+    h('table', { class: 'events' }, h('thead', {}, h('tr', {}, ['Time', 'Load', 'Seq', 'Event', 'extra_data'].map((x) => h('th', {}, x)))), eventsBody));
+  eventsDetails.addEventListener('toggle', () => { if (eventsDetails.open && !eventsBody.children.length) drawEvents(); });
+  root.append(eventsDetails);
+}
+
+function renderAnswers(answers, ev, rel) {
+  const meta = ev?.extra_data && 'answers' in ev.extra_data
+    ? `submitted ${rel(ev._t)} · scenarioId=${ev.extra_data.scenarioId} · condition=${ev.extra_data.condition}`
+    : ev ? `submitted ${rel(ev._t)} · (older format: no scenarioId/condition)` : '';
+  return h('div', {},
+    h('p', { class: 'muted' }, meta),
+    h('table', { class: 'answers' }, h('tbody', {}, Object.entries(answers).map(([k, v]) =>
+      h('tr', { class: k === TECH_QUESTION && answerText(v).trim() ? 'highlight' : '' }, h('td', {}, k), h('td', {}, answerText(v) || h('span', { class: 'muted' }, '(blank)')))))));
+}
+
+// A slider over snapshots (document or survey text), showing the text at each step
+function renderScrubber(events, renderText, rel, extraMeta) {
+  const range = h('input', { type: 'range', min: 0, max: events.length - 1, value: events.length - 1 });
+  const meta = h('div', { class: 'scrub-meta' });
+  const box = h('div', { class: 'snapshot' });
+  const draw = () => {
+    const e = events[+range.value];
+    meta.replaceChildren(h('span', {}, `Step ${+range.value + 1} / ${events.length} · ${rel(e._t)}`), h('span', {}, extraMeta(e)));
+    box.replaceChildren(...renderText(e));
+  };
+  range.addEventListener('input', draw);
+  draw();
+  return h('div', { class: 'panel' }, range, meta, box);
+}
+
+// Document length over time, with chat and AI events marked
+function renderProcessChart(p, rel) {
+  const W = 900, H = 200, M = { l: 44, r: 12, t: 10, b: 24 }; // y axis: characters
+  const pts = p.docUpdates.map((e) => ({ t: e._t, y: docText(e.extra_data?.editorState).length, s: e._session }));
+  const markers = [
+    ...p.userMsgs.map((m) => ({ t: m.t, kind: 'user', label: 'Participant', text: m.content })),
+    ...p.colleagueMsgs.filter((m) => m.session.page === 'task').map((m) => ({ t: m.t, kind: 'colleague', label: 'Colleague', text: m.content })),
+    ...p.aiResponses.map((e) => ({ t: e._t, kind: 'ai', label: `AI (${e.event.slice(11)})`, text: e.extra_data?.generation?.result ?? '' })),
+  ];
+  const t0 = Math.min(p.taskT0 || Infinity, ...pts.map((d) => d.t), ...markers.map((m) => m.t));
+  const t1 = Math.max(p.taskComplete?._t || -Infinity, ...pts.map((d) => d.t), ...markers.map((m) => m.t));
+  const yMax = Math.max(10, ...pts.map((d) => d.y));
+  const x = (t) => M.l + ((t - t0) / Math.max(1, t1 - t0)) * (W - M.l - M.r);
+  const y = (v) => H - M.b - (v / yMax) * (H - M.t - M.b);
+  const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Email length over time, with chat messages and AI suggestions marked' });
+
+  for (const v of [0, yMax / 2, yMax]) {
+    svg.append(s('line', { class: 'grid', x1: M.l, x2: W - M.r, y1: y(v), y2: y(v) }));
+    const lab = s('text', { class: 'axis-label', x: M.l - 6, y: y(v) + 4, 'text-anchor': 'end' }); lab.textContent = Math.round(v); svg.append(lab);
+  }
+  for (const f of [0, 0.25, 0.5, 0.75, 1]) {
+    const t = t0 + f * (t1 - t0);
+    const lab = s('text', { class: 'axis-label', x: x(t), y: H - 6, 'text-anchor': f === 0 ? 'start' : f === 1 ? 'end' : 'middle' });
+    lab.textContent = rel(t); svg.append(lab);
+  }
+  // Reload boundaries
+  for (const sess of p.taskSessions.slice(1)) svg.append(s('line', { class: 'reload', x1: x(sess.start), x2: x(sess.start), y1: M.t, y2: H - M.b }));
+  // Length line, broken at reloads
+  let d = '', prevS = null;
+  for (const pt of pts) { d += `${pt.s === prevS ? 'L' : 'M'}${x(pt.t).toFixed(1)},${y(pt.y).toFixed(1)}`; prevS = pt.s; }
+  svg.append(s('path', { class: 'len', d }));
+
+  // Markers sit on a lane at the bottom of the plot; shapes differ per kind (not color alone)
+  const laneY = { user: H - M.b - 8, colleague: H - M.b - 8, ai: H - M.b - 22 };
+  const shapes = [];
+  for (const m of markers) {
+    const cx = x(m.t), cy = laneY[m.kind];
+    const mk = m.kind === 'user' ? s('circle', { class: 'mk-user', cx, cy, r: 5 })
+      : m.kind === 'colleague' ? s('rect', { class: 'mk-colleague', x: cx - 4.5, y: cy - 4.5, width: 9, height: 9, rx: 2 })
+      : s('path', { class: 'mk-ai', d: `M${cx},${cy - 6}L${cx + 6},${cy}L${cx},${cy + 6}L${cx - 6},${cy}Z` });
+    svg.append(mk);
+    shapes.push({ ...m, cx, cy });
+  }
+  const crosshair = s('line', { class: 'crosshair', y1: M.t, y2: H - M.b, visibility: 'hidden' });
+  svg.append(crosshair);
+  const overlay = s('rect', { class: 'hit', x: M.l, y: M.t, width: W - M.l - M.r, height: H - M.t - M.b });
+  svg.append(overlay);
+
+  const tip = h('div', { class: 'tooltip' });
+  const wrap = h('div', { class: 'chart' }, svg, tip);
+  overlay.addEventListener('mousemove', (ev) => {
+    const box = svg.getBoundingClientRect();
+    const scale = W / box.width;
+    const mx = (ev.clientX - box.left) * scale, my = (ev.clientY - box.top) * scale;
+    // nearest marker within 10 units, else nearest length point
+    let best = null, bd = 10;
+    for (const sh of shapes) { const dd = Math.hypot(sh.cx - mx, sh.cy - my); if (dd < bd) { bd = dd; best = sh; } }
+    let text, cx;
+    if (best) { cx = best.cx; text = `${best.label} · ${rel(best.t)}\n${best.text.slice(0, 300)}`; }
+    else if (pts.length) {
+      const tAt = t0 + ((mx - M.l) / (W - M.l - M.r)) * (t1 - t0);
+      let pt = pts[0]; for (const q of pts) if (Math.abs(q.t - tAt) < Math.abs(pt.t - tAt)) pt = q;
+      cx = x(pt.t); text = `${rel(pt.t)} · ${pt.y} chars`;
+    } else return;
+    crosshair.setAttribute('x1', cx); crosshair.setAttribute('x2', cx); crosshair.setAttribute('visibility', 'visible');
+    tip.textContent = text; tip.style.display = 'block';
+    const left = cx / scale + 12;
+    tip.style.left = Math.min(left, box.width - 330) + 'px';
+    tip.style.top = '8px';
+  });
+  overlay.addEventListener('mouseleave', () => { tip.style.display = 'none'; crosshair.setAttribute('visibility', 'hidden'); });
+
+  const legendItem = (shape, label) => h('span', {}, shape, label);
+  const mini = (el) => { const sv = s('svg', { width: 14, height: 14, viewBox: '-7 -7 14 14' }); sv.append(el); return sv; };
+  const legend = h('div', { class: 'legend' },
+    legendItem((() => { const sv = s('svg', { width: 18, height: 14, viewBox: '0 0 18 14' }); sv.append(s('line', { x1: 0, x2: 18, y1: 7, y2: 7, stroke: 'var(--line)', 'stroke-width': 2 })); return sv; })(), 'Email length (chars)'),
+    legendItem(mini(s('circle', { class: 'mk-user', r: 5 })), `Participant message (${p.userMsgs.length})`),
+    legendItem(mini(s('rect', { class: 'mk-colleague', x: -4.5, y: -4.5, width: 9, height: 9, rx: 2 })), 'Colleague message'),
+    p.aiResponses.length ? legendItem(mini(s('path', { class: 'mk-ai', d: 'M0,-6L6,0L0,6L-6,0Z' })), `AI suggestion (${p.aiResponses.length})`) : null,
+    p.taskSessions.length > 1 ? legendItem((() => { const sv = s('svg', { width: 14, height: 14 }); sv.append(s('line', { class: 'reload', x1: 7, x2: 7, y1: 0, y2: 14, stroke: 'var(--text-3)', 'stroke-dasharray': '3 3' })); return sv; })(), 'Page reload') : null,
+    h('span', { class: 'muted' }, 'Times relative to task start'),
+  );
+  return h('div', { class: 'panel' }, legend, wrap);
+}
+
+function renderLengthSparkline(events, rel) {
+  const W = 900, H = 60, M = { l: 44, r: 12, t: 6, b: 18 };
+  const pts = events.map((e) => ({ t: e._t, y: (e.extra_data?.value ?? '').length }));
+  const t0 = pts[0].t, t1 = Math.max(t0 + 1, pts[pts.length - 1].t);
+  const yMax = Math.max(10, ...pts.map((d) => d.y));
+  const x = (t) => M.l + ((t - t0) / (t1 - t0)) * (W - M.l - M.r);
+  const y = (v) => H - M.b - (v / yMax) * (H - M.t - M.b);
+  const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Feedback answer length over time' });
+  svg.append(s('line', { class: 'grid', x1: M.l, x2: W - M.r, y1: y(0), y2: y(0) }));
+  for (const [v, ty] of [[0, y(0) + 4], [yMax, y(yMax) + 8]]) { const l = s('text', { class: 'axis-label', x: M.l - 6, y: ty, 'text-anchor': 'end' }); l.textContent = v; svg.append(l); }
+  for (const [t, anchor] of [[t0, 'start'], [t1, 'end']]) { const l = s('text', { class: 'axis-label', x: x(t), y: H - 4, 'text-anchor': anchor }); l.textContent = rel(t); svg.append(l); }
+  svg.append(s('path', { class: 'len', d: pts.map((pt, i) => `${i ? 'L' : 'M'}${x(pt.t).toFixed(1)},${y(pt.y).toFixed(1)}`).join('') }));
+  return h('div', { class: 'chart panel' }, h('div', { class: 'legend' }, 'Answer length (chars) over time'), svg);
+}
+
+// ---- Wiring ----
+let dragDepth = 0;
+window.addEventListener('dragenter', (e) => { e.preventDefault(); dragDepth++; document.body.classList.add('dragging'); });
+window.addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; document.body.classList.remove('dragging'); } });
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', async (e) => {
+  e.preventDefault(); dragDepth = 0; document.body.classList.remove('dragging');
+  $('#load-status').textContent = 'Reading…';
+  await addFiles(await filesFromDataTransfer(e.dataTransfer));
+});
+$('#file-input').addEventListener('change', (e) => addFiles([...e.target.files]));
+$('#dir-input').addEventListener('change', (e) => addFiles([...e.target.files]));
+$('#clear-btn').addEventListener('click', () => { loadedFiles.clear(); selected = null; $('#load-status').textContent = ''; rebuild(); });
+window.addEventListener('hashchange', () => {
+  const u = decodeURIComponent(location.hash.slice(1));
+  const p = participants.find((x) => x.username === u);
+  if (p && p !== selected) select(p);
+});
+</script>
+</body>
+</html>
