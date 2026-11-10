@@ -36,13 +36,7 @@ function GenerationResultDisplay({ generation }: { generation: GenerationResult 
   );
 }
 
-function SavedGenerations({
-  savedItems,
-  deleteSavedItem,
-}: {
-  savedItems: SavedItem[];
-  deleteSavedItem: (dateSaved: Date) => void;
-}) {
+function SavedGenerations({ savedItems }: { savedItems: SavedItem[] }) {
   return (
     <div className="flex-1 overflow-y-auto space-y-3">
       {savedItems.length === 0 ? (
@@ -63,16 +57,7 @@ function SavedGenerations({
                   minute: '2-digit',
                 })}
               </div>
-              <div className="mb-3">
-                <GenerationResultDisplay generation={savedItem.generation} />
-              </div>
-              <button
-                type="button"
-                onClick={() => deleteSavedItem(savedItem.dateSaved)}
-                className="text-xs px-2 py-1 rounded font-medium bg-red-100 text-red-800 hover:bg-red-200 active:bg-red-300 transition-colors"
-              >
-                Delete
-              </button>
+              <GenerationResultDisplay generation={savedItem.generation} />
             </div>
           );
         })
@@ -113,10 +98,6 @@ export default function AIPanel({
       },
       ...prev,
     ]);
-  }, []);
-
-  const deleteSavedItem = useCallback((dateSaved: Date) => {
-    setSavedItems((prev) => prev.filter((item) => item.dateSaved !== dateSaved));
   }, []);
 
   const getSuggestion = useCallback(
@@ -339,7 +320,7 @@ export default function AIPanel({
 
       {alerts}
 
-      <SavedGenerations savedItems={savedItems} deleteSavedItem={deleteSavedItem} />
+      <SavedGenerations savedItems={savedItems} />
 
       <div className="text-xs text-gray-500 text-center pt-2 border-t border-gray-300 font-medium">
         AI-generated text may vary in quality
