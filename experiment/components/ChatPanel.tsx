@@ -417,7 +417,7 @@ export default function ChatPanel({ onNewMessage, onConversationChange }: ChatPa
         <input
           ref={inputRef}
           type="text"
-          className="flex-1 px-2.5 py-2 border border-gray-400 rounded-2xl text-sm text-gray-900 placeholder-gray-500 bg-white outline-none focus:border-green-600 focus:ring-2 focus:ring-green-200"
+          className="flex-1 min-w-0 px-2.5 py-2 border border-gray-400 rounded-2xl text-sm text-gray-900 placeholder-gray-500 bg-white outline-none focus:border-green-600 focus:ring-2 focus:ring-green-200"
           placeholder={`Message ${scenario.colleague.firstName}...`}
           value={input}
           onChange={(e) => setInput(e.target.value)}

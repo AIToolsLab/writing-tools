@@ -12,6 +12,9 @@ import { useAtomValue } from 'jotai';
 import { studyParamsAtom } from '@/contexts/StudyContext';
 import { useNextPageUrl } from './useNextPage';
 
+const sidebarClass =
+  'flex flex-col shrink-0 w-[clamp(14rem,27%,27.5rem)] border border-gray-300 rounded overflow-hidden shadow-sm bg-white';
+
 export default function TaskPage() {
   const studyParams = useAtomValue(studyParamsAtom);
   const nextUrl = useNextPageUrl();
@@ -69,9 +72,9 @@ export default function TaskPage() {
   };
 
   return (
-    <div className="flex h-screen gap-5 p-10 bg-gray-100 overflow-hidden">
+    <div className="flex h-screen gap-[5px] p-[5px] bg-gray-100 overflow-hidden">
       {/* Left side - Colleague chat in sidebar */}
-      <div className="flex flex-col w-110 border border-gray-300 rounded overflow-hidden shadow-sm bg-white">
+      <div className={sidebarClass}>
         <ChatPanel onConversationChange={handleConversationChange} />
       </div>
 
@@ -87,7 +90,7 @@ export default function TaskPage() {
 
       {/* Right side - AI Panel in sidebar (only for non-no_ai conditions) */}
       {condition !== 'no_ai' && (
-        <div className="flex flex-col gap-2.5 w-110 border border-gray-300 rounded overflow-hidden shadow-sm bg-white">
+        <div className={`${sidebarClass} gap-2.5`}>
           <AIPanel
             writingAreaRef={writingAreaRef}
             isStudyMode={true}
