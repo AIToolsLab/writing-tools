@@ -37,6 +37,11 @@ function GenerationResultDisplay({ generation }: { generation: GenerationResult 
 }
 
 function SavedGenerations({ savedItems }: { savedItems: SavedItem[] }) {
+  // One card is highlighted at a time: the one under the cursor, or else the
+  // newest (savedItems is newest-first). The rest are muted.
+  const [hoveredKey, setHoveredKey] = useState<string | null>(null);
+  const highlightedKey = hoveredKey ?? savedItems[0]?.dateSaved.toString();
+
   return (
     <div className="flex-1 overflow-y-auto space-y-3">
       {savedItems.length === 0 ? (
@@ -46,16 +51,20 @@ function SavedGenerations({ savedItems }: { savedItems: SavedItem[] }) {
       ) : (
         savedItems.map((savedItem) => {
           const key = savedItem.dateSaved.toString();
+          const isHighlighted = key === highlightedKey;
           return (
             <div
               key={key}
-              className="bg-blue-50 border border-blue-200 rounded p-3 hover:bg-blue-100 hover:shadow-md transition-all"
+              onMouseEnter={() => setHoveredKey(key)}
+              onMouseLeave={() => setHoveredKey((prev) => (prev === key ? null : prev))}
+              className={`border rounded p-3 transition-all ${
+                isHighlighted
+                  ? 'bg-blue-50 border-blue-200 shadow-md'
+                  : 'bg-gray-50 border-gray-200'
+              }`}
             >
-              <div className="text-xs font-semibold text-blue-700 mb-2">
-                {savedItem.dateSaved.toLocaleTimeString([], {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
+              <div className="mb-1 text-xs text-gray-400">
+                {savedItem.dateSaved.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </div>
               <GenerationResultDisplay generation={savedItem.generation} />
             </div>
