@@ -35,6 +35,7 @@ import { isFlagEnabled } from './flags';
 import MyWords from './my-words';
 import Revise from './revise';
 import Tools from './tools';
+import Workbench from './workbench';
 
 export type PageTier = 'core' | 'lab';
 
@@ -65,21 +66,21 @@ export const PAGES: PageDef[] = [
 	{
 		name: PageName.Draft,
 		title: 'Draft',
-		hint: 'Generate suggestions',
+		hint: 'Fresh eyes as you write',
 		tier: 'core',
 		render: () => <Draft />,
 	},
 	{
 		name: PageName.Revise,
 		title: 'Revise',
-		hint: 'Improve your text',
+		hint: 'Zoom out on your draft',
 		tier: 'core',
 		render: () => <Revise />,
 	},
 	{
 		name: PageName.Chat,
 		title: 'Chat',
-		hint: 'Ask about your doc',
+		hint: 'Talk it through with a coach',
 		tier: 'core',
 		render: () => <Chat />,
 	},
@@ -89,6 +90,13 @@ export const PAGES: PageDef[] = [
 		hint: 'Launch writing tools',
 		tier: 'lab',
 		render: () => <Tools />,
+	},
+	{
+		name: PageName.Workbench,
+		title: 'Workbench',
+		hint: 'Rework a passage on the side',
+		tier: 'lab',
+		render: () => <Workbench />,
 	},
 	{
 		name: PageName.MyWords,

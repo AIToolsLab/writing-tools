@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { setupMockBackend } from './mockBackend';
+import { setupMockBackend, waitForEditorReady } from './mockBackend';
 
 // All tests target editor.html?page=demo which requires no login.
 test.beforeEach(async ({ page }) => {
@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
   await setupMockBackend(page);
   await page.goto('/editor.html?page=demo');
   // Draft is the default page — wait for it to confirm the app has loaded
-  await expect(page.locator('button[aria-label="Examples"]')).toBeVisible({ timeout: 15000 });
+  await waitForEditorReady(page);
 });
 
 test('editor loads and text area is visible', async ({ page }) => {
@@ -23,11 +23,10 @@ test('can type text into the editor', async ({ page }) => {
   await expect(editor).toContainText('Hello world');
 });
 
-test('Draft page shows four suggestion buttons', async ({ page }) => {
-  await expect(page.locator('button[aria-label="Examples"]')).toBeVisible();
+test('Draft page shows Questions and Advice, and hides Rewording by default', async ({ page }) => {
   await expect(page.locator('button[aria-label="Questions"]')).toBeVisible();
   await expect(page.locator('button[aria-label="Advice"]')).toBeVisible();
-  await expect(page.locator('button[aria-label="Rewording"]')).toBeVisible();
+  await expect(page.locator('button[aria-label="Rewording"]')).toHaveCount(0);
 });
 
 test('can switch to Revise page and see Document structure section', async ({ page }) => {
@@ -46,6 +45,9 @@ test('can switch to Chat page and see message input', async ({ page }) => {
 });
 
 test('Rewording without a selection prompts the user to select text', async ({ page }) => {
+  // Rewording is behind the `rewording` feature flag (pages/flags.ts).
+  await page.goto('/editor.html?page=demo&ff=rewording');
+  await waitForEditorReady(page);
   // Rewording short-circuits before any backend call when no text is selected
   // (draft/index.tsx), so this needs no mock backend.
   await page.locator('button[aria-label="Rewording"]').click();
@@ -96,6 +98,7 @@ test('Chat welcome screen shows the suggestion chips', async ({ page }) => {
     'How can I improve clarity?',
     'Is my structure logical?',
     'What am I missing?',
+    'What could I cut?',
   ]) {
     await expect(page.getByRole('button', { name: prompt })).toBeVisible();
   }
@@ -118,7 +121,7 @@ test('Revise Run button enables only after a feature is selected', async ({ page
 
 test('can navigate between all three tabs', async ({ page }) => {
   // Start on Draft (default)
-  await expect(page.locator('button[aria-label="Examples"]')).toBeVisible();
+  await expect(page.locator('button[aria-label="Questions"]')).toBeVisible();
 
   // Type something first so Revise page doesn't show the empty-document message
   const editor = page.locator('[contenteditable="true"]');
@@ -133,7 +136,8 @@ test('can navigate between all three tabs', async ({ page }) => {
   await page.locator('button', { hasText: 'Chat' }).click();
   await expect(page.locator('textarea[placeholder*="Ask"]')).toBeVisible();
 
-  // Go back to Draft
-  await page.locator('button', { hasText: 'Draft' }).click();
-  await expect(page.locator('button[aria-label="Examples"]')).toBeVisible();
+  // Go back to Draft. Anchored to the start of the accessible name: a bare
+  // `hasText: 'Draft'` also matches Revise's hint ("Zoom out on your draft").
+  await page.getByRole('button', { name: /^Draft/ }).click();
+  await expect(page.locator('button[aria-label="Questions"]')).toBeVisible();
 });

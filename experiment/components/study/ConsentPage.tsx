@@ -37,12 +37,11 @@ export default function ConsentPage() {
         </p>
 
         <p>
-          <strong>Procedure:</strong> Your participation entails performing a writing task using a system that offers AI-generated suggestions. You may or may not receive AI suggestions
-          depending on the condition you are assigned to.
+          <strong>Procedure:</strong> Your participation entails performing a writing task. Some participants may receive AI assistance during the task.
         </p>
 
         <p>
-          <strong>Time Commitment:</strong> Approximately 20-30 minutes.
+          <strong>Time Commitment:</strong> Approximately 30–45 minutes.
         </p>
 
         <p>
@@ -50,7 +49,7 @@ export default function ConsentPage() {
         </p>
 
         <p>
-          <strong>Compensation:</strong> $5 upon study completion.
+          <strong>Compensation:</strong> $10 upon study completion.
         </p>
 
         <p>

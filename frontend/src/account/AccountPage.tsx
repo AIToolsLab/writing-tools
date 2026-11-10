@@ -14,7 +14,7 @@
  * as the strong confirmation an irreversible action deserves.
  */
 import { useState } from 'react';
-import { Button } from 'reshaped';
+import { Button } from '@/components/button';
 import {
 	changeConsent,
 	deleteAccount,

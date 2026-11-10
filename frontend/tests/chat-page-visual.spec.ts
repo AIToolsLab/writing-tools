@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test';
-import { fulfillOpenAI, setupMockBackend } from './mockBackend';
+import {
+	fulfillOpenAI,
+	setupMockBackend,
+	waitForEditorReady,
+} from './mockBackend';
 
 /**
  * Visual regression for the Chat page, in both states it can be in: the empty
@@ -42,9 +46,7 @@ test.beforeEach(async ({ page }) => {
 
 	await page.goto('/editor.html?page=demo');
 	// Draft is the default page — wait for it to confirm the app has loaded.
-	await expect(page.locator('button[aria-label="Examples"]')).toBeVisible({
-		timeout: 15000,
-	});
+	await waitForEditorReady(page);
 	await page.locator('button', { hasText: 'Chat' }).click();
 });
 

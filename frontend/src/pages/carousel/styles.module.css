@@ -48,22 +48,6 @@
 	text-align: center;
 }
 
-.imageWrapper {
-	width: 100%;
-	aspect-ratio: 16 / 9;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	margin-bottom: 1.5rem;
-}
-
-.carouselImage {
-	max-height: 20rem;
-	min-height: 12rem;
-	width: auto;
-	object-fit: contain;
-}
-
 .slideDescription {
 	text-align: center;
 	color: #4a4a4a;
@@ -115,15 +99,5 @@
 
 	.slideTitle {
 		font-size: 1.25rem;
-	}
-
-	.carouselImage {
-		max-height: 12rem;
-	}
-}
-
-@media (min-width: 640px) {
-	.carouselImage {
-		max-height: 20rem;
 	}
 }
