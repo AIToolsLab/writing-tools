@@ -27,7 +27,11 @@ function GenerationResultDisplay({ generation }: { generation: GenerationResult 
       <div className="font-bold text-sm mb-2 text-gray-900">
         {visibleNameForMode[generation.generation_type as keyof typeof visibleNameForMode]}
       </div>
-      <div className="text-sm text-gray-800 whitespace-pre-wrap leading-relaxed">{generation.result}</div>
+      <div className="text-sm text-gray-800 leading-relaxed space-y-1.5">
+        {generation.result.split(/\n\s*\n/).map((block, i) => (
+          <div key={i} className="whitespace-pre-wrap">{block.trim()}</div>
+        ))}
+      </div>
     </div>
   );
 }
