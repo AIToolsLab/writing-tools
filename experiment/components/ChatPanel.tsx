@@ -356,7 +356,7 @@ export default function ChatPanel({ onNewMessage, onConversationChange }: ChatPa
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
-      <div className="flex items-center gap-2.5 bg-gray-50 border-b border-gray-300 px-3 py-2.5">
+      <div className="flex items-center gap-2.5 bg-gray-50 border-b border-gray-300 p-2">
         <div className="w-2 h-2 rounded-full bg-yellow-500" />
         <div className="flex-1">
           <div className="font-semibold text-sm text-gray-900">{scenario.colleague.name}</div>

@@ -277,7 +277,7 @@ export default function AIPanel({
     );
   } else if (mode !== 'no_ai' && autoRefreshInterval > 0) {
     alerts = (
-      <div className="p-3">
+      <div className="p-2">
         <div className="text-xs font-medium text-gray-700 text-center">
           Suggestions are based on your email draft and may incorporate details from recent chat conversations. They refresh automatically.
         </div>
@@ -302,8 +302,8 @@ export default function AIPanel({
   }
 
   return (
-    <div className="h-full p-4 text-sm text-gray-700 flex flex-col overflow-hidden">
-      <h3 className="text-sm font-bold text-gray-900 mb-3">AI Writing Assistant</h3>
+    <div className="h-full p-2 text-sm text-gray-700 flex flex-col overflow-hidden">
+      <h3 className="text-sm font-bold text-gray-900 text-center">AI Writing Assistant</h3>
 
       {!isStudyMode && (
         <div className="flex gap-1.5 mb-3 flex-wrap">
@@ -337,7 +337,7 @@ export default function AIPanel({
 
       <SavedGenerations savedItems={savedItems} deleteSavedItem={deleteSavedItem} />
 
-      <div className="text-xs text-gray-500 text-center mt-3 pt-2 border-t border-gray-300 font-medium">
+      <div className="text-xs text-gray-500 text-center pt-2 border-t border-gray-300 font-medium">
         AI-generated text may vary in quality
       </div>
     </div>
