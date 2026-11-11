@@ -58,7 +58,11 @@ import type { LogFn } from '@/hooks/useLog';
  *   8 — The Workbench moved from vLLM to the writing engine
  *       (llm.thoughtful-ai.com), so its `ms` aren't comparable with version 7's.
  *       `highlights_scored` and `predictions_fetched` add `serverMs`, the
- *       engine's own time for the request.
+ *       engine's own time for the request. Predictions are no longer
+ *       debounced or cached, and can include corrections of the word being
+ *       typed: `predictions_fetched` replaces `branches` with `suggestions`
+ *       and `corrections` (counts); `suggestion_accepted` replaces `fromCache`
+ *       with `correction` and `replacedChars` (draft characters it replaced).
  */
 export const LOG_SCHEMA_VERSION = 8;
 
@@ -342,14 +346,15 @@ export const workbenchLog = {
 	) {
 		return emit(log, 'workbench', 'highlights_scored', data);
 	},
-	/** A predictions request finished (cache misses only). */
+	/** A predictions request finished (one per keystroke, unless superseded). */
 	predictionsFetched(
 		log: LogFn,
 		data: {
 			model: string;
 			ms: number;
 			serverMs: number;
-			branches: number;
+			suggestions: number;
+			corrections: number;
 			words: number;
 		},
 	) {
@@ -364,8 +369,9 @@ export const workbenchLog = {
 		data: {
 			slot: number;
 			acceptedChars: number;
+			replacedChars: number;
 			draftChars: number;
-			fromCache: boolean;
+			correction: boolean;
 		},
 	) {
 		return emit(log, 'workbench', 'suggestion_accepted', data);
