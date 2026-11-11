@@ -10,13 +10,18 @@
  *   is a few words past what they've typed, and only appears when they pause.
  *   Suggestions hold still while typed into (see `suggestionCache.ts`).
  *
- * Nothing here writes to the document. Requests go straight to the vLLM server
- * (`@/api/vllm`), not through the backend.
+ * Nothing here writes to the document. Requests go straight to the writing
+ * engine (`@/api/writingEngine`), not through the backend.
  */
 import { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/button';
 import { workbenchLog } from '@/api/logging';
-import { fetchPost, showToken, VLLM_URL, VllmClient } from '@/api/vllm';
+import {
+	ENGINE_URL,
+	EngineClient,
+	fetchPost,
+	showToken,
+} from '@/api/writingEngine';
 import BriefSection from '@/components/briefSection';
 import { ErrorNotice } from '@/components/errorNotice';
 import {
@@ -43,7 +48,7 @@ import { type Suggestion, SuggestionCache } from './suggestionCache';
 import classes from './styles.module.css';
 
 /** Shared across mounts so rendered chat prefixes stay cached. */
-const client = new VllmClient(fetchPost(VLLM_URL));
+const client = new EngineClient(fetchPost(ENGINE_URL));
 
 const NUM_SHOWN = 5;
 const DEBOUNCE_MS = 150;
@@ -207,7 +212,7 @@ export default function Workbench(): React.JSX.Element {
 
 			<p className={classes.footnote}>
 				This page sends the passage, the paragraph before it and your
-				brief to <code>{new URL(VLLM_URL).host}</code>
+				brief to <code>{new URL(ENGINE_URL).host}</code>
 				{model ? ` (${model})` : ''}, which may log requests. Nothing
 				here changes your document.
 			</p>
@@ -317,11 +322,12 @@ function HighlightsView({
 						setWarning(res.warning);
 						setError(null);
 						setStatus(
-							`Scored ${res.tokenCount} tokens in ${ms} ms`,
+							`Scored ${res.tokenCount} tokens in ${ms} ms (server ${res.serverMs} ms)`,
 						);
 						workbenchLog.highlightsScored(log, {
 							model,
 							ms,
+							serverMs: res.serverMs,
 							tokens: res.tokenCount,
 							ranges: res.ranges.length,
 						});
@@ -556,26 +562,6 @@ function PredictView({
 									{ role: 'assistant', content: draft },
 								],
 								words,
-								// Words not yet finished: shown below the survivors until the
-								// lookahead completes them.
-								onUpdate: (partial) => {
-									const seen = new Set(
-										fromCache.map((s) => s.text),
-									);
-									const extra = partial
-										.filter((b) => !seen.has(b.text))
-										.map((b) => ({
-											text: b.text,
-											prob: b.prob,
-										}));
-									setShown({
-										draft,
-										items: [...fromCache, ...extra].slice(
-											0,
-											NUM_SHOWN,
-										),
-									});
-								},
 							},
 							controller.signal,
 						);
@@ -587,10 +573,13 @@ function PredictView({
 						});
 						setWarning(res.warning);
 						setError(null);
-						setStatus(`Predicted in ${ms} ms`);
+						setStatus(
+							`Predicted in ${ms} ms (server ${res.serverMs} ms)`,
+						);
 						workbenchLog.predictionsFetched(log, {
 							model,
 							ms,
+							serverMs: res.serverMs,
 							branches: res.branches.length,
 							words,
 						});
