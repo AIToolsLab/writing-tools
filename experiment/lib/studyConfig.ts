@@ -50,8 +50,8 @@ export const CONSENT_FORM_URL = 'https://calvin.co1.qualtrics.com/jfe/form/SV_3a
 export const CONTACT_EMAIL = 'ken.arnold@calvin.edu';
 
 // Minimum screen dimensions
-export const MIN_SCREEN_WIDTH = 600;
-export const MIN_SCREEN_HEIGHT = 500;
+export const MIN_SCREEN_WIDTH = 800;
+export const MIN_SCREEN_HEIGHT = 600;
 
 // Valid condition codes
 export const VALID_CONDITIONS = Object.keys(letterToCondition) as ConditionCode[];

@@ -81,8 +81,8 @@ const WritingArea = forwardRef<WritingAreaRef, WritingAreaProps>(
 
     return (
       <div className="flex-1 bg-white border border-gray-300 rounded flex flex-col shadow-sm overflow-hidden">
-        <div className="border-b border-gray-200 p-4 bg-gray-50">
-          <div className="flex gap-3 items-start">
+        <div className="border-b border-gray-200 p-2 bg-gray-50">
+          <div className="flex gap-2 items-start">
             <div className="flex-1 space-y-2">
               <div className="flex text-sm">
                 <label htmlFor="from-field" className="w-16 text-gray-700 font-medium">From:</label>
@@ -121,7 +121,7 @@ const WritingArea = forwardRef<WritingAreaRef, WritingAreaProps>(
                 type="button"
                 onClick={handleSend}
                 disabled={isSending || !body.trim()}
-                className="self-stretch px-4 py-2 bg-green-600 text-white font-medium rounded hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex flex-col items-center gap-1"
+                className="self-stretch px-2 py-1 bg-green-600 text-white font-medium rounded hover:bg-green-700 active:bg-green-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex flex-col items-center justify-center gap-1"
                 aria-label={isSending ? 'Sending...' : 'Send email'}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -133,7 +133,7 @@ const WritingArea = forwardRef<WritingAreaRef, WritingAreaProps>(
             )}
           </div>
         </div>
-        <div className="flex-1 overflow-hidden p-4 flex flex-col">
+        <div className="flex-1 overflow-hidden p-2 flex flex-col">
           <textarea
             ref={textareaRef}
             className="flex-1 border border-gray-200 p-2.5 resize-none text-sm rounded leading-relaxed focus:outline-none focus:border-green-500 focus:ring-2 focus:ring-green-200 bg-white text-gray-900 placeholder-gray-400"
