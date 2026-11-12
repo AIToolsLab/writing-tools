@@ -7,7 +7,7 @@
  * distribution for every prompt token, and the token-level requests run on
  * every pause in typing.
  */
-import type { ChatMessage } from '@/api/vllm';
+import type { ChatMessage } from '@/api/writingEngine';
 
 export type PassageScope = 'sentence' | 'paragraph';
 
@@ -51,8 +51,9 @@ function sentenceBounds(
 }
 
 /**
- * The passage for a document context. NFC-normalized, because Qwen's
- * tokenizer normalizes to NFC and highlight offsets are counted on its output.
+ * The passage for a document context, NFC-normalized. The engine's tokenizer
+ * doesn't normalize, so a decomposed accent (`e` + U+0301) is its own rare
+ * token, which the model scores as wildly unlikely and highlights.
  */
 export function extractPassage(
 	ctx: Pick<DocContext, 'beforeCursor' | 'selectedText' | 'afterCursor'>,
@@ -102,8 +103,9 @@ export const DEFAULT_INSTRUCTION = `Rewrite this passage to be ${REWRITE_ADJECTI
  * writer asks for `instruction` applied to `source`; the response is either
  * the passage itself (highlights) or the writer's own rewrite (predictions).
  *
- * Stable content goes first — brief, then previous paragraph — so vLLM's
- * prefix cache can reuse it across requests.
+ * Stable content goes first — brief, then previous paragraph — so the
+ * engine's cache can reuse it across requests: anything after an edit point
+ * is recomputed.
  */
 export function taskMessages({
 	instruction,
