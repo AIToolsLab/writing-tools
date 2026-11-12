@@ -87,12 +87,7 @@ quote in the participant's text (and warns when a quote isn't there verbatim), s
 check the coding and see what was left uncited. Results are stored per codebook hash, so
 editing the rubric marks earlier results stale. Export/import them as JSON to share.
 
-The default endpoint is the experiment app's `/api/analysis` (route
-`app/api/analysis/chat/completions/route.ts`), which forwards to OpenAI with the server's
-key. It is off unless the server has `ANALYSIS_TOKEN` set; paste that token into the
-viewer's settings. You can also point the viewer at `https://api.openai.com/v1` or
-`https://openrouter.ai/api/v1` with your own key. Check that your consent language
-covers the provider you send participant text to.
+The default endpoint is OpenAI's API (`https://api.openai.com/v1`). Paste your own API key into the viewer's settings. You can also point the viewer at another OpenAI-compatible server (e.g. `https://openrouter.ai/api/v1`) with your own key. Check that your consent language covers the provider you send participant text to.
 
 The viewer can't import the survey definitions, so `log-viewer/study-materials.js` is
 generated from `components/survey/surveyData.tsx` and `lib/scenarios.json` by

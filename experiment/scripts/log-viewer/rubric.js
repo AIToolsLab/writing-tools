@@ -11,7 +11,7 @@ window.Rubric = (() => {
   const LS_CODEBOOK = 'logViewer.codebook';
   const LS_RESULTS = 'logViewer.rubricResults';
   const LS_LLM = 'logViewer.llm';
-  const DEFAULT_LLM = { baseUrl: 'https://study.thoughtful-ai.com/api/analysis', model: 'gpt-5.6-terra', token: '' };
+  const DEFAULT_LLM = { baseUrl: 'https://api.openai.com/v1', model: 'gpt-5.6-terra', token: '', reasoning: 'auto' };
 
   const load = (k, fallback) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : fallback; } catch { return fallback; } };
   const save = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { console.warn('localStorage write failed', e); } };
@@ -21,6 +21,40 @@ window.Rubric = (() => {
   let llm = { ...DEFAULT_LLM, ...load(LS_LLM, {}) };
   const running = new Map(); // username -> 'running' | error message
   let batch = null; // { done, total, failed }
+
+  // ---- Model list (GET <baseUrl>/models), for the Model field's autocomplete ----
+  const modelList = Object.assign(document.createElement('datalist'), { id: 'llm-models' }); // not h(): it isn't defined yet when this file loads
+  let models = { key: null, byId: new Map(), error: null }; // id -> /models entry
+  function refreshModels() {
+    const key = `${llm.baseUrl}\n${llm.token}`;
+    if (models.key === key) return;
+    models = { key, byId: new Map(), error: null };
+    modelList.replaceChildren();
+    fetch(llm.baseUrl.replace(/\/+$/, '') + '/models', { headers: llm.token ? { Authorization: `Bearer ${llm.token}` } : {} })
+      .then(async (res) => {
+        const data = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${data?.error?.message || ''}`);
+        return data;
+      })
+      .then((data) => {
+        if (models.key !== key) return; // settings changed while this was in flight
+        const list = (data?.data || []).filter((m) => typeof m?.id === 'string').sort((a, b) => a.id.localeCompare(b.id));
+        for (const m of list) models.byId.set(m.id, m);
+        modelList.replaceChildren(...list.map((m) => h('option', { value: m.id })));
+      })
+      .catch((e) => { if (models.key === key) { models.error = String(e.message || e); console.warn('Could not list models', e); rerenderAll(); } });
+  }
+
+  // ---- Reasoning ----
+  const REASONING = { default: 'Model default', off: 'Off', low: 'Low', medium: 'Medium', high: 'High' };
+  function effectiveReasoning() {
+    return llm.reasoning || 'default';
+  }
+  function reasoningParams() {
+    const r = effectiveReasoning();
+    if (r === 'default') return {};
+    return { reasoning_effort: r === 'off' ? 'none' : r };
+  }
 
   // ---- Codebook ----
   function validate(cb) {
@@ -124,7 +158,8 @@ window.Rubric = (() => {
       'You judge which aspects of the rhetorical situation the participant considered, citing their exact words.\n\n' + (codebook.instructions || '');
     return {
       body: { model: llm.model, messages: [{ role: 'system', content: system }, { role: 'user', content: lines.join('\n') }],
-        response_format: { type: 'json_schema', json_schema: { name: 'rubric_coding', strict: true, schema } } },
+        response_format: { type: 'json_schema', json_schema: { name: 'rubric_coding', strict: true, schema } },
+        ...reasoningParams() },
       sourceIds, itemIds,
     };
   }
@@ -145,9 +180,12 @@ window.Rubric = (() => {
       if (!res.ok) throw new Error(`HTTP ${res.status}: ${data?.error?.message || text.slice(0, 300)}`);
       const msg = data?.choices?.[0]?.message;
       if (msg?.refusal) throw new Error(`Model refused: ${msg.refusal}`);
+      if (msg?.content == null && (msg?.reasoning_content || msg?.reasoning)) {
+        throw new Error('The answer came back as reasoning with no content. Set Reasoning to Off.');
+      }
       const result = JSON.parse(msg?.content ?? 'null');
       if (!result?.items) throw new Error('Unexpected response: ' + text.slice(0, 300));
-      const record = { result, model: data.model || llm.model, codebookVersion: codebook.version, codebookHash: codebookHash(), at: new Date().toISOString(), usage: data.usage };
+      const record = { result, model: data.model || llm.model, reasoning: effectiveReasoning(), codebookVersion: codebook.version, codebookHash: codebookHash(), at: new Date().toISOString(), usage: data.usage };
       results[p.username] = { ...(results[p.username] || {}), [record.codebookHash]: record };
       save(LS_RESULTS, results);
       running.delete(p.username);
@@ -254,7 +292,7 @@ window.Rubric = (() => {
       return wrap;
     }
     wrap.append(h('p', { class: stale ? 'flag warn' : 'muted' },
-      `${stale ? 'STALE: coded with a different codebook. ' : ''}Codebook ${record.codebookVersion ?? '?'} (${record.codebookHash}) · ${record.model} · ${new Date(record.at).toLocaleString()}`));
+      `${stale ? 'STALE: coded with a different codebook. ' : ''}Codebook ${record.codebookVersion ?? '?'} (${record.codebookHash}) · ${record.model}${record.reasoning ? ` (reasoning ${record.reasoning})` : ''} · ${new Date(record.at).toLocaleString()}`));
 
     // Items
     const allMissing = [];
@@ -305,14 +343,23 @@ window.Rubric = (() => {
 
   // Settings: LLM endpoint, codebook editor, results import/export
   function renderSettings(ps) {
+    refreshModels();
     const box = h('div', { class: 'panel settings' });
-    const field = (label, key, attrs = {}) => h('label', { class: 'field' }, label, h('input', { value: llm[key], ...attrs, onchange: (e) => { llm[key] = e.target.value.trim(); save(LS_LLM, llm); rerenderAll(); } }));
+    const setLlm = (key, value) => { llm[key] = value; save(LS_LLM, llm); rerenderAll(); };
+    const field = (label, key, attrs = {}) => h('label', { class: 'field' }, label, h('input', { value: llm[key], ...attrs, onchange: (e) => setLlm(key, e.target.value.trim()) }));
+    const reasoning = llm.reasoning || 'default';
+    const reasoningSelect = h('select', { onchange: (e) => setLlm('reasoning', e.target.value) },
+      Object.entries(REASONING).map(([v, label]) => h('option', { value: v, selected: v === reasoning }, label)));
     box.append(h('h3', {}, 'LLM endpoint (OpenAI-compatible)'),
       h('div', { class: 'fields' },
         field('Base URL', 'baseUrl', { size: 48 }),
-        field('Model', 'model', { size: 18 }),
+        field('Model', 'model', { size: 24, list: 'llm-models' }),
+        h('label', { class: 'field' }, 'Reasoning', reasoningSelect),
         field('Token', 'token', { type: 'password', size: 24, placeholder: 'ANALYSIS_TOKEN or API key' })),
-      h('p', { class: 'muted' }, 'The token is kept in this browser\'s localStorage. For study.thoughtful-ai.com it is the server\'s ANALYSIS_TOKEN; for api.openai.com/v1 or openrouter.ai/api/v1 it is an API key.'));
+      modelList,
+      h('p', { class: 'muted' }, 'The token is kept in this browser\'s localStorage. For study.thoughtful-ai.com it is the server\'s ANALYSIS_TOKEN; for api.openai.com/v1 or openrouter.ai/api/v1 it is an API key. ',
+        'Model suggestions come from the server\'s /models list', models.error ? ` (unavailable: ${models.error})` : '', '. ',
+        'Reasoning "Off" sends reasoning_effort "none" to OpenAI-style servers.'));
 
     const coded = ps.filter((p) => current(p)).length, eligible = ps.filter((p) => p.taskComplete).length;
     box.append(h('div', { class: 'rubric-bar' },

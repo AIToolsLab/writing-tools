@@ -82,7 +82,6 @@ The experiment supports multiple configurable scenarios. Each scenario includes 
 - `app/api/chat/route.ts` - Chat endpoint (colleague model + reasoning effort come from the scenario config, with scenario-specific system prompt)
 - `app/api/writing-support/route.ts` - AI writing suggestions
 - `app/api/log/route.ts` - Event logging endpoint
-- `app/api/analysis/chat/completions/route.ts` - Token-gated (`ANALYSIS_TOKEN`) OpenAI passthrough for the log viewer's rubric coding
 
 ### Pages (IMPORTANT: Don't confuse these!)
 - `app/page.tsx` - **Landing/index page** (dev navigation only; links to the study and the demo)
