@@ -52,11 +52,18 @@ import type { LogFn } from '@/hooks/useLog';
  *       `edit_accepted`, `edit_declined`, `edit_set_aside`, `edit_failed`,
  *       `edit_undone`, `edit_undo_refused`. Content rides in `proposal` and
  *       `offending`, both document-level.
+ *   7 — Added the Workbench lab page (token-level highlights and predictions
+ *       against vLLM) and its events, all usage-level metadata: response
+ *       times, counts and lengths, never text.
+ *   8 — The Workbench moved from vLLM to the writing engine
+ *       (llm.thoughtful-ai.com), so its `ms` aren't comparable with version 7's.
+ *       `highlights_scored` and `predictions_fetched` add `serverMs`, the
+ *       engine's own time for the request.
  */
-export const LOG_SCHEMA_VERSION = 6;
+export const LOG_SCHEMA_VERSION = 8;
 
 /** Pages that emit events. Matches the user-facing tabs. */
-export type LogPage = 'draft' | 'revise' | 'chat' | 'tools';
+export type LogPage = 'draft' | 'revise' | 'chat' | 'tools' | 'workbench';
 
 /**
  * Emit one event through the page's {@link LogFn}, stamping the schema version,
@@ -304,5 +311,70 @@ export const toolsLog = {
 	/** The writer opened an ad-hoc pasted URL directly (no grant; device-flow tool). */
 	adhocOpened(log: LogFn) {
 		return emit(log, 'tools', 'adhoc_opened', {});
+	},
+};
+
+/**
+ * Workbench page: a passage taken off to the side, scored for highlights or
+ * rewritten with predictions, against the writing engine directly. `ms` is
+ * the wall time of the whole operation (all its requests), which is what to
+ * watch for the server getting untenable; `serverMs` is the engine's share.
+ * Before schema 8 the server was vLLM, so earlier times aren't comparable.
+ */
+export const workbenchLog = {
+	/** The writer pulled a passage from the document. */
+	passagePulled(
+		log: LogFn,
+		data: { source: string; chars: number; hasPreviousParagraph: boolean },
+	) {
+		return emit(log, 'workbench', 'passage_pulled', data);
+	},
+	/** A highlights request finished. */
+	highlightsScored(
+		log: LogFn,
+		data: {
+			model: string;
+			ms: number;
+			serverMs: number;
+			tokens: number;
+			ranges: number;
+		},
+	) {
+		return emit(log, 'workbench', 'highlights_scored', data);
+	},
+	/** A predictions request finished (cache misses only). */
+	predictionsFetched(
+		log: LogFn,
+		data: {
+			model: string;
+			ms: number;
+			serverMs: number;
+			branches: number;
+			words: number;
+		},
+	) {
+		return emit(log, 'workbench', 'predictions_fetched', data);
+	},
+	/**
+	 * The writer took a suggestion. `draftChars` is the draft before it, so
+	 * readers can compare how much of a rewrite came from accepted text.
+	 */
+	suggestionAccepted(
+		log: LogFn,
+		data: {
+			slot: number;
+			acceptedChars: number;
+			draftChars: number;
+			fromCache: boolean;
+		},
+	) {
+		return emit(log, 'workbench', 'suggestion_accepted', data);
+	},
+	/** A request to the writing engine failed. */
+	requestFailed(
+		log: LogFn,
+		data: { kind: 'highlights' | 'predictions'; error: string },
+	) {
+		return emit(log, 'workbench', 'request_failed', data);
 	},
 };

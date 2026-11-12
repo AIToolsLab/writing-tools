@@ -35,6 +35,7 @@ import { isFlagEnabled } from './flags';
 import MyWords from './my-words';
 import Revise from './revise';
 import Tools from './tools';
+import Workbench from './workbench';
 
 export type PageTier = 'core' | 'lab';
 
@@ -89,6 +90,13 @@ export const PAGES: PageDef[] = [
 		hint: 'Launch writing tools',
 		tier: 'lab',
 		render: () => <Tools />,
+	},
+	{
+		name: PageName.Workbench,
+		title: 'Workbench',
+		hint: 'Rework a passage on the side',
+		tier: 'lab',
+		render: () => <Workbench />,
 	},
 	{
 		name: PageName.MyWords,

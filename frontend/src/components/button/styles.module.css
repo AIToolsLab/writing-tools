@@ -1,0 +1,128 @@
+/* Colours are the tokens from @/theme.css. Hover and fill shades are derived
+ * from them rather than given their own hex values, so a change to the
+ * palette carries through.
+ *
+ * Every text/background pair here meets WCAG AA (4.5:1) on white, #f1f1f1
+ * and --bg, the backgrounds buttons sit on. Recheck if a token changes.
+ * The inactive state's reduced contrast is exempt (WCAG 1.4.3). */
+.button {
+	--accent-hover: color-mix(in srgb, var(--accent) 85%, black);
+	--neutral-fill: color-mix(in srgb, var(--text-primary) 8%, transparent);
+	--neutral-fill-hover: color-mix(
+		in srgb,
+		var(--text-primary) 14%,
+		transparent
+	);
+
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.5rem;
+	border: 1px solid transparent;
+	border-radius: var(--radius-sm);
+	font-size: 0.9rem;
+	font-weight: 500;
+	text-decoration: none;
+	cursor: pointer;
+	transition:
+		background-color 0.15s ease,
+		border-color 0.15s ease,
+		color 0.15s ease;
+	white-space: nowrap;
+}
+
+.inactive {
+	cursor: not-allowed;
+	opacity: 0.6;
+}
+
+.small {
+	padding: 0.25rem 0.75rem;
+	font-size: 0.8rem;
+}
+
+.medium {
+	padding: 0.5rem 1rem;
+}
+
+.large {
+	padding: 0.75rem 1.5rem;
+	font-size: 1rem;
+}
+
+/* primary */
+
+.primary.solid {
+	background-color: var(--accent);
+	border-color: var(--accent);
+	color: var(--surface);
+}
+
+.primary.solid:not(.inactive):hover {
+	background-color: var(--accent-hover);
+	border-color: var(--accent-hover);
+}
+
+.primary.outline {
+	background-color: transparent;
+	border-color: var(--accent);
+	color: var(--accent);
+}
+
+.primary.ghost {
+	background-color: transparent;
+	color: var(--accent);
+}
+
+.primary.outline:not(.inactive):hover,
+.primary.ghost:not(.inactive):hover {
+	background-color: var(--accent-bg);
+}
+
+/* neutral */
+
+.neutral.solid {
+	background-color: var(--neutral-fill);
+	color: var(--text-primary);
+}
+
+.neutral.solid:not(.inactive):hover {
+	background-color: var(--neutral-fill-hover);
+}
+
+.neutral.outline {
+	background-color: transparent;
+	border-color: var(--border-strong);
+	color: var(--text-primary);
+}
+
+.neutral.ghost {
+	background-color: transparent;
+	color: var(--text-secondary);
+}
+
+.neutral.outline:not(.inactive):hover {
+	background-color: var(--neutral-fill);
+}
+
+/* Secondary text on the hover fill is under 4.5:1 on the grey panels, so the
+ * text darkens as the fill appears. */
+.neutral.ghost:not(.inactive):hover {
+	background-color: var(--neutral-fill);
+	color: var(--text-primary);
+}
+
+.spinner {
+	width: 0.9em;
+	height: 0.9em;
+	border: 2px solid currentColor;
+	border-right-color: transparent;
+	border-radius: 50%;
+	animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+	to {
+		transform: rotate(360deg);
+	}
+}

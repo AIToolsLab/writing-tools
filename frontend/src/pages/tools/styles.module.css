@@ -8,7 +8,7 @@
 .intro {
 	margin: 0;
 	font-size: 0.9rem;
-	color: var(--rs-color-foreground-neutral-faded, #555);
+	color: var(--text-secondary);
 	line-height: 1.4;
 }
 
@@ -31,7 +31,7 @@
 }
 
 .tool {
-	border: 1px solid var(--rs-color-border-neutral, #e0e0e0);
+	border: 1px solid var(--border-strong);
 	border-radius: 8px;
 	padding: 0.85rem;
 	display: flex;
@@ -54,17 +54,17 @@
 	margin: 0;
 	font-size: 0.85rem;
 	line-height: 1.4;
-	color: var(--rs-color-foreground-neutral-faded, #555);
+	color: var(--text-secondary);
 }
 
 .scopes {
 	font-size: 0.78rem;
-	color: var(--rs-color-foreground-neutral-faded, #777);
+	color: var(--text-secondary);
 	margin-bottom: 0.25rem;
 }
 
 .adhoc {
-	border-top: 1px solid var(--rs-color-border-neutral-faded, #eee);
+	border-top: 1px solid var(--border);
 	padding-top: 1rem;
 	display: flex;
 	flex-direction: column;
@@ -79,7 +79,7 @@
 .adhocHint {
 	margin: 0;
 	font-size: 0.78rem;
-	color: var(--rs-color-foreground-neutral-faded, #777);
+	color: var(--text-secondary);
 	line-height: 1.4;
 }
 
@@ -93,7 +93,7 @@
 	flex: 1;
 	min-width: 0;
 	padding: 0.45rem 0.6rem;
-	border: 1px solid var(--rs-color-border-neutral, #ccc);
+	border: 1px solid var(--border-strong);
 	border-radius: 6px;
 	font-size: 0.85rem;
 }

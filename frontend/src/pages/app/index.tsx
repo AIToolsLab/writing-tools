@@ -25,8 +25,7 @@ import { OnboardingCarousel } from '../carousel/OnboardingCarousel';
 import { resolvePage } from '../registry';
 import classes from './styles.module.css';
 import Navbar from '@/components/navbar';
-import { Reshaped, Button } from 'reshaped';
-import 'reshaped/themes/slate/theme.css';
+import { Button } from '@/components/button';
 import '@/theme.css';
 
 // PostHog configuration - project token is safe to commit publicly
@@ -130,7 +129,8 @@ function DeviceAuthStatus({
 				<div style={{ margin: '0.25rem 0 0.75rem' }}>
 					<Button
 						href={authorization.verificationUri}
-						attributes={{ target: '_blank', rel: 'noopener' }}
+						target="_blank"
+						rel="noopener"
 						color="primary"
 						variant="outline"
 						size="small"
@@ -500,20 +500,18 @@ export default function App() {
 	return (
 		<AppWithProviders>
 			<ChatContextWrapper>
-				<Reshaped theme="slate">
-					<AppAuthProvider>
-						<PostHogConsentBridge />
-						<AppAuthTokenBridge>
-							{/* The document's brief is shared by every page, so it
-							    is loaded once here rather than per page. Inside the
-							    auth providers because the section it feeds logs
-							    edits. */}
-							<DocBriefProvider>
-								<AppInner />
-							</DocBriefProvider>
-						</AppAuthTokenBridge>
-					</AppAuthProvider>
-				</Reshaped>
+				<AppAuthProvider>
+					<PostHogConsentBridge />
+					<AppAuthTokenBridge>
+						{/* The document's brief is shared by every page, so it
+						    is loaded once here rather than per page. Inside the
+						    auth providers because the section it feeds logs
+						    edits. */}
+						<DocBriefProvider>
+							<AppInner />
+						</DocBriefProvider>
+					</AppAuthTokenBridge>
+				</AppAuthProvider>
 			</ChatContextWrapper>
 		</AppWithProviders>
 	);
