@@ -99,3 +99,20 @@ export function filterPayloadForConsent(
 	}
 	return { allowed: true, payload: kept };
 }
+
+/**
+ * Whether analytics (PostHog) may capture for this session: signed in, at
+ * `usage` or above, and at a level the user actually chose. A fresh user's
+ * level is only the default until they press Continue on the consent screen.
+ */
+export function analyticsAllowed(session: {
+	isAuthenticated: boolean;
+	hasSetConsent: boolean;
+	loggingConsent: ConsentLevel;
+}): boolean {
+	return (
+		session.isAuthenticated &&
+		session.hasSetConsent &&
+		consentRank(session.loggingConsent) >= consentRank('usage')
+	);
+}

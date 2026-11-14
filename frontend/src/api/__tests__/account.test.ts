@@ -1,10 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('../index', () => ({ SERVER_URL: '/api' }));
+vi.mock('../index', () => ({ SERVER_ORIGIN: '', SERVER_URL: '/api' }));
 
-import { changeConsent, deleteAccount, eraseActivity } from '../account';
+import {
+	accountPageUrl,
+	changeConsent,
+	deleteAccount,
+	eraseActivity,
+} from '../account';
 
 let fetchMock: ReturnType<typeof vi.fn>;
+
+describe('accountPageUrl', () => {
+	it('points at the backend origin, not the page origin', () => {
+		// Google Docs sidebar: the origin comes from the bundle's script src.
+		expect(accountPageUrl('https://app.thoughtful-ai.com')).toBe(
+			'https://app.thoughtful-ai.com/account.html',
+		);
+		// Task pane / editor: the page's own origin.
+		expect(accountPageUrl('https://localhost:3000')).toBe(
+			'https://localhost:3000/account.html',
+		);
+		// Outside a browser the origin is empty, so the link is root-relative.
+		expect(accountPageUrl()).toBe('/account.html');
+	});
+});
 
 beforeEach(() => {
 	fetchMock = vi.fn();
@@ -17,9 +37,19 @@ afterEach(() => {
 
 describe('account API', () => {
 	it('uses the bearer-only path for consent changes', async () => {
-		fetchMock.mockResolvedValueOnce({ ok: true });
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			json: () =>
+				Promise.resolve({
+					loggingConsent: 'ai_output',
+					consentUpdatedAt: '2026-07-27T00:00:00.000Z',
+				}),
+		});
 
-		await changeConsent('tok', 'ai_output');
+		await expect(changeConsent('tok', 'ai_output')).resolves.toEqual({
+			loggingConsent: 'ai_output',
+			consentUpdatedAt: '2026-07-27T00:00:00.000Z',
+		});
 
 		expect(fetchMock).toHaveBeenCalledWith('/api/me/consent', {
 			method: 'POST',
@@ -30,6 +60,28 @@ describe('account API', () => {
 			},
 			body: JSON.stringify({ level: 'ai_output' }),
 		});
+	});
+
+	// A 2xx with a body we can't trust is a failed save: the caller rolls back
+	// rather than pushing an unknown level or a missing marker into the session.
+	it.each([
+		[
+			'unknown level',
+			{ loggingConsent: 'everything', consentUpdatedAt: 'x' },
+		],
+		['missing timestamp', { loggingConsent: 'usage' }],
+		[
+			'non-string timestamp',
+			{ loggingConsent: 'usage', consentUpdatedAt: 1 },
+		],
+	])('rejects a malformed consent snapshot (%s)', async (_label, body) => {
+		fetchMock.mockResolvedValueOnce({
+			ok: true,
+			json: () => Promise.resolve(body),
+		});
+		await expect(changeConsent('tok', 'usage')).rejects.toThrow(
+			'invalid snapshot',
+		);
 	});
 
 	it('uses the bearer-only path for activity erasure', async () => {
