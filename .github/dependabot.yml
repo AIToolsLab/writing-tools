@@ -21,6 +21,8 @@ updates:
     groups:
       actions:
         patterns: ["*"]
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "npm"
     directories:
@@ -34,6 +36,8 @@ updates:
       npm-security:
         applies-to: security-updates
         patterns: ["*"]
+    cooldown:
+      default-days: 7
 
   # Python deps here only support the analysis scripts in scripts/.
   - package-ecosystem: "uv"
@@ -45,3 +49,5 @@ updates:
       python-security:
         applies-to: security-updates
         patterns: ["*"]
+    cooldown:
+      default-days: 7
