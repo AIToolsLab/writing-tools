@@ -86,3 +86,20 @@
 	font-weight: 600;
 	text-decoration: underline;
 }
+
+/* Action that reads as a link (the data-download choices). */
+.linkButton {
+	padding: 0;
+	border: 0;
+	background: none;
+	color: #2563eb;
+	font: inherit;
+	font-weight: 600;
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.linkButton:disabled {
+	color: #a1a1aa;
+	cursor: default;
+}

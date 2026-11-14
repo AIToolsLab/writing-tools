@@ -2,7 +2,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../index', () => ({ SERVER_URL: '/api' }));
 
-import { changeConsent, deleteAccount, eraseActivity } from '../account';
+import {
+	changeConsent,
+	deleteAccount,
+	downloadMyData,
+	eraseActivity,
+} from '../account';
 
 let fetchMock: ReturnType<typeof vi.fn>;
 
@@ -39,6 +44,23 @@ describe('account API', () => {
 
 		expect(fetchMock).toHaveBeenCalledWith('/api/me/activity', {
 			method: 'DELETE',
+			credentials: 'omit',
+			headers: { Authorization: 'Bearer tok' },
+		});
+	});
+
+	it('passes since through to the data export, and omits it for "ever"', async () => {
+		const blob = new Blob(['{}']);
+		fetchMock.mockResolvedValue({ ok: true, blob: () => Promise.resolve(blob) });
+
+		await expect(downloadMyData('tok', 1234)).resolves.toBe(blob);
+		expect(fetchMock).toHaveBeenLastCalledWith('/api/me/data?since=1234', {
+			credentials: 'omit',
+			headers: { Authorization: 'Bearer tok' },
+		});
+
+		await downloadMyData('tok');
+		expect(fetchMock).toHaveBeenLastCalledWith('/api/me/data', {
 			credentials: 'omit',
 			headers: { Authorization: 'Bearer tok' },
 		});

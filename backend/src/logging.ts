@@ -150,3 +150,37 @@ export async function zipLogs(): Promise<Uint8Array> {
 	}
 	return zipSync(archive);
 }
+
+/**
+ * One user's study-log entries, oldest first, optionally only those at or after
+ * `sinceMs` (epoch ms). Backs the self-service "download my data" export. Missing
+ * file → []. Unparseable lines are skipped rather than failing the whole export.
+ *
+ * Entries keep the shape they were written in (`timestamp` is epoch *seconds*),
+ * so an export reads the same as the files the analysis scripts consume.
+ */
+export async function readUserLogs(
+	userId: string,
+	sinceMs?: number,
+): Promise<LogEntry[]> {
+	let content: string;
+	try {
+		content = await readFile(logFilePath(userId), 'utf8');
+	} catch (e) {
+		if ((e as NodeJS.ErrnoException).code === 'ENOENT') return [];
+		throw e;
+	}
+	const entries: LogEntry[] = [];
+	for (const line of content.split('\n')) {
+		if (!line.trim()) continue;
+		let entry: LogEntry;
+		try {
+			entry = JSON.parse(line) as LogEntry;
+		} catch {
+			continue;
+		}
+		if (sinceMs !== undefined && entry.timestamp * 1000 < sinceMs) continue;
+		entries.push(entry);
+	}
+	return entries;
+}

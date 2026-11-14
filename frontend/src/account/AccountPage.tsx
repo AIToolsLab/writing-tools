@@ -4,6 +4,7 @@
  * Lets a signed-in user exercise the "Your Rights and Choices" actions from the
  * privacy policy, which are deliberately three *different* things:
  *   - change their logging-consent level        → POST /api/me/consent
+ *   - download what we've logged (access)        → GET /api/me/data
  *   - erase their logged activity (withdrawal)   → DELETE /api/me/activity
  *   - delete their account (departure)           → POST /api/auth/delete-user
  *
@@ -14,7 +15,12 @@
  */
 import { useState } from 'react';
 import { Button } from '@/components/button';
-import { changeConsent, deleteAccount, eraseActivity } from '@/api/account';
+import {
+	changeConsent,
+	deleteAccount,
+	downloadMyData,
+	eraseActivity,
+} from '@/api/account';
 import { clearToken, loadToken } from '@/api/authTokenStore';
 import { ConsentLevelChooser } from '@/components/ConsentLevelChooser';
 import type { ConsentLevel } from '@/consent';
@@ -23,6 +29,40 @@ import { DeviceCodePanel } from './DeviceCodePanel';
 import classes from './styles.module.css';
 
 type ConsentStatus = 'idle' | 'saving' | 'saved' | 'error';
+type ExportRange = 'today' | 'week' | 'all';
+type ExportStatus = 'idle' | 'working' | 'error';
+
+const EXPORT_LABELS: Record<ExportRange, string> = {
+	today: 'Today',
+	week: 'Past 7 days',
+	all: 'Everything',
+};
+
+/**
+ * Start of the export window in epoch ms, or undefined for everything. "Today"
+ * is the viewer's local midnight — computed here, not on the server, whose clock
+ * is in some other time zone. "Past 7 days" is a rolling 7×24h window.
+ */
+function exportSince(range: ExportRange, now = new Date()): number | undefined {
+	if (range === 'all') return undefined;
+	if (range === 'week') return now.getTime() - 7 * 24 * 60 * 60 * 1000;
+	const midnight = new Date(now);
+	midnight.setHours(0, 0, 0, 0);
+	return midnight.getTime();
+}
+
+/** Hand a blob to the browser as a file download. */
+function saveBlob(blob: Blob, filename: string) {
+	const url = URL.createObjectURL(blob);
+	const a = document.createElement('a');
+	a.href = url;
+	a.download = filename;
+	document.body.appendChild(a);
+	a.click();
+	a.remove();
+	// Revoke on the next tick: some browsers start the download asynchronously.
+	setTimeout(() => URL.revokeObjectURL(url), 0);
+}
 type EraseStatus = 'idle' | 'confirm' | 'working' | 'done' | 'error';
 type DeleteStatus =
 	'idle' | 'confirm' | 'working' | 'needs-reauth' | 'done' | 'error';
@@ -32,6 +72,8 @@ export function AccountPage() {
 
 	const [level, setLevel] = useState<ConsentLevel>(session.loggingConsent);
 	const [consentStatus, setConsentStatus] = useState<ConsentStatus>('idle');
+
+	const [exportStatus, setExportStatus] = useState<ExportStatus>('idle');
 
 	const [eraseStatus, setEraseStatus] = useState<EraseStatus>('idle');
 	const [eraseError, setEraseError] = useState<string | null>(null);
@@ -51,6 +93,20 @@ export function AccountPage() {
 		} catch {
 			setLevel(previous); // roll back on failure
 			setConsentStatus('error');
+		}
+	};
+
+	// --- download my data (access) --------------------------------------------
+	const onExport = async (range: ExportRange) => {
+		setExportStatus('working');
+		try {
+			const token = await session.getAccessToken();
+			const blob = await downloadMyData(token, exportSince(range));
+			const day = new Date().toISOString().slice(0, 10);
+			saveBlob(blob, `thoughtful-data-${range}-${day}.json`);
+			setExportStatus('idle');
+		} catch {
+			setExportStatus('error');
 		}
 	};
 
@@ -133,6 +189,35 @@ export function AccountPage() {
 					{consentStatus === 'saved' && 'Saved.'}
 					{consentStatus === 'error' &&
 						'Could not save your choice. Please try again.'}
+				</p>
+			</section>
+
+			{/* Download — access */}
+			<section className={classes.section}>
+				<h2 className={classes.h2}>Download my data</h2>
+				<p className={classes.sectionIntro}>
+					A JSON file of the events we&rsquo;ve logged about you and
+					the content-free AI usage records we keep for billing.
+				</p>
+				<div className={classes.actionRow}>
+					{(Object.keys(EXPORT_LABELS) as ExportRange[]).map(
+						(range) => (
+							<button
+								key={range}
+								type="button"
+								className={classes.linkButton}
+								disabled={exportStatus === 'working'}
+								onClick={() => void onExport(range)}
+							>
+								{EXPORT_LABELS[range]}
+							</button>
+						),
+					)}
+				</div>
+				<p className={classes.statusLine}>
+					{exportStatus === 'working' && 'Preparing download…'}
+					{exportStatus === 'error' &&
+						'Could not download your data. Please try again.'}
 				</p>
 			</section>
 

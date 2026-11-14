@@ -94,3 +94,23 @@ export async function deleteAccount(
 		status: res.status,
 	};
 }
+
+/**
+ * Export everything logged about the signed-in user (study-log events + usage
+ * rows) as a JSON blob. `since` is epoch ms; omit it for "ever".
+ * `GET /api/me/data[?since=…]`. Throws on non-2xx.
+ *
+ * Fetched rather than linked: the route is bearer-authenticated, and a plain
+ * `<a href>` navigation can't carry the token.
+ */
+export async function downloadMyData(
+	token: string,
+	since?: number,
+): Promise<Blob> {
+	const query = since === undefined ? '' : `?since=${since}`;
+	const res = await authedFetch(`/me/data${query}`, token);
+	if (!res.ok) {
+		throw new Error(`data export failed (${res.status})`);
+	}
+	return res.blob();
+}
