@@ -64,6 +64,11 @@ export interface AppAuthSession {
 	 */
 	cancelLogin: () => void;
 	logout: () => Promise<void>;
+	/**
+	 * Re-fetch the signed-in user, picking up server-side changes such as a beta
+	 * access grant (`isAllowed`). Rejects if the check itself failed.
+	 */
+	refreshUser: () => Promise<void>;
 }
 
 const DEFAULT_SESSION: AppAuthSession = {
@@ -81,6 +86,7 @@ const DEFAULT_SESSION: AppAuthSession = {
 	login: () => Promise.resolve(),
 	cancelLogin: () => {},
 	logout: () => Promise.resolve(),
+	refreshUser: () => Promise.resolve(),
 };
 
 const AppAuthContext = createContext<AppAuthSession>(DEFAULT_SESSION);
@@ -136,6 +142,7 @@ function BetterAuthProvider({ children }: { children: ReactNode }) {
 			login: device.start,
 			cancelLogin: device.reset,
 			logout: device.logout,
+			refreshUser: device.refresh,
 		};
 	}, [device]);
 
@@ -173,6 +180,8 @@ function DemoAuthProvider({ children }: { children: ReactNode }) {
 			login: () => Promise.resolve(),
 			cancelLogin: () => {},
 			logout: () => Promise.resolve(),
+			// Demo sessions are never gated, so there's nothing to re-check.
+			refreshUser: () => Promise.resolve(),
 		}),
 		[anon],
 	);

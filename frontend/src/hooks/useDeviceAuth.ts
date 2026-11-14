@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
 	type DeviceCodeResponse,
 	type UserInfo,
+	NoSessionError,
 	fetchUserInfo,
 	pollForToken,
 	requestDeviceCode,
@@ -45,6 +46,13 @@ export interface UseDeviceAuth extends DeviceAuthState {
 	reset: () => void;
 	/** Best-effort server sign-out, then clear local state. */
 	logout: () => Promise<void>;
+	/**
+	 * Re-fetch the signed-in user with the current token, so server-side changes
+	 * (e.g. a beta access grant) show up without signing in again. No-op when not
+	 * signed in. If the session is gone, falls back to the login screen; any other
+	 * failure keeps the current state and rejects, for the caller to report.
+	 */
+	refresh: () => Promise<void>;
 }
 
 const INITIAL: DeviceAuthState = { status: 'idle' };
@@ -174,6 +182,29 @@ export function useDeviceAuth(): UseDeviceAuth {
 		}
 	}, [abortInFlight]);
 
+	const refresh = useCallback(async () => {
+		const token = tokenRef.current;
+		if (!token) return;
+		let user: UserInfo;
+		try {
+			user = await fetchUserInfo(token);
+		} catch (e) {
+			// Ignore the result if the user signed out or in again meanwhile.
+			if (tokenRef.current !== token) return;
+			if (e instanceof NoSessionError) {
+				reset();
+				return;
+			}
+			throw e;
+		}
+		if (tokenRef.current !== token) return;
+		setState((prev) =>
+			prev.status === 'success' && prev.token === token
+				? { ...prev, user }
+				: prev,
+		);
+	}, [reset]);
+
 	useEffect(() => {
 		const controller = new AbortController();
 		abortRef.current = controller;
@@ -206,5 +237,5 @@ export function useDeviceAuth(): UseDeviceAuth {
 		};
 	}, [safeSet]);
 
-	return { ...state, start, reset, logout };
+	return { ...state, start, reset, logout, refresh };
 }
