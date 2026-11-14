@@ -122,6 +122,41 @@
   .ai-item { border-top: 1px solid var(--border); padding: 6px 0; }
   .ai-item .result { white-space: pre-wrap; margin-top: 4px; }
   .events td { font-size: 12px; }
+  .hl-item { background: var(--info-bg); border-bottom: 2px solid var(--series-1); }
+  .hl-uncaptured { background: var(--warn-bg); border-bottom: 2px dashed var(--warn); }
+  .hl-tag { font-size: 9px; color: var(--text-2); font-family: var(--mono); margin: 0 2px; }
+  .ov-ai { background: color-mix(in srgb, var(--series-3) 28%, transparent); }
+  .ov-colleague { background: color-mix(in srgb, var(--series-2) 28%, transparent); }
+  .ov-self { background: color-mix(in srgb, var(--series-1) 22%, transparent); }
+  .ov-echo { text-decoration: underline dotted var(--text-3); text-underline-offset: 3px; }
+  .ov-legend span { padding: 0 4px; border-radius: 3px; }
+  .src-chip { font-family: var(--mono); font-size: 11px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; }
+  .rubric-bar { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+  table.rubric-items td { font-size: 13px; }
+  table.rubric-items .ev { margin-bottom: 3px; }
+  td.lvl { white-space: nowrap; }
+  td.lvl-0 { color: var(--text-3); }
+  td.lvl-2 { font-weight: 600; }
+  .rubric-sources { display: grid; gap: 8px; }
+  .rubric-source, .qual-card { border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; }
+  .src-head { font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
+  .src-text { white-space: pre-wrap; word-wrap: break-word; }
+  .q-text { white-space: pre-wrap; font-size: 12px; color: var(--text-2); max-height: 20em; overflow-y: auto; }
+  .qual-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 8px; }
+  .summary-table td, .summary-table th { font-size: 13px; }
+  .summary-table th { position: static; cursor: default; }
+  .summary-table.narrow { width: auto; }
+  .table-wrap.tall { max-height: none; }
+  .summary-table tr.section-row td { background: var(--surface-2); font-weight: 600; font-size: 12px; }
+  .summary-table td.unusual { background: var(--warn-bg); }
+  .summary-table tr.lure td { color: var(--text-2); }
+  .small { font-size: 11px; }
+  .settings .fields { display: flex; flex-wrap: wrap; gap: 10px; }
+  .field { display: flex; flex-direction: column; font-size: 12px; color: var(--text-2); gap: 2px; }
+  .field input, select, input[type=number] { font: inherit; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 4px; padding: 3px 6px; }
+  textarea.codebook-editor { width: 100%; font-family: var(--mono); font-size: 12px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+  details.top { margin-top: 16px; }
+  details.top > summary h2 { display: inline; }
   .events td.json { font-family: var(--mono); font-size: 11px; color: var(--text-2); max-width: 700px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 </style>
 </head>
@@ -144,9 +179,18 @@
     <h2>Participants</h2>
     <div class="table-wrap"><table id="overview"></table></div>
   </section>
+  <section id="analysis-sections" hidden>
+    <details class="top" id="summary-details"><summary><h2>Summary across participants</h2></summary><div id="summary"></div></details>
+    <details class="top" id="settings-details"><summary><h2>Rubric coding: codebook and LLM settings</h2></summary><div id="settings"></div></details>
+  </section>
   <section id="detail"></section>
 </main>
 
+<script src="log-viewer/analysis.js"></script>
+<script src="log-viewer/study-materials.js"></script>
+<script src="log-viewer/default-codebook.js"></script>
+<script src="log-viewer/rubric.js"></script>
+<script src="log-viewer/summary.js"></script>
 <script>
 'use strict';
 
@@ -164,6 +208,7 @@ const loadedFiles = new Map(); // "name|size" -> raw entries from that file
 let participants = [];
 let selected = null;
 let sortKey = 'start', sortDir = 1;
+let overlapN = 4; // minimum run length (words) for email/source overlap
 
 // ---- Small helpers ----
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -249,7 +294,14 @@ async function addFiles(files) {
     const key = `${f.webkitRelativePath || f.name}|${f.size}`;
     if (loadedFiles.has(key)) { skipped.push(`${f.name} (already loaded)`); continue; }
     try {
-      const { entries, errors } = parseJsonl(await readFile(f), f.webkitRelativePath || f.name);
+      const text = await readFile(f);
+      if (f.name.endsWith('.json')) {
+        // A codebook or exported rubric results rather than a log?
+        let obj = null; try { obj = JSON.parse(text); } catch { /* JSONL */ }
+        const kind = obj && !Array.isArray(obj) && Rubric.importJson(obj);
+        if (kind) { skipped.push(`${f.name} (loaded as ${kind})`); continue; }
+      }
+      const { entries, errors } = parseJsonl(text, f.webkitRelativePath || f.name);
       loadedFiles.set(key, { entries, errors });
       added++;
     } catch (err) {
@@ -425,8 +477,24 @@ function analyze(username, raw, parseErrors) {
     else if (lastKs.extra_data?.value !== submitted) flag('warn', `Keystroke log ≠ submitted ${KEYSTROKE_QUESTION}`);
     else if (feedbackUpdates.length < 0.5 * submitted.length) flag('info', `Few keystroke events for ${KEYSTROKE_QUESTION}`, `${feedbackUpdates.length} updates for ${submitted.length} chars (pasted or autofilled?)`);
   }
-  const tech = postAnswers ? answerText(postAnswers[TECH_QUESTION]).trim() : '';
-  if (tech) flag('info', 'Reported technical difficulties', tech);
+  const techInfo = techDifficulty(postAnswers ? answerText(postAnswers[TECH_QUESTION]) : '');
+  const tech = techInfo.text;
+  if (techInfo.reported) flag('warn', 'Reported technical difficulties', tech);
+  for (const f of screenFlags(startedStudy?.extra_data, conditionCode)) flag(f.level, f.text, f.detail);
+  const finalView = first('view:final');
+  const lateLoads = finalView ? sessions.filter((s) => s.start > finalView._t + 1000) : [];
+  if (lateLoads.length) flag('info', `${lateLoads.length} page load(s) after finishing`, `${fmtDuration(lateLoads[0].start - finalView._t)} after the final page: ${lateLoads.map((s) => s.page).join(', ')} (restored tabs or back button?)`);
+
+  // Where the email's words came from (see overlap() in log-viewer/analysis.js)
+  // Chat from task-page loads before submission (a task page reopened afterwards
+  // shows the colleague's opener again, which isn't part of the task).
+  const taskChat = chat.filter((m) => m.session.page === 'task' && (!taskComplete || m.session.start <= taskComplete._t));
+  const overlapSources = [
+    ...aiResponses.map((e, i) => ({ id: `ai${i + 1}`, kind: 'ai', t: e._t, text: e.extra_data?.generation?.result || '', event: e })),
+    ...taskChat.filter((m) => m.role === 'colleague').map((m, i) => ({ id: `colleague${i + 1}`, kind: 'colleague', t: m.t, text: m.content, msg: m })),
+    ...taskChat.filter((m) => m.role === 'user').map((m, i) => ({ id: `chat${i + 1}`, kind: 'self', t: m.t, text: m.content, msg: m })),
+  ];
+  const overlapResult = draftText ? overlap(draftText, overlapSources, docUpdates.map((e) => ({ t: e._t, text: docText(e.extra_data?.editorState) })), overlapN) : null;
 
   return {
     username, entries, rawCount: raw.length, duplicates, lostEvents, sessions, taskSessions, parseErrors,
@@ -434,7 +502,9 @@ function analyze(username, raw, parseErrors) {
     studyParams, conditionCode, conditionName, scenario: postSurvey?.extra_data?.scenarioId || introSurvey?.extra_data?.scenarioId || studyParams.scenario || '?',
     furthestPage, startedStudy, taskStart, taskComplete, taskT0, introSurvey, postSurvey, introAnswers, postAnswers,
     docUpdates, finalText, finalSubject, draftText, chat, userMsgs, colleagueMsgs, opener,
-    aiRequests, aiResponses, keystrokes, feedbackUpdates, gitCommits, waves, tech, flags,
+    aiRequests, aiResponses, keystrokes, feedbackUpdates, gitCommits, waves, tech, techInfo, flags,
+    overlap: overlapResult, overlapSources, browser: startedStudy?.extra_data,
+    taskChat,
     start: entries[0]?._t, end: entries[entries.length - 1]?._t,
     taskMs: taskComplete && taskT0 ? taskComplete._t - taskT0 : NaN,
     totalMs: entries.length ? entries[entries.length - 1]._t - entries[0]._t : NaN,
@@ -465,8 +535,21 @@ function rebuild() {
   $('#drop-hint').hidden = participants.length > 0;
   $('#clear-btn').hidden = participants.length === 0;
   $('#overview-section').hidden = participants.length === 0;
+  $('#analysis-sections').hidden = participants.length === 0;
+  rerenderAll();
+}
+
+// Re-render everything that depends on participants, the codebook or rubric results.
+// Keeps the page from jumping: closed <details> are only rendered when opened.
+function rerenderAll() {
+  for (const p of participants) p.recall = p.postAnswers ? recallScore(p.postAnswers, Rubric.reverseCoded(p.scenario)) : null;
   renderOverview();
+  const sum = $('#summary-details'), set = $('#settings-details');
+  $('#summary').replaceChildren(sum.open ? Summary.render(participants, overlapN) : '');
+  $('#settings').replaceChildren(set.open ? Rubric.renderSettings(participants) : '');
+  const y = window.scrollY;
   renderDetail();
+  window.scrollTo(0, y);
 }
 
 // Did each task page load show the colleague opener for the scenario in its URL?
@@ -512,7 +595,10 @@ const COLUMNS = [
   { key: 'chat', label: 'Msgs sent', get: (p) => p.userMsgs.length, cls: 'num' },
   { key: 'ai', label: 'AI shown', get: (p) => p.aiResponses.length, cls: 'num' },
   { key: 'words', label: 'Words', get: (p) => p.words, render: (p) => p.taskComplete ? p.words : h('span', { class: 'muted', title: 'last draft, not submitted' }, p.words), cls: 'num' },
-  { key: 'tech', label: 'Technical difficulties', get: (p) => p.tech, cls: 'clip', title: (p) => p.tech },
+  { key: 'fromAi', label: 'From AI', get: (p) => p.overlap?.total ? p.overlap.counts.ai / p.overlap.total : NaN, render: (p) => p.overlap?.total ? `${Math.round(100 * p.overlap.counts.ai / p.overlap.total)}%` : '–', cls: 'num', title: () => 'Share of email words that first appeared in an AI suggestion' },
+  { key: 'fromColleague', label: 'From colleague', get: (p) => p.overlap?.total ? p.overlap.counts.colleague / p.overlap.total : NaN, render: (p) => p.overlap?.total ? `${Math.round(100 * p.overlap.counts.colleague / p.overlap.total)}%` : '–', cls: 'num', title: () => 'Share of email words that first appeared in a colleague message' },
+  { key: 'recall', label: 'Recall hit/FA', get: (p) => p.recall ? p.recall.hitRate - p.recall.faRate : NaN, render: (p) => p.recall ? `${p.recall.hits}/${p.recall.nReal} · ${p.recall.falseAlarms}/${p.recall.nLure}` : '–', cls: 'num', title: () => 'Specific recall: "yes" on real items / "yes" on reverse-coded items' },
+  { key: 'tech', label: 'Technical difficulties', get: (p) => p.tech, render: (p) => p.techInfo.reported ? p.tech : h('span', { class: 'muted' }, p.tech), cls: 'clip', title: (p) => p.tech },
   { key: 'opener', label: 'Colleague opener', get: (p) => p.opener?.content ?? '', cls: 'clip', title: (p) => p.opener?.content },
   { key: 'start', label: 'Started', get: (p) => p.start, render: (p) => fmtDate(p.start), cls: 'num' },
   { key: 'totalMs', label: 'Total', get: (p) => p.totalMs, render: (p) => fmtDuration(p.totalMs), cls: 'num' },
@@ -595,8 +681,9 @@ function renderDetail() {
   const emailPanel = h('div', { class: 'panel' },
     p.taskComplete ? null : h('p', { class: 'flag warn' }, 'Not submitted: showing the last logged draft'),
     h('div', { class: 'email-subject' }, 'Subject: ', (p.finalSubject ?? p.docUpdates[p.docUpdates.length - 1]?.extra_data?.subject) || h('span', { class: 'muted' }, '(none)')),
-    h('div', { class: 'email-body' }, p.draftText || h('span', { class: 'muted' }, '(empty)')),
+    h('div', { class: 'email-body' }, p.draftText ? renderOverlapText(p) : h('span', { class: 'muted' }, '(empty)')),
     h('p', { class: 'muted' }, `${words(p.draftText)} words · ${(p.draftText || '').length} chars`),
+    p.overlap ? renderOverlapLegend(p) : null,
   );
 
   root.append(h('div', { class: 'cols' },
@@ -623,17 +710,24 @@ function renderDetail() {
     for (const e of p.aiResponses) {
       const g = e.extra_data?.generation || {};
       list.append(h('div', { class: 'ai-item' },
-        h('div', { class: 'muted' }, `${rel(e._t)} · ${e.event.slice(11)}${g.generation_type && g.generation_type !== e.event.slice(11) ? ` (${g.generation_type})` : ''} · ${e.extra_data?.isAutoRefresh ? 'auto-refresh' : 'requested'}`),
+        h('div', { class: 'muted' }, `${rel(e._t)} · ${e.event.slice(11)}${g.generation_type && g.generation_type !== e.event.slice(11) ? ` (${g.generation_type})` : ''} · ${e.extra_data?.isAutoRefresh ? 'auto-refresh' : 'requested'}`,
+          (() => { const src = p.overlapSources.find((x) => x.event === e); const n = src && p.overlap?.bySource.get(src.id); return n ? h('b', { class: 'flag info' }, ` ${src.id}: ${n} word(s) in the final email`) : src ? ` · ${src.id}` : null; })()),
         h('div', { class: 'result' }, g.result ?? JSON.stringify(g))));
     }
+    const contributed = p.overlap ? [...p.overlap.bySource.keys()].filter((id) => id.startsWith('ai')).length : 0;
     root.append(h('details', { open: p.aiResponses.length <= 6 },
-      h('summary', {}, h('b', {}, `AI suggestions: ${p.aiResponses.length} shown, ${p.aiRequests.length} requested`)), list));
+      h('summary', {}, h('b', {}, `AI suggestions: ${p.aiResponses.length} shown, ${p.aiRequests.length} requested`), contributed ? h('span', { class: 'muted' }, ` · ${contributed} contributed words to the final email`) : null), list));
   }
 
   // Surveys
   root.append(h('h3', {}, 'Post-task survey'));
   if (p.postAnswers) {
-    root.append(renderAnswers(p.postAnswers, p.postSurvey, rel));
+    if (p.recall) {
+      const r = p.recall;
+      root.append(h('p', {}, h('b', {}, 'Specific recall: '), `${r.hits}/${r.nReal} hits, ${r.falseAlarms}/${r.nLure} false alarms on reverse-coded items, ${r.unsure} not sure`,
+        r.nLure ? null : h('span', { class: 'muted' }, ` (no reverse-coded items for ${p.scenario} in the codebook)`)));
+    }
+    root.append(renderAnswers(p.postAnswers, p.postSurvey, rel, new Set(Rubric.reverseCoded(p.scenario).map((k) => 'specific_recall_' + k))));
     if (KEYSTROKE_QUESTION in p.postAnswers || p.feedbackUpdates.length) {
       const ks = p.feedbackUpdates;
       root.append(h('h3', {}, `Keystroke log: ${KEYSTROKE_QUESTION}`));
@@ -655,6 +749,9 @@ function renderDetail() {
   }
   const otherKs = p.keystrokes.filter((e) => e.extra_data?.questionId !== KEYSTROKE_QUESTION);
   if (otherKs.length) root.append(h('p', { class: 'flag info' }, `${otherKs.length} surveyInputUpdate events for other questions: ${[...new Set(otherKs.map((e) => e.extra_data?.questionId))].join(', ')}`));
+
+  root.append(h('h3', {}, 'Rubric coding'));
+  root.append(Rubric.renderParticipant(p));
 
   root.append(h('h3', {}, 'Intro survey'));
   root.append(p.introAnswers ? h('details', {}, h('summary', {}, `${Object.keys(p.introAnswers).length} answers`), renderAnswers(p.introAnswers, p.introSurvey, rel)) : h('p', { class: 'muted' }, 'Not submitted.'));
@@ -689,14 +786,41 @@ function renderDetail() {
   root.append(eventsDetails);
 }
 
-function renderAnswers(answers, ev, rel) {
+// The email with words colored by where they first came from
+const OVERLAP_KINDS = { ai: 'AI suggestion', colleague: 'colleague', self: 'participant\'s own chat message', echo: 'participant wrote it first; a source repeated it later' };
+function renderOverlapText(p) {
+  if (!p.overlap) return p.draftText;
+  const text = p.draftText, nodes = [];
+  const srcById = new Map(p.overlapSources.map((s) => [s.id, s]));
+  let pos = 0;
+  for (const sp of p.overlap.spans) {
+    if (sp.kind === 'none') continue;
+    if (sp.start > pos) nodes.push(text.slice(pos, sp.start));
+    const tip = `${OVERLAP_KINDS[sp.kind]}\n` + [...sp.sources].map((id) => `${id}: ${(srcById.get(id)?.text || '').slice(0, 160)}`).join('\n');
+    nodes.push(h('span', { class: `ov-${sp.kind}`, title: tip }, text.slice(sp.start, sp.end)));
+    pos = sp.end;
+  }
+  nodes.push(text.slice(pos));
+  return nodes;
+}
+function renderOverlapLegend(p) {
+  const c = p.overlap.counts, n = p.overlap.total || 1;
+  const pct = (k) => `${Math.round((100 * c[k]) / n)}%`;
+  const input = h('input', { type: 'number', min: 2, max: 12, value: overlapN, style: 'width:4em', onchange: (e) => { overlapN = Math.max(2, +e.target.value || 4); rebuild(); } });
+  return h('div', { class: 'legend ov-legend' },
+    h('span', { class: 'ov-ai' }, `from AI ${pct('ai')}`), h('span', { class: 'ov-colleague' }, `from colleague ${pct('colleague')}`),
+    h('span', { class: 'ov-self' }, `from own chat ${pct('self')}`), h('span', { class: 'ov-echo', title: OVERLAP_KINDS.echo }, `echoed ${pct('echo')}`),
+    h('label', { title: 'Shortest run of identical words (after lowercasing and dropping punctuation) that counts as overlap' }, 'min run ', input, ' words'));
+}
+
+function renderAnswers(answers, ev, rel, lures = new Set()) {
   const meta = ev?.extra_data && 'answers' in ev.extra_data
     ? `submitted ${rel(ev._t)} · scenarioId=${ev.extra_data.scenarioId} · condition=${ev.extra_data.condition}`
     : ev ? `submitted ${rel(ev._t)} · (older format: no scenarioId/condition)` : '';
   return h('div', {},
     h('p', { class: 'muted' }, meta),
     h('table', { class: 'answers' }, h('tbody', {}, Object.entries(answers).map(([k, v]) =>
-      h('tr', { class: k === TECH_QUESTION && answerText(v).trim() ? 'highlight' : '' }, h('td', {}, k), h('td', {}, answerText(v) || h('span', { class: 'muted' }, '(blank)')))))));
+      h('tr', { class: k === TECH_QUESTION && techDifficulty(answerText(v)).reported ? 'highlight' : '' }, h('td', {}, k, lures.has(k) ? h('span', { class: 'flag warn' }, 'reverse-coded') : null), h('td', {}, answerText(v) || h('span', { class: 'muted' }, '(blank)')))))));
 }
 
 // A slider over snapshots (document or survey text), showing the text at each step
@@ -826,6 +950,7 @@ window.addEventListener('drop', async (e) => {
 });
 $('#file-input').addEventListener('change', (e) => addFiles([...e.target.files]));
 $('#dir-input').addEventListener('change', (e) => addFiles([...e.target.files]));
+for (const id of ['#summary-details', '#settings-details']) $(id).addEventListener('toggle', () => rerenderAll());
 $('#clear-btn').addEventListener('click', () => { loadedFiles.clear(); selected = null; $('#load-status').textContent = ''; rebuild(); });
 window.addEventListener('hashchange', () => {
   const u = decodeURIComponent(location.hash.slice(1));
