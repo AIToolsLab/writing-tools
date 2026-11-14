@@ -50,7 +50,8 @@ npm run test:dev-server # terminal 2
 
 ## Google Docs bundle
 
-`vite.google-docs.config.ts` builds `src/index-gdocs.tsx` into a single
-self-contained IIFE, `dist/google-docs.bundle.js`, with assets inlined. It
-writes into the shared `dist/` (`emptyOutDir: false`), so run the main build
-first.
+`npm run build:google-docs` (`vite.config.ts` with `BUILD_TARGET=google-docs`)
+builds `src/index-gdocs.tsx` into a single self-contained IIFE,
+`dist/google-docs.bundle.js`, with assets inlined. It writes into the shared
+`dist/` (`emptyOutDir: false`), so run the main build first — the main build
+empties `dist/` and would delete the bundle.

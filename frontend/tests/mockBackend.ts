@@ -11,77 +11,80 @@ import { Page, Route, expect } from '@playwright/test';
  */
 
 const RESULTS = {
-  analysis_readerPerspective:
-    '- First reader perspective\n\n- Second reader perspective\n\n- Third reader perspective',
-  proposal_advice:
-    '- First piece of advice\n\n- Second piece of advice\n\n- Third piece of advice',
-  example_rewording:
-    '- First rewording option\n\n- Second rewording option\n\n- Third rewording option',
-  // Revise (visualization): includes a doctext link like the real responses do.
-  revise:
-    '- A mock structural observation about your document.\n\n- [opening line](doctext:Some%20text%20to%20analyze) could be expanded.',
+	analysis_readerPerspective:
+		'- First reader perspective\n\n- Second reader perspective\n\n- Third reader perspective',
+	proposal_advice:
+		'- First piece of advice\n\n- Second piece of advice\n\n- Third piece of advice',
+	example_rewording:
+		'- First rewording option\n\n- Second rewording option\n\n- Third rewording option',
+	// Revise (visualization): includes a doctext link like the real responses do.
+	revise: '- A mock structural observation about your document.\n\n- [opening line](doctext:Some%20text%20to%20analyze) could be expanded.',
 };
 
 // The Responses request body carries the prompt in two places: the system prompt as
 // `instructions`, and the message turns as `input`, each turn's content an array of
 // parts ({ type: 'input_text' | 'output_text', text }). Flatten all of it to text.
 type ResponsesBody = {
-  instructions?: string;
-  input?: Array<{ content?: string | Array<{ text?: string }> }>;
+	instructions?: string;
+	input?: Array<{ content?: string | Array<{ text?: string }> }>;
 };
 
 function textFromRequest(body: ResponsesBody): string {
-  const parts: string[] = [];
-  if (body.instructions) parts.push(body.instructions);
-  for (const turn of body.input ?? []) {
-    if (typeof turn.content === 'string') parts.push(turn.content);
-    else for (const p of turn.content ?? []) if (p.text) parts.push(p.text);
-  }
-  return parts.join('\n');
+	const parts: string[] = [];
+	if (body.instructions) parts.push(body.instructions);
+	for (const turn of body.input ?? []) {
+		if (typeof turn.content === 'string') parts.push(turn.content);
+		else for (const p of turn.content ?? []) if (p.text) parts.push(p.text);
+	}
+	return parts.join('\n');
 }
 
 // gtype is no longer sent in the request; infer it from distinctive prompt text.
 // Draft prompts live in src/api/prompts.ts; Chat and Revise build their own
 // system/user messages in their page components.
 function resultForText(text: string): string {
-  if (text.includes('questions the person might have'))
-    return RESULTS.analysis_readerPerspective;
-  if (text.includes('directive (but not prescriptive) advice'))
-    return RESULTS.proposal_advice;
-  if (text.includes('three alternative rewordings'))
-    return RESULTS.example_rewording;
-  // Revise wraps the document in <writer-doc-so-far> tags (revise/index.tsx).
-  if (text.includes('<writer-doc-so-far>')) return RESULTS.revise;
-  // Chat isn't matched here: its prompt is retuned often and has no marker that
-  // isn't incidental. Chat specs register their own reply with fulfillOpenAI.
-  return '';
+	if (text.includes('questions the person might have'))
+		return RESULTS.analysis_readerPerspective;
+	if (text.includes('directive (but not prescriptive) advice'))
+		return RESULTS.proposal_advice;
+	if (text.includes('three alternative rewordings'))
+		return RESULTS.example_rewording;
+	// Revise wraps the document in <writer-doc-so-far> tags (revise/index.tsx).
+	if (text.includes('<writer-doc-so-far>')) return RESULTS.revise;
+	// Chat isn't matched here: its prompt is retuned often and has no marker that
+	// isn't incidental. Chat specs register their own reply with fulfillOpenAI.
+	return '';
 }
 
 // Frame text as a Responses-API SSE stream so the AI SDK's responses provider can
 // parse it: open a message item, stream one text delta, then complete with usage.
 function sseFromText(text: string): string {
-  const event = (payload: object) => `data: ${JSON.stringify(payload)}\n\n`;
-  return (
-    event({
-      type: 'response.created',
-      response: { id: 'resp-mock', created_at: 0, model: 'gpt-5.6-terra' },
-    }) +
-    event({
-      type: 'response.output_item.added',
-      output_index: 0,
-      item: { type: 'message', id: 'msg-mock' },
-    }) +
-    event({
-      type: 'response.output_text.delta',
-      item_id: 'msg-mock',
-      delta: text,
-    }) +
-    event({
-      type: 'response.completed',
-      response: { usage: { input_tokens: 0, output_tokens: 0 } },
-    }) +
-    'data: [DONE]\n\n'
-  );
+	const event = (payload: object) => `data: ${JSON.stringify(payload)}\n\n`;
+	return (
+		event({
+			type: 'response.created',
+			response: {
+				id: 'resp-mock',
+				created_at: 0,
+				model: 'gpt-5.6-terra',
+			},
+		}) +
+		event({
+			type: 'response.output_item.added',
+			output_index: 0,
+			item: { type: 'message', id: 'msg-mock' },
+		}) +
+		event({
+			type: 'response.output_text.delta',
+			item_id: 'msg-mock',
+			delta: text,
+		}) +
+		event({
+			type: 'response.completed',
+			response: { usage: { input_tokens: 0, output_tokens: 0 } },
+		}) +
+		'data: [DONE]\n\n'
+	);
 }
 
 /**
@@ -89,11 +92,11 @@ function sseFromText(text: string): string {
  * Exported so tests that need custom behavior (e.g. an added delay) can reuse it.
  */
 export async function fulfillOpenAI(route: Route, result: string) {
-  await route.fulfill({
-    status: 200,
-    headers: { 'content-type': 'text/event-stream; charset=utf-8' },
-    body: sseFromText(result),
-  });
+	await route.fulfill({
+		status: 200,
+		headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+		body: sseFromText(result),
+	});
 }
 
 /**
@@ -103,65 +106,100 @@ export async function fulfillOpenAI(route: Route, result: string) {
  * ignores those parts renders nothing at all.
  */
 export const QUOTA_ERROR_MESSAGE =
-  'You exceeded your current quota, please check your plan and billing details.';
+	'You exceeded your current quota, please check your plan and billing details.';
 
 export async function fulfillOpenAIStreamError(route: Route) {
-  const event = (payload: object) => `data: ${JSON.stringify(payload)}\n\n`;
-  await route.fulfill({
-    status: 200,
-    headers: { 'content-type': 'text/event-stream; charset=utf-8' },
-    body:
-      event({
-        type: 'response.created',
-        response: { id: 'resp-mock', created_at: 0, model: 'gpt-5.6-terra' },
-      }) +
-      event({
-        type: 'error',
-        sequence_number: 2,
-        error: {
-          type: 'insufficient_quota',
-          code: 'insufficient_quota',
-          message: QUOTA_ERROR_MESSAGE,
-        },
-      }) +
-      'data: [DONE]\n\n',
-  });
+	const event = (payload: object) => `data: ${JSON.stringify(payload)}\n\n`;
+	await route.fulfill({
+		status: 200,
+		headers: { 'content-type': 'text/event-stream; charset=utf-8' },
+		body:
+			event({
+				type: 'response.created',
+				response: {
+					id: 'resp-mock',
+					created_at: 0,
+					model: 'gpt-5.6-terra',
+				},
+			}) +
+			event({
+				type: 'error',
+				sequence_number: 2,
+				error: {
+					type: 'insufficient_quota',
+					code: 'insufficient_quota',
+					message: QUOTA_ERROR_MESSAGE,
+				},
+			}) +
+			'data: [DONE]\n\n',
+	});
 }
 
 export async function setupMockBackend(page: Page) {
-  // Demo pages mint an anonymous Better Auth session on load (src/api/anonymousAuth.ts).
-  // The Playwright "backend" is just http-server over dist/, which 405s a POST, so the
-  // real auth server never answers here — stand in for it. The frontend only needs a
-  // 2xx plus the bearer token in the `set-auth-token` header (the bearer plugin's contract).
-  await page.route('**/auth/sign-in/anonymous', async (route) => {
-    await route.fulfill({
-      status: 200,
-      headers: {
-        'content-type': 'application/json',
-        'set-auth-token': 'mock-anonymous-token',
-      },
-      body: JSON.stringify({ user: { id: 'mock-anon-user', isAnonymous: true } }),
-    });
-  });
+	// Demo pages mint an anonymous Better Auth session on load (src/api/anonymousAuth.ts).
+	// The Playwright "backend" is just http-server over dist/, which 405s a POST, so the
+	// real auth server never answers here — stand in for it. The frontend only needs a
+	// 2xx plus the bearer token in the `set-auth-token` header (the bearer plugin's contract).
+	await page.route('**/auth/sign-in/anonymous', async (route) => {
+		await route.fulfill({
+			status: 200,
+			headers: {
+				'content-type': 'application/json',
+				'set-auth-token': 'mock-anonymous-token',
+			},
+			body: JSON.stringify({
+				user: { id: 'mock-anon-user', isAnonymous: true },
+			}),
+		});
+	});
 
-  // Right after signing in, the frontend verifies the token and loads the user via
-  // GET /auth/get-session (src/api/deviceAuth.ts fetchUserInfo). Without this, http-server
-  // 404s and the demo lands on the "Oops... get-session failed (404)" error screen.
-  // Shape mirrors Better Auth's get-session body: a nested `user`.
-  await page.route('**/auth/get-session', async (route) => {
-    await route.fulfill({
-      status: 200,
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        user: { id: 'mock-anon-user', loggingConsent: 'usage' },
-      }),
-    });
-  });
+	// Right after signing in, the frontend verifies the token and loads the user via
+	// GET /auth/get-session (src/api/deviceAuth.ts fetchUserInfo). Without this, http-server
+	// 404s and the demo lands on the "Oops... get-session failed (404)" error screen.
+	// Shape mirrors Better Auth's get-session body: a nested `user`.
+	await page.route('**/auth/get-session', async (route) => {
+		await route.fulfill({
+			status: 200,
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				user: { id: 'mock-anon-user', loggingConsent: 'usage' },
+			}),
+		});
+	});
 
-  await page.route('**/openai/responses', async (route) => {
-    const body = (route.request().postDataJSON() ?? {}) as ResponsesBody;
-    await fulfillOpenAI(route, resultForText(textFromRequest(body)));
-  });
+	await page.route('**/openai/responses', async (route) => {
+		const body = (route.request().postDataJSON() ?? {}) as ResponsesBody;
+		await fulfillOpenAI(route, resultForText(textFromRequest(body)));
+	});
+}
+
+/**
+ * Sign in as a real (non-anonymous) user who is allowed past the beta gate.
+ *
+ * `setupMockBackend` covers demo pages, which mint an anonymous session. Full-mode
+ * surfaces (the Word task pane, the Google Docs sidebar) instead hydrate a saved
+ * device-flow token (`betterauth.token`, src/api/authTokenStore.ts) and then refuse
+ * anyone whose session lacks `isAllowed: true` (pages/app). Call this after
+ * `setupMockBackend`: later routes win, so this get-session replaces the anonymous one.
+ */
+export async function setupSignedInUser(page: Page) {
+	await page.addInitScript(() =>
+		localStorage.setItem('betterauth.token', 'mock-device-token'),
+	);
+	await page.route('**/auth/get-session', async (route) => {
+		await route.fulfill({
+			status: 200,
+			headers: { 'content-type': 'application/json' },
+			body: JSON.stringify({
+				user: {
+					id: 'mock-user',
+					name: 'Test User',
+					isAllowed: true,
+					loggingConsent: 'usage',
+				},
+			}),
+		});
+	});
 }
 
 /**
@@ -171,7 +209,7 @@ export async function setupMockBackend(page: Page) {
  * own locator, so a change to Draft's buttons is a one-line fix.
  */
 export async function waitForEditorReady(page: Page) {
-  await expect(page.locator('button[aria-label="Questions"]')).toBeVisible({
-    timeout: 15000,
-  });
+	await expect(page.locator('button[aria-label="Questions"]')).toBeVisible({
+		timeout: 15000,
+	});
 }

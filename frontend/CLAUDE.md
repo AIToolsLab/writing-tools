@@ -10,8 +10,9 @@ TypeScript/React Microsoft Office Add-in for Word + standalone editor
 - **State Management**: Jotai atoms (see `frontend/src/contexts/`)
 - **Build**: Vite (`vite.config.ts`, multi-page app). `npm run build` →
   `dist/`; `npm run dev-server` for the HTTPS dev server on :3000. The Google
-  Docs bundle builds separately via `vite.google-docs.config.ts`
-  (`npm run build:google-docs`) into `dist/google-docs.bundle.js`.
+  Docs bundle builds separately — same `vite.config.ts`, switched by
+  `BUILD_TARGET=google-docs` (`npm run build:google-docs`) — into
+  `dist/google-docs.bundle.js` and `dist/google-docs.css`.
 - **Path Alias**: `@/*` maps to `./src/*` (vite + tsconfig)
 - **Entry Points** (HTML lives at the frontend root, as Vite build inputs):
   - `taskpane.html` - Word task pane
@@ -40,10 +41,11 @@ from the registry, so neither needs editing.
   lab page shares that one button, so the strip's width doesn't grow with the
   number of experiments in flight.
 
-The cap is a platform constraint, not a style rule: the Google Docs sidebar is
-locked at ~300px with no splitter, which leaves 57.3px of label per tab beside the
-Labs button. A fourth core tab drops that to 37.0px, under the widest label
-("Revise", 39.8px). In-progress work belongs in `lab`.
+The cap comes from the platform, not style: the Google Docs sidebar is locked
+at ~300px with no splitter, which leaves ~71px of label per tab beside the Labs
+button. A fourth core tab drops that to ~50px, only ~10px over the widest label
+("Revise", 39.8px) — see `MAX_CORE_PAGES` in `registry.tsx`. In-progress work
+belongs in `lab`.
 
 `enabled` (optional) hides a page entirely — see `src/pages/flags.ts`. Note the
 URL override there only reaches the standalone editor and dev server: the Word
@@ -183,6 +185,19 @@ Two runners own two disjoint directories — never mix them:
     the **Frontend Tests** workflow with `update-snapshots=true`; its
     `update-snapshots` job commits fresh baselines to your branch. See
     [../VISUAL_REGRESSION.md](../VISUAL_REGRESSION.md).
+  - Specs run against `npm run prod-server`, a static server over `dist/`, so
+    run `npm run build && npm run build:google-docs` first. Without it the
+    webServer times out after 120s with no hint why.
+  - Headless Chromium hides scrollbars (Playwright passes `--hide-scrollbars`),
+    so a width measurement never sees the 15px a classic scrollbar takes.
+    `tests/app-fills-pane.spec.ts` checks layout by measuring what scrolls
+    instead.
+  - The standalone editor is not a stand-in for the Google Docs sidebar (448px
+    vs 300px, different mount-point CSS). `tests/app-fills-pane.spec.ts` loads
+    the real `google-docs-addon/sidebar.html` and bundle with a stubbed
+    `google.script.run`; copy its setup to test anything else there. Full-mode
+    surfaces need `setupSignedInUser` (tests/mockBackend.ts) on top of
+    `setupMockBackend`, whose anonymous user can't pass the beta gate.
 
 Keep unit tests in `src/` and E2E specs in `tests/`. If a unit runner's globs reach
 into `tests/`, Playwright specs fail with "test.describe() did not expect to be called

@@ -1,0 +1,33 @@
+/*
+ * Size the React root to the sidebar frame, as taskpane.html does for Word
+ * (`#container { height: 100% }`).
+ *
+ * sidebar.html gives #root only `min-height: 100vh`. The app's outer `h-full`
+ * is `height: 100%`, which resolves to auto against a parent with no definite
+ * height — so the app grew with its content, the transcript never scrolled
+ * inside .chatBody, and the whole document scrolled instead. Where scrollbars
+ * aren't overlays (Windows, ChromeOS, macOS with a mouse attached) that
+ * document scrollbar took 15px of the 300px frame, leaving the app 285px.
+ *
+ * This lives in the bundle rather than only in sidebar.html because the two are
+ * deployed separately (sidebar.html via clasp), so an installed add-on can run
+ * an older sidebar.html; google-docs.css is linked after its inline <style>, so
+ * this rule wins at equal specificity.
+ */
+#root {
+	height: 100vh;
+	min-height: 0;
+}
+
+/*
+ * With #root sized, each page scrolls its own region (Chat's transcript,
+ * Draft's and Revise's bodies, the app's page wrapper for Labs pages) instead
+ * of the document. Where scrollbars aren't overlays, each of those still takes
+ * 15px of the 300px frame; thin takes 10px. Wheel and trackpad scrolling are
+ * unaffected — only grabbing the thumb gets a smaller target. Google Docs
+ * only: the Word task pane can be dragged wider, so it keeps the default.
+ */
+#root,
+#root * {
+	scrollbar-width: thin;
+}

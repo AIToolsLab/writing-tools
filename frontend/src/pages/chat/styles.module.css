@@ -17,14 +17,14 @@
  */
 .briefBar {
 	flex-shrink: 0;
-	padding: 12px 16px 0;
+	padding: 8px 10px 0;
 	border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 	max-height: 55%;
 	overflow-y: auto;
 }
 
 .briefBar > section {
-	margin-bottom: 12px;
+	margin-bottom: 8px;
 }
 
 .chatPanel {
@@ -39,7 +39,7 @@
 	flex-shrink: 0;
 	display: flex;
 	justify-content: flex-end;
-	padding: 8px 12px 0;
+	padding: 4px 6px 0;
 }
 
 .newConversationBtn {
@@ -67,10 +67,10 @@
 .chatBody {
 	flex: 1;
 	overflow-y: auto;
-	padding: 16px;
+	padding: 8px;
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: 8px;
 	min-height: 0;
 }
 
@@ -83,7 +83,7 @@
 	height: 100%;
 	text-align: center;
 	gap: 10px;
-	padding: 32px 24px;
+	padding: 24px 4px;
 }
 
 .chatWelcomeTitle {
@@ -136,7 +136,7 @@
 }
 
 .chatBubble {
-	padding: 10px 10px;
+	padding: 8px 10px;
 	border-radius: 12px;
 	font-size: 13px;
 	line-height: 1.6;
@@ -195,14 +195,14 @@
 
 .chatFoot {
 	flex-shrink: 0;
-	padding: 12px 16px 16px;
+	padding: 8px;
 	border-top: 1px solid #e4e0d8;
 	background: #fafaf8;
 }
 
 .chatInputRow {
 	display: flex;
-	gap: 8px;
+	gap: 6px;
 	align-items: flex-end;
 }
 
@@ -210,7 +210,7 @@
 	flex: 1;
 	border: 1.5px solid #e4e0d8;
 	border-radius: 10px;
-	padding: 10px 12px;
+	padding: 8px 10px;
 	font-size: 13px;
 	color: #1c1c1c;
 	font-family: 'DM Sans', sans-serif;
