@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import type { Continuation, ScoredToken } from '@/api/writingEngine';
+import type {
+	Continuation,
+	EngineClient,
+	ScoredToken,
+} from '@/api/writingEngine';
 import {
-	completeWords,
-	firstUnits,
-	firstWords,
+	correctionSuggestions,
+	narrow,
+	Predictor,
 	rangesFromScores,
-	unitBranches,
+	unitSuggestions,
 } from '../engine';
 
 const tok = (
@@ -43,60 +47,150 @@ describe('rangesFromScores', () => {
 	});
 });
 
-const cont = (text: string, prob: number, done = true): Continuation => ({
-	text,
-	prob,
-	end: false,
-	done,
-});
+const cont = (
+	text: string,
+	prob: number,
+	extra: Partial<Continuation> = {},
+): Continuation => ({ text, prob, end: false, done: true, ...extra });
 
-describe('unitBranches', () => {
+describe('unitSuggestions', () => {
 	it('adds up continuations that start with the same word', () => {
 		// After "a pop": the server's answer for one-word units.
-		const got = unitBranches(
+		const got = unitSuggestions(
 			[
 				cont('ular spot', 0.75),
 				cont('ular favorite', 0.15),
 				cont('ular, pleasant', 0.03),
-				cont('', 0.01), // ending the message
-				cont('lar', 0.001, false),
+				cont('', 0.01, { end: true }), // ending the message
+				cont('lar', 0.001, { done: false }),
 			],
 			1,
 		);
-		expect(got.map((b) => b.text)).toEqual(['ular', 'ular,', 'lar']);
-		expect(got[0].prob).toBeCloseTo(0.9);
+		// Punctuation ends a word and is never offered.
+		expect(got.map((s) => s.text)).toEqual(['ular', 'lar']);
+		expect(got[0].prob).toBeCloseTo(0.93);
 	});
 
 	it('puts whole units ahead of partial ones', () => {
-		const got = unitBranches(
-			[cont(' deep', 0.6, false), cont(' care about', 0.1)],
+		const got = unitSuggestions(
+			[cont(' deep', 0.6, { done: false }), cont(' care about', 0.1)],
 			1,
 		);
-		expect(got.map((b) => b.text)).toEqual([' care', ' deep']);
+		expect(got.map((s) => s.text)).toEqual([' care', ' deep']);
 	});
 
-	it('groups by two words when asked', () => {
-		const got = unitBranches(
-			[cont(' deep learning is', 0.3), cont(' deep learning,', 0.2)],
-			2,
-		);
-		expect(got).toHaveLength(2);
-		expect(got[0].text).toBe(' deep learning');
+	it('counts ending the turn as ending the word', () => {
+		const got = unitSuggestions([cont(' today', 0.2, { end: true })], 1);
+		expect(got).toEqual([{ text: ' today', prob: 0.2 }]);
+	});
+
+	it('shows at most five', () => {
+		const many = Array.from({ length: 8 }, (_, i) => cont(` w${i} x`, 0.1));
+		expect(unitSuggestions(many, 1)).toHaveLength(5);
 	});
 });
 
-describe('word helpers', () => {
-	it('finds complete words only when followed by whitespace', () => {
-		expect(completeWords(' deep learning', 1)).toBe(' deep');
-		expect(completeWords(' deep', 1)).toBeNull();
-		expect(firstWords(' deep learning is', 2)).toBe(' deep learning');
+describe('narrow', () => {
+	it('keeps what still matches, conditioned on the extra text', () => {
+		const got = narrow(
+			[
+				cont(' deep learning', 0.5),
+				cont(' depleted', 0.3),
+				cont(' care', 0.2),
+				cont('ep', 9, { replace: 1 }), // corrections don't narrow
+			],
+			' de',
+		);
+		expect(got.map((c) => c.text)).toEqual(['ep learning', 'pleted']);
+		expect(got[0].prob).toBeCloseTo(0.5 / 0.8);
+	});
+});
+
+describe('correctionSuggestions', () => {
+	const answer = [
+		// "populr" → "popular": replaces the last byte.
+		cont('ar spot', 1e8, { replace: 1 }),
+		cont('ar place', 1e6, { replace: 1 }),
+		// Likelier than what was typed, but not a spelling of it.
+		cont('favorite spot', 5e5, { replace: 6 }),
+		// A completion, not a correction.
+		cont(' spot', 0.5),
+	];
+
+	it('offers close spellings of the word being typed', () => {
+		const got = correctionSuggestions('a populr', answer, 1);
+		expect(got).toEqual([
+			{
+				text: 'ar',
+				correction: { replace: 1, word: 'popular', ratio: 1.01e8 },
+			},
+		]);
 	});
 
-	it('segments scripts without spaces', () => {
-		expect(firstUnits('我们今天', 1).text.length).toBeGreaterThan(0);
-		expect(firstUnits(' deep learning', 1)).toEqual({
-			text: ' deep',
-			complete: true,
+	it('counts replaced bytes, not characters', () => {
+		// "café" ends in a 2-byte character.
+		const got = correctionSuggestions(
+			'the cafée',
+			[cont('é spot', 50, { replace: 3 })],
+			1,
+		);
+		expect(got[0].correction).toMatchObject({ replace: 2, word: 'café' });
+	});
+
+	it('leaves short words alone', () => {
+		expect(
+			correctionSuggestions(
+				'a te',
+				[cont('he x', 1e3, { replace: 1 })],
+				1,
+			),
+		).toEqual([]);
+	});
+});
+
+describe('Predictor', () => {
+	function fakeClient(answers: Continuation[][]): EngineClient {
+		return {
+			turnPrefix: () => Promise.resolve('PROMPT'),
+			continuations: () =>
+				Promise.resolve({
+					typed: '',
+					continuations: answers.shift() ?? [],
+					unresolved: 0,
+					stats: { total_ms: 10, decoded_tokens: 1, rounds: 1 },
+				}),
+		} as unknown as EngineClient;
+	}
+	const ask = (draft: string) => ({
+		messages: [
+			{ role: 'user' as const, content: 'Rewrite' },
+			{ role: 'assistant' as const, content: draft },
+		],
+		words: 1,
+	});
+
+	it('puts corrections first and carries them past a space', async () => {
+		const p = new Predictor(
+			fakeClient([
+				[cont('ar spot', 1e8, { replace: 1 }), cont(' spot', 0.5)],
+				// Once a space follows, the server only offers completions.
+				[cont('spot ', 0.4)],
+			]),
+		);
+		const first = await p.suggest(ask('a populr'));
+		expect(first.suggestions.map((s) => s.text)).toEqual(['ar', ' spot']);
+
+		const updates: string[][] = [];
+		const second = await p.suggest({
+			...ask('a populr '),
+			onUpdate: (items) => updates.push(items.map((s) => s.text)),
 		});
+		// Narrowed locally first: " spot" minus the typed space.
+		expect(updates).toEqual([['spot']]);
+		expect(second.suggestions[0]).toEqual({
+			text: 'ar ',
+			correction: { replace: 2, word: 'popular', ratio: 1e8 },
+		});
+		expect(second.suggestions[1].text).toBe('spot');
 	});
 });
