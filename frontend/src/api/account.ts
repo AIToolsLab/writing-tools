@@ -5,8 +5,17 @@
  * the rest of the device-auth client uses (see deviceAuth.ts). No better-auth
  * client dependency.
  */
-import { SERVER_URL } from '@/api';
-import type { ConsentLevel } from '@/consent';
+import { SERVER_ORIGIN, SERVER_URL } from '@/api';
+import { isConsentLevel, type ConsentLevel } from '@/consent';
+
+/**
+ * Where the standalone account page lives: the backend's origin, which serves the
+ * built frontend. Not a root-relative link, because the Google Docs sidebar runs
+ * on a Google origin where `/account.html` doesn't exist.
+ */
+export function accountPageUrl(origin: string = SERVER_ORIGIN): string {
+	return `${origin}/account.html`;
+}
 
 function authedFetch(
 	path: string,
@@ -27,12 +36,18 @@ function authedFetch(
 
 /**
  * Change the signed-in user's logging-consent level.
- * `POST /api/me/consent { level }` → `{ loggingConsent }`. Throws on non-2xx.
+ * `POST /api/me/consent { level }` → the authoritative consent snapshot. Throws
+ * on a non-2xx response or malformed response body.
  */
+export interface ConsentSnapshot {
+	loggingConsent: ConsentLevel;
+	consentUpdatedAt: string;
+}
+
 export async function changeConsent(
 	token: string,
 	level: ConsentLevel,
-): Promise<void> {
+): Promise<ConsentSnapshot> {
 	const res = await authedFetch('/me/consent', token, {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },
@@ -41,6 +56,20 @@ export async function changeConsent(
 	if (!res.ok) {
 		throw new Error(`consent update failed (${res.status})`);
 	}
+	const data = (await res.json()) as {
+		loggingConsent?: unknown;
+		consentUpdatedAt?: unknown;
+	};
+	if (
+		!isConsentLevel(data.loggingConsent) ||
+		typeof data.consentUpdatedAt !== 'string'
+	) {
+		throw new Error('consent update returned an invalid snapshot');
+	}
+	return {
+		loggingConsent: data.loggingConsent,
+		consentUpdatedAt: data.consentUpdatedAt,
+	};
 }
 
 /**

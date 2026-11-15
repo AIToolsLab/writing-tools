@@ -17,6 +17,7 @@ import {
 	signOut as signOutRequest,
 } from '@/api/deviceAuth';
 import { clearToken, loadToken, persistToken } from '@/api/authTokenStore';
+import type { ConsentSnapshot } from '@/api/account';
 
 export type DeviceAuthStatus =
 	| 'idle'
@@ -43,6 +44,12 @@ export interface UseDeviceAuth extends DeviceAuthState {
 	start: () => Promise<void>;
 	/** Cancel any in-flight flow and return to idle, clearing the token. */
 	reset: () => void;
+	/**
+	 * Apply the consent values a save just persisted, without re-fetching the
+	 * user. `token` is the one the save was made with; if the session has changed
+	 * since (signed out, or signed in as someone else), the snapshot is dropped.
+	 */
+	applyConsentSnapshot: (snapshot: ConsentSnapshot, token: string) => void;
 	/** Best-effort server sign-out, then clear local state. */
 	logout: () => Promise<void>;
 }
@@ -74,6 +81,20 @@ export function useDeviceAuth(): UseDeviceAuth {
 		clearToken();
 		setState(INITIAL);
 	}, [abortInFlight]);
+
+	// The consent endpoint returns exactly what it stored, so apply that directly:
+	// leaving the onboarding gate then doesn't depend on a follow-up get-session
+	// request succeeding.
+	const applyConsentSnapshot = useCallback(
+		(snapshot: ConsentSnapshot, token: string) => {
+			setState((s) =>
+				s.status === 'success' && s.token === token && s.user
+					? { ...s, user: { ...s.user, ...snapshot } }
+					: s,
+			);
+		},
+		[],
+	);
 
 	const start = useCallback(async () => {
 		// Abort any prior attempt and open a fresh controller.
@@ -206,5 +227,5 @@ export function useDeviceAuth(): UseDeviceAuth {
 		};
 	}, [safeSet]);
 
-	return { ...state, start, reset, logout };
+	return { ...state, start, reset, applyConsentSnapshot, logout };
 }
