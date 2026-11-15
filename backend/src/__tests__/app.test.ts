@@ -210,16 +210,24 @@ describe('POST /api/me/consent', () => {
 			body: JSON.stringify({ level: 'ai_output' }),
 		});
 		expect(good.status).toBe(200);
-		expect(await good.json()).toEqual({
-			loggingConsent: 'ai_output',
-			consentUpdatedAt: expect.any(String),
-		});
 		expect(calls.updateUser).toEqual([
 			{
 				userId: 'usr-1',
-				data: expect.objectContaining({ loggingConsent: 'ai_output' }),
+				data: expect.objectContaining({
+					loggingConsent: 'ai_output',
+					consentUpdatedAt: expect.any(Date),
+				}),
 			},
 		]);
+		// The reply carries the same moment that was written. JSON has no date
+		// type, so the Date arrives as its ISO string.
+		const written = (
+			calls.updateUser[0] as { data: { consentUpdatedAt: Date } }
+		).data.consentUpdatedAt;
+		expect(await good.json()).toEqual({
+			loggingConsent: 'ai_output',
+			consentUpdatedAt: written.toISOString(),
+		});
 	});
 
 	it('401s without a session', async () => {

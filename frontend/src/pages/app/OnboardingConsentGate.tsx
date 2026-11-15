@@ -3,14 +3,15 @@
  * consent level (session.hasSetConsent === false). Reuses the shared
  * ConsentLevelChooser + useConsent so it stays in lockstep with the account page.
  *
- * An affirmative choice is REQUIRED: Continue is the only way out, and it commits
- * the current selection (confirming the default counts as a choice), stamping
- * consentUpdatedAt. The saved snapshot flips the session's hasSetConsent, which
- * unmounts this gate — so on success the app renders, and on failure the gate stays up with its
- * error rather than proceeding with consent unset. There is deliberately no Skip —
- * the app (and thus any logging) doesn't render until a level is chosen, so
- * logging never precedes affirmative consent. A Skip that dismissed the gate while
- * leaving the 'usage' default active was considered and rejected for that reason.
+ * Continue is the only way out. It saves the current selection (keeping the
+ * pre-selected default counts as a choice) and stamps consentUpdatedAt; the saved
+ * snapshot flips the session's hasSetConsent, which unmounts this gate. If the
+ * save fails, the gate stays up with an error instead of letting the app run with
+ * consent unset.
+ *
+ * There is no Skip. The app, and so all logging, doesn't render until a level is
+ * chosen, so nothing is logged before the writer has chosen. A Skip would leave
+ * the 'usage' default in force without the writer having picked it.
  */
 import { Button } from '@/components/button';
 import { ConsentLevelChooser } from '@/components/ConsentLevelChooser';
@@ -33,10 +34,10 @@ export function OnboardingConsentGate() {
 				How much this app records about your usage. You can change this
 				anytime from Account &amp; privacy.
 			</p>
-			{/* Frozen while the save is in flight: Continue committed the level as
-			    it read at click time, so a pick made mid-request would be shown as
-			    selected while the server records the earlier one — and on success
-			    the gate unmounts, hiding the divergence. Matches the account page. */}
+			{/* Disabled while saving. Continue sends the level selected at that
+			    moment, so a different pick made before the reply arrives would show
+			    as selected while the server records the first one. The account page
+			    does the same. */}
 			<ConsentLevelChooser
 				value={level}
 				onChange={setLevel}

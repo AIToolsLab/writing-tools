@@ -63,7 +63,10 @@ describe('useDeviceAuth.applyConsentSnapshot', () => {
 		);
 	});
 
-	it('drops a snapshot saved under a different token', async () => {
+	// A writer presses Continue, then signs out or switches accounts before the
+	// save replies. The late reply carries the token it was sent with, and must
+	// not put the first account's level into the session that is open now.
+	it('ignores a save that finishes after the writer signed out or switched accounts', async () => {
 		const hook = await mountSignedIn();
 
 		act(() => {

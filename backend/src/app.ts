@@ -413,6 +413,8 @@ export function createApp({ auth }: { auth?: Auth } = {}): Hono {
 		// Better Auth's documented public API, but its own mechanism. A raw SQL
 		// UPDATE via our db() connection was rejected as more fragile — it would
 		// bypass Better Auth's date serialization and any user hooks.
+		// Upstream: better-auth/better-auth#10465 asks for a trusted, public way to
+		// write `input: false` fields. If that lands, switch to it here.
 		const consentUpdatedAt = new Date();
 		const ctx = await auth.$context;
 		await ctx.internalAdapter.updateUser(user.id, {

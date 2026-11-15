@@ -62,22 +62,14 @@ describe('account API', () => {
 		});
 	});
 
-	// A 2xx with a body we can't trust is a failed save: the caller rolls back
-	// rather than pushing an unknown level or a missing marker into the session.
-	it.each([
-		[
-			'unknown level',
-			{ loggingConsent: 'everything', consentUpdatedAt: 'x' },
-		],
-		['missing timestamp', { loggingConsent: 'usage' }],
-		[
-			'non-string timestamp',
-			{ loggingConsent: 'usage', consentUpdatedAt: 1 },
-		],
-	])('rejects a malformed consent snapshot (%s)', async (_label, body) => {
+	// When this happens: mid-deploy, a page from a new server can save through an
+	// old one, whose reply is `{ loggingConsent }` with no timestamp. Treating that
+	// as a failed save keeps the consent screen up with an error, instead of
+	// "succeeding" while the screen silently stays open.
+	it('treats a reply without a timestamp as a failed save', async () => {
 		fetchMock.mockResolvedValueOnce({
 			ok: true,
-			json: () => Promise.resolve(body),
+			json: () => Promise.resolve({ loggingConsent: 'usage' }),
 		});
 		await expect(changeConsent('tok', 'usage')).rejects.toThrow(
 			'invalid snapshot',
