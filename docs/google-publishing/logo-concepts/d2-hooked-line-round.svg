@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Concept D2: as D, with a rounder hook and longer stem so the "?" is unmistakable -->
+  <rect width="120" height="120" rx="26" fill="#1F4E5F"/>
+  <g fill="none" stroke="#F4EFE6" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24 32H70a16 16 0 0 1 0 32V70"/>
+    <path d="M24 56H50"/>
+    <path d="M24 86H54"/>
+  </g>
+  <circle cx="70" cy="86" r="5.5" fill="#D98E3A"/>
+</svg>
