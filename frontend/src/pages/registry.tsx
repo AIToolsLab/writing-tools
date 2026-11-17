@@ -115,11 +115,12 @@ export const PAGES: PageDef[] = [
 		title: 'Debug',
 		hint: 'See what the model sees',
 		tier: 'lab',
-		// Deliberately not behind a flag, unlike My Words. A flag is set from the
-		// URL, and the two surfaces whose document handling this page exists to
-		// check — the Word task pane and the Google Docs sidebar — have no
-		// addressable URL (see flags.ts). Gating it would leave it reachable only
-		// where it is least needed. The Labs menu is the cross-surface way in.
+		// Behind a flag so it stays out of the Labs menu that Marketplace reviewers
+		// and beta users see. The Word task pane and the Google Docs sidebar have no
+		// addressable URL for `?ff=`, so on those surfaces turn it on from devtools
+		// (in the sidebar, select the sandboxed userHtmlFrame first):
+		//   localStorage.featureFlags = 'debug'   then reload the add-in.
+		enabled: () => isFlagEnabled('debug'),
 		render: () => <Debug />,
 	},
 ];

@@ -174,7 +174,7 @@ See [docs/google-docs-document-serialization.md](../docs/google-docs-document-se
 for the full mapping, what is deliberately flattened, and how to test it. In
 short: unit tests (`npm test` in `frontend/` — they run this file with a stubbed
 `DocumentApp`, so no `clasp push` is needed to iterate) for the mapping, and the
-**Debug** page in the sidebar's Labs (···) menu for the real round-trip.
+**Debug** page in the sidebar's Labs (···) menu (behind the `debug` flag) for the real round-trip.
 
 ## Key Differences from Word Add-in
 

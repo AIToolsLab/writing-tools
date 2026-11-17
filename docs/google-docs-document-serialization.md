@@ -133,10 +133,18 @@ round-trip — real document, real Apps Script, real bridge — and it works on 
 and the standalone editor too, which makes it the quickest way to compare how
 the two editors serialize the same document.
 
-It is deliberately *not* behind a feature flag. Flags are set from the URL, and
-neither the Word task pane nor the Google Docs sidebar has an addressable URL
-(see `frontend/src/pages/flags.ts`), so gating it would leave it reachable only
-where it is least needed.
+It is behind the `debug` feature flag, so it stays out of the Labs menu that
+beta users and Marketplace reviewers see. Neither the Word task pane nor the
+Google Docs sidebar has an addressable URL for `?ff=debug` (see
+`frontend/src/pages/flags.ts`), so on those surfaces set it from devtools — in
+the Docs sidebar, first switch the frame selector to the sandboxed
+userHtmlFrame — and reload the add-in:
+
+```js
+localStorage.featureFlags = 'debug';
+```
+
+(The value is comma-separated; append to it if other flags are already on.)
 
 **3. The devtools console** — zero code, for a one-off poke. Open devtools on
 the sidebar, switch the frame selector to the sandboxed userHtmlFrame, then:

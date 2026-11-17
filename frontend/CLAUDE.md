@@ -71,7 +71,7 @@ Tables, images, comments, and inline formatting do not survive; see
 **Word** returns plain text with no such markup. A page that comes to depend on
 Markdown structure needs to handle both, or the two surfaces will diverge.
 
-The **Debug** page (Labs menu, `src/pages/debug/`) renders the context exactly as
+The **Debug** page (Labs menu, behind the `debug` flag; `src/pages/debug/`) renders the context exactly as
 the model receives it, with the cursor marked inline. It is the only place the
 serialization is observable — every other page folds it into a prompt, where a
 bad serialization is indistinguishable from the model being confused. Reach for
