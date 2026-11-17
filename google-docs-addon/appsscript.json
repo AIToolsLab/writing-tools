@@ -1,18 +1,6 @@
 {
-  "timeZone": "America/New_York",
+  "timeZone": "America/Detroit",
+  "dependencies": {},
   "exceptionLogging": "STACKDRIVER",
-  "runtimeVersion": "V8",
-  "oauthScopes": [
-    "https://www.googleapis.com/auth/documents.currentonly",
-    "https://www.googleapis.com/auth/script.container.ui",
-    "https://www.googleapis.com/auth/userinfo.email"
-  ],
-  "addOns": {
-    "common": {
-      "name": "Thoughtful",
-      "logoUrl": "https://app.thoughtful-ai.com/assets/logo_black.png",
-      "homepageTrigger": { "runFunction": "onHomepage" }
-    },
-    "docs": {}
-  }
+  "runtimeVersion": "V8"
 }
