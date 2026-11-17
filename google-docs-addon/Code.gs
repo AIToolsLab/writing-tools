@@ -110,135 +110,347 @@ function showSidebar() {
 // Document Operations (called from sidebar via google.script.run)
 // =============================================================================
 
+// =============================================================================
+// Markdown serialization
+// =============================================================================
+//
+// The document is serialized to Markdown rather than bare text because its only
+// consumer is an LLM prompt, and Markdown is the notation those models are most
+// fluent in. Bare text threw away everything the writer had marked: a heading
+// arrived as an ordinary sentence, and a bulleted list arrived as prose — Docs
+// renders bullets and numbers from list formatting, so the glyphs are not
+// characters and `getText()` never returns them.
+//
+// Where Docs is richer than Markdown we flatten to the nearest Markdown form
+// rather than inventing notation, because a fabricated convention is one more
+// thing for the model to misread:
+//
+//   - Title and Heading 1 both become `#`. A document using both loses that
+//     distinction; Markdown's top level is the document title and the overlap
+//     is rare enough not to justify a private convention.
+//   - Subtitle becomes a plain paragraph. It is not an outline level in Docs
+//     (it doesn't appear in the document outline), so giving it a `#` would
+//     claim a section boundary that isn't there.
+//   - Hollow and square bullets become `-`, like round ones. Ordered glyphs
+//     (numbers, latin, roman) all become `N.` and are numbered sequentially.
+//
+// Tables and images are still skipped entirely — see `serializeBody`.
+
+/** One nesting level of list indentation. */
+const LIST_INDENT = '    ';
+
 /**
- * Gets the document context: text before cursor, selected text, and text after cursor.
- * This mirrors the DocContext interface from the frontend.
- * 
+ * The Markdown prefix for a paragraph's named style, `''` for body text.
+ *
+ * @param {ParagraphHeading} heading - The value of `Paragraph.getHeading()`
+ * @returns {string} A Markdown ATX heading prefix, or '' for an ordinary paragraph
+ */
+function headingPrefix(heading) {
+  const headings = DocumentApp.ParagraphHeading;
+  switch (heading) {
+    case headings.TITLE:
+    case headings.HEADING1:
+      return '# ';
+    case headings.HEADING2:
+      return '## ';
+    case headings.HEADING3:
+      return '### ';
+    case headings.HEADING4:
+      return '#### ';
+    case headings.HEADING5:
+      return '##### ';
+    case headings.HEADING6:
+      return '###### ';
+    default:
+      // NORMAL, SUBTITLE, and anything a future Docs version adds.
+      return '';
+  }
+}
+
+/**
+ * Whether a list glyph is a counter (1., a., i.) rather than a bullet.
+ *
+ * @param {GlyphType} glyph - The value of `ListItem.getGlyphType()`
+ * @returns {boolean} True for ordered glyphs
+ */
+function isOrderedGlyph(glyph) {
+  const glyphs = DocumentApp.GlyphType;
+  return (
+    glyph === glyphs.NUMBER ||
+    glyph === glyphs.LATIN_UPPER ||
+    glyph === glyphs.LATIN_LOWER ||
+    glyph === glyphs.ROMAN_UPPER ||
+    glyph === glyphs.ROMAN_LOWER
+  );
+}
+
+/**
+ * The Markdown prefix for one list item: indentation plus its marker.
+ *
+ * Ordered items are numbered rather than all emitted as `1.`, which Markdown
+ * would also accept. The numbers are what make an item referenceable — a writer
+ * asking about "the third step" and a model answering about it need the same
+ * label — and they cost only the counter bookkeeping here.
+ *
+ * @param {ListItem} item - The list item to label
+ * @param {Object} counters - Per-list counters, carried across calls and mutated
+ * @returns {string} Indentation followed by `- ` or `N. `
+ */
+function listItemPrefix(item, counters) {
+  const level = item.getNestingLevel();
+  let indent = '';
+  for (let i = 0; i < level; i++) indent += LIST_INDENT;
+
+  if (!isOrderedGlyph(item.getGlyphType())) {
+    return indent + '- ';
+  }
+
+  // Numbering is per list and per depth: `getListId()` is shared by every item
+  // Docs considers one list, and returning to a shallower level restarts the
+  // deeper ones, exactly as the editor renders them.
+  const listId = item.getListId();
+  let counts = counters[listId];
+  if (!counts) {
+    counts = [];
+    counters[listId] = counts;
+  }
+  counts.length = level + 1;
+  counts[level] = (counts[level] || 0) + 1;
+  return indent + counts[level] + '. ';
+}
+
+/**
+ * Serializes a body (or tab body) to Markdown, along with an index recording
+ * where each top-level child's own text landed in the output.
+ *
+ * The index is what lets `getDocContext` place the cursor exactly. The previous
+ * implementation searched the flattened text for the selected string, which
+ * mislocated repeated phrases and failed outright once prefixes existed — the
+ * selected text of a heading does not contain the `## ` we inserted in front of
+ * it. Positions are now derived from the element the cursor is actually in.
+ *
+ * Tables and images are skipped, as they were before Markdown: their text never
+ * reached the model, and turning them into Markdown tables is its own change.
+ *
+ * @param {Body} body - The body element to serialize
+ * @returns {{markdown: string, blocks: Array<?{start: number, prefixLength: number, textLength: number}>}}
+ *   `blocks` is indexed by body child index; entries are null for skipped children.
+ */
+function serializeBody(body) {
+  const blocks = [];
+  const counters = {};
+  const numChildren = body.getNumChildren();
+
+  let markdown = '';
+  let previousWasListItem = false;
+
+  for (let i = 0; i < numChildren; i++) {
+    const child = body.getChild(i);
+    const type = child.getType();
+
+    let prefix = '';
+    let text = '';
+    let isListItem = false;
+
+    if (type === DocumentApp.ElementType.LIST_ITEM) {
+      const item = child.asListItem();
+      prefix = listItemPrefix(item, counters);
+      text = item.getText();
+      isListItem = true;
+    } else if (type === DocumentApp.ElementType.PARAGRAPH) {
+      const paragraph = child.asParagraph();
+      prefix = headingPrefix(paragraph.getHeading());
+      text = paragraph.getText();
+    } else {
+      // Tables, images, page breaks, anything unsupported.
+      blocks.push(null);
+      continue;
+    }
+
+    // An empty paragraph is spacing the writer inserted, not content. Emitting
+    // it would add a second blank line on top of the one that already separates
+    // blocks, so record its position (the cursor can sit in one) and emit
+    // nothing.
+    if (text === '' && !isListItem) {
+      blocks.push({ start: markdown.length, prefixLength: 0, textLength: 0 });
+      continue;
+    }
+
+    if (markdown !== '') {
+      // Consecutive list items are one list, so a single newline. Everything
+      // else needs the blank line that separates Markdown blocks.
+      markdown += previousWasListItem && isListItem ? '\n' : '\n\n';
+    }
+
+    const start = markdown.length;
+    markdown += prefix + text;
+    blocks.push({
+      start: start,
+      prefixLength: prefix.length,
+      textLength: text.length
+    });
+    previousWasListItem = isListItem;
+  }
+
+  return { markdown: markdown, blocks: blocks };
+}
+
+/** The Markdown rendering of a body, without the position index. */
+function bodyToMarkdown(body) {
+  return serializeBody(body).markdown;
+}
+
+/**
+ * Finds which top-level body child contains an element, walking up from
+ * wherever the cursor or range actually points (usually a Text run inside a
+ * paragraph).
+ *
+ * @param {Body} body - The body to index into
+ * @param {Element} element - Any element beneath it
+ * @returns {?number} The body child index, or null if the element isn't under it
+ */
+function topLevelChildIndex(body, element) {
+  let current = element;
+
+  // Bounded because a malformed parent chain must not hang the 6-minute
+  // execution budget; real documents nest a handful of levels at most.
+  for (let depth = 0; current && depth < 64; depth++) {
+    let parent;
+    try {
+      parent = current.getParent();
+    } catch (e) {
+      return null;
+    }
+    if (!parent) return null;
+
+    if (parent.getType() === DocumentApp.ElementType.BODY_SECTION) {
+      try {
+        return body.getChildIndex(current);
+      } catch (e) {
+        return null;
+      }
+    }
+    current = parent;
+  }
+
+  return null;
+}
+
+/**
+ * Maps a position inside a document element to an offset in the serialized
+ * Markdown.
+ *
+ * @param {Body} body - The serialized body
+ * @param {Object} serialized - The result of `serializeBody`
+ * @param {Element} element - The element the position is in
+ * @param {number} offsetInText - Offset within that element's text
+ * @returns {?number} An offset into `serialized.markdown`, or null if unmappable
+ */
+function markdownOffset(body, serialized, element, offsetInText) {
+  const index = topLevelChildIndex(body, element);
+  if (index === null) return null;
+
+  const block = serialized.blocks[index];
+  if (!block) return null;
+
+  const clamped = Math.max(0, Math.min(offsetInText, block.textLength));
+  return block.start + block.prefixLength + clamped;
+}
+
+/**
+ * Maps one end of a selection to an offset in the serialized Markdown.
+ *
+ * A wholly-selected element starts at its Markdown prefix rather than after it,
+ * so selecting a heading yields `## Heading` — the prefix is part of that span
+ * of the document, and including it keeps
+ * `beforeCursor + selectedText + afterCursor` equal to the full Markdown.
+ *
+ * @param {Body} body - The serialized body
+ * @param {Object} serialized - The result of `serializeBody`
+ * @param {RangeElement} rangeElement - One element of the selection
+ * @param {boolean} isEnd - True for the trailing edge of the selection
+ * @returns {?number} An offset into `serialized.markdown`, or null if unmappable
+ */
+function selectionEdgeOffset(body, serialized, rangeElement, isEnd) {
+  const element = rangeElement.getElement();
+  const index = topLevelChildIndex(body, element);
+  if (index === null) return null;
+
+  const block = serialized.blocks[index];
+  if (!block) return null;
+
+  if (rangeElement.isPartial()) {
+    const offset = isEnd
+      ? rangeElement.getEndOffsetInclusive() + 1
+      : rangeElement.getStartOffset();
+    const clamped = Math.max(0, Math.min(offset, block.textLength));
+    return block.start + block.prefixLength + clamped;
+  }
+
+  return isEnd
+    ? block.start + block.prefixLength + block.textLength
+    : block.start;
+}
+
+/**
+ * Gets the document context: Markdown before the cursor, the selected Markdown,
+ * and the Markdown after it. This mirrors the DocContext interface from the
+ * frontend, and the three pieces always concatenate back to the whole document.
+ *
  * @returns {Object} DocContext object with beforeCursor, selectedText, afterCursor
  */
 function getDocContext() {
   const doc = DocumentApp.getActiveDocument();
   const body = doc.getBody();
-  
-  // Extract only text content, ignoring images, tables, etc.
-  const fullText = extractTextOnly(body);
-  
+
+  const serialized = serializeBody(body);
+  const markdown = serialized.markdown;
+
   const selection = doc.getSelection();
   const cursor = doc.getCursor();
-  
-  let beforeCursor = '';
-  let selectedText = '';
-  let afterCursor = '';
-  
+
   if (selection) {
-    // There's a selection
     const elements = selection.getRangeElements();
-    
     if (elements.length > 0) {
-      // Get selected text
-      const selectedParts = [];
-      for (let i = 0; i < elements.length; i++) {
-        const element = elements[i];
-        const text = element.getElement().asText();
-        if (text) {
-          if (element.isPartial()) {
-            selectedParts.push(text.getText().substring(
-              element.getStartOffset(),
-              element.getEndOffsetInclusive() + 1
-            ));
-          } else {
-            selectedParts.push(text.getText());
-          }
-        }
-      }
-      selectedText = selectedParts.join('');
-      
-      // Find the selection in the full text to determine before/after
-      const selectionStart = fullText.indexOf(selectedText);
-      if (selectionStart !== -1) {
-        beforeCursor = fullText.substring(0, selectionStart);
-        afterCursor = fullText.substring(selectionStart + selectedText.length);
+      const start = selectionEdgeOffset(body, serialized, elements[0], false);
+      const end = selectionEdgeOffset(
+        body,
+        serialized,
+        elements[elements.length - 1],
+        true
+      );
+
+      if (start !== null && end !== null && end >= start) {
+        return {
+          beforeCursor: markdown.substring(0, start),
+          selectedText: markdown.substring(start, end),
+          afterCursor: markdown.substring(end)
+        };
       }
     }
   } else if (cursor) {
-    // There's just a cursor, no selection
-    const cursorElement = cursor.getElement();
-    const cursorOffset = cursor.getOffset();
-    
-    // Get the text element containing the cursor
-    const textElement = cursorElement.asText ? cursorElement.asText() : null;
-    
-    if (textElement) {
-      // Find the position in the full document
-      const textContent = textElement.getText();
-      const textStart = fullText.indexOf(textContent);
-      
-      if (textStart !== -1) {
-        const absolutePosition = textStart + cursorOffset;
-        beforeCursor = fullText.substring(0, absolutePosition);
-        afterCursor = fullText.substring(absolutePosition);
-      }
+    const position = markdownOffset(
+      body,
+      serialized,
+      cursor.getElement(),
+      cursor.getOffset()
+    );
+    if (position !== null) {
+      return {
+        beforeCursor: markdown.substring(0, position),
+        selectedText: '',
+        afterCursor: markdown.substring(position)
+      };
     }
-  } else {
-    // No selection and no cursor - return full document as "before"
-    beforeCursor = fullText;
   }
-  
-  return {
-    beforeCursor: beforeCursor,
-    selectedText: selectedText,
-    afterCursor: afterCursor
-  };
-}
 
-/**
- * Extracts only text content from a document element, ignoring images, tables, etc.
- * 
- * @param {Element} element - The document element to extract text from
- * @returns {string} Text content only
- */
-function extractTextOnly(element) {
-  let text = '';
-  
-  // Get child elements
-  const numChildren = element.getNumChildren();
-  for (let i = 0; i < numChildren; i++) {
-    const child = element.getChild(i);
-    const elementType = child.getType();
-    
-    // Only process text-containing elements
-    if (elementType === DocumentApp.ElementType.PARAGRAPH ||
-        elementType === DocumentApp.ElementType.LIST_ITEM ||
-        elementType === DocumentApp.ElementType.TEXT) {
-      // Try to get text
-      try {
-        const childText = child.asText ? child.asText() : null;
-        if (childText) {
-          text += childText.getText();
-        }
-      } catch (e) {
-        // Skip elements that can't be converted to text
-        continue;
-      }
-    } else if (elementType === DocumentApp.ElementType.TABLE) {
-      // Skip tables
-      continue;
-    } else if (elementType === DocumentApp.ElementType.INLINE_IMAGE || 
-               elementType === DocumentApp.ElementType.IMAGE ||
-               elementType === DocumentApp.ElementType.UNSUPPORTED) {
-      // Skip images and unsupported elements
-      continue;
-    } else {
-      // For other container types, recursively extract text
-      try {
-        text += extractTextOnly(child);
-      } catch (e) {
-        continue;
-      }
-    }
-  }
-  
-  return text;
+  // No cursor, no selection, or a position we couldn't place: the whole
+  // document is "before", which is what an append-at-the-end caller expects.
+  return {
+    beforeCursor: markdown,
+    selectedText: '',
+    afterCursor: ''
+  };
 }
 
 /**
@@ -513,7 +725,7 @@ function getAllTabs() {
     return tabs.map(function(tab) {
       var text = '';
       try {
-        text = extractTextOnly(tab.asDocumentTab().getBody());
+        text = bodyToMarkdown(tab.asDocumentTab().getBody());
       } catch (e) { /* skip */ }
       return { id: tab.getId(), title: tab.getTitle(), text: text };
     });
@@ -522,7 +734,7 @@ function getAllTabs() {
     return [{
       id: doc.getId(),
       title: 'Main',
-      text: extractTextOnly(doc.getBody())
+      text: bodyToMarkdown(doc.getBody())
     }];
   }
 }
