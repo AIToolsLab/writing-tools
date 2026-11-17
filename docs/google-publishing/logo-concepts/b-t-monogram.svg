@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Concept B: lowercase "t" monogram with an accent dot — the name, nothing literal about AI or writing -->
+  <rect width="120" height="120" rx="26" fill="#F4EFE6"/>
+  <path d="M54 24v58c0 9 5 14 14 14h10" fill="none" stroke="#1F4E5F" stroke-width="13" stroke-linecap="round"/>
+  <path d="M34 46h42" stroke="#1F4E5F" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="90" cy="46" r="7" fill="#D98E3A"/>
+</svg>

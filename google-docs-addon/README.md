@@ -52,8 +52,10 @@ operations. All backend traffic (chat, revise, logging) goes from the React app
 
 ### Initial Setup (First time on a new machine)
 
-> ⚠️ The `.clasp.json` in this repo is linked to the original developer's Google account.
-> You must create your **own** Apps Script project to overwrite it.
+> ⚠️ The `.clasp.json` in this repo points at the **production** Apps Script project
+> (the one the Marketplace listing serves). Only push to it when you mean to release.
+> To develop on your own copy, create your own project as below and don't commit the
+> resulting `.clasp.json`.
 
 1. **Install clasp globally:**
    ```bash
@@ -72,7 +74,7 @@ operations. All backend traffic (chat, revise, logging) goes from the React app
 
 4. **Create your own Apps Script project (overwrites `.clasp.json`):**
 
-   The repo includes a `.clasp.json` linked to another developer's account. You need to delete it first, then create your own:
+   The repo's `.clasp.json` points at production. Delete it first, then create your own:
    ```bash
    cd google-docs-addon
    rm .clasp.json
@@ -172,33 +174,50 @@ build output.
 
 ## OAuth Scopes
 
-The add-on requests these scopes, declared explicitly in the `oauthScopes` block
-of `appsscript.json`:
+`appsscript.json` has no `oauthScopes` block, so Apps Script **infers** the scopes
+from the code. Today that yields:
 
-- `documents.currentonly` — read/edit only the current document (`DocumentApp`)
+- `documents.currentonly` — read/edit only the current document (`DocumentApp`,
+  limited by the `@OnlyCurrentDoc` annotation at the top of `Code.gs`)
 - `script.container.ui` — show the add-on menu and sidebar (`DocumentApp.getUi()`)
 - `userinfo.email` — identify the current user (`Session.getActiveUser()`)
 
+The Marketplace SDK's App Configuration page lists scopes separately, and they must
+match what the script actually requests. Because they're inferred, any change to
+`Code.gs` that touches a new service (e.g. the Drive API for comments, #580) changes
+the scopes silently — check the project's **Overview → Project OAuth Scopes** in the
+Apps Script editor after such a change and update the SDK page to match.
+
 Apps Script makes no outbound HTTP calls: the React sidebar fetches the backend
 (and its own JS/CSS bundle) directly from the browser, which needs no Apps Script
-scope. So `script.external_request` and `urlFetchWhitelist` are **not** declared —
-don't re-add them unless you introduce a `UrlFetchApp` call in `Code.gs`.
+scope.
+
+`onHomepage`/`createHomepageCard` in `Code.gs` are leftovers from a Google Workspace
+add-on (card UI) manifest. This is an **Editor** add-on (menu + HtmlService sidebar),
+the manifest no longer references them, and they don't run.
 
 ## Deployment
+
+See [../docs/google-publishing/README.md](../docs/google-publishing/README.md) for the
+full Marketplace publishing checklist (consent screen, listing, review).
 
 ### Test Deployment
 
 1. Push latest code: `clasp push`
-2. Create test deployment in Apps Script editor
-3. Install for testing
+2. In the Apps Script editor: **Deploy → Test deployments**, pick a test document
+3. Open the doc: **Extensions → Thoughtful → Open Thoughtful**
 
-### Production Deployment
+### Releasing a new version
 
-1. Build the frontend: `npm run build:google-docs`
-2. Push to Apps Script: `clasp push`
-3. Create a new version: `clasp version "v1.0.0"`
-4. Deploy: `clasp deploy --versionNumber <version>`
-5. Submit for Google Workspace Marketplace review (if distributing publicly)
+Editor add-ons are published by **script version number**, not deployment ID.
+
+1. Ship the frontend first if the release depends on it (the sidebar loads the
+   production bundle from the backend container, which deploys separately).
+2. `clasp push` (from this folder; `.clasp.json` points at production)
+3. `clasp version "short description"` → prints the new version number
+   (UI equivalent: **Deploy → New deployment**, type *Add-on*, which creates a version)
+4. Marketplace SDK → **App Configuration** → *Docs add-on* → set **Script version**
+   to that number → **Save**
 
 ## Troubleshooting
 

@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Concept A: a text caret inside a thought bubble — "thinking happens where you're writing" -->
+  <rect width="120" height="120" rx="26" fill="#1F4E5F"/>
+  <path d="M60 22c-21 0-38 13.4-38 30s17 30 38 30c3.6 0 7-.4 10.3-1.1L84 92l-1.6-15.6C92 70.9 98 62 98 52c0-16.6-17-30-38-30z" fill="#F4EFE6"/>
+  <circle cx="34" cy="96" r="5" fill="#F4EFE6"/>
+  <g stroke="#1F4E5F" stroke-width="5" stroke-linecap="round" fill="none">
+    <path d="M60 37v30"/>
+    <path d="M51 37h18M51 67h18"/>
+  </g>
+</svg>
