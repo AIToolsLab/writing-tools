@@ -134,7 +134,11 @@ export default function AIPanel({
   const studyCondition = useAtomValue(studyConditionAtom);
   const mode = isStudyMode ? studyCondition : undefined;
   const autoRefreshInterval = studyParams.autoRefreshInterval;
-  const previousRequestRef = useRef<{ editorState: TextEditorState; mode: string; chatMessageCount: number } | null>(null);
+  // Key of the last request that produced a suggestion. Only set on success,
+  // so a failed request is retried on the next tick even if nothing changed.
+  const lastSucceededRequestKeyRef = useRef<string | null>(null);
+  // A slow request can outlast the auto-refresh interval; don't stack another on top.
+  const isRequestInFlightRef = useRef(false);
   const previousResponseRef = useRef<GenerationResult | null>(null);
 
   const save = useCallback((generation: GenerationResult, document: TextEditorState) => {
@@ -150,51 +154,42 @@ export default function AIPanel({
 
   const getSuggestion = useCallback(
     async (suggestionMode?: string, isAutoRefresh = false) => {
-      setErrorMsg('');
-      setIsLoading(true);
+      // Guards come first and leave the panel as it is: a skipped tick must not
+      // clear an error or flash the spinner.
+      if (isRequestInFlightRef.current) return;
 
       // Use provided mode or fall back to component mode
       const modeToUse = suggestionMode || mode;
       if (!modeToUse) {
         setErrorMsg('No mode specified');
-        setIsLoading(false);
         return;
       }
 
+      const editorState = writingAreaRef?.current?.getEditorState();
+      if (!editorState) {
+        setErrorMsg('Unable to read editor state');
+        return;
+      }
+
+      // Too little text to generate a suggestion. Suggestions are requested
+      // automatically, so just silently skip.
+      const currentText = editorState.beforeCursor + editorState.selectedText + editorState.afterCursor;
+      if (currentText.trim().length < MIN_TEXT_LENGTH_FOR_SUGGESTION) return;
+
+      const conversationHistory = chatConversation?.length ? chatConversation : undefined;
+      const chatMessageCount = conversationHistory?.length ?? 0;
+
+      // Skip if this exact request (content, mode, and conversation state)
+      // already produced a suggestion
+      const requestKey = JSON.stringify({ editorState, mode: modeToUse, chatMessageCount });
+      if (requestKey === lastSucceededRequestKeyRef.current) return;
+
+      isRequestInFlightRef.current = true;
+      setErrorMsg('');
+      setIsLoading(true);
+
       try {
-        // Get current editor state
-        const editorState = writingAreaRef?.current?.getEditorState();
-        if (!editorState) {
-          setErrorMsg('Unable to read editor state');
-          return;
-        }
-
-        // Check if there's not enough text to bother making a request
-        const currentText = editorState.beforeCursor + editorState.selectedText + editorState.afterCursor;
-        if (currentText.trim().length < MIN_TEXT_LENGTH_FOR_SUGGESTION) {
-          // Too little text to generate a suggestion
-          // But suggestions are automatically requested, so just silently skip
-          setIsLoading(false);
-          return;
-        }
-
-        // Format conversation history if available
-        const conversationHistory = chatConversation?.length ? chatConversation : undefined;
-        const chatMessageCount = conversationHistory?.length ?? 0;
-
-        // Check if this is a duplicate request (same content, mode, and conversation state)
-        if (
-          previousRequestRef.current &&
-          JSON.stringify(previousRequestRef.current.editorState) === JSON.stringify(editorState) &&
-          previousRequestRef.current.mode === modeToUse &&
-          previousRequestRef.current.chatMessageCount === chatMessageCount
-        ) {
-          setIsLoading(false);
-          return;
-        }
-
         docContextRef.current = editorState;
-        previousRequestRef.current = { editorState, mode: modeToUse, chatMessageCount };
 
         // Log AI request in study mode
         if (isStudyMode) {
@@ -236,6 +231,8 @@ export default function AIPanel({
         };
 
         if (result) {
+          lastSucceededRequestKeyRef.current = requestKey;
+
           // Check if this response is identical to the previous one
           const isDuplicate =
             previousResponseRef.current &&
@@ -263,20 +260,39 @@ export default function AIPanel({
           }
         } else {
           setErrorMsg('Received empty suggestion.');
+          if (isStudyMode) {
+            log({
+              username: studyParams.username,
+              event: `aiError:${modeToUse}`,
+              extra_data: { isAutoRefresh, errorName: 'EmptySuggestion', errorMessage: '' },
+            });
+          }
         }
       } catch (err: unknown) {
-        let errMsg = '';
-        if (err instanceof Error) {
-          if (err.name === 'AbortError') {
-            errMsg = 'Generating a suggestion took too long, please try again.';
-          } else {
-            errMsg = `${err.name}: ${err.message}. Please try again.`;
-          }
+        // Read name/message structurally: DOMException (thrown for timeouts)
+        // isn't an `instanceof Error` in every environment
+        const errorLike = typeof err === 'object' && err !== null && 'name' in err;
+        const name = errorLike ? String(err.name) : typeof err;
+        const message = errorLike && 'message' in err ? String(err.message) : String(err);
+
+        if (name === 'TimeoutError' || name === 'AbortError') {
+          // AbortSignal.timeout() rejects with TimeoutError
+          setErrorMsg('Generating a suggestion took too long, please try again.');
+        } else if (errorLike) {
+          setErrorMsg(`${name}: ${message}. Please try again.`);
         } else {
-          errMsg = 'An error occurred while generating the suggestion.';
+          setErrorMsg('An error occurred while generating the suggestion.');
         }
-        setErrorMsg(errMsg);
+
+        if (isStudyMode) {
+          log({
+            username: studyParams.username,
+            event: `aiError:${modeToUse}`,
+            extra_data: { isAutoRefresh, errorName: name, errorMessage: message },
+          });
+        }
       } finally {
+        isRequestInFlightRef.current = false;
         setIsLoading(false);
       }
     },

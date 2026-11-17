@@ -375,6 +375,7 @@ function analyze(username, raw, parseErrors) {
 
   const aiRequests = entries.filter((e) => e.event?.startsWith('aiRequest:'));
   const aiResponses = entries.filter((e) => e.event?.startsWith('aiResponse:'));
+  const aiErrors = entries.filter((e) => e.event?.startsWith('aiError:'));
   const keystrokes = byEvent('surveyInputUpdate');
   const feedbackUpdates = keystrokes.filter((e) => e.extra_data?.questionId === KEYSTROKE_QUESTION);
   const gitCommits = [...new Set(entries.map((e) => e.gitCommit).filter(Boolean))];
@@ -407,9 +408,13 @@ function analyze(username, raw, parseErrors) {
   }
   if (conditionCode === 'n' && (aiRequests.length || aiResponses.length)) flag('bad', 'AI events in no-AI condition');
   if (conditionCode && conditionCode !== 'n' && taskComplete && !aiResponses.length) flag('warn', 'AI condition but no AI suggestions logged');
-  if (aiRequests.length && aiResponses.length < aiRequests.length) {
+  if (aiErrors.length) {
+    flag('warn', `${aiErrors.length} AI request(s) failed`, [...new Set(aiErrors.map((e) => `${e.extra_data?.errorName}: ${e.extra_data?.errorMessage}`))].join('; '));
+  }
+  const unanswered = aiRequests.length - aiResponses.length - aiErrors.length;
+  if (aiRequests.length && unanswered > 0) {
     // identical consecutive responses aren't logged, so some shortfall is normal
-    flag('info', `${aiRequests.length - aiResponses.length} AI request(s) without logged response`, 'Identical repeat suggestions are not logged; errors aren\'t either');
+    flag('info', `${unanswered} AI request(s) without logged response or error`, 'Identical repeat suggestions are not logged; errors before Nov 2026 weren\'t either');
   }
   if (firstTaskView && !colleagueMsgs.length) flag('bad', 'No colleague messages logged');
   if (taskComplete && !userMsgs.length) flag('info', 'Never messaged the colleague');
@@ -434,7 +439,7 @@ function analyze(username, raw, parseErrors) {
     studyParams, conditionCode, conditionName, scenario: postSurvey?.extra_data?.scenarioId || introSurvey?.extra_data?.scenarioId || studyParams.scenario || '?',
     furthestPage, startedStudy, taskStart, taskComplete, taskT0, introSurvey, postSurvey, introAnswers, postAnswers,
     docUpdates, finalText, finalSubject, draftText, chat, userMsgs, colleagueMsgs, opener,
-    aiRequests, aiResponses, keystrokes, feedbackUpdates, gitCommits, waves, tech, flags,
+    aiRequests, aiResponses, aiErrors, keystrokes, feedbackUpdates, gitCommits, waves, tech, flags,
     start: entries[0]?._t, end: entries[entries.length - 1]?._t,
     taskMs: taskComplete && taskT0 ? taskComplete._t - taskT0 : NaN,
     totalMs: entries.length ? entries[entries.length - 1]._t - entries[0]._t : NaN,
