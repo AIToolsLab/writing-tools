@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Concept D3: as D2, but the line changes colour where it turns into the question -->
+  <rect width="120" height="120" rx="26" fill="#1F4E5F"/>
+  <g fill="none" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24 32H64" stroke="#F4EFE6"/>
+    <path d="M64 32H70a16 16 0 0 1 0 32V70" stroke="#D98E3A"/>
+    <path d="M24 56H50" stroke="#F4EFE6"/>
+    <path d="M24 86H54" stroke="#F4EFE6"/>
+  </g>
+  <circle cx="70" cy="86" r="5.5" fill="#D98E3A"/>
+</svg>

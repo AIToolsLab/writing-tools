@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
+  <!-- Concept D: the paragraph's first line runs on and curls into the hook of a "?"; its dot is the period ending the last line -->
+  <rect width="120" height="120" rx="26" fill="#1F4E5F"/>
+  <g fill="none" stroke="#F4EFE6" stroke-width="9" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24 34H68c11 0 18 7 18 15.5S80 64 70 64.5V68"/>
+    <path d="M24 58H52"/>
+    <path d="M24 82H54"/>
+  </g>
+  <circle cx="70" cy="82" r="5.5" fill="#D98E3A"/>
+</svg>
